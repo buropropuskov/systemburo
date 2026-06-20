@@ -1,4 +1,4 @@
-package services_test
+package handlers_test
 
 import (
 	"context"
@@ -15,11 +15,13 @@ import (
 
 // Тесты фильтра "Доступные мне" (#706, срез BE-S3). DB-backed: реальный Postgres через testutil,
 // сервис конструируется напрямую (методы фильтра используют только db, прочие зависимости nil).
-// Каждый тест изолируется CleanDB; параллелизма нет - общий cachedDB.
+// Живут в пакете handlers_test - единственном DB-использующем тест-бинаре проекта: при `go test
+// ./...` пакеты гоняются параллельно, и второй бинарь с теми же CleanDB/Seed по общей тест-БД
+// ловит FK-гонки. Каждый тест изолируется CleanDB; параллелизма внутри нет - общий cachedDB.
 
-func ptrInt(i int) *int { return &i }
+func secPtrInt(i int) *int { return &i }
 
-type svcWorld struct {
+type secWorld struct {
 	db       *gorm.DB
 	svc      services.ApplicationService
 	orgID    int
@@ -27,26 +29,26 @@ type svcWorld struct {
 	guardID  int
 }
 
-func setupSecurityWorld(t *testing.T) svcWorld {
+func setupSecurityWorld(t *testing.T) secWorld {
 	t.Helper()
 	_, db, cleanup := testutil.SetupTestApp(t)
 	t.Cleanup(cleanup)
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
 
-	secTypeID := userTypeIDByCode(t, db, "security")
-	userTypeID := userTypeIDByCode(t, db, "user")
+	secTypeID := secUserTypeIDByCode(t, db, "security")
+	userTypeID := secUserTypeIDByCode(t, db, "user")
 
-	guard := models.User{Username: "guard1", Password: "x", TypeID: secTypeID, OrganizationID: ptrInt(td.OrgID)}
+	guard := models.User{Username: "guard1", Password: "x", TypeID: secTypeID, OrganizationID: secPtrInt(td.OrgID)}
 	require.NoError(t, db.Create(&guard).Error)
-	sender := models.User{Username: "sender1", Password: "x", TypeID: userTypeID, OrganizationID: ptrInt(td.OrgID)}
+	sender := models.User{Username: "sender1", Password: "x", TypeID: userTypeID, OrganizationID: secPtrInt(td.OrgID)}
 	require.NoError(t, db.Create(&sender).Error)
 
 	svc := services.NewApplicationService(db, nil, nil, nil, nil)
-	return svcWorld{db: db, svc: svc, orgID: td.OrgID, senderID: sender.ID, guardID: guard.ID}
+	return secWorld{db: db, svc: svc, orgID: td.OrgID, senderID: sender.ID, guardID: guard.ID}
 }
 
-func userTypeIDByCode(t *testing.T, db *gorm.DB, code string) int {
+func secUserTypeIDByCode(t *testing.T, db *gorm.DB, code string) int {
 	t.Helper()
 	var id int
 	require.NoError(t, db.Table("user_types").Where("code = ?", code).Select("id").Scan(&id).Error)
@@ -54,7 +56,7 @@ func userTypeIDByCode(t *testing.T, db *gorm.DB, code string) int {
 	return id
 }
 
-func (w svcWorld) newApp(t *testing.T, confirmation string) int {
+func (w secWorld) newApp(t *testing.T, confirmation string) int {
 	t.Helper()
 	now := time.Now()
 	conf := confirmation
@@ -68,50 +70,50 @@ func (w svcWorld) newApp(t *testing.T, confirmation string) int {
 	return app.ID
 }
 
-func (w svcWorld) newAttachment(t *testing.T, appID int, atype string) int {
+func (w secWorld) newAttachment(t *testing.T, appID int, atype string) int {
 	t.Helper()
 	att := models.Attachment{ApplicationID: appID, AttachmentType: atype}
 	require.NoError(t, w.db.Create(&att).Error)
 	return att.ID
 }
 
-func (w svcWorld) newUnloadPlace(t *testing.T, name string, active bool) int {
+func (w secWorld) newUnloadPlace(t *testing.T, name string, active bool) int {
 	t.Helper()
 	p := models.UnloadPlace{Name: name, IsActive: active}
 	require.NoError(t, w.db.Create(&p).Error)
 	return p.ID
 }
 
-func (w svcWorld) newPeopleTable(t *testing.T, name string) int {
+func (w secWorld) newPeopleTable(t *testing.T, name string) int {
 	t.Helper()
 	st := models.SystemTable{Name: name, TableType: "people", IsActive: true}
 	require.NoError(t, w.db.Create(&st).Error)
 	return st.ID
 }
 
-func (w svcWorld) attachPlace(t *testing.T, attID, placeID int) {
+func (w secWorld) attachPlace(t *testing.T, attID, placeID int) {
 	t.Helper()
 	require.NoError(t, w.db.Create(&models.AttachmentUnloadPlace{AttachmentID: attID, UnloadPlaceID: placeID}).Error)
 }
 
-func (w svcWorld) attachEmployeeWithTable(t *testing.T, attID, tableID int) {
+func (w secWorld) attachEmployeeWithTable(t *testing.T, attID, tableID int) {
 	t.Helper()
-	emp := models.Employee{AttachmentID: ptrInt(attID)}
+	emp := models.Employee{AttachmentID: secPtrInt(attID)}
 	require.NoError(t, w.db.Create(&emp).Error)
 	require.NoError(t, w.db.Create(&models.EmployeeTargetTable{EmployeeID: emp.ID, TableID: tableID}).Error)
 }
 
-func (w svcWorld) assignUnloadPlace(t *testing.T, placeID int) {
+func (w secWorld) assignUnloadPlace(t *testing.T, placeID int) {
 	t.Helper()
 	require.NoError(t, w.db.Create(&models.SecurityUserUnloadPlace{UserID: w.guardID, UnloadPlaceID: placeID}).Error)
 }
 
-func (w svcWorld) assignTable(t *testing.T, tableID int) {
+func (w secWorld) assignTable(t *testing.T, tableID int) {
 	t.Helper()
 	require.NoError(t, w.db.Create(&models.SecurityUserTable{UserID: w.guardID, TableID: tableID}).Error)
 }
 
-func containsAttachment(rows []services.AvailableAttachment, attID int) bool {
+func secContainsAttachment(rows []services.AvailableAttachment, attID int) bool {
 	for _, r := range rows {
 		if r.AttachmentID == attID {
 			return true
@@ -156,9 +158,9 @@ func TestGetAvailableAttachments_MatchByUnloadPlace(t *testing.T) {
 	rows, total, err := w.svc.GetAvailableAttachmentsForSecurity(ctx, w.guardID, false, 1, 50)
 	require.NoError(t, err)
 	require.EqualValues(t, 2, total)
-	require.True(t, containsAttachment(rows, carsAtt), "cars at guard place visible")
-	require.True(t, containsAttachment(rows, itemsAtt), "items at guard place visible")
-	require.False(t, containsAttachment(rows, foreignAtt), "attachment at foreign place hidden")
+	require.True(t, secContainsAttachment(rows, carsAtt), "cars at guard place visible")
+	require.True(t, secContainsAttachment(rows, itemsAtt), "items at guard place visible")
+	require.False(t, secContainsAttachment(rows, foreignAtt), "attachment at foreign place hidden")
 }
 
 func TestGetAvailableAttachments_PeopleMatchByTable(t *testing.T) {
@@ -178,8 +180,8 @@ func TestGetAvailableAttachments_PeopleMatchByTable(t *testing.T) {
 	rows, total, err := w.svc.GetAvailableAttachmentsForSecurity(ctx, w.guardID, false, 1, 50)
 	require.NoError(t, err)
 	require.EqualValues(t, 1, total)
-	require.True(t, containsAttachment(rows, peopleAtt), "people at guard passage visible")
-	require.False(t, containsAttachment(rows, foreignAtt), "people at foreign passage hidden")
+	require.True(t, secContainsAttachment(rows, peopleAtt), "people at guard passage visible")
+	require.False(t, secContainsAttachment(rows, foreignAtt), "people at foreign passage hidden")
 }
 
 func TestGetAvailableAttachments_ApprovedGate(t *testing.T) {
@@ -200,8 +202,8 @@ func TestGetAvailableAttachments_ApprovedGate(t *testing.T) {
 	rows, total, err := w.svc.GetAvailableAttachmentsForSecurity(ctx, w.guardID, false, 1, 50)
 	require.NoError(t, err)
 	require.EqualValues(t, 1, total)
-	require.True(t, containsAttachment(rows, approvedAtt))
-	require.False(t, containsAttachment(rows, pendingAtt), "non-approved application hidden")
+	require.True(t, secContainsAttachment(rows, approvedAtt))
+	require.False(t, secContainsAttachment(rows, pendingAtt), "non-approved application hidden")
 }
 
 func TestGetAvailableAttachments_SuperAdminSeesAllApproved(t *testing.T) {
@@ -222,8 +224,8 @@ func TestGetAvailableAttachments_SuperAdminSeesAllApproved(t *testing.T) {
 	rows, total, err := w.svc.GetAvailableAttachmentsForSecurity(ctx, w.guardID, true, 1, 50)
 	require.NoError(t, err)
 	require.EqualValues(t, 1, total, "super-admin sees approved regardless of place, still approved-gated")
-	require.True(t, containsAttachment(rows, approvedAtt))
-	require.False(t, containsAttachment(rows, pendingAtt), "approved-gate applies to super-admin too")
+	require.True(t, secContainsAttachment(rows, approvedAtt))
+	require.False(t, secContainsAttachment(rows, pendingAtt), "approved-gate applies to super-admin too")
 }
 
 func TestGetAvailableAttachments_NoPlacesEmpty(t *testing.T) {
@@ -257,7 +259,7 @@ func TestGetAvailableAttachments_AttachmentWithoutPlacesHidden(t *testing.T) {
 	rows, total, err := w.svc.GetAvailableAttachmentsForSecurity(ctx, w.guardID, false, 1, 50)
 	require.NoError(t, err)
 	require.EqualValues(t, 0, total)
-	require.False(t, containsAttachment(rows, att), "attachment without places must not leak")
+	require.False(t, secContainsAttachment(rows, att), "attachment without places must not leak")
 
 	can, err := w.svc.CanSecurityViewAttachment(ctx, w.guardID, false, att)
 	require.NoError(t, err)
@@ -279,7 +281,7 @@ func TestGetAvailableAttachments_InactivePlaceStillMatches(t *testing.T) {
 	rows, total, err := w.svc.GetAvailableAttachmentsForSecurity(ctx, w.guardID, false, 1, 50)
 	require.NoError(t, err)
 	require.EqualValues(t, 1, total)
-	require.True(t, containsAttachment(rows, att), "inactive place still grants visibility")
+	require.True(t, secContainsAttachment(rows, att), "inactive place still grants visibility")
 }
 
 func TestGetAvailableAttachments_IndependentFromForwardAttachments(t *testing.T) {
@@ -306,8 +308,8 @@ func TestGetAvailableAttachments_IndependentFromForwardAttachments(t *testing.T)
 	rows, total, err := w.svc.GetAvailableAttachmentsForSecurity(ctx, w.guardID, false, 1, 50)
 	require.NoError(t, err)
 	require.EqualValues(t, 2, total, "forward_attachments must not restrict security visibility")
-	require.True(t, containsAttachment(rows, attA))
-	require.True(t, containsAttachment(rows, attB))
+	require.True(t, secContainsAttachment(rows, attA))
+	require.True(t, secContainsAttachment(rows, attB))
 }
 
 func TestGetAvailableAttachments_Pagination(t *testing.T) {
