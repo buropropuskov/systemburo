@@ -1162,9 +1162,8 @@ export default {
     padding: 10px 12px;
     border-radius: 8px;
     font-size: 12px;
-    max-width: 419px;
-    white-space: normal;
-    word-break: break-word;
+    max-width: 420px;
+    min-width: 420px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
 
