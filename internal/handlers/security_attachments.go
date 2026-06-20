@@ -1,0 +1,132 @@
+package handlers
+
+import (
+	"net/http"
+
+	"systemburo/internal/models"
+	"systemburo/internal/services"
+
+	"github.com/labstack/echo/v4"
+)
+
+// availableAttachmentDetail - ответ детального эндпоинта вкладки "Доступные мне" (#706):
+// заголовок вложения с краткой инфо родительской заявки плюс типизированное содержимое.
+// Заполняется только релевантный тип (cars/people/items), остальные опускаются.
+type availableAttachmentDetail struct {
+	Attachment services.AvailableAttachment  `json:"attachment"`
+	Cars       []services.CarWithPlaces      `json:"cars,omitempty"`
+	Employees  []services.EmployeeWithTables `json:"employees,omitempty"`
+	Items      []services.ItemInfo           `json:"items,omitempty"`
+}
+
+// requireSecurityOrAdmin - ролевой гейт вкладки "Доступные мне" (#706): доступ только охраннику
+// (user_types.code='security') или супер-админу. Возвращает (userID, isSuperAdmin) для проброса
+// в сервис фильтрации, либо 403 для прочих типов аккаунтов.
+func (h *ApplicationHandler) requireSecurityOrAdmin(c echo.Context) (int, bool, error) {
+	userID := GetUserID(c)
+	isSuperAdmin := IsSuperAdmin(c)
+	if isSuperAdmin {
+		return userID, true, nil
+	}
+	isSecurity, err := h.service.IsSecurityUser(c.Request().Context(), userID)
+	if err != nil {
+		return 0, false, err
+	}
+	if !isSecurity {
+		return 0, false, echo.NewHTTPError(http.StatusForbidden, "Access denied")
+	}
+	return userID, false, nil
+}
+
+// GetAvailableAttachments godoc
+// @Summary      Доступные мне вложения
+// @Description  Плоский список вложений подтверждённых заявок, доступных охраннику по совпадению мест разгрузки/прохода. Супер-админ видит все подтверждённые вложения. Прочим типам - 403.
+// @Tags         applications
+// @Produce      json
+// @Security     BearerAuth
+// @Param        page     query int false "Номер страницы"
+// @Param        per_page query int false "Размер страницы"
+// @Success      200 {array}  services.AvailableAttachment
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /applications/available-attachments [get]
+func (h *ApplicationHandler) GetAvailableAttachments(c echo.Context) error {
+	userID, isSuperAdmin, err := h.requireSecurityOrAdmin(c)
+	if err != nil {
+		return err
+	}
+
+	var params models.PaginationParams
+	if err := c.Bind(&params); err != nil {
+		params = models.PaginationParams{}
+	}
+	params.Normalize()
+
+	data, total, err := h.service.GetAvailableAttachmentsForSecurity(
+		c.Request().Context(), userID, isSuperAdmin, params.Page, params.PerPage,
+	)
+	if err != nil {
+		return err
+	}
+	return RespondPaginated(c, data, models.PaginationMeta{
+		Total: total, Page: params.Page, PerPage: params.PerPage,
+	})
+}
+
+// GetAvailableAttachmentDetail godoc
+// @Summary      Деталь доступного вложения
+// @Description  Заголовок вложения с инфо заявки и типизированное содержимое (автомобили/сотрудники/ТМЦ). Доступ только охраннику с совпавшим местом или супер-админу, иначе 403.
+// @Tags         applications
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID вложения"
+// @Success      200 {object} handlers.availableAttachmentDetail
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /applications/available-attachments/{id} [get]
+func (h *ApplicationHandler) GetAvailableAttachmentDetail(c echo.Context) error {
+	userID, isSuperAdmin, err := h.requireSecurityOrAdmin(c)
+	if err != nil {
+		return err
+	}
+
+	id, err := ParseID(c, "id")
+	if err != nil {
+		return err
+	}
+
+	ctx := c.Request().Context()
+	canView, err := h.service.CanSecurityViewAttachment(ctx, userID, isSuperAdmin, id)
+	if err != nil {
+		return err
+	}
+	if !canView {
+		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
+	}
+
+	header, err := h.service.GetAvailableAttachmentByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if header == nil {
+		return echo.NewHTTPError(http.StatusNotFound, "Attachment not found")
+	}
+
+	detail := availableAttachmentDetail{Attachment: *header}
+	switch header.AttachmentType {
+	case "cars":
+		detail.Cars, err = h.service.GetAttachmentCars(ctx, id)
+	case "people":
+		detail.Employees, err = h.service.GetAttachmentEmployees(ctx, id)
+	case "items":
+		detail.Items, err = h.service.GetAttachmentItems(ctx, id)
+	}
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, detail)
+}

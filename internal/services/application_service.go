@@ -191,6 +191,11 @@ type ApplicationService interface {
 	// CanSecurityViewAttachment сообщает, доступно ли конкретное вложение охраннику по тем же
 	// правилам, что и листинг (#706). Для 403 на чужое вложение в детальном эндпоинте.
 	CanSecurityViewAttachment(ctx context.Context, userID int, isSuperAdmin bool, attachmentID int) (bool, error)
+
+	// GetAvailableAttachmentByID возвращает заголовок вложения с инфо заявки для детали
+	// "Доступные мне" (#706). nil без ошибки - вложение не найдено. Без проверки доступа,
+	// вызывать после CanSecurityViewAttachment.
+	GetAvailableAttachmentByID(ctx context.Context, attachmentID int) (*AvailableAttachment, error)
 }
 
 // --- DTO: запросы ---

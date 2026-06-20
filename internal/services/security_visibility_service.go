@@ -202,3 +202,27 @@ func (s *applicationService) CanSecurityViewAttachment(ctx context.Context, user
 	}
 	return canView, nil
 }
+
+// GetAvailableAttachmentByID возвращает заголовок одного вложения с краткой инфо родительской
+// заявки для детального экрана "Доступные мне" (#706). Проекция совпадает с листингом
+// (availableAttachmentSelect), без предиката доступа: вызывающий хендлер уже проверил видимость
+// через CanSecurityViewAttachment. nil без ошибки означает "вложение не найдено" (явный сигнал
+// для 404, реальные ошибки БД пробрасываются).
+func (s *applicationService) GetAvailableAttachmentByID(ctx context.Context, attachmentID int) (*AvailableAttachment, error) {
+	sql := `SELECT ` + availableAttachmentSelect + `
+		FROM attachments a
+		JOIN applications app ON app.id = a.application_id
+		LEFT JOIN organizations o ON o.id = app.organization_id
+		LEFT JOIN companies c ON c.id = app.company_id
+		LEFT JOIN users su ON su.id = app.sender_user_id
+		WHERE a.id = ?`
+
+	var row AvailableAttachment
+	if err := s.db.WithContext(ctx).Raw(sql, attachmentID).Scan(&row).Error; err != nil {
+		return nil, fmt.Errorf("failed to fetch available attachment: %w", err)
+	}
+	if row.AttachmentID == 0 {
+		return nil, nil
+	}
+	return &row, nil
+}
