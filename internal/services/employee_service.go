@@ -325,6 +325,7 @@ func (s *employeeService) UpdateEmployeeTerritoryStatus(ctx context.Context, emp
 			ActionType: actionType,
 			Comment:    &comment,
 			CreatedAt:  now,
+			TableID:    req.TableID,
 		}
 		if err := tx.Create(&history).Error; err != nil {
 			slog.Error("не удалось добавить запись в историю сотрудника", "employee_id", employeeID, "action_type", actionType, "error", err)

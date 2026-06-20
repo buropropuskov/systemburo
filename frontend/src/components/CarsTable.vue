@@ -935,7 +935,7 @@ export default {
         let territory_status = type === 'entry' ? 1 : 2;
         const response = await apiRequest(`/cars/${item.id}/territory-status`, {
           method: "PUT",
-          body: JSON.stringify({ territory_status, user_id: this.currentUserId })
+          body: JSON.stringify({ territory_status, user_id: this.currentUserId, table_id: this.tableId })
         });
         if (response.ok) {
           const index = this.itemsData.findIndex(i => i.id === item.id);

@@ -106,6 +106,9 @@ type AddCarHistoryRequest struct {
 type UpdateTerritoryStatusRequest struct {
 	TerritoryStatus int  `json:"territory_status"`
 	UserID          *int `json:"user_id"`
+	// TableID -- таблица (КПП), из которой отмечен въезд/выезд; пишется в историю,
+	// чтобы в карточке истории было видно, где произошло событие.
+	TableID *int `json:"table_id"`
 }
 
 // DeactivateCarRequest -- тело запроса деактивации автомобиля.
@@ -184,6 +187,8 @@ type CarHistoryItemResponse struct {
 	CarBrand      *string          `json:"car_brand"`
 	Organization  *string          `json:"organization"`
 	Company       *string          `json:"company"`
+	TableID       *int             `json:"table_id"`
+	TableName     *string          `json:"table_name"`
 }
 
 // AllCarsHistoryItem -- элемент общей истории (только entry/exit).
@@ -199,6 +204,8 @@ type AllCarsHistoryItem struct {
 	CarBrand     *string `json:"car_brand"`
 	Organization *string `json:"organization"`
 	Company      *string `json:"company"`
+	TableID      *int    `json:"table_id"`
+	TableName    *string `json:"table_name"`
 }
 
 // CarCurrentStatus -- текущий территориальный статус автомобиля.
