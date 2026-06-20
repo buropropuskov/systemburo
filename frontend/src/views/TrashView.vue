@@ -324,7 +324,6 @@
 <script>
 import ExcelJS from 'exceljs';
 import { apiRequest } from '@/api/client';
-import { useUiStore } from '@/stores/ui';
 import { useDeletionsStore } from '@/stores/deletions';
 import { listTrash, restoreItems, purgeItem, clearTrash } from '@/api/trash';
 import SearchComponent from '@/components/SearchComponent.vue';
@@ -508,7 +507,7 @@ export default {
         const data = await listTrash(this.tableID, params);
         this.items = Array.isArray(data) ? data : [];
       } catch {
-        useUiStore().error('Не удалось загрузить корзину');
+        useDeletionsStore().notify({ prefix: 'Не удалось загрузить корзину', type: 'error' });
       } finally {
         this.isLoading = false;
       }
@@ -635,13 +634,13 @@ export default {
       try {
         const response = await apiRequest(`/applications/${applicationId}/details`, {});
         if (!response.ok) {
-          useUiStore().error('Не удалось загрузить заявку');
+          useDeletionsStore().notify({ prefix: 'Не удалось загрузить заявку', type: 'error' });
           return;
         }
         this.selectedApplication = await response.json();
         this.showApplicationDetail = true;
       } catch {
-        useUiStore().error('Не удалось загрузить заявку');
+        useDeletionsStore().notify({ prefix: 'Не удалось загрузить заявку', type: 'error' });
       }
     },
     closeApplicationDetail() {
@@ -659,11 +658,11 @@ export default {
           this.notifyRestored(r, firstItem);
         }
         if (r < req) {
-          useUiStore().warning(`Восстановлено ${r} из ${req}. У остальных нет активной согласованной заявки.`);
+          useDeletionsStore().notify({ prefix: `Восстановлено ${r} из ${req}. У остальных нет активной согласованной заявки.`, type: 'error' });
         }
         await this.reload();
       } catch {
-        useUiStore().error('Не удалось восстановить');
+        useDeletionsStore().notify({ prefix: 'Не удалось восстановить', type: 'error' });
       }
     },
     notifyRestored(count, firstItem) {
@@ -718,19 +717,19 @@ export default {
     async purgeOne(id) {
       try {
         await purgeItem(this.tableID, id);
-        useUiStore().success('Запись удалена безвозвратно');
+        useDeletionsStore().notify({ prefix: 'Запись удалена безвозвратно' });
         await this.reload();
       } catch {
-        useUiStore().error('Не удалось удалить');
+        useDeletionsStore().notify({ prefix: 'Не удалось удалить', type: 'error' });
       }
     },
     async clearAllConfirmed() {
       try {
         const result = await clearTrash(this.tableID);
-        useUiStore().success(`Корзина очищена: ${(result && result.purged) || 0} запис(ей)`);
+        useDeletionsStore().notify({ prefix: `Корзина очищена: ${(result && result.purged) || 0} запис(ей)` });
         await this.reload();
       } catch {
-        useUiStore().error('Не удалось очистить');
+        useDeletionsStore().notify({ prefix: 'Не удалось очистить', type: 'error' });
       }
     },
     openHistory() {
@@ -802,7 +801,7 @@ export default {
         window.URL.revokeObjectURL(url);
       } catch (e) {
         console.error('Ошибка экспорта корзины', e);
-        useUiStore().error('Ошибка при экспорте');
+        useDeletionsStore().notify({ prefix: 'Ошибка при экспорте', type: 'error' });
       } finally {
         this.isExporting = false;
       }

@@ -390,6 +390,8 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { useDeletionsStore } from '@/stores/deletions';
+import { useUiStore } from '@/stores/ui';
 import SearchComponent from '@/components/SearchComponent.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
@@ -653,20 +655,31 @@ export default {
         },
 
         async deleteEmployee(employee) {
-            if (confirm(`Вы уверены, что хотите удалить сотрудника ${this.formatFullName(employee)}?`)) {
-                try {
-                    const response = await apiRequest(`/unique-employees/${employee.id}`, {
-                        method: "DELETE"});
+            const fullName = this.formatFullName(employee);
+            const ok = await useUiStore().confirm({
+                title: 'Удаление сотрудника',
+                message: `Вы уверены, что хотите удалить сотрудника ${fullName}?`,
+                confirmText: 'Удалить',
+                danger: true,
+            });
+            if (!ok) return;
+            try {
+                const response = await apiRequest(`/unique-employees/${employee.id}`, {
+                    method: "DELETE"});
 
-                    if (response.ok) {
-                        await this.fetchEmployees();
-                    } else {
-                        alert("Ошибка при удалении сотрудника");
-                    }
-                } catch (error) {
-                    console.error("Ошибка при удалении сотрудника:", error);
-                    alert("Ошибка при удалении сотрудника");
+                if (response.ok) {
+                    await this.fetchEmployees();
+                    useDeletionsStore().notify({
+                        prefix: 'Сотрудник ',
+                        bold: fullName,
+                        suffix: ' удалён',
+                    });
+                } else {
+                    useDeletionsStore().notify({ prefix: 'Ошибка при удалении сотрудника', type: 'error' });
                 }
+            } catch (error) {
+                console.error("Ошибка при удалении сотрудника:", error);
+                useDeletionsStore().notify({ prefix: 'Ошибка при удалении сотрудника', type: 'error' });
             }
         },
 

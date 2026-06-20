@@ -295,16 +295,6 @@
       </div>
     </div>
 
-    <!-- Toast-уведомление -->
-    <transition name="toast-fade">
-      <div
-        v-if="toast.visible"
-        class="toast"
-        :class="'toast--' + toast.type"
-      >
-        {{ toast.message }}
-      </div>
-    </transition>
   </section>
 </template>
 
@@ -338,12 +328,6 @@ export default {
       },
       availableImageTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'],
       availableDocTypes: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'],
-      toast: {
-        visible: false,
-        message: '',
-        type: 'success',
-        timer: null,
-      },
     };
   },
   computed: {
@@ -371,11 +355,6 @@ export default {
   },
   mounted() {
     this.fetchSettings();
-  },
-  beforeUnmount() {
-    if (this.toast.timer) {
-      clearTimeout(this.toast.timer);
-    }
   },
   methods: {
     async fetchSettings() {
@@ -452,10 +431,10 @@ export default {
         await updateSetting('upload.max_file_size', String(this.settings.max_file_size));
         await updateSetting('upload.allowed_image_types', JSON.stringify(this.selectedImageTypes));
         await updateSetting('upload.allowed_doc_types', JSON.stringify(this.selectedDocTypes));
-        this.showToast('Настройки загрузки сохранены', 'success');
+        useDeletionsStore().notify({ prefix: 'Настройки загрузки сохранены' });
       } catch (error) {
         console.error('Ошибка сохранения:', error);
-        this.showToast('Ошибка сохранения настроек', 'error');
+        useDeletionsStore().notify({ prefix: 'Ошибка сохранения настроек', type: 'error' });
       } finally {
         this.saving = false;
       }
@@ -464,16 +443,16 @@ export default {
     async savePaginationSettings() {
       const value = this.settings.max_per_page;
       if (value < 10 || value > 500) {
-        this.showToast('Значение должно быть от 10 до 500', 'error');
+        useDeletionsStore().notify({ prefix: 'Значение должно быть от 10 до 500', type: 'error' });
         return;
       }
       this.saving = true;
       try {
         await updateSetting('pagination.max_per_page', String(value));
-        this.showToast('Настройки пагинации сохранены', 'success');
+        useDeletionsStore().notify({ prefix: 'Настройки пагинации сохранены' });
       } catch (error) {
         console.error('Ошибка сохранения:', error);
-        this.showToast('Ошибка сохранения настроек', 'error');
+        useDeletionsStore().notify({ prefix: 'Ошибка сохранения настроек', type: 'error' });
       } finally {
         this.saving = false;
       }
@@ -482,13 +461,13 @@ export default {
     async saveNotificationSettings() {
       const interval = this.settings.notifications_poll_interval;
       if (interval < 10 || interval > 120) {
-        this.showToast('Интервал должен быть от 10 до 120 секунд', 'error');
+        useDeletionsStore().notify({ prefix: 'Интервал должен быть от 10 до 120 секунд', type: 'error' });
         return;
       }
       const del = this.settings.notifications_delete_duration;
       const res = this.settings.notifications_restore_duration;
       if (del < 3 || del > 60 || res < 3 || res > 60) {
-        this.showToast('Длительность уведомлений: от 3 до 60 секунд', 'error');
+        useDeletionsStore().notify({ prefix: 'Длительность уведомлений: от 3 до 60 секунд', type: 'error' });
         return;
       }
       this.saving = true;
@@ -500,25 +479,13 @@ export default {
         // Сразу применяем к стору уведомлений, иначе новые длительности
         // вступят в силу только после полной перезагрузки страницы.
         useDeletionsStore().setDurations(del, res);
-        this.showToast('Настройки уведомлений сохранены', 'success');
+        useDeletionsStore().notify({ prefix: 'Настройки уведомлений сохранены' });
       } catch (error) {
         console.error('Ошибка сохранения:', error);
-        this.showToast('Ошибка сохранения настроек', 'error');
+        useDeletionsStore().notify({ prefix: 'Ошибка сохранения настроек', type: 'error' });
       } finally {
         this.saving = false;
       }
-    },
-
-    showToast(message, type) {
-      if (this.toast.timer) {
-        clearTimeout(this.toast.timer);
-      }
-      this.toast.message = message;
-      this.toast.type = type;
-      this.toast.visible = true;
-      this.toast.timer = setTimeout(() => {
-        this.toast.visible = false;
-      }, 3000);
     },
   },
 };
@@ -815,40 +782,6 @@ export default {
   color: #dc3545;
   font-size: 13px;
   margin: 0 0 12px 0;
-}
-
-/* Toast */
-.toast {
-  position: fixed;
-  bottom: 24px;
-  right: 24px;
-  padding: 10px 20px;
-  border-radius: 12px;
-  font-size: 13px;
-  font-weight: 500;
-  font-family: 'Montserrat', sans-serif;
-  color: #fff;
-  z-index: 9999;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.toast--success {
-  background: #28a745;
-}
-
-.toast--error {
-  background: #dc3545;
-}
-
-.toast-fade-enter-active,
-.toast-fade-leave-active {
-  transition: all 0.3s ease;
-}
-
-.toast-fade-enter-from,
-.toast-fade-leave-to {
-  opacity: 0;
-  transform: translateY(10px);
 }
 
 @media (max-width: 768px) {

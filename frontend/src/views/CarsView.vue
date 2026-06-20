@@ -624,6 +624,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { useDeletionsStore } from '@/stores/deletions';
 import SearchComponent from '@/components/SearchComponent.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
@@ -1066,13 +1067,18 @@ export default {
 
                 if (response.ok) {
                     await this.fetchCars();
-                    this.showNotification('Автомобиль успешно удален!', 'success');
+                    const num = car.number || '';
+                    useDeletionsStore().notify({
+                        prefix: 'Автомобиль ',
+                        bold: num,
+                        suffix: ' удалён',
+                    });
                 } else {
-                    alert("Ошибка при удалении автомобиля");
+                    useDeletionsStore().notify({ prefix: 'Ошибка при удалении автомобиля', type: 'error' });
                 }
             } catch (error) {
                 console.error("Ошибка при удалении автомобиля:", error);
-                alert("Ошибка при удалении автомобиля");
+                useDeletionsStore().notify({ prefix: 'Ошибка при удалении автомобиля', type: 'error' });
             }
         },
 

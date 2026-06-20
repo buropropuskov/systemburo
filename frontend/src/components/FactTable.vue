@@ -363,6 +363,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { useUiStore } from '@/stores/ui';
 import RefreshButton from './RefreshButton.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
@@ -798,7 +799,13 @@ export default {
     },
 
     async deleteItem(item) {
-      if (!confirm(`Удалить запись?`)) return;
+      const ok = await useUiStore().confirm({
+        title: 'Удаление записи',
+        message: 'Удалить запись?',
+        confirmText: 'Удалить',
+        danger: true,
+      });
+      if (!ok) return;
       try {
         if (this.tableType === 'cars') {
           const response = await apiRequest(`/cars/${item.id}/deactivate`, {
