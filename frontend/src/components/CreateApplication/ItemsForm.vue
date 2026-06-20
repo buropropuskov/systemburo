@@ -816,7 +816,7 @@ export default {
     font-size: 12px;
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s;
     padding: 0 10px;
     text-align: center;
     border: 1px solid transparent;
