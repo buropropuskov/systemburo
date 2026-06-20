@@ -24,29 +24,32 @@
         v-else
         class="dashboard__tiles"
       >
-        <div class="dashboard__tile">
-          <div class="dashboard__tile-label">Получено заявок</div>
-          <div class="dashboard__tile-val">{{ fmt(summary.total_applications) }}</div>
-        </div>
-        <div class="dashboard__tile">
-          <div class="dashboard__tile-label">Обработано</div>
-          <div class="dashboard__tile-val">{{ fmt(summary.processed) }}</div>
-        </div>
-        <div class="dashboard__tile">
-          <div class="dashboard__tile-label">Машин заехало</div>
-          <div class="dashboard__tile-val">{{ fmt(summary.cars_entered) }}</div>
-        </div>
-        <div class="dashboard__tile">
-          <div class="dashboard__tile-label">Людей прошло</div>
-          <div class="dashboard__tile-val">{{ fmt(summary.people_entered) }}</div>
-        </div>
-        <div class="dashboard__tile">
-          <div class="dashboard__tile-label">Машин на территории</div>
-          <div class="dashboard__tile-val">{{ fmt(summary.cars_on_territory) }}</div>
-        </div>
-        <div class="dashboard__tile">
-          <div class="dashboard__tile-label">Людей на территории</div>
-          <div class="dashboard__tile-val">{{ fmt(summary.people_on_territory) }}</div>
+        <div
+          v-for="tile in dataTiles"
+          :key="tile.label"
+          class="dashboard__tile"
+        >
+          <div class="dashboard__tile-label">{{ tile.label }}</div>
+          <div class="dashboard__tile-val">{{ fmt(tile.value) }}</div>
+          <div
+            v-if="tile.comparison || tile.trend"
+            class="dashboard__tile-insight"
+          >
+            <Sparkline
+              v-if="tile.trend"
+              class="dashboard__tile-spark"
+              :series="tile.trend.series"
+              :direction="tile.trend.direction"
+            />
+            <span
+              v-if="tile.comparison"
+              class="dashboard__delta"
+              :class="`dashboard__delta--${tile.comparison.direction}`"
+            >
+              <DirIcon :direction="tile.comparison.direction" />
+              {{ deltaText(tile.comparison.delta_pct) }}
+            </span>
+          </div>
         </div>
       </div>
     </div>
@@ -293,10 +296,12 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue';
 import AnalyticsAreaChart from '@/components/statistics/AnalyticsAreaChart.vue';
+import DirIcon from '@/components/statistics/DirIcon.vue';
+import Sparkline from '@/components/statistics/Sparkline.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
-import { getSummary, getTimeline, getRecentPassages } from '@/api/statistics.js';
+import { getSummary, getTimeline, getRecentPassages, getInsights } from '@/api/statistics.js';
 import { mergeFeed, feedRowKey } from './feedMerge.js';
 
 const props = defineProps({
@@ -313,6 +318,11 @@ const props = defineProps({
 // ---- состояние данных ----
 const summary = ref({});
 const summaryLoading = ref(false);
+
+// Инсайты обогащают карточки группы «Данные»: сравнение с прошлым периодом
+// (дельта/направление) и тренд по дням (спарклайн). Метрики инсайтов покрывают
+// заявки/проезды/проходы — остальные карточки остаются без инсайт-футера.
+const insights = reactive({ comparisons: [], trends: [] });
 
 const timeline = ref([]);
 const timelineLoading = ref(false);
@@ -369,10 +379,37 @@ const attachmentBreakdown = computed(() => {
   return list.map((item) => ({ label: item.name, count: item.count }));
 });
 
+// Карточки группы «Данные». metric связывает карточку с инсайтом того же ключа;
+// карточки без metric (Обработано, На территории) инсайтом не покрыты.
+const dataTiles = computed(() => {
+  const s = summary.value;
+  const defs = [
+    { label: 'Получено заявок', value: s.total_applications, metric: 'applications_count' },
+    { label: 'Обработано', value: s.processed },
+    { label: 'Машин заехало', value: s.cars_entered, metric: 'car_entries_count' },
+    { label: 'Людей прошло', value: s.people_entered, metric: 'people_entries_count' },
+    { label: 'Машин на территории', value: s.cars_on_territory },
+    { label: 'Людей на территории', value: s.people_on_territory },
+  ];
+  return defs.map((t) => ({
+    ...t,
+    comparison: t.metric ? insights.comparisons.find((c) => c.metric === t.metric) || null : null,
+    trend: t.metric ? insights.trends.find((tr) => tr.metric === t.metric) || null : null,
+  }));
+});
+
 // ---- форматирование ----
 function fmt(val) {
   if (val == null) return '—';
   return Number(val).toLocaleString('ru-RU');
+}
+
+function deltaText(pct) {
+  // Бэкенд округляет до 1 знака, но JSON->Number может дать хвост (16.700000003) —
+  // повторно округляем, чтобы не показать артефакт.
+  const n = Math.round((Number(pct) || 0) * 10) / 10;
+  const sign = n > 0 ? '+' : '';
+  return `${sign}${n}%`;
 }
 
 function formatTime(iso) {
@@ -397,6 +434,7 @@ function formatDate(iso) {
 // медленный ответ предыдущего выбора затирает актуальный (last-resolve-wins).
 let summarySeq = 0;
 let timelineSeq = 0;
+let insightsSeq = 0;
 
 async function loadSummary() {
   const seq = ++summarySeq;
@@ -410,6 +448,21 @@ async function loadSummary() {
     summary.value = {};
   } finally {
     if (seq === summarySeq) summaryLoading.value = false;
+  }
+}
+
+async function loadInsights() {
+  const seq = ++insightsSeq;
+  try {
+    const data = await getInsights(props.from, props.to);
+    if (seq !== insightsSeq) return;
+    insights.comparisons = Array.isArray(data?.comparisons) ? data.comparisons : [];
+    insights.trends = Array.isArray(data?.trends) ? data.trends : [];
+  } catch {
+    // Сбой инсайтов не должен ронять дашборд — карточки остаются без футера.
+    if (seq !== insightsSeq) return;
+    insights.comparisons = [];
+    insights.trends = [];
   }
 }
 
@@ -468,7 +521,7 @@ async function refreshFeeds() {
 
 // ---- публичный метод для обновления из родителя ----
 async function refresh() {
-  await Promise.all([loadSummary(), loadTimeline(), loadFeed()]);
+  await Promise.all([loadSummary(), loadTimeline(), loadInsights(), loadFeed()]);
 }
 
 defineExpose({ refresh });
@@ -477,6 +530,7 @@ defineExpose({ refresh });
 watch([() => props.from, () => props.to], () => {
   loadSummary();
   loadTimeline();
+  loadInsights();
 });
 
 // ---- реакция на смену настроек графика ----
@@ -490,6 +544,7 @@ let feedInterval = null;
 onMounted(() => {
   loadSummary();
   loadTimeline();
+  loadInsights();
   loadFeed({ showSkeleton: true });
   feedInterval = setInterval(() => loadFeed(), 10000);
 });
@@ -598,6 +653,50 @@ onUnmounted(() => {
   color: var(--color-text);
   margin-top: 6px;
   line-height: 1;
+}
+
+/* ===== ИНСАЙТ-ФУТЕР ПЛИТКИ ===== */
+.dashboard__tile-insight {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.dashboard__tile-spark {
+  width: 100%;
+  max-width: 72px;
+  height: 24px;
+  flex-shrink: 1;
+}
+
+.dashboard__delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.dashboard__delta--up {
+  background: rgba(40, 167, 69, 0.12);
+  color: var(--color-success);
+}
+
+.dashboard__delta--down {
+  background: rgba(220, 53, 69, 0.12);
+  color: var(--color-danger);
+}
+
+.dashboard__delta--flat {
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
 }
 
 /* ===== ГРАФИК ===== */
