@@ -92,19 +92,13 @@
               <template v-if="soundStore.enabled">
                 <div class="sound-popover__field">
                   <label class="sound-popover__label">Пресет</label>
-                  <select
-                    class="lk-select"
-                    :value="soundStore.selectedPreset"
-                    @change="soundStore.setPreset($event.target.value)"
-                  >
-                    <option
-                      v-for="p in soundPresets"
-                      :key="p.value"
-                      :value="p.value"
-                    >
-                      {{ p.label }}
-                    </option>
-                  </select>
+                  <BaseDropdown
+                    :model-value="soundStore.selectedPreset"
+                    :options="soundPresets"
+                    value-key="value"
+                    label-key="label"
+                    @update:model-value="soundStore.setPreset($event)"
+                  />
                 </div>
 
                 <div class="sound-popover__field">
@@ -114,7 +108,7 @@
                     class="sound-volume"
                     min="0"
                     max="1"
-                    step="0.05"
+                    step="0.01"
                     :value="soundStore.volume"
                     @input="soundStore.setVolume($event.target.value)"
                   >
@@ -574,6 +568,7 @@ import SkeletonTable from '@/components/ui/SkeletonTable.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import DownloadBlanksModal from '@/components/applications/DownloadBlanksModal.vue';
 import Badge from '@/components/ui/Badge.vue';
+import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import { blacklistFlagCount, blacklistFlagLabel, BLACKLIST_FLAG_TITLE } from '@/utils/blacklistBadge';
 import { useToast } from '@/composables/useToast';
 
@@ -590,6 +585,7 @@ export default {
         LoaderSpinner,
         DownloadBlanksModal,
         Badge,
+        BaseDropdown,
     },
     emits: ['refresh-data'],
     setup() {
