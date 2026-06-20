@@ -41,6 +41,15 @@ type UserService interface {
 	// SetBanCache подключает кэш блокировок, чтобы архив/восстановление мгновенно
 	// сбрасывали его (офбординг без ожидания TTL). Опционально (может не вызываться).
 	SetBanCache(banCache *BanCheckService)
+
+	// GetUserUnloadPlaces возвращает активные места разгрузки, привязанные к охраннику.
+	GetUserUnloadPlaces(ctx context.Context, callerTypeID int, username string) ([]models.UnloadPlace, error)
+	// SetUserUnloadPlaces заменяет привязку мест разгрузки для охранника (delete-all-then-recreate).
+	SetUserUnloadPlaces(ctx context.Context, callerTypeID int, username string, req models.SetUserUnloadPlacesRequest) error
+	// GetUserTables возвращает активные места прохода, привязанные к охраннику.
+	GetUserTables(ctx context.Context, callerTypeID int, username string) ([]models.SystemTable, error)
+	// SetUserTables заменяет привязку мест прохода для охранника (delete-all-then-recreate).
+	SetUserTables(ctx context.Context, callerTypeID int, username string, req models.SetUserTablesRequest) error
 }
 
 type userService struct {
@@ -496,4 +505,110 @@ func (s *userService) GetHistory(ctx context.Context, callerTypeID int, username
 		return nil, echo.NewHTTPError(http.StatusNotFound, "User not found")
 	}
 	return s.history.GetHistory(ctx, id)
+}
+
+// resolveUserID резолвит id по username, возвращает 404 если не найден.
+func (s *userService) resolveUserID(ctx context.Context, username string) (int, error) {
+	id := s.targetUserID(ctx, username)
+	if id == 0 {
+		return 0, echo.NewHTTPError(http.StatusNotFound, "User not found")
+	}
+	return id, nil
+}
+
+// GetUserUnloadPlaces возвращает активные места разгрузки, привязанные к пользователю.
+// GET-пикер намеренно фильтрует is_active=true, чтобы архивные места не попадали в список назначения.
+func (s *userService) GetUserUnloadPlaces(ctx context.Context, callerTypeID int, username string) ([]models.UnloadPlace, error) {
+	if err := s.checkAdmin(ctx, callerTypeID); err != nil {
+		return nil, err
+	}
+	userID, err := s.resolveUserID(ctx, username)
+	if err != nil {
+		return nil, err
+	}
+	var places []models.UnloadPlace
+	if err := s.db.WithContext(ctx).
+		Table("unload_places up").
+		Select("up.*").
+		Joins("JOIN security_user_unload_places sup ON sup.unload_place_id = up.id").
+		Where("sup.user_id = ? AND up.is_active = ?", userID, true).
+		Order("up.name").
+		Scan(&places).Error; err != nil {
+		slog.Error("не удалось получить места разгрузки пользователя", "user_id", userID, "error", err)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching user unload places")
+	}
+	return places, nil
+}
+
+// SetUserUnloadPlaces заменяет привязку мест разгрузки (delete-all-then-recreate в транзакции).
+func (s *userService) SetUserUnloadPlaces(ctx context.Context, callerTypeID int, username string, req models.SetUserUnloadPlacesRequest) error {
+	if err := s.checkAdmin(ctx, callerTypeID); err != nil {
+		return err
+	}
+	userID, err := s.resolveUserID(ctx, username)
+	if err != nil {
+		return err
+	}
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("user_id = ?", userID).Delete(&models.SecurityUserUnloadPlace{}).Error; err != nil {
+			slog.Error("не удалось удалить старые места разгрузки пользователя", "error", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error updating unload places")
+		}
+		for _, placeID := range req.UnloadPlaceIDs {
+			row := models.SecurityUserUnloadPlace{UserID: userID, UnloadPlaceID: placeID}
+			if err := tx.Create(&row).Error; err != nil {
+				slog.Error("не удалось добавить место разгрузки пользователю", "place_id", placeID, "error", err)
+				return echo.NewHTTPError(http.StatusInternalServerError, "Error updating unload places")
+			}
+		}
+		return nil
+	})
+}
+
+// GetUserTables возвращает активные места прохода, привязанные к пользователю.
+func (s *userService) GetUserTables(ctx context.Context, callerTypeID int, username string) ([]models.SystemTable, error) {
+	if err := s.checkAdmin(ctx, callerTypeID); err != nil {
+		return nil, err
+	}
+	userID, err := s.resolveUserID(ctx, username)
+	if err != nil {
+		return nil, err
+	}
+	var tables []models.SystemTable
+	if err := s.db.WithContext(ctx).
+		Table("system_tables st").
+		Select("st.*").
+		Joins("JOIN security_user_tables sut ON sut.table_id = st.id").
+		Where("sut.user_id = ? AND st.is_active = ?", userID, true).
+		Order("st.name").
+		Scan(&tables).Error; err != nil {
+		slog.Error("не удалось получить места прохода пользователя", "user_id", userID, "error", err)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching user tables")
+	}
+	return tables, nil
+}
+
+// SetUserTables заменяет привязку мест прохода (delete-all-then-recreate в транзакции).
+func (s *userService) SetUserTables(ctx context.Context, callerTypeID int, username string, req models.SetUserTablesRequest) error {
+	if err := s.checkAdmin(ctx, callerTypeID); err != nil {
+		return err
+	}
+	userID, err := s.resolveUserID(ctx, username)
+	if err != nil {
+		return err
+	}
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("user_id = ?", userID).Delete(&models.SecurityUserTable{}).Error; err != nil {
+			slog.Error("не удалось удалить старые места прохода пользователя", "error", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error updating tables")
+		}
+		for _, tableID := range req.TableIDs {
+			row := models.SecurityUserTable{UserID: userID, TableID: tableID}
+			if err := tx.Create(&row).Error; err != nil {
+				slog.Error("не удалось добавить место прохода пользователю", "table_id", tableID, "error", err)
+				return echo.NewHTTPError(http.StatusInternalServerError, "Error updating tables")
+			}
+		}
+		return nil
+	})
 }
