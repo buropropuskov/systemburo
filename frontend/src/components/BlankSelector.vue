@@ -421,6 +421,7 @@ export default {
 <style scoped>
 .selector {
     width: 200px;
+    flex-shrink: 0;
     height: 490px;
     border-radius: 30px;
     border: 1px solid #e6e6e6;
