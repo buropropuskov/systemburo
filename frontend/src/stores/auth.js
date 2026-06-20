@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { getMe } from '@/api/auth';
 
 function decodeToken(token) {
   try {
@@ -14,6 +15,9 @@ function decodeToken(token) {
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     token: null,
+    // Код типа пользователя из /users/me (стабильный, не type_id).
+    // null до первой загрузки.
+    userTypeCode: null,
   }),
 
   getters: {
@@ -42,6 +46,12 @@ export const useAuthStore = defineStore('auth', {
     username() {
       return this.userPayload?.username || null;
     },
+    isSecurity() {
+      return this.userTypeCode === 'security';
+    },
+    canViewAccessibleAttachments() {
+      return this.isSecurity || this.isSuperAdmin;
+    },
   },
 
   actions: {
@@ -50,6 +60,16 @@ export const useAuthStore = defineStore('auth', {
     },
     clearTokens() {
       this.token = null;
+      this.userTypeCode = null;
+    },
+    async loadUserTypeCode() {
+      try {
+        const res = await getMe();
+        const data = await res.json();
+        this.userTypeCode = data?.user_type_code ?? null;
+      } catch {
+        // сеть упала или токен протух - оставляем null, не блокируем рендер
+      }
     },
   },
 });
