@@ -87,6 +87,12 @@ func AllModels() []interface{} {
 		// Forward attachments (#680: пер-вложенный пересыл; depends on Application, User, Attachment)
 		&models.ForwardAttachment{},
 
+		// Доступные мне (#706): привязка мест к охраннику + место разгрузки на уровне вложения
+		// (depends on User, UnloadPlace, SystemTable, Attachment)
+		&models.SecurityUserUnloadPlace{},
+		&models.SecurityUserTable{},
+		&models.AttachmentUnloadPlace{},
+
 		// Attachment templates (#183: Excel-бланки)
 		&models.AttachmentTemplate{},
 		&models.AttachmentTemplateMapping{},
