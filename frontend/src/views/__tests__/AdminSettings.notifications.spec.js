@@ -51,25 +51,27 @@ describe('AdminSettings - уведомления', () => {
     const wrapper = await mountView();
     const store = useDeletionsStore();
     const spy = vi.spyOn(store, 'setDurations');
+    const notifySpy = vi.spyOn(store, 'notify');
 
     setNotif(wrapper.vm, { del: 2, res: 5, poll: 30 });
     await wrapper.vm.saveNotificationSettings();
 
     expect(updateSetting).not.toHaveBeenCalled();
     expect(spy).not.toHaveBeenCalled();
-    expect(wrapper.vm.toast.type).toBe('error');
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }));
   });
 
   it('интервал опроса вне 10-120 блокирует сохранение', async () => {
     const wrapper = await mountView();
     const store = useDeletionsStore();
     const spy = vi.spyOn(store, 'setDurations');
+    const notifySpy = vi.spyOn(store, 'notify');
 
     setNotif(wrapper.vm, { del: 10, res: 5, poll: 5 });
     await wrapper.vm.saveNotificationSettings();
 
     expect(updateSetting).not.toHaveBeenCalled();
     expect(spy).not.toHaveBeenCalled();
-    expect(wrapper.vm.toast.type).toBe('error');
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }));
   });
 });
