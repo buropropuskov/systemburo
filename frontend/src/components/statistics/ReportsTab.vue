@@ -121,22 +121,21 @@
 
         <!-- Мастер -->
         <section class="wizard">
-          <ReportStepper :steps="steps" />
-          <div class="wizard-body">
-            <ReportBuilder
-              :catalog="catalog"
-              :period="period"
-              :loading="running"
-              :preset="presetPayload"
-              @run="onRun"
-              @change="onBuilderChange"
-            />
-          </div>
+          <ReportBuilder
+            :catalog="catalog"
+            :period="period"
+            :loading="running"
+            :preset="presetPayload"
+            @run="onRun"
+            @change="onBuilderChange"
+          />
         </section>
       </div>
 
-      <!-- Результат (полная ширина под мастером) -->
+      <!-- Результат (полная ширина под мастером). До первого построения не
+           рендерим — пустой блок создавал бы лишнюю пустоту во вкладке. -->
       <ReportResult
+        v-if="result || running || runError"
         :result="result"
         :loading="running"
         :error="runError"
@@ -152,7 +151,6 @@ import { ref, computed, onMounted } from 'vue';
 import ReportBuilder from './ReportBuilder.vue';
 import ReportResult from './ReportResult.vue';
 import ReportGallery from './ReportGallery.vue';
-import ReportStepper from './ReportStepper.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import {
   getReportCatalog, runReport,
@@ -183,8 +181,10 @@ const exportMeta = ref({});
 const presetPayload = ref(null);
 const activePresetId = ref('');
 
-// Снимок состояния мастера для индикатора шагов.
-const builderState = ref({ mode: 'aggregate', metric: '', dimension: '', entity: '', filterCount: 0, periodApplicable: true, periodFilled: false, config: null });
+// Снимок состояния мастера: нужен для гейта «можно сохранить шаблон» и самого
+// сохранения (берём config). Остальные поля снапшота от ReportBuilder храним как
+// есть, но здесь читаем только mode/metric/entity/config.
+const builderState = ref({ mode: 'aggregate', metric: '', entity: '', config: null });
 
 // Личные шаблоны пользователя (G2). Системные пресеты остаются в галерее «Готовые
 // наборы» (reportPresets), здесь — только сохранённые наборы пользователя.
@@ -257,28 +257,6 @@ async function removeTemplate(tpl) {
   }
 }
 
-const STEP_LABELS = ['1 · Что считаем', '2 · По чему разбиваем', '3 · Фильтры', '4 · Период'];
-
-// Состояние шагов по заполненности формы: done — данные есть, current — первый
-// незаполненный, upcoming — дальше. В list-режиме разрез не применим -> шаг 2
-// считается выполненным по выбранной сущности. Период, неприменимый к срезу
-// (машины/люди без date_range), считается пройденным — заполнять нечего.
-const steps = computed(() => {
-  const s = builderState.value;
-  const isList = s.mode === 'list';
-  const done = [
-    isList ? Boolean(s.entity) : Boolean(s.metric),
-    isList ? Boolean(s.entity) : Boolean(s.dimension),
-    s.filterCount > 0,
-    s.periodApplicable === false ? true : Boolean(s.periodFilled),
-  ];
-  const currentIdx = done.indexOf(false);
-  return STEP_LABELS.map((label, i) => ({
-    label,
-    state: done[i] ? 'done' : i === currentIdx ? 'current' : 'upcoming',
-  }));
-});
-
 function onBuilderChange(snapshot) {
   builderState.value = snapshot;
 }
@@ -334,7 +312,7 @@ async function onRun(request) {
 .reports {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
 .reports__state {
@@ -353,8 +331,8 @@ async function onRun(request) {
 
 .reports-layout {
   display: grid;
-  grid-template-columns: 280px 1fr;
-  gap: 20px;
+  grid-template-columns: 260px 1fr;
+  gap: 16px;
   align-items: start;
 }
 
@@ -486,11 +464,7 @@ async function onRun(request) {
   background: #fff;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  overflow: hidden;
-}
-
-.wizard-body {
-  padding: 24px;
+  padding: 20px;
 }
 
 @media (max-width: 1180px) {
