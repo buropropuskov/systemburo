@@ -8,7 +8,7 @@ type SystemTable struct {
 	DisplayName         *string   `gorm:"size:200" json:"display_name"`
 	TableType           string    `gorm:"size:20;default:'cars'" json:"table_type"` // cars, people
 	ShowFactTable       bool      `gorm:"default:false" json:"show_fact_table"`
-	FactTableHint       *string   `gorm:"size:255" json:"fact_table_hint"`
+	FactTableHint       *string   `gorm:"type:text" json:"fact_table_hint"` // форматированный HTML из TextConstructor - длина не лезет в varchar(255)
 	IsActive            bool      `gorm:"default:true;index" json:"is_active"`
 	CreatedAt           time.Time `json:"created_at"`
 	UpdatedAt           time.Time `json:"updated_at"`
