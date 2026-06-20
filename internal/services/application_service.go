@@ -179,6 +179,18 @@ type ApplicationService interface {
 
 	// GetApplicationIDByAttachment возвращает ID заявки по ID вложения.
 	GetApplicationIDByAttachment(ctx context.Context, attachmentID int) (int, error)
+
+	// IsSecurityUser сообщает, является ли аккаунт типом security (резолв по user_types.code).
+	IsSecurityUser(ctx context.Context, userID int) (bool, error)
+
+	// GetAvailableAttachmentsForSecurity возвращает страницу вложений подтверждённых заявок,
+	// доступных охраннику по совпадению мест (#706), и общее количество. Супер-админ - без
+	// фильтра по местам.
+	GetAvailableAttachmentsForSecurity(ctx context.Context, userID int, isSuperAdmin bool, page, perPage int) ([]AvailableAttachment, int64, error)
+
+	// CanSecurityViewAttachment сообщает, доступно ли конкретное вложение охраннику по тем же
+	// правилам, что и листинг (#706). Для 403 на чужое вложение в детальном эндпоинте.
+	CanSecurityViewAttachment(ctx context.Context, userID int, isSuperAdmin bool, attachmentID int) (bool, error)
 }
 
 // --- DTO: запросы ---
