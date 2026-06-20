@@ -178,6 +178,9 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := relaxApplicationOrgNotNull(db); err != nil {
 		return err
 	}
+	if err := widenFactTableHint(db); err != nil {
+		return err
+	}
 	if err := installSQLFunctions(db); err != nil {
 		return err
 	}
@@ -293,6 +296,18 @@ func backfillSuperAdmin(db *gorm.DB) error {
 func relaxApplicationOrgNotNull(db *gorm.DB) error {
 	if err := db.Exec(`ALTER TABLE applications ALTER COLUMN organization_id DROP NOT NULL`).Error; err != nil {
 		return fmt.Errorf("relax applications.organization_id NOT NULL: %w", err)
+	}
+	return nil
+}
+
+// widenFactTableHint расширяет system_tables.fact_table_hint с varchar(255) до text.
+// Поле редактируется тем же rich-text TextConstructor, что и instruction, - HTML
+// форматирования легко переваливает за 255 символов, и запись падает с "value too
+// long". AutoMigrate существующие колонки не расширяет, поэтому ALTER явно. Идемпотентен
+// (на уже text-колонке - noop).
+func widenFactTableHint(db *gorm.DB) error {
+	if err := db.Exec(`ALTER TABLE system_tables ALTER COLUMN fact_table_hint TYPE text`).Error; err != nil {
+		return fmt.Errorf("widen system_tables.fact_table_hint to text: %w", err)
 	}
 	return nil
 }

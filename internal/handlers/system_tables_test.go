@@ -1,8 +1,10 @@
 package handlers_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	"systemburo/internal/testutil"
@@ -732,4 +734,35 @@ func TestSystemTables_FactFields_DefaultVisibilityFromCatalog(t *testing.T) {
 	assert.False(t, visByName["status"], "status скрыт (каталог)")
 	assert.False(t, visByName["company"], "company скрыт (каталог)")
 	assert.False(t, visByName["application_id"], "application_id скрыт (каталог)")
+}
+
+// fact_table_hint редактируется тем же rich-text TextConstructor, что и instruction:
+// HTML-обёртки форматирования легко переваливают за старый лимит varchar(255), и запись
+// падала с "value too long" (юзер ловил это на "привет -" - длина пересекала границу).
+// После перевода колонки в text длинная форматированная подсказка должна сохраняться.
+func TestSystemTables_FactTableHint_LongFormattedHTML(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	rec := testutil.POST(t, e, "/system-tables",
+		`{"name":"fact_hint_long","display_name":"FH","table_type":"cars","show_fact_table":true}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	tableID := int(testutil.ParseMap(t, rec)["id"].(float64))
+
+	hint := `<span class="font-size-16">` + strings.Repeat("привет - ", 50) + `</span>`
+	require.Greater(t, len(hint), 255, "подсказка должна быть длиннее старого лимита")
+	body, err := json.Marshal(map[string]string{"fact_table_hint": hint})
+	require.NoError(t, err)
+
+	rec = testutil.PUT(t, e, fmt.Sprintf("/system-tables/%d", tableID), string(body), h)
+	require.Equal(t, http.StatusOK, rec.Code, "длинная форматированная подсказка должна сохраняться")
+
+	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d", tableID), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	table := testutil.ParseMap(t, rec)["table"].(map[string]interface{})
+	assert.Equal(t, hint, table["fact_table_hint"], "подсказка round-trip без обрезки")
 }
