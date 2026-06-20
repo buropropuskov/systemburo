@@ -104,6 +104,8 @@ func securityVisibilityWhere(userID int, isSuperAdmin bool) (string, []interface
 // IsSecurityUser сообщает, является ли аккаунт типом security (резолв по user_types.code,
 // образец CheckBuroByUsername). Несуществующий пользователь -> false без ошибки.
 func (s *applicationService) IsSecurityUser(ctx context.Context, userID int) (bool, error) {
+	// GORM Scan не возвращает ошибку на 0 строк (в отличие от First): для несуществующего
+	// userID Code остаётся пустой строкой -> false.
 	var row struct{ Code string }
 	err := s.db.WithContext(ctx).
 		Table("users").

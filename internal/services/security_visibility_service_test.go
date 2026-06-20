@@ -242,6 +242,28 @@ func TestGetAvailableAttachments_NoPlacesEmpty(t *testing.T) {
 	require.Empty(t, rows)
 }
 
+func TestGetAvailableAttachments_AttachmentWithoutPlacesHidden(t *testing.T) {
+	w := setupSecurityWorld(t)
+	ctx := context.Background()
+
+	// У охранника есть место, но у согласованного cars-вложения нет ни одной строки
+	// attachment_unload_places - пересечение пусто, вложение не видно.
+	myPlace := w.newUnloadPlace(t, "Склад А", true)
+	w.assignUnloadPlace(t, myPlace)
+
+	app := w.newApp(t, models.ConfirmationApproved)
+	att := w.newAttachment(t, app, "cars")
+
+	rows, total, err := w.svc.GetAvailableAttachmentsForSecurity(ctx, w.guardID, false, 1, 50)
+	require.NoError(t, err)
+	require.EqualValues(t, 0, total)
+	require.False(t, containsAttachment(rows, att), "attachment without places must not leak")
+
+	can, err := w.svc.CanSecurityViewAttachment(ctx, w.guardID, false, att)
+	require.NoError(t, err)
+	require.False(t, can)
+}
+
 func TestGetAvailableAttachments_InactivePlaceStillMatches(t *testing.T) {
 	w := setupSecurityWorld(t)
 	ctx := context.Background()
