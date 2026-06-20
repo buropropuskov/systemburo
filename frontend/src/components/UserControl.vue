@@ -104,19 +104,35 @@
               >
             </div>
             <div
+              class="header-col position-col"
+              @click="sortBy('position')"
+            >
+              <p :class="{ 'active-sort': sortField === 'position' }">
+                Должность
+              </p>
+              <img
+                src="@/assets/icons/sort.png"
+                class="sort-icon"
+                :class="{
+                  'sorted': sortField === 'position',
+                  'desc': sortField === 'position' && sortDirection === 'desc'
+                }"
+              >
+            </div>
+            <div
               class="header-col type-col"
               @click="sortBy('user_type')"
             >
               <p :class="{ 'active-sort': sortField === 'user_type' }">
                 Тип
               </p>
-              <img 
-                src="@/assets/icons/sort.png" 
-                class="sort-icon" 
-                :class="{ 
+              <img
+                src="@/assets/icons/sort.png"
+                class="sort-icon"
+                :class="{
                   'sorted': sortField === 'user_type',
                   'desc': sortField === 'user_type' && sortDirection === 'desc'
-                }" 
+                }"
               >
             </div>
           </div>
@@ -159,6 +175,14 @@
                   :title="user.company || '-'"
                 >
                   {{ user.company || '-' }}
+                </span>
+              </div>
+              <div class="user-col position-col">
+                <span
+                  class="truncate-text"
+                  :title="user.position || '-'"
+                >
+                  {{ user.position || '-' }}
                 </span>
               </div>
               <div class="user-col type-col">
@@ -814,6 +838,10 @@ export default {
             valueA = a.company || '';
             valueB = b.company || '';
             break;
+          case 'position':
+            valueA = a.position || '';
+            valueB = b.position || '';
+            break;
           case 'user_type':
             valueA = a.user_type || '';
             valueB = b.user_type || '';
@@ -1364,14 +1392,14 @@ export default {
 
 /* Левая часть - таблица пользователей */
 .users-list {
-  width: 70%;
+  flex: 1 1 auto;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid #e6e6e6;
 }
 
 .users-list.with-details {
-  width: 70%;
+  border-right: 1px solid #e6e6e6;
 }
 
 .users-footer {
@@ -1478,11 +1506,12 @@ export default {
 }
 
 /* Колонки с фиксированной шириной */
-.login-col { width: 18%; min-width: 120px; }
-.name-col { width: 18%; min-width: 120px; }
-.org-col { width: 24%; min-width: 120px; }
-.company-col { width: 20%; min-width: 120px; }
-.type-col { width: 20%; min-width: 100px; }
+.login-col { width: 15%; min-width: 110px; }
+.name-col { width: 17%; min-width: 110px; }
+.org-col { width: 20%; min-width: 110px; }
+.company-col { width: 16%; min-width: 110px; }
+.position-col { width: 17%; min-width: 110px; }
+.type-col { width: 15%; min-width: 90px; }
 
 /* Тело таблицы */
 .users-body {
@@ -2026,7 +2055,7 @@ export default {
 
   .users-header,
   .users-body {
-    min-width: 600px;
+    min-width: 720px;
     overflow-x: visible !important;
     overflow-y: visible !important;
     height: auto !important;
@@ -2036,7 +2065,7 @@ export default {
   .header-row,
   .user-row {
     flex-wrap: nowrap !important;
-    min-width: 600px;
+    min-width: 720px;
     width: 100%;
   }
 
