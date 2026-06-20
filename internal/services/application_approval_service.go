@@ -175,6 +175,31 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 		`, applicationID, viewerID, string(meta), historyTime)
 	}
 
+	// Сводная запись о пересылке: всю заявку или конкретные вложения (#680).
+	// Пишем один раз на действие и только если кому-то реально переслали. Имена
+	// вложений кладём в metadata, текст собирает фронт (как у assigned_*).
+	if len(addedResponsibleUsers) > 0 || len(addedViewers) > 0 {
+		var attNames []string
+		if len(req.AttachmentIDs) > 0 {
+			tx.Raw(`
+				SELECT COALESCE(attachment_display_name, attachment_name, '')
+				FROM attachments
+				WHERE application_id = ? AND id IN ?
+				ORDER BY COALESCE(attachment_display_name, attachment_name, '')
+			`, applicationID, req.AttachmentIDs).Scan(&attNames)
+		}
+		historyTime = historyTime.Add(time.Millisecond)
+		meta, _ := json.Marshal(map[string]interface{}{
+			"forwarded_by": currentUserName,
+			"whole":        len(attNames) == 0,
+			"attachments":  attNames,
+		})
+		tx.Exec(`
+			INSERT INTO application_history (application_id, user_id, action_type, metadata, created_at)
+			VALUES (?, ?, 'forwarded', ?, ?)
+		`, applicationID, user.ID, string(meta), historyTime)
+	}
+
 	// Обновляем confirmation если были добавлены ответственные
 	if len(addedResponsibleUsers) > 0 {
 		if err := s.updateConfirmationBasedOnApprovals(tx, applicationID); err != nil {
