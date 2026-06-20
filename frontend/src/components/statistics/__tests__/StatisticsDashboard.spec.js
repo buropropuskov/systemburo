@@ -174,6 +174,20 @@ describe('StatisticsDashboard — разворот карточки', () => {
     expect(area.props('categories')).toEqual(['1', '2', '3', '4']);
   });
 
+  it('смена периода сворачивает разворот', async () => {
+    withInsights();
+    const wrapper = mountDashboard();
+    await flushPromises();
+
+    await tileByText(wrapper, 'Получено заявок').trigger('click');
+    await nextTick();
+    expect(wrapper.find('.dashboard__detail').exists()).toBe(true);
+
+    await wrapper.setProps({ from: '2026-05-01', to: '2026-05-07' });
+    await nextTick();
+    expect(wrapper.find('.dashboard__detail').exists()).toBe(false);
+  });
+
   it('карточка без инсайтов не кликабельна и не раскрывается', async () => {
     state.summary = { processed: 4 };
     state.insights = {};
@@ -181,6 +195,7 @@ describe('StatisticsDashboard — разворот карточки', () => {
     await flushPromises();
 
     const tile = tileByText(wrapper, 'Обработано');
+    expect(tile).toBeTruthy();
     expect(tile.classes()).not.toContain('dashboard__tile--clickable');
     await tile.trigger('click');
     await nextTick();

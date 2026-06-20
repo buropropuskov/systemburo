@@ -699,6 +699,9 @@ defineExpose({ refresh });
 
 // ---- реакция на смену периода ----
 watch([() => props.from, () => props.to], () => {
+  // Сворачиваем разворот: иначе под новым периодом мелькает деталь старого,
+  // пока летит ответ инсайтов.
+  expandedMetric.value = null;
   loadSummary();
   loadTimeline();
   loadInsights();
