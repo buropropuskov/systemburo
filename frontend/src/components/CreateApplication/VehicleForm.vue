@@ -393,6 +393,12 @@ export default {
             type: Array,
             default: () => []
         },
+        // Места разгрузки на уровне заявки (#706): приоритетный источник начального
+        // выбора. Пусто - падаем на автоподстановку по организации/компании.
+        applicationUnloadPlaces: {
+            type: Array,
+            default: () => []
+        },
         // Настройка полей шаблона (#529): { [fieldKey]: { visible, required, locked, requirable } }.
         // Раздаётся из CreateApplication; потребление (скрытие/обязательность полей машин) - срез H-7.
         fieldConfig: {
@@ -405,7 +411,7 @@ export default {
             default: false
         }
     },
-    emits: ['edit-cancelled', 'vehicle-added', 'vehicle-updated', 'vehicles-added'],
+    emits: ['edit-cancelled', 'vehicle-added', 'vehicle-updated', 'vehicles-added', 'update:unload-places'],
     setup(props) {
         const instance = getCurrentInstance()
         const toast = useToast()
@@ -644,31 +650,43 @@ export default {
                     this.allUnloadingPlaces = await allPlacesResponse.json();
                 }
 
-                if (this.userOrganizationId) {
-                    const orgPlacesResponse = await apiRequest(`/organizations/${this.userOrganizationId}/unload-places`, {
-                        method: "GET"});
+                if (this.applicationUnloadPlaces.length > 0) {
+                    // Приоритет - единый выбор мест заявки (#706): предзаполняем новое
+                    // cars-вложение уже сделанным выбором, минуя автоподстановку.
+                    this.selectedUnloadingPlaces = [...this.applicationUnloadPlaces];
+                } else {
+                    if (this.userOrganizationId) {
+                        const orgPlacesResponse = await apiRequest(`/organizations/${this.userOrganizationId}/unload-places`, {
+                            method: "GET"});
 
-                    if (orgPlacesResponse.ok) {
-                        this.attachedUnloadingPlaces = await orgPlacesResponse.json();
-                        const activeAttachedPlaces = this.attachedUnloadingPlaces.filter(place => place.status === 'active');
-                        this.selectedUnloadingPlaces = activeAttachedPlaces.map(place => place.id);
-                        if (this.selectedUnloadingPlaces.length > 0) {
-                            this.toast.success('Место разгрузки выбрано автоматически для вашей организации');
+                        if (orgPlacesResponse.ok) {
+                            this.attachedUnloadingPlaces = await orgPlacesResponse.json();
+                            const activeAttachedPlaces = this.attachedUnloadingPlaces.filter(place => place.status === 'active');
+                            this.selectedUnloadingPlaces = activeAttachedPlaces.map(place => place.id);
+                            if (this.selectedUnloadingPlaces.length > 0) {
+                                this.toast.success('Место разгрузки выбрано автоматически для вашей организации');
+                            }
                         }
                     }
-                }
 
-                if (this.attachedUnloadingPlaces.length === 0 && this.userCompanyId) {
-                    const companyPlacesResponse = await apiRequest(`/companies/${this.userCompanyId}/unload-places`, {
-                        method: "GET"});
+                    if (this.attachedUnloadingPlaces.length === 0 && this.userCompanyId) {
+                        const companyPlacesResponse = await apiRequest(`/companies/${this.userCompanyId}/unload-places`, {
+                            method: "GET"});
 
-                    if (companyPlacesResponse.ok) {
-                        this.attachedUnloadingPlaces = await companyPlacesResponse.json();
-                        const activeAttachedPlaces = this.attachedUnloadingPlaces.filter(place => place.status === 'active');
-                        this.selectedUnloadingPlaces = activeAttachedPlaces.map(place => place.id);
-                        if (this.selectedUnloadingPlaces.length > 0) {
-                            this.toast.success('Место разгрузки выбрано автоматически для вашей компании');
+                        if (companyPlacesResponse.ok) {
+                            this.attachedUnloadingPlaces = await companyPlacesResponse.json();
+                            const activeAttachedPlaces = this.attachedUnloadingPlaces.filter(place => place.status === 'active');
+                            this.selectedUnloadingPlaces = activeAttachedPlaces.map(place => place.id);
+                            if (this.selectedUnloadingPlaces.length > 0) {
+                                this.toast.success('Место разгрузки выбрано автоматически для вашей компании');
+                            }
                         }
+                    }
+
+                    // Поднимаем автоподставленный выбор на уровень заявки, чтобы он
+                    // пережил удаление последнего cars-вложения и ушёл в items (#706).
+                    if (this.selectedUnloadingPlaces.length > 0) {
+                        this.$emit('update:unload-places', [...this.selectedUnloadingPlaces]);
                     }
                 }
 
@@ -779,6 +797,8 @@ export default {
             } else {
                 this.selectedUnloadingPlaces.push(place.id);
             }
+            // Единый выбор на заявку (#706): синхронизируем во все cars-вложения и items.
+            this.$emit('update:unload-places', [...this.selectedUnloadingPlaces]);
         },
         
         validateUnloadingPlaces() {

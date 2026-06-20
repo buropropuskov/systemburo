@@ -127,6 +127,51 @@
         </div>
       </div>
     </div>
+
+    <!-- Места разгрузки (#706): для ТМЦ-без-машин - единственный источник мест.
+         Грид 1:1 повторяет форму авто (completion__unloading). -->
+    <div
+      v-if="showUnloadPlaces"
+      class="completion__unloading"
+    >
+      <label class="input__label">Места разгрузки (выбор) <span class="required">*</span></label>
+      <div
+        v-if="allUnloadingPlaces.length > 0"
+        class="unloading__grid"
+      >
+        <div
+          v-for="place in allUnloadingPlaces"
+          :key="place.id"
+          class="unloading__item"
+          :class="{
+            'unloading__item--active': selectedUnloadPlaces.includes(place.id) && place.status === 'active',
+            'unloading__item--inactive': place.status !== 'active'
+          }"
+          @click="togglePlace(place)"
+          @mouseenter="showInactiveTooltip(place, $event)"
+          @mouseleave="hideInactiveTooltip"
+        >
+          {{ place.name }}
+        </div>
+      </div>
+      <div
+        v-else
+        class="no-places-message"
+      >
+        Нет доступных мест разгрузки
+      </div>
+    </div>
+
+    <!-- Tooltip для неактивных мест -->
+    <div
+      v-if="inactiveTooltip.visible"
+      class="inactive-tooltip"
+      :style="{ top: inactiveTooltip.y + 'px', left: inactiveTooltip.x + 'px' }"
+    >
+      <div class="inactive-tooltip-content">
+        {{ inactiveTooltip.text }}
+      </div>
+    </div>
   </div>
 </template>
 
@@ -150,9 +195,23 @@ export default {
         disabled: {
             type: Boolean,
             default: false
+        },
+        // Место разгрузки на уровне заявки (#706): для ТМЦ-без-машин это единственный
+        // источник мест. Показываем грид только когда машин в заявке нет.
+        showUnloadPlaces: {
+            type: Boolean,
+            default: false
+        },
+        allUnloadingPlaces: {
+            type: Array,
+            default: () => []
+        },
+        selectedUnloadPlaces: {
+            type: Array,
+            default: () => []
         }
     },
-    emits: ['edit-cancelled', 'item-added', 'item-updated', 'items-added'],
+    emits: ['edit-cancelled', 'item-added', 'item-updated', 'items-added', 'update:unload-places'],
     setup(props) {
         return useFieldConfig(() => props.fieldConfig);
     },
@@ -169,7 +228,13 @@ export default {
             showTooltip: false,
             submitted: false,
             tempItemsBackup: null,
-            isAddingRow: false
+            isAddingRow: false,
+            inactiveTooltip: {
+                visible: false,
+                text: '',
+                x: 0,
+                y: 0
+            }
         }
     },
     computed: {
@@ -342,6 +407,36 @@ export default {
             
             // Эмитируем событие отмены
             this.$emit('edit-cancelled');
+        },
+
+        togglePlace(place) {
+            if (place.status !== 'active') {
+                return;
+            }
+            const current = this.selectedUnloadPlaces || [];
+            const next = current.includes(place.id)
+                ? current.filter(id => id !== place.id)
+                : [...current, place.id];
+            this.$emit('update:unload-places', next);
+        },
+
+        showInactiveTooltip(place, event) {
+            if (place.status !== 'active') {
+                this.inactiveTooltip.text = place.status_comment
+                    ? `Недоступно: ${place.status_comment}`
+                    : 'Недоступно';
+                this.inactiveTooltip.visible = true;
+
+                this.$nextTick(() => {
+                    const rect = event.target.getBoundingClientRect();
+                    this.inactiveTooltip.x = rect.left + rect.width / 2;
+                    this.inactiveTooltip.y = rect.top - 10;
+                });
+            }
+        },
+
+        hideInactiveTooltip() {
+            this.inactiveTooltip.visible = false;
         }
     }
 }
@@ -693,5 +788,96 @@ export default {
     right: 40px;
     border: 5px solid transparent;
     border-bottom-color: #333;
+}
+
+/* Места разгрузки (#706): грид 1:1 из VehicleForm (completion__unloading). */
+.completion__unloading {
+    margin-top: 15px;
+}
+
+.unloading__grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    row-gap: 5px;
+    max-width: 425px;
+    margin-top: 5px;
+    position: relative;
+}
+
+.unloading__item {
+    height: 30px;
+    background: #F2F2F2;
+    color: #a2a2a2;
+    border-radius: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+    padding: 0 10px;
+    text-align: center;
+    border: 1px solid transparent;
+    position: relative;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.unloading__item:hover:not(.unloading__item--active):not(.unloading__item--inactive) {
+    background: #e8e8e8;
+}
+
+.unloading__item--active {
+    background: #4F5BDF;
+    color: #fff;
+    border-color: #4F5BDF;
+}
+
+.unloading__item--inactive {
+    background: #ffe6e6;
+    color: #ff6b6b;
+    border-color: #ffcccc;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.no-places-message {
+    font-size: 12px;
+    color: #ff6b6b;
+    text-align: center;
+    padding: 20px;
+    background: #fff5f5;
+    border-radius: 8px;
+    margin-top: 10px;
+}
+
+.inactive-tooltip {
+    position: fixed;
+    transform: translateX(-50%) translateY(-100%);
+    z-index: 10000;
+    pointer-events: none;
+}
+
+.inactive-tooltip-content {
+    background: #333;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    max-width: 300px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.inactive-tooltip-content::before {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: #333;
 }
 </style>
