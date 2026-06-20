@@ -59,3 +59,29 @@ export async function updateUserCompany(username, companyId) {
 export async function deleteUser(username) {
   return apiRequest(`/users/${username}`, { method: 'DELETE' });
 }
+
+// --- Места доступа охранника (#706, BE-S5) ---
+
+export async function getUserUnloadPlaces(username) {
+  const res = await apiRequest(`/users/${username}/unload-places`);
+  return res.json();
+}
+
+export async function setUserUnloadPlaces(username, unloadPlaceIds) {
+  return apiRequest(`/users/${username}/unload-places`, {
+    method: 'PUT',
+    body: JSON.stringify({ unload_place_ids: unloadPlaceIds }),
+  });
+}
+
+export async function getUserTables(username) {
+  const res = await apiRequest(`/users/${username}/tables`);
+  return res.json();
+}
+
+export async function setUserTables(username, tableIds) {
+  return apiRequest(`/users/${username}/tables`, {
+    method: 'PUT',
+    body: JSON.stringify({ table_ids: tableIds }),
+  });
+}
