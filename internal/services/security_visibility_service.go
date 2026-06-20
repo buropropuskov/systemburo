@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"systemburo/internal/models"
+	"systemburo/internal/normalize"
 )
 
 // securityUserTypeCode - код типа аккаунта охранника ЧОП в user_types. Резолвится по code,
@@ -152,14 +153,62 @@ func availableAttachmentFilterWhere(f AvailableAttachmentFilters) (string, []int
 	}
 	if f.Search != nil {
 		if s := strings.TrimSpace(*f.Search); s != "" {
-			like := "%" + s + "%"
-			clauses = append(clauses, `(
-				app.application_number ILIKE ?
-				OR a.attachment_name ILIKE ?
-				OR a.attachment_display_name ILIKE ?
-				OR format_full_name(su.last_name, su.first_name, su.middle_name) ILIKE ?
-			)`)
-			args = append(args, like, like, like, like)
+			// Мощный поиск как в Центре заявок: варианты (раскладка/номер), ILIKE по полям
+			// заявки/вложения/отправителя + EXISTS по машинам/местам разгрузки/сотрудникам
+			// этого вложения и согласующим заявки, опечатки через strict_word_similarity.
+			variants := buildSearchVariants(s)
+
+			baseCols := []string{
+				"app.application_number",
+				"COALESCE(o.name, c.name, '')",
+				"c.name",
+				"app.message",
+				"a.attachment_name",
+				"a.attachment_display_name",
+				"su.last_name", "su.first_name", "su.middle_name",
+			}
+			baseCond, baseArgs := ilikePatternsArgs(baseCols, variants)
+
+			// Машины этого вложения: номер (+ слитно/раздельно при цифрах), марка, место разгрузки.
+			carCond, carArgs := ilikePatternsArgs([]string{"c2.car_number", "c2.mark_name", "c2.unload_place"}, variants)
+			platePattern := ""
+			if strings.ContainsAny(s, "0123456789") {
+				carCond += " OR REPLACE(c2.car_number, ' ', '') ILIKE ?"
+				platePattern = "%" + normalize.Plate(s) + "%"
+			}
+			carSub := `EXISTS(SELECT 1 FROM cars c2 WHERE c2.attachment_id = a.id AND (` + carCond + `))`
+
+			// Места разгрузки вложения: в этом view источник - attachment_unload_places
+			// (по attachment_id напрямую, #706), как в availableAttachmentSelect, а не через cars.
+			upCond, upArgs := ilikePatternsArgs([]string{"up.name"}, variants)
+			upSub := `EXISTS(SELECT 1 FROM attachment_unload_places aup
+				JOIN unload_places up ON up.id = aup.unload_place_id
+				WHERE aup.attachment_id = a.id AND (` + upCond + `))`
+
+			// Сотрудники этого вложения: ФИО/должность + опечатки.
+			empCond, empArgs := ilikePatternsArgs([]string{"e.last_name", "e.first_name", "e.middle_name", "e.position"}, variants)
+			empSub := `EXISTS(SELECT 1 FROM employees e
+				WHERE e.attachment_id = a.id AND (` + empCond + `
+					OR strict_word_similarity(?, concat_ws(' ', e.last_name, e.first_name, e.middle_name)) > 0.3))`
+
+			// Согласующие заявки: ФИО + комментарий + опечатки.
+			apprCond, apprArgs := ilikePatternsArgs([]string{"au.last_name", "au.first_name", "au.middle_name", "aru.approval_comment"}, variants)
+			apprSub := `EXISTS(SELECT 1 FROM application_responsible_users aru
+				JOIN users au ON au.id = aru.user_id
+				WHERE aru.application_id = app.id AND (` + apprCond + `
+					OR strict_word_similarity(?, concat_ws(' ', au.last_name, au.first_name, au.middle_name)) > 0.3))`
+
+			clauses = append(clauses, "("+baseCond+" OR "+carSub+" OR "+upSub+" OR "+empSub+" OR "+apprSub+")")
+			args = append(args, baseArgs...)
+			args = append(args, carArgs...)
+			if platePattern != "" {
+				args = append(args, platePattern)
+			}
+			args = append(args, upArgs...)
+			args = append(args, empArgs...)
+			args = append(args, s) // strict_word_similarity сотрудников
+			args = append(args, apprArgs...)
+			args = append(args, s) // strict_word_similarity согласующих
 		}
 	}
 
