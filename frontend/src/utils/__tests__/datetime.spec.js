@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { formatDateRu, formatTimeAgo } from '../datetime';
+import { formatDateRu, formatTimeAgo, formatReportCell } from '../datetime';
 
 describe('formatDateRu', () => {
   it('YYYY-MM-DD -> дд.мм.гггг', () => {
@@ -21,6 +21,34 @@ describe('formatDateRu', () => {
     expect(formatDateRu('')).toBe('');
     expect(formatDateRu(null)).toBe('');
     expect(formatDateRu(undefined)).toBe('');
+  });
+});
+
+describe('formatReportCell', () => {
+  it('type=date: ISO-даты -> дд.мм.гггг (в т.ч. диапазон)', () => {
+    expect(formatReportCell('2026-06-20', 'date')).toBe('20.06.2026');
+    expect(formatReportCell('2026-06-20 - 2026-06-21', 'date')).toBe('20.06.2026 - 21.06.2026');
+  });
+
+  it('type=time: убирает секунды', () => {
+    expect(formatReportCell('00:01:00 - 23:59:00', 'time')).toBe('00:01 - 23:59');
+  });
+
+  it('type=datetime: дата + время без секунд', () => {
+    expect(formatReportCell('2026-06-20 14:30:45', 'datetime')).toBe('20.06.2026 14:30');
+  });
+
+  it('без типа НЕ форматирует — свободный текст не портится', () => {
+    // Ключевая защита: в "Наименовании работ" может быть дата — её нельзя трогать.
+    expect(formatReportCell('Ремонт 2026-06-15', undefined)).toBe('Ремонт 2026-06-15');
+    expect(formatReportCell('Смена 00:01:00', '')).toBe('Смена 00:01:00');
+    expect(formatReportCell('№ 20260619/001', 'text')).toBe('№ 20260619/001');
+  });
+
+  it('пустое -> пустая строка', () => {
+    expect(formatReportCell('', 'date')).toBe('');
+    expect(formatReportCell(null, 'date')).toBe('');
+    expect(formatReportCell(undefined, 'date')).toBe('');
   });
 });
 

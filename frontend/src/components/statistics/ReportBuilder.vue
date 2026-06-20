@@ -1043,9 +1043,9 @@ function run() {
   font-size: 12px;
   font-weight: 600;
   color: var(--color-text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* Перенос вместо обрезки: при выгрузке строк колонок много (7+), длинные
+     подписи («Организация/Компания») не должны теряться под многоточием. */
+  overflow-wrap: anywhere;
 }
 
 .rb__skel-more {
@@ -1056,9 +1056,7 @@ function run() {
 .rb__skel-sub {
   font-size: 10px;
   color: var(--color-text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 
 .rb__skel-cell {

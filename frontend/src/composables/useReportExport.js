@@ -1,5 +1,5 @@
 import { ref } from 'vue';
-import { formatDateRu } from '@/utils/datetime';
+import { formatDateRu, formatReportCell } from '@/utils/datetime';
 
 // Значение колонки строки/итогов: дробные метрики (float) лежат в float_values/
 // float_totals, целочисленные (счётчики, суммы, pivot cross-tab) — в values/totals.
@@ -27,7 +27,7 @@ export function reportToTable(result) {
     return {
       sheetName: 'Выгрузка',
       header: columns.map((c) => c.label),
-      rows: (result.rows || []).map((row) => columns.map((c) => cellText(row[c.key]))),
+      rows: (result.rows || []).map((row) => columns.map((c) => cellText(row[c.key], c.type))),
       totalsRow: null,
     };
   }
@@ -55,9 +55,9 @@ export function reportToTable(result) {
   return { sheetName: 'Сводка', header, rows, totalsRow };
 }
 
-function cellText(value) {
+function cellText(value, type) {
   if (value === null || value === undefined || value === '') return '';
-  return value;
+  return formatReportCell(value, type);
 }
 
 const HEADER_FILL = 'FF4F5BDF';

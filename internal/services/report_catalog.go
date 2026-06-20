@@ -58,6 +58,8 @@ type filterDef struct {
 type listColumnDef struct {
 	key   string
 	label string
+	// format подсказывает фронту тип значения: "date"/"time"/"datetime". Пусто -> текст.
+	format string
 }
 
 // listEntityDef — сущность list-режима: набор столбцов и применимых фильтров.
@@ -198,8 +200,8 @@ var reportListEntityRegistry = map[string]listEntityDef{
 			{key: "org_or_company", label: "Организация/Компания"},
 			{key: "work_name", label: "Наименование работ"},
 			{key: "responsible", label: "Ответственный"},
-			{key: "work_period", label: "Период работ"},
-			{key: "work_time", label: "Время работ"},
+			{key: "work_period", label: "Период работ", format: "date"},
+			{key: "work_time", label: "Время работ", format: "time"},
 			{key: "people_count", label: "Кол-во людей"},
 		},
 		filters: []string{"date_range", "organization", "status"},
@@ -211,7 +213,7 @@ var reportListEntityRegistry = map[string]listEntityDef{
 			{key: "status", label: "Статус"},
 			{key: "organization", label: "Организация"},
 			{key: "company", label: "Компания"},
-			{key: "sending_datetime", label: "Дата подачи"},
+			{key: "sending_datetime", label: "Дата подачи", format: "datetime"},
 			{key: "attachments_count", label: "Вложений"},
 		},
 		filters: []string{"date_range", "status", "organization", "company"},
@@ -360,7 +362,7 @@ func buildReportCatalog(dyn dynamicReportOptions) models.ReportCatalog {
 		def := reportListEntityRegistry[key]
 		cols := make([]models.ReportColumnInfo, 0, len(def.columns))
 		for _, c := range def.columns {
-			cols = append(cols, models.ReportColumnInfo{Key: c.key, Label: c.label})
+			cols = append(cols, models.ReportColumnInfo{Key: c.key, Label: c.label, Type: c.format})
 		}
 		cat.ListEntities = append(cat.ListEntities, models.ReportListEntityInfo{
 			Key:     key,

@@ -206,7 +206,7 @@
                 v-for="col in (result.columns || [])"
                 :key="col.key"
               >
-                {{ formatCell(row[col.key]) }}
+                {{ formatCell(row[col.key], col.type) }}
               </td>
             </tr>
             <tr v-if="!result.rows.length">
@@ -234,7 +234,7 @@ import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import AnalyticsAreaChart from './AnalyticsAreaChart.vue';
 import AnalyticsBarChart from './AnalyticsBarChart.vue';
 import { useReportExport } from '@/composables/useReportExport';
-import { formatDateRu } from '@/utils/datetime';
+import { formatDateRu, formatReportCell } from '@/utils/datetime';
 
 const props = defineProps({
   result: { type: Object, default: null },
@@ -366,9 +366,9 @@ function formatNumber(value, float) {
     : n.toLocaleString('ru-RU');
 }
 
-function formatCell(value) {
+function formatCell(value, type) {
   if (value === null || value === undefined || value === '') return '—';
-  return value;
+  return formatReportCell(value, type);
 }
 </script>
 

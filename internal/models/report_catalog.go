@@ -52,10 +52,13 @@ type ReportFilterInfo struct {
 	Options []ReportOption  `json:"options,omitempty"`
 }
 
-// ReportColumnInfo — столбец list-режима (выгрузки строк).
+// ReportColumnInfo — столбец list-режима (выгрузки строк). Type (опц.) подсказывает
+// фронту формат значения: "date"/"time"/"datetime" -> дд.мм.гггг и время без секунд.
+// Пусто -> произвольный текст (номер, ФИО, организация), не форматируется.
 type ReportColumnInfo struct {
 	Key   string `json:"key"`
 	Label string `json:"label"`
+	Type  string `json:"type,omitempty"`
 }
 
 // ReportListEntityInfo — сущность list-режима: какие столбцы и фильтры доступны.
