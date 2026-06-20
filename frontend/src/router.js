@@ -65,6 +65,15 @@ const routes = [
     component: ApplicationsCenter,
     meta: { requiresAuth: true }
   },
+  // "Доступные мне": вложения согласованных заявок, совпавших по месту с местами
+  // охранника. Доступ - охранник (user_type code 'security') или супер-админ;
+  // requiresBuro НЕ ставим (охранник не buro). Гейт по коду типа - в beforeEach.
+  {
+    path: '/accessible-attachments',
+    name: 'AccessibleAttachments',
+    component: () => import('./views/AccessibleAttachmentsView.vue'),
+    meta: { requiresAuth: true, requiresSecurityOrAdmin: true }
+  },
   {
     path: '/table-constructor',
     name: 'TableConstructor',
@@ -271,6 +280,18 @@ router.beforeEach(async (to, from, next) => {
   if (to.meta.requiresBuro && !isBuroPropuskov) {
     next('/personal-cabinet');
     return;
+  }
+  // Гейт "Доступные мне": супер-админ проходит сразу; иначе резолвим код типа
+  // пользователя (один раз, лениво) и пускаем только охранника. userTypeCode
+  // приходит из /users/me - на F5 он ещё null, поэтому подгружаем до проверки.
+  if (to.meta.requiresSecurityOrAdmin) {
+    if (!isBuroPropuskov && authStore.userTypeCode === null) {
+      await authStore.loadUserTypeCode();
+    }
+    if (!authStore.canViewAccessibleAttachments) {
+      next('/personal-cabinet');
+      return;
+    }
   }
   if (to.path === '/' && isAuthenticated) {
     next('/news');
