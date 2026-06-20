@@ -47,3 +47,26 @@ export function formatDateRu(value) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
   return m ? `${m[3]}.${m[2]}.${m[1]}` : String(value);
 }
+
+/**
+ * Форматирует ячейку отчёта-выгрузки (mode=list) ПО ТИПУ колонки (column.type с
+ * бэка): 'date'/'datetime' -> ISO-даты 'ГГГГ-ММ-ДД' в 'дд.мм.гггг'; 'time'/'datetime'
+ * -> убрать секунды 'ЧЧ:ММ:СС' -> 'ЧЧ:ММ' (секунды в отчётах не нужны). Бэк отдаёт
+ * склеенные строки-диапазоны ('2026-06-20 - 2026-06-21', '00:01:00 - 23:59:00'),
+ * поэтому правим все подстроки. Колонки без типа (номер, ФИО, организация,
+ * произвольный текст) возвращаем как есть — иначе дата внутри текста была бы испорчена.
+ * @param {string|number|null|undefined} value
+ * @param {string} [type] — тип колонки: 'date' | 'time' | 'datetime' | прочее
+ * @returns {string}
+ */
+export function formatReportCell(value, type) {
+  if (value == null || value === '') return '';
+  let s = String(value);
+  if (type === 'date' || type === 'datetime') {
+    s = s.replace(/(\d{4})-(\d{2})-(\d{2})/g, '$3.$2.$1');
+  }
+  if (type === 'time' || type === 'datetime') {
+    s = s.replace(/(\d{1,2}:\d{2}):\d{2}/g, '$1');
+  }
+  return s;
+}

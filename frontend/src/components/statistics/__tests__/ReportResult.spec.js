@@ -92,6 +92,23 @@ describe('ReportResult — переключатель Таблица/Графи�
     expect(w.find('.rr__table').exists()).toBe(true);
   });
 
+  it('list-режим: колонки date/time форматируются, текст с датой — нет', () => {
+    const w = mountResult({
+      mode: 'list',
+      columns: [
+        { key: 'period', label: 'Период работ', type: 'date' },
+        { key: 'time', label: 'Время работ', type: 'time' },
+        { key: 'name', label: 'Наименование работ' }, // без типа — свободный текст
+      ],
+      rows: [{ period: '2026-06-20 - 2026-06-21', time: '00:01:00 - 23:59:00', name: 'Ремонт 2026-06-15' }],
+      total: 1,
+    });
+    const cells = w.findAll('.rr__table tbody tr')[0].findAll('td').map((td) => td.text());
+    expect(cells[0]).toBe('20.06.2026 - 21.06.2026');
+    expect(cells[1]).toBe('00:01 - 23:59');
+    expect(cells[2]).toBe('Ремонт 2026-06-15'); // дата в тексте не тронута
+  });
+
   it('aggregate: переключатель есть, по умолчанию таблица', () => {
     const w = mountResult(aggStatus);
     expect(w.find('[data-testid="rr-view-chart"]').exists()).toBe(true);

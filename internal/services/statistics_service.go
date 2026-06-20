@@ -587,11 +587,17 @@ func (s *statisticsService) RunReport(ctx context.Context, req models.ReportRequ
 		return nil, perr
 	}
 	if pivotOn {
-		pivotCols, cerr := s.collectPivotColumns(ctx, metrics, axis, req, metricRows)
+		pivotCols, pivotTotals, cerr := s.collectPivotColumns(ctx, metrics, axis, req, metricRows)
 		if cerr != nil {
 			return nil, cerr
 		}
 		columns = append(columns, pivotCols...)
+		// Итоги pivot-колонок: mergeMetricRows считает totals только по метрикам, а
+		// cross-tab-колонки добавляются после. Без этого строка «Итого» показывает 0
+		// по колонкам оси (баг: суммы есть в ячейках, но не в итогах).
+		for k, v := range pivotTotals {
+			totals[k] = v
+		}
 	}
 
 	// Метрики-средние (avg_*): целые счётчики бинов делятся на число дней бина в Go
@@ -635,23 +641,25 @@ func (s *statisticsService) RunReport(ctx context.Context, req models.ReportRequ
 }
 
 // collectPivotColumns исполняет cross-tab запрос по каждой метрике оси и вписывает
-// ячейки в уже упорядоченные строки, возвращая добавочные pivot-колонки. Несколько
-// метрик с одной осью дают один общий набор pivot-колонок (счётчики складываются —
-// все метрики оси считают заявки по тому же выражению).
-func (s *statisticsService) collectPivotColumns(ctx context.Context, metrics []string, axis models.ReportPivotInfo, req models.ReportRequest, metricRows []models.ReportMetricRow) ([]models.ReportMetricColumn, error) {
+// ячейки в уже упорядоченные строки, возвращая добавочные pivot-колонки и их итоги
+// (ключ колонки -> сумма по видимым строкам). Несколько метрик с одной осью дают
+// один общий набор pivot-колонок (счётчики складываются — все метрики оси считают
+// заявки по тому же выражению).
+func (s *statisticsService) collectPivotColumns(ctx context.Context, metrics []string, axis models.ReportPivotInfo, req models.ReportRequest, metricRows []models.ReportMetricRow) ([]models.ReportMetricColumn, map[string]int64, error) {
 	var cells []pivotCell
 	for _, m := range metrics {
 		plan, perr := buildPivotPlan(m, axis.Key, req.Granularity, req.Filters)
 		if perr != nil {
-			return nil, perr
+			return nil, nil, perr
 		}
 		mcells, eerr := s.execPivotPlan(ctx, plan)
 		if eerr != nil {
-			return nil, eerr
+			return nil, nil, eerr
 		}
 		cells = append(cells, mcells...)
 	}
-	return applyPivotCells(metricRows, cells, axis.Label), nil
+	cols, totals := applyPivotCells(metricRows, cells, axis.Label)
+	return cols, totals, nil
 }
 
 // execPivotPlan исполняет cross-tab запрос: GROUP BY (период-бин, ось pivot) ->

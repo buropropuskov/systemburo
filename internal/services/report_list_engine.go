@@ -194,7 +194,7 @@ func buildListPlan(req models.ReportRequest) (*listPlan, error) {
 		}
 		selects = append(selects, def.expr+" AS "+c.key)
 		plan.selectArgs = append(plan.selectArgs, def.args...)
-		cols = append(cols, models.ReportColumnInfo{Key: c.key, Label: c.label})
+		cols = append(cols, models.ReportColumnInfo{Key: c.key, Label: c.label, Type: c.format})
 	}
 	plan.selectStr = strings.Join(selects, ", ")
 	plan.columns = cols

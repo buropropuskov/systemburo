@@ -27,6 +27,10 @@ func TestListEngine_CoversCatalogEntities(t *testing.T) {
 			if plan.columns[i].Key != c.key {
 				t.Errorf("сущность %q: столбец #%d ключ %q != каталог %q", entity, i, plan.columns[i].Key, c.key)
 			}
+			// Тип форматирования (date/time/datetime) пробрасывается фронту как есть.
+			if plan.columns[i].Type != c.format {
+				t.Errorf("сущность %q: столбец %q тип %q != каталог %q", entity, c.key, plan.columns[i].Type, c.format)
+			}
 			// каждый столбец каталога должен попасть в SELECT под своим алиасом
 			if !strings.Contains(plan.selectStr, " AS "+c.key) {
 				t.Errorf("сущность %q: столбец %q отсутствует в select %q", entity, c.key, plan.selectStr)

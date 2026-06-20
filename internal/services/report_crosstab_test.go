@@ -114,7 +114,7 @@ func TestApplyPivotCells_BuildsColumnsAndFillsRows(t *testing.T) {
 		{Period: "2026-06-08", Pivot: "Машины", Count: 3}, // в этом бине только машины
 		{Period: "2026-07-01", Pivot: "Люди", Count: 9},   // бин вне видимых строк -> игнор
 	}
-	cols := applyPivotCells(rows, cells, "Вложения")
+	cols, colTotals := applyPivotCells(rows, cells, "Вложения")
 
 	// Колонки: Машины (итог 6) перед Люди (итог 2) — по убыванию суммы.
 	if len(cols) != 2 {
@@ -125,6 +125,15 @@ func TestApplyPivotCells_BuildsColumnsAndFillsRows(t *testing.T) {
 	}
 	if cols[0].Label != "Вложения: Машины" || cols[0].Kind != models.ReportColumnPivot {
 		t.Errorf("ожидался label/kind pivot-колонки, got %q/%q", cols[0].Label, cols[0].Kind)
+	}
+
+	// Итоги pivot-колонок (для строки «Итого») = суммы по видимым строкам, по ключу
+	// колонки. Бин 2026-07-01 (вне видимых строк) в итоги не входит: Машины 3+3=6, Люди 2.
+	if colTotals[pivotColumnPrefix+"Машины"] != 6 {
+		t.Errorf("итог Машины: ожидалось 6, got %d", colTotals[pivotColumnPrefix+"Машины"])
+	}
+	if colTotals[pivotColumnPrefix+"Люди"] != 2 {
+		t.Errorf("итог Люди: ожидалось 2, got %d", colTotals[pivotColumnPrefix+"Люди"])
 	}
 
 	// Метрика осталась нетронутой, pivot-значения вписаны, отсутствующие -> 0.
