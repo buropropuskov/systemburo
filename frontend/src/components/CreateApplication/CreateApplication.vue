@@ -341,6 +341,7 @@
 import { sanitizeHtml } from '@/utils/sanitize'
 import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
+import { useDeletionsStore } from '@/stores/deletions'
 import { formatPhoneNumberImmediately, formatPhoneNumber, clearPhoneFormat } from '@/composables/usePhoneFormat'
 import BlankSelector from '../BlankSelector.vue';
 import UserInfoRow from './UserInfoRow.vue';
@@ -1578,7 +1579,7 @@ export default {
             this.validateAllFields();
             
             if (!this.canSubmit) {
-                alert('Заполните все обязательные поля во всех вложениях');
+                useDeletionsStore().notify({ prefix: 'Заполните все обязательные поля во всех вложениях', type: 'error' });
                 return;
             }
 
@@ -1586,8 +1587,8 @@ export default {
   const activeVehicles = await this.checkVehiclesBeforeSubmit();
   
   if (activeVehicles.length > 0) {
-    const vehicleList = activeVehicles.map(v => `${v.plateNumber} ${v.mark}`).join('\n');
-    alert(`Невозможно отправить заявку. Следующие автомобили уже имеют активные заявки:\n${vehicleList}`);
+    const vehicleList = activeVehicles.map(v => `${v.plateNumber} ${v.mark}`).join(', ');
+    useDeletionsStore().notify({ prefix: 'Невозможно отправить заявку. Уже имеют активные заявки: ', bold: vehicleList, type: 'error' });
     return;
   }
 
@@ -1610,7 +1611,7 @@ export default {
             });
 
             if (hasDateErrors) {
-                alert(errorMessage);
+                useDeletionsStore().notify({ prefix: errorMessage, type: 'error' });
                 return;
             }
 
@@ -1836,7 +1837,7 @@ export default {
 
         async sendCompleteApplication() {
             if (this.attachments.length === 0) {
-                alert('Добавьте вложения для отправки');
+                useDeletionsStore().notify({ prefix: 'Добавьте вложения для отправки', type: 'error' });
                 return;
             }
 
@@ -1926,7 +1927,7 @@ export default {
             try {
                 const authStore = useAuthStore();
                 if (!authStore.token) {
-                    alert('Токен не найден');
+                    useDeletionsStore().notify({ prefix: 'Токен не найден', type: 'error' });
                     return;
                 }
 
@@ -2011,11 +2012,11 @@ export default {
                 } else {
                     const errorText = await response.text();
                     console.error('Ошибка отправки заявки:', errorText);
-                    alert('Ошибка отправки заявки: ' + errorText);
+                    useDeletionsStore().notify({ prefix: 'Ошибка отправки заявки: ', bold: errorText, type: 'error' });
                 }
             } catch (error) {
                 console.error('Ошибка отправки заявки:', error);
-                alert(`Произошла ошибка при отправке заявки: ${error.message}`);
+                useDeletionsStore().notify({ prefix: 'Произошла ошибка при отправке заявки: ', bold: error.message, type: 'error' });
             }
         },
         
