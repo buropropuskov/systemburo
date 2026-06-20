@@ -206,6 +206,12 @@ const routes = [
     meta: { requiresAuth: true, requiresBuro: true, permission: 'page.admin' }
   },
   {
+    path: '/admin/news',
+    name: 'AdminNews',
+    component: () => import('./views/admin/NewsManagement.vue'),
+    meta: { requiresAuth: true, requiresBuro: true }
+  },
+  {
     path: '/analytics',
     name: 'analytics',
     component: () => import('./views/StatisticsView.vue'),

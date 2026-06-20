@@ -13,12 +13,6 @@
             </h2>
             <div class="header-actions">
               <OnboardingButton />
-              <button
-                class="manage-btn"
-                @click="openManageModal"
-              >
-                Управление
-              </button>
               <RefreshButton @refresh="fetchAllData" />
             </div>
           </div>
@@ -111,7 +105,7 @@
                         width="64"
                         height="64"
                         preserveAspectRatio="none"
-                        xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAACXBIWXMAAAHYAAAB2AH6XKZyAAAAGXRFWHRTb2Z0d2FyZQB3d3cuaW5rc2NhcGUub3Jnm+48GgAAAwxJREFUeJzt209oHkUcxvGPMQlqBAk9WCoBJZdoDuLJQyMtlBZSKv4Be6m3QpRcKmoN9RQPpVCCUA+e9FRPCqWlHixeVGwPUpFCrNhi0ItQJH+MQpU2TQ+7L+8SeHl3N7OZTbJfWN7Z3fnNPPMw876zs/PSsL15oGRcP17AM3gknJyg/IwvQxfajynMY3UTHM+HbPwgvqtBo4ocr3drVG/OxvfiC0m3bzGHS1jOWcZaxrA7TV/G94FiDmG0pKaOvKHt6grexYPrLHM6U+Z0wJizKugBxzPpDzCTM6729OTI8zSG0/QiTlcnZ+PJY8BwJn0F/1WkJQp5DHgsk16qSkgs8hiQnSytViUkFnkM2NI0BsQWEJvGgNgCOjCDf2zAhKuOBkzhHTyafr5XZWV1M+AgTq65dgovV1VhnQx4Dp9rP2TdTT978Fl6Pzh1MWAnLmAgPf8dz+K39HxAsrrzROiK62LABIbS9DJexHVJ12+tN+zC0dAV18WA1nR7RfIMP5uez+Kw9nAou4bZkboY0OJtXFxz7ZJkAaYS6mTAp/iow70z+LiKSmMakH20/hpvdsl/LM3XYjGEiLxLYlXwCZ5EH97XHueduIvXJPOC/9P4dRPTgH/xVsGYvzEZUkSdvgOi0BgQW0BsGgNiC4hNY0BsAbFpDIgtIDaNAbEFxKYxILaA2DQGxBYQm8aA2AJis+0NKLskNoZXJRsSd4STE4SnimQuasAQvsGegnGxWOmWoagBm6XhJMvuV7plKjsE/pK8qLiMhZJlVM2cHO8OyhjwE8Zxq0Rs7Sj6K3Abr9gijad4DziHP9L0wziBkaCKwnAPV/Fhml4XR7S3n2f360yq5k8OIY8D3RqXZwhkX2I+lEn/mSM2JityDNU8Gw5G8Eua/hZ7M/d2S3Zu1JEbuBaqsJva3Wo8VKGbiQltA5bwUlw54ci756YXX2Ff5tqPkn+RLeBOYF0h+BXnQxY4KHkOiP3NXuQY69aoIhOhReyX/BTOF4irNWW3nfVJ3B3F4+l5nbiHHwQeAg1bkfsR5B+/y7yHCAAAAABJRU5ErkJggg=="
+                        xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAACXBIWXMAAAHYAAAB2AH6XKZyAAAAGXRFWHRTb2Z0d2FyZQB3d3cuaW5rc2NhcGUub3Jnm+48GgAAAwxJREFUeJzt209oHkUcxvGPMQlqBAk9WCoBJZdoDuLJQyMtlBZSKv4Be6m3QpRcKmoN9RQPpVCCUA+e9FRPCqWlHixeVGwPUpFCrNhi0ItQJH+MQpU2TQ+7L+8SeHl3N7OZTbJfWN7Z3fnNPPMw876zs/PSsL15oGRcP17AM3gknJyg/IwvQxfajynMY3UTHM+HbPwgvqtBo4ocr3drVG/OxvfiC0m3bzGHS1jOWcZaxrA7TV/G94FiDmG0pKaOvKHt6grexYPrLHM6U+Z0wJizKugBxzPpDzCTM6729OTI8zSG0/QiTlcnZ+PJY8BwJn0F/1WkJQp5DHgsk16qSkgs8hiQnSytViUkFnkM2NI0BsQWEJvGgNgCOjCDf2zAhKuOBkzhHTyafr5XZWV1M+AgTq65dgovV1VhnQx4Dp9rP2TdTT978Fl6Pzh1MWAnLmAgPf8dz+K39HxAsrrzROiK62LABIbS9DJexHVJ12+tN+zC0dAV18WA1nR7RfIMP5uez+Kw9nAou4bZkboY0OJtXFxz7ZJkAaYS6mTAp/iow70z+LiKSmMakH20/hpvdsl/LM3XYjGEiLxLYlXwCZ5EH97XHueduIvXJPOC/9P4dRPTgH/xVsGYvzEZUkSdvgOi0BgQW0BsGgNiC4hNY0BsAbFpDIgtIDaNAbEFxKYxILaA2DQGxBYQm8aA2AJis+0NKLskNoZXJRsSd4STE4SniWQuasAQvsGegnGxWOmWoagBm6XhJMvuV7plKjsE/pK8qLiMhZJlVM2cHO8OyhjwE8Zxq0Rs7Sj6K3Abr9gijad4DziHP9L0wziBkaCKwnAPV/Fhml4XR7S3n2f360yq5k8OIY8D3RqXZwhkX2I+lEn/mSM2JityDNU8Gw5G8Eua/hZ7M/d2S3Zu1JEbuBaqsJva3Wo8VKGbiQltA5bwUlw54ci756YXX2Ff5tqPkn+RLeBOYF0h+BXnQxY4KHkOiP3NXuQY69aoIhOhReyX/BTOF4irNWW3nfVJ3B3F4+l5nbiHHwQeAg1bkfsR5B+/y7yHCAAAAABJRU5ErkJggg=="
                       />
                     </defs>
                   </svg>
@@ -157,360 +151,6 @@
         <DocumentsBlock />
       </div>
     </div>
-
-    <!-- Модальное окно управления -->
-    <Teleport to="body">
-      <transition name="modal-fade">
-        <div
-          v-if="showManageModal"
-          class="modal-overlay"
-          @click.self="closeManageModal"
-        >
-          <div class="modal-content manage-modal">
-            <div class="modal-header">
-              <h3 class="modal-title">
-                Управление контентом
-              </h3>
-              <button
-                class="modal-close"
-                @click="closeManageModal"
-              >
-                <svg
-                  width="10"
-                  height="10"
-                  viewBox="0 0 14 14"
-                  fill="none"
-                ><path
-                  d="M13 1L1 13M1 1L13 13"
-                  stroke="#666"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                /></svg>
-              </button>
-            </div>
-
-            <div class="modal-body">
-              <div class="manage-tabs">
-                <button
-                  class="tab-btn"
-                  :class="{ active: activeTab === 'news' }"
-                  @click="activeTab = 'news'"
-                >
-                  Новости
-                </button>
-                <button
-                  class="tab-btn"
-                  :class="{ active: activeTab === 'announcements' }"
-                  @click="activeTab = 'announcements'"
-                >
-                  Объявления
-                </button>
-              </div>
-
-              <!-- Новости -->
-              <div
-                v-if="activeTab === 'news'"
-                class="manage-section"
-              >
-                <div class="section-header">
-                  <div class="section-title">
-                    Список новостей
-                  </div>
-                  <button
-                    class="add-btn"
-                    @click="openCreateNewsModal"
-                  >
-                    + Добавить новость
-                  </button>
-                </div>
-                <div class="items-list">
-                  <div
-                    v-for="item in allNewsItems"
-                    :key="item.id"
-                    class="manage-item"
-                  >
-                    <div class="item-main">
-                      <div class="item-title">
-                        {{ item.title }}
-                      </div>
-                      <div class="item-meta">
-                        <span>{{ formatDate(item.created_at) }}</span>
-                        <span>{{ item.created_by_name || 'Система' }}</span>
-                        <span class="status-text">{{ item.is_active ? 'Активна' : 'Скрыта' }}</span>
-                      </div>
-                    </div>
-                    <div class="item-actions">
-                      <button
-                        class="action-btn edit-btn"
-                        @click="editNewsItem(item)"
-                      >
-                        Редактировать
-                      </button>
-                      <button
-                        class="action-btn toggle-btn"
-                        @click="toggleNewsActive(item)"
-                      >
-                        {{ item.is_active ? 'Скрыть' : 'Показать' }}
-                      </button>
-                      <button
-                        class="action-btn delete-btn"
-                        @click="deleteNewsItem(item.id)"
-                      >
-                        Удалить
-                      </button>
-                    </div>
-                  </div>
-                  <div
-                    v-if="allNewsItems.length === 0"
-                    class="empty-manage"
-                  >
-                    Нет новостей
-                  </div>
-                </div>
-              </div>
-
-              <!-- Объявления -->
-              <div
-                v-if="activeTab === 'announcements'"
-                class="manage-section"
-              >
-                <div class="section-header">
-                  <div class="section-title">
-                    Список объявлений
-                  </div>
-                  <button
-                    class="add-btn"
-                    @click="openCreateAnnouncementModal"
-                  >
-                    + Добавить объявление
-                  </button>
-                </div>
-                <div class="info-message">
-                  <span>Активно может быть только одно объявление</span>
-                </div>
-                <div class="items-list">
-                  <div
-                    v-for="item in allAnnouncements"
-                    :key="item.id"
-                    class="manage-item"
-                  >
-                    <div class="item-main">
-                      <div class="item-title">
-                        {{ item.title }}
-                        <span
-                          v-if="item.is_important"
-                          class="important-badge"
-                        >Важное</span>
-                        <span
-                          v-if="item.is_active"
-                          class="active-badge"
-                        >Активно</span>
-                      </div>
-                      <div class="item-meta">
-                        <span>{{ formatDate(item.created_at) }}</span>
-                        <span>Создал: {{ item.created_by_name || 'Система' }}</span>
-                        <span v-if="item.activated_by_name">Активировал: {{ item.activated_by_name }}</span>
-                      </div>
-                    </div>
-                    <div class="item-actions">
-                      <button
-                        class="action-btn edit-btn"
-                        @click="editAnnouncement(item)"
-                      >
-                        Редактировать
-                      </button>
-                      <button
-                        v-if="!item.is_active"
-                        class="action-btn activate-btn"
-                        @click="setActiveAnnouncement(item.id)"
-                      >
-                        Показать
-                      </button>
-                      <button
-                        v-if="item.is_active"
-                        class="action-btn deactivate-btn"
-                        @click="deactivateAnnouncement(item.id)"
-                      >
-                        Скрыть
-                      </button>
-                      <button
-                        class="action-btn delete-btn"
-                        @click="deleteAnnouncement(item.id)"
-                      >
-                        Удалить
-                      </button>
-                    </div>
-                  </div>
-                  <div
-                    v-if="allAnnouncements.length === 0"
-                    class="empty-manage"
-                  >
-                    Нет объявлений
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="modal-footer">
-              <button
-                class="btn close-btn"
-                @click="closeManageModal"
-              >
-                Закрыть
-              </button>
-            </div>
-          </div>
-        </div>
-      </transition>
-    </Teleport>
-
-    <!-- Модальное окно создания/редактирования новости -->
-    <Teleport to="body">
-      <transition name="modal-fade">
-        <div
-          v-if="showNewsModal"
-          class="modal-overlay"
-          @click.self="closeNewsModal"
-        >
-          <div class="modal-content">
-            <div class="modal-header">
-              <h3 class="modal-title">
-                {{ editingNews ? 'Редактировать новость' : 'Создать новость' }}
-              </h3>
-              <button
-                class="modal-close"
-                @click="closeNewsModal"
-              >
-                <svg
-                  width="10"
-                  height="10"
-                  viewBox="0 0 14 14"
-                  fill="none"
-                ><path
-                  d="M13 1L1 13M1 1L13 13"
-                  stroke="#666"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                /></svg>
-              </button>
-            </div>
-            <div class="modal-body">
-              <div class="form-group">
-                <label class="form-label">Заголовок</label><input
-                  v-model="newsForm.title"
-                  type="text"
-                  class="form-input"
-                  placeholder="Введите заголовок"
-                >
-              </div>
-              <div class="form-group">
-                <label class="form-label">Краткое описание</label><textarea
-                  v-model="newsForm.description"
-                  class="form-textarea"
-                  placeholder="Введите краткое описание"
-                  rows="3"
-                />
-              </div>
-              <div class="form-group">
-                <label class="form-label">Полный текст</label>
-                <TextConstructor v-model="newsForm.fullText" />
-              </div>
-            </div>
-            <div class="modal-footer">
-              <button
-                class="btn cancel-btn"
-                @click="closeNewsModal"
-              >
-                Отмена
-              </button>
-              <button
-                class="btn save-btn"
-                @click="submitNews"
-              >
-                Сохранить
-              </button>
-            </div>
-          </div>
-        </div>
-      </transition>
-    </Teleport>
-
-    <!-- Модальное окно создания/редактирования объявления -->
-    <Teleport to="body">
-      <transition name="modal-fade">
-        <div
-          v-if="showAnnouncementModal"
-          class="modal-overlay"
-          @click.self="closeAnnouncementModal"
-        >
-          <div class="modal-content">
-            <div class="modal-header">
-              <h3 class="modal-title">
-                {{ editingAnnouncement ? 'Редактировать объявление' : 'Создать объявление' }}
-              </h3>
-              <button
-                class="modal-close"
-                @click="closeAnnouncementModal"
-              >
-                <svg
-                  width="10"
-                  height="10"
-                  viewBox="0 0 14 14"
-                  fill="none"
-                ><path
-                  d="M13 1L1 13M1 1L13 13"
-                  stroke="#666"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                /></svg>
-              </button>
-            </div>
-            <div class="modal-body">
-              <div class="form-group">
-                <label class="form-label">Заголовок</label><input
-                  v-model="announcementForm.title"
-                  type="text"
-                  class="form-input"
-                  placeholder="Введите заголовок"
-                >
-              </div>
-              <div class="form-group">
-                <label class="form-label">Краткое описание</label><textarea
-                  v-model="announcementForm.description"
-                  class="form-textarea"
-                  placeholder="Введите краткое описание"
-                  rows="3"
-                />
-              </div>
-              <div class="form-group">
-                <label class="form-label">Полный текст</label>
-                <TextConstructor v-model="announcementForm.fullText" />
-              </div>
-              <div class="form-group">
-                <label class="checkbox-label"><input
-                  v-model="announcementForm.isImportant"
-                  type="checkbox"
-                ><span>Важное объявление</span></label>
-              </div>
-            </div>
-            <div class="modal-footer">
-              <button
-                class="btn cancel-btn"
-                @click="closeAnnouncementModal"
-              >
-                Отмена
-              </button>
-              <button
-                class="btn save-btn"
-                @click="submitAnnouncement"
-              >
-                Сохранить
-              </button>
-            </div>
-          </div>
-        </div>
-      </transition>
-    </Teleport>
 
     <!-- Модальное окно просмотра новости -->
     <Teleport to="body">
@@ -572,7 +212,6 @@ import RefreshButton from '../components/RefreshButton.vue'
 import AnnouncementModal from '../components/AnnouncementModal.vue'
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
 import UserGuideModal from '../components/news/UserGuideModal.vue'
-import TextConstructor from '@/components/TextConstructor.vue'
 import { USER_GUIDE_SECTIONS } from '../components/news/userGuideSections.js'
 import { ADMIN_GUIDE_SECTIONS } from '../components/news/adminGuideSections.js'
 import { useAuthStore } from '@/stores/auth'
@@ -587,30 +226,19 @@ export default {
     AnnouncementModal,
     LoaderSpinner,
     UserGuideModal,
-    TextConstructor,
     DocumentsBlock,
     OnboardingButton,
   },
   data() {
     return {
       loadingNews: false,
-      showManageModal: false,
       showNewsDetailsModal: false,
-      showNewsModal: false,
-      showAnnouncementModal: false,
       showViewAnnouncementModal: false,
       showGuide: false,
-      activeTab: 'news',
       selectedNews: null,
       viewingAnnouncement: null,
-      editingNews: null,
-      editingAnnouncement: null,
-      newsForm: { title: '', description: '', fullText: '' },
-      announcementForm: { title: '', description: '', fullText: '', isImportant: false },
       newsItems: [],
-      allNewsItems: [],
       activeAnnouncement: null,
-      allAnnouncements: []
     }
   },
   computed: {
@@ -634,12 +262,12 @@ export default {
       const date = new Date(dateString)
       // Добавляем 3 часа для UTC+3 (Москва)
       const mskDate = new Date(date.getTime() + 3 * 60 * 60 * 1000)
-      return mskDate.toLocaleDateString('ru-RU', { 
-        day: '2-digit', 
-        month: '2-digit', 
-        year: 'numeric', 
-        hour: '2-digit', 
-        minute: '2-digit' 
+      return mskDate.toLocaleDateString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
       }).replace(',', '')
     },
 
@@ -651,12 +279,6 @@ export default {
       } catch (error) { console.error('Ошибка загрузки новостей:', error) }
       finally { this.loadingNews = false }
     },
-    async fetchAllNews() {
-      try {
-        const response = await apiRequest('/news/all')
-        if (response.ok) this.allNewsItems = await response.json()
-      } catch (error) { console.error('Ошибка загрузки всех новостей:', error) }
-    },
     async fetchActiveAnnouncement() {
       try {
         const response = await apiRequest('/announcements/active')
@@ -667,162 +289,20 @@ export default {
         }
       } catch (error) { console.error('Ошибка загрузки активного объявления:', error) }
     },
-    async fetchAllAnnouncements() {
-      try {
-        const response = await apiRequest('/announcements/all')
-        if (response.ok) this.allAnnouncements = await response.json()
-      } catch (error) { console.error('Ошибка загрузки всех объявлений:', error) }
-    },
     async fetchAllData() {
       await Promise.all([this.fetchNews(), this.fetchActiveAnnouncement()])
     },
 
-    buildNewsPayload() {
-      return {
-        title: this.newsForm.title,
-        description: this.newsForm.description,
-        full_text: this.newsForm.fullText,
-      }
-    },
-    async createNews() {
-      try {
-        const response = await apiRequest('/news', {
-          method: 'POST',
-          body: JSON.stringify(this.buildNewsPayload())
-        })
-        if (response.ok) {
-          await this.fetchAllNews()
-          await this.fetchNews()
-          this.closeNewsModal()
-        } else alert('Ошибка создания новости')
-      } catch (error) { console.error('Ошибка создания новости:', error) }
-    },
-    async updateNews() {
-      try {
-        const response = await apiRequest(`/news/${this.editingNews.id}`, {
-          method: 'PUT',
-          body: JSON.stringify(this.buildNewsPayload())
-        })
-        if (response.ok) {
-          await this.fetchAllNews()
-          await this.fetchNews()
-          this.closeNewsModal()
-        } else alert('Ошибка обновления новости')
-      } catch (error) { console.error('Ошибка обновления новости:', error) }
-    },
-    async toggleNewsActive(item) {
-      try {
-        const response = await apiRequest(`/news/${item.id}`, {
-          method: 'PUT',
-          body: JSON.stringify({ is_active: !item.is_active })
-        })
-        if (response.ok) {
-          await this.fetchAllNews()
-          await this.fetchNews()
-        } else alert('Ошибка изменения статуса')
-      } catch (error) { console.error('Ошибка изменения статуса:', error) }
-    },
-    async deleteNewsItem(id) {
-      if (!confirm('Удалить новость?')) return
-      try {
-        const response = await apiRequest(`/news/${id}`, { method: 'DELETE' })
-        if (response.ok) {
-          await this.fetchAllNews()
-          await this.fetchNews()
-        } else alert('Ошибка удаления новости')
-      } catch (error) { console.error('Ошибка удаления новости:', error) }
-    },
-
-    buildAnnouncementPayload() {
-      return {
-        title: this.announcementForm.title,
-        description: this.announcementForm.description,
-        full_text: this.announcementForm.fullText,
-        is_important: this.announcementForm.isImportant,
-      }
-    },
-    async createAnnouncement() {
-      try {
-        const response = await apiRequest('/announcements', {
-          method: 'POST',
-          body: JSON.stringify(this.buildAnnouncementPayload())
-        })
-        if (response.ok) {
-          await this.fetchAllAnnouncements()
-          await this.fetchActiveAnnouncement()
-          this.closeAnnouncementModal()
-        } else alert('Ошибка создания объявления')
-      } catch (error) { console.error('Ошибка создания объявления:', error) }
-    },
-    async updateAnnouncement() {
-      try {
-        const response = await apiRequest(`/announcements/${this.editingAnnouncement.id}`, {
-          method: 'PUT',
-          body: JSON.stringify(this.buildAnnouncementPayload())
-        })
-        if (response.ok) {
-          await this.fetchAllAnnouncements()
-          await this.fetchActiveAnnouncement()
-          this.closeAnnouncementModal()
-        } else alert('Ошибка обновления объявления')
-      } catch (error) { console.error('Ошибка обновления объявления:', error) }
-    },
-    async setActiveAnnouncement(id) {
-      if (!confirm('Активировать это объявление?')) return
-      try {
-        const response = await apiRequest('/announcements/set-active', {
-          method: 'POST',
-          body: JSON.stringify({ announcement_id: id })
-        })
-        if (response.ok) {
-          await this.fetchAllAnnouncements()
-          await this.fetchActiveAnnouncement()
-        } else alert('Ошибка активации объявления')
-      } catch (error) { console.error('Ошибка активации объявления:', error) }
-    },
-    async deactivateAnnouncement(id) {
-      if (!confirm('Скрыть объявление?')) return
-      try {
-        const response = await apiRequest(`/announcements/${id}/hide`, {
-          method: 'POST'
-        })
-        if (response.ok) {
-          await this.fetchAllAnnouncements()
-          await this.fetchActiveAnnouncement()
-        } else alert('Ошибка скрытия объявления')
-      } catch (error) { console.error('Ошибка скрытия объявления:', error) }
-    },
-    async deleteAnnouncement(id) {
-      if (!confirm('Удалить объявление?')) return
-      try {
-        const response = await apiRequest(`/announcements/${id}`, { method: 'DELETE' })
-        if (response.ok) {
-          await this.fetchAllAnnouncements()
-          await this.fetchActiveAnnouncement()
-        } else alert('Ошибка удаления объявления')
-      } catch (error) { console.error('Ошибка удаления объявления:', error) }
-    },
-
-    openManageModal() { this.fetchAllNews(); this.fetchAllAnnouncements(); this.showManageModal = true },
-    closeManageModal() { this.showManageModal = false },
     openNewsModal(item) { this.selectedNews = item; this.showNewsDetailsModal = true },
     closeNewsDetailsModal() { this.showNewsDetailsModal = false; this.selectedNews = null },
-    openAnnouncementModal(announcement) { 
-      this.viewingAnnouncement = announcement; 
-      this.showViewAnnouncementModal = true; 
+    openAnnouncementModal(announcement) {
+      this.viewingAnnouncement = announcement;
+      this.showViewAnnouncementModal = true;
     },
-    closeViewAnnouncementModal() { 
-      this.showViewAnnouncementModal = false; 
-      this.viewingAnnouncement = null; 
+    closeViewAnnouncementModal() {
+      this.showViewAnnouncementModal = false;
+      this.viewingAnnouncement = null;
     },
-    openCreateNewsModal() { this.editingNews = null; this.newsForm = { title: '', description: '', fullText: '' }; this.showNewsModal = true },
-    editNewsItem(item) { this.editingNews = item; this.newsForm = { title: item.title, description: item.description, fullText: item.full_text || '' }; this.showNewsModal = true },
-    closeNewsModal() { this.showNewsModal = false; this.editingNews = null },
-    submitNews() { if (!this.newsForm.title || !this.newsForm.description) { alert('Заполните заголовок и описание'); return } this.editingNews ? this.updateNews() : this.createNews() },
-    openCreateAnnouncementModal() { this.editingAnnouncement = null; this.announcementForm = { title: '', description: '', fullText: '', isImportant: false }; this.showAnnouncementModal = true },
-    editAnnouncement(item) { this.editingAnnouncement = item; this.announcementForm = { title: item.title, description: item.description, fullText: item.full_text || '', isImportant: item.is_important }; this.showAnnouncementModal = true },
-    closeAnnouncementModal() { this.showAnnouncementModal = false; this.editingAnnouncement = null },
-    submitAnnouncement() { if (!this.announcementForm.title || !this.announcementForm.description) { alert('Заполните заголовок и описание'); return } this.editingAnnouncement ? this.updateAnnouncement() : this.createAnnouncement() },
     openGuide() { this.showGuide = true; },
     closeGuide() { this.showGuide = false; }
   }
@@ -830,8 +310,6 @@ export default {
 </script>
 
 <style scoped>
-/* ... все существующие стили ... */
-
 /* Добавляем стили для лоадера */
 .loading-message {
   text-align: center;
@@ -905,25 +383,6 @@ export default {
 .header-actions {
     display: flex;
     gap: 8px;
-}
-
-.manage-btn {
-    width: 115px;
-    height: 25px;
-    background: white;
-    border: 1px solid #e6e6e6;
-    border-radius: 30px;
-    font-family: 'Montserrat', sans-serif;
-    font-weight: 500;
-    font-size: 13px;
-    color: #000000;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.manage-btn:hover {
-    background: #f5f5f5;
-    border-color: #4F5BDF;
 }
 
 .divider {
@@ -1203,208 +662,6 @@ export default {
     color: #a2a2a2;
 }
 
-.manage-modal .modal-content {
-    width: 680px;
-}
-
-.manage-tabs {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 24px;
-    border-bottom: 1px solid #e6e6e6;
-    padding-bottom: 12px;
-}
-
-.tab-btn {
-    background: none;
-    border: none;
-    padding: 8px 20px;
-    font-family: 'Montserrat', sans-serif;
-    font-size: 14px;
-    font-weight: 500;
-    color: #a2a2a2;
-    cursor: pointer;
-    border-radius: 20px;
-    transition: all 0.2s ease;
-}
-
-.tab-btn:hover {
-    color: #4F5BDF;
-    background: #f8f9ff;
-}
-
-.tab-btn.active {
-    color: #4F5BDF;
-    background: #f0f4ff;
-}
-
-.manage-section {
-    margin-top: 8px;
-}
-
-.section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 16px;
-}
-
-.section-title {
-    font-size: 14px;
-    font-weight: 600;
-    color: #333;
-}
-
-.add-btn {
-    background: #4F5BDF;
-    border: none;
-    border-radius: 20px;
-    padding: 6px 16px;
-    font-family: 'Montserrat', sans-serif;
-    font-size: 12px;
-    font-weight: 500;
-    color: white;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.add-btn:hover {
-    background: #3a45c0;
-}
-
-.info-message {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: #f0f4ff;
-    padding: 10px 14px;
-    border-radius: 12px;
-    margin-bottom: 16px;
-    font-size: 12px;
-    color: #4F5BDF;
-}
-
-.items-list {
-    max-height: 420px;
-    overflow-y: auto;
-}
-
-.manage-item {
-    display: flex;
-    justify-content: space-between;
-    flex-direction: column;
-
-    padding: 14px;
-    border-bottom: 1px solid #f0f0f0;
-    transition: background 0.2s ease;
-    border: 1px solid #e6e6e6;
-    border-radius: 20px;
-    margin-bottom: 10px;
-}
-
-.manage-item:hover {
-    background: #fafafa;
-}
-
-.item-main {
-    flex: 1;
-}
-
-.item-title {
-    font-weight: 500;
-    font-size: 14px;
-    color: #333;
-    margin-bottom: 6px;
-}
-
-.item-meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    font-size: 11px;
-    color: #a2a2a2;
-}
-
-.status-text {
-    color: #666;
-}
-
-.active-badge {
-    margin-left: 8px;
-    padding: 2px 8px;
-    background: #4F5BDF;
-    color: white;
-    border-radius: 12px;
-    font-size: 10px;
-    font-weight: 500;
-}
-
-.important-badge {
-    margin-left: 8px;
-    padding: 2px 8px;
-    background: #ff9800;
-    color: white;
-    border-radius: 12px;
-    font-size: 10px;
-    font-weight: 500;
-}
-
-.item-actions {
-    display: flex;
-    gap: 8px;
-    padding-top: 10px;
-}
-
-.action-btn {
-    background: none;
-    border: none;
-    padding: 3px 12px;
-    border-radius: 20px;
-    font-family: 'Montserrat', sans-serif;
-    font-size: 12px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    color: #666;
-    border: 1px solid #e6e6e6;
-}
-
-.action-btn:hover {
-    background: #f0f0f0;
-}
-
-.edit-btn:hover {
-    color: #4F5BDF;
-    background: #f0f4ff;
-}
-
-.delete-btn:hover {
-    color: #dc2626;
-    background: #ffebee;
-}
-
-.toggle-btn:hover {
-    color: #4F5BDF;
-    background: #f0f4ff;
-}
-
-.activate-btn:hover {
-    color: #4F5BDF;
-    background: #f0f4ff;
-}
-
-.deactivate-btn:hover {
-    color: #dc2626;
-    background: #ffebee;
-}
-
-.empty-manage {
-    text-align: center;
-    padding: 48px;
-    color: #a2a2a2;
-    font-size: 13px;
-}
-
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -1463,22 +720,6 @@ export default {
     color: #1a1a1a;
 }
 
-.modal-close {
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 6px;
-    border-radius: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background-color 0.2s ease;
-}
-
-.modal-close:hover {
-    background-color: #f5f5f5;
-}
-
 .modal-body {
     padding: 20px 30px;
     overflow-y: auto;
@@ -1504,11 +745,6 @@ export default {
     border-radius: 20px;
     background: #f0f4ff;
     color: #4F5BDF;
-}
-
-.modal-type.announcement {
-    background: #fff3cd;
-    color: #856404;
 }
 
 .modal-description {
@@ -1556,72 +792,6 @@ export default {
     background: #3a45c0;
 }
 
-.cancel-btn {
-    background: white;
-    color: #666;
-    border-color: #e6e6e6;
-}
-
-.cancel-btn:hover {
-    background: #f5f5f5;
-}
-
-.save-btn {
-    background: #4F5BDF;
-    color: white;
-    border-color: #4F5BDF;
-}
-
-.save-btn:hover {
-    background: #3a45c0;
-}
-
-.form-group {
-    margin-bottom: 20px;
-}
-
-.form-label {
-    display: block;
-    font-size: 13px;
-    font-weight: 500;
-    color: #333;
-    margin-bottom: 8px;
-}
-
-.form-input,
-.form-textarea {
-    width: 100%;
-    padding: 10px 14px;
-    border: 1px solid #e6e6e6;
-    border-radius: var(--radius-md);
-    font-family: 'Montserrat', sans-serif;
-    font-size: 13px;
-    transition: all 0.2s ease;
-    resize: vertical;
-}
-
-.form-input:focus,
-.form-textarea:focus {
-    outline: none;
-    border-color: #4F5BDF;
-}
-
-.checkbox-label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-    font-size: 13px;
-    color: #333;
-}
-
-.checkbox-label input {
-    width: 16px;
-    height: 16px;
-    cursor: pointer;
-    accent-color: #4F5BDF;
-}
-
 @media (max-width: 820px) {
     .content-wrapper {
         flex-direction: column;
@@ -1636,8 +806,7 @@ export default {
         width: 100%;
     }
 
-    .modal-content,
-    .manage-modal .modal-content {
+    .modal-content {
         width: 95vw;
     }
 }
@@ -1659,10 +828,6 @@ export default {
         width: 100%;
         justify-content: flex-start;
         flex-wrap: wrap;
-    }
-
-    .manage-btn {
-        flex-shrink: 0;
     }
 }
 
