@@ -13,11 +13,11 @@ vi.mock('@/api/statistics.js', () => ({
 }));
 
 import StatisticsDashboard from '../StatisticsDashboard.vue';
-import RealTimeChart from '@/components/RealTimeChart.vue';
+import AnalyticsAreaChart from '../AnalyticsAreaChart.vue';
 
 const mountDashboard = () => mount(StatisticsDashboard, {
   props: { from: '2026-06-01', to: '2026-06-07' },
-  global: { stubs: { RealTimeChart: true, RefreshButton: true } },
+  global: { stubs: { AnalyticsAreaChart: true, RefreshButton: true } },
 });
 
 beforeEach(() => {
@@ -42,7 +42,7 @@ describe('StatisticsDashboard — гонка таймлайна', () => {
     state.deferred[0]([{ date: '2026-06-01', count: 111 }]);
     await flushPromises();
 
-    const chart = wrapper.findComponent(RealTimeChart);
+    const chart = wrapper.findComponent(AnalyticsAreaChart);
     const data = chart.props('data');
     expect(data).toHaveLength(1);
     expect(data[0].count).toBe(222); // не 111 от устаревшего ответа

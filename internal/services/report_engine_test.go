@@ -115,8 +115,8 @@ func TestAggregatePlan_PeriodAndDateRange(t *testing.T) {
 	if err != nil {
 		t.Fatalf("неожиданная ошибка: %v", err)
 	}
-	if !strings.Contains(plan.groupExpr, "date_trunc('week', ch.created_at)") {
-		t.Errorf("ожидался date_trunc week, got %q", plan.groupExpr)
+	if !strings.Contains(plan.groupExpr, "date_trunc('week', (ch.created_at AT TIME ZONE 'Europe/Moscow'))") {
+		t.Errorf("ожидался date_trunc week в МСК, got %q", plan.groupExpr)
 	}
 	// baseWhere метрики (entry) присутствует.
 	var hasBase, hasFrom, hasTo bool
@@ -150,8 +150,8 @@ func TestAggregatePlan_HourOfDayAndValueSort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("неожиданная ошибка: %v", err)
 	}
-	if !strings.Contains(plan.groupExpr, "EXTRACT(HOUR FROM eh.created_at)") {
-		t.Errorf("ожидался EXTRACT HOUR, got %q", plan.groupExpr)
+	if !strings.Contains(plan.groupExpr, "EXTRACT(HOUR FROM (eh.created_at AT TIME ZONE 'Europe/Moscow'))") {
+		t.Errorf("ожидался EXTRACT HOUR в МСК, got %q", plan.groupExpr)
 	}
 	if plan.orderStr != "COUNT(*) DESC" {
 		t.Errorf("ожидался ORDER BY COUNT(*) DESC, got %q", plan.orderStr)

@@ -606,6 +606,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 		statsGroup := protected.Group("/statistics")
 		statsGroup.GET("/summary", statistics.GetSummary, requireStats)
 		statsGroup.GET("/timeline", statistics.GetTimeline, requireStats)
+		statsGroup.GET("/online-peaks", statistics.GetOnlinePeaks, requireStats)
 		statsGroup.GET("/recent-passages", statistics.GetRecentPassages, requireStats)
 		statsGroup.GET("/metrics", statistics.GetMetrics, requireStats)
 		statsGroup.GET("/insights", statistics.GetInsights, requireStats)

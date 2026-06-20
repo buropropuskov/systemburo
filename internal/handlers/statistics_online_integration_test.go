@@ -2,13 +2,18 @@ package handlers_test
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
+	"systemburo/internal/handlers"
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
+	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -140,4 +145,65 @@ func TestGetOnlinePeaks_Series(t *testing.T) {
 	assert.Equal(t, 5, points[1].Peak)
 	assert.Equal(t, d0.Format("2006-01-02"), points[2].Date)
 	assert.Equal(t, 7, points[2].Peak)
+}
+
+// TestGetOnlinePeaksHandler_HTTP проверяет, что эндпоинт GET /statistics/online-peaks
+// проводит серию пиков через сервис и отдаёт её в envelope, отфильтрованную по периоду.
+func TestGetOnlinePeaksHandler_HTTP(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+
+	now := time.Now().UTC()
+	mkPeak := func(date time.Time, peak int) {
+		require.NoError(t, db.Exec(`
+			INSERT INTO user_online_peaks (date, peak_count, created_at, updated_at)
+			VALUES (?, ?, ?, ?)`,
+			date.Format("2006-01-02"), peak, now, now).Error)
+	}
+	d1 := now.Add(-24 * time.Hour)
+	mkPeak(d1, 4)
+	mkPeak(now, 9)
+
+	h := handlers.NewStatisticsHandler(services.NewStatisticsService(db))
+
+	e := echo.New()
+	from := now.Add(-72 * time.Hour).Format("2006-01-02")
+	to := now.Format("2006-01-02")
+	req := httptest.NewRequest(http.MethodGet, "/statistics/online-peaks?from="+from+"&to="+to, nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	require.NoError(t, h.GetOnlinePeaks(c))
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var resp struct {
+		Success bool                     `json:"success"`
+		Data    []models.OnlinePeakPoint `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	assert.True(t, resp.Success)
+	require.Len(t, resp.Data, 2, "оба дня внутри периода")
+	assert.Equal(t, d1.Format("2006-01-02"), resp.Data[0].Date, "по возрастанию даты")
+	assert.Equal(t, 4, resp.Data[0].Peak)
+	assert.Equal(t, now.Format("2006-01-02"), resp.Data[1].Date)
+	assert.Equal(t, 9, resp.Data[1].Peak)
+}
+
+// TestGetOnlinePeaksHandler_InvalidRange проверяет, что from позже to даёт 400.
+func TestGetOnlinePeaksHandler_InvalidRange(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+
+	h := handlers.NewStatisticsHandler(services.NewStatisticsService(db))
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/statistics/online-peaks?from=2026-06-10&to=2026-06-01", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	err := h.GetOnlinePeaks(c)
+	require.Error(t, err)
+	he, ok := err.(*echo.HTTPError)
+	require.True(t, ok)
+	assert.Equal(t, http.StatusBadRequest, he.Code)
 }
