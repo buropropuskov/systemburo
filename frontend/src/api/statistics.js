@@ -69,6 +69,23 @@ export async function getOnlinePeaks(from, to) {
 }
 
 /**
+ * Получить список пользователей онлайн (активность за окно онлайна), по убыванию
+ * свежести last_seen. Потребитель — модалка «кто онлайн» по клику на плитку дашборда.
+ * @returns {Promise<Array<{
+ *   id: number,
+ *   login: string,
+ *   full_name: string,
+ *   role: string,
+ *   user_type: string,
+ *   last_seen: string,
+ * }>>}
+ */
+export async function getOnlineUsers() {
+  const res = await apiRequest('/statistics/online-users');
+  return res.json();
+}
+
+/**
  * Получить последние проходы/проезды.
  * @param {number} [limit=15] - максимальное количество записей на тип
  * @returns {Promise<{

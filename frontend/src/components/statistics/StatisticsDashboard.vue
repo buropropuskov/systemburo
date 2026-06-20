@@ -186,7 +186,15 @@
         v-else
         class="dashboard__tiles"
       >
-        <div class="dashboard__tile">
+        <div
+          class="dashboard__tile dashboard__tile--clickable"
+          role="button"
+          tabindex="0"
+          aria-haspopup="dialog"
+          @click="openOnlineUsers"
+          @keydown.enter="openOnlineUsers"
+          @keydown.space.prevent="openOnlineUsers"
+        >
           <div class="dashboard__tile-label">Пользователей онлайн</div>
           <div class="dashboard__tile-val">{{ fmt(summary.users_online) }}</div>
         </div>
@@ -419,6 +427,14 @@
         </div>
       </div>
     </div>
+
+    <OnlineUsersModal
+      :show="onlineModalOpen"
+      :users="onlineUsers"
+      :loading="onlineUsersLoading"
+      :error="onlineUsersError"
+      @close="onlineModalOpen = false"
+    />
   </div>
 </template>
 
@@ -430,7 +446,8 @@ import DirIcon from '@/components/statistics/DirIcon.vue';
 import TrendSparkline from '@/components/statistics/TrendSparkline.vue';
 import TopList from '@/components/statistics/TopList.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
-import { getSummary, getTimeline, getRecentPassages, getInsights, getOnlinePeaks } from '@/api/statistics.js';
+import OnlineUsersModal from '@/components/statistics/OnlineUsersModal.vue';
+import { getSummary, getTimeline, getRecentPassages, getInsights, getOnlinePeaks, getOnlineUsers } from '@/api/statistics.js';
 import { mergeFeed, feedRowKey } from './feedMerge.js';
 
 const props = defineProps({
@@ -466,6 +483,33 @@ const timelineLoading = ref(false);
 // Дневные пики онлайна за период (area-график под основным графиком).
 const onlinePeaks = ref([]);
 const onlinePeaksLoading = ref(false);
+
+// Модалка «кто онлайн» по клику на плитку «Пользователей онлайн».
+const onlineModalOpen = ref(false);
+const onlineUsers = ref([]);
+const onlineUsersLoading = ref(false);
+const onlineUsersError = ref('');
+// Токен последовательности: при быстром повторном открытии пишет только последний
+// запрос, медленный предыдущий ответ не затирает актуальный список (урок #632).
+let onlineUsersSeq = 0;
+
+async function openOnlineUsers() {
+  onlineModalOpen.value = true;
+  onlineUsersLoading.value = true;
+  onlineUsersError.value = '';
+  const seq = ++onlineUsersSeq;
+  try {
+    const list = await getOnlineUsers();
+    if (seq !== onlineUsersSeq) return;
+    onlineUsers.value = Array.isArray(list) ? list : [];
+  } catch {
+    if (seq !== onlineUsersSeq) return;
+    onlineUsers.value = [];
+    onlineUsersError.value = 'Не удалось загрузить список';
+  } finally {
+    if (seq === onlineUsersSeq) onlineUsersLoading.value = false;
+  }
+}
 
 const peopleFeed = ref([]);
 const carsFeed = ref([]);
