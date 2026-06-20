@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"systemburo/internal/models"
+	"systemburo/internal/normalize"
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
@@ -199,31 +200,114 @@ func applyApplicationAccessFilter(query *gorm.DB, userID int, isApprover bool) *
 	`, userID, userID, userID)
 }
 
+// buildSearchVariants возвращает уникальный набор вариантов поискового запроса:
+// оригинал, альтернативная раскладка и нормализованный госномер (если запрос похож на номер).
+// Используется для покрытия ввода без переключения раскладки и номеров с омоглифами/нулями.
+func buildSearchVariants(raw string) []string {
+	variants := make([]string, 0, 3)
+	seen := make(map[string]struct{}, 3)
+	add := func(v string) {
+		v = strings.TrimSpace(v)
+		if v == "" {
+			return
+		}
+		if _, ok := seen[v]; !ok {
+			seen[v] = struct{}{}
+			variants = append(variants, v)
+		}
+	}
+	add(raw)
+	add(normalize.SwitchLayout(raw))
+	add(normalize.Plate(raw))
+	return variants
+}
+
+// ilikePatternsArgs строит пары (ILIKE-условие, args) для набора вариантов и набора колонок.
+// Возвращает одну OR-строку из pattern_col ILIKE ? для каждой пары (col, variant).
+func ilikePatternsArgs(cols []string, variants []string) (string, []interface{}) {
+	var parts []string
+	var args []interface{}
+	for _, col := range cols {
+		for _, v := range variants {
+			parts = append(parts, col+" ILIKE ?")
+			args = append(args, "%"+v+"%")
+		}
+	}
+	return strings.Join(parts, " OR "), args
+}
+
 func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUserSearch bool) *gorm.DB {
 	if filter.SearchQuery != nil && *filter.SearchQuery != "" {
-		pattern := "%" + *filter.SearchQuery + "%"
-		if includeUserSearch {
-			query = query.Where(`
-				a.application_number ILIKE ? OR
-				COALESCE(o.name, c.name, '') ILIKE ? OR
-				c.name ILIKE ? OR
-				a.message ILIKE ? OR
-				a.status ILIKE ? OR
-				a.confirmation ILIKE ? OR
-				u.last_name ILIKE ? OR u.first_name ILIKE ? OR u.middle_name ILIKE ? OR
-				ru.last_name ILIKE ? OR ru.first_name ILIKE ? OR ru.middle_name ILIKE ?
-			`, pattern, pattern, pattern, pattern, pattern, pattern,
-				pattern, pattern, pattern, pattern, pattern, pattern)
-		} else {
-			query = query.Where(`
-				a.application_number ILIKE ? OR
-				COALESCE(o.name, c.name, '') ILIKE ? OR
-				c.name ILIKE ? OR
-				a.message ILIKE ? OR
-				a.status ILIKE ? OR
-				a.confirmation ILIKE ?
-			`, pattern, pattern, pattern, pattern, pattern, pattern)
+		raw := *filter.SearchQuery
+		variants := buildSearchVariants(raw)
+
+		// --- поля заявки и организаций ---
+		baseCols := []string{
+			"a.application_number",
+			"COALESCE(o.name, c.name, '')",
+			"c.name",
+			"a.message",
+			"a.status",
+			"a.confirmation",
 		}
+		baseCond, baseArgs := ilikePatternsArgs(baseCols, variants)
+
+		if includeUserSearch {
+			userCols := []string{
+				"u.last_name", "u.first_name", "u.middle_name",
+				"ru.last_name", "ru.first_name", "ru.middle_name",
+			}
+			userCond, userArgs := ilikePatternsArgs(userCols, variants)
+			baseCond += " OR " + userCond
+			baseArgs = append(baseArgs, userArgs...)
+		}
+
+		// --- вложения: машины ---
+		// Госномер ищем по всем вариантам (включая normalize.Plate для омоглифов/нулей);
+		// марку - по тексту. Подзапрос IN чтобы не размножать строки заявки.
+		carNumCond, carNumArgs := ilikePatternsArgs([]string{"c2.car_number", "c2.mark_name"}, variants)
+		carSubquery := `EXISTS(
+			SELECT 1 FROM attachments att2
+			JOIN cars c2 ON c2.attachment_id = att2.id
+			WHERE att2.application_id = a.id AND (` + carNumCond + `)
+		)`
+
+		// --- вложения: сотрудники ---
+		// ФИО ищем ILIKE + trigramm similarity для нечёткого совпадения (опечатки, транслит).
+		// Similarity-порог 0.3 - ниже чем у ЧС (0.7), потому что поиск менее критичен к ложным
+		// срабатываниям и важнее recall. word_similarity покрывает однословный запрос по полю.
+		empIlikeCond, empIlikeArgs := ilikePatternsArgs(
+			[]string{"e.last_name", "e.first_name", "e.middle_name", "e.position"},
+			variants,
+		)
+		// pg_trgm similarity по исходному запросу на нормализованном ФИО-конкате.
+		empSubquery := `EXISTS(
+			SELECT 1 FROM attachments att3
+			JOIN employees e ON e.attachment_id = att3.id
+			WHERE att3.application_id = a.id AND (
+				` + empIlikeCond + `
+				OR word_similarity(?, concat_ws(' ', e.last_name, e.first_name, e.middle_name)) > 0.3
+			)
+		)`
+
+		// --- вложения: места разгрузки ---
+		upCond, upArgs := ilikePatternsArgs([]string{"up.name"}, variants)
+		upSubquery := `EXISTS(
+			SELECT 1 FROM attachments att4
+			JOIN car_unload_places cup ON cup.attachment_id = att4.id
+			JOIN unload_places up ON up.id = cup.unload_place_id
+			WHERE att4.application_id = a.id AND (` + upCond + `)
+		)`
+
+		fullCond := baseCond + " OR " + carSubquery + " OR " + empSubquery + " OR " + upSubquery
+
+		allArgs := baseArgs
+		allArgs = append(allArgs, carNumArgs...)
+		allArgs = append(allArgs, empIlikeArgs...)
+		allArgs = append(allArgs, raw) // для word_similarity
+		allArgs = append(allArgs, upArgs...)
+
+		query = query.Where(fullCond, allArgs...)
 	}
 
 	if filter.OrganizationID != nil {
