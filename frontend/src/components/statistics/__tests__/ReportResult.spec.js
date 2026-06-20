@@ -15,12 +15,12 @@ vi.mock('@/composables/useReportExport', async () => {
 // переключателя они не нужны, подменяем стабами и читаем переданные props.
 const areaStub = {
   name: 'AnalyticsAreaChart',
-  props: ['data', 'height', 'seriesName', 'unitForms'],
+  props: ['data', 'height', 'seriesName', 'unitForms', 'isFloat'],
   template: '<div class="area-stub" />',
 };
 const barStub = {
   name: 'AnalyticsBarChart',
-  props: ['data', 'height', 'seriesName', 'unitForms'],
+  props: ['data', 'height', 'seriesName', 'unitForms', 'isFloat'],
   template: '<div class="bar-stub" />',
 };
 
@@ -177,6 +177,15 @@ describe('ReportResult — переключатель Таблица/Графи�
     await nextTick();
     expect(w.findComponent(areaStub).props('data')).toEqual([{ timestamp: '2026-06-01', count: 2.5 }]);
     expect(w.findComponent(areaStub).props('seriesName')).toBe('Среднее/день');
+    // float-метрика -> график не округляет (тултип/ось в дробях, как таблица).
+    expect(w.findComponent(areaStub).props('isFloat')).toBe(true);
+  });
+
+  it('целочисленная метрика: isFloat=false (график округляет до целых)', async () => {
+    const w = mountResult(aggPeriod);
+    await w.find('[data-testid="rr-view-chart"]').trigger('click');
+    await nextTick();
+    expect(w.findComponent(areaStub).props('isFloat')).toBe(false);
   });
 
   it('мультиметрика: график показывает селектор метрик и рисует выбранную', async () => {

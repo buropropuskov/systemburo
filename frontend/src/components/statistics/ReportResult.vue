@@ -100,6 +100,7 @@
         :height="chartHeight"
         :series-name="chartSeriesName"
         :unit-forms="chartUnitForms"
+        :is-float="chartIsFloat"
         data-testid="rr-chart-area"
       />
       <AnalyticsBarChart
@@ -108,6 +109,7 @@
         :height="chartHeight"
         :series-name="chartSeriesName"
         :unit-forms="chartUnitForms"
+        :is-float="chartIsFloat"
         data-testid="rr-chart-bar"
       />
 
@@ -288,6 +290,8 @@ const chartColumn = computed(
   () => aggColumns.value.find((c) => c.key === chartMetric.value) || aggColumns.value[0] || null,
 );
 const chartSeriesName = computed(() => chartColumn.value?.label || 'Количество');
+// Дробная метрика (среднее/день) -> график не округляет до целых, как и таблица.
+const chartIsFloat = computed(() => chartColumn.value?.float === true);
 // Единица метрики ("шт", "шт/день") инвариантна по числу -> одна форма на все.
 const chartUnitForms = computed(() => {
   const u = chartColumn.value?.unit;
