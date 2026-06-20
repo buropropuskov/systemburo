@@ -28,8 +28,25 @@
           v-for="tile in dataTiles"
           :key="tile.label"
           class="dashboard__tile"
+          :class="{
+            'dashboard__tile--clickable': tile.expandable,
+            'dashboard__tile--active': tile.expandable && expandedMetric === tile.metric,
+          }"
+          :role="tile.expandable ? 'button' : null"
+          :tabindex="tile.expandable ? 0 : null"
+          :aria-expanded="tile.expandable ? (expandedMetric === tile.metric) : null"
+          @click="tile.expandable && toggleExpand(tile.metric)"
+          @keydown.enter="tile.expandable && toggleExpand(tile.metric)"
+          @keydown.space.prevent="tile.expandable && toggleExpand(tile.metric)"
         >
-          <div class="dashboard__tile-label">{{ tile.label }}</div>
+          <div class="dashboard__tile-label">
+            {{ tile.label }}
+            <span
+              v-if="tile.expandable"
+              class="dashboard__tile-caret"
+              aria-hidden="true"
+            />
+          </div>
           <div class="dashboard__tile-val">{{ fmt(tile.value) }}</div>
           <div
             v-if="tile.comparison || tile.trend"
@@ -52,6 +69,57 @@
           </div>
         </div>
       </div>
+
+      <!-- Детальный разворот карточки: тренд по дням (area) + пик по часам (bar) -->
+      <Transition name="dashboard-detail">
+        <div
+          v-if="expandedDetail"
+          class="dashboard__detail"
+        >
+          <div class="dashboard__detail-head">
+            <h3 class="dashboard__detail-title">{{ expandedDetail.label }} — детально</h3>
+            <button
+              type="button"
+              class="dashboard__detail-close"
+              aria-label="Свернуть"
+              @click="expandedMetric = null"
+            >
+              ×
+            </button>
+          </div>
+          <div class="dashboard__detail-charts">
+            <div class="dashboard__detail-chart">
+              <div class="dashboard__detail-chart-title">Тренд по дням</div>
+              <AnalyticsAreaChart
+                :data="expandedDetail.trendData"
+                :categories="expandedDetail.trendCategories"
+                :height="220"
+                color="#4F5BDF"
+                :series-name="expandedDetail.label"
+                :unit-forms="expandedDetail.unitForms"
+              />
+            </div>
+            <div
+              v-if="expandedDetail.peak"
+              class="dashboard__detail-chart"
+            >
+              <div class="dashboard__detail-chart-title">
+                Пик по часам
+                <span class="dashboard__detail-chart-note">
+                  пик в {{ expandedDetail.peakHourLabel }}
+                </span>
+              </div>
+              <AnalyticsBarChart
+                :data="expandedDetail.peakData"
+                :height="220"
+                color="#4F5BDF"
+                :series-name="expandedDetail.label"
+                :unit-forms="expandedDetail.unitForms"
+              />
+            </div>
+          </div>
+        </div>
+      </Transition>
     </div>
 
     <!-- ===== ГРУППА: ВЛОЖЕНИЯ ===== -->
@@ -184,6 +252,29 @@
       />
     </div>
 
+    <!-- ===== ДИНАМИКА ОНЛАЙНА ===== -->
+    <div class="dashboard__chart-card">
+      <div class="dashboard__chart-head">
+        <div>
+          <h3 class="dashboard__chart-title">Динамика онлайна</h3>
+          <div class="dashboard__chart-sub">пик пользователей онлайн по дням</div>
+        </div>
+      </div>
+
+      <div
+        v-if="onlinePeaksLoading"
+        class="dashboard__chart-skeleton"
+      />
+      <AnalyticsAreaChart
+        v-else
+        :data="onlinePeaksData"
+        :height="240"
+        color="#4F5BDF"
+        series-name="Пик онлайна"
+        :unit-forms="['пользователь', 'пользователя', 'пользователей']"
+      />
+    </div>
+
     <!-- ===== ЖИВЫЕ ЛЕНТЫ ===== -->
     <div class="dashboard__feeds">
 
@@ -298,10 +389,11 @@
 <script setup>
 import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue';
 import AnalyticsAreaChart from '@/components/statistics/AnalyticsAreaChart.vue';
+import AnalyticsBarChart from '@/components/statistics/AnalyticsBarChart.vue';
 import DirIcon from '@/components/statistics/DirIcon.vue';
 import TrendSparkline from '@/components/statistics/TrendSparkline.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
-import { getSummary, getTimeline, getRecentPassages, getInsights } from '@/api/statistics.js';
+import { getSummary, getTimeline, getRecentPassages, getInsights, getOnlinePeaks } from '@/api/statistics.js';
 import { mergeFeed, feedRowKey } from './feedMerge.js';
 
 const props = defineProps({
@@ -320,12 +412,21 @@ const summary = ref({});
 const summaryLoading = ref(false);
 
 // Инсайты обогащают карточки группы «Данные»: сравнение с прошлым периодом
-// (дельта/направление) и тренд по дням (спарклайн). Метрики инсайтов покрывают
-// заявки/проезды/проходы — остальные карточки остаются без инсайт-футера.
-const insights = reactive({ comparisons: [], trends: [] });
+// (дельта/направление), тренд по дням (спарклайн) и профиль пика по часам.
+// Метрики инсайтов покрывают заявки/проезды/проходы — остальные карточки без
+// инсайтов. peak_hours есть только у проездов/проходов (у заявок его нет).
+const insights = reactive({ comparisons: [], trends: [], peak_hours: [] });
+
+// Метрика развёрнутой карточки (ключ инсайта) либо null — раскрывает детальные
+// графики под сеткой «Данные». Клик по той же карточке сворачивает.
+const expandedMetric = ref(null);
 
 const timeline = ref([]);
 const timelineLoading = ref(false);
+
+// Дневные пики онлайна за период (area-график под основным графиком).
+const onlinePeaks = ref([]);
+const onlinePeaksLoading = ref(false);
 
 const peopleFeed = ref([]);
 const carsFeed = ref([]);
@@ -372,6 +473,18 @@ const chartData = computed(() =>
   (timeline.value || []).map((d) => ({ timestamp: d.date, count: d.count }))
 );
 
+// Пики онлайна: бэк отдаёт [{date, peak}] -> форма AnalyticsAreaChart.
+const onlinePeaksData = computed(() =>
+  (onlinePeaks.value || []).map((d) => ({ timestamp: d.date, count: d.peak }))
+);
+
+// Формы склонения единицы для тултипов детального разворота, по ключу инсайта.
+const detailUnitForms = {
+  applications_count: ['заявка', 'заявки', 'заявок'],
+  car_entries_count: ['проезд', 'проезда', 'проездов'],
+  people_entries_count: ['проход', 'прохода', 'проходов'],
+};
+
 // ---- вычисляемые из summary ----
 const attachmentBreakdown = computed(() => {
   const list = summary.value.by_attachment_type;
@@ -391,11 +504,32 @@ const dataTiles = computed(() => {
     { label: 'Машин на территории', value: s.cars_on_territory },
     { label: 'Людей на территории', value: s.people_on_territory },
   ];
-  return defs.map((t) => ({
-    ...t,
-    comparison: t.metric ? insights.comparisons.find((c) => c.metric === t.metric) || null : null,
-    trend: t.metric ? insights.trends.find((tr) => tr.metric === t.metric) || null : null,
-  }));
+  return defs.map((t) => {
+    const comparison = t.metric ? insights.comparisons.find((c) => c.metric === t.metric) || null : null;
+    const trend = t.metric ? insights.trends.find((tr) => tr.metric === t.metric) || null : null;
+    const peak = t.metric ? insights.peak_hours.find((p) => p.metric === t.metric) || null : null;
+    return { ...t, comparison, trend, peak, expandable: Boolean(comparison || trend || peak) };
+  });
+});
+
+// Развёрнутая карточка -> данные её детальных графиков. Тренд берём из той же
+// серии, что и мини-спарклайн (визуальная консистентность), пик — из почасового
+// профиля. Серия тренда без дат -> подписи оси X порядковыми позициями дней.
+const expandedDetail = computed(() => {
+  if (!expandedMetric.value) return null;
+  const tile = dataTiles.value.find((t) => t.metric === expandedMetric.value);
+  if (!tile || !tile.expandable) return null;
+  const series = tile.trend?.series || [];
+  const peak = tile.peak;
+  return {
+    label: tile.label,
+    unitForms: detailUnitForms[tile.metric] || ['ед.', 'ед.', 'ед.'],
+    trendData: series.map((v) => ({ count: v })),
+    trendCategories: series.map((_, i) => String(i + 1)),
+    peak,
+    peakData: peak ? hourlyProfile(peak) : [],
+    peakHourLabel: peak ? hourLabel(peak.peak_hour) : '',
+  };
 });
 
 // ---- форматирование ----
@@ -410,6 +544,24 @@ function deltaText(pct) {
   const n = Math.round((Number(pct) || 0) * 10) / 10;
   const sign = n > 0 ? '+' : '';
   return `${sign}${n}%`;
+}
+
+function hourLabel(hour) {
+  return `${String(hour).padStart(2, '0')}:00`;
+}
+
+// Почасовое распределение -> полный профиль суток 0..23 (пустые часы = 0), чтобы
+// столбцы читались как профиль дня, а не разреженный набор.
+function hourlyProfile(peak) {
+  const byHour = new Map((peak.hourly || []).map((b) => [b.hour, b.value]));
+  return Array.from({ length: 24 }, (_, h) => ({
+    label: hourLabel(h),
+    value: byHour.get(h) || 0,
+  }));
+}
+
+function toggleExpand(metric) {
+  expandedMetric.value = expandedMetric.value === metric ? null : metric;
 }
 
 function formatTime(iso) {
@@ -435,6 +587,7 @@ function formatDate(iso) {
 let summarySeq = 0;
 let timelineSeq = 0;
 let insightsSeq = 0;
+let onlinePeaksSeq = 0;
 
 async function loadSummary() {
   const seq = ++summarySeq;
@@ -458,11 +611,29 @@ async function loadInsights() {
     if (seq !== insightsSeq) return;
     insights.comparisons = Array.isArray(data?.comparisons) ? data.comparisons : [];
     insights.trends = Array.isArray(data?.trends) ? data.trends : [];
+    insights.peak_hours = Array.isArray(data?.peak_hours) ? data.peak_hours : [];
   } catch {
     // Сбой инсайтов не должен ронять дашборд — карточки остаются без футера.
     if (seq !== insightsSeq) return;
     insights.comparisons = [];
     insights.trends = [];
+    insights.peak_hours = [];
+  }
+}
+
+async function loadOnlinePeaks() {
+  const seq = ++onlinePeaksSeq;
+  onlinePeaksLoading.value = true;
+  try {
+    const data = await getOnlinePeaks(props.from, props.to);
+    if (seq !== onlinePeaksSeq) return;
+    onlinePeaks.value = Array.isArray(data) ? data : [];
+  } catch {
+    // Сбой пиков онлайна не должен ронять дашборд — блок показывает заглушку.
+    if (seq !== onlinePeaksSeq) return;
+    onlinePeaks.value = [];
+  } finally {
+    if (seq === onlinePeaksSeq) onlinePeaksLoading.value = false;
   }
 }
 
@@ -521,7 +692,7 @@ async function refreshFeeds() {
 
 // ---- публичный метод для обновления из родителя ----
 async function refresh() {
-  await Promise.all([loadSummary(), loadTimeline(), loadInsights(), loadFeed()]);
+  await Promise.all([loadSummary(), loadTimeline(), loadInsights(), loadOnlinePeaks(), loadFeed()]);
 }
 
 defineExpose({ refresh });
@@ -531,6 +702,7 @@ watch([() => props.from, () => props.to], () => {
   loadSummary();
   loadTimeline();
   loadInsights();
+  loadOnlinePeaks();
 });
 
 // ---- реакция на смену настроек графика ----
@@ -545,6 +717,7 @@ onMounted(() => {
   loadSummary();
   loadTimeline();
   loadInsights();
+  loadOnlinePeaks();
   loadFeed({ showSkeleton: true });
   feedInterval = setInterval(() => loadFeed(), 10000);
 });
@@ -697,6 +870,112 @@ onUnmounted(() => {
   background: var(--color-bg);
   color: var(--color-text-muted);
   border: 1px solid var(--color-border);
+}
+
+/* ===== РАЗВОРОТ КАРТОЧКИ ===== */
+.dashboard__tile--clickable {
+  cursor: pointer;
+}
+
+.dashboard__tile--active {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-md);
+}
+
+.dashboard__tile-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+/* Каретка-подсказка «раскрывается»; поворачивается вверх у активной карточки. */
+.dashboard__tile-caret {
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid var(--color-text-muted);
+  border-bottom: 1.5px solid var(--color-text-muted);
+  transform: rotate(45deg);
+  transition: transform 0.2s ease, border-color 0.2s ease;
+  flex-shrink: 0;
+  margin-top: -3px;
+}
+
+.dashboard__tile--active .dashboard__tile-caret {
+  transform: rotate(-135deg);
+  margin-top: 2px;
+  border-color: var(--color-primary);
+}
+
+.dashboard__detail {
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+  background: #fff;
+  margin-top: 4px;
+}
+
+.dashboard__detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.dashboard__detail-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.dashboard__detail-close {
+  border: none;
+  background: transparent;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0 4px;
+  border-radius: var(--radius-sm);
+  transition: color 0.18s ease;
+}
+
+.dashboard__detail-close:hover {
+  color: var(--color-text);
+}
+
+.dashboard__detail-charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 18px;
+}
+
+.dashboard__detail-chart-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 8px;
+}
+
+.dashboard__detail-chart-note {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-primary);
+  margin-left: 6px;
+}
+
+/* Разворот: только transform+opacity (height у Apex считается криво). */
+.dashboard-detail-enter-active,
+.dashboard-detail-leave-active {
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+.dashboard-detail-enter-from,
+.dashboard-detail-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
 }
 
 /* ===== ГРАФИК ===== */
