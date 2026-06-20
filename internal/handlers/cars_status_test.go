@@ -61,6 +61,41 @@ func TestCarTerritoryStatus_EntryThenExitWithHistory(t *testing.T) {
 	assert.Contains(t, actionTypes, "exit", "history should contain exit record")
 }
 
+// TestCarTerritoryStatus_RecordsTableInHistory фиксирует регрессию: въезд/выезд
+// должны сохранять table_id таблицы (КПП), из которой отмечены, и история должна
+// отдавать table_name. Раньше table_id не писался и read-запрос не джойнил system_tables.
+func TestCarTerritoryStatus_RecordsTableInHistory(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "carentrytbl1", "pass123", 1, td.OrgID, td.CompanyID)
+	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
+	activateCarViaApp(t, e, db, appID, td)
+	tableID := seedSystemTable(t, db)
+
+	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/territory-status", carID),
+		fmt.Sprintf(`{"territory_status": 1, "table_id": %d}`, tableID), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	rec = testutil.GET(t, e, fmt.Sprintf("/cars/%d/history", carID), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code)
+	history := testutil.ParseSlice(t, rec)
+
+	var entry map[string]interface{}
+	for _, h := range history {
+		if h["action_type"] == "entry" {
+			entry = h
+			break
+		}
+	}
+	require.NotNil(t, entry, "history should contain entry record")
+	require.NotNil(t, entry["table_id"], "entry record should carry table_id")
+	assert.Equal(t, float64(tableID), entry["table_id"])
+	assert.Equal(t, "Test Table", entry["table_name"], "entry record should resolve table_name from system_tables")
+}
+
 func TestCarTerritoryStatus_DeactivateSetsDateRemoved(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()

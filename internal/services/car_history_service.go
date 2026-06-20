@@ -33,6 +33,8 @@ type carHistoryRow struct {
 	CarBrand      *string
 	Organization  *string
 	Company       *string
+	TableID       *int
+	TableName     *string
 }
 
 // GetCarHistory возвращает историю конкретного автомобиля.
@@ -58,6 +60,8 @@ func (s *carService) GetCarHistory(ctx context.Context, carID int) ([]CarHistory
 			h.comment,
 			h.created_at,
 			h.metadata::text AS metadata,
+			h.table_id,
+			st.display_name AS table_name,
 			app.id AS application_id
 		FROM cars_history h
 		LEFT JOIN users u ON h.user_id = u.id
@@ -66,6 +70,7 @@ func (s *carService) GetCarHistory(ctx context.Context, carID int) ([]CarHistory
 		LEFT JOIN cars c ON h.car_id = c.id
 		LEFT JOIN attachments a ON c.attachment_id = a.id
 		LEFT JOIN applications app ON a.application_id = app.id
+		LEFT JOIN system_tables st ON h.table_id = st.id
 		WHERE h.car_id = ?
 		ORDER BY h.created_at DESC
 	`, carID).Scan(&rows).Error
@@ -116,6 +121,8 @@ func (s *carService) GetAllCarsHistory(ctx context.Context) ([]AllCarsHistoryIte
 		CarBrand     *string
 		Organization *string
 		Company      *string
+		TableID      *int
+		TableName    *string
 	}
 
 	rows := make([]allHistRow, 0)
@@ -135,7 +142,9 @@ func (s *carService) GetAllCarsHistory(ctx context.Context) ([]AllCarsHistoryIte
 			c.car_number,
 			c.car_brand,
 			COALESCE(o.name, '') AS organization,
-			COALESCE(c2.name, '') AS company
+			COALESCE(c2.name, '') AS company,
+			h.table_id,
+			st.display_name AS table_name
 		FROM cars_history h
 		LEFT JOIN users u ON h.user_id = u.id
 		JOIN cars c ON h.car_id = c.id
@@ -143,6 +152,7 @@ func (s *carService) GetAllCarsHistory(ctx context.Context) ([]AllCarsHistoryIte
 		LEFT JOIN applications app ON a.application_id = app.id
 		LEFT JOIN organizations o ON app.organization_id = o.id
 		LEFT JOIN companies c2 ON app.company_id = c2.id
+		LEFT JOIN system_tables st ON h.table_id = st.id
 		WHERE h.action_type IN ('entry', 'exit')
 		ORDER BY h.created_at DESC
 	`).Scan(&rows).Error
@@ -168,6 +178,8 @@ func (s *carService) GetAllCarsHistory(ctx context.Context) ([]AllCarsHistoryIte
 			CarBrand:     r.CarBrand,
 			Organization: r.Organization,
 			Company:      r.Company,
+			TableID:      r.TableID,
+			TableName:    r.TableName,
 		})
 	}
 	return items, nil
@@ -236,6 +248,8 @@ func (s *carService) GetUnifiedCarHistory(ctx context.Context, req UnifiedCarHis
 			c.car_brand,
 			COALESCE(o.name, '') AS organization,
 			COALESCE(c2.name, '') AS company,
+			h.table_id,
+			st.display_name AS table_name,
 			app.id AS application_id
 		FROM cars_history h
 		LEFT JOIN users u ON h.user_id = u.id
@@ -244,6 +258,7 @@ func (s *carService) GetUnifiedCarHistory(ctx context.Context, req UnifiedCarHis
 		LEFT JOIN applications app ON a.application_id = app.id
 		LEFT JOIN organizations o ON app.organization_id = o.id
 		LEFT JOIN companies c2 ON app.company_id = c2.id
+		LEFT JOIN system_tables st ON h.table_id = st.id
 		WHERE h.car_id IN ?
 		ORDER BY h.created_at DESC
 	`, ids).Scan(&rows).Error
@@ -285,6 +300,8 @@ func (s *carService) mapHistoryRows(rows []carHistoryRow, includeCarInfo bool) [
 			Comment:       r.Comment,
 			CreatedAt:     FormatUTC(r.CreatedAt),
 			Metadata:      metadata,
+			TableID:       r.TableID,
+			TableName:     r.TableName,
 		}
 		if includeCarInfo {
 			item.CarNumber = r.CarNumber
