@@ -6,6 +6,7 @@
         :key="item.id"
         class="del-card"
         :class="{ 'del-card--error': item.type === 'error' }"
+        @click="store.dismiss(item.id)"
       >
         <div
           v-if="item.title"
@@ -21,7 +22,7 @@
           <button
             v-if="item.showUndo"
             class="del-undo"
-            @click="store.undo(item.id)"
+            @click.stop="store.undo(item.id)"
           >
             Отменить
           </button>
@@ -89,6 +90,7 @@ function barColorFor(item) {
   width: max-content;
   min-width: 300px;
   max-width: calc(100vw - 40px);
+  cursor: pointer;
 }
 
 .del-title {
