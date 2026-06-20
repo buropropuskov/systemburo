@@ -31,11 +31,7 @@
     </div>
 
     <div class="users-container">
-      <!-- Левая часть - таблица пользователей -->
-      <div
-        class="users-list"
-        :class="{'with-details': selectedUser}"
-      >
+      <div class="users-list">
         <!-- Заголовок таблицы -->
         <div class="users-header">
           <div class="header-row">
@@ -140,14 +136,11 @@
         
         <!-- Тело таблицы -->
         <div class="users-body">
-          <div 
-            v-for="user in sortedUsers" 
-            :key="user.username" 
+          <div
+            v-for="user in sortedUsers"
+            :key="user.username"
             class="user-item"
-            :class="{
-              'selected': selectedUser && selectedUser.username === user.username,
-              'inactive': user.is_active === false,
-            }"
+            :class="{ 'inactive': user.is_active === false }"
             @click="selectUser(user)"
           >
             <div class="user-row">
@@ -199,281 +192,6 @@
           <span class="items-count">{{ showArchive ? 'В архиве' : 'Всего пользователей' }}: {{ sortedUsers.length }}</span>
         </div>
       </div>
-      
-      <!-- Правая часть - детали выбранного пользователя -->
-      <div
-        v-if="selectedUser"
-        class="user-details-panel"
-      >
-        <div class="details-content">
-          <div class="details-header">
-            <div class="details-title-wrapper">
-              <h3 class="details-title">
-                Редактирование
-              </h3>
-              <p class="details-subtitle">
-                учётной записи <strong>{{ selectedUser.username }}</strong>
-              </p>
-            </div>
-            <div class="details-header-actions">
-              <button
-                class="lk-button lk-button--secondary"
-                @click="openHistory(selectedUser)"
-              >
-                История
-              </button>
-              <template v-if="selectedUser.is_active !== false">
-                <button
-                  class="lk-button lk-button--secondary"
-                  @click="openAccess(selectedUser)"
-                >
-                  <img
-                    src="@/assets/icons/access.png"
-                    class="access-icon"
-                  >
-                  Права доступа
-                </button>
-                <button
-                  v-if="selectedUserIsSecurity"
-                  class="lk-button lk-button--secondary"
-                  data-testid="user-access-places"
-                  @click="openAccessPlaces(selectedUser)"
-                >
-                  Места доступа
-                </button>
-                <button
-                  class="lk-button lk-button--secondary"
-                  data-testid="user-reset-onboarding"
-                  @click="resetOnboarding(selectedUser)"
-                >
-                  Сбросить обучение
-                </button>
-                <button
-                  class="delete-icon-btn"
-                  @click="confirmDeleteUser(selectedUser)"
-                >
-                  <img
-                    src="@/assets/icons/delete.png"
-                    class="delete-icon"
-                  >
-                </button>
-              </template>
-              <template v-else>
-                <span class="archive-badge">В архиве</span>
-                <button
-                  class="lk-button lk-button--primary"
-                  @click="restoreUser(selectedUser)"
-                >
-                  Восстановить
-                </button>
-              </template>
-            </div>
-          </div>
-          
-          <div class="details-section">
-            <div class="details-grid-two-columns">
-              <!-- Левый столбец -->
-              <div class="details-column">
-                <div class="detail-group">
-                  <label class="detail-label">Фамилия:</label>
-                  <input 
-                    v-model="selectedUser.last_name" 
-                    class="lk-input"
-                    placeholder="Введите фамилию"
-                    autocomplete="new-password"
-                    autocorrect="off"
-                    autocapitalize="off"
-                    spellcheck="false"
-                    @change="updateUserInfo(selectedUser)"
-                  >
-                </div>
-                
-                <div class="detail-group">
-                  <label class="detail-label">Отчество:</label>
-                  <input 
-                    v-model="selectedUser.middle_name" 
-                    class="lk-input"
-                    placeholder="Введите отчество"
-                    autocomplete="new-password"
-                    autocorrect="off"
-                    autocapitalize="off"
-                    spellcheck="false"
-                    @change="updateUserInfo(selectedUser)"
-                  >
-                </div>
-                
-                <div class="detail-group">
-                  <label class="detail-label">Организация:</label>
-                  <BaseDropdown
-                    :model-value="selectedUser.organization_id"
-                    :options="organizations"
-                    label-key="name"
-                    value-key="id"
-                    placeholder="Не выбрано"
-                    searchable
-                    @update:model-value="onSelectOrganization"
-                  />
-                </div>
-                
-                <div class="detail-group">
-                  <label class="detail-label">Должность:</label>
-                  <input 
-                    v-model="selectedUser.position" 
-                    class="lk-input"
-                    placeholder="Введите должность"
-                    autocomplete="new-password"
-                    autocorrect="off"
-                    autocapitalize="off"
-                    spellcheck="false"
-                    @change="updateUserInfo(selectedUser)"
-                  >
-                </div>
-              </div>
-              
-              <!-- Правый столбец -->
-              <div class="details-column">
-                <div class="detail-group">
-                  <label class="detail-label">Имя:</label>
-                  <input 
-                    v-model="selectedUser.first_name" 
-                    class="lk-input"
-                    placeholder="Введите имя"
-                    autocomplete="new-password"
-                    autocorrect="off"
-                    autocapitalize="off"
-                    spellcheck="false"
-                    @change="updateUserInfo(selectedUser)"
-                  >
-                </div>
-                
-                <div class="detail-group">
-                  <label class="detail-label">Телефон:</label>
-                  <input
-                    :value="selectedUser.phone"
-                    class="lk-input"
-                    placeholder="+7 (___) ___ __-__"
-                    type="tel"
-                    autocomplete="new-password"
-                    autocorrect="off"
-                    autocapitalize="off"
-                    spellcheck="false"
-                    @input="onPhoneInput($event, 'selectedUser')"
-                    @change="updateUserInfo(selectedUser)"
-                  >
-                </div>
-                
-                <div class="detail-group">
-                  <label class="detail-label">Компания:</label>
-                  <BaseDropdown
-                    :model-value="selectedUser.company_id"
-                    :options="companies"
-                    label-key="name"
-                    value-key="id"
-                    placeholder="Не выбрано"
-                    searchable
-                    @update:model-value="onSelectCompany"
-                  />
-                </div>
-                
-                <div class="detail-group">
-                  <label class="detail-label">Email:</label>
-                  <input 
-                    v-model="selectedUser.email" 
-                    class="lk-input"
-                    placeholder="Введите email"
-                    type="email"
-                    autocomplete="new-password"
-                    autocorrect="off"
-                    autocapitalize="off"
-                    spellcheck="false"
-                    @change="updateUserInfo(selectedUser)"
-                  >
-                </div>
-              </div>
-            </div>
-            
-            <!-- Полноширинные элементы -->
-            <div class="full-width-groups">
-              <div class="detail-group detail-group--checkbox">
-                <ToggleSwitch
-                  :model-value="!!selectedUser.is_important"
-                  @update:model-value="val => { selectedUser.is_important = val; updateUserInfo(selectedUser); }"
-                >
-                  Важный пользователь
-                </ToggleSwitch>
-              </div>
-
-              <div class="detail-group">
-                <label class="detail-label">Тип пользователя:</label>
-                <BaseDropdown
-                  :model-value="selectedUser.type_id"
-                  :options="userTypes"
-                  label-key="name"
-                  value-key="id"
-                  placeholder="Не выбрано"
-                  @update:model-value="onSelectUserType"
-                />
-              </div>
-              
-              <div class="detail-group password-group">
-                <label class="detail-label">Новый пароль:</label>
-                <div class="password-input-container">
-                  <input 
-                    v-model="selectedUser.newPassword" 
-                    :type="showNewPass ? 'text' : 'password'" 
-                    class="password-input-sm"
-                    placeholder="Новый пароль"
-                    autocomplete="new-password"
-                    autocorrect="off"
-                    autocapitalize="off"
-                    spellcheck="false"
-                    @keyup="checkInputLanguage($event)"
-                    @keyup.enter="changeUserPassword(selectedUser)"
-                  >
-                  <div class="password-actions">
-                    <button 
-                      class="generate-password-btn" 
-                      type="button"
-                      @click="generatePassword(selectedUser)"
-                    >
-                      <img
-                        src="@/assets/icons/random.png"
-                        class="generate-icon"
-                      >
-                      Генерировать
-                    </button>
-                    <button 
-                      :disabled="!selectedUser.newPassword" 
-                      class="save-password-btn"
-                      @click="changeUserPassword(selectedUser)"
-                    >
-                      <img
-                        src="@/assets/icons/save.png"
-                        class="save-icon"
-                      >
-                    </button>
-                  </div>
-                </div>
-                <div class="input-hints">
-                  <span
-                    class="language-hint"
-                    :class="{ 'warning': isCapsLockOn }"
-                  >
-                    {{ currentLanguage }} {{ isCapsLockOn ? '| CAPS LOCK' : '' }}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      <div
-        v-else
-        class="no-selection-message"
-      >
-        <p>Выберите пользователя для просмотра</p>
-      </div>
     </div>
 
     <div
@@ -482,6 +200,299 @@
     >
       <p>{{ userSearch ? 'Пользователи не найдены' : 'Пользователи отсутствуют' }}</p>
     </div>
+
+    <!-- Модальное окно редактирования пользователя -->
+    <Teleport to="body">
+      <transition name="modal-fade">
+        <div
+          v-if="showEditModal && selectedUser"
+          class="modal-overlay"
+          @mousedown="onEditOverlayMousedown"
+          @mouseup="onEditOverlayMouseup"
+        >
+          <div
+            class="modal-content modal-content--wide"
+            @click.stop
+            @mousedown.stop
+          >
+            <div class="modal-header">
+              <div class="modal-title-group">
+                <h3 class="modal-title">
+                  Редактирование
+                </h3>
+                <p class="modal-subtitle">
+                  учётной записи <strong>{{ selectedUser.username }}</strong>
+                </p>
+              </div>
+              <div class="modal-header-actions">
+                <button
+                  class="lk-button lk-button--secondary"
+                  @click="openHistory(selectedUser)"
+                >
+                  История
+                </button>
+                <template v-if="selectedUser.is_active !== false">
+                  <button
+                    class="lk-button lk-button--secondary"
+                    @click="openAccess(selectedUser)"
+                  >
+                    <img
+                      src="@/assets/icons/access.png"
+                      class="access-icon"
+                    >
+                    Права доступа
+                  </button>
+                  <button
+                    v-if="selectedUserIsSecurity"
+                    class="lk-button lk-button--secondary"
+                    data-testid="user-access-places"
+                    @click="openAccessPlaces(selectedUser)"
+                  >
+                    Места доступа
+                  </button>
+                  <button
+                    class="lk-button lk-button--secondary"
+                    data-testid="user-reset-onboarding"
+                    @click="resetOnboarding(selectedUser)"
+                  >
+                    Сбросить обучение
+                  </button>
+                  <button
+                    class="delete-icon-btn"
+                    @click="confirmDeleteUser(selectedUser)"
+                  >
+                    <img
+                      src="@/assets/icons/delete.png"
+                      class="delete-icon"
+                    >
+                  </button>
+                </template>
+                <template v-else>
+                  <span class="archive-badge">В архиве</span>
+                  <button
+                    class="lk-button lk-button--primary"
+                    @click="restoreUser(selectedUser)"
+                  >
+                    Восстановить
+                  </button>
+                </template>
+                <button
+                  class="modal-close"
+                  @click="closeEditModal"
+                >
+                  <svg
+                    width="10"
+                    height="10"
+                    viewBox="0 0 14 14"
+                    fill="none"
+                  >
+                    <path
+                      d="M13 1L1 13M1 1L13 13"
+                      stroke="#666"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="modal-body">
+              <div class="details-grid-two-columns">
+                <div class="details-column">
+                  <div class="detail-group">
+                    <label class="detail-label">Фамилия:</label>
+                    <input
+                      v-model="selectedUser.last_name"
+                      class="lk-input"
+                      placeholder="Введите фамилию"
+                      autocomplete="new-password"
+                      autocorrect="off"
+                      autocapitalize="off"
+                      spellcheck="false"
+                      @change="updateUserInfo(selectedUser)"
+                    >
+                  </div>
+
+                  <div class="detail-group">
+                    <label class="detail-label">Отчество:</label>
+                    <input
+                      v-model="selectedUser.middle_name"
+                      class="lk-input"
+                      placeholder="Введите отчество"
+                      autocomplete="new-password"
+                      autocorrect="off"
+                      autocapitalize="off"
+                      spellcheck="false"
+                      @change="updateUserInfo(selectedUser)"
+                    >
+                  </div>
+
+                  <div class="detail-group">
+                    <label class="detail-label">Организация:</label>
+                    <BaseDropdown
+                      :model-value="selectedUser.organization_id"
+                      :options="organizations"
+                      label-key="name"
+                      value-key="id"
+                      placeholder="Не выбрано"
+                      searchable
+                      @update:model-value="onSelectOrganization"
+                    />
+                  </div>
+
+                  <div class="detail-group">
+                    <label class="detail-label">Должность:</label>
+                    <input
+                      v-model="selectedUser.position"
+                      class="lk-input"
+                      placeholder="Введите должность"
+                      autocomplete="new-password"
+                      autocorrect="off"
+                      autocapitalize="off"
+                      spellcheck="false"
+                      @change="updateUserInfo(selectedUser)"
+                    >
+                  </div>
+                </div>
+
+                <div class="details-column">
+                  <div class="detail-group">
+                    <label class="detail-label">Имя:</label>
+                    <input
+                      v-model="selectedUser.first_name"
+                      class="lk-input"
+                      placeholder="Введите имя"
+                      autocomplete="new-password"
+                      autocorrect="off"
+                      autocapitalize="off"
+                      spellcheck="false"
+                      @change="updateUserInfo(selectedUser)"
+                    >
+                  </div>
+
+                  <div class="detail-group">
+                    <label class="detail-label">Телефон:</label>
+                    <input
+                      :value="selectedUser.phone"
+                      class="lk-input"
+                      placeholder="+7 (___) ___ __-__"
+                      type="tel"
+                      autocomplete="new-password"
+                      autocorrect="off"
+                      autocapitalize="off"
+                      spellcheck="false"
+                      @input="onPhoneInput($event, 'selectedUser')"
+                      @change="updateUserInfo(selectedUser)"
+                    >
+                  </div>
+
+                  <div class="detail-group">
+                    <label class="detail-label">Компания:</label>
+                    <BaseDropdown
+                      :model-value="selectedUser.company_id"
+                      :options="companies"
+                      label-key="name"
+                      value-key="id"
+                      placeholder="Не выбрано"
+                      searchable
+                      @update:model-value="onSelectCompany"
+                    />
+                  </div>
+
+                  <div class="detail-group">
+                    <label class="detail-label">Email:</label>
+                    <input
+                      v-model="selectedUser.email"
+                      class="lk-input"
+                      placeholder="Введите email"
+                      type="email"
+                      autocomplete="new-password"
+                      autocorrect="off"
+                      autocapitalize="off"
+                      spellcheck="false"
+                      @change="updateUserInfo(selectedUser)"
+                    >
+                  </div>
+                </div>
+              </div>
+
+              <div class="full-width-groups">
+                <div class="detail-group detail-group--checkbox">
+                  <ToggleSwitch
+                    :model-value="!!selectedUser.is_important"
+                    @update:model-value="val => { selectedUser.is_important = val; updateUserInfo(selectedUser); }"
+                  >
+                    Важный пользователь
+                  </ToggleSwitch>
+                </div>
+
+                <div class="detail-group">
+                  <label class="detail-label">Тип пользователя:</label>
+                  <BaseDropdown
+                    :model-value="selectedUser.type_id"
+                    :options="userTypes"
+                    label-key="name"
+                    value-key="id"
+                    placeholder="Не выбрано"
+                    @update:model-value="onSelectUserType"
+                  />
+                </div>
+
+                <div class="detail-group password-group">
+                  <label class="detail-label">Новый пароль:</label>
+                  <div class="password-input-container">
+                    <input
+                      v-model="selectedUser.newPassword"
+                      :type="showNewPass ? 'text' : 'password'"
+                      class="password-input-sm"
+                      placeholder="Новый пароль"
+                      autocomplete="new-password"
+                      autocorrect="off"
+                      autocapitalize="off"
+                      spellcheck="false"
+                      @keyup="checkInputLanguage($event)"
+                      @keyup.enter="changeUserPassword(selectedUser)"
+                    >
+                    <div class="password-actions">
+                      <button
+                        class="generate-password-btn"
+                        type="button"
+                        @click="generatePassword(selectedUser)"
+                      >
+                        <img
+                          src="@/assets/icons/random.png"
+                          class="generate-icon"
+                        >
+                        Генерировать
+                      </button>
+                      <button
+                        :disabled="!selectedUser.newPassword"
+                        class="save-password-btn"
+                        @click="changeUserPassword(selectedUser)"
+                      >
+                        <img
+                          src="@/assets/icons/save.png"
+                          class="save-icon"
+                        >
+                      </button>
+                    </div>
+                  </div>
+                  <div class="input-hints">
+                    <span
+                      class="language-hint"
+                      :class="{ 'warning': isCapsLockOn }"
+                    >
+                      {{ currentLanguage }} {{ isCapsLockOn ? '| CAPS LOCK' : '' }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </Teleport>
 
     <!-- Модальное окно создания пользователя - на уровне body через Teleport -->
     <Teleport to="body">
@@ -698,6 +709,7 @@ import { useOrganizationsStore } from '@/stores/organizations';
 import { useCompaniesStore } from '@/stores/companies';
 import { formatRussianPhone } from '@/composables/useRussianPhoneMask'
 import { formatShortName } from '@/utils/formatName'
+import { useOverlayClose } from '@/composables/useOverlayClose'
 import SearchComponent from './SearchComponent.vue';
 import RefreshButton from './RefreshButton.vue';
 import PasswordInput from './ui/PasswordInput.vue';
@@ -732,7 +744,16 @@ export default {
   emits: ['fetch-users', 'user-updated'],
   setup() {
     const showCreateModal = ref(false);
-    return { showCreateModal };
+    const showEditModal = ref(false);
+
+    function closeEditModal() {
+      showEditModal.value = false;
+    }
+
+    const { onOverlayMousedown: onEditOverlayMousedown, onOverlayMouseup: onEditOverlayMouseup } =
+      useOverlayClose(closeEditModal);
+
+    return { showCreateModal, showEditModal, closeEditModal, onEditOverlayMousedown, onEditOverlayMouseup };
   },
   data() {
     return {
@@ -884,8 +905,12 @@ export default {
   },
   mounted() {
     this.fetchAllUsers();
-    // Восстанавливаем черновик при монтировании
     this.loadDraft();
+    document.addEventListener('keydown', this.onKeydown);
+  },
+
+  beforeUnmount() {
+    document.removeEventListener('keydown', this.onKeydown);
   },
  
   methods: {
@@ -932,6 +957,7 @@ export default {
       try {
         const response = await apiRequest(`/users/${user.username}/restore`, { method: 'POST' });
         if (response.ok) {
+          this.closeEditModal();
           this.selectedUser = null;
           this.$emit('fetch-users');
           this.refreshOrganizations();
@@ -1177,6 +1203,7 @@ export default {
         );
 
         if (response.ok) {
+          this.closeEditModal();
           this.selectedUser = null;
           this.$emit('fetch-users');
           // user_count меняется - подтягиваем оба представления.
@@ -1333,10 +1360,22 @@ export default {
     
     selectUser(user) {
       this.selectedUser = { ...user };
+      this.showEditModal = true;
     },
-    
+
     closeDetails() {
+      this.closeEditModal();
       this.selectedUser = null;
+    },
+
+    onKeydown(event) {
+      if (event.key === 'Escape') {
+        if (this.showEditModal) {
+          this.closeEditModal();
+        } else if (this.showCreateModal) {
+          this.closeCreateModal();
+        }
+      }
     },
     
     sortBy(field) {
@@ -1386,20 +1425,14 @@ export default {
 .users-container {
   display: flex;
   height: fit-content;
-  max-height: 258px;
   width: 100%;
 }
 
-/* Левая часть - таблица пользователей */
 .users-list {
   flex: 1 1 auto;
   min-width: 0;
   display: flex;
   flex-direction: column;
-}
-
-.users-list.with-details {
-  border-right: 1px solid #e6e6e6;
 }
 
 .users-footer {
@@ -1564,63 +1597,6 @@ export default {
   display: block;
 }
 
-/* Правая часть - детали пользователя */
-.user-details-panel {
-  width: 30%;
-  padding: 10px;
-  overflow-y: auto;
-  flex-shrink: 0;
-  background-color: #fafafa;
-}
-
-.no-selection-message {
-  width: 30%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #a2a2a2;
-  font-weight: 400;
-  flex-shrink: 0;
-  font-size: 14px;
-}
-
-.details-content {
-  position: relative;
-  height: 100%;
-}
-
-.details-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  padding-bottom: 15px;
-}
-
-.details-title-wrapper {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.details-title {
-  margin: 0;
-  color: #000;
-  font-size: 1.2em;
-  font-weight: 600;
-}
-
-.details-subtitle {
-  margin: 0;
-  font-size: 10px;
-  color: #a2a2a2;
-}
-
-.details-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
 .access-icon {
   width: 15px;
   height: 15px;
@@ -1646,10 +1622,6 @@ export default {
 .delete-icon {
   width: 20px;
   height: 20px;
-}
-
-.details-section {
-  margin-bottom: 24px;
 }
 
 .details-grid-two-columns {
@@ -1797,7 +1769,29 @@ export default {
   color: #666;
 }
 
-/* Модальное окно */
+/* Модальное окно редактирования + создания */
+.modal-content--wide {
+  width: 700px;
+}
+
+.modal-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.modal-subtitle {
+  margin: 0;
+  font-size: 12px;
+  color: #a2a2a2;
+}
+
+.modal-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -2030,19 +2024,7 @@ export default {
     flex-direction: column;
     height: auto;
   }
-  
-  .users-list,
-  .user-details-panel,
-  .no-selection-message {
-    width: 100% !important;
-  }
-  
-  .users-list.with-details {
-    border-right: none;
-    border-bottom: 1px solid #e6e6e6;
-    height: 300px;
-  }
-  
+
   /*
    * Таблица - horizontal scroll вместо wrap в столбик.
    * Scroll на .users-list - оба child'а (.users-header + .users-body) получают
