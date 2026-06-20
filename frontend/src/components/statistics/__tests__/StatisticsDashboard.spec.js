@@ -4,28 +4,36 @@ import { nextTick } from 'vue';
 
 // Управляемое состояние моков: фабрика vi.mock поднимается над импортами,
 // поэтому summary/deferred выносим в hoisted.
-const { state } = vi.hoisted(() => ({ state: { deferred: [], summary: {}, insights: {} } }));
+const { state } = vi.hoisted(() => ({
+  state: { deferred: [], summary: {}, insights: {}, onlinePeaks: [] },
+}));
 
 vi.mock('@/api/statistics.js', () => ({
   getSummary: () => Promise.resolve(state.summary),
   getRecentPassages: () => Promise.resolve({ people: [], cars: [] }),
   getTimeline: () => new Promise((resolve) => { state.deferred.push(resolve); }),
   getInsights: () => Promise.resolve(state.insights),
+  getOnlinePeaks: () => Promise.resolve(state.onlinePeaks),
 }));
 
 import StatisticsDashboard from '../StatisticsDashboard.vue';
 import AnalyticsAreaChart from '../AnalyticsAreaChart.vue';
+import AnalyticsBarChart from '../AnalyticsBarChart.vue';
 import TrendSparkline from '../TrendSparkline.vue';
 
 const mountDashboard = () => mount(StatisticsDashboard, {
   props: { from: '2026-06-01', to: '2026-06-07' },
-  global: { stubs: { AnalyticsAreaChart: true, RefreshButton: true } },
+  global: { stubs: { AnalyticsAreaChart: true, AnalyticsBarChart: true, RefreshButton: true } },
 });
+
+const tileByText = (wrapper, label) =>
+  wrapper.findAll('.dashboard__tile').find((t) => t.text().includes(label));
 
 beforeEach(() => {
   state.deferred.length = 0;
   state.summary = {};
   state.insights = {};
+  state.onlinePeaks = [];
 });
 
 describe('StatisticsDashboard — гонка таймлайна', () => {
@@ -112,5 +120,105 @@ describe('StatisticsDashboard — инсайты карточек', () => {
     await flushPromises();
 
     expect(wrapper.findAll('.dashboard__tile-insight')).toHaveLength(0);
+  });
+});
+
+describe('StatisticsDashboard — разворот карточки', () => {
+  const withInsights = () => {
+    state.summary = { total_applications: 10, cars_entered: 8 };
+    state.insights = {
+      comparisons: [{ metric: 'applications_count', current: 10, previous: 8, delta_pct: 25, direction: 'up' }],
+      trends: [{ metric: 'applications_count', direction: 'up', series: [1, 2, 3, 4] }],
+      peak_hours: [{
+        metric: 'applications_count', label: 'Заявки', peak_hour: 9, peak_value: 5,
+        hourly: [{ hour: 8, value: 2 }, { hour: 9, value: 5 }],
+      }],
+    };
+  };
+
+  it('обогащённая карточка кликабельна, клик раскрывает тренд и пик, повторный — сворачивает', async () => {
+    withInsights();
+    const wrapper = mountDashboard();
+    await flushPromises();
+
+    const tile = tileByText(wrapper, 'Получено заявок');
+    expect(tile.classes()).toContain('dashboard__tile--clickable');
+    expect(wrapper.find('.dashboard__detail').exists()).toBe(false);
+
+    await tile.trigger('click');
+    await nextTick();
+
+    expect(wrapper.find('.dashboard__detail').exists()).toBe(true);
+    expect(wrapper.find('.dashboard__detail').text()).toContain('Получено заявок');
+    // Тренд (area) и пик по часам (bar) — оба графика в детальной панели.
+    const detail = wrapper.find('.dashboard__detail');
+    expect(detail.findComponent(AnalyticsAreaChart).exists()).toBe(true);
+    expect(detail.findComponent(AnalyticsBarChart).exists()).toBe(true);
+    expect(tile.classes()).toContain('dashboard__tile--active');
+
+    await tile.trigger('click');
+    await nextTick();
+    expect(wrapper.find('.dashboard__detail').exists()).toBe(false);
+  });
+
+  it('тренд детали строит ту же серию, что и спарклайн, с порядковыми подписями оси X', async () => {
+    withInsights();
+    const wrapper = mountDashboard();
+    await flushPromises();
+
+    await tileByText(wrapper, 'Получено заявок').trigger('click');
+    await nextTick();
+
+    const area = wrapper.find('.dashboard__detail').findComponent(AnalyticsAreaChart);
+    expect(area.props('data')).toEqual([{ count: 1 }, { count: 2 }, { count: 3 }, { count: 4 }]);
+    expect(area.props('categories')).toEqual(['1', '2', '3', '4']);
+  });
+
+  it('смена периода сворачивает разворот', async () => {
+    withInsights();
+    const wrapper = mountDashboard();
+    await flushPromises();
+
+    await tileByText(wrapper, 'Получено заявок').trigger('click');
+    await nextTick();
+    expect(wrapper.find('.dashboard__detail').exists()).toBe(true);
+
+    await wrapper.setProps({ from: '2026-05-01', to: '2026-05-07' });
+    await nextTick();
+    expect(wrapper.find('.dashboard__detail').exists()).toBe(false);
+  });
+
+  it('карточка без инсайтов не кликабельна и не раскрывается', async () => {
+    state.summary = { processed: 4 };
+    state.insights = {};
+    const wrapper = mountDashboard();
+    await flushPromises();
+
+    const tile = tileByText(wrapper, 'Обработано');
+    expect(tile).toBeTruthy();
+    expect(tile.classes()).not.toContain('dashboard__tile--clickable');
+    await tile.trigger('click');
+    await nextTick();
+    expect(wrapper.find('.dashboard__detail').exists()).toBe(false);
+  });
+});
+
+describe('StatisticsDashboard — динамика онлайна', () => {
+  it('рендерит area-график пиков онлайна за период', async () => {
+    state.onlinePeaks = [
+      { date: '2026-06-01', peak: 4 },
+      { date: '2026-06-02', peak: 9 },
+    ];
+    const wrapper = mountDashboard();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Динамика онлайна');
+    const online = wrapper.findAllComponents(AnalyticsAreaChart)
+      .find((c) => c.props('seriesName') === 'Пик онлайна');
+    expect(online).toBeTruthy();
+    expect(online.props('data')).toEqual([
+      { timestamp: '2026-06-01', count: 4 },
+      { timestamp: '2026-06-02', count: 9 },
+    ]);
   });
 });

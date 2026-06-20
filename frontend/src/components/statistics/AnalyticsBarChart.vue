@@ -1,18 +1,18 @@
 <template>
   <div
-    class="area-chart"
+    class="bar-chart"
     :style="{ height: height + 'px' }"
   >
     <VueApexCharts
       v-if="hasData"
-      type="area"
+      type="bar"
       :height="height"
       :options="options"
       :series="series"
     />
     <div
       v-else
-      class="area-chart__empty"
+      class="bar-chart__empty"
     >
       Нет данных для отображения
     </div>
@@ -24,23 +24,14 @@ import { computed } from 'vue';
 import VueApexCharts from 'vue3-apexcharts';
 
 const props = defineProps({
-  /** Точки ряда в форме [{ timestamp, count }] — совместимо с timeline дашборда. */
+  /** Столбцы в форме [{ label, value }]; label — подпись оси X (час суток и т.п.). */
   data: {
     type: Array,
     default: () => [],
   },
-  /**
-   * Явные подписи оси X. Нужны рядам без дат (тренд инсайтов — серия по дням
-   * без самих дат: движок отдаёт разреженные бины, восстановить даты нельзя).
-   * null -> подписи берутся из дат timestamp, как у timeline.
-   */
-  categories: {
-    type: Array,
-    default: null,
-  },
   height: {
     type: Number,
-    default: 300,
+    default: 240,
   },
   color: {
     type: String,
@@ -60,23 +51,9 @@ const props = defineProps({
 
 const hasData = computed(() => props.data.length > 0);
 
-// Дата timeline приходит как 'YYYY-MM-DD'. Парсим вручную, без new Date(), чтобы
-// не словить сдвиг таймзоны (date-only -> UTC-полночь -> съезд на -3ч в МСК).
-function dateParts(ts) {
-  const s = String(ts ?? '').slice(0, 10);
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
-  return m ? { y: m[1], mo: m[2], d: m[3] } : null;
-}
-
-function formatShort(ts) {
-  const p = dateParts(ts);
-  return p ? `${p.d}.${p.mo}` : String(ts ?? '');
-}
-
-function formatFull(ts) {
-  const p = dateParts(ts);
-  return p ? `${p.d}.${p.mo}.${p.y}` : String(ts ?? '');
-}
+const categories = computed(() => props.data.map((d) => String(d.label)));
+const values = computed(() => props.data.map((d) => Number(d.value) || 0));
+const series = computed(() => [{ name: props.seriesName, data: values.value }]);
 
 function pluralize(n) {
   const [one, few, many] = props.unitForms;
@@ -87,19 +64,9 @@ function pluralize(n) {
   return many;
 }
 
-const categories = computed(() =>
-  props.categories ?? props.data.map((d) => formatShort(d.timestamp))
-);
-const fullLabels = computed(() =>
-  props.categories ?? props.data.map((d) => formatFull(d.timestamp))
-);
-const values = computed(() => props.data.map((d) => Number(d.count) || 0));
-
-const series = computed(() => [{ name: props.seriesName, data: values.value }]);
-
 const options = computed(() => ({
   chart: {
-    type: 'area',
+    type: 'bar',
     height: props.height,
     fontFamily: 'inherit',
     toolbar: { show: false },
@@ -108,27 +75,19 @@ const options = computed(() => ({
   },
   colors: [props.color],
   dataLabels: { enabled: false },
-  stroke: { curve: 'smooth', width: 2, lineCap: 'round' },
-  // Мягкий вертикальный градиент в палитре проекта — аналитический стиль без неона.
-  fill: {
-    type: 'gradient',
-    gradient: {
-      shadeIntensity: 1,
-      opacityFrom: 0.32,
-      opacityTo: 0.02,
-      stops: [0, 95],
-    },
+  plotOptions: {
+    bar: { columnWidth: '62%', borderRadius: 4, borderRadiusApplication: 'end' },
   },
+  states: { hover: { filter: { type: 'lighten', value: 0.08 } } },
   grid: {
     borderColor: '#eef0f7',
     strokeDashArray: 0,
     xaxis: { lines: { show: false } },
     padding: { top: 0, right: 8, bottom: 0, left: 8 },
   },
-  markers: { size: 0, strokeWidth: 2, hover: { size: 5 } },
   xaxis: {
     categories: categories.value,
-    tickAmount: Math.min(8, categories.value.length),
+    tickAmount: Math.min(12, categories.value.length),
     labels: {
       rotate: 0,
       hideOverlappingLabels: true,
@@ -149,9 +108,6 @@ const options = computed(() => ({
   legend: { show: false },
   tooltip: {
     theme: 'dark',
-    x: {
-      formatter: (_val, opts) => fullLabels.value[opts?.dataPointIndex] ?? '',
-    },
     y: {
       formatter: (v) => {
         const n = Math.round(Number(v) || 0);
@@ -159,18 +115,17 @@ const options = computed(() => ({
       },
       title: { formatter: () => '' },
     },
-    marker: { show: true },
   },
 }));
 </script>
 
 <style scoped>
-.area-chart {
+.bar-chart {
   position: relative;
   width: 100%;
 }
 
-.area-chart__empty {
+.bar-chart__empty {
   position: absolute;
   inset: 0;
   display: flex;
