@@ -98,6 +98,22 @@ describe('AccessibleAttachmentsView (FE-S3)', () => {
     expect(wrapper.find('[data-testid="aa-empty"]').exists()).toBe(true);
   });
 
+  it('уведомляет и снимает выбор при ошибке загрузки детали', async () => {
+    getAccessibleAttachments.mockResolvedValue({
+      items: [makeItem(1)],
+      meta: { total: 1, page: 1, per_page: 30 },
+    });
+    getAccessibleAttachmentDetail.mockRejectedValue(new Error('boom'));
+
+    wrapper = mountView();
+    await flushPromises();
+    await wrapper.find('[data-testid="aa-card"]').trigger('click');
+    await flushPromises();
+
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }));
+    expect(wrapper.find('[data-testid="aa-detail"]').exists()).toBe(false);
+  });
+
   it('не даёт устаревшему ответу детали затереть актуальный выбор (#632)', async () => {
     getAccessibleAttachments.mockResolvedValue({
       items: [makeItem(1), makeItem(2)],

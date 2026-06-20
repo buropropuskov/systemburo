@@ -178,6 +178,8 @@
               </div>
             </div>
 
+            <!-- AvailableAttachment не несёт roof_access/free_parking/custom_values -
+                 эти опц. блоки детали просто не отрисуются (v-if по undefined). -->
             <ApplicationAttachmentDetail
               :attachment="detail.attachment"
               :cars="detail.cars || []"
@@ -222,7 +224,6 @@ const listLoading = ref(false);
 
 const selectedId = ref(null);
 const detail = ref(null);
-const detailLoading = ref(false);
 // Токен последовательности: быстрые клики по карточкам пускают параллельные
 // запросы детали в общий ref, и медленный ответ предыдущего вложения мог бы
 // затереть актуальный (#632). Применяем только ответ последнего запроса.
@@ -296,7 +297,6 @@ function loadMore() {
 async function selectAttachment(id) {
   selectedId.value = id;
   detail.value = null;
-  detailLoading.value = true;
   const seq = ++detailSeq;
   try {
     const data = await getAccessibleAttachmentDetail(id);
@@ -310,8 +310,6 @@ async function selectAttachment(id) {
       bold: 'Не удалось открыть',
       suffix: 'вложение',
     });
-  } finally {
-    if (seq === detailSeq) detailLoading.value = false;
   }
 }
 
@@ -322,7 +320,7 @@ onMounted(() => fetchList({ reset: true }));
 .accessible-attachments {
   background: #fff;
   border: 1px solid #e6e6e6;
-  border-radius: 20px;
+  border-radius: 16px;
   overflow: hidden;
 }
 
@@ -359,7 +357,6 @@ onMounted(() => fetchList({ reset: true }));
   display: flex;
   flex-direction: column;
   background: #fff;
-  transition: width 0.2s ease;
 }
 
 .list-section.with-details {
