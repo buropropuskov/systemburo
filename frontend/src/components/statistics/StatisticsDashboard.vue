@@ -35,7 +35,7 @@
             v-if="tile.comparison || tile.trend"
             class="dashboard__tile-insight"
           >
-            <Sparkline
+            <TrendSparkline
               v-if="tile.trend"
               class="dashboard__tile-spark"
               :series="tile.trend.series"
@@ -299,7 +299,7 @@
 import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue';
 import AnalyticsAreaChart from '@/components/statistics/AnalyticsAreaChart.vue';
 import DirIcon from '@/components/statistics/DirIcon.vue';
-import Sparkline from '@/components/statistics/Sparkline.vue';
+import TrendSparkline from '@/components/statistics/TrendSparkline.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import { getSummary, getTimeline, getRecentPassages, getInsights } from '@/api/statistics.js';
 import { mergeFeed, feedRowKey } from './feedMerge.js';

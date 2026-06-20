@@ -15,7 +15,7 @@ vi.mock('@/api/statistics.js', () => ({
 
 import StatisticsDashboard from '../StatisticsDashboard.vue';
 import AnalyticsAreaChart from '../AnalyticsAreaChart.vue';
-import Sparkline from '../Sparkline.vue';
+import TrendSparkline from '../TrendSparkline.vue';
 
 const mountDashboard = () => mount(StatisticsDashboard, {
   props: { from: '2026-06-01', to: '2026-06-07' },
@@ -101,7 +101,7 @@ describe('StatisticsDashboard — инсайты карточек', () => {
     // Только applications_count покрыт инсайтом -> ровно один футер с дельтой и спарклайном.
     expect(wrapper.text()).toContain('+25%');
     expect(wrapper.find('.dashboard__delta--up').exists()).toBe(true);
-    expect(wrapper.findComponent(Sparkline).exists()).toBe(true);
+    expect(wrapper.findComponent(TrendSparkline).exists()).toBe(true);
     expect(wrapper.findAll('.dashboard__tile-insight')).toHaveLength(1);
   });
 
