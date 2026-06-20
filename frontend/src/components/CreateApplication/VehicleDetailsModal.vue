@@ -1002,7 +1002,7 @@ export default {
                 
             } catch (error) {
                 console.error('Error exporting to Excel:', error);
-                alert('Ошибка при экспорте в Excel');
+                useDeletionsStore().notify({ bold: 'Ошибка при экспорте в Excel', type: 'error' });
             } finally {
                 this.isExporting = false;
             }

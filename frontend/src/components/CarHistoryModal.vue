@@ -237,6 +237,7 @@
 import { ref } from 'vue';
 import { apiRequest } from '@/api/client'
 import { useOverlayClose } from '@/composables/useOverlayClose';
+import { useDeletionsStore } from '@/stores/deletions';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
 import ExcelJS from 'exceljs';
 
@@ -780,7 +781,7 @@ export default {
         
       } catch (error) {
         console.error('Error exporting to Excel:', error);
-        alert('Ошибка при экспорте в Excel');
+        useDeletionsStore().notify({ bold: 'Ошибка при экспорте в Excel', type: 'error' });
       } finally {
         this.isExporting = false;
       }

@@ -427,7 +427,7 @@
 import { apiRequest } from '@/api/client'
 import { checkPersonBlacklist } from '@/api/blacklist'
 import { useAuthStore } from '@/stores/auth'
-import { useToast } from '@/composables/useToast'
+import { useDeletionsStore } from '@/stores/deletions'
 import ExistingEmployeesModal from '@/components/CreateApplication/ExistingEmployeesModal.vue'
 import { useFormValidation } from '@/composables/useFormValidation'
 import { useFieldConfig } from '@/composables/useFieldConfig'
@@ -474,7 +474,6 @@ export default {
     emits: ['edit-cancelled', 'employee-added', 'employee-updated', 'employees-added'],
     setup(props) {
         const instance = getCurrentInstance()
-        const toast = useToast()
         const { fieldVisible, fieldRequired } = useFieldConfig(() => props.fieldConfig)
 
         const { isValid, tooltipMessage, showTooltip } = useFormValidation(() => {
@@ -520,7 +519,7 @@ export default {
             return rules
         })
 
-        return { canAddEmployee: isValid, getTooltipMessage: tooltipMessage, showTooltip, toast, fieldVisible, fieldRequired }
+        return { canAddEmployee: isValid, getTooltipMessage: tooltipMessage, showTooltip, fieldVisible, fieldRequired }
     },
     data() {
         return {
@@ -766,7 +765,7 @@ export default {
                 if (this.selectedPassageTables.length > 0 && !this.autoPlacesNotified) {
                     this.autoPlacesNotified = true;
                     sessionStorage.setItem('autoPlacesNotified', 'true');
-                    this.toast.success('Места прохода выбраны автоматически для вашей организации');
+                    useDeletionsStore().notify({ prefix: 'Места прохода выбраны автоматически для вашей', bold: ' организации' });
                 }
             }
         }
@@ -807,7 +806,7 @@ export default {
                 if (this.selectedPassageTables.length > 0 && !this.autoPlacesNotified) {
                     this.autoPlacesNotified = true;
                     sessionStorage.setItem('autoPlacesNotified', 'true');
-                    this.toast.success('Места прохода выбраны автоматически для вашей компании');
+                    useDeletionsStore().notify({ prefix: 'Места прохода выбраны автоматически для вашей', bold: ' компании' });
                 }
             }
         }
@@ -1004,12 +1003,12 @@ export default {
 
         addExistingEmployees() {
             if (this.selectedExistingEmployees.length === 0) {
-                alert('Выберите сотрудников для добавления');
+                useDeletionsStore().notify({ bold: 'Выберите сотрудников для добавления', type: 'error' });
                 return;
             }
 
             if (this.selectedPassageTables.length === 0) {
-                alert('Выберите места прохода');
+                useDeletionsStore().notify({ bold: 'Выберите места прохода', type: 'error' });
                 return;
             }
 
