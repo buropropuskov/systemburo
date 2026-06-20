@@ -151,6 +151,8 @@ import {
 import PermissionTreeModal from '@/components/admin/PermissionTreeModal.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import { ALL_PERMISSION_KEYS } from '@/constants/permissionKeys';
+import { useDeletionsStore } from '@/stores/deletions';
+import { useUiStore } from '@/stores/ui';
 
 export default {
   name: 'AdminPermissionGroups',
@@ -237,12 +239,21 @@ export default {
       }
     },
     async confirmDelete(group) {
-      if (!confirm(`Удалить группу «${group.name}»? Это действие нельзя отменить.`)) return;
+      const ok = await useUiStore().confirm({
+        title: 'Удалить группу прав?',
+        message: `Группа «${group.name}» будет удалена. Это действие нельзя отменить.`,
+        confirmText: 'Удалить',
+        cancelText: 'Отмена',
+        danger: true,
+      });
+      if (!ok) return;
       try {
         await deletePermissionGroup(group.id);
         await this.fetch();
+        useDeletionsStore().notify({ prefix: 'Группа ', bold: group.name, suffix: ' удалена' });
       } catch (e) {
         console.error('Ошибка удаления:', e);
+        useDeletionsStore().notify({ prefix: 'Не удалось удалить ', bold: group.name, type: 'error' });
       }
     },
   },

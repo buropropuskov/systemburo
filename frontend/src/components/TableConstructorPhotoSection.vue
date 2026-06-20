@@ -152,6 +152,7 @@
 <script>
 import { apiRequest } from '@/api/client'
 import { useDeletionsStore } from '@/stores/deletions'
+import { useUiStore } from '@/stores/ui'
 
 export default {
   name: 'TableConstructorPhotoSection',
@@ -210,7 +211,14 @@ export default {
     },
 
     async deletePhoto(photo) {
-      if (!confirm('Удалить фотографию?')) return;
+      const ok = await useUiStore().confirm({
+        title: 'Удалить фотографию?',
+        message: `Фотография «${photo.file_name}» будет удалена без возможности восстановления.`,
+        confirmText: 'Удалить',
+        cancelText: 'Отмена',
+        danger: true,
+      });
+      if (!ok) return;
 
       try {
         const response = await apiRequest(`/system-tables/${this.tableId}/photos/${photo.id}`, {
