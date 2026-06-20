@@ -235,18 +235,21 @@ type CompleteApplicationRequest struct {
 
 // AttachmentData данные вложения при создании заявки.
 type AttachmentData struct {
-	AttachmentType        string                     `json:"attachment_type"`
-	AttachmentName        string                     `json:"attachment_name"`
-	AttachmentDisplayName string                     `json:"attachment_display_name"`
-	UniqueAttachmentID    int                        `json:"unique_attachment_id"`
-	EntryDateFrom         *string                    `json:"entry_date_from"`
-	EntryDateTo           *string                    `json:"entry_date_to"`
-	EntryTimeFrom         *string                    `json:"entry_time_from"`
-	EntryTimeTo           *string                    `json:"entry_time_to"`
-	RoofAccess            bool                       `json:"roof_access"`
-	FreeParking           bool                       `json:"free_parking"`
-	Data                  AttachmentContentData      `json:"data"`
-	CustomValues          *[]models.CustomValueInput `json:"custom_values,omitempty"`
+	AttachmentType        string  `json:"attachment_type"`
+	AttachmentName        string  `json:"attachment_name"`
+	AttachmentDisplayName string  `json:"attachment_display_name"`
+	UniqueAttachmentID    int     `json:"unique_attachment_id"`
+	EntryDateFrom         *string `json:"entry_date_from"`
+	EntryDateTo           *string `json:"entry_date_to"`
+	EntryTimeFrom         *string `json:"entry_time_from"`
+	EntryTimeTo           *string `json:"entry_time_to"`
+	RoofAccess            bool    `json:"roof_access"`
+	FreeParking           bool    `json:"free_parking"`
+	// UnloadPlaces - места разгрузки на уровне вложения (#706). Для items-вложений это
+	// единственный источник мест; для cars дублирует дедуп-union мест всех машин вложения.
+	UnloadPlaces []int                      `json:"unload_places,omitempty"`
+	Data         AttachmentContentData      `json:"data"`
+	CustomValues *[]models.CustomValueInput `json:"custom_values,omitempty"`
 }
 
 // AttachmentContentData содержимое вложения: машины, сотрудники или ТМЦ.
@@ -1499,6 +1502,9 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 		switch att.AttachmentType {
 		case "cars":
 			if att.Data.Vehicles != nil {
+				// Дедуп-union мест всех машин вложения для attachment_unload_places (#706).
+				// car_unload_places продолжаем писать для read-side и истории.
+				carPlacesSet := make(map[int]struct{})
 				for _, v := range *att.Data.Vehicles {
 					var carID int
 					err := tx.Raw(`
@@ -1521,7 +1527,12 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 
 					for _, placeID := range v.UnloadPlaces {
 						tx.Exec("INSERT INTO car_unload_places (car_id, unload_place_id, order_index) VALUES (?, ?, 1)", carID, placeID)
+						carPlacesSet[placeID] = struct{}{}
 					}
+				}
+				// Пишем дедупированные места в attachment_unload_places (источник для охранника).
+				for placeID := range carPlacesSet {
+					tx.Exec("INSERT INTO attachment_unload_places (attachment_id, unload_place_id) VALUES (?, ?) ON CONFLICT DO NOTHING", attID, placeID)
 				}
 			}
 
@@ -1580,6 +1591,10 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 						VALUES (?, ?, ?, ?)
 					`, attID, item.Name, item.Count, baseTime.Format("2006-01-02"))
 				}
+			}
+			// Места разгрузки для items приходят на уровне вложения (#706).
+			for _, placeID := range att.UnloadPlaces {
+				tx.Exec("INSERT INTO attachment_unload_places (attachment_id, unload_place_id) VALUES (?, ?) ON CONFLICT DO NOTHING", attID, placeID)
 			}
 
 		default:
