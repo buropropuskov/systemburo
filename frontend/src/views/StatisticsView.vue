@@ -90,7 +90,7 @@
 
         <!-- Отчёты -->
         <div
-          v-else
+          v-else-if="activeTab === 'reports'"
           class="statistics__panel"
         >
           <ReportsTab

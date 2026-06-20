@@ -5,14 +5,15 @@ import { nextTick } from 'vue';
 // Управляемое состояние моков: фабрика vi.mock поднимается над импортами,
 // поэтому summary/deferred выносим в hoisted.
 const { state } = vi.hoisted(() => ({
-  state: { deferred: [], summary: {}, insights: {}, onlinePeaks: [] },
+  state: { deferred: [], summary: {}, insights: {}, onlinePeaks: [], insightsHang: false },
 }));
 
 vi.mock('@/api/statistics.js', () => ({
   getSummary: () => Promise.resolve(state.summary),
   getRecentPassages: () => Promise.resolve({ people: [], cars: [] }),
   getTimeline: () => new Promise((resolve) => { state.deferred.push(resolve); }),
-  getInsights: () => Promise.resolve(state.insights),
+  // insightsHang оставляет промис вечно pending — для проверки состояния загрузки.
+  getInsights: () => (state.insightsHang ? new Promise(() => {}) : Promise.resolve(state.insights)),
   getOnlinePeaks: () => Promise.resolve(state.onlinePeaks),
 }));
 
@@ -34,6 +35,7 @@ beforeEach(() => {
   state.summary = {};
   state.insights = {};
   state.onlinePeaks = [];
+  state.insightsHang = false;
 });
 
 describe('StatisticsDashboard — гонка таймлайна', () => {
@@ -227,6 +229,15 @@ describe('StatisticsDashboard — топы за период', () => {
     expect(wrapper.text()).toContain('Топ за период');
     // Оба TopList без items -> два плейсхолдера «Нет данных».
     expect(wrapper.findAll('.top__empty')).toHaveLength(2);
+  });
+
+  it('во время загрузки инсайтов секция топов показывает скелетоны вместо лидербордов', async () => {
+    state.insightsHang = true; // getInsights не резолвится -> insightsLoading остаётся true
+    const wrapper = mountDashboard();
+    await nextTick(); // onMounted -> loadInsights выставил insightsLoading -> ре-рендер
+
+    expect(wrapper.findAll('.dashboard__top-skeleton')).toHaveLength(2);
+    expect(wrapper.find('.top').exists()).toBe(false);
   });
 });
 

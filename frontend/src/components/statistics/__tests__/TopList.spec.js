@@ -24,15 +24,15 @@ describe('TopList', () => {
     expect(rows[1].find('.top__rank').text()).toBe('2');
   });
 
-  it('ширина бара пропорциональна лидеру: у максимума 100%, минимум не ниже 4%', () => {
+  it('длина бара пропорциональна лидеру: у максимума scaleX(1), минимум не ниже 0.04', () => {
     const wrapper = mount(TopList, {
       props: { title: 'Топ', items: [{ label: 'A', value: 100 }, { label: 'B', value: 1 }] },
     });
 
     const fills = wrapper.findAll('.top__bar-fill');
-    expect(fills[0].attributes('style')).toContain('width: 100%');
-    // 1/100 = 1% -> поднимается до минимума 4%, чтобы полоска была видна.
-    expect(fills[1].attributes('style')).toContain('width: 4%');
+    expect(fills[0].attributes('style')).toContain('scaleX(1)');
+    // 1/100 = 1% -> поднимается до минимума 4% (scaleX 0.04), чтобы полоска была видна.
+    expect(fills[1].attributes('style')).toContain('scaleX(0.04)');
   });
 
   it('пустой список показывает плейсхолдер вместо строк', () => {

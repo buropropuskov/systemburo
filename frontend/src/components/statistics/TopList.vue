@@ -35,7 +35,7 @@
           <div class="top__bar">
             <span
               class="top__bar-fill"
-              :style="{ width: `${barWidth(it.value)}%` }"
+              :style="{ transform: `scaleX(${barWidth(it.value) / 100})` }"
             />
           </div>
         </div>
@@ -186,9 +186,13 @@ function fmt(val) {
 
 .top__bar-fill {
   display: block;
+  width: 100%;
   height: 100%;
   border-radius: var(--radius-pill);
   background: var(--color-primary);
-  transition: width 0.4s ease;
+  /* Длину бара задаём через scaleX (origin слева), а не width — анимация идёт
+     через композитор, как требует стандарт анимаций проекта. */
+  transform-origin: left center;
+  transition: transform 0.4s ease;
 }
 </style>
