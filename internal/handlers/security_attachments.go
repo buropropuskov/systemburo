@@ -9,10 +9,10 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// availableAttachmentDetail - ответ детального эндпоинта вкладки "Доступные мне" (#706):
+// AvailableAttachmentDetail - ответ детального эндпоинта вкладки "Доступные мне" (#706):
 // заголовок вложения с краткой инфо родительской заявки плюс типизированное содержимое.
 // Заполняется только релевантный тип (cars/people/items), остальные опускаются.
-type availableAttachmentDetail struct {
+type AvailableAttachmentDetail struct {
 	Attachment services.AvailableAttachment  `json:"attachment"`
 	Cars       []services.CarWithPlaces      `json:"cars,omitempty"`
 	Employees  []services.EmployeeWithTables `json:"employees,omitempty"`
@@ -81,7 +81,7 @@ func (h *ApplicationHandler) GetAvailableAttachments(c echo.Context) error {
 // @Produce      json
 // @Security     BearerAuth
 // @Param        id path int true "ID вложения"
-// @Success      200 {object} handlers.availableAttachmentDetail
+// @Success      200 {object} handlers.AvailableAttachmentDetail
 // @Failure      400 {object} models.HTTPError
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
@@ -116,7 +116,7 @@ func (h *ApplicationHandler) GetAvailableAttachmentDetail(c echo.Context) error 
 		return echo.NewHTTPError(http.StatusNotFound, "Attachment not found")
 	}
 
-	detail := availableAttachmentDetail{Attachment: *header}
+	detail := AvailableAttachmentDetail{Attachment: *header}
 	switch header.AttachmentType {
 	case "cars":
 		detail.Cars, err = h.service.GetAttachmentCars(ctx, id)
@@ -124,6 +124,8 @@ func (h *ApplicationHandler) GetAvailableAttachmentDetail(c echo.Context) error 
 		detail.Employees, err = h.service.GetAttachmentEmployees(ctx, id)
 	case "items":
 		detail.Items, err = h.service.GetAttachmentItems(ctx, id)
+	default:
+		return echo.NewHTTPError(http.StatusInternalServerError, "Unknown attachment type")
 	}
 	if err != nil {
 		return err
