@@ -56,6 +56,7 @@
             Мои сотрудники
           </button>
           <button
+            v-if="canSeeAllSystem"
             class="filter-tab"
             data-testid="filter-tab-all-system"
             :class="{ 'filter-tab--active': currentFilter === 'all_system' }"
@@ -393,6 +394,7 @@ import { apiRequest } from '@/api/client'
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
+import { usePermissionsStore } from '@/stores/permissions';
 import SearchComponent from '@/components/SearchComponent.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
@@ -433,6 +435,11 @@ export default {
         };
     },
     computed: {
+        // Вкладка «Все сотрудники системы» (all_system) - только super/админ
+        // (page.admin). Бэк дополнительно отдаёт 403 на all_system без прав.
+        canSeeAllSystem() {
+            return usePermissionsStore().hasPermission('page.admin');
+        },
         filteredEmployees() {
             const variants = buildSearchVariants(this.searchQuery);
             if (!variants.length) {
