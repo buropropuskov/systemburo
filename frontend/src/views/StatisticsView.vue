@@ -8,7 +8,16 @@
           <h1 class="management-title">Аналитика</h1>
         </div>
         <div class="statistics__header-right">
-          <div class="period-presets">
+          <div
+            ref="presetsEl"
+            class="period-presets"
+          >
+            <span
+              class="period-presets__indicator"
+              :class="{ 'period-presets__indicator--ready': indicatorReady }"
+              :style="presetIndicatorStyle"
+              aria-hidden="true"
+            />
             <button
               v-for="p in periodPresets"
               :key="p.key"
@@ -110,7 +119,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
 import AdminPageShell from '@/views/admin/AdminPageShell.vue';
 import DateFilter from '@/components/DateFilter.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
@@ -144,6 +153,56 @@ const periodPresets = [
   { key: 'year', label: 'Год' },
 ];
 const activePreset = ref('week');
+
+// Скользящий индикатор активного пресета. Лейблы разной ширины (Сегодня шире Год),
+// поэтому геометрию подложки меряем по активной кнопке, а не делим на равные доли.
+// Индикатор position:absolute -> переход width не вызывает reflow соседей. При ручном
+// выборе диапазона из календаря пресет сбрасывается -> индикатор скрывается через opacity.
+const presetsEl = ref(null);
+const indicatorReady = ref(false);
+const presetIndicatorStyle = ref({ opacity: 0 });
+const activePresetIndex = computed(() =>
+  periodPresets.findIndex((p) => p.key === activePreset.value),
+);
+
+function updatePresetIndicator() {
+  const cont = presetsEl.value;
+  if (!cont) return;
+  const idx = activePresetIndex.value;
+  if (idx < 0) {
+    presetIndicatorStyle.value = { ...presetIndicatorStyle.value, opacity: 0 };
+    return;
+  }
+  const btn = cont.querySelectorAll('.period-preset')[idx];
+  if (!btn) return;
+  const cRect = cont.getBoundingClientRect();
+  const bRect = btn.getBoundingClientRect();
+  presetIndicatorStyle.value = {
+    width: `${Math.round(bRect.width)}px`,
+    transform: `translateX(${Math.round(bRect.left - cRect.left - cont.clientLeft)}px)`,
+    opacity: 1,
+  };
+}
+
+let presetResizeObserver = null;
+onMounted(() => {
+  nextTick(() => {
+    updatePresetIndicator();
+    // Переход включаем только после первой раскладки — иначе индикатор слайдится от 0 на маунте.
+    requestAnimationFrame(() => {
+      indicatorReady.value = true;
+    });
+    if (typeof ResizeObserver !== 'undefined' && presetsEl.value) {
+      // Пересчёт при загрузке шрифтов, ресайзе и переносе шапки (presence != ready, урок #657).
+      presetResizeObserver = new ResizeObserver(() => updatePresetIndicator());
+      presetResizeObserver.observe(presetsEl.value);
+    }
+  });
+});
+onBeforeUnmount(() => {
+  if (presetResizeObserver) presetResizeObserver.disconnect();
+});
+watch(activePreset, () => nextTick(updatePresetIndicator));
 
 function applyPeriodPreset(key) {
   const now = new Date();
@@ -231,6 +290,7 @@ function onRefresh() {
 
 /* Быстрые кнопки периода */
 .period-presets {
+  position: relative;
   display: inline-flex;
   gap: 4px;
   background: var(--color-bg);
@@ -239,7 +299,30 @@ function onRefresh() {
   padding: 3px;
 }
 
+/* Подложка активного пресета: геометрию задаёт JS по активной кнопке
+   (presetIndicatorStyle). Лежит под текстом (z-index 0), out-of-flow -> переход
+   width/transform не двигает соседей. Переход включается классом --ready после
+   первой раскладки, чтобы не было слайда от нуля на маунте. */
+.period-presets__indicator {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 0;
+  width: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.period-presets__indicator--ready {
+  transition: transform 0.22s ease, width 0.22s ease, opacity 0.18s ease;
+}
+
 .period-preset {
+  position: relative;
+  z-index: 1;
   border: none;
   background: transparent;
   font-family: inherit;
@@ -249,7 +332,7 @@ function onRefresh() {
   padding: 5px 13px;
   border-radius: var(--radius-pill);
   cursor: pointer;
-  transition: background 0.18s ease, color 0.18s ease;
+  transition: color 0.18s ease;
   white-space: nowrap;
 }
 
@@ -257,12 +340,8 @@ function onRefresh() {
   color: var(--color-primary);
 }
 
-.period-preset--active {
-  background: var(--color-primary);
-  color: #fff;
-}
-
-/* На активной кнопке hover не должен перекрашивать текст в синий — он сливается с фоном. */
+.period-preset--active,
+/* На активной кнопке hover не должен перекрашивать текст в синий — он сливается с подложкой. */
 .period-preset--active:hover {
   color: #fff;
 }

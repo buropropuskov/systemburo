@@ -464,9 +464,12 @@ export default {
             const rect = trigger.getBoundingClientRect();
             const width = 500;
             const margin = 8;
+            // Горизонтальный зазор больше вертикального: при клампе у правого края
+            // попап не должен прилипать к краю экрана (= padding карточки).
+            const edgeMargin = 24;
             let left = rect.left;
-            if (left + width > window.innerWidth - margin) {
-                left = Math.max(margin, window.innerWidth - width - margin);
+            if (left + width > window.innerWidth - edgeMargin) {
+                left = Math.max(edgeMargin, window.innerWidth - width - edgeMargin);
             }
             let top = rect.bottom + 5;
             const height = this.$refs.calendar ? this.$refs.calendar.offsetHeight : 0;
