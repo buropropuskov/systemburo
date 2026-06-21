@@ -1,5 +1,15 @@
-import { describe, it, expect } from 'vitest';
-import { reportToTable } from '../useReportExport';
+import { describe, it, expect, vi } from 'vitest';
+import { reportToTable, computeColumnWidths, useReportExport } from '../useReportExport';
+
+// PDF-ветку тестируем с мок-pdfmake: проверяем, что формат 'pdf' строит документ
+// через pdfmake (vfs + createPdf) и инициирует скачивание - без реального браузера.
+vi.mock('pdfmake/build/pdfmake', () => ({
+  default: {
+    addVirtualFileSystem: vi.fn(),
+    createPdf: vi.fn(() => ({ getBlob: (cb) => cb(new Blob(['%PDF'], { type: 'application/pdf' })) })),
+  },
+}));
+vi.mock('pdfmake/build/vfs_fonts', () => ({ default: {} }));
 
 describe('reportToTable', () => {
   it('мультиметрик aggregate: колонки-метрики, строки значений и строка итогов', () => {
@@ -79,5 +89,77 @@ describe('reportToTable', () => {
 
   it('пустой результат не падает', () => {
     expect(reportToTable(null).header).toEqual([]);
+  });
+});
+
+describe('computeColumnWidths', () => {
+  it('ширина колонки не меньше длины заголовка и самой длинной ячейки', () => {
+    const table = {
+      header: ['Значение разреза', 'Заявки, шт'],
+      rows: [['ООО Длинное Название Организации', 4], ['А', 1200]],
+      totalsRow: null,
+    };
+    const w = computeColumnWidths(table);
+    // col0: max('Значение разреза'=16, 'ООО Длинное Название Организации'=31) -> 31
+    expect(w[0]).toBe('ООО Длинное Название Организации'.length);
+    expect(w[0]).toBeGreaterThanOrEqual('Значение разреза'.length);
+    // col1: max('Заявки, шт'=10, '4'=1, '1200'=4) -> 10
+    expect(w[1]).toBe('Заявки, шт'.length);
+  });
+
+  it('учитывает строку итогов при расчёте ширины', () => {
+    const table = {
+      header: ['Разрез', 'N'],
+      rows: [['А', 1]],
+      totalsRow: ['Итого по всем разрезам', 1],
+    };
+    const w = computeColumnWidths(table);
+    expect(w[0]).toBe('Итого по всем разрезам'.length);
+  });
+
+  it('пустые/числовые ячейки не ломают расчёт', () => {
+    const table = { header: ['A', 'B'], rows: [[null, 0], ['', undefined]], totalsRow: null };
+    expect(computeColumnWidths(table)).toEqual([1, 1]);
+  });
+});
+
+describe('useReportExport — PDF-экспорт', () => {
+  it('формат pdf строит документ через pdfmake и скачивает файл', async () => {
+    const pdfMake = (await import('pdfmake/build/pdfmake')).default;
+    pdfMake.addVirtualFileSystem.mockClear();
+    pdfMake.createPdf.mockClear();
+
+    window.URL.createObjectURL = vi.fn(() => 'blob:test');
+    window.URL.revokeObjectURL = vi.fn();
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+
+    const { exporting, exportReport } = useReportExport();
+    await exportReport(
+      { mode: 'aggregate', dimension: 'status', unit: 'шт', rows: [{ label: 'Завершено', value: 3 }], total: 3 },
+      { title: 'Отчёт', period: { from: '2026-06-01', to: '2026-06-07' } },
+      'pdf',
+    );
+
+    expect(pdfMake.addVirtualFileSystem).toHaveBeenCalledTimes(1);
+    expect(pdfMake.createPdf).toHaveBeenCalledTimes(1);
+    const doc = pdfMake.createPdf.mock.calls[0][0];
+    const tableNode = doc.content.find((n) => n.table);
+    expect(tableNode).toBeTruthy();
+    // шапка таблицы и строка данных попали в документ
+    expect(tableNode.table.body[0].map((c) => c.text)).toEqual(['Значение разреза', 'Количество, шт']);
+    expect(tableNode.table.body).toHaveLength(3); // header + строка + итого
+    expect(clickSpy).toHaveBeenCalled();
+    expect(window.URL.revokeObjectURL).toHaveBeenCalled();
+    expect(exporting.value).toBe(false);
+
+    clickSpy.mockRestore();
+  });
+
+  it('пустой результат бросает ошибку до обращения к pdfmake', async () => {
+    const pdfMake = (await import('pdfmake/build/pdfmake')).default;
+    pdfMake.createPdf.mockClear();
+    const { exportReport } = useReportExport();
+    await expect(exportReport(null, {}, 'pdf')).rejects.toThrow('Нет данных');
+    expect(pdfMake.createPdf).not.toHaveBeenCalled();
   });
 });

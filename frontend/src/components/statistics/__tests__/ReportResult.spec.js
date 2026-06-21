@@ -304,7 +304,7 @@ describe('ReportResult — переключатель Таблица/Графи�
     expect(w.findComponent(barStub).props('seriesName')).toBe('Количество заявок');
   });
 
-  it('кнопка «Excel» зовёт экспорт с текущим результатом и meta', async () => {
+  it('выбор Excel в меню зовёт экспорт с результатом, meta и форматом', async () => {
     exportSpy.mockClear();
     const meta = { period: { from: '2026-06-01', to: '2026-06-07' } };
     const w = mount(ReportResult, {
@@ -312,10 +312,22 @@ describe('ReportResult — переключатель Таблица/Графи�
       global: { stubs: { AnalyticsAreaChart: areaStub, AnalyticsBarChart: barStub } },
     });
     await w.find('[data-testid="rr-export"]').trigger('click');
-    expect(exportSpy).toHaveBeenCalledWith(aggMulti, meta);
+    await w.find('[data-testid="rr-export-excel"]').trigger('click');
+    expect(exportSpy).toHaveBeenCalledWith(aggMulti, meta, 'excel');
   });
 
-  it('кнопка «Excel» недоступна на пустом результате', () => {
+  it('выбор PDF в меню зовёт экспорт с форматом pdf', async () => {
+    exportSpy.mockClear();
+    const w = mount(ReportResult, {
+      props: { result: aggMulti, meta: {} },
+      global: { stubs: { AnalyticsAreaChart: areaStub, AnalyticsBarChart: barStub } },
+    });
+    await w.find('[data-testid="rr-export"]').trigger('click');
+    await w.find('[data-testid="rr-export-pdf"]').trigger('click');
+    expect(exportSpy).toHaveBeenCalledWith(aggMulti, {}, 'pdf');
+  });
+
+  it('кнопка выгрузки недоступна на пустом результате', () => {
     const w = mountResult({ ...aggStatus, rows: [], total: 0 });
     expect(w.find('[data-testid="rr-export"]').attributes('disabled')).toBeDefined();
   });
@@ -332,6 +344,7 @@ describe('ReportResult — переключатель Таблица/Графи�
       global: { stubs: { AnalyticsAreaChart: areaStub, AnalyticsBarChart: barStub } },
     });
     await w.find('[data-testid="rr-export"]').trigger('click');
+    await w.find('[data-testid="rr-export-pdf"]').trigger('click');
     await nextTick();
     expect(w.emitted('export-error')[0]).toEqual(['диск переполнен']);
   });
