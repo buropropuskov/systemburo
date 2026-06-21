@@ -167,17 +167,62 @@ describe('StatisticsDashboard — разворот карточки', () => {
     expect(wrapper.find('.dashboard__detail').exists()).toBe(false);
   });
 
-  it('тренд детали строит ту же серию, что и спарклайн, с порядковыми подписями оси X', async () => {
+  it('тренд детали строит датированный ряд из getTimeline (ось X — даты, не порядковые номера)', async () => {
     withInsights();
     const wrapper = mountDashboard();
-    await flushPromises();
+    await flushPromises(); // onMounted -> loadTimeline (deferred[0])
 
     await tileByText(wrapper, 'Получено заявок').trigger('click');
-    await nextTick();
+    await nextTick(); // watch(expandedMetric) -> loadDetailTimeline -> getTimeline
+
+    // Детальный тренд грузится отдельным getTimeline по дням; резолвим последний.
+    state.deferred[state.deferred.length - 1]([
+      { date: '2026-06-01', count: 3 },
+      { date: '2026-06-02', count: 7 },
+    ]);
+    await flushPromises();
 
     const area = wrapper.find('.dashboard__detail').findComponent(AnalyticsAreaChart);
-    expect(area.props('data')).toEqual([{ count: 1 }, { count: 2 }, { count: 3 }, { count: 4 }]);
-    expect(area.props('categories')).toEqual(['1', '2', '3', '4']);
+    // Точки с timestamp -> график сам строит подписи дд.мм; categories не навязываем.
+    expect(area.props('data')).toEqual([
+      { timestamp: '2026-06-01', count: 3 },
+      { timestamp: '2026-06-02', count: 7 },
+    ]);
+    expect(area.props('categories') == null).toBe(true);
+    // Разворот обёрнут в grid-collapse -> плавная высота без телепортации соседей.
+    expect(wrapper.find('.dashboard__detail-collapse').exists()).toBe(true);
+  });
+
+  it('быстрое переключение карточек: тренд показывает данные последней, устаревший ответ игнорирует', async () => {
+    state.summary = { total_applications: 10, cars_entered: 8 };
+    state.insights = {
+      comparisons: [
+        { metric: 'applications_count', current: 10, previous: 8, delta_pct: 25, direction: 'up' },
+        { metric: 'car_entries_count', current: 8, previous: 6, delta_pct: 33, direction: 'up' },
+      ],
+      trends: [
+        { metric: 'applications_count', direction: 'up', series: [1, 2] },
+        { metric: 'car_entries_count', direction: 'up', series: [3, 4] },
+      ],
+    };
+    const wrapper = mountDashboard();
+    await flushPromises(); // onMounted -> loadTimeline (deferred[0])
+
+    await tileByText(wrapper, 'Получено заявок').trigger('click'); // detail A -> deferred[1]
+    await nextTick();
+    await tileByText(wrapper, 'Машин заехало').trigger('click'); // detail B -> deferred[2]
+    await nextTick();
+
+    // Последний запрос (B) резолвится ПЕРВЫМ, устаревший A — позже.
+    const aResolve = state.deferred[1];
+    const bResolve = state.deferred[2];
+    bResolve([{ date: '2026-06-03', count: 99 }]);
+    await flushPromises();
+    aResolve([{ date: '2026-06-01', count: 11 }]);
+    await flushPromises();
+
+    const area = wrapper.find('.dashboard__detail').findComponent(AnalyticsAreaChart);
+    expect(area.props('data')).toEqual([{ timestamp: '2026-06-03', count: 99 }]); // B, не A
   });
 
   it('смена периода сворачивает разворот', async () => {
