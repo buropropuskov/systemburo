@@ -426,14 +426,17 @@ func Setup(e *echo.Echo, d Dependencies) {
 	ueg.GET("/lookup", ue.Lookup, requireBlacklist)
 	ueg.GET("/:id/history", ue.GetHistory)
 
-	// Обратная связь
+	// Обратная связь. Отправка (POST) и свои обращения (GET /my) - любому
+	// авторизованному; админ-операции (список/статистика/статус/прочтение) -
+	// page.admin.feedback (Ф5, ранее service checkAdmin).
+	requireFeedbackAdmin := mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageAdminFeedback)
 	fbg := protected.Group("/feedback")
 	fbg.POST("", fb.Create)
-	fbg.GET("/all", fb.GetAll)
-	fbg.GET("/stats", fb.GetStats)
+	fbg.GET("/all", fb.GetAll, requireFeedbackAdmin)
+	fbg.GET("/stats", fb.GetStats, requireFeedbackAdmin)
 	fbg.GET("/my", fb.GetMy)
-	fbg.PUT("/:id/status", fb.UpdateStatus)
-	fbg.PUT("/:id/read", fb.MarkAsRead)
+	fbg.PUT("/:id/status", fb.UpdateStatus, requireFeedbackAdmin)
+	fbg.PUT("/:id/read", fb.MarkAsRead, requireFeedbackAdmin)
 
 	// Заявки
 	apg := protected.Group("/applications")

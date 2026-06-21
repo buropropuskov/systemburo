@@ -57,8 +57,7 @@ func (h *FeedbackHandler) Create(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /feedback/all [get]
 func (h *FeedbackHandler) GetAll(c echo.Context) error {
-	typeID := c.Get("type_id").(int)
-	feedbacks, err := h.service.GetAll(c.Request().Context(), typeID)
+	feedbacks, err := h.service.GetAll(c.Request().Context())
 	if err != nil {
 		return err
 	}
@@ -75,8 +74,7 @@ func (h *FeedbackHandler) GetAll(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /feedback/stats [get]
 func (h *FeedbackHandler) GetStats(c echo.Context) error {
-	typeID := c.Get("type_id").(int)
-	stats, err := h.service.GetStats(c.Request().Context(), typeID)
+	stats, err := h.service.GetStats(c.Request().Context())
 	if err != nil {
 		return err
 	}
@@ -115,7 +113,6 @@ func (h *FeedbackHandler) GetMy(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Router       /feedback/{id}/status [put]
 func (h *FeedbackHandler) UpdateStatus(c echo.Context) error {
-	typeID := c.Get("type_id").(int)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -124,7 +121,7 @@ func (h *FeedbackHandler) UpdateStatus(c echo.Context) error {
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
-	if err := h.service.UpdateStatus(c.Request().Context(), typeID, id, req); err != nil {
+	if err := h.service.UpdateStatus(c.Request().Context(), id, req); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Статус обращения успешно обновлен")
@@ -143,7 +140,6 @@ func (h *FeedbackHandler) UpdateStatus(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /feedback/{id}/read [put]
 func (h *FeedbackHandler) MarkAsRead(c echo.Context) error {
-	typeID := c.Get("type_id").(int)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
@@ -152,7 +148,7 @@ func (h *FeedbackHandler) MarkAsRead(c echo.Context) error {
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
-	if err := h.service.MarkAsRead(c.Request().Context(), typeID, id, req); err != nil {
+	if err := h.service.MarkAsRead(c.Request().Context(), id, req); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Статус прочтения обновлен")

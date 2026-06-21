@@ -14,13 +14,15 @@ import (
 )
 
 // FeedbackService -- интерфейс бизнес-логики обратной связи.
+// Админ-операции (page.admin.feedback) авторизуются роут-middleware RequirePermissionV2;
+// Create и GetMy доступны любому авторизованному (своя обратная связь).
 type FeedbackService interface {
 	Create(ctx context.Context, username string, req models.CreateFeedbackRequest) (int, error)
-	GetAll(ctx context.Context, typeID int) ([]models.FeedbackWithUser, error)
-	GetStats(ctx context.Context, typeID int) (*models.FeedbackStats, error)
+	GetAll(ctx context.Context) ([]models.FeedbackWithUser, error)
+	GetStats(ctx context.Context) (*models.FeedbackStats, error)
 	GetMy(ctx context.Context, username string) ([]models.MyFeedback, error)
-	UpdateStatus(ctx context.Context, typeID int, id int, req models.UpdateFeedbackStatusRequest) error
-	MarkAsRead(ctx context.Context, typeID int, id int, req models.MarkAsReadRequest) error
+	UpdateStatus(ctx context.Context, id int, req models.UpdateFeedbackStatusRequest) error
+	MarkAsRead(ctx context.Context, id int, req models.MarkAsReadRequest) error
 }
 
 type feedbackService struct {
@@ -30,24 +32,6 @@ type feedbackService struct {
 // NewFeedbackService создаёт реализацию FeedbackService.
 func NewFeedbackService(db *gorm.DB) FeedbackService {
 	return &feedbackService{db: db}
-}
-
-// checkAdmin проверяет, что пользователь является администратором.
-func (s *feedbackService) checkAdmin(ctx context.Context, typeID int) error {
-	var code string
-	err := s.db.WithContext(ctx).
-		Table("user_types").
-		Select("code").
-		Where("id = ?", typeID).
-		Row().
-		Scan(&code)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, "User not found")
-	}
-	if code != "manager" && code != "buropropuskov" {
-		return echo.NewHTTPError(http.StatusForbidden, "Insufficient permissions")
-	}
-	return nil
 }
 
 // getUserIDByUsername возвращает ID пользователя по username.
@@ -99,11 +83,7 @@ func (s *feedbackService) Create(ctx context.Context, username string, req model
 }
 
 // GetAll возвращает все обращения обратной связи с информацией о пользователях.
-func (s *feedbackService) GetAll(ctx context.Context, typeID int) ([]models.FeedbackWithUser, error) {
-	if err := s.checkAdmin(ctx, typeID); err != nil {
-		return nil, err
-	}
-
+func (s *feedbackService) GetAll(ctx context.Context) ([]models.FeedbackWithUser, error) {
 	results := make([]models.FeedbackWithUser, 0)
 	err := s.db.WithContext(ctx).
 		Table("feedback f").
@@ -129,11 +109,7 @@ func (s *feedbackService) GetAll(ctx context.Context, typeID int) ([]models.Feed
 }
 
 // GetStats возвращает статистику обращений обратной связи.
-func (s *feedbackService) GetStats(ctx context.Context, typeID int) (*models.FeedbackStats, error) {
-	if err := s.checkAdmin(ctx, typeID); err != nil {
-		return nil, err
-	}
-
+func (s *feedbackService) GetStats(ctx context.Context) (*models.FeedbackStats, error) {
 	var stats models.FeedbackStats
 	err := s.db.WithContext(ctx).
 		Table("feedback").
@@ -173,11 +149,7 @@ func (s *feedbackService) GetMy(ctx context.Context, username string) ([]models.
 }
 
 // UpdateStatus обновляет статус обращения обратной связи.
-func (s *feedbackService) UpdateStatus(ctx context.Context, typeID int, id int, req models.UpdateFeedbackStatusRequest) error {
-	if err := s.checkAdmin(ctx, typeID); err != nil {
-		return err
-	}
-
+func (s *feedbackService) UpdateStatus(ctx context.Context, id int, req models.UpdateFeedbackStatusRequest) error {
 	// Проверяем существование обращения
 	var count int64
 	if err := s.db.WithContext(ctx).Table("feedback").Where("id = ?", id).Count(&count).Error; err != nil {
@@ -221,11 +193,7 @@ func (s *feedbackService) UpdateStatus(ctx context.Context, typeID int, id int, 
 }
 
 // MarkAsRead отмечает обращение обратной связи как прочитанное или непрочитанное.
-func (s *feedbackService) MarkAsRead(ctx context.Context, typeID int, id int, req models.MarkAsReadRequest) error {
-	if err := s.checkAdmin(ctx, typeID); err != nil {
-		return err
-	}
-
+func (s *feedbackService) MarkAsRead(ctx context.Context, id int, req models.MarkAsReadRequest) error {
 	// Обновляем только is_read без updated_at (как в Rust)
 	err := s.db.WithContext(ctx).
 		Table("feedback").
