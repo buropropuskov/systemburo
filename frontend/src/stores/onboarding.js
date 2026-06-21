@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { onboardingSteps, ONBOARDING_VERSION } from '@/components/onboarding/onboardingSteps';
+import { securityOnboardingSteps } from '@/components/onboarding/securityOnboardingSteps';
 import { getOnboardingStatus, markOnboardingComplete } from '@/api/onboarding';
 
 /**
@@ -38,7 +39,13 @@ export const useOnboardingStore = defineStore('onboarding', () => {
   // (onMounted + watch route) не слали два GET (урок про гонки авто-fetch).
   let loadStatusPromise = null;
 
-  const steps = computed(() => onboardingSteps);
+  // Тур ветвится по типу пользователя: охранник смотрит вложения и таблицы, а не
+  // подаёт заявки - ему отдельный сценарий. Версия и per-user флаг завершения общие
+  // (юзер ровно одного типа). Автозапуск на /news сам покажет нужный сценарий.
+  const steps = computed(() => {
+    const auth = useAuthStore();
+    return auth.isSecurity ? securityOnboardingSteps : onboardingSteps;
+  });
   const totalSteps = computed(() => steps.value.length);
   const currentStep = computed(() => steps.value[currentIndex.value] || null);
 
