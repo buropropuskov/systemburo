@@ -1,4 +1,5 @@
 import { apiRequest } from './client';
+import { resolveFactTableRoute } from '@/components/onboarding/securityOnboardingSteps';
 
 /**
  * API статуса онбординг-тура (per-user, #657). Источник правды - бэкенд:
@@ -33,6 +34,25 @@ export async function markOnboardingComplete(version) {
     body: JSON.stringify({ version }),
   });
   return unwrap(res, 'Не удалось сохранить статус обучения');
+}
+
+/**
+ * Резолв route фактовой таблицы для security-тура: тянет `/system-tables` (тот же
+ * список, что NavMenu в дропдауне «Таблицы») и выбирает первую активную фактовую
+ * таблицу машин. Сетевая ошибка/отсутствие подходящей таблицы -> null (сегмент
+ * отметки в туре просто не добавляется).
+ *
+ * @returns {Promise<string|null>} `/table/<name>` или null
+ */
+export async function getSecurityFactRoute() {
+  try {
+    const res = await apiRequest('/system-tables');
+    if (!res.ok) return null;
+    const tables = await res.json();
+    return resolveFactTableRoute(tables);
+  } catch {
+    return null;
+  }
 }
 
 /**

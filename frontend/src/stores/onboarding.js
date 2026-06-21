@@ -2,8 +2,8 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { onboardingSteps, ONBOARDING_VERSION } from '@/components/onboarding/onboardingSteps';
-import { securityOnboardingSteps } from '@/components/onboarding/securityOnboardingSteps';
-import { getOnboardingStatus, markOnboardingComplete } from '@/api/onboarding';
+import { securityOnboardingSteps, buildSecurityFactSteps } from '@/components/onboarding/securityOnboardingSteps';
+import { getOnboardingStatus, markOnboardingComplete, getSecurityFactRoute } from '@/api/onboarding';
 
 /**
  * Стор онбординг-тура. Держит ГЛОБАЛЬНЫЙ индекс активного шага по всему
@@ -39,12 +39,25 @@ export const useOnboardingStore = defineStore('onboarding', () => {
   // (onMounted + watch route) не слали два GET (урок про гонки авто-fetch).
   let loadStatusPromise = null;
 
+  // Route фактовой таблицы для шага отметки въезда/выезда в security-туре.
+  // Резолвится один раз за сессию (ensureFactRoute) из /system-tables: у разных
+  // охранников разные доступные таблицы. null = подходящей таблицы нет ->
+  // сегмент отметки в тур не добавляется.
+  const factTableRoute = ref(null);
+  let factRouteResolved = false;
+
   // Тур ветвится по типу пользователя: охранник смотрит вложения и таблицы, а не
   // подаёт заявки - ему отдельный сценарий. Версия и per-user флаг завершения общие
   // (юзер ровно одного типа). Автозапуск на /news сам покажет нужный сценарий.
+  //
+  // Сегмент «Таблицы и отметка въезда/выезда» добавляется в ХВОСТ (не в базовый
+  // массив), когда factTableRoute резолвлен - так индексы ранних шагов не
+  // сдвигаются, даже если route доезжает уже после старта тура.
   const steps = computed(() => {
     const auth = useAuthStore();
-    return auth.isSecurity ? securityOnboardingSteps : onboardingSteps;
+    if (!auth.isSecurity) return onboardingSteps;
+    if (!factTableRoute.value) return securityOnboardingSteps;
+    return [...securityOnboardingSteps, ...buildSecurityFactSteps(factTableRoute.value)];
   });
   const totalSteps = computed(() => steps.value.length);
   const currentStep = computed(() => steps.value[currentIndex.value] || null);
@@ -86,6 +99,20 @@ export const useOnboardingStore = defineStore('onboarding', () => {
   }
 
   /**
+   * Предвычислить route фактовой таблицы для security-тура (один раз за сессию).
+   * Только для охранника; на ошибке/отсутствии таблицы route остаётся null и
+   * сегмент отметки не добавляется. Запускается фоном из start() - сегмент в
+   * хвосте steps, поэтому индексы ранних шагов не сдвигаются, даже если route
+   * доедет уже после показа первого шага.
+   */
+  async function ensureFactRoute() {
+    const auth = useAuthStore();
+    if (!auth.isSecurity || factRouteResolved) return;
+    factRouteResolved = true;
+    factTableRoute.value = await getSecurityFactRoute();
+  }
+
+  /**
    * Запустить тур с первого шага. Идемпотентно: повторный вызов при активном
    * туре ничего не делает.
    *
@@ -96,6 +123,9 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     isManual.value = manual;
     currentIndex.value = 0;
     isActive.value = true;
+    // Фоновый резолв фактовой таблицы (security): не блокирует показ первого
+    // шага, сегмент отметки добавится в хвост, как только route приедет.
+    ensureFactRoute();
   }
 
   function stop() {
@@ -155,6 +185,9 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     // Сброс статуса при logout - следующий юзер на этом устройстве подтянет свой.
     completedVersion.value = null;
     statusLoaded.value = false;
+    // Route фактовой таблицы тоже per-user - следующий охранник резолвит свой.
+    factTableRoute.value = null;
+    factRouteResolved = false;
   }
 
   return {
@@ -170,6 +203,8 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     pendingSegment,
     completedVersion,
     statusLoaded,
+    factTableRoute,
+    ensureFactRoute,
     loadStatus,
     hasCompleted,
     start,

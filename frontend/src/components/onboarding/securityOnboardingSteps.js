@@ -126,3 +126,87 @@ export const securityOnboardingSteps = [
       'Кнопка «Посмотреть файл» открывает заполненный бланк вложения прямо в системе - скачивать его для просмотра не нужно.',
   },
 ];
+
+/**
+ * Выбрать route фактовой таблицы для шага отметки въезда/выезда из списка
+ * системных таблиц (тот же `/system-tables`, что NavMenu показывает в дропдауне
+ * «Таблицы»). Берём первую активную фактовую таблицу типа `cars`: кнопки
+ * «Въезд»/«Выезд» в FactTable есть только у машин (people-фактовая таблица их
+ * не имеет). Форма элемента - `{ table: {...} }` (как отдаёт GetAll) либо плоская.
+ *
+ * @param {Array<object>} systemTables ответ GET /system-tables
+ * @returns {string|null} `/table/<name>` или null, если подходящей таблицы нет
+ */
+export function resolveFactTableRoute(systemTables) {
+  if (!Array.isArray(systemTables)) return null;
+  for (const item of systemTables) {
+    const t = item?.table || item;
+    if (t && t.is_active && t.show_fact_table && t.table_type === 'cars' && t.name) {
+      return `/table/${t.name}`;
+    }
+  }
+  return null;
+}
+
+/**
+ * Сегмент «Таблицы и отметка въезда/выезда» с ДИНАМИЧЕСКИМ route: целевую
+ * фактовую таблицу резолвим в рантайме (resolveFactTableRoute) и подставляем
+ * сюда, потому что у разных охранников разные доступные таблицы. Сегмент
+ * добавляется в хвост `steps` стора только когда route резолвится - индексы
+ * ранних шагов он не сдвигает.
+ *
+ * Первый шаг помечен `optionalSegment`: если у охранника пока нет доступа к
+ * `/table/:name` (роут-гард редиректит), хост штатно завершает тур на границе
+ * сегмента, а не висит на недостижимой странице. Когда доступ выдан -
+ * навигация проходит, и шаги подсвечивают реальную таблицу. Шаги строки/кнопок
+ * `optional`: на пустой фактовой таблице (строк нет) они пропускаются.
+ *
+ * @param {string|null} route `/table/<name>` целевой фактовой таблицы
+ * @returns {Array<object>} шаги сегмента (пустой массив при отсутствии route)
+ */
+export function buildSecurityFactSteps(route) {
+  if (!route) return [];
+  return [
+    {
+      id: 'sec-fact-intro',
+      route,
+      element: null,
+      optionalSegment: true,
+      title: 'Отметка въезда и выезда',
+      description:
+        'Открыли таблицу «Автомобили по факту»: сюда попадает транспорт по согласованным заявкам. Здесь охрана отмечает въезд и выезд машин.',
+    },
+    {
+      id: 'sec-fact-row',
+      route,
+      element: '[data-testid="ob-fact-row"]',
+      optional: true,
+      side: 'bottom',
+      align: 'start',
+      title: 'Строка транспорта',
+      description:
+        'Каждая строка - автомобиль по согласованной заявке: номер, организация, время и срок действия пропуска.',
+    },
+    {
+      id: 'sec-fact-entry',
+      route,
+      element: '[data-testid="ob-fact-entry"]',
+      optional: true,
+      side: 'bottom',
+      align: 'start',
+      title: 'Отметка въезда',
+      description: 'Кнопкой «Въезд» отмечаете, что автомобиль заехал на территорию.',
+    },
+    {
+      id: 'sec-fact-exit',
+      route,
+      element: '[data-testid="ob-fact-exit"]',
+      optional: true,
+      side: 'bottom',
+      align: 'start',
+      title: 'Отметка выезда',
+      description:
+        'После отметки въезда станет активной кнопка «Выезд» - нажмите её, когда автомобиль покинет территорию.',
+    },
+  ];
+}
