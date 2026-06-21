@@ -109,6 +109,50 @@ describe('ReportResult — переключатель Таблица/Графи�
     expect(cells[2]).toBe('Ремонт 2026-06-15'); // дата в тексте не тронута
   });
 
+  it('list-режим: числовые колонки получают rr__num (right), текст/идентификаторы — нет', () => {
+    const w = mountResult({
+      mode: 'list',
+      columns: [
+        { key: 'number', label: 'Номер заявки' }, // строка-идентификатор -> текст
+        { key: 'status', label: 'Статус' }, // текст
+        { key: 'attachments_count', label: 'Вложений' }, // число -> right
+        { key: 'people_count', label: 'Кол-во людей' }, // число (включая 0) -> right
+      ],
+      rows: [
+        { number: '2026-001', status: 'Завершено', attachments_count: 3, people_count: 12 },
+        { number: '2026-002', status: 'В работе', attachments_count: 0, people_count: 5 },
+      ],
+      total: 2,
+    });
+    const headers = w.findAll('.rr__table thead th');
+    expect(headers[0].classes()).not.toContain('rr__num'); // Номер заявки — строка
+    expect(headers[1].classes()).not.toContain('rr__num'); // Статус
+    expect(headers[2].classes()).toContain('rr__num'); // Вложений (включая 0 во 2-й строке)
+    expect(headers[3].classes()).toContain('rr__num'); // Кол-во людей
+
+    expect(w.findAll('.rr__table tbody tr')[0].findAll('td')[0].classes()).not.toContain('rr__num');
+    // Ячейка со значением 0 (2-я строка, Вложений) тоже выровнена — 0 не считается пустым.
+    expect(w.findAll('.rr__table tbody tr')[1].findAll('td')[2].classes()).toContain('rr__num');
+  });
+
+  it('list-режим: колонка целиком из пустых значений не считается числовой', () => {
+    const w = mountResult({
+      mode: 'list',
+      columns: [
+        { key: 'count', label: 'Вложений' }, // все значения null/пусто -> не числовая
+        { key: 'name', label: 'Наименование' },
+      ],
+      rows: [
+        { count: null, name: 'Ремонт' },
+        { count: '', name: 'Уборка' },
+      ],
+      total: 2,
+    });
+    const headers = w.findAll('.rr__table thead th');
+    expect(headers[0].classes()).not.toContain('rr__num');
+    expect(headers[1].classes()).not.toContain('rr__num');
+  });
+
   it('aggregate: переключатель есть, по умолчанию таблица', () => {
     const w = mountResult(aggStatus);
     expect(w.find('[data-testid="rr-view-chart"]').exists()).toBe(true);
