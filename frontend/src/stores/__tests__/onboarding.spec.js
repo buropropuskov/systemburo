@@ -118,7 +118,9 @@ describe('onboarding store', () => {
       auth.userTypeCode = 'security';
       const store = useOnboardingStore();
       expect(auth.isSecurity).toBe(true);
-      expect(store.steps).toBe(securityOnboardingSteps);
+      // security-тур = базовые шаги (префикс) + финальный шаг празднования
+      expect(store.steps.slice(0, securityOnboardingSteps.length)).toEqual(securityOnboardingSteps);
+      expect(store.steps[store.steps.length - 1].id).toBe('sec-finish');
       expect(store.currentStep).toBe(securityOnboardingSteps[0]);
     });
 
@@ -127,7 +129,8 @@ describe('onboarding store', () => {
       const store = useOnboardingStore();
       expect(store.steps).toBe(onboardingSteps);
       auth.userTypeCode = 'security';
-      expect(store.steps).toBe(securityOnboardingSteps);
+      expect(store.steps.slice(0, securityOnboardingSteps.length)).toEqual(securityOnboardingSteps);
+      expect(store.steps[store.steps.length - 1].id).toBe('sec-finish');
       auth.userTypeCode = 'organization';
       expect(store.steps).toBe(onboardingSteps);
     });
@@ -153,15 +156,21 @@ describe('onboarding store', () => {
       await store.ensureFactRoute();
 
       expect(store.factTableRoute).toBe('/table/kpp_1');
-      expect(store.totalSteps).toBe(baseLen + 4);
+      expect(store.totalSteps).toBe(baseLen + 5);
       const tail = store.steps.slice(baseLen);
       expect(tail.map((s) => s.id)).toEqual([
         'sec-fact-intro',
         'sec-fact-row',
         'sec-fact-entry',
         'sec-fact-exit',
+        'sec-finish',
       ]);
-      expect(tail.every((s) => s.route === '/table/kpp_1')).toBe(true);
+      // шаги фактовой таблицы - на её route, а финал всегда на достижимом
+      // /accessible-attachments (чтобы охранник без доступа к таблице дошёл до него)
+      expect(tail.slice(0, 4).every((s) => s.route === '/table/kpp_1')).toBe(true);
+      const finalStep = tail[tail.length - 1];
+      expect(finalStep.id).toBe('sec-finish');
+      expect(finalStep.route).toBe('/accessible-attachments');
     });
 
     it('для охранника без доступной фактовой таблицы (null) сегмент не добавляется', async () => {
@@ -172,7 +181,11 @@ describe('onboarding store', () => {
       await store.ensureFactRoute();
 
       expect(store.factTableRoute).toBe(null);
-      expect(store.steps).toBe(securityOnboardingSteps);
+      // без фактовой таблицы тур = базовые шаги + финал на /accessible-attachments
+      expect(store.totalSteps).toBe(securityOnboardingSteps.length + 1);
+      const last = store.steps[store.steps.length - 1];
+      expect(last.id).toBe('sec-finish');
+      expect(last.route).toBe('/accessible-attachments');
     });
 
     it('идемпотентен - резолвит один раз за сессию', async () => {

@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useOnboardingStore } from '@/stores/onboarding';
 import { useUiStore } from '@/stores/ui';
 import { useOnboarding } from '@/composables/useOnboarding';
-import { collectSegment } from '@/components/onboarding/onboardingSteps';
+import { collectSegment, indexAfterRoute } from '@/components/onboarding/onboardingSteps';
 
 const store = useOnboardingStore();
 const ui = useUiStore();
@@ -158,7 +158,7 @@ async function startSegment() {
     onBeforeStep: prepareStep,
     onBoundaryNext: handleBoundaryNext,
     onBoundaryPrev: handleBoundaryPrev,
-    onCtaClick: finishAndCreateApp,
+    onCtaClick: finishWithCta,
     // Esc/оверлей/крестик/Пропустить -> просто останавливаем тур. teardown
     // (через watch isActive) снимет overlay и пометит авто-тур пройденным -
     // надёжно, даже если шаг закрыли во время entry-анимации (когда driver
@@ -169,10 +169,16 @@ async function startSegment() {
   driverObj.drive(localTarget);
 }
 
-/** CTA финала: завершаем тур и ведём на оформление первой заявки. */
-function finishAndCreateApp() {
+/**
+ * CTA финала: завершаем тур и ведём на целевой раздел шага. Applicant-финал не
+ * задаёт ctaRoute -> дефолт «оформить заявку»; security-финал ведёт в «Доступные
+ * мне» (ctaRoute), а не на подачу заявки.
+ *
+ * @param {string} [ctaRoute] route из ctaRoute финального шага
+ */
+function finishWithCta(ctaRoute) {
   finishTour();
-  router.push('/new-application').catch(() => {});
+  router.push(ctaRoute || '/new-application').catch(() => {});
 }
 
 /**
@@ -324,11 +330,28 @@ const removeAfterEach = router.afterEach((to) => {
     // Навигация увела не туда, куда вёл тур - не держим силой.
     // Сегмент с динамическим route (фактовая таблица) опционален: если у
     // охранника пока нет доступа к /table/:name и роут-гард редиректит, это не
-    // обрыв - штатно завершаем тур (авто-тур помечаем пройденным), а не считаем
-    // прерыванием. Когда доступ выдан, переход проходит и мы попадаем в ветку выше.
+    // обрыв тура. Вместо завершения перепрыгиваем весь недостижимый сегмент к
+    // следующему достижимому шагу - финалу-празднованию на /accessible-attachments,
+    // чтобы охранник всё равно увидел завершение. Если за сегментом шагов нет -
+    // штатно завершаем (авто-тур помечаем пройденным). Когда доступ выдан, переход
+    // проходит и мы попадаем в ветку выше.
     const missed = store.currentStep;
+    if (missed?.optionalSegment) {
+      const resumeIndex = indexAfterRoute(store.steps, store.currentIndex, missed.route);
+      if (resumeIndex !== -1) {
+        // route фиксируем до jumpToSegment - индекс смены сегмента читаем один раз.
+        const resumeRoute = store.steps[resumeIndex].route;
+        store.jumpToSegment(resumeIndex);
+        router.push(resumeRoute).catch(() => {
+          store.clearPending();
+          markIfAuto();
+          store.stop();
+        });
+        return;
+      }
+      markIfAuto();
+    }
     store.clearPending();
-    if (missed?.optionalSegment) markIfAuto();
     store.stop();
   }
 });

@@ -2,7 +2,11 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { onboardingSteps, ONBOARDING_VERSION } from '@/components/onboarding/onboardingSteps';
-import { securityOnboardingSteps, buildSecurityFactSteps } from '@/components/onboarding/securityOnboardingSteps';
+import {
+  securityOnboardingSteps,
+  buildSecurityFactSteps,
+  buildSecurityFinalStep,
+} from '@/components/onboarding/securityOnboardingSteps';
 import { getOnboardingStatus, markOnboardingComplete, getSecurityFactRoute } from '@/api/onboarding';
 
 /**
@@ -52,12 +56,15 @@ export const useOnboardingStore = defineStore('onboarding', () => {
   //
   // Сегмент «Таблицы и отметка въезда/выезда» добавляется в ХВОСТ (не в базовый
   // массив), когда factTableRoute резолвлен - так индексы ранних шагов не
-  // сдвигаются, даже если route доезжает уже после старта тура.
+  // сдвигаются, даже если route доезжает уже после старта тура. Финальный шаг
+  // (празднование + CTA в «Доступные мне») всегда замыкает тур на достижимой
+  // странице /accessible-attachments: фактовый сегмент опционален и может быть
+  // недостижим, поэтому финал не должен от него зависеть (см. buildSecurityFinalStep).
   const steps = computed(() => {
     const auth = useAuthStore();
     if (!auth.isSecurity) return onboardingSteps;
-    if (!factTableRoute.value) return securityOnboardingSteps;
-    return [...securityOnboardingSteps, ...buildSecurityFactSteps(factTableRoute.value)];
+    const factSteps = factTableRoute.value ? buildSecurityFactSteps(factTableRoute.value) : [];
+    return [...securityOnboardingSteps, ...factSteps, buildSecurityFinalStep()];
   });
   const totalSteps = computed(() => steps.value.length);
   const currentStep = computed(() => steps.value[currentIndex.value] || null);
@@ -156,6 +163,19 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     pendingSegment.value = true;
   }
 
+  /**
+   * Прыжок к шагу другого сегмента по индексу (вперёд через недостижимый
+   * optional-сегмент). Механика та же, что у retreatSegment - индекс + флаг
+   * ожидания навигации; отличается только семантикой направления на стороне
+   * хоста (он сам делает router.push). Применяется, когда сегмент фактовой
+   * таблицы недостижим и тур перепрыгивает его к финалу.
+   *
+   * @param {number} index глобальный индекс целевого шага
+   */
+  function jumpToSegment(index) {
+    retreatSegment(index);
+  }
+
   function clearPending() {
     pendingSegment.value = false;
   }
@@ -212,6 +232,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     setIndex,
     advanceSegment,
     retreatSegment,
+    jumpToSegment,
     clearPending,
     markCompleted,
     reset,

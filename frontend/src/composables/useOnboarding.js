@@ -168,7 +168,7 @@ export function useOnboarding() {
    * с общим route).
    *
    * @param {Array<object>} stepsForSegment
-   * @param {{ startIndex?: number, onIndexChange?: (globalIndex: number) => void, onDestroyed?: () => void, onBoundaryNext?: () => void, onBoundaryPrev?: (segmentStartGlobal: number) => void, onCtaClick?: () => void, onCloseRequest?: () => void }} [options]
+   * @param {{ startIndex?: number, onIndexChange?: (globalIndex: number) => void, onDestroyed?: () => void, onBoundaryNext?: () => void, onBoundaryPrev?: (segmentStartGlobal: number) => void, onCtaClick?: (ctaRoute?: string) => void, onCloseRequest?: () => void }} [options]
    * @returns {import('driver.js').Driver}
    */
   function createDriver(stepsForSegment, { startIndex = 0, onIndexChange, onDestroyed, onBoundaryNext, onBoundaryPrev, onCtaClick, onCloseRequest, onBeforeStep } = {}) {
@@ -281,7 +281,7 @@ export function useOnboarding() {
           popover.wrapper.insertBefore(buildCelebrate(), popover.title);
         }
         if (step?.cta) {
-          const cta = buildCtaButton(step.cta, () => onCtaClick?.());
+          const cta = buildCtaButton(step.cta, () => onCtaClick?.(step.ctaRoute));
           popover.description.insertAdjacentElement('afterend', cta);
         }
 

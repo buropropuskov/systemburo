@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { onboardingSteps, ONBOARDING_VERSION, collectSegment } from '../onboardingSteps';
+import { onboardingSteps, ONBOARDING_VERSION, collectSegment, indexAfterRoute } from '../onboardingSteps';
 
 describe('onboardingSteps', () => {
   it('версия тура - целое число >= 1', () => {
@@ -110,6 +110,35 @@ describe('collectSegment', () => {
     expect(seg.length).toBe(firstNonNews);
     expect(seg[0].id).toBe('start');
     expect(seg[seg.length - 1].id).toBe('nav-group-data');
+  });
+});
+
+describe('indexAfterRoute', () => {
+  const steps = [
+    { id: 'a', route: '/accessible-attachments' },
+    { id: 'fact-intro', route: '/table/kpp_1' },
+    { id: 'fact-row', route: '/table/kpp_1' },
+    { id: 'fact-exit', route: '/table/kpp_1' },
+    { id: 'finish', route: '/accessible-attachments' },
+  ];
+
+  it('перепрыгивает непрерывный блок одного route к следующему шагу', () => {
+    // с fact-intro (1) пропускаем весь блок /table/kpp_1 -> финал (4)
+    expect(indexAfterRoute(steps, 1, '/table/kpp_1')).toBe(4);
+    expect(steps[indexAfterRoute(steps, 1, '/table/kpp_1')].id).toBe('finish');
+  });
+
+  it('-1 если за недостижимым блоком шагов не осталось', () => {
+    const tail = [
+      { id: 'a', route: '/accessible-attachments' },
+      { id: 'fact-intro', route: '/table/kpp_1' },
+      { id: 'fact-exit', route: '/table/kpp_1' },
+    ];
+    expect(indexAfterRoute(tail, 1, '/table/kpp_1')).toBe(-1);
+  });
+
+  it('возвращает сам fromIndex, если его route уже другой (блок пуст)', () => {
+    expect(indexAfterRoute(steps, 4, '/table/kpp_1')).toBe(4);
   });
 });
 

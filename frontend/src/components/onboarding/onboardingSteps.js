@@ -268,3 +268,21 @@ export function collectSegment(steps, startIndex, routePath) {
   }
   return segment;
 }
+
+/**
+ * Индекс первого шага ПОСЛЕ непрерывного блока шагов с данным `route`, начиная с
+ * `fromIndex`. Нужен, чтобы перепрыгнуть недостижимый optional-сегмент
+ * (фактовая таблица, роут-гард которой редиректит охранника) к следующему шагу
+ * тура - финалу-празднованию на достижимой странице. Возвращает -1, если за
+ * блоком шагов не осталось.
+ *
+ * @param {Array<{ route: string }>} steps
+ * @param {number} fromIndex индекс первого шага недостижимого блока
+ * @param {string} route route недостижимого блока
+ * @returns {number} индекс следующего шага за блоком или -1
+ */
+export function indexAfterRoute(steps, fromIndex, route) {
+  let i = fromIndex;
+  while (i < steps.length && steps[i].route === route) i += 1;
+  return i < steps.length ? i : -1;
+}
