@@ -449,7 +449,7 @@
                   Генерировать
                 </button>
                 <button
-                  :disabled="!selectedUser.newPassword"
+                  :disabled="!changePasswordValid"
                   class="save-password-btn"
                   @click="changeUserPassword(selectedUser)"
                 >
@@ -467,6 +467,19 @@
               >
                 {{ currentLanguage }} {{ isCapsLockOn ? '| CAPS LOCK' : '' }}
               </span>
+              <ul
+                v-if="selectedUser && selectedUser.newPassword"
+                class="password-checklist"
+              >
+                <li
+                  v-for="rule in changePasswordRules"
+                  :key="rule.key"
+                  :class="{ 'password-checklist__item--ok': rule.ok }"
+                  class="password-checklist__item"
+                >
+                  {{ rule.ok ? '✓' : '○' }} {{ rule.label }}
+                </li>
+              </ul>
             </div>
           </div>
         </div>
@@ -500,9 +513,19 @@
               placeholder="Введите пароль"
               @input="saveDraft"
             />
-            <div class="input-hint">
-              Минимум 6 символов
-            </div>
+            <ul
+              v-if="newUser.password"
+              class="password-checklist"
+            >
+              <li
+                v-for="rule in createPasswordRules"
+                :key="rule.key"
+                :class="{ 'password-checklist__item--ok': rule.ok }"
+                class="password-checklist__item"
+              >
+                {{ rule.ok ? '✓' : '○' }} {{ rule.label }}
+              </li>
+            </ul>
           </div>
           <div class="input-group half">
             <label class="input-label">Организация <span class="required">*</span></label>
@@ -664,6 +687,8 @@ import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import SearchComponent from './SearchComponent.vue';
 import RefreshButton from './RefreshButton.vue';
 import PasswordInput from './ui/PasswordInput.vue';
+import { getPasswordPolicy } from '@/api/settings';
+import { evaluatePassword, passwordMeetsPolicy, generatePassword as buildPassword, DEFAULT_PASSWORD_POLICY } from '@/utils/passwordPolicy';
 import ConfirmationModal from './ConfirmationModal.vue';
 import BaseModal from './ui/BaseModal.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
@@ -726,6 +751,7 @@ export default {
       userTypes: [],
       sortField: null,
       sortDirection: 'desc',
+      passwordPolicy: { ...DEFAULT_PASSWORD_POLICY },
       newUser: {
         username: '',
         password: '',
@@ -826,10 +852,23 @@ export default {
         return 0;
       });
     },
+    createPasswordRules() {
+      return evaluatePassword(this.passwordPolicy, this.newUser.password || '');
+    },
+    createPasswordValid() {
+      return passwordMeetsPolicy(this.passwordPolicy, this.newUser.password || '');
+    },
+    changePasswordRules() {
+      return evaluatePassword(this.passwordPolicy, (this.selectedUser && this.selectedUser.newPassword) || '');
+    },
+    changePasswordValid() {
+      return passwordMeetsPolicy(this.passwordPolicy, (this.selectedUser && this.selectedUser.newPassword) || '');
+    },
     canCreateUser() {
       return (
         this.newUser.username &&
         this.newUser.password &&
+        this.createPasswordValid &&
         this.newUser.type_id &&
         this.hasOrgOrCompany
       );
@@ -848,6 +887,7 @@ export default {
       this.fetchUserTypes(),
       this.fetchCurrentUser()
     ]);
+    this.loadPasswordPolicy();
   },
   mounted() {
     this.fetchAllUsers();
@@ -1162,16 +1202,19 @@ export default {
     },
     
     generatePassword(user) {
-      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#$%&?';
-      const length = Math.floor(Math.random() * 6) + 6;
-      let password = '';
-      for (let i = 0; i < length; i++) {
-        password += chars.charAt(Math.floor(Math.random() * chars.length));
-      }
-      user.newPassword = password;
+      user.newPassword = buildPassword(this.passwordPolicy);
       this.showNewPass = true;
     },
     
+    async loadPasswordPolicy() {
+      try {
+        this.passwordPolicy = await getPasswordPolicy();
+      } catch (error) {
+        console.error('Не удалось загрузить политику паролей:', error);
+        this.passwordPolicy = { ...DEFAULT_PASSWORD_POLICY };
+      }
+    },
+
     async fetchUserTypes() {
       try {
         const response = await apiRequest("/user-types", {
@@ -1270,6 +1313,11 @@ export default {
     async changeUserPassword(user) {
       if (!user.newPassword) {
         useDeletionsStore().notify({ bold: 'Введите новый пароль', type: 'error' });
+        return;
+      }
+
+      if (!passwordMeetsPolicy(this.passwordPolicy, user.newPassword)) {
+        useDeletionsStore().notify({ bold: 'Пароль не соответствует требованиям', type: 'error' });
         return;
       }
 
@@ -1592,6 +1640,26 @@ export default {
 
 .password-group {
   margin-top: 8px;
+}
+
+.password-checklist {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.password-checklist__item {
+  font-size: 11px;
+  color: #999;
+  font-family: 'Montserrat', sans-serif;
+  transition: color 0.15s ease;
+}
+
+.password-checklist__item--ok {
+  color: #28a745;
 }
 
 .password-input-container {
