@@ -104,6 +104,31 @@ func TestValidate_InvalidLogLevel(t *testing.T) {
 	assert.Contains(t, err.Error(), "LOG_LEVEL")
 }
 
+func TestValidate_NegativeDBMaxOpenConns(t *testing.T) {
+	cfg := validConfig()
+	cfg.DBMaxOpenConns = -1
+	err := cfg.Validate()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "DB_MAX_OPEN_CONNS")
+}
+
+func TestValidate_NegativeHTTPReadHeaderTimeout(t *testing.T) {
+	cfg := validConfig()
+	cfg.HTTPReadHeaderTimeout = -1 * time.Second
+	err := cfg.Validate()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "HTTP_READ_HEADER_TIMEOUT")
+}
+
+func TestValidate_PoolAndTimeoutsPositivePass(t *testing.T) {
+	cfg := validConfig()
+	cfg.DBMaxOpenConns = 50
+	cfg.DBMaxIdleConns = 10
+	cfg.HTTPReadHeaderTimeout = 10 * time.Second
+	cfg.HTTPIdleTimeout = 120 * time.Second
+	require.NoError(t, cfg.Validate())
+}
+
 func TestValidate_InvalidDatabaseURL(t *testing.T) {
 	cfg := &Config{
 		DatabaseURL:       "mysql://user:pass@localhost/db",

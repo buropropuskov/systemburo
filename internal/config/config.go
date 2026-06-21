@@ -154,5 +154,22 @@ func (c *Config) Validate() error {
 	if c.JWTRefreshTTL <= c.JWTAccessTTL {
 		return fmt.Errorf("JWT_REFRESH_TTL (%s) must be greater than JWT_ACCESS_TTL (%s)", c.JWTRefreshTTL, c.JWTAccessTTL)
 	}
+	// Ловим отрицательные значения там, где они молча откатывают добавленную
+	// защиту: при отрицательном DB_MAX_OPEN_CONNS guard в пуле не сработает и
+	// останется драйверный безлимит соединений, а отрицательный
+	// ReadHeader/Idle таймаут net/http трактует как "выключено" и тихо снимает
+	// slowloris-защиту с реапом keep-alive. 0 валиден (= дефолт), отрицательное - опечатка.
+	if c.DBMaxOpenConns < 0 {
+		return fmt.Errorf("DB_MAX_OPEN_CONNS must not be negative (got %d)", c.DBMaxOpenConns)
+	}
+	if c.DBMaxIdleConns < 0 {
+		return fmt.Errorf("DB_MAX_IDLE_CONNS must not be negative (got %d)", c.DBMaxIdleConns)
+	}
+	if c.HTTPReadHeaderTimeout < 0 {
+		return fmt.Errorf("HTTP_READ_HEADER_TIMEOUT must not be negative (got %s)", c.HTTPReadHeaderTimeout)
+	}
+	if c.HTTPIdleTimeout < 0 {
+		return fmt.Errorf("HTTP_IDLE_TIMEOUT must not be negative (got %s)", c.HTTPIdleTimeout)
+	}
 	return nil
 }

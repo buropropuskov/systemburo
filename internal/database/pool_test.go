@@ -40,16 +40,23 @@ func TestConfigureConnectionPool(t *testing.T) {
 	require.Equal(t, 2, sqlDB.Stats().MaxOpenConnections)
 
 	const workers = 6
+	// Ошибки собираем в канал и проверяем после wg.Wait(): require/FailNow из
+	// дочерней горутины завершил бы только её (runtime.Goexit), а не тест.
+	errs := make(chan error, workers)
 	var wg sync.WaitGroup
 	for i := 0; i < workers; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			// pg_sleep держит соединение занятым, чтобы пул дошёл до предела.
-			require.NoError(t, db.Exec("SELECT pg_sleep(0.1)").Error)
+			errs <- db.Exec("SELECT pg_sleep(0.1)").Error
 		}()
 	}
 	wg.Wait()
+	close(errs)
+	for err := range errs {
+		require.NoError(t, err)
+	}
 
 	stats := sqlDB.Stats()
 	require.LessOrEqual(t, stats.OpenConnections, 2, "пул не должен превышать MaxOpenConns")
