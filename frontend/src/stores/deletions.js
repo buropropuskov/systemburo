@@ -113,5 +113,11 @@ export const useDeletionsStore = defineStore('deletions', () => {
     callbacks.delete(id);
   }
 
-  return { items, enqueue, notify, undo, loadDurations, setDurations };
+  /** Закрыть уведомление вручную (клик по карточке) без вызова onConfirm/onUndo. */
+  function dismiss(id) {
+    stopTimer(id);
+    remove(id);
+  }
+
+  return { items, enqueue, notify, undo, dismiss, loadDurations, setDurations };
 });
