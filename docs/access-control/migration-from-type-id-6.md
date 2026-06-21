@@ -44,15 +44,19 @@ JWT Claims расширены полем `is_super_admin` — middleware кла�
 
 ## Data migration
 
-`internal/database/migrate.go::backfillSuperAdmin`:
+`internal/database/migrate.go::EnforceSingleSuperAdmin`:
 
-```sql
-UPDATE users SET is_super_admin = true
-WHERE is_super_admin = false
-  AND type_id IN (SELECT id FROM user_types WHERE code = 'buropropuskov');
-```
+Поддерживает инвариант «ровно один супер-админ». Канонический супер-админ —
+аккаунт `username='buropropuskov'` (иначе самый ранний существующий супер-админ,
+иначе первый пользователь). Канонику флаг гарантируется, у всех остальных
+снимается, а сами они становятся обычными администраторами (`is_admin=true`),
+чтобы не потерять доступ. Имя пустого системного аккаунта нормализуется в
+«Системный Администратор».
 
 Запускается в `AutoMigrate()` при старте сервера. Идемпотентна (повторный запуск — noop).
+
+Прежняя версия (`backfillSuperAdmin`) делала супером всех пользователей типа
+`buropropuskov` — при нескольких buro-аккаунтах появлялось несколько супер-админов.
 
 ## Что осталось от `user_types`
 
@@ -72,7 +76,7 @@ WHERE is_super_admin = false
 
 1. `internal/auth/permissions.go` — целиком, никто не вызывает.
 2. `frontend/src/stores/auth.js::isAdmin` getter (deprecated alias).
-3. `internal/database/migrate.go::backfillSuperAdmin` — после первого успешного прогона на всех средах.
+3. `internal/database/migrate.go::EnforceSingleSuperAdmin` — оставить: поддерживает инвариант единственного супер-админа на каждом старте.
 4. (Опционально, риск) `users.type_id` колонка — только если бизнес-роли полностью переехали в `users.role_id`. На момент написания (#187f) — нет, поле ещё используется.
 
 ## Восстановление при сбое миграции
