@@ -21,7 +21,7 @@ test.describe('UserControl - страница /admin/users', () => {
     // Футер отражает число строк - супер-админ видит ненулевой список.
     await expect(users.itemsCount).toContainText('Всего пользователей');
     // Пока пользователь не выбран, панель деталей скрыта (no-selection-заглушку убрали в #739).
-    await expect(users.detailsPanel).toBeHidden();
+    await expect(users.editModal).toBeHidden();
   });
 
   test('поиск сужает список до совпадающих строк', async () => {
@@ -56,14 +56,14 @@ test.describe('UserControl - страница /admin/users', () => {
   test('выбор пользователя открывает detail-панель редактирования', async () => {
     // Дожидаемся загрузки списка, затем проверяем, что панель деталей пока скрыта.
     await expect(users.rows.first()).toBeVisible();
-    await expect(users.detailsPanel).toBeHidden();
+    await expect(users.editModal).toBeHidden();
 
     const login = (await users.firstRowLogin()).trim();
     await users.selectUser(login);
 
-    await expect(users.detailsPanel).toBeVisible();
+    await expect(users.editModal).toBeVisible();
     await expect(users.detailsTitle).toBeVisible();
     // Подзаголовок панели цитирует логин выбранной записи.
-    await expect(users.detailsPanel).toContainText(login);
+    await expect(users.editModal).toContainText(login);
   });
 });
