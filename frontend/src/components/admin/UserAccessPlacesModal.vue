@@ -224,10 +224,8 @@ export default {
       const response = await apiRequest('/system-tables');
       if (!response.ok) return [];
       const data = await response.json();
-      // /system-tables отдаёт элементы в обёртке { table: {...} } поверх envelope -
-      // снимаем её, иначе места прохода рендерятся по плоским table.id/display_name:
-      // имя выходит "Без названия", cars не отсекается, а выбор по id не совпадает с
-      // плоскими id из GET /users/:username/tables.
+      // /system-tables оборачивает каждый элемент в { table: {...} }; разворачиваем,
+      // чтобы дальше читать плоско (как NavMenu) и совпасть с id из /users/:u/tables.
       return (data || [])
         .map(t => t.table || t)
         .filter(t => t.table_type !== 'cars');
