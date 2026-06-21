@@ -39,6 +39,7 @@
     <DirtyConfirmModal />
     <DeleteNotifications />
     <OnboardingTour v-if="isAuthenticated" />
+    <BanOverlay @logout="logout" />
   </div>
 </template>
 
@@ -55,6 +56,7 @@ import ConfirmDialog from './components/ConfirmDialog.vue';
 import DirtyConfirmModal from './components/DirtyConfirmModal.vue';
 import DeleteNotifications from './components/DeleteNotifications.vue';
 import OnboardingTour from './components/onboarding/OnboardingTour.vue';
+import BanOverlay from './components/BanOverlay.vue';
 
 export default {
   name: "App",
@@ -67,6 +69,7 @@ export default {
     DirtyConfirmModal,
     DeleteNotifications,
     OnboardingTour,
+    BanOverlay,
   },
   computed: {
     isAuthenticated() {
@@ -87,6 +90,23 @@ export default {
     showChrome() {
       const hidePaths = ['/', '/500', '/maintenance']
       return this.isAuthenticated && !hidePaths.includes(this.$route.path);
+    },
+    isBanned() {
+      return usePermissionsStore().banned
+    }
+  },
+  watch: {
+    /**
+     * Реактивная блокировка: как только permissions-стор узнаёт о бане
+     * (на навигации/загрузке), уводим юзера в ЛК - единственную доступную
+     * забаненному страницу. BanOverlay поверх неё блокирует взаимодействие.
+     * router-guard делает то же на навигации; здесь - для случая, когда бан
+     * прилетел без смены маршрута.
+     */
+    isBanned(banned) {
+      if (banned && this.isAuthenticated && this.$route.name !== 'Account') {
+        this.$router.push('/personal-cabinet').catch(() => {})
+      }
     }
   },
   created() {
