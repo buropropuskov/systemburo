@@ -10,12 +10,6 @@
       <p class="forbidden__message">
         У вас нет прав на просмотр запрашиваемой страницы. Если вы считаете это ошибкой, обратитесь к администратору.
       </p>
-      <p
-        v-if="permissionKey"
-        class="forbidden__hint"
-      >
-        Требуемое право: <code>{{ permissionKey }}</code>
-      </p>
       <div class="forbidden__actions">
         <button
           class="lk-button lk-button--primary"
@@ -37,11 +31,6 @@
 <script>
 export default {
   name: 'ForbiddenPage',
-  computed: {
-    permissionKey() {
-      return this.$route.query.permission || this.$route.meta?.permission || null;
-    },
-  },
   methods: {
     goHome() {
       this.$router.push('/news');
@@ -97,22 +86,10 @@ export default {
   color: var(--color-text-muted);
 }
 
-.forbidden__hint {
-  margin: 0 0 20px 0;
-  font-size: 12px;
-  color: var(--color-text-muted);
-}
-
-.forbidden__hint code {
-  font-family: 'JetBrains Mono', monospace;
-  background: var(--color-bg-secondary);
-  padding: 2px 6px;
-  border-radius: var(--radius-sm);
-}
-
 .forbidden__actions {
   display: flex;
   gap: 10px;
   justify-content: center;
+  margin-top: 20px;
 }
 </style>
