@@ -21,7 +21,6 @@ class UserControlPage {
 
     this.detailsPanel = this.root.locator('.user-details-panel');
     this.detailsTitle = this.detailsPanel.getByRole('heading', { name: 'Редактирование' });
-    this.noSelectionMessage = this.root.locator('.no-selection-message');
   }
 
   async goto() {
