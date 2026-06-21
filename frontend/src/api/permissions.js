@@ -24,6 +24,38 @@ export async function getPermissionTree() {
   return res.json();
 }
 
+// Эффективные права целевого юзера с источником (роль/группа/override) для
+// правого столбца UserAccessModal. Формат: {mode, permissions[{key,value,source}],
+// denied, banned, ban_reason}. Только super-admin (#187 Фаза 3).
+export async function getUserEffectivePermissions(userId) {
+  const res = await apiRequest(`/permissions/user/${userId}/effective`);
+  return res.json();
+}
+
+// Иерархический каталог точечных прав (категория -> листья, super_only, table.*).
+export async function getPermissionCatalog() {
+  const res = await apiRequest('/permissions/catalog');
+  return res.json();
+}
+
+// Выдача/снятие флага "Администратор" целевому юзеру (super-only).
+export async function setUserAdmin(userId, isAdmin) {
+  const res = await apiRequest(`/users/${userId}/admin`, {
+    method: 'PUT',
+    body: JSON.stringify({ is_admin: isAdmin }),
+  });
+  return res.json();
+}
+
+// Назначение роли юзеру (null = без роли).
+export async function setUserRole(userId, roleId) {
+  const res = await apiRequest(`/users/${userId}/role`, {
+    method: 'PUT',
+    body: JSON.stringify({ role_id: roleId }),
+  });
+  return res.json();
+}
+
 // --- Permission Groups (#229) ---
 
 export async function listPermissionGroups() {
