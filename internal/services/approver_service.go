@@ -11,11 +11,13 @@ import (
 )
 
 // ApproverService определяет интерфейс управления утверждающими заявок.
+// Авторизация изменяющих/листинговых операций (page.admin) - на роут-middleware
+// RequirePermissionV2; история (GetHistory) доступна всем авторизованным.
 type ApproverService interface {
-	GetAll(ctx context.Context, typeID int) ([]models.ApplicationApproverWithUser, error)
-	GetAvailableUsers(ctx context.Context, typeID int) ([]models.AvailableApproverUser, error)
-	Create(ctx context.Context, typeID int, userID int, createdByUsername string) error
-	Delete(ctx context.Context, typeID int, id int, actorUsername string) error
+	GetAll(ctx context.Context) ([]models.ApplicationApproverWithUser, error)
+	GetAvailableUsers(ctx context.Context) ([]models.AvailableApproverUser, error)
+	Create(ctx context.Context, userID int, createdByUsername string) error
+	Delete(ctx context.Context, id int, actorUsername string) error
 	GetHistory(ctx context.Context) ([]models.ApplicationApproverHistoryItem, error)
 }
 
@@ -29,29 +31,8 @@ func NewApproverService(db *gorm.DB) ApproverService {
 	return &approverService{db: db, history: NewApproverHistoryService(db)}
 }
 
-func (s *approverService) checkAdmin(ctx context.Context, typeID int) error {
-	var code string
-	err := s.db.WithContext(ctx).
-		Table("user_types").
-		Select("code").
-		Where("id = ?", typeID).
-		Row().
-		Scan(&code)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, "User not found")
-	}
-	if code != "manager" && code != "buropropuskov" {
-		return echo.NewHTTPError(http.StatusForbidden, "Insufficient permissions")
-	}
-	return nil
-}
-
 // GetAll возвращает список всех утверждающих с информацией о пользователях.
-func (s *approverService) GetAll(ctx context.Context, typeID int) ([]models.ApplicationApproverWithUser, error) {
-	if err := s.checkAdmin(ctx, typeID); err != nil {
-		return nil, err
-	}
-
+func (s *approverService) GetAll(ctx context.Context) ([]models.ApplicationApproverWithUser, error) {
 	result := make([]models.ApplicationApproverWithUser, 0)
 	err := s.db.WithContext(ctx).
 		Table("application_approvers aa").
@@ -69,11 +50,7 @@ func (s *approverService) GetAll(ctx context.Context, typeID int) ([]models.Appl
 }
 
 // GetAvailableUsers возвращает пользователей, которые ещё не назначены утверждающими.
-func (s *approverService) GetAvailableUsers(ctx context.Context, typeID int) ([]models.AvailableApproverUser, error) {
-	if err := s.checkAdmin(ctx, typeID); err != nil {
-		return nil, err
-	}
-
+func (s *approverService) GetAvailableUsers(ctx context.Context) ([]models.AvailableApproverUser, error) {
 	result := make([]models.AvailableApproverUser, 0)
 	err := s.db.WithContext(ctx).
 		Table("users u").
@@ -91,11 +68,7 @@ func (s *approverService) GetAvailableUsers(ctx context.Context, typeID int) ([]
 }
 
 // Create назначает пользователя утверждающим заявок.
-func (s *approverService) Create(ctx context.Context, typeID int, userID int, createdByUsername string) error {
-	if err := s.checkAdmin(ctx, typeID); err != nil {
-		return err
-	}
-
+func (s *approverService) Create(ctx context.Context, userID int, createdByUsername string) error {
 	var userExists int64
 	s.db.WithContext(ctx).Table("users").Where("id = ?", userID).Count(&userExists)
 	if userExists == 0 {
@@ -128,11 +101,7 @@ func (s *approverService) Create(ctx context.Context, typeID int, userID int, cr
 }
 
 // Delete удаляет утверждающего по ID.
-func (s *approverService) Delete(ctx context.Context, typeID int, id int, actorUsername string) error {
-	if err := s.checkAdmin(ctx, typeID); err != nil {
-		return err
-	}
-
+func (s *approverService) Delete(ctx context.Context, id int, actorUsername string) error {
 	// Снимок до удаления: берём user_id и имя принимающего.
 	type approverRow struct {
 		UserID int

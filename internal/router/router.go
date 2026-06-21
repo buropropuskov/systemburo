@@ -471,13 +471,14 @@ func Setup(e *echo.Echo, d Dependencies) {
 	att.GET("/:id/employees", app.GetAttachmentEmployees)
 	att.GET("/:id/items", app.GetAttachmentItems)
 
-	// Утверждающие заявок
+	// Утверждающие заявок. Управление - page.admin (Ф5, ранее service checkAdmin);
+	// журнал (history) доступен всем авторизованным (как и раньше - без checkAdmin).
 	aag := protected.Group("/application-approvers")
-	aag.GET("", approvers.GetAll)
-	aag.GET("/available-users", approvers.GetAvailableUsers)
+	aag.GET("", approvers.GetAll, requireAdmin)
+	aag.GET("/available-users", approvers.GetAvailableUsers, requireAdmin)
 	aag.GET("/history", approvers.GetHistory)
-	aag.POST("", approvers.Create)
-	aag.DELETE("/:id", approvers.Delete)
+	aag.POST("", approvers.Create, requireAdmin)
+	aag.DELETE("/:id", approvers.Delete, requireAdmin)
 
 	// Разрешения
 	permGroup := protected.Group("/permissions")
