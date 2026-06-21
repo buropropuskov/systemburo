@@ -174,11 +174,17 @@ async function startSegment() {
  * задаёт ctaRoute -> дефолт «оформить заявку»; security-финал ведёт в «Доступные
  * мне» (ctaRoute), а не на подачу заявки.
  *
+ * Навигацию пропускаем, если уже на целевом роуте: security-финал показывается
+ * прямо на /accessible-attachments, и повторный push того же пути зря
+ * перезапускал бы navigation guard (а под кратковременно «протухшим» токеном
+ * guard может отбросить на /personal-cabinet). CTA тогда просто завершает тур.
+ *
  * @param {string} [ctaRoute] route из ctaRoute финального шага
  */
 function finishWithCta(ctaRoute) {
   finishTour();
-  router.push(ctaRoute || '/new-application').catch(() => {});
+  const target = ctaRoute || '/new-application';
+  if (route.path !== target) router.push(target).catch(() => {});
 }
 
 /**
