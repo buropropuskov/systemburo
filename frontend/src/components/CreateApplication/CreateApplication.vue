@@ -244,12 +244,13 @@
               @edit-cancelled="handleVehicleEditCancelled"
               @update:unload-places="onApplicationUnloadPlacesChange"
             />
-            <VehiclesList 
+            <VehiclesList
               :vehicles="sortedVehicles"
               :sort-field="sortField"
               :sort-direction="sortDirection"
               :all-unloading-places="allUnloadingPlaces"
               :license-plate-formats="licensePlateFormats"
+              :detail-info="detailViewInfo"
               @sort="sortBy"
               @edit-vehicle="editVehicle"
               @delete-vehicle="deleteVehicle"
@@ -272,11 +273,12 @@
               @employee-updated="handleEmployeeUpdated"
               @edit-cancelled="handleEmployeeEditCancelled"
             />
-            <EmployeesList 
+            <EmployeesList
               :employees="sortedEmployees"
               :sort-field="sortField"
               :sort-direction="sortDirection"
               :all-tables="allPassageTables"
+              :detail-info="detailViewInfo"
               @sort="sortBy"
               @edit-employee="editEmployee"
               @delete-employee="deleteEmployee"
@@ -528,6 +530,20 @@ export default {
             }
             const data = this.attachmentDatesByAttachment[this.attachmentKey(this.selectedAttachment)];
             return data || this.getDefaultDateData();
+        },
+
+        // Орг/компания заявки и срок+время текущего вложения для карточек просмотра
+        // в списках (сущности в форме этих полей не несут). Дата -> формат API
+        // (YYYY-MM-DD), как ждут модалки; время остаётся HH:MM.
+        detailViewInfo() {
+            const d = this.currentAttachmentData;
+            return {
+                organization: this.organization,
+                company: this.company,
+                entryDateTo: this.formatDateForAPI(d.isOneDay ? d.singleDate : d.endDate),
+                timeFrom: d.startTime || '',
+                timeTo: d.endTime || ''
+            };
         },
 
         currentAttachmentErrors() {
