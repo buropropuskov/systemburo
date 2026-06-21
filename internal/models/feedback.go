@@ -20,14 +20,16 @@ func (Feedback) TableName() string { return "feedback" }
 
 // FeedbackWithUser -- обращение с именем пользователя (для администраторов).
 type FeedbackWithUser struct {
-	ID        int       `json:"id"`
-	UserID    int       `json:"user_id"`
-	UserName  string    `json:"user_name"`
-	Message   string    `json:"message"`
-	Status    string    `json:"status"`
-	IsRead    bool      `json:"is_read"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID                int        `json:"id"`
+	UserID            int        `json:"user_id"`
+	UserName          string     `json:"user_name"`
+	Message           string     `json:"message"`
+	Status            string     `json:"status"`
+	IsRead            bool       `json:"is_read"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
+	ResolutionComment *string    `json:"resolution_comment"`
+	ResolvedAt        *time.Time `json:"resolved_at"`
 }
 
 // MyFeedback -- обращение текущего пользователя.
@@ -55,8 +57,10 @@ type CreateFeedbackRequest struct {
 }
 
 // UpdateFeedbackStatusRequest -- запрос на обновление статуса обращения.
+// Comment -- необязательный ответ заявителю; сохраняется при переводе в "Решено".
 type UpdateFeedbackStatusRequest struct {
-	Status string `json:"status" validate:"required,oneof='Не решено' 'Решено'"`
+	Status  string  `json:"status" validate:"required,oneof='Не решено' 'Решено'"`
+	Comment *string `json:"comment" validate:"omitempty,max=1000"`
 }
 
 // MarkAsReadRequest -- запрос на отметку обращения прочитанным/непрочитанным.

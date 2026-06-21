@@ -109,7 +109,8 @@ func (s *feedbackService) GetAll(ctx context.Context, typeID int) ([]models.Feed
 		Table("feedback f").
 		Select(`f.id, f.user_id,
 			CONCAT(u.last_name, ' ', u.first_name) AS user_name,
-			f.message, f.status, f.is_read, f.created_at, f.updated_at`).
+			f.message, f.status, f.is_read, f.created_at, f.updated_at,
+			f.resolution_comment, f.resolved_at`).
 		Joins("JOIN users u ON f.user_id = u.id").
 		Order("f.created_at DESC").
 		Scan(&results).Error
@@ -192,14 +193,27 @@ func (s *feedbackService) UpdateStatus(ctx context.Context, typeID int, id int, 
 	}
 
 	now := time.Now().UTC()
-	err := s.db.WithContext(ctx).
+	updates := map[string]interface{}{
+		"status":     req.Status,
+		"updated_at": now,
+	}
+	if req.Status == models.FeedbackResolved {
+		updates["resolved_at"] = now
+		if req.Comment != nil {
+			if trimmed := strings.TrimSpace(*req.Comment); trimmed != "" {
+				updates["resolution_comment"] = trimmed
+			}
+		}
+	} else {
+		// Возврат в работу очищает ответ и дату решения.
+		updates["resolved_at"] = nil
+		updates["resolution_comment"] = nil
+	}
+
+	if err := s.db.WithContext(ctx).
 		Table("feedback").
 		Where("id = ?", id).
-		Updates(map[string]interface{}{
-			"status":     req.Status,
-			"updated_at": now,
-		}).Error
-	if err != nil {
+		Updates(updates).Error; err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error updating feedback status")
 	}
 
