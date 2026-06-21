@@ -180,6 +180,22 @@ export async function downloadBlank(applicationID, attachmentID) {
 }
 
 /**
+ * Загрузить заполненный бланк вложения как ArrayBuffer для предпросмотра в XlsxViewer (#706 S4).
+ * Тот же эндпоинт, что downloadBlank, но без сохранения в файл - буфер парсит exceljs во вьювере.
+ * @param {number} applicationID
+ * @param {number} attachmentID
+ * @returns {Promise<ArrayBuffer>}
+ */
+export async function previewBlank(applicationID, attachmentID) {
+  const { apiRequestRaw } = await import('./client');
+  const res = await apiRequestRaw(`/applications/${applicationID}/blank?attachment_id=${attachmentID}`);
+  if (!res.ok) {
+    throw new Error(`Failed to preview blank: ${res.status}`);
+  }
+  return res.arrayBuffer();
+}
+
+/**
  * Триггерит сохранение Blob под filename на стороне браузера.
  */
 export function saveBlobAs(blob, filename) {

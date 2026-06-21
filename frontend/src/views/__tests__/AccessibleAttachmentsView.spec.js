@@ -17,6 +17,10 @@ vi.mock('@/api/organizations', () => ({
   getCompanies: vi.fn(),
 }));
 
+vi.mock('@/api/attachment-templates', () => ({
+  previewBlank: vi.fn(),
+}));
+
 const notify = vi.fn();
 vi.mock('@/stores/deletions', () => ({
   useDeletionsStore: () => ({ notify }),
@@ -37,6 +41,7 @@ import AccessibleAttachmentsView from '@/views/AccessibleAttachmentsView.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import { getAccessibleAttachments, getAccessibleAttachmentDetail } from '@/api/applications';
 import { getOrganizations, getCompanies } from '@/api/organizations';
+import { previewBlank } from '@/api/attachment-templates';
 
 const stubs = {
   AdminPageShell: { template: '<div><slot /></div>' },
@@ -45,6 +50,9 @@ const stubs = {
     props: ['attachment', 'cars', 'employees', 'items'],
     template: '<div class="detail-stub">{{ attachment.attachment_id }}</div>',
   },
+  // BaseModal рендерит слот, только когда show=true - так проверяем содержимое превью.
+  BaseModal: { props: ['show'], template: '<div v-if="show" class="modal-stub"><slot /></div>' },
+  XlsxViewer: { props: ['fileBuffer'], template: '<div class="xlsx-stub" />' },
 };
 
 function makeItem(id, over = {}) {
@@ -180,6 +188,60 @@ describe('AccessibleAttachmentsView (FE-S3)', () => {
 
     // Деталь показывает вложение 2 (актуальный выбор), а не затёртое первым ответом.
     expect(wrapper.find('.detail-stub').text()).toBe('2');
+  });
+});
+
+describe('AccessibleAttachmentsView (S4) предпросмотр бланка', () => {
+  function mountWithDetail(detailOver = {}) {
+    getAccessibleAttachments.mockResolvedValue({
+      items: [makeItem(1)],
+      meta: { total: 1, page: 1, per_page: 30 },
+    });
+    getAccessibleAttachmentDetail.mockResolvedValue({
+      attachment: { ...makeItem(1), application_id: 42, attachment_id: 1, ...detailOver },
+      cars: [],
+    });
+    return mountView();
+  }
+
+  async function openDetail() {
+    await flushPromises();
+    await wrapper.find('[data-testid="aa-card"]').trigger('click');
+    await flushPromises();
+  }
+
+  it('кнопка превью видна по has_blank, открывает модалку и шлёт (app_id, att_id)', async () => {
+    wrapper = mountWithDetail({ has_blank: true });
+    previewBlank.mockResolvedValue(new ArrayBuffer(8));
+    await openDetail();
+
+    const btn = wrapper.find('[data-testid="aa-preview-blank"]');
+    expect(btn.exists()).toBe(true);
+
+    await btn.trigger('click');
+    await flushPromises();
+
+    expect(previewBlank).toHaveBeenCalledWith(42, 1);
+    expect(wrapper.find('[data-testid="aa-preview-viewer"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="aa-preview-loading"]').exists()).toBe(false);
+  });
+
+  it('без has_blank кнопки превью нет', async () => {
+    wrapper = mountWithDetail({ has_blank: false });
+    await openDetail();
+    expect(wrapper.find('[data-testid="aa-preview-blank"]').exists()).toBe(false);
+  });
+
+  it('показывает ошибку, если бланк не загрузился', async () => {
+    wrapper = mountWithDetail({ has_blank: true });
+    previewBlank.mockRejectedValue(new Error('boom'));
+    await openDetail();
+
+    await wrapper.find('[data-testid="aa-preview-blank"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="aa-preview-error"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="aa-preview-viewer"]').exists()).toBe(false);
   });
 });
 
