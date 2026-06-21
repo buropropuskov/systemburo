@@ -281,9 +281,10 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 		)`
 
 		// --- вложения: сотрудники ---
-		// ФИО ищем ILIKE + trigramm similarity для нечёткого совпадения (опечатки, транслит).
-		// Similarity-порог 0.3 - ниже чем у ЧС (0.7), потому что поиск менее критичен к ложным
-		// срабатываниям и важнее recall. word_similarity покрывает однословный запрос по полю.
+		// ФИО ищем ILIKE + trigramm similarity для опечаток. strict_word_similarity (не word_),
+		// иначе порог 0.3 ловит общие триграммы: "Карбышев"/"Зубарев"/"Арбатская" давали
+		// word_similarity('арбуз',...) >= 0.33 (ложно), а strict даёт <0.24. При strict@0.3
+		// реальные опечатки ("арбус"/"арбз"/"орбуз") остаются >=0.33, мусор отсекается.
 		empIlikeCond, empIlikeArgs := ilikePatternsArgs(
 			[]string{"e.last_name", "e.first_name", "e.middle_name", "e.position"},
 			variants,
@@ -293,7 +294,7 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 			JOIN employees e ON e.attachment_id = att3.id
 			WHERE att3.application_id = a.id AND (
 				` + empIlikeCond + `
-				OR word_similarity(?, concat_ws(' ', e.last_name, e.first_name, e.middle_name)) > 0.3
+				OR strict_word_similarity(?, concat_ws(' ', e.last_name, e.first_name, e.middle_name)) > 0.3
 			)
 		)`
 
@@ -310,7 +311,8 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 		)`
 
 		// --- согласующие: ФИО + комментарий согласующего ---
-		// word_similarity для опечаток в фамилии согласующего (диктовка охранником).
+		// strict_word_similarity для опечаток в фамилии согласующего (диктовка охранником),
+		// без ложных срабатываний на общих триграммах (см. блок сотрудников выше).
 		apprIlikeCond, apprIlikeArgs := ilikePatternsArgs(
 			[]string{"au.last_name", "au.first_name", "au.middle_name", "aru.approval_comment"},
 			variants,
@@ -320,7 +322,7 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 			JOIN users au ON au.id = aru.user_id
 			WHERE aru.application_id = a.id AND (
 				` + apprIlikeCond + `
-				OR word_similarity(?, concat_ws(' ', au.last_name, au.first_name, au.middle_name)) > 0.3
+				OR strict_word_similarity(?, concat_ws(' ', au.last_name, au.first_name, au.middle_name)) > 0.3
 			)
 		)`
 
