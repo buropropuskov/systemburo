@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"systemburo/internal/database"
@@ -183,6 +184,25 @@ func TestGetApplications_EmptyList(t *testing.T) {
 
 	apps := testutil.ParseResponse[[]interface{}](t, rec)
 	assert.Empty(t, apps)
+}
+
+// TestGetApplications_FuzzySearchExecutes защищает большой SQL мега-поиска (#46):
+// подзапросы по машинам/сотрудникам/местам разгрузки/согласующим + word_similarity.
+// Регрессия: неверный JOIN car_unload_places.attachment_id (нет такой колонки) ронял
+// весь запрос в 500. Проверяем, что разные формы запроса исполняются (200), а не падают.
+func TestGetApplications_FuzzySearchExecutes(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "searchuser", "pass123", 1, td.OrgID, td.CompanyID)
+
+	for _, q := range []string{"грязевой", "А777АА", "А 777 АА", "ghbdtn", "иванов", "70"} {
+		rec := testutil.GET(t, e, "/applications?search_query="+url.QueryEscape(q), testutil.AuthHeader(token))
+		assert.Equalf(t, http.StatusOK, rec.Code,
+			"search_query=%q должен вернуть 200, а не %d: %s", q, rec.Code, rec.Body.String())
+	}
 }
 
 // --- GET /applications/user ---
