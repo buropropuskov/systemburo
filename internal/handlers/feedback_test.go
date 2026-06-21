@@ -140,9 +140,26 @@ func TestFeedback_UpdateStatus(t *testing.T) {
 	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 	adminH := testutil.AuthHeader(adminToken)
 
+	// Решаем с ответом -- ответ и дата решения сохраняются и возвращаются в списке.
 	rec = testutil.PUT(t, e, fmt.Sprintf("/feedback/%d/status", fbID),
-		`{"status":"Решено"}`, adminH)
+		`{"status":"Решено","comment":"Готово, проверьте раздел Транспорт"}`, adminH)
 	require.Equal(t, http.StatusOK, rec.Code)
+
+	got := findFeedbackByID(testutil.ParseSlice(t, testutil.GET(t, e, "/feedback/all", adminH)), fbID)
+	require.NotNil(t, got)
+	assert.Equal(t, "Решено", got["status"])
+	assert.Equal(t, "Готово, проверьте раздел Транспорт", got["resolution_comment"])
+	assert.NotNil(t, got["resolved_at"])
+
+	// Возврат в работу очищает ответ и дату решения.
+	rec = testutil.PUT(t, e, fmt.Sprintf("/feedback/%d/status", fbID),
+		`{"status":"Не решено"}`, adminH)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	got = findFeedbackByID(testutil.ParseSlice(t, testutil.GET(t, e, "/feedback/all", adminH)), fbID)
+	require.NotNil(t, got)
+	assert.Nil(t, got["resolution_comment"])
+	assert.Nil(t, got["resolved_at"])
 
 	// Regular user cannot update status
 	rec = testutil.PUT(t, e, fmt.Sprintf("/feedback/%d/status", fbID),
@@ -221,49 +238,6 @@ func findFeedbackByID(items []map[string]interface{}, id int) map[string]interfa
 		}
 	}
 	return nil
-}
-
-func TestFeedback_Resolve_PersistsComment(t *testing.T) {
-	e, db, cleanup := testutil.SetupTestApp(t)
-	defer cleanup()
-	testutil.CleanDB(t, db)
-	td := testutil.SeedTestData(t, db)
-
-	userToken := testutil.RegisterAndLogin(t, e, "commentuser", "password123", 1, td.OrgID, td.CompanyID)
-	rec := testutil.POST(t, e, "/feedback",
-		`{"message":"Feedback that will be resolved with a comment"}`,
-		testutil.AuthHeader(userToken))
-	require.Equal(t, http.StatusOK, rec.Code)
-	fbID := int(testutil.ParseMap(t, rec)["id"].(float64))
-
-	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
-	adminH := testutil.AuthHeader(adminToken)
-
-	// Решаем с ответом -- ответ и дата решения должны сохраниться.
-	rec = testutil.PUT(t, e, fmt.Sprintf("/feedback/%d/status", fbID),
-		`{"status":"Решено","comment":"Готово, проверьте раздел Транспорт"}`, adminH)
-	require.Equal(t, http.StatusOK, rec.Code)
-
-	rec = testutil.GET(t, e, "/feedback/all", adminH)
-	require.Equal(t, http.StatusOK, rec.Code)
-	got := findFeedbackByID(testutil.ParseSlice(t, rec), fbID)
-	require.NotNil(t, got)
-	assert.Equal(t, "Решено", got["status"])
-	assert.Equal(t, "Готово, проверьте раздел Транспорт", got["resolution_comment"])
-	assert.NotNil(t, got["resolved_at"])
-
-	// Возврат в работу очищает ответ и дату решения.
-	rec = testutil.PUT(t, e, fmt.Sprintf("/feedback/%d/status", fbID),
-		`{"status":"Не решено"}`, adminH)
-	require.Equal(t, http.StatusOK, rec.Code)
-
-	rec = testutil.GET(t, e, "/feedback/all", adminH)
-	require.Equal(t, http.StatusOK, rec.Code)
-	got = findFeedbackByID(testutil.ParseSlice(t, rec), fbID)
-	require.NotNil(t, got)
-	assert.Equal(t, "Не решено", got["status"])
-	assert.Nil(t, got["resolution_comment"])
-	assert.Nil(t, got["resolved_at"])
 }
 
 func TestFeedback_Stats_AfterCreation(t *testing.T) {
