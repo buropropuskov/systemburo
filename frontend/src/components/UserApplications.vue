@@ -298,6 +298,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import { useAuthStore } from '@/stores/auth'
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
@@ -350,23 +351,23 @@ export default {
   },
   computed: {
     filteredApplications() {
-      if (!this.searchQuery) return this.applications;
-      
-      const searchTerm = this.searchQuery.toLowerCase();
-      return this.applications.filter(application => {
-        return (
-          application.application_number?.toLowerCase().includes(searchTerm) ||
-          application.organization_name?.toLowerCase().includes(searchTerm) ||
-          application.sender_name?.toLowerCase().includes(searchTerm) ||
-          application.sender_full_name?.toLowerCase().includes(searchTerm) ||
-          application.confirmation?.toLowerCase().includes(searchTerm) ||
-          application.status?.toLowerCase().includes(searchTerm) ||
-          application.message?.toLowerCase().includes(searchTerm) ||
-          application.responsible_name?.toLowerCase().includes(searchTerm) ||
-          application.responsible_full_name?.toLowerCase().includes(searchTerm) ||
-          application.responsible_comment?.toLowerCase().includes(searchTerm)
-        );
-      });
+      const variants = buildSearchVariants(this.searchQuery);
+      if (!variants.length) return this.applications;
+      return this.applications.filter(application => matchesSearch(
+        [
+          application.application_number,
+          application.organization_name,
+          application.sender_name,
+          application.sender_full_name,
+          application.confirmation,
+          application.status,
+          application.message,
+          application.responsible_name,
+          application.responsible_full_name,
+          application.responsible_comment,
+        ].filter(Boolean).join(' '),
+        variants,
+      ));
     },
     
     sortedApplications() {

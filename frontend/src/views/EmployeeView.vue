@@ -390,6 +390,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
 import SearchComponent from '@/components/SearchComponent.vue';
@@ -433,17 +434,15 @@ export default {
     },
     computed: {
         filteredEmployees() {
-            if (!this.searchQuery.trim()) {
+            const variants = buildSearchVariants(this.searchQuery);
+            if (!variants.length) {
                 return this.employeesData;
             }
-            
-            const query = this.searchQuery.toLowerCase().trim();
-            return this.employeesData.filter(employee => {
-                const fullName = this.formatFullName(employee).toLowerCase();
-                return fullName.includes(query) ||
-                       (employee.position && employee.position.toLowerCase().includes(query)) ||
-                       (employee.status ? 'активен' : 'неактивен').includes(query)
-            });
+            return this.employeesData.filter(employee => matchesSearch(
+                `${this.formatFullName(employee)} ${employee.position || ''} `
+                + (employee.status ? 'активен' : 'неактивен'),
+                variants,
+            ));
         },
 
         sortedEmployees() {

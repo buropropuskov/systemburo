@@ -630,6 +630,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import { confirmIfAnyDirty } from '@/utils/dirtyTracker';
 import { useDeletionsStore } from '@/stores/deletions';
 import RefreshButton from './RefreshButton.vue';
@@ -689,13 +690,12 @@ export default {
       return this.showArchive ? 'В архиве пусто' : 'Таблиц пока нет';
     },
     filteredTables() {
-      if (!this.searchQuery) return this.tables;
-      const query = this.searchQuery.toLowerCase();
-      return this.tables.filter(table => 
-        table.table.display_name.toLowerCase().includes(query) || 
-        table.table.name.toLowerCase().includes(query) ||
-        table.table.id.toString().includes(query)
-      );
+      const variants = buildSearchVariants(this.searchQuery);
+      if (!variants.length) return this.tables;
+      return this.tables.filter(table => matchesSearch(
+        `${table.table.display_name} ${table.table.name} ${table.table.id}`,
+        variants,
+      ));
     },
     sortedTables() {
       const tables = [...this.filteredTables];

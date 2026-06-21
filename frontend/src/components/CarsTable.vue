@@ -460,6 +460,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import { useDeletionsStore } from '@/stores/deletions';
 import { useOrientation } from '@/composables/useOrientation';
 import RefreshButton from './RefreshButton.vue';
@@ -541,7 +542,7 @@ export default {
     displayItems() {
       let filtered = this.itemsData.filter(i => !this.pendingDeleteIds.includes(i.id));
       if (this.searchQuery) {
-        const query = this.searchQuery.toLowerCase().trim();
+        const variants = buildSearchVariants(this.searchQuery);
         filtered = filtered.filter(item => {
           const searchFields = [
             item.car_number,
@@ -552,9 +553,7 @@ export default {
             this.formatDate(item.entry_date_to),
             item.status
           ];
-          return searchFields.some(field => 
-            field && field.toString().toLowerCase().includes(query)
-          );
+          return matchesSearch(searchFields.filter(Boolean).join(' '), variants);
         });
       }
       if (this.selectedOrganizationId) {
