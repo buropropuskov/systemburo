@@ -77,6 +77,21 @@ func (w secWorld) newAttachment(t *testing.T, appID int, atype string) int {
 	return att.ID
 }
 
+func (w secWorld) newAppWithStatus(t *testing.T, confirmation, status string) int {
+	t.Helper()
+	now := time.Now()
+	conf, st := confirmation, status
+	app := models.Application{
+		OrganizationID:  w.orgID,
+		SenderUserID:    w.senderID,
+		Confirmation:    &conf,
+		Status:          &st,
+		SendingDatetime: &now,
+	}
+	require.NoError(t, w.db.Create(&app).Error)
+	return app.ID
+}
+
 func (w secWorld) newUnloadPlace(t *testing.T, name string, active bool) int {
 	t.Helper()
 	p := models.UnloadPlace{Name: name, IsActive: active}
@@ -87,6 +102,14 @@ func (w secWorld) newUnloadPlace(t *testing.T, name string, active bool) int {
 func (w secWorld) newPeopleTable(t *testing.T, name string) int {
 	t.Helper()
 	st := models.SystemTable{Name: name, TableType: "people", IsActive: true}
+	require.NoError(t, w.db.Create(&st).Error)
+	return st.ID
+}
+
+func (w secWorld) newPeopleTableWithDisplay(t *testing.T, name, display string) int {
+	t.Helper()
+	d := display
+	st := models.SystemTable{Name: name, DisplayName: &d, TableType: "people", IsActive: true}
 	require.NoError(t, w.db.Create(&st).Error)
 	return st.ID
 }
@@ -373,4 +396,63 @@ func TestCanSecurityViewAttachment(t *testing.T) {
 	can, err = w.svc.CanSecurityViewAttachment(ctx, w.guardID, true, pendingAtt)
 	require.NoError(t, err)
 	require.False(t, can, "approved-gate applies to super-admin")
+}
+
+func TestGetAvailableAttachments_CompletedFilter(t *testing.T) {
+	w := setupSecurityWorld(t)
+	ctx := context.Background()
+
+	myPlace := w.newUnloadPlace(t, "Склад А", true)
+	w.assignUnloadPlace(t, myPlace)
+
+	activeApp := w.newAppWithStatus(t, models.ConfirmationApproved, models.StatusInWork)
+	activeAtt := w.newAttachmentNamed(t, activeApp, "cars", "Ромашка активная")
+	w.attachPlace(t, activeAtt, myPlace)
+
+	doneApp := w.newAppWithStatus(t, models.ConfirmationApproved, models.StatusCompleted)
+	doneAtt := w.newAttachmentNamed(t, doneApp, "cars", "Ромашка завершённая")
+	w.attachPlace(t, doneAtt, myPlace)
+
+	// Дефолт вкладки: завершённые скрыты.
+	rows, total, err := w.svc.GetAvailableAttachmentsForSecurity(ctx, w.guardID, false, services.AvailableAttachmentFilters{}, 1, 50)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, total)
+	require.True(t, secContainsAttachment(rows, activeAtt))
+	require.False(t, secContainsAttachment(rows, doneAtt), "завершённые скрыты по умолчанию")
+
+	// Фильтр "Завершённые": только завершённые.
+	completed := true
+	rows, total, err = w.svc.GetAvailableAttachmentsForSecurity(ctx, w.guardID, false, services.AvailableAttachmentFilters{Completed: &completed}, 1, 50)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, total)
+	require.True(t, secContainsAttachment(rows, doneAtt))
+	require.False(t, secContainsAttachment(rows, activeAtt), "фильтр Завершённые показывает только их")
+
+	// Поиск отменяет статус-предикат: видны и завершённые, и нет (даже при completed=true).
+	query := "Ромашка"
+	rows, total, err = w.svc.GetAvailableAttachmentsForSecurity(ctx, w.guardID, false, services.AvailableAttachmentFilters{Search: &query, Completed: &completed}, 1, 50)
+	require.NoError(t, err)
+	require.EqualValues(t, 2, total, "поиск показывает и завершённые, и незавершённые")
+	require.True(t, secContainsAttachment(rows, activeAtt))
+	require.True(t, secContainsAttachment(rows, doneAtt))
+}
+
+func TestGetAvailableAttachments_PeoplePlacesUseDisplayName(t *testing.T) {
+	w := setupSecurityWorld(t)
+	ctx := context.Background()
+
+	// system_tables.name - технический код (post_72), display_name - человекочитаемое. В карточке
+	// "Места" должно быть display_name, а не код (баг "Места: post_72").
+	myTable := w.newPeopleTableWithDisplay(t, "post_72", "КПП Север")
+	w.assignTable(t, myTable)
+
+	app := w.newApp(t, models.ConfirmationApproved)
+	att := w.newAttachment(t, app, "people")
+	w.attachEmployeeWithTable(t, att, myTable)
+
+	rows, total, err := w.svc.GetAvailableAttachmentsForSecurity(ctx, w.guardID, false, services.AvailableAttachmentFilters{}, 1, 50)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, total)
+	require.NotNil(t, rows[0].Places)
+	require.Equal(t, "КПП Север", *rows[0].Places, "места прохода показывают display_name, не код")
 }

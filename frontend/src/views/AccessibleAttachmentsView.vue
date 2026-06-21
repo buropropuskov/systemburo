@@ -57,6 +57,16 @@
         />
         <button
           type="button"
+          class="lk-button filters__toggle"
+          :class="completedFilter ? 'lk-button--primary' : 'lk-button--ghost'"
+          :aria-pressed="completedFilter"
+          data-testid="aa-filter-completed"
+          @click="toggleCompleted"
+        >
+          Завершённые
+        </button>
+        <button
+          type="button"
           class="lk-button lk-button--danger filters__reset"
           :disabled="!hasActiveFilters"
           data-testid="aa-filter-reset"
@@ -296,6 +306,9 @@ const search = ref(typeof route.query.search === 'string' ? route.query.search :
 const typeFilter = ref(VALID_TYPES.includes(route.query.type) ? route.query.type : '');
 const orgFilter = ref(Number(route.query.organization) || 0);
 const companyFilter = ref(Number(route.query.company) || 0);
+// Завершённые заявки по умолчанию скрыты; тоггл показывает только их. При активном
+// поиске бэк отдаёт и завершённые, и нет независимо от флага (см. сервис фильтра).
+const completedFilter = ref(route.query.completed === '1');
 
 const typeOptions = [
   { id: '', name: 'Все типы' },
@@ -310,7 +323,8 @@ const hasActiveFilters = computed(
   () => !!search.value.trim()
     || !!typeFilter.value
     || orgFilter.value !== 0
-    || companyFilter.value !== 0,
+    || companyFilter.value !== 0
+    || completedFilter.value,
 );
 
 const items = ref([]);
@@ -367,6 +381,7 @@ function buildParams() {
   if (typeFilter.value) params.attachment_type = typeFilter.value;
   if (orgFilter.value) params.organization_id = orgFilter.value;
   if (companyFilter.value) params.company_id = companyFilter.value;
+  if (completedFilter.value) params.completed = true;
   return params;
 }
 
@@ -377,6 +392,7 @@ function syncUrl() {
   if (typeFilter.value) query.type = typeFilter.value;
   if (orgFilter.value) query.organization = String(orgFilter.value);
   if (companyFilter.value) query.company = String(companyFilter.value);
+  if (completedFilter.value) query.completed = '1';
   // catch гасит navigation-cancel при быстрой смене фильтров: vue-router отклоняет
   // отменённую replace - это не ошибка приложения, а нормальная гонка ввода.
   router.replace({ query }).catch(() => {});
@@ -433,12 +449,18 @@ function setCompany(value) {
   applyFilters();
 }
 
+function toggleCompleted() {
+  completedFilter.value = !completedFilter.value;
+  applyFilters();
+}
+
 function resetFilters() {
   clearTimeout(searchTimer);
   search.value = '';
   typeFilter.value = '';
   orgFilter.value = 0;
   companyFilter.value = 0;
+  completedFilter.value = false;
   applyFilters();
 }
 
@@ -567,6 +589,7 @@ onBeforeUnmount(() => clearTimeout(searchTimer));
   flex: 0 0 180px;
 }
 
+.filters__toggle,
 .filters__reset {
   flex-shrink: 0;
 }

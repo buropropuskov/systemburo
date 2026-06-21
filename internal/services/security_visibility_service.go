@@ -50,6 +50,10 @@ type AvailableAttachmentFilters struct {
 	AttachmentType *string `query:"attachment_type"`
 	OrganizationID *int    `query:"organization_id"`
 	CompanyID      *int    `query:"company_id"`
+	// Completed управляет видимостью завершённых заявок (status='Завершено'): nil/false - скрыть
+	// завершённые (дефолт вкладки), true - показать только завершённые. При активном Search не
+	// применяется (поиск отдаёт и завершённые, и нет) - см. availableAttachmentFilterWhere.
+	Completed *bool `query:"completed"`
 }
 
 // availableAttachmentFrom - общий FROM листинга и счётчика "Доступные мне". LEFT JOIN'ы
@@ -84,7 +88,7 @@ const availableAttachmentSelect = `
 	format_short_name(su.last_name, su.first_name, su.middle_name) as sender_name,
 	format_full_name(su.last_name, su.first_name, su.middle_name) as sender_full_name,
 	CASE WHEN a.attachment_type = 'people' THEN (
-		SELECT string_agg(DISTINCT st.name, ', ')
+		SELECT string_agg(DISTINCT COALESCE(st.display_name, st.name), ', ')
 		FROM employees e
 		JOIN employee_target_tables ett ON ett.employee_id = e.id
 		JOIN system_tables st ON st.id = ett.table_id
@@ -136,6 +140,9 @@ func availableAttachmentFilterWhere(f AvailableAttachmentFilters) (string, []int
 	var clauses []string
 	var args []interface{}
 
+	// Поиск отдаёт и завершённые, и незавершённые: при активном search статус-предикат не вешаем.
+	searchActive := f.Search != nil && strings.TrimSpace(*f.Search) != ""
+
 	if f.AttachmentType != nil {
 		switch t := *f.AttachmentType; t {
 		case "cars", "people", "items":
@@ -150,6 +157,17 @@ func availableAttachmentFilterWhere(f AvailableAttachmentFilters) (string, []int
 	if f.CompanyID != nil {
 		clauses = append(clauses, "app.company_id = ?")
 		args = append(args, *f.CompanyID)
+	}
+	// Дефолт вкладки - скрыть завершённые; фильтр "Завершённые" (completed=true) - только их.
+	// IS DISTINCT FROM, чтобы строки с NULL-статусом попадали в дефолтную выдачу (не исключались).
+	if !searchActive {
+		if f.Completed != nil && *f.Completed {
+			clauses = append(clauses, "app.status = ?")
+			args = append(args, models.StatusCompleted)
+		} else {
+			clauses = append(clauses, "app.status IS DISTINCT FROM ?")
+			args = append(args, models.StatusCompleted)
+		}
 	}
 	if f.Search != nil {
 		if s := strings.TrimSpace(*f.Search); s != "" {

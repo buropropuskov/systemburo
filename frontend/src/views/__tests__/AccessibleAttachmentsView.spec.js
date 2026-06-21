@@ -222,6 +222,37 @@ describe('AccessibleAttachmentsView (FE-S6) фильтры', () => {
     expect(replace).toHaveBeenLastCalledWith({ query: { organization: '7' } });
   });
 
+  it('тоггл "Завершённые" шлёт completed, пишет URL и восстанавливается из query', async () => {
+    getAccessibleAttachments.mockResolvedValue({ items: [], meta: { total: 0 } });
+    wrapper = mountView();
+    await flushPromises();
+    getAccessibleAttachments.mockClear();
+
+    await wrapper.find('[data-testid="aa-filter-completed"]').trigger('click');
+    await flushPromises();
+
+    expect(getAccessibleAttachments).toHaveBeenCalledWith(
+      expect.objectContaining({ completed: true, page: 1 }),
+    );
+    expect(replace).toHaveBeenLastCalledWith({ query: { completed: '1' } });
+
+    // Повторный клик снимает фильтр - completed уходит из параметров и URL.
+    getAccessibleAttachments.mockClear();
+    await wrapper.find('[data-testid="aa-filter-completed"]').trigger('click');
+    await flushPromises();
+    expect(getAccessibleAttachments.mock.calls.at(-1)[0]).not.toHaveProperty('completed');
+    expect(replace).toHaveBeenLastCalledWith({ query: {} });
+
+    wrapper.unmount();
+    // Диплинк ?completed=1 восстанавливает фильтр одним стартовым запросом.
+    getAccessibleAttachments.mockClear();
+    wrapper = mountView({ completed: '1' });
+    await flushPromises();
+    expect(getAccessibleAttachments).toHaveBeenCalledWith(
+      expect.objectContaining({ completed: true }),
+    );
+  });
+
   it('поиск применяется после debounce и шлёт search', async () => {
     vi.useFakeTimers();
     try {
