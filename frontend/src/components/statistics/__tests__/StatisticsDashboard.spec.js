@@ -5,12 +5,12 @@ import { nextTick } from 'vue';
 // Управляемое состояние моков: фабрика vi.mock поднимается над импортами,
 // поэтому summary/deferred выносим в hoisted.
 const { state } = vi.hoisted(() => ({
-  state: { deferred: [], onlineDeferred: [], summary: {}, insights: {}, onlinePeaks: [], insightsHang: false, summaryReject: false },
+  state: { deferred: [], onlineDeferred: [], summary: {}, insights: {}, onlinePeaks: [], passages: { people: [], cars: [] }, insightsHang: false, summaryReject: false },
 }));
 
 vi.mock('@/api/statistics.js', () => ({
   getSummary: () => (state.summaryReject ? Promise.reject(new Error('net')) : Promise.resolve(state.summary)),
-  getRecentPassages: () => Promise.resolve({ people: [], cars: [] }),
+  getRecentPassages: () => Promise.resolve(state.passages),
   getTimeline: () => new Promise((resolve) => { state.deferred.push(resolve); }),
   // insightsHang оставляет промис вечно pending — для проверки состояния загрузки.
   getInsights: () => (state.insightsHang ? new Promise(() => {}) : Promise.resolve(state.insights)),
@@ -39,6 +39,7 @@ beforeEach(() => {
   state.summary = {};
   state.insights = {};
   state.onlinePeaks = [];
+  state.passages = { people: [], cars: [] };
   state.insightsHang = false;
   state.summaryReject = false;
 });
@@ -345,6 +346,53 @@ describe('StatisticsDashboard — плитка онлайна', () => {
     const modal = wrapper.findComponent(OnlineUsersModal);
     expect(modal.props('users')).toHaveLength(1);
     expect(modal.props('users')[0].login).toBe('fresh'); // не stale от устаревшего ответа
+  });
+});
+
+describe('StatisticsDashboard — секция Мониторинг', () => {
+  it('occupancy-плитки (на территории) рендерятся в Мониторинге, а не в группе Данные', async () => {
+    state.summary = { total_applications: 5, cars_on_territory: 17, people_on_territory: 42 };
+    const wrapper = mountDashboard();
+    await flushPromises();
+
+    const monitoring = wrapper.find('.dashboard__group--monitoring');
+    expect(monitoring.exists()).toBe(true);
+    expect(monitoring.text()).toContain('Мониторинг');
+    expect(monitoring.text()).toContain('в реальном времени');
+    expect(monitoring.text()).toContain('Машин на территории');
+    expect(monitoring.text()).toContain('Людей на территории');
+    expect(monitoring.text()).toContain((17).toLocaleString('ru-RU'));
+    expect(monitoring.text()).toContain((42).toLocaleString('ru-RU'));
+
+    // Группа «Данные» (первая) больше не содержит снимок территории.
+    const dataGroup = wrapper.findAll('.dashboard__group')[0];
+    expect(dataGroup.text()).toContain('Данные');
+    expect(dataGroup.text()).not.toContain('на территории');
+  });
+
+  it('пост (place) виден явным лейблом в строке прохода, при отсутствии — заглушка', async () => {
+    state.passages = {
+      people: [
+        { subject: 'Иванов И.', organization: 'ООО Ромашка', place: 'КПП-1', created_at: '2026-06-20T10:00:00Z', action_type: 'entry' },
+        { subject: 'Петров П.', organization: 'ООО Ромашка', place: '—', created_at: '2026-06-20T10:01:00Z', action_type: 'exit' },
+        { subject: 'Сидоров С.', organization: 'ООО Ромашка', place: null, created_at: '2026-06-20T10:02:00Z', action_type: 'entry' },
+        { subject: 'Кузнецов К.', organization: 'ООО Ромашка', place: '   ', created_at: '2026-06-20T10:03:00Z', action_type: 'exit' },
+      ],
+      cars: [
+        { subject: 'А123АА', mark: 'BMW', organization: 'ООО Ромашка', place: '', created_at: '2026-06-20T10:05:00Z', action_type: 'entry' },
+      ],
+    };
+    const wrapper = mountDashboard();
+    await flushPromises();
+
+    const posts = wrapper.findAll('.dashboard__feed-post');
+    // Четыре прохода людей + один проезд машины = пять строк, у каждой явный пост.
+    expect(posts).toHaveLength(5);
+    expect(wrapper.text()).toContain('Пост: КПП-1');
+    // Плейсхолдер «—», null, пробелы и пустая строка -> заглушка «не указан».
+    const empties = posts.filter((p) => p.text().includes('не указан'));
+    expect(empties).toHaveLength(4);
+    expect(empties[0].classes()).toContain('dashboard__feed-post--empty');
   });
 });
 

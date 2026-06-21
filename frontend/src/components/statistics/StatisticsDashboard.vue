@@ -335,111 +335,156 @@
       </div>
     </div>
 
-    <!-- ===== ЖИВЫЕ ЛЕНТЫ ===== -->
-    <div class="dashboard__feeds">
+    <!-- ===== ГРУППА: МОНИТОРИНГ (реальное время, не зависит от периода) ===== -->
+    <div class="dashboard__group dashboard__group--monitoring">
+      <div class="dashboard__group-head">
+        <h2 class="dashboard__group-title">Мониторинг</h2>
+        <span class="dashboard__live-dot" />
+        <span class="dashboard__group-chip">в реальном времени · сейчас</span>
+        <span class="dashboard__group-rule" />
+      </div>
 
-      <!-- Лента людей -->
-      <div class="dashboard__feed">
-        <div class="dashboard__feed-head">
-          <h3 class="dashboard__feed-title">
-            <span class="dashboard__live-dot" />
-            Проход людей
-          </h3>
-          <RefreshButton
-            :loading="feedRefreshing"
-            @refresh="refreshFeeds"
-          />
-        </div>
-
-        <div class="dashboard__feed-list">
-          <template v-if="feedLoading">
-            <div
-              v-for="n in 5"
-              :key="n"
-              class="dashboard__feed-row dashboard__feed-row--skeleton"
-            />
-          </template>
-          <template v-else-if="peopleFeed.length === 0">
-            <div class="dashboard__feed-empty">Нет записей</div>
-          </template>
-          <template v-else>
-            <div
-              v-for="row in peopleFeed"
-              :key="feedRowKey(row)"
-              class="dashboard__feed-row"
-            >
-              <div class="dashboard__feed-main">
-                <div class="dashboard__feed-name">{{ row.subject }}</div>
-                <div class="dashboard__feed-sub">
-                  {{ row.organization }}<template v-if="row.place && row.place !== '—'"> · {{ row.place }}</template>
-                </div>
-              </div>
-              <div class="dashboard__feed-right">
-                <div class="dashboard__feed-date">{{ formatDate(row.created_at) }}</div>
-                <div class="dashboard__feed-time">{{ formatTime(row.created_at) }}</div>
-                <span
-                  class="dashboard__dir-badge"
-                  :class="row.action_type === 'entry' ? 'dashboard__dir-badge--in' : 'dashboard__dir-badge--out'"
-                >
-                  {{ row.action_type === 'entry' ? 'Вход' : 'Выход' }}
-                </span>
-              </div>
-            </div>
-          </template>
+      <!-- Снимок территории: сколько внутри прямо сейчас -->
+      <div
+        v-if="summaryLoading && !summaryReady"
+        class="dashboard__tiles"
+      >
+        <div
+          v-for="n in 2"
+          :key="n"
+          class="dashboard__tile dashboard__tile--skeleton"
+        />
+      </div>
+      <div
+        v-else
+        class="dashboard__tiles"
+      >
+        <div
+          v-for="tile in occupancyTiles"
+          :key="tile.label"
+          class="dashboard__tile"
+        >
+          <div class="dashboard__tile-label">{{ tile.label }}</div>
+          <div class="dashboard__tile-val">
+            <AnimatedNumber :value="tile.value" />
+          </div>
         </div>
       </div>
 
-      <!-- Лента машин -->
-      <div class="dashboard__feed">
-        <div class="dashboard__feed-head">
-          <h3 class="dashboard__feed-title">
-            <span class="dashboard__live-dot" />
-            Проезд машин
-          </h3>
-          <RefreshButton
-            :loading="feedRefreshing"
-            @refresh="refreshFeeds"
-          />
+      <!-- Живые ленты проходов/проездов -->
+      <div class="dashboard__feeds">
+
+        <!-- Лента людей -->
+        <div class="dashboard__feed">
+          <div class="dashboard__feed-head">
+            <h3 class="dashboard__feed-title">
+              <span class="dashboard__live-dot" />
+              Проход людей
+            </h3>
+            <RefreshButton
+              :loading="feedRefreshing"
+              @refresh="refreshFeeds"
+            />
+          </div>
+
+          <div class="dashboard__feed-list">
+            <template v-if="feedLoading">
+              <div
+                v-for="n in 5"
+                :key="n"
+                class="dashboard__feed-row dashboard__feed-row--skeleton"
+              />
+            </template>
+            <template v-else-if="peopleFeed.length === 0">
+              <div class="dashboard__feed-empty">Нет записей</div>
+            </template>
+            <template v-else>
+              <div
+                v-for="row in peopleFeed"
+                :key="feedRowKey(row)"
+                class="dashboard__feed-row"
+              >
+                <div class="dashboard__feed-main">
+                  <div class="dashboard__feed-name">{{ row.subject }}</div>
+                  <div class="dashboard__feed-sub">{{ row.organization }}</div>
+                  <div
+                    class="dashboard__feed-post"
+                    :class="{ 'dashboard__feed-post--empty': !hasPlace(row) }"
+                  >
+                    Пост: {{ placeLabel(row) }}
+                  </div>
+                </div>
+                <div class="dashboard__feed-right">
+                  <div class="dashboard__feed-date">{{ formatDate(row.created_at) }}</div>
+                  <div class="dashboard__feed-time">{{ formatTime(row.created_at) }}</div>
+                  <span
+                    class="dashboard__dir-badge"
+                    :class="row.action_type === 'entry' ? 'dashboard__dir-badge--in' : 'dashboard__dir-badge--out'"
+                  >
+                    {{ row.action_type === 'entry' ? 'Вход' : 'Выход' }}
+                  </span>
+                </div>
+              </div>
+            </template>
+          </div>
         </div>
 
-        <div class="dashboard__feed-list">
-          <template v-if="feedLoading">
-            <div
-              v-for="n in 5"
-              :key="n"
-              class="dashboard__feed-row dashboard__feed-row--skeleton"
+        <!-- Лента машин -->
+        <div class="dashboard__feed">
+          <div class="dashboard__feed-head">
+            <h3 class="dashboard__feed-title">
+              <span class="dashboard__live-dot" />
+              Проезд машин
+            </h3>
+            <RefreshButton
+              :loading="feedRefreshing"
+              @refresh="refreshFeeds"
             />
-          </template>
-          <template v-else-if="carsFeed.length === 0">
-            <div class="dashboard__feed-empty">Нет записей</div>
-          </template>
-          <template v-else>
-            <div
-              v-for="row in carsFeed"
-              :key="feedRowKey(row)"
-              class="dashboard__feed-row"
-            >
-              <div class="dashboard__plate">{{ row.subject }}</div>
-              <div class="dashboard__feed-main">
-                <div class="dashboard__feed-name">
-                  {{ row.mark || '' }}
+          </div>
+
+          <div class="dashboard__feed-list">
+            <template v-if="feedLoading">
+              <div
+                v-for="n in 5"
+                :key="n"
+                class="dashboard__feed-row dashboard__feed-row--skeleton"
+              />
+            </template>
+            <template v-else-if="carsFeed.length === 0">
+              <div class="dashboard__feed-empty">Нет записей</div>
+            </template>
+            <template v-else>
+              <div
+                v-for="row in carsFeed"
+                :key="feedRowKey(row)"
+                class="dashboard__feed-row"
+              >
+                <div class="dashboard__plate">{{ row.subject }}</div>
+                <div class="dashboard__feed-main">
+                  <div class="dashboard__feed-name">
+                    {{ row.mark || '' }}
+                  </div>
+                  <div class="dashboard__feed-sub">{{ row.organization }}</div>
+                  <div
+                    class="dashboard__feed-post"
+                    :class="{ 'dashboard__feed-post--empty': !hasPlace(row) }"
+                  >
+                    Пост: {{ placeLabel(row) }}
+                  </div>
                 </div>
-                <div class="dashboard__feed-sub">
-                  {{ row.organization }}<template v-if="row.place && row.place !== '—'"> · {{ row.place }}</template>
+                <div class="dashboard__feed-right">
+                  <div class="dashboard__feed-date">{{ formatDate(row.created_at) }}</div>
+                  <div class="dashboard__feed-time">{{ formatTime(row.created_at) }}</div>
+                  <span
+                    class="dashboard__dir-badge"
+                    :class="row.action_type === 'entry' ? 'dashboard__dir-badge--in' : 'dashboard__dir-badge--out'"
+                  >
+                    {{ row.action_type === 'entry' ? 'Въезд' : 'Выезд' }}
+                  </span>
                 </div>
               </div>
-              <div class="dashboard__feed-right">
-                <div class="dashboard__feed-date">{{ formatDate(row.created_at) }}</div>
-                <div class="dashboard__feed-time">{{ formatTime(row.created_at) }}</div>
-                <span
-                  class="dashboard__dir-badge"
-                  :class="row.action_type === 'entry' ? 'dashboard__dir-badge--in' : 'dashboard__dir-badge--out'"
-                >
-                  {{ row.action_type === 'entry' ? 'Въезд' : 'Выезд' }}
-                </span>
-              </div>
-            </div>
-          </template>
+            </template>
+          </div>
         </div>
       </div>
     </div>
@@ -610,8 +655,6 @@ const dataTiles = computed(() => {
     { label: 'Обработано', value: s.processed },
     { label: 'Машин заехало', value: s.cars_entered, metric: 'car_entries_count' },
     { label: 'Людей прошло', value: s.people_entered, metric: 'people_entries_count' },
-    { label: 'Машин на территории', value: s.cars_on_territory },
-    { label: 'Людей на территории', value: s.people_on_territory },
   ];
   return defs.map((t) => {
     const comparison = t.metric ? insights.comparisons.find((c) => c.metric === t.metric) || null : null;
@@ -619,6 +662,17 @@ const dataTiles = computed(() => {
     const peak = t.metric ? insights.peak_hours.find((p) => p.metric === t.metric) || null : null;
     return { ...t, comparison, trend, peak, expandable: Boolean(comparison || trend || peak) };
   });
+});
+
+// Снимок «сейчас»: сколько машин/людей на территории прямо сейчас (territory_status=1).
+// Живёт в Мониторинге, а не в «Данные» — значение не зависит от выбранного периода,
+// поэтому смотреть его «за год» бессмысленно (фидбэк #632 п.6).
+const occupancyTiles = computed(() => {
+  const s = summary.value;
+  return [
+    { label: 'Машин на территории', value: s.cars_on_territory },
+    { label: 'Людей на территории', value: s.people_on_territory },
+  ];
 });
 
 // Развёрнутая карточка -> данные её детальных графиков. Тренд по дням берём из
@@ -681,6 +735,17 @@ function formatDate(iso) {
   // Смещение UTC+3: дату ленты считаем по МСК, иначе у ночных отметок съезжает день.
   const s = new Date(d.getTime() + 3 * 60 * 60 * 1000).toISOString();
   return `${s.substring(8, 10)}.${s.substring(5, 7)}.${s.substring(0, 4)}`;
+}
+
+// Пост (place) прохода: бэк может вернуть пусто или плейсхолдер «—». Показываем
+// явный лейбл у каждой строки, при отсутствии — заглушку, а не прячем (фидбэк #632 п.7).
+function hasPlace(row) {
+  const p = (row.place || '').trim();
+  return Boolean(p) && p !== '—';
+}
+
+function placeLabel(row) {
+  return hasPlace(row) ? row.place.trim() : 'не указан';
 }
 
 // ---- загрузка данных ----
@@ -1362,6 +1427,24 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   margin-top: 2px;
+}
+
+/* Пост прохода — отдельной строкой, чтобы длинная организация не вытесняла его
+   через ellipsis: пост виден у каждой строки (фидбэк #632 п.7). */
+.dashboard__feed-post {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+.dashboard__feed-post--empty {
+  color: var(--color-text-muted);
+  font-weight: 500;
+  font-style: italic;
 }
 
 .dashboard__feed-right {
