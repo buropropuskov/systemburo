@@ -14,12 +14,22 @@ import NewsAndReview from './views/NewsAndReview.vue';
 import FeedbackPage from './views/FeedbackPage.vue';
 import RequestsView from './views/RequestsView.vue';
 
+// Гейтинг прав (#187, Фаза 2): admin/table-маршруты несут meta.permission и
+// проверяются в beforeEach через usePermissionsStore.hasPermission. super/admin
+// проходят (allowAll), обычный юзер — по гранту. requiresBuro (костыль "только
+// супер-админ") снят: админку теперь видит и обычный администратор (is_admin).
+// Обычные/контекстные страницы (Центр, Автомобили, Сотрудники, Новости, ЛК)
+// остаются requiresAuth-only — их доступ контекстный/базовый, жёсткий route-гейт
+// отрезал бы принимающих/согласующих и ловил бы лок-аут при сбое /permissions/my.
+//
+// meta.permission может быть строкой или функцией (to) => key — функция нужна
+// динамическим table.<slug>.<verb> ключам, зависящим от параметра маршрута.
 const routes = [
-  { 
-    path: '/', 
-    name: 'LoginComponent', 
+  {
+    path: '/',
+    name: 'LoginComponent',
     component: LoginComponent,
-    meta: { requiresAuth: false } 
+    meta: { requiresAuth: false }
   },
   {
     path: '/new-application',
@@ -39,19 +49,19 @@ const routes = [
     path: '/table/:tableName',
     name: 'DynamicTable',
     component: TablesComponent,
-    meta: { requiresAuth: true, requiresBuro: true }
+    meta: { requiresAuth: true, permission: (to) => `table.${to.params.tableName}.view` }
   },
   {
     path: '/table/:tableName/trash',
     name: 'TableTrash',
     component: () => import('@/views/TrashView.vue'),
-    meta: { requiresAuth: true, requiresBuro: true }
+    meta: { requiresAuth: true, permission: (to) => `table.${to.params.tableName}.trash` }
   },
-  { 
-    path: '/personal-cabinet', 
-    name: 'Account', 
+  {
+    path: '/personal-cabinet',
+    name: 'Account',
     component: AccountComponent,
-    meta: { requiresAuth: true } 
+    meta: { requiresAuth: true }
   },
   {
     path: '/carsview',
@@ -66,8 +76,8 @@ const routes = [
     meta: { requiresAuth: true }
   },
   // "Доступные мне": вложения согласованных заявок, совпавших по месту с местами
-  // охранника. Доступ - охранник (user_type code 'security') или супер-админ;
-  // requiresBuro НЕ ставим (охранник не buro). Гейт по коду типа - в beforeEach.
+  // охранника. Доступ - охранник (user_type code 'security') или супер-админ.
+  // Гейт по коду типа - в beforeEach (контекстная авторизация, не permission-key).
   {
     path: '/accessible-attachments',
     name: 'AccessibleAttachments',
@@ -78,7 +88,7 @@ const routes = [
     path: '/table-constructor',
     name: 'TableConstructor',
     component: TableConstructor,
-    meta: { requiresAuth: true, requiresBuro: true }
+    meta: { requiresAuth: true, permission: 'page.admin' }
   },
   {
     path: '/number-format',
@@ -94,128 +104,127 @@ const routes = [
     path: '/news',
     name: 'NewsAndReview',
     component: NewsAndReview,
-    meta: {requiresAuth: true}
+    meta: { requiresAuth: true }
   },
   {
     path: '/admin/feedback',
     name: 'FeedbackPage',
     component: FeedbackPage,
-    meta: { requiresAuth: true, requiresBuro: true, permission: 'page.admin.feedback' }
+    meta: { requiresAuth: true, permission: 'page.admin.feedback' }
   },
   {
     path: '/admin/requests',
     name: 'RequestsView',
     component: RequestsView,
-    meta: { requiresAuth: true, requiresBuro: true, permission: 'page.admin' }
+    meta: { requiresAuth: true, permission: 'page.admin' }
   },
   {
     path: '/admin/settings',
     name: 'AdminSettings',
     component: () => import('./views/AdminSettings.vue'),
-    meta: { requiresAuth: true, requiresBuro: true, permission: 'page.admin' }
+    meta: { requiresAuth: true, permission: 'page.admin' }
   },
   {
     path: '/admin/users',
     name: 'AdminUsers',
     component: () => import('./views/admin/UserControlView.vue'),
-    meta: { requiresAuth: true, requiresBuro: true, permission: 'page.admin.users' }
+    meta: { requiresAuth: true, permission: 'page.admin.users' }
   },
   {
     path: '/admin/blacklist',
     name: 'AdminBlacklist',
     component: () => import('./views/admin/BlacklistView.vue'),
-    meta: { requiresAuth: true, requiresBuro: true, permission: 'page.admin.blacklist' }
+    meta: { requiresAuth: true, permission: 'page.admin.blacklist' }
   },
   {
     path: '/admin/permission-groups',
     name: 'AdminPermissionGroups',
     component: () => import('./views/admin/AdminPermissionGroups.vue'),
-    meta: { requiresAuth: true, requiresBuro: true, permission: 'permission.audit.manage' }
+    meta: { requiresAuth: true, permission: 'permission.audit.manage' }
   },
   {
     path: '/admin/roles',
     name: 'AdminRoles',
     component: () => import('./views/admin/AdminRoles.vue'),
-    meta: { requiresAuth: true, requiresBuro: true, permission: 'permission.audit.manage' }
+    meta: { requiresAuth: true, permission: 'permission.audit.manage' }
   },
   {
     path: '/admin/access-denials',
     name: 'AccessDenialsLog',
     component: () => import('./views/admin/AccessDenialsLog.vue'),
-    meta: { requiresAuth: true, requiresBuro: true, permission: 'permission.audit.read' }
+    meta: { requiresAuth: true, permission: 'permission.audit.read' }
   },
-  // requiresBuro сохраняет текущий доступ супер-админа без правок бэкенда прав.
   {
     path: '/admin/organizations',
     name: 'AdminOrganizations',
     component: () => import('./views/admin/OrganizationsView.vue'),
-    meta: { requiresAuth: true, requiresBuro: true }
+    meta: { requiresAuth: true, permission: 'page.admin' }
   },
   {
     path: '/admin/companies',
     name: 'AdminCompanies',
     component: () => import('./views/admin/CompaniesView.vue'),
-    meta: { requiresAuth: true, requiresBuro: true }
+    meta: { requiresAuth: true, permission: 'page.admin' }
   },
   {
     path: '/admin/unload-places',
     name: 'AdminUnloadPlaces',
     component: () => import('./views/admin/UnloadPlacesView.vue'),
-    meta: { requiresAuth: true, requiresBuro: true }
+    meta: { requiresAuth: true, permission: 'page.admin' }
   },
   {
     path: '/admin/number-formats',
     name: 'AdminNumberFormats',
     component: () => import('./views/admin/NumberFormatsView.vue'),
-    meta: { requiresAuth: true, requiresBuro: true }
+    meta: { requiresAuth: true, permission: 'page.admin' }
   },
   {
     path: '/admin/citizenship',
     name: 'AdminCitizenship',
     component: () => import('./views/admin/CitizenshipView.vue'),
-    meta: { requiresAuth: true, requiresBuro: true }
+    meta: { requiresAuth: true, permission: 'page.admin' }
   },
   {
     path: '/admin/marks',
     name: 'AdminMarks',
     component: () => import('./views/admin/MarksView.vue'),
-    meta: { requiresAuth: true, requiresBuro: true }
+    meta: { requiresAuth: true, permission: 'page.admin' }
   },
   {
     path: '/admin/attachment-types',
     name: 'AdminAttachmentTypes',
     component: () => import('./views/admin/AttachmentTypesView.vue'),
-    meta: { requiresAuth: true, requiresBuro: true }
+    meta: { requiresAuth: true, permission: 'page.admin' }
   },
   {
     path: '/admin/user-types',
     name: 'AdminUserTypes',
     component: () => import('./views/admin/UserTypesView.vue'),
-    meta: { requiresAuth: true, requiresBuro: true }
+    meta: { requiresAuth: true, permission: 'page.admin' }
   },
   {
     path: '/admin/approvers',
     name: 'AdminApprovers',
     component: () => import('./views/admin/ApproversView.vue'),
-    meta: { requiresAuth: true, requiresBuro: true }
+    meta: { requiresAuth: true, permission: 'page.admin' }
   },
   {
     path: '/admin/documents',
     name: 'AdminDocuments',
     component: () => import('./views/admin/DocumentsView.vue'),
-    meta: { requiresAuth: true, requiresBuro: true, permission: 'page.admin' }
+    meta: { requiresAuth: true, permission: 'page.admin' }
   },
   {
     path: '/admin/news',
     name: 'AdminNews',
     component: () => import('./views/admin/NewsManagement.vue'),
-    meta: { requiresAuth: true, requiresBuro: true }
+    meta: { requiresAuth: true, permission: 'page.admin' }
   },
   {
     path: '/analytics',
     name: 'analytics',
     component: () => import('./views/StatisticsView.vue'),
-    meta: { requiresAuth: true, requiresBuro: true, permission: 'page.statistics' }
+    meta: { requiresAuth: true, permission: 'page.statistics' }
   },
   {
     path: '/500',
@@ -233,7 +242,7 @@ const routes = [
     path: '/admin/system-control',
     name: 'SystemControl',
     component: () => import('./views/admin/SystemControl.vue'),
-    meta: { requiresAuth: true, requiresBuro: true, permission: 'page.admin.system_control' }
+    meta: { requiresAuth: true, permission: 'page.admin.system_control' }
   },
   {
     path: '/403',
@@ -265,13 +274,13 @@ router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore();
   const maintenanceStore = useMaintenanceStore();
   const isAuthenticated = authStore.isAuthenticated;
-  const isBuroPropuskov = authStore.isSuperAdmin;
+  const isSuperAdmin = authStore.isSuperAdmin;
 
   // Maintenance: если режим включён и юзер не супер-админ - на /maintenance.
   // Сам /maintenance + /500 доступны всегда чтобы не зациклить.
   if (
     maintenanceStore.enabled
-    && !isBuroPropuskov
+    && !isSuperAdmin
     && to.name !== 'Maintenance'
     && to.name !== 'Error500'
   ) {
@@ -283,15 +292,11 @@ router.beforeEach(async (to, from, next) => {
     next('/');
     return;
   }
-  if (to.meta.requiresBuro && !isBuroPropuskov) {
-    next('/personal-cabinet');
-    return;
-  }
   // Гейт "Доступные мне": супер-админ проходит сразу; иначе резолвим код типа
   // пользователя (один раз, лениво) и пускаем только охранника. userTypeCode
   // приходит из /users/me - на F5 он ещё null, поэтому подгружаем до проверки.
   if (to.meta.requiresSecurityOrAdmin) {
-    if (!isBuroPropuskov && authStore.userTypeCode === null) {
+    if (!isSuperAdmin && authStore.userTypeCode === null) {
       await authStore.loadUserTypeCode();
     }
     if (!authStore.canViewAccessibleAttachments) {
@@ -306,13 +311,17 @@ router.beforeEach(async (to, from, next) => {
 
   // Permission polling (#187e): refresh permissions при stale-cache на любой
   // протектед-странице. Бан/изменение прав администратором заметится в
-  // течение 30s максимум.
+  // течение 30s максимум. meta.permission может быть функцией (to) => key
+  // (динамические table.<slug>.<verb>).
   if (isAuthenticated && (to.meta.requiresAuth || to.meta.permission)) {
     const { usePermissionsStore } = await import('@/stores/permissions');
     const store = usePermissionsStore();
     if (store.isStale) await store.fetchPermissions();
-    if (to.meta.permission && !store.hasPermission(to.meta.permission)) {
-      next({ name: 'Forbidden', query: { permission: to.meta.permission, from: to.fullPath } });
+    const requiredPermission = typeof to.meta.permission === 'function'
+      ? to.meta.permission(to)
+      : to.meta.permission;
+    if (requiredPermission && !store.hasPermission(requiredPermission)) {
+      next({ name: 'Forbidden', query: { permission: requiredPermission, from: to.fullPath } });
       return;
     }
   }
