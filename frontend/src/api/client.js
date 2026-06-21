@@ -1,5 +1,6 @@
 import { useAuthStore } from '@/stores/auth'
 import { useMaintenanceStore } from '@/stores/maintenance'
+import { useDeletionsStore } from '@/stores/deletions'
 import router from '@/router'
 import { buildBugContext, saveBugContext } from '@/composables/useBugReport'
 
@@ -8,6 +9,35 @@ import { buildBugContext, saveBugContext } from '@/composables/useBugReport'
 // location /api/ -> backend:8080.
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '') + '/api'
 const AUTH_ENDPOINTS = ['/login', '/refresh-token', '/logout']
+
+// Пути, на которых 403 не показывает уведомление: фоновые/ожидаемые запросы,
+// где 403 — штатный ответ (нет прав или сессия не авторизована).
+const SILENT_403_PREFIXES = [
+  '/permissions/my',
+  '/permissions/catalog',
+  '/users/me',
+  '/users/current',
+  '/unique-cars/lookup',
+  '/unique-employees/lookup',
+]
+
+// Дедупликация 403-уведомлений: одинаковый текст в окне TTL показывается один раз.
+const DEDUP_TTL_MS = 4000
+const _403dedup = new Map()
+
+/** @internal только для тестов */
+export function _resetDedup403() { _403dedup.clear() }
+
+function shouldSilence403(path) {
+  return SILENT_403_PREFIXES.some((p) => path === p || path.startsWith(p + '?') || path.startsWith(p + '/'))
+}
+
+function show403Notify(msg) {
+  if (_403dedup.has(msg)) return
+  _403dedup.set(msg, true)
+  setTimeout(() => _403dedup.delete(msg), DEDUP_TTL_MS)
+  useDeletionsStore().notify({ prefix: msg, type: 'error' })
+}
 
 let refreshPromise = null
 
@@ -141,20 +171,21 @@ async function baseRequest(path, options = {}) {
     return response
   }
 
-  // 403 Forbidden -- логируется в access_denials на бэке. Здесь показываем
-  // тост, но НЕ редиректим: вызывающий код сам решит как обработать
-  // (например, ApplicationsCenter может остаться на месте). Для GET-роутов
-  // прямой переход через router guard уже сработал бы раньше.
+  // 403 Forbidden -- логируется в access_denials на бэке. Показываем уведомление,
+  // но НЕ редиректим: вызывающий код сам решит как обработать.
+  // Тихий режим: опция silent403 или путь из списка фоновых/ожидаемых запросов.
   if (response.status === 403 && !isAuthEndpoint(path)) {
-    try {
-      const body = await response.clone().json();
-      const msg = body?.banned
-        ? 'Учётная запись заблокирована. Обратитесь к администратору.'
-        : 'Нет прав на это действие.';
-      const { useUiStore } = await import('@/stores/ui');
-      useUiStore().error(msg);
-    } catch {
-      // body может быть пустым/не json -- это OK
+    if (!options.silent403 && !shouldSilence403(path)) {
+      try {
+        const body = await response.clone().json()
+        const msg = body?.banned
+          ? 'Учётная запись заблокирована. Обратитесь к администратору.'
+          : 'Недостаточно прав для этого действия.'
+        show403Notify(msg)
+      } catch {
+        // body может быть пустым/не json -- показываем дефолтное сообщение
+        show403Notify('Недостаточно прав для этого действия.')
+      }
     }
     return response
   }
