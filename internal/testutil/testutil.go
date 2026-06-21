@@ -134,6 +134,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 		UploadAllowedDocTypes:   []string{"application/pdf"},
 		PaginationMaxLimit:      100,
 	})
+	userService.SetPasswordPolicyProvider(settingsService)
 
 	// Create maintenance service early so authHandler can get it.
 	maintenanceService := services.NewMaintenanceService(db)

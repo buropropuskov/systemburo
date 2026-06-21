@@ -545,3 +545,53 @@ func TestUsers_ManagerAlsoHasAdminAccess(t *testing.T) {
 	rec := testutil.GET(t, e, "/users/all", h)
 	assert.Equal(t, http.StatusOK, rec.Code)
 }
+
+func TestCreateUser_WeakPassword_Rejected(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(adminToken)
+
+	// Пароль без цифры при require_digit=true (дефолт) -> 400
+	body := fmt.Sprintf(`{"username":"weakpw","password":"passwordonly","type_id":1,"organization_id":%d}`, td.OrgID)
+	rec := testutil.POST(t, e, "/users", body, h)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+	// Слишком короткий пароль -> 400
+	body = fmt.Sprintf(`{"username":"weakpw2","password":"ab1","type_id":1,"organization_id":%d}`, td.OrgID)
+	rec = testutil.POST(t, e, "/users", body, h)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+	// Валидный пароль (буква + цифра, >= 8 символов) -> 200
+	body = fmt.Sprintf(`{"username":"strongpw","password":"password123","type_id":1,"organization_id":%d}`, td.OrgID)
+	rec = testutil.POST(t, e, "/users", body, h)
+	assert.Contains(t, []int{http.StatusOK, http.StatusCreated}, rec.Code)
+}
+
+func TestUpdatePassword_WeakPassword_Rejected(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(adminToken)
+
+	// Создаём целевого пользователя через DB (как в TestUsers_UpdatePassword)
+	testutil.RegisterUser(t, e, "pwpolicytarget", "password123", 1, td.OrgID, td.CompanyID)
+
+	// Слабый пароль (нет цифры) -> 400
+	rec := testutil.PUT(t, e, "/users/pwpolicytarget/password", `{"password":"weakpassword"}`, h)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+	// Слишком короткий -> 400
+	rec = testutil.PUT(t, e, "/users/pwpolicytarget/password", `{"password":"short1"}`, h)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+	// Валидный пароль -> 200
+	rec = testutil.PUT(t, e, "/users/pwpolicytarget/password", `{"password":"newpassword123"}`, h)
+	assert.Equal(t, http.StatusOK, rec.Code)
+}

@@ -41,6 +41,8 @@ type UserService interface {
 	// SetBanCache подключает кэш блокировок, чтобы архив/восстановление мгновенно
 	// сбрасывали его (офбординг без ожидания TTL). Опционально (может не вызываться).
 	SetBanCache(banCache *BanCheckService)
+	// SetPasswordPolicyProvider подключает источник политики паролей.
+	SetPasswordPolicyProvider(p PasswordPolicyProvider)
 
 	// GetUserUnloadPlaces возвращает активные места разгрузки, привязанные к охраннику.
 	GetUserUnloadPlaces(ctx context.Context, callerTypeID int, username string) ([]models.UnloadPlace, error)
@@ -52,11 +54,17 @@ type UserService interface {
 	SetUserTables(ctx context.Context, callerTypeID int, username string, req models.SetUserTablesRequest) error
 }
 
+// PasswordPolicyProvider отдаёт текущую политику паролей (реализуется SettingsService).
+type PasswordPolicyProvider interface {
+	GetPasswordPolicy() models.PasswordPolicy
+}
+
 type userService struct {
 	db                  *gorm.DB
 	notificationService NotificationService
 	history             UserHistoryService
 	banCache            *BanCheckService
+	policy              PasswordPolicyProvider
 }
 
 // NewUserService создаёт новый экземпляр сервиса управления пользователями.
@@ -76,6 +84,21 @@ func NewUserService(db *gorm.DB, notificationService NotificationService) UserSe
 // в main.go banCheckService создаётся позже userService).
 func (s *userService) SetBanCache(banCache *BanCheckService) {
 	s.banCache = banCache
+}
+
+// SetPasswordPolicyProvider подключает источник политики паролей (опционально,
+// после конструирования - settingsService в main.go создаётся позже userService).
+func (s *userService) SetPasswordPolicyProvider(p PasswordPolicyProvider) {
+	s.policy = p
+}
+
+// passwordPolicy возвращает активную политику, либо безопасный дефолт, если
+// провайдер не подключён (валидация НЕ отключается - это критичная проверка).
+func (s *userService) passwordPolicy() models.PasswordPolicy {
+	if s.policy != nil {
+		return s.policy.GetPasswordPolicy()
+	}
+	return models.DefaultPasswordPolicy()
 }
 
 // targetUserID резолвит id пользователя по username для записи в историю.
@@ -116,6 +139,10 @@ func (s *userService) Create(ctx context.Context, callerTypeID, callerUserID int
 
 	if req.OrganizationID <= 0 && req.CompanyID <= 0 {
 		return echo.NewHTTPError(http.StatusBadRequest, "Необходимо указать организацию или компанию (хотя бы одно)")
+	}
+
+	if err := ValidatePassword(s.passwordPolicy(), req.Password); err != nil {
+		return err
 	}
 
 	user := models.User{
@@ -229,6 +256,10 @@ func (s *userService) UpdateType(ctx context.Context, callerTypeID, callerUserID
 // сессии (возможно скомпрометированные) продолжили бы жить до истечения TTL.
 func (s *userService) UpdatePassword(ctx context.Context, callerTypeID, callerUserID int, username string, req models.UpdatePasswordRequest) error {
 	if err := s.checkAdmin(ctx, callerTypeID); err != nil {
+		return err
+	}
+
+	if err := ValidatePassword(s.passwordPolicy(), req.Password); err != nil {
 		return err
 	}
 
