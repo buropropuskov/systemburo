@@ -125,6 +125,22 @@ describe('AccessibleAttachmentsView (FE-S3)', () => {
     expect(cards[1].find('.attachment-card__org').text()).toBe('ООО Один');
   });
 
+  it('срок действия - в отдельном бейдже шапки, не в серой мете', async () => {
+    getAccessibleAttachments.mockResolvedValue({
+      items: [makeItem(1)],
+      meta: { total: 1 },
+    });
+    wrapper = mountView();
+    await flushPromises();
+
+    const card = wrapper.find('[data-testid="aa-card"]');
+    const dateBadge = card.find('[data-testid="aa-card-date"]');
+    expect(dateBadge.exists()).toBe(true);
+    expect(dateBadge.text()).toBe('01.06.2026 - 02.06.2026');
+    // Дата ушла из меты (там остаются номер и отправитель) - не дублируем.
+    expect(card.find('.attachment-card__meta').text()).not.toContain('01.06.2026');
+  });
+
   it('показывает пустое состояние без вложений', async () => {
     getAccessibleAttachments.mockResolvedValue({
       items: [],
