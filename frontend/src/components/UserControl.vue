@@ -660,6 +660,7 @@ import { useOrganizationsStore } from '@/stores/organizations';
 import { useCompaniesStore } from '@/stores/companies';
 import { formatRussianPhone } from '@/composables/useRussianPhoneMask'
 import { formatShortName } from '@/utils/formatName'
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import SearchComponent from './SearchComponent.vue';
 import RefreshButton from './RefreshButton.vue';
 import PasswordInput from './ui/PasswordInput.vue';
@@ -758,19 +759,14 @@ export default {
       return type?.code === 'security';
     },
     filteredUsers() {
-      const searchTerm = this.userSearch.toLowerCase();
+      const variants = buildSearchVariants(this.userSearch);
       return this.allUsers
         .filter(user => (this.showArchive ? user.is_active === false : user.is_active !== false))
-        .filter(user => {
-          return (
-            user.username.toLowerCase().includes(searchTerm) ||
-            (user.organization && user.organization.toLowerCase().includes(searchTerm)) ||
-            (user.company && user.company.toLowerCase().includes(searchTerm)) ||
-            (user.user_type && user.user_type.toLowerCase().includes(searchTerm)) ||
-            (user.position && user.position.toLowerCase().includes(searchTerm)) ||
-            (this.formatUserName(user).toLowerCase().includes(searchTerm))
-          );
-        })
+        .filter(user => matchesSearch(
+          `${user.username} ${user.organization || ''} ${user.company || ''} `
+          + `${user.user_type || ''} ${user.position || ''} ${this.formatUserName(user)}`,
+          variants,
+        ))
         .map(user => ({
           ...user,
           newPassword: '',

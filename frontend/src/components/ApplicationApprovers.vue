@@ -325,6 +325,7 @@ import ApplicationApproverHistoryModal from './ApplicationApproverHistoryModal.v
 import { useDeletionsStore } from '@/stores/deletions';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import { apiRequest } from '@/api/client';
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import { getApprovers, getAllUsers, addApprover, deleteApprover } from '@/api/approvers';
 
 export default {
@@ -356,10 +357,10 @@ export default {
   },
   computed: {
     filteredApprovers() {
-      const q = this.searchQuery.trim().toLowerCase();
+      const variants = buildSearchVariants(this.searchQuery);
       let list = this.approvers.filter(a => !this.pendingDeleteIds.includes(a.id));
-      if (q) {
-        list = list.filter(a => this.getFullName(a).toLowerCase().includes(q));
+      if (variants.length) {
+        list = list.filter(a => matchesSearch(this.getFullName(a), variants));
       }
       return list;
     },
@@ -394,15 +395,12 @@ export default {
       );
     },
     filteredAvailableUsers() {
-      const q = this.userSearchQuery.trim().toLowerCase();
-      if (!q) return this.availableUsers.slice(0, 10);
-      return this.availableUsers.filter(u => {
-        return (
-          this.getFullName(u).toLowerCase().includes(q) ||
-          u.username.toLowerCase().includes(q) ||
-          (u.position || '').toLowerCase().includes(q)
-        );
-      }).slice(0, 10);
+      const variants = buildSearchVariants(this.userSearchQuery);
+      if (!variants.length) return this.availableUsers.slice(0, 10);
+      return this.availableUsers.filter(u => matchesSearch(
+        `${this.getFullName(u)} ${u.username} ${u.position || ''}`,
+        variants,
+      )).slice(0, 10);
     },
   },
   created() {
