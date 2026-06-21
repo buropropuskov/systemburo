@@ -99,6 +99,24 @@ describe('AccessibleAttachmentsView (FE-S3)', () => {
     expect(wrapper.find('[data-testid="aa-empty"]').exists()).toBe(false);
   });
 
+  it('карточка: организация (+ компания) в шапке, название отдельной строкой', async () => {
+    getAccessibleAttachments.mockResolvedValue({
+      items: [
+        makeItem(1, { organization_name: 'ООО Ромашка', company_name: 'ЗАО Компания' }),
+        // org == company (заявка без отдельной организации) - дубль не показываем.
+        makeItem(2, { organization_name: 'ООО Один', company_name: 'ООО Один' }),
+      ],
+      meta: { total: 2 },
+    });
+    wrapper = mountView();
+    await flushPromises();
+
+    const cards = wrapper.findAll('[data-testid="aa-card"]');
+    expect(cards[0].find('.attachment-card__org').text()).toBe('ООО Ромашка / ЗАО Компания');
+    expect(cards[0].find('.attachment-card__name').text()).toContain('Вложение 1');
+    expect(cards[1].find('.attachment-card__org').text()).toBe('ООО Один');
+  });
+
   it('показывает пустое состояние без вложений', async () => {
     getAccessibleAttachments.mockResolvedValue({
       items: [],

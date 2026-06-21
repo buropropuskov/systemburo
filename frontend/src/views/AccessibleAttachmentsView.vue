@@ -108,51 +108,34 @@
               data-testid="aa-card"
               @click="selectAttachment(a.attachment_id)"
             >
-              <div class="attachment-card__top">
+              <div class="attachment-card__head">
                 <Badge
                   :variant="typeVariant(a.attachment_type)"
                   size="sm"
                 >
                   {{ typeLabel(a.attachment_type) }}
                 </Badge>
-                <span class="attachment-card__name">{{ displayName(a) }}</span>
+                <span class="attachment-card__org">{{ orgLine(a) }}</span>
                 <StatusBadge
                   v-if="statusText(a)"
                   class="attachment-card__status"
                   :status="statusText(a)"
                 />
               </div>
-              <div class="attachment-card__meta">
-                <span
-                  v-if="a.application_number"
-                  class="attachment-card__field"
-                >
-                  <span class="attachment-card__label">Заявка №</span>{{ a.application_number }}
-                </span>
-                <span
-                  v-if="a.organization_name"
-                  class="attachment-card__field"
-                >
-                  <span class="attachment-card__label">Организация:</span>{{ a.organization_name }}
-                </span>
-                <span
-                  v-if="senderName(a)"
-                  class="attachment-card__field"
-                >
-                  <span class="attachment-card__label">Отправитель:</span>{{ senderName(a) }}
-                </span>
-                <span
-                  v-if="dateRange(a)"
-                  class="attachment-card__field"
-                >
-                  <span class="attachment-card__label">Даты:</span>{{ dateRange(a) }}
-                </span>
-                <span
-                  v-if="a.places"
-                  class="attachment-card__field attachment-card__field--places"
-                >
-                  <span class="attachment-card__label">Места:</span>{{ a.places }}
-                </span>
+              <div class="attachment-card__name">
+                {{ displayName(a) }}
+              </div>
+              <div
+                v-if="metaLine(a)"
+                class="attachment-card__meta"
+              >
+                {{ metaLine(a) }}
+              </div>
+              <div
+                v-if="a.places"
+                class="attachment-card__places"
+              >
+                <span class="attachment-card__places-label">Места:</span> {{ a.places }}
               </div>
             </button>
 
@@ -372,6 +355,27 @@ function dateRange(a) {
   if (from) return `с ${from}`;
   if (to) return `по ${to}`;
   return '';
+}
+
+// Шапка карточки: организация - главный ориентир охранника. organization_name уже
+// COALESCE(орг, компания) от бэка; компанию добавляем второй, только если отличается,
+// иначе вышло бы "Ромашка / Ромашка" для заявок без отдельной организации.
+function orgLine(a) {
+  const org = a.organization_name || '';
+  const company = a.company_name || '';
+  if (org && company && org !== company) return `${org} / ${company}`;
+  return org || company || 'Без организации';
+}
+
+// Компактная строка меты под названием: номер, отправитель, даты через разделитель.
+function metaLine(a) {
+  const parts = [];
+  if (a.application_number) parts.push(`№ ${a.application_number}`);
+  const sender = senderName(a);
+  if (sender) parts.push(sender);
+  const dates = dateRange(a);
+  if (dates) parts.push(dates);
+  return parts.join(' · ');
 }
 
 function buildParams() {
@@ -633,15 +637,16 @@ onBeforeUnmount(() => clearTimeout(searchTimer));
 .attachment-card {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 5px;
   width: 100%;
   text-align: left;
   padding: 12px 14px;
-  background: #f9f9f9;
+  background: #fff;
   border: 1px solid #e6e6e6;
   border-radius: 15px;
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(16, 24, 40, 0.06));
   cursor: pointer;
-  transition: border-color 0.2s ease, background-color 0.2s ease, transform 0.2s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
   animation: card-in 0.3s ease-out forwards;
   opacity: 0;
   transform: translateY(10px);
@@ -654,27 +659,30 @@ onBeforeUnmount(() => clearTimeout(searchTimer));
 
 .attachment-card:hover {
   border-color: #4F5BDF;
-  background: #f8f9ff;
+  box-shadow: 0 3px 10px rgba(79, 91, 223, 0.15);
 }
 
 .attachment-card--active {
   border-color: #4F5BDF;
-  background: #f0f2ff;
+  background: #f5f6ff;
+  box-shadow: 0 3px 10px rgba(79, 91, 223, 0.18);
 }
 
-.attachment-card__top {
+.attachment-card__head {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
 }
 
-.attachment-card__name {
-  font-weight: 600;
-  color: #333;
-  font-size: 15px;
+.attachment-card__org {
   flex: 1;
   min-width: 0;
+  font-weight: 700;
+  font-size: 14.5px;
+  color: #1a1a1a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .attachment-card__status {
@@ -682,27 +690,31 @@ onBeforeUnmount(() => clearTimeout(searchTimer));
   min-width: auto;
 }
 
-.attachment-card__meta {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  font-size: 13px;
-  color: #333;
-}
-
-.attachment-card__field {
+.attachment-card__name {
+  font-weight: 600;
+  font-size: 14px;
+  color: #4F5BDF;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.attachment-card__field--places {
-  white-space: normal;
+.attachment-card__meta {
+  font-size: 12.5px;
+  color: #8a8a8a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.attachment-card__label {
+.attachment-card__places {
+  font-size: 12.5px;
+  color: #555;
+  line-height: 1.35;
+}
+
+.attachment-card__places-label {
   color: #a2a2a2;
-  margin-right: 5px;
 }
 
 .load-more {
@@ -754,40 +766,47 @@ onBeforeUnmount(() => clearTimeout(searchTimer));
 }
 
 .application-block {
-  background: #f9f9f9;
+  background: #fff;
   border: 1px solid #e6e6e6;
-  border-radius: 20px;
-  padding: 15px;
+  border-radius: 16px;
+  padding: 16px 18px;
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(16, 24, 40, 0.06));
 }
 
 .application-block__title {
-  margin: 0 0 12px 0;
-  font-size: 16px;
+  margin: 0 0 14px 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #eee;
+  font-size: 15px;
   font-weight: 700;
   color: #4F5BDF;
 }
 
 .application-block__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 12px 24px;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 14px 20px;
 }
 
 .application-block__row {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
+  min-width: 0;
   font-size: 14px;
 }
 
 .application-block__label {
   color: #a2a2a2;
   font-weight: 400;
+  font-size: 12.5px;
 }
 
 .application-block__value {
-  color: #000;
-  font-size: 15px;
+  color: #1a1a1a;
+  font-size: 14.5px;
+  font-weight: 500;
+  word-break: break-word;
 }
 
 .detail-loading {
