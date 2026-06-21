@@ -982,7 +982,7 @@ export default {
     border-radius: 50px;
     padding: 0;
     padding-bottom: 15px;
-    width: 520px;
+    width: 550px;
     height: 450px;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
     display: flex;
