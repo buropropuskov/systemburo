@@ -196,7 +196,7 @@ func TestUserBanService_BanRevokesRefreshTokens(t *testing.T) {
 	}
 	defer db.Delete(&rt)
 
-	if err := banSvc.Ban(context.Background(), targetID, actorID); err != nil {
+	if err := banSvc.Ban(context.Background(), targetID, actorID, ""); err != nil {
 		t.Fatalf("ban: %v", err)
 	}
 
@@ -221,7 +221,7 @@ func TestUserBanService_CannotBanSelf(t *testing.T) {
 	userID, _, cleanup := setupMWUser(t, db, true, false)
 	defer cleanup()
 
-	err := banSvc.Ban(context.Background(), userID, userID)
+	err := banSvc.Ban(context.Background(), userID, userID, "")
 	if err == nil {
 		t.Error("expected error when banning self")
 	}
@@ -237,7 +237,7 @@ func TestUserBanService_CannotBanSuperAdmin(t *testing.T) {
 	actorID, _, cleanupActor := setupMWUser(t, db, true, false)
 	defer cleanupActor()
 
-	err := banSvc.Ban(context.Background(), targetID, actorID)
+	err := banSvc.Ban(context.Background(), targetID, actorID, "")
 	if err == nil {
 		t.Error("expected error when banning super-admin")
 	}
@@ -346,7 +346,7 @@ func TestBanCheck_InvalidationAfterBanReflectsImmediately(t *testing.T) {
 	}
 
 	// 2. Баним - должен инвалидировать кэш.
-	if err := banSvc.Ban(context.Background(), targetID, actorID); err != nil {
+	if err := banSvc.Ban(context.Background(), targetID, actorID, ""); err != nil {
 		t.Fatalf("ban: %v", err)
 	}
 

@@ -159,8 +159,11 @@ export async function archiveAccessDenials(cutoff) {
 
 // --- Ban (#230) ---
 
-export async function banUser(userId) {
-  const res = await apiRequest(`/users/${userId}/ban`, { method: 'POST' });
+export async function banUser(userId, reason = '') {
+  const res = await apiRequest(`/users/${userId}/ban`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  });
   return res.json();
 }
 

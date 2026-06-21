@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"systemburo/internal/models"
@@ -30,7 +31,8 @@ func NewUserBanService(db *gorm.DB, resolver *PermissionResolver, banCache *BanC
 
 // Ban блокирует пользователя и отзывает его активные refresh-токены.
 // Запрещено блокировать самого себя и super-admin (защита от самоудаления).
-func (s *UserBanService) Ban(ctx context.Context, targetUserID, actorUserID int) error {
+// reason -- причина блокировки (показывается заблокированному в ЛК); пустая -> NULL.
+func (s *UserBanService) Ban(ctx context.Context, targetUserID, actorUserID int, reason string) error {
 	if targetUserID == actorUserID {
 		return fmt.Errorf("cannot ban yourself")
 	}
@@ -42,13 +44,19 @@ func (s *UserBanService) Ban(ctx context.Context, targetUserID, actorUserID int)
 		return echo.NewHTTPError(http.StatusForbidden, "Нельзя заблокировать супер-администратора")
 	}
 
+	var banReason *string
+	if trimmed := strings.TrimSpace(reason); trimmed != "" {
+		banReason = &trimmed
+	}
+
 	now := time.Now()
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&models.User{}).Where("id = ?", targetUserID).
 			Updates(map[string]any{
-				"is_banned": true,
-				"banned_at": now,
-				"banned_by": actorUserID,
+				"is_banned":  true,
+				"banned_at":  now,
+				"banned_by":  actorUserID,
+				"ban_reason": banReason,
 			}).Error; err != nil {
 			return fmt.Errorf("update user: %w", err)
 		}
@@ -75,9 +83,10 @@ func (s *UserBanService) Ban(ctx context.Context, targetUserID, actorUserID int)
 func (s *UserBanService) Unban(ctx context.Context, targetUserID int) error {
 	if err := s.db.WithContext(ctx).Model(&models.User{}).Where("id = ?", targetUserID).
 		Updates(map[string]any{
-			"is_banned": false,
-			"banned_at": nil,
-			"banned_by": nil,
+			"is_banned":  false,
+			"banned_at":  nil,
+			"banned_by":  nil,
+			"ban_reason": nil,
 		}).Error; err != nil {
 		return fmt.Errorf("unban: %w", err)
 	}
