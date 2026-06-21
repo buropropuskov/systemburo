@@ -71,7 +71,7 @@
             :rows="3"
             placeholder="Введите сопроводительное письмо / сообщение"
           />
-          <!-- Согласие и отправка — зафиксированы отдельной строкой под тулбаром, не переносятся -->
+          <!-- Согласие и отправка — правая колонка шапки, рядом с полем сообщения -->
           <div class="form__submit-bar">
             <div class="consent-section">
               <div class="consent-checkbox">
@@ -2349,8 +2349,7 @@ export default {
     }
 
     .create__form {
-        width: 75%;
-        max-width: 850px;
+        width: 100%;
         height: fit-content;
         background-color: #FFF;
         border: 1px solid #e6e6e6;
@@ -2358,17 +2357,20 @@ export default {
         box-shadow: 0 3px 10px rgba(0,0,0,0.05);
     }
 
+    /* Шапка - две колонки: поле сообщения слева, согласие + отправка справа */
     .form__header {
         width: 100%;
         border-bottom: 1px solid #e6e6e6;
         padding: 15px;
         display: flex;
-        flex-direction: column;
-        gap: 12px;
+        align-items: flex-start;
+        gap: 16px;
     }
 
     .create__form .form__message-tc {
-        width: 100%;
+        flex: 1 1 75%;
+        max-width: 850px;
+        min-width: 0;
         margin-bottom: 0;
         border-radius: 30px;
     }
@@ -2381,25 +2383,24 @@ export default {
         padding: 0 6px;
     }
 
-    /* Блок согласия+кнопка отправки — всегда отдельная строка под тулбаром */
+    /* Согласие + кнопка отправки — правая колонка шапки рядом с полем сообщения */
     .form__submit-bar {
+        flex: 1 1 25%;
+        min-width: 240px;
         display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        padding-top: 4px;
-        border-top: 1px solid #e6e6e6;
+        flex-direction: column;
+        gap: 12px;
     }
 
     .consent-section {
         display: flex;
-        align-items: center;
-        gap: 16px;
+        flex-direction: column;
+        gap: 12px;
     }
 
     .consent-checkbox {
         display: flex;
         gap: 10px;
-        max-width: 350px;
     }
 
     .consent-checkbox input[type="checkbox"] {
@@ -2418,7 +2419,8 @@ export default {
 
     .submit-button-container {
         position: relative;
-        display: inline-block;
+        display: block;
+        width: 100%;
     }
 
     .submit-tooltip {
@@ -2502,7 +2504,7 @@ export default {
         font-size: 12px;
         cursor: pointer;
         transition: background-color 0.2s;
-        width: fit-content;
+        width: 100%;
         flex-shrink: 0;
         height: fit-content;
     }
@@ -2592,15 +2594,21 @@ export default {
         .form__header {
             height: auto;
             padding: 12px;
+            flex-direction: column;
+        }
+
+        .create__form .form__message-tc {
+            flex-basis: auto;
+            max-width: none;
+            width: 100%;
         }
 
         .form__submit-bar {
-            justify-content: stretch;
+            min-width: 0;
         }
 
         .consent-section {
             width: 100%;
-            flex-wrap: wrap;
         }
 
         .form__textarea {
