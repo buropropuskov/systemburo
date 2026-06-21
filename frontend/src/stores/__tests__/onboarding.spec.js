@@ -3,6 +3,7 @@ import { setActivePinia, createPinia } from 'pinia';
 import { useOnboardingStore } from '../onboarding';
 import { useAuthStore } from '../auth';
 import { onboardingSteps, ONBOARDING_VERSION } from '@/components/onboarding/onboardingSteps';
+import { securityOnboardingSteps } from '@/components/onboarding/securityOnboardingSteps';
 import { getOnboardingStatus, markOnboardingComplete } from '@/api/onboarding';
 
 vi.mock('@/api/onboarding', () => ({
@@ -97,6 +98,35 @@ describe('onboarding store', () => {
     it('равен длине onboardingSteps', () => {
       const store = useOnboardingStore();
       expect(store.totalSteps).toBe(onboardingSteps.length);
+    });
+  });
+
+  describe('ветвление сценария по типу пользователя', () => {
+    it('обычный пользователь получает applicant-тур', () => {
+      const auth = useAuthStore();
+      auth.userTypeCode = 'organization';
+      const store = useOnboardingStore();
+      expect(store.steps).toBe(onboardingSteps);
+      expect(store.totalSteps).toBe(onboardingSteps.length);
+    });
+
+    it('охранник (isSecurity) получает security-тур', () => {
+      const auth = useAuthStore();
+      auth.userTypeCode = 'security';
+      const store = useOnboardingStore();
+      expect(auth.isSecurity).toBe(true);
+      expect(store.steps).toBe(securityOnboardingSteps);
+      expect(store.currentStep).toBe(securityOnboardingSteps[0]);
+    });
+
+    it('смена типа пользователя реактивно переключает набор шагов в обе стороны', () => {
+      const auth = useAuthStore();
+      const store = useOnboardingStore();
+      expect(store.steps).toBe(onboardingSteps);
+      auth.userTypeCode = 'security';
+      expect(store.steps).toBe(securityOnboardingSteps);
+      auth.userTypeCode = 'organization';
+      expect(store.steps).toBe(onboardingSteps);
     });
   });
 
