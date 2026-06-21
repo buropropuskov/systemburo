@@ -10,10 +10,13 @@ const UNLOAD_PLACES = [
   { id: 3, name: 'Склад 3' },
 ];
 
+// /system-tables отдаёт элементы в обёртке { table: {...} } поверх envelope -
+// именно так, как боевой бэк (а не плоско). Раньше мок был плоским и пропустил баг
+// "Без названия" в местах прохода.
 const SYSTEM_TABLES = [
-  { id: 10, display_name: 'КПП Север', table_type: 'people' },
-  { id: 11, display_name: 'Гараж', table_type: 'cars' },
-  { id: 12, display_name: 'КПП Юг', table_type: 'people' },
+  { table: { id: 10, name: 'kpp_north', display_name: 'КПП Север', table_type: 'people' } },
+  { table: { id: 11, name: 'garage', display_name: 'Гараж', table_type: 'cars' } },
+  { table: { id: 12, name: 'kpp_south', display_name: 'КПП Юг', table_type: 'people' } },
 ];
 
 const notify = vi.fn();
@@ -69,6 +72,13 @@ describe('UserAccessPlacesModal (#706 FE-S5)', () => {
     const items = wrapper.findAll('.place-item');
     expect(items).toHaveLength(5);
     expect(wrapper.findAll('.place-item.selected')).toHaveLength(2);
+
+    // Места прохода показывают реальные имена из обёртки { table: {...} },
+    // а не "Без названия" (баг до снятия double-wrap в fetchAllTables).
+    const text = wrapper.text();
+    expect(text).toContain('КПП Север');
+    expect(text).toContain('КПП Юг');
+    expect(text).not.toContain('Без названия');
   });
 
   it('Сохранить заблокировано без изменений и разблокируется после toggle', async () => {
