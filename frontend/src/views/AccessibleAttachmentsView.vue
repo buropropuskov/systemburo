@@ -116,6 +116,13 @@
                   {{ typeLabel(a.attachment_type) }}
                 </Badge>
                 <span class="attachment-card__org">{{ orgLine(a) }}</span>
+                <span
+                  v-if="dateRange(a)"
+                  class="attachment-card__date"
+                  data-testid="aa-card-date"
+                >
+                  {{ dateRange(a) }}
+                </span>
                 <StatusBadge
                   v-if="statusText(a)"
                   class="attachment-card__status"
@@ -422,13 +429,13 @@ function orgLine(a) {
 }
 
 // Компактная строка меты под названием: номер, отправитель, даты через разделитель.
+// Даты сюда не кладём: срок действия вынесен в отдельный контрастный бейдж шапки
+// (рядом со статусом), чтобы читался чётко, а не терялся в серой мете.
 function metaLine(a) {
   const parts = [];
   if (a.application_number) parts.push(`№ ${a.application_number}`);
   const sender = senderName(a);
   if (sender) parts.push(sender);
-  const dates = dateRange(a);
-  if (dates) parts.push(dates);
   return parts.join(' · ');
 }
 
@@ -749,17 +756,36 @@ onBeforeUnmount(() => clearTimeout(searchTimer));
 .attachment-card__head {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
+/* min-width держит организацию читаемой: на узкой карточке (открыта деталь, 40%)
+   дата и статус переносятся на вторую строку, а не сжимают организацию в ничто. */
 .attachment-card__org {
   flex: 1;
-  min-width: 0;
+  min-width: 90px;
   font-weight: 700;
   font-size: 14.5px;
   color: #1a1a1a;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Срок действия: контрастный бейдж (тёмный текст на белом + обводка), чтобы дата
+   читалась чётко рядом со статусом, а не терялась в серой мете. */
+.attachment-card__date {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid #d0d0d0;
+  color: #1a1a1a;
+  font-size: 12px;
+  font-weight: 600;
   white-space: nowrap;
 }
 
