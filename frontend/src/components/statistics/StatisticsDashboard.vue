@@ -10,7 +10,7 @@
       </div>
 
       <div
-        v-if="summaryLoading"
+        v-if="summaryLoading && !summaryReady"
         class="dashboard__tiles"
       >
         <div
@@ -47,7 +47,9 @@
               aria-hidden="true"
             />
           </div>
-          <div class="dashboard__tile-val">{{ fmt(tile.value) }}</div>
+          <div class="dashboard__tile-val">
+            <AnimatedNumber :value="tile.value" />
+          </div>
           <div
             v-if="tile.comparison || tile.trend"
             class="dashboard__tile-insight"
@@ -135,7 +137,7 @@
       </div>
 
       <div
-        v-if="summaryLoading"
+        v-if="summaryLoading && !summaryReady"
         class="dashboard__tiles"
       >
         <div
@@ -162,7 +164,9 @@
           class="dashboard__tile"
         >
           <div class="dashboard__tile-label">{{ item.label }}</div>
-          <div class="dashboard__tile-val">{{ fmt(item.count) }}</div>
+          <div class="dashboard__tile-val">
+            <AnimatedNumber :value="item.count" />
+          </div>
         </div>
       </div>
     </div>
@@ -176,7 +180,7 @@
       </div>
 
       <div
-        v-if="summaryLoading"
+        v-if="summaryLoading && !summaryReady"
         class="dashboard__tiles"
       >
         <div
@@ -200,19 +204,27 @@
           @keydown.space.prevent="openOnlineUsers"
         >
           <div class="dashboard__tile-label">Пользователей онлайн</div>
-          <div class="dashboard__tile-val">{{ fmt(summary.users_online) }}</div>
+          <div class="dashboard__tile-val">
+            <AnimatedNumber :value="summary.users_online" />
+          </div>
         </div>
         <div class="dashboard__tile">
           <div class="dashboard__tile-label">Пользователи</div>
-          <div class="dashboard__tile-val">{{ fmt(summary.active_users) }}</div>
+          <div class="dashboard__tile-val">
+            <AnimatedNumber :value="summary.active_users" />
+          </div>
         </div>
         <div class="dashboard__tile">
           <div class="dashboard__tile-label">Заблокировано</div>
-          <div class="dashboard__tile-val">{{ fmt(summary.banned_users) }}</div>
+          <div class="dashboard__tile-val">
+            <AnimatedNumber :value="summary.banned_users" />
+          </div>
         </div>
         <div class="dashboard__tile">
           <div class="dashboard__tile-label">Открытых обращений</div>
-          <div class="dashboard__tile-val">{{ fmt(summary.open_feedback) }}</div>
+          <div class="dashboard__tile-val">
+            <AnimatedNumber :value="summary.open_feedback" />
+          </div>
         </div>
       </div>
     </div>
@@ -251,7 +263,7 @@
       </div>
 
       <div
-        v-if="timelineLoading"
+        v-if="timelineLoading && !timelineReady"
         class="dashboard__chart-skeleton"
       />
       <AnalyticsAreaChart
@@ -274,7 +286,7 @@
       </div>
 
       <div
-        v-if="onlinePeaksLoading"
+        v-if="onlinePeaksLoading && !onlinePeaksReady"
         class="dashboard__chart-skeleton"
       />
       <AnalyticsAreaChart
@@ -296,7 +308,7 @@
       </div>
 
       <div
-        v-if="insightsLoading"
+        v-if="insightsLoading && !insightsReady"
         class="dashboard__tops"
       >
         <div
@@ -449,6 +461,7 @@ import AnalyticsBarChart from '@/components/statistics/AnalyticsBarChart.vue';
 import DirIcon from '@/components/statistics/DirIcon.vue';
 import TrendSparkline from '@/components/statistics/TrendSparkline.vue';
 import TopList from '@/components/statistics/TopList.vue';
+import AnimatedNumber from '@/components/statistics/AnimatedNumber.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import OnlineUsersModal from '@/components/statistics/OnlineUsersModal.vue';
 import { getSummary, getTimeline, getRecentPassages, getInsights, getOnlinePeaks, getOnlineUsers } from '@/api/statistics.js';
@@ -466,8 +479,12 @@ const props = defineProps({
 });
 
 // ---- состояние данных ----
+// *Ready-флаги: скелетон показываем только до первой загрузки источника. При смене
+// периода контент остаётся на месте (числа count-up, графики морфят серию),
+// а не мигает скелетоном - убирает "дёрганье" при перезагрузке (фидбэк #632).
 const summary = ref({});
 const summaryLoading = ref(false);
+const summaryReady = ref(false);
 
 // Инсайты обогащают карточки группы «Данные»: сравнение с прошлым периодом
 // (дельта/направление), тренд по дням (спарклайн) и профиль пика по часам.
@@ -476,6 +493,7 @@ const summaryLoading = ref(false);
 // top_places/top_orgs питают секцию «Топ за период» (лидерборды).
 const insights = reactive({ comparisons: [], trends: [], peak_hours: [], top_places: [], top_orgs: [] });
 const insightsLoading = ref(false);
+const insightsReady = ref(false);
 
 // Метрика развёрнутой карточки (ключ инсайта) либо null — раскрывает детальные
 // графики под сеткой «Данные». Клик по той же карточке сворачивает.
@@ -485,10 +503,12 @@ const timeline = ref([]);
 // Датированный тренд развёрнутой карточки — отдельно от серии инсайта (та без дат).
 const detailTimeline = ref([]);
 const timelineLoading = ref(false);
+const timelineReady = ref(false);
 
 // Дневные пики онлайна за период (area-график под основным графиком).
 const onlinePeaks = ref([]);
 const onlinePeaksLoading = ref(false);
+const onlinePeaksReady = ref(false);
 
 // Модалка «кто онлайн» по клику на плитку «Пользователей онлайн».
 const onlineModalOpen = ref(false);
@@ -621,11 +641,6 @@ const expandedDetail = computed(() => {
 });
 
 // ---- форматирование ----
-function fmt(val) {
-  if (val == null) return '—';
-  return Number(val).toLocaleString('ru-RU');
-}
-
 function deltaText(pct) {
   // Бэкенд округляет до 1 знака, но JSON->Number может дать хвост (16.700000003) —
   // повторно округляем, чтобы не показать артефакт.
@@ -689,7 +704,10 @@ async function loadSummary() {
     if (seq !== summarySeq) return;
     summary.value = {};
   } finally {
-    if (seq === summarySeq) summaryLoading.value = false;
+    if (seq === summarySeq) {
+      summaryLoading.value = false;
+      summaryReady.value = true;
+    }
   }
 }
 
@@ -714,7 +732,10 @@ async function loadInsights() {
     insights.top_places = [];
     insights.top_orgs = [];
   } finally {
-    if (seq === insightsSeq) insightsLoading.value = false;
+    if (seq === insightsSeq) {
+      insightsLoading.value = false;
+      insightsReady.value = true;
+    }
   }
 }
 
@@ -730,7 +751,10 @@ async function loadOnlinePeaks() {
     if (seq !== onlinePeaksSeq) return;
     onlinePeaks.value = [];
   } finally {
-    if (seq === onlinePeaksSeq) onlinePeaksLoading.value = false;
+    if (seq === onlinePeaksSeq) {
+      onlinePeaksLoading.value = false;
+      onlinePeaksReady.value = true;
+    }
   }
 }
 
@@ -750,7 +774,10 @@ async function loadTimeline() {
     if (seq !== timelineSeq) return;
     timeline.value = [];
   } finally {
-    if (seq === timelineSeq) timelineLoading.value = false;
+    if (seq === timelineSeq) {
+      timelineLoading.value = false;
+      timelineReady.value = true;
+    }
   }
 }
 
