@@ -326,7 +326,17 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 			)
 		)`
 
-		fullCond := baseCond + " OR " + carSubquery + " OR " + empSubquery + " OR " + upSubquery + " OR " + apprSubquery
+		// --- вложения: работы (items) ---
+		// Наименование работ в items-вложениях ("Заявка на работы") хранится в items.name.
+		itemCond, itemArgs := ilikePatternsArgs([]string{"it.name"}, variants)
+		itemSubquery := `EXISTS(
+			SELECT 1 FROM attachments att5
+			JOIN items it ON it.attachment_id = att5.id
+			WHERE att5.application_id = a.id AND (` + itemCond + `)
+		)`
+
+		fullCond := baseCond + " OR " + carSubquery + " OR " + empSubquery +
+			" OR " + upSubquery + " OR " + apprSubquery + " OR " + itemSubquery
 
 		allArgs := baseArgs
 		allArgs = append(allArgs, carNumArgs...)
@@ -338,6 +348,7 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 		allArgs = append(allArgs, upArgs...)
 		allArgs = append(allArgs, apprIlikeArgs...)
 		allArgs = append(allArgs, raw) // для word_similarity согласующих
+		allArgs = append(allArgs, itemArgs...)
 
 		query = query.Where(fullCond, allArgs...)
 	}
