@@ -5,11 +5,11 @@ import { nextTick } from 'vue';
 // Управляемое состояние моков: фабрика vi.mock поднимается над импортами,
 // поэтому summary/deferred выносим в hoisted.
 const { state } = vi.hoisted(() => ({
-  state: { deferred: [], onlineDeferred: [], summary: {}, insights: {}, onlinePeaks: [], insightsHang: false },
+  state: { deferred: [], onlineDeferred: [], summary: {}, insights: {}, onlinePeaks: [], insightsHang: false, summaryReject: false },
 }));
 
 vi.mock('@/api/statistics.js', () => ({
-  getSummary: () => Promise.resolve(state.summary),
+  getSummary: () => (state.summaryReject ? Promise.reject(new Error('net')) : Promise.resolve(state.summary)),
   getRecentPassages: () => Promise.resolve({ people: [], cars: [] }),
   getTimeline: () => new Promise((resolve) => { state.deferred.push(resolve); }),
   // insightsHang оставляет промис вечно pending — для проверки состояния загрузки.
@@ -40,6 +40,7 @@ beforeEach(() => {
   state.insights = {};
   state.onlinePeaks = [];
   state.insightsHang = false;
+  state.summaryReject = false;
 });
 
 describe('StatisticsDashboard — гонка таймлайна', () => {
@@ -364,5 +365,65 @@ describe('StatisticsDashboard — динамика онлайна', () => {
       { timestamp: '2026-06-01', count: 4 },
       { timestamp: '2026-06-02', count: 9 },
     ]);
+  });
+});
+
+describe('StatisticsDashboard — плавная перезагрузка без мигания', () => {
+  it('первичная загрузка таймлайна показывает скелетон графика', async () => {
+    const wrapper = mountDashboard();
+    await flushPromises(); // summary/insights/онлайн готовы; таймлайн в полёте (deferred[0])
+
+    expect(wrapper.find('.dashboard__chart-skeleton').exists()).toBe(true);
+  });
+
+  it('смена периода не возвращает скелетон графика — он остаётся смонтированным', async () => {
+    const wrapper = mountDashboard();
+    await flushPromises();
+    state.deferred[0]([{ date: '2026-06-01', count: 5 }]);
+    await flushPromises();
+
+    expect(wrapper.find('.dashboard__chart-skeleton').exists()).toBe(false);
+    expect(wrapper.findComponent(AnalyticsAreaChart).exists()).toBe(true);
+
+    // Новый период -> таймлайн снова в полёте, но без мигания скелетоном.
+    await wrapper.setProps({ from: '2026-05-01', to: '2026-05-07' });
+    await nextTick();
+
+    expect(state.deferred.length).toBeGreaterThanOrEqual(2);
+    expect(wrapper.find('.dashboard__chart-skeleton').exists()).toBe(false);
+    expect(wrapper.findComponent(AnalyticsAreaChart).exists()).toBe(true);
+  });
+
+  it('смена периода не возвращает скелетоны плиток — значения остаются на месте', async () => {
+    state.summary = { total_applications: 5 };
+    const wrapper = mountDashboard();
+    await flushPromises();
+    expect(wrapper.findAll('.dashboard__tile--skeleton')).toHaveLength(0);
+
+    await wrapper.setProps({ from: '2026-05-01', to: '2026-05-07' });
+    await nextTick();
+
+    expect(wrapper.findAll('.dashboard__tile--skeleton')).toHaveLength(0);
+    expect(tileByText(wrapper, 'Получено заявок')).toBeTruthy();
+  });
+
+  it('значение плитки рендерится через AnimatedNumber и отформатировано', async () => {
+    state.summary = { total_applications: 1234 };
+    const wrapper = mountDashboard();
+    await flushPromises();
+
+    const tile = tileByText(wrapper, 'Получено заявок');
+    expect(tile.text()).toContain((1234).toLocaleString('ru-RU'));
+  });
+
+  it('ошибка первичной загрузки убирает скелетон (не зависает на нём навсегда)', async () => {
+    state.summaryReject = true;
+    const wrapper = mountDashboard();
+    await flushPromises();
+
+    // summaryReady встал в finally даже при reject -> скелетон не висит вечно.
+    expect(wrapper.findAll('.dashboard__tile--skeleton')).toHaveLength(0);
+    // Плитки группы «Данные» рендерятся с прочерками вместо чисел.
+    expect(tileByText(wrapper, 'Получено заявок')).toBeTruthy();
   });
 });
