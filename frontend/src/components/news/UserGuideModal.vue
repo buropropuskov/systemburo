@@ -1,107 +1,110 @@
 <template>
   <Teleport to="body">
-    <div
-      class="modal-overlay"
-      role="dialog"
-      aria-modal="true"
-      :aria-labelledby="titleId"
-      @click.self="close"
-    >
-      <div class="guide-modal">
-        <header class="guide-modal__header">
-          <h2
-            :id="titleId"
-            class="guide-modal__title"
-          >
-            {{ title }}
-          </h2>
-          <button
-            type="button"
-            class="guide-modal__close"
-            aria-label="Закрыть"
-            @click="close"
-          >
-            ×
-          </button>
-        </header>
+    <transition name="modal-fade">
+      <div
+        v-if="show"
+        class="modal-overlay"
+        role="dialog"
+        aria-modal="true"
+        :aria-labelledby="titleId"
+        @click.self="close"
+      >
+        <div class="guide-modal">
+          <header class="guide-modal__header">
+            <h2
+              :id="titleId"
+              class="guide-modal__title"
+            >
+              {{ title }}
+            </h2>
+            <button
+              type="button"
+              class="guide-modal__close"
+              aria-label="Закрыть"
+              @click="close"
+            >
+              ×
+            </button>
+          </header>
 
-        <div class="guide-modal__body">
-          <nav
-            class="guide-modal__sidebar"
-            aria-label="Разделы руководства"
-          >
-            <ul>
-              <li
-                v-for="section in sections"
-                :key="section.id"
-              >
-                <button
-                  type="button"
-                  class="guide-modal__nav-link"
-                  :class="{ active: active === section.id }"
-                  @click="active = section.id"
-                >
-                  <span class="guide-modal__nav-step">{{ section.step }}</span>
-                  <span>{{ section.title }}</span>
-                </button>
-              </li>
-            </ul>
-          </nav>
-
-          <article class="guide-modal__content">
-            <h3 class="guide-modal__section-title">
-              {{ currentSection.title }}
-            </h3>
-            <div class="guide-modal__section-body">
-              <p
-                v-for="(p, i) in currentSection.paragraphs"
-                :key="i"
-              >
-                {{ p }}
-              </p>
-              <ol
-                v-if="currentSection.steps && currentSection.steps.length"
-                class="guide-modal__steps"
-              >
+          <div class="guide-modal__body">
+            <nav
+              class="guide-modal__sidebar"
+              aria-label="Разделы руководства"
+            >
+              <ul>
                 <li
-                  v-for="(step, i) in currentSection.steps"
+                  v-for="section in sections"
+                  :key="section.id"
+                >
+                  <button
+                    type="button"
+                    class="guide-modal__nav-link"
+                    :class="{ active: active === section.id }"
+                    @click="active = section.id"
+                  >
+                    <span class="guide-modal__nav-step">{{ section.step }}</span>
+                    <span>{{ section.title }}</span>
+                  </button>
+                </li>
+              </ul>
+            </nav>
+
+            <article class="guide-modal__content">
+              <h3 class="guide-modal__section-title">
+                {{ currentSection.title }}
+              </h3>
+              <div class="guide-modal__section-body">
+                <p
+                  v-for="(p, i) in currentSection.paragraphs"
                   :key="i"
                 >
-                  {{ step }}
-                </li>
-              </ol>
-              <div
-                v-if="currentSection.tip"
-                class="guide-modal__tip"
-              >
-                <strong>Совет.</strong> {{ currentSection.tip }}
+                  {{ p }}
+                </p>
+                <ol
+                  v-if="currentSection.steps && currentSection.steps.length"
+                  class="guide-modal__steps"
+                >
+                  <li
+                    v-for="(step, i) in currentSection.steps"
+                    :key="i"
+                  >
+                    {{ step }}
+                  </li>
+                </ol>
+                <div
+                  v-if="currentSection.tip"
+                  class="guide-modal__tip"
+                >
+                  <strong>Совет.</strong> {{ currentSection.tip }}
+                </div>
               </div>
-            </div>
-          </article>
-        </div>
+            </article>
+          </div>
 
-        <footer class="guide-modal__footer">
-          <button
-            type="button"
-            class="guide-modal__btn guide-modal__btn--ghost"
-            :disabled="activeIndex === 0"
-            @click="prev"
-          >
-            Назад
-          </button>
-          <span class="guide-modal__progress">
-            {{ activeIndex + 1 }} / {{ sections.length }}
-          </span>
-          <button
-            type="button"
-            class="guide-modal__btn"
-            @click="nextOrClose"
-          >
-            {{ activeIndex === sections.length - 1 ? 'Готово' : 'Далее' }}
-          </button>
-        </footer>
+          <footer class="guide-modal__footer">
+            <button
+              type="button"
+              class="guide-modal__btn guide-modal__btn--ghost"
+              :disabled="activeIndex === 0"
+              @click="prev"
+            >
+              Назад
+            </button>
+            <span class="guide-modal__progress">
+              {{ activeIndex + 1 }} / {{ sections.length }}
+            </span>
+            <button
+              type="button"
+              class="guide-modal__btn"
+              @click="nextOrClose"
+            >
+              {{ activeIndex === sections.length - 1 ? 'Готово' : 'Далее' }}
+            </button>
+          </footer>
+        </div>
       </div>
-    </div>
+    </transition>
   </Teleport>
 </template>
 
@@ -111,6 +114,7 @@ let uid = 0;
 export default {
   name: 'UserGuideModal',
   props: {
+    show: { type: Boolean, default: false },
     title: { type: String, default: 'Руководство пользования системой' },
     sections: {
       type: Array,
@@ -134,9 +138,16 @@ export default {
       return this.sections[this.activeIndex] || this.sections[0];
     }
   },
+  watch: {
+    // Модалка всегда смонтирована (для leave-анимации): блокировку скролла и
+    // сброс на первый раздел вешаем на открытие, а не на mount.
+    show(visible) {
+      document.body.style.overflow = visible ? 'hidden' : '';
+      if (visible) this.active = this.sections[0]?.id || '';
+    }
+  },
   mounted() {
     document.addEventListener('keydown', this.onKey);
-    document.body.style.overflow = 'hidden';
   },
   beforeUnmount() {
     document.removeEventListener('keydown', this.onKey);
@@ -144,6 +155,7 @@ export default {
   },
   methods: {
     onKey(e) {
+      if (!this.show) return;
       if (e.key === 'Escape') this.close();
       if (e.key === 'ArrowRight') this.nextOrClose();
       if (e.key === 'ArrowLeft') this.prev();
@@ -379,5 +391,15 @@ export default {
     border-bottom: 1px solid #eee;
     max-height: 200px;
   }
+}
+
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity 0.25s ease;
+}
+
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
 }
 </style>

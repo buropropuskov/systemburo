@@ -198,7 +198,7 @@
     />
 
     <UserGuideModal
-      v-if="showGuide"
+      :show="showGuide"
       :title="guideTitle"
       :sections="guideSections"
       @close="closeGuide"

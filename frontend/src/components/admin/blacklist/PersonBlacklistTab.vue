@@ -42,7 +42,7 @@
       @created="onCreated"
     />
     <PersonBlacklistHistoryModal
-      v-if="showHistory"
+      :show="showHistory"
       :current-user-name="currentUserName"
       @close="showHistory = false"
     />

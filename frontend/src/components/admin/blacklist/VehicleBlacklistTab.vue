@@ -42,7 +42,7 @@
       @created="onCreated"
     />
     <VehicleBlacklistHistoryModal
-      v-if="showHistory"
+      :show="showHistory"
       :current-user-name="currentUserName"
       @close="showHistory = false"
     />
