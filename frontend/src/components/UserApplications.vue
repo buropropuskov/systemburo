@@ -826,7 +826,6 @@ export default {
   transition: .2s;
   cursor: pointer;
   user-select: none;
-  flex: 1;
   padding: 0 16px;
   overflow: hidden;
   white-space: nowrap;
@@ -1108,6 +1107,8 @@ export default {
   min-height: 40px;
 }
 
+/* flex НЕ задаём здесь: ширину колонок задают пер-колоночные правила (.id-col и т.д.),
+   общие для .header-col и .application-col - иначе данные и заголовки разъезжаются. */
 .application-col {
   padding: 0 16px;
   text-align: left;
@@ -1115,14 +1116,9 @@ export default {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 14px;
-  flex: 1;
   align-items: center;
   display: flex;
   height: 100%;
-}
-
-.application-col:first-child {
-  padding-left: 16px;
 }
 
 .application-id {
