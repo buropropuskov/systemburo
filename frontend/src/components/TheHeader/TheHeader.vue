@@ -79,7 +79,10 @@
         :show="showNotifications"
         @update:unread-count="unreadCount = $event"
       />
-      <div class="appl-btn__container">
+      <div
+        v-if="can('page.new_application')"
+        class="appl-btn__container"
+      >
         <button
           class="appl-btn"
           data-testid="header-button-submit-app"
@@ -107,6 +110,7 @@
 import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
+import { usePermissionsStore } from '@/stores/permissions'
 import FeedbackModal from '@/components/FeedbackModal.vue';
 import AnnouncementModal from '@/components/AnnouncementModal.vue';
 import UserNotifications from '@/components/UserNotifications.vue';
@@ -123,9 +127,11 @@ export default {
   emits: ['refresh-feedback'],
   setup() {
     // uiStore нужен для сдвига приветствия, когда рельс скрыт (плавающая кнопка
-    // возврата перекрывала бы заголовок).
+    // возврата перекрывала бы заголовок). permissionsStore - гейт кнопки
+    // «Подать заявку» по праву page.new_application (#187 Фаза 2).
     const uiStore = useUiStore();
-    return { uiStore };
+    const permissionsStore = usePermissionsStore();
+    return { uiStore, permissionsStore };
   },
   data() {
     return {
@@ -190,6 +196,11 @@ export default {
     document.removeEventListener('click', this._onDocumentClick);
   },
   methods: {
+    // Гейтинг по правам (#187 Фаза 2). super -> всегда true, admin -> всё кроме
+    // denied, обычный -> по эффективному гранту. Реактивно: читает стор прав.
+    can(key) {
+      return this.permissionsStore.hasPermission(key);
+    },
     async fetchActiveAnnouncement() {
       try {
         const response = await apiRequest('/announcements/active', { method: 'GET' });
