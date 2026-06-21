@@ -172,10 +172,11 @@
             name="fade-list"
             tag="div"
           >
-            <div 
-              v-for="(item, index) in sortedData" 
-              :key="item.id" 
+            <div
+              v-for="(item, index) in sortedData"
+              :key="item.id"
               class="fact-item"
+              data-testid="ob-fact-row"
               :style="{ animationDelay: `${index * 0.1}s` }"
               @click="openItemDetails(item)"
             >
@@ -191,6 +192,7 @@
                     class="action-btn entry-btn"
                     :class="{ 'active': item.entry_checked }"
                     :disabled="item.entry_checked"
+                    data-testid="ob-fact-entry"
                     @click="handleEntryExit(item, 'entry')"
                   >
                     Въезд
@@ -206,6 +208,7 @@
                     class="action-btn exit-btn"
                     :class="{ 'active': item.exit_checked }"
                     :disabled="!item.entry_checked || item.exit_checked"
+                    data-testid="ob-fact-exit"
                     @click="handleEntryExit(item, 'exit')"
                   >
                     Выезд

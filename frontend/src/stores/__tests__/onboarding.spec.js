@@ -4,11 +4,12 @@ import { useOnboardingStore } from '../onboarding';
 import { useAuthStore } from '../auth';
 import { onboardingSteps, ONBOARDING_VERSION } from '@/components/onboarding/onboardingSteps';
 import { securityOnboardingSteps } from '@/components/onboarding/securityOnboardingSteps';
-import { getOnboardingStatus, markOnboardingComplete } from '@/api/onboarding';
+import { getOnboardingStatus, markOnboardingComplete, getSecurityFactRoute } from '@/api/onboarding';
 
 vi.mock('@/api/onboarding', () => ({
   getOnboardingStatus: vi.fn(),
   markOnboardingComplete: vi.fn(),
+  getSecurityFactRoute: vi.fn(),
 }));
 
 function createMockJWT(payload, expiresInSeconds = 3600) {
@@ -26,6 +27,8 @@ describe('onboarding store', () => {
     getOnboardingStatus.mockReset();
     markOnboardingComplete.mockReset();
     markOnboardingComplete.mockResolvedValue({ message: 'ok' });
+    getSecurityFactRoute.mockReset();
+    getSecurityFactRoute.mockResolvedValue(null);
   });
 
   afterEach(() => {
@@ -127,6 +130,84 @@ describe('onboarding store', () => {
       expect(store.steps).toBe(securityOnboardingSteps);
       auth.userTypeCode = 'organization';
       expect(store.steps).toBe(onboardingSteps);
+    });
+  });
+
+  describe('ensureFactRoute (сегмент фактовой таблицы охранника)', () => {
+    it('для не-охранника - no-op, route не резолвится', async () => {
+      const auth = useAuthStore();
+      auth.userTypeCode = 'organization';
+      const store = useOnboardingStore();
+      await store.ensureFactRoute();
+
+      expect(getSecurityFactRoute).not.toHaveBeenCalled();
+      expect(store.factTableRoute).toBe(null);
+    });
+
+    it('для охранника резолвит route и добавляет сегмент отметки в хвост steps', async () => {
+      getSecurityFactRoute.mockResolvedValue('/table/kpp_1');
+      const auth = useAuthStore();
+      auth.userTypeCode = 'security';
+      const store = useOnboardingStore();
+      const baseLen = securityOnboardingSteps.length;
+      await store.ensureFactRoute();
+
+      expect(store.factTableRoute).toBe('/table/kpp_1');
+      expect(store.totalSteps).toBe(baseLen + 4);
+      const tail = store.steps.slice(baseLen);
+      expect(tail.map((s) => s.id)).toEqual([
+        'sec-fact-intro',
+        'sec-fact-row',
+        'sec-fact-entry',
+        'sec-fact-exit',
+      ]);
+      expect(tail.every((s) => s.route === '/table/kpp_1')).toBe(true);
+    });
+
+    it('для охранника без доступной фактовой таблицы (null) сегмент не добавляется', async () => {
+      getSecurityFactRoute.mockResolvedValue(null);
+      const auth = useAuthStore();
+      auth.userTypeCode = 'security';
+      const store = useOnboardingStore();
+      await store.ensureFactRoute();
+
+      expect(store.factTableRoute).toBe(null);
+      expect(store.steps).toBe(securityOnboardingSteps);
+    });
+
+    it('идемпотентен - резолвит один раз за сессию', async () => {
+      getSecurityFactRoute.mockResolvedValue('/table/kpp_1');
+      const auth = useAuthStore();
+      auth.userTypeCode = 'security';
+      const store = useOnboardingStore();
+      await store.ensureFactRoute();
+      await store.ensureFactRoute();
+
+      expect(getSecurityFactRoute).toHaveBeenCalledOnce();
+    });
+
+    it('start() запускает резолв фоном для охранника', async () => {
+      getSecurityFactRoute.mockResolvedValue('/table/kpp_1');
+      const auth = useAuthStore();
+      auth.userTypeCode = 'security';
+      const store = useOnboardingStore();
+      store.start();
+
+      expect(getSecurityFactRoute).toHaveBeenCalledOnce();
+      await vi.waitFor(() => expect(store.factTableRoute).toBe('/table/kpp_1'));
+    });
+
+    it('reset очищает route и позволяет резолву повториться для следующего юзера', async () => {
+      getSecurityFactRoute.mockResolvedValue('/table/kpp_1');
+      const auth = useAuthStore();
+      auth.userTypeCode = 'security';
+      const store = useOnboardingStore();
+      await store.ensureFactRoute();
+      store.reset();
+
+      expect(store.factTableRoute).toBe(null);
+      await store.ensureFactRoute();
+      expect(getSecurityFactRoute).toHaveBeenCalledTimes(2);
     });
   });
 

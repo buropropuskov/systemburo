@@ -322,7 +322,13 @@ const removeAfterEach = router.afterEach((to) => {
     startSegment();
   } else {
     // Навигация увела не туда, куда вёл тур - не держим силой.
+    // Сегмент с динамическим route (фактовая таблица) опционален: если у
+    // охранника пока нет доступа к /table/:name и роут-гард редиректит, это не
+    // обрыв - штатно завершаем тур (авто-тур помечаем пройденным), а не считаем
+    // прерыванием. Когда доступ выдан, переход проходит и мы попадаем в ветку выше.
+    const missed = store.currentStep;
     store.clearPending();
+    if (missed?.optionalSegment) markIfAuto();
     store.stop();
   }
 });

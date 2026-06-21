@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { securityOnboardingSteps } from '../securityOnboardingSteps';
+import {
+  securityOnboardingSteps,
+  resolveFactTableRoute,
+  buildSecurityFactSteps,
+} from '../securityOnboardingSteps';
 import { collectSegment } from '../onboardingSteps';
 
 describe('securityOnboardingSteps', () => {
@@ -124,5 +128,82 @@ describe('securityOnboardingSteps - сегмент /accessible-attachments', () 
     );
     const lastRequired = [...seg].reverse().find((s) => !s.optional);
     expect(lastRequired.id).toBe('sec-aa-filters');
+  });
+
+  it('базовый массив не содержит шагов фактовой таблицы (добавляются динамически)', () => {
+    expect(securityOnboardingSteps.some((s) => s.id.startsWith('sec-fact-'))).toBe(false);
+  });
+});
+
+describe('resolveFactTableRoute', () => {
+  it('берёт первую активную фактовую таблицу машин (форма { table })', () => {
+    const tables = [
+      { table: { name: 'people_1', table_type: 'people', show_fact_table: true, is_active: true } },
+      { table: { name: 'kpp_1', table_type: 'cars', show_fact_table: true, is_active: true } },
+      { table: { name: 'kpp_2', table_type: 'cars', show_fact_table: true, is_active: true } },
+    ];
+    expect(resolveFactTableRoute(tables)).toBe('/table/kpp_1');
+  });
+
+  it('поддерживает плоскую форму элемента (без вложенного table)', () => {
+    const tables = [{ name: 'kpp_3', table_type: 'cars', show_fact_table: true, is_active: true }];
+    expect(resolveFactTableRoute(tables)).toBe('/table/kpp_3');
+  });
+
+  it('пропускает неактивные, не-фактовые и не-cars таблицы', () => {
+    const tables = [
+      { table: { name: 'a', table_type: 'cars', show_fact_table: true, is_active: false } },
+      { table: { name: 'b', table_type: 'cars', show_fact_table: false, is_active: true } },
+      { table: { name: 'c', table_type: 'people', show_fact_table: true, is_active: true } },
+    ];
+    expect(resolveFactTableRoute(tables)).toBe(null);
+  });
+
+  it('null на пустом списке и не-массиве', () => {
+    expect(resolveFactTableRoute([])).toBe(null);
+    expect(resolveFactTableRoute(null)).toBe(null);
+    expect(resolveFactTableRoute(undefined)).toBe(null);
+  });
+});
+
+describe('buildSecurityFactSteps', () => {
+  it('пустой массив без route', () => {
+    expect(buildSecurityFactSteps(null)).toEqual([]);
+    expect(buildSecurityFactSteps('')).toEqual([]);
+  });
+
+  it('строит intro + строка + Въезд + Выезд на переданный route', () => {
+    const steps = buildSecurityFactSteps('/table/kpp_1');
+    expect(steps.map((s) => s.id)).toEqual([
+      'sec-fact-intro',
+      'sec-fact-row',
+      'sec-fact-entry',
+      'sec-fact-exit',
+    ]);
+    expect(steps.every((s) => s.route === '/table/kpp_1')).toBe(true);
+  });
+
+  it('первый шаг - optionalSegment-центр-модал (граница для грациозной деградации)', () => {
+    const [intro] = buildSecurityFactSteps('/table/kpp_1');
+    expect(intro.element).toBe(null);
+    expect(intro.optionalSegment).toBe(true);
+  });
+
+  it('строка и кнопки опциональны и несут реюзимые ob-fact-* / fact-table якоря', () => {
+    const byId = (id) => buildSecurityFactSteps('/table/kpp_1').find((s) => s.id === id);
+    expect(byId('sec-fact-row').element).toBe('[data-testid="ob-fact-row"]');
+    expect(byId('sec-fact-entry').element).toBe('[data-testid="ob-fact-entry"]');
+    expect(byId('sec-fact-exit').element).toBe('[data-testid="ob-fact-exit"]');
+    for (const id of ['sec-fact-row', 'sec-fact-entry', 'sec-fact-exit']) {
+      expect(byId(id).optional).toBe(true);
+    }
+  });
+
+  it('сегмент отметки не ведёт к подаче заявки (нет cta)', () => {
+    const steps = buildSecurityFactSteps('/table/kpp_1');
+    expect(steps.some((s) => s.cta)).toBe(false);
+    for (const s of steps) {
+      expect(s.description).not.toMatch(/Подать заявку/);
+    }
   });
 });
