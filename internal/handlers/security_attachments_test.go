@@ -199,6 +199,11 @@ func secNewAttachmentWithUnique(t *testing.T, w secWorld, appID int, withActiveT
 	t.Helper()
 	ua := models.UniqueAttachment{AttachmentType: "cars", IsActive: true}
 	require.NoError(t, w.db.Create(&ua).Error)
+	// attachment_templates держит FK на unique_attachments, а общий CleanDB удаляет unique_attachments
+	// без предварительной чистки шаблонов - без этого cleanup следующий тест упал бы на FK-violation.
+	t.Cleanup(func() {
+		w.db.Where("unique_attachment_id = ?", ua.ID).Delete(&models.AttachmentTemplate{})
+	})
 	att := models.Attachment{ApplicationID: appID, AttachmentType: "cars", UniqueAttachmentID: &ua.ID}
 	require.NoError(t, w.db.Create(&att).Error)
 	if withActiveTemplate {
