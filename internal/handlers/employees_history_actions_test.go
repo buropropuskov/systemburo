@@ -342,3 +342,41 @@ func TestEmployeeTerritoryStatus_RecordsTableInHistory(t *testing.T) {
 	assert.Equal(t, float64(st.ID), entry["table_id"])
 	assert.Equal(t, "Test Table", entry["table_name"], "entry record should resolve table_name from system_tables")
 }
+
+// TestRecentPassages_ResolvesPostFromTableID фиксирует регрессию ленты «Проход людей»
+// на дашборде: после реальной отметки входа через /table (territory-status с table_id)
+// лента должна показывать пост (system_tables.display_name), а не пусто (фронт рисует
+// «не указан»). Источник поста - только history.table_id -> system_tables; пустой пост
+// в ленте = у записи нет table_id (как у проходов, отмеченных до фикса #703).
+func TestRecentPassages_ResolvesPostFromTableID(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "recentpasspost1", "pass123", 1, td.OrgID, td.CompanyID)
+	_, _, empID := seedEmployeeViaCompleteApp(t, e, db, token, "Test Organization")
+
+	var st models.SystemTable
+	require.NoError(t, db.Where("name = ?", "test_table").First(&st).Error)
+
+	// Реальная отметка входа через тот же endpoint, что и страница /table.
+	rec := testutil.PUT(t, e, fmt.Sprintf("/employees/%d/territory-status", empID),
+		fmt.Sprintf(`{"territory_status": 1, "table_id": %d}`, st.ID), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	svc := services.NewStatisticsService(db, 0)
+	res, err := svc.GetRecentPassages(context.Background(), 15)
+	require.NoError(t, err)
+	require.NotEmpty(t, res.People, "лента проходов людей не должна быть пустой после отметки")
+
+	var entry *models.RecentPassage
+	for i := range res.People {
+		if res.People[i].ActionType == "entry" {
+			entry = &res.People[i]
+			break
+		}
+	}
+	require.NotNil(t, entry, "в ленте должна быть запись entry")
+	assert.Equal(t, "Test Table", entry.Place, "пост в ленте должен резолвиться из system_tables.display_name по table_id")
+}
