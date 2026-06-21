@@ -29,6 +29,9 @@ type AvailableAttachment struct {
 	EntryTimeTo           *string    `json:"entry_time_to"`
 	CreatedAt             *time.Time `json:"created_at"`
 	Places                *string    `json:"places"`
+	// HasBlank - у типа вложения (unique_attachment) есть активный Excel-шаблон, значит для этого
+	// вложения генерируется заполненный бланк (#706 S4). По нему фронт показывает "Посмотреть файл".
+	HasBlank bool `json:"has_blank"`
 
 	ApplicationID     int        `json:"application_id"`
 	ApplicationNumber *string    `json:"application_number"`
@@ -98,7 +101,11 @@ const availableAttachmentSelect = `
 		FROM attachment_unload_places aup
 		JOIN unload_places up ON up.id = aup.unload_place_id
 		WHERE aup.attachment_id = a.id
-	) END as places`
+	) END as places,
+	EXISTS (
+		SELECT 1 FROM attachment_templates t
+		WHERE t.unique_attachment_id = a.unique_attachment_id AND t.is_active = true
+	) as has_blank`
 
 // securityVisibilityWhere строит предикат доступности вложения для вкладки "Доступные мне"
 // (ссылается на алиасы a = attachments, app = applications) и его аргументы. Инвариант (#706):

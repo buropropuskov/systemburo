@@ -191,3 +191,56 @@ func TestAvailableAttachmentDetail_ContentByType(t *testing.T) {
 	require.Len(t, peopleDetail.Employees, 1, "people-вложение возвращает сотрудников")
 	require.Empty(t, peopleDetail.Cars)
 }
+
+// secNewAttachmentWithUnique создаёт вложение, привязанное к UniqueAttachment, и при withActiveTemplate
+// добавляет ему активный Excel-шаблон. Возвращает ID вложения. Проверяет проекцию has_blank, которая
+// джойнит attachment_templates по unique_attachment_id вложения - newAttachment его не ставит.
+func secNewAttachmentWithUnique(t *testing.T, w secWorld, appID int, withActiveTemplate, templateActive bool) int {
+	t.Helper()
+	ua := models.UniqueAttachment{AttachmentType: "cars", IsActive: true}
+	require.NoError(t, w.db.Create(&ua).Error)
+	att := models.Attachment{ApplicationID: appID, AttachmentType: "cars", UniqueAttachmentID: &ua.ID}
+	require.NoError(t, w.db.Create(&att).Error)
+	if withActiveTemplate {
+		// IsActive имеет gorm default:true - при Create со значением false GORM опускает колонку и
+		// БД ставит true. Поэтому неактивность форсим явным Update после вставки.
+		tpl := models.AttachmentTemplate{
+			UniqueAttachmentID: ua.ID,
+			IsActive:           true,
+			FilePath:           "uploads/templates/test.xlsx",
+		}
+		require.NoError(t, w.db.Create(&tpl).Error)
+		if !templateActive {
+			require.NoError(t, w.db.Model(&tpl).Update("is_active", false).Error)
+		}
+	}
+	return att.ID
+}
+
+func TestAvailableAttachmentDetail_HasBlank(t *testing.T) {
+	h := setupSecurityHTTP(t)
+	w := h.w
+
+	place := w.newUnloadPlace(t, "Склад А", true)
+	w.assignUnloadPlace(t, place)
+	app := w.newApp(t, models.ConfirmationApproved)
+
+	// Вложение с активным шаблоном -> has_blank=true.
+	withBlank := secNewAttachmentWithUnique(t, w, app, true, true)
+	w.attachPlace(t, withBlank, place)
+
+	// Вложение с неактивным шаблоном -> has_blank=false (EXISTS фильтрует is_active).
+	inactiveTpl := secNewAttachmentWithUnique(t, w, app, true, false)
+	w.attachPlace(t, inactiveTpl, place)
+
+	// Вложение без unique_attachment и шаблона -> has_blank=false.
+	noBlank := w.newAttachment(t, app, "cars")
+	w.attachPlace(t, noBlank, place)
+
+	require.True(t, secGetDetail(t, h, withBlank, h.guardToken).Attachment.HasBlank,
+		"активный шаблон типа вложения -> бланк доступен")
+	require.False(t, secGetDetail(t, h, inactiveTpl, h.guardToken).Attachment.HasBlank,
+		"неактивный шаблон не даёт бланк")
+	require.False(t, secGetDetail(t, h, noBlank, h.guardToken).Attachment.HasBlank,
+		"без шаблона бланка нет")
+}

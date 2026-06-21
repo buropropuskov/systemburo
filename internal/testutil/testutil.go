@@ -53,6 +53,7 @@ var tables = []string{
 	"vehicle_blacklist_histories", "vehicle_blacklists",
 	"person_blacklist_histories", "person_blacklists",
 	"attachment_custom_values", "attachment_custom_fields", "attachment_field_configs",
+	"attachment_template_mappings", "attachment_templates",
 	"attachments",
 	"unique_employees_history", "unique_cars_history",
 	"unique_employees", "unique_cars", "unique_attachment_histories", "unique_attachments",

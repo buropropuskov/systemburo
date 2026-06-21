@@ -235,6 +235,21 @@
               </div>
             </div>
 
+            <div
+              v-if="detail.attachment.has_blank"
+              class="detail-actions"
+            >
+              <button
+                type="button"
+                class="lk-button lk-button--primary"
+                :disabled="previewLoading"
+                data-testid="aa-preview-blank"
+                @click="openPreview"
+              >
+                {{ previewLoading ? 'Загрузка...' : 'Посмотреть файл' }}
+              </button>
+            </div>
+
             <!-- AvailableAttachment не несёт roof_access/free_parking/custom_values -
                  эти опц. блоки детали просто не отрисуются (v-if по undefined). -->
             <ApplicationAttachmentDetail
@@ -255,6 +270,35 @@
         </div>
       </div>
     </div>
+
+    <BaseModal
+      :show="previewOpen"
+      title="Предпросмотр бланка"
+      width="900px"
+      @close="closePreview"
+    >
+      <div class="blank-preview">
+        <div
+          v-if="previewLoading"
+          class="blank-preview__state"
+          data-testid="aa-preview-loading"
+        >
+          Загрузка превью...
+        </div>
+        <div
+          v-else-if="previewError"
+          class="blank-preview__state blank-preview__state--error"
+          data-testid="aa-preview-error"
+        >
+          {{ previewError }}
+        </div>
+        <XlsxViewer
+          v-else
+          :file-buffer="previewBuffer"
+          data-testid="aa-preview-viewer"
+        />
+      </div>
+    </BaseModal>
   </AdminPageShell>
 </template>
 
@@ -268,7 +312,10 @@ import Badge from '@/components/ui/Badge.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import SkeletonCard from '@/components/ui/SkeletonCard.vue';
 import ApplicationAttachmentDetail from '@/components/ApplicationDetail/ApplicationAttachmentDetail.vue';
+import BaseModal from '@/components/ui/BaseModal.vue';
+import XlsxViewer from '@/components/admin/XlsxViewer.vue';
 import { getAccessibleAttachments, getAccessibleAttachmentDetail } from '@/api/applications';
+import { previewBlank } from '@/api/attachment-templates';
 import { getOrganizations, getCompanies } from '@/api/organizations';
 import { useDeletionsStore } from '@/stores/deletions';
 import { formatDateRu, formatDateTime } from '@/utils/datetime';
@@ -317,6 +364,13 @@ const listLoading = ref(false);
 
 const selectedId = ref(null);
 const detail = ref(null);
+
+// Предпросмотр заполненного бланка (#706 S4): модалка с XlsxViewer по тому же
+// эндпоинту, что и скачивание, но буфер парсится во вьювере, а не сохраняется файлом.
+const previewOpen = ref(false);
+const previewBuffer = ref(null);
+const previewLoading = ref(false);
+const previewError = ref('');
 // Токен последовательности: быстрые клики по карточкам пускают параллельные
 // запросы детали в общий ref, и медленный ответ предыдущего вложения мог бы
 // затереть актуальный (#632). Применяем только ответ последнего запроса.
@@ -517,6 +571,30 @@ async function selectAttachment(id) {
       suffix: 'вложение',
     });
   }
+}
+
+// Открывается по явному клику на текущей детали; модалка-оверлей блокирует список,
+// так что гонки с переключением вложения нет. Двойной клик гасит :disabled по previewLoading.
+async function openPreview() {
+  const att = detail.value?.attachment;
+  if (!att) return;
+  previewOpen.value = true;
+  previewError.value = '';
+  previewBuffer.value = null;
+  previewLoading.value = true;
+  try {
+    previewBuffer.value = await previewBlank(att.application_id, att.attachment_id);
+  } catch {
+    previewError.value = 'Не удалось загрузить бланк для предпросмотра';
+  } finally {
+    previewLoading.value = false;
+  }
+}
+
+function closePreview() {
+  previewOpen.value = false;
+  previewBuffer.value = null;
+  previewError.value = '';
 }
 
 onMounted(() => {
@@ -811,6 +889,28 @@ onBeforeUnmount(() => clearTimeout(searchTimer));
 
 .detail-loading {
   padding: 10px;
+}
+
+.detail-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.blank-preview {
+  padding: 16px 20px 20px;
+}
+
+.blank-preview__state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  color: #888;
+  font-size: 14px;
+}
+
+.blank-preview__state--error {
+  color: #d73a3a;
 }
 
 @media (max-width: 900px) {
