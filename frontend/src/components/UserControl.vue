@@ -204,7 +204,8 @@
     <!-- Модальное окно редактирования пользователя -->
     <BaseModal
       :show="showEditModal && !!selectedUser"
-      width="700px"
+      width="880px"
+      content-class="user-edit-modal"
       :z-index="900"
       @close="closeEditModal"
     >
@@ -476,7 +477,8 @@
     <BaseModal
       :show="showCreateModal"
       title="Создание пользователя"
-      width="600px"
+      width="740px"
+      content-class="user-create-modal"
       @close="closeCreateModal"
     >
       <div class="create-user-body">
@@ -1934,5 +1936,11 @@ export default {
     flex: 1 1 100%;
     min-width: 0;
   }
+}
+
+/* Закруглённые углы модалок пользователя — локально, без изменения глобального токена */
+:deep(.user-edit-modal),
+:deep(.user-create-modal) {
+  border-radius: 30px;
 }
 </style>
