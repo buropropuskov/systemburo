@@ -42,6 +42,16 @@
         >
           Уведомления
         </div>
+        <div
+          class="sidebar-item"
+          :class="{ 'sidebar-item--active': activeSection === 'security' }"
+          role="button"
+          tabindex="0"
+          @click="activeSection = 'security'"
+          @keydown.enter="activeSection = 'security'"
+        >
+          Безопасность
+        </div>
       </nav>
 
       <div class="admin-settings__content">
@@ -291,6 +301,64 @@
               {{ saving ? 'Сохранение...' : 'Сохранить' }}
             </button>
           </div>
+
+          <!-- Безопасность: политика паролей -->
+          <div
+            v-else-if="activeSection === 'security'"
+            class="settings-section"
+          >
+            <h3 class="section-title">
+              Требования к паролю
+            </h3>
+
+            <div class="form-group">
+              <label
+                class="form-label"
+                for="pw-min-length"
+              >
+                Минимальная длина
+              </label>
+              <input
+                id="pw-min-length"
+                v-model.number="settings.password_min_length"
+                type="number"
+                class="form-input"
+                :min="6"
+                :max="128"
+              >
+              <span class="form-hint">От 6 до 128 символов</span>
+            </div>
+
+            <div
+              v-for="opt in passwordToggles"
+              :key="opt.key"
+              class="form-group"
+            >
+              <label class="switch-label">
+                <span class="switch-text">{{ opt.label }}</span>
+                <span
+                  class="switch"
+                  :class="{ 'switch--on': settings[opt.key] }"
+                  role="switch"
+                  :aria-checked="String(settings[opt.key])"
+                  tabindex="0"
+                  @click="settings[opt.key] = !settings[opt.key]"
+                  @keydown.enter="settings[opt.key] = !settings[opt.key]"
+                  @keydown.space.prevent="settings[opt.key] = !settings[opt.key]"
+                >
+                  <span class="switch__thumb" />
+                </span>
+              </label>
+            </div>
+
+            <button
+              class="btn btn--primary"
+              :disabled="saving"
+              @click="saveSecuritySettings"
+            >
+              {{ saving ? 'Сохранение...' : 'Сохранить' }}
+            </button>
+          </div>
         </SkeletonTransition>
       </div>
     </div>
@@ -325,9 +393,22 @@ export default {
         notifications_poll_interval: 30,
         notifications_delete_duration: 10,
         notifications_restore_duration: 5,
+        password_min_length: 8,
+        password_require_letter: true,
+        password_require_uppercase: false,
+        password_require_lowercase: false,
+        password_require_digit: true,
+        password_require_special: false,
       },
       availableImageTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'],
       availableDocTypes: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'],
+      passwordToggles: [
+        { key: 'password_require_letter', label: 'Требовать букву' },
+        { key: 'password_require_uppercase', label: 'Требовать заглавную букву' },
+        { key: 'password_require_lowercase', label: 'Требовать строчную букву' },
+        { key: 'password_require_digit', label: 'Требовать цифру' },
+        { key: 'password_require_special', label: 'Требовать спецсимвол' },
+      ],
     };
   },
   computed: {
@@ -398,6 +479,24 @@ export default {
             break;
           case 'notifications.restore_duration':
             this.settings.notifications_restore_duration = Number(item.value) || 5;
+            break;
+          case 'password.min_length':
+            this.settings.password_min_length = Number(item.value) || 8;
+            break;
+          case 'password.require_letter':
+            this.settings.password_require_letter = item.value === 'true';
+            break;
+          case 'password.require_uppercase':
+            this.settings.password_require_uppercase = item.value === 'true';
+            break;
+          case 'password.require_lowercase':
+            this.settings.password_require_lowercase = item.value === 'true';
+            break;
+          case 'password.require_digit':
+            this.settings.password_require_digit = item.value === 'true';
+            break;
+          case 'password.require_special':
+            this.settings.password_require_special = item.value === 'true';
             break;
         }
       }
@@ -480,6 +579,29 @@ export default {
         // вступят в силу только после полной перезагрузки страницы.
         useDeletionsStore().setDurations(del, res);
         useDeletionsStore().notify({ prefix: 'Настройки уведомлений сохранены' });
+      } catch (error) {
+        console.error('Ошибка сохранения:', error);
+        useDeletionsStore().notify({ prefix: 'Ошибка сохранения настроек', type: 'error' });
+      } finally {
+        this.saving = false;
+      }
+    },
+
+    async saveSecuritySettings() {
+      const len = this.settings.password_min_length;
+      if (len < 6 || len > 128) {
+        useDeletionsStore().notify({ prefix: 'Минимальная длина: от 6 до 128', type: 'error' });
+        return;
+      }
+      this.saving = true;
+      try {
+        await updateSetting('password.min_length', String(len));
+        await updateSetting('password.require_letter', String(this.settings.password_require_letter));
+        await updateSetting('password.require_uppercase', String(this.settings.password_require_uppercase));
+        await updateSetting('password.require_lowercase', String(this.settings.password_require_lowercase));
+        await updateSetting('password.require_digit', String(this.settings.password_require_digit));
+        await updateSetting('password.require_special', String(this.settings.password_require_special));
+        useDeletionsStore().notify({ prefix: 'Требования к паролю сохранены' });
       } catch (error) {
         console.error('Ошибка сохранения:', error);
         useDeletionsStore().notify({ prefix: 'Ошибка сохранения настроек', type: 'error' });
