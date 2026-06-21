@@ -15,18 +15,25 @@ type User struct {
 	RoleID         *int         `json:"role_id"`
 	Role           *Role        `gorm:"foreignKey:RoleID" json:"role,omitempty"`
 	IsSuperAdmin   bool         `gorm:"default:false;index" json:"is_super_admin"`
-	IsActive       bool         `gorm:"default:true;index" json:"is_active"`
-	IsBanned       bool         `gorm:"default:false;index" json:"is_banned"`
-	IsImportant    bool         `gorm:"default:false" json:"is_important"`
-	BannedAt       *time.Time   `json:"banned_at,omitempty"`
-	BannedBy       *int         `json:"banned_by,omitempty"`
-	LastName       *string      `gorm:"size:100" json:"last_name"`
-	FirstName      *string      `gorm:"size:100" json:"first_name"`
-	MiddleName     *string      `gorm:"size:100" json:"middle_name"`
-	Position       *string      `gorm:"size:100;column:position" json:"position"`
-	Email          *string      `gorm:"size:100" json:"email"`
-	Phone          *string      `gorm:"size:20" json:"phone"`
-	LastLoginAt    *time.Time   `json:"last_login_at,omitempty"`
+	// IsAdmin -- администратор (тумблер в карточке). Базово получает все права,
+	// кроме super-only ключей и личных deny-override (см. PermissionResolver).
+	// Отвязано от user_type: админство задаётся флагом, а не кодом типа.
+	IsAdmin     bool       `gorm:"default:false;index" json:"is_admin"`
+	IsActive    bool       `gorm:"default:true;index" json:"is_active"`
+	IsBanned    bool       `gorm:"default:false;index" json:"is_banned"`
+	IsImportant bool       `gorm:"default:false" json:"is_important"`
+	BannedAt    *time.Time `json:"banned_at,omitempty"`
+	BannedBy    *int       `json:"banned_by,omitempty"`
+	// BanReason -- текущая причина блокировки (показывается заблокированному в ЛК).
+	// Обнуляется при разблокировке; хронология ведётся в UserBanHistory.
+	BanReason   *string    `gorm:"type:text" json:"ban_reason,omitempty"`
+	LastName    *string    `gorm:"size:100" json:"last_name"`
+	FirstName   *string    `gorm:"size:100" json:"first_name"`
+	MiddleName  *string    `gorm:"size:100" json:"middle_name"`
+	Position    *string    `gorm:"size:100;column:position" json:"position"`
+	Email       *string    `gorm:"size:100" json:"email"`
+	Phone       *string    `gorm:"size:20" json:"phone"`
+	LastLoginAt *time.Time `json:"last_login_at,omitempty"`
 	// LastSeen - момент последней активности (любой authenticated-запрос),
 	// обновляется middleware с троттлингом. В отличие от LastLoginAt отражает
 	// присутствие "онлайн" между логинами; по нему считается users_online (#632).
@@ -74,6 +81,7 @@ type UserInfoResponse struct {
 	IsActive       bool    `json:"is_active"`
 	IsBanned       bool    `json:"is_banned"`
 	IsSuperAdmin   bool    `json:"is_super_admin"`
+	IsAdmin        bool    `json:"is_admin"`
 	IsImportant    bool    `json:"is_important"`
 	Organization   *string `json:"organization"`
 	OrganizationID *int    `json:"organization_id"`

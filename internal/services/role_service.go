@@ -71,11 +71,44 @@ func (s *RoleService) List(ctx context.Context) ([]models.RoleResponse, error) {
 	return result, nil
 }
 
-// Create создаёт новую роль.
+// Create создаёт новую роль со снимком grants базовой роли "Пользователь"
+// на момент создания (фундамент-наследование из ТЗ). Дальше роль живёт независимо.
 func (s *RoleService) Create(ctx context.Context, req models.CreateRoleRequest) (models.Role, error) {
 	role := models.Role{Code: req.Code, Name: req.Name, Description: req.Description}
-	if err := s.db.WithContext(ctx).Create(&role).Error; err != nil {
-		return models.Role{}, fmt.Errorf("failed to create role: %w", err)
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&role).Error; err != nil {
+			return fmt.Errorf("failed to create role: %w", err)
+		}
+		var base models.Role
+		if err := tx.Where("code = ? AND is_system = ?", "user", true).First(&base).Error; err != nil {
+			// Базовой роли нет (например, до seed) -- создаём роль без снимка.
+			return nil
+		}
+		if base.ID == role.ID {
+			return nil
+		}
+		var baseGrants []models.RolePermissionGrant
+		if err := tx.Where("role_id = ?", base.ID).Find(&baseGrants).Error; err != nil {
+			return fmt.Errorf("failed to load base role grants: %w", err)
+		}
+		if len(baseGrants) == 0 {
+			return nil
+		}
+		copied := make([]models.RolePermissionGrant, 0, len(baseGrants))
+		for _, g := range baseGrants {
+			copied = append(copied, models.RolePermissionGrant{
+				RoleID:        role.ID,
+				PermissionKey: g.PermissionKey,
+				Value:         g.Value,
+			})
+		}
+		if err := tx.Create(&copied).Error; err != nil {
+			return fmt.Errorf("failed to copy base grants: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return models.Role{}, err
 	}
 	return role, nil
 }
@@ -90,8 +123,16 @@ func (s *RoleService) Update(ctx context.Context, roleID int, req models.UpdateR
 	return nil
 }
 
-// Delete удаляет роль. Запрещено если есть юзеры с этой ролью.
+// Delete удаляет роль. Запрещено для системной роли и если есть юзеры с этой ролью.
 func (s *RoleService) Delete(ctx context.Context, roleID int) error {
+	var role models.Role
+	if err := s.db.WithContext(ctx).First(&role, roleID).Error; err != nil {
+		return fmt.Errorf("failed to load role: %w", err)
+	}
+	if role.IsSystem {
+		return fmt.Errorf("cannot delete system role")
+	}
+
 	var count int64
 	if err := s.db.WithContext(ctx).Model(&models.User{}).Where("role_id = ?", roleID).Count(&count).Error; err != nil {
 		return fmt.Errorf("failed to count users: %w", err)

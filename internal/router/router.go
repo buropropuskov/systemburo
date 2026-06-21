@@ -481,6 +481,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	permGroup.GET("/user/:id", permissions.GetUserPermissions)
 	permGroup.PUT("/user/:id", permissions.UpdateUserPermissions)
 	permGroup.GET("/tree", permissions.GetPermissionTree)
+	permGroup.GET("/catalog", permissions.GetCatalog)
 	permGroup.POST("/auto-generate", permissions.AutoGenerate)
 
 	// permission.audit.manage = управление системой прав
@@ -490,6 +491,8 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// ничего секретного - только публичные метаданные ролей/групп).
 	auditRead := mw.RequirePermissionV2(permResolver, denialLog, services.KeyAuditRead)
 	auditManage := mw.RequirePermissionV2(permResolver, denialLog, services.KeyAuditManage)
+	// Выдача/снятие тумблера "Администратор" -- super-only (ключ action.grant.admin).
+	grantAdmin := mw.RequirePermissionV2(permResolver, denialLog, services.KeyActionGrantAdmin)
 
 	// Группы прав (#187a). CRUD защищён permission.audit.manage.
 	pgGroup := protected.Group("/permission-groups")
@@ -503,6 +506,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	protected.POST("/users/:user_id/permission-groups/:group_id", permGroups.AssignToUser, auditManage)
 	protected.DELETE("/users/:user_id/permission-groups/:group_id", permGroups.UnassignFromUser, auditManage)
 	protected.PUT("/users/:id/role", permGroups.SetUserRole, auditManage)
+	protected.PUT("/users/:id/admin", permGroups.SetUserAdmin, grantAdmin)
 
 	// Роли (#187a). CRUD защищён permission.audit.manage.
 	rolesGroup := protected.Group("/roles")

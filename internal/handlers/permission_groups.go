@@ -128,6 +128,24 @@ func (h *PermissionGroupHandler) SetUserRole(c echo.Context) error {
 	return RespondSuccess(c, map[string]any{"updated": true})
 }
 
+// SetUserAdmin -- PUT /users/:id/admin (super-only через middleware action.grant.admin).
+func (h *PermissionGroupHandler) SetUserAdmin(c echo.Context) error {
+	userID, err := ParseID(c, "id")
+	if err != nil {
+		return err
+	}
+	var req struct {
+		IsAdmin bool `json:"is_admin"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid body: "+err.Error())
+	}
+	if err := h.service.SetUserAdmin(c.Request().Context(), userID, req.IsAdmin); err != nil {
+		return err
+	}
+	return RespondSuccess(c, map[string]any{"updated": true})
+}
+
 // AssignToUser -- POST /users/:user_id/permission-groups/:group_id.
 func (h *PermissionGroupHandler) AssignToUser(c echo.Context) error {
 	userID, err := ParseID(c, "user_id")
