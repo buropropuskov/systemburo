@@ -77,6 +77,31 @@ type Config struct {
 	// PdAuditRetentionMonths - срок хранения аудита ПД (152-ФЗ): партиции старше
 	// дропаются. По умолчанию 36 месяцев (3 года).
 	PdAuditRetentionMonths int `env:"PD_AUDIT_RETENTION_MONTHS" envDefault:"36"`
+
+	// Пул соединений с БД (database/sql). По умолчанию драйвер не ограничивает
+	// число открытых соединений и держит лишь 2 idle: под нагрузкой это либо
+	// упирается в postgres max_connections, либо рвёт и заново открывает
+	// соединения на каждом пике. DBMaxOpenConns держим ниже max_connections
+	// (запас под pgAdmin и служебные подключения).
+	DBMaxOpenConns    int           `env:"DB_MAX_OPEN_CONNS" envDefault:"50"`
+	DBMaxIdleConns    int           `env:"DB_MAX_IDLE_CONNS" envDefault:"10"`
+	DBConnMaxLifetime time.Duration `env:"DB_CONN_MAX_LIFETIME" envDefault:"1h"`
+	DBConnMaxIdleTime time.Duration `env:"DB_CONN_MAX_IDLE_TIME" envDefault:"10m"`
+
+	// HTTP-таймауты сервера. ReadHeaderTimeout защищает от slowloris (медленная
+	// отправка заголовков), IdleTimeout реапит висящие keep-alive соединения -
+	// оба безопасны для любого трафика. ReadTimeout/WriteTimeout=0 (выключены)
+	// по умолчанию: ненулевые рвут большие загрузки/выгрузки файлов, их значения
+	// подбираем на сервере по замерам.
+	HTTPReadHeaderTimeout time.Duration `env:"HTTP_READ_HEADER_TIMEOUT" envDefault:"10s"`
+	HTTPReadTimeout       time.Duration `env:"HTTP_READ_TIMEOUT" envDefault:"0s"`
+	HTTPWriteTimeout      time.Duration `env:"HTTP_WRITE_TIMEOUT" envDefault:"0s"`
+	HTTPIdleTimeout       time.Duration `env:"HTTP_IDLE_TIMEOUT" envDefault:"120s"`
+
+	// Argon2HashConcurrency ограничивает число одновременных вычислений Argon2id.
+	// Каждое держит ~19 МБ; без лимита login-storm при 1-2k онлайн умножает это
+	// на число параллельных логинов и валит процесс в OOM. 0 = по числу ядер.
+	Argon2HashConcurrency int `env:"ARGON2_HASH_CONCURRENCY" envDefault:"0"`
 }
 
 func Load() (*Config, error) {

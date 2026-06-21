@@ -108,6 +108,19 @@ func main() {
 	}
 	slog.Info("connected to database")
 
+	if err := database.ConfigureConnectionPool(db, database.PoolConfig{
+		MaxOpenConns:    cfg.DBMaxOpenConns,
+		MaxIdleConns:    cfg.DBMaxIdleConns,
+		ConnMaxLifetime: cfg.DBConnMaxLifetime,
+		ConnMaxIdleTime: cfg.DBConnMaxIdleTime,
+	}); err != nil {
+		slog.Error("failed to configure DB connection pool", "error", err)
+		os.Exit(1)
+	}
+
+	// Ограничиваем число одновременных Argon2-вычислений до приёма трафика.
+	services.SetArgon2Concurrency(cfg.Argon2HashConcurrency)
+
 	// AutoMigrate all tables (like Laravel Schema::create)
 	if err := database.AutoMigrate(db); err != nil {
 		slog.Error("AutoMigrate failed", "error", err)
@@ -125,6 +138,18 @@ func main() {
 	e.HideBanner = true
 	e.HTTPErrorHandler = handlers.CustomHTTPErrorHandler
 	e.Validator = appvalidator.New()
+
+	// HTTP-таймауты: slowloris-защита и реап keep-alive безопасны всегда.
+	// Body-таймауты (Read/Write) включаются, только если заданы явно, - иначе
+	// рвут большие загрузки/выгрузки файлов.
+	e.Server.ReadHeaderTimeout = cfg.HTTPReadHeaderTimeout
+	e.Server.IdleTimeout = cfg.HTTPIdleTimeout
+	if cfg.HTTPReadTimeout > 0 {
+		e.Server.ReadTimeout = cfg.HTTPReadTimeout
+	}
+	if cfg.HTTPWriteTimeout > 0 {
+		e.Server.WriteTimeout = cfg.HTTPWriteTimeout
+	}
 
 	// Global middleware
 	e.Use(mw.RequestID())

@@ -291,6 +291,11 @@ func initTestDB() *gorm.DB {
 	return db
 }
 
+// TestDSN возвращает DSN изолированной тестовой БД. Экспортирован для тестов,
+// которым нужно собственное соединение (например, тюнинг пула), чтобы не менять
+// настройки общего cachedDB.
+func TestDSN() string { return getTestDSN() }
+
 func getTestDSN() string {
 	if dsn := os.Getenv("DATABASE_URL_TEST"); dsn != "" {
 		return dsn
