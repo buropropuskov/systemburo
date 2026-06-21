@@ -64,6 +64,9 @@ export function generatePassword(policy) {
   const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
   const lower = 'abcdefghijklmnopqrstuvwxyz'
   const digits = '0123456789'
+  // Намеренно узкое подмножество SPECIAL_CHARS (как в прежнем генераторе UserControl):
+  // безопасные для копипаста/шелла символы. Каждый входит в SPECIAL_CHARS, поэтому
+  // сгенерированный пароль всегда проходит require_special.
   const special = '!#$%&?'
   const pick = (set) => set[Math.floor(Math.random() * set.length)]
 
