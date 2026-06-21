@@ -249,13 +249,13 @@
                       class="employee-col name-col"
                       :title="formatFullName(employee)"
                     >
-                      {{ truncateText(formatFullName(employee), 20) }}
+                      <span class="cell-text">{{ formatFullName(employee) }}</span>
                     </div>
                     <div
                       class="employee-col position-col"
                       :title="employee.position || 'Не указана'"
                     >
-                      {{ truncateText(employee.position || 'Не указана', 20) }}
+                      <span class="cell-text">{{ employee.position || 'Не указана' }}</span>
                     </div>
                     <div class="employee-col status-col">
                       <StatusBadge
@@ -766,13 +766,6 @@ export default {
             return parts.join(' ') || 'Не указано';
         },
 
-        // Обрезка текста с добавлением точек
-        truncateText(text, maxLength) {
-            if (!text) return '';
-            if (text.length <= maxLength) return text;
-            return text.substring(0, maxLength) + '...';
-        },
-
     }
 }
 </script>
@@ -1085,6 +1078,16 @@ export default {
     display: flex;
     align-items: center;
     height: 100%;
+    min-width: 0;
+}
+
+/* Текст ячейки усекается ellipsis только при реальной нехватке места
+   (на display:flex-контейнере ellipsis работает только через вложенный блок). */
+.employee-col .cell-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
 }
 
 /* Выравнивание содержимого колонок */
