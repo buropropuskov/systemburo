@@ -9,211 +9,213 @@
 
     <!-- Модальное окно истории -->
     <Teleport to="body">
-      <div
-        v-if="showModal"
-        class="history-modal-overlay"
-        @click.self="closeModal"
-      >
-        <div class="history-modal">
-          <div class="modal-header">
-            <h3>История заявки {{ applicationNumber }}</h3>
-            <div class="header-actions">
-              <button
-                class="export-btn"
-                :disabled="filteredHistory.length === 0 || isExporting"
-                @click="exportToExcel"
-              >
-                <img
-                  v-if="!isExporting"
-                  src="@/assets/icons/export.png"
-                  class="export-icon"
-                >
-                <span v-if="!isExporting">Экспорт</span>
-                <div
-                  v-else
-                  class="export-loader"
-                />
-              </button>
-              <button
-                class="close-btn"
-                @click="closeModal"
-              >
-                ×
-              </button>
-            </div>
-          </div>
-
-          <!-- Фильтры -->
-          <div class="history-filters">
-            <div class="filter-row">
-              <div class="user-filter">
-                <span class="filter-label">Пользователь:</span>
-                <div
-                  class="custom-select"
-                  @click="toggleUserDropdown"
-                >
-                  <div class="select-trigger">
-                    <span class="selected-value">{{ selectedUserName }}</span>
-                    <img 
-                      src="@/assets/icons/arrow.png" 
-                      class="select-arrow" 
-                      :class="{ 'arrow-open': userDropdownOpen }"
-                    >
-                  </div>
-                  <transition name="fade">
-                    <div
-                      v-if="userDropdownOpen"
-                      class="select-dropdown"
-                    >
-                      <div 
-                        class="select-option"
-                        :class="{ 'selected': selectedUserId === null }"
-                        @click="selectUser(null)"
-                      >
-                        Все пользователи
-                      </div>
-                      <div 
-                        v-for="user in uniqueUsers" 
-                        :key="user.id"
-                        class="select-option"
-                        :class="{ 'selected': selectedUserId === user.id }"
-                        @click="selectUser(user.id)"
-                      >
-                        {{ user.name }}
-                      </div>
-                    </div>
-                  </transition>
-                </div>
-              </div>
-                        
-              <div class="sort-filter">
-                <span class="filter-label">Сортировка:</span>
+      <transition name="modal-fade">
+        <div
+          v-if="showModal"
+          class="history-modal-overlay"
+          @click.self="closeModal"
+        >
+          <div class="history-modal">
+            <div class="modal-header">
+              <h3>История заявки {{ applicationNumber }}</h3>
+              <div class="header-actions">
                 <button
-                  class="sort-btn"
-                  @click="toggleSortOrder"
+                  class="export-btn"
+                  :disabled="filteredHistory.length === 0 || isExporting"
+                  @click="exportToExcel"
                 >
                   <img
-                    src="@/assets/icons/sort.png"
-                    class="sort-icon"
-                    :class="{ 'sort-asc': sortOrder === 'asc' }"
+                    v-if="!isExporting"
+                    src="@/assets/icons/export.png"
+                    class="export-icon"
                   >
-                  <span>{{ sortOrder === 'desc' ? 'Сначала новые' : 'Сначала старые' }}</span>
+                  <span v-if="!isExporting">Экспорт</span>
+                  <div
+                    v-else
+                    class="export-loader"
+                  />
+                </button>
+                <button
+                  class="close-btn"
+                  @click="closeModal"
+                >
+                  ×
                 </button>
               </div>
             </div>
-          </div>
 
-          <div
-            ref="scrollContainer"
-            class="modal-content"
-          >
-            <div
-              v-if="loading"
-              class="history-loading"
-            >
-              <LoaderSpinner label="Загрузка истории…" />
-            </div>
-                    
-            <div
-              v-else-if="filteredHistory.length === 0"
-              class="history-empty"
-            >
-              История пуста
-            </div>
-                    
-            <div
-              v-else
-              class="history-timeline"
-            >
-              <template
-                v-for="group in historyGroupedByDate"
-                :key="group.date"
-              >
-                <div class="history-date-separator">
-                  {{ group.date }}
-                </div>
-                <div
-                  v-for="(item, i) in group.items"
-                  :key="item.id"
-                  class="history-item"
-                >
+            <!-- Фильтры -->
+            <div class="history-filters">
+              <div class="filter-row">
+                <div class="user-filter">
+                  <span class="filter-label">Пользователь:</span>
                   <div
-                    class="timeline-dot"
-                    :class="getActionClass(item.action_type)"
-                  />
-                  <div
-                    v-if="i < group.items.length - 1"
-                    class="timeline-line"
-                  />
-
-                  <div class="history-content">
-                    <div class="history-header">
-                      <!-- Для системных действий показываем "Система" -->
-                      <span
-                        v-if="item.action_type === 'confirmation_change' || item.action_type === 'status_change' || !item.user_id"
-                        class="user-name system-name"
+                    class="custom-select"
+                    @click="toggleUserDropdown"
+                  >
+                    <div class="select-trigger">
+                      <span class="selected-value">{{ selectedUserName }}</span>
+                      <img 
+                        src="@/assets/icons/arrow.png" 
+                        class="select-arrow" 
+                        :class="{ 'arrow-open': userDropdownOpen }"
                       >
-                        Система
-                      </span>
-                      <span
-                        v-else
-                        class="user-name"
-                      >{{ item.user_name }}</span>
-                      <span class="action-time">{{ formatTime(item.created_at) }}</span>
                     </div>
-
-                    <div class="action-text">
-                      {{ getActionText(item) }}
-                    </div>
-
-                    <!-- Для пересылки показываем дополнительную информацию -->
-                    <div
-                      v-if="item.action_type === 'assigned_responsible' && item.metadata?.forwarded_by"
-                      class="forward-info"
-                    >
-                      Переслано пользователем {{ item.metadata.forwarded_by }}
-                    </div>
-
-                    <!-- Для просмотра показываем дополнительную информацию -->
-                    <div
-                      v-if="item.action_type === 'assigned_viewer' && item.metadata?.forwarded_by"
-                      class="forward-info"
-                    >
-                      Переслано пользователем {{ item.metadata.forwarded_by }}
-                    </div>
-
-                    <!-- Бейдж обязательного согласования -->
-                    <div
-                      v-if="item.metadata?.required_approval"
-                      class="required-badge"
-                    >
-                      Обязательно
-                    </div>
-
-                    <!-- Статус изменения -->
-                    <div
-                      v-if="item.old_value && item.new_value && item.old_value !== item.new_value"
-                      class="status-change"
-                    >
-                      <span class="old-status">{{ item.old_value }}</span>
-                      <span class="arrow">→</span>
-                      <span class="new-status">{{ item.new_value }}</span>
-                    </div>
-
-                    <!-- Комментарий (если есть) -->
-                    <div
-                      v-if="item.comment && item.action_type !== 'revoke_approval'"
-                      class="action-comment"
-                    >
-                      {{ item.comment }}
-                    </div>
+                    <transition name="fade">
+                      <div
+                        v-if="userDropdownOpen"
+                        class="select-dropdown"
+                      >
+                        <div 
+                          class="select-option"
+                          :class="{ 'selected': selectedUserId === null }"
+                          @click="selectUser(null)"
+                        >
+                          Все пользователи
+                        </div>
+                        <div 
+                          v-for="user in uniqueUsers" 
+                          :key="user.id"
+                          class="select-option"
+                          :class="{ 'selected': selectedUserId === user.id }"
+                          @click="selectUser(user.id)"
+                        >
+                          {{ user.name }}
+                        </div>
+                      </div>
+                    </transition>
                   </div>
                 </div>
-              </template>
+                        
+                <div class="sort-filter">
+                  <span class="filter-label">Сортировка:</span>
+                  <button
+                    class="sort-btn"
+                    @click="toggleSortOrder"
+                  >
+                    <img
+                      src="@/assets/icons/sort.png"
+                      class="sort-icon"
+                      :class="{ 'sort-asc': sortOrder === 'asc' }"
+                    >
+                    <span>{{ sortOrder === 'desc' ? 'Сначала новые' : 'Сначала старые' }}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div
+              ref="scrollContainer"
+              class="modal-content"
+            >
+              <div
+                v-if="loading"
+                class="history-loading"
+              >
+                <LoaderSpinner label="Загрузка истории…" />
+              </div>
+                    
+              <div
+                v-else-if="filteredHistory.length === 0"
+                class="history-empty"
+              >
+                История пуста
+              </div>
+                    
+              <div
+                v-else
+                class="history-timeline"
+              >
+                <template
+                  v-for="group in historyGroupedByDate"
+                  :key="group.date"
+                >
+                  <div class="history-date-separator">
+                    {{ group.date }}
+                  </div>
+                  <div
+                    v-for="(item, i) in group.items"
+                    :key="item.id"
+                    class="history-item"
+                  >
+                    <div
+                      class="timeline-dot"
+                      :class="getActionClass(item.action_type)"
+                    />
+                    <div
+                      v-if="i < group.items.length - 1"
+                      class="timeline-line"
+                    />
+
+                    <div class="history-content">
+                      <div class="history-header">
+                        <!-- Для системных действий показываем "Система" -->
+                        <span
+                          v-if="item.action_type === 'confirmation_change' || item.action_type === 'status_change' || !item.user_id"
+                          class="user-name system-name"
+                        >
+                          Система
+                        </span>
+                        <span
+                          v-else
+                          class="user-name"
+                        >{{ item.user_name }}</span>
+                        <span class="action-time">{{ formatTime(item.created_at) }}</span>
+                      </div>
+
+                      <div class="action-text">
+                        {{ getActionText(item) }}
+                      </div>
+
+                      <!-- Для пересылки показываем дополнительную информацию -->
+                      <div
+                        v-if="item.action_type === 'assigned_responsible' && item.metadata?.forwarded_by"
+                        class="forward-info"
+                      >
+                        Переслано пользователем {{ item.metadata.forwarded_by }}
+                      </div>
+
+                      <!-- Для просмотра показываем дополнительную информацию -->
+                      <div
+                        v-if="item.action_type === 'assigned_viewer' && item.metadata?.forwarded_by"
+                        class="forward-info"
+                      >
+                        Переслано пользователем {{ item.metadata.forwarded_by }}
+                      </div>
+
+                      <!-- Бейдж обязательного согласования -->
+                      <div
+                        v-if="item.metadata?.required_approval"
+                        class="required-badge"
+                      >
+                        Обязательно
+                      </div>
+
+                      <!-- Статус изменения -->
+                      <div
+                        v-if="item.old_value && item.new_value && item.old_value !== item.new_value"
+                        class="status-change"
+                      >
+                        <span class="old-status">{{ item.old_value }}</span>
+                        <span class="arrow">→</span>
+                        <span class="new-status">{{ item.new_value }}</span>
+                      </div>
+
+                      <!-- Комментарий (если есть) -->
+                      <div
+                        v-if="item.comment && item.action_type !== 'revoke_approval'"
+                        class="action-comment"
+                      >
+                        {{ item.comment }}
+                      </div>
+                    </div>
+                  </div>
+                </template>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </transition>
     </Teleport>
   </div>
 </template>
@@ -1230,5 +1232,15 @@ export default {
     .sort-btn {
         width: 100%;
     }
+}
+
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity 0.25s ease;
+}
+
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
 }
 </style>

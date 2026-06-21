@@ -112,42 +112,44 @@
     </footer>
 
     <Teleport to="body">
-      <div
-        v-if="mergeOpen"
-        class="modal-overlay modal-overlay--nested"
-        @click.self="mergeOpen = false"
-      >
-        <div class="merge-modal">
-          <h3>Слияние групп</h3>
-          <p class="section__hint">
-            Создаётся новая обычная группа с объединением прав. Исходные группы остаются и снова доступны.
-          </p>
-          <label class="lk-label">
-            Имя новой группы
-            <input
-              v-model="mergeName"
-              class="lk-input"
-              type="text"
-              placeholder="Например, Менеджер по работе с клиентами"
-            >
-          </label>
-          <div class="merge-modal__footer">
-            <button
-              class="lk-button lk-button--ghost"
-              @click="mergeOpen = false"
-            >
-              Отмена
-            </button>
-            <button
-              class="lk-button lk-button--primary"
-              :disabled="!mergeName.trim() || saving"
-              @click="confirmMerge"
-            >
-              Слить
-            </button>
+      <transition name="modal-fade">
+        <div
+          v-if="mergeOpen"
+          class="modal-overlay modal-overlay--nested"
+          @click.self="mergeOpen = false"
+        >
+          <div class="merge-modal">
+            <h3>Слияние групп</h3>
+            <p class="section__hint">
+              Создаётся новая обычная группа с объединением прав. Исходные группы остаются и снова доступны.
+            </p>
+            <label class="lk-label">
+              Имя новой группы
+              <input
+                v-model="mergeName"
+                class="lk-input"
+                type="text"
+                placeholder="Например, Менеджер по работе с клиентами"
+              >
+            </label>
+            <div class="merge-modal__footer">
+              <button
+                class="lk-button lk-button--ghost"
+                @click="mergeOpen = false"
+              >
+                Отмена
+              </button>
+              <button
+                class="lk-button lk-button--primary"
+                :disabled="!mergeName.trim() || saving"
+                @click="confirmMerge"
+              >
+                Слить
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      </transition>
     </Teleport>
   </div>
 </template>
@@ -477,5 +479,15 @@ export default {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 8px;
+}
+
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity 0.25s ease;
+}
+
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
 }
 </style>

@@ -1,115 +1,117 @@
 <template>
   <Teleport to="body">
-    <div
-      v-if="show"
-      class="modal-overlay"
-      @click.self="$emit('close')"
-    >
+    <transition name="modal-fade">
       <div
-        class="modal-content"
-        data-testid="permission-tree-modal"
+        v-if="show"
+        class="modal-overlay"
+        @click.self="$emit('close')"
       >
-        <header class="modal-content__header">
-          <h3>{{ title }}</h3>
-          <button
-            class="close-btn"
-            data-testid="permission-tree-close"
-            @click="$emit('close')"
-          >
-            ×
-          </button>
-        </header>
-
-        <div class="modal-content__body">
-          <input
-            v-model="search"
-            type="text"
-            placeholder="Поиск по ключу или описанию..."
-            class="lk-input search-input"
-            data-testid="permission-tree-search"
-          >
-
-          <div class="tree">
-            <div
-              v-for="group in filteredGroups"
-              :key="group.prefix"
-              class="tree-group"
-              :data-testid="`permission-tree-group-${group.prefix.replace('.', '')}`"
+        <div
+          class="modal-content"
+          data-testid="permission-tree-modal"
+        >
+          <header class="modal-content__header">
+            <h3>{{ title }}</h3>
+            <button
+              class="close-btn"
+              data-testid="permission-tree-close"
+              @click="$emit('close')"
             >
-              <button
-                class="tree-group__header"
-                :class="{ 'tree-group__header--collapsed': collapsed[group.prefix] }"
-                :data-testid="`permission-tree-group-toggle-${group.prefix.replace('.', '')}`"
-                @click="toggleGroup(group.prefix)"
-              >
-                <span class="tree-group__chevron">▾</span>
-                <span class="tree-group__title">{{ group.title }}</span>
-                <span class="tree-group__count">
-                  {{ groupSelectedCount(group) }}/{{ group.keys.length }}
-                </span>
-                <span
-                  class="tree-group__toggle-all"
-                  @click.stop="toggleAllInGroup(group)"
-                >
-                  {{ allInGroupSelected(group) ? 'Снять все' : 'Выбрать все' }}
-                </span>
-              </button>
+              ×
+            </button>
+          </header>
+
+          <div class="modal-content__body">
+            <input
+              v-model="search"
+              type="text"
+              placeholder="Поиск по ключу или описанию..."
+              class="lk-input search-input"
+              data-testid="permission-tree-search"
+            >
+
+            <div class="tree">
               <div
-                v-show="!collapsed[group.prefix]"
-                class="tree-group__items"
+                v-for="group in filteredGroups"
+                :key="group.prefix"
+                class="tree-group"
+                :data-testid="`permission-tree-group-${group.prefix.replace('.', '')}`"
               >
-                <label
-                  v-for="key in group.keys"
-                  :key="key.value"
-                  class="tree-item"
-                  :class="{
-                    'tree-item--changed': hasChanged(key.value)
-                  }"
-                  :data-testid="`permission-tree-key-${key.value}`"
+                <button
+                  class="tree-group__header"
+                  :class="{ 'tree-group__header--collapsed': collapsed[group.prefix] }"
+                  :data-testid="`permission-tree-group-toggle-${group.prefix.replace('.', '')}`"
+                  @click="toggleGroup(group.prefix)"
                 >
-                  <input
-                    type="checkbox"
-                    :checked="isSelected(key.value)"
-                    @change="toggleKey(key.value)"
-                  >
-                  <span class="tree-item__key">{{ key.value }}</span>
-                  <span
-                    v-if="key.description"
-                    class="tree-item__desc"
-                  >
-                    {{ key.description }}
+                  <span class="tree-group__chevron">▾</span>
+                  <span class="tree-group__title">{{ group.title }}</span>
+                  <span class="tree-group__count">
+                    {{ groupSelectedCount(group) }}/{{ group.keys.length }}
                   </span>
-                </label>
+                  <span
+                    class="tree-group__toggle-all"
+                    @click.stop="toggleAllInGroup(group)"
+                  >
+                    {{ allInGroupSelected(group) ? 'Снять все' : 'Выбрать все' }}
+                  </span>
+                </button>
+                <div
+                  v-show="!collapsed[group.prefix]"
+                  class="tree-group__items"
+                >
+                  <label
+                    v-for="key in group.keys"
+                    :key="key.value"
+                    class="tree-item"
+                    :class="{
+                      'tree-item--changed': hasChanged(key.value)
+                    }"
+                    :data-testid="`permission-tree-key-${key.value}`"
+                  >
+                    <input
+                      type="checkbox"
+                      :checked="isSelected(key.value)"
+                      @change="toggleKey(key.value)"
+                    >
+                    <span class="tree-item__key">{{ key.value }}</span>
+                    <span
+                      v-if="key.description"
+                      class="tree-item__desc"
+                    >
+                      {{ key.description }}
+                    </span>
+                  </label>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <footer class="modal-content__footer">
-          <span
-            v-if="changedCount > 0"
-            class="changed-hint"
-          >
-            Несохранённых изменений: {{ changedCount }}
-          </span>
-          <button
-            class="lk-button lk-button--ghost"
-            data-testid="permission-tree-cancel"
-            @click="$emit('close')"
-          >
-            Отмена
-          </button>
-          <button
-            class="lk-button lk-button--primary"
-            :disabled="changedCount === 0 || saving"
-            data-testid="permission-tree-save"
-            @click="save"
-          >
-            {{ saving ? 'Сохранение...' : 'Сохранить' }}
-          </button>
-        </footer>
+          <footer class="modal-content__footer">
+            <span
+              v-if="changedCount > 0"
+              class="changed-hint"
+            >
+              Несохранённых изменений: {{ changedCount }}
+            </span>
+            <button
+              class="lk-button lk-button--ghost"
+              data-testid="permission-tree-cancel"
+              @click="$emit('close')"
+            >
+              Отмена
+            </button>
+            <button
+              class="lk-button lk-button--primary"
+              :disabled="changedCount === 0 || saving"
+              data-testid="permission-tree-save"
+              @click="save"
+            >
+              {{ saving ? 'Сохранение...' : 'Сохранить' }}
+            </button>
+          </footer>
+        </div>
       </div>
-    </div>
+    </transition>
   </Teleport>
 </template>
 
@@ -425,5 +427,15 @@ export default {
   font-size: 12px;
   color: #92400e;
   margin-right: auto;
+}
+
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity 0.25s ease;
+}
+
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
 }
 </style>
