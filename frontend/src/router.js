@@ -317,6 +317,12 @@ router.beforeEach(async (to, from, next) => {
     const { usePermissionsStore } = await import('@/stores/permissions');
     const store = usePermissionsStore();
     if (store.isStale) await store.fetchPermissions();
+    // Забаненного уводим в ЛК (а не в /403): там BanOverlay блокирует
+    // взаимодействие, но единственная доступная ему страница - личный кабинет.
+    if (store.banned && to.name !== 'Account') {
+      next('/personal-cabinet');
+      return;
+    }
     const requiredPermission = typeof to.meta.permission === 'function'
       ? to.meta.permission(to)
       : to.meta.permission;
