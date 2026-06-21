@@ -223,10 +223,31 @@ func (s *uniqueCarService) LookupByNumberMark(ctx context.Context, number, mark 
 }
 
 // GetAll возвращает список уникальных автомобилей с фильтрацией по типу владельца.
+// userCanSeeAllSystem сообщает, вправе ли пользователь смотреть системный срез
+// (filter_type=all_system - все записи системы без фильтра): super-admin или
+// администратор (is_admin). Остальным запрещено - иначе любой авторизованный юзер
+// вытащил бы все машины/сотрудников системы (broken access control).
+func userCanSeeAllSystem(ctx context.Context, db *gorm.DB, userID int) bool {
+	var u struct {
+		IsSuperAdmin bool
+		IsAdmin      bool
+	}
+	if err := db.WithContext(ctx).Table("users").
+		Select("is_super_admin, is_admin").
+		Where("id = ?", userID).Scan(&u).Error; err != nil {
+		return false
+	}
+	return u.IsSuperAdmin || u.IsAdmin
+}
+
 func (s *uniqueCarService) GetAll(ctx context.Context, username string, filterType string) ([]UniqueCarWithRelations, error) {
 	ownerInfo, err := s.getCarOwnerInfo(ctx, username)
 	if err != nil {
 		return nil, err
+	}
+
+	if filterType == "all_system" && !userCanSeeAllSystem(ctx, s.db, ownerInfo.UserID) {
+		return nil, echo.NewHTTPError(http.StatusForbidden, "Недостаточно прав для просмотра всех записей системы")
 	}
 
 	query := s.db.WithContext(ctx).

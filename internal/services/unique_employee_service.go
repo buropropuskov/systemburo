@@ -249,6 +249,10 @@ func (s *uniqueEmployeeService) GetAll(ctx context.Context, username string, fil
 		return nil, err
 	}
 
+	if filterType == "all_system" && !userCanSeeAllSystem(ctx, s.db, ownerInfo.UserID) {
+		return nil, echo.NewHTTPError(http.StatusForbidden, "Недостаточно прав для просмотра всех записей системы")
+	}
+
 	query := s.db.WithContext(ctx).
 		Table("unique_employees ue").
 		Select(`ue.id, ue.last_name, ue.first_name, ue.middle_name,
