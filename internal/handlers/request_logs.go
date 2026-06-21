@@ -37,12 +37,11 @@ func NewRequestLogsHandler(service services.RequestLogsService) *RequestLogsHand
 // @Failure      403 {object} models.HTTPError
 // @Router       /request-logs [get]
 func (h *RequestLogsHandler) GetLogs(c echo.Context) error {
-	typeID := GetTypeID(c)
 	var q models.RequestLogsQuery
 	if err := c.Bind(&q); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid query parameters")
 	}
-	logs, total, err := h.service.GetLogs(c.Request().Context(), typeID, q)
+	logs, total, err := h.service.GetLogs(c.Request().Context(), q)
 	if err != nil {
 		return err
 	}
@@ -63,8 +62,7 @@ func (h *RequestLogsHandler) GetLogs(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /request-logs/users [get]
 func (h *RequestLogsHandler) GetUsers(c echo.Context) error {
-	typeID := GetTypeID(c)
-	users, err := h.service.GetUsers(c.Request().Context(), typeID)
+	users, err := h.service.GetUsers(c.Request().Context())
 	if err != nil {
 		return err
 	}
@@ -81,8 +79,7 @@ func (h *RequestLogsHandler) GetUsers(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /request-logs/stats [get]
 func (h *RequestLogsHandler) GetStats(c echo.Context) error {
-	typeID := GetTypeID(c)
-	stats, err := h.service.GetStats(c.Request().Context(), typeID)
+	stats, err := h.service.GetStats(c.Request().Context())
 	if err != nil {
 		return err
 	}
@@ -99,8 +96,7 @@ func (h *RequestLogsHandler) GetStats(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /request-logs/realtime [get]
 func (h *RequestLogsHandler) GetRealtime(c echo.Context) error {
-	typeID := GetTypeID(c)
-	stats, err := h.service.GetRealtime(c.Request().Context(), typeID)
+	stats, err := h.service.GetRealtime(c.Request().Context())
 	if err != nil {
 		return err
 	}
@@ -121,12 +117,11 @@ func (h *RequestLogsHandler) GetRealtime(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /request-logs/timeline [get]
 func (h *RequestLogsHandler) GetTimeline(c echo.Context) error {
-	typeID := GetTypeID(c)
 	var q models.TimelineQuery
 	if err := c.Bind(&q); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid query parameters")
 	}
-	points, err := h.service.GetTimeline(c.Request().Context(), typeID, q)
+	points, err := h.service.GetTimeline(c.Request().Context(), q)
 	if err != nil {
 		return err
 	}
@@ -149,12 +144,11 @@ func (h *RequestLogsHandler) GetTimeline(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /request-logs/export [get]
 func (h *RequestLogsHandler) Export(c echo.Context) error {
-	typeID := GetTypeID(c)
 	var q models.RequestLogsQuery
 	if err := c.Bind(&q); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid query parameters")
 	}
-	text, err := h.service.Export(c.Request().Context(), typeID, q)
+	text, err := h.service.Export(c.Request().Context(), q)
 	if err != nil {
 		return err
 	}
@@ -173,12 +167,11 @@ func (h *RequestLogsHandler) Export(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /request-logs/history [get]
 func (h *RequestLogsHandler) GetHistory(c echo.Context) error {
-	typeID := GetTypeID(c)
 	var q models.RequestLogsHistoryQuery
 	if err := c.Bind(&q); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid query parameters")
 	}
-	res, err := h.service.GetHistory(c.Request().Context(), typeID, q)
+	res, err := h.service.GetHistory(c.Request().Context(), q)
 	if err != nil {
 		return err
 	}

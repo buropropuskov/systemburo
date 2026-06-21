@@ -14,14 +14,15 @@ import (
 )
 
 // RequestLogsService -- интерфейс бизнес-логики логов запросов.
+// Весь раздел мониторинга admin-only (page.admin) -- авторизация на роут-middleware.
 type RequestLogsService interface {
-	GetLogs(ctx context.Context, typeID int, q models.RequestLogsQuery) ([]models.RequestLogs, int64, error)
-	GetUsers(ctx context.Context, typeID int) ([]models.RequestLogsUser, error)
-	GetStats(ctx context.Context, typeID int) (*models.RequestLogsStats, error)
-	GetRealtime(ctx context.Context, typeID int) (*models.RealtimeStats, error)
-	GetTimeline(ctx context.Context, typeID int, q models.TimelineQuery) ([]models.TimelinePoint, error)
-	GetHistory(ctx context.Context, typeID int, q models.RequestLogsHistoryQuery) (*models.RequestLogsHistory, error)
-	Export(ctx context.Context, typeID int, q models.RequestLogsQuery) (string, error)
+	GetLogs(ctx context.Context, q models.RequestLogsQuery) ([]models.RequestLogs, int64, error)
+	GetUsers(ctx context.Context) ([]models.RequestLogsUser, error)
+	GetStats(ctx context.Context) (*models.RequestLogsStats, error)
+	GetRealtime(ctx context.Context) (*models.RealtimeStats, error)
+	GetTimeline(ctx context.Context, q models.TimelineQuery) ([]models.TimelinePoint, error)
+	GetHistory(ctx context.Context, q models.RequestLogsHistoryQuery) (*models.RequestLogsHistory, error)
+	Export(ctx context.Context, q models.RequestLogsQuery) (string, error)
 }
 
 type requestLogsService struct {
@@ -31,23 +32,6 @@ type requestLogsService struct {
 // NewRequestLogsService создаёт реализацию RequestLogsService.
 func NewRequestLogsService(db *gorm.DB) RequestLogsService {
 	return &requestLogsService{db: db}
-}
-
-func (s *requestLogsService) checkAdmin(_ context.Context, typeID int) error {
-	var code string
-	err := s.db.
-		Table("user_types").
-		Select("code").
-		Where("id = ?", typeID).
-		Row().
-		Scan(&code)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, "User not found")
-	}
-	if code != "manager" && code != "buropropuskov" {
-		return echo.NewHTTPError(http.StatusForbidden, "Insufficient permissions")
-	}
-	return nil
 }
 
 func (s *requestLogsService) applyFilters(tx *gorm.DB, q models.RequestLogsQuery) *gorm.DB {
@@ -78,11 +62,7 @@ func (s *requestLogsService) applyFilters(tx *gorm.DB, q models.RequestLogsQuery
 }
 
 // GetLogs возвращает логи с пагинацией и фильтрацией.
-func (s *requestLogsService) GetLogs(ctx context.Context, typeID int, q models.RequestLogsQuery) ([]models.RequestLogs, int64, error) {
-	if err := s.checkAdmin(ctx, typeID); err != nil {
-		return nil, 0, err
-	}
-
+func (s *requestLogsService) GetLogs(ctx context.Context, q models.RequestLogsQuery) ([]models.RequestLogs, int64, error) {
 	if q.Page < 1 {
 		q.Page = 1
 	}
@@ -111,11 +91,7 @@ func (s *requestLogsService) GetLogs(ctx context.Context, typeID int, q models.R
 }
 
 // GetUsers возвращает уникальных пользователей из логов.
-func (s *requestLogsService) GetUsers(ctx context.Context, typeID int) ([]models.RequestLogsUser, error) {
-	if err := s.checkAdmin(ctx, typeID); err != nil {
-		return nil, err
-	}
-
+func (s *requestLogsService) GetUsers(ctx context.Context) ([]models.RequestLogsUser, error) {
 	users := make([]models.RequestLogsUser, 0)
 	err := s.db.WithContext(ctx).
 		Table("request_logs").
@@ -131,11 +107,7 @@ func (s *requestLogsService) GetUsers(ctx context.Context, typeID int) ([]models
 }
 
 // GetStats возвращает агрегированную статистику.
-func (s *requestLogsService) GetStats(ctx context.Context, typeID int) (*models.RequestLogsStats, error) {
-	if err := s.checkAdmin(ctx, typeID); err != nil {
-		return nil, err
-	}
-
+func (s *requestLogsService) GetStats(ctx context.Context) (*models.RequestLogsStats, error) {
 	var stats models.RequestLogsStats
 
 	// Total
@@ -174,11 +146,7 @@ func (s *requestLogsService) GetStats(ctx context.Context, typeID int) (*models.
 }
 
 // GetRealtime возвращает количество запросов за последнюю секунду и минуту.
-func (s *requestLogsService) GetRealtime(ctx context.Context, typeID int) (*models.RealtimeStats, error) {
-	if err := s.checkAdmin(ctx, typeID); err != nil {
-		return nil, err
-	}
-
+func (s *requestLogsService) GetRealtime(ctx context.Context) (*models.RealtimeStats, error) {
 	now := time.Now().UTC()
 	var stats models.RealtimeStats
 
@@ -194,11 +162,7 @@ func (s *requestLogsService) GetRealtime(ctx context.Context, typeID int) (*mode
 }
 
 // GetTimeline возвращает точки для графика, сгруппированные по интервалу.
-func (s *requestLogsService) GetTimeline(ctx context.Context, typeID int, q models.TimelineQuery) ([]models.TimelinePoint, error) {
-	if err := s.checkAdmin(ctx, typeID); err != nil {
-		return nil, err
-	}
-
+func (s *requestLogsService) GetTimeline(ctx context.Context, q models.TimelineQuery) ([]models.TimelinePoint, error) {
 	if q.Interval < 1 {
 		q.Interval = 60
 	}
@@ -247,11 +211,7 @@ func (s *requestLogsService) GetTimeline(ctx context.Context, typeID int, q mode
 }
 
 // Export экспортирует логи в текстовый формат.
-func (s *requestLogsService) Export(ctx context.Context, typeID int, q models.RequestLogsQuery) (string, error) {
-	if err := s.checkAdmin(ctx, typeID); err != nil {
-		return "", err
-	}
-
+func (s *requestLogsService) Export(ctx context.Context, q models.RequestLogsQuery) (string, error) {
 	// Снимаем лимит пагинации для экспорта, но ограничиваем 10000 записей
 	q.Page = 1
 	q.PerPage = 10000
@@ -295,10 +255,7 @@ func (s *requestLogsService) Export(ctx context.Context, typeID int, q models.Re
 
 // GetHistory собирает агрегаты логов за период из request_logs_daily для вкладки
 // «Аналитика»: итоги, ряд по дням, топ эндпоинтов и топ пользователей.
-func (s *requestLogsService) GetHistory(ctx context.Context, typeID int, q models.RequestLogsHistoryQuery) (*models.RequestLogsHistory, error) {
-	if err := s.checkAdmin(ctx, typeID); err != nil {
-		return nil, err
-	}
+func (s *requestLogsService) GetHistory(ctx context.Context, q models.RequestLogsHistoryQuery) (*models.RequestLogsHistory, error) {
 	from, to := historyRange(q.From, q.To)
 	res := &models.RequestLogsHistory{
 		Daily:        []models.HistoryDailyPoint{},

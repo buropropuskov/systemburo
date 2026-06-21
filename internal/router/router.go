@@ -577,8 +577,8 @@ func Setup(e *echo.Echo, d Dependencies) {
 	notif.DELETE("/:id", notifications.Delete)
 	notif.DELETE("", notifications.DeleteAll)
 
-	// Логи запросов
-	rlg := protected.Group("/request-logs")
+	// Логи запросов (мониторинг) - целиком admin-only, page.admin (Ф5, ранее service checkAdmin).
+	rlg := protected.Group("/request-logs", requireAdmin)
 	rlg.GET("", requestLogs.GetLogs)
 	rlg.GET("/users", requestLogs.GetUsers)
 	rlg.GET("/stats", requestLogs.GetStats)
