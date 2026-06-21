@@ -67,6 +67,16 @@ type Config struct {
 	// AnalyticsCacheRefreshSec - интервал обновления тёплого кэша аналитики дашборда
 	// (in-memory + снимок в БД для прогрева после рестарта). 0 отключает кэш.
 	AnalyticsCacheRefreshSec int `env:"ANALYTICS_CACHE_REFRESH_SEC" envDefault:"60"`
+
+	// Партиционирование request_logs: детально храним RequestLogDetailDays дней
+	// (партиции старше сворачиваются в дневные агрегаты и дропаются), партиции
+	// создаём на RequestLogPartitionPrecreateDays вперёд.
+	RequestLogDetailDays             int `env:"REQUEST_LOG_DETAIL_DAYS" envDefault:"30"`
+	RequestLogPartitionPrecreateDays int `env:"REQUEST_LOG_PARTITION_PRECREATE_DAYS" envDefault:"7"`
+
+	// PdAuditRetentionMonths - срок хранения аудита ПД (152-ФЗ): партиции старше
+	// дропаются. По умолчанию 36 месяцев (3 года).
+	PdAuditRetentionMonths int `env:"PD_AUDIT_RETENTION_MONTHS" envDefault:"36"`
 }
 
 func Load() (*Config, error) {

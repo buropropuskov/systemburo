@@ -133,7 +133,7 @@ func AllModels() []interface{} {
 
 		// Logging
 		&models.RequestLog{},
-		&models.RequestLogs{},
+		// request_logs партиционируется нативно (installLogPartitioning) - вне AutoMigrate.
 		// Trash history для system_tables (#186)
 		&models.SystemTableTrashHistory{},
 
@@ -156,7 +156,7 @@ func AllModels() []interface{} {
 
 		// PD consent & audit (152-FZ)
 		&models.PDConsent{},
-		&models.PDAuditLog{},
+		// pd_audit_logs партиционируется нативно (installLogPartitioning) - вне AutoMigrate.
 
 		// Documents (#39)
 		&models.DocumentGroup{},
@@ -175,6 +175,9 @@ func AllModels() []interface{} {
 func AutoMigrate(db *gorm.DB) error {
 	slog.Info("running AutoMigrate for all models")
 	if err := installExtensions(db); err != nil {
+		return err
+	}
+	if err := installLogPartitioning(db); err != nil {
 		return err
 	}
 	if err := db.AutoMigrate(AllModels()...); err != nil {
