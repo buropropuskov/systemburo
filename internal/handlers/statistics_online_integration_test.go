@@ -44,7 +44,7 @@ func TestUsersOnline_CountsByLastSeenWindow(t *testing.T) {
 	mk("offline_stale", &stale)
 	mk("never_seen", nil)
 
-	svc := services.NewStatisticsService(db)
+	svc := services.NewStatisticsService(db, 0)
 	summary, err := svc.GetSummary(context.Background(), now.Add(-24*time.Hour), now)
 	require.NoError(t, err)
 
@@ -59,7 +59,7 @@ func TestSnapshotOnlinePeak_MaxAndUpsert(t *testing.T) {
 	testutil.CleanDB(t, db)
 
 	now := time.Now().UTC()
-	svc := services.NewStatisticsService(db)
+	svc := services.NewStatisticsService(db, 0)
 
 	// Снимок 1: 3 пользователя онлайн.
 	for _, name := range []string{"p1", "p2", "p3"} {
@@ -154,7 +154,7 @@ func TestGetOnlineUsers_WindowSortAndFields(t *testing.T) {
 	require.NoError(t, db.Model(&models.User{}).Where("id = ?", inactive.ID).
 		Updates(map[string]any{"is_active": false, "last_seen": recent}).Error)
 
-	svc := services.NewStatisticsService(db)
+	svc := services.NewStatisticsService(db, 0)
 	users, err := svc.GetOnlineUsers(context.Background())
 	require.NoError(t, err)
 
@@ -189,7 +189,7 @@ func TestGetOnlineUsersHandler_HTTP(t *testing.T) {
 	require.NoError(t, db.Model(&models.User{}).Where("id = ?", u.ID).
 		Update("last_seen", now.Add(-1*time.Minute)).Error)
 
-	h := handlers.NewStatisticsHandler(services.NewStatisticsService(db))
+	h := handlers.NewStatisticsHandler(services.NewStatisticsService(db, 0))
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/statistics/online-users", nil)
 	rec := httptest.NewRecorder()
@@ -232,7 +232,7 @@ func TestGetOnlinePeaks_Series(t *testing.T) {
 	mkPeak(d2, 3)
 	mkPeak(d1, 5)
 
-	svc := services.NewStatisticsService(db)
+	svc := services.NewStatisticsService(db, 0)
 	points, err := svc.GetOnlinePeaks(context.Background(), now.Add(-3*24*time.Hour), now)
 	require.NoError(t, err)
 
@@ -263,7 +263,7 @@ func TestGetOnlinePeaksHandler_HTTP(t *testing.T) {
 	mkPeak(d1, 4)
 	mkPeak(now, 9)
 
-	h := handlers.NewStatisticsHandler(services.NewStatisticsService(db))
+	h := handlers.NewStatisticsHandler(services.NewStatisticsService(db, 0))
 
 	e := echo.New()
 	from := now.Add(-72 * time.Hour).Format("2006-01-02")
@@ -293,7 +293,7 @@ func TestGetOnlinePeaksHandler_InvalidRange(t *testing.T) {
 	_, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 
-	h := handlers.NewStatisticsHandler(services.NewStatisticsService(db))
+	h := handlers.NewStatisticsHandler(services.NewStatisticsService(db, 0))
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/statistics/online-peaks?from=2026-06-10&to=2026-06-01", nil)
 	rec := httptest.NewRecorder()

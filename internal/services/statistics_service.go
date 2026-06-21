@@ -39,19 +39,95 @@ type StatisticsService interface {
 	CreateReportTemplate(ctx context.Context, userID int, req models.SaveReportTemplateRequest) (*models.ReportTemplate, error)
 	UpdateReportTemplate(ctx context.Context, userID, id int, req models.SaveReportTemplateRequest) (*models.ReportTemplate, error)
 	DeleteReportTemplate(ctx context.Context, userID, id int) error
+
+	// WarmCache прогревает кэш аналитики из БД (вызывать при старте до приёма трафика).
+	WarmCache(ctx context.Context)
+	// StartCacheRefresh запускает фоновое обновление кэша аналитики до отмены ctx
+	// (блокирует, вызывать в горутине). No-op, если кэш отключён.
+	StartCacheRefresh(ctx context.Context)
 }
 
 type statisticsService struct {
-	db *gorm.DB
+	db            *gorm.DB
+	cacheRefresh  time.Duration
+	summaryCache  *periodCache[*models.StatsSummary]
+	insightsCache *periodCache[*models.InsightsResponse]
 }
 
-// NewStatisticsService создаёт реализацию StatisticsService.
-func NewStatisticsService(db *gorm.DB) StatisticsService {
-	return &statisticsService{db: db}
+// NewStatisticsService создаёт реализацию StatisticsService. cacheRefresh > 0
+// включает тёплый кэш дашборда/insights (in-memory + снимок в БД) с обновлением
+// раз в cacheRefresh; 0 - кэш отключён, всё считается на каждый запрос.
+func NewStatisticsService(db *gorm.DB, cacheRefresh time.Duration) StatisticsService {
+	s := &statisticsService{db: db, cacheRefresh: cacheRefresh}
+	if cacheRefresh > 0 {
+		const evict = time.Hour // период, не запрашиваемый дольше часа, выселяется
+		s.summaryCache = newPeriodCache[*models.StatsSummary](db, "summary", evict, s.computeHeavySummary)
+		s.insightsCache = newPeriodCache[*models.InsightsResponse](db, "insights", evict,
+			func(ctx context.Context, from, to time.Time) (*models.InsightsResponse, error) {
+				return s.computeInsights(ctx, from.Format("2006-01-02"), to.Format("2006-01-02"))
+			})
+	}
+	return s
 }
 
-// GetSummary возвращает сводную статистику за период [from, to].
+// WarmCache загружает снимки аналитики из БД в память (прогрев после рестарта).
+func (s *statisticsService) WarmCache(ctx context.Context) {
+	if s.summaryCache != nil {
+		s.summaryCache.warmup(ctx)
+	}
+	if s.insightsCache != nil {
+		s.insightsCache.warmup(ctx)
+	}
+}
+
+// StartCacheRefresh периодически обновляет кэш аналитики до отмены ctx.
+func (s *statisticsService) StartCacheRefresh(ctx context.Context) {
+	if s.cacheRefresh <= 0 {
+		return
+	}
+	ticker := time.NewTicker(s.cacheRefresh)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if s.summaryCache != nil {
+				s.summaryCache.refresh(ctx)
+			}
+			if s.insightsCache != nil {
+				s.insightsCache.refresh(ctx)
+			}
+		}
+	}
+}
+
+// GetSummary возвращает сводную статистику за период [from, to]. Тяжёлые агрегаты
+// берутся из тёплого кэша (если включён), realtime-показатели (онлайн, на
+// территории) всегда считаются на лету и домешиваются к снимку.
 func (s *statisticsService) GetSummary(ctx context.Context, from, to time.Time) (*models.StatsSummary, error) {
+	var heavy *models.StatsSummary
+	var err error
+	if s.summaryCache != nil {
+		heavy, err = s.summaryCache.get(ctx, from, to)
+	} else {
+		heavy, err = s.computeHeavySummary(ctx, from, to)
+	}
+	if err != nil {
+		return nil, err
+	}
+	// Копия, чтобы realtime-поля не мутировали общий кэшированный снимок.
+	out := *heavy
+	if err := s.computeRealtimeSummary(ctx, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// computeHeavySummary считает дорогие агрегаты за период и медленно меняющиеся
+// счётчики - всё, что кэшируется. Realtime-показатели здесь не заполняются, их
+// добавляет computeRealtimeSummary.
+func (s *statisticsService) computeHeavySummary(ctx context.Context, from, to time.Time) (*models.StatsSummary, error) {
 	var summary models.StatsSummary
 
 	// total_applications
@@ -153,38 +229,6 @@ func (s *statisticsService) GetSummary(ctx context.Context, from, to time.Time) 
 	}
 	summary.ItemsSum = itemsSum.Sum
 
-	// cars_on_territory (territory_status = 1)
-	if err := s.db.WithContext(ctx).
-		Table("cars").
-		Where("territory_status = 1").
-		Count(&summary.CarsOnTerritory).Error; err != nil {
-		return nil, fmt.Errorf("statistics: cars_on_territory: %w", err)
-	}
-
-	// people_on_territory (territory_status = 1)
-	if err := s.db.WithContext(ctx).
-		Table("employees").
-		Where("territory_status = 1").
-		Count(&summary.PeopleOnTerritory).Error; err != nil {
-		return nil, fmt.Errorf("statistics: people_on_territory: %w", err)
-	}
-
-	// users_online: онлайн = активность (last_seen) за последние onlineWindowMinutes.
-	online, err := s.countOnline(ctx, time.Now().UTC())
-	if err != nil {
-		return nil, fmt.Errorf("statistics: users_online: %w", err)
-	}
-	summary.UsersOnline = online
-
-	// users_online_peak_today: пик одновременного онлайна за сегодня из снимков тикера.
-	if err := s.db.WithContext(ctx).
-		Table("user_online_peaks").
-		Where("date = ?", time.Now().UTC().Format("2006-01-02")).
-		Select("COALESCE(MAX(peak_count), 0)").
-		Scan(&summary.UsersOnlinePeakToday).Error; err != nil {
-		return nil, fmt.Errorf("statistics: users_online_peak_today: %w", err)
-	}
-
 	// active_users
 	if err := s.db.WithContext(ctx).
 		Table("users").
@@ -248,6 +292,44 @@ func (s *statisticsService) GetSummary(ctx context.Context, from, to time.Time) 
 	}
 
 	return &summary, nil
+}
+
+// computeRealtimeSummary заполняет показатели текущего состояния: на территории
+// и онлайн. Дёшево (точечные запросы), считается на каждый запрос дашборда.
+func (s *statisticsService) computeRealtimeSummary(ctx context.Context, summary *models.StatsSummary) error {
+	// cars_on_territory (territory_status = 1)
+	if err := s.db.WithContext(ctx).
+		Table("cars").
+		Where("territory_status = 1").
+		Count(&summary.CarsOnTerritory).Error; err != nil {
+		return fmt.Errorf("statistics: cars_on_territory: %w", err)
+	}
+
+	// people_on_territory (territory_status = 1)
+	if err := s.db.WithContext(ctx).
+		Table("employees").
+		Where("territory_status = 1").
+		Count(&summary.PeopleOnTerritory).Error; err != nil {
+		return fmt.Errorf("statistics: people_on_territory: %w", err)
+	}
+
+	// users_online: онлайн = активность (last_seen) за последние onlineWindowMinutes.
+	online, err := s.countOnline(ctx, time.Now().UTC())
+	if err != nil {
+		return fmt.Errorf("statistics: users_online: %w", err)
+	}
+	summary.UsersOnline = online
+
+	// users_online_peak_today: пик одновременного онлайна за сегодня из снимков тикера.
+	if err := s.db.WithContext(ctx).
+		Table("user_online_peaks").
+		Where("date = ?", time.Now().UTC().Format("2006-01-02")).
+		Select("COALESCE(MAX(peak_count), 0)").
+		Scan(&summary.UsersOnlinePeakToday).Error; err != nil {
+		return fmt.Errorf("statistics: users_online_peak_today: %w", err)
+	}
+
+	return nil
 }
 
 // onlineThreshold — граница окна онлайна на момент now: пользователь онлайн, если
