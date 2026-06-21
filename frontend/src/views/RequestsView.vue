@@ -46,458 +46,637 @@
         </div>
       </div>
 
-      <div class="chart-section">
-        <div class="chart-header">
-          <h4 class="chart-title">
-            Запросы {{ selectedPeriod.title }}
-          </h4>
-          <div class="chart-header-actions">
-            <span class="chart-interval">интервал: {{ selectedPeriod.intervalHuman }}</span>
-            <div class="chart-period-dropdown">
-              <select
-                v-model="chartPeriod"
-                class="chart-period-select"
-                @change="onChartPeriodChange"
-              >
-                <option
-                  v-for="p in chartPeriods"
-                  :key="p.key"
-                  :value="p.key"
-                >
-                  {{ p.label }}
-                </option>
-              </select>
-            </div>
-          </div>
-        </div>
-        <RealTimeChart
-          :data="timelineData"
-          :height="180"
-          color="#4F5BDF"
-          :interval-label="selectedPeriod.xAxisLabel"
-        />
-      </div>
-
-      <div class="filters-bar">
-        <SearchComponent
-          v-model="searchQuery"
-          :title="'Поиск по логам...'"
-          @keyup.enter="refreshLogs"
-        />
-        <div class="filter-controls">
-          <select
-            v-model="filterMethod"
-            class="filter-select"
-            @change="refreshLogs"
-          >
-            <option value="">
-              Все методы
-            </option>
-            <option value="GET">
-              GET
-            </option>
-            <option value="POST">
-              POST
-            </option>
-            <option value="PUT">
-              PUT
-            </option>
-            <option value="DELETE">
-              DELETE
-            </option>
-            <option value="PATCH">
-              PATCH
-            </option>
-          </select>
-          <select
-            v-model="filterStatus"
-            class="filter-select"
-            @change="refreshLogs"
-          >
-            <option value="">
-              Все статусы
-            </option>
-            <option value="200">
-              200 OK
-            </option>
-            <option value="400">
-              400 Bad Request
-            </option>
-            <option value="401">
-              401 Unauthorized
-            </option>
-            <option value="403">
-              403 Forbidden
-            </option>
-            <option value="404">
-              404 Not Found
-            </option>
-            <option value="500">
-              500 Server Error
-            </option>
-          </select>
-          <select
-            v-model="filterUser"
-            class="filter-select"
-            @change="refreshLogs"
-          >
-            <option value="">
-              Все пользователи
-            </option>
-            <option
-              v-for="u in users"
-              :key="u.id"
-              :value="u.id"
-            >
-              {{ u.username }}
-            </option>
-          </select>
-          <input
-            v-model="filterStartDate"
-            type="date"
-            class="date-input"
-            @change="refreshLogs"
-          >
-          <input
-            v-model="filterEndDate"
-            type="date"
-            class="date-input"
-            @change="refreshLogs"
-          >
-        </div>
-        <RefreshButton
-          :loading="isLoading"
-          @refresh="refreshLogs"
-        />
+      <div class="rv-tabs">
         <button
-          class="clear-filters-btn"
-          @click="clearFilters"
+          class="rv-tab"
+          :class="{ active: activeTab === 'journal' }"
+          @click="activeTab = 'journal'"
         >
-          Сбросить
+          Журнал · live
         </button>
         <button
-          class="export-btn"
-          :disabled="isExporting"
-          @click="exportLogs"
+          class="rv-tab"
+          :class="{ active: activeTab === 'analytics' }"
+          @click="switchToAnalytics"
         >
-          {{ isExporting ? 'Экспорт...' : 'Экспорт' }}
+          Аналитика · история
         </button>
       </div>
 
-      <div class="content-container">
-        <div class="logs-table-section">
-          <div class="table-container">
-            <div class="table-header">
-              <div
-                class="header-col time-col"
-                @click="sortBy('created_at')"
-              >
-                <p :class="{ 'active-sort': sortField === 'created_at' }">
-                  Время
-                </p>
-                <img
-                  src="@/assets/icons/sort.png"
-                  class="sort-icon"
-                  :class="{
-                    'sorted': sortField === 'created_at',
-                    'desc': sortField === 'created_at' && sortDirection === 'desc'
-                  }"
-                >
-              </div>
-              <div
-                class="header-col method-col"
-                @click="sortBy('method')"
-              >
-                <p :class="{ 'active-sort': sortField === 'method' }">
-                  Метод
-                </p>
-                <img
-                  src="@/assets/icons/sort.png"
-                  class="sort-icon"
-                  :class="{
-                    'sorted': sortField === 'method',
-                    'desc': sortField === 'method' && sortDirection === 'desc'
-                  }"
-                >
-              </div>
-              <div
-                class="header-col path-col"
-                @click="sortBy('url')"
-              >
-                <p :class="{ 'active-sort': sortField === 'url' }">
-                  URL
-                </p>
-                <img
-                  src="@/assets/icons/sort.png"
-                  class="sort-icon"
-                  :class="{
-                    'sorted': sortField === 'url',
-                    'desc': sortField === 'url' && sortDirection === 'desc'
-                  }"
-                >
-              </div>
-              <div
-                class="header-col status-col"
-                @click="sortBy('response_status')"
-              >
-                <p :class="{ 'active-sort': sortField === 'response_status' }">
-                  Статус
-                </p>
-                <img
-                  src="@/assets/icons/sort.png"
-                  class="sort-icon"
-                  :class="{
-                    'sorted': sortField === 'response_status',
-                    'desc': sortField === 'response_status' && sortDirection === 'desc'
-                  }"
-                >
-              </div>
-              <div
-                class="header-col user-col"
-                @click="sortBy('username')"
-              >
-                <p :class="{ 'active-sort': sortField === 'username' }">
-                  Пользователь
-                </p>
-                <img
-                  src="@/assets/icons/sort.png"
-                  class="sort-icon"
-                  :class="{
-                    'sorted': sortField === 'username',
-                    'desc': sortField === 'username' && sortDirection === 'desc'
-                  }"
-                >
-              </div>
-              <div
-                class="header-col duration-col"
-                @click="sortBy('duration_ms')"
-              >
-                <p :class="{ 'active-sort': sortField === 'duration_ms' }">
-                  Время
-                </p>
-                <img
-                  src="@/assets/icons/sort.png"
-                  class="sort-icon"
-                  :class="{
-                    'sorted': sortField === 'duration_ms',
-                    'desc': sortField === 'duration_ms' && sortDirection === 'desc'
-                  }"
-                >
-              </div>
-            </div>
-
-            <div
-              ref="logsBody"
-              class="table-body"
-            >
-              <div
-                v-for="log in logs"
-                :key="log.id"
-                class="table-row"
-                :class="{
-                  'selected': selectedLog && selectedLog.id === log.id,
-                  'error-row': log.response_status && log.response_status >= 400,
-                  'success-row': log.response_status && log.response_status < 400
-                }"
-                @click="selectLog(log)"
-              >
-                <div class="table-col time-col">
-                  <span
-                    class="cell-content"
-                    :title="formatFullDate(log.created_at)"
-                  >
-                    {{ formatTime(log.created_at) }}
-                  </span>
-                </div>
-                <div class="table-col method-col">
-                  <span
-                    class="method-badge"
-                    :class="getMethodClass(log.method)"
-                  >
-                    {{ log.method }}
-                  </span>
-                </div>
-                <div class="table-col path-col">
-                  <span
-                    class="truncate-text"
-                    :title="log.url"
-                  >
-                    {{ truncatePath(log.url) }}
-                  </span>
-                </div>
-                <div class="table-col status-col">
-                  <span
-                    class="status-badge"
-                    :class="getStatusClass(log.response_status)"
-                  >
-                    {{ log.response_status || 'N/A' }}
-                  </span>
-                </div>
-                <div class="table-col user-col">
-                  <span class="cell-content">
-                    {{ log.username || 'Аноним' }}
-                    <span
-                      v-if="log.user_id"
-                      class="user-id"
-                    >(ID: {{ log.user_id }})</span>
-                  </span>
-                </div>
-                <div class="table-col duration-col">
-                  <span class="cell-content">
-                    {{ log.duration_ms || 0 }}мс
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div class="table-footer">
-              <div class="pagination-controls">
-                <button
-                  :disabled="pagination.page <= 1"
-                  class="pagination-btn"
-                  @click="prevPage"
-                >
-                  &larr;
-                </button>
-                <span class="page-info">
-                  Страница {{ pagination.page }} из {{ totalPages }}
-                </span>
-                <button
-                  :disabled="pagination.page >= totalPages"
-                  class="pagination-btn"
-                  @click="nextPage"
-                >
-                  &rarr;
-                </button>
+      <div v-show="activeTab === 'journal'">
+        <div class="chart-section">
+          <div class="chart-header">
+            <h4 class="chart-title">
+              Запросы {{ selectedPeriod.title }}
+            </h4>
+            <div class="chart-header-actions">
+              <span class="chart-interval">интервал: {{ selectedPeriod.intervalHuman }}</span>
+              <div class="chart-period-dropdown">
                 <select
-                  v-model="perPage"
-                  class="page-size-select"
-                  @change="changePageSize"
+                  v-model="chartPeriod"
+                  class="chart-period-select"
+                  @change="onChartPeriodChange"
                 >
-                  <option value="20">
-                    20
-                  </option>
-                  <option value="50">
-                    50
-                  </option>
-                  <option value="100">
-                    100
+                  <option
+                    v-for="p in chartPeriods"
+                    :key="p.key"
+                    :value="p.key"
+                  >
+                    {{ p.label }}
                   </option>
                 </select>
               </div>
-              <span class="items-count">
-                Показано {{ logs.length }} из {{ pagination.total || 0 }} записей
-              </span>
+            </div>
+          </div>
+          <RealTimeChart
+            :data="timelineData"
+            :height="180"
+            color="#4F5BDF"
+            :interval-label="selectedPeriod.xAxisLabel"
+          />
+        </div>
+
+        <div class="filters-bar">
+          <SearchComponent
+            v-model="searchQuery"
+            :title="'Поиск по логам...'"
+            @keyup.enter="refreshLogs"
+          />
+          <div class="filter-controls">
+            <select
+              v-model="filterMethod"
+              class="filter-select"
+              @change="refreshLogs"
+            >
+              <option value="">
+                Все методы
+              </option>
+              <option value="GET">
+                GET
+              </option>
+              <option value="POST">
+                POST
+              </option>
+              <option value="PUT">
+                PUT
+              </option>
+              <option value="DELETE">
+                DELETE
+              </option>
+              <option value="PATCH">
+                PATCH
+              </option>
+            </select>
+            <select
+              v-model="filterStatus"
+              class="filter-select"
+              @change="refreshLogs"
+            >
+              <option value="">
+                Все статусы
+              </option>
+              <option value="200">
+                200 OK
+              </option>
+              <option value="400">
+                400 Bad Request
+              </option>
+              <option value="401">
+                401 Unauthorized
+              </option>
+              <option value="403">
+                403 Forbidden
+              </option>
+              <option value="404">
+                404 Not Found
+              </option>
+              <option value="500">
+                500 Server Error
+              </option>
+            </select>
+            <select
+              v-model="filterUser"
+              class="filter-select"
+              @change="refreshLogs"
+            >
+              <option value="">
+                Все пользователи
+              </option>
+              <option
+                v-for="u in users"
+                :key="u.id"
+                :value="u.id"
+              >
+                {{ u.username }}
+              </option>
+            </select>
+            <input
+              v-model="filterStartDate"
+              type="date"
+              class="date-input"
+              @change="refreshLogs"
+            >
+            <input
+              v-model="filterEndDate"
+              type="date"
+              class="date-input"
+              @change="refreshLogs"
+            >
+          </div>
+          <RefreshButton
+            :loading="isLoading"
+            @refresh="refreshLogs"
+          />
+          <button
+            class="clear-filters-btn"
+            @click="clearFilters"
+          >
+            Сбросить
+          </button>
+          <button
+            class="export-btn"
+            :disabled="isExporting"
+            @click="exportLogs"
+          >
+            {{ isExporting ? 'Экспорт...' : 'Экспорт' }}
+          </button>
+        </div>
+
+        <div class="content-container">
+          <div class="logs-table-section">
+            <div class="table-container">
+              <div class="table-header">
+                <div
+                  class="header-col time-col"
+                  @click="sortBy('created_at')"
+                >
+                  <p :class="{ 'active-sort': sortField === 'created_at' }">
+                    Время
+                  </p>
+                  <img
+                    src="@/assets/icons/sort.png"
+                    class="sort-icon"
+                    :class="{
+                      'sorted': sortField === 'created_at',
+                      'desc': sortField === 'created_at' && sortDirection === 'desc'
+                    }"
+                  >
+                </div>
+                <div
+                  class="header-col method-col"
+                  @click="sortBy('method')"
+                >
+                  <p :class="{ 'active-sort': sortField === 'method' }">
+                    Метод
+                  </p>
+                  <img
+                    src="@/assets/icons/sort.png"
+                    class="sort-icon"
+                    :class="{
+                      'sorted': sortField === 'method',
+                      'desc': sortField === 'method' && sortDirection === 'desc'
+                    }"
+                  >
+                </div>
+                <div
+                  class="header-col path-col"
+                  @click="sortBy('url')"
+                >
+                  <p :class="{ 'active-sort': sortField === 'url' }">
+                    URL
+                  </p>
+                  <img
+                    src="@/assets/icons/sort.png"
+                    class="sort-icon"
+                    :class="{
+                      'sorted': sortField === 'url',
+                      'desc': sortField === 'url' && sortDirection === 'desc'
+                    }"
+                  >
+                </div>
+                <div
+                  class="header-col status-col"
+                  @click="sortBy('response_status')"
+                >
+                  <p :class="{ 'active-sort': sortField === 'response_status' }">
+                    Статус
+                  </p>
+                  <img
+                    src="@/assets/icons/sort.png"
+                    class="sort-icon"
+                    :class="{
+                      'sorted': sortField === 'response_status',
+                      'desc': sortField === 'response_status' && sortDirection === 'desc'
+                    }"
+                  >
+                </div>
+                <div
+                  class="header-col user-col"
+                  @click="sortBy('username')"
+                >
+                  <p :class="{ 'active-sort': sortField === 'username' }">
+                    Пользователь
+                  </p>
+                  <img
+                    src="@/assets/icons/sort.png"
+                    class="sort-icon"
+                    :class="{
+                      'sorted': sortField === 'username',
+                      'desc': sortField === 'username' && sortDirection === 'desc'
+                    }"
+                  >
+                </div>
+                <div
+                  class="header-col duration-col"
+                  @click="sortBy('duration_ms')"
+                >
+                  <p :class="{ 'active-sort': sortField === 'duration_ms' }">
+                    Время
+                  </p>
+                  <img
+                    src="@/assets/icons/sort.png"
+                    class="sort-icon"
+                    :class="{
+                      'sorted': sortField === 'duration_ms',
+                      'desc': sortField === 'duration_ms' && sortDirection === 'desc'
+                    }"
+                  >
+                </div>
+              </div>
+
+              <div
+                ref="logsBody"
+                class="table-body"
+              >
+                <div
+                  v-for="log in logs"
+                  :key="log.id"
+                  class="table-row"
+                  :class="{
+                    'selected': selectedLog && selectedLog.id === log.id,
+                    'error-row': log.response_status && log.response_status >= 400,
+                    'success-row': log.response_status && log.response_status < 400
+                  }"
+                  @click="selectLog(log)"
+                >
+                  <div class="table-col time-col">
+                    <span
+                      class="cell-content"
+                      :title="formatFullDate(log.created_at)"
+                    >
+                      {{ formatTime(log.created_at) }}
+                    </span>
+                  </div>
+                  <div class="table-col method-col">
+                    <span
+                      class="method-badge"
+                      :class="getMethodClass(log.method)"
+                    >
+                      {{ log.method }}
+                    </span>
+                  </div>
+                  <div class="table-col path-col">
+                    <span
+                      class="truncate-text"
+                      :title="log.url"
+                    >
+                      {{ truncatePath(log.url) }}
+                    </span>
+                  </div>
+                  <div class="table-col status-col">
+                    <span
+                      class="status-badge"
+                      :class="getStatusClass(log.response_status)"
+                    >
+                      {{ log.response_status || 'N/A' }}
+                    </span>
+                  </div>
+                  <div class="table-col user-col">
+                    <span class="cell-content">
+                      {{ log.username || 'Аноним' }}
+                      <span
+                        v-if="log.user_id"
+                        class="user-id"
+                      >(ID: {{ log.user_id }})</span>
+                    </span>
+                  </div>
+                  <div class="table-col duration-col">
+                    <span class="cell-content">
+                      {{ log.duration_ms || 0 }}мс
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="table-footer">
+                <div class="pagination-controls">
+                  <button
+                    :disabled="pagination.page <= 1"
+                    class="pagination-btn"
+                    @click="prevPage"
+                  >
+                    &larr;
+                  </button>
+                  <span class="page-info">
+                    Страница {{ pagination.page }} из {{ totalPages }}
+                  </span>
+                  <button
+                    :disabled="pagination.page >= totalPages"
+                    class="pagination-btn"
+                    @click="nextPage"
+                  >
+                    &rarr;
+                  </button>
+                  <select
+                    v-model="perPage"
+                    class="page-size-select"
+                    @change="changePageSize"
+                  >
+                    <option value="20">
+                      20
+                    </option>
+                    <option value="50">
+                      50
+                    </option>
+                    <option value="100">
+                      100
+                    </option>
+                  </select>
+                </div>
+                <span class="items-count">
+                  Показано {{ logs.length }} из {{ pagination.total || 0 }} записей
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div
+            class="log-details-section"
+            :class="{'with-details': selectedLog}"
+          >
+            <div
+              v-if="selectedLog"
+              class="log-details-content"
+            >
+              <div class="details-header">
+                <h3 class="details-title">
+                  Детали запроса
+                </h3>
+                <button
+                  class="close-details-btn"
+                  @click="selectedLog = null"
+                >
+                  &times;
+                </button>
+              </div>
+
+              <div class="details-body">
+                <div class="details-grid">
+                  <div class="detail-group">
+                    <label class="detail-label">ID запроса:</label>
+                    <span class="detail-value">{{ selectedLog.id }}</span>
+                  </div>
+
+                  <div class="detail-group">
+                    <label class="detail-label">Время:</label>
+                    <span class="detail-value">{{ formatFullDate(selectedLog.created_at) }}</span>
+                  </div>
+
+                  <div class="detail-group">
+                    <label class="detail-label">Метод:</label>
+                    <span
+                      class="detail-value method-value"
+                      :class="getMethodClass(selectedLog.method)"
+                    >
+                      {{ selectedLog.method }}
+                    </span>
+                  </div>
+
+                  <div class="detail-group">
+                    <label class="detail-label">URL:</label>
+                    <span class="detail-value path-value">
+                      {{ selectedLog.url }}
+                    </span>
+                  </div>
+
+                  <div class="detail-group">
+                    <label class="detail-label">Статус ответа:</label>
+                    <span
+                      class="detail-value status-value"
+                      :class="getStatusClass(selectedLog.response_status)"
+                    >
+                      {{ selectedLog.response_status || 'N/A' }}
+                    </span>
+                  </div>
+
+                  <div class="detail-group">
+                    <label class="detail-label">Время выполнения:</label>
+                    <span class="detail-value">{{ selectedLog.duration_ms || 0 }}мс</span>
+                  </div>
+
+                  <div class="detail-group">
+                    <label class="detail-label">Пользователь:</label>
+                    <span class="detail-value">
+                      {{ selectedLog.username || 'Аноним' }}
+                      <span
+                        v-if="selectedLog.user_id"
+                        class="user-id"
+                      >(ID: {{ selectedLog.user_id }})</span>
+                    </span>
+                  </div>
+
+                  <div
+                    v-if="selectedLog.headers"
+                    class="detail-group"
+                  >
+                    <label class="detail-label">Заголовки:</label>
+                    <pre class="detail-value code-block">{{ formatJson(selectedLog.headers) }}</pre>
+                  </div>
+
+                  <div
+                    v-if="selectedLog.request_body"
+                    class="detail-group"
+                  >
+                    <label class="detail-label">Тело запроса:</label>
+                    <pre class="detail-value code-block request-body">{{ formatJson(selectedLog.request_body) }}</pre>
+                  </div>
+
+                  <div
+                    v-if="selectedLog.response_body"
+                    class="detail-group"
+                  >
+                    <label class="detail-label">Тело ответа:</label>
+                    <pre class="detail-value code-block response-body">{{ formatJson(selectedLog.response_body) }}</pre>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              v-else
+              class="no-selection-message"
+            >
+              <p>Выберите запрос для просмотра деталей</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div
+        v-show="activeTab === 'analytics'"
+        class="analytics-tab"
+      >
+        <div class="analytics-toolbar">
+          <label class="period-field">С даты
+            <input
+              v-model="historyFrom"
+              type="date"
+              class="date-input"
+            >
+          </label>
+          <label class="period-field">По дату
+            <input
+              v-model="historyTo"
+              type="date"
+              class="date-input"
+            >
+          </label>
+          <button
+            class="apply-btn"
+            @click="fetchHistory"
+          >
+            Показать
+          </button>
+        </div>
+
+        <div class="kpi-row">
+          <div class="kpi">
+            <div class="kpi-val">
+              {{ formatNum(history.totals.requests) }}
+            </div>
+            <div class="kpi-lab">
+              Запросов за период
+            </div>
+          </div>
+          <div class="kpi">
+            <div
+              class="kpi-val"
+              :class="{ bad: history.totals.error_rate > 1 }"
+            >
+              {{ history.totals.error_rate.toFixed(2) }}%
+            </div>
+            <div class="kpi-lab">
+              Доля ошибок
+            </div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-val">
+              {{ history.totals.avg_duration_ms }} мс
+            </div>
+            <div class="kpi-lab">
+              Средн. длительность
+            </div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-val">
+              {{ formatNum(history.totals.errors) }}
+            </div>
+            <div class="kpi-lab">
+              Ошибок всего
             </div>
           </div>
         </div>
 
-        <div
-          class="log-details-section"
-          :class="{'with-details': selectedLog}"
-        >
+        <div class="analytics-panel">
+          <h4 class="panel-title">
+            Запросов по дням
+          </h4>
           <div
-            v-if="selectedLog"
-            class="log-details-content"
+            v-if="history.daily.length"
+            class="bars"
           >
-            <div class="details-header">
-              <h3 class="details-title">
-                Детали запроса
-              </h3>
-              <button
-                class="close-details-btn"
-                @click="selectedLog = null"
-              >
-                &times;
-              </button>
-            </div>
-
-            <div class="details-body">
-              <div class="details-grid">
-                <div class="detail-group">
-                  <label class="detail-label">ID запроса:</label>
-                  <span class="detail-value">{{ selectedLog.id }}</span>
-                </div>
-
-                <div class="detail-group">
-                  <label class="detail-label">Время:</label>
-                  <span class="detail-value">{{ formatFullDate(selectedLog.created_at) }}</span>
-                </div>
-
-                <div class="detail-group">
-                  <label class="detail-label">Метод:</label>
-                  <span
-                    class="detail-value method-value"
-                    :class="getMethodClass(selectedLog.method)"
-                  >
-                    {{ selectedLog.method }}
-                  </span>
-                </div>
-
-                <div class="detail-group">
-                  <label class="detail-label">URL:</label>
-                  <span class="detail-value path-value">
-                    {{ selectedLog.url }}
-                  </span>
-                </div>
-
-                <div class="detail-group">
-                  <label class="detail-label">Статус ответа:</label>
-                  <span
-                    class="detail-value status-value"
-                    :class="getStatusClass(selectedLog.response_status)"
-                  >
-                    {{ selectedLog.response_status || 'N/A' }}
-                  </span>
-                </div>
-
-                <div class="detail-group">
-                  <label class="detail-label">Время выполнения:</label>
-                  <span class="detail-value">{{ selectedLog.duration_ms || 0 }}мс</span>
-                </div>
-
-                <div class="detail-group">
-                  <label class="detail-label">Пользователь:</label>
-                  <span class="detail-value">
-                    {{ selectedLog.username || 'Аноним' }}
-                    <span
-                      v-if="selectedLog.user_id"
-                      class="user-id"
-                    >(ID: {{ selectedLog.user_id }})</span>
-                  </span>
-                </div>
-
-                <div
-                  v-if="selectedLog.headers"
-                  class="detail-group"
-                >
-                  <label class="detail-label">Заголовки:</label>
-                  <pre class="detail-value code-block">{{ formatJson(selectedLog.headers) }}</pre>
-                </div>
-
-                <div
-                  v-if="selectedLog.request_body"
-                  class="detail-group"
-                >
-                  <label class="detail-label">Тело запроса:</label>
-                  <pre class="detail-value code-block request-body">{{ formatJson(selectedLog.request_body) }}</pre>
-                </div>
-
-                <div
-                  v-if="selectedLog.response_body"
-                  class="detail-group"
-                >
-                  <label class="detail-label">Тело ответа:</label>
-                  <pre class="detail-value code-block response-body">{{ formatJson(selectedLog.response_body) }}</pre>
-                </div>
-              </div>
+            <div
+              v-for="d in history.daily"
+              :key="d.day"
+              class="bar-col"
+              :title="`${d.day}: ${d.requests} запросов, ${d.errors} ошибок`"
+            >
+              <div
+                class="bar"
+                :style="{ height: barHeight(d.requests) + '%' }"
+              />
             </div>
           </div>
-          <div
+          <p
             v-else
-            class="no-selection-message"
+            class="empty-hint"
           >
-            <p>Выберите запрос для просмотра деталей</p>
+            Нет данных за период
+          </p>
+        </div>
+
+        <div class="analytics-tables">
+          <div class="analytics-panel">
+            <h4 class="panel-title">
+              Топ эндпоинтов
+            </h4>
+            <table class="hist-table">
+              <thead>
+                <tr>
+                  <th>Endpoint</th><th>Запросов</th><th>Avg</th><th>p95</th><th>Ошибки</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="e in history.top_endpoints"
+                  :key="e.endpoint"
+                >
+                  <td class="mono">
+                    {{ e.endpoint }}
+                  </td>
+                  <td>{{ formatNum(e.requests) }}</td>
+                  <td>{{ e.avg_duration_ms }}мс</td>
+                  <td>{{ e.p95_duration_ms }}мс</td>
+                  <td>{{ e.error_rate }}%</td>
+                </tr>
+                <tr v-if="!history.top_endpoints.length">
+                  <td
+                    colspan="5"
+                    class="empty-hint"
+                  >
+                    Нет данных
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="analytics-panel">
+            <h4 class="panel-title">
+              Топ пользователей
+            </h4>
+            <table class="hist-table">
+              <thead>
+                <tr>
+                  <th>Пользователь</th><th>Запросов</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="u in history.top_users"
+                  :key="u.user_id"
+                >
+                  <td>{{ u.username }}</td>
+                  <td>{{ formatNum(u.requests) }}</td>
+                </tr>
+                <tr v-if="!history.top_users.length">
+                  <td
+                    colspan="2"
+                    class="empty-hint"
+                  >
+                    Нет данных
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -534,6 +713,16 @@ export default {
   },
   data() {
     return {
+      activeTab: 'journal',
+      history: {
+        totals: { requests: 0, errors: 0, error_rate: 0, avg_duration_ms: 0 },
+        daily: [],
+        top_endpoints: [],
+        top_users: []
+      },
+      historyFrom: '',
+      historyTo: '',
+      historyLoaded: false,
       logs: [],
       users: [],
       selectedLog: null,
@@ -603,6 +792,46 @@ export default {
     this.stopPolling();
   },
   methods: {
+    switchToAnalytics() {
+      this.activeTab = 'analytics'
+      if (!this.historyLoaded) {
+        this.fetchHistory()
+      }
+    },
+    async fetchHistory() {
+      this.isLoading = true
+      try {
+        const params = new URLSearchParams()
+        if (this.historyFrom) params.set('from_date', this.historyFrom)
+        if (this.historyTo) params.set('to_date', this.historyTo)
+        const qs = params.toString()
+        const response = await apiRequest(`/request-logs/history${qs ? '?' + qs : ''}`)
+        if (response.ok) {
+          const data = await response.json()
+          if (data) {
+            this.history = {
+              totals: data.totals || { requests: 0, errors: 0, error_rate: 0, avg_duration_ms: 0 },
+              daily: data.daily || [],
+              top_endpoints: data.top_endpoints || [],
+              top_users: data.top_users || []
+            }
+            this.historyLoaded = true
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching history:', error)
+        this.showNotification('Не удалось загрузить аналитику', 'error')
+      } finally {
+        this.isLoading = false
+      }
+    },
+    formatNum(n) {
+      return (n || 0).toLocaleString('ru-RU')
+    },
+    barHeight(value) {
+      const max = Math.max(...this.history.daily.map(d => d.requests), 1)
+      return Math.max(4, Math.round((value / max) * 100))
+    },
     buildFilterParams() {
       const params = {};
       if (this.searchQuery) params.search = this.searchQuery;
@@ -1541,6 +1770,174 @@ export default {
 
   .chart-section {
     padding: 12px 16px;
+  }
+}
+
+/* Вкладки журнал / аналитика */
+.rv-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 20px;
+  border-bottom: 1px solid #e6e6e6;
+}
+.rv-tab {
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: #999;
+  padding: 12px 16px;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.rv-tab.active {
+  color: #4F5BDF;
+  border-bottom-color: #4F5BDF;
+}
+
+/* Вкладка аналитики */
+.analytics-tab {
+  padding: 16px 20px;
+}
+.analytics-toolbar {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.period-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: #999;
+}
+.apply-btn {
+  border: 1px solid #4F5BDF;
+  background: #4F5BDF;
+  color: #fff;
+  border-radius: 999px;
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.apply-btn:hover {
+  background: #3d49c7;
+}
+
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.kpi {
+  background: #f8f9ff;
+  border: 1px solid #e6e6e6;
+  border-radius: 15px;
+  padding: 12px 14px;
+}
+.kpi-val {
+  font-size: 1.5em;
+  font-weight: 700;
+  color: #333;
+  letter-spacing: -0.5px;
+}
+.kpi-val.bad {
+  color: #ef4444;
+}
+.kpi-lab {
+  font-size: 0.72em;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #999;
+  margin-top: 4px;
+  font-weight: 600;
+}
+
+.analytics-panel {
+  border: 1px solid #e6e6e6;
+  border-radius: 20px;
+  padding: 14px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+.panel-title {
+  margin: 0 0 12px;
+  font-size: 0.95em;
+  font-weight: 600;
+  color: #333;
+}
+
+.bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 130px;
+}
+.bar-col {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  height: 100%;
+}
+.bar {
+  width: 100%;
+  background: linear-gradient(180deg, #7480e8, #4F5BDF);
+  border-radius: 4px 4px 0 0;
+  min-height: 4px;
+}
+.empty-hint {
+  color: #a2a2a2;
+  font-size: 13px;
+  text-align: center;
+  padding: 16px;
+}
+
+.analytics-tables {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 16px;
+}
+.hist-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.hist-table th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #999;
+  font-weight: 600;
+  padding: 9px 10px;
+  background: #f8f9ff;
+  border-bottom: 1px solid #e6e6e6;
+}
+.hist-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid #e6e6e6;
+  font-size: 12px;
+  color: #333;
+}
+.hist-table tr:last-child td {
+  border-bottom: none;
+}
+.hist-table .mono {
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-size: 11px;
+}
+
+@media (max-width: 768px) {
+  .kpi-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .analytics-tables {
+    grid-template-columns: 1fr;
   }
 }
 </style>

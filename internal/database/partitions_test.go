@@ -32,9 +32,10 @@ func TestLogPartitionMaintenance(t *testing.T) {
 		part, old.Format("2006-01-02"), old.AddDate(0, 0, 1).Format("2006-01-02"),
 	)
 	require.NoError(t, db.Exec(createPart).Error)
+	// Уникальный путь, которого нет в других тестовых данных (тесты делят одну БД).
 	require.NoError(t, db.Exec(
 		`INSERT INTO request_logs (url, method, response_status, duration_ms, created_at) VALUES (?,?,?,?,?)`,
-		"/api/employees/4517?x=1", "GET", 200, 12, old,
+		"/api/zzz-parttest/4517?x=1", "GET", 200, 12, old,
 	).Error)
 
 	// detailDays=30 -> партиция возрастом 40 дней сворачивается и дропается.
@@ -49,7 +50,7 @@ func TestLogPartitionMaintenance(t *testing.T) {
 	var reqCount int64
 	require.NoError(t, db.Raw(
 		`SELECT request_count FROM request_logs_daily WHERE endpoint=? AND method='GET' AND status_class=2`,
-		"/api/employees/:id",
+		"/api/zzz-parttest/:id",
 	).Scan(&reqCount).Error)
 	require.Equal(t, int64(1), reqCount, "лог должен попасть в дневной агрегат с нормализованным endpoint")
 }

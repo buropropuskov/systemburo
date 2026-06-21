@@ -160,3 +160,27 @@ func (h *RequestLogsHandler) Export(c echo.Context) error {
 	}
 	return c.String(http.StatusOK, text)
 }
+
+// GetHistory godoc
+// @Summary      Агрегаты логов за период (вкладка «Аналитика»)
+// @Tags         request-logs
+// @Produce      json
+// @Security     BearerAuth
+// @Param        from_date query string false "Дата начала (YYYY-MM-DD)"
+// @Param        to_date   query string false "Дата окончания (YYYY-MM-DD)"
+// @Success      200 {object} models.RequestLogsHistory
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /request-logs/history [get]
+func (h *RequestLogsHandler) GetHistory(c echo.Context) error {
+	typeID := GetTypeID(c)
+	var q models.RequestLogsHistoryQuery
+	if err := c.Bind(&q); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid query parameters")
+	}
+	res, err := h.service.GetHistory(c.Request().Context(), typeID, q)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, res)
+}

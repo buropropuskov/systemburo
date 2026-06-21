@@ -18,27 +18,36 @@ import (
 // Вызывается ДО db.AutoMigrate, поэтому request_logs исключена из AllModels:
 // нативное партиционирование несовместимо с GORM AutoMigrate.
 func installLogPartitioning(db *gorm.DB) error {
-	if err := ensurePartitionedRequestLogs(db); err != nil {
-		return fmt.Errorf("partition request_logs: %w", err)
-	}
-	if err := ensureRequestLogsDaily(db); err != nil {
-		return fmt.Errorf("request_logs_daily: %w", err)
-	}
-	// Партиции на вчера..+7 дней, чтобы запись не падала до первого прохода воркера.
-	now := time.Now().UTC()
-	if err := ensureDailyPartitions(db, "request_logs", now.AddDate(0, 0, -1), now.AddDate(0, 0, 7)); err != nil {
-		return fmt.Errorf("precreate request_logs partitions: %w", err)
-	}
+	// Сериализуем установку транзакционным advisory-lock: при параллельных
+	// AutoMigrate (тесты -p на одной БД) была гонка между проверкой «партиционирована?»
+	// и CREATE TABLE, дававшая duplicate key. Lock выстраивает вызовы в очередь и
+	// освобождается на commit, так что второй уже видит готовую таблицу.
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec("SELECT pg_advisory_xact_lock(728931)").Error; err != nil {
+			return err
+		}
+		if err := ensurePartitionedRequestLogs(tx); err != nil {
+			return fmt.Errorf("partition request_logs: %w", err)
+		}
+		if err := ensureRequestLogsDaily(tx); err != nil {
+			return fmt.Errorf("request_logs_daily: %w", err)
+		}
+		// Партиции на вчера..+7 дней, чтобы запись не падала до первого прохода воркера.
+		now := time.Now().UTC()
+		if err := ensureDailyPartitions(tx, "request_logs", now.AddDate(0, 0, -1), now.AddDate(0, 0, 7)); err != nil {
+			return fmt.Errorf("precreate request_logs partitions: %w", err)
+		}
 
-	// pd_audit_logs (аудит ПД, 152-ФЗ): помесячные партиции, retention годами,
-	// без агрегации - аудит хранится построчно и дропается по сроку.
-	if err := ensurePartitionedPDAudit(db); err != nil {
-		return fmt.Errorf("partition pd_audit_logs: %w", err)
-	}
-	if err := ensureMonthlyPartitions(db, "pd_audit_logs", now.AddDate(0, -1, 0), now.AddDate(0, 2, 0)); err != nil {
-		return fmt.Errorf("precreate pd_audit partitions: %w", err)
-	}
-	return nil
+		// pd_audit_logs (аудит ПД, 152-ФЗ): помесячные партиции, retention годами,
+		// без агрегации - аудит хранится построчно и дропается по сроку.
+		if err := ensurePartitionedPDAudit(tx); err != nil {
+			return fmt.Errorf("partition pd_audit_logs: %w", err)
+		}
+		if err := ensureMonthlyPartitions(tx, "pd_audit_logs", now.AddDate(0, -1, 0), now.AddDate(0, 2, 0)); err != nil {
+			return fmt.Errorf("precreate pd_audit partitions: %w", err)
+		}
+		return nil
+	})
 }
 
 // ensurePartitionedRequestLogs создаёт партиционированную request_logs, если её
