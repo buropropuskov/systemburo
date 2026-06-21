@@ -6,14 +6,16 @@ test.describe('Admin-only Access Control', () => {
     await loginAsUser(page);
 
     await page.goto('/admin/users');
-    await expect(page).not.toHaveURL(/admin\/users/);
+    // permission-guard кидает на /403 (исходный путь - в query from=, поэтому
+    // проверяем именно посадку на Forbidden, а не отсутствие admin/users в URL).
+    await expect(page).toHaveURL(/\/403/);
   });
 
   test('non-admin redirected from /admin/settings', async ({ page }) => {
     await loginAsUser(page);
 
     await page.goto('/admin/settings');
-    await expect(page).not.toHaveURL(/admin\/settings/);
+    await expect(page).toHaveURL(/\/403/);
   });
 
   // TODO: после расширения seed - назначить e2e_admin роль с permission.audit.manage
