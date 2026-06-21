@@ -551,23 +551,24 @@ func Setup(e *echo.Echo, d Dependencies) {
 	protected.GET("/settings/password-policy", settings.GetPasswordPolicy)
 	protected.PUT("/settings/:key", settings.Update)
 
-	// Новости
+	// Новости. Активные (GET "") - всем авторизованным; управление - page.admin
+	// (Ф5, ранее service checkAdmin).
 	ng := protected.Group("/news")
 	ng.GET("", news.GetActiveNews)
-	ng.GET("/all", news.GetAllNews)
-	ng.POST("", news.CreateNews)
-	ng.PUT("/:id", news.UpdateNews)
-	ng.DELETE("/:id", news.DeleteNews)
+	ng.GET("/all", news.GetAllNews, requireAdmin)
+	ng.POST("", news.CreateNews, requireAdmin)
+	ng.PUT("/:id", news.UpdateNews, requireAdmin)
+	ng.DELETE("/:id", news.DeleteNews, requireAdmin)
 
-	// Объявления
+	// Объявления. Активное (GET /active) - всем авторизованным; управление - page.admin.
 	ag := protected.Group("/announcements")
 	ag.GET("/active", news.GetActiveAnnouncement)
-	ag.GET("/all", news.GetAllAnnouncements)
-	ag.POST("", news.CreateAnnouncement)
-	ag.POST("/set-active", news.SetActiveAnnouncement)
-	ag.POST("/:id/hide", news.HideAnnouncement)
-	ag.PUT("/:id", news.UpdateAnnouncement)
-	ag.DELETE("/:id", news.DeleteAnnouncement)
+	ag.GET("/all", news.GetAllAnnouncements, requireAdmin)
+	ag.POST("", news.CreateAnnouncement, requireAdmin)
+	ag.POST("/set-active", news.SetActiveAnnouncement, requireAdmin)
+	ag.POST("/:id/hide", news.HideAnnouncement, requireAdmin)
+	ag.PUT("/:id", news.UpdateAnnouncement, requireAdmin)
+	ag.DELETE("/:id", news.DeleteAnnouncement, requireAdmin)
 
 	// Уведомления
 	notif := protected.Group("/notifications")

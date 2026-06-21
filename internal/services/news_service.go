@@ -12,22 +12,24 @@ import (
 )
 
 // NewsService -- интерфейс бизнес-логики новостей и объявлений.
+// Админ-операции (page.admin) авторизуются роут-middleware RequirePermissionV2;
+// активные новость/объявление (GetActive*) доступны всем авторизованным.
 type NewsService interface {
 	// News
 	GetActiveNews(ctx context.Context) ([]models.NewsWithUser, error)
-	GetAllNews(ctx context.Context, typeID int) ([]models.NewsWithUser, error)
-	CreateNews(ctx context.Context, typeID int, userID int, req models.CreateNewsRequest) (*models.NewsWithUser, error)
-	UpdateNews(ctx context.Context, typeID int, userID int, id int, req models.UpdateNewsRequest) (*models.NewsWithUser, error)
-	DeleteNews(ctx context.Context, typeID int, id int) error
+	GetAllNews(ctx context.Context) ([]models.NewsWithUser, error)
+	CreateNews(ctx context.Context, userID int, req models.CreateNewsRequest) (*models.NewsWithUser, error)
+	UpdateNews(ctx context.Context, userID int, id int, req models.UpdateNewsRequest) (*models.NewsWithUser, error)
+	DeleteNews(ctx context.Context, id int) error
 
 	// Announcements
 	GetActiveAnnouncement(ctx context.Context) (*models.AnnouncementWithUser, error)
-	GetAllAnnouncements(ctx context.Context, typeID int) ([]models.AnnouncementWithUser, error)
-	CreateAnnouncement(ctx context.Context, typeID int, userID int, req models.CreateAnnouncementRequest) (*models.AnnouncementWithUser, error)
-	SetActiveAnnouncement(ctx context.Context, typeID int, userID int, req models.SetActiveAnnouncementRequest) error
-	HideAnnouncement(ctx context.Context, typeID int, id int) error
-	UpdateAnnouncement(ctx context.Context, typeID int, userID int, id int, req models.UpdateAnnouncementRequest) (*models.AnnouncementWithUser, error)
-	DeleteAnnouncement(ctx context.Context, typeID int, id int) error
+	GetAllAnnouncements(ctx context.Context) ([]models.AnnouncementWithUser, error)
+	CreateAnnouncement(ctx context.Context, userID int, req models.CreateAnnouncementRequest) (*models.AnnouncementWithUser, error)
+	SetActiveAnnouncement(ctx context.Context, userID int, req models.SetActiveAnnouncementRequest) error
+	HideAnnouncement(ctx context.Context, id int) error
+	UpdateAnnouncement(ctx context.Context, userID int, id int, req models.UpdateAnnouncementRequest) (*models.AnnouncementWithUser, error)
+	DeleteAnnouncement(ctx context.Context, id int) error
 }
 
 type newsService struct {
@@ -37,23 +39,6 @@ type newsService struct {
 // NewNewsService создаёт реализацию NewsService.
 func NewNewsService(db *gorm.DB) NewsService {
 	return &newsService{db: db}
-}
-
-func (s *newsService) checkAdmin(ctx context.Context, typeID int) error {
-	var code string
-	err := s.db.WithContext(ctx).
-		Table("user_types").
-		Select("code").
-		Where("id = ?", typeID).
-		Row().
-		Scan(&code)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, "User not found")
-	}
-	if code != "manager" && code != "buropropuskov" {
-		return echo.NewHTTPError(http.StatusForbidden, "Insufficient permissions")
-	}
-	return nil
 }
 
 // --- News ---
@@ -81,11 +66,7 @@ func (s *newsService) GetActiveNews(ctx context.Context) ([]models.NewsWithUser,
 	return results, nil
 }
 
-func (s *newsService) GetAllNews(ctx context.Context, typeID int) ([]models.NewsWithUser, error) {
-	if err := s.checkAdmin(ctx, typeID); err != nil {
-		return nil, err
-	}
-
+func (s *newsService) GetAllNews(ctx context.Context) ([]models.NewsWithUser, error) {
 	results := make([]models.NewsWithUser, 0)
 	err := s.newsSelectQuery(s.db.WithContext(ctx)).
 		Order("n.created_at DESC").
@@ -96,11 +77,7 @@ func (s *newsService) GetAllNews(ctx context.Context, typeID int) ([]models.News
 	return results, nil
 }
 
-func (s *newsService) CreateNews(ctx context.Context, typeID int, userID int, req models.CreateNewsRequest) (*models.NewsWithUser, error) {
-	if err := s.checkAdmin(ctx, typeID); err != nil {
-		return nil, err
-	}
-
+func (s *newsService) CreateNews(ctx context.Context, userID int, req models.CreateNewsRequest) (*models.NewsWithUser, error) {
 	now := time.Now().UTC()
 	isActive := true
 	if req.IsActive != nil {
@@ -131,11 +108,7 @@ func (s *newsService) CreateNews(ctx context.Context, typeID int, userID int, re
 	return &result, nil
 }
 
-func (s *newsService) UpdateNews(ctx context.Context, typeID int, userID int, id int, req models.UpdateNewsRequest) (*models.NewsWithUser, error) {
-	if err := s.checkAdmin(ctx, typeID); err != nil {
-		return nil, err
-	}
-
+func (s *newsService) UpdateNews(ctx context.Context, userID int, id int, req models.UpdateNewsRequest) (*models.NewsWithUser, error) {
 	var count int64
 	if err := s.db.WithContext(ctx).Model(&models.News{}).Where("id = ?", id).Count(&count).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error checking news existence")
@@ -175,11 +148,7 @@ func (s *newsService) UpdateNews(ctx context.Context, typeID int, userID int, id
 	return &result, nil
 }
 
-func (s *newsService) DeleteNews(ctx context.Context, typeID int, id int) error {
-	if err := s.checkAdmin(ctx, typeID); err != nil {
-		return err
-	}
-
+func (s *newsService) DeleteNews(ctx context.Context, id int) error {
 	result := s.db.WithContext(ctx).Delete(&models.News{}, id)
 	if result.Error != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error deleting news")
@@ -219,11 +188,7 @@ func (s *newsService) GetActiveAnnouncement(ctx context.Context) (*models.Announ
 	return &result, nil
 }
 
-func (s *newsService) GetAllAnnouncements(ctx context.Context, typeID int) ([]models.AnnouncementWithUser, error) {
-	if err := s.checkAdmin(ctx, typeID); err != nil {
-		return nil, err
-	}
-
+func (s *newsService) GetAllAnnouncements(ctx context.Context) ([]models.AnnouncementWithUser, error) {
 	results := make([]models.AnnouncementWithUser, 0)
 	err := s.announcementSelectQuery(s.db.WithContext(ctx)).
 		Order("a.created_at DESC").
@@ -234,11 +199,7 @@ func (s *newsService) GetAllAnnouncements(ctx context.Context, typeID int) ([]mo
 	return results, nil
 }
 
-func (s *newsService) CreateAnnouncement(ctx context.Context, typeID int, userID int, req models.CreateAnnouncementRequest) (*models.AnnouncementWithUser, error) {
-	if err := s.checkAdmin(ctx, typeID); err != nil {
-		return nil, err
-	}
-
+func (s *newsService) CreateAnnouncement(ctx context.Context, userID int, req models.CreateAnnouncementRequest) (*models.AnnouncementWithUser, error) {
 	now := time.Now().UTC()
 	isImportant := false
 	if req.IsImportant != nil {
@@ -282,11 +243,7 @@ func (s *newsService) CreateAnnouncement(ctx context.Context, typeID int, userID
 	return &result, nil
 }
 
-func (s *newsService) SetActiveAnnouncement(ctx context.Context, typeID int, userID int, req models.SetActiveAnnouncementRequest) error {
-	if err := s.checkAdmin(ctx, typeID); err != nil {
-		return err
-	}
-
+func (s *newsService) SetActiveAnnouncement(ctx context.Context, userID int, req models.SetActiveAnnouncementRequest) error {
 	var count int64
 	if err := s.db.WithContext(ctx).Model(&models.Announcement{}).Where("id = ?", req.AnnouncementID).Count(&count).Error; err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error checking announcement existence")
@@ -325,11 +282,7 @@ func (s *newsService) SetActiveAnnouncement(ctx context.Context, typeID int, use
 // HideAnnouncement снимает is_active с конкретного объявления (admin only).
 // Не активирует другое - текущим активным остаётся то, что было до, либо
 // никакого (если скрываемое было активным).
-func (s *newsService) HideAnnouncement(ctx context.Context, typeID int, id int) error {
-	if err := s.checkAdmin(ctx, typeID); err != nil {
-		return err
-	}
-
+func (s *newsService) HideAnnouncement(ctx context.Context, id int) error {
 	res := s.db.WithContext(ctx).Model(&models.Announcement{}).
 		Where("id = ?", id).
 		Updates(map[string]interface{}{
@@ -346,11 +299,7 @@ func (s *newsService) HideAnnouncement(ctx context.Context, typeID int, id int) 
 	return nil
 }
 
-func (s *newsService) UpdateAnnouncement(ctx context.Context, typeID int, userID int, id int, req models.UpdateAnnouncementRequest) (*models.AnnouncementWithUser, error) {
-	if err := s.checkAdmin(ctx, typeID); err != nil {
-		return nil, err
-	}
-
+func (s *newsService) UpdateAnnouncement(ctx context.Context, userID int, id int, req models.UpdateAnnouncementRequest) (*models.AnnouncementWithUser, error) {
 	var count int64
 	if err := s.db.WithContext(ctx).Model(&models.Announcement{}).Where("id = ?", id).Count(&count).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error checking announcement existence")
@@ -390,11 +339,7 @@ func (s *newsService) UpdateAnnouncement(ctx context.Context, typeID int, userID
 	return &result, nil
 }
 
-func (s *newsService) DeleteAnnouncement(ctx context.Context, typeID int, id int) error {
-	if err := s.checkAdmin(ctx, typeID); err != nil {
-		return err
-	}
-
+func (s *newsService) DeleteAnnouncement(ctx context.Context, id int) error {
 	result := s.db.WithContext(ctx).Delete(&models.Announcement{}, id)
 	if result.Error != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error deleting announcement")
