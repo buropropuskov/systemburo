@@ -349,6 +349,37 @@ describe('AccessibleAttachmentsView (FE-S6) фильтры', () => {
     );
   });
 
+  it('тоггл "Ночь" шлёт night, пишет URL и восстанавливается из query', async () => {
+    getAccessibleAttachments.mockResolvedValue({ items: [], meta: { total: 0 } });
+    wrapper = mountView();
+    await flushPromises();
+    getAccessibleAttachments.mockClear();
+
+    await wrapper.find('[data-testid="aa-filter-night"]').trigger('click');
+    await flushPromises();
+
+    expect(getAccessibleAttachments).toHaveBeenCalledWith(
+      expect.objectContaining({ night: true, page: 1 }),
+    );
+    expect(replace).toHaveBeenLastCalledWith({ query: { night: '1' } });
+
+    // Повторный клик снимает фильтр - night уходит из параметров и URL.
+    getAccessibleAttachments.mockClear();
+    await wrapper.find('[data-testid="aa-filter-night"]').trigger('click');
+    await flushPromises();
+    expect(getAccessibleAttachments.mock.calls.at(-1)[0]).not.toHaveProperty('night');
+    expect(replace).toHaveBeenLastCalledWith({ query: {} });
+
+    wrapper.unmount();
+    // Диплинк ?night=1 восстанавливает фильтр одним стартовым запросом.
+    getAccessibleAttachments.mockClear();
+    wrapper = mountView({ night: '1' });
+    await flushPromises();
+    expect(getAccessibleAttachments).toHaveBeenCalledWith(
+      expect.objectContaining({ night: true }),
+    );
+  });
+
   it('поиск применяется после debounce и шлёт search', async () => {
     vi.useFakeTimers();
     try {
