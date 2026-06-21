@@ -48,104 +48,15 @@
     </Teleport>
 
     <div class="create__container">
-      <div class="create__left-col">
-        <BlankSelector
-          ref="blankSelector"
-          data-testid="ob-app-selector"
-          :attachments="attachments"
-          :current-application-data="currentApplicationData"
-          @attachment-selected="handleAttachmentSelected"
-          @attachment-added="handleAttachmentAdded"
-          @attachment-removed="handleAttachmentRemoved"
-        />
-        <!-- Согласие и отправка — под BlankSelector в левой колонке -->
-        <div class="form__submit-bar">
-          <div class="consent-section">
-            <div class="consent-checkbox">
-              <input
-                id="consent"
-                v-model="consentGiven"
-                type="checkbox"
-                data-testid="create-app-consent-checkbox"
-                required
-              >
-              <label for="consent">
-                Даю <span class="blue">согласие</span> на обработку, хранение, передачу
-                персональных данных, изложенных в заявке
-              </label>
-            </div>
-            <div
-              class="submit-button-container"
-              :data-testid="'create-app-submit-wrapper'"
-              @mouseenter="tooltipMouseEnter"
-              @mouseleave="tooltipMouseLeave"
-            >
-              <button
-                class="send-all-btn"
-                data-testid="create-app-button-submit"
-                :disabled="!canSubmit"
-                @click="submitApplication"
-              >
-                Отправить заявку
-              </button>
-              <div
-                v-if="showSubmitTooltip && !canSubmit && tooltipSections.length"
-                class="submit-tooltip"
-                @mouseenter="tooltipMouseEnter"
-                @mouseleave="tooltipMouseLeave"
-                @click="handleTooltipClick"
-              >
-                <div class="tooltip-content">
-                  <div
-                    v-for="(section, idx) in tooltipSections"
-                    :key="idx"
-                    class="tooltip-section"
-                  >
-                    <div
-                      v-if="section.type === 'global'"
-                      class="tooltip-global"
-                    >
-                      <div class="tooltip-section-title">
-                        Необходимо заполнить:
-                      </div>
-                      <ul>
-                        <li
-                          v-for="(msg, i) in section.messages"
-                          :key="i"
-                        >
-                          {{ msg }}
-                        </li>
-                      </ul>
-                    </div>
-                    <div
-                      v-else-if="section.type === 'attachment'"
-                      class="tooltip-attachment"
-                    >
-                      <div class="tooltip-attachment-title">
-                        <span
-                          class="attachment-clickable"
-                          :data-attachment-key="section.attachmentKey"
-                          @click="handleTooltipAttachmentClick(section)"
-                        >
-                          Вложение "{{ section.attachmentName }}"
-                        </span>
-                      </div>
-                      <ul>
-                        <li
-                          v-for="(msg, i) in section.messages"
-                          :key="i"
-                        >
-                          {{ msg }}
-                        </li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <BlankSelector
+        ref="blankSelector"
+        data-testid="ob-app-selector"
+        :attachments="attachments"
+        :current-application-data="currentApplicationData"
+        @attachment-selected="handleAttachmentSelected"
+        @attachment-added="handleAttachmentAdded"
+        @attachment-removed="handleAttachmentRemoved"
+      />
 
       <div
         v-if="selectedAttachment"
@@ -160,6 +71,93 @@
             :rows="3"
             placeholder="Введите сопроводительное письмо / сообщение"
           />
+          <!-- Согласие и отправка — правая колонка шапки, рядом с полем сообщения -->
+          <div class="form__submit-bar">
+            <div class="consent-section">
+              <div class="consent-checkbox">
+                <input
+                  id="consent"
+                  v-model="consentGiven"
+                  type="checkbox"
+                  data-testid="create-app-consent-checkbox"
+                  required
+                >
+                <label for="consent">
+                  Даю <span class="blue">согласие</span> на обработку, хранение, передачу
+                  персональных данных, изложенных в заявке
+                </label>
+              </div>
+              <div
+                class="submit-button-container"
+                :data-testid="'create-app-submit-wrapper'"
+                @mouseenter="tooltipMouseEnter"
+                @mouseleave="tooltipMouseLeave"
+              >
+                <button
+                  class="send-all-btn"
+                  data-testid="create-app-button-submit"
+                  :disabled="!canSubmit"
+                  @click="submitApplication"
+                >
+                  Отправить заявку
+                </button>
+                <div
+                  v-if="showSubmitTooltip && !canSubmit && tooltipSections.length"
+                  class="submit-tooltip"
+                  @mouseenter="tooltipMouseEnter"
+                  @mouseleave="tooltipMouseLeave"
+                  @click="handleTooltipClick"
+                >
+                  <div class="tooltip-content">
+                    <div
+                      v-for="(section, idx) in tooltipSections"
+                      :key="idx"
+                      class="tooltip-section"
+                    >
+                      <div
+                        v-if="section.type === 'global'"
+                        class="tooltip-global"
+                      >
+                        <div class="tooltip-section-title">
+                          Необходимо заполнить:
+                        </div>
+                        <ul>
+                          <li
+                            v-for="(msg, i) in section.messages"
+                            :key="i"
+                          >
+                            {{ msg }}
+                          </li>
+                        </ul>
+                      </div>
+                      <div
+                        v-else-if="section.type === 'attachment'"
+                        class="tooltip-attachment"
+                      >
+                        <div class="tooltip-attachment-title">
+                          <span
+                            class="attachment-clickable"
+                            :data-attachment-key="section.attachmentKey"
+                            @click="handleTooltipAttachmentClick(section)"
+                          >
+                            Вложение "{{ section.attachmentName }}"
+                          </span>
+                        </div>
+                        <ul>
+                          <li
+                            v-for="(msg, i) in section.messages"
+                            :key="i"
+                          >
+                            {{ msg }}
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- 2 ряд: Организация, Компания, Ответственное лицо -->
@@ -2323,13 +2321,6 @@ export default {
         gap: 15px;
     }
 
-    .create__left-col {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-        flex-shrink: 0;
-    }
-
     .tables__instruction {
         width: fit-content;
         font-size: 14px;
@@ -2366,17 +2357,20 @@ export default {
         box-shadow: 0 3px 10px rgba(0,0,0,0.05);
     }
 
+    /* Шапка - две колонки: поле сообщения слева, согласие + отправка справа */
     .form__header {
         width: 100%;
         border-bottom: 1px solid #e6e6e6;
         padding: 15px;
         display: flex;
-        flex-direction: column;
-        gap: 12px;
+        align-items: flex-start;
+        gap: 16px;
     }
 
     .create__form .form__message-tc {
-        width: 100%;
+        flex: 3 1 0;
+        max-width: 850px;
+        min-width: 0;
         margin-bottom: 0;
         border-radius: 30px;
     }
@@ -2389,22 +2383,20 @@ export default {
         padding: 0 6px;
     }
 
-    /* Блок согласия+кнопка отправки — под BlankSelector в левой колонке */
+    /* Согласие + кнопка отправки — правая колонка шапки рядом с полем сообщения */
     .form__submit-bar {
+        flex: 1 1 0;
+        min-width: 200px;
+        max-width: 300px;
         display: flex;
         flex-direction: column;
-        gap: 10px;
-        padding: 12px;
-        background: #FFF;
-        border: 1px solid #e6e6e6;
-        border-radius: 15px;
-        box-shadow: 0 3px 10px rgba(0,0,0,0.05);
+        gap: 12px;
     }
 
     .consent-section {
         display: flex;
         flex-direction: column;
-        gap: 10px;
+        gap: 12px;
     }
 
     .consent-checkbox {
@@ -2428,13 +2420,14 @@ export default {
 
     .submit-button-container {
         position: relative;
-        display: inline-block;
+        display: block;
+        width: 100%;
     }
 
     .submit-tooltip {
         position: absolute;
-        left: 100%;
-        margin-left: 8px;
+        right: 100%;
+        margin-right: 8px;
         top: 0;
         background: #333;
         color: white;
@@ -2454,9 +2447,9 @@ export default {
         content: '';
         position: absolute;
         top: 8px;
-        right: 100%;
+        left: 100%;
         border: 5px solid transparent;
-        border-right-color: #333;
+        border-left-color: #333;
     }
 
     .tooltip-content {
@@ -2512,7 +2505,7 @@ export default {
         font-size: 12px;
         cursor: pointer;
         transition: background-color 0.2s;
-        width: fit-content;
+        width: 100%;
         flex-shrink: 0;
         height: fit-content;
     }
@@ -2602,12 +2595,21 @@ export default {
         .form__header {
             height: auto;
             padding: 12px;
+            flex-direction: column;
         }
 
-        .create__left-col {
-            flex-direction: row;
-            flex-wrap: wrap;
-            align-items: flex-start;
+        .create__form .form__message-tc {
+            flex-basis: auto;
+            max-width: none;
+            width: 100%;
+        }
+
+        .form__submit-bar {
+            min-width: 0;
+        }
+
+        .consent-section {
+            width: 100%;
         }
 
         .form__textarea {
