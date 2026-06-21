@@ -483,6 +483,7 @@
 
 <script>
 import SearchComponent from './SearchComponent.vue';
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import RefreshButton from './RefreshButton.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
 import TextConstructor from './TextConstructor.vue';
@@ -566,14 +567,13 @@ export default {
   },
   computed: {
     filteredAttachments() {
-      const q = this.searchQuery.trim().toLowerCase();
+      const variants = buildSearchVariants(this.searchQuery);
       let list = this.items.filter(a => (this.showArchive ? !a.is_active : a.is_active));
-      if (q) {
-        list = list.filter(a =>
-          (a.display_name || '').toLowerCase().includes(q)
-          || (a.name || '').toLowerCase().includes(q)
-          || (a.title || '').toLowerCase().includes(q)
-          || String(a.id).includes(q));
+      if (variants.length) {
+        list = list.filter(a => matchesSearch(
+          `${a.display_name || ''} ${a.name || ''} ${a.title || ''} ${a.id}`,
+          variants,
+        ));
       }
       return this.sortList(list);
     },

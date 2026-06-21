@@ -365,6 +365,7 @@
 
 <script>
 import SearchComponent from './SearchComponent.vue';
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import RefreshButton from './RefreshButton.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
@@ -418,10 +419,10 @@ export default {
   },
   computed: {
     filteredCitizenships() {
-      const q = this.searchQuery.trim().toLowerCase();
+      const variants = buildSearchVariants(this.searchQuery);
       let list = this.items.filter(c => (this.showArchive ? !c.is_active : c.is_active));
-      if (q) {
-        list = list.filter(c => c.name.toLowerCase().includes(q) || String(c.id).includes(q));
+      if (variants.length) {
+        list = list.filter(c => matchesSearch(`${c.name} ${c.id}`, variants));
       }
       return this.sortList(list);
     },

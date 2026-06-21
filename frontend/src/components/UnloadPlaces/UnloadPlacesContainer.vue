@@ -601,6 +601,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import { useDeletionsStore } from '@/stores/deletions';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import RefreshButton from '../RefreshButton.vue';
@@ -673,12 +674,9 @@ export default {
       const byMode = this.unloadPlaces.filter(place =>
         this.showArchive ? !place.is_active : place.is_active
       );
-      if (!this.searchQuery) return byMode;
-      const query = this.searchQuery.toLowerCase();
-      return byMode.filter(place =>
-        place.name.toLowerCase().includes(query) ||
-        place.id.toString().includes(query)
-      );
+      const variants = buildSearchVariants(this.searchQuery);
+      if (!variants.length) return byMode;
+      return byMode.filter(place => matchesSearch(`${place.name} ${place.id}`, variants));
     },
     sortedUnloadPlaces() {
       const places = [...this.filteredUnloadPlaces];

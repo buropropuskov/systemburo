@@ -668,6 +668,7 @@
 
 <script>
 import SearchComponent from './SearchComponent.vue';
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import RefreshButton from './RefreshButton.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
@@ -745,14 +746,14 @@ export default {
   },
   computed: {
     filteredFormats() {
-      const q = this.searchQuery.trim().toLowerCase();
+      const variants = buildSearchVariants(this.searchQuery);
       let list = this.formats.filter(item =>
         this.showArchive ? !item.format.is_active : item.format.is_active);
-      if (q) {
-        list = list.filter(item =>
-          item.format.name.toLowerCase().includes(q)
-          || String(item.format.id).includes(q)
-          || (item.format.country_code && item.format.country_code.toLowerCase().includes(q)));
+      if (variants.length) {
+        list = list.filter(item => matchesSearch(
+          `${item.format.name} ${item.format.id} ${item.format.country_code || ''}`,
+          variants,
+        ));
       }
       return this.sortList(list);
     },
