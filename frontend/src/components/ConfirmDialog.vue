@@ -53,6 +53,7 @@
 <script>
 import { computed } from 'vue';
 import { useUiStore } from '@/stores/ui';
+import { useEscapeClose } from '@/composables/useEscapeClose';
 
 export default {
   name: 'ConfirmDialog',
@@ -66,6 +67,8 @@ export default {
     function cancel() {
       ui.resolveConfirm(false);
     }
+
+    useEscapeClose(cancel, () => !!state.value);
 
     return { state, confirm, cancel };
   },

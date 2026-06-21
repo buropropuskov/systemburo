@@ -77,6 +77,15 @@ export default {
         handleCancel() {
             this.$emit('cancel');
         }
+    },
+    mounted() {
+        this.escHandler = (e) => {
+            if (e.key === 'Escape' && this.show) this.handleCancel();
+        };
+        document.addEventListener('keydown', this.escHandler);
+    },
+    beforeUnmount() {
+        document.removeEventListener('keydown', this.escHandler);
     }
 }
 </script>

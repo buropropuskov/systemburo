@@ -108,6 +108,15 @@ export default {
       }
     },
   },
+  mounted() {
+    this.escHandler = (e) => {
+      if (e.key === 'Escape' && this.confirmState.show) this.onCancel();
+    };
+    document.addEventListener('keydown', this.escHandler);
+  },
+  beforeUnmount() {
+    document.removeEventListener('keydown', this.escHandler);
+  },
 };
 </script>
 
