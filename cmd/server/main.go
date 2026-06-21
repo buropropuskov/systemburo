@@ -237,7 +237,7 @@ func main() {
 	accessDenialHandler := handlers.NewAccessDenialHandler(accessDenialService)
 	userBanHandler := handlers.NewUserBanHandler(userBanService)
 	consentHandler := handlers.NewConsentHandler(consentService, db)
-	settingsHandler := handlers.NewSettingsHandler(settingsService)
+	settingsHandler := handlers.NewSettingsHandler(settingsService, documentFileService, cfg.UploadMaxFileSize)
 	bugReportHandler := handlers.NewBugReportHandler(bugReportService)
 	maintenanceHandler := handlers.NewMaintenanceHandler(maintenanceService)
 	markHandler := handlers.NewMarkHandler(markService)

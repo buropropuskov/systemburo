@@ -52,6 +52,16 @@
         >
           Безопасность
         </div>
+        <div
+          class="sidebar-item"
+          :class="{ 'sidebar-item--active': activeSection === 'data-processing' }"
+          role="button"
+          tabindex="0"
+          @click="activeSection = 'data-processing'"
+          @keydown.enter="activeSection = 'data-processing'"
+        >
+          Обработка данных
+        </div>
       </nav>
 
       <div class="admin-settings__content">
@@ -359,6 +369,93 @@
               {{ saving ? 'Сохранение...' : 'Сохранить' }}
             </button>
           </div>
+
+          <!-- Обработка данных -->
+          <div
+            v-else-if="activeSection === 'data-processing'"
+            class="settings-section"
+          >
+            <h3 class="section-title">
+              Обработка данных
+            </h3>
+            <p class="dp-desc">
+              Документ открывается по ссылке «согласие» при подаче заявки и доступен по адресу
+              <code>/data-processing</code>. PDF показывается прямо на странице, DOC и DOCX —
+              только для скачивания.
+            </p>
+
+            <p
+              v-if="dpLoading"
+              class="form-hint"
+            >
+              Загрузка...
+            </p>
+
+            <div
+              v-else-if="dpMeta"
+              class="dp-card"
+            >
+              <div class="dp-card__info">
+                <span class="dp-card__name">{{ dpMeta.file_name }}</span>
+                <span class="dp-card__meta">{{ dpExtLabel }} · загружен {{ dpUploadedLabel }}</span>
+              </div>
+              <div class="dp-card__actions">
+                <a
+                  class="btn btn--ghost"
+                  href="/data-processing"
+                  target="_blank"
+                  rel="noopener"
+                >Открыть</a>
+                <button
+                  class="btn btn--ghost"
+                  :disabled="dpBusy"
+                  @click="downloadDp"
+                >
+                  Скачать
+                </button>
+                <label
+                  class="btn btn--ghost"
+                  :class="{ 'btn--disabled': dpBusy }"
+                >
+                  {{ dpUploading ? 'Загрузка...' : 'Заменить' }}
+                  <input
+                    type="file"
+                    accept=".pdf,.doc,.docx"
+                    hidden
+                    :disabled="dpBusy"
+                    @change="onDpFileChange"
+                  >
+                </label>
+                <button
+                  class="btn btn--danger"
+                  :disabled="dpBusy"
+                  @click="deleteDp"
+                >
+                  {{ dpDeleting ? 'Удаление...' : 'Удалить' }}
+                </button>
+              </div>
+            </div>
+
+            <div
+              v-else
+              class="dp-upload"
+            >
+              <label
+                class="btn btn--primary"
+                :class="{ 'btn--disabled': dpUploading }"
+              >
+                {{ dpUploading ? 'Загрузка...' : 'Загрузить документ' }}
+                <input
+                  type="file"
+                  accept=".pdf,.doc,.docx"
+                  hidden
+                  :disabled="dpUploading"
+                  @change="onDpFileChange"
+                >
+              </label>
+              <span class="form-hint">PDF, DOC или DOCX.</span>
+            </div>
+          </div>
         </SkeletonTransition>
       </div>
     </div>
@@ -368,8 +465,15 @@
 
 <script>
 import { getSettings, updateSetting } from '@/api/settings';
+import {
+  getDataProcessingMeta,
+  uploadDataProcessingDoc,
+  deleteDataProcessingDoc,
+  downloadDataProcessingDoc,
+} from '@/api/dataProcessing';
 import { SkeletonTransition, SkeletonLine, SkeletonBlock } from '@/components/ui';
 import { useDeletionsStore } from '@/stores/deletions';
+import { useUiStore } from '@/stores/ui';
 
 export default {
   name: 'AdminSettings',
@@ -409,6 +513,11 @@ export default {
         { key: 'password_require_digit', label: 'Требовать цифру' },
         { key: 'password_require_special', label: 'Требовать спецсимвол' },
       ],
+      dpMeta: null,
+      dpLoaded: false,
+      dpLoading: false,
+      dpUploading: false,
+      dpDeleting: false,
     };
   },
   computed: {
@@ -431,6 +540,26 @@ export default {
         return Array.isArray(parsed) ? parsed : [];
       } catch {
         return this.settings.allowed_doc_types.split(',').map(t => t.trim()).filter(Boolean);
+      }
+    },
+    dpBusy() {
+      return this.dpUploading || this.dpDeleting;
+    },
+    dpExtLabel() {
+      const ext = (this.dpMeta?.ext || '').replace('.', '').toUpperCase();
+      return ext || 'Документ';
+    },
+    dpUploadedLabel() {
+      if (!this.dpMeta?.uploaded_at) return '';
+      const d = new Date(this.dpMeta.uploaded_at);
+      if (Number.isNaN(d.getTime())) return '';
+      return d.toLocaleDateString('ru-RU');
+    },
+  },
+  watch: {
+    activeSection(section) {
+      if (section === 'data-processing' && !this.dpLoaded) {
+        this.fetchDataProcessingDoc();
       }
     },
   },
@@ -607,6 +736,66 @@ export default {
         useDeletionsStore().notify({ prefix: 'Ошибка сохранения настроек', type: 'error' });
       } finally {
         this.saving = false;
+      }
+    },
+
+    async fetchDataProcessingDoc() {
+      this.dpLoading = true;
+      try {
+        this.dpMeta = await getDataProcessingMeta();
+        this.dpLoaded = true;
+      } catch (error) {
+        console.error('Ошибка загрузки документа согласия:', error);
+        useDeletionsStore().notify({ prefix: 'Не удалось загрузить документ', type: 'error' });
+      } finally {
+        this.dpLoading = false;
+      }
+    },
+
+    async onDpFileChange(event) {
+      const file = event.target.files?.[0];
+      // Сбрасываем input, иначе повторный выбор того же файла не вызовет change.
+      event.target.value = '';
+      if (!file) return;
+      this.dpUploading = true;
+      try {
+        this.dpMeta = await uploadDataProcessingDoc(file);
+        this.dpLoaded = true;
+        useDeletionsStore().notify({ prefix: 'Документ ', bold: this.dpMeta.file_name, suffix: ' загружен' });
+      } catch (error) {
+        useDeletionsStore().notify({ prefix: error?.message || 'Ошибка загрузки документа', type: 'error' });
+      } finally {
+        this.dpUploading = false;
+      }
+    },
+
+    async downloadDp() {
+      if (!this.dpMeta) return;
+      try {
+        await downloadDataProcessingDoc(this.dpMeta.file_name);
+      } catch (error) {
+        console.error('Ошибка скачивания документа согласия:', error);
+        useDeletionsStore().notify({ prefix: 'Не удалось скачать документ', type: 'error' });
+      }
+    },
+
+    async deleteDp() {
+      if (!this.dpMeta) return;
+      const ok = await useUiStore().confirm({
+        message: `Удалить документ «${this.dpMeta.file_name}»? Пользователи перестанут видеть его при подаче заявки.`,
+      });
+      if (!ok) return;
+      const name = this.dpMeta.file_name;
+      this.dpDeleting = true;
+      try {
+        await deleteDataProcessingDoc();
+        this.dpMeta = null;
+        useDeletionsStore().notify({ prefix: 'Документ ', bold: name, suffix: ' удалён' });
+      } catch (error) {
+        console.error('Ошибка удаления документа согласия:', error);
+        useDeletionsStore().notify({ prefix: 'Ошибка удаления документа', type: 'error' });
+      } finally {
+        this.dpDeleting = false;
       }
     },
   },
@@ -872,6 +1061,101 @@ export default {
 .btn--primary:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.btn--ghost {
+  background: #fff;
+  color: #4F5BDF;
+  border-color: #4F5BDF;
+  text-decoration: none;
+}
+
+.btn--ghost:hover:not(:disabled):not(.btn--disabled) {
+  background: #f0f1ff;
+}
+
+.btn--danger {
+  background: #fff;
+  color: #dc3545;
+  border-color: #dc3545;
+}
+
+.btn--danger:hover:not(:disabled) {
+  background: #fdf0f1;
+}
+
+.btn--danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Обработка данных */
+.dp-desc {
+  font-size: 12px;
+  color: #555;
+  line-height: 1.5;
+  margin: 0 0 16px 0;
+}
+
+.dp-desc code {
+  background: #f0f1ff;
+  color: #4F5BDF;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+}
+
+.dp-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  border: 1px solid #e6e6e6;
+  border-radius: var(--radius-lg);
+}
+
+.dp-card__info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dp-card__name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+  word-break: break-word;
+}
+
+.dp-card__meta {
+  font-size: 11px;
+  color: #888;
+}
+
+.dp-card__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dp-upload {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.dp-upload .form-hint {
+  margin-top: 0;
 }
 
 /* Состояния загрузки и ошибки */

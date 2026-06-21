@@ -614,6 +614,16 @@ func Setup(e *echo.Echo, d Dependencies) {
 		protected.GET("/public/documents", docs.GetPublic)
 	}
 
+	// Документ согласия на обработку данных. Просмотр/скачивание -- любому авторизованному
+	// (виден на странице подачи заявки), управление -- под page.admin.
+	if settings != nil {
+		dpGroup := protected.Group("/settings/data-processing")
+		dpGroup.GET("/document/meta", settings.GetDataProcessingMeta)
+		dpGroup.GET("/document", settings.ServeDataProcessingDoc)
+		dpGroup.POST("/document", settings.UploadDataProcessingDoc, requireAdmin)
+		dpGroup.DELETE("/document", settings.DeleteDataProcessingDoc, requireAdmin)
+	}
+
 	// Статистика дашборда (#632). Доступ ограничен page.statistics.
 	if statistics != nil {
 		requireStats := mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageStatistics)
