@@ -268,8 +268,8 @@ func availableAttachmentFilterWhere(f AvailableAttachmentFilters) (string, []int
 	return " AND " + strings.Join(clauses, " AND "), args
 }
 
-// IsSecurityUser сообщает, является ли аккаунт типом security (резолв по user_types.code,
-// образец CheckBuroByUsername). Несуществующий пользователь -> false без ошибки.
+// IsSecurityUser сообщает, является ли аккаунт типом security (резолв по user_types.code).
+// Несуществующий пользователь -> false без ошибки.
 func (s *applicationService) IsSecurityUser(ctx context.Context, userID int) (bool, error) {
 	// GORM Scan не возвращает ошибку на 0 строк (в отличие от First): для несуществующего
 	// userID Code остаётся пустой строкой -> false.
