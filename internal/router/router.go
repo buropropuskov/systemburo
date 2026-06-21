@@ -540,6 +540,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	protected.GET("/settings", settings.GetAll)
 	protected.GET("/settings/upload", settings.GetUploadSettings)
 	protected.GET("/settings/notifications", settings.GetNotificationSettings)
+	protected.GET("/settings/password-policy", settings.GetPasswordPolicy)
 	protected.PUT("/settings/:key", settings.Update)
 
 	// Новости

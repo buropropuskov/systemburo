@@ -187,6 +187,7 @@ func main() {
 	approverService := services.NewApproverService(db)
 	consentService := services.NewConsentService(db)
 	settingsService := services.NewSettingsService(db, cfg)
+	userService.SetPasswordPolicyProvider(settingsService) // политика паролей при создании/смене
 	telegramService := services.NewTelegramService(cfg.TelegramBotToken, cfg.TelegramChatID)
 	bugReportService := services.NewBugReportService(db, telegramService)
 	maintenanceService := services.NewMaintenanceService(db)

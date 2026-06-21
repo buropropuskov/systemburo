@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"testing"
 
+	"systemburo/internal/models"
 	"systemburo/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
@@ -127,4 +128,43 @@ func TestSettings_GetUploadSettings_AuthUser(t *testing.T) {
 	resp := testutil.ParseMap(t, rec)
 	assert.NotNil(t, resp["max_file_size"])
 	assert.NotNil(t, resp["allowed_image_types"])
+}
+
+func TestGetPasswordPolicy(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAndLogin(t, e, "policy_reader", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
+
+	rec := testutil.GET(t, e, "/settings/password-policy", testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	policy := testutil.ParseResponse[models.PasswordPolicy](t, rec)
+	assert.Equal(t, 8, policy.MinLength)
+	assert.True(t, policy.RequireDigit)
+}
+
+func TestSettings_PasswordPolicyValidation(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	// min_length вне диапазона -> 400
+	rec := testutil.PUT(t, e, "/settings/password.min_length", `{"value":"3"}`, testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+	// валидный min_length -> 200
+	rec = testutil.PUT(t, e, "/settings/password.min_length", `{"value":"10"}`, testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	// bool-ключ с мусором -> 400
+	rec = testutil.PUT(t, e, "/settings/password.require_digit", `{"value":"maybe"}`, testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+	// валидный bool -> 200
+	rec = testutil.PUT(t, e, "/settings/password.require_special", `{"value":"true"}`, testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusOK, rec.Code)
 }

@@ -77,7 +77,7 @@ func TestCreateUser_DuplicateUsername(t *testing.T) {
 
 	testutil.RegisterUser(t, e, "dupuser", "pass123", 1, td.OrgID, td.CompanyID)
 
-	body := `{"username":"dupuser","password":"pass456","type_id":1,"organization_id":` +
+	body := `{"username":"dupuser","password":"password123","type_id":1,"organization_id":` +
 		itoa(td.OrgID) + `,"company_id":` + itoa(td.CompanyID) + `}`
 	rec := testutil.POST(t, e, "/users", body, h)
 

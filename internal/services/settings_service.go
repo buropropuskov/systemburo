@@ -20,17 +20,24 @@ type SettingsService interface {
 	Update(ctx context.Context, isSuperAdmin bool, key string, value string) (*models.SystemSetting, error)
 	GetUploadSettings(ctx context.Context) (map[string]interface{}, error)
 	GetNotificationSettings(ctx context.Context) (map[string]interface{}, error)
+	GetPasswordPolicy() models.PasswordPolicy
 }
 
 var knownKeys = map[string]string{
-	"upload.max_file_size":            "int",
-	"upload.allowed_image_types":      "json",
-	"upload.allowed_doc_types":        "json",
-	"pagination.max_per_page":         "int",
-	"notifications.enabled":           "bool",
-	"notifications.poll_interval":     "int",
-	"notifications.delete_duration":   "int",
-	"notifications.restore_duration":  "int",
+	"upload.max_file_size":           "int",
+	"upload.allowed_image_types":     "json",
+	"upload.allowed_doc_types":       "json",
+	"pagination.max_per_page":        "int",
+	"notifications.enabled":          "bool",
+	"notifications.poll_interval":    "int",
+	"notifications.delete_duration":  "int",
+	"notifications.restore_duration": "int",
+	"password.min_length":            "int",
+	"password.require_letter":        "bool",
+	"password.require_uppercase":     "bool",
+	"password.require_lowercase":     "bool",
+	"password.require_digit":         "bool",
+	"password.require_special":       "bool",
 }
 
 type settingsService struct {
@@ -43,14 +50,20 @@ type settingsService struct {
 // NewSettingsService создаёт сервис для управления системными настройками.
 func NewSettingsService(db *gorm.DB, cfg *config.Config) SettingsService {
 	defaults := map[string]models.SystemSetting{
-		"upload.max_file_size":        {Key: "upload.max_file_size", Value: strconv.FormatInt(cfg.UploadMaxFileSize, 10), Type: "int"},
-		"upload.allowed_image_types":  {Key: "upload.allowed_image_types", Value: mustJSON(cfg.UploadAllowedImageTypes), Type: "json"},
-		"upload.allowed_doc_types":    {Key: "upload.allowed_doc_types", Value: mustJSON(cfg.UploadAllowedDocTypes), Type: "json"},
-		"pagination.max_per_page":     {Key: "pagination.max_per_page", Value: strconv.Itoa(cfg.PaginationMaxLimit), Type: "int"},
-		"notifications.enabled":         {Key: "notifications.enabled", Value: "true", Type: "bool"},
+		"upload.max_file_size":           {Key: "upload.max_file_size", Value: strconv.FormatInt(cfg.UploadMaxFileSize, 10), Type: "int"},
+		"upload.allowed_image_types":     {Key: "upload.allowed_image_types", Value: mustJSON(cfg.UploadAllowedImageTypes), Type: "json"},
+		"upload.allowed_doc_types":       {Key: "upload.allowed_doc_types", Value: mustJSON(cfg.UploadAllowedDocTypes), Type: "json"},
+		"pagination.max_per_page":        {Key: "pagination.max_per_page", Value: strconv.Itoa(cfg.PaginationMaxLimit), Type: "int"},
+		"notifications.enabled":          {Key: "notifications.enabled", Value: "true", Type: "bool"},
 		"notifications.poll_interval":    {Key: "notifications.poll_interval", Value: "30", Type: "int"},
 		"notifications.delete_duration":  {Key: "notifications.delete_duration", Value: "10", Type: "int"},
 		"notifications.restore_duration": {Key: "notifications.restore_duration", Value: "5", Type: "int"},
+		"password.min_length":            {Key: "password.min_length", Value: "8", Type: "int"},
+		"password.require_letter":        {Key: "password.require_letter", Value: "true", Type: "bool"},
+		"password.require_uppercase":     {Key: "password.require_uppercase", Value: "false", Type: "bool"},
+		"password.require_lowercase":     {Key: "password.require_lowercase", Value: "false", Type: "bool"},
+		"password.require_digit":         {Key: "password.require_digit", Value: "true", Type: "bool"},
+		"password.require_special":       {Key: "password.require_special", Value: "false", Type: "bool"},
 	}
 
 	s := &settingsService{db: db, defaults: defaults, cache: make(map[string]models.SystemSetting)}
@@ -172,6 +185,22 @@ func (s *settingsService) GetNotificationSettings(ctx context.Context) (map[stri
 	}, nil
 }
 
+// GetPasswordPolicy собирает текущую политику паролей из кэша настроек.
+func (s *settingsService) GetPasswordPolicy() models.PasswordPolicy {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	minLen, _ := strconv.Atoi(s.cache["password.min_length"].Value)
+	return models.PasswordPolicy{
+		MinLength:        minLen,
+		RequireLetter:    s.cache["password.require_letter"].Value == "true",
+		RequireUppercase: s.cache["password.require_uppercase"].Value == "true",
+		RequireLowercase: s.cache["password.require_lowercase"].Value == "true",
+		RequireDigit:     s.cache["password.require_digit"].Value == "true",
+		RequireSpecial:   s.cache["password.require_special"].Value == "true",
+	}
+}
+
 func validateSettingValue(key, value string) error {
 	switch key {
 	case "upload.max_file_size":
@@ -197,6 +226,15 @@ func validateSettingValue(key, value string) error {
 	case "notifications.enabled":
 		if value != "true" && value != "false" {
 			return fmt.Errorf("notifications.enabled: true/false (получено %s)", value)
+		}
+	case "password.min_length":
+		v, err := strconv.Atoi(value)
+		if err != nil || v < 6 || v > 128 {
+			return fmt.Errorf("password.min_length: 6-128 (получено %s)", value)
+		}
+	case "password.require_letter", "password.require_uppercase", "password.require_lowercase", "password.require_digit", "password.require_special":
+		if value != "true" && value != "false" {
+			return fmt.Errorf("%s: true/false (получено %s)", key, value)
 		}
 	case "upload.allowed_image_types", "upload.allowed_doc_types":
 		var arr []string
