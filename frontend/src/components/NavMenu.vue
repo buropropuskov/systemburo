@@ -330,11 +330,20 @@
               @click="toggleAdmin"
             >
               <div class="nav-item-content">
-                <NavIcon
-                  name="admin"
-                  :size="18"
-                  class="nav-icon"
-                />
+                <div class="nav-icon-wrapper">
+                  <NavIcon
+                    name="admin"
+                    :size="18"
+                    class="nav-icon"
+                  />
+                  <span
+                    v-if="newFeedbackCount > 0"
+                    class="icon-badge admin-icon-badge"
+                    data-testid="nav-feedback-badge"
+                  >
+                    {{ newFeedbackCount > 9 ? '9+' : newFeedbackCount }}
+                  </span>
+                </div>
                 <span class="nav-text">Администрирование</span>
               </div>
               <!-- Не дропдаун, а открытие боковой колонки: прямая стрелка вправо. -->
@@ -497,6 +506,13 @@
                 class="admin-link__icon"
               />
               <span class="admin-link__label">{{ item.label }}</span>
+              <span
+                v-if="item.path === '/admin/feedback' && newFeedbackCount > 0"
+                class="admin-link__badge"
+                data-testid="admin-link-feedback-badge"
+              >
+                {{ newFeedbackCount > 9 ? '9+' : newFeedbackCount }}
+              </span>
             </div>
           </div>
           <div
@@ -557,6 +573,7 @@
 <script>
 import { apiRequest } from '@/api/client'
 import { getUnreadCount } from '@/api/applications'
+import { getFeedbackStats } from '@/api/feedback'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { useSoundStore } from '@/stores/sound'
@@ -584,6 +601,9 @@ export default {
       hoverTimeout: null,
       systemTables: [],
       newApplicationsCount: 0,
+      // Непрочитанные обращения обратной связи (бейдж у Администрирования). Тянем
+      // только супер-админу - эндпоинт /feedback/stats закрыт checkAdmin (иначе 403).
+      newFeedbackCount: 0,
       // Звук новой заявки: primed=true после ПЕРВОЙ загрузки счётчика (чтобы не играть на
       // логине при 0 -> N); lastSoundAt - метка для кулдауна (пачка заявок -> один звук).
       soundPrimed: false,
@@ -996,10 +1016,25 @@ export default {
       }
     },
 
+    async fetchNewFeedbackCount() {
+      if (!this.authStore.isSuperAdmin) {
+        this.newFeedbackCount = 0;
+        return;
+      }
+      try {
+        const stats = await getFeedbackStats();
+        this.newFeedbackCount = stats?.unread || 0;
+      } catch {
+        this.newFeedbackCount = 0;
+      }
+    },
+
     startApplicationsPolling() {
       this.fetchNewApplicationsCount();
+      this.fetchNewFeedbackCount();
       this.applicationsPollingInterval = setInterval(() => {
         this.fetchNewApplicationsCount();
+        this.fetchNewFeedbackCount();
       }, 30000);
     },
 
@@ -1591,6 +1626,13 @@ export default {
   transition-delay: 0.2s;
 }
 
+/* У Администрирования длинный лейбл + стрелка-индикатор не оставляют места справа,
+   поэтому счётчик держим на иконке и в развёрнутом рельсе (не прячем как у других). */
+.nav-menu.expanded .admin-icon-badge {
+  opacity: 1;
+  transform: scale(1);
+}
+
 /*
  * Двухколоночная Админка (#510): колонка справа от свёрнутого в иконки рельса
  * (left: 50px). Без теней - отделение бордером. Палитра - от .nav-root.
@@ -1761,6 +1803,22 @@ export default {
   line-height: 16px;
   color: var(--nav-text);
   white-space: nowrap;
+}
+
+.admin-link__badge {
+  margin-left: auto;
+  background-color: var(--nav-primary);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  line-height: 1;
 }
 
 .admin-link:hover {
