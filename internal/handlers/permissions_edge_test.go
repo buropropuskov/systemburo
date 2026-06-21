@@ -60,8 +60,8 @@ func TestPermissions_AutoGenerate_AnyAuthenticatedUser(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rec.Code,
 		"auto-generate has no admin check -- any authenticated user can call it")
 
-	// Verify permissions were created
+	// Verify permissions were created (по одному на глагол, всего 8)
 	var count int64
 	db.Model(&models.Permission{}).Where("key LIKE ?", "table.edge_test_table.%").Count(&count)
-	assert.Equal(t, int64(2), count)
+	assert.Equal(t, int64(8), count)
 }

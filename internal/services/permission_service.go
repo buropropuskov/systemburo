@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strings"
 
 	"systemburo/internal/models"
 
@@ -105,25 +104,21 @@ func (s *permissionService) UpdateUserPermissions(ctx context.Context, isSuperAd
 		return echo.NewHTTPError(http.StatusNotFound, "Пользователь не найден")
 	}
 
-	// Валидация ключей: статические -- по каталогу, динамические table.* -- по БД.
-	var tableKeys []string
+	// Валидация ключей: каталожные валидны сразу, остальные (динамические table.*
+	// и legacy-ключи из таблицы permissions) проверяются по БД.
+	var nonCatalogKeys []string
 	for _, p := range req.Permissions {
-		switch {
-		case IsCatalogKey(p.Key):
-			// ок -- известный статический ключ
-		case strings.HasPrefix(p.Key, PrefixTable):
-			tableKeys = append(tableKeys, p.Key)
-		default:
-			return echo.NewHTTPError(http.StatusBadRequest, "Неизвестный ключ разрешения: "+p.Key)
+		if !IsCatalogKey(p.Key) {
+			nonCatalogKeys = append(nonCatalogKeys, p.Key)
 		}
 	}
-	if len(tableKeys) > 0 {
+	if len(nonCatalogKeys) > 0 {
 		var existingCount int64
-		if err := s.db.WithContext(ctx).Model(&models.Permission{}).Where("key IN ?", tableKeys).Count(&existingCount).Error; err != nil {
+		if err := s.db.WithContext(ctx).Model(&models.Permission{}).Where("key IN ?", nonCatalogKeys).Count(&existingCount).Error; err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка БД")
 		}
-		if int(existingCount) != len(tableKeys) {
-			return echo.NewHTTPError(http.StatusBadRequest, "Некоторые ключи таблиц не существуют")
+		if int(existingCount) != len(nonCatalogKeys) {
+			return echo.NewHTTPError(http.StatusBadRequest, "Некоторые ключи разрешений не существуют")
 		}
 	}
 
