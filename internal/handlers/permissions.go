@@ -81,6 +81,15 @@ func (h *PermissionHandler) GetPermissionTree(c echo.Context) error {
 	return RespondSuccess(c, tree)
 }
 
+// GetCatalog возвращает каталог прав (статика + динамические table.*) для UI настройки.
+func (h *PermissionHandler) GetCatalog(c echo.Context) error {
+	catalog, err := h.service.GetCatalog(c.Request().Context())
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, catalog)
+}
+
 // AutoGenerate создаёт разрешения для таблицы (только admin).
 func (h *PermissionHandler) AutoGenerate(c echo.Context) error {
 	var req models.AutoGenerateRequest

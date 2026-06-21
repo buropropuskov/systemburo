@@ -481,6 +481,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	permGroup.GET("/user/:id", permissions.GetUserPermissions)
 	permGroup.PUT("/user/:id", permissions.UpdateUserPermissions)
 	permGroup.GET("/tree", permissions.GetPermissionTree)
+	permGroup.GET("/catalog", permissions.GetCatalog)
 	permGroup.POST("/auto-generate", permissions.AutoGenerate)
 
 	// permission.audit.manage = управление системой прав

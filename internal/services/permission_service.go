@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"systemburo/internal/models"
 
@@ -18,6 +19,7 @@ type PermissionService interface {
 	GetUserPermissions(ctx context.Context, isSuperAdmin bool, userID int) ([]models.UserPermissionResponse, error)
 	UpdateUserPermissions(ctx context.Context, isSuperAdmin bool, actorID int, userID int, req models.UpdatePermissionsRequest) error
 	GetPermissionTree(ctx context.Context) ([]models.PermissionTreeNode, error)
+	GetCatalog(ctx context.Context) ([]CatalogNode, error)
 	AutoGenerateForTable(ctx context.Context, tableID int, tableName string) error
 	HasPermission(ctx context.Context, userID int, key string) (bool, error)
 	HasPermissionValue(ctx context.Context, userID int, key string, value string) (bool, error)
@@ -103,18 +105,26 @@ func (s *permissionService) UpdateUserPermissions(ctx context.Context, isSuperAd
 		return echo.NewHTTPError(http.StatusNotFound, "Пользователь не найден")
 	}
 
-	// Validate all permission keys exist
-	keys := make([]string, len(req.Permissions))
-	for i, p := range req.Permissions {
-		keys[i] = p.Key
+	// Валидация ключей: статические -- по каталогу, динамические table.* -- по БД.
+	var tableKeys []string
+	for _, p := range req.Permissions {
+		switch {
+		case IsCatalogKey(p.Key):
+			// ок -- известный статический ключ
+		case strings.HasPrefix(p.Key, PrefixTable):
+			tableKeys = append(tableKeys, p.Key)
+		default:
+			return echo.NewHTTPError(http.StatusBadRequest, "Неизвестный ключ разрешения: "+p.Key)
+		}
 	}
-
-	var existingCount int64
-	if err := s.db.WithContext(ctx).Model(&models.Permission{}).Where("key IN ?", keys).Count(&existingCount).Error; err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка БД")
-	}
-	if int(existingCount) != len(keys) {
-		return echo.NewHTTPError(http.StatusBadRequest, "Некоторые ключи разрешений не существуют")
+	if len(tableKeys) > 0 {
+		var existingCount int64
+		if err := s.db.WithContext(ctx).Model(&models.Permission{}).Where("key IN ?", tableKeys).Count(&existingCount).Error; err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка БД")
+		}
+		if int(existingCount) != len(tableKeys) {
+			return echo.NewHTTPError(http.StatusBadRequest, "Некоторые ключи таблиц не существуют")
+		}
 	}
 
 	adminID := actorID
@@ -171,6 +181,28 @@ func (s *permissionService) GetPermissionTree(ctx context.Context) ([]models.Per
 	return tree, nil
 }
 
+// GetCatalog возвращает полный каталог прав: статическое дерево (Catalog) плюс
+// динамические права таблиц (table.<slug>.*) из БД под категорией "Таблицы".
+func (s *permissionService) GetCatalog(ctx context.Context) ([]CatalogNode, error) {
+	nodes := Catalog()
+
+	var tablePerms []models.Permission
+	if err := s.db.WithContext(ctx).
+		Where("category = ?", "table").
+		Order("display_name, key").
+		Find(&tablePerms).Error; err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения каталога прав")
+	}
+	for _, p := range tablePerms {
+		nodes = append(nodes, CatalogNode{
+			Key:         p.Key,
+			DisplayName: p.DisplayName,
+			Category:    CatTables,
+		})
+	}
+	return nodes, nil
+}
+
 func (s *permissionService) buildTreeNode(p models.Permission, byParent map[string][]models.Permission) models.PermissionTreeNode {
 	node := models.PermissionTreeNode{
 		Key:         p.Key,
@@ -189,25 +221,33 @@ func (s *permissionService) buildTreeNode(p models.Permission, byParent map[stri
 	return node
 }
 
-// AutoGenerateForTable создаёт разрешения view/edit для системной таблицы.
+// tableVerbs -- набор прав, генерируемых для каждой системной таблицы.
+// Порядок = порядок отображения в UI. Глагол view -- родитель (доступ к таблице),
+// остальные -- действия внутри неё.
+var tableVerbs = []struct{ Verb, Title string }{
+	{"view", "Доступ к таблице"},
+	{"entry", "Отметка въезда/входа"},
+	{"exit", "Отметка выезда/выхода"},
+	{"detail", "Открытие карточки из таблицы"},
+	{"history", "История таблицы"},
+	{"export", "Экспорт"},
+	{"trash", "Корзина"},
+	{"delete", "Удаление записи"},
+}
+
+// AutoGenerateForTable создаёт права для системной таблицы (по одному на глагол).
 func (s *permissionService) AutoGenerateForTable(ctx context.Context, tableID int, tableName string) error {
 	displayName := tableName
 
-	permissions := []models.Permission{
-		{
-			Key:         fmt.Sprintf("table.%s.view", tableName),
+	permissions := make([]models.Permission, 0, len(tableVerbs))
+	for _, v := range tableVerbs {
+		permissions = append(permissions, models.Permission{
+			Key:         fmt.Sprintf("table.%s.%s", tableName, v.Verb),
 			Category:    "table",
 			EntityID:    &tableID,
-			DisplayName: fmt.Sprintf("Просмотр таблицы %s", displayName),
+			DisplayName: fmt.Sprintf("%s: %s", displayName, v.Title),
 			ParentKey:   nil,
-		},
-		{
-			Key:         fmt.Sprintf("table.%s.edit", tableName),
-			Category:    "table",
-			EntityID:    &tableID,
-			DisplayName: fmt.Sprintf("Редактирование таблицы %s", displayName),
-			ParentKey:   nil,
-		},
+		})
 	}
 
 	for i := range permissions {
