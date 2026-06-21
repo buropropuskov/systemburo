@@ -92,15 +92,13 @@ func (h *CompanyHandler) GetWithUsersExtended(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /companies [post]
 func (h *CompanyHandler) Create(c echo.Context) error {
-	username := c.Get("username").(string)
-
 	var req services.CreateCompanyRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
 
 	userID, _ := c.Get("user_id").(int)
-	company, err := h.service.Create(c.Request().Context(), username, userID, req)
+	company, err := h.service.Create(c.Request().Context(), userID, req)
 	if err != nil {
 		return err
 	}
@@ -122,8 +120,6 @@ func (h *CompanyHandler) Create(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /companies/{id} [put]
 func (h *CompanyHandler) Update(c echo.Context) error {
-	username := c.Get("username").(string)
-
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid company ID")
@@ -135,7 +131,7 @@ func (h *CompanyHandler) Update(c echo.Context) error {
 	}
 
 	userID, _ := c.Get("user_id").(int)
-	company, err := h.service.Update(c.Request().Context(), username, userID, id, req)
+	company, err := h.service.Update(c.Request().Context(), userID, id, req)
 	if err != nil {
 		return err
 	}
@@ -157,15 +153,13 @@ func (h *CompanyHandler) Update(c echo.Context) error {
 // @Failure      409 {object} models.HTTPError
 // @Router       /companies/{id} [delete]
 func (h *CompanyHandler) Delete(c echo.Context) error {
-	username := c.Get("username").(string)
-
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid company ID")
 	}
 
 	userID, _ := c.Get("user_id").(int)
-	if err := h.service.Delete(c.Request().Context(), username, userID, id); err != nil {
+	if err := h.service.Delete(c.Request().Context(), userID, id); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Company archived")
@@ -183,13 +177,12 @@ func (h *CompanyHandler) Delete(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /companies/{id}/restore [post]
 func (h *CompanyHandler) Restore(c echo.Context) error {
-	username := c.Get("username").(string)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid company ID")
 	}
 	userID, _ := c.Get("user_id").(int)
-	if err := h.service.Restore(c.Request().Context(), username, userID, id); err != nil {
+	if err := h.service.Restore(c.Request().Context(), userID, id); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Company restored")
@@ -206,12 +199,11 @@ func (h *CompanyHandler) Restore(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /companies/{id}/history [get]
 func (h *CompanyHandler) GetHistory(c echo.Context) error {
-	username := c.Get("username").(string)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid company ID")
 	}
-	items, err := h.service.GetHistory(c.Request().Context(), username, id)
+	items, err := h.service.GetHistory(c.Request().Context(), id)
 	if err != nil {
 		return err
 	}
@@ -313,8 +305,6 @@ func (h *CompanyHandler) GetUnloadPlaces(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /companies/{id}/unload-places [put]
 func (h *CompanyHandler) UpdateUnloadPlaces(c echo.Context) error {
-	username := c.Get("username").(string)
-
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid company ID")
@@ -325,7 +315,7 @@ func (h *CompanyHandler) UpdateUnloadPlaces(c echo.Context) error {
 		return err
 	}
 
-	if err := h.service.UpdateUnloadPlaces(c.Request().Context(), username, id, req); err != nil {
+	if err := h.service.UpdateUnloadPlaces(c.Request().Context(), id, req); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Unload places updated successfully")
@@ -371,8 +361,6 @@ func (h *CompanyHandler) GetTables(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /companies/{id}/tables [put]
 func (h *CompanyHandler) UpdateTables(c echo.Context) error {
-	username := c.Get("username").(string)
-
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid company ID")
@@ -383,7 +371,7 @@ func (h *CompanyHandler) UpdateTables(c echo.Context) error {
 		return err
 	}
 
-	if err := h.service.UpdateTables(c.Request().Context(), username, id, req); err != nil {
+	if err := h.service.UpdateTables(c.Request().Context(), id, req); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Company tables updated successfully")

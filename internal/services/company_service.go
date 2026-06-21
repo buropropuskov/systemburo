@@ -23,20 +23,20 @@ type CompanyService interface {
 	// GetWithUsersExtended возвращает компании с количеством пользователей и местами разгрузки.
 	GetWithUsersExtended(ctx context.Context, includeArchived bool) ([]CompanyWithUsersExtendedResponse, error)
 
-	// Create создаёт новую компанию. callerUserID - актор для аудита. Требуются права buropropuskov.
-	Create(ctx context.Context, username string, callerUserID int, req CreateCompanyRequest) (*models.Company, error)
+	// Create создаёт новую компанию. callerUserID - актор для аудита. Авторизация (page.admin) - на роут-middleware.
+	Create(ctx context.Context, callerUserID int, req CreateCompanyRequest) (*models.Company, error)
 
-	// Update обновляет название компании. callerUserID - актор для аудита. Требуются права buropropuskov.
-	Update(ctx context.Context, username string, callerUserID, companyID int, req CreateCompanyRequest) (*models.Company, error)
+	// Update обновляет название компании. callerUserID - актор для аудита.
+	Update(ctx context.Context, callerUserID, companyID int, req CreateCompanyRequest) (*models.Company, error)
 
-	// Delete архивирует компанию (soft-delete). callerUserID - актор. Нельзя при активных пользователях. Требуются права buropropuskov.
-	Delete(ctx context.Context, username string, callerUserID, companyID int) error
+	// Delete архивирует компанию (soft-delete). callerUserID - актор. Нельзя при активных пользователях.
+	Delete(ctx context.Context, callerUserID, companyID int) error
 
-	// Restore восстанавливает компанию из архива. callerUserID - актор. Требуются права buropropuskov.
-	Restore(ctx context.Context, username string, callerUserID, companyID int) error
+	// Restore восстанавливает компанию из архива. callerUserID - актор.
+	Restore(ctx context.Context, callerUserID, companyID int) error
 
-	// GetHistory возвращает историю изменений компании. Требуются права buropropuskov.
-	GetHistory(ctx context.Context, username string, companyID int) ([]models.CompanyHistoryItem, error)
+	// GetHistory возвращает историю изменений компании.
+	GetHistory(ctx context.Context, companyID int) ([]models.CompanyHistoryItem, error)
 
 	// GetUsers возвращает ответственных пользователей компании.
 	GetUsers(ctx context.Context, companyID int) ([]CompanyUserResponse, error)
@@ -47,14 +47,14 @@ type CompanyService interface {
 	// GetUnloadPlaces возвращает активные места разгрузки компании.
 	GetUnloadPlaces(ctx context.Context, companyID int) ([]CompanyUnloadPlaceResponse, error)
 
-	// UpdateUnloadPlaces обновляет привязку мест разгрузки к компании. Требуются права buropropuskov.
-	UpdateUnloadPlaces(ctx context.Context, username string, companyID int, req UpdateCompanyUnloadPlacesRequest) error
+	// UpdateUnloadPlaces обновляет привязку мест разгрузки к компании.
+	UpdateUnloadPlaces(ctx context.Context, companyID int, req UpdateCompanyUnloadPlacesRequest) error
 
 	// GetTables возвращает активные таблицы компании.
 	GetTables(ctx context.Context, companyID int) ([]CompanyTableResponse, error)
 
-	// UpdateTables обновляет привязку таблиц к компании. Требуются права buropropuskov.
-	UpdateTables(ctx context.Context, username string, companyID int, req UpdateCompanyTablesRequest) error
+	// UpdateTables обновляет привязку таблиц к компании.
+	UpdateTables(ctx context.Context, companyID int, req UpdateCompanyTablesRequest) error
 }
 
 // --- DTO: запросы ---
@@ -226,11 +226,7 @@ func (s *companyService) GetWithUsersExtended(ctx context.Context, includeArchiv
 }
 
 // Create создаёт новую компанию (admin-only).
-func (s *companyService) Create(ctx context.Context, username string, callerUserID int, req CreateCompanyRequest) (*models.Company, error) {
-	if err := s.checkAdmin(ctx, username); err != nil {
-		return nil, err
-	}
-
+func (s *companyService) Create(ctx context.Context, callerUserID int, req CreateCompanyRequest) (*models.Company, error) {
 	var active int64
 	if err := s.db.WithContext(ctx).Model(&models.Company{}).
 		Where("name = ? AND is_active = ?", req.Name, true).Count(&active).Error; err != nil {
@@ -251,11 +247,7 @@ func (s *companyService) Create(ctx context.Context, username string, callerUser
 }
 
 // Update обновляет название компании (admin-only).
-func (s *companyService) Update(ctx context.Context, username string, callerUserID, companyID int, req CreateCompanyRequest) (*models.Company, error) {
-	if err := s.checkAdmin(ctx, username); err != nil {
-		return nil, err
-	}
-
+func (s *companyService) Update(ctx context.Context, callerUserID, companyID int, req CreateCompanyRequest) (*models.Company, error) {
 	var company models.Company
 	if err := s.db.WithContext(ctx).First(&company, companyID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -289,11 +281,7 @@ func (s *companyService) Update(ctx context.Context, username string, callerUser
 // Delete архивирует компанию (soft-delete: is_active=false). Строка остаётся,
 // FK заявок/сотрудников/машин не осиротевают. Блокируется при активных
 // пользователях компании (как у организаций, #412).
-func (s *companyService) Delete(ctx context.Context, username string, callerUserID, companyID int) error {
-	if err := s.checkAdmin(ctx, username); err != nil {
-		return err
-	}
-
+func (s *companyService) Delete(ctx context.Context, callerUserID, companyID int) error {
 	var company models.Company
 	if err := s.db.WithContext(ctx).First(&company, companyID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -326,11 +314,7 @@ func (s *companyService) Delete(ctx context.Context, username string, callerUser
 
 // Restore восстанавливает компанию из архива (is_active=true). Конфликт активного
 // имени -> 400.
-func (s *companyService) Restore(ctx context.Context, username string, callerUserID, companyID int) error {
-	if err := s.checkAdmin(ctx, username); err != nil {
-		return err
-	}
-
+func (s *companyService) Restore(ctx context.Context, callerUserID, companyID int) error {
 	var company models.Company
 	if err := s.db.WithContext(ctx).First(&company, companyID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -362,10 +346,7 @@ func (s *companyService) Restore(ctx context.Context, username string, callerUse
 }
 
 // GetHistory возвращает историю изменений компании (admin-only).
-func (s *companyService) GetHistory(ctx context.Context, username string, companyID int) ([]models.CompanyHistoryItem, error) {
-	if err := s.checkAdmin(ctx, username); err != nil {
-		return nil, err
-	}
+func (s *companyService) GetHistory(ctx context.Context, companyID int) ([]models.CompanyHistoryItem, error) {
 	return s.history.GetHistory(ctx, companyID)
 }
 
@@ -467,11 +448,7 @@ func (s *companyService) GetUnloadPlaces(ctx context.Context, companyID int) ([]
 }
 
 // UpdateUnloadPlaces заменяет привязку мест разгрузки к компании (admin-only).
-func (s *companyService) UpdateUnloadPlaces(ctx context.Context, username string, companyID int, req UpdateCompanyUnloadPlacesRequest) error {
-	if err := s.checkAdmin(ctx, username); err != nil {
-		return err
-	}
-
+func (s *companyService) UpdateUnloadPlaces(ctx context.Context, companyID int, req UpdateCompanyUnloadPlacesRequest) error {
 	tx := s.db.WithContext(ctx).Begin()
 	if tx.Error != nil {
 		slog.Error("не удалось начать транзакцию", "error", tx.Error)
@@ -523,11 +500,7 @@ func (s *companyService) GetTables(ctx context.Context, companyID int) ([]Compan
 }
 
 // UpdateTables заменяет привязку таблиц к компании (admin-only).
-func (s *companyService) UpdateTables(ctx context.Context, username string, companyID int, req UpdateCompanyTablesRequest) error {
-	if err := s.checkAdmin(ctx, username); err != nil {
-		return err
-	}
-
+func (s *companyService) UpdateTables(ctx context.Context, companyID int, req UpdateCompanyTablesRequest) error {
 	tx := s.db.WithContext(ctx).Begin()
 	if tx.Error != nil {
 		slog.Error("не удалось начать транзакцию", "error", tx.Error)
@@ -561,22 +534,3 @@ func (s *companyService) UpdateTables(ctx context.Context, username string, comp
 	return nil
 }
 
-// checkAdmin проверяет что пользователь имеет тип buropropuskov.
-func (s *companyService) checkAdmin(ctx context.Context, username string) error {
-	var result struct {
-		UserType string
-	}
-	err := s.db.WithContext(ctx).
-		Table("users u").
-		Select("ut.code as user_type").
-		Joins("JOIN user_types ut ON u.type_id = ut.id").
-		Where("u.username = ?", username).
-		Scan(&result).Error
-	if err != nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, "User not found")
-	}
-	if result.UserType != "buropropuskov" {
-		return echo.NewHTTPError(http.StatusForbidden, "Insufficient permissions")
-	}
-	return nil
-}

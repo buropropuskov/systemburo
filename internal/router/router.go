@@ -290,22 +290,23 @@ func Setup(e *echo.Echo, d Dependencies) {
 	orgg.PUT("/:id/unload-places", org.UpdateOrganizationUnloadPlaces)
 	protected.GET("/get-organization", org.GetMyOrganization)
 
-	// Компании
+	// Компании. Изменяющие операции и история - page.admin (Ф5, ранее service checkAdmin);
+	// списки и привязка пользователей (UpdateUsers) - как было, без отдельного гейта.
 	cg := protected.Group("/companies")
 	cg.GET("", comp.GetAll)
-	cg.POST("", comp.Create)
-	cg.PUT("/:id", comp.Update)
-	cg.DELETE("/:id", comp.Delete)
-	cg.POST("/:id/restore", comp.Restore)
-	cg.GET("/:id/history", comp.GetHistory)
+	cg.POST("", comp.Create, requireAdmin)
+	cg.PUT("/:id", comp.Update, requireAdmin)
+	cg.DELETE("/:id", comp.Delete, requireAdmin)
+	cg.POST("/:id/restore", comp.Restore, requireAdmin)
+	cg.GET("/:id/history", comp.GetHistory, requireAdmin)
 	cg.GET("/with-users", comp.GetWithUsers)
 	cg.GET("/with-users-extended", comp.GetWithUsersExtended)
 	cg.GET("/:id/users", comp.GetUsers)
 	cg.PUT("/:id/users", comp.UpdateUsers)
 	cg.GET("/:id/tables", comp.GetTables)
-	cg.PUT("/:id/tables", comp.UpdateTables)
+	cg.PUT("/:id/tables", comp.UpdateTables, requireAdmin)
 	cg.GET("/:id/unload-places", comp.GetUnloadPlaces)
-	cg.PUT("/:id/unload-places", comp.UpdateUnloadPlaces)
+	cg.PUT("/:id/unload-places", comp.UpdateUnloadPlaces, requireAdmin)
 
 	// Места разгрузки
 	upg := protected.Group("/unload-places")
