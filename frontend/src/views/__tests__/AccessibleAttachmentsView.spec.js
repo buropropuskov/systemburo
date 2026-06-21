@@ -261,4 +261,23 @@ describe('AccessibleAttachmentsView (FE-S6) фильтры', () => {
     expect(lastArg).toMatchObject({ page: 1, per_page: 30 });
     expect(replace).toHaveBeenLastCalledWith({ query: {} });
   });
+
+  it('кнопка сброса всегда в DOM: disabled без фильтров, активна с фильтром', async () => {
+    getAccessibleAttachments.mockResolvedValue({ items: [], meta: { total: 0 } });
+
+    wrapper = mountView();
+    await flushPromises();
+    // Кнопка не исчезает (раньше была через v-if и двигала ряд при появлении),
+    // а просто блокируется, пока нет активных фильтров.
+    const reset = wrapper.find('[data-testid="aa-filter-reset"]');
+    expect(reset.exists()).toBe(true);
+    expect(reset.attributes('disabled')).toBeDefined();
+    wrapper.unmount();
+
+    wrapper = mountView({ type: 'cars' });
+    await flushPromises();
+    expect(
+      wrapper.find('[data-testid="aa-filter-reset"]').attributes('disabled'),
+    ).toBeUndefined();
+  });
 });
