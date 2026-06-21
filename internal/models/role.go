@@ -6,12 +6,15 @@ import "time"
 // Не путать с группой прав: роль определяет "кто", группа -- "что разрешено".
 // К каждой роли можно привязать несколько default-групп прав через RoleDefaultGroup.
 type Role struct {
-	ID          int       `json:"id"`
-	Code        string    `gorm:"uniqueIndex;size:50" json:"code"`
-	Name        string    `gorm:"size:100" json:"name"`
-	Description *string   `gorm:"type:text" json:"description"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID          int     `json:"id"`
+	Code        string  `gorm:"uniqueIndex;size:50" json:"code"`
+	Name        string  `gorm:"size:100" json:"name"`
+	Description *string `gorm:"type:text" json:"description"`
+	// IsSystem помечает встроенную роль "Пользователь" (базовый фундамент прав).
+	// Системную роль нельзя удалить; новые роли создаются со снимком её grants.
+	IsSystem  bool      `gorm:"default:false" json:"is_system"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // RoleDefaultGroup -- M:N связь "роль -> default-группа прав".

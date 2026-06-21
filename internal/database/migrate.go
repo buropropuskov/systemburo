@@ -41,6 +41,7 @@ func AllModels() []interface{} {
 		// Users (depends on UserType, Organization, Company)
 		&models.User{},
 		&models.UserHistory{},
+		&models.UserBanHistory{},
 		&models.RefreshToken{},
 		&models.AuthEvent{},
 		&models.OrganizationUser{},
@@ -147,6 +148,7 @@ func AllModels() []interface{} {
 		&models.Role{},
 		&models.RoleDefaultGroup{},
 		&models.PermissionGroupGrant{},
+		&models.RolePermissionGrant{},
 		&models.UserGroup{},
 		&models.UserPermissionOverride{},
 
