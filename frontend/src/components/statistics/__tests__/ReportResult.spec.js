@@ -23,11 +23,18 @@ const barStub = {
   props: ['data', 'height', 'seriesName', 'unitForms', 'isFloat'],
   template: '<div class="bar-stub" />',
 };
+const donutStub = {
+  name: 'AnalyticsDonutChart',
+  props: ['data', 'height', 'totalLabel', 'unitForms', 'isFloat'],
+  template: '<div class="donut-stub" />',
+};
 
 function mountResult(result) {
   return mount(ReportResult, {
     props: { result },
-    global: { stubs: { AnalyticsAreaChart: areaStub, AnalyticsBarChart: barStub } },
+    global: {
+      stubs: { AnalyticsAreaChart: areaStub, AnalyticsBarChart: barStub, AnalyticsDonutChart: donutStub },
+    },
   });
 }
 
@@ -347,6 +354,38 @@ describe('ReportResult — переключатель Таблица/Графи�
     await w.find('[data-testid="rr-export-pdf"]').trigger('click');
     await nextTick();
     expect(w.emitted('export-error')[0]).toEqual(['диск переполнен']);
+  });
+
+  it('категориальный разрез (>=2 долей): тоггл Столбцы/Кольцо, кольцо рисует доли', async () => {
+    const w = mountResult(aggMulti);
+    await w.find('[data-testid="rr-view-chart"]').trigger('click');
+    await nextTick();
+    // По умолчанию столбцы.
+    expect(w.findComponent(barStub).exists()).toBe(true);
+    expect(w.find('[data-testid="rr-kind-donut"]').exists()).toBe(true);
+
+    await w.find('[data-testid="rr-kind-donut"]').trigger('click');
+    await nextTick();
+    expect(w.findComponent(donutStub).exists()).toBe(true);
+    expect(w.findComponent(barStub).exists()).toBe(false);
+    expect(w.findComponent(donutStub).props('data')).toEqual([
+      { label: 'ООО А', value: 10 }, { label: 'ООО Б', value: 4 },
+    ]);
+    expect(w.findComponent(donutStub).props('totalLabel')).toBe('Количество заявок');
+  });
+
+  it('период: тоггла Кольцо нет (доли по времени бессмысленны)', async () => {
+    const w = mountResult(aggPeriod);
+    await w.find('[data-testid="rr-view-chart"]').trigger('click');
+    await nextTick();
+    expect(w.find('[data-testid="rr-kind-donut"]').exists()).toBe(false);
+  });
+
+  it('один разрез (1 строка): тоггла Кольцо нет', async () => {
+    const w = mountResult(aggStatus);
+    await w.find('[data-testid="rr-view-chart"]').trigger('click');
+    await nextTick();
+    expect(w.find('[data-testid="rr-kind-donut"]').exists()).toBe(false);
   });
 
   it('смена разреза period->status переключает график area->столбцы', async () => {

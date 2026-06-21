@@ -81,6 +81,31 @@
             {{ col.label }}
           </button>
         </div>
+        <!-- Тип графика для категориального разреза: столбцы или доли (кольцо).
+             Период — динамика во времени, доли не имеют смысла -> тоггл скрыт. -->
+        <div
+          v-if="view === 'chart' && hasRows && canDonut"
+          class="rr__seg rr__seg--kind"
+        >
+          <button
+            type="button"
+            class="rr__seg-btn"
+            :class="{ 'rr__seg-btn--active': chartKind === 'bar' }"
+            data-testid="rr-kind-bar"
+            @click="chartKind = 'bar'"
+          >
+            Столбцы
+          </button>
+          <button
+            type="button"
+            class="rr__seg-btn"
+            :class="{ 'rr__seg-btn--active': chartKind === 'donut' }"
+            data-testid="rr-kind-donut"
+            @click="chartKind = 'donut'"
+          >
+            Кольцо
+          </button>
+        </div>
         <ReportExportButton
           class="rr__export"
           :disabled="!canExport"
@@ -89,32 +114,50 @@
         />
       </div>
 
-      <!-- Период рисуем area-графиком (динамика во времени), прочие разрезы —
-           столбцами. Apex (AnalyticsAreaChart/AnalyticsBarChart), без Chart.js. -->
-      <AnalyticsAreaChart
-        v-if="view === 'chart' && hasRows && isPeriod"
-        :data="chartAreaData"
-        :height="chartHeight"
-        :series-name="chartSeriesName"
-        :unit-forms="chartUnitForms"
-        :is-float="chartIsFloat"
-        data-testid="rr-chart-area"
-      />
-      <AnalyticsBarChart
-        v-else-if="view === 'chart' && hasRows"
-        :data="chartBarData"
-        :height="chartHeight"
-        :series-name="chartSeriesName"
-        :unit-forms="chartUnitForms"
-        :is-float="chartIsFloat"
-        data-testid="rr-chart-bar"
-      />
-
-      <div
-        v-else
-        class="rr__table-wrap"
+      <!-- Период -> area (динамика во времени); категориальный разрез -> столбцы
+           или кольцо (доли) по выбору. Apex (Area/Bar/Donut), без Chart.js.
+           Keyed Transition даёт мягкий fade при смене вида/типа. -->
+      <Transition
+        name="rr-fade"
+        mode="out-in"
       >
-        <table class="rr__table">
+        <div
+          :key="chartType"
+          class="rr__slot"
+        >
+          <AnalyticsAreaChart
+            v-if="chartType === 'area'"
+            :data="chartAreaData"
+            :height="chartHeight"
+            :series-name="chartSeriesName"
+            :unit-forms="chartUnitForms"
+            :is-float="chartIsFloat"
+            data-testid="rr-chart-area"
+          />
+          <AnalyticsBarChart
+            v-else-if="chartType === 'bar'"
+            :data="chartBarData"
+            :height="chartHeight"
+            :series-name="chartSeriesName"
+            :unit-forms="chartUnitForms"
+            :is-float="chartIsFloat"
+            data-testid="rr-chart-bar"
+          />
+          <AnalyticsDonutChart
+            v-else-if="chartType === 'donut'"
+            :data="chartBarData"
+            :height="chartHeight"
+            :total-label="chartSeriesName"
+            :unit-forms="chartUnitForms"
+            :is-float="chartIsFloat"
+            data-testid="rr-chart-donut"
+          />
+
+          <div
+            v-else
+            class="rr__table-wrap"
+          >
+            <table class="rr__table">
           <thead>
             <tr>
               <th>{{ dimensionHeader }}</th>
@@ -163,7 +206,9 @@
             </tr>
           </tfoot>
         </table>
-      </div>
+          </div>
+        </div>
+      </Transition>
       <div class="rr__footer">
         строк: {{ aggRows.length }}
       </div>
@@ -229,6 +274,7 @@ import { ref, computed, watch } from 'vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import AnalyticsAreaChart from './AnalyticsAreaChart.vue';
 import AnalyticsBarChart from './AnalyticsBarChart.vue';
+import AnalyticsDonutChart from './AnalyticsDonutChart.vue';
 import ReportExportButton from './ReportExportButton.vue';
 import { useReportExport } from '@/composables/useReportExport';
 import { formatDateRu, formatReportCell } from '@/utils/datetime';
@@ -244,6 +290,7 @@ const props = defineProps({
 const emit = defineEmits(['export-error']);
 
 const view = ref('table'); // 'table' | 'chart'
+const chartKind = ref('bar'); // 'bar' | 'donut' — тип категориального графика
 const chartMetric = ref(''); // ключ колонки-метрики, отображаемой на графике
 
 // Мультиметрика и одиночная сводка приведены к единому виду: колонки-метрики +
@@ -279,6 +326,19 @@ const hasRows = computed(() => aggRows.value.length > 0);
 const showTotals = computed(() => props.result?.dimension !== 'none');
 
 const isPeriod = computed(() => props.result?.dimension === 'period');
+
+// Кольцо осмысленно для категориального распределения с >=2 долями: период —
+// динамика во времени (доли бессмысленны), один разрез — доля 100% сама по себе.
+const canDonut = computed(() => !isPeriod.value && aggRows.value.length >= 2);
+
+// Что показываем в слоте графика: area (период), кольцо (доли по выбору) или
+// столбцы; вне режима графика/без строк — таблица. Один источник для v-if и :key.
+const chartType = computed(() => {
+  if (view.value !== 'chart' || !hasRows.value) return 'table';
+  if (isPeriod.value) return 'area';
+  if (chartKind.value === 'donut' && canDonut.value) return 'donut';
+  return 'bar';
+});
 
 const dimensionHeader = computed(() => (props.result?.dimension === 'none' ? 'Итог' : 'Значение разреза'));
 
@@ -339,8 +399,10 @@ const chartHeight = computed(() => {
 
 // Новый результат: list/пусто — только таблица; aggregate — метрику графика на первую
 // колонку. Вид оставляем как выбрал пользователь, чтобы повторный отчёт не сбрасывал
-// его на таблицу.
+// его на таблицу, но тип категориального графика сбрасываем на столбцы: выбор кольца
+// относился к прошлому отчёту, для нового он не должен залипать.
 watch(() => props.result, (r) => {
+  chartKind.value = 'bar';
   if (r?.mode !== 'aggregate') {
     view.value = 'table';
     return;
@@ -495,6 +557,22 @@ function formatCell(value, type) {
 .rr__seg-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.rr__slot {
+  width: 100%;
+}
+
+/* Мягкий fade при смене вида/типа графика (transform+opacity, без layout-анимаций). */
+.rr-fade-enter-active,
+.rr-fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.rr-fade-enter-from,
+.rr-fade-leave-to {
+  opacity: 0;
+  transform: translateY(6px);
 }
 
 .rr__table-wrap {

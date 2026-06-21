@@ -27,7 +27,7 @@ import OnlineUsersModal from '../OnlineUsersModal.vue';
 
 const mountDashboard = () => mount(StatisticsDashboard, {
   props: { from: '2026-06-01', to: '2026-06-07' },
-  global: { stubs: { AnalyticsAreaChart: true, AnalyticsBarChart: true, RefreshButton: true, OnlineUsersModal: true } },
+  global: { stubs: { AnalyticsAreaChart: true, AnalyticsBarChart: true, AnalyticsDonutChart: true, RefreshButton: true, OnlineUsersModal: true } },
 });
 
 const tileByText = (wrapper, label) =>

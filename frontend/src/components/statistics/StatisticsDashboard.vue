@@ -156,16 +156,31 @@
 
       <div
         v-else
-        class="dashboard__tiles"
+        class="dashboard__attach"
       >
-        <div
-          v-for="item in attachmentBreakdown"
-          :key="item.label"
-          class="dashboard__tile"
-        >
-          <div class="dashboard__tile-label">{{ item.label }}</div>
-          <div class="dashboard__tile-val">
-            <AnimatedNumber :value="item.count" />
+        <Transition name="dashboard__chart-fade">
+          <div
+            v-if="attachmentDonutData.length > 0"
+            class="dashboard__attach-chart"
+          >
+            <AnalyticsDonutChart
+              :data="attachmentDonutData"
+              :height="280"
+              total-label="Вложений"
+              :unit-forms="['вложение', 'вложения', 'вложений']"
+            />
+          </div>
+        </Transition>
+        <div class="dashboard__tiles dashboard__attach-tiles">
+          <div
+            v-for="item in attachmentBreakdown"
+            :key="item.label"
+            class="dashboard__tile"
+          >
+            <div class="dashboard__tile-label">{{ item.label }}</div>
+            <div class="dashboard__tile-val">
+              <AnimatedNumber :value="item.count" />
+            </div>
           </div>
         </div>
       </div>
@@ -503,6 +518,7 @@
 import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue';
 import AnalyticsAreaChart from '@/components/statistics/AnalyticsAreaChart.vue';
 import AnalyticsBarChart from '@/components/statistics/AnalyticsBarChart.vue';
+import AnalyticsDonutChart from '@/components/statistics/AnalyticsDonutChart.vue';
 import DirIcon from '@/components/statistics/DirIcon.vue';
 import TrendSparkline from '@/components/statistics/TrendSparkline.vue';
 import TopList from '@/components/statistics/TopList.vue';
@@ -645,6 +661,14 @@ const attachmentBreakdown = computed(() => {
   if (!Array.isArray(list)) return [];
   return list.map((item) => ({ label: item.name, count: item.count }));
 });
+
+// Donut распределения по типам вложений: только ненулевые доли (пустые типы
+// засоряют легенду и не несут смысла для распределения).
+const attachmentDonutData = computed(() =>
+  attachmentBreakdown.value
+    .filter((item) => Number(item.count) > 0)
+    .map((item) => ({ label: item.label, value: item.count })),
+);
 
 // Карточки группы «Данные». metric связывает карточку с инсайтом того же ключа;
 // карточки без metric (Обработано, На территории) инсайтом не покрыты.
@@ -1022,6 +1046,42 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
   gap: 12px;
+}
+
+/* Распределение вложений: donut слева, плитки-числа справа; на узких — стопкой. */
+.dashboard__attach {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.dashboard__attach-chart {
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+}
+
+.dashboard__attach-tiles {
+  min-width: 0;
+}
+
+.dashboard__chart-fade-enter-active,
+.dashboard__chart-fade-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.dashboard__chart-fade-enter-from,
+.dashboard__chart-fade-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+@media (max-width: 900px) {
+  .dashboard__attach {
+    grid-template-columns: 1fr;
+  }
 }
 
 .dashboard__tile {
