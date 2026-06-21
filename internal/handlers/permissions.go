@@ -20,27 +20,38 @@ func NewPermissionHandler(service services.PermissionService, resolver *services
 	return &PermissionHandler{service: service, resolver: resolver}
 }
 
-// GetMyPermissions возвращает разрешения текущего пользователя в виде
-// массива {key, value:"allow"} - формат сохранён ради backward-compat
-// с usePermissionsStore на фронте. Источник данных - PermissionResolver
-// из #187 (roles + permission_groups + user_groups + overrides), а не
-// старая таблица user_permissions (она устарела и не отражает реальные
-// права после миграции на новую систему).
+// GetMyPermissions возвращает эффективные права текущего пользователя.
+// Формат {mode, permissions[{key,value,source}], denied, banned, ban_reason}:
+//   - mode=super  -> всё разрешено (permissions пуст, фронт включает всё readonly);
+//   - mode=admin  -> всё кроме super-only и denied (личных deny-override);
+//   - mode=normal -> permissions = allow-список с источником (роль/группа/override);
+//   - mode=banned -> прав нет.
+//
+// Источник данных -- PermissionResolver (роли + группы + grants + overrides).
 func (h *PermissionHandler) GetMyPermissions(c echo.Context) error {
 	userID := GetUserID(c)
 	set, err := h.resolver.Resolve(c.Request().Context(), userID)
 	if err != nil {
 		return err
 	}
+
 	keys := set.Keys()
-	perms := make([]models.UserPermissionResponse, 0, len(keys))
+	perms := make([]models.MyPermissionItem, 0, len(keys))
 	for _, k := range keys {
-		perms = append(perms, models.UserPermissionResponse{
-			Key:   k,
-			Value: "allow",
+		perms = append(perms, models.MyPermissionItem{
+			Key:    k,
+			Value:  "allow",
+			Source: set.Source(k),
 		})
 	}
-	return RespondSuccess(c, perms)
+
+	return RespondSuccess(c, models.MyPermissionsResponse{
+		Mode:        set.Mode(),
+		Permissions: perms,
+		Denied:      set.Denies(),
+		Banned:      set.IsBanned(),
+		BanReason:   set.BanReason(),
+	})
 }
 
 // GetUserPermissions возвращает разрешения указанного пользователя (только super-admin).
