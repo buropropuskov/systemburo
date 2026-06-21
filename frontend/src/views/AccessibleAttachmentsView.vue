@@ -56,9 +56,9 @@
           @update:model-value="setCompany"
         />
         <button
-          v-if="hasActiveFilters"
           type="button"
-          class="lk-button lk-button--secondary filters__reset"
+          class="lk-button lk-button--danger filters__reset"
+          :disabled="!hasActiveFilters"
           data-testid="aa-filter-reset"
           @click="resetFilters"
         >
@@ -534,17 +534,18 @@ onBeforeUnmount(() => clearTimeout(searchTimer));
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 10px;
   padding: 12px 20px;
   border-bottom: 1px solid #e6e6e6;
 }
 
+/* Раскладка как в Центре заявок: поиск фикс. ширины + дропдауны фикс. ширины в
+   один ряд с переносом. Поиск не растягиваем на всю строку, дропдауны не тянем -
+   иначе ширины скачут, а кнопка сброса (всегда видима, :disabled) не двигает ряд. */
 .filters__search {
   position: relative;
-  /* Поиск занимает свою строку целиком, дропдауны выстраиваются рядом ниже -
-     иначе растущий инпут отталкивает первый дропдаун к правому краю. */
-  flex: 1 1 100%;
-  min-width: 200px;
+  flex: 0 1 280px;
+  min-width: 220px;
 }
 
 .filters__search-icon {
@@ -563,12 +564,18 @@ onBeforeUnmount(() => clearTimeout(searchTimer));
 }
 
 .filters__dropdown {
-  flex: 1 1 160px;
-  min-width: 160px;
+  flex: 0 0 180px;
 }
 
 .filters__reset {
   flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+  .filters__search,
+  .filters__dropdown {
+    flex: 1 1 100%;
+  }
 }
 
 .content-container {
