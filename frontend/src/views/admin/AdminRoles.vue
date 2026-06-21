@@ -162,31 +162,54 @@
           class="modal-overlay"
           @click.self="groupsOpen = false"
         >
-          <div class="form-modal form-modal--wide">
-            <h3>Дефолтные группы для «{{ groupsRole?.name }}»</h3>
-            <p class="form-modal__hint">
-              Юзеры с этой ролью получают права из всех выбранных групп.
-            </p>
-            <div class="groups-list">
-              <label
-                v-for="g in allGroups"
-                :key="g.id"
-                class="group-row"
-              >
-                <input
-                  type="checkbox"
-                  :checked="selectedGroupIds.has(g.id)"
-                  @change="toggleGroupId(g.id)"
-                >
-                <span class="group-row__name">{{ g.name }}</span>
-                <span class="group-row__count">{{ g.keys.length }} прав</span>
-              </label>
-              <p
-                v-if="allGroups.length === 0"
-                class="card__empty-text"
-              >
-                Нет ни одной группы. Сначала создайте группы прав.
+          <div class="form-modal roles-groups-modal">
+            <header class="rgm-head">
+              <h3>Дефолтные группы для «{{ groupsRole?.name }}»</h3>
+              <p class="form-modal__hint">
+                Юзеры с этой ролью получают права из всех выбранных групп. Справа — итоговый набор прав роли.
               </p>
+            </header>
+            <div class="rgm-body">
+              <div class="rgm-col rgm-col--left">
+                <div class="rgm-col__title">
+                  Группы прав
+                </div>
+                <div class="groups-list">
+                  <div
+                    v-for="g in allGroups"
+                    :key="g.id"
+                    class="group-row"
+                    @click="toggleGroupId(g.id)"
+                  >
+                    <span class="group-row__name">{{ g.name }}</span>
+                    <span class="group-row__count">{{ g.keys.length }} прав</span>
+                    <button
+                      type="button"
+                      class="tgl"
+                      :class="{ on: selectedGroupIds.has(g.id) }"
+                      :aria-pressed="selectedGroupIds.has(g.id)"
+                      :aria-label="g.name"
+                      :data-group-id="g.id"
+                      @click.stop="toggleGroupId(g.id)"
+                    />
+                  </div>
+                  <p
+                    v-if="allGroups.length === 0"
+                    class="card__empty-text"
+                  >
+                    Нет ни одной группы. Сначала создайте группы прав.
+                  </p>
+                </div>
+              </div>
+              <div class="rgm-col rgm-col--right">
+                <div class="rgm-col__title">
+                  Итоговые права роли
+                </div>
+                <EffectivePermissionsTree
+                  :catalog="catalog"
+                  :state-by-key="previewStateByKey"
+                />
+              </div>
             </div>
             <div class="form-modal__footer">
               <button
@@ -218,18 +241,21 @@ import {
   deleteRole,
   setRoleDefaultGroups,
   listPermissionGroups,
+  getPermissionCatalog,
 } from '@/api/permissions';
 import RefreshButton from '@/components/RefreshButton.vue';
+import EffectivePermissionsTree from '@/components/admin/EffectivePermissionsTree.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
 
 export default {
   name: 'AdminRoles',
-  components: { RefreshButton },
+  components: { RefreshButton, EffectivePermissionsTree },
   data() {
     return {
       roles: [],
       allGroups: [],
+      catalog: [],
       loading: false,
       saving: false,
       metaOpen: false,
@@ -241,6 +267,26 @@ export default {
       selectedGroupIds: new Set(),
     };
   },
+  computed: {
+    // Итоговый набор прав роли = объединение ключей всех выбранных дефолтных групп.
+    // Read-only превью (все locked, источник «группа») в стиле карточки прав.
+    previewStateByKey() {
+      const union = new Set();
+      for (const g of this.allGroups) {
+        if (this.selectedGroupIds.has(g.id)) {
+          for (const k of g.keys || []) union.add(k);
+        }
+      }
+      const result = {};
+      for (const node of this.catalog) {
+        result[node.key] = { on: union.has(node.key), source: 'group', locked: true };
+        for (const child of node.children || []) {
+          result[child.key] = { on: union.has(child.key), source: 'group', locked: true };
+        }
+      }
+      return result;
+    },
+  },
   mounted() {
     this.fetchAll();
   },
@@ -248,9 +294,14 @@ export default {
     async fetchAll() {
       this.loading = true;
       try {
-        const [roles, groups] = await Promise.all([listRoles(), listPermissionGroups()]);
+        const [roles, groups, catalog] = await Promise.all([
+          listRoles(),
+          listPermissionGroups(),
+          getPermissionCatalog(),
+        ]);
         this.roles = Array.isArray(roles) ? roles : [];
         this.allGroups = Array.isArray(groups) ? groups : [];
+        this.catalog = Array.isArray(catalog) ? catalog : [];
       } finally {
         this.loading = false;
       }
@@ -472,9 +523,62 @@ export default {
   gap: 12px;
 }
 
-.form-modal--wide {
-  max-width: 560px;
-  max-height: 80vh;
+.roles-groups-modal {
+  max-width: 880px;
+  max-height: 86vh;
+  border-radius: 30px;
+  padding: 24px;
+}
+
+.rgm-head h3 {
+  margin: 0 0 4px;
+}
+
+.rgm-body {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 18px;
+  margin-top: 8px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.rgm-col {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.rgm-col--right {
+  border-left: 1px solid var(--color-border);
+  padding-left: 18px;
+}
+
+.rgm-col__title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin-bottom: 8px;
+}
+
+.rgm-col--right :deep(.ep-tree) {
+  overflow-y: auto;
+  max-height: 56vh;
+  padding-right: 4px;
+}
+
+@media (max-width: 720px) {
+  .rgm-body {
+    grid-template-columns: 1fr;
+  }
+  .rgm-col--right {
+    border-left: none;
+    padding-left: 0;
+    border-top: 1px solid var(--color-border);
+    padding-top: 14px;
+  }
 }
 
 .form-modal h3 {
@@ -516,10 +620,10 @@ export default {
 
 .group-row {
   display: grid;
-  grid-template-columns: 18px 1fr auto;
+  grid-template-columns: 1fr auto auto;
   align-items: center;
   gap: 10px;
-  padding: 8px 10px;
+  padding: 9px 10px;
   border-radius: var(--radius-md);
   cursor: pointer;
   font-size: 13px;
@@ -530,10 +634,46 @@ export default {
   background: var(--color-bg);
 }
 
+.group-row__name {
+  font-weight: 500;
+}
+
 .group-row__count {
   font-size: 11px;
   color: var(--color-text-muted);
 }
+
+.tgl {
+  --w: 40px;
+  --h: 23px;
+  --d: 17px;
+  width: var(--w);
+  height: var(--h);
+  flex: none;
+  border-radius: var(--radius-pill);
+  background: #d3d6e4;
+  position: relative;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+  transition: background 0.2s ease;
+}
+
+.tgl::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: var(--d);
+  height: var(--d);
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: left 0.2s ease;
+}
+
+.tgl.on { background: var(--color-primary); }
+.tgl.on::after { left: calc(var(--w) - var(--d) - 3px); }
 
 .modal-fade-enter-active,
 .modal-fade-leave-active {
