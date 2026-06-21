@@ -124,6 +124,7 @@
       </div>
       <div class="filters__options">
         <RouterLink
+          v-if="can(`table.${$route.params.tableName}.trash`)"
           :to="`/table/${$route.params.tableName}/trash`"
           class="options__trash-link"
           title="Корзина таблицы"
@@ -137,6 +138,7 @@
           >
         </RouterLink>
         <button
+          v-if="can(`table.${$route.params.tableName}.export`)"
           class="options__export"
           @click="handleExport"
         >
@@ -256,6 +258,7 @@ import CarsTable from './CarsTable.vue';
 import PeopleTable from './PeopleTable.vue';
 import ApplicationDetail from './ApplicationDetail/ApplicationDetail.vue';
 import TableExportModal from './TableExportModal.vue';
+import { usePermissionsStore } from '@/stores/permissions';
 
 export default {
     name: 'TablesComponent',
@@ -290,7 +293,9 @@ export default {
             document.body.style.overflow = '';
         });
 
-        return { showInstruction, openInstruction, closeInstruction, onOverlayMousedown, onOverlayMouseup };
+        const permissionsStore = usePermissionsStore();
+
+        return { showInstruction, openInstruction, closeInstruction, onOverlayMousedown, onOverlayMouseup, permissionsStore };
     },
     data() {
         return {
@@ -383,6 +388,11 @@ export default {
         this.fetchTableData();          // потом таблицы
     },
     methods: {
+        // Гейтинг по правам (#187 Фаза 2). super -> всегда true, admin -> всё кроме
+        // denied, обычный -> по эффективному гранту. Реактивно: читает стор прав.
+        can(key) {
+            return this.permissionsStore.hasPermission(key);
+        },
         handleApplicationUpdate(updatedApp) {
             console.log('Application updated:', updatedApp);
             this.refreshData();

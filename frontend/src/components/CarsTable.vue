@@ -21,6 +21,7 @@
         <span class="items-count">
           Машин на территории: {{ carsOnTerritory }}
           <button
+            v-if="can(`table.${tableName}.history`)"
             class="history-btn"
             @click="openCarsTableHistory"
           >
@@ -382,6 +383,7 @@
                   </button>
                 </div>
                 <div
+                  v-if="can('entity.cars.delete')"
                   class="col actions-col"
                   style="order: 9999;"
                   @click.stop
@@ -462,6 +464,7 @@
 import { apiRequest } from '@/api/client'
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import { useDeletionsStore } from '@/stores/deletions';
+import { usePermissionsStore } from '@/stores/permissions';
 import { useOrientation } from '@/composables/useOrientation';
 import RefreshButton from './RefreshButton.vue';
 import VehicleDetailsModal from './CreateApplication/VehicleDetailsModal.vue';
@@ -485,7 +488,8 @@ export default {
   },
   setup() {
     const { isPortrait, isCompact } = useOrientation();
-    return { isPortrait, isCompact };
+    const permissionsStore = usePermissionsStore();
+    return { isPortrait, isCompact, permissionsStore };
   },
   props: {
     tableName: { type: String, default: '' },
@@ -693,6 +697,11 @@ export default {
     this.stopPolling();
   },
   methods: {
+    // Гейтинг по правам (#187 Фаза 2). super -> всегда true, admin -> всё кроме
+    // denied, обычный -> по эффективному гранту. Реактивно: читает стор прав.
+    can(key) {
+      return this.permissionsStore.hasPermission(key);
+    },
     // Основной метод загрузки данных с флагом silent (без показа лоадера)
     async _loadData(silent = false) {
       if (!silent && this.isLoading) return;

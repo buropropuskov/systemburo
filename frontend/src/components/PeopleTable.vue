@@ -21,6 +21,7 @@
         <span class="items-count">
           Людей зашло: {{ peopleOnTerritory }}
           <button
+            v-if="can(`table.${tableName}.history`)"
             class="history-btn"
             @click="openEmployeesHistory"
           >История</button>
@@ -415,6 +416,7 @@
                   </button>
                 </div>
                 <div
+                  v-if="can('entity.employees.delete')"
                   class="col actions-col"
                   style="order: 9999;"
                   @click.stop
@@ -486,6 +488,7 @@
 import { apiRequest } from '@/api/client';
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import { useDeletionsStore } from '@/stores/deletions';
+import { usePermissionsStore } from '@/stores/permissions';
 import { useOrientation } from '@/composables/useOrientation';
 import RefreshButton from './RefreshButton.vue';
 import EmployeeDetailsModal from './CreateApplication/EmployeeDetailsModal.vue';
@@ -509,7 +512,8 @@ export default {
   },
   setup() {
     const { isPortrait, isCompact } = useOrientation();
-    return { isPortrait, isCompact };
+    const permissionsStore = usePermissionsStore();
+    return { isPortrait, isCompact, permissionsStore };
   },
   props: {
     tableName: {
@@ -741,6 +745,11 @@ export default {
     this.stopPolling();
   },
   methods: {
+    // Гейтинг по правам (#187 Фаза 2). super -> всегда true, admin -> всё кроме
+    // denied, обычный -> по эффективному гранту. Реактивно: читает стор прав.
+    can(key) {
+      return this.permissionsStore.hasPermission(key);
+    },
     async _loadData(silent = false) {
       if (!silent && this.isLoading) return;
       if (!silent) this.isLoading = true;
