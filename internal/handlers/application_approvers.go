@@ -27,8 +27,7 @@ func NewApproverHandler(service services.ApproverService) *ApproverHandler {
 // @Failure      403 {object} models.HTTPError
 // @Router       /application-approvers [get]
 func (h *ApproverHandler) GetAll(c echo.Context) error {
-	typeID := c.Get("type_id").(int)
-	result, err := h.service.GetAll(c.Request().Context(), typeID)
+	result, err := h.service.GetAll(c.Request().Context())
 	if err != nil {
 		return err
 	}
@@ -44,8 +43,7 @@ func (h *ApproverHandler) GetAll(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /application-approvers/available-users [get]
 func (h *ApproverHandler) GetAvailableUsers(c echo.Context) error {
-	typeID := c.Get("type_id").(int)
-	result, err := h.service.GetAvailableUsers(c.Request().Context(), typeID)
+	result, err := h.service.GetAvailableUsers(c.Request().Context())
 	if err != nil {
 		return err
 	}
@@ -64,7 +62,6 @@ func (h *ApproverHandler) GetAvailableUsers(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /application-approvers [post]
 func (h *ApproverHandler) Create(c echo.Context) error {
-	typeID := c.Get("type_id").(int)
 	username := c.Get("username").(string)
 
 	var req models.CreateApproverRequest
@@ -72,7 +69,7 @@ func (h *ApproverHandler) Create(c echo.Context) error {
 		return err
 	}
 
-	if err := h.service.Create(c.Request().Context(), typeID, req.UserID, username); err != nil {
+	if err := h.service.Create(c.Request().Context(), req.UserID, username); err != nil {
 		return err
 	}
 	return RespondCreated(c, map[string]string{
@@ -91,13 +88,12 @@ func (h *ApproverHandler) Create(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /application-approvers/{id} [delete]
 func (h *ApproverHandler) Delete(c echo.Context) error {
-	typeID := c.Get("type_id").(int)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
 	}
 	actorUsername, _ := c.Get("username").(string)
-	if err := h.service.Delete(c.Request().Context(), typeID, id, actorUsername); err != nil {
+	if err := h.service.Delete(c.Request().Context(), id, actorUsername); err != nil {
 		return err
 	}
 	return RespondSuccess(c, map[string]string{
