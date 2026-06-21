@@ -204,24 +204,14 @@
           </button>
         </div>
         <div class="rb__period-dates">
-          <label class="rb__date">
-            <span class="rb__field-label">С</span>
-            <input
-              v-model="form.period.from"
-              type="date"
-              class="lk-input"
-              @change="activePeriodPreset = 'custom'"
-            >
-          </label>
-          <label class="rb__date">
-            <span class="rb__field-label">По</span>
-            <input
-              v-model="form.period.to"
-              type="date"
-              class="lk-input"
-              @change="activePeriodPreset = 'custom'"
-            >
-          </label>
+          <DateFilter
+            mode="range"
+            :date-range-start="periodStartDate"
+            :date-range-end="periodEndDate"
+            @update:date-range-start="onPeriodRangeStart"
+            @update:date-range-end="onPeriodRangeEnd"
+            @clear="onPeriodClear"
+          />
         </div>
       </div>
     </div>
@@ -291,6 +281,7 @@
 import { reactive, ref, computed, watch, nextTick } from 'vue';
 import FilterTabs from '@/components/ui/FilterTabs.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
+import DateFilter from '@/components/DateFilter.vue';
 import { buildReportRequest } from '@/composables/useReportRequest';
 import { formatDateRu } from '@/utils/datetime';
 
@@ -598,15 +589,14 @@ function toggleFilter(key, value) {
 function computePeriod(kind) {
   if (kind === 'all') return { from: '', to: '' };
   const now = new Date();
-  const fmt = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
-  const to = fmt(now);
+  const to = dateToIso(now);
   if (kind === 'week') {
     const monday = new Date(now);
     monday.setDate(now.getDate() - ((now.getDay() + 6) % 7)); // Пн = начало недели
-    return { from: fmt(monday), to };
+    return { from: dateToIso(monday), to };
   }
-  if (kind === 'month') return { from: fmt(new Date(now.getFullYear(), now.getMonth(), 1)), to };
-  if (kind === 'year') return { from: fmt(new Date(now.getFullYear(), 0, 1)), to };
+  if (kind === 'month') return { from: dateToIso(new Date(now.getFullYear(), now.getMonth(), 1)), to };
+  if (kind === 'year') return { from: dateToIso(new Date(now.getFullYear(), 0, 1)), to };
   return { from: '', to: '' };
 }
 
@@ -615,6 +605,47 @@ function applyPeriodPreset(kind) {
   form.period.from = range.from;
   form.period.to = range.to;
   activePeriodPreset.value = kind;
+}
+
+// Период хранится в form как ISO YYYY-MM-DD (формат бэка), а DateFilter работает с
+// Date-объектами в локальной зоне. Разбираем/собираем по календарным частям, не через
+// toISOString, чтобы не словить сдвиг даты на границе суток.
+function dateToIso(dt) {
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+}
+
+function isoToDate(iso) {
+  if (!iso) return null;
+  const [y, m, d] = iso.split('-').map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d);
+}
+
+const periodStartDate = computed(() => isoToDate(form.period.from));
+const periodEndDate = computed(() => isoToDate(form.period.to));
+
+// DateFilter эмитит update:* при каждом «Применить», даже когда даты не менялись.
+// Уводим период в 'custom' только при РЕАЛЬНОЙ смене границы — иначе «Применить»
+// на выставленном пресете без правок сбивал бы его подсветку (нативный input
+// раньше тоже молчал, пока значение не изменится).
+function onPeriodRangeStart(date) {
+  const iso = date ? dateToIso(date) : '';
+  if (iso === form.period.from) return;
+  form.period.from = iso;
+  activePeriodPreset.value = 'custom';
+}
+
+function onPeriodRangeEnd(date) {
+  const iso = date ? dateToIso(date) : '';
+  if (iso === form.period.to) return;
+  form.period.to = iso;
+  activePeriodPreset.value = 'custom';
+}
+
+function onPeriodClear() {
+  form.period.from = '';
+  form.period.to = '';
+  activePeriodPreset.value = 'custom';
 }
 
 // Снимок состояния формы для индикатора шагов мастера (родитель считает по нему
@@ -968,12 +999,6 @@ function run() {
   display: flex;
   flex-wrap: wrap;
   gap: 14px;
-}
-
-.rb__date {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
 }
 
 .rb__preview {
