@@ -4,6 +4,7 @@ import { nextTick } from 'vue';
 import ReportBuilder from '../ReportBuilder.vue';
 import FilterTabs from '@/components/ui/FilterTabs.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
+import DateFilter from '@/components/DateFilter.vue';
 
 const CATALOG = {
   metrics: [
@@ -386,5 +387,38 @@ describe('ReportBuilder', () => {
     const summary = wrapper.find('.rb__summary').text();
     expect(summary).toContain('01.06.2026 — 07.06.2026');
     expect(summary).not.toContain('2026-06-01');
+  });
+
+  it('начальный период из шапки прокинут в календарь DateFilter как Date-диапазон', () => {
+    const wrapper = mountBuilder();
+    const cal = wrapper.findComponent(DateFilter);
+    expect(cal.exists()).toBe(true);
+    expect(cal.props('mode')).toBe('range');
+
+    const start = cal.props('dateRangeStart');
+    const end = cal.props('dateRangeEnd');
+    expect(start.getFullYear()).toBe(2026);
+    expect(start.getMonth()).toBe(5); // июнь (0-based)
+    expect(start.getDate()).toBe(1);
+    expect(end.getMonth()).toBe(5);
+    expect(end.getDate()).toBe(7);
+  });
+
+  it('выбор диапазона в DateFilter обновляет период запроса (ISO) и снимает пресет', async () => {
+    const wrapper = mountBuilder();
+    await nextTick();
+
+    const cal = wrapper.findComponent(DateFilter);
+    cal.vm.$emit('update:dateRangeStart', new Date(2026, 2, 5)); // 5 марта 2026
+    cal.vm.$emit('update:dateRangeEnd', new Date(2026, 2, 20)); // 20 марта 2026
+    cal.vm.$emit('apply');
+    await nextTick();
+
+    await clickBuild(wrapper);
+    const dr = lastRun(wrapper).filters.find((f) => f.key === 'date_range');
+    expect(dr).toEqual({ key: 'date_range', from: '2026-03-05', to: '2026-03-20' });
+
+    // Ручной выбор уводит период из-под пресета — ни одна кнопка не подсвечена.
+    expect(wrapper.find('.rb__period-presets').findAll('.rb__pill--on').length).toBe(0);
   });
 });
