@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"testing"
 
+	"systemburo/internal/models"
 	"systemburo/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
@@ -127,6 +128,21 @@ func TestSettings_GetUploadSettings_AuthUser(t *testing.T) {
 	resp := testutil.ParseMap(t, rec)
 	assert.NotNil(t, resp["max_file_size"])
 	assert.NotNil(t, resp["allowed_image_types"])
+}
+
+func TestGetPasswordPolicy(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAndLogin(t, e, "policy_reader", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
+
+	rec := testutil.GET(t, e, "/settings/password-policy", testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	policy := testutil.ParseResponse[models.PasswordPolicy](t, rec)
+	assert.Equal(t, 8, policy.MinLength)
+	assert.True(t, policy.RequireDigit)
 }
 
 func TestSettings_PasswordPolicyValidation(t *testing.T) {

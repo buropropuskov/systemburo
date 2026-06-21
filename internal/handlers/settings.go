@@ -56,3 +56,9 @@ func (h *SettingsHandler) GetNotificationSettings(c echo.Context) error {
 	}
 	return RespondSuccess(c, result)
 }
+
+// GetPasswordPolicy возвращает текущую политику требований к паролю для фронтенда
+// (живой чеклист в форме). Доступен любому авторизованному.
+func (h *SettingsHandler) GetPasswordPolicy(c echo.Context) error {
+	return RespondSuccess(c, h.service.GetPasswordPolicy())
+}
