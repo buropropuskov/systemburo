@@ -570,6 +570,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	rlg.GET("/stats", requestLogs.GetStats)
 	rlg.GET("/realtime", requestLogs.GetRealtime)
 	rlg.GET("/timeline", requestLogs.GetTimeline)
+	rlg.GET("/history", requestLogs.GetHistory)
 	rlg.GET("/export", requestLogs.Export)
 
 	// Bug-report - юзер отправляет со страницы Error500 (POST /api/bug-report)

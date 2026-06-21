@@ -86,3 +86,49 @@ type RequestLogsUser struct {
 	ID       int    `json:"id"`
 	Username string `json:"username"`
 }
+
+// RequestLogsHistoryQuery — период для агрегатов истории (вкладка «Аналитика»).
+type RequestLogsHistoryQuery struct {
+	From string `query:"from_date"`
+	To   string `query:"to_date"`
+}
+
+// RequestLogsHistory — агрегаты логов за период из request_logs_daily: итоги,
+// ряд по дням и топы. Это вкладка «Аналитика» поверх свёрнутых дневных данных.
+type RequestLogsHistory struct {
+	Totals       HistoryTotals       `json:"totals"`
+	Daily        []HistoryDailyPoint `json:"daily"`
+	TopEndpoints []HistoryEndpoint   `json:"top_endpoints"`
+	TopUsers     []HistoryUser       `json:"top_users"`
+}
+
+// HistoryTotals — сводные показатели за период.
+type HistoryTotals struct {
+	Requests    int64   `json:"requests"`
+	Errors      int64   `json:"errors"`
+	ErrorRate   float64 `json:"error_rate"`
+	AvgDuration int     `json:"avg_duration_ms"`
+}
+
+// HistoryDailyPoint — точка ряда «запросы/ошибки по дню».
+type HistoryDailyPoint struct {
+	Day      string `json:"day"`
+	Requests int64  `json:"requests"`
+	Errors   int64  `json:"errors"`
+}
+
+// HistoryEndpoint — строка топа эндпоинтов.
+type HistoryEndpoint struct {
+	Endpoint    string  `json:"endpoint"`
+	Requests    int64   `json:"requests"`
+	AvgDuration int     `json:"avg_duration_ms"`
+	P95Duration int     `json:"p95_duration_ms"`
+	ErrorRate   float64 `json:"error_rate"`
+}
+
+// HistoryUser — строка топа пользователей.
+type HistoryUser struct {
+	UserID   int    `json:"user_id"`
+	Username string `json:"username"`
+	Requests int64  `json:"requests"`
+}

@@ -20,6 +20,7 @@ type RequestLogsService interface {
 	GetStats(ctx context.Context, typeID int) (*models.RequestLogsStats, error)
 	GetRealtime(ctx context.Context, typeID int) (*models.RealtimeStats, error)
 	GetTimeline(ctx context.Context, typeID int, q models.TimelineQuery) ([]models.TimelinePoint, error)
+	GetHistory(ctx context.Context, typeID int, q models.RequestLogsHistoryQuery) (*models.RequestLogsHistory, error)
 	Export(ctx context.Context, typeID int, q models.RequestLogsQuery) (string, error)
 }
 
@@ -290,4 +291,74 @@ func (s *requestLogsService) Export(ctx context.Context, typeID int, q models.Re
 	}
 
 	return sb.String(), nil
+}
+
+// GetHistory собирает агрегаты логов за период из request_logs_daily для вкладки
+// «Аналитика»: итоги, ряд по дням, топ эндпоинтов и топ пользователей.
+func (s *requestLogsService) GetHistory(ctx context.Context, typeID int, q models.RequestLogsHistoryQuery) (*models.RequestLogsHistory, error) {
+	if err := s.checkAdmin(ctx, typeID); err != nil {
+		return nil, err
+	}
+	from, to := historyRange(q.From, q.To)
+	res := &models.RequestLogsHistory{
+		Daily:        []models.HistoryDailyPoint{},
+		TopEndpoints: []models.HistoryEndpoint{},
+		TopUsers:     []models.HistoryUser{},
+	}
+
+	var tot struct {
+		Requests int64
+		Errors   int64
+		AvgDur   float64
+	}
+	if err := s.db.WithContext(ctx).Table("request_logs_daily").
+		Where("day BETWEEN ? AND ?", from, to).
+		Select("COALESCE(SUM(request_count),0) AS requests, COALESCE(SUM(error_count),0) AS errors, COALESCE(AVG(avg_duration_ms),0) AS avg_dur").
+		Scan(&tot).Error; err != nil {
+		return nil, fmt.Errorf("history totals: %w", err)
+	}
+	res.Totals = models.HistoryTotals{Requests: tot.Requests, Errors: tot.Errors, AvgDuration: int(tot.AvgDur)}
+	if tot.Requests > 0 {
+		res.Totals.ErrorRate = float64(tot.Errors) / float64(tot.Requests) * 100
+	}
+
+	if err := s.db.WithContext(ctx).Table("request_logs_daily").
+		Where("day BETWEEN ? AND ?", from, to).
+		Select("day::text AS day, SUM(request_count) AS requests, SUM(error_count) AS errors").
+		Group("day").Order("day").Scan(&res.Daily).Error; err != nil {
+		return nil, fmt.Errorf("history daily: %w", err)
+	}
+
+	if err := s.db.WithContext(ctx).Table("request_logs_daily").
+		Where("day BETWEEN ? AND ?", from, to).
+		Select("endpoint, SUM(request_count) AS requests, ROUND(AVG(avg_duration_ms))::int AS avg_duration_ms, " +
+			"MAX(p95_duration_ms) AS p95_duration_ms, " +
+			"CASE WHEN SUM(request_count)>0 THEN ROUND(SUM(error_count)::numeric/SUM(request_count)*100,1) ELSE 0 END AS error_rate").
+		Group("endpoint").Order("requests DESC").Limit(10).Scan(&res.TopEndpoints).Error; err != nil {
+		return nil, fmt.Errorf("history top endpoints: %w", err)
+	}
+
+	if err := s.db.WithContext(ctx).Table("request_logs_daily d").
+		Joins("LEFT JOIN users u ON u.id = d.user_id").
+		Where("d.day BETWEEN ? AND ?", from, to).
+		Select("d.user_id AS user_id, COALESCE(u.username, '-') AS username, SUM(d.request_count) AS requests").
+		Group("d.user_id, u.username").Order("requests DESC").Limit(10).Scan(&res.TopUsers).Error; err != nil {
+		return nil, fmt.Errorf("history top users: %w", err)
+	}
+
+	return res, nil
+}
+
+// historyRange парсит период истории; по умолчанию последние 90 дней.
+func historyRange(fromStr, toStr string) (string, string) {
+	const layout = "2006-01-02"
+	to := time.Now().UTC()
+	from := to.AddDate(0, 0, -90)
+	if t, err := time.Parse(layout, toStr); err == nil {
+		to = t
+	}
+	if f, err := time.Parse(layout, fromStr); err == nil {
+		from = f
+	}
+	return from.Format(layout), to.Format(layout)
 }
