@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Права доступа — вкладки</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+  .modal--tabs { width: 620px; max-width: 96vw; }
+  .tabs { display: flex; gap: 6px; padding: 0 26px; border-bottom: 1px solid var(--border); }
+  .tab {
+    padding: 14px 18px; font-size: 13.5px; font-weight: 600; color: var(--muted);
+    background: none; border: none; cursor: pointer; position: relative;
+    font-family: inherit;
+  }
+  .tab.active { color: var(--primary); }
+  .tab.active::after { content:''; position:absolute; left:14px; right:14px; bottom:-1px; height:2.5px; background: var(--primary); border-radius: 3px; }
+  .tab__count { font-size: 11px; background: var(--bg); color: var(--muted); padding: 1px 7px; border-radius: var(--radius-pill); margin-left: 6px; }
+  .body-tabs { padding: 22px 26px; overflow-y: auto; max-height: 62vh; }
+  .body-tabs > * + * { margin-top: 18px; }
+  .hint-tab { font-size: 12.5px; color: var(--muted); font-weight: 500; background: var(--bg); border: 1px dashed var(--border); border-radius: var(--radius-md); padding: 12px 14px; }
+</style>
+</head>
+<body>
+<div class="page-bg">
+  <div class="page-bg__title">Администрирование · Пользователи</div>
+  <div class="page-bg__crumbs">Управление доступом сотрудников</div>
+  <div class="page-bg__skeleton"><div class="page-bg__row"></div><div class="page-bg__row"></div><div class="page-bg__row"></div></div>
+</div>
+
+<div class="overlay">
+  <div class="modal modal--tabs">
+    <div class="modal__head">
+      <div>
+        <div class="modal__title">Права доступа: Иванов Иван Иванович</div>
+        <div class="modal__sub">@ivanov · Тип: Арендатор · ООО «Логистик»</div>
+      </div>
+      <button class="modal__close">&times;</button>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active">Роль и группы</button>
+      <button class="tab">Точечные права <span class="tab__count">42</span></button>
+    </div>
+
+    <div class="body-tabs">
+      <div class="admin-toggle">
+        <div class="admin-toggle__txt">
+          <b>Администратор</b>
+          <span>Выдаёт все права. Точечные исключения — на второй вкладке.</span>
+        </div>
+        <button class="tgl" aria-label="Администратор"></button>
+      </div>
+
+      <div>
+        <div class="field-label">Роль</div>
+        <select class="lk-select">
+          <option>Пользователь</option><option>Охранник смены</option><option>Руководитель отдела</option>
+        </select>
+      </div>
+
+      <div>
+        <div class="field-label">Группы прав</div>
+        <div class="chips">
+          <span class="chip">Доступ ко всем таблицам <span class="chip__x">&times;</span></span>
+          <span class="chip">Аналитика <span class="chip__x">&times;</span></span>
+          <span class="chip chip--add">+ добавить</span>
+        </div>
+      </div>
+
+      <div class="hint-tab">Точечные тумблеры (вкл/выкл каждого права) — на вкладке «Точечные права». Минус подхода: роль/группы и точечные права не видны одновременно.</div>
+
+      <hr class="divider">
+
+      <div class="ban-box">
+        <div class="ban-box__title">&#9210; Блокировка пользователя</div>
+        <textarea class="lk-textarea" placeholder="Причина блокировки (увидит пользователь)"></textarea>
+        <button class="btn btn--danger" style="margin-top:10px;">Заблокировать</button>
+      </div>
+    </div>
+
+    <div class="modal__foot">
+      <span class="modal__foot-hint">Изменения вступят в силу в течение 30 секунд</span>
+      <div class="modal__foot-actions">
+        <button class="btn btn--ghost">Отмена</button>
+        <button class="btn btn--primary">Сохранить</button>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Заблокированный пользователь — Личный кабинет</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+  /* Имитация личного кабинета на фоне */
+  .lk { padding: 28px 40px; max-width: 1100px; margin: 0 auto; }
+  .lk__head { display: flex; align-items: center; gap: 16px; }
+  .lk__avatar { width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, var(--primary), #7a83ec); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:22px; }
+  .lk__name { font-size: 22px; font-weight: 700; }
+  .lk__role { font-size: 13px; color: var(--muted); font-weight: 500; margin-top: 2px; }
+  .lk__grid { margin-top: 26px; display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .lk__card h3 { font-size: 15px; font-weight: 700; margin-bottom: 14px; }
+  .lk__app { display:flex; justify-content:space-between; align-items:center; padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .lk__app:last-child { border-bottom: none; }
+  .lk__app b { font-weight: 600; }
+  .lk__badge { font-size: 11px; font-weight:600; padding: 3px 10px; border-radius: var(--radius-pill); background: var(--primary-soft); color: var(--primary); }
+
+  /* Полу-красный неснимаемый оверлей */
+  .ban-overlay {
+    position: fixed; inset: 0; z-index: 26000;
+    background:
+      radial-gradient(900px 500px at 50% 18%, rgba(220,53,69,0.10), transparent 70%),
+      rgba(120, 18, 28, 0.62);
+    backdrop-filter: blur(3px) saturate(0.85);
+    display: flex; align-items: center; justify-content: center; padding: 24px;
+    animation: fadeIn 0.3s ease-out;
+  }
+  @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+
+  .ban-modal {
+    width: 480px; max-width: 95vw; background: #fff;
+    border-radius: var(--radius-modal); overflow: hidden;
+    box-shadow: 0 30px 80px rgba(70, 6, 12, 0.5);
+    animation: rise 0.3s ease-out;
+    text-align: center;
+  }
+  .ban-modal__top {
+    background: linear-gradient(135deg, #dc3545, #b21f2d);
+    padding: 30px 28px 26px; color: #fff;
+  }
+  .ban-modal__icon {
+    width: 64px; height: 64px; margin: 0 auto 14px;
+    border-radius: 50%; background: rgba(255,255,255,0.16);
+    display: flex; align-items: center; justify-content: center; font-size: 30px;
+  }
+  .ban-modal__top h2 { font-size: 21px; font-weight: 700; }
+  .ban-modal__top p { font-size: 13px; opacity: 0.92; margin-top: 6px; font-weight: 500; }
+
+  .ban-modal__body { padding: 24px 28px 26px; }
+  .ban-reason {
+    text-align: left; background: var(--danger-soft); border: 1px solid #f2d4d8;
+    border-radius: var(--radius-md); padding: 14px 16px;
+  }
+  .ban-reason__label { font-size: 11px; font-weight: 700; color: var(--danger); letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 6px; }
+  .ban-reason__text { font-size: 14px; color: var(--text); line-height: 1.5; }
+
+  .ban-contacts { margin-top: 18px; text-align: left; font-size: 13px; color: var(--text); line-height: 1.7; }
+  .ban-contacts b { display:block; font-size: 12px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; }
+  .ban-contacts a { color: var(--primary); text-decoration: none; font-weight: 600; }
+
+  .ban-modal__actions { margin-top: 22px; }
+</style>
+</head>
+<body>
+<!-- Фон: личный кабинет (заблокирован, под оверлеем) -->
+<div class="lk" aria-hidden="true">
+  <div class="lk__head">
+    <div class="lk__avatar">ИИ</div>
+    <div>
+      <div class="lk__name">Иванов Иван Иванович</div>
+      <div class="lk__role">Арендатор · ООО «Логистик»</div>
+    </div>
+  </div>
+  <div class="lk__grid">
+    <div class="block-card lk__card">
+      <h3>Мои заявки</h3>
+      <div class="lk__app"><span><b>Заявка №1042</b><br><span style="color:var(--muted)">Поставка оборудования</span></span><span class="lk__badge">На согласовании</span></div>
+      <div class="lk__app"><span><b>Заявка №1038</b><br><span style="color:var(--muted)">Разовый пропуск</span></span><span class="lk__badge">Проведена</span></div>
+      <div class="lk__app"><span><b>Заявка №1021</b><br><span style="color:var(--muted)">Проведение работ</span></span><span class="lk__badge">Завершена</span></div>
+    </div>
+    <div class="block-card lk__card">
+      <h3>Уведомления</h3>
+      <div class="lk__app">Согласующий одобрил заявку №1038</div>
+      <div class="lk__app">Новое объявление от Бюро пропусков</div>
+    </div>
+  </div>
+</div>
+
+<!-- Полу-красный неснимаемый оверлей -->
+<div class="ban-overlay">
+  <div class="ban-modal">
+    <div class="ban-modal__top">
+      <div class="ban-modal__icon">&#128274;</div>
+      <h2>Аккаунт заблокирован</h2>
+      <p>Доступ к системе ограничен администратором</p>
+    </div>
+    <div class="ban-modal__body">
+      <div class="ban-reason">
+        <div class="ban-reason__label">Причина блокировки</div>
+        <div class="ban-reason__text">Многократные нарушения регламента оформления пропусков. Решение принято службой безопасности.</div>
+      </div>
+
+      <div class="ban-contacts">
+        <b>Бюро пропусков</b>
+        Телефон: <a href="tel:+74950000000">+7 (495) 000-00-00</a><br>
+        Эл. почта: <a href="mailto:buro@example.ru">buro@example.ru</a><br>
+        Часы работы: пн-пт, 09:00-18:00
+      </div>
+
+      <div class="ban-modal__actions">
+        <button class="btn btn--ghost" style="width:100%;">Выйти из системы</button>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

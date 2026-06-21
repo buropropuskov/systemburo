@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Права доступа — две колонки</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+  .modal--2col { width: 980px; max-width: 96vw; }
+  .body-2col { display: grid; grid-template-columns: 320px 1fr; min-height: 0; flex: 1; }
+  .col-left { padding: 24px; border-right: 1px solid var(--border); background: var(--bg-secondary); overflow-y: auto; }
+  .col-right { padding: 22px 26px; overflow-y: auto; max-height: 64vh; }
+  .col-left > * + * { margin-top: 18px; }
+</style>
+</head>
+<body>
+<div class="page-bg">
+  <div class="page-bg__title">Администрирование · Пользователи</div>
+  <div class="page-bg__crumbs">Управление доступом сотрудников</div>
+  <div class="page-bg__skeleton">
+    <div class="page-bg__row"></div><div class="page-bg__row"></div><div class="page-bg__row"></div>
+  </div>
+</div>
+
+<div class="overlay">
+  <div class="modal modal--2col">
+    <div class="modal__head">
+      <div>
+        <div class="modal__title">Права доступа: Иванов Иван Иванович</div>
+        <div class="modal__sub">@ivanov · Тип: Арендатор · ООО «Логистик»</div>
+      </div>
+      <button class="modal__close">&times;</button>
+    </div>
+
+    <div class="body-2col">
+      <!-- ЛЕВО: источники прав + блокировка -->
+      <div class="col-left">
+        <div class="admin-toggle">
+          <div class="admin-toggle__txt">
+            <b>Администратор</b>
+            <span>Все права. Можно точечно выключать ниже.</span>
+          </div>
+          <button class="tgl" aria-label="Администратор"></button>
+        </div>
+
+        <div>
+          <div class="field-label">Роль</div>
+          <select class="lk-select">
+            <option>Пользователь</option>
+            <option>Охранник смены</option>
+            <option>Руководитель отдела</option>
+          </select>
+        </div>
+
+        <div>
+          <div class="field-label">Группы прав</div>
+          <div class="chips">
+            <span class="chip">Доступ ко всем таблицам <span class="chip__x">&times;</span></span>
+            <span class="chip">Аналитика <span class="chip__x">&times;</span></span>
+            <span class="chip chip--add">+ добавить</span>
+          </div>
+        </div>
+
+        <hr class="divider">
+
+        <div class="ban-box">
+          <div class="ban-box__title">&#9210; Блокировка</div>
+          <textarea class="lk-textarea" placeholder="Причина блокировки (увидит пользователь)"></textarea>
+          <button class="btn btn--danger" style="margin-top:10px; width:100%;">Заблокировать</button>
+        </div>
+      </div>
+
+      <!-- ПРАВО: точечные права -->
+      <div class="col-right">
+        <div class="legend">
+          <span>Источник:</span>
+          <span class="src src--role">роль</span>
+          <span class="src src--group">группа</span>
+          <span class="src src--override">лично</span>
+        </div>
+
+        <div class="perm-section">
+          <div class="perm-section__title">Навигационное меню</div>
+          <div class="perm-row"><span class="perm-row__label">Центр заявок</span><span class="src src--role">роль</span><button class="tgl on"></button></div>
+          <div class="perm-row"><span class="perm-row__label">Новая заявка</span><span class="src src--role">роль</span><button class="tgl on"></button></div>
+          <div class="perm-row"><span class="perm-row__label">Доступные мне</span><button class="tgl"></button></div>
+          <div class="perm-row"><span class="perm-row__chevron">&#9662;</span><span class="perm-row__label">Таблицы</span><span class="src src--group">группа</span><button class="tgl on"></button></div>
+          <div class="perm-row perm-row--child"><span class="perm-row__label">КПП №4</span><span class="src src--group">группа</span><button class="tgl on"></button></div>
+          <div class="perm-row perm-row--child"><span class="perm-row__label">ПОСТ №72</span><span class="src src--override">лично</span><button class="tgl"></button></div>
+          <div class="perm-row"><span class="perm-row__label">Сотрудники</span><span class="src src--role">роль</span><button class="tgl on"></button></div>
+          <div class="perm-row"><span class="perm-row__label">Автомобили</span><span class="src src--role">роль</span><button class="tgl on"></button></div>
+          <div class="perm-row"><span class="perm-row__label">Аналитика</span><button class="tgl"></button></div>
+          <div class="perm-row"><span class="perm-row__label">Администрирование</span><button class="tgl"></button></div>
+          <div class="perm-row"><span class="perm-row__label">Обзор и новости</span><span class="src src--role">роль</span><button class="tgl on"></button></div>
+          <div class="perm-row"><span class="perm-row__label">Личный кабинет</span><span class="src src--role">роль</span><button class="tgl on"></button></div>
+        </div>
+
+        <div class="perm-section">
+          <div class="perm-section__title">Шапка</div>
+          <div class="perm-row"><span class="perm-row__label">Кнопка «Сообщить о проблеме»</span><span class="src src--role">роль</span><button class="tgl on"></button></div>
+          <div class="perm-row"><span class="perm-row__label">Кнопка «Подать заявку»</span><span class="src src--role">роль</span><button class="tgl on"></button></div>
+        </div>
+
+        <div class="perm-section">
+          <div class="perm-section__title">Центр заявок</div>
+          <div class="perm-row"><span class="perm-row__label">Раздел «Архив»</span><button class="tgl"></button></div>
+          <div class="perm-row"><span class="perm-row__label">Кнопка «История заявки»</span><span class="src src--group">группа</span><button class="tgl on"></button></div>
+          <div class="perm-row"><span class="perm-row__label">Открытие карточки авто / сотрудника</span><span class="src src--group">группа</span><button class="tgl on"></button></div>
+          <div class="perm-row perm-row--child"><span class="perm-row__label">Кнопка «Полная история»</span><button class="tgl"></button></div>
+          <div class="perm-row perm-row--child"><span class="perm-row__label">Кнопка «В ЧС»</span><button class="tgl"></button></div>
+          <div class="perm-row perm-row--child"><span class="perm-row__label">Раздел «История въездов и выездов»</span><span class="src src--group">группа</span><button class="tgl on"></button></div>
+          <div class="perm-row perm-row--child"><span class="perm-row__label">Раздел «Документы»</span><button class="tgl"></button></div>
+          <div class="perm-row perm-row--child"><span class="perm-row__label">Раздел «История проходов»</span><span class="src src--group">группа</span><button class="tgl on"></button></div>
+        </div>
+
+        <div class="perm-section">
+          <div class="perm-section__title">Таблицы — действия внутри</div>
+          <div class="perm-row"><span class="perm-row__label">Кнопки «Въезд / Выезд», «Вход / Выход»</span><span class="src src--group">группа</span><button class="tgl on"></button></div>
+          <div class="perm-row"><span class="perm-row__label">Кнопка «Корзина»</span><button class="tgl"></button></div>
+          <div class="perm-row"><span class="perm-row__label">Кнопка «Экспорт»</span><span class="src src--group">группа</span><button class="tgl on"></button></div>
+          <div class="perm-row"><span class="perm-row__label">Кнопка «История»</span><span class="src src--group">группа</span><button class="tgl on"></button></div>
+          <div class="perm-row"><span class="perm-row__label">Кнопка «Удалить»</span><button class="tgl"></button></div>
+        </div>
+
+        <div class="perm-section">
+          <div class="perm-section__title">Сотрудники и Автомобили</div>
+          <div class="perm-row"><span class="perm-row__label">Раздел «...организации»</span><span class="src src--role">роль</span><button class="tgl on"></button></div>
+          <div class="perm-row"><span class="perm-row__label">Раздел «...компании»</span><span class="src src--role">роль</span><button class="tgl on"></button></div>
+          <div class="perm-row"><span class="perm-row__label">Раздел «Все ... системы»</span><button class="tgl"></button></div>
+        </div>
+
+        <div class="perm-section">
+          <div class="perm-section__title">Администрирование</div>
+          <div class="perm-row"><span class="perm-row__label">Раздел «Пользователи»</span><button class="tgl"></button></div>
+          <div class="perm-row"><span class="perm-row__label">Раздел «Мониторинг запросов»</span><button class="tgl"></button></div>
+          <div class="perm-row" style="opacity:.6"><span class="perm-row__label">Режим техработ <small>&#128274; только Системный администратор</small></span><button class="tgl locked"></button></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal__foot">
+      <span class="modal__foot-hint">Изменения вступят в силу в течение 30 секунд</span>
+      <div class="modal__foot-actions">
+        <button class="btn btn--ghost">Отмена</button>
+        <button class="btn btn--primary">Сохранить</button>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
