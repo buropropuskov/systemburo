@@ -194,15 +194,16 @@ func Setup(e *echo.Echo, d Dependencies) {
 	utm.DELETE("/:id", userTypes.Delete)
 	utm.GET("/:id/history", userTypes.GetHistory)
 
-	// Гражданства
+	// Гражданства. Список и история — для всех авторизованных (дропдаун гражданств
+	// в форме заявки); изменяющие операции — page.admin (Ф5, ранее service checkAdmin).
 	csg := protected.Group("/citizenships")
 	csg.GET("", cs.GetAll)
-	csg.POST("", cs.Create)
-	csg.PUT("/:id", cs.Update)
-	csg.DELETE("/:id", cs.Delete)
-	csg.POST("/:id/restore", cs.Restore)
+	csg.POST("", cs.Create, requireAdmin)
+	csg.PUT("/:id", cs.Update, requireAdmin)
+	csg.DELETE("/:id", cs.Delete, requireAdmin)
+	csg.POST("/:id/restore", cs.Restore, requireAdmin)
 	csg.GET("/:id/history", cs.GetHistory)
-	csg.POST("/clear-default", cs.ClearDefaults)
+	csg.POST("/clear-default", cs.ClearDefaults, requireAdmin)
 
 	// Форматы номерных знаков
 	lpfGroup := protected.Group("/license-plate-formats")
