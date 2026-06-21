@@ -411,7 +411,7 @@
                     class="dashboard__feed-post"
                     :class="{ 'dashboard__feed-post--empty': !hasPlace(row) }"
                   >
-                    Пост: {{ placeLabel(row) }}
+                    Место: {{ placeLabel(row) }}
                   </div>
                 </div>
                 <div class="dashboard__feed-right">
@@ -469,7 +469,7 @@
                     class="dashboard__feed-post"
                     :class="{ 'dashboard__feed-post--empty': !hasPlace(row) }"
                   >
-                    Пост: {{ placeLabel(row) }}
+                    Место: {{ placeLabel(row) }}
                   </div>
                 </div>
                 <div class="dashboard__feed-right">
@@ -737,7 +737,7 @@ function formatDate(iso) {
   return `${s.substring(8, 10)}.${s.substring(5, 7)}.${s.substring(0, 4)}`;
 }
 
-// Пост (place) прохода: бэк может вернуть пусто или плейсхолдер «—». Показываем
+// Место (place) прохода: бэк может вернуть пусто или плейсхолдер «—». Показываем
 // явный лейбл у каждой строки, при отсутствии — заглушку, а не прячем (фидбэк #632 п.7).
 function hasPlace(row) {
   const p = (row.place || '').trim();
@@ -1429,8 +1429,8 @@ onUnmounted(() => {
   margin-top: 2px;
 }
 
-/* Пост прохода — отдельной строкой, чтобы длинная организация не вытесняла его
-   через ellipsis: пост виден у каждой строки (фидбэк #632 п.7). */
+/* Место прохода — отдельной строкой, чтобы длинная организация не вытесняла его
+   через ellipsis: место видно у каждой строки (фидбэк #632 п.7). */
 .dashboard__feed-post {
   font-size: 11px;
   font-weight: 600;

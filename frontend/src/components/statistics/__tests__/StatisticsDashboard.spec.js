@@ -388,7 +388,7 @@ describe('StatisticsDashboard — секция Мониторинг', () => {
     const posts = wrapper.findAll('.dashboard__feed-post');
     // Четыре прохода людей + один проезд машины = пять строк, у каждой явный пост.
     expect(posts).toHaveLength(5);
-    expect(wrapper.text()).toContain('Пост: КПП-1');
+    expect(wrapper.text()).toContain('Место: КПП-1');
     // Плейсхолдер «—», null, пробелы и пустая строка -> заглушка «не указан».
     const empties = posts.filter((p) => p.text().includes('не указан'));
     expect(empties).toHaveLength(4);
