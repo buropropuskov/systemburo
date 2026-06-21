@@ -225,7 +225,8 @@
             <VehicleForm
               :key="vehicleFormKey"
               ref="vehicleForm"
-              :field-config="currentFieldConfig"              :user-organization="organization"
+              :field-config="currentFieldConfig"
+              :user-organization="organization"
               :user-organization-id="organizationId"
               :user-company="company"
               :user-company-id="companyId"
@@ -254,7 +255,8 @@
             <EmployeeForm
               :key="employeeFormKey"
               ref="employeeForm"
-              :field-config="currentFieldConfig"              :user-organization="organization"
+              :field-config="currentFieldConfig"
+              :user-organization="organization"
               :user-organization-id="organizationId"
               :user-company="company"
               :user-company-id="companyId"
@@ -280,7 +282,8 @@
             <ItemsForm
               :key="itemsFormKey"
               ref="itemsForm"
-              :field-config="currentFieldConfig"              :existing-items="items"
+              :field-config="currentFieldConfig"
+              :existing-items="items"
               :show-unload-places="showItemsUnloadPlaces"
               :all-unloading-places="allUnloadingPlaces"
               :selected-unload-places="applicationUnloadPlaces"
@@ -299,7 +302,6 @@
               @delete-item="deleteItem"
             />
           </template>
-
         </div>
       </div>
             
@@ -316,7 +318,7 @@
 
     <!-- Универсальное модальное окно привязки -->
     <UniversalBindingModal
-      v-if="showBindingModal"
+      :show="showBindingModal"
       :new-vehicles-to-bind="newVehiclesToBind"
       :new-employees-to-bind="newEmployeesToBind"
       :organization="organization"
