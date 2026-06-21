@@ -13,14 +13,15 @@ import (
 )
 
 // CitizenshipService -- интерфейс бизнес-логики гражданств.
+// Авторизация изменяющих операций (page.admin) -- на роут-middleware RequirePermissionV2.
 type CitizenshipService interface {
 	GetAll(ctx context.Context, includeArchived bool) ([]models.Citizenship, error)
-	Create(ctx context.Context, typeID, userID int, req models.CreateCitizenshipRequest) (int, error)
-	Update(ctx context.Context, typeID, userID, id int, req models.UpdateCitizenshipRequest) error
-	Delete(ctx context.Context, typeID, userID, id int) error
-	Restore(ctx context.Context, typeID, userID, id int) error
+	Create(ctx context.Context, userID int, req models.CreateCitizenshipRequest) (int, error)
+	Update(ctx context.Context, userID, id int, req models.UpdateCitizenshipRequest) error
+	Delete(ctx context.Context, userID, id int) error
+	Restore(ctx context.Context, userID, id int) error
 	GetHistory(ctx context.Context, id int) ([]models.CitizenshipHistoryItem, error)
-	ClearDefaults(ctx context.Context, typeID int) error
+	ClearDefaults(ctx context.Context) error
 }
 
 type citizenshipService struct {
@@ -31,25 +32,6 @@ type citizenshipService struct {
 // NewCitizenshipService создаёт реализацию CitizenshipService.
 func NewCitizenshipService(db *gorm.DB) CitizenshipService {
 	return &citizenshipService{db: db, history: NewCitizenshipHistoryService(db)}
-}
-
-// checkAdmin проверяет, что пользователь с данным type_id является администратором
-// (код типа "manager" или "buropropuskov").
-func (s *citizenshipService) checkAdmin(ctx context.Context, typeID int) error {
-	var code string
-	err := s.db.WithContext(ctx).
-		Table("user_types").
-		Select("code").
-		Where("id = ?", typeID).
-		Row().
-		Scan(&code)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, "User not found")
-	}
-	if code != "manager" && code != "buropropuskov" {
-		return echo.NewHTTPError(http.StatusForbidden, "Insufficient permissions")
-	}
-	return nil
 }
 
 // GetAll возвращает список гражданств.
@@ -67,11 +49,7 @@ func (s *citizenshipService) GetAll(ctx context.Context, includeArchived bool) (
 }
 
 // Create создаёт новое гражданство с опциональной установкой по умолчанию.
-func (s *citizenshipService) Create(ctx context.Context, typeID, userID int, req models.CreateCitizenshipRequest) (int, error) {
-	if err := s.checkAdmin(ctx, typeID); err != nil {
-		return 0, err
-	}
-
+func (s *citizenshipService) Create(ctx context.Context, userID int, req models.CreateCitizenshipRequest) (int, error) {
 	isDefault := req.IsDefault != nil && *req.IsDefault
 	patentRequired := req.PatentRequired != nil && *req.PatentRequired
 
@@ -111,11 +89,7 @@ func (s *citizenshipService) Create(ctx context.Context, typeID, userID int, req
 
 // Update обновляет гражданство по ID. is_active не трогает - архивацией/восстановлением
 // управляют Delete/Restore (отдельные действия в истории).
-func (s *citizenshipService) Update(ctx context.Context, typeID, userID, id int, req models.UpdateCitizenshipRequest) error {
-	if err := s.checkAdmin(ctx, typeID); err != nil {
-		return err
-	}
-
+func (s *citizenshipService) Update(ctx context.Context, userID, id int, req models.UpdateCitizenshipRequest) error {
 	isDefault := req.IsDefault != nil && *req.IsDefault
 	patentRequired := req.PatentRequired != nil && *req.PatentRequired
 
@@ -170,11 +144,7 @@ func (s *citizenshipService) Update(ctx context.Context, typeID, userID, id int,
 // Гражданство по умолчанию архивировать нельзя - сначала нужно назначить другое.
 // Гражданство, используемое сотрудниками (employees.citizenship_id), архивировать
 // можно: сотрудники уже созданы, архивное гражданство лишь скрывается из выбора новых.
-func (s *citizenshipService) Delete(ctx context.Context, typeID, userID, id int) error {
-	if err := s.checkAdmin(ctx, typeID); err != nil {
-		return err
-	}
-
+func (s *citizenshipService) Delete(ctx context.Context, userID, id int) error {
 	var citizenship models.Citizenship
 	if err := s.db.WithContext(ctx).First(&citizenship, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -198,11 +168,7 @@ func (s *citizenshipService) Delete(ctx context.Context, typeID, userID, id int)
 }
 
 // Restore восстанавливает гражданство из архива (is_active=true).
-func (s *citizenshipService) Restore(ctx context.Context, typeID, userID, id int) error {
-	if err := s.checkAdmin(ctx, typeID); err != nil {
-		return err
-	}
-
+func (s *citizenshipService) Restore(ctx context.Context, userID, id int) error {
 	var citizenship models.Citizenship
 	if err := s.db.WithContext(ctx).First(&citizenship, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -229,11 +195,7 @@ func (s *citizenshipService) GetHistory(ctx context.Context, id int) ([]models.C
 }
 
 // ClearDefaults сбрасывает флаг «по умолчанию» у всех гражданств.
-func (s *citizenshipService) ClearDefaults(ctx context.Context, typeID int) error {
-	if err := s.checkAdmin(ctx, typeID); err != nil {
-		return err
-	}
-
+func (s *citizenshipService) ClearDefaults(ctx context.Context) error {
 	if err := s.db.WithContext(ctx).
 		Model(&models.Citizenship{}).
 		Where("is_default = ?", true).

@@ -55,13 +55,12 @@ func (h *CitizenshipHandler) GetAll(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /citizenships [post]
 func (h *CitizenshipHandler) Create(c echo.Context) error {
-	typeID := c.Get("type_id").(int)
 	userID, _ := c.Get("user_id").(int)
 	var req models.CreateCitizenshipRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
-	id, err := h.service.Create(c.Request().Context(), typeID, userID, req)
+	id, err := h.service.Create(c.Request().Context(), userID, req)
 	if err != nil {
 		return err
 	}
@@ -86,7 +85,6 @@ func (h *CitizenshipHandler) Create(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /citizenships/{id} [put]
 func (h *CitizenshipHandler) Update(c echo.Context) error {
-	typeID := c.Get("type_id").(int)
 	userID, _ := c.Get("user_id").(int)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -96,7 +94,7 @@ func (h *CitizenshipHandler) Update(c echo.Context) error {
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
-	if err := h.service.Update(c.Request().Context(), typeID, userID, id, req); err != nil {
+	if err := h.service.Update(c.Request().Context(), userID, id, req); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Гражданство успешно обновлено")
@@ -118,13 +116,12 @@ func (h *CitizenshipHandler) Update(c echo.Context) error {
 // @Failure      409 {object} models.HTTPError
 // @Router       /citizenships/{id} [delete]
 func (h *CitizenshipHandler) Delete(c echo.Context) error {
-	typeID := c.Get("type_id").(int)
 	userID, _ := c.Get("user_id").(int)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
 	}
-	if err := h.service.Delete(c.Request().Context(), typeID, userID, id); err != nil {
+	if err := h.service.Delete(c.Request().Context(), userID, id); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Гражданство архивировано")
@@ -146,13 +143,12 @@ func (h *CitizenshipHandler) Delete(c echo.Context) error {
 // @Failure      500 {object} models.HTTPError
 // @Router       /citizenships/{id}/restore [post]
 func (h *CitizenshipHandler) Restore(c echo.Context) error {
-	typeID := c.Get("type_id").(int)
 	userID, _ := c.Get("user_id").(int)
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
 	}
-	if err := h.service.Restore(c.Request().Context(), typeID, userID, id); err != nil {
+	if err := h.service.Restore(c.Request().Context(), userID, id); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Гражданство восстановлено из архива")
@@ -194,8 +190,7 @@ func (h *CitizenshipHandler) GetHistory(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /citizenships/clear-default [post]
 func (h *CitizenshipHandler) ClearDefaults(c echo.Context) error {
-	typeID := c.Get("type_id").(int)
-	if err := h.service.ClearDefaults(c.Request().Context(), typeID); err != nil {
+	if err := h.service.ClearDefaults(c.Request().Context()); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Все гражданства по умолчанию сброшены")
