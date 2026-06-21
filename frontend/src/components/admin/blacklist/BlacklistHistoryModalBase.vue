@@ -401,9 +401,13 @@ export default {
   },
   watch: {
     // Модалка всегда смонтирована (для leave-анимации): историю грузим при
-    // открытии, а не на mount.
-    show(visible) {
-      if (visible) this.loadHistory();
+    // открытии, а не на mount. immediate - чтобы загрузка сработала и когда
+    // модалку сразу монтируют с show=true (guard не грузит при закрытой).
+    show: {
+      immediate: true,
+      handler(visible) {
+        if (visible) this.loadHistory();
+      },
     },
   },
   mounted() {
