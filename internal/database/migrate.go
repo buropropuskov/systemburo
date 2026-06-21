@@ -559,6 +559,33 @@ func seedBaseRole(db *gorm.DB) error {
 	return nil
 }
 
+// BackfillBaseRole назначает базовую роль "Пользователь" существующим обычным
+// пользователям без роли (role_id IS NULL, не супер-админ). После #187 (Фаза 2)
+// навигация и доступ гейтятся правами, а права обычного юзера приходят от роли:
+// без роли резолвер отдаёт пустой набор, и юзер увидел бы пустое меню. Супер-админа
+// не трогаем (его доступ - allowAll по флагу, роль не нужна). Идемпотентно - берёт
+// только role_id IS NULL.
+func BackfillBaseRole(db *gorm.DB) error {
+	var role models.Role
+	if err := db.Where("code = ? AND is_system = ?", "user", true).First(&role).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil // базовая роль ещё не засеяна - нечего назначать
+		}
+		return fmt.Errorf("load base role for backfill: %w", err)
+	}
+	res := db.Exec(`
+		UPDATE users SET role_id = ?
+		WHERE role_id IS NULL AND is_super_admin = false`, role.ID)
+	if res.Error != nil {
+		return fmt.Errorf("backfill base role: %w", res.Error)
+	}
+	if res.RowsAffected > 0 {
+		slog.Info("backfilled base role for users without role",
+			"users_updated", res.RowsAffected, "role_id", role.ID)
+	}
+	return nil
+}
+
 // backfillAdminFromType разово переносит админство с типа на флаг: пользователи
 // типа "manager" (кроме супер-админа) становятся is_admin=true. После этого
 // авторизация идёт по флагу, а не по user_type (см. эпик прав). Идемпотентно.
@@ -712,6 +739,12 @@ func Seed(db *gorm.DB) error {
 
 	// Разовый перенос админства с типа manager на флаг is_admin.
 	if err := backfillAdminFromType(db); err != nil {
+		return err
+	}
+
+	// Обычным юзерам без роли выдаём базовую "Пользователь" (#187 Фаза 2): без роли
+	// резолвер отдаёт пустые права, и гейтинг навигации скрыл бы все вкладки.
+	if err := BackfillBaseRole(db); err != nil {
 		return err
 	}
 
