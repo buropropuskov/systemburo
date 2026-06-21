@@ -70,52 +70,56 @@
         </div>
       </div>
 
-      <!-- Детальный разворот карточки: тренд по дням (area) + пик по часам (bar) -->
+      <!-- Детальный разворот карточки: тренд по дням (area) + пик по часам (bar).
+           Высота анимируется через grid-rows -> соседние группы съезжают плавно. -->
       <Transition name="dashboard-detail">
         <div
           v-if="expandedDetail"
-          class="dashboard__detail"
+          class="dashboard__detail-collapse"
         >
-          <div class="dashboard__detail-head">
-            <h3 class="dashboard__detail-title">{{ expandedDetail.label }} — детально</h3>
-            <button
-              type="button"
-              class="dashboard__detail-close"
-              aria-label="Свернуть"
-              @click="expandedMetric = null"
-            >
-              ×
-            </button>
-          </div>
-          <div class="dashboard__detail-charts">
-            <div class="dashboard__detail-chart">
-              <div class="dashboard__detail-chart-title">Тренд по дням</div>
-              <AnalyticsAreaChart
-                :data="expandedDetail.trendData"
-                :categories="expandedDetail.trendCategories"
-                :height="220"
-                color="#4F5BDF"
-                :series-name="expandedDetail.label"
-                :unit-forms="expandedDetail.unitForms"
-              />
-            </div>
-            <div
-              v-if="expandedDetail.peak"
-              class="dashboard__detail-chart"
-            >
-              <div class="dashboard__detail-chart-title">
-                Пик по часам
-                <span class="dashboard__detail-chart-note">
-                  пик в {{ expandedDetail.peakHourLabel }}
-                </span>
+          <div class="dashboard__detail-collapse-inner">
+            <div class="dashboard__detail">
+              <div class="dashboard__detail-head">
+                <h3 class="dashboard__detail-title">{{ expandedDetail.label }} — детально</h3>
+                <button
+                  type="button"
+                  class="dashboard__detail-close"
+                  aria-label="Свернуть"
+                  @click="expandedMetric = null"
+                >
+                  ×
+                </button>
               </div>
-              <AnalyticsBarChart
-                :data="expandedDetail.peakData"
-                :height="220"
-                color="#4F5BDF"
-                :series-name="expandedDetail.label"
-                :unit-forms="expandedDetail.unitForms"
-              />
+              <div class="dashboard__detail-charts">
+                <div class="dashboard__detail-chart">
+                  <div class="dashboard__detail-chart-title">Тренд по дням</div>
+                  <AnalyticsAreaChart
+                    :data="expandedDetail.trendData"
+                    :height="220"
+                    color="#4F5BDF"
+                    :series-name="expandedDetail.label"
+                    :unit-forms="expandedDetail.unitForms"
+                  />
+                </div>
+                <div
+                  v-if="expandedDetail.peak"
+                  class="dashboard__detail-chart"
+                >
+                  <div class="dashboard__detail-chart-title">
+                    Пик по часам
+                    <span class="dashboard__detail-chart-note">
+                      пик в {{ expandedDetail.peakHourLabel }}
+                    </span>
+                  </div>
+                  <AnalyticsBarChart
+                    :data="expandedDetail.peakData"
+                    :height="220"
+                    color="#4F5BDF"
+                    :series-name="expandedDetail.label"
+                    :unit-forms="expandedDetail.unitForms"
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -478,6 +482,8 @@ const insightsLoading = ref(false);
 const expandedMetric = ref(null);
 
 const timeline = ref([]);
+// Датированный тренд развёрнутой карточки — отдельно от серии инсайта (та без дат).
+const detailTimeline = ref([]);
 const timelineLoading = ref(false);
 
 // Дневные пики онлайна за период (area-график под основным графиком).
@@ -595,20 +601,19 @@ const dataTiles = computed(() => {
   });
 });
 
-// Развёрнутая карточка -> данные её детальных графиков. Тренд берём из той же
-// серии, что и мини-спарклайн (визуальная консистентность), пик — из почасового
-// профиля. Серия тренда без дат -> подписи оси X порядковыми позициями дней.
+// Развёрнутая карточка -> данные её детальных графиков. Тренд по дням берём из
+// getTimeline (датированные точки), а не из серии инсайта без дат — иначе ось X
+// получала порядковые номера вместо реальных дат. Пик — из почасового профиля.
 const expandedDetail = computed(() => {
   if (!expandedMetric.value) return null;
   const tile = dataTiles.value.find((t) => t.metric === expandedMetric.value);
   if (!tile || !tile.expandable) return null;
-  const series = tile.trend?.series || [];
   const peak = tile.peak;
   return {
     label: tile.label,
     unitForms: detailUnitForms[tile.metric] || ['ед.', 'ед.', 'ед.'],
-    trendData: series.map((v) => ({ count: v })),
-    trendCategories: series.map((_, i) => String(i + 1)),
+    // timestamp -> AnalyticsAreaChart строит ось X как дд.мм, тултип дд.мм.гггг.
+    trendData: (detailTimeline.value || []).map((d) => ({ timestamp: d.date, count: d.count })),
     peak,
     peakData: peak ? hourlyProfile(peak) : [],
     peakHourLabel: peak ? hourLabel(peak.peak_hour) : '',
@@ -671,6 +676,7 @@ let summarySeq = 0;
 let timelineSeq = 0;
 let insightsSeq = 0;
 let onlinePeaksSeq = 0;
+let detailTimelineSeq = 0;
 
 async function loadSummary() {
   const seq = ++summarySeq;
@@ -748,6 +754,36 @@ async function loadTimeline() {
   }
 }
 
+// Ключ инсайта плитки -> metric для getTimeline (тот же набор, что в metricOptions).
+const detailMetricMap = {
+  applications_count: 'applications',
+  car_entries_count: 'car_entries',
+  people_entries_count: 'people_entries',
+};
+
+// Тренд развёрнутой карточки грузим по дням отдельным запросом: даёт даты по оси.
+async function loadDetailTimeline(metricKey) {
+  const tlMetric = detailMetricMap[metricKey];
+  if (!tlMetric) {
+    detailTimeline.value = [];
+    return;
+  }
+  const seq = ++detailTimelineSeq;
+  try {
+    const data = await getTimeline({
+      from: props.from,
+      to: props.to,
+      metric: tlMetric,
+      granularity: 'day',
+    });
+    if (seq !== detailTimelineSeq) return;
+    detailTimeline.value = Array.isArray(data) ? data : [];
+  } catch {
+    if (seq !== detailTimelineSeq) return;
+    detailTimeline.value = [];
+  }
+}
+
 // showSkeleton: только первичная загрузка показывает скелетоны. Фоновые тики и
 // ручное обновление доливают новые записи сверху через mergeFeed — без мигания
 // всего блока и без перерисовки уже показанных строк.
@@ -802,6 +838,12 @@ watch([() => props.from, () => props.to], () => {
 // ---- реакция на смену настроек графика ----
 watch([activeMetric, activeGranularity], () => {
   loadTimeline();
+});
+
+// ---- разворот карточки -> датированный тренд по дням ----
+watch(expandedMetric, (metric) => {
+  if (metric) loadDetailTimeline(metric);
+  else detailTimeline.value = [];
 });
 
 // ---- polling живых лент (10 сек) ----
@@ -1077,16 +1119,27 @@ onUnmounted(() => {
   margin-left: 6px;
 }
 
-/* Разворот: только transform+opacity (height у Apex считается криво). */
+/* Плавный разворот высотой через grid-rows: соседние группы съезжают без рывка
+   (телепортации), график внутри с фиксированной высотой 220 не дёргается. */
+.dashboard__detail-collapse {
+  display: grid;
+  grid-template-rows: 1fr;
+}
+
+.dashboard__detail-collapse-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
 .dashboard-detail-enter-active,
 .dashboard-detail-leave-active {
-  transition: opacity 0.22s ease, transform 0.22s ease;
+  transition: grid-template-rows 0.28s ease, opacity 0.28s ease;
 }
 
 .dashboard-detail-enter-from,
 .dashboard-detail-leave-to {
+  grid-template-rows: 0fr;
   opacity: 0;
-  transform: translateY(-8px);
 }
 
 /* ===== ГРАФИК ===== */
