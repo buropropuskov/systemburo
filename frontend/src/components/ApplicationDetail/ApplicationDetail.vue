@@ -1069,8 +1069,7 @@ export default {
                     ]);
                     this.syncSelectedDetailFlags();
                     this.$emit('application-changed', this.applicationData);
-                } else if (response.status !== 403) {
-                    // 403 уже показывает тост через client.js - второй не дублируем
+                } else if (!response.ok) {
                     const data = await response.json();
                     useDeletionsStore().notify({
                         prefix: 'Не удалось подтвердить пропуск: ',
@@ -1171,7 +1170,7 @@ export default {
                     ]);
                     this.syncSelectedDetailFlags();
                     this.$emit('application-changed', this.applicationData);
-                } else if (response.status !== 403) {
+                } else if (!response.ok) {
                     const data = await response.json();
                     useDeletionsStore().notify({
                         prefix: 'Не удалось снять подтверждение: ',

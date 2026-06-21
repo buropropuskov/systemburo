@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 
+const notifyMock = vi.fn();
+vi.mock('@/stores/deletions', () => ({
+  useDeletionsStore: () => ({ notify: notifyMock }),
+}));
+
 const routerPush = vi.fn();
 vi.mock('@/router', () => ({
   default: {
@@ -9,7 +14,7 @@ vi.mock('@/router', () => ({
   },
 }));
 
-import { apiRequest, apiRequestRaw } from '../client';
+import { apiRequest, apiRequestRaw, _resetDedup403 } from '../client';
 
 function okJson(body, init = {}) {
   return new Response(JSON.stringify(body), {
@@ -205,5 +210,98 @@ describe('401 auto-refresh', () => {
 
     const resp = await apiRequestRaw('/items');
     expect(await resp.json()).toEqual({ success: true, data: { x: 1 }, meta: { total: 7 } });
+  });
+});
+
+describe('403 handling', () => {
+  let fetchMock;
+
+  beforeEach(async () => {
+    setActivePinia(createPinia());
+    localStorage.clear();
+    routerPush.mockReset();
+    notifyMock.mockReset();
+    _resetDedup403();
+    fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('показывает notify с типом error при 403 на обычном пути', async () => {
+    fetchMock.mockResolvedValueOnce(errJson({ banned: false }, 403));
+
+    await apiRequest('/applications/1/confirm-pass', { method: 'POST' });
+
+    expect(notifyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'error', prefix: 'Недостаточно прав для этого действия.' })
+    );
+  });
+
+  it('показывает специальный текст для заблокированной учётки (banned:true)', async () => {
+    fetchMock.mockResolvedValueOnce(errJson({ banned: true }, 403));
+
+    await apiRequest('/applications', { method: 'POST' });
+
+    expect(notifyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'error', prefix: 'Учётная запись заблокирована. Обратитесь к администратору.' })
+    );
+  });
+
+  it('не вызывает notify при silent403:true', async () => {
+    fetchMock.mockResolvedValueOnce(errJson({ banned: false }, 403));
+
+    await apiRequest('/applications/1/action', { method: 'POST', silent403: true });
+
+    await Promise.resolve();
+    expect(notifyMock).not.toHaveBeenCalled();
+  });
+
+  it('не вызывает notify для тихих путей (/permissions/my)', async () => {
+    fetchMock.mockResolvedValueOnce(errJson({ banned: false }, 403));
+
+    await apiRequest('/permissions/my');
+
+    await Promise.resolve();
+    expect(notifyMock).not.toHaveBeenCalled();
+  });
+
+  it('не вызывает notify для тихих путей (/users/me)', async () => {
+    fetchMock.mockResolvedValueOnce(errJson({ banned: false }, 403));
+
+    await apiRequest('/users/me');
+
+    await Promise.resolve();
+    expect(notifyMock).not.toHaveBeenCalled();
+  });
+
+  it('не вызывает notify для тихих путей (/unique-cars/lookup)', async () => {
+    fetchMock.mockResolvedValueOnce(errJson({ banned: false }, 403));
+
+    await apiRequest('/unique-cars/lookup?q=test');
+
+    await Promise.resolve();
+    expect(notifyMock).not.toHaveBeenCalled();
+  });
+
+  it('дедуплицирует: два параллельных 403 с одним текстом = один notify', async () => {
+    fetchMock.mockResolvedValue(errJson({ banned: false }, 403));
+
+    await Promise.all([
+      apiRequest('/applications/1/confirm-pass', { method: 'POST' }),
+      apiRequest('/applications/1/confirm-pass', { method: 'POST' }),
+    ]);
+
+    expect(notifyMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('возвращает response со статусом 403 (вызывающий код может обработать)', async () => {
+    fetchMock.mockResolvedValueOnce(errJson({ banned: false }, 403));
+
+    const resp = await apiRequest('/some-action', { method: 'POST' });
+
+    expect(resp.status).toBe(403);
   });
 });
