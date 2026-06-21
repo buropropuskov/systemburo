@@ -51,9 +51,9 @@ test.describe('AdminRoles - UI edit/delete карточек', () => {
     const rolesPage = new AdminRolesPage(page);
     await rolesPage.goto();
 
-    // confirm dialog - принимаем
-    page.once('dialog', dialog => dialog.accept().catch(() => {}));
     await rolesPage.clickDelete(code);
+    // Нативный confirm заменён на кастомную модалку ConfirmDialog - подтверждаем в ней.
+    await page.getByTestId('confirm-ok').click();
 
     // Карточка пропала
     await expect(rolesPage.card(code)).toHaveCount(0, { timeout: 5000 });
