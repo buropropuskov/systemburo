@@ -363,6 +363,7 @@
 <script>
 import { mapState, mapActions } from 'pinia';
 import { apiRequest } from '@/api/client';
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import { useCompaniesStore } from '@/stores/companies';
 import { useDeletionsStore } from '@/stores/deletions';
 import { registerDirtyTracker, confirmIfAnyDirty } from '@/utils/dirtyTracker';
@@ -428,12 +429,9 @@ export default {
       const byMode = this.companiesWithUsers.filter(comp =>
         this.showArchive ? !comp.is_active : comp.is_active
       );
-      if (!this.searchQuery) return byMode;
-      const query = this.searchQuery.toLowerCase();
-      return byMode.filter(comp =>
-        comp.name.toLowerCase().includes(query) ||
-        comp.id.toString().includes(query)
-      );
+      const variants = buildSearchVariants(this.searchQuery);
+      if (!variants.length) return byMode;
+      return byMode.filter(comp => matchesSearch(`${comp.name} ${comp.id}`, variants));
     },
     sortedCompanies() {
       const companies = [...this.filteredCompanies];

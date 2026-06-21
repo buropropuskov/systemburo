@@ -314,6 +314,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
@@ -362,13 +363,12 @@ export default {
       return this.searchQuery.trim() ? 'Ничего не найдено по запросу' : 'Типов пока нет';
     },
     filteredTypes() {
-      if (!this.searchQuery) return this.types;
-      const query = this.searchQuery.toLowerCase();
-      return this.types.filter(type => 
-        type.name.toLowerCase().includes(query) || 
-        type.code.toLowerCase().includes(query) ||
-        type.id.toString().includes(query)
-      );
+      const variants = buildSearchVariants(this.searchQuery);
+      if (!variants.length) return this.types;
+      return this.types.filter(type => matchesSearch(
+        `${type.name} ${type.code} ${type.id}`,
+        variants,
+      ));
     },
     sortedTypes() {
       const types = [...this.filteredTypes];

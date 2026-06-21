@@ -296,6 +296,7 @@
 
 <script>
 import SearchComponent from './SearchComponent.vue';
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import RefreshButton from './RefreshButton.vue';
 import MarkHistoryModal from './MarkHistoryModal.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
@@ -349,10 +350,10 @@ export default {
   },
   computed: {
     filteredMarks() {
-      const q = this.searchQuery.trim().toLowerCase();
+      const variants = buildSearchVariants(this.searchQuery);
       let list = this.marks.filter(m => (this.showArchive ? !m.is_active : m.is_active));
-      if (q) {
-        list = list.filter(m => m.name.toLowerCase().includes(q) || String(m.id).includes(q));
+      if (variants.length) {
+        list = list.filter(m => matchesSearch(`${m.name} ${m.id}`, variants));
       }
       return this.sortList(list);
     },

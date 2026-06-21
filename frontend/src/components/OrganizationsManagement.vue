@@ -363,6 +363,7 @@
 <script>
 import { mapState, mapActions } from 'pinia';
 import { apiRequest } from '@/api/client';
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import { useOrganizationsStore } from '@/stores/organizations';
 import { useDeletionsStore } from '@/stores/deletions';
 import { registerDirtyTracker, confirmIfAnyDirty } from '@/utils/dirtyTracker';
@@ -428,12 +429,9 @@ export default {
       const byMode = this.organizationsWithUsers.filter(org =>
         this.showArchive ? !org.is_active : org.is_active
       );
-      if (!this.searchQuery) return byMode;
-      const query = this.searchQuery.toLowerCase();
-      return byMode.filter(org =>
-        org.name.toLowerCase().includes(query) ||
-        org.id.toString().includes(query)
-      );
+      const variants = buildSearchVariants(this.searchQuery);
+      if (!variants.length) return byMode;
+      return byMode.filter(org => matchesSearch(`${org.name} ${org.id}`, variants));
     },
     sortedOrganizations() {
       const organizations = [...this.filteredOrganizations];
