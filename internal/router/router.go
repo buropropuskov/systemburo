@@ -114,6 +114,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	statistics := d.Statistics
 	permResolver := d.PermResolver
 	denialLog := d.DenialLog
+	// requireAdmin — гейт admin-страниц по page.admin (super/admin проходят,
+	// обычные — по гранту). Заменяет легаси type-code проверки в сервисах (Ф5).
+	requireAdmin := mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageAdmin)
 	maintenanceBlock := d.MaintenanceBlock
 	banCheck := d.BanCheck
 	loginLimiter := d.LoginLimiter
@@ -183,8 +186,8 @@ func Setup(e *echo.Echo, d Dependencies) {
 	att.GET("/:id/history", attachments.GetHistory)
 	att.GET("/:id", attachments.GetByID)
 
-	// Управление типами пользователей (admin-only)
-	utm := protected.Group("/user-types-management")
+	// Управление типами пользователей (admin-only, page.admin)
+	utm := protected.Group("/user-types-management", requireAdmin)
 	utm.GET("", userTypes.GetAll)
 	utm.POST("", userTypes.Create)
 	utm.PUT("/:id", userTypes.Update)
@@ -587,8 +590,8 @@ func Setup(e *echo.Echo, d Dependencies) {
 	adminMaint.GET("/maintenance", maintenance.GetAdminStatus)
 	adminMaint.PUT("/maintenance", maintenance.ToggleMaintenance)
 
-	// Документы (#39). Admin-операции под page.admin; скачивание и публичный список -- под auth.
-	requireAdmin := mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageAdmin)
+	// Документы (#39). Admin-операции под page.admin (requireAdmin определён выше);
+	// скачивание и публичный список -- под auth.
 
 	// Сброс онбординг-тура пользователю - админ-действие (после сброса у юзера
 	// снова автозапуск). Под page.admin, в отличие от self-эндпоинтов /onboarding.
