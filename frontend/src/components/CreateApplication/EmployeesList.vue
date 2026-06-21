@@ -134,6 +134,7 @@
       :employee="selectedEmployee"
       :all-tables="allTables"
       source="employeeslist"
+      :readonly="true"
       @close="closeDetailsModal"
     />
   </div>
@@ -156,6 +157,12 @@ export default {
         allTables: {
             type: Array,
             default: () => []
+        },
+        // Орг/компания и дата+время текущего вложения - сущность в форме их не несёт,
+        // подмешиваем при открытии карточки просмотра (организация/компания/срок/время).
+        detailInfo: {
+            type: Object,
+            default: () => ({})
         }
     },
     emits: ['sort', 'edit-employee', 'delete-employee'],
@@ -172,6 +179,8 @@ export default {
             // EmployeeDetailsModal читает snake_case (last_name, ..., target_tables).
             // Трансформируем перед передачей — иначе ФИО, места прохода, паспорт
             // не отображаются в модалке details (баг из issue #116).
+            const info = this.detailInfo || {};
+            const passTime = info.timeFrom && info.timeTo ? `${info.timeFrom} - ${info.timeTo}` : '';
             this.selectedEmployee = {
                 id: employee.id,
                 last_name: employee.lastName,
@@ -183,10 +192,12 @@ export default {
                 patent_number: employee.patentNumber,
                 other_permission: employee.otherPermission,
                 target_tables: employee.targetTables || [],
-                entry_date_to: employee.entryDateTo,
-                pass_time: employee.passTime,
-                organization: employee.organization,
-                company: employee.company,
+                // entry_date_to/pass_time/organization/company хранятся на уровне
+                // вложения/заявки, не на сущности формы - берём из detailInfo.
+                entry_date_to: employee.entryDateTo || info.entryDateTo,
+                pass_time: employee.passTime || passTime,
+                organization: employee.organization || info.organization,
+                company: employee.company || info.company,
                 applicationId: employee.applicationId
             };
             this.showDetailsModal = true;

@@ -123,13 +123,15 @@ export const EMPLOYEE_MODAL_ACTIONS = {
     passHistory:     'entity.employees.read',
   },
   employeeslist: {
-    // Список сотрудников внутри создания/редактирования заявки:
-    // ограниченный набор, "открыть заявку" недоступно
+    // Список сотрудников внутри создания/редактирования заявки: режим просмотра
+    // добавляемого человека. Документы показываем всегда (true) - это собственные
+    // только что введённые данные формы, а не чувствительные чужие. Кнопки действий
+    // (ЧС/история/открыть заявку) гасятся пропом readonly у модалки.
     history:         false,
     openApplication: false,
-    blacklist:       'page.admin.blacklist',
+    blacklist:       false,
     entryExit:       false,
-    documents:       false,
+    documents:       true,
     passHistory:     false,
   },
   peopletable: {

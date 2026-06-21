@@ -26,14 +26,14 @@
                   <span>Полная история</span>
                 </button>
                 <button
-                  v-if="source !== 'application' && employee?.applicationId"
+                  v-if="!readonly && source !== 'application' && employee?.applicationId"
                   class="application-btn"
                   @click="openApplication"
                 >
                   <span>Открыть заявку</span>
                 </button>
                 <button
-                  v-if="canManageBlacklist && hasPersonIdentity && !isBlacklisted"
+                  v-if="!readonly && canManageBlacklist && hasPersonIdentity && !isBlacklisted"
                   class="blacklist-add-btn"
                   @click="openAddBlacklist"
                 >
@@ -496,6 +496,11 @@ export default {
         },
         // Право снять подтверждение (DELETE override) - ответственный или принимающий.
         canCancelOverride: {
+            type: Boolean,
+            default: false
+        },
+        // Режим просмотра (список заявки): прячет кнопки действий (ЧС, открыть заявку).
+        readonly: {
             type: Boolean,
             default: false
         }

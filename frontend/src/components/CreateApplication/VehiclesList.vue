@@ -123,6 +123,7 @@
       :all-unloading-places="allUnloadingPlaces"
       :license-plate-formats="licensePlateFormats"
       :show-car-features="false"
+      :readonly="true"
       :active-info="selectedVehicle?.activeInfo"
       @close="closeDetailsModal"
     />
@@ -157,6 +158,12 @@ export default {
         showStatus: {
             type: Boolean,
             default: true
+        },
+        // Дата+время текущего вложения - на сущности машины их нет, подмешиваем
+        // при открытии карточки просмотра (срок действия и время пребывания).
+        detailInfo: {
+            type: Object,
+            default: () => ({})
         }
     },
     emits: ['sort', 'edit-vehicle', 'delete-vehicle'],
@@ -168,7 +175,15 @@ export default {
     },
     methods: {
         showVehicleDetails(vehicle) {
-            this.selectedVehicle = vehicle;
+            const info = this.detailInfo || {};
+            this.selectedVehicle = {
+                ...vehicle,
+                organization: vehicle.organization || info.organization,
+                company: vehicle.company || info.company,
+                entry_date_to: vehicle.entry_date_to || info.entryDateTo,
+                entry_time_from: vehicle.entry_time_from || info.timeFrom,
+                entry_time_to: vehicle.entry_time_to || info.timeTo
+            };
             this.showDetailsModal = true;
         },
 
