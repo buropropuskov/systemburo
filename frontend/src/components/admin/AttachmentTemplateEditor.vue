@@ -529,7 +529,7 @@
 </template>
 
 <script>
-import { useUiStore } from '@/stores/ui';
+import { useDeletionsStore } from '@/stores/deletions';
 import {
   getTemplate, uploadTemplate, updateMappings, deleteTemplate,
   getTemplateFields, getTemplateFile, saveBlobAs,
@@ -788,7 +788,7 @@ export default {
         }
       } catch {
         this.enabled = !val;
-        useUiStore().error('Не удалось переключить генерацию бланка');
+        useDeletionsStore().notify({ bold: 'Не удалось переключить генерацию бланка', type: 'error' });
       }
     },
     onFileChange(e) {
@@ -810,12 +810,12 @@ export default {
           listEndRow: this.form.listEndRow,
           maxListRows: this.form.maxListRows,
         });
-        useUiStore().success('Шаблон загружен');
+        useDeletionsStore().notify({ bold: 'Шаблон загружен' });
         this.showUpload = false;
         this.form.file = null;
         await this.loadTemplate();
       } catch (err) {
-        useUiStore().error(err.message || 'Не удалось загрузить шаблон');
+        useDeletionsStore().notify({ prefix: 'Не удалось загрузить шаблон: ', bold: err.message || 'ошибка сервера', type: 'error' });
       } finally {
         this.uploading = false;
       }
@@ -832,11 +832,11 @@ export default {
       this.templateFileBuffer = null;
       try {
         await setActiveTemplate(this.uniqueAttachmentId, tmpl.id);
-        useUiStore().success('Шаблон активирован');
+        useDeletionsStore().notify({ bold: 'Шаблон активирован' });
         this.resetState();
         await Promise.all([this.loadTemplate(), this.loadFields()]);
       } catch {
-        useUiStore().error('Не удалось переключить шаблон');
+        useDeletionsStore().notify({ bold: 'Не удалось переключить шаблон', type: 'error' });
         this.loadingTemplate = false;
         this.loadingFields = false;
       }
@@ -844,23 +844,23 @@ export default {
     async deleteSpecificTemplate(tmpl) {
       try {
         await deleteTemplateByID(this.uniqueAttachmentId, tmpl.id);
-        useUiStore().success('Шаблон удален');
+        useDeletionsStore().notify({ bold: 'Шаблон удалён' });
         if (tmpl.id === this.template?.id) {
           this.templateFileBuffer = null;
         }
         await this.loadTemplate();
       } catch {
-        useUiStore().error('Не удалось удалить шаблон');
+        useDeletionsStore().notify({ bold: 'Не удалось удалить шаблон', type: 'error' });
       }
     },
     async onDeleteTemplate() {
       try {
         await deleteTemplate(this.uniqueAttachmentId);
-        useUiStore().success('Шаблон удален');
+        useDeletionsStore().notify({ bold: 'Шаблон удалён' });
         this.templateFileBuffer = null;
         await this.loadTemplate();
       } catch {
-        useUiStore().error('Не удалось удалить шаблон');
+        useDeletionsStore().notify({ bold: 'Не удалось удалить шаблон', type: 'error' });
       }
     },
     async downloadCurrentTemplate() {
@@ -869,7 +869,7 @@ export default {
         const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
         saveBlobAs(blob, this.template.original_file_name || 'template.xlsx');
       } catch {
-        useUiStore().error('Не удалось скачать шаблон');
+        useDeletionsStore().notify({ bold: 'Не удалось скачать шаблон', type: 'error' });
       }
     },
 
@@ -997,10 +997,10 @@ export default {
       try {
         const payload = this.mappings.filter(m => m.cell_ref && m.field_path);
         await updateMappings(this.uniqueAttachmentId, payload, this.concatSeparator);
-        useUiStore().success('Привязки сохранены');
+        useDeletionsStore().notify({ bold: 'Привязки сохранены' });
         await this.loadTemplate();
       } catch (err) {
-        useUiStore().error(err.message || 'Не удалось сохранить');
+        useDeletionsStore().notify({ prefix: 'Не удалось сохранить: ', bold: err.message || 'ошибка сервера', type: 'error' });
       } finally {
         this.savingMappings = false;
       }

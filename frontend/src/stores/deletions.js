@@ -113,5 +113,15 @@ export const useDeletionsStore = defineStore('deletions', () => {
     callbacks.delete(id);
   }
 
-  return { items, enqueue, notify, undo, loadDurations, setDurations };
+  /**
+   * Закрыть уведомление кликом по карточке = финализировать (как по истечении таймера):
+   * для отложенного удаления с undo выполняет onConfirm (иначе delete потерялся бы -
+   * запись не удалена, а toast пропал), для обычного notify (без onConfirm) просто закрывает.
+   * Отмена (onUndo) - отдельная кнопка "Отменить".
+   */
+  function dismiss(id) {
+    confirm(id);
+  }
+
+  return { items, enqueue, notify, undo, dismiss, loadDurations, setDurations };
 });

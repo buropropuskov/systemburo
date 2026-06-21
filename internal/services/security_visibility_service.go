@@ -3,9 +3,11 @@ package services
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"systemburo/internal/models"
+	"systemburo/internal/normalize"
 )
 
 // securityUserTypeCode - код типа аккаунта охранника ЧОП в user_types. Резолвится по code,
@@ -39,8 +41,31 @@ type AvailableAttachment struct {
 	SenderFullName    *string    `json:"sender_full_name"`
 }
 
+// availableAttachmentFilters - опциональные пользовательские фильтры вкладки "Доступные мне"
+// (BE-S6). Сужают листинг ПОВЕРХ инварианта видимости (места ∩ + confirmation='Согласовано'), не
+// ослабляя его. Все поля опциональны: nil/пусто = фильтр не применяется, выдача как до BE-S6.
+// query-теги повторяют стиль ApplicationFilter - биндятся echo c.Bind из query-строки.
+type AvailableAttachmentFilters struct {
+	Search         *string `query:"search"`
+	AttachmentType *string `query:"attachment_type"`
+	OrganizationID *int    `query:"organization_id"`
+	CompanyID      *int    `query:"company_id"`
+}
+
+// availableAttachmentFrom - общий FROM листинга и счётчика "Доступные мне". LEFT JOIN'ы
+// organizations/companies/users держат отношение 1:1 к вложению (все по PK), поэтому НЕ меняют
+// COUNT(*) и могут стоять в обоих запросах; благодаря им и подзапросы select, и фильтры BE-S6
+// (поиск по ФИО отправителя через su) видят алиасы o/c/su. attachments x applications - INNER
+// (вложение всегда принадлежит заявке).
+const availableAttachmentFrom = `
+	FROM attachments a
+	JOIN applications app ON app.id = a.application_id
+	LEFT JOIN organizations o ON o.id = app.organization_id
+	LEFT JOIN companies c ON c.id = app.company_id
+	LEFT JOIN users su ON su.id = app.sender_user_id`
+
 // availableAttachmentSelect - столбцы листинга. Подзапросы places ссылаются на a.id напрямую
-// (без плейсхолдеров), поэтому в args после WHERE идут только LIMIT/OFFSET.
+// (без плейсхолдеров); аргументы в порядке: видимость -> фильтры BE-S6 -> LIMIT/OFFSET.
 const availableAttachmentSelect = `
 	a.id as attachment_id,
 	a.attachment_type,
@@ -101,6 +126,98 @@ func securityVisibilityWhere(userID int, isSuperAdmin bool) (string, []interface
 	return confirm + " AND " + place, args
 }
 
+// availableAttachmentFilterWhere добавляет к предикату видимости опциональные пользовательские
+// фильтры (BE-S6) и их аргументы. Поверх инварианта, не вместо: возвращает фрагмент с ведущим
+// " AND ", приклеиваемый к результату securityVisibilityWhere - гейт мест/confirmation остаётся.
+// Пустые/nil-поля игнорируются; attachment_type вне cars/people/items отбрасывается (не сужает).
+// Search ищет по номеру заявки, имени и отображаемому имени вложения, ФИО отправителя (ILIKE,
+// регистронезависимо). Требует алиасы a/app/su (есть в availableAttachmentFrom).
+func availableAttachmentFilterWhere(f AvailableAttachmentFilters) (string, []interface{}) {
+	var clauses []string
+	var args []interface{}
+
+	if f.AttachmentType != nil {
+		switch t := *f.AttachmentType; t {
+		case "cars", "people", "items":
+			clauses = append(clauses, "a.attachment_type = ?")
+			args = append(args, t)
+		}
+	}
+	if f.OrganizationID != nil {
+		clauses = append(clauses, "app.organization_id = ?")
+		args = append(args, *f.OrganizationID)
+	}
+	if f.CompanyID != nil {
+		clauses = append(clauses, "app.company_id = ?")
+		args = append(args, *f.CompanyID)
+	}
+	if f.Search != nil {
+		if s := strings.TrimSpace(*f.Search); s != "" {
+			// Мощный поиск как в Центре заявок: варианты (раскладка/номер), ILIKE по полям
+			// заявки/вложения/отправителя + EXISTS по машинам/местам разгрузки/сотрудникам
+			// этого вложения и согласующим заявки, опечатки через strict_word_similarity.
+			variants := buildSearchVariants(s)
+
+			baseCols := []string{
+				"app.application_number",
+				"COALESCE(o.name, c.name, '')",
+				"c.name",
+				"app.message",
+				"a.attachment_name",
+				"a.attachment_display_name",
+				"su.last_name", "su.first_name", "su.middle_name",
+			}
+			baseCond, baseArgs := ilikePatternsArgs(baseCols, variants)
+
+			// Машины этого вложения: номер (+ слитно/раздельно при цифрах), марка, место разгрузки.
+			carCond, carArgs := ilikePatternsArgs([]string{"c2.car_number", "c2.mark_name", "c2.unload_place"}, variants)
+			platePattern := ""
+			if strings.ContainsAny(s, "0123456789") {
+				carCond += " OR REPLACE(c2.car_number, ' ', '') ILIKE ?"
+				platePattern = "%" + normalize.Plate(s) + "%"
+			}
+			carSub := `EXISTS(SELECT 1 FROM cars c2 WHERE c2.attachment_id = a.id AND (` + carCond + `))`
+
+			// Места разгрузки вложения: в этом view источник - attachment_unload_places
+			// (по attachment_id напрямую, #706), как в availableAttachmentSelect, а не через cars.
+			upCond, upArgs := ilikePatternsArgs([]string{"up.name"}, variants)
+			upSub := `EXISTS(SELECT 1 FROM attachment_unload_places aup
+				JOIN unload_places up ON up.id = aup.unload_place_id
+				WHERE aup.attachment_id = a.id AND (` + upCond + `))`
+
+			// Сотрудники этого вложения: ФИО/должность + опечатки.
+			empCond, empArgs := ilikePatternsArgs([]string{"e.last_name", "e.first_name", "e.middle_name", "e.position"}, variants)
+			empSub := `EXISTS(SELECT 1 FROM employees e
+				WHERE e.attachment_id = a.id AND (` + empCond + `
+					OR strict_word_similarity(?, concat_ws(' ', e.last_name, e.first_name, e.middle_name)) > 0.3))`
+
+			// Согласующие заявки: ФИО + комментарий + опечатки.
+			apprCond, apprArgs := ilikePatternsArgs([]string{"au.last_name", "au.first_name", "au.middle_name", "aru.approval_comment"}, variants)
+			apprSub := `EXISTS(SELECT 1 FROM application_responsible_users aru
+				JOIN users au ON au.id = aru.user_id
+				WHERE aru.application_id = app.id AND (` + apprCond + `
+					OR strict_word_similarity(?, concat_ws(' ', au.last_name, au.first_name, au.middle_name)) > 0.3))`
+
+			clauses = append(clauses, "("+baseCond+" OR "+carSub+" OR "+upSub+" OR "+empSub+" OR "+apprSub+")")
+			args = append(args, baseArgs...)
+			args = append(args, carArgs...)
+			if platePattern != "" {
+				args = append(args, platePattern)
+			}
+			args = append(args, upArgs...)
+			args = append(args, empArgs...)
+			args = append(args, s) // strict_word_similarity сотрудников
+			args = append(args, apprArgs...)
+			args = append(args, s) // strict_word_similarity согласующих
+		}
+	}
+
+	if len(clauses) == 0 {
+		return "", nil
+	}
+	return " AND " + strings.Join(clauses, " AND "), args
+}
+
 // IsSecurityUser сообщает, является ли аккаунт типом security (резолв по user_types.code,
 // образец CheckBuroByUsername). Несуществующий пользователь -> false без ошибки.
 func (s *applicationService) IsSecurityUser(ctx context.Context, userID int) (bool, error) {
@@ -140,7 +257,7 @@ func (s *applicationService) securityHasAnyPlace(ctx context.Context, userID int
 // образцу GetApplicationsPaginated (отдельный COUNT + страница). Супер-админ видит все вложения
 // подтверждённых заявок без фильтра по местам. Охранник без назначенных мест -> пустая страница
 // без основного запроса.
-func (s *applicationService) GetAvailableAttachmentsForSecurity(ctx context.Context, userID int, isSuperAdmin bool, page, perPage int) ([]AvailableAttachment, int64, error) {
+func (s *applicationService) GetAvailableAttachmentsForSecurity(ctx context.Context, userID int, isSuperAdmin bool, filter AvailableAttachmentFilters, page, perPage int) ([]AvailableAttachment, int64, error) {
 	page, perPage = normalizePage(page, perPage)
 
 	if !isSuperAdmin {
@@ -154,10 +271,13 @@ func (s *applicationService) GetAvailableAttachmentsForSecurity(ctx context.Cont
 	}
 
 	where, args := securityVisibilityWhere(userID, isSuperAdmin)
+	if filterWhere, filterArgs := availableAttachmentFilterWhere(filter); filterWhere != "" {
+		where += filterWhere
+		args = append(args, filterArgs...)
+	}
 
 	var total int64
-	countSQL := `SELECT COUNT(*) FROM attachments a
-		JOIN applications app ON app.id = a.application_id
+	countSQL := `SELECT COUNT(*) ` + availableAttachmentFrom + `
 		WHERE ` + where
 	if err := s.db.WithContext(ctx).Raw(countSQL, args...).Scan(&total).Error; err != nil {
 		return nil, 0, fmt.Errorf("failed to count available attachments: %w", err)
@@ -167,12 +287,7 @@ func (s *applicationService) GetAvailableAttachmentsForSecurity(ctx context.Cont
 	}
 
 	offset := (page - 1) * perPage
-	dataSQL := `SELECT ` + availableAttachmentSelect + `
-		FROM attachments a
-		JOIN applications app ON app.id = a.application_id
-		LEFT JOIN organizations o ON o.id = app.organization_id
-		LEFT JOIN companies c ON c.id = app.company_id
-		LEFT JOIN users su ON su.id = app.sender_user_id
+	dataSQL := `SELECT ` + availableAttachmentSelect + availableAttachmentFrom + `
 		WHERE ` + where + `
 		ORDER BY app.sending_datetime DESC NULLS LAST, a.id DESC
 		LIMIT ? OFFSET ?`
@@ -209,12 +324,7 @@ func (s *applicationService) CanSecurityViewAttachment(ctx context.Context, user
 // через CanSecurityViewAttachment. nil без ошибки означает "вложение не найдено" (явный сигнал
 // для 404, реальные ошибки БД пробрасываются).
 func (s *applicationService) GetAvailableAttachmentByID(ctx context.Context, attachmentID int) (*AvailableAttachment, error) {
-	sql := `SELECT ` + availableAttachmentSelect + `
-		FROM attachments a
-		JOIN applications app ON app.id = a.application_id
-		LEFT JOIN organizations o ON o.id = app.organization_id
-		LEFT JOIN companies c ON c.id = app.company_id
-		LEFT JOIN users su ON su.id = app.sender_user_id
+	sql := `SELECT ` + availableAttachmentSelect + availableAttachmentFrom + `
 		WHERE a.id = ?`
 
 	var row AvailableAttachment

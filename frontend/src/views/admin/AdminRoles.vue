@@ -216,6 +216,8 @@ import {
   listPermissionGroups,
 } from '@/api/permissions';
 import RefreshButton from '@/components/RefreshButton.vue';
+import { useDeletionsStore } from '@/stores/deletions';
+import { useUiStore } from '@/stores/ui';
 
 export default {
   name: 'AdminRoles',
@@ -304,12 +306,20 @@ export default {
       }
     },
     async confirmDelete(role) {
-      if (!confirm(`Удалить роль «${role.name}»? Если у неё есть юзеры, удаление будет отклонено бэкендом.`)) return;
+      const ok = await useUiStore().confirm({
+        title: 'Удалить роль?',
+        message: `Роль «${role.name}» будет удалена. Если у неё есть привязанные пользователи, бэкенд откажет.`,
+        confirmText: 'Удалить',
+        cancelText: 'Отмена',
+        danger: true,
+      });
+      if (!ok) return;
       try {
         await deleteRole(role.id);
         await this.fetchAll();
+        useDeletionsStore().notify({ prefix: 'Роль ', bold: role.name, suffix: ' удалена' });
       } catch {
-        alert('Ошибка удаления роли. Возможно, у неё есть привязанные пользователи.');
+        useDeletionsStore().notify({ prefix: 'Не удалось удалить ', bold: role.name, suffix: ': возможно, есть привязанные пользователи', type: 'error' });
       }
     },
   },

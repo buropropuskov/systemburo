@@ -3,12 +3,18 @@ import { mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 
 // FE-S3 (#706): вкладка "Доступные мне" - список доступных вложений + деталь.
-// Проверяем рендер списка, пустое состояние и защиту детали от гонки (#632):
-// быстрые клики не дают медленному ответу предыдущего вложения затереть актуальное.
+// FE-S6 (#706): панель поиска и фильтров (тип/организация/компания) + URL-как-state.
+// Проверяем рендер списка, пустое состояние, защиту детали от гонки (#632),
+// формирование query-параметров фильтрами и сброс пагинации при смене фильтра.
 
 vi.mock('@/api/applications', () => ({
   getAccessibleAttachments: vi.fn(),
   getAccessibleAttachmentDetail: vi.fn(),
+}));
+
+vi.mock('@/api/organizations', () => ({
+  getOrganizations: vi.fn(),
+  getCompanies: vi.fn(),
 }));
 
 const notify = vi.fn();
@@ -16,8 +22,21 @@ vi.mock('@/stores/deletions', () => ({
   useDeletionsStore: () => ({ notify }),
 }));
 
+// Роутер мокаем, чтобы тестировать URL-как-state без поднятия реального роутера:
+// route.query - источник стартовых фильтров, router.replace - запись фильтров в URL.
+const { routeState, replace } = vi.hoisted(() => ({
+  routeState: { query: {} },
+  replace: vi.fn(() => Promise.resolve()),
+}));
+vi.mock('vue-router', () => ({
+  useRoute: () => ({ query: routeState.query }),
+  useRouter: () => ({ replace }),
+}));
+
 import AccessibleAttachmentsView from '@/views/AccessibleAttachmentsView.vue';
+import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import { getAccessibleAttachments, getAccessibleAttachmentDetail } from '@/api/applications';
+import { getOrganizations, getCompanies } from '@/api/organizations';
 
 const stubs = {
   AdminPageShell: { template: '<div><slot /></div>' },
@@ -44,7 +63,8 @@ function makeItem(id, over = {}) {
   };
 }
 
-function mountView() {
+function mountView(query = {}) {
+  routeState.query = query;
   return mount(AccessibleAttachmentsView, { global: { stubs } });
 }
 
@@ -53,6 +73,9 @@ let wrapper;
 beforeEach(() => {
   setActivePinia(createPinia());
   vi.clearAllMocks();
+  routeState.query = {};
+  getOrganizations.mockResolvedValue([]);
+  getCompanies.mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -139,5 +162,103 @@ describe('AccessibleAttachmentsView (FE-S3)', () => {
 
     // Деталь показывает вложение 2 (актуальный выбор), а не затёртое первым ответом.
     expect(wrapper.find('.detail-stub').text()).toBe('2');
+  });
+});
+
+describe('AccessibleAttachmentsView (FE-S6) фильтры', () => {
+  it('восстанавливает фильтры из query при загрузке (URL-как-state)', async () => {
+    getAccessibleAttachments.mockResolvedValue({ items: [], meta: { total: 0 } });
+    wrapper = mountView({ type: 'cars', search: 'абв', organization: '7' });
+    await flushPromises();
+
+    expect(getAccessibleAttachments).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attachment_type: 'cars',
+        search: 'абв',
+        organization_id: 7,
+        page: 1,
+        per_page: 30,
+      }),
+    );
+  });
+
+  it('смена типа шлёт attachment_type, пишет URL и сбрасывает страницу на 1', async () => {
+    getAccessibleAttachments.mockResolvedValue({
+      items: [makeItem(1)],
+      meta: { total: 60, page: 1, per_page: 30 },
+    });
+    wrapper = mountView();
+    await flushPromises();
+
+    // Подгружаем вторую страницу через "Показать ещё" - страница становится 2.
+    await wrapper.find('[data-testid="aa-load-more"]').trigger('click');
+    await flushPromises();
+    getAccessibleAttachments.mockClear();
+
+    const dropdowns = wrapper.findAllComponents(BaseDropdown);
+    dropdowns[0].vm.$emit('update:modelValue', 'cars'); // тип вложения
+    await flushPromises();
+
+    expect(getAccessibleAttachments).toHaveBeenCalledWith(
+      expect.objectContaining({ attachment_type: 'cars', page: 1 }),
+    );
+    expect(replace).toHaveBeenLastCalledWith({ query: { type: 'cars' } });
+  });
+
+  it('смена организации шлёт organization_id числом и пишет URL', async () => {
+    getAccessibleAttachments.mockResolvedValue({ items: [], meta: { total: 0 } });
+    getOrganizations.mockResolvedValue([{ id: 7, name: 'ООО Ромашка' }]);
+    wrapper = mountView();
+    await flushPromises();
+    getAccessibleAttachments.mockClear();
+
+    const dropdowns = wrapper.findAllComponents(BaseDropdown);
+    dropdowns[1].vm.$emit('update:modelValue', 7); // организация
+    await flushPromises();
+
+    expect(getAccessibleAttachments).toHaveBeenCalledWith(
+      expect.objectContaining({ organization_id: 7, page: 1 }),
+    );
+    expect(replace).toHaveBeenLastCalledWith({ query: { organization: '7' } });
+  });
+
+  it('поиск применяется после debounce и шлёт search', async () => {
+    vi.useFakeTimers();
+    try {
+      getAccessibleAttachments.mockResolvedValue({ items: [], meta: { total: 0 } });
+      wrapper = mountView();
+      // advanceTimersByTimeAsync прокручивает микротаски между таймерами - так
+      // под фейковыми таймерами дорешиваются промисы onMounted-запросов.
+      await vi.advanceTimersByTimeAsync(0);
+      getAccessibleAttachments.mockClear();
+
+      await wrapper.find('[data-testid="aa-search"]').setValue('ромашка');
+      // До истечения debounce (300мс) запроса нет.
+      expect(getAccessibleAttachments).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(300);
+
+      expect(getAccessibleAttachments).toHaveBeenCalledWith(
+        expect.objectContaining({ search: 'ромашка', page: 1 }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('сброс фильтров очищает query-параметры и URL', async () => {
+    getAccessibleAttachments.mockResolvedValue({ items: [], meta: { total: 0 } });
+    wrapper = mountView({ type: 'cars', search: 'абв' });
+    await flushPromises();
+    getAccessibleAttachments.mockClear();
+
+    await wrapper.find('[data-testid="aa-filter-reset"]').trigger('click');
+    await flushPromises();
+
+    const lastArg = getAccessibleAttachments.mock.calls.at(-1)[0];
+    expect(lastArg).not.toHaveProperty('attachment_type');
+    expect(lastArg).not.toHaveProperty('search');
+    expect(lastArg).toMatchObject({ page: 1, per_page: 30 });
+    expect(replace).toHaveBeenLastCalledWith({ query: {} });
   });
 });

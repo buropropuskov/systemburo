@@ -48,120 +48,118 @@
     </Teleport>
 
     <div class="create__container">
-      <BlankSelector
-        ref="blankSelector"
-        data-testid="ob-app-selector"
-        :attachments="attachments"
-        :current-application-data="currentApplicationData"
-        @attachment-selected="handleAttachmentSelected"
-        @attachment-added="handleAttachmentAdded"
-        @attachment-removed="handleAttachmentRemoved"
-      />
+      <div class="create__left-col">
+        <BlankSelector
+          ref="blankSelector"
+          data-testid="ob-app-selector"
+          :attachments="attachments"
+          :current-application-data="currentApplicationData"
+          @attachment-selected="handleAttachmentSelected"
+          @attachment-added="handleAttachmentAdded"
+          @attachment-removed="handleAttachmentRemoved"
+        />
+        <!-- Согласие и отправка — под BlankSelector в левой колонке -->
+        <div class="form__submit-bar">
+          <div class="consent-section">
+            <div class="consent-checkbox">
+              <input
+                id="consent"
+                v-model="consentGiven"
+                type="checkbox"
+                data-testid="create-app-consent-checkbox"
+                required
+              >
+              <label for="consent">
+                Даю <span class="blue">согласие</span> на обработку, хранение, передачу
+                персональных данных, изложенных в заявке
+              </label>
+            </div>
+            <div
+              class="submit-button-container"
+              :data-testid="'create-app-submit-wrapper'"
+              @mouseenter="tooltipMouseEnter"
+              @mouseleave="tooltipMouseLeave"
+            >
+              <button
+                class="send-all-btn"
+                data-testid="create-app-button-submit"
+                :disabled="!canSubmit"
+                @click="submitApplication"
+              >
+                Отправить заявку
+              </button>
+              <div
+                v-if="showSubmitTooltip && !canSubmit && tooltipSections.length"
+                class="submit-tooltip"
+                @mouseenter="tooltipMouseEnter"
+                @mouseleave="tooltipMouseLeave"
+                @click="handleTooltipClick"
+              >
+                <div class="tooltip-content">
+                  <div
+                    v-for="(section, idx) in tooltipSections"
+                    :key="idx"
+                    class="tooltip-section"
+                  >
+                    <div
+                      v-if="section.type === 'global'"
+                      class="tooltip-global"
+                    >
+                      <div class="tooltip-section-title">
+                        Необходимо заполнить:
+                      </div>
+                      <ul>
+                        <li
+                          v-for="(msg, i) in section.messages"
+                          :key="i"
+                        >
+                          {{ msg }}
+                        </li>
+                      </ul>
+                    </div>
+                    <div
+                      v-else-if="section.type === 'attachment'"
+                      class="tooltip-attachment"
+                    >
+                      <div class="tooltip-attachment-title">
+                        <span
+                          class="attachment-clickable"
+                          :data-attachment-key="section.attachmentKey"
+                          @click="handleTooltipAttachmentClick(section)"
+                        >
+                          Вложение "{{ section.attachmentName }}"
+                        </span>
+                      </div>
+                      <ul>
+                        <li
+                          v-for="(msg, i) in section.messages"
+                          :key="i"
+                        >
+                          {{ msg }}
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div
         v-if="selectedAttachment"
         class="create__form"
         data-testid="ob-app-form"
       >
-        <!-- 1 ряд: Письмо сопроводительное, Согласие, Отправка -->
+        <!-- 1 ряд: Письмо сопроводительное -->
         <div class="form__header">
-          <div class="header__content">
-            <TextConstructor
-              v-model="message"
-              class="form__message-tc"
-              :rows="3"
-              placeholder="Введите сопроводительное письмо / сообщение"
-            >
-              <template #header-actions>
-                <div class="header__right">
-                  <div class="consent-section">
-                    <div class="consent-checkbox">
-                      <input
-                        id="consent"
-                        v-model="consentGiven"
-                        type="checkbox"
-                        data-testid="create-app-consent-checkbox"
-                        required
-                      >
-                      <label for="consent">
-                        Даю <span class="blue">согласие</span> на обработку, хранение, передачу
-                        персональных данных, изложенных в заявке
-                      </label>
-                    </div>
-                    <div
-                      class="submit-button-container"
-                      :data-testid="'create-app-submit-wrapper'"
-                      @mouseenter="tooltipMouseEnter"
-                      @mouseleave="tooltipMouseLeave"
-                    >
-                      <button
-                        class="send-all-btn"
-                        data-testid="create-app-button-submit"
-                        :disabled="!canSubmit"
-                        @click="submitApplication"
-                      >
-                        Отправить заявку
-                      </button>
-                      <div
-                        v-if="showSubmitTooltip && !canSubmit && tooltipSections.length"
-                        class="submit-tooltip"
-                        @mouseenter="tooltipMouseEnter"
-                        @mouseleave="tooltipMouseLeave"
-                        @click="handleTooltipClick"
-                      >
-                        <div class="tooltip-content">
-                          <div
-                            v-for="(section, idx) in tooltipSections"
-                            :key="idx"
-                            class="tooltip-section"
-                          >
-                            <div
-                              v-if="section.type === 'global'"
-                              class="tooltip-global"
-                            >
-                              <div class="tooltip-section-title">
-                                Необходимо заполнить:
-                              </div>
-                              <ul>
-                                <li
-                                  v-for="(msg, i) in section.messages"
-                                  :key="i"
-                                >
-                                  {{ msg }}
-                                </li>
-                              </ul>
-                            </div>
-                            <div
-                              v-else-if="section.type === 'attachment'"
-                              class="tooltip-attachment"
-                            >
-                              <div class="tooltip-attachment-title">
-                                <span
-                                  class="attachment-clickable"
-                                  :data-attachment-key="section.attachmentKey"
-                                  @click="handleTooltipAttachmentClick(section)"
-                                >
-                                  Вложение "{{ section.attachmentName }}"
-                                </span>
-                              </div>
-                              <ul>
-                                <li
-                                  v-for="(msg, i) in section.messages"
-                                  :key="i"
-                                >
-                                  {{ msg }}
-                                </li>
-                              </ul>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </template>
-            </TextConstructor>
-          </div>
+          <TextConstructor
+            v-model="message"
+            class="form__message-tc"
+            :rows="3"
+            placeholder="Введите сопроводительное письмо / сообщение"
+          />
         </div>
 
         <!-- 2 ряд: Организация, Компания, Ответственное лицо -->
@@ -345,6 +343,7 @@
 import { sanitizeHtml } from '@/utils/sanitize'
 import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
+import { useDeletionsStore } from '@/stores/deletions'
 import { formatPhoneNumberImmediately, formatPhoneNumber, clearPhoneFormat } from '@/composables/usePhoneFormat'
 import BlankSelector from '../BlankSelector.vue';
 import UserInfoRow from './UserInfoRow.vue';
@@ -1582,7 +1581,7 @@ export default {
             this.validateAllFields();
             
             if (!this.canSubmit) {
-                alert('Заполните все обязательные поля во всех вложениях');
+                useDeletionsStore().notify({ prefix: 'Заполните все обязательные поля во всех вложениях', type: 'error' });
                 return;
             }
 
@@ -1590,8 +1589,8 @@ export default {
   const activeVehicles = await this.checkVehiclesBeforeSubmit();
   
   if (activeVehicles.length > 0) {
-    const vehicleList = activeVehicles.map(v => `${v.plateNumber} ${v.mark}`).join('\n');
-    alert(`Невозможно отправить заявку. Следующие автомобили уже имеют активные заявки:\n${vehicleList}`);
+    const vehicleList = activeVehicles.map(v => `${v.plateNumber} ${v.mark}`).join(', ');
+    useDeletionsStore().notify({ prefix: 'Невозможно отправить заявку. Уже имеют активные заявки: ', bold: vehicleList, type: 'error' });
     return;
   }
 
@@ -1614,7 +1613,7 @@ export default {
             });
 
             if (hasDateErrors) {
-                alert(errorMessage);
+                useDeletionsStore().notify({ prefix: errorMessage, type: 'error' });
                 return;
             }
 
@@ -1830,17 +1829,17 @@ export default {
             };
             
             if (this.$refs.blankSelector) {
-                this.$refs.blankSelector.clearAttachments();
+                this.$refs.blankSelector.clearSelection();
             }
             this.selectedAttachment = null;
             this.attachments = [];
-            
+
             this.clearLocalStorageAfterSubmit();
         },
 
         async sendCompleteApplication() {
             if (this.attachments.length === 0) {
-                alert('Добавьте вложения для отправки');
+                useDeletionsStore().notify({ prefix: 'Добавьте вложения для отправки', type: 'error' });
                 return;
             }
 
@@ -1930,7 +1929,7 @@ export default {
             try {
                 const authStore = useAuthStore();
                 if (!authStore.token) {
-                    alert('Токен не найден');
+                    useDeletionsStore().notify({ prefix: 'Токен не найден', type: 'error' });
                     return;
                 }
 
@@ -2015,11 +2014,11 @@ export default {
                 } else {
                     const errorText = await response.text();
                     console.error('Ошибка отправки заявки:', errorText);
-                    alert('Ошибка отправки заявки: ' + errorText);
+                    useDeletionsStore().notify({ prefix: 'Ошибка отправки заявки: ', bold: errorText, type: 'error' });
                 }
             } catch (error) {
                 console.error('Ошибка отправки заявки:', error);
-                alert(`Произошла ошибка при отправке заявки: ${error.message}`);
+                useDeletionsStore().notify({ prefix: 'Произошла ошибка при отправке заявки: ', bold: error.message, type: 'error' });
             }
         },
         
@@ -2094,8 +2093,6 @@ export default {
         },
 
         resetForm() {
-            this.clearFormData();
-
             this.applicationNumber++;
 
             this.vehiclesByAttachment = {};
@@ -2109,21 +2106,33 @@ export default {
             this.vehicleIdCounter = 1;
             this.employeeIdCounter = 1;
             this.itemIdCounter = 1;
-            
+
             this.vehicleFormKey += 1;
             this.employeeFormKey += 1;
             this.itemsFormKey += 1;
 
             this.organizationId = null;
             this.companyId = null;
-            
+
+            this.message = '';
+            this.consentGiven = false;
+            this.applicationUnloadPlaces = [];
+
+            this.errors = {
+                organization: '',
+                company: '',
+                responsiblePerson: '',
+                phone: ''
+            };
+
             this.loadUserData();
-            
+
             if (this.$refs.blankSelector) {
-                this.$refs.blankSelector.clearAttachments();
+                this.$refs.blankSelector.clearSelection();
             }
             this.selectedAttachment = null;
-            
+            this.attachments = [];
+
             this.clearLocalStorageAfterSubmit();
         },
 
@@ -2314,6 +2323,13 @@ export default {
         gap: 15px;
     }
 
+    .create__left-col {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        flex-shrink: 0;
+    }
+
     .tables__instruction {
         width: fit-content;
         font-size: 14px;
@@ -2352,15 +2368,11 @@ export default {
 
     .form__header {
         width: 100%;
-        min-height: 80px;
         border-bottom: 1px solid #e6e6e6;
         padding: 15px;
-    }
-
-    .header__content {
         display: flex;
-        gap: 20px;
-        align-items: flex-start;
+        flex-direction: column;
+        gap: 12px;
     }
 
     .create__form .form__message-tc {
@@ -2377,21 +2389,27 @@ export default {
         padding: 0 6px;
     }
 
-    .header__right {
+    /* Блок согласия+кнопка отправки — под BlankSelector в левой колонке */
+    .form__submit-bar {
         display: flex;
-        align-items: center;
+        flex-direction: column;
+        gap: 10px;
+        padding: 12px;
+        background: #FFF;
+        border: 1px solid #e6e6e6;
+        border-radius: 15px;
+        box-shadow: 0 3px 10px rgba(0,0,0,0.05);
     }
 
     .consent-section {
         display: flex;
-        align-items: center;
-        gap: 16px;
+        flex-direction: column;
+        gap: 10px;
     }
 
     .consent-checkbox {
         display: flex;
         gap: 10px;
-        max-width: 350px;
     }
 
     .consent-checkbox input[type="checkbox"] {
@@ -2415,8 +2433,8 @@ export default {
 
     .submit-tooltip {
         position: absolute;
-        right: 100%;
-        margin-right: 8px;
+        left: 100%;
+        margin-left: 8px;
         top: 0;
         background: #333;
         color: white;
@@ -2436,9 +2454,9 @@ export default {
         content: '';
         position: absolute;
         top: 8px;
-        left: 100%;
+        right: 100%;
         border: 5px solid transparent;
-        border-left-color: #333;
+        border-right-color: #333;
     }
 
     .tooltip-content {
@@ -2586,16 +2604,13 @@ export default {
             padding: 12px;
         }
 
-        .header__content {
-            flex-direction: column;
-            gap: 12px;
+        .create__left-col {
+            flex-direction: row;
+            flex-wrap: wrap;
+            align-items: flex-start;
         }
 
         .form__textarea {
-            width: 100%;
-        }
-
-        .header__right {
             width: 100%;
         }
     }

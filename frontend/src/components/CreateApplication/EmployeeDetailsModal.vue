@@ -694,7 +694,7 @@ export default {
         showTableDetails(tableId) {
             const tableData = this.allTables.find(t => (t.table && t.table.id === tableId) || t.id === tableId);
             if (!tableData) {
-                alert('Информация о месте прохода недоступна');
+                useDeletionsStore().notify({ bold: 'Информация о месте прохода недоступна', type: 'error' });
                 return;
             }
             this.selectedTable = {
@@ -914,7 +914,7 @@ export default {
                 a.href = url;
                 a.click();
                 window.URL.revokeObjectURL(url);
-            } catch (e) { console.error(e); alert('Ошибка экспорта'); } finally { this.isExporting = false; }
+            } catch (e) { console.error(e); useDeletionsStore().notify({ bold: 'Ошибка экспорта в Excel', type: 'error' }); } finally { this.isExporting = false; }
         },
 
         openFullHistory() {

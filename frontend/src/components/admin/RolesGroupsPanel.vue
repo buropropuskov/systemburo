@@ -164,6 +164,7 @@ import {
 } from '@/api/permissions';
 import { apiRequest } from '@/api/client';
 import { useDeletionsStore } from '@/stores/deletions';
+import { useUiStore } from '@/stores/ui';
 
 /**
  * Контентная панель «Роль и группы» (роль + дополнительные группы + блокировка + merge).
@@ -255,7 +256,14 @@ export default {
       }
     },
     async handleBan() {
-      if (!confirm('Заблокировать пользователя? Все его активные сессии будут завершены.')) return;
+      const ok = await useUiStore().confirm({
+        title: 'Заблокировать пользователя?',
+        message: 'Все активные сессии пользователя будут завершены.',
+        confirmText: 'Заблокировать',
+        cancelText: 'Отмена',
+        danger: true,
+      });
+      if (!ok) return;
       this.actionLoading = true;
       try {
         await banUser(this.user.id);
@@ -270,7 +278,14 @@ export default {
       }
     },
     async handleUnban() {
-      if (!confirm('Снять блокировку?')) return;
+      const ok = await useUiStore().confirm({
+        title: 'Снять блокировку?',
+        message: `Пользователь ${this.user?.username || ''} получит доступ к системе.`,
+        confirmText: 'Разблокировать',
+        cancelText: 'Отмена',
+        danger: false,
+      });
+      if (!ok) return;
       this.actionLoading = true;
       try {
         await unbanUser(this.user.id);

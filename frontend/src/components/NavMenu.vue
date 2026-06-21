@@ -621,6 +621,7 @@ export default {
             { label: 'Типы пользователей', icon: 'user-types', path: '/admin/user-types' },
             { label: 'Принимающие', icon: 'approvers', path: '/admin/approvers' },
             { label: 'Документы', icon: 'documents', path: '/admin/documents' },
+            { label: 'Новости и объявления', icon: 'news', path: '/admin/news' },
           ],
         },
         {
@@ -977,7 +978,10 @@ export default {
         const count = data.count || 0
         // Звук только при РОСТЕ счётчика после первичной загрузки (не на логине) и не чаще
         // кулдауна - пачка заявок в одном опросе даёт +N за раз = один звук.
-        if (this.soundPrimed && count > this.newApplicationsCount && this.soundStore.enabled) {
+        // Звук только вне Центра заявок: когда пользователь на /center,
+        // ApplicationsCenter сам играет звук при prepend новых заявок.
+        if (this.soundPrimed && count > this.newApplicationsCount && this.soundStore.enabled &&
+            this.$route?.path !== '/center') {
           const now = Date.now()
           if (now - this.lastSoundAt > SOUND_COOLDOWN_MS) {
             playPreset(this.soundStore.selectedPreset, this.soundStore.volume)

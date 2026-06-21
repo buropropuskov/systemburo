@@ -124,6 +124,7 @@
 <script>
 import { apiRequest } from '@/api/client'
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
+import { useUiStore } from '@/stores/ui'
 
 export default {
   name: 'UserNotificationsInline',
@@ -205,7 +206,14 @@ export default {
     },
 
     async clearAll() {
-      if (!window.confirm('Вы уверены, что хотите удалить все уведомления?')) return
+      const ok = await useUiStore().confirm({
+        title: 'Очистить уведомления?',
+        message: 'Все уведомления будут удалены.',
+        confirmText: 'Очистить',
+        cancelText: 'Отмена',
+        danger: false,
+      })
+      if (!ok) return
       try {
         const response = await apiRequest('/notifications', { method: 'DELETE' })
         if (response.ok) {

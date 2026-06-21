@@ -80,14 +80,14 @@ jobs:
         run: |
           nohup ./bin/server > backend.log 2>&1 &
           echo $! > backend.pid
-          for i in $(seq 1 60); do
+          for i in $(seq 1 120); do
             if curl -sf http://localhost:8080/health > /dev/null; then
               echo "backend ready after ${i}s"
               exit 0
             fi
             sleep 1
           done
-          echo "::error::backend did not become healthy in 60s"
+          echo "::error::backend did not become healthy in 120s"
           echo "--- backend.log ---"
           cat backend.log || true
           exit 1

@@ -326,8 +326,23 @@ export default {
         },
 
         selectAttachment(attachment) {
-            this.selectedAttachment = attachment;
-            this.$emit('attachment-selected', attachment);
+            // Инструкция принадлежит ТИПУ вложения (админка) и могла измениться после
+            // добавления черновика - объект вложения хранит снапшот на момент добавления.
+            // Берём актуальную инструкцию из загруженных шаблонов, иначе восстановленный
+            // черновик (или тип, которому инструкцию дописали позже) не покажет кнопку.
+            const enriched = this.withCurrentInstruction(attachment);
+            this.selectedAttachment = enriched;
+            this.$emit('attachment-selected', enriched);
+        },
+
+        withCurrentInstruction(attachment) {
+            if (!attachment) return attachment;
+            const templateId = attachment.template_id || attachment.id;
+            const template = this.allTemplates.find(t => t.id === templateId);
+            if (template && template.instruction !== attachment.instruction) {
+                return { ...attachment, instruction: template.instruction };
+            }
+            return attachment;
         },
 
         confirmDelete(attachment) {
@@ -421,6 +436,7 @@ export default {
 <style scoped>
 .selector {
     width: 200px;
+    flex-shrink: 0;
     height: 490px;
     border-radius: 30px;
     border: 1px solid #e6e6e6;

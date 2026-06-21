@@ -155,7 +155,7 @@ func TestGetAvailableAttachments_MatchByUnloadPlace(t *testing.T) {
 	foreignAtt := w.newAttachment(t, app, "cars")
 	w.attachPlace(t, foreignAtt, otherPlace)
 
-	rows, total, err := w.svc.GetAvailableAttachmentsForSecurity(ctx, w.guardID, false, 1, 50)
+	rows, total, err := w.svc.GetAvailableAttachmentsForSecurity(ctx, w.guardID, false, services.AvailableAttachmentFilters{}, 1, 50)
 	require.NoError(t, err)
 	require.EqualValues(t, 2, total)
 	require.True(t, secContainsAttachment(rows, carsAtt), "cars at guard place visible")
@@ -177,7 +177,7 @@ func TestGetAvailableAttachments_PeopleMatchByTable(t *testing.T) {
 	foreignAtt := w.newAttachment(t, app, "people")
 	w.attachEmployeeWithTable(t, foreignAtt, otherTable)
 
-	rows, total, err := w.svc.GetAvailableAttachmentsForSecurity(ctx, w.guardID, false, 1, 50)
+	rows, total, err := w.svc.GetAvailableAttachmentsForSecurity(ctx, w.guardID, false, services.AvailableAttachmentFilters{}, 1, 50)
 	require.NoError(t, err)
 	require.EqualValues(t, 1, total)
 	require.True(t, secContainsAttachment(rows, peopleAtt), "people at guard passage visible")
@@ -199,7 +199,7 @@ func TestGetAvailableAttachments_ApprovedGate(t *testing.T) {
 	pendingAtt := w.newAttachment(t, pendingApp, "cars")
 	w.attachPlace(t, pendingAtt, myPlace)
 
-	rows, total, err := w.svc.GetAvailableAttachmentsForSecurity(ctx, w.guardID, false, 1, 50)
+	rows, total, err := w.svc.GetAvailableAttachmentsForSecurity(ctx, w.guardID, false, services.AvailableAttachmentFilters{}, 1, 50)
 	require.NoError(t, err)
 	require.EqualValues(t, 1, total)
 	require.True(t, secContainsAttachment(rows, approvedAtt))
@@ -221,7 +221,7 @@ func TestGetAvailableAttachments_SuperAdminSeesAllApproved(t *testing.T) {
 	pendingAtt := w.newAttachment(t, pendingApp, "cars")
 	w.attachPlace(t, pendingAtt, place)
 
-	rows, total, err := w.svc.GetAvailableAttachmentsForSecurity(ctx, w.guardID, true, 1, 50)
+	rows, total, err := w.svc.GetAvailableAttachmentsForSecurity(ctx, w.guardID, true, services.AvailableAttachmentFilters{}, 1, 50)
 	require.NoError(t, err)
 	require.EqualValues(t, 1, total, "super-admin sees approved regardless of place, still approved-gated")
 	require.True(t, secContainsAttachment(rows, approvedAtt))
@@ -238,7 +238,7 @@ func TestGetAvailableAttachments_NoPlacesEmpty(t *testing.T) {
 	att := w.newAttachment(t, app, "cars")
 	w.attachPlace(t, att, place)
 
-	rows, total, err := w.svc.GetAvailableAttachmentsForSecurity(ctx, w.guardID, false, 1, 50)
+	rows, total, err := w.svc.GetAvailableAttachmentsForSecurity(ctx, w.guardID, false, services.AvailableAttachmentFilters{}, 1, 50)
 	require.NoError(t, err)
 	require.EqualValues(t, 0, total)
 	require.Empty(t, rows)
@@ -256,7 +256,7 @@ func TestGetAvailableAttachments_AttachmentWithoutPlacesHidden(t *testing.T) {
 	app := w.newApp(t, models.ConfirmationApproved)
 	att := w.newAttachment(t, app, "cars")
 
-	rows, total, err := w.svc.GetAvailableAttachmentsForSecurity(ctx, w.guardID, false, 1, 50)
+	rows, total, err := w.svc.GetAvailableAttachmentsForSecurity(ctx, w.guardID, false, services.AvailableAttachmentFilters{}, 1, 50)
 	require.NoError(t, err)
 	require.EqualValues(t, 0, total)
 	require.False(t, secContainsAttachment(rows, att), "attachment without places must not leak")
@@ -278,7 +278,7 @@ func TestGetAvailableAttachments_InactivePlaceStillMatches(t *testing.T) {
 	att := w.newAttachment(t, app, "items")
 	w.attachPlace(t, att, inactivePlace)
 
-	rows, total, err := w.svc.GetAvailableAttachmentsForSecurity(ctx, w.guardID, false, 1, 50)
+	rows, total, err := w.svc.GetAvailableAttachmentsForSecurity(ctx, w.guardID, false, services.AvailableAttachmentFilters{}, 1, 50)
 	require.NoError(t, err)
 	require.EqualValues(t, 1, total)
 	require.True(t, secContainsAttachment(rows, att), "inactive place still grants visibility")
@@ -305,7 +305,7 @@ func TestGetAvailableAttachments_IndependentFromForwardAttachments(t *testing.T)
 		AttachmentID:    attB,
 	}).Error)
 
-	rows, total, err := w.svc.GetAvailableAttachmentsForSecurity(ctx, w.guardID, false, 1, 50)
+	rows, total, err := w.svc.GetAvailableAttachmentsForSecurity(ctx, w.guardID, false, services.AvailableAttachmentFilters{}, 1, 50)
 	require.NoError(t, err)
 	require.EqualValues(t, 2, total, "forward_attachments must not restrict security visibility")
 	require.True(t, secContainsAttachment(rows, attA))
@@ -325,12 +325,12 @@ func TestGetAvailableAttachments_Pagination(t *testing.T) {
 		w.attachPlace(t, att, myPlace)
 	}
 
-	page1, total, err := w.svc.GetAvailableAttachmentsForSecurity(ctx, w.guardID, false, 1, 2)
+	page1, total, err := w.svc.GetAvailableAttachmentsForSecurity(ctx, w.guardID, false, services.AvailableAttachmentFilters{}, 1, 2)
 	require.NoError(t, err)
 	require.EqualValues(t, 5, total, "total counts all matches, not page size")
 	require.Len(t, page1, 2)
 
-	page3, total, err := w.svc.GetAvailableAttachmentsForSecurity(ctx, w.guardID, false, 3, 2)
+	page3, total, err := w.svc.GetAvailableAttachmentsForSecurity(ctx, w.guardID, false, services.AvailableAttachmentFilters{}, 3, 2)
 	require.NoError(t, err)
 	require.EqualValues(t, 5, total)
 	require.Len(t, page3, 1, "last page holds the remainder")

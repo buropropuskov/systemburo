@@ -185,8 +185,8 @@ type ApplicationService interface {
 
 	// GetAvailableAttachmentsForSecurity возвращает страницу вложений подтверждённых заявок,
 	// доступных охраннику по совпадению мест (#706), и общее количество. Супер-админ - без
-	// фильтра по местам.
-	GetAvailableAttachmentsForSecurity(ctx context.Context, userID int, isSuperAdmin bool, page, perPage int) ([]AvailableAttachment, int64, error)
+	// фильтра по местам. filter (BE-S6) опционально сужает выдачу поверх гейта видимости.
+	GetAvailableAttachmentsForSecurity(ctx context.Context, userID int, isSuperAdmin bool, filter AvailableAttachmentFilters, page, perPage int) ([]AvailableAttachment, int64, error)
 
 	// CanSecurityViewAttachment сообщает, доступно ли конкретное вложение охраннику по тем же
 	// правилам, что и листинг (#706). Для 403 на чужое вложение в детальном эндпоинте.
@@ -615,7 +615,7 @@ func (s *applicationService) GetApplications(ctx context.Context, username strin
 
 	query = applyApplicationAccessFilter(query, user.ID, isApprover)
 
-	query = applyApplicationFilters(query, filter, false)
+	query = applyApplicationFilters(query, filter, true)
 	query = query.Order("a.sending_datetime DESC")
 
 	rows := make([]ApplicationWithDetails, 0)
@@ -637,7 +637,7 @@ func (s *applicationService) buildApplicationsBaseQuery(ctx context.Context, use
 
 	query = applyApplicationAccessFilter(query, userID, isApprover)
 
-	return applyApplicationFilters(query, filter, false)
+	return applyApplicationFilters(query, filter, true)
 }
 
 // GetApplicationsPaginated возвращает страницу заявок с общим количеством.

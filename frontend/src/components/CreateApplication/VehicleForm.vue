@@ -360,7 +360,7 @@
 import { apiRequest } from '@/api/client'
 import { checkVehicleBlacklist } from '@/api/blacklist'
 import { useAuthStore } from '@/stores/auth'
-import { useToast } from '@/composables/useToast'
+import { useDeletionsStore } from '@/stores/deletions'
 import { useFormValidation } from '@/composables/useFormValidation'
 import { validatePartValue, formatPartValue, initializeNumberParts } from '@/composables/useNumberFormat'
 import { useFieldConfig } from '@/composables/useFieldConfig'
@@ -414,7 +414,6 @@ export default {
     emits: ['edit-cancelled', 'vehicle-added', 'vehicle-updated', 'vehicles-added', 'update:unload-places'],
     setup(props) {
         const instance = getCurrentInstance()
-        const toast = useToast()
         // Геттер сохраняет реактивность пропса fieldConfig (#529).
         const { fieldVisible, fieldRequired } = useFieldConfig(() => props.fieldConfig)
 
@@ -452,7 +451,7 @@ export default {
             ]
         })
 
-        return { canAddVehicle: isValid, getTooltipMessage: tooltipMessage, showTooltip, toast, fieldVisible, fieldRequired }
+        return { canAddVehicle: isValid, getTooltipMessage: tooltipMessage, showTooltip, fieldVisible, fieldRequired }
     },
     data() {
         return {
@@ -664,7 +663,7 @@ export default {
                             const activeAttachedPlaces = this.attachedUnloadingPlaces.filter(place => place.status === 'active');
                             this.selectedUnloadingPlaces = activeAttachedPlaces.map(place => place.id);
                             if (this.selectedUnloadingPlaces.length > 0) {
-                                this.toast.success('Место разгрузки выбрано автоматически для вашей организации');
+                                useDeletionsStore().notify({ prefix: 'Место разгрузки выбрано автоматически для вашей', bold: ' организации' });
                             }
                         }
                     }
@@ -678,7 +677,7 @@ export default {
                             const activeAttachedPlaces = this.attachedUnloadingPlaces.filter(place => place.status === 'active');
                             this.selectedUnloadingPlaces = activeAttachedPlaces.map(place => place.id);
                             if (this.selectedUnloadingPlaces.length > 0) {
-                                this.toast.success('Место разгрузки выбрано автоматически для вашей компании');
+                                useDeletionsStore().notify({ prefix: 'Место разгрузки выбрано автоматически для вашей', bold: ' компании' });
                             }
                         }
                     }
@@ -838,7 +837,7 @@ export default {
 
             // Проверка активной заявки
             if (this.activeCarInfo && !this.isNumberByFact) {
-                alert('Невозможно добавить автомобиль, на который уже есть активная заявка');
+                useDeletionsStore().notify({ prefix: 'Невозможно добавить автомобиль: ', bold: 'на него уже есть активная заявка', type: 'error' });
                 return;
             }
             
@@ -914,12 +913,12 @@ export default {
 
         addExistingCars() {
             if (this.selectedExistingCars.length === 0) {
-                alert('Выберите машины для добавления');
+                useDeletionsStore().notify({ bold: 'Выберите машины для добавления', type: 'error' });
                 return;
             }
 
             if (this.selectedUnloadingPlaces.length === 0) {
-                alert('Выберите места разгрузки');
+                useDeletionsStore().notify({ bold: 'Выберите места разгрузки', type: 'error' });
                 return;
             }
 
@@ -1162,9 +1161,8 @@ export default {
     padding: 10px 12px;
     border-radius: 8px;
     font-size: 12px;
-    max-width: 419px;
-    white-space: normal;
-    word-break: break-word;
+    max-width: 420px;
+    min-width: 420px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
 

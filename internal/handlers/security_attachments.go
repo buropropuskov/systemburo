@@ -44,8 +44,12 @@ func (h *ApplicationHandler) requireSecurityOrAdmin(c echo.Context) (int, bool, 
 // @Tags         applications
 // @Produce      json
 // @Security     BearerAuth
-// @Param        page     query int false "Номер страницы"
-// @Param        per_page query int false "Размер страницы"
+// @Param        page            query int    false "Номер страницы"
+// @Param        per_page        query int    false "Размер страницы"
+// @Param        search          query string false "Поиск по номеру заявки, имени вложения и ФИО отправителя"
+// @Param        attachment_type query string false "Тип вложения: cars/people/items"
+// @Param        organization_id query int    false "ID организации"
+// @Param        company_id      query int    false "ID компании"
 // @Success      200 {array}  services.AvailableAttachment
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
@@ -57,6 +61,11 @@ func (h *ApplicationHandler) GetAvailableAttachments(c echo.Context) error {
 		return err
 	}
 
+	var filter services.AvailableAttachmentFilters
+	if err := c.Bind(&filter); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+
 	var params models.PaginationParams
 	if err := c.Bind(&params); err != nil {
 		params = models.PaginationParams{}
@@ -64,7 +73,7 @@ func (h *ApplicationHandler) GetAvailableAttachments(c echo.Context) error {
 	params.Normalize()
 
 	data, total, err := h.service.GetAvailableAttachmentsForSecurity(
-		c.Request().Context(), userID, isSuperAdmin, params.Page, params.PerPage,
+		c.Request().Context(), userID, isSuperAdmin, filter, params.Page, params.PerPage,
 	)
 	if err != nil {
 		return err

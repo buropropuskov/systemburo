@@ -191,6 +191,8 @@ import {
   archiveAccessDenials,
 } from '@/api/permissions';
 import RefreshButton from '@/components/RefreshButton.vue';
+import { useDeletionsStore } from '@/stores/deletions';
+import { useUiStore } from '@/stores/ui';
 
 export default {
   name: 'AccessDenialsLog',
@@ -251,25 +253,43 @@ export default {
       }
     },
     async confirmDeleteFiltered() {
-      if (!confirm('Удалить записи активной таблицы по выбранным фильтрам? Архив не затрагивается.')) return;
+      const ok = await useUiStore().confirm({
+        title: 'Очистить записи?',
+        message: 'Записи активной таблицы по выбранным фильтрам будут удалены. Архив не затрагивается.',
+        confirmText: 'Удалить',
+        cancelText: 'Отмена',
+        danger: true,
+      });
+      if (!ok) return;
       try {
         await deleteAccessDenials(this.filters);
         await this.fetch();
+        useDeletionsStore().notify({ bold: 'Записи удалены', suffix: ' по выбранным фильтрам' });
       } catch (e) {
         console.error('Ошибка удаления:', e);
+        useDeletionsStore().notify({ prefix: 'Не удалось удалить ', bold: 'записи журнала', type: 'error' });
       }
     },
     async confirmArchiveAll() {
       const cutoff = this.filters.to || null;
       const msg = cutoff
-        ? `Перенести в архив все записи до ${cutoff}?`
-        : 'Перенести в архив все записи старше 3 месяцев?';
-      if (!confirm(msg)) return;
+        ? `Все записи до ${cutoff} будут перенесены в архив.`
+        : 'Все записи старше 3 месяцев будут перенесены в архив.';
+      const ok = await useUiStore().confirm({
+        title: 'Архивировать записи?',
+        message: msg,
+        confirmText: 'Архивировать',
+        cancelText: 'Отмена',
+        danger: false,
+      });
+      if (!ok) return;
       try {
         await archiveAccessDenials(cutoff);
         await this.fetch();
+        useDeletionsStore().notify({ bold: 'Записи архивированы' });
       } catch (e) {
         console.error('Ошибка архивации:', e);
+        useDeletionsStore().notify({ prefix: 'Не удалось ', bold: 'архивировать записи', type: 'error' });
       }
     },
     formatDateTime(s) {
