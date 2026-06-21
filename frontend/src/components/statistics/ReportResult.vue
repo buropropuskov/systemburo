@@ -192,6 +192,7 @@
               <th
                 v-for="col in (result.columns || [])"
                 :key="col.key"
+                :class="{ 'rr__num': isNumCol(col) }"
               >
                 {{ col.label }}
               </th>
@@ -205,6 +206,7 @@
               <td
                 v-for="col in (result.columns || [])"
                 :key="col.key"
+                :class="{ 'rr__num': isNumCol(col) }"
               >
                 {{ formatCell(row[col.key], col.type) }}
               </td>
@@ -284,6 +286,33 @@ const showTotals = computed(() => props.result?.dimension !== 'none');
 const isPeriod = computed(() => props.result?.dimension === 'period');
 
 const dimensionHeader = computed(() => (props.result?.dimension === 'none' ? 'Итог' : 'Значение разреза'));
+
+// Числовые колонки list-таблицы выравниваем вправо (tabular-nums). Тип берём от
+// JSON-значения API (number), а не из col.type (бэк типизирует только date/time)
+// и не из содержимого regex'ом: счётчики (attachments_count, people_count) приходят
+// числами, идентификаторы (номер заявки) — строками и остаются слева. Выравнивание
+// не трансформирует значение, поэтому проверка по typeof здесь безопасна.
+const numericListColumns = computed(() => {
+  const r = props.result;
+  if (r?.mode === 'aggregate' || !Array.isArray(r?.rows) || !r.rows.length) return new Set();
+  const set = new Set();
+  for (const col of (r.columns || [])) {
+    let sawValue = false;
+    let allNumeric = true;
+    for (const row of r.rows) {
+      const v = row[col.key];
+      if (v === null || v === undefined || v === '') continue;
+      sawValue = true;
+      if (typeof v !== 'number') { allNumeric = false; break; }
+    }
+    if (sawValue && allNumeric) set.add(col.key);
+  }
+  return set;
+});
+
+function isNumCol(col) {
+  return numericListColumns.value.has(col.key);
+}
 
 // График рисует одну серию — берём выбранную метрику-колонку.
 const chartColumn = computed(
@@ -421,9 +450,13 @@ function formatCell(value, type) {
   justify-content: flex-end;
 }
 
-/* Кнопка выгрузки (стиль из lk-button--ghost) прижата вправо в панели инструментов. */
+/* Кнопка выгрузки (стиль из lk-button--ghost) прижата вправо в панели инструментов.
+   min-width фиксирует ширину, чтобы кнопка не дёргалась при смене «Excel» <-> «Готовим…». */
 .rr__export {
   margin-left: auto;
+  min-width: 104px;
+  justify-content: center;
+  text-align: center;
 }
 
 .rr__toolbar--end .rr__export {
@@ -500,6 +533,13 @@ function formatCell(value, type) {
   padding: 10px 14px;
   white-space: nowrap;
   border-bottom: 1px solid var(--color-border);
+}
+
+/* Числовой заголовок выравниваем вправо вслед за ячейками: у `.rr__table thead th`
+   выше специфичность, чем у `.rr__num`, поэтому без явного правила заголовок
+   оставался слева, а числа справа (рассогласование). */
+.rr__table thead th.rr__num {
+  text-align: right;
 }
 
 .rr__table tbody td {
