@@ -210,7 +210,6 @@
             :date-range-end="periodEndDate"
             @update:date-range-start="onPeriodRangeStart"
             @update:date-range-end="onPeriodRangeEnd"
-            @apply="onPeriodApply"
             @clear="onPeriodClear"
           />
         </div>
@@ -625,16 +624,21 @@ function isoToDate(iso) {
 const periodStartDate = computed(() => isoToDate(form.period.from));
 const periodEndDate = computed(() => isoToDate(form.period.to));
 
+// DateFilter эмитит update:* при каждом «Применить», даже когда даты не менялись.
+// Уводим период в 'custom' только при РЕАЛЬНОЙ смене границы — иначе «Применить»
+// на выставленном пресете без правок сбивал бы его подсветку (нативный input
+// раньше тоже молчал, пока значение не изменится).
 function onPeriodRangeStart(date) {
-  form.period.from = date ? dateToIso(date) : '';
+  const iso = date ? dateToIso(date) : '';
+  if (iso === form.period.from) return;
+  form.period.from = iso;
+  activePeriodPreset.value = 'custom';
 }
 
 function onPeriodRangeEnd(date) {
-  form.period.to = date ? dateToIso(date) : '';
-}
-
-// Любой ручной выбор/очистка диапазона в календаре уводит период из-под пресета.
-function onPeriodApply() {
+  const iso = date ? dateToIso(date) : '';
+  if (iso === form.period.to) return;
+  form.period.to = iso;
   activePeriodPreset.value = 'custom';
 }
 

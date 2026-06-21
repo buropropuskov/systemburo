@@ -421,4 +421,26 @@ describe('ReportBuilder', () => {
     // Ручной выбор уводит период из-под пресета — ни одна кнопка не подсвечена.
     expect(wrapper.find('.rb__period-presets').findAll('.rb__pill--on').length).toBe(0);
   });
+
+  it('«Применить» в календаре без смены дат не сбивает активный пресет', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 5, 18)); // 18 июня 2026
+    const wrapper = mountBuilder();
+    await nextTick();
+
+    const yearBtn = wrapper.find('.rb__period-presets').findAll('.rb__pill').find((b) => b.text() === 'Этот год');
+    await yearBtn.trigger('click');
+    await nextTick();
+    expect(yearBtn.classes()).toContain('rb__pill--on');
+
+    // DateFilter всегда эмитит update:* + apply, даже когда даты пресета не менялись.
+    const cal = wrapper.findComponent(DateFilter);
+    cal.vm.$emit('update:dateRangeStart', new Date(2026, 0, 1));
+    cal.vm.$emit('update:dateRangeEnd', new Date(2026, 5, 18));
+    cal.vm.$emit('apply');
+    await nextTick();
+
+    // Пресет «Этот год» остаётся активным — границы те же, в custom не ушло.
+    expect(yearBtn.classes()).toContain('rb__pill--on');
+  });
 });
