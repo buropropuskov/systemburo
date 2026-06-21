@@ -98,110 +98,114 @@
     </div>
 
     <Teleport to="body">
-      <div
-        v-if="metaOpen"
-        class="modal-overlay"
-        @click.self="metaOpen = false"
-      >
-        <div class="form-modal">
-          <h3>{{ metaMode === 'create' ? 'Новая роль' : 'Редактировать роль' }}</h3>
-          <label class="lk-label">
-            Название
-            <input
-              v-model="metaForm.name"
-              class="lk-input"
-              type="text"
-              placeholder="Арендатор"
+      <transition name="modal-fade">
+        <div
+          v-if="metaOpen"
+          class="modal-overlay"
+          @click.self="metaOpen = false"
+        >
+          <div class="form-modal">
+            <h3>{{ metaMode === 'create' ? 'Новая роль' : 'Редактировать роль' }}</h3>
+            <label class="lk-label">
+              Название
+              <input
+                v-model="metaForm.name"
+                class="lk-input"
+                type="text"
+                placeholder="Арендатор"
+              >
+            </label>
+            <label
+              v-if="metaMode === 'create'"
+              class="lk-label"
             >
-          </label>
-          <label
-            v-if="metaMode === 'create'"
-            class="lk-label"
-          >
-            Код (латиницей, неизменный)
-            <input
-              v-model="metaForm.code"
-              class="lk-input"
-              type="text"
-              placeholder="tenant"
-            >
-          </label>
-          <label class="lk-label">
-            Описание
-            <textarea
-              v-model="metaForm.description"
-              class="lk-textarea"
-              rows="2"
-            />
-          </label>
-          <div class="form-modal__footer">
-            <button
-              class="lk-button lk-button--ghost"
-              @click="metaOpen = false"
-            >
-              Отмена
-            </button>
-            <button
-              class="lk-button lk-button--primary"
-              :disabled="saving || !metaForm.name.trim() || (metaMode === 'create' && !metaForm.code.trim())"
-              @click="saveMeta"
-            >
-              {{ saving ? 'Сохранение...' : 'Сохранить' }}
-            </button>
+              Код (латиницей, неизменный)
+              <input
+                v-model="metaForm.code"
+                class="lk-input"
+                type="text"
+                placeholder="tenant"
+              >
+            </label>
+            <label class="lk-label">
+              Описание
+              <textarea
+                v-model="metaForm.description"
+                class="lk-textarea"
+                rows="2"
+              />
+            </label>
+            <div class="form-modal__footer">
+              <button
+                class="lk-button lk-button--ghost"
+                @click="metaOpen = false"
+              >
+                Отмена
+              </button>
+              <button
+                class="lk-button lk-button--primary"
+                :disabled="saving || !metaForm.name.trim() || (metaMode === 'create' && !metaForm.code.trim())"
+                @click="saveMeta"
+              >
+                {{ saving ? 'Сохранение...' : 'Сохранить' }}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      </transition>
     </Teleport>
 
     <Teleport to="body">
-      <div
-        v-if="groupsOpen"
-        class="modal-overlay"
-        @click.self="groupsOpen = false"
-      >
-        <div class="form-modal form-modal--wide">
-          <h3>Дефолтные группы для «{{ groupsRole?.name }}»</h3>
-          <p class="form-modal__hint">
-            Юзеры с этой ролью получают права из всех выбранных групп.
-          </p>
-          <div class="groups-list">
-            <label
-              v-for="g in allGroups"
-              :key="g.id"
-              class="group-row"
-            >
-              <input
-                type="checkbox"
-                :checked="selectedGroupIds.has(g.id)"
-                @change="toggleGroupId(g.id)"
-              >
-              <span class="group-row__name">{{ g.name }}</span>
-              <span class="group-row__count">{{ g.keys.length }} прав</span>
-            </label>
-            <p
-              v-if="allGroups.length === 0"
-              class="card__empty-text"
-            >
-              Нет ни одной группы. Сначала создайте группы прав.
+      <transition name="modal-fade">
+        <div
+          v-if="groupsOpen"
+          class="modal-overlay"
+          @click.self="groupsOpen = false"
+        >
+          <div class="form-modal form-modal--wide">
+            <h3>Дефолтные группы для «{{ groupsRole?.name }}»</h3>
+            <p class="form-modal__hint">
+              Юзеры с этой ролью получают права из всех выбранных групп.
             </p>
-          </div>
-          <div class="form-modal__footer">
-            <button
-              class="lk-button lk-button--ghost"
-              @click="groupsOpen = false"
-            >
-              Отмена
-            </button>
-            <button
-              class="lk-button lk-button--primary"
-              :disabled="saving"
-              @click="saveDefaultGroups"
-            >
-              {{ saving ? 'Сохранение...' : 'Сохранить' }}
-            </button>
+            <div class="groups-list">
+              <label
+                v-for="g in allGroups"
+                :key="g.id"
+                class="group-row"
+              >
+                <input
+                  type="checkbox"
+                  :checked="selectedGroupIds.has(g.id)"
+                  @change="toggleGroupId(g.id)"
+                >
+                <span class="group-row__name">{{ g.name }}</span>
+                <span class="group-row__count">{{ g.keys.length }} прав</span>
+              </label>
+              <p
+                v-if="allGroups.length === 0"
+                class="card__empty-text"
+              >
+                Нет ни одной группы. Сначала создайте группы прав.
+              </p>
+            </div>
+            <div class="form-modal__footer">
+              <button
+                class="lk-button lk-button--ghost"
+                @click="groupsOpen = false"
+              >
+                Отмена
+              </button>
+              <button
+                class="lk-button lk-button--primary"
+                :disabled="saving"
+                @click="saveDefaultGroups"
+              >
+                {{ saving ? 'Сохранение...' : 'Сохранить' }}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      </transition>
     </Teleport>
   </section>
 </template>
@@ -529,5 +533,15 @@ export default {
 .group-row__count {
   font-size: 11px;
   color: var(--color-text-muted);
+}
+
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity 0.25s ease;
+}
+
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
 }
 </style>
