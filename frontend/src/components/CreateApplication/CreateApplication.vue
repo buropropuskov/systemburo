@@ -2398,10 +2398,11 @@ export default {
         border-radius: 15px;
     }
 
-    /* column-reverse: кнопка сверху, согласие под ней */
+    /* согласие сверху, кнопка под ним; всё по левому краю */
     .consent-section {
         display: flex;
-        flex-direction: column-reverse;
+        flex-direction: column;
+        align-items: flex-start;
         gap: 12px;
     }
 
@@ -2428,7 +2429,7 @@ export default {
         position: relative;
         display: block;
         width: 100%;
-        text-align: center;
+        text-align: left;
     }
 
     .submit-tooltip {
