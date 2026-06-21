@@ -347,6 +347,10 @@ func main() {
 	statisticsService.WarmCache(ctxSig)
 	go statisticsService.StartCacheRefresh(ctxSig)
 
+	// Обслуживание партиций request_logs: раз в сутки создаёт партиции вперёд,
+	// сворачивает партиции старше RequestLogDetailDays в агрегаты и дропает.
+	go startLogPartitionWorker(ctxSig, db, cfg.RequestLogDetailDays, cfg.RequestLogPartitionPrecreateDays, cfg.PdAuditRetentionMonths, 24*time.Hour)
+
 	// Graceful shutdown
 	go func() {
 		<-ctxSig.Done()
@@ -366,6 +370,28 @@ func main() {
 		os.Exit(1)
 	}
 	slog.Info("server stopped")
+}
+
+// startLogPartitionWorker раз в interval обслуживает партиции request_logs:
+// создаёт будущие, сворачивает старые в дневные агрегаты и дропает. Первый прогон сразу.
+func startLogPartitionWorker(ctx context.Context, db *gorm.DB, detailDays, precreateDays, pdRetentionMonths int, interval time.Duration) {
+	run := func() {
+		if err := database.MaintainLogPartitions(db, detailDays, precreateDays, pdRetentionMonths); err != nil {
+			slog.Error("log partition maintenance failed", "error", err)
+		}
+	}
+	run()
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			slog.Info("log partition worker stopped")
+			return
+		case <-ticker.C:
+			run()
+		}
+	}
 }
 
 // startAccessDenialsArchiver запускает периодический архив записей старше retention.
