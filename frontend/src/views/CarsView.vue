@@ -624,6 +624,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import { useDeletionsStore } from '@/stores/deletions';
 import SearchComponent from '@/components/SearchComponent.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
@@ -699,17 +700,15 @@ export default {
     },
     computed: {
         filteredCars() {
-            if (!this.searchQuery.trim()) {
+            const variants = buildSearchVariants(this.searchQuery);
+            if (!variants.length) {
                 return this.carsData;
             }
-            
-            const query = this.searchQuery.toLowerCase().trim();
-            return this.carsData.filter(car => 
-                car.number.toLowerCase().includes(query) ||
-                car.mark.toLowerCase().includes(query) ||
-                (car.format_name && car.format_name.toLowerCase().includes(query)) ||
-                (car.status ? 'активна' : 'неактивна').includes(query)
-            );
+            return this.carsData.filter(car => matchesSearch(
+                `${car.number} ${car.mark} ${car.format_name || ''} `
+                + (car.status ? 'активна' : 'неактивна'),
+                variants,
+            ));
         },
 
         sortedCars() {
