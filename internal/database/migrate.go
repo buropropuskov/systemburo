@@ -198,7 +198,7 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := installSQLFunctions(db); err != nil {
 		return err
 	}
-	if err := backfillSuperAdmin(db); err != nil {
+	if err := EnforceSingleSuperAdmin(db); err != nil {
 		return err
 	}
 	if err := SeedReportTemplates(db); err != nil {
@@ -316,23 +316,57 @@ func SeedReportTemplates(db *gorm.DB) error {
 	return nil
 }
 
-// backfillSuperAdmin проставляет is_super_admin=true пользователям с type_id,
-// соответствующим коду 'buropropuskov' в user_types (#231).
-// Безопасна для повторного запуска: WHERE not (already true) делает её noop.
-// После полного отказа от type_id=6 проверки эту миграцию можно удалить.
-func backfillSuperAdmin(db *gorm.DB) error {
-	res := db.Exec(`
-		UPDATE users SET is_super_admin = true
-		WHERE is_super_admin = false
-		  AND type_id IN (SELECT id FROM user_types WHERE code = 'buropropuskov')
-	`)
-	if res.Error != nil {
-		return fmt.Errorf("backfill is_super_admin: %w", res.Error)
+// EnforceSingleSuperAdmin поддерживает инвариант "ровно один супер-админ".
+// Канонический супер-админ выбирается так (приоритет сверху): аккаунт с
+// username='buropropuskov' (системный администратор), иначе самый ранний из уже
+// существующих супер-админов, иначе первый зарегистрированный пользователь.
+// Канонику флаг гарантируется, у всех остальных снимается -- но снятые супера
+// становятся обычными администраторами (is_admin), чтобы не потерять доступ
+// (admin = всё кроме super-only ключей и личных deny). Имя системного аккаунта
+// нормализуется в "Системный Администратор" только если оно пустое (реальное ФИО
+// не затирается). Идемпотентна.
+//
+// Заменяет прежний backfillSuperAdmin, который ошибочно делал супером ВСЕХ
+// пользователей типа buropropuskov: при двух+ buro-аккаунтах получалось несколько
+// супер-админов, что ломало модель "единственный неудаляемый владелец".
+func EnforceSingleSuperAdmin(db *gorm.DB) error {
+	var canonicalID int
+	if err := db.Raw(`
+		SELECT id FROM users
+		ORDER BY (username = 'buropropuskov') DESC, is_super_admin DESC, id ASC
+		LIMIT 1
+	`).Scan(&canonicalID).Error; err != nil {
+		return fmt.Errorf("pick canonical super-admin: %w", err)
 	}
-	if res.RowsAffected > 0 {
-		slog.Info("super-admin backfilled", "users_updated", res.RowsAffected)
+	if canonicalID == 0 {
+		// Пользователей ещё нет (миграция раньше сидов) -- применять нечего.
+		return nil
 	}
-	return nil
+	return db.Transaction(func(tx *gorm.DB) error {
+		demoted := tx.Exec(`
+			UPDATE users SET is_super_admin = false, is_admin = true
+			WHERE id <> ? AND is_super_admin = true`, canonicalID)
+		if demoted.Error != nil {
+			return fmt.Errorf("demote extra super-admins: %w", demoted.Error)
+		}
+		if demoted.RowsAffected > 0 {
+			slog.Warn("demoted extra super-admins to admin",
+				"count", demoted.RowsAffected, "kept_super_id", canonicalID)
+		}
+		if err := tx.Exec(`
+			UPDATE users SET is_super_admin = true
+			WHERE id = ? AND is_super_admin = false`, canonicalID).Error; err != nil {
+			return fmt.Errorf("promote canonical super-admin: %w", err)
+		}
+		if err := tx.Exec(`
+			UPDATE users SET last_name = 'Администратор', first_name = 'Системный'
+			WHERE id = ?
+			  AND (last_name IS NULL OR last_name = '')
+			  AND (first_name IS NULL OR first_name = '')`, canonicalID).Error; err != nil {
+			return fmt.Errorf("normalize super-admin name: %w", err)
+		}
+		return nil
+	})
 }
 
 // relaxApplicationOrgNotNull снимает NOT NULL с applications.organization_id:

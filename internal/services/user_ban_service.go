@@ -3,10 +3,12 @@ package services
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"time"
 
 	"systemburo/internal/models"
 
+	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
 )
 
@@ -37,7 +39,7 @@ func (s *UserBanService) Ban(ctx context.Context, targetUserID, actorUserID int)
 		return fmt.Errorf("user not found: %w", err)
 	}
 	if target.IsSuperAdmin {
-		return fmt.Errorf("cannot ban super-admin")
+		return echo.NewHTTPError(http.StatusForbidden, "Нельзя заблокировать супер-администратора")
 	}
 
 	now := time.Now()
