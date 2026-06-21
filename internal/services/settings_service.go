@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -15,12 +16,18 @@ import (
 	"gorm.io/gorm"
 )
 
+// dataProcessingDocKey -- ключ настройки с метаданными документа согласия на обработку данных.
+const dataProcessingDocKey = "legal.data_processing_document"
+
 type SettingsService interface {
 	GetAll(ctx context.Context, isSuperAdmin bool) ([]models.SystemSetting, error)
 	Update(ctx context.Context, isSuperAdmin bool, key string, value string) (*models.SystemSetting, error)
 	GetUploadSettings(ctx context.Context) (map[string]interface{}, error)
 	GetNotificationSettings(ctx context.Context) (map[string]interface{}, error)
 	GetPasswordPolicy() models.PasswordPolicy
+	GetDataProcessingDoc(ctx context.Context) (*models.DataProcessingDocument, error)
+	SetDataProcessingDoc(ctx context.Context, meta *models.DataProcessingDocument) error
+	ClearDataProcessingDoc(ctx context.Context) error
 }
 
 var knownKeys = map[string]string{
@@ -199,6 +206,77 @@ func (s *settingsService) GetPasswordPolicy() models.PasswordPolicy {
 		RequireDigit:     s.cache["password.require_digit"].Value == "true",
 		RequireSpecial:   s.cache["password.require_special"].Value == "true",
 	}
+}
+
+// GetDataProcessingDoc возвращает метаданные документа согласия или nil, если он не загружен.
+func (s *settingsService) GetDataProcessingDoc(ctx context.Context) (*models.DataProcessingDocument, error) {
+	var setting models.SystemSetting
+	err := s.db.WithContext(ctx).Where("key = ?", dataProcessingDocKey).First(&setting).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to load data processing document setting: %w", err)
+	}
+	if setting.Value == "" {
+		return nil, nil
+	}
+	var meta models.DataProcessingDocument
+	if err := json.Unmarshal([]byte(setting.Value), &meta); err != nil {
+		return nil, fmt.Errorf("failed to parse data processing document metadata: %w", err)
+	}
+	return &meta, nil
+}
+
+// SetDataProcessingDoc сохраняет (upsert) метаданные документа согласия.
+func (s *settingsService) SetDataProcessingDoc(ctx context.Context, meta *models.DataProcessingDocument) error {
+	payload, err := json.Marshal(meta)
+	if err != nil {
+		return fmt.Errorf("failed to marshal data processing document metadata: %w", err)
+	}
+	return s.upsertRaw(ctx, dataProcessingDocKey, string(payload), "json")
+}
+
+// ClearDataProcessingDoc удаляет настройку с метаданными документа согласия.
+func (s *settingsService) ClearDataProcessingDoc(ctx context.Context) error {
+	if err := s.db.WithContext(ctx).Where("key = ?", dataProcessingDocKey).Delete(&models.SystemSetting{}).Error; err != nil {
+		return fmt.Errorf("failed to clear data processing document setting: %w", err)
+	}
+	s.mu.Lock()
+	delete(s.cache, dataProcessingDocKey)
+	s.mu.Unlock()
+	return nil
+}
+
+// upsertRaw записывает значение настройки напрямую, без проверки knownKeys и прав
+// супер-администратора (авторизация для таких ключей -- на уровне роутов/middleware).
+func (s *settingsService) upsertRaw(ctx context.Context, key, value, typ string) error {
+	var existing models.SystemSetting
+	err := s.db.WithContext(ctx).Where("key = ?", key).First(&existing).Error
+	switch {
+	case err == nil:
+		existing.Value = value
+		existing.Type = typ
+		if err := s.db.WithContext(ctx).Save(&existing).Error; err != nil {
+			return fmt.Errorf("failed to save setting %s: %w", key, err)
+		}
+		s.cacheSet(existing)
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		setting := models.SystemSetting{Key: key, Value: value, Type: typ}
+		if err := s.db.WithContext(ctx).Create(&setting).Error; err != nil {
+			return fmt.Errorf("failed to create setting %s: %w", key, err)
+		}
+		s.cacheSet(setting)
+	default:
+		return fmt.Errorf("failed to load setting %s: %w", key, err)
+	}
+	return nil
+}
+
+func (s *settingsService) cacheSet(st models.SystemSetting) {
+	s.mu.Lock()
+	s.cache[st.Key] = st
+	s.mu.Unlock()
 }
 
 func validateSettingValue(key, value string) error {

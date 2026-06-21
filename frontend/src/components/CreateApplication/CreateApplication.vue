@@ -83,7 +83,13 @@
                   required
                 >
                 <label for="consent">
-                  Даю <span class="blue">согласие</span> на обработку, хранение, передачу
+                  Даю <a
+                    href="/data-processing"
+                    target="_blank"
+                    rel="noopener"
+                    class="blue consent-link"
+                    @click.stop
+                  >согласие</a> на обработку, хранение, передачу
                   персональных данных, изложенных в заявке
                 </label>
               </div>
@@ -2559,6 +2565,15 @@ export default {
 
     .blue {
         color: #4F5BDF;
+    }
+
+    .consent-link {
+        text-decoration: underline;
+        cursor: pointer;
+    }
+
+    .consent-link:hover {
+        color: #3d49c7;
     }
 
     .form-placeholder {

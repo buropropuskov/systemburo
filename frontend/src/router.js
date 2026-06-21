@@ -38,6 +38,12 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/data-processing',
+    name: 'DataProcessing',
+    component: () => import('./views/DataProcessingView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/submit-form',
     redirect: '/new-application'
   },

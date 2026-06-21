@@ -8,12 +8,14 @@ import (
 )
 
 type SettingsHandler struct {
-	service services.SettingsService
+	service     services.SettingsService
+	fileSvc     services.DocumentFileService
+	maxFileSize int64
 }
 
 // NewSettingsHandler создаёт хендлер для управления системными настройками.
-func NewSettingsHandler(service services.SettingsService) *SettingsHandler {
-	return &SettingsHandler{service: service}
+func NewSettingsHandler(service services.SettingsService, fileSvc services.DocumentFileService, maxFileSize int64) *SettingsHandler {
+	return &SettingsHandler{service: service, fileSvc: fileSvc, maxFileSize: maxFileSize}
 }
 
 // GetAll возвращает все системные настройки (только для super-admin).
