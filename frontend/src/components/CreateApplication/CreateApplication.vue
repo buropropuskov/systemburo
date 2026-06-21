@@ -2383,19 +2383,25 @@ export default {
         padding: 0 6px;
     }
 
-    /* Согласие + кнопка отправки — правая колонка шапки рядом с полем сообщения */
+    /* Согласие + кнопка отправки — выделены в блок справа от поля сообщения */
     .form__submit-bar {
         flex: 1 1 0;
         min-width: 200px;
         max-width: 300px;
+        align-self: flex-start;
         display: flex;
         flex-direction: column;
         gap: 12px;
+        padding: 14px;
+        background: #fafafa;
+        border: 1px solid #e6e6e6;
+        border-radius: 15px;
     }
 
+    /* column-reverse: кнопка сверху, согласие под ней */
     .consent-section {
         display: flex;
-        flex-direction: column;
+        flex-direction: column-reverse;
         gap: 12px;
     }
 
@@ -2422,6 +2428,7 @@ export default {
         position: relative;
         display: block;
         width: 100%;
+        text-align: center;
     }
 
     .submit-tooltip {
@@ -2505,7 +2512,8 @@ export default {
         font-size: 12px;
         cursor: pointer;
         transition: background-color 0.2s;
-        width: 100%;
+        width: auto;
+        display: inline-block;
         flex-shrink: 0;
         height: fit-content;
     }
