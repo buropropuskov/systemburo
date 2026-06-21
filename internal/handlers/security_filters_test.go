@@ -384,3 +384,61 @@ func TestAvailableAttachments_NightIgnoredDuringSearch(t *testing.T) {
 	require.True(t, secContainsAttachment(rows, dayAtt))
 	require.True(t, secContainsAttachment(rows, nightAtt))
 }
+
+// TestAvailableAttachments_NightDoesNotBypassPlaceGate - ночной фильтр аддитивен поверх гейта мест:
+// ночное вложение на ЧУЖОМ месте не раскрывается (по образцу TestAvailableAttachments_FilterDoesNotBypassPlaceGate).
+func TestAvailableAttachments_NightDoesNotBypassPlaceGate(t *testing.T) {
+	w := setupSecurityWorld(t)
+	ctx := context.Background()
+
+	myPlace := w.newUnloadPlace(t, "Мой склад", true)
+	otherPlace := w.newUnloadPlace(t, "Чужой склад", true)
+	w.assignUnloadPlace(t, myPlace)
+
+	app := w.newApp(t, models.ConfirmationApproved)
+	mineNight := w.newAttachment(t, app, "cars")
+	w.attachPlace(t, mineNight, myPlace)
+	w.setAttachmentEntryTime(t, mineNight, "23:00", "23:30")
+
+	foreignNight := w.newAttachment(t, app, "cars")
+	w.attachPlace(t, foreignNight, otherPlace)
+	w.setAttachmentEntryTime(t, foreignNight, "23:00", "23:30")
+
+	night := true
+	rows, total := w.listFiltered(t, ctx, services.AvailableAttachmentFilters{Night: &night})
+	require.EqualValues(t, 1, total, "ночной фильтр не обходит гейт мест")
+	require.True(t, secContainsAttachment(rows, mineNight))
+	require.False(t, secContainsAttachment(rows, foreignNight), "ночное вложение на чужом месте скрыто")
+}
+
+// TestAvailableAttachments_NightAndCompletedCombined - оба тоггла активны (видны в UI рядом):
+// SQL даёт status='Завершено' AND ночное окно -> только ночные завершённые.
+func TestAvailableAttachments_NightAndCompletedCombined(t *testing.T) {
+	w := setupSecurityWorld(t)
+	ctx := context.Background()
+
+	place := w.newUnloadPlace(t, "Склад А", true)
+	w.assignUnloadPlace(t, place)
+
+	doneApp := w.newAppWithStatus(t, models.ConfirmationApproved, models.StatusCompleted)
+	activeApp := w.newAppWithStatus(t, models.ConfirmationApproved, models.StatusInWork)
+
+	doneNight := w.newAttachment(t, doneApp, "cars") // завершённая + ночь -> проходит
+	w.attachPlace(t, doneNight, place)
+	w.setAttachmentEntryTime(t, doneNight, "23:00", "23:30")
+
+	doneDay := w.newAttachment(t, doneApp, "cars") // завершённая, но день -> отсекается night
+	w.attachPlace(t, doneDay, place)
+	w.setAttachmentEntryTime(t, doneDay, "09:00", "18:00")
+
+	activeNight := w.newAttachment(t, activeApp, "cars") // ночь, но не завершённая -> отсекается completed
+	w.attachPlace(t, activeNight, place)
+	w.setAttachmentEntryTime(t, activeNight, "23:00", "23:30")
+
+	night, completed := true, true
+	rows, total := w.listFiltered(t, ctx, services.AvailableAttachmentFilters{Night: &night, Completed: &completed})
+	require.EqualValues(t, 1, total, "night+completed: только ночные завершённые")
+	require.True(t, secContainsAttachment(rows, doneNight))
+	require.False(t, secContainsAttachment(rows, doneDay))
+	require.False(t, secContainsAttachment(rows, activeNight))
+}

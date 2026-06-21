@@ -50,6 +50,8 @@ func (h *ApplicationHandler) requireSecurityOrAdmin(c echo.Context) (int, bool, 
 // @Param        attachment_type query string false "Тип вложения: cars/people/items"
 // @Param        organization_id query int    false "ID организации"
 // @Param        company_id      query int    false "ID компании"
+// @Param        completed       query bool   false "Только завершённые заявки (по умолчанию скрыты); при активном search игнорируется"
+// @Param        night           query bool   false "Только вложения с ночным окном въезда [22:00-06:00); при активном search игнорируется"
 // @Success      200 {array}  services.AvailableAttachment
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
