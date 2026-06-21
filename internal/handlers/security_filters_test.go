@@ -202,6 +202,13 @@ func TestAvailableAttachments_FilterBySearch(t *testing.T) {
 	require.True(t, secContainsAttachment(rows, attA))
 	require.False(t, secContainsAttachment(rows, attB), "поиск по ФИО не цепляет отправителя без имени")
 
+	// По месту разгрузки (attachment_unload_places) - мощный поиск, старый ILIKE этого не умел.
+	// Оба вложения привязаны к "Склад А", поэтому находятся оба.
+	rows, total = w.listFiltered(t, ctx, services.AvailableAttachmentFilters{Search: secPtrStr("Склад")})
+	require.EqualValues(t, 2, total)
+	require.True(t, secContainsAttachment(rows, attA))
+	require.True(t, secContainsAttachment(rows, attB))
+
 	// Несуществующая подстрока - пусто.
 	_, total = w.listFiltered(t, ctx, services.AvailableAttachmentFilters{Search: secPtrStr("несуществует")})
 	require.EqualValues(t, 0, total)

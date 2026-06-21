@@ -27,7 +27,7 @@
             v-model="search"
             type="text"
             class="lk-input filters__search-input"
-            placeholder="Поиск по заявке, вложению, отправителю"
+            placeholder="Поиск: заявка, машина, ФИО, место разгрузки, согласующий..."
             data-testid="aa-search"
             @input="onSearchInput"
           >
