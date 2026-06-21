@@ -83,6 +83,12 @@ func (w secWorld) setAppNumber(t *testing.T, appID int, number string) {
 		Update("application_number", number).Error)
 }
 
+func (w secWorld) setAttachmentEntryTime(t *testing.T, attID int, from, to string) {
+	t.Helper()
+	require.NoError(t, w.db.Model(&models.Attachment{}).Where("id = ?", attID).
+		Updates(map[string]interface{}{"entry_time_from": from, "entry_time_to": to}).Error)
+}
+
 func (w secWorld) listFiltered(t *testing.T, ctx context.Context, f services.AvailableAttachmentFilters) ([]services.AvailableAttachment, int64) {
 	t.Helper()
 	rows, total, err := w.svc.GetAvailableAttachmentsForSecurity(ctx, w.guardID, false, f, 1, 50)
@@ -288,4 +294,93 @@ func TestAvailableAttachments_FilterDoesNotBypassPlaceGate(t *testing.T) {
 	rows, total = w.listFiltered(t, ctx, services.AvailableAttachmentFilters{OrganizationID: secPtrInt(org2)})
 	require.EqualValues(t, 0, total, "фильтр по чужой организации не раскрывает вложение вне мест охранника")
 	require.False(t, secContainsAttachment(rows, foreignCars))
+}
+
+// TestAvailableAttachments_FilterByNight закрепляет границы ночного окна [22:00, 06:00): 22:00
+// включается, 06:00 нет; смешанный формат HH:MM/HH:MM:SS считается одинаково; окно через полночь
+// и NULL-окно. Граничные времена - главный риск среза (string-сравнение HH:MM в SQL).
+func TestAvailableAttachments_FilterByNight(t *testing.T) {
+	w := setupSecurityWorld(t)
+	ctx := context.Background()
+
+	place := w.newUnloadPlace(t, "Склад А", true)
+	w.assignUnloadPlace(t, place)
+	app := w.newApp(t, models.ConfirmationApproved)
+
+	cases := []struct {
+		name      string
+		from, to  string
+		wantNight bool
+	}{
+		{"дневное 09-18 (HH:MM:SS)", "09:00:00", "18:00:00", false},
+		{"конец ровно 22:00 - граница включена", "19:00", "22:00", true},
+		{"вечер до 22:00 - не ночь", "21:00", "21:59", false},
+		{"начало ровно 22:00", "22:00", "23:00", true},
+		{"раннее утро до 06:00", "00:00", "05:00", true},
+		{"начало ровно 06:00 - граница исключена", "06:00", "08:00", false},
+		{"начало 05:59 < 06:00", "05:59", "06:30", true},
+		{"через полночь 23-02 (wrap)", "23:00", "02:00", true},
+		{"смешанный формат, конец >= 22:00", "08:00:00", "23:00", true},
+	}
+
+	type nightCase struct {
+		att  int
+		name string
+		want bool
+	}
+	ncs := make([]nightCase, 0, len(cases))
+	for _, c := range cases {
+		att := w.newAttachment(t, app, "cars")
+		w.attachPlace(t, att, place)
+		w.setAttachmentEntryTime(t, att, c.from, c.to)
+		ncs = append(ncs, nightCase{att, c.name, c.wantNight})
+	}
+
+	// Вложение без указанного окна (NULL-времена) - не ночь.
+	noTimeAtt := w.newAttachment(t, app, "cars")
+	w.attachPlace(t, noTimeAtt, place)
+
+	night := true
+	rows, _ := w.listFiltered(t, ctx, services.AvailableAttachmentFilters{Night: &night})
+	for _, nc := range ncs {
+		require.Equalf(t, nc.want, secContainsAttachment(rows, nc.att), "ночной фильтр: %s", nc.name)
+	}
+	require.False(t, secContainsAttachment(rows, noTimeAtt), "вложение без окна въезда не ночь")
+
+	// Фильтр аддитивен: без него видны все вложения (включая дневные и без окна).
+	_, totalAll := w.listFiltered(t, ctx, services.AvailableAttachmentFilters{})
+	require.EqualValues(t, len(cases)+1, totalAll, "без ночного фильтра видны все вложения")
+}
+
+// TestAvailableAttachments_NightIgnoredDuringSearch - при активном поиске ночной предикат не
+// навешивается (поиск отдаёт и ночные, и дневные), как и фильтр "Завершённые".
+func TestAvailableAttachments_NightIgnoredDuringSearch(t *testing.T) {
+	w := setupSecurityWorld(t)
+	ctx := context.Background()
+
+	place := w.newUnloadPlace(t, "Склад А", true)
+	w.assignUnloadPlace(t, place)
+	app := w.newApp(t, models.ConfirmationApproved)
+
+	dayAtt := w.newAttachmentNamed(t, app, "cars", "Ромашка дневная")
+	w.attachPlace(t, dayAtt, place)
+	w.setAttachmentEntryTime(t, dayAtt, "09:00", "18:00")
+
+	nightAtt := w.newAttachmentNamed(t, app, "cars", "Ромашка ночная")
+	w.attachPlace(t, nightAtt, place)
+	w.setAttachmentEntryTime(t, nightAtt, "23:00", "23:30")
+
+	// Без поиска night=true оставляет только ночное.
+	night := true
+	rows, total := w.listFiltered(t, ctx, services.AvailableAttachmentFilters{Night: &night})
+	require.EqualValues(t, 1, total)
+	require.True(t, secContainsAttachment(rows, nightAtt))
+	require.False(t, secContainsAttachment(rows, dayAtt))
+
+	// Поиск отменяет ночной предикат: видны и дневное, и ночное (даже при night=true).
+	query := "Ромашка"
+	rows, total = w.listFiltered(t, ctx, services.AvailableAttachmentFilters{Search: &query, Night: &night})
+	require.EqualValues(t, 2, total, "поиск показывает и ночные, и дневные")
+	require.True(t, secContainsAttachment(rows, dayAtt))
+	require.True(t, secContainsAttachment(rows, nightAtt))
 }

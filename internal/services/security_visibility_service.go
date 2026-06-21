@@ -57,7 +57,28 @@ type AvailableAttachmentFilters struct {
 	// завершённые (дефолт вкладки), true - показать только завершённые. При активном Search не
 	// применяется (поиск отдаёт и завершённые, и нет) - см. availableAttachmentFilterWhere.
 	Completed *bool `query:"completed"`
+	// Night фильтрует по ночному окну въезда: nil/false - не фильтровать, true - только
+	// вложения, чьё окно entry_time пересекает ночь [22:00, 06:00). Вычисляется в SQL из строк
+	// entry_time_from/to без новых колонок (см. availableAttachmentNightClause). При активном
+	// Search не применяется (поиск отдаёт всё) - см. availableAttachmentFilterWhere.
+	Night *bool `query:"night"`
 }
+
+// availableAttachmentNightClause - предикат "ночного" окна въезда для фильтра night=true. Ночь =
+// [22:00, 06:00) (22:00 включительно, 06:00 нет). Окно въезда хранится строками entry_time_from/to
+// в формате HH:MM или HH:MM:SS (varchar(20)); substr(...,1,5) приводит обе формы к 'HH:MM', а
+// зеро-паддинг часа делает лексикографическое сравнение хронологическим - без ::time-каста, который
+// упал бы (500) на нечисловом мусоре в колонке. Окно НЕ через полночь (from<=to) попадает в ночь,
+// если конец >= 22:00 или начало < 06:00; окно через полночь (from>to) всегда пересекает ночь
+// (содержит 00:00 < 06:00). Пустые/NULL-времена не считаются ночью (нет данных об окне).
+const availableAttachmentNightClause = `(
+	a.entry_time_from IS NOT NULL AND a.entry_time_to IS NOT NULL
+	AND a.entry_time_from <> '' AND a.entry_time_to <> ''
+	AND CASE WHEN substr(a.entry_time_from, 1, 5) <= substr(a.entry_time_to, 1, 5)
+		THEN substr(a.entry_time_to, 1, 5) >= '22:00' OR substr(a.entry_time_from, 1, 5) < '06:00'
+		ELSE true
+	END
+)`
 
 // availableAttachmentFrom - общий FROM листинга и счётчика "Доступные мне". LEFT JOIN'ы
 // organizations/companies/users держат отношение 1:1 к вложению (все по PK), поэтому НЕ меняют
@@ -174,6 +195,10 @@ func availableAttachmentFilterWhere(f AvailableAttachmentFilters) (string, []int
 		} else {
 			clauses = append(clauses, "app.status IS DISTINCT FROM ?")
 			args = append(args, models.StatusCompleted)
+		}
+		// Ночное окно въезда: предикат без плейсхолдеров (границы 22:00/06:00 - литералы).
+		if f.Night != nil && *f.Night {
+			clauses = append(clauses, availableAttachmentNightClause)
 		}
 	}
 	if f.Search != nil {
