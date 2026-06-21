@@ -338,19 +338,13 @@
                   />
                   <span
                     v-if="newFeedbackCount > 0"
-                    class="icon-badge"
+                    class="icon-badge admin-icon-badge"
+                    data-testid="nav-feedback-badge"
                   >
                     {{ newFeedbackCount > 9 ? '9+' : newFeedbackCount }}
                   </span>
                 </div>
                 <span class="nav-text">Администрирование</span>
-                <span
-                  v-if="newFeedbackCount > 0"
-                  class="notification-badge admin-feedback-badge"
-                  data-testid="nav-feedback-badge"
-                >
-                  {{ newFeedbackCount > 9 ? '9+' : newFeedbackCount }}
-                </span>
               </div>
               <!-- Не дропдаун, а открытие боковой колонки: прямая стрелка вправо. -->
               <svg
@@ -1632,9 +1626,11 @@ export default {
   transition-delay: 0.2s;
 }
 
-/* У Администрирования справа стрелка-индикатор колонки - бейдж сдвигаем левее неё. */
-.admin-feedback-badge {
-  right: 40px;
+/* У Администрирования длинный лейбл + стрелка-индикатор не оставляют места справа,
+   поэтому счётчик держим на иконке и в развёрнутом рельсе (не прячем как у других). */
+.nav-menu.expanded .admin-icon-badge {
+  opacity: 1;
+  transform: scale(1);
 }
 
 /*
