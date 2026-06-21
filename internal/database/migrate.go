@@ -2,6 +2,7 @@ package database
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -475,6 +476,73 @@ func installExtensions(db *gorm.DB) error {
 	return nil
 }
 
+// baseRoleGrants -- дефолтный набор прав базовой роли "Пользователь" (ТЗ).
+// Строки синхронизированы с ключами permission_catalog.go (избегаем import services,
+// чтобы не создавать цикл database->services).
+var baseRoleGrants = []string{
+	"page.new_application",
+	"page.employees",
+	"page.cars",
+	"page.news",
+	"page.personal_cabinet",
+	"header.create_application",
+	"entity.employees.read",
+	"entity.cars.read",
+	"section.registry.organization",
+	"section.registry.company",
+	"guide.user",
+	"detail.open_application",
+	"detail.documents",
+}
+
+// seedBaseRole создаёт неудаляемую базовую роль "Пользователь" и её дефолтные
+// grants (идемпотентно). Это фундамент, от которого наследуются новые роли.
+func seedBaseRole(db *gorm.DB) error {
+	var role models.Role
+	err := db.Where("code = ?", "user").First(&role).Error
+	switch {
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		role = models.Role{Code: "user", Name: "Пользователь", IsSystem: true}
+		if err := db.Create(&role).Error; err != nil {
+			return fmt.Errorf("failed to seed base role: %w", err)
+		}
+		slog.Info("seeded base role 'Пользователь'")
+	case err != nil:
+		return fmt.Errorf("failed to check base role: %w", err)
+	case !role.IsSystem:
+		if err := db.Model(&models.Role{}).Where("id = ?", role.ID).Update("is_system", true).Error; err != nil {
+			return fmt.Errorf("failed to mark base role system: %w", err)
+		}
+	}
+
+	for _, key := range baseRoleGrants {
+		grant := models.RolePermissionGrant{RoleID: role.ID, PermissionKey: key, Value: "allow"}
+		if err := db.Where("role_id = ? AND permission_key = ?", role.ID, key).
+			FirstOrCreate(&grant).Error; err != nil {
+			return fmt.Errorf("failed to seed base role grant %s: %w", key, err)
+		}
+	}
+	return nil
+}
+
+// backfillAdminFromType разово переносит админство с типа на флаг: пользователи
+// типа "manager" (кроме супер-админа) становятся is_admin=true. После этого
+// авторизация идёт по флагу, а не по user_type (см. эпик прав). Идемпотентно.
+func backfillAdminFromType(db *gorm.DB) error {
+	res := db.Exec(`
+		UPDATE users SET is_admin = true
+		WHERE is_admin = false AND is_super_admin = false
+		  AND type_id IN (SELECT id FROM user_types WHERE code = 'manager')
+	`)
+	if res.Error != nil {
+		return fmt.Errorf("backfill is_admin from type manager: %w", res.Error)
+	}
+	if res.RowsAffected > 0 {
+		slog.Info("is_admin backfilled from type manager", "users_updated", res.RowsAffected)
+	}
+	return nil
+}
+
 // Seed inserts initial data if tables are empty.
 func Seed(db *gorm.DB) error {
 	// Миграция: переводим заявки "Непрочитано" -> "В обработке"
@@ -601,6 +669,16 @@ func Seed(db *gorm.DB) error {
 				return err
 			}
 		}
+	}
+
+	// Базовая роль "Пользователь" с дефолтными правами (фундамент новой системы прав).
+	if err := seedBaseRole(db); err != nil {
+		return err
+	}
+
+	// Разовый перенос админства с типа manager на флаг is_admin.
+	if err := backfillAdminFromType(db); err != nil {
+		return err
 	}
 
 	return nil

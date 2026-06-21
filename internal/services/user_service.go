@@ -142,6 +142,18 @@ func (s *userService) Create(ctx context.Context, callerTypeID, callerUserID int
 		"username": user.Username,
 		"type_id":  user.TypeID,
 	})
+
+	// Новый пользователь получает базовую роль "Пользователь" по умолчанию -- так роль
+	// выдаёт стартовый набор прав (ТЗ). Best-effort: отсутствие базовой роли не валит создание.
+	if user.RoleID == nil {
+		var baseRole models.Role
+		if err := s.db.WithContext(ctx).Where("code = ? AND is_system = ?", "user", true).First(&baseRole).Error; err == nil {
+			if err := s.db.WithContext(ctx).Model(&models.User{}).Where("id = ?", user.ID).
+				Update("role_id", baseRole.ID).Error; err != nil {
+				slog.Error("не удалось назначить базовую роль", "user_id", user.ID, "error", err)
+			}
+		}
+	}
 	return nil
 }
 
