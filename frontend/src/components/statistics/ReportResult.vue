@@ -81,15 +81,12 @@
             {{ col.label }}
           </button>
         </div>
-        <button
-          type="button"
-          class="lk-button lk-button--ghost rr__export"
-          :disabled="!canExport || exporting"
-          data-testid="rr-export"
-          @click="onExport"
-        >
-          {{ exporting ? 'Готовим…' : 'Excel' }}
-        </button>
+        <ReportExportButton
+          class="rr__export"
+          :disabled="!canExport"
+          :exporting="exporting"
+          @export="onExport"
+        />
       </div>
 
       <!-- Период рисуем area-графиком (динамика во времени), прочие разрезы —
@@ -175,15 +172,12 @@
     <!-- Выгрузка строк (list) -->
     <template v-else>
       <div class="rr__toolbar rr__toolbar--end">
-        <button
-          type="button"
-          class="lk-button lk-button--ghost rr__export"
-          :disabled="!canExport || exporting"
-          data-testid="rr-export"
-          @click="onExport"
-        >
-          {{ exporting ? 'Готовим…' : 'Excel' }}
-        </button>
+        <ReportExportButton
+          class="rr__export"
+          :disabled="!canExport"
+          :exporting="exporting"
+          @export="onExport"
+        />
       </div>
       <div class="rr__table-wrap">
         <table class="rr__table">
@@ -235,6 +229,7 @@ import { ref, computed, watch } from 'vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import AnalyticsAreaChart from './AnalyticsAreaChart.vue';
 import AnalyticsBarChart from './AnalyticsBarChart.vue';
+import ReportExportButton from './ReportExportButton.vue';
 import { useReportExport } from '@/composables/useReportExport';
 import { formatDateRu, formatReportCell } from '@/utils/datetime';
 
@@ -362,9 +357,9 @@ const canExport = computed(() => {
   return r.mode === 'list' ? (r.rows?.length || 0) > 0 : hasRows.value;
 });
 
-async function onExport() {
+async function onExport(format) {
   try {
-    await exportReport(props.result, props.meta);
+    await exportReport(props.result, props.meta, format);
   } catch (e) {
     emit('export-error', e?.message || 'Не удалось выгрузить отчёт');
   }
@@ -450,13 +445,9 @@ function formatCell(value, type) {
   justify-content: flex-end;
 }
 
-/* Кнопка выгрузки (стиль из lk-button--ghost) прижата вправо в панели инструментов.
-   min-width фиксирует ширину, чтобы кнопка не дёргалась при смене «Excel» <-> «Готовим…». */
+/* Меню выгрузки (Excel/PDF) прижато вправо в панели инструментов. */
 .rr__export {
   margin-left: auto;
-  min-width: 104px;
-  justify-content: center;
-  text-align: center;
 }
 
 .rr__toolbar--end .rr__export {
