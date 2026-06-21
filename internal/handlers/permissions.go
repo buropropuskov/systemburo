@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"net/http"
+
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
@@ -29,12 +31,37 @@ func NewPermissionHandler(service services.PermissionService, resolver *services
 //
 // Источник данных -- PermissionResolver (роли + группы + grants + overrides).
 func (h *PermissionHandler) GetMyPermissions(c echo.Context) error {
-	userID := GetUserID(c)
+	set, err := h.resolver.Resolve(c.Request().Context(), GetUserID(c))
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, buildPermissionsResponse(set))
+}
+
+// GetUserEffectivePermissions возвращает эффективные права указанного пользователя
+// с источником (роль/группа/override) -- для админ-экрана настройки доступа (#187 Фаза 3).
+// Только super-admin. Формат идентичен GetMyPermissions, но считается для целевого юзера,
+// чтобы в правом столбце модалки прав показать бейдж источника каждого права и
+// унаследованные от роли/групп права (а не только личные override из /user/:id).
+func (h *PermissionHandler) GetUserEffectivePermissions(c echo.Context) error {
+	if !IsSuperAdmin(c) {
+		return echo.NewHTTPError(http.StatusForbidden, "Доступ только для супер-администратора")
+	}
+	userID, err := ParseID(c, "id")
+	if err != nil {
+		return err
+	}
 	set, err := h.resolver.Resolve(c.Request().Context(), userID)
 	if err != nil {
 		return err
 	}
+	return RespondSuccess(c, buildPermissionsResponse(set))
+}
 
+// buildPermissionsResponse собирает ответ {mode, permissions[{key,value,source}],
+// denied, banned, ban_reason} из вычисленного набора прав. Общий код для
+// GetMyPermissions (текущий юзер) и GetUserEffectivePermissions (целевой юзер).
+func buildPermissionsResponse(set services.PermissionSet) models.MyPermissionsResponse {
 	keys := set.Keys()
 	perms := make([]models.MyPermissionItem, 0, len(keys))
 	for _, k := range keys {
@@ -44,14 +71,13 @@ func (h *PermissionHandler) GetMyPermissions(c echo.Context) error {
 			Source: set.Source(k),
 		})
 	}
-
-	return RespondSuccess(c, models.MyPermissionsResponse{
+	return models.MyPermissionsResponse{
 		Mode:        set.Mode(),
 		Permissions: perms,
 		Denied:      set.Denies(),
 		Banned:      set.IsBanned(),
 		BanReason:   set.BanReason(),
-	})
+	}
 }
 
 // GetUserPermissions возвращает разрешения указанного пользователя (только super-admin).

@@ -479,6 +479,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	permGroup := protected.Group("/permissions")
 	permGroup.GET("/my", permissions.GetMyPermissions)
 	permGroup.GET("/user/:id", permissions.GetUserPermissions)
+	permGroup.GET("/user/:id/effective", permissions.GetUserEffectivePermissions)
 	permGroup.PUT("/user/:id", permissions.UpdateUserPermissions)
 	permGroup.GET("/tree", permissions.GetPermissionTree)
 	permGroup.GET("/catalog", permissions.GetCatalog)
