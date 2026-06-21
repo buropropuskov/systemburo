@@ -59,7 +59,7 @@
             :key="key"
             class="card__key"
           >
-            {{ key }}
+            {{ keyName(key) }}
           </li>
           <li
             v-if="group.keys.length > 5"
@@ -86,11 +86,12 @@
       </article>
     </div>
 
-    <PermissionTreeModal
+    <GroupPermissionsModal
       :show="modal.show"
       :title="modal.title"
       :initial-keys="modal.initialKeys"
-      :available-keys="availableKeys"
+      :catalog="catalog"
+      :saving="saving"
       @close="closeModal"
       @save="handleSave"
     />
@@ -147,20 +148,22 @@ import {
   createPermissionGroup,
   updatePermissionGroup,
   deletePermissionGroup,
+  getPermissionCatalog,
 } from '@/api/permissions';
-import PermissionTreeModal from '@/components/admin/PermissionTreeModal.vue';
+import GroupPermissionsModal from '@/components/admin/GroupPermissionsModal.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
-import { ALL_PERMISSION_KEYS } from '@/constants/permissionKeys';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
 
 export default {
   name: 'AdminPermissionGroups',
-  components: { PermissionTreeModal, RefreshButton },
+  components: { GroupPermissionsModal, RefreshButton },
   data() {
     return {
       groups: [],
+      catalog: [],
       loading: false,
+      saving: false,
       modal: { show: false, title: '', initialKeys: [], editingGroup: null },
       renameOpen: false,
       renameMode: 'create',
@@ -169,14 +172,32 @@ export default {
     };
   },
   computed: {
-    availableKeys() {
-      return ALL_PERMISSION_KEYS;
+    // key -> человекочитаемое название из каталога (с учётом дочерних узлов).
+    keyNameMap() {
+      const map = {};
+      for (const node of this.catalog) {
+        map[node.key] = node.display_name;
+        for (const child of node.children || []) map[child.key] = child.display_name;
+      }
+      return map;
     },
   },
   mounted() {
     this.fetch();
+    this.loadCatalog();
   },
   methods: {
+    keyName(key) {
+      return this.keyNameMap[key] || key;
+    },
+    async loadCatalog() {
+      try {
+        const json = await getPermissionCatalog();
+        this.catalog = Array.isArray(json) ? json : [];
+      } catch (e) {
+        console.error('Ошибка загрузки каталога прав:', e);
+      }
+    },
     async fetch() {
       this.loading = true;
       try {
@@ -207,6 +228,7 @@ export default {
     async handleSave(keys) {
       const group = this.modal.editingGroup;
       if (!group) return;
+      this.saving = true;
       try {
         await updatePermissionGroup(group.id, {
           name: group.name,
@@ -215,8 +237,12 @@ export default {
         });
         await this.fetch();
         this.closeModal();
+        useDeletionsStore().notify({ prefix: 'Права группы ', bold: group.name, suffix: ' сохранены' });
       } catch (e) {
         console.error('Ошибка сохранения:', e);
+        useDeletionsStore().notify({ prefix: 'Не удалось сохранить права ', bold: group.name, type: 'error' });
+      } finally {
+        this.saving = false;
       }
     },
     async confirmRename() {

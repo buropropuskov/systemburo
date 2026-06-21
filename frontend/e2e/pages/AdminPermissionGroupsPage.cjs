@@ -18,33 +18,27 @@ class AdminPermissionGroupsPage {
     this.renameSubmitEdit = this.renameModal.getByRole('button', { name: 'Сохранить' });
     this.renameCancel = this.renameModal.getByRole('button', { name: 'Отмена' });
 
-    // PermissionTreeModal - дерево прав. Используем data-testid (стабильные)
-    // потому что CSS-классы пересекаются с другими modal-content в приложении.
-    this.treeModal = page.getByTestId('permission-tree-modal');
-    this.treeSearch = page.getByTestId('permission-tree-search');
-    this.treeSave = page.getByTestId('permission-tree-save');
-    this.treeCancel = page.getByTestId('permission-tree-cancel');
+    // GroupPermissionsModal - тумблер-дерево прав (стиль карточки прав пользователя).
+    // Каждое право - строка с data-key и тумблером .tgl (aria-pressed = вкл/выкл).
+    this.treeModal = page.getByTestId('group-permissions-modal');
+    this.treeSearch = page.getByTestId('group-permissions-search');
+    this.treeSave = page.getByTestId('group-permissions-save');
+    this.treeCancel = page.getByTestId('group-permissions-cancel');
   }
 
   /**
-   * Возвращает локатор для tree-item по permission key (например 'page.cars').
-   * Гарантировано видим - метод сам разворачивает collapsed-группу если надо.
+   * Тумблер права по ключу (например 'page.cars'). Клик переключает право.
    */
   treeKey(key) {
-    return this.page.getByTestId(`permission-tree-key-${key}`);
+    return this.treeModal.locator(`[data-key="${key}"] .tgl`);
   }
 
   /**
-   * Раскрывает группу по prefix (без точки), если она collapsed.
-   * Например expandGroup('page') / expandGroup('entity').
+   * Совместимость со старым деревом: в тумблер-дереве категории всегда раскрыты,
+   * сворачивания нет -- ничего не делаем.
    */
-  async expandGroup(prefix) {
-    const toggle = this.page.getByTestId(`permission-tree-group-toggle-${prefix}`);
-    if (await toggle.isVisible({ timeout: 1000 }).catch(() => false)) {
-      // Если у заголовка нет класса collapsed - группа уже открыта.
-      const collapsed = await toggle.evaluate(el => el.classList.contains('tree-group__header--collapsed')).catch(() => false);
-      if (collapsed) await toggle.click();
-    }
+  async expandGroup() {
+    /* no-op: тумблер-дерево не сворачивает категории */
   }
 
   async goto() {
@@ -80,19 +74,12 @@ class AdminPermissionGroupsPage {
   }
 
   async togglePermissionKey(key) {
-    const item = this.treeModal.locator(`[data-key="${key}"]`).first();
-    if (await item.count()) {
-      await item.click();
-      return;
-    }
-    await this.treeModal.getByText(key, { exact: false }).first().click();
+    await this.treeKey(key).click();
   }
 
   /**
-   * Открыть rename-модалку для редактирования имени/описания группы.
-   * В AdminPermissionGroups.vue нет отдельной кнопки rename - "Редактировать"
-   * открывает PermissionTreeModal. Тест только подтверждает что нажатие
-   * корректно открывает дерево.
+   * "Редактировать" в карточке группы открывает редактор прав (GroupPermissionsModal)
+   * с тумблер-деревом. Метод ждёт появления модалки.
    */
   async clickEditTree(name) {
     await this.card(name).getByRole('button', { name: 'Редактировать' }).click();
