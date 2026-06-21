@@ -2368,7 +2368,7 @@ export default {
     }
 
     .create__form .form__message-tc {
-        flex: 1 1 75%;
+        flex: 3 1 0;
         max-width: 850px;
         min-width: 0;
         margin-bottom: 0;
@@ -2385,8 +2385,9 @@ export default {
 
     /* Согласие + кнопка отправки — правая колонка шапки рядом с полем сообщения */
     .form__submit-bar {
-        flex: 1 1 25%;
-        min-width: 240px;
+        flex: 1 1 0;
+        min-width: 200px;
+        max-width: 300px;
         display: flex;
         flex-direction: column;
         gap: 12px;
