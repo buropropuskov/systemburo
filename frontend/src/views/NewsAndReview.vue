@@ -214,7 +214,7 @@ import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
 import UserGuideModal from '../components/news/UserGuideModal.vue'
 import { USER_GUIDE_SECTIONS } from '../components/news/userGuideSections.js'
 import { ADMIN_GUIDE_SECTIONS } from '../components/news/adminGuideSections.js'
-import { useAuthStore } from '@/stores/auth'
+import { usePermissionsStore } from '@/stores/permissions'
 import { sanitizeHtml } from '@/utils/sanitize.js'
 import DocumentsBlock from '../components/news/DocumentsBlock.vue'
 import OnboardingButton from '../components/onboarding/OnboardingButton.vue'
@@ -242,8 +242,11 @@ export default {
     }
   },
   computed: {
+    // Руководство админа показываем по праву доступа к админке (page.admin),
+    // а не по сырому isSuperAdmin (#187 Фаза 2): admin-режим и явный грант тоже
+    // должны видеть admin-руководство.
     isAdminUser() {
-      return useAuthStore().isSuperAdmin;
+      return usePermissionsStore().hasPermission('page.admin');
     },
     guideSections() {
       return this.isAdminUser ? ADMIN_GUIDE_SECTIONS : USER_GUIDE_SECTIONS;
