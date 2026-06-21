@@ -23,7 +23,7 @@
           </button>
         </div>
         <button
-          class="lk-button lk-button--primary"
+          class="lk-button lk-button--primary add-btn"
           @click="openCreateModal"
         >
           + {{ activeTab === 'news' ? 'Добавить новость' : 'Добавить объявление' }}
@@ -37,108 +37,112 @@
 
     <!-- Контент -->
     <div class="management-body">
-      <!-- Список новостей -->
-      <div
-        v-if="activeTab === 'news'"
-        class="items-list"
+      <transition
+        name="tab-fade"
+        mode="out-in"
       >
+        <!-- Список новостей -->
         <div
-          v-if="loading"
-          class="empty-state"
+          v-if="activeTab === 'news'"
+          key="news"
+          class="items-list"
         >
-          Загрузка…
-        </div>
-        <div
-          v-else-if="newsItems.length === 0"
-          class="empty-state"
-        >
-          Нет новостей
-        </div>
-        <div
-          v-for="item in newsItems"
-          v-else
-          :key="item.id"
-          class="manage-item"
-          :class="{ selected: selectedItem?.id === item.id }"
-          @click="selectItem(item)"
-        >
-          <div class="item-main">
-            <div class="item-title">
-              {{ item.title }}
-              <span
-                v-if="!item.is_active"
-                class="badge badge--archive"
-              >(скрыта)</span>
-            </div>
-            <div class="item-meta">
-              <span>{{ formatDate(item.created_at) }}</span>
-              <span>{{ item.created_by_name || 'Система' }}</span>
-              <span
-                class="status-chip"
-                :class="item.is_active ? 'status-chip--active' : 'status-chip--hidden'"
-              >{{ item.is_active ? 'Активна' : 'Скрыта' }}</span>
+          <div
+            v-if="loading"
+            class="empty-state"
+          >
+            Загрузка…
+          </div>
+          <div
+            v-else-if="newsItems.length === 0"
+            class="empty-state"
+          >
+            Нет новостей
+          </div>
+          <div
+            v-for="item in newsItems"
+            v-else
+            :key="item.id"
+            class="manage-item"
+            :class="{ selected: selectedItem?.id === item.id }"
+            @click="selectItem(item)"
+          >
+            <div class="item-main">
+              <div class="item-title">
+                {{ item.title }}
+                <span
+                  v-if="!item.is_active"
+                  class="badge badge--archive"
+                >(скрыта)</span>
+              </div>
+              <div class="item-meta">
+                <span>{{ formatDate(item.created_at) }}</span>
+                <span>{{ item.created_by_name || 'Система' }}</span>
+                <span
+                  class="status-chip"
+                  :class="item.is_active ? 'status-chip--active' : 'status-chip--hidden'"
+                >{{ item.is_active ? 'Активна' : 'Скрыта' }}</span>
+              </div>
             </div>
           </div>
+          <div class="items-footer">
+            Всего: {{ newsItems.length }}
+          </div>
         </div>
-        <div class="items-footer">
-          Всего: {{ newsItems.length }}
-        </div>
-      </div>
 
-      <!-- Список объявлений -->
-      <div
-        v-if="activeTab === 'announcements'"
-        class="items-list"
-      >
+        <!-- Список объявлений -->
         <div
-          v-if="loading"
-          class="empty-state"
+          v-else-if="activeTab === 'announcements'"
+          key="announcements"
+          class="items-list"
         >
-          Загрузка…
-        </div>
-        <div
-          v-else-if="announcementsItems.length === 0"
-          class="empty-state"
-        >
-          Нет объявлений
-        </div>
-        <div
-          v-if="activeTab === 'announcements'"
-          class="info-note"
-        >
-          Активно может быть только одно объявление
-        </div>
-        <div
-          v-for="item in announcementsItems"
-          v-else
-          :key="item.id"
-          class="manage-item"
-          :class="{ selected: selectedItem?.id === item.id }"
-          @click="selectItem(item)"
-        >
-          <div class="item-main">
-            <div class="item-title">
-              {{ item.title }}
-              <span
-                v-if="item.is_important"
-                class="badge badge--important"
-              >Важное</span>
-              <span
-                v-if="item.is_active"
-                class="badge badge--active"
-              >Активно</span>
-            </div>
-            <div class="item-meta">
-              <span>{{ formatDate(item.created_at) }}</span>
-              <span>{{ item.created_by_name || 'Система' }}</span>
-              <span v-if="item.activated_by_name">Активировал: {{ item.activated_by_name }}</span>
+          <div class="info-note">
+            Активно может быть только одно объявление
+          </div>
+          <div
+            v-if="loading"
+            class="empty-state"
+          >
+            Загрузка…
+          </div>
+          <div
+            v-else-if="announcementsItems.length === 0"
+            class="empty-state"
+          >
+            Нет объявлений
+          </div>
+          <div
+            v-for="item in announcementsItems"
+            v-else
+            :key="item.id"
+            class="manage-item"
+            :class="{ selected: selectedItem?.id === item.id }"
+            @click="selectItem(item)"
+          >
+            <div class="item-main">
+              <div class="item-title">
+                {{ item.title }}
+                <span
+                  v-if="item.is_important"
+                  class="badge badge--important"
+                >Важное</span>
+                <span
+                  v-if="item.is_active"
+                  class="badge badge--active"
+                >Активно</span>
+              </div>
+              <div class="item-meta">
+                <span>{{ formatDate(item.created_at) }}</span>
+                <span>{{ item.created_by_name || 'Система' }}</span>
+                <span v-if="item.activated_by_name">Активировал: {{ item.activated_by_name }}</span>
+              </div>
             </div>
           </div>
+          <div class="items-footer">
+            Всего: {{ announcementsItems.length }}
+          </div>
         </div>
-        <div class="items-footer">
-          Всего: {{ announcementsItems.length }}
-        </div>
-      </div>
+      </transition>
 
       <!-- Панель деталей -->
       <div
@@ -921,7 +925,23 @@ export default {
   border-top: 1px solid #f0f0f0;
 }
 
+/* Анимация переключения вкладок */
+.tab-fade-enter-active,
+.tab-fade-leave-active {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.tab-fade-enter-from,
+.tab-fade-leave-to {
+  opacity: 0;
+  transform: translateY(4px);
+}
+
 /* Кнопки */
+.add-btn {
+  min-width: 190px;
+}
+
 .lk-button {
   display: inline-flex;
   align-items: center;
