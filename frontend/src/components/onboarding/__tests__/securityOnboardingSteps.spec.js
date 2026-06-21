@@ -3,6 +3,7 @@ import {
   securityOnboardingSteps,
   resolveFactTableRoute,
   buildSecurityFactSteps,
+  buildSecurityFinalStep,
 } from '../securityOnboardingSteps';
 import { collectSegment } from '../onboardingSteps';
 
@@ -205,5 +206,33 @@ describe('buildSecurityFactSteps', () => {
     for (const s of steps) {
       expect(s.description).not.toMatch(/Подать заявку/);
     }
+  });
+});
+
+describe('buildSecurityFinalStep', () => {
+  it('финальный центр-модал с празднованием на достижимом /accessible-attachments', () => {
+    const step = buildSecurityFinalStep();
+    expect(step.id).toBe('sec-finish');
+    expect(step.element).toBe(null);
+    expect(step.celebrate).toBe(true);
+    // финал всегда на достижимой странице, НЕ на route фактовой таблицы
+    expect(step.route).toBe('/accessible-attachments');
+    expect(typeof step.title).toBe('string');
+    expect(step.title.length).toBeGreaterThan(0);
+    expect(typeof step.description).toBe('string');
+    expect(step.description.length).toBeGreaterThan(0);
+  });
+
+  it('CTA ведёт в «Доступные мне», а НЕ на подачу заявки', () => {
+    const step = buildSecurityFinalStep();
+    expect(typeof step.cta).toBe('string');
+    expect(step.cta.length).toBeGreaterThan(0);
+    expect(step.cta).not.toMatch(/Подать заявку/);
+    expect(step.ctaRoute).toBe('/accessible-attachments');
+    expect(step.description).not.toMatch(/Подать заявку/);
+  });
+
+  it('базовый массив не содержит финального шага (строится динамически)', () => {
+    expect(securityOnboardingSteps.some((s) => s.id === 'sec-finish')).toBe(false);
   });
 });
