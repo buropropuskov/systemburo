@@ -79,6 +79,15 @@ export default {
       this.$emit('update:show', false);
       this.$emit('close');
     }
+  },
+  mounted() {
+    this.escHandler = (e) => {
+      if (e.key === 'Escape' && this.show) this.close();
+    };
+    document.addEventListener('keydown', this.escHandler);
+  },
+  beforeUnmount() {
+    document.removeEventListener('keydown', this.escHandler);
   }
 }
 </script>
