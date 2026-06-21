@@ -1,5 +1,6 @@
 <template>
   <BlacklistHistoryModalBase
+    :show="show"
     title="История чёрного списка машин"
     entity-label="mashiny"
     :load-fn="loadFn"
@@ -44,6 +45,7 @@ export default {
   name: 'VehicleBlacklistHistoryModal',
   components: { BlacklistHistoryModalBase },
   props: {
+    show: { type: Boolean, default: false },
     currentUserName: { type: String, default: '' },
   },
   emits: ['close'],

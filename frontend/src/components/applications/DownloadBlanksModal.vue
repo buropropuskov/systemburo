@@ -1,101 +1,104 @@
 <template>
   <Teleport to="body">
-    <div
-      class="dbm-overlay"
-      data-testid="download-blanks-modal"
-      @click.self="$emit('close')"
-    >
-      <div class="dbm-modal">
-        <div class="dbm-header">
-          <h3 class="dbm-title">
-            Скачивание бланков
-          </h3>
-          <button
-            class="dbm-close"
-            @click="$emit('close')"
-          >
-            &times;
-          </button>
-        </div>
-
-        <div
-          v-if="isLoading"
-          class="dbm-state"
-        >
-          <span class="dbm-spinner" />
-        </div>
-        <div
-          v-else-if="error"
-          class="dbm-state dbm-state--error"
-        >
-          {{ error }}
-        </div>
-        <div
-          v-else-if="!eligibleAttachments.length"
-          class="dbm-state"
-        >
-          У заявки нет вложений с настроенным шаблоном бланка.
-        </div>
-        <div
-          v-else
-          class="dbm-list"
-        >
-          <label
-            v-for="att in eligibleAttachments"
-            :key="att.id"
-            class="dbm-item"
-            :class="{ selected: selectedIds.includes(att.id) }"
-          >
-            <input
-              v-model="selectedIds"
-              type="checkbox"
-              :value="att.id"
-              class="dbm-checkbox"
-            >
-            <div class="dbm-item-info">
-              <span class="dbm-item-name">{{ att.attachment_display_name || att.unique_attachment_display_name || att.attachment_name }}</span>
-              <span
-                v-if="attachmentTypeLabel(att.attachment_type)"
-                class="dbm-item-type"
-              >{{ attachmentTypeLabel(att.attachment_type) }}</span>
-            </div>
+    <transition name="modal-fade">
+      <div
+        v-if="show"
+        class="dbm-overlay"
+        data-testid="download-blanks-modal"
+        @click.self="$emit('close')"
+      >
+        <div class="dbm-modal">
+          <div class="dbm-header">
+            <h3 class="dbm-title">
+              Скачивание бланков
+            </h3>
             <button
-              class="dbm-item-download"
-              :disabled="downloadingId === att.id"
-              @click.prevent="downloadOne(att)"
+              class="dbm-close"
+              @click="$emit('close')"
             >
-              {{ downloadingId === att.id ? '...' : 'Скачать' }}
+              &times;
             </button>
-          </label>
-        </div>
+          </div>
 
-        <footer
-          v-if="eligibleAttachments.length"
-          class="dbm-footer"
-        >
-          <button
-            class="dbm-btn dbm-btn--ghost"
-            @click="$emit('close')"
+          <div
+            v-if="isLoading"
+            class="dbm-state"
           >
-            Закрыть
-          </button>
-          <button
-            class="dbm-btn dbm-btn--ghost"
-            :disabled="downloadingAll"
-            @click="downloadAll"
+            <span class="dbm-spinner" />
+          </div>
+          <div
+            v-else-if="error"
+            class="dbm-state dbm-state--error"
           >
-            Скачать все
-          </button>
-          <button
-            class="dbm-btn dbm-btn--primary"
-            :disabled="!selectedIds.length || downloadingAll"
-            @click="downloadSelected"
+            {{ error }}
+          </div>
+          <div
+            v-else-if="!eligibleAttachments.length"
+            class="dbm-state"
           >
-            {{ downloadingAll ? 'Скачивание...' : `Скачать (${selectedIds.length})` }}
-          </button>
-        </footer>
+            У заявки нет вложений с настроенным шаблоном бланка.
+          </div>
+          <div
+            v-else
+            class="dbm-list"
+          >
+            <label
+              v-for="att in eligibleAttachments"
+              :key="att.id"
+              class="dbm-item"
+              :class="{ selected: selectedIds.includes(att.id) }"
+            >
+              <input
+                v-model="selectedIds"
+                type="checkbox"
+                :value="att.id"
+                class="dbm-checkbox"
+              >
+              <div class="dbm-item-info">
+                <span class="dbm-item-name">{{ att.attachment_display_name || att.unique_attachment_display_name || att.attachment_name }}</span>
+                <span
+                  v-if="attachmentTypeLabel(att.attachment_type)"
+                  class="dbm-item-type"
+                >{{ attachmentTypeLabel(att.attachment_type) }}</span>
+              </div>
+              <button
+                class="dbm-item-download"
+                :disabled="downloadingId === att.id"
+                @click.prevent="downloadOne(att)"
+              >
+                {{ downloadingId === att.id ? '...' : 'Скачать' }}
+              </button>
+            </label>
+          </div>
+
+          <footer
+            v-if="eligibleAttachments.length"
+            class="dbm-footer"
+          >
+            <button
+              class="dbm-btn dbm-btn--ghost"
+              @click="$emit('close')"
+            >
+              Закрыть
+            </button>
+            <button
+              class="dbm-btn dbm-btn--ghost"
+              :disabled="downloadingAll"
+              @click="downloadAll"
+            >
+              Скачать все
+            </button>
+            <button
+              class="dbm-btn dbm-btn--primary"
+              :disabled="!selectedIds.length || downloadingAll"
+              @click="downloadSelected"
+            >
+              {{ downloadingAll ? 'Скачивание...' : `Скачать (${selectedIds.length})` }}
+            </button>
+          </footer>
+        </div>
       </div>
-    </div>
+    </transition>
   </Teleport>
 </template>
 
@@ -114,7 +117,8 @@ const TYPE_LABELS = {
 export default {
   name: 'DownloadBlanksModal',
   props: {
-    applicationId: { type: Number, required: true },
+    show: { type: Boolean, default: false },
+    applicationId: { type: Number, default: 0 },
     applicationInfo: { type: Object, default: null },
   },
   emits: ['close'],
@@ -133,8 +137,15 @@ export default {
       return this.attachments.filter(att => att.has_template);
     },
   },
-  mounted() {
-    this.load();
+  watch: {
+    // Модалка всегда смонтирована (для leave-анимации): грузим вложения при
+    // открытии, а не на mount (иначе fetch с пустым applicationId на старте).
+    show(visible) {
+      if (visible && this.applicationId) {
+        this.selectedIds = [];
+        this.load();
+      }
+    },
   },
   methods: {
     async load() {
@@ -410,5 +421,15 @@ export default {
 .dbm-btn--ghost:hover:not(:disabled) {
   border-color: var(--color-primary);
   color: var(--color-primary);
+}
+
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity 0.25s ease;
+}
+
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
 }
 </style>

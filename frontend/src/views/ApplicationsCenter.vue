@@ -545,8 +545,8 @@
       @application-changed="handleApplicationChanged"
     />
     <DownloadBlanksModal
-      v-if="showDownloadModal && downloadAppId"
-      :application-id="downloadAppId"
+      :show="!!(showDownloadModal && downloadAppId)"
+      :application-id="downloadAppId || 0"
       :application-info="downloadAppInfo"
       @close="showDownloadModal = false"
     />
