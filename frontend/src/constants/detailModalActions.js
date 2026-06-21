@@ -64,8 +64,9 @@ export const VEHICLE_MODAL_ACTIONS = {
     openApplication: false,
     blacklist:       'page.admin.blacklist',
     entryExit:       'entity.cars.read',
-    // Документы в контексте таблиц/центра скрыты у всех кроме админа/супера
-    documents:       'page.admin',
+    // Документы доступны по detail.documents (есть в базовой роли) - владелец видит
+    // документы своих машин; админ/супер - всегда.
+    documents:       'detail.documents',
     passHistory:     'entity.cars.read',
   },
   trash: {
@@ -91,7 +92,7 @@ export const VEHICLE_MODAL_ACTIONS = {
     openApplication: true,
     blacklist:       'page.admin.blacklist',
     entryExit:       'entity.cars.read',
-    documents:       'page.admin',
+    documents:       'detail.documents',
     passHistory:     'entity.cars.read',
   },
 }
@@ -107,8 +108,9 @@ export const EMPLOYEE_MODAL_ACTIONS = {
     openApplication: false,
     blacklist:       'page.admin.blacklist',
     entryExit:       'entity.employees.read',
-    // Документы в контексте заявки скрыты у обычных пользователей
-    documents:       'page.admin',
+    // Документы доступны по detail.documents (есть в базовой роли): обычный юзер
+    // видит документы своих сотрудников в заявке; админ/супер - всегда.
+    documents:       'detail.documents',
     passHistory:     false,
   },
   employeesview: {
@@ -117,7 +119,7 @@ export const EMPLOYEE_MODAL_ACTIONS = {
     openApplication: true,
     blacklist:       'page.admin.blacklist',
     entryExit:       'entity.employees.read',
-    documents:       'page.admin',
+    documents:       'detail.documents',
     passHistory:     'entity.employees.read',
   },
   employeeslist: {
@@ -136,7 +138,7 @@ export const EMPLOYEE_MODAL_ACTIONS = {
     openApplication: true,
     blacklist:       'page.admin.blacklist',
     entryExit:       'entity.employees.read',
-    documents:       'page.admin',
+    documents:       'detail.documents',
     passHistory:     false,
   },
   trash: {
@@ -160,7 +162,7 @@ export const EMPLOYEE_MODAL_ACTIONS = {
     openApplication: true,
     blacklist:       'page.admin.blacklist',
     entryExit:       'entity.employees.read',
-    documents:       'page.admin',
+    documents:       'detail.documents',
     passHistory:     'entity.employees.read',
   },
 }

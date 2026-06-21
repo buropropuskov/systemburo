@@ -205,8 +205,11 @@
                   </div>
                 </div>
 
-                <!-- Документы (чувствительные данные) -->
-                <div class="details-section">
+                <!-- Документы (чувствительные данные) - под правом detail.documents -->
+                <div
+                  v-if="allowedActions.documents"
+                  class="details-section"
+                >
                   <div class="section-header">
                     <h4 class="section-title">
                       Документы
@@ -450,6 +453,7 @@ import EmployeeHistoryModal from './EmployeeHistoryModal.vue';
 import AddToBlacklistModal from '@/components/admin/blacklist/AddToBlacklistModal.vue';
 import { usePermissionsStore } from '@/stores/permissions';
 import { useDeletionsStore } from '@/stores/deletions';
+import { getModalActionPermission } from '@/constants/detailModalActions';
 import { checkPersonBlacklist, createPersonBlacklist } from '@/api/blacklist';
 import ExcelJS from 'exceljs';
 
@@ -567,6 +571,26 @@ export default {
         },
         canManageBlacklist() {
             return usePermissionsStore().hasPermission('page.admin.blacklist');
+        },
+        // Доступные действия/разделы модалки по контексту (source) и правам (#187
+        // Фаза 2). Значение из карты: boolean - по контексту; строка - ключ права,
+        // резолвится через hasPermission. Сейчас гейтит раздел «Документы»
+        // (detail.documents есть в базовой роли -> владелец видит документы своих
+        // сотрудников; в корзине/списке/ЧС - скрыты).
+        allowedActions() {
+            const perms = usePermissionsStore();
+            const resolve = (action) => {
+                const v = getModalActionPermission('employee', this.source, action);
+                return typeof v === 'boolean' ? v : perms.hasPermission(v);
+            };
+            return {
+                history: resolve('history'),
+                openApplication: resolve('openApplication'),
+                blacklist: resolve('blacklist'),
+                entryExit: resolve('entryExit'),
+                documents: resolve('documents'),
+                passHistory: resolve('passHistory'),
+            };
         },
         personLast() {
             return (this.employee?.last_name || '').trim();
