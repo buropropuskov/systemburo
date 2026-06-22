@@ -81,7 +81,7 @@
         />
       </div>
       <div
-        v-if="can('page.new_application')"
+        v-if="can('header.create_application')"
         class="appl-btn__container"
       >
         <button
@@ -128,8 +128,9 @@ export default {
   emits: ['refresh-feedback'],
   setup() {
     // uiStore нужен для сдвига приветствия, когда рельс скрыт (плавающая кнопка
-    // возврата перекрывала бы заголовок). permissionsStore - гейт кнопки
-    // «Подать заявку» по праву page.new_application (#187 Фаза 2).
+    // возврата перекрывала бы заголовок). permissionsStore - гейт кнопок шапки:
+    // «Сообщить о проблеме» (header.report_problem) и «Подать заявку»
+    // (header.create_application, отдельно от nav «Новая заявка» = page.new_application).
     const uiStore = useUiStore();
     const permissionsStore = usePermissionsStore();
     return { uiStore, permissionsStore };

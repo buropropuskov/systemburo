@@ -55,3 +55,40 @@ describe('TheHeader — кнопка «Сообщить о проблеме» п
     expect(feedbackBtn(wrapper).exists()).toBe(true)
   })
 })
+
+describe('TheHeader — кнопка «Подать заявку» по праву header.create_application', () => {
+  let wrapper
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    hasPermission.mockReset()
+    global.IntersectionObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+  })
+  afterEach(() => wrapper?.unmount())
+
+  const submitBtn = (w) => w.find('[data-testid="header-button-submit-app"]')
+
+  it('скрыта без права header.create_application', async () => {
+    hasPermission.mockReturnValue(false)
+    wrapper = mountHeader()
+    await flushPromises()
+    expect(submitBtn(wrapper).exists()).toBe(false)
+  })
+
+  it('видна при наличии header.create_application', async () => {
+    hasPermission.mockImplementation((key) => key === 'header.create_application')
+    wrapper = mountHeader()
+    await flushPromises()
+    expect(submitBtn(wrapper).exists()).toBe(true)
+  })
+
+  it('отвязана от page.new_application: только nav-право кнопку не показывает', async () => {
+    hasPermission.mockImplementation((key) => key === 'page.new_application')
+    wrapper = mountHeader()
+    await flushPromises()
+    expect(submitBtn(wrapper).exists()).toBe(false)
+  })
+})
