@@ -107,10 +107,6 @@
                       </span>
                       <div class="slot-badges">
                         <span
-                          v-if="slot.is_next_day"
-                          class="next-day-badge"
-                        >+1</span>
-                        <span
                           v-if="!slot.is_active"
                           class="inactive-badge"
                         >неакт</span>
