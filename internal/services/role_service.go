@@ -55,6 +55,16 @@ func (s *RoleService) List(ctx context.Context) ([]models.RoleResponse, error) {
 		return nil, err
 	}
 
+	var grants []models.RolePermissionGrant
+	if err := s.db.WithContext(ctx).Where("role_id IN ? AND value = ?", roleIDs, "allow").
+		Find(&grants).Error; err != nil {
+		return nil, fmt.Errorf("failed to load role grants: %w", err)
+	}
+	grantsByRole := make(map[int][]string)
+	for _, g := range grants {
+		grantsByRole[g.RoleID] = append(grantsByRole[g.RoleID], g.PermissionKey)
+	}
+
 	result := make([]models.RoleResponse, len(roles))
 	for i, r := range roles {
 		groups := make([]models.PermissionGroupResponse, 0)
@@ -63,12 +73,17 @@ func (s *RoleService) List(ctx context.Context) ([]models.RoleResponse, error) {
 				groups = append(groups, resp)
 			}
 		}
+		direct := grantsByRole[r.ID]
+		if direct == nil {
+			direct = []string{}
+		}
 		result[i] = models.RoleResponse{
 			ID:            r.ID,
 			Code:          r.Code,
 			Name:          r.Name,
 			Description:   r.Description,
 			DefaultGroups: groups,
+			DirectGrants:  direct,
 		}
 	}
 	return result, nil
@@ -175,6 +190,56 @@ func (s *RoleService) SetDefaultGroups(ctx context.Context, roleID int, groupIDs
 		}
 		if err := tx.Create(&records).Error; err != nil {
 			return fmt.Errorf("failed to insert role defaults: %w", err)
+		}
+		return nil
+	})
+	if err == nil {
+		s.resolver.InvalidateAll()
+	}
+	return err
+}
+
+// SetPermissions полностью заменяет набор прямых (allow) грантов роли по ключам.
+// Ключи валидируются по каталогу; super-only выдавать через роль нельзя (резолвер
+// их всё равно игнорирует у не-супера -- отклоняем явно, чтобы не плодить мёртвые гранты).
+func (s *RoleService) SetPermissions(ctx context.Context, roleID int, keys []string) error {
+	var exists int64
+	if err := s.db.WithContext(ctx).Model(&models.Role{}).Where("id = ?", roleID).Count(&exists).Error; err != nil {
+		return fmt.Errorf("failed to check role: %w", err)
+	}
+	if exists == 0 {
+		return echo.NewHTTPError(http.StatusNotFound, "Роль не найдена")
+	}
+
+	seen := make(map[string]struct{}, len(keys))
+	unique := make([]string, 0, len(keys))
+	for _, k := range keys {
+		if _, dup := seen[k]; dup {
+			continue
+		}
+		seen[k] = struct{}{}
+		if !IsValidKey(k) {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Неизвестный ключ права: %s", k))
+		}
+		if IsSuperOnly(k) {
+			return echo.NewHTTPError(http.StatusForbidden, "Эти права нельзя выдать через роль")
+		}
+		unique = append(unique, k)
+	}
+
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("role_id = ?", roleID).Delete(&models.RolePermissionGrant{}).Error; err != nil {
+			return fmt.Errorf("failed to clear role grants: %w", err)
+		}
+		if len(unique) == 0 {
+			return nil
+		}
+		records := make([]models.RolePermissionGrant, 0, len(unique))
+		for _, k := range unique {
+			records = append(records, models.RolePermissionGrant{RoleID: roleID, PermissionKey: k, Value: "allow"})
+		}
+		if err := tx.Create(&records).Error; err != nil {
+			return fmt.Errorf("failed to insert role grants: %w", err)
 		}
 		return nil
 	})

@@ -529,6 +529,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	rolesGroup.PUT("/:id", roles.Update, auditManage)
 	rolesGroup.DELETE("/:id", roles.Delete, auditManage)
 	rolesGroup.PUT("/:id/default-groups", roles.SetDefaultGroups, auditManage)
+	rolesGroup.PUT("/:id/permissions", roles.SetPermissions, auditManage)
 
 	// Журнал отказов в доступе (#230).
 	denialsGroup := protected.Group("/access-denials")

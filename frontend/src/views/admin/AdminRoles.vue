@@ -73,12 +73,34 @@
           </div>
         </div>
 
+        <div class="card__section">
+          <span class="card__section-label">Точечные права:</span>
+          <div class="card__chips">
+            <span
+              v-if="(role.direct_grants || []).length > 0"
+              class="chip chip--role"
+            >
+              {{ (role.direct_grants || []).length }} {{ pluralPrava((role.direct_grants || []).length) }}
+            </span>
+            <span
+              v-else
+              class="card__empty-text"
+            >не настроены</span>
+          </div>
+        </div>
+
         <footer class="card__footer">
           <button
             class="lk-button lk-button--ghost"
             @click="openEditGroups(role)"
           >
             Настроить группы
+          </button>
+          <button
+            class="lk-button lk-button--ghost"
+            @click="openEditPermissions(role)"
+          >
+            Точечные права
           </button>
           <button
             class="lk-button lk-button--ghost"
@@ -166,7 +188,7 @@
             <header class="rgm-head">
               <h3>Дефолтные группы для «{{ groupsRole?.name }}»</h3>
               <p class="form-modal__hint">
-                Юзеры с этой ролью получают права из всех выбранных групп. Справа — итоговый набор прав роли.
+                Юзеры с этой ролью получают права из всех выбранных групп плюс точечные права роли. Справа — итоговый набор прав роли.
               </p>
             </header>
             <div class="rgm-body">
@@ -230,6 +252,16 @@
         </div>
       </transition>
     </Teleport>
+
+    <GroupPermissionsModal
+      :show="permsOpen"
+      :title="`Точечные права роли «${permsRole?.name || ''}»`"
+      :catalog="catalog"
+      :initial-keys="permsInitialKeys"
+      :saving="saving"
+      @close="permsOpen = false"
+      @save="savePermissions"
+    />
   </section>
 </template>
 
@@ -240,17 +272,19 @@ import {
   updateRole,
   deleteRole,
   setRoleDefaultGroups,
+  setRolePermissions,
   listPermissionGroups,
   getPermissionCatalog,
 } from '@/api/permissions';
 import RefreshButton from '@/components/RefreshButton.vue';
 import EffectivePermissionsTree from '@/components/admin/EffectivePermissionsTree.vue';
+import GroupPermissionsModal from '@/components/admin/GroupPermissionsModal.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
 
 export default {
   name: 'AdminRoles',
-  components: { RefreshButton, EffectivePermissionsTree },
+  components: { RefreshButton, EffectivePermissionsTree, GroupPermissionsModal },
   data() {
     return {
       roles: [],
@@ -265,24 +299,35 @@ export default {
       groupsOpen: false,
       groupsRole: null,
       selectedGroupIds: new Set(),
+      permsOpen: false,
+      permsRole: null,
+      permsInitialKeys: [],
     };
   },
   computed: {
-    // Итоговый набор прав роли = объединение ключей всех выбранных дефолтных групп.
-    // Read-only превью (все locked, источник «группа») в стиле карточки прав.
+    // Итоговый набор прав роли = прямые точечные гранты роли ∪ ключи выбранных
+    // дефолтных групп. Read-only превью (всё locked): прямые гранты бейджатся как
+    // «роль», группо-только -- как «группа».
     previewStateByKey() {
-      const union = new Set();
+      const groupUnion = new Set();
       for (const g of this.allGroups) {
         if (this.selectedGroupIds.has(g.id)) {
-          for (const k of g.keys || []) union.add(k);
+          for (const k of g.keys || []) groupUnion.add(k);
         }
       }
+      const directSet = new Set((this.groupsRole?.direct_grants) || []);
       const result = {};
+      const apply = (key) => {
+        const inDirect = directSet.has(key);
+        result[key] = {
+          on: inDirect || groupUnion.has(key),
+          source: inDirect ? 'role' : 'group',
+          locked: true,
+        };
+      };
       for (const node of this.catalog) {
-        result[node.key] = { on: union.has(node.key), source: 'group', locked: true };
-        for (const child of node.children || []) {
-          result[child.key] = { on: union.has(child.key), source: 'group', locked: true };
-        }
+        apply(node.key);
+        for (const child of node.children || []) apply(child.key);
       }
       return result;
     },
@@ -356,6 +401,29 @@ export default {
         await setRoleDefaultGroups(this.groupsRole.id, Array.from(this.selectedGroupIds));
         await this.fetchAll();
         this.groupsOpen = false;
+      } finally {
+        this.saving = false;
+      }
+    },
+    pluralPrava(n) {
+      const mod10 = n % 10;
+      const mod100 = n % 100;
+      if (mod10 === 1 && mod100 !== 11) return 'право';
+      if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'права';
+      return 'прав';
+    },
+    openEditPermissions(role) {
+      this.permsRole = role;
+      this.permsInitialKeys = [...(role.direct_grants || [])];
+      this.permsOpen = true;
+    },
+    async savePermissions(keys) {
+      if (!this.permsRole) return;
+      this.saving = true;
+      try {
+        await setRolePermissions(this.permsRole.id, keys);
+        await this.fetchAll();
+        this.permsOpen = false;
       } finally {
         this.saving = false;
       }
@@ -486,6 +554,11 @@ export default {
   background: #eef0ff;
   color: #3a45c0;
   border-radius: var(--radius-pill);
+}
+
+.chip--role {
+  background: #eef0f6;
+  color: #6b7280;
 }
 
 .card__empty-text {

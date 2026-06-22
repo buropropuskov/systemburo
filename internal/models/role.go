@@ -45,11 +45,19 @@ type SetRoleGroupsRequest struct {
 	GroupIDs []int `json:"group_ids" validate:"required"`
 }
 
+// SetRolePermissionsRequest -- запрос на установку точечных прав роли (полная замена).
+// Пустой/отсутствующий список очищает все прямые гранты роли, поэтому без required.
+type SetRolePermissionsRequest struct {
+	Keys []string `json:"keys"`
+}
+
 // RoleResponse -- ответ с информацией о роли + привязанных группах.
+// DirectGrants -- ключи прав, выданных роли напрямую (allow), помимо default-групп.
 type RoleResponse struct {
 	ID            int                       `json:"id"`
 	Code          string                    `json:"code"`
 	Name          string                    `json:"name"`
 	Description   *string                   `json:"description"`
 	DefaultGroups []PermissionGroupResponse `json:"default_groups"`
+	DirectGrants  []string                  `json:"direct_grants"`
 }
