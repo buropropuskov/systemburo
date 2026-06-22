@@ -1533,13 +1533,13 @@ export default {
 
 .mark__dropdown-menu {
     position: absolute;
-    top: 100%;
-    left: 0;
-    width: 100%;
+    top: 0;
+    left: 100%;
+    width: 220px;
     background: #FFF;
     border: 1px solid #e6e6e6;
     border-radius: 20px;
-    margin-top: 5px;
+    margin-left: 5px;
     box-shadow: 0 3px 10px rgba(0,0,0,0.1);
     z-index: 1000;
     max-height: 220px;
