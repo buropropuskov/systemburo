@@ -27,6 +27,18 @@
       </div>
       
       <div class="card-header__settings">
+        <DateFilter
+          ref="dateFilter"
+          :mode="'range'"
+          :selected-date="selectedDate"
+          :date-range-start="dateRangeStart"
+          :date-range-end="dateRangeEnd"
+          @update:selected-date="updateSelectedDate"
+          @update:date-range-start="updateDateRangeStart"
+          @update:date-range-end="updateDateRangeEnd"
+          @apply="applyDateFilters"
+          @clear="clearDateRange"
+        />
         <SearchComponent
           v-model="searchQuery"
           :title="'Поиск заявок..'"
@@ -262,9 +274,9 @@
                 v-else
                 class="no-data-message"
               >
-                <p>{{ searchQuery ? 'Заявки не найдены' : 'Заявок нет' }}</p>
+                <p>{{ hasActiveFilters ? 'Нет заявок по выбранным фильтрам' : 'Заявок нет' }}</p>
                 <p
-                  v-if="!searchQuery"
+                  v-if="!hasActiveFilters"
                   class="hint"
                 >
                   {{ getNoDataHint() }}
@@ -302,6 +314,7 @@ import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import { useAuthStore } from '@/stores/auth'
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
+import DateFilter from './DateFilter.vue';
 import ApplicationDetail from './ApplicationDetail/ApplicationDetail.vue';
 import DownloadBlanksModal from './applications/DownloadBlanksModal.vue';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
@@ -312,6 +325,7 @@ export default {
   components: {
     RefreshButton,
     SearchComponent,
+    DateFilter,
     ApplicationDetail,
     DownloadBlanksModal,
     LoaderSpinner,
@@ -346,30 +360,63 @@ export default {
       currentUserName: '',
       showDownloadModal: false,
       downloadAppId: null,
-      downloadAppInfo: null
+      downloadAppInfo: null,
+      selectedDate: null,
+      dateRangeStart: null,
+      dateRangeEnd: null
     };
   },
   computed: {
     filteredApplications() {
+      let filtered = this.applications;
+
       const variants = buildSearchVariants(this.searchQuery);
-      if (!variants.length) return this.applications;
-      return this.applications.filter(application => matchesSearch(
-        [
-          application.application_number,
-          application.organization_name,
-          application.sender_name,
-          application.sender_full_name,
-          application.confirmation,
-          application.status,
-          application.message,
-          application.responsible_name,
-          application.responsible_full_name,
-          application.responsible_comment,
-        ].filter(Boolean).join(' '),
-        variants,
-      ));
+      if (variants.length) {
+        filtered = filtered.filter(application => matchesSearch(
+          [
+            application.application_number,
+            application.organization_name,
+            application.sender_name,
+            application.sender_full_name,
+            application.confirmation,
+            application.status,
+            application.message,
+            application.responsible_name,
+            application.responsible_full_name,
+            application.responsible_comment,
+          ].filter(Boolean).join(' '),
+          variants,
+        ));
+      }
+
+      if (this.selectedDate) {
+        filtered = filtered.filter(app => {
+          const appDate = new Date(app.sending_datetime);
+          const filterDate = new Date(this.selectedDate);
+          appDate.setHours(0, 0, 0, 0);
+          filterDate.setHours(0, 0, 0, 0);
+          return appDate.getTime() === filterDate.getTime();
+        });
+      } else if (this.dateRangeStart && this.dateRangeEnd) {
+        filtered = filtered.filter(app => {
+          const appDate = new Date(app.sending_datetime);
+          const startOfDay = new Date(this.dateRangeStart);
+          startOfDay.setHours(0, 0, 0, 0);
+          const endOfDay = new Date(this.dateRangeEnd);
+          endOfDay.setHours(23, 59, 59, 999);
+          return appDate >= startOfDay && appDate <= endOfDay;
+        });
+      }
+
+      return filtered;
     },
     
+    hasActiveFilters() {
+      return !!this.searchQuery ||
+             !!this.selectedDate ||
+             (this.dateRangeStart && this.dateRangeEnd);
+    },
+
     sortedApplications() {
       const applications = [...this.filteredApplications];
       
@@ -482,6 +529,14 @@ export default {
 
         if (this.searchQuery) {
           params.append('search_query', this.searchQuery);
+        }
+
+        if (this.selectedDate) {
+          params.append('date_from', this.selectedDate.toISOString().split('T')[0]);
+          params.append('date_to', this.selectedDate.toISOString().split('T')[0]);
+        } else if (this.dateRangeStart && this.dateRangeEnd) {
+          params.append('date_from', this.dateRangeStart.toISOString().split('T')[0]);
+          params.append('date_to', this.dateRangeEnd.toISOString().split('T')[0]);
         }
 
         const queryString = params.toString();
@@ -635,6 +690,39 @@ export default {
       this.currentFilter = filter;
       this.selectedApplication = null;
       this.responsibleUsers = [];
+      this.fetchUserApplications();
+    },
+
+    updateSelectedDate(date) {
+      this.selectedDate = date;
+      if (date) {
+        this.dateRangeStart = null;
+        this.dateRangeEnd = null;
+      }
+    },
+
+    updateDateRangeStart(date) {
+      this.dateRangeStart = date;
+      if (date) {
+        this.selectedDate = null;
+      }
+    },
+
+    updateDateRangeEnd(date) {
+      this.dateRangeEnd = date;
+      if (date) {
+        this.selectedDate = null;
+      }
+    },
+
+    applyDateFilters() {
+      this.fetchUserApplications();
+    },
+
+    clearDateRange() {
+      this.selectedDate = null;
+      this.dateRangeStart = null;
+      this.dateRangeEnd = null;
       this.fetchUserApplications();
     },
 
