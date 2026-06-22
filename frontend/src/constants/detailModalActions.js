@@ -44,7 +44,7 @@ export const VEHICLE_MODAL_ACTIONS = {
   },
   carstable: {
     history:         'entity.cars.read',
-    openApplication: true,   // есть application_id, доступ без доп. права
+    openApplication: 'detail.open_application', // есть application_id; гейт по detail.open_application (базовая роль)
     blacklist:       'page.admin.blacklist',
     entryExit:       'entity.cars.read',
     documents:       false,
@@ -52,7 +52,7 @@ export const VEHICLE_MODAL_ACTIONS = {
   },
   facttable: {
     history:         'entity.cars.read',
-    openApplication: true,
+    openApplication: 'detail.open_application',
     blacklist:       'page.admin.blacklist',
     entryExit:       'entity.cars.read',
     documents:       false,
@@ -89,7 +89,7 @@ export const VEHICLE_MODAL_ACTIONS = {
   },
   general: {
     history:         'entity.cars.read',
-    openApplication: true,
+    openApplication: 'detail.open_application',
     blacklist:       'page.admin.blacklist',
     entryExit:       'entity.cars.read',
     documents:       'detail.documents',
@@ -116,7 +116,7 @@ export const EMPLOYEE_MODAL_ACTIONS = {
   employeesview: {
     // Страница «Сотрудники»: полный набор действий для имеющих право
     history:         'entity.employees.read',
-    openApplication: true,
+    openApplication: 'detail.open_application',
     blacklist:       'page.admin.blacklist',
     entryExit:       'entity.employees.read',
     documents:       'detail.documents',
@@ -137,7 +137,7 @@ export const EMPLOYEE_MODAL_ACTIONS = {
   peopletable: {
     // Таблица людей в центре заявок
     history:         'entity.employees.read',
-    openApplication: true,
+    openApplication: 'detail.open_application',
     blacklist:       'page.admin.blacklist',
     entryExit:       'entity.employees.read',
     documents:       'detail.documents',
@@ -161,7 +161,7 @@ export const EMPLOYEE_MODAL_ACTIONS = {
   },
   general: {
     history:         'entity.employees.read',
-    openApplication: true,
+    openApplication: 'detail.open_application',
     blacklist:       'page.admin.blacklist',
     entryExit:       'entity.employees.read',
     documents:       'detail.documents',

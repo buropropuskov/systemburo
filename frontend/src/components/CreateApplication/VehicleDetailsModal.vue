@@ -418,6 +418,7 @@ import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import AddToBlacklistModal from '@/components/admin/blacklist/AddToBlacklistModal.vue';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import { usePermissionsStore } from '@/stores/permissions';
+import { getModalActionPermission } from '@/constants/detailModalActions';
 import { useDeletionsStore } from '@/stores/deletions';
 import { listVehicleBlacklist, createVehicleBlacklist } from '@/api/blacklist';
 import { listMarks } from '@/api/marks';
@@ -516,10 +517,14 @@ export default {
             return this.source === 'application' ? 10003 : 10001;
         },
         // Намеренно НЕ зависит от showCarFeatures: на вкладке Автомобили features выкл,
-        // но переход в заявку нужен. Гейт - наличие заявки (как у EmployeeDetailsModal).
+        // но переход в заявку нужен. Гейт: право detail.open_application по контексту
+        // (карта detailModalActions, как у EmployeeDetailsModal) И наличие заявки.
         canOpenApplication() {
-            return this.source !== 'application' && this.source !== 'blacklist'
-                && !!(this.vehicle?.applicationId || this.vehicle?.application_id);
+            const perm = getModalActionPermission('vehicle', this.source, 'openApplication');
+            const allowed = typeof perm === 'boolean'
+                ? perm
+                : usePermissionsStore().hasPermission(perm);
+            return allowed && !!(this.vehicle?.applicationId || this.vehicle?.application_id);
         },
         // Кнопки в шапке: "Полная история" видна при showCarFeatures,
         // "Открыть заявку" - при canOpenApplication.
