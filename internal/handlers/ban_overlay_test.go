@@ -14,10 +14,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// BanCheck пропускает забаненного на /api/permissions/my (allowlist) - оттуда
-// фронт узнаёт статус и показывает плашку блокировки. Прочие protected-роуты
-// остаются 403 (окно access-токена закрыто).
-func TestBanCheck_AllowlistPermissionsMy(t *testing.T) {
+// BanCheck оставляет забаненному доступ ТОЛЬКО на чтение: GET-ручки (включая
+// /permissions/my для плашки и /users/me для ФИО в кабинете) проходят, а любая
+// мутация (POST/PUT/DELETE) -- 403. Так кабинет грузится read-only под плашкой.
+func TestBanCheck_ReadOnlyForBanned(t *testing.T) {
 	_, db, _ := testutil.SetupTestApp(t)
 	userID, _, cleanup := setupMWUser(t, db, false, true) // забанен
 	defer cleanup()
@@ -34,12 +34,26 @@ func TestBanCheck_AllowlistPermissionsMy(t *testing.T) {
 	e := echo.New()
 	e.GET("/api/permissions/my", ok, inject, banCheck)
 	e.GET("/api/users/me", ok, inject, banCheck)
+	e.POST("/api/applications", ok, inject, banCheck)
+	e.PUT("/api/users/me", ok, inject, banCheck)
+	e.DELETE("/api/notifications", ok, inject, banCheck)
 
-	rec := httptest.NewRecorder()
-	e.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/permissions/my", nil))
-	assert.Equal(t, http.StatusOK, rec.Code, "/permissions/my доступен забаненному (для плашки)")
+	for _, p := range []string{"/api/permissions/my", "/api/users/me"} {
+		rec := httptest.NewRecorder()
+		e.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, p, nil))
+		assert.Equal(t, http.StatusOK, rec.Code, "GET %s доступен забаненному (read-only кабинет)", p)
+	}
 
-	rec = httptest.NewRecorder()
-	e.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/users/me", nil))
-	assert.Equal(t, http.StatusForbidden, rec.Code, "/users/me остаётся заблокированным")
+	mutations := []struct {
+		method, path string
+	}{
+		{http.MethodPost, "/api/applications"},
+		{http.MethodPut, "/api/users/me"},
+		{http.MethodDelete, "/api/notifications"},
+	}
+	for _, m := range mutations {
+		rec := httptest.NewRecorder()
+		e.ServeHTTP(rec, httptest.NewRequest(m.method, m.path, nil))
+		assert.Equal(t, http.StatusForbidden, rec.Code, "%s %s заблокирован для забаненного", m.method, m.path)
+	}
 }

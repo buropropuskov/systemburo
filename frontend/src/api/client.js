@@ -1,6 +1,7 @@
 import { useAuthStore } from '@/stores/auth'
 import { useMaintenanceStore } from '@/stores/maintenance'
 import { useDeletionsStore } from '@/stores/deletions'
+import { usePermissionsStore } from '@/stores/permissions'
 import router from '@/router'
 import { buildBugContext, saveBugContext } from '@/composables/useBugReport'
 
@@ -37,6 +38,23 @@ function show403Notify(msg) {
   _403dedup.set(msg, true)
   setTimeout(() => _403dedup.delete(msg), DEDUP_TTL_MS)
   useDeletionsStore().notify({ prefix: msg, type: 'error' })
+}
+
+// Забаненному не показываем тосты 403: плашка блокировки (BanOverlay) уже всё
+// объясняет, а read-only кабинет может ловить 403 на мутациях/фоновых запросах.
+// Сигнал бана -- флаг стора (из /permissions/my) или поле banned в теле ответа.
+async function isBanContext(response) {
+  try {
+    if (usePermissionsStore().banned) return true
+  } catch {
+    // pinia ещё не активна на раннем запросе -- молча игнорируем
+  }
+  try {
+    const body = await response.clone().json()
+    return Boolean(body?.banned)
+  } catch {
+    return false
+  }
 }
 
 let refreshPromise = null
@@ -175,17 +193,8 @@ async function baseRequest(path, options = {}) {
   // но НЕ редиректим: вызывающий код сам решит как обработать.
   // Тихий режим: опция silent403 или путь из списка фоновых/ожидаемых запросов.
   if (response.status === 403 && !isAuthEndpoint(path)) {
-    if (!options.silent403 && !shouldSilence403(path)) {
-      try {
-        const body = await response.clone().json()
-        const msg = body?.banned
-          ? 'Учётная запись заблокирована. Обратитесь к администратору.'
-          : 'Недостаточно прав для этого действия.'
-        show403Notify(msg)
-      } catch {
-        // body может быть пустым/не json -- показываем дефолтное сообщение
-        show403Notify('Недостаточно прав для этого действия.')
-      }
+    if (!options.silent403 && !shouldSilence403(path) && !(await isBanContext(response))) {
+      show403Notify('Недостаточно прав для этого действия.')
     }
     return response
   }

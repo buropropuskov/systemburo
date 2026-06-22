@@ -240,14 +240,12 @@ describe('403 handling', () => {
     );
   });
 
-  it('показывает специальный текст для заблокированной учётки (banned:true)', async () => {
+  it('НЕ показывает тост 403 для заблокированной учётки (banned:true) -- плашка блокировки уже всё объясняет', async () => {
     fetchMock.mockResolvedValueOnce(errJson({ banned: true }, 403));
 
     await apiRequest('/applications', { method: 'POST' });
 
-    expect(notifyMock).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'error', prefix: 'Учётная запись заблокирована. Обратитесь к администратору.' })
-    );
+    expect(notifyMock).not.toHaveBeenCalled();
   });
 
   it('не вызывает notify при silent403:true', async () => {

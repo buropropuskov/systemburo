@@ -268,34 +268,46 @@ func TestBanCheck_AllowsActiveUser(t *testing.T) {
 	}
 }
 
+// banCheckHarness строит echo с GET и POST /test под BanCheck для заданного юзера.
+func banCheckHarness(userID int, svc *services.BanCheckService) *echo.Echo {
+	e := echo.New()
+	inject := func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			c.Set("user_id", userID)
+			return next(c)
+		}
+	}
+	ok := func(c echo.Context) error { return c.String(http.StatusOK, "ok") }
+	e.GET("/test", ok, inject, middleware.BanCheck(svc))
+	e.POST("/test", ok, inject, middleware.BanCheck(svc))
+	return e
+}
+
 func TestBanCheck_DeniesBannedUser(t *testing.T) {
+	// Забаненный: чтение (GET) проходит read-only, мутация (POST) -- 403.
 	_, db, _ := testutil.SetupTestApp(t)
 	svc := services.NewBanCheckService(db, time.Minute)
 
 	userID, _, cleanup := setupMWUser(t, db, false, true)
 	defer cleanup()
 
-	e := echo.New()
-	e.GET("/test", func(c echo.Context) error { return c.String(http.StatusOK, "ok") },
-		func(next echo.HandlerFunc) echo.HandlerFunc {
-			return func(c echo.Context) error {
-				c.Set("user_id", userID)
-				return next(c)
-			}
-		},
-		middleware.BanCheck(svc),
-	)
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	rec := httptest.NewRecorder()
-	e.ServeHTTP(rec, req)
-	if rec.Code != http.StatusForbidden {
-		t.Errorf("expected 403 for banned user, got %d (body: %s)", rec.Code, rec.Body.String())
+	e := banCheckHarness(userID, svc)
+
+	recGet := httptest.NewRecorder()
+	e.ServeHTTP(recGet, httptest.NewRequest(http.MethodGet, "/test", nil))
+	if recGet.Code != http.StatusOK {
+		t.Errorf("expected 200 GET for banned user (read-only), got %d (body: %s)", recGet.Code, recGet.Body.String())
+	}
+
+	recPost := httptest.NewRecorder()
+	e.ServeHTTP(recPost, httptest.NewRequest(http.MethodPost, "/test", nil))
+	if recPost.Code != http.StatusForbidden {
+		t.Errorf("expected 403 POST for banned user, got %d (body: %s)", recPost.Code, recPost.Body.String())
 	}
 }
 
 func TestBanCheck_DeniesArchivedUser(t *testing.T) {
-	// Архивный (is_active=false) юзер с живым access-токеном должен получать 403
-	// на каждом запросе - офбординг не ждёт истечения токена.
+	// Архивный (is_active=false) с живым access-токеном: read-only, мутации -- 403.
 	_, db, _ := testutil.SetupTestApp(t)
 	svc := services.NewBanCheckService(db, time.Minute)
 
@@ -305,21 +317,18 @@ func TestBanCheck_DeniesArchivedUser(t *testing.T) {
 		t.Fatalf("archive user: %v", err)
 	}
 
-	e := echo.New()
-	e.GET("/test", func(c echo.Context) error { return c.String(http.StatusOK, "ok") },
-		func(next echo.HandlerFunc) echo.HandlerFunc {
-			return func(c echo.Context) error {
-				c.Set("user_id", userID)
-				return next(c)
-			}
-		},
-		middleware.BanCheck(svc),
-	)
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	rec := httptest.NewRecorder()
-	e.ServeHTTP(rec, req)
-	if rec.Code != http.StatusForbidden {
-		t.Errorf("expected 403 for archived user, got %d (body: %s)", rec.Code, rec.Body.String())
+	e := banCheckHarness(userID, svc)
+
+	recGet := httptest.NewRecorder()
+	e.ServeHTTP(recGet, httptest.NewRequest(http.MethodGet, "/test", nil))
+	if recGet.Code != http.StatusOK {
+		t.Errorf("expected 200 GET for archived user (read-only), got %d (body: %s)", recGet.Code, recGet.Body.String())
+	}
+
+	recPost := httptest.NewRecorder()
+	e.ServeHTTP(recPost, httptest.NewRequest(http.MethodPost, "/test", nil))
+	if recPost.Code != http.StatusForbidden {
+		t.Errorf("expected 403 POST for archived user, got %d (body: %s)", recPost.Code, recPost.Body.String())
 	}
 }
 
