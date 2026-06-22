@@ -47,12 +47,6 @@ func GetUserID(c echo.Context) int {
 	return id
 }
 
-// GetTypeID безопасно извлекает type_id из контекста.
-func GetTypeID(c echo.Context) int {
-	id, _ := c.Get("type_id").(int)
-	return id
-}
-
 // IsSuperAdmin безопасно извлекает is_super_admin из контекста (#231).
 // Используется вместо хардкода type_id == 6.
 func IsSuperAdmin(c echo.Context) bool {
