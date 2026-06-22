@@ -785,9 +785,10 @@ export default {
   async mounted() {
     document.body.classList.add('auth-active');
     this.syncContentMargin();
-    // Права нужны для гейтинга пунктов/таблиц/админки. Идемпотентно (вернёт кэш,
-    // если router-guard уже загрузил), но защищает от пустого первого рендера.
-    this.permissionsStore.fetchPermissions();
+    // Права нужны для гейтинга пунктов/таблиц/админки и опроса новых заявок.
+    // Ждём загрузку (идемпотентно - вернёт кэш, если router-guard уже загрузил),
+    // чтобы первый опрос не стартовал у пользователя без page.center.
+    await this.permissionsStore.fetchPermissions();
     await this.fetchBanStatus();
     await this.fetchSystemTables();
     this.startApplicationsPolling();
@@ -1033,6 +1034,13 @@ export default {
     },
 
     async fetchNewApplicationsCount() {
+      // Счётчик и звук новых заявок - операторская фича «Центра заявок». Без права
+      // page.center не опрашиваем и не играем звук: иначе заявитель, ставший
+      // responsible своей же заявки, получает сигнал о «новой заявке в Центре».
+      if (!this.can('page.center')) {
+        this.newApplicationsCount = 0
+        return
+      }
       const SOUND_COOLDOWN_MS = 5000
       try {
         const data = await getUnreadCount()
