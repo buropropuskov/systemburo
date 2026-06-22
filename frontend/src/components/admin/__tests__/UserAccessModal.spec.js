@@ -14,13 +14,13 @@ import {
 const CATALOG = [
   { key: 'page.center', display_name: 'Центр заявок', category: 'Навигация' },
   { key: 'page.cars', display_name: 'Автомобили', category: 'Навигация' },
-  { key: 'page.analytics', display_name: 'Аналитика', category: 'Навигация' },
+  { key: 'page.statistics', display_name: 'Аналитика', category: 'Навигация' },
   { key: 'action.grant.admin', display_name: 'Выдача прав администратора', category: 'Администрирование', super_only: true },
 ];
 
 const ROLES = [{ id: 1, name: 'Пользователь', code: 'user' }, { id: 2, name: 'Охранник', code: 'guard' }];
 const GROUPS = [
-  { id: 5, name: 'Аналитика', keys: ['page.analytics'] },
+  { id: 5, name: 'Аналитика', keys: ['page.statistics'] },
   { id: 6, name: 'Все таблицы', keys: [] },
 ];
 

@@ -77,6 +77,23 @@ func TestIsValidKey(t *testing.T) {
 	}
 }
 
+// Гигиена каталога (#permission-gating срез 1): «Аналитика» гейтится реально
+// enforced ключом page.statistics, а не orphan page.analytics; управление новостями
+// живёт в Администрировании (/admin/news), отдельного тумблера news.manage на
+// «Обзор и новости» нет.
+func TestCatalogHygiene(t *testing.T) {
+	t.Parallel()
+	if !IsCatalogKey(KeyPageStatistics) {
+		t.Error("Аналитика должна гейтиться page.statistics (ключ обязан быть в каталоге)")
+	}
+	if IsCatalogKey("page.analytics") {
+		t.Error("orphan page.analytics не должен остаться в каталоге")
+	}
+	if IsCatalogKey("news.manage") {
+		t.Error("news.manage убран с «Обзор и новости» (управление новостями -- в Администрировании)")
+	}
+}
+
 func TestAllCatalogKeysMatchesSet(t *testing.T) {
 	t.Parallel()
 	keys := AllCatalogKeys()
