@@ -1106,13 +1106,13 @@ export default {
 }
 
 .modal-content.main-modal {
-  left: calc(50% - 260px);
+  left: calc(50% - 275px);
   transition: transform 0.5s cubic-bezier(0.25, 0.1, 0.15, 1);
   transform: translateX(0);
 }
 
 .modal-content.main-modal.shifted {
-  transform: translateX(-280px);
+  transform: translateX(-295px);
 }
 
 .place-modal-container {
