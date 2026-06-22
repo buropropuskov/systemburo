@@ -40,7 +40,7 @@
           class="recovery-contact__icon"
           alt=""
         >
-        <span class="recovery-contact__text">buropropuskov@dreamisland.ru</span>
+        <span class="recovery-contact__text">{{ bureauEmail }}</span>
       </button>
       <button
         type="button"
@@ -53,7 +53,7 @@
           class="recovery-contact__icon"
           alt=""
         >
-        <span class="recovery-contact__text">+7 (910) 083 00-55</span>
+        <span class="recovery-contact__text">{{ bureauPhone }}</span>
       </button>
     </div>
 
@@ -72,6 +72,11 @@
 
 <script>
 import BaseModal from '@/components/ui/BaseModal.vue'
+import { useContactsStore } from '@/stores/contacts'
+
+// Фолбэк-контакты Бюро, если в настройках системы они ещё не заданы.
+const FALLBACK_BUREAU_EMAIL = 'buropropuskov@dreamisland.ru'
+const FALLBACK_BUREAU_PHONE = '+7 (910) 083 00-55'
 
 export default {
   name: 'PasswordRecoveryModal',
@@ -85,6 +90,19 @@ export default {
   },
 
   emits: ['close'],
+
+  computed: {
+    bureauEmail() {
+      return useContactsStore().email || FALLBACK_BUREAU_EMAIL
+    },
+    bureauPhone() {
+      return useContactsStore().phone || FALLBACK_BUREAU_PHONE
+    },
+  },
+
+  mounted() {
+    useContactsStore().fetch()
+  },
 
   data() {
     return {
@@ -130,12 +148,12 @@ export default {
     },
 
     async copyEmail() {
-      await this.copyToClipboard('buropropuskov@dreamisland.ru')
+      await this.copyToClipboard(this.bureauEmail)
       this.showNotificationMessage('E-mail скопирован')
     },
 
     async copyPhone() {
-      await this.copyToClipboard('+7 (910) 083 00-55')
+      await this.copyToClipboard(this.bureauPhone)
       this.showNotificationMessage('Номер телефона скопирован')
     },
   },
