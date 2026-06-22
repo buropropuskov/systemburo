@@ -214,6 +214,7 @@ import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
 import UserGuideModal from '../components/news/UserGuideModal.vue'
 import { USER_GUIDE_SECTIONS } from '../components/news/userGuideSections.js'
 import { ADMIN_GUIDE_SECTIONS } from '../components/news/adminGuideSections.js'
+import { SECURITY_GUIDE_SECTIONS } from '../components/news/securityGuideSections.js'
 import { usePermissionsStore } from '@/stores/permissions'
 import { sanitizeHtml } from '@/utils/sanitize.js'
 import DocumentsBlock from '../components/news/DocumentsBlock.vue'
@@ -239,6 +240,7 @@ export default {
       viewingAnnouncement: null,
       newsItems: [],
       activeAnnouncement: null,
+      userTypeCode: null,
     }
   },
   computed: {
@@ -248,11 +250,20 @@ export default {
     isAdminUser() {
       return usePermissionsStore().hasPermission('page.admin');
     },
+    // Охранника отличаем по коду типа: единого права, идентифицирующего роль,
+    // в permissions-сторе нет, поэтому берём user_type из /users/me.
+    isSecurityUser() {
+      return this.userTypeCode === 'security';
+    },
     guideSections() {
-      return this.isAdminUser ? ADMIN_GUIDE_SECTIONS : USER_GUIDE_SECTIONS;
+      if (this.isAdminUser) return ADMIN_GUIDE_SECTIONS;
+      if (this.isSecurityUser) return SECURITY_GUIDE_SECTIONS;
+      return USER_GUIDE_SECTIONS;
     },
     guideTitle() {
-      return this.isAdminUser ? 'Руководство администратора' : 'Руководство пользователя';
+      if (this.isAdminUser) return 'Руководство администратора';
+      if (this.isSecurityUser) return 'Руководство охранника';
+      return 'Руководство пользователя';
     }
   },
   mounted() {
@@ -292,8 +303,17 @@ export default {
         }
       } catch (error) { console.error('Ошибка загрузки активного объявления:', error) }
     },
+    async fetchUserType() {
+      try {
+        const response = await apiRequest('/users/me')
+        if (response.ok) {
+          const me = await response.json()
+          this.userTypeCode = me?.user_type ?? null
+        }
+      } catch (error) { console.error('Ошибка загрузки типа пользователя:', error) }
+    },
     async fetchAllData() {
-      await Promise.all([this.fetchNews(), this.fetchActiveAnnouncement()])
+      await Promise.all([this.fetchNews(), this.fetchActiveAnnouncement(), this.fetchUserType()])
     },
 
     openNewsModal(item) { this.selectedNews = item; this.showNewsDetailsModal = true },
