@@ -155,6 +155,15 @@ export async function setRoleDefaultGroups(id, groupIds) {
   return res.json();
 }
 
+// Точечные права роли (полная замена прямых allow-грантов по ключам каталога).
+export async function setRolePermissions(id, keys) {
+  const res = await apiRequest(`/roles/${id}/permissions`, {
+    method: 'PUT',
+    body: JSON.stringify({ keys }),
+  });
+  return res.json();
+}
+
 // --- Access Denials (#230) ---
 
 export async function listAccessDenials(params = {}) {

@@ -84,3 +84,19 @@ func (h *RoleHandler) SetDefaultGroups(c echo.Context) error {
 	}
 	return RespondSuccess(c, map[string]any{"updated": true})
 }
+
+// SetPermissions -- PUT /roles/:id/permissions. Полная замена прямых грантов роли.
+func (h *RoleHandler) SetPermissions(c echo.Context) error {
+	id, err := ParseID(c, "id")
+	if err != nil {
+		return err
+	}
+	var req models.SetRolePermissionsRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	if err := h.service.SetPermissions(c.Request().Context(), id, req.Keys); err != nil {
+		return err
+	}
+	return RespondSuccess(c, map[string]any{"updated": true})
+}
