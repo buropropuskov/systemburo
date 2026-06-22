@@ -373,8 +373,8 @@ export default {
         await deleteRole(role.id);
         await this.fetchAll();
         useDeletionsStore().notify({ prefix: 'Роль ', bold: role.name, suffix: ' удалена' });
-      } catch {
-        useDeletionsStore().notify({ prefix: 'Не удалось удалить ', bold: role.name, suffix: ': возможно, есть привязанные пользователи', type: 'error' });
+      } catch (e) {
+        useDeletionsStore().notify({ prefix: 'Не удалось удалить ', bold: role.name, suffix: `: ${e?.message || 'неизвестная ошибка'}`, type: 'error' });
       }
     },
   },
