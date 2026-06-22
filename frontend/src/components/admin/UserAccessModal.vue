@@ -53,23 +53,13 @@
               <div class="field-label">
                 Роль
               </div>
-              <select
+              <BaseDropdown
                 v-model="form.role_id"
-                class="lk-select"
                 data-testid="role-select"
+                :options="roleOptions"
+                placeholder="Без роли"
                 :disabled="saving"
-              >
-                <option :value="null">
-                  Без роли
-                </option>
-                <option
-                  v-for="r in roles"
-                  :key="r.id"
-                  :value="r.id"
-                >
-                  {{ r.name }}
-                </option>
-              </select>
+              />
             </div>
 
             <div class="field-block">
@@ -256,6 +246,7 @@ import {
 import { apiRequest } from '@/api/client';
 import EffectivePermissionsTree from './EffectivePermissionsTree.vue';
 import LoaderSpinner from '../ui/LoaderSpinner.vue';
+import BaseDropdown from '../ui/BaseDropdown.vue';
 
 /**
  * Модалка «Права доступа» в две колонки: слева источники прав (флаг Администратор,
@@ -265,7 +256,7 @@ import LoaderSpinner from '../ui/LoaderSpinner.vue';
  */
 export default {
   name: 'UserAccessModal',
-  components: { EffectivePermissionsTree, LoaderSpinner },
+  components: { EffectivePermissionsTree, LoaderSpinner, BaseDropdown },
   props: {
     user: { type: Object, default: null },
   },
@@ -299,6 +290,9 @@ export default {
     };
   },
   computed: {
+    roleOptions() {
+      return [{ id: null, name: 'Без роли' }, ...this.roles];
+    },
     isSuper() {
       return this.effective.mode === 'super' || !!this.user?.is_super_admin;
     },
