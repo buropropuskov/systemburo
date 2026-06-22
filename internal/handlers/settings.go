@@ -64,3 +64,9 @@ func (h *SettingsHandler) GetNotificationSettings(c echo.Context) error {
 func (h *SettingsHandler) GetPasswordPolicy(c echo.Context) error {
 	return RespondSuccess(c, h.service.GetPasswordPolicy())
 }
+
+// GetPublicContacts возвращает контакты Бюро пропусков (телефон, почта). Публичный
+// (без JWT): нужен на странице логина и в плашке блокировки до/без авторизации.
+func (h *SettingsHandler) GetPublicContacts(c echo.Context) error {
+	return RespondSuccess(c, h.service.GetPublicContacts(c.Request().Context()))
+}

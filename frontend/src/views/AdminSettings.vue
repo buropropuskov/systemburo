@@ -62,6 +62,16 @@
         >
           Обработка данных
         </div>
+        <div
+          class="sidebar-item"
+          :class="{ 'sidebar-item--active': activeSection === 'contacts' }"
+          role="button"
+          tabindex="0"
+          @click="activeSection = 'contacts'"
+          @keydown.enter="activeSection = 'contacts'"
+        >
+          Контакты Бюро
+        </div>
       </nav>
 
       <div class="admin-settings__content">
@@ -216,6 +226,60 @@
               class="btn btn--primary"
               :disabled="saving"
               @click="savePaginationSettings"
+            >
+              {{ saving ? 'Сохранение...' : 'Сохранить' }}
+            </button>
+          </div>
+
+          <!-- Контакты Бюро -->
+          <div
+            v-else-if="activeSection === 'contacts'"
+            class="settings-section"
+          >
+            <h3 class="section-title">
+              Контакты Бюро пропусков
+            </h3>
+            <p class="form-hint section-intro">
+              Телефон и почта Бюро. Показываются на странице входа и в плашке блокировки.
+            </p>
+
+            <div class="form-group">
+              <label
+                class="form-label"
+                for="bureau-phone"
+              >
+                Телефон
+              </label>
+              <input
+                id="bureau-phone"
+                v-model="settings.bureau_phone"
+                type="text"
+                class="form-input"
+                placeholder="+7 (495) 123-45-67"
+                maxlength="30"
+              >
+            </div>
+
+            <div class="form-group">
+              <label
+                class="form-label"
+                for="bureau-email"
+              >
+                Электронная почта
+              </label>
+              <input
+                id="bureau-email"
+                v-model="settings.bureau_email"
+                type="email"
+                class="form-input"
+                placeholder="bureau@example.com"
+              >
+            </div>
+
+            <button
+              class="btn btn--primary"
+              :disabled="saving"
+              @click="saveContactsSettings"
             >
               {{ saving ? 'Сохранение...' : 'Сохранить' }}
             </button>
@@ -474,6 +538,7 @@ import {
 import { SkeletonTransition, SkeletonLine, SkeletonBlock } from '@/components/ui';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
+import { useContactsStore } from '@/stores/contacts';
 
 export default {
   name: 'AdminSettings',
@@ -503,6 +568,8 @@ export default {
         password_require_lowercase: false,
         password_require_digit: true,
         password_require_special: false,
+        bureau_phone: '',
+        bureau_email: '',
       },
       availableImageTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'],
       availableDocTypes: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'],
@@ -627,6 +694,12 @@ export default {
           case 'password.require_special':
             this.settings.password_require_special = item.value === 'true';
             break;
+          case 'contacts.bureau_phone':
+            this.settings.bureau_phone = item.value || '';
+            break;
+          case 'contacts.bureau_email':
+            this.settings.bureau_email = item.value || '';
+            break;
         }
       }
     },
@@ -660,6 +733,35 @@ export default {
         await updateSetting('upload.allowed_image_types', JSON.stringify(this.selectedImageTypes));
         await updateSetting('upload.allowed_doc_types', JSON.stringify(this.selectedDocTypes));
         useDeletionsStore().notify({ prefix: 'Настройки загрузки сохранены' });
+      } catch (error) {
+        console.error('Ошибка сохранения:', error);
+        useDeletionsStore().notify({ prefix: 'Ошибка сохранения настроек', type: 'error' });
+      } finally {
+        this.saving = false;
+      }
+    },
+
+    async saveContactsSettings() {
+      const phone = (this.settings.bureau_phone || '').trim();
+      const email = (this.settings.bureau_email || '').trim();
+      if (!phone && !email) {
+        useDeletionsStore().notify({ prefix: 'Укажите телефон или почту Бюро', type: 'error' });
+        return;
+      }
+      if (email && !/^\S+@\S+\.\S+$/.test(email)) {
+        useDeletionsStore().notify({ prefix: 'Некорректный адрес электронной почты', type: 'error' });
+        return;
+      }
+      if (phone && (phone.length < 5 || phone.length > 30)) {
+        useDeletionsStore().notify({ prefix: 'Телефон: от 5 до 30 символов', type: 'error' });
+        return;
+      }
+      this.saving = true;
+      try {
+        if (phone) await updateSetting('contacts.bureau_phone', phone);
+        if (email) await updateSetting('contacts.bureau_email', email);
+        useContactsStore().fetch(true);
+        useDeletionsStore().notify({ prefix: 'Контакты Бюро сохранены' });
       } catch (error) {
         console.error('Ошибка сохранения:', error);
         useDeletionsStore().notify({ prefix: 'Ошибка сохранения настроек', type: 'error' });
@@ -927,6 +1029,11 @@ export default {
   font-size: 11px;
   color: #888;
   margin-top: 4px;
+}
+
+.section-intro {
+  margin: 0 0 16px;
+  font-size: 13px;
 }
 
 .form-range {

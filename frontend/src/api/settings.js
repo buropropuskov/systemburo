@@ -45,6 +45,22 @@ export async function getUploadSettings() {
 }
 
 /**
+ * Публичные контакты Бюро пропусков (телефон, почта). Без авторизации -- нужны
+ * на странице логина и в плашке блокировки.
+ * @returns {Promise<{phone: string, email: string}>}
+ */
+export async function getPublicContacts() {
+  const response = await apiRequest('/settings/contacts')
+
+  if (!response.ok) {
+    throw new Error(`Ошибка загрузки контактов: ${response.status}`)
+  }
+
+  const json = await response.json()
+  return json.data ?? json
+}
+
+/**
  * @returns {Promise<import('@/utils/passwordPolicy').PasswordPolicy>}
  */
 export async function getPasswordPolicy() {

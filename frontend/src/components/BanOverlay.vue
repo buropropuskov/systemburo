@@ -63,6 +63,25 @@
               Если вы считаете, что блокировка ошибочна, обратитесь к администратору системы.
             </p>
 
+            <div
+              v-if="hasContacts"
+              class="ban-contacts"
+            >
+              <div class="ban-contacts__label">
+                Контакты Бюро пропусков
+              </div>
+              <a
+                v-if="bureauPhone"
+                class="ban-contacts__item"
+                :href="`tel:${bureauPhone}`"
+              >{{ bureauPhone }}</a>
+              <a
+                v-if="bureauEmail"
+                class="ban-contacts__item"
+                :href="`mailto:${bureauEmail}`"
+              >{{ bureauEmail }}</a>
+            </div>
+
             <div class="ban-modal__actions">
               <button
                 type="button"
@@ -81,6 +100,7 @@
 
 <script>
 import { usePermissionsStore } from '@/stores/permissions'
+import { useContactsStore } from '@/stores/contacts'
 
 /**
  * Полноэкранный неснимаемый оверлей для забаненного пользователя (Фаза 4
@@ -100,6 +120,18 @@ export default {
     banReason() {
       return usePermissionsStore().banReason
     },
+    bureauPhone() {
+      return useContactsStore().phone
+    },
+    bureauEmail() {
+      return useContactsStore().email
+    },
+    hasContacts() {
+      return useContactsStore().hasAny
+    },
+  },
+  mounted() {
+    useContactsStore().fetch()
   },
   methods: {
     handleLogout() {
@@ -203,6 +235,38 @@ export default {
   font-size: 13px;
   line-height: 1.6;
   color: var(--color-text-muted, #999);
+}
+
+.ban-contacts {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--color-border, #e6e6e6);
+  border-radius: var(--radius-md, 15px);
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ban-contacts__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-muted, #999);
+  margin-bottom: 2px;
+}
+
+.ban-contacts__item {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-primary, #4f5bdf);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.ban-contacts__item:hover {
+  text-decoration: underline;
 }
 
 .ban-modal__actions {

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/mail"
 	"strconv"
 	"sync"
 
@@ -25,6 +26,7 @@ type SettingsService interface {
 	GetUploadSettings(ctx context.Context) (map[string]interface{}, error)
 	GetNotificationSettings(ctx context.Context) (map[string]interface{}, error)
 	GetPasswordPolicy() models.PasswordPolicy
+	GetPublicContacts(ctx context.Context) map[string]string
 	GetDataProcessingDoc(ctx context.Context) (*models.DataProcessingDocument, error)
 	SetDataProcessingDoc(ctx context.Context, meta *models.DataProcessingDocument) error
 	ClearDataProcessingDoc(ctx context.Context) error
@@ -45,6 +47,8 @@ var knownKeys = map[string]string{
 	"password.require_lowercase":     "bool",
 	"password.require_digit":         "bool",
 	"password.require_special":       "bool",
+	"contacts.bureau_phone":          "string",
+	"contacts.bureau_email":          "string",
 }
 
 type settingsService struct {
@@ -71,6 +75,8 @@ func NewSettingsService(db *gorm.DB, cfg *config.Config) SettingsService {
 		"password.require_lowercase":     {Key: "password.require_lowercase", Value: "false", Type: "bool"},
 		"password.require_digit":         {Key: "password.require_digit", Value: "true", Type: "bool"},
 		"password.require_special":       {Key: "password.require_special", Value: "false", Type: "bool"},
+		"contacts.bureau_phone":          {Key: "contacts.bureau_phone", Value: "", Type: "string"},
+		"contacts.bureau_email":          {Key: "contacts.bureau_email", Value: "", Type: "string"},
 	}
 
 	s := &settingsService{db: db, defaults: defaults, cache: make(map[string]models.SystemSetting)}
@@ -190,6 +196,18 @@ func (s *settingsService) GetNotificationSettings(ctx context.Context) (map[stri
 		"delete_duration":  del,
 		"restore_duration": res,
 	}, nil
+}
+
+// GetPublicContacts возвращает контактные данные Бюро пропусков (телефон, почта)
+// для публичного отображения (логин, плашка блокировки). Без проверки прав --
+// это публичная справочная информация. Пустые значения означают "не настроено".
+func (s *settingsService) GetPublicContacts(ctx context.Context) map[string]string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return map[string]string{
+		"phone": s.cache["contacts.bureau_phone"].Value,
+		"email": s.cache["contacts.bureau_email"].Value,
+	}
 }
 
 // GetPasswordPolicy собирает текущую политику паролей из кэша настроек.
@@ -313,6 +331,14 @@ func validateSettingValue(key, value string) error {
 	case "password.require_letter", "password.require_uppercase", "password.require_lowercase", "password.require_digit", "password.require_special":
 		if value != "true" && value != "false" {
 			return fmt.Errorf("%s: true/false (получено %s)", key, value)
+		}
+	case "contacts.bureau_email":
+		if _, err := mail.ParseAddress(value); err != nil {
+			return fmt.Errorf("contacts.bureau_email: некорректный email (получено %s)", value)
+		}
+	case "contacts.bureau_phone":
+		if l := len([]rune(value)); l < 5 || l > 30 {
+			return fmt.Errorf("contacts.bureau_phone: 5-30 символов (получено %s)", value)
 		}
 	case "upload.allowed_image_types", "upload.allowed_doc_types":
 		var arr []string

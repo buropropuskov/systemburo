@@ -187,7 +187,7 @@
               class="contact__text contact__text--clickable"
               @click="copyEmail"
             >
-              buropropuskov@dreamisland.ru
+              {{ bureauEmail }}
             </p>
           </div>
           <div class="contact">
@@ -200,7 +200,7 @@
               class="contact__text contact__text--clickable"
               @click="copyPhone"
             >
-              +7 (910) 083 00-55
+              {{ bureauPhone }}
             </p>
           </div>
           <p class="time">
@@ -220,7 +220,12 @@
 <script>
 import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
+import { useContactsStore } from '@/stores/contacts'
 import PasswordRecoveryModal from '@/components/PasswordRecoveryModal.vue'
+
+// Фолбэк-контакты Бюро, если в настройках системы они ещё не заданы.
+const FALLBACK_BUREAU_EMAIL = 'buropropuskov@dreamisland.ru'
+const FALLBACK_BUREAU_PHONE = '+7 (910) 083 00-55'
 export default {
     components: { PasswordRecoveryModal },
     emits: ['login-success'],
@@ -254,6 +259,12 @@ export default {
             if (this.isLoading) return 'Вход...';
             if (this.isSuccess) return 'Успешно!';
             return 'Войти';
+        },
+        bureauEmail() {
+            return useContactsStore().email || FALLBACK_BUREAU_EMAIL;
+        },
+        bureauPhone() {
+            return useContactsStore().phone || FALLBACK_BUREAU_PHONE;
         },
         parallaxStyle() {
             const moveX = (this.mouseX - window.innerWidth / 8) / 25;
@@ -323,6 +334,7 @@ export default {
         setTimeout(() => {
             this.elementsVisible = true;
         }, 100);
+        useContactsStore().fetch();
     },
     beforeUnmount() {
         if (this.animationTimeout) {
@@ -396,12 +408,12 @@ export default {
         },
 
         async copyEmail() {
-            await this.copyToClipboard('buropropuskov@dreamisland.ru');
+            await this.copyToClipboard(this.bureauEmail);
             this.showNotificationMessage('E-mail скопирован');
         },
 
         async copyPhone() {
-            await this.copyToClipboard('+7 (910) 083 00-55');
+            await this.copyToClipboard(this.bureauPhone);
             this.showNotificationMessage('Номер телефона скопирован');
         },
         
