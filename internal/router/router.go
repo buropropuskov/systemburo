@@ -574,10 +574,11 @@ func Setup(e *echo.Echo, d Dependencies) {
 	ag.PUT("/:id", news.UpdateAnnouncement, requireAdmin)
 	ag.DELETE("/:id", news.DeleteAnnouncement, requireAdmin)
 
-	// Уведомления
+	// Уведомления. Свои - любому авторизованному; рассылка (Create) - админ
+	// (page.admin, Ф5: ранее handler-проверка type_id 5/6 manager/buropropuskov).
 	notif := protected.Group("/notifications")
 	notif.GET("", notifications.GetNotifications)
-	notif.POST("", notifications.Create)
+	notif.POST("", notifications.Create, requireAdmin)
 	notif.PUT("/:id/read", notifications.MarkRead)
 	notif.DELETE("/:id", notifications.Delete)
 	notif.DELETE("", notifications.DeleteAll)

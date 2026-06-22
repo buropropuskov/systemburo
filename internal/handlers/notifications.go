@@ -117,10 +117,6 @@ func (h *NotificationHandler) DeleteAll(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /notifications [post]
 func (h *NotificationHandler) Create(c echo.Context) error {
-	typeID := c.Get("type_id").(int)
-	if typeID != 5 && typeID != 6 {
-		return echo.NewHTTPError(403, "Insufficient permissions")
-	}
 	var req models.CreateNotificationRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
