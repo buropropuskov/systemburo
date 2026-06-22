@@ -19,14 +19,20 @@ import (
 // окно живого access-токена.
 //
 // Должен стоять после JWTAuth (нужен user_id в context).
-// banAwarePaths -- роуты, доступные заблокированному пользователю, чтобы фронт
-// узнал статус блокировки и показал плашку (BanOverlay) + увёл в ЛК. Иначе все
-// запросы (вкл. /permissions/my) возвращают 403, и юзер не понимает, что забанен.
-// Только /permissions/my: отдаёт собственный статус (mode=banned, ban_reason),
-// чужих данных не разглашает и реального доступа не даёт (permissions пусты).
-// /users/me намеренно остаётся 403 (закрывает окно access-токена для API-клиентов).
-var banAwarePaths = map[string]struct{}{
-	"/api/permissions/my": {},
+//
+// Заблокированному/архивному оставляем доступ ТОЛЬКО на чтение (безопасные методы
+// GET/HEAD/OPTIONS): личный кабинет грузит свои данные (ФИО, заявки, уведомления,
+// статус блокировки из /permissions/my) под неснимаемой плашкой, но любая мутация
+// (POST/PUT/PATCH/DELETE) -- 403. Чужие/админские данные закрыты и на чтении:
+// permission-гейтнутые ручки всё равно 403 (резолвер: banned > admin, права пусты).
+// Раньше резалось всё подряд - юзер видел пустой кабинет + спам "недостаточно прав".
+func isSafeMethod(method string) bool {
+	switch method {
+	case http.MethodGet, http.MethodHead, http.MethodOptions:
+		return true
+	default:
+		return false
+	}
 }
 
 func BanCheck(svc *services.BanCheckService) echo.MiddlewareFunc {
@@ -44,10 +50,8 @@ func BanCheck(svc *services.BanCheckService) echo.MiddlewareFunc {
 				return next(c)
 			}
 			if banned || !active {
-				// Ban-aware роуты пропускаем даже заблокированному: по ним фронт
-				// узнаёт статус блокировки и показывает плашку. Иначе юзер получает
-				// 403 на ВСЁ (включая /users/me) и не понимает, что заблокирован.
-				if _, ok := banAwarePaths[c.Path()]; ok {
+				// Чтение (GET/HEAD/OPTIONS) пропускаем: кабинет показывается read-only.
+				if isSafeMethod(c.Request().Method) {
 					return next(c)
 				}
 				if banned {

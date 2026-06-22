@@ -41,8 +41,10 @@ test.describe('Admin / Ban flow', () => {
       await loginPage.goto();
       await loginPage.login(BAN_TARGET_USERNAME, targetPassword);
 
+      // Забаненный видит плашку блокировки поверх своего read-only личного
+      // кабинета (роутер уводит в /personal-cabinet, BanOverlay блокирует действия).
       await expect(page.locator('body')).toContainText(/заблокирован|ban/i, { timeout: 5000 });
-      await expect(page).not.toHaveURL(/personal-cabinet|news/);
+      await expect(page).toHaveURL(/personal-cabinet/);
     } finally {
       await unbanUser(request, token, targetId).catch(() => {});
     }
