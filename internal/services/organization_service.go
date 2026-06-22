@@ -150,27 +150,6 @@ func NewOrganizationService(db *gorm.DB) OrganizationService {
 	return &organizationService{db: db, history: NewOrganizationHistoryService(db)}
 }
 
-// CheckAdminPermissions проверяет, что пользователь имеет тип buropropuskov.
-// Вызывается из хендлера перед admin-операциями.
-func CheckAdminPermissions(db *gorm.DB, ctx context.Context, username string) error {
-	var result struct {
-		Code string
-	}
-	err := db.WithContext(ctx).
-		Table("users").
-		Select("user_types.code").
-		Joins("JOIN user_types ON users.type_id = user_types.id").
-		Where("users.username = ?", username).
-		Scan(&result).Error
-	if err != nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, "User not found")
-	}
-	if result.Code != "buropropuskov" {
-		return echo.NewHTTPError(http.StatusForbidden, "Insufficient permissions")
-	}
-	return nil
-}
-
 // GetAll возвращает список всех организаций.
 func (s *organizationService) GetAll(ctx context.Context) ([]OrganizationInfoResponse, error) {
 	orgs := make([]OrganizationInfoResponse, 0)
