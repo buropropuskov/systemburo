@@ -15,7 +15,7 @@ import (
 // PermissionService определяет интерфейс управления разрешениями.
 type PermissionService interface {
 	GetMyPermissions(ctx context.Context, username string) ([]models.UserPermissionResponse, error)
-	GetUserPermissions(ctx context.Context, isSuperAdmin bool, userID int) ([]models.UserPermissionResponse, error)
+	GetUserPermissions(ctx context.Context, userID int) ([]models.UserPermissionResponse, error)
 	UpdateUserPermissions(ctx context.Context, isSuperAdmin bool, actorID int, userID int, req models.UpdatePermissionsRequest) error
 	GetPermissionTree(ctx context.Context) ([]models.PermissionTreeNode, error)
 	GetCatalog(ctx context.Context) ([]CatalogNode, error)
@@ -50,10 +50,8 @@ func (s *permissionService) GetMyPermissions(ctx context.Context, username strin
 }
 
 // GetUserPermissions возвращает разрешения указанного пользователя (admin-only).
-func (s *permissionService) GetUserPermissions(ctx context.Context, isSuperAdmin bool, userID int) ([]models.UserPermissionResponse, error) {
-	if !isSuperAdmin {
-		return nil, echo.NewHTTPError(http.StatusForbidden, "Доступ только для супер-администратора")
-	}
+func (s *permissionService) GetUserPermissions(ctx context.Context, userID int) ([]models.UserPermissionResponse, error) {
+	// Доступ гейтится route-middleware permission.audit.manage (super + admin).
 
 	// Verify user exists
 	var count int64
@@ -91,8 +89,15 @@ func (s *permissionService) getUserPermissionsList(ctx context.Context, userID i
 
 // UpdateUserPermissions обновляет набор разрешений пользователя (admin-only).
 func (s *permissionService) UpdateUserPermissions(ctx context.Context, isSuperAdmin bool, actorID int, userID int, req models.UpdatePermissionsRequest) error {
+	// Доступ гейтится route-middleware permission.audit.manage (super + admin).
+	// Но super-only ключи (выдача админки, техработы) через override может
+	// раздавать только супер-админ - иначе admin поднял бы себе/другим super-права.
 	if !isSuperAdmin {
-		return echo.NewHTTPError(http.StatusForbidden, "Доступ только для супер-администратора")
+		for _, p := range req.Permissions {
+			if IsSuperOnly(p.Key) {
+				return echo.NewHTTPError(http.StatusForbidden, "Эти права может выдавать только супер-администратор")
+			}
+		}
 	}
 
 	// Verify user exists

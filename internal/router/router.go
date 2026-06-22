@@ -487,25 +487,26 @@ func Setup(e *echo.Echo, d Dependencies) {
 	aag.POST("", approvers.Create, requireAdmin)
 	aag.DELETE("/:id", approvers.Delete, requireAdmin)
 
-	// Разрешения
-	permGroup := protected.Group("/permissions")
-	permGroup.GET("/my", permissions.GetMyPermissions)
-	permGroup.GET("/user/:id", permissions.GetUserPermissions)
-	permGroup.GET("/user/:id/effective", permissions.GetUserEffectivePermissions)
-	permGroup.PUT("/user/:id", permissions.UpdateUserPermissions)
-	permGroup.GET("/tree", permissions.GetPermissionTree)
-	permGroup.GET("/catalog", permissions.GetCatalog)
-	permGroup.POST("/auto-generate", permissions.AutoGenerate)
-
-	// permission.audit.manage = управление системой прав
-	// (роли, группы, назначения, журнал отказов).
-	// GET-эндпоинты остаются открытыми для любых авторизованных, т.к. они
-	// нужны UI UserPermissionsModal для отображения списков (не разглашают
-	// ничего секретного - только публичные метаданные ролей/групп).
+	// permission.audit.manage = управление системой прав (роли, группы, назначения,
+	// индивидуальные права пользователей). super + admin проходят (audit.manage не
+	// super-only), обычный - по гранту. auditRead - чтение журнала отказов.
+	// Публичные GET-списки групп/ролей остаются открытыми любому авторизованному.
 	auditRead := mw.RequirePermissionV2(permResolver, denialLog, services.KeyAuditRead)
 	auditManage := mw.RequirePermissionV2(permResolver, denialLog, services.KeyAuditManage)
 	// Выдача/снятие тумблера "Администратор" -- super-only (ключ action.grant.admin).
 	grantAdmin := mw.RequirePermissionV2(permResolver, denialLog, services.KeyActionGrantAdmin)
+
+	// Разрешения. Чтение/запись чужих прав (effective, override) - auditManage
+	// (super + admin). Выдача super-only ключей через override не-суперу запрещена
+	// в сервисе. Свои права (/my) - любому авторизованному.
+	permGroup := protected.Group("/permissions")
+	permGroup.GET("/my", permissions.GetMyPermissions)
+	permGroup.GET("/user/:id", permissions.GetUserPermissions, auditManage)
+	permGroup.GET("/user/:id/effective", permissions.GetUserEffectivePermissions, auditManage)
+	permGroup.PUT("/user/:id", permissions.UpdateUserPermissions, auditManage)
+	permGroup.GET("/tree", permissions.GetPermissionTree)
+	permGroup.GET("/catalog", permissions.GetCatalog)
+	permGroup.POST("/auto-generate", permissions.AutoGenerate)
 
 	// Группы прав (#187a). CRUD защищён permission.audit.manage.
 	pgGroup := protected.Group("/permission-groups")
