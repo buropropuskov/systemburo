@@ -7,23 +7,19 @@ vi.mock('@/api/client', () => ({
   apiRequest: (...a) => apiRequest(...a),
 }));
 
-const hasPermission = vi.fn();
-vi.mock('@/stores/permissions', () => ({
-  usePermissionsStore: () => ({ hasPermission }),
+const listGuideSections = vi.fn();
+vi.mock('@/api/guide', () => ({
+  listGuideSections: (...a) => listGuideSections(...a),
 }));
 
 import NewsAndReview from '../NewsAndReview.vue';
-import { USER_GUIDE_SECTIONS } from '../../components/news/userGuideSections.js';
-import { ADMIN_GUIDE_SECTIONS } from '../../components/news/adminGuideSections.js';
-import { SECURITY_GUIDE_SECTIONS } from '../../components/news/securityGuideSections.js';
 
 function jsonResponse(body) {
   return { ok: true, json: async () => body };
 }
 
-function mockApiByUserType(userType) {
+function mockNewsApi() {
   apiRequest.mockImplementation((url) => {
-    if (url === '/users/me') return Promise.resolve(jsonResponse({ user_type: userType }));
     if (url === '/news') return Promise.resolve(jsonResponse([]));
     if (url === '/announcements/active') return Promise.resolve(jsonResponse(null));
     return Promise.resolve(jsonResponse({}));
@@ -36,34 +32,65 @@ async function mountView() {
   return wrapper;
 }
 
-describe('NewsAndReview - выбор руководства по роли', () => {
+describe('NewsAndReview — разделы руководства из API', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     apiRequest.mockReset();
-    hasPermission.mockReset();
+    listGuideSections.mockReset();
+    mockNewsApi();
   });
 
-  it('охранник видит руководство охранника', async () => {
-    hasPermission.mockReturnValue(false);
-    mockApiByUserType('security');
+  it('грузит разделы из GET /guide/sections при первом открытии', async () => {
+    const sections = [
+      { role: 'user', title: 'Пользователь', lead: 'l', items: [], file: null },
+      { role: 'admin', title: 'Администратор', lead: 'l', items: [], file: null },
+    ];
+    listGuideSections.mockResolvedValue(sections);
     const wrapper = await mountView();
-    expect(wrapper.vm.guideTitle).toBe('Руководство охранника');
-    expect(wrapper.vm.guideSections).toBe(SECURITY_GUIDE_SECTIONS);
+
+    // До открытия модалки разделы не запрашиваются.
+    expect(wrapper.vm.guideSections).toEqual([]);
+    expect(listGuideSections).not.toHaveBeenCalled();
+
+    wrapper.vm.openGuide();
+    await flushPromises();
+
+    expect(listGuideSections).toHaveBeenCalledTimes(1);
+    expect(wrapper.vm.guideSections).toEqual(sections);
+    expect(wrapper.vm.showGuide).toBe(true);
   });
 
-  it('обычный пользователь видит пользовательское руководство', async () => {
-    hasPermission.mockReturnValue(false);
-    mockApiByUserType('user');
+  it('не перезапрашивает разделы при повторном открытии', async () => {
+    listGuideSections.mockResolvedValue([{ role: 'user', title: 'x', lead: '', items: [], file: null }]);
     const wrapper = await mountView();
-    expect(wrapper.vm.guideTitle).toBe('Руководство пользователя');
-    expect(wrapper.vm.guideSections).toBe(USER_GUIDE_SECTIONS);
+
+    wrapper.vm.openGuide();
+    await flushPromises();
+    wrapper.vm.closeGuide();
+    wrapper.vm.openGuide();
+    await flushPromises();
+
+    expect(listGuideSections).toHaveBeenCalledTimes(1);
   });
 
-  it('админ видит руководство администратора независимо от типа', async () => {
-    hasPermission.mockReturnValue(true);
-    mockApiByUserType('security');
+  it('пустой ответ оставляет guideSections пустым (модалка покажет заглушку)', async () => {
+    listGuideSections.mockResolvedValue([]);
     const wrapper = await mountView();
-    expect(wrapper.vm.guideTitle).toBe('Руководство администратора');
-    expect(wrapper.vm.guideSections).toBe(ADMIN_GUIDE_SECTIONS);
+
+    wrapper.vm.openGuide();
+    await flushPromises();
+
+    expect(wrapper.vm.guideSections).toEqual([]);
+  });
+
+  it('ошибка загрузки не роняет компонент и сбрасывает loading', async () => {
+    listGuideSections.mockRejectedValue(new Error('boom'));
+    const wrapper = await mountView();
+
+    wrapper.vm.openGuide();
+    await flushPromises();
+
+    expect(wrapper.vm.guideLoading).toBe(false);
+    expect(wrapper.vm.guideSections).toEqual([]);
   });
 });
