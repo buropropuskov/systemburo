@@ -165,6 +165,9 @@ func AllModels() []interface{} {
 		&models.DocumentGroup{},
 		&models.Document{},
 
+		// Разделы руководства (B1): текст по ролям + метаданные PDF
+		&models.GuideSection{},
+
 		// Report templates (#632): сохранённые наборы конструктора отчётов
 		&models.ReportTemplate{},
 		// Дневные пики онлайна пользователей (#632): снимок фонового тикера
@@ -651,6 +654,60 @@ func Seed(db *gorm.DB) error {
 		slog.Error("failed to backfill user_types.is_system", "error", result.Error)
 	} else if result.RowsAffected > 0 {
 		slog.Info("backfilled user_types.is_system", "count", result.RowsAffected)
+	}
+
+	// Разделы руководства (B1): дефолтный контент-черновик по ролям. PDF грузится
+	// админом отдельно, поэтому file-поля пустые (в ответе file:null). Идемпотентно:
+	// сидим только когда таблица пуста, тексты в DB после этого правятся не сидом.
+	var guideCount int64
+	db.Model(&models.GuideSection{}).Count(&guideCount)
+	if guideCount == 0 {
+		slog.Info("seeding guide_sections")
+		jsonItems := func(items []string) json.RawMessage {
+			b, _ := json.Marshal(items)
+			return b
+		}
+		sections := []models.GuideSection{
+			{
+				Role:      "user",
+				SortOrder: 1,
+				Title:     "Руководство пользователя",
+				Lead:      "Для сотрудников организаций, которые подают заявки на въезд людей и автомобилей.",
+				Items: jsonItems([]string{
+					"Подача заявки: типы вложений (автозаявка, проведение работ, разовый пропуск), период и время прохода",
+					"Добавление сотрудников и автомобилей, выбор места разгрузки и таблицы прохода",
+					"Контроль статуса заявок в Центре заявок, согласующие, копирование номера",
+					"Личный кабинет: данные организации, уведомления, список заявок",
+				}),
+			},
+			{
+				Role:      "guard",
+				SortOrder: 2,
+				Title:     "Руководство охранника",
+				Lead:      "Для сотрудников охраны на постах: проверка пропусков и отметки въезда/выезда.",
+				Items: jsonItems([]string{
+					"Раздел «Доступные мне»: поиск, фильтры и сортировка по постам",
+					"Отметка въезда и выезда транспорта и людей",
+					"Таблицы постов и мест прохода, расписание работы",
+					"Действия при несоответствии данных заявки",
+				}),
+			},
+			{
+				Role:      "admin",
+				SortOrder: 3,
+				Title:     "Руководство администратора",
+				Lead:      "Для администраторов системы: управление справочниками, пользователями и правами.",
+				Items: jsonItems([]string{
+					"Учётные записи: создание пользователей, пароли, привязка к организациям",
+					"Организации, компании, отделы; места разгрузки и расписания",
+					"Конструктор таблиц (посты и места прохода), форматы номеров, отметки",
+					"Документы и руководства, объявления и новости",
+				}),
+			},
+		}
+		if err := db.Create(&sections).Error; err != nil {
+			return fmt.Errorf("failed to seed guide sections: %w", err)
+		}
 	}
 
 	// Organizations: глобальный uniqueIndex по name заменяем на partial unique

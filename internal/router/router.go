@@ -54,6 +54,7 @@ type Dependencies struct {
 	Trash               *handlers.TrashHandler
 	DocumentGroups      *handlers.DocumentGroupHandler
 	Documents           *handlers.DocumentHandler
+	Guide               *handlers.GuideHandler
 	Statistics          *handlers.StatisticsHandler
 
 	// Services (для middleware и audit)
@@ -111,6 +112,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	trash := d.Trash
 	docGroups := d.DocumentGroups
 	docs := d.Documents
+	guide := d.Guide
 	statistics := d.Statistics
 	permResolver := d.PermResolver
 	denialLog := d.DenialLog
@@ -630,6 +632,15 @@ func Setup(e *echo.Echo, d Dependencies) {
 		docsGroup.GET("/:id/download", docs.Download)
 
 		protected.GET("/public/documents", docs.GetPublic)
+	}
+
+	// Руководство (B1). Любому авторизованному; список отдаёт только разделы, на
+	// которые есть право guide.<role>, скачивание гейтит ту же проверку в хендлере
+	// (динамический ключ по :role не выражается статическим middleware).
+	if guide != nil {
+		guideGroup := protected.Group("/guide")
+		guideGroup.GET("/sections", guide.ListSections)
+		guideGroup.GET("/sections/:role/download", guide.Download)
 	}
 
 	// Документ согласия на обработку данных. Просмотр/скачивание -- любому авторизованному
