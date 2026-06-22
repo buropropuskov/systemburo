@@ -70,6 +70,46 @@ func TestSettings_Update_InvalidValue(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
+// TestSettings_PublicContacts_NoAuth: контакты Бюро доступны публично (без JWT),
+// дефолт пустой, после установки супер-админом отдаются актуальные значения.
+func TestSettings_PublicContacts_NoAuth(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	rec := testutil.GET(t, e, "/settings/contacts", nil)
+	require.Equal(t, http.StatusOK, rec.Code)
+	resp := testutil.ParseMap(t, rec)
+	assert.Equal(t, "", resp["phone"], "дефолт телефона пустой")
+	assert.Equal(t, "", resp["email"], "дефолт почты пустой")
+
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	require.Equal(t, http.StatusOK, testutil.PUT(t, e, "/settings/contacts.bureau_phone", `{"value":"+7 (495) 123-45-67"}`, testutil.AuthHeader(token)).Code)
+	require.Equal(t, http.StatusOK, testutil.PUT(t, e, "/settings/contacts.bureau_email", `{"value":"bureau@example.com"}`, testutil.AuthHeader(token)).Code)
+
+	rec = testutil.GET(t, e, "/settings/contacts", nil)
+	require.Equal(t, http.StatusOK, rec.Code)
+	resp = testutil.ParseMap(t, rec)
+	assert.Equal(t, "+7 (495) 123-45-67", resp["phone"])
+	assert.Equal(t, "bureau@example.com", resp["email"])
+}
+
+// TestSettings_UpdateContacts_Validation: некорректный email/слишком короткий
+// телефон -> 400; корректные значения -> 200.
+func TestSettings_UpdateContacts_Validation(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	assert.Equal(t, http.StatusBadRequest, testutil.PUT(t, e, "/settings/contacts.bureau_email", `{"value":"not-an-email"}`, testutil.AuthHeader(token)).Code)
+	assert.Equal(t, http.StatusBadRequest, testutil.PUT(t, e, "/settings/contacts.bureau_phone", `{"value":"123"}`, testutil.AuthHeader(token)).Code)
+	assert.Equal(t, http.StatusOK, testutil.PUT(t, e, "/settings/contacts.bureau_email", `{"value":"ok@example.com"}`, testutil.AuthHeader(token)).Code)
+	assert.Equal(t, http.StatusOK, testutil.PUT(t, e, "/settings/contacts.bureau_phone", `{"value":"+7 495 123 45 67"}`, testutil.AuthHeader(token)).Code)
+}
+
 func TestSettings_GetNotifications_ReturnsDurations(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()

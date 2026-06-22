@@ -142,6 +142,8 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// Публичный статус техработ - без JWT, чтобы страница /maintenance и форма /login
 	// могли его опросить.
 	api.GET("/settings/maintenance", maintenance.GetPublicStatus)
+	// Публичные контакты Бюро пропусков - нужны на логине и в плашке блокировки.
+	api.GET("/settings/contacts", settings.GetPublicContacts)
 
 	// Protected routes
 	protected := api.Group("")
