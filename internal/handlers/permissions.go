@@ -1,8 +1,6 @@
 package handlers
 
 import (
-	"net/http"
-
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
@@ -40,13 +38,11 @@ func (h *PermissionHandler) GetMyPermissions(c echo.Context) error {
 
 // GetUserEffectivePermissions возвращает эффективные права указанного пользователя
 // с источником (роль/группа/override) -- для админ-экрана настройки доступа (#187 Фаза 3).
-// Только super-admin. Формат идентичен GetMyPermissions, но считается для целевого юзера,
-// чтобы в правом столбце модалки прав показать бейдж источника каждого права и
-// унаследованные от роли/групп права (а не только личные override из /user/:id).
+// Доступ - permission.audit.manage (super + admin), гейтится route-middleware.
+// Формат идентичен GetMyPermissions, но считается для целевого юзера, чтобы в правом
+// столбце модалки прав показать бейдж источника каждого права и унаследованные от
+// роли/групп права (а не только личные override из /user/:id).
 func (h *PermissionHandler) GetUserEffectivePermissions(c echo.Context) error {
-	if !IsSuperAdmin(c) {
-		return echo.NewHTTPError(http.StatusForbidden, "Доступ только для супер-администратора")
-	}
 	userID, err := ParseID(c, "id")
 	if err != nil {
 		return err
@@ -80,20 +76,23 @@ func buildPermissionsResponse(set services.PermissionSet) models.MyPermissionsRe
 	}
 }
 
-// GetUserPermissions возвращает разрешения указанного пользователя (только super-admin).
+// GetUserPermissions возвращает индивидуальные override указанного пользователя.
+// Доступ - permission.audit.manage (super + admin), гейтится route-middleware.
 func (h *PermissionHandler) GetUserPermissions(c echo.Context) error {
 	userID, err := ParseID(c, "id")
 	if err != nil {
 		return err
 	}
-	perms, err := h.service.GetUserPermissions(c.Request().Context(), IsSuperAdmin(c), userID)
+	perms, err := h.service.GetUserPermissions(c.Request().Context(), userID)
 	if err != nil {
 		return err
 	}
 	return RespondSuccess(c, perms)
 }
 
-// UpdateUserPermissions обновляет разрешения указанного пользователя (только super-admin).
+// UpdateUserPermissions обновляет индивидуальные override указанного пользователя.
+// Доступ - permission.audit.manage (super + admin). Флаг isSuperAdmin прокидывается
+// в сервис: не-супер не может выдать override на super-only ключи.
 func (h *PermissionHandler) UpdateUserPermissions(c echo.Context) error {
 	userID, err := ParseID(c, "id")
 	if err != nil {
