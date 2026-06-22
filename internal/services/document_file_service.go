@@ -63,10 +63,18 @@ type documentFileService struct {
 	uploadDir string
 }
 
-// NewDocumentFileService создаёт DocumentFileService. uploadPath -- корневая папка uploads.
+// NewDocumentFileService создаёт DocumentFileService для документов (uploads/documents).
+// uploadPath -- корневая папка uploads.
 func NewDocumentFileService(uploadPath string) DocumentFileService {
+	return NewDocumentFileServiceIn(uploadPath, "documents")
+}
+
+// NewDocumentFileServiceIn создаёт DocumentFileService с произвольным подкаталогом
+// внутри uploads (напр. "guide" для PDF разделов руководства). Валидация и magic-bytes
+// те же, что у документов; ограничение по типу (только PDF и т.п.) накладывает вызывающий хендлер.
+func NewDocumentFileServiceIn(uploadPath, subdir string) DocumentFileService {
 	return &documentFileService{
-		uploadDir: filepath.Join(uploadPath, "documents"),
+		uploadDir: filepath.Join(uploadPath, subdir),
 	}
 }
 

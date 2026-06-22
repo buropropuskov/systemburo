@@ -641,6 +641,12 @@ func Setup(e *echo.Echo, d Dependencies) {
 		guideGroup := protected.Group("/guide")
 		guideGroup.GET("/sections", guide.ListSections)
 		guideGroup.GET("/sections/:role/download", guide.Download)
+
+		// Админ-управление (B1b): правка текста раздела + загрузка/удаление PDF. Гейт page.admin.
+		guideGroup.GET("/admin/sections", guide.AdminListSections, requireAdmin)
+		guideGroup.PUT("/admin/sections/:role", guide.UpdateSection, requireAdmin)
+		guideGroup.PUT("/admin/sections/:role/file", guide.UploadFile, requireAdmin)
+		guideGroup.DELETE("/admin/sections/:role/file", guide.DeleteFile, requireAdmin)
 	}
 
 	// Документ согласия на обработку данных. Просмотр/скачивание -- любому авторизованному

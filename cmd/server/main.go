@@ -203,6 +203,7 @@ func main() {
 	trashService := services.NewTrashService(db)
 	trashDBRef := services.NewTrashDBRef(db)
 	documentFileService := services.NewDocumentFileService(cfg.UploadPath)
+	guideFileService := services.NewDocumentFileServiceIn(cfg.UploadPath, "guide")
 	documentGroupService := services.NewDocumentGroupService(db)
 	documentService := services.NewDocumentService(db, documentFileService, settingsService)
 	guideService := services.NewGuideService(db, permissionResolver)
@@ -249,7 +250,7 @@ func main() {
 	trashHandler := handlers.NewTrashHandler(trashService, trashDBRef)
 	documentGroupHandler := handlers.NewDocumentGroupHandler(documentGroupService)
 	documentHandler := handlers.NewDocumentHandler(documentService, documentFileService)
-	guideHandler := handlers.NewGuideHandler(guideService, cfg.UploadPath)
+	guideHandler := handlers.NewGuideHandler(guideService, guideFileService, cfg.UploadMaxFileSize)
 	statisticsHandler := handlers.NewStatisticsHandler(statisticsService)
 
 	// Swagger UI: http://localhost:8090/swagger/index.html
