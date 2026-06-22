@@ -407,13 +407,21 @@ export default {
   background: var(--color-primary);
 }
 
-.dot-fade-enter-active,
-.dot-fade-leave-active {
-  transition: opacity 0.2s;
+.dot-fade-enter-active {
+  transition: opacity 0.2s ease;
 }
-.dot-fade-enter-from,
+
+.dot-fade-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.dot-fade-enter-from {
+  opacity: 0;
+}
+
 .dot-fade-leave-to {
   opacity: 0;
+  transform: translateX(-16px);
 }
 
 .notification-content {

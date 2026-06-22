@@ -75,11 +75,11 @@
           v-if="unreadCount > 0"
           class="notifications__badge"
         >{{ unreadCount }}</span>
+        <UserNotifications
+          :show="showNotifications"
+          @update:unread-count="unreadCount = $event"
+        />
       </div>
-      <UserNotifications
-        :show="showNotifications"
-        @update:unread-count="unreadCount = $event"
-      />
       <div
         v-if="can('page.new_application')"
         class="appl-btn__container"

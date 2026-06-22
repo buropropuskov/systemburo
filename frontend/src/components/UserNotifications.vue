@@ -214,8 +214,8 @@ export default {
 <style scoped>
 .notifications {
   position: absolute;
-  top: 50px;
-  right: 80px;
+  top: calc(100% + 10px);
+  right: 0;
   width: 360px;
   background: #fff;
   border-radius: 20px;
@@ -429,8 +429,7 @@ export default {
 @media (max-width: 576px) {
   .notifications {
     width: calc(100vw - 20px);
-    right: 10px;
-    top: 55px;
+    right: -10px;
   }
 }
 </style>
