@@ -43,20 +43,14 @@
         type="text"
         placeholder="Ресурс (substring)"
       >
-      <select
+      <BaseDropdown
         v-model="filters.reason"
-        class="lk-select filter-input"
-      >
-        <option value="">
-          Причина — все
-        </option>
-        <option value="permission_denied">
-          Нет прав
-        </option>
-        <option value="account_banned">
-          Заблокирован
-        </option>
-      </select>
+        class="filter-input"
+        :options="reasonOptions"
+        value-key="value"
+        label-key="label"
+        placeholder="Причина — все"
+      />
       <input
         v-model="filters.from"
         class="lk-input filter-input"
@@ -191,12 +185,13 @@ import {
   archiveAccessDenials,
 } from '@/api/permissions';
 import RefreshButton from '@/components/RefreshButton.vue';
+import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
 
 export default {
   name: 'AccessDenialsLog',
-  components: { RefreshButton },
+  components: { RefreshButton, BaseDropdown },
   data() {
     return {
       mode: 'active',
@@ -206,6 +201,11 @@ export default {
       limit: 50,
       loading: false,
       filters: { user_id: '', resource: '', reason: '', from: '', to: '' },
+      reasonOptions: [
+        { value: '', label: 'Причина — все' },
+        { value: 'permission_denied', label: 'Нет прав' },
+        { value: 'account_banned', label: 'Заблокирован' },
+      ],
     };
   },
   computed: {
