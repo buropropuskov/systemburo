@@ -151,6 +151,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	trashService := services.NewTrashService(db)
 	trashDBRef := services.NewTrashDBRef(db)
 	documentFileService := services.NewDocumentFileService("./uploads")
+	guideFileService := services.NewDocumentFileServiceIn("./uploads", "guide")
 	documentGroupService := services.NewDocumentGroupService(db)
 	documentService := services.NewDocumentService(db, documentFileService, settingsService)
 	guideService := services.NewGuideService(db, permissionResolver)
@@ -198,7 +199,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	trashHandler := handlers.NewTrashHandler(trashService, trashDBRef)
 	documentGroupHandler := handlers.NewDocumentGroupHandler(documentGroupService)
 	documentHandler := handlers.NewDocumentHandler(documentService, documentFileService)
-	guideHandler := handlers.NewGuideHandler(guideService, "./uploads")
+	guideHandler := handlers.NewGuideHandler(guideService, guideFileService, 10*1024*1024)
 
 	// Setup Echo with routes (no rate limiter, no logger — clean for tests)
 	e := echo.New()
