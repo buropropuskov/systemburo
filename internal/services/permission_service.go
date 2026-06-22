@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sort"
+	"strings"
 
 	"systemburo/internal/models"
 
@@ -160,6 +162,11 @@ func (s *permissionService) GetPermissionTree(ctx context.Context) ([]models.Per
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения разрешений")
 	}
 
+	tableByID, tableBySlug, err := s.tableNameMaps(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	// Build tree: group by parent_key
 	byParent := make(map[string][]models.Permission)
 	var roots []models.Permission
@@ -174,7 +181,7 @@ func (s *permissionService) GetPermissionTree(ctx context.Context) ([]models.Per
 
 	tree := make([]models.PermissionTreeNode, 0, len(roots))
 	for _, r := range roots {
-		node := s.buildTreeNode(r, byParent)
+		node := s.buildTreeNode(r, byParent, tableByID, tableBySlug)
 		tree = append(tree, node)
 	}
 
@@ -189,24 +196,53 @@ func (s *permissionService) GetCatalog(ctx context.Context) ([]CatalogNode, erro
 	var tablePerms []models.Permission
 	if err := s.db.WithContext(ctx).
 		Where("category = ?", "table").
-		Order("display_name, key").
 		Find(&tablePerms).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения каталога прав")
 	}
+	if len(tablePerms) == 0 {
+		return nodes, nil
+	}
+
+	byID, bySlug, err := s.tableNameMaps(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	type tableEntry struct {
+		node    CatalogNode
+		name    string
+		verbIdx int
+	}
+	entries := make([]tableEntry, 0, len(tablePerms))
 	for _, p := range tablePerms {
-		nodes = append(nodes, CatalogNode{
-			Key:         p.Key,
-			DisplayName: p.DisplayName,
-			Category:    CatTables,
+		label, name, verbIdx := tablePermLabel(p, byID, bySlug)
+		entries = append(entries, tableEntry{
+			node:    CatalogNode{Key: p.Key, DisplayName: label, Category: CatTables},
+			name:    name,
+			verbIdx: verbIdx,
 		})
+	}
+	// Группируем права по таблице (имя), внутри - по порядку глаголов.
+	sort.SliceStable(entries, func(i, j int) bool {
+		if entries[i].name != entries[j].name {
+			return entries[i].name < entries[j].name
+		}
+		return entries[i].verbIdx < entries[j].verbIdx
+	})
+	for _, e := range entries {
+		nodes = append(nodes, e.node)
 	}
 	return nodes, nil
 }
 
-func (s *permissionService) buildTreeNode(p models.Permission, byParent map[string][]models.Permission) models.PermissionTreeNode {
+func (s *permissionService) buildTreeNode(p models.Permission, byParent map[string][]models.Permission, tableByID map[int]string, tableBySlug map[string]string) models.PermissionTreeNode {
+	displayName := p.DisplayName
+	if p.Category == "table" {
+		displayName, _, _ = tablePermLabel(p, tableByID, tableBySlug)
+	}
 	node := models.PermissionTreeNode{
 		Key:         p.Key,
-		DisplayName: p.DisplayName,
+		DisplayName: displayName,
 		Category:    p.Category,
 	}
 
@@ -214,7 +250,7 @@ func (s *permissionService) buildTreeNode(p models.Permission, byParent map[stri
 	if ok {
 		node.Children = make([]models.PermissionTreeNode, 0, len(children))
 		for _, child := range children {
-			node.Children = append(node.Children, s.buildTreeNode(child, byParent))
+			node.Children = append(node.Children, s.buildTreeNode(child, byParent, tableByID, tableBySlug))
 		}
 	}
 
@@ -233,6 +269,76 @@ var tableVerbs = []struct{ Verb, Title string }{
 	{"export", "Экспорт"},
 	{"trash", "Корзина"},
 	{"delete", "Удаление записи"},
+}
+
+// tableVerbTitle -- глагол права таблицы -> человекочитаемое действие.
+var tableVerbTitle = func() map[string]string {
+	m := make(map[string]string, len(tableVerbs))
+	for _, v := range tableVerbs {
+		m[v.Verb] = v.Title
+	}
+	return m
+}()
+
+// tableVerbOrder -- порядок глаголов для стабильной сортировки прав таблицы в UI.
+var tableVerbOrder = func() map[string]int {
+	m := make(map[string]int, len(tableVerbs))
+	for i, v := range tableVerbs {
+		m[v.Verb] = i
+	}
+	return m
+}()
+
+// tableNameMaps грузит карты "id -> имя" и "slug -> имя" системных таблиц для
+// живых лейблов прав. Имя = display_name (или name, если display_name пуст).
+func (s *permissionService) tableNameMaps(ctx context.Context) (map[int]string, map[string]string, error) {
+	var tables []models.SystemTable
+	if err := s.db.WithContext(ctx).Select("id", "name", "display_name").Find(&tables).Error; err != nil {
+		return nil, nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения каталога прав")
+	}
+	byID := make(map[int]string, len(tables))
+	bySlug := make(map[string]string, len(tables))
+	for _, t := range tables {
+		name := t.Name
+		if t.DisplayName != nil && *t.DisplayName != "" {
+			name = *t.DisplayName
+		}
+		byID[t.ID] = name
+		bySlug[t.Name] = name
+	}
+	return byID, bySlug, nil
+}
+
+// tablePermLabel строит человеческий лейбл права таблицы "<имя>: <действие>" из
+// ключа table.<slug>.<verb>. Имя берём живым из system_tables (по entity_id, иначе
+// по slug) - в UI «КПП №4», а не системное «kpp_4», и переименование сразу видно.
+func tablePermLabel(p models.Permission, byID map[int]string, bySlug map[string]string) (label, name string, verbIdx int) {
+	rest := strings.TrimPrefix(p.Key, "table.")
+	slug, verb := rest, ""
+	if i := strings.LastIndex(rest, "."); i >= 0 {
+		slug, verb = rest[:i], rest[i+1:]
+	}
+	name = slug
+	resolved := false
+	if p.EntityID != nil {
+		if n := byID[*p.EntityID]; n != "" {
+			name, resolved = n, true
+		}
+	}
+	if !resolved {
+		if n := bySlug[slug]; n != "" {
+			name = n
+		}
+	}
+	title, ok := tableVerbTitle[verb]
+	if !ok {
+		title = verb
+	}
+	idx, ok := tableVerbOrder[verb]
+	if !ok {
+		idx = len(tableVerbs)
+	}
+	return fmt.Sprintf("%s: %s", name, title), name, idx
 }
 
 // AutoGenerateForTable создаёт права для системной таблицы (по одному на глагол).
