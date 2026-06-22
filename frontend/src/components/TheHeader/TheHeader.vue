@@ -38,6 +38,7 @@
 
     <div class="header__info">
       <button
+        v-if="can('header.report_problem')"
         class="feedback-btn"
         data-testid="header-button-feedback"
         @click="openFeedbackModal"
