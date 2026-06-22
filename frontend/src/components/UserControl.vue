@@ -893,6 +893,17 @@ export default {
     this.fetchAllUsers();
     this.loadDraft();
   },
+  watch: {
+    // После рефетча списка (роль/группы/блокировка менялись в модалке прав)
+    // пере-резолвим открытую карточку на свежий объект из allUsers. Иначе
+    // selectedUser держит копию старого user и роль/права в карточке остаются
+    // устаревшими до перезагрузки страницы.
+    allUsers(list) {
+      if (!this.selectedUser) return;
+      const fresh = list.find((u) => u.username === this.selectedUser.username);
+      if (fresh) this.selectedUser = { ...fresh, newPassword: this.selectedUser.newPassword || '' };
+    },
+  },
  
   methods: {
     ...mapActions(useOrganizationsStore, {
