@@ -205,6 +205,7 @@ func main() {
 	documentFileService := services.NewDocumentFileService(cfg.UploadPath)
 	documentGroupService := services.NewDocumentGroupService(db)
 	documentService := services.NewDocumentService(db, documentFileService, settingsService)
+	guideService := services.NewGuideService(db, permissionResolver)
 	statisticsService := services.NewStatisticsService(db, time.Duration(cfg.AnalyticsCacheRefreshSec)*time.Second)
 
 	// Handlers
@@ -248,6 +249,7 @@ func main() {
 	trashHandler := handlers.NewTrashHandler(trashService, trashDBRef)
 	documentGroupHandler := handlers.NewDocumentGroupHandler(documentGroupService)
 	documentHandler := handlers.NewDocumentHandler(documentService, documentFileService)
+	guideHandler := handlers.NewGuideHandler(guideService, cfg.UploadPath)
 	statisticsHandler := handlers.NewStatisticsHandler(statisticsService)
 
 	// Swagger UI: http://localhost:8090/swagger/index.html
@@ -307,6 +309,7 @@ func main() {
 		Trash:               trashHandler,
 		DocumentGroups:      documentGroupHandler,
 		Documents:           documentHandler,
+		Guide:               guideHandler,
 		Statistics:          statisticsHandler,
 		Onboarding:          onboardingHandler,
 		PermResolver:        permissionResolver,

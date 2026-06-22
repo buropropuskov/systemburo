@@ -44,6 +44,7 @@ var tables = []string{
 	"role_default_groups", "permission_groups",
 	"user_permissions", "permissions",
 	"bug_reports",
+	"guide_sections",
 	"documents", "document_groups",
 	"request_log", "request_logs", "notifications", "news", "announcements",
 	"feedback", "application_items", "items",
@@ -152,6 +153,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	documentFileService := services.NewDocumentFileService("./uploads")
 	documentGroupService := services.NewDocumentGroupService(db)
 	documentService := services.NewDocumentService(db, documentFileService, settingsService)
+	guideService := services.NewGuideService(db, permissionResolver)
 
 	// Create all handlers
 	authHandler := handlers.NewAuthHandler(authService, maintenanceService, false, 168*time.Hour)
@@ -196,6 +198,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	trashHandler := handlers.NewTrashHandler(trashService, trashDBRef)
 	documentGroupHandler := handlers.NewDocumentGroupHandler(documentGroupService)
 	documentHandler := handlers.NewDocumentHandler(documentService, documentFileService)
+	guideHandler := handlers.NewGuideHandler(guideService, "./uploads")
 
 	// Setup Echo with routes (no rate limiter, no logger — clean for tests)
 	e := echo.New()
@@ -244,6 +247,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 		Trash:               trashHandler,
 		DocumentGroups:      documentGroupHandler,
 		Documents:           documentHandler,
+		Guide:               guideHandler,
 		PermResolver:        permissionResolver,
 		DenialLog:           accessDenialService,
 		JWTSecret:           []byte(TestJWTSecret),
