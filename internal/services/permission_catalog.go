@@ -13,15 +13,13 @@ import "strings"
 //   center.*  -- разделы/кнопки центра заявок,
 //   detail.*  -- кнопки/разделы карточек авто/сотрудника (общие для контекстов),
 //   section.* -- разделы внутри страниц (владельческие вкладки реестров),
-//   guide.*   -- вкладки руководства,
-//   news.*    -- управление новостями.
+//   guide.*   -- вкладки руководства.
 
 // Новые ключи каталога (существующие переиспользуются из permission_keys.go).
 const (
 	KeyPageNewApplication = "page.new_application"
 	KeyPageAvailable      = "page.available"
 	KeyPageTables         = "page.tables"
-	KeyPageAnalytics      = "page.analytics"
 
 	KeyPageAdminMonitoring  = "page.admin.monitoring"
 	KeyPageAdminDirectories = "page.admin.directories"
@@ -46,7 +44,6 @@ const (
 
 	KeyActionGrantAdmin = "action.grant.admin"
 
-	KeyNewsManage = "news.manage"
 	KeyGuideUser  = "guide.user"
 	KeyGuideAdmin = "guide.admin"
 )
@@ -89,7 +86,7 @@ func staticCatalog() []CatalogNode {
 		{Key: KeyPageTables, DisplayName: "Таблицы", Category: CatNavigation},
 		{Key: KeyPageEmployees, DisplayName: "Сотрудники", Category: CatNavigation},
 		{Key: KeyPageCars, DisplayName: "Автомобили", Category: CatNavigation},
-		{Key: KeyPageAnalytics, DisplayName: "Аналитика", Category: CatNavigation},
+		{Key: KeyPageStatistics, DisplayName: "Аналитика", Category: CatNavigation},
 		{Key: KeyPageAdmin, DisplayName: "Администрирование", Category: CatNavigation},
 		{Key: KeyPageNews, DisplayName: "Обзор и новости", Category: CatNavigation},
 		{Key: KeyPagePersonal, DisplayName: "Личный кабинет", Category: CatNavigation},
@@ -137,8 +134,9 @@ func staticCatalog() []CatalogNode {
 		{Key: KeyActionGrantAdmin, DisplayName: "Выдача прав администратора", Category: CatAdmin, SuperOnly: true},
 		{Key: KeyPageSystemControl, DisplayName: "Режим техработ", Category: CatAdmin, SuperOnly: true},
 
-		// Обзор и новости
-		{Key: KeyNewsManage, DisplayName: "Управление новостями и объявлениями", Category: CatOverview},
+		// Обзор и новости (управление новостями -- в Администрировании, /admin/news).
+		// guide.* остаются тумблерами, но их FE-гейтинг подключается отдельно после
+		// редизайна трёх вкладок руководства (пользователь/админ/охранник).
 		{Key: KeyGuideUser, DisplayName: "Руководство пользователя", Category: CatOverview},
 		{Key: KeyGuideAdmin, DisplayName: "Руководство администратора", Category: CatOverview},
 	}
