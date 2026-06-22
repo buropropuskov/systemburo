@@ -35,43 +35,43 @@
 export const VEHICLE_MODAL_ACTIONS = {
   application: {
     // Открыта из деталей заявки: история есть, переход в заявку не нужен (уже в ней)
-    history:         'entity.cars.read',
+    history:         'detail.full_history',
     openApplication: false,
     blacklist:       'page.admin.blacklist',
-    entryExit:       'entity.cars.read',
+    entryExit:       'detail.entry_exit_history',
     documents:       false,
     passHistory:     false,
   },
   carstable: {
-    history:         'entity.cars.read',
+    history:         'detail.full_history',
     openApplication: 'detail.open_application', // есть application_id; гейт по detail.open_application (базовая роль)
     blacklist:       'page.admin.blacklist',
-    entryExit:       'entity.cars.read',
+    entryExit:       'detail.entry_exit_history',
     documents:       false,
     passHistory:     false,
   },
   facttable: {
-    history:         'entity.cars.read',
+    history:         'detail.full_history',
     openApplication: 'detail.open_application',
     blacklist:       'page.admin.blacklist',
-    entryExit:       'entity.cars.read',
+    entryExit:       'detail.entry_exit_history',
     documents:       false,
     passHistory:     false,
   },
   carsview: {
     // Страница «Автомобили»: нет связи с заявкой, документы и история пропусков доступны
-    history:         'entity.cars.read',
+    history:         'detail.full_history',
     openApplication: false,
     blacklist:       'page.admin.blacklist',
-    entryExit:       'entity.cars.read',
+    entryExit:       'detail.entry_exit_history',
     // Документы доступны по detail.documents (есть в базовой роли) - владелец видит
     // документы своих машин; админ/супер - всегда.
     documents:       'detail.documents',
-    passHistory:     'entity.cars.read',
+    passHistory:     false,
   },
   trash: {
     // Корзина: только чтение, без ЧС и действий
-    history:         'entity.cars.read',
+    history:         'detail.full_history',
     openApplication: false,
     blacklist:       false,
     entryExit:       false,
@@ -88,12 +88,12 @@ export const VEHICLE_MODAL_ACTIONS = {
     passHistory:     false,
   },
   general: {
-    history:         'entity.cars.read',
+    history:         'detail.full_history',
     openApplication: 'detail.open_application',
     blacklist:       'page.admin.blacklist',
-    entryExit:       'entity.cars.read',
+    entryExit:       'detail.entry_exit_history',
     documents:       'detail.documents',
-    passHistory:     'entity.cars.read',
+    passHistory:     false,
   },
 }
 
@@ -104,10 +104,10 @@ export const VEHICLE_MODAL_ACTIONS = {
 export const EMPLOYEE_MODAL_ACTIONS = {
   application: {
     // Открыта из деталей заявки: "Открыть заявку" не нужно (уже в ней)
-    history:         'entity.employees.read',
+    history:         'detail.full_history',
     openApplication: false,
     blacklist:       'page.admin.blacklist',
-    entryExit:       'entity.employees.read',
+    entryExit:       'detail.entry_exit_history',
     // Документы доступны по detail.documents (есть в базовой роли): обычный юзер
     // видит документы своих сотрудников в заявке; админ/супер - всегда.
     documents:       'detail.documents',
@@ -115,12 +115,12 @@ export const EMPLOYEE_MODAL_ACTIONS = {
   },
   employeesview: {
     // Страница «Сотрудники»: полный набор действий для имеющих право
-    history:         'entity.employees.read',
+    history:         'detail.full_history',
     openApplication: 'detail.open_application',
     blacklist:       'page.admin.blacklist',
-    entryExit:       'entity.employees.read',
+    entryExit:       'detail.entry_exit_history',
     documents:       'detail.documents',
-    passHistory:     'entity.employees.read',
+    passHistory:     false,
   },
   employeeslist: {
     // Список сотрудников внутри создания/редактирования заявки: режим просмотра
@@ -136,15 +136,15 @@ export const EMPLOYEE_MODAL_ACTIONS = {
   },
   peopletable: {
     // Таблица людей в центре заявок
-    history:         'entity.employees.read',
+    history:         'detail.full_history',
     openApplication: 'detail.open_application',
     blacklist:       'page.admin.blacklist',
-    entryExit:       'entity.employees.read',
+    entryExit:       'detail.entry_exit_history',
     documents:       'detail.documents',
     passHistory:     false,
   },
   trash: {
-    history:         'entity.employees.read',
+    history:         'detail.full_history',
     openApplication: false,
     blacklist:       false,
     entryExit:       false,
@@ -160,12 +160,12 @@ export const EMPLOYEE_MODAL_ACTIONS = {
     passHistory:     false,
   },
   general: {
-    history:         'entity.employees.read',
+    history:         'detail.full_history',
     openApplication: 'detail.open_application',
     blacklist:       'page.admin.blacklist',
-    entryExit:       'entity.employees.read',
+    entryExit:       'detail.entry_exit_history',
     documents:       'detail.documents',
-    passHistory:     'entity.employees.read',
+    passHistory:     false,
   },
 }
 

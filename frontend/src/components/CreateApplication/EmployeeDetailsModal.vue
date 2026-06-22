@@ -551,7 +551,7 @@ export default {
             return 'Детальная информация о сотруднике';
         },
         showHistoryButton() {
-            return this.source !== 'employeeslist';
+            return this.source !== 'employeeslist' && this.canSeeFullHistory;
         },
         entryExitHistory() {
             return this.history.filter(item => item.action_type === 'entry' || item.action_type === 'exit');
@@ -572,10 +572,22 @@ export default {
             return this.source !== 'employeeslist' && this.source !== 'trash';
         },
         showHistorySection() {
-            return this.source !== 'employeeslist';
+            return this.source !== 'employeeslist' && this.canSeeEntryExit;
         },
         canManageBlacklist() {
             return usePermissionsStore().hasPermission('page.admin.blacklist');
+        },
+        // Право на кнопку «Полная история» / секцию «История проходов»: гейтим ТОЛЬКО
+        // когда карта задаёт ключ права (string); контекстные false/true оставляем на
+        // условия видимости выше (showHistoryButton/showHistorySection) — нулевая
+        // регрессия дефолтной видимости, добавляется лишь возможность отозвать ролью.
+        canSeeFullHistory() {
+            const v = getModalActionPermission('employee', this.source, 'history');
+            return typeof v === 'string' ? usePermissionsStore().hasPermission(v) : true;
+        },
+        canSeeEntryExit() {
+            const v = getModalActionPermission('employee', this.source, 'entryExit');
+            return typeof v === 'string' ? usePermissionsStore().hasPermission(v) : true;
         },
         // Доступные действия/разделы модалки по контексту (source) и правам (#187
         // Фаза 2). Значение из карты: boolean - по контексту; строка - ключ права,
@@ -594,7 +606,6 @@ export default {
                 blacklist: resolve('blacklist'),
                 entryExit: resolve('entryExit'),
                 documents: resolve('documents'),
-                passHistory: resolve('passHistory'),
             };
         },
         personLast() {

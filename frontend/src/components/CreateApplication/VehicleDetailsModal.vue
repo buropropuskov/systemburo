@@ -24,7 +24,7 @@
                 class="header-actions"
               >
                 <button
-                  v-if="showCarFeatures"
+                  v-if="showCarFeatures && canSeeFullHistory"
                   class="history-btn"
                   @click="openCarHistory"
                 >
@@ -277,7 +277,7 @@
 
                 <!-- Секция История въездов и выездов (только entry/exit) -->
                 <div
-                  v-if="showCarFeatures"
+                  v-if="showCarFeatures && canSeeEntryExit"
                   class="details-section"
                 >
                   <div class="section-header">
@@ -526,10 +526,22 @@ export default {
                 : usePermissionsStore().hasPermission(perm);
             return allowed && !!(this.vehicle?.applicationId || this.vehicle?.application_id);
         },
-        // Кнопки в шапке: "Полная история" видна при showCarFeatures,
+        // Право на кнопку «Полная история» / секцию «История въездов и выездов»:
+        // гейтим ТОЛЬКО когда карта задаёт ключ права (string); контекстные false/true
+        // оставляем на showCarFeatures — нулевая регрессия дефолтной видимости,
+        // добавляется лишь возможность отозвать ролью.
+        canSeeFullHistory() {
+            const v = getModalActionPermission('vehicle', this.source, 'history');
+            return typeof v === 'string' ? usePermissionsStore().hasPermission(v) : true;
+        },
+        canSeeEntryExit() {
+            const v = getModalActionPermission('vehicle', this.source, 'entryExit');
+            return typeof v === 'string' ? usePermissionsStore().hasPermission(v) : true;
+        },
+        // Кнопки в шапке: "Полная история" видна при showCarFeatures + право,
         // "Открыть заявку" - при canOpenApplication.
         visibleActionsCount() {
-            const history = this.showCarFeatures ? 1 : 0;
+            const history = (this.showCarFeatures && this.canSeeFullHistory) ? 1 : 0;
             const application = this.canOpenApplication ? 1 : 0;
             return history + application;
         },

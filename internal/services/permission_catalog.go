@@ -33,10 +33,8 @@ const (
 
 	KeyDetailFullHistory      = "detail.full_history"
 	KeyDetailOpenApplication  = "detail.open_application"
-	KeyDetailBlacklist        = "detail.blacklist"
 	KeyDetailEntryExitHistory = "detail.entry_exit_history"
 	KeyDetailDocuments        = "detail.documents"
-	KeyDetailPassHistory      = "detail.pass_history"
 
 	KeySectionRegistryOrganization = "section.registry.organization"
 	KeySectionRegistryCompany      = "section.registry.company"
@@ -105,10 +103,8 @@ func staticCatalog() []CatalogNode {
 		// Карточка авто/сотрудника (общие действия; где кнопка уместна -- определяет контекст на фронте)
 		{Key: KeyDetailFullHistory, DisplayName: "Кнопка «Полная история»", Category: CatDetail},
 		{Key: KeyDetailOpenApplication, DisplayName: "Кнопка «Открыть заявку»", Category: CatDetail},
-		{Key: KeyDetailBlacklist, DisplayName: "Кнопка «В ЧС»", Category: CatDetail},
 		{Key: KeyDetailEntryExitHistory, DisplayName: "Раздел «История въездов и выездов»", Category: CatDetail},
 		{Key: KeyDetailDocuments, DisplayName: "Раздел «Документы»", Category: CatDetail},
-		{Key: KeyDetailPassHistory, DisplayName: "Раздел «История проходов»", Category: CatDetail},
 
 		// Сотрудники и автомобили
 		{Key: KeyEntityCarsRead, DisplayName: "Автомобили: просмотр", Category: CatRegistry},
