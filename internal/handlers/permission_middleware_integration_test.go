@@ -387,7 +387,7 @@ func TestBanCheck_InvalidationAfterArchiveReflectsImmediately(t *testing.T) {
 	}
 
 	// 2. Архивируем через сервис - должен сбросить кэш.
-	if err := userSvc.Delete(context.Background(), adminTypeID, adminTypeID, target.Username); err != nil {
+	if err := userSvc.Delete(context.Background(), adminTypeID, target.Username); err != nil {
 		t.Fatalf("archive: %v", err)
 	}
 

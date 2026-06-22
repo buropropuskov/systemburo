@@ -538,7 +538,8 @@ func TestUsers_ManagerAlsoHasAdminAccess(t *testing.T) {
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
 
-	// type_id=5 is "manager" -- also has admin privileges
+	// manager (type_id=5) перенесён миграцией на is_admin, поэтому сохраняет
+	// доступ к управлению пользователями и после снятия type-проверок (Ф5).
 	managerToken := testutil.RegisterManager(t, e, "manager1", td.OrgID, td.CompanyID)
 	h := testutil.AuthHeader(managerToken)
 

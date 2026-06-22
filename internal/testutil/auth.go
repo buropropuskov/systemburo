@@ -94,9 +94,10 @@ func RegisterManager(t *testing.T, e *echo.Echo, username string, orgID, company
 func registerUserViaDB(t *testing.T, e *echo.Echo, username string, typeID, orgID, companyID int) string {
 	t.Helper()
 
-	// type_id=6 -- buropropuskov код. После #231 super-admin определяется
-	// флагом is_super_admin, а не type_id. Сохраняем оба для тестов
-	// которые могут проверять как старое, так и новое поведение.
+	// Админство определяется флагами, а не type_id (Ф5): buropropuskov (6) ->
+	// is_super_admin, manager (5) -> is_admin. Это зеркалит бэкфилл миграции
+	// (migrate.go переносит manager-тип на is_admin), чтобы такие пользователи
+	// не теряли доступ после снятия type-проверок.
 	user := models.User{
 		Username:       username,
 		Password:       hashTestPassword(adminPassword),
@@ -104,6 +105,7 @@ func registerUserViaDB(t *testing.T, e *echo.Echo, username string, typeID, orgI
 		CompanyID:      intPtrOrZero(companyID),
 		TypeID:         typeID,
 		IsSuperAdmin:   typeID == 6,
+		IsAdmin:        typeID == 5,
 	}
 	err := cachedDB.Create(&user).Error
 	require.NoError(t, err, "failed to seed user %s", username)

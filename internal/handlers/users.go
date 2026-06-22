@@ -31,13 +31,12 @@ func NewUsersHandler(service services.UserService) *UsersHandler {
 // @Failure      500 {object} models.HTTPError
 // @Router       /users [post]
 func (h *UsersHandler) Create(c echo.Context) error {
-	typeID := c.Get("type_id").(int)
 	userID, _ := c.Get("user_id").(int)
 	var req models.RegisterRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
-	if err := h.service.Create(c.Request().Context(), typeID, userID, req); err != nil {
+	if err := h.service.Create(c.Request().Context(), userID, req); err != nil {
 		return err
 	}
 	return RespondMessage(c, "User created successfully")
@@ -55,9 +54,8 @@ func (h *UsersHandler) Create(c echo.Context) error {
 // @Failure      500 {object} models.HTTPError
 // @Router       /users/all [get]
 func (h *UsersHandler) GetAll(c echo.Context) error {
-	typeID := c.Get("type_id").(int)
 	includeArchived := c.QueryParam("include_archived") == "true"
-	result, err := h.service.GetAll(c.Request().Context(), typeID, includeArchived)
+	result, err := h.service.GetAll(c.Request().Context(), includeArchived)
 	if err != nil {
 		return err
 	}
@@ -79,14 +77,13 @@ func (h *UsersHandler) GetAll(c echo.Context) error {
 // @Failure      500 {object} models.HTTPError
 // @Router       /users/{username}/type [put]
 func (h *UsersHandler) UpdateType(c echo.Context) error {
-	typeID := c.Get("type_id").(int)
 	userID, _ := c.Get("user_id").(int)
 	username := c.Param("username")
 	var req models.UpdateUserTypeRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
-	if err := h.service.UpdateType(c.Request().Context(), typeID, userID, username, req); err != nil {
+	if err := h.service.UpdateType(c.Request().Context(), userID, username, req); err != nil {
 		return err
 	}
 	return RespondMessage(c, "User type updated successfully")
@@ -106,14 +103,13 @@ func (h *UsersHandler) UpdateType(c echo.Context) error {
 // @Failure      500 {object} models.HTTPError
 // @Router       /users/{username}/password [put]
 func (h *UsersHandler) UpdatePassword(c echo.Context) error {
-	typeID := c.Get("type_id").(int)
 	userID, _ := c.Get("user_id").(int)
 	username := c.Param("username")
 	var req models.UpdatePasswordRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
-	if err := h.service.UpdatePassword(c.Request().Context(), typeID, userID, username, req); err != nil {
+	if err := h.service.UpdatePassword(c.Request().Context(), userID, username, req); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Password updated successfully")
@@ -133,14 +129,13 @@ func (h *UsersHandler) UpdatePassword(c echo.Context) error {
 // @Failure      500 {object} models.HTTPError
 // @Router       /users/{username}/info [put]
 func (h *UsersHandler) UpdateInfo(c echo.Context) error {
-	typeID := c.Get("type_id").(int)
 	userID, _ := c.Get("user_id").(int)
 	username := c.Param("username")
 	var req models.UpdateUserInfoRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
-	if err := h.service.UpdateInfo(c.Request().Context(), typeID, userID, username, req); err != nil {
+	if err := h.service.UpdateInfo(c.Request().Context(), userID, username, req); err != nil {
 		return err
 	}
 	return RespondMessage(c, "User info updated successfully")
@@ -160,14 +155,13 @@ func (h *UsersHandler) UpdateInfo(c echo.Context) error {
 // @Failure      500 {object} models.HTTPError
 // @Router       /users/{username}/organization [put]
 func (h *UsersHandler) UpdateOrganization(c echo.Context) error {
-	typeID := c.Get("type_id").(int)
 	userID, _ := c.Get("user_id").(int)
 	username := c.Param("username")
 	var req models.UpdateUserOrganizationRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
-	if err := h.service.UpdateOrganization(c.Request().Context(), typeID, userID, username, req); err != nil {
+	if err := h.service.UpdateOrganization(c.Request().Context(), userID, username, req); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Organization updated successfully")
@@ -187,14 +181,13 @@ func (h *UsersHandler) UpdateOrganization(c echo.Context) error {
 // @Failure      500 {object} models.HTTPError
 // @Router       /users/{username}/company [put]
 func (h *UsersHandler) UpdateCompany(c echo.Context) error {
-	typeID := c.Get("type_id").(int)
 	userID, _ := c.Get("user_id").(int)
 	username := c.Param("username")
 	var req models.UpdateUserCompanyRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
-	if err := h.service.UpdateCompany(c.Request().Context(), typeID, userID, username, req); err != nil {
+	if err := h.service.UpdateCompany(c.Request().Context(), userID, username, req); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Company updated successfully")
@@ -213,10 +206,9 @@ func (h *UsersHandler) UpdateCompany(c echo.Context) error {
 // @Failure      500 {object} models.HTTPError
 // @Router       /users/{username} [delete]
 func (h *UsersHandler) Delete(c echo.Context) error {
-	typeID := c.Get("type_id").(int)
 	userID, _ := c.Get("user_id").(int)
 	username := c.Param("username")
-	if err := h.service.Delete(c.Request().Context(), typeID, userID, username); err != nil {
+	if err := h.service.Delete(c.Request().Context(), userID, username); err != nil {
 		return err
 	}
 	return RespondMessage(c, "User archived successfully")
@@ -235,10 +227,9 @@ func (h *UsersHandler) Delete(c echo.Context) error {
 // @Failure      500 {object} models.HTTPError
 // @Router       /users/{username}/restore [post]
 func (h *UsersHandler) Restore(c echo.Context) error {
-	typeID := c.Get("type_id").(int)
 	userID, _ := c.Get("user_id").(int)
 	username := c.Param("username")
-	if err := h.service.Restore(c.Request().Context(), typeID, userID, username); err != nil {
+	if err := h.service.Restore(c.Request().Context(), userID, username); err != nil {
 		return err
 	}
 	return RespondMessage(c, "User restored successfully")
@@ -256,9 +247,8 @@ func (h *UsersHandler) Restore(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Router       /users/{username}/history [get]
 func (h *UsersHandler) GetHistory(c echo.Context) error {
-	typeID := c.Get("type_id").(int)
 	username := c.Param("username")
-	items, err := h.service.GetHistory(c.Request().Context(), typeID, username)
+	items, err := h.service.GetHistory(c.Request().Context(), username)
 	if err != nil {
 		return err
 	}
@@ -277,9 +267,8 @@ func (h *UsersHandler) GetHistory(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Router       /users/{username}/unload-places [get]
 func (h *UsersHandler) GetUserUnloadPlaces(c echo.Context) error {
-	typeID := c.Get("type_id").(int)
 	username := c.Param("username")
-	places, err := h.service.GetUserUnloadPlaces(c.Request().Context(), typeID, username)
+	places, err := h.service.GetUserUnloadPlaces(c.Request().Context(), username)
 	if err != nil {
 		return err
 	}
@@ -301,13 +290,12 @@ func (h *UsersHandler) GetUserUnloadPlaces(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Router       /users/{username}/unload-places [put]
 func (h *UsersHandler) SetUserUnloadPlaces(c echo.Context) error {
-	typeID := c.Get("type_id").(int)
 	username := c.Param("username")
 	var req models.SetUserUnloadPlacesRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
-	if err := h.service.SetUserUnloadPlaces(c.Request().Context(), typeID, username, req); err != nil {
+	if err := h.service.SetUserUnloadPlaces(c.Request().Context(), username, req); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Unload places updated successfully")
@@ -325,9 +313,8 @@ func (h *UsersHandler) SetUserUnloadPlaces(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Router       /users/{username}/tables [get]
 func (h *UsersHandler) GetUserTables(c echo.Context) error {
-	typeID := c.Get("type_id").(int)
 	username := c.Param("username")
-	tables, err := h.service.GetUserTables(c.Request().Context(), typeID, username)
+	tables, err := h.service.GetUserTables(c.Request().Context(), username)
 	if err != nil {
 		return err
 	}
@@ -349,13 +336,12 @@ func (h *UsersHandler) GetUserTables(c echo.Context) error {
 // @Failure      404 {object} models.HTTPError
 // @Router       /users/{username}/tables [put]
 func (h *UsersHandler) SetUserTables(c echo.Context) error {
-	typeID := c.Get("type_id").(int)
 	username := c.Param("username")
 	var req models.SetUserTablesRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
-	if err := h.service.SetUserTables(c.Request().Context(), typeID, username, req); err != nil {
+	if err := h.service.SetUserTables(c.Request().Context(), username, req); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Tables updated successfully")
