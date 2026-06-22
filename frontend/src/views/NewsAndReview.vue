@@ -181,8 +181,8 @@
 
     <UserGuideModal
       :show="showGuide"
-      :title="guideTitle"
       :sections="guideSections"
+      :loading="guideLoading"
       @close="closeGuide"
     />
   </section>
@@ -194,10 +194,8 @@ import RefreshButton from '../components/RefreshButton.vue'
 import AnnouncementModal from '../components/AnnouncementModal.vue'
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
 import UserGuideModal from '../components/news/UserGuideModal.vue'
-import { USER_GUIDE_SECTIONS } from '../components/news/userGuideSections.js'
-import { ADMIN_GUIDE_SECTIONS } from '../components/news/adminGuideSections.js'
-import { SECURITY_GUIDE_SECTIONS } from '../components/news/securityGuideSections.js'
-import { usePermissionsStore } from '@/stores/permissions'
+import { listGuideSections } from '@/api/guide'
+import { useDeletionsStore } from '@/stores/deletions'
 import { sanitizeHtml } from '@/utils/sanitize.js'
 import DocumentsBlock from '../components/news/DocumentsBlock.vue'
 import OnboardingButton from '../components/onboarding/OnboardingButton.vue'
@@ -222,30 +220,9 @@ export default {
       viewingAnnouncement: null,
       newsItems: [],
       activeAnnouncement: null,
-      userTypeCode: null,
-    }
-  },
-  computed: {
-    // Руководство админа показываем по праву доступа к админке (page.admin),
-    // а не по сырому isSuperAdmin (#187 Фаза 2): admin-режим и явный грант тоже
-    // должны видеть admin-руководство.
-    isAdminUser() {
-      return usePermissionsStore().hasPermission('page.admin');
-    },
-    // Охранника отличаем по коду типа: единого права, идентифицирующего роль,
-    // в permissions-сторе нет, поэтому берём user_type из /users/me.
-    isSecurityUser() {
-      return this.userTypeCode === 'security';
-    },
-    guideSections() {
-      if (this.isAdminUser) return ADMIN_GUIDE_SECTIONS;
-      if (this.isSecurityUser) return SECURITY_GUIDE_SECTIONS;
-      return USER_GUIDE_SECTIONS;
-    },
-    guideTitle() {
-      if (this.isAdminUser) return 'Руководство администратора';
-      if (this.isSecurityUser) return 'Руководство охранника';
-      return 'Руководство пользователя';
+      guideSections: [],
+      guideLoading: false,
+      guideLoaded: false,
     }
   },
   mounted() {
@@ -285,17 +262,23 @@ export default {
         }
       } catch (error) { console.error('Ошибка загрузки активного объявления:', error) }
     },
-    async fetchUserType() {
-      try {
-        const response = await apiRequest('/users/me')
-        if (response.ok) {
-          const me = await response.json()
-          this.userTypeCode = me?.user_type ?? null
-        }
-      } catch (error) { console.error('Ошибка загрузки типа пользователя:', error) }
-    },
     async fetchAllData() {
-      await Promise.all([this.fetchNews(), this.fetchActiveAnnouncement(), this.fetchUserType()])
+      await Promise.all([this.fetchNews(), this.fetchActiveAnnouncement()])
+    },
+    // Разделы руководства гейтятся правами на бэке (GET /guide/sections отдаёт
+    // только доступные роли), фронт рисует ровно пришедшее. Грузим лениво на
+    // первом открытии модалки.
+    async loadGuideSections() {
+      this.guideLoading = true
+      try {
+        const data = await listGuideSections()
+        this.guideSections = Array.isArray(data) ? data : []
+        this.guideLoaded = true
+      } catch {
+        useDeletionsStore().notify({ prefix: 'Ошибка загрузки руководства', type: 'error' })
+      } finally {
+        this.guideLoading = false
+      }
     },
 
     openNewsModal(item) { this.selectedNews = item; this.showNewsDetailsModal = true },
@@ -308,7 +291,12 @@ export default {
       this.showViewAnnouncementModal = false;
       this.viewingAnnouncement = null;
     },
-    openGuide() { this.showGuide = true; },
+    openGuide() {
+      this.showGuide = true;
+      // guideLoading в условии — защита от параллельной загрузки при быстром
+      // открыл/закрыл/открыл, пока первый запрос ещё в полёте.
+      if (!this.guideLoaded && !this.guideLoading) this.loadGuideSections();
+    },
     closeGuide() { this.showGuide = false; }
   }
 }
