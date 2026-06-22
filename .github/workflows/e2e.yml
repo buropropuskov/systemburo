@@ -62,7 +62,7 @@ jobs:
       RATE_LIMIT_PER_MINUTE: '5000'
       RATE_LIMIT_WINDOW_SEC: '60'
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup-go
       - uses: ./.github/actions/setup-frontend
