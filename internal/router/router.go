@@ -272,22 +272,23 @@ func Setup(e *echo.Echo, d Dependencies) {
 	attRoot.GET("/:id/field-config", attachmentTemplates.GetFieldConfig)
 	attRoot.PUT("/:id/field-config", attachmentTemplates.SaveFieldConfig)
 
-	// Организации
+	// Организации. Изменяющие операции и история - page.admin (Ф5, ранее handler-level
+	// CheckAdminPermissions); списки и привязка пользователей - как было, без гейта.
 	orgg := protected.Group("/organizations")
 	orgg.GET("", org.GetAll)
-	orgg.POST("", org.Create)
-	orgg.PUT("/:id", org.Update)
-	orgg.DELETE("/:id", org.Delete)
-	orgg.POST("/:id/restore", org.Restore)
-	orgg.GET("/:id/history", org.GetHistory)
+	orgg.POST("", org.Create, requireAdmin)
+	orgg.PUT("/:id", org.Update, requireAdmin)
+	orgg.DELETE("/:id", org.Delete, requireAdmin)
+	orgg.POST("/:id/restore", org.Restore, requireAdmin)
+	orgg.GET("/:id/history", org.GetHistory, requireAdmin)
 	orgg.GET("/with-users", org.GetWithUsers)
 	orgg.GET("/with-users-extended", org.GetWithUsersExtended)
 	orgg.GET("/:id/users", org.GetOrganizationUsers)
 	orgg.PUT("/:id/users", org.UpdateOrganizationUsers)
 	orgg.GET("/:id/tables", org.GetOrganizationTables)
-	orgg.PUT("/:id/tables", org.UpdateOrganizationTables)
+	orgg.PUT("/:id/tables", org.UpdateOrganizationTables, requireAdmin)
 	orgg.GET("/:id/unload-places", org.GetOrganizationUnloadPlaces)
-	orgg.PUT("/:id/unload-places", org.UpdateOrganizationUnloadPlaces)
+	orgg.PUT("/:id/unload-places", org.UpdateOrganizationUnloadPlaces, requireAdmin)
 	protected.GET("/get-organization", org.GetMyOrganization)
 
 	// Компании

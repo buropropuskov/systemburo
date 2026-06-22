@@ -54,11 +54,6 @@ func (h *OrganizationHandler) GetAll(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /organizations [post]
 func (h *OrganizationHandler) Create(c echo.Context) error {
-	username := c.Get("username").(string)
-	if err := services.CheckAdminPermissions(h.db, c.Request().Context(), username); err != nil {
-		return err
-	}
-
 	var req services.CreateOrganizationRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
@@ -87,11 +82,6 @@ func (h *OrganizationHandler) Create(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /organizations/{id} [put]
 func (h *OrganizationHandler) Update(c echo.Context) error {
-	username := c.Get("username").(string)
-	if err := services.CheckAdminPermissions(h.db, c.Request().Context(), username); err != nil {
-		return err
-	}
-
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid organization ID")
@@ -125,11 +115,6 @@ func (h *OrganizationHandler) Update(c echo.Context) error {
 // @Failure      409 {object} models.HTTPError
 // @Router       /organizations/{id} [delete]
 func (h *OrganizationHandler) Delete(c echo.Context) error {
-	username := c.Get("username").(string)
-	if err := services.CheckAdminPermissions(h.db, c.Request().Context(), username); err != nil {
-		return err
-	}
-
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid organization ID")
@@ -154,10 +139,6 @@ func (h *OrganizationHandler) Delete(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /organizations/{id}/restore [post]
 func (h *OrganizationHandler) Restore(c echo.Context) error {
-	username := c.Get("username").(string)
-	if err := services.CheckAdminPermissions(h.db, c.Request().Context(), username); err != nil {
-		return err
-	}
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid organization ID")
@@ -180,10 +161,6 @@ func (h *OrganizationHandler) Restore(c echo.Context) error {
 // @Failure      500 {object} models.HTTPError
 // @Router       /organizations/{id}/history [get]
 func (h *OrganizationHandler) GetHistory(c echo.Context) error {
-	username := c.Get("username").(string)
-	if err := services.CheckAdminPermissions(h.db, c.Request().Context(), username); err != nil {
-		return err
-	}
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid organization ID")
@@ -350,11 +327,6 @@ func (h *OrganizationHandler) GetOrganizationTables(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /organizations/{id}/tables [put]
 func (h *OrganizationHandler) UpdateOrganizationTables(c echo.Context) error {
-	username := c.Get("username").(string)
-	if err := services.CheckAdminPermissions(h.db, c.Request().Context(), username); err != nil {
-		return err
-	}
-
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid organization ID")
@@ -411,11 +383,6 @@ func (h *OrganizationHandler) GetOrganizationUnloadPlaces(c echo.Context) error 
 // @Failure      403 {object} models.HTTPError
 // @Router       /organizations/{id}/unload-places [put]
 func (h *OrganizationHandler) UpdateOrganizationUnloadPlaces(c echo.Context) error {
-	username := c.Get("username").(string)
-	if err := services.CheckAdminPermissions(h.db, c.Request().Context(), username); err != nil {
-		return err
-	}
-
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid organization ID")
