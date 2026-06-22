@@ -94,7 +94,7 @@ const routes = [
     path: '/table-constructor',
     name: 'TableConstructor',
     component: TableConstructor,
-    meta: { requiresAuth: true, permission: 'page.admin' }
+    meta: { requiresAuth: true, permission: 'page.admin.tables_constructor' }
   },
   {
     path: '/number-format',
@@ -122,7 +122,7 @@ const routes = [
     path: '/admin/requests',
     name: 'RequestsView',
     component: RequestsView,
-    meta: { requiresAuth: true, permission: 'page.admin' }
+    meta: { requiresAuth: true, permission: 'page.admin.monitoring' }
   },
   {
     path: '/admin/settings',
@@ -164,67 +164,67 @@ const routes = [
     path: '/admin/organizations',
     name: 'AdminOrganizations',
     component: () => import('./views/admin/OrganizationsView.vue'),
-    meta: { requiresAuth: true, permission: 'page.admin' }
+    meta: { requiresAuth: true, permission: 'page.admin.directories' }
   },
   {
     path: '/admin/companies',
     name: 'AdminCompanies',
     component: () => import('./views/admin/CompaniesView.vue'),
-    meta: { requiresAuth: true, permission: 'page.admin' }
+    meta: { requiresAuth: true, permission: 'page.admin.directories' }
   },
   {
     path: '/admin/unload-places',
     name: 'AdminUnloadPlaces',
     component: () => import('./views/admin/UnloadPlacesView.vue'),
-    meta: { requiresAuth: true, permission: 'page.admin' }
+    meta: { requiresAuth: true, permission: 'page.admin.directories' }
   },
   {
     path: '/admin/number-formats',
     name: 'AdminNumberFormats',
     component: () => import('./views/admin/NumberFormatsView.vue'),
-    meta: { requiresAuth: true, permission: 'page.admin' }
+    meta: { requiresAuth: true, permission: 'page.admin.directories' }
   },
   {
     path: '/admin/citizenship',
     name: 'AdminCitizenship',
     component: () => import('./views/admin/CitizenshipView.vue'),
-    meta: { requiresAuth: true, permission: 'page.admin' }
+    meta: { requiresAuth: true, permission: 'page.admin.directories' }
   },
   {
     path: '/admin/marks',
     name: 'AdminMarks',
     component: () => import('./views/admin/MarksView.vue'),
-    meta: { requiresAuth: true, permission: 'page.admin' }
+    meta: { requiresAuth: true, permission: 'page.admin.directories' }
   },
   {
     path: '/admin/attachment-types',
     name: 'AdminAttachmentTypes',
     component: () => import('./views/admin/AttachmentTypesView.vue'),
-    meta: { requiresAuth: true, permission: 'page.admin' }
+    meta: { requiresAuth: true, permission: 'page.admin.directories' }
   },
   {
     path: '/admin/user-types',
     name: 'AdminUserTypes',
     component: () => import('./views/admin/UserTypesView.vue'),
-    meta: { requiresAuth: true, permission: 'page.admin' }
+    meta: { requiresAuth: true, permission: 'page.admin.directories' }
   },
   {
     path: '/admin/approvers',
     name: 'AdminApprovers',
     component: () => import('./views/admin/ApproversView.vue'),
-    meta: { requiresAuth: true, permission: 'page.admin' }
+    meta: { requiresAuth: true, permission: 'page.admin.directories' }
   },
   {
     path: '/admin/documents',
     name: 'AdminDocuments',
     component: () => import('./views/admin/DocumentsView.vue'),
-    meta: { requiresAuth: true, permission: 'page.admin' }
+    meta: { requiresAuth: true, permission: 'page.admin.directories' }
   },
   {
     path: '/admin/news',
     name: 'AdminNews',
     component: () => import('./views/admin/NewsManagement.vue'),
-    meta: { requiresAuth: true, permission: 'page.admin' }
+    meta: { requiresAuth: true, permission: 'page.admin.directories' }
   },
   {
     path: '/analytics',

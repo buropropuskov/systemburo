@@ -102,3 +102,52 @@ describe('NavMenu: гейтинг навигации по правам', () => {
     expect(visible(wrapper, 'nav-button-logout')).toBe(true);
   });
 });
+
+describe('NavMenu: гранулярность Администрирования по правам', () => {
+  const groupTitles = (vm) => vm.permittedAdminGroups.map((g) => g.title);
+  const groupBy = (vm, title) => vm.permittedAdminGroups.find((g) => g.title === title);
+
+  it('page.admin.directories: видна только группа «Справочники» (11 пунктов)', async () => {
+    useAuthStore.mockReturnValue({ isSuperAdmin: false, canViewAccessibleAttachments: false });
+    getMyPermissions.mockResolvedValue(permResponse('normal', ['page.admin.directories']));
+    wrapper = mountNav();
+    await flushPromises();
+
+    expect(groupTitles(wrapper.vm)).toEqual(['Справочники']);
+    expect(groupBy(wrapper.vm, 'Справочники').items).toHaveLength(11);
+  });
+
+  it('page.admin.monitoring: виден «Мониторинг запросов», справочники скрыты', async () => {
+    useAuthStore.mockReturnValue({ isSuperAdmin: false, canViewAccessibleAttachments: false });
+    getMyPermissions.mockResolvedValue(permResponse('normal', ['page.admin.monitoring']));
+    wrapper = mountNav();
+    await flushPromises();
+
+    const audit = groupBy(wrapper.vm, 'Аудит и связь');
+    expect(audit).toBeTruthy();
+    expect(audit.items.map((i) => i.label)).toContain('Мониторинг запросов');
+    expect(audit.items.map((i) => i.label)).not.toContain('Обратная связь'); // нужен page.admin.feedback
+    expect(groupTitles(wrapper.vm)).not.toContain('Справочники');
+  });
+
+  it('page.admin.tables_constructor: виден только «Конструктор таблиц» в группе «Система»', async () => {
+    useAuthStore.mockReturnValue({ isSuperAdmin: false, canViewAccessibleAttachments: false });
+    getMyPermissions.mockResolvedValue(permResponse('normal', ['page.admin.tables_constructor']));
+    wrapper = mountNav();
+    await flushPromises();
+
+    expect(groupTitles(wrapper.vm)).toEqual(['Система']);
+    expect(groupBy(wrapper.vm, 'Система').items.map((i) => i.label)).toEqual(['Конструктор таблиц']);
+  });
+
+  it('page.admin (только Настройки): директории/конструктор/мониторинг не выданы грубым ключом', async () => {
+    useAuthStore.mockReturnValue({ isSuperAdmin: false, canViewAccessibleAttachments: false });
+    getMyPermissions.mockResolvedValue(permResponse('normal', ['page.admin']));
+    wrapper = mountNav();
+    await flushPromises();
+
+    // page.admin теперь покрывает только «Настройки» (baseline), не справочники.
+    expect(groupTitles(wrapper.vm)).toEqual(['Система']);
+    expect(groupBy(wrapper.vm, 'Система').items.map((i) => i.label)).toEqual(['Настройки']);
+  });
+});
