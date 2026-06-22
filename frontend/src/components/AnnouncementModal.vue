@@ -154,7 +154,7 @@ export default {
   font-weight: 600;
   color: #1a1a1a;
   flex: 1;
-  padding-bottom: 15px;
+  padding-bottom: 26px;
 }
 
 .announcement-title {

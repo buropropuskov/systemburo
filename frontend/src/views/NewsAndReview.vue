@@ -79,35 +79,17 @@
                   <svg
                     width="35"
                     height="35"
-                    viewBox="0 0 35 35"
+                    viewBox="0 0 24 24"
                     fill="none"
                     xmlns="http://www.w3.org/2000/svg"
                   >
-                    <rect
-                      width="35"
-                      height="35"
-                      fill="url(#pattern0)"
+                    <path
+                      d="M12 6.5C10.4 5 7.8 4.5 4 4.5V18.5C7.8 18.5 10.4 19 12 20.5C13.6 19 16.2 18.5 20 18.5V4.5C16.2 4.5 13.6 5 12 6.5ZM12 6.5V20.5"
+                      stroke="#4F5BDF"
+                      stroke-width="1.6"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
                     />
-                    <defs>
-                      <pattern
-                        id="pattern0"
-                        patternContentUnits="objectBoundingBox"
-                        width="1"
-                        height="1"
-                      >
-                        <use
-                          xlink:href="#image0"
-                          transform="scale(0.015625)"
-                        />
-                      </pattern>
-                      <image
-                        id="image0"
-                        width="64"
-                        height="64"
-                        preserveAspectRatio="none"
-                        xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAACXBIWXMAAAHYAAAB2AH6XKZyAAAAGXRFWHRTb2Z0d2FyZQB3d3cuaW5rc2NhcGUub3Jnm+48GgAAAwxJREFUeJzt209oHkUcxvGPMQlqBAk9WCoBJZdoDuLJQyMtlBZSKv4Be6m3QpRcKmoN9RQPpVCCUA+e9FRPCqWlHixeVGwPUpFCrNhi0ItQJH+MQpU2TQ+7L+8SeHl3N7OZTbJfWN7Z3fnNPPMw876zs/PSsL15oGRcP17AM3gknJyg/IwvQxfajynMY3UTHM+HbPwgvqtBo4ocr3drVG/OxvfiC0m3bzGHS1jOWcZaxrA7TV/G94FiDmG0pKaOvKHt6grexYPrLHM6U+Z0wJizKugBxzPpDzCTM6729OTI8zSG0/QiTlcnZ+PJY8BwJn0F/1WkJQp5DHgsk16qSkgs8hiQnSytViUkFnkM2NI0BsQWEJvGgNgCOjCDf2zAhKuOBkzhHTyafr5XZWV1M+AgTq65dgovV1VhnQx4Dp9rP2TdTT978Fl6Pzh1MWAnLmAgPf8dz+K39HxAsrrzROiK62LABIbS9DJexHVJ12+tN+zC0dAV18WA1nR7RfIMP5uez+Kw9nAou4bZkboY0OJtXFxz7ZJkAaYS6mTAp/iow70z+LiKSmMakH20/hpvdsl/LM3XYjGEiLxLYlXwCZ5EH97XHueduIvXJPOC/9P4dRPTgH/xVsGYvzEZUkSdvgOi0BgQW0BsGgNiC4hNY0BsAbFpDIgtIDaNAbEFxKYxILaA2DQGxBYQm8aA2AJis+0NKLskNoZXJRsSd4STE4SniWQuasAQvsGegnGxWOmWoagBm6XhJMvuV7plKjsE/pK8qLiMhZJlVM2cHO8OyhjwE8Zxq0Rs7Sj6K3Abr9gijad4DziHP9L0wziBkaCKwnAPV/Fhml4XR7S3n2f360yq5k8OIY8D3RqXZwhkX2I+lEn/mSM2JityDNU8Gw5G8Eua/hZ7M/d2S3Zu1JEbuBaqsJva3Wo8VKGbiQltA5bwUlw54ci756YXX2Ff5tqPkn+RLeBOYF0h+BXnQxY4KHkOiP3NXuQY69aoIhOhReyX/BTOF4irNWW3nfVJ3B3F4+l5nbiHHwQeAg1bkfsR5B+/y7yHCAAAAABJRU5ErkJggg=="
-                      />
-                    </defs>
                   </svg>
                 </div>
                 <div class="guide-title-text">

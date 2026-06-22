@@ -100,7 +100,7 @@ export default {
   width: 100%;
   max-width: 400px;
   background: #FFFFFF;
-  border-radius: 16px;
+  border-radius: 30px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
   overflow: hidden;
   font-family: 'Montserrat', sans-serif;
@@ -155,8 +155,8 @@ export default {
 }
 
 .confirm-dialog__btn {
-  padding: 8px 16px;
-  border-radius: 6px;
+  padding: 9px 20px;
+  border-radius: var(--radius-pill, 50px);
   cursor: pointer;
   font-size: 0.85em;
   font-weight: 500;
