@@ -2,10 +2,13 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 
 	"systemburo/internal/models"
 
+	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
 )
 
@@ -127,18 +130,24 @@ func (s *RoleService) Update(ctx context.Context, roleID int, req models.UpdateR
 func (s *RoleService) Delete(ctx context.Context, roleID int) error {
 	var role models.Role
 	if err := s.db.WithContext(ctx).First(&role, roleID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return echo.NewHTTPError(http.StatusNotFound, "Роль не найдена")
+		}
 		return fmt.Errorf("failed to load role: %w", err)
 	}
 	if role.IsSystem {
-		return fmt.Errorf("cannot delete system role")
+		return echo.NewHTTPError(http.StatusConflict, "Нельзя удалить системную роль")
 	}
 
+	// Считаем всех пользователей с ролью, включая архивных: у архивных role_id
+	// сохраняется, и удаление роли осиротит ссылку. Сначала переназначить.
 	var count int64
 	if err := s.db.WithContext(ctx).Model(&models.User{}).Where("role_id = ?", roleID).Count(&count).Error; err != nil {
 		return fmt.Errorf("failed to count users: %w", err)
 	}
 	if count > 0 {
-		return fmt.Errorf("cannot delete role: %d users still assigned", count)
+		return echo.NewHTTPError(http.StatusConflict,
+			fmt.Sprintf("Роль назначена пользователям (%d, включая архивных). Сначала переназначьте их на другую роль.", count))
 	}
 	if err := s.db.WithContext(ctx).Delete(&models.Role{}, roleID).Error; err != nil {
 		return fmt.Errorf("failed to delete role: %w", err)

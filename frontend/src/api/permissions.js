@@ -140,7 +140,11 @@ export async function deleteRole(id) {
   const res = await apiRequest(`/roles/${id}`, {
     method: 'DELETE',
   });
-  return res.json();
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(body?.error || body?.message || 'Не удалось удалить роль');
+  }
+  return body;
 }
 
 export async function setRoleDefaultGroups(id, groupIds) {
