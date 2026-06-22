@@ -205,16 +205,13 @@
           <template v-if="detail">
             <div class="application-block">
               <h4 class="application-block__title">
-                Заявка
+                <span>Заявка<template v-if="detail.attachment.application_number"> № {{ detail.attachment.application_number }}</template></span>
+                <StatusBadge
+                  v-if="statusText(detail.attachment)"
+                  :status="statusText(detail.attachment)"
+                />
               </h4>
               <div class="application-block__grid">
-                <div
-                  v-if="detail.attachment.application_number"
-                  class="application-block__row"
-                >
-                  <span class="application-block__label">Номер</span>
-                  <span class="application-block__value">{{ detail.attachment.application_number }}</span>
-                </div>
                 <div
                   v-if="detail.attachment.organization_name"
                   class="application-block__row"
@@ -235,13 +232,6 @@
                 >
                   <span class="application-block__label">Отправитель</span>
                   <span class="application-block__value">{{ senderName(detail.attachment) }}</span>
-                </div>
-                <div
-                  v-if="statusText(detail.attachment)"
-                  class="application-block__row"
-                >
-                  <span class="application-block__label">Статус</span>
-                  <StatusBadge :status="statusText(detail.attachment)" />
                 </div>
                 <div
                   v-if="detail.attachment.sending_datetime"
@@ -293,6 +283,7 @@
       :show="previewOpen"
       title="Предпросмотр бланка"
       width="900px"
+      content-class="blank-preview-modal"
       @close="closePreview"
     >
       <div class="blank-preview">
@@ -901,6 +892,10 @@ onBeforeUnmount(() => clearTimeout(searchTimer));
 }
 
 .application-block__title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   margin: 0 0 14px 0;
   padding-bottom: 10px;
   border-bottom: 1px solid #eee;
@@ -977,6 +972,18 @@ onBeforeUnmount(() => clearTimeout(searchTimer));
   .list-section.with-details {
     border-right: none;
     border-bottom: 1px solid #e6e6e6;
+  }
+}
+</style>
+
+<style>
+.blank-preview-modal.base-modal {
+  border-radius: 35px;
+}
+
+@media (max-width: 768px) {
+  .blank-preview-modal.base-modal {
+    border-radius: 16px 16px 0 0;
   }
 }
 </style>
