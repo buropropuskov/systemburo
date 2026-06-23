@@ -94,6 +94,9 @@ func TestWorkModes_Aggregates(t *testing.T) {
 	assert.Equal(t, "active", byName["Склад активный"].Status)
 	assert.Equal(t, "open", byName["Склад активный"].CurrentStatus)
 	assert.Equal(t, "inactive", byName["Склад неактивный"].Status)
+	// Операционно неактивное место всегда closed (canonical computeUnloadPlaceStatus
+	// при status != active) -- проверяем, что семантика пробросилась через агрегатор.
+	assert.Equal(t, "closed", byName["Склад неактивный"].CurrentStatus)
 
 	// Слот активного места в единой форме {day_of_week,open_time,close_time,is_next_day,is_active}.
 	require.Len(t, byName["Склад активный"].TimeSlots, 1)
@@ -104,7 +107,9 @@ func TestWorkModes_Aggregates(t *testing.T) {
 	assert.False(t, slot.IsNextDay)
 	assert.True(t, slot.IsActive)
 
-	// Места прохода: пост с display_name, единые слоты.
+	// Места прохода: пост с display_name, единые слоты. current_status поста
+	// (слот 08:00-20:00) зависит от времени прогона -- детерминированно его логику
+	// покрывает unit-тест computeWorkModeStatus; здесь проверяем проброс формы слота.
 	require.Len(t, resp.Checkpoints, 1)
 	cp := resp.Checkpoints[0]
 	assert.Equal(t, "checkpoint", cp.Kind)

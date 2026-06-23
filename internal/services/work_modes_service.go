@@ -65,6 +65,9 @@ func NewWorkModesService(unloadPlaces UnloadPlaceService, systemTables SystemTab
 // и постов берётся как есть из их сервисов (canonical-логика), Бюро считается
 // здесь (всегда операционно активно).
 func (s *workModesService) GetWorkModes(ctx context.Context) (*WorkModesResponse, error) {
+	// Осознанно переиспользуем GetAll сервисов (отдают и фото, агрегатору ненужные)
+	// ради canonical current_status без дублирования SQL. Эндпоинт редкий (открытие
+	// модалки), число мест/постов невелико -- лишние запросы фото приемлемы.
 	places, err := s.unloadPlaces.GetAll(ctx, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load unload places for work modes: %w", err)
