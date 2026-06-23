@@ -1,5 +1,9 @@
 import { defineStore } from 'pinia';
 import { getMe } from '@/api/auth';
+// Циклический импорт с permissions.js (он импортит useAuthStore) безопасен:
+// обе стороны зовут стор только в рантайме (getter / parsePermissionsResponse),
+// не на этапе инициализации модуля - ESM live bindings уже заполнены к вызову.
+import { usePermissionsStore } from './permissions';
 
 function decodeToken(token) {
   try {
@@ -49,8 +53,15 @@ export const useAuthStore = defineStore('auth', {
     isSecurity() {
       return this.userTypeCode === 'security';
     },
+    // Гибрид: охранник и супер-админ видят раздел по типу/роли, плюс любая роль
+    // с грантом page.available. Тумблер только добавляет доступ - отозвать его
+    // у охранника нельзя (доступ по типу пользователя).
     canViewAccessibleAttachments() {
-      return this.isSecurity || this.isSuperAdmin;
+      return (
+        this.isSuperAdmin
+        || this.isSecurity
+        || usePermissionsStore().hasPermission('page.available')
+      );
     },
   },
 

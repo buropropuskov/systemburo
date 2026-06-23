@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import { useAuthStore } from '../auth';
+import { usePermissionsStore } from '../permissions';
 
 vi.mock('@/api/auth', () => ({
   getMe: vi.fn(),
@@ -152,6 +153,26 @@ describe('auth store', () => {
       const store = useAuthStore();
       store.setTokens(createMockJWT({ type_id: 2 }));
       store.userTypeCode = 'user';
+      expect(store.canViewAccessibleAttachments).toBe(false);
+    });
+
+    it('возвращает true для обычного пользователя с грантом page.available', () => {
+      const store = useAuthStore();
+      store.setTokens(createMockJWT({ type_id: 2 }));
+      store.userTypeCode = 'user';
+      const perms = usePermissionsStore();
+      perms.mode = 'normal';
+      perms.effective = { 'page.available': { value: 'allow', source: 'role' } };
+      expect(store.canViewAccessibleAttachments).toBe(true);
+    });
+
+    it('остаётся false если у обычного пользователя грант другого ключа', () => {
+      const store = useAuthStore();
+      store.setTokens(createMockJWT({ type_id: 2 }));
+      store.userTypeCode = 'user';
+      const perms = usePermissionsStore();
+      perms.mode = 'normal';
+      perms.effective = { 'page.statistics': { value: 'allow', source: 'role' } };
       expect(store.canViewAccessibleAttachments).toBe(false);
     });
   });

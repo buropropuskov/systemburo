@@ -56,6 +56,17 @@ describe('NavMenu: гейтинг пункта "Доступные мне" (FE-S
     expect(wrapper.find(TESTID).isVisible()).toBe(true);
   });
 
+  // Гибрид page.available (срез 6b): обычный юзер (не охранник, не супер) с грантом
+  // page.available получает canViewAccessibleAttachments=true и видит пункт. NavMenu
+  // следует getter'у независимо от источника доступа (тип vs грант роли/группы).
+  it('обычный пользователь с грантом page.available видит пункт', () => {
+    useAuthStore.mockReturnValue({ isSuperAdmin: false, canViewAccessibleAttachments: true });
+    wrapper = mountNav();
+    const item = wrapper.find(TESTID);
+    expect(item.exists()).toBe(true);
+    expect(item.isVisible()).toBe(true);
+  });
+
   it('обычный пользователь не видит пункт', () => {
     useAuthStore.mockReturnValue({ isSuperAdmin: false, canViewAccessibleAttachments: false });
     wrapper = mountNav();
