@@ -59,6 +59,7 @@ var tables = []string{
 	"unique_employees", "unique_cars", "unique_attachment_histories", "unique_attachments",
 	"application_reads", "application_viewers", "application_approver_histories", "application_approvers", "application_responsible_users",
 	"application_status_history", "application_history", "applications",
+	"bureau_time_slots",
 	"companies_unload_places", "organization_unload_places",
 	"unload_place_histories",
 	"unload_place_time_slots", "unload_place_photos", "unload_places",
@@ -121,6 +122,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	accessDenialService := services.NewAccessDenialService(db)
 	userBanService := services.NewUserBanService(db, permissionResolver, nil)
 	systemTableService := services.NewSystemTableService(db, "./uploads", 10*1024*1024, permissionService)
+	workModesService := services.NewWorkModesService(unloadPlaceService, systemTableService, bureauService)
 	uniqueCarService := services.NewUniqueCarService(db)
 	uniqueEmployeeService := services.NewUniqueEmployeeService(db)
 	feedbackService := services.NewFeedbackService(db)
@@ -169,6 +171,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	onboardingHandler := handlers.NewOnboardingHandler(onboardingService)
 	unloadPlaceHandler := handlers.NewUnloadPlaceHandler(unloadPlaceService, 10*1024*1024, "./uploads")
 	bureauHandler := handlers.NewBureauHandler(bureauService)
+	workModesHandler := handlers.NewWorkModesHandler(workModesService)
 	carHandler := handlers.NewCarHandler(carService)
 	employeeHandler := handlers.NewEmployeeHandler(employeeService)
 	systemTableHistoryService := services.NewSystemTableHistoryService(db)
@@ -222,6 +225,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 		Onboarding:          onboardingHandler,
 		UnloadPlace:         unloadPlaceHandler,
 		Bureau:              bureauHandler,
+		WorkModes:           workModesHandler,
 		Cars:                carHandler,
 		Employees:           employeeHandler,
 		SystemTable:         systemTableHandler,
