@@ -131,6 +131,57 @@
           </button>
         </div>
         <DocumentsBlock />
+
+        <button
+          type="button"
+          class="modes-trigger"
+          data-testid="ob-work-modes"
+          @click="openModes"
+        >
+          <span class="modes-trigger__icon">
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="9"
+                stroke="currentColor"
+                stroke-width="1.7"
+              />
+              <path
+                d="M12 7v5l3.5 2"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </span>
+          <span class="modes-trigger__text">
+            <span class="modes-trigger__title">Режимы работы</span>
+            <span class="modes-trigger__sub">Время работы Бюро, мест разгрузки и мест прохода</span>
+          </span>
+          <svg
+            class="modes-trigger__chev"
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="none"
+          >
+            <path
+              d="M6 4l4 4-4 4"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </button>
       </div>
     </div>
 
@@ -185,6 +236,11 @@
       :loading="guideLoading"
       @close="closeGuide"
     />
+
+    <WorkModesModal
+      :show="showModes"
+      @close="closeModes"
+    />
   </section>
 </template>
 
@@ -198,6 +254,7 @@ import { listGuideSections } from '@/api/guide'
 import { useDeletionsStore } from '@/stores/deletions'
 import { sanitizeHtml } from '@/utils/sanitize.js'
 import DocumentsBlock from '../components/news/DocumentsBlock.vue'
+import WorkModesModal from '../components/news/WorkModesModal.vue'
 import OnboardingButton from '../components/onboarding/OnboardingButton.vue'
 
 export default {
@@ -208,6 +265,7 @@ export default {
     LoaderSpinner,
     UserGuideModal,
     DocumentsBlock,
+    WorkModesModal,
     OnboardingButton,
   },
   data() {
@@ -216,6 +274,7 @@ export default {
       showNewsDetailsModal: false,
       showViewAnnouncementModal: false,
       showGuide: false,
+      showModes: false,
       selectedNews: null,
       viewingAnnouncement: null,
       newsItems: [],
@@ -297,7 +356,9 @@ export default {
       // открыл/закрыл/открыл, пока первый запрос ещё в полёте.
       if (!this.guideLoaded && !this.guideLoading) this.loadGuideSections();
     },
-    closeGuide() { this.showGuide = false; }
+    closeGuide() { this.showGuide = false; },
+    openModes() { this.showModes = true; },
+    closeModes() { this.showModes = false; }
   }
 }
 </script>
@@ -611,6 +672,70 @@ export default {
     transform: translateY(-3px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
     border: 1px solid #4F5BDF;
+}
+
+.modes-trigger {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 18px;
+    background: #fff;
+    border: 1px solid var(--color-border);
+    border-radius: 22px;
+    font-family: 'Montserrat', sans-serif;
+    text-align: left;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.modes-trigger:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    border-color: var(--color-primary);
+}
+
+.modes-trigger__icon {
+    width: 42px;
+    height: 42px;
+    flex-shrink: 0;
+    border-radius: 12px;
+    background: #eef0ff;
+    color: var(--color-primary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modes-trigger__text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.modes-trigger__title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #1a1a1a;
+}
+
+.modes-trigger__sub {
+    font-size: 12px;
+    color: #8a8a9e;
+    font-weight: 500;
+}
+
+.modes-trigger__chev {
+    flex-shrink: 0;
+    color: #b3b6cf;
+    transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.modes-trigger:hover .modes-trigger__chev {
+    color: var(--color-primary);
+    transform: translateX(3px);
 }
 
 .guide-content {
