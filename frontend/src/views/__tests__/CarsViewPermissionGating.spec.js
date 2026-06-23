@@ -58,6 +58,8 @@ const companyTab = w => w.find('[data-testid="filter-tab-company"]');
 const allSystemTab = w => w.find('[data-testid="filter-tab-all-system"]');
 const addBtn = w => w.find('[data-testid="cars-view-add-button"]');
 const editBtn = w => w.find('.edit-btn');
+const deleteBtn = w => w.find('.delete-btn');
+const readOnly = w => w.find('.read-only-text');
 
 let wrapper;
 
@@ -145,6 +147,61 @@ describe('CarsView — гейтинг реестра по правам (срез
       wrapper = mountView();
       await withOwnedRow(wrapper);
       expect(editBtn(wrapper).exists()).toBe(false);
+    });
+  });
+
+  describe('Кнопка удаления реестра (entity.cars.delete)', () => {
+    it('кнопка «Удалить» владельческой строки видна при entity.cars.delete', async () => {
+      seedPerms({ allow: ['entity.cars.delete'] });
+      wrapper = mountView();
+      await withOwnedRow(wrapper);
+      expect(deleteBtn(wrapper).exists()).toBe(true);
+    });
+
+    it('кнопка «Удалить» скрыта без entity.cars.delete (даже для владельца)', async () => {
+      seedPerms({ allow: ['entity.cars.write'] });
+      wrapper = mountView();
+      await withOwnedRow(wrapper);
+      expect(deleteBtn(wrapper).exists()).toBe(false);
+    });
+
+    it('супер-админ видит кнопку «Удалить»', async () => {
+      seedPerms({ mode: 'super' });
+      wrapper = mountView();
+      await withOwnedRow(wrapper);
+      expect(deleteBtn(wrapper).exists()).toBe(true);
+    });
+  });
+
+  describe('Плашка «Только просмотр» (консистентность при отзыве write/delete)', () => {
+    it('плашка скрыта, пока доступно изменение (write есть, delete нет)', async () => {
+      seedPerms({ allow: ['entity.cars.write'] });
+      wrapper = mountView();
+      await withOwnedRow(wrapper);
+      expect(readOnly(wrapper).exists()).toBe(false);
+    });
+
+    it('плашка скрыта, пока доступно удаление (delete есть, write нет)', async () => {
+      seedPerms({ allow: ['entity.cars.delete'] });
+      wrapper = mountView();
+      await withOwnedRow(wrapper);
+      expect(readOnly(wrapper).exists()).toBe(false);
+    });
+
+    it('плашка видна у владельца, когда отозваны и write, и delete', async () => {
+      seedPerms({ allow: ['section.registry.organization'] });
+      wrapper = mountView();
+      await withOwnedRow(wrapper);
+      expect(editBtn(wrapper).exists()).toBe(false);
+      expect(deleteBtn(wrapper).exists()).toBe(false);
+      expect(readOnly(wrapper).exists()).toBe(true);
+    });
+
+    it('плашка видна на чужой строке (all_system), даже при наличии прав', async () => {
+      seedPerms({ allow: ['entity.cars.write', 'entity.cars.delete', 'section.registry.all_system'] });
+      wrapper = mountView();
+      await withOwnedRow(wrapper, 'all_system');
+      expect(readOnly(wrapper).exists()).toBe(true);
     });
   });
 });

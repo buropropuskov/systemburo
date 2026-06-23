@@ -297,7 +297,7 @@
                     </div>
                     <div class="car-col actions-col">
                       <button
-                        v-if="canEditCar(car) && canWriteCars"
+                        v-if="showEditCar(car)"
                         class="edit-btn"
                         title="Редактировать"
                         @click.stop="editCar(car)"
@@ -309,7 +309,7 @@
                         >
                       </button>
                       <button
-                        v-if="canEditCar(car)"
+                        v-if="showDeleteCar(car)"
                         class="delete-btn"
                         title="Удалить"
                         @click.stop="openDeleteCarConfirmation(car)"
@@ -321,7 +321,7 @@
                         >
                       </button>
                       <span
-                        v-if="!canEditCar(car)"
+                        v-if="!showEditCar(car) && !showDeleteCar(car)"
                         class="read-only-text"
                         :title="canEditTooltip(car)"
                       >
@@ -720,6 +720,11 @@ export default {
         canWriteCars() {
             return usePermissionsStore().hasPermission('entity.cars.write');
         },
+        // Право удалять из реестра авто (кнопка «Удалить»). Базовая роль выдаёт
+        // по умолчанию; админ может отозвать ролью, не затрагивая изменение.
+        canDeleteCars() {
+            return usePermissionsStore().hasPermission('entity.cars.delete');
+        },
         filteredCars() {
             const variants = buildSearchVariants(this.searchQuery);
             if (!variants.length) {
@@ -954,10 +959,16 @@ export default {
                 && car.company_id === this.ownershipInfo.company_id) return true;
             return false;
         },
+        showEditCar(car) {
+            return this.canEditCar(car) && this.canWriteCars;
+        },
+        showDeleteCar(car) {
+            return this.canEditCar(car) && this.canDeleteCars;
+        },
         canEditTooltip(car) {
             if (this.currentFilter === 'all_system') return 'В режиме «Все в системе» редактирование запрещено';
-            if (this.canEditCar(car)) return '';
-            return 'Машина не привязана к вашей организации/компании - редактирование запрещено';
+            if (!this.canEditCar(car)) return 'Машина не привязана к вашей организации/компании - редактирование запрещено';
+            return 'Недостаточно прав для изменения или удаления';
         },
 
         async loadBlacklist() {
