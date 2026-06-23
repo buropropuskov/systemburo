@@ -49,8 +49,11 @@ func TestIsCatalogKey(t *testing.T) {
 	if !IsCatalogKey(KeyPageCenter) {
 		t.Error("KeyPageCenter должен быть в каталоге")
 	}
-	if !IsCatalogKey(KeyDetailBlacklist) {
-		t.Error("KeyDetailBlacklist должен быть в каталоге")
+	if !IsCatalogKey(KeyDetailFullHistory) {
+		t.Error("KeyDetailFullHistory должен быть в каталоге")
+	}
+	if IsCatalogKey("detail.blacklist") {
+		t.Error("detail.blacklist убран из каталога (ЧС гейтится page.admin.blacklist)")
 	}
 	if IsCatalogKey("nonexistent.key") {
 		t.Error("несуществующий ключ не должен быть в каталоге")

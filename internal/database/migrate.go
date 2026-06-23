@@ -530,6 +530,8 @@ var baseRoleGrants = []string{
 	"guide.user",
 	"detail.open_application",
 	"detail.documents",
+	"detail.full_history",
+	"detail.entry_exit_history",
 }
 
 // seedBaseRole создаёт неудаляемую базовую роль "Пользователь" и её дефолтные
