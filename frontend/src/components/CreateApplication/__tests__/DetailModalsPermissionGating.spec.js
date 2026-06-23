@@ -73,6 +73,18 @@ describe('VehicleDetailsModal — гейтинг истории по detail.* (�
     expect(w.find('.history-btn').exists()).toBe(true);
     expect(hasSection(w, 'История въездов и выездов')).toBe(true);
   });
+
+  it('контекст «Корзина»: normal без detail.full_history — кнопка истории скрыта', () => {
+    seedPerms({ allow: [] });
+    const w = mountVehicle({ source: 'trash' });
+    expect(w.find('.history-btn').exists()).toBe(false);
+  });
+
+  it('контекст «Корзина»: с detail.full_history кнопка истории видна (контекст не ломает гейт)', () => {
+    seedPerms({ allow: ['detail.full_history'] });
+    const w = mountVehicle({ source: 'trash' });
+    expect(w.find('.history-btn').exists()).toBe(true);
+  });
 });
 
 describe('EmployeeDetailsModal — гейтинг истории по detail.* (срез 4)', () => {
@@ -97,5 +109,12 @@ describe('EmployeeDetailsModal — гейтинг истории по detail.* (
     const w = mountEmployee();
     expect(w.find('.history-btn').exists()).toBe(true);
     expect(hasSection(w, 'История проходов')).toBe(true);
+  });
+
+  it('контекст «Список в заявке» (employeeslist): история скрыта даже у super — контекст-гард жив', () => {
+    seedPerms({ mode: 'super' });
+    const w = mountEmployee({ source: 'employeeslist' });
+    expect(w.find('.history-btn').exists()).toBe(false);
+    expect(hasSection(w, 'История проходов')).toBe(false);
   });
 });

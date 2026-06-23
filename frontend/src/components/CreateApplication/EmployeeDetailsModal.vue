@@ -601,10 +601,8 @@ export default {
                 return typeof v === 'boolean' ? v : perms.hasPermission(v);
             };
             return {
-                history: resolve('history'),
                 openApplication: resolve('openApplication'),
                 blacklist: resolve('blacklist'),
-                entryExit: resolve('entryExit'),
                 documents: resolve('documents'),
             };
         },

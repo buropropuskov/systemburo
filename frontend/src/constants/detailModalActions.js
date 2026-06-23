@@ -25,7 +25,6 @@
  *   blacklist       — кнопка «В ЧС» / управление чёрным списком
  *   entryExit       — вкладка/секция «Въезд/Выезд» (история проходов на территорию)
  *   documents       — раздел «Документы» (прикреплённые документы сущности)
- *   passHistory     — История пропусков (выданные пропуска)
  */
 
 /**
@@ -40,7 +39,6 @@ export const VEHICLE_MODAL_ACTIONS = {
     blacklist:       'page.admin.blacklist',
     entryExit:       'detail.entry_exit_history',
     documents:       false,
-    passHistory:     false,
   },
   carstable: {
     history:         'detail.full_history',
@@ -48,7 +46,6 @@ export const VEHICLE_MODAL_ACTIONS = {
     blacklist:       'page.admin.blacklist',
     entryExit:       'detail.entry_exit_history',
     documents:       false,
-    passHistory:     false,
   },
   facttable: {
     history:         'detail.full_history',
@@ -56,10 +53,9 @@ export const VEHICLE_MODAL_ACTIONS = {
     blacklist:       'page.admin.blacklist',
     entryExit:       'detail.entry_exit_history',
     documents:       false,
-    passHistory:     false,
   },
   carsview: {
-    // Страница «Автомобили»: нет связи с заявкой, документы и история пропусков доступны
+    // Страница «Автомобили»: нет связи с заявкой, документы доступны по detail.documents
     history:         'detail.full_history',
     openApplication: false,
     blacklist:       'page.admin.blacklist',
@@ -67,7 +63,6 @@ export const VEHICLE_MODAL_ACTIONS = {
     // Документы доступны по detail.documents (есть в базовой роли) - владелец видит
     // документы своих машин; админ/супер - всегда.
     documents:       'detail.documents',
-    passHistory:     false,
   },
   trash: {
     // Корзина: только чтение, без ЧС и действий
@@ -76,7 +71,6 @@ export const VEHICLE_MODAL_ACTIONS = {
     blacklist:       false,
     entryExit:       false,
     documents:       false,
-    passHistory:     false,
   },
   blacklist: {
     // Открыта из раздела ЧС: переход в заявку не нужен, добавление в ЧС не нужно
@@ -85,7 +79,6 @@ export const VEHICLE_MODAL_ACTIONS = {
     blacklist:       false,
     entryExit:       false,
     documents:       false,
-    passHistory:     false,
   },
   general: {
     history:         'detail.full_history',
@@ -93,7 +86,6 @@ export const VEHICLE_MODAL_ACTIONS = {
     blacklist:       'page.admin.blacklist',
     entryExit:       'detail.entry_exit_history',
     documents:       'detail.documents',
-    passHistory:     false,
   },
 }
 
@@ -111,7 +103,6 @@ export const EMPLOYEE_MODAL_ACTIONS = {
     // Документы доступны по detail.documents (есть в базовой роли): обычный юзер
     // видит документы своих сотрудников в заявке; админ/супер - всегда.
     documents:       'detail.documents',
-    passHistory:     false,
   },
   employeesview: {
     // Страница «Сотрудники»: полный набор действий для имеющих право
@@ -120,7 +111,6 @@ export const EMPLOYEE_MODAL_ACTIONS = {
     blacklist:       'page.admin.blacklist',
     entryExit:       'detail.entry_exit_history',
     documents:       'detail.documents',
-    passHistory:     false,
   },
   employeeslist: {
     // Список сотрудников внутри создания/редактирования заявки: режим просмотра
@@ -132,7 +122,6 @@ export const EMPLOYEE_MODAL_ACTIONS = {
     blacklist:       false,
     entryExit:       false,
     documents:       true,
-    passHistory:     false,
   },
   peopletable: {
     // Таблица людей в центре заявок
@@ -141,7 +130,6 @@ export const EMPLOYEE_MODAL_ACTIONS = {
     blacklist:       'page.admin.blacklist',
     entryExit:       'detail.entry_exit_history',
     documents:       'detail.documents',
-    passHistory:     false,
   },
   trash: {
     history:         'detail.full_history',
@@ -149,7 +137,6 @@ export const EMPLOYEE_MODAL_ACTIONS = {
     blacklist:       false,
     entryExit:       false,
     documents:       false,
-    passHistory:     false,
   },
   blacklist: {
     history:         'page.admin.blacklist',
@@ -157,7 +144,6 @@ export const EMPLOYEE_MODAL_ACTIONS = {
     blacklist:       false,
     entryExit:       false,
     documents:       false,
-    passHistory:     false,
   },
   general: {
     history:         'detail.full_history',
@@ -165,7 +151,6 @@ export const EMPLOYEE_MODAL_ACTIONS = {
     blacklist:       'page.admin.blacklist',
     entryExit:       'detail.entry_exit_history',
     documents:       'detail.documents',
-    passHistory:     false,
   },
 }
 
