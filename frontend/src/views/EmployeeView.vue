@@ -284,7 +284,7 @@
                     </div>
                     <div class="employee-col actions-col">
                       <button
-                        v-if="canEditEmployee(employee) && canWriteEmployees"
+                        v-if="showEditEmployee(employee)"
                         class="edit-btn"
                         title="Редактировать"
                         @click.stop="editEmployee(employee)"
@@ -296,7 +296,7 @@
                         >
                       </button>
                       <button
-                        v-if="canEditEmployee(employee)"
+                        v-if="showDeleteEmployee(employee)"
                         class="delete-btn"
                         title="Удалить"
                         @click.stop="deleteEmployee(employee)"
@@ -307,6 +307,13 @@
                           class="delete-icon"
                         >
                       </button>
+                      <span
+                        v-if="!showEditEmployee(employee) && !showDeleteEmployee(employee)"
+                        class="read-only-text"
+                        :title="canEditTooltip(employee)"
+                      >
+                        Только просмотр
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -454,6 +461,11 @@ export default {
         canWriteEmployees() {
             return usePermissionsStore().hasPermission('entity.employees.write');
         },
+        // Право удалять из реестра сотрудников (кнопка «Удалить»). Базовая роль
+        // выдаёт по умолчанию; админ может отозвать ролью, не затрагивая изменение.
+        canDeleteEmployees() {
+            return usePermissionsStore().hasPermission('entity.employees.delete');
+        },
         filteredEmployees() {
             const variants = buildSearchVariants(this.searchQuery);
             if (!variants.length) {
@@ -590,10 +602,16 @@ export default {
                 && emp.company_id === this.ownershipInfo.company_id) return true;
             return false;
         },
+        showEditEmployee(emp) {
+            return this.canEditEmployee(emp) && this.canWriteEmployees;
+        },
+        showDeleteEmployee(emp) {
+            return this.canEditEmployee(emp) && this.canDeleteEmployees;
+        },
         canEditTooltip(emp) {
             if (this.currentFilter === 'all_system') return 'В режиме «Все в системе» редактирование запрещено';
-            if (this.canEditEmployee(emp)) return '';
-            return 'Сотрудник не привязан к вашей организации/компании - редактирование запрещено';
+            if (!this.canEditEmployee(emp)) return 'Сотрудник не привязан к вашей организации/компании - редактирование запрещено';
+            return 'Недостаточно прав для изменения или удаления';
         },
         async loadBlacklist() {
             try {
@@ -1182,6 +1200,12 @@ export default {
 .edit-btn:hover .edit-icon,
 .delete-btn:hover .delete-icon {
     opacity: 1;
+}
+
+.read-only-text {
+    font-size: 12px;
+    color: #a2a2a2;
+    font-style: italic;
 }
 
 .no-data-message {
