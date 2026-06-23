@@ -70,7 +70,7 @@
           @click="activeSection = 'contacts'"
           @keydown.enter="activeSection = 'contacts'"
         >
-          Контакты Бюро
+          Информация Бюро
         </div>
       </nav>
 
@@ -231,14 +231,18 @@
             </button>
           </div>
 
-          <!-- Контакты Бюро -->
+          <!-- Информация Бюро -->
           <div
             v-else-if="activeSection === 'contacts'"
             class="settings-section"
           >
             <h3 class="section-title">
-              Контакты Бюро пропусков
+              Информация Бюро
             </h3>
+
+            <h4 class="subsection-title">
+              Контакты
+            </h4>
             <p class="form-hint section-intro">
               Телефон и почта Бюро. Показываются на странице входа и в плашке блокировки.
             </p>
@@ -283,6 +287,21 @@
             >
               {{ saving ? 'Сохранение...' : 'Сохранить' }}
             </button>
+
+            <div class="bureau-schedule">
+              <p
+                v-if="bureauSlotsLoading && !bureauSlotsLoaded"
+                class="form-hint"
+              >
+                Загрузка расписания...
+              </p>
+              <WorkScheduleTab
+                v-else
+                resource-url="/bureau"
+                :time-slots="bureauTimeSlots"
+                @update="fetchBureauSchedule"
+              />
+            </div>
           </div>
 
           <!-- Уведомления -->
@@ -539,6 +558,8 @@ import { SkeletonTransition, SkeletonLine, SkeletonBlock } from '@/components/ui
 import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
 import { useContactsStore } from '@/stores/contacts';
+import { apiRequest } from '@/api/client';
+import WorkScheduleTab from '@/components/WorkScheduleTab.vue';
 
 export default {
   name: 'AdminSettings',
@@ -546,6 +567,7 @@ export default {
     SkeletonTransition,
     SkeletonLine,
     SkeletonBlock,
+    WorkScheduleTab,
   },
   data() {
     return {
@@ -585,6 +607,10 @@ export default {
       dpLoading: false,
       dpUploading: false,
       dpDeleting: false,
+      bureauTimeSlots: [],
+      bureauSlotsLoaded: false,
+      bureauSlotsLoading: false,
+      bureauSeq: 0,
     };
   },
   computed: {
@@ -627,6 +653,9 @@ export default {
     activeSection(section) {
       if (section === 'data-processing' && !this.dpLoaded) {
         this.fetchDataProcessingDoc();
+      }
+      if (section === 'contacts' && !this.bureauSlotsLoaded) {
+        this.fetchBureauSchedule();
       }
     },
   },
@@ -767,6 +796,29 @@ export default {
         useDeletionsStore().notify({ prefix: 'Ошибка сохранения настроек', type: 'error' });
       } finally {
         this.saving = false;
+      }
+    },
+
+    async fetchBureauSchedule() {
+      // seq-токен: быстрые @update от тумблеров 24/7 шлют параллельные fetch'и,
+      // в стор пишет только последний - иначе устаревший ответ затрёт актуальный.
+      const seq = ++this.bureauSeq;
+      this.bureauSlotsLoading = true;
+      try {
+        const response = await apiRequest('/bureau/time-slots');
+        if (!response.ok) {
+          throw new Error('Не удалось загрузить расписание');
+        }
+        const data = await response.json();
+        if (seq !== this.bureauSeq) return;
+        this.bureauTimeSlots = Array.isArray(data) ? data : [];
+        this.bureauSlotsLoaded = true;
+      } catch (error) {
+        if (seq !== this.bureauSeq) return;
+        console.error('Ошибка загрузки расписания Бюро:', error);
+        useDeletionsStore().notify({ prefix: 'Не удалось загрузить расписание Бюро', type: 'error' });
+      } finally {
+        if (seq === this.bureauSeq) this.bureauSlotsLoading = false;
       }
     },
 
@@ -1034,6 +1086,19 @@ export default {
 .section-intro {
   margin: 0 0 16px;
   font-size: 13px;
+}
+
+.subsection-title {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #000;
+}
+
+.bureau-schedule {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #e6e6e6;
 }
 
 .form-range {
