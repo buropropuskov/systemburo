@@ -647,6 +647,7 @@ export default {
             { label: 'Принимающие', icon: 'approvers', path: '/admin/approvers', permission: 'page.admin.directories' },
             { label: 'Документы', icon: 'documents', path: '/admin/documents', permission: 'page.admin.directories' },
             { label: 'Новости и объявления', icon: 'news', path: '/admin/news', permission: 'page.admin.directories' },
+            { label: 'Руководство', icon: 'guide', path: '/admin/guide', permission: 'page.admin' },
           ],
         },
         {
