@@ -140,14 +140,17 @@ describe('NavMenu: гранулярность Администрирования
     expect(groupBy(wrapper.vm, 'Система').items.map((i) => i.label)).toEqual(['Конструктор таблиц']);
   });
 
-  it('page.admin (только Настройки): директории/конструктор/мониторинг не выданы грубым ключом', async () => {
+  it('page.admin: Настройки (Система) + Руководство (Справочники), без директорий/конструктора/мониторинга', async () => {
     useAuthStore.mockReturnValue({ isSuperAdmin: false, canViewAccessibleAttachments: false });
     getMyPermissions.mockResolvedValue(permResponse('normal', ['page.admin']));
     wrapper = mountNav();
     await flushPromises();
 
-    // page.admin теперь покрывает только «Настройки» (baseline), не справочники.
-    expect(groupTitles(wrapper.vm)).toEqual(['Система']);
+    // page.admin покрывает baseline-пункты этого ключа: «Настройки» (Система) и
+    // «Руководство» (Справочники, гейт page.admin - бэкенд requireAdmin). Сами
+    // справочники (page.admin.directories) и конструктор/мониторинг не выданы.
+    expect(groupTitles(wrapper.vm)).toEqual(['Справочники', 'Система']);
+    expect(groupBy(wrapper.vm, 'Справочники').items.map((i) => i.label)).toEqual(['Руководство']);
     expect(groupBy(wrapper.vm, 'Система').items.map((i) => i.label)).toEqual(['Настройки']);
   });
 });

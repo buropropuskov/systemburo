@@ -227,6 +227,12 @@ const routes = [
     meta: { requiresAuth: true, permission: 'page.admin.directories' }
   },
   {
+    path: '/admin/guide',
+    name: 'AdminGuide',
+    component: () => import('./views/admin/GuideManagementView.vue'),
+    meta: { requiresAuth: true, permission: 'page.admin' }
+  },
+  {
     path: '/analytics',
     name: 'analytics',
     component: () => import('./views/StatisticsView.vue'),
