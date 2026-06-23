@@ -27,7 +27,7 @@
           class="filter-tabs"
         >
           <button
-            v-if="ownershipInfo.has_organization"
+            v-if="ownershipInfo.has_organization && canSeeOrganization"
             class="filter-tab"
             data-testid="filter-tab-organization"
             :class="{ 'filter-tab--active': currentFilter === 'organization' }"
@@ -37,7 +37,7 @@
             Сотрудники организации
           </button>
           <button
-            v-if="ownershipInfo.has_company"
+            v-if="ownershipInfo.has_company && canSeeCompany"
             class="filter-tab"
             data-testid="filter-tab-company"
             :class="{ 'filter-tab--active': currentFilter === 'company' }"
@@ -98,7 +98,7 @@
           </div>
           <div class="card-header__settings">
             <button
-              v-if="currentFilter !== 'all_system'"
+              v-if="currentFilter !== 'all_system' && canWriteEmployees"
               class="add-button"
               data-testid="ob-employees-add-button"
               @click="showAddEmployeeModal"
@@ -284,7 +284,7 @@
                     </div>
                     <div class="employee-col actions-col">
                       <button
-                        v-if="canEditEmployee(employee)"
+                        v-if="canEditEmployee(employee) && canWriteEmployees"
                         class="edit-btn"
                         title="Редактировать"
                         @click.stop="editEmployee(employee)"
@@ -435,10 +435,24 @@ export default {
         };
     },
     computed: {
-        // Вкладка «Все сотрудники системы» (all_system) - только super/админ
-        // (page.admin). Бэк дополнительно отдаёт 403 на all_system без прав.
+        // Вкладка «Сотрудники организации» (раздел реестра по организации).
+        canSeeOrganization() {
+            return usePermissionsStore().hasPermission('section.registry.organization');
+        },
+        // Вкладка «Сотрудники компании» (раздел реестра по компании).
+        canSeeCompany() {
+            return usePermissionsStore().hasPermission('section.registry.company');
+        },
+        // Вкладка «Все сотрудники системы» (all_system) - по разделу каталога;
+        // супер/админ проходят, обычный юзер без гранта не видит. Бэк дополнительно
+        // отдаёт 403 на all_system без прав.
         canSeeAllSystem() {
-            return usePermissionsStore().hasPermission('page.admin');
+            return usePermissionsStore().hasPermission('section.registry.all_system');
+        },
+        // Право изменять реестр сотрудников (кнопки «Добавить»/«Редактировать»).
+        // Базовая роль выдаёт его по умолчанию; админ может отозвать ролью.
+        canWriteEmployees() {
+            return usePermissionsStore().hasPermission('entity.employees.write');
         },
         filteredEmployees() {
             const variants = buildSearchVariants(this.searchQuery);

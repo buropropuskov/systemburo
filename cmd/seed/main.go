@@ -143,6 +143,26 @@ func seedE2EUsers(db *gorm.DB, orgID, compID, buroTypeID int) {
 		log.Fatalf("Failed to seed e2e_user: %v", userResult.Error)
 	}
 
+	// e2e_user должен иметь базовую роль "Пользователь" - иначе резолвер прав
+	// отдаёт пустой набор (default-deny) и гейтящиеся по правам элементы (вкладки
+	// реестра, кнопка «Добавить») скрыты, что роняет e2e cars/employees. Backfill
+	// базовой роли в миграции не цепляет e2e_user: сид выполняется уже после неё.
+	var baseRoleID int
+	db.Raw("SELECT id FROM roles WHERE code = 'user' AND is_system = true LIMIT 1").Scan(&baseRoleID)
+	if baseRoleID != 0 {
+		if res := db.Exec(
+			`UPDATE users SET role_id = ? WHERE username = 'e2e_user' AND role_id IS NULL`,
+			baseRoleID,
+		); res.Error != nil {
+			log.Fatalf("Failed to assign base role to e2e_user: %v", res.Error)
+		}
+	} else {
+		// Сюда попадаем только при SEED_E2E_USERS=true - без базовой роли e2e_user
+		// останется default-deny, и e2e cars/employees точно покраснеют. Кричим явно,
+		// чтобы причина была видна в логе сида, а не всплыла загадочным красным e2e.
+		log.Printf("WARN: base role 'user' not found - e2e_user без роли, e2e cars/employees упадут на гейтах")
+	}
+
 	// buropropuskov логинится в большинстве E2E-сценариев — ему автозапуск тура
 	// тоже мешает. Помечаем пройденным ТОЛЬКО в E2E (эта ветка по SEED_E2E_USERS),
 	// на staging/prod реальный админ тур увидит.
