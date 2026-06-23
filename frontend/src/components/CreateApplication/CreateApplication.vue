@@ -2669,4 +2669,87 @@ export default {
             padding: 0 8px;
         }
     }
+
+    /* Модалка инструкции к вложению. Раньше у .modal-overlay не было правил,
+       и телепортированный в body блок без позиционирования уезжал в конец
+       страницы. Приводим к эталону модалок (fixed overlay по центру, radius 30px). */
+    .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(0.1px);
+        -webkit-backdrop-filter: blur(0.1px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+        padding: 24px;
+        animation: instruction-fade 0.2s ease;
+    }
+
+    @keyframes instruction-fade {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+
+    .instruction-modal-large {
+        width: min(720px, 100%);
+        max-height: 88vh;
+        background: #fff;
+        border-radius: 30px;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        box-shadow: 0 24px 70px rgba(20, 24, 60, 0.28);
+        animation: instruction-pop 0.22s ease;
+    }
+
+    @keyframes instruction-pop {
+        from { opacity: 0; transform: translateY(12px) scale(0.985); }
+        to { opacity: 1; transform: none; }
+    }
+
+    .instruction-modal-large .modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 22px 26px 18px;
+    }
+
+    .instruction-modal-large .modal-header h3 {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        color: #1a1a1a;
+    }
+
+    .instruction-modal-large .modal-header h3 .blue {
+        color: var(--color-primary);
+    }
+
+    .instruction-modal-large .modal-close {
+        width: 36px;
+        height: 36px;
+        border: none;
+        background: #f3f4fa;
+        border-radius: 50%;
+        font-size: 22px;
+        line-height: 1;
+        color: #6a6a7d;
+        cursor: pointer;
+        transition: background 0.15s ease, color 0.15s ease;
+        flex-shrink: 0;
+    }
+
+    .instruction-modal-large .modal-close:hover {
+        background: #e9eaf4;
+        color: #1a1a1a;
+    }
+
+    .instruction-content {
+        padding: 0 26px 24px;
+        overflow-y: auto;
+    }
 </style>
