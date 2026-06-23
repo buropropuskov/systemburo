@@ -15,12 +15,10 @@ import (
 // GuideRoles -- порядок ролей в раскладке «Вкладки».
 var GuideRoles = []string{"user", "guard", "admin"}
 
-// GuideKeyForRole возвращает permission-ключ раздела для роли. guide.user и
-// guide.admin уже описаны в каталоге прав (permission_catalog.go: KeyGuideUser,
-// KeyGuideAdmin) -- гейтинг идёт через PermissionResolver как по любому ключу,
-// ядро прав не затрагивается. guide.guard пока не заведён в каталоге (добавляет
-// perm-gating отдельным срезом), поэтому раздел «Охранник» до этого виден только
-// супер-админу; код роль-агностичен и подхватит ключ автоматически.
+// GuideKeyForRole возвращает permission-ключ раздела для роли. Все три ключа
+// (guide.user, guide.guard, guide.admin) описаны в каталоге прав
+// (permission_catalog.go) -- гейтинг идёт через PermissionResolver как по любому
+// ключу, ядро прав не затрагивается; код роль-агностичен.
 func GuideKeyForRole(role string) string {
 	return "guide." + role
 }

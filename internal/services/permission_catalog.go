@@ -44,6 +44,7 @@ const (
 
 	KeyGuideUser  = "guide.user"
 	KeyGuideAdmin = "guide.admin"
+	KeyGuideGuard = "guide.guard"
 )
 
 // Категории-заголовки для группировки в UI.
@@ -131,9 +132,10 @@ func staticCatalog() []CatalogNode {
 		{Key: KeyPageSystemControl, DisplayName: "Режим техработ", Category: CatAdmin, SuperOnly: true},
 
 		// Обзор и новости (управление новостями -- в Администрировании, /admin/news).
-		// guide.* остаются тумблерами, но их FE-гейтинг подключается отдельно после
-		// редизайна трёх вкладок руководства (пользователь/админ/охранник).
+		// Три раздела руководства (пользователь/охранник/админ) гейтятся по guide.<role>:
+		// GET /guide/sections отдаёт только разделы, на которые есть право (guide_service.ListForUser).
 		{Key: KeyGuideUser, DisplayName: "Руководство пользователя", Category: CatOverview},
+		{Key: KeyGuideGuard, DisplayName: "Руководство охранника", Category: CatOverview},
 		{Key: KeyGuideAdmin, DisplayName: "Руководство администратора", Category: CatOverview},
 	}
 }

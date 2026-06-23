@@ -97,6 +97,20 @@ func TestCatalogHygiene(t *testing.T) {
 	}
 }
 
+// Гейтинг руководства (#permission-gating срез 7): все три раздела
+// (user/guard/admin) гейтятся по guide.<role>, поэтому каждый ключ обязан быть
+// тумблером каталога -- иначе раздел enforced на бэке, но неуправляем (guide.guard
+// был именно таким до этого среза).
+func TestGuideKeysInCatalog(t *testing.T) {
+	t.Parallel()
+	for _, role := range GuideRoles {
+		key := GuideKeyForRole(role)
+		if !IsCatalogKey(key) {
+			t.Errorf("ключ руководства %q должен быть в каталоге (раздел %q)", key, role)
+		}
+	}
+}
+
 func TestAllCatalogKeysMatchesSet(t *testing.T) {
 	t.Parallel()
 	keys := AllCatalogKeys()
