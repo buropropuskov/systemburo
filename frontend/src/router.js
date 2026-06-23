@@ -311,6 +311,14 @@ router.beforeEach(async (to, from, next) => {
     if (!isSuperAdmin && authStore.userTypeCode === null) {
       await authStore.loadUserTypeCode();
     }
+    // Грант page.available приходит ролью/группой через permissions store, но на
+    // F5/прямой ссылке permissions ещё не загружены (fetch ниже), поэтому
+    // подгружаем до getter - иначе обычный юзер с грантом ошибочно уедет в ЛК.
+    if (!isSuperAdmin && !authStore.isSecurity) {
+      const { usePermissionsStore } = await import('@/stores/permissions');
+      const permStore = usePermissionsStore();
+      if (permStore.isStale) await permStore.fetchPermissions();
+    }
     if (!authStore.canViewAccessibleAttachments) {
       next('/personal-cabinet');
       return;
