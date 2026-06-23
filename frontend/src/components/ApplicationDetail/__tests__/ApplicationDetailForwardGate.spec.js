@@ -5,6 +5,10 @@ import { createPinia, setActivePinia } from 'pinia';
 // #680 срез role-gate: кнопку "Переслать" видит только ответственный по заявке
 // (Принимающий). Согласующий (глобальная роль, видит все заявки) и обычный читатель
 // её не видят - BE-проверка forward пускает только sender||responsible.
+// Срез 5 (permission-gating) добавил поверх право action.forward.application: ниже
+// его выдаём во всех тестах, чтобы изолировать именно role/mode-gate (#680).
+
+import { usePermissionsStore } from '@/stores/permissions';
 
 vi.mock('@/api/client', () => ({
   apiRequest: vi.fn().mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue([]) }),
@@ -17,7 +21,14 @@ import ApplicationDetail from '../ApplicationDetail.vue';
 
 const FORWARD = '[data-testid="app-detail-button-forward"]';
 
+/** Выдаёт право пересылки в свежем сторе - тесты проверяют именно role/mode-gate. */
+function grantForward() {
+  const perms = usePermissionsStore();
+  perms.effective = { 'action.forward.application': { value: 'allow', source: 'role' } };
+}
+
 async function mountDetail(props = {}, data = {}) {
+  grantForward();
   const wrapper = shallowMount(ApplicationDetail, {
     props: {
       application: { id: 7, application_number: 'A-7', status: 'Непрочитано' },
