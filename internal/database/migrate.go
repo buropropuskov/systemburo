@@ -65,6 +65,9 @@ func AllModels() []interface{} {
 		&models.OrganizationUnloadPlace{},
 		&models.CompaniesUnloadPlace{},
 
+		// Bureau (single-owner schedule, no FK)
+		&models.BureauTimeSlot{},
+
 		// Applications (depends on User, Organization, Company)
 		&models.Application{},
 		&models.ApplicationRead{},
