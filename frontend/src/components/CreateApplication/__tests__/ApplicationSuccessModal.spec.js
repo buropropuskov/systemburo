@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { useDeletionsStore } from '@/stores/deletions';
 
@@ -27,7 +27,7 @@ describe('ApplicationSuccessModal — копирование номера (эт�
 
     const wrapper = mountModal();
     await wrapper.find('.number--copyable').trigger('click');
-    await Promise.resolve();
+    await flushPromises();
 
     expect(writeText).toHaveBeenCalledWith('A-1024');
     expect(notify).toHaveBeenCalledTimes(1);
@@ -45,8 +45,7 @@ describe('ApplicationSuccessModal — копирование номера (эт�
 
     const wrapper = mountModal();
     await wrapper.find('.number--copyable').trigger('click');
-    await Promise.resolve();
-    await Promise.resolve();
+    await flushPromises();
 
     expect(notify).toHaveBeenCalledTimes(1);
     expect(notify.mock.calls[0][0].type).toBe('error');
@@ -59,7 +58,7 @@ describe('ApplicationSuccessModal — копирование номера (эт�
 
     const wrapper = mountModal({ applicationNumber: '' });
     await wrapper.find('.number--copyable').trigger('click');
-    await Promise.resolve();
+    await flushPromises();
 
     expect(writeText).not.toHaveBeenCalled();
     expect(notify).not.toHaveBeenCalled();

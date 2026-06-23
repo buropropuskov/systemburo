@@ -24,7 +24,7 @@
     <Teleport to="body">
       <div
         v-if="showAttachmentInstruction"
-        class="modal-overlay"
+        class="instruction-overlay"
         @click.self="showAttachmentInstruction = false"
       >
         <div class="instruction-modal-large">
@@ -2670,10 +2670,13 @@ export default {
         }
     }
 
-    /* Модалка инструкции к вложению. Раньше у .modal-overlay не было правил,
-       и телепортированный в body блок без позиционирования уезжал в конец
-       страницы. Приводим к эталону модалок (fixed overlay по центру, radius 30px). */
-    .modal-overlay {
+    /* Модалка инструкции к вложению. Раньше overlay не имел правил позиционирования,
+       и телепортированный в body блок уезжал в конец страницы. Приводим к эталону
+       (fixed overlay по центру, radius 30px). Свой класс .instruction-overlay, а не
+       общий .modal-overlay - глобальное !important-правило мобильного bottom-sheet в
+       App.vue (.modal-overlay > .modal-content) не подходит карточке .instruction-modal-large
+       и дало бы полусломанный лист; мобильный bottom-sheet делаем сами ниже. */
+    .instruction-overlay {
         position: fixed;
         inset: 0;
         background: rgba(0, 0, 0, 0.5);
@@ -2751,5 +2754,19 @@ export default {
     .instruction-content {
         padding: 0 26px 24px;
         overflow-y: auto;
+    }
+
+    /* Мобильный bottom-sheet (как общий паттерн App.vue, но для своего класса). */
+    @media (max-width: 768px) {
+        .instruction-overlay {
+            padding: 0;
+            align-items: flex-end;
+        }
+
+        .instruction-modal-large {
+            width: 100%;
+            max-height: 90dvh;
+            border-radius: 20px 20px 0 0;
+        }
     }
 </style>
