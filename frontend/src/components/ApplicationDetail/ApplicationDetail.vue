@@ -31,7 +31,7 @@
             </div>
             <!-- Кнопка пересылки (рядом с датой) -->
             <button
-              v-if="mode === 'center' && canForwardApplication"
+              v-if="mode === 'center' && canForwardApplication && can('action.forward.application')"
               class="forward-btn"
               data-testid="app-detail-button-forward"
               :disabled="updatingConfirmation || processingApplication"
@@ -47,6 +47,7 @@
         </div>
         <div class="detail-header-right">
           <ApplicationActionBar
+            v-if="mode !== 'center' || can('action.approve.application')"
             :application="applicationData"
             :current-user-id="currentUserId"
             :responsible-users="responsibleUsers"
@@ -281,7 +282,7 @@
 
           <!-- Поле для комментария (только для пользователей, которые еще не выполнили действие) -->
           <div
-            v-if="canLeaveComment && !hasUserVoted && !isApproverActionDone"
+            v-if="canLeaveComment && !hasUserVoted && !isApproverActionDone && (mode !== 'center' || can('action.approve.application'))"
             class="comment-action-section"
           >
             <h4>Комментарий</h4>
@@ -303,7 +304,10 @@
             :updating-confirmation="updatingConfirmation"
           />
 
-          <div class="history-button-section">
+          <div
+            v-if="can('center.application_history')"
+            class="history-button-section"
+          >
             <ApplicationHistory
               ref="historyComponent"
               :application-id="applicationData.id"
@@ -364,6 +368,7 @@ import { apiRequest } from '@/api/client'
 import { markAsRead } from '@/api/applications'
 import { useDeletionsStore } from '@/stores/deletions'
 import { useUiStore } from '@/stores/ui'
+import { usePermissionsStore } from '@/stores/permissions'
 import ApplicationAttachments from './ApplicationAttachments.vue'
 import ApplicationConfirmation from './ApplicationConfirmation.vue'
 import ApplicationHistory from './ApplicationHistory.vue'
@@ -411,6 +416,10 @@ export default {
         }
     },
     emits: ['close', 'confirmation-updated', 'duplicate', 'application-updated', 'update-application', 'application-changed'],
+    setup() {
+        const permissionsStore = usePermissionsStore();
+        return { permissionsStore };
+    },
     data() {
         return {
             applicationData: { ...this.application },
@@ -555,6 +564,9 @@ export default {
         this.$nextTick(() => this.updateMessageClamp());
     },
     methods: {
+        can(key) {
+            return this.permissionsStore.hasPermission(key);
+        },
         updateMessageClamp() {
             const el = this.$refs.messagePreview;
             this.messageClamped = !!el && el.scrollHeight > el.clientHeight + 2;
