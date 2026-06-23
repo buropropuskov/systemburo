@@ -318,11 +318,11 @@ export default {
     activeSlots(item, dayIdx) {
       return (item.time_slots || []).filter((s) => s.day_of_week === dayIdx && s.is_active);
     },
-    isRoundTheClock(slot) {
-      return slot.open_time.slice(0, 5) === '00:00' && slot.close_time.slice(0, 5) === '23:59' && !slot.is_next_day;
-    },
     fmtTime(t) {
       return (t || '').slice(0, 5);
+    },
+    isRoundTheClock(slot) {
+      return this.fmtTime(slot.open_time) === '00:00' && this.fmtTime(slot.close_time) === '23:59' && !slot.is_next_day;
     },
     /** Текст и класс ячейки дня: выходной / круглосуточно / окна времени. */
     dayText(item, dayIdx) {
