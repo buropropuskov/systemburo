@@ -27,7 +27,7 @@
           class="filter-tabs"
         >
           <button
-            v-if="ownershipInfo.has_organization"
+            v-if="ownershipInfo.has_organization && canSeeOrganization"
             class="filter-tab"
             data-testid="filter-tab-organization"
             :class="{ 'filter-tab--active': currentFilter === 'organization' }"
@@ -37,7 +37,7 @@
             Машины организации
           </button>
           <button
-            v-if="ownershipInfo.has_company"
+            v-if="ownershipInfo.has_company && canSeeCompany"
             class="filter-tab"
             data-testid="filter-tab-company"
             :class="{ 'filter-tab--active': currentFilter === 'company' }"
@@ -98,7 +98,7 @@
           </div>
           <div class="card-header__settings">
             <button
-              v-if="currentFilter !== 'all_system'"
+              v-if="currentFilter !== 'all_system' && canWriteCars"
               class="add-button"
               data-testid="cars-view-add-button"
               @click="showAddCarModal"
@@ -297,7 +297,7 @@
                     </div>
                     <div class="car-col actions-col">
                       <button
-                        v-if="canEditCar(car)"
+                        v-if="canEditCar(car) && canWriteCars"
                         class="edit-btn"
                         title="Редактировать"
                         @click.stop="editCar(car)"
@@ -701,10 +701,24 @@ export default {
         };
     },
     computed: {
-        // Вкладка «Все машины системы» (all_system) - только super/админ
-        // (page.admin). Бэк дополнительно отдаёт 403 на all_system без прав.
+        // Вкладка «Автомобили организации» (раздел реестра по организации).
+        canSeeOrganization() {
+            return usePermissionsStore().hasPermission('section.registry.organization');
+        },
+        // Вкладка «Автомобили компании» (раздел реестра по компании).
+        canSeeCompany() {
+            return usePermissionsStore().hasPermission('section.registry.company');
+        },
+        // Вкладка «Все машины системы» (all_system) - по разделу каталога;
+        // супер/админ проходят, обычный юзер без гранта не видит. Бэк дополнительно
+        // отдаёт 403 на all_system без прав.
         canSeeAllSystem() {
-            return usePermissionsStore().hasPermission('page.admin');
+            return usePermissionsStore().hasPermission('section.registry.all_system');
+        },
+        // Право изменять реестр авто (кнопки «Добавить»/«Редактировать»). Базовая
+        // роль выдаёт его по умолчанию; админ может отозвать ролью.
+        canWriteCars() {
+            return usePermissionsStore().hasPermission('entity.cars.write');
         },
         filteredCars() {
             const variants = buildSearchVariants(this.searchQuery);
