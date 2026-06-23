@@ -5,7 +5,10 @@
         <h2 class="center__title">
           Центр заявок
         </h2>
-        <div class="center__tabs">
+        <div
+          v-if="canViewArchive"
+          class="center__tabs"
+        >
           <FilterTabs
             v-model="archiveMode"
             :tabs="archiveTabs"
@@ -502,7 +505,7 @@
                 </div>
                 <div class="application-col actions-col">
                   <button
-                    v-if="application.has_blank_template"
+                    v-if="application.has_blank_template && can('action.export.applications')"
                     class="download-btn"
                     title="Скачать"
                     @click.stop="downloadApplication(application)"
@@ -557,6 +560,7 @@
 import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import { useSoundStore } from '@/stores/sound'
+import { usePermissionsStore } from '@/stores/permissions'
 import { playPreset, SOUND_PRESETS } from '@/utils/notificationSound'
 import OrganizationFilter from '@/components/OrganizationFilter.vue';
 import RefreshButton from '../components/RefreshButton.vue';
@@ -590,7 +594,8 @@ export default {
     emits: ['refresh-data'],
     setup() {
         const soundStore = useSoundStore()
-        return { soundStore }
+        const permissionsStore = usePermissionsStore()
+        return { soundStore, permissionsStore }
     },
     data() {
         return {
@@ -657,6 +662,9 @@ export default {
         };
     },
     computed: {
+        canViewArchive() {
+            return this.permissionsStore.hasPermission('center.archive');
+        },
         filteredApplications() {
             let filtered = this.applications;
 
@@ -786,13 +794,13 @@ export default {
             this.fetchApplications();
         },
         '$route.query.archive'(val) {
-            this.archiveMode = val === 'true' ? 'archive' : 'active';
+            this.archiveMode = val === 'true' && this.canViewArchive ? 'archive' : 'active';
         },
     },
     mounted() {
         this.startShakeAnimation();
 
-        if (this.$route.query.archive === 'true') {
+        if (this.$route.query.archive === 'true' && this.canViewArchive) {
             this.archiveMode = 'archive';
         }
 
@@ -849,6 +857,9 @@ export default {
         document.removeEventListener('mousedown', this._soundClickOutsideHandler);
     },
     methods: {
+        can(key) {
+            return this.permissionsStore.hasPermission(key);
+        },
         toggleSoundPopover() {
             this.showSoundPopover = !this.showSoundPopover;
         },
