@@ -56,6 +56,7 @@ type Dependencies struct {
 	Documents           *handlers.DocumentHandler
 	Guide               *handlers.GuideHandler
 	Statistics          *handlers.StatisticsHandler
+	Bureau              *handlers.BureauHandler
 
 	// Services (для middleware и audit)
 	PermResolver *services.PermissionResolver
@@ -114,6 +115,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	docs := d.Documents
 	guide := d.Guide
 	statistics := d.Statistics
+	bureau := d.Bureau
 	permResolver := d.PermResolver
 	denialLog := d.DenialLog
 	// requireAdmin — гейт admin-страниц по page.admin (super/admin проходят,
@@ -329,6 +331,14 @@ func Setup(e *echo.Echo, d Dependencies) {
 	upg.POST("/:id/photos", up.UploadPhoto)
 	upg.DELETE("/:place_id/photos/:photo_id", up.DeletePhoto)
 	upg.POST("/:place_id/photos/:photo_id/main", up.SetMainPhoto)
+
+	// Расписание работы Бюро (single-owner). Чтение -- любой авторизованный
+	// (нужно модалке режимов работы), изменения -- админ (раздел «Информация Бюро»).
+	bureauGroup := protected.Group("/bureau")
+	bureauGroup.GET("/time-slots", bureau.GetTimeSlots)
+	bureauGroup.POST("/time-slots", bureau.AddTimeSlot, requireAdmin)
+	bureauGroup.PUT("/time-slots/:slot_id", bureau.UpdateTimeSlot, requireAdmin)
+	bureauGroup.DELETE("/time-slots/:slot_id", bureau.DeleteTimeSlot, requireAdmin)
 
 	// Управление пользователями - page.admin.users (Ф5, ранее service checkAdmin
 	// по type-коду manager/buropropuskov). Тот же ключ, что и у FE-роута раздела.
