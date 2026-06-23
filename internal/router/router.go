@@ -57,6 +57,7 @@ type Dependencies struct {
 	Guide               *handlers.GuideHandler
 	Statistics          *handlers.StatisticsHandler
 	Bureau              *handlers.BureauHandler
+	WorkModes           *handlers.WorkModesHandler
 
 	// Services (для middleware и audit)
 	PermResolver *services.PermissionResolver
@@ -339,6 +340,11 @@ func Setup(e *echo.Echo, d Dependencies) {
 	bureauGroup.POST("/time-slots", bureau.AddTimeSlot, requireAdmin)
 	bureauGroup.PUT("/time-slots/:slot_id", bureau.UpdateTimeSlot, requireAdmin)
 	bureauGroup.DELETE("/time-slots/:slot_id", bureau.DeleteTimeSlot, requireAdmin)
+
+	// Режимы работы -- read-only агрегатор расписаний Бюро, мест разгрузки и мест
+	// прохода в единой форме слота (для модалки «Режимы работы» в ЛК). Чтение
+	// любому авторизованному.
+	protected.GET("/work-modes", d.WorkModes.GetWorkModes)
 
 	// Управление пользователями - page.admin.users (Ф5, ранее service checkAdmin
 	// по type-коду manager/buropropuskov). Тот же ключ, что и у FE-роута раздела.

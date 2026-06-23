@@ -178,6 +178,7 @@ func main() {
 	if err := systemTableService.SeedMissingFields(context.Background()); err != nil {
 		slog.Error("не удалось досидить отсутствующие поля таблиц (#345)", "error", err)
 	}
+	workModesService := services.NewWorkModesService(unloadPlaceService, systemTableService, bureauService)
 	uniqueCarService := services.NewUniqueCarService(db)
 	uniqueEmployeeService := services.NewUniqueEmployeeService(db)
 	feedbackService := services.NewFeedbackService(db)
@@ -222,6 +223,7 @@ func main() {
 	onboardingHandler := handlers.NewOnboardingHandler(onboardingService)
 	unloadPlaceHandler := handlers.NewUnloadPlaceHandler(unloadPlaceService, cfg.UploadMaxFileSize, cfg.UploadPath)
 	bureauHandler := handlers.NewBureauHandler(bureauService)
+	workModesHandler := handlers.NewWorkModesHandler(workModesService)
 	carHandler := handlers.NewCarHandler(carService)
 	employeeHandler := handlers.NewEmployeeHandler(employeeService)
 	systemTableHistoryService := services.NewSystemTableHistoryService(db)
@@ -314,6 +316,7 @@ func main() {
 		Documents:           documentHandler,
 		Guide:               guideHandler,
 		Bureau:              bureauHandler,
+		WorkModes:           workModesHandler,
 		Statistics:          statisticsHandler,
 		Onboarding:          onboardingHandler,
 		PermResolver:        permissionResolver,
