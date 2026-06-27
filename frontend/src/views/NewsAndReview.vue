@@ -286,9 +286,16 @@ export default {
   },
   mounted() {
     this.fetchAllData()
+    window.addEventListener('keydown', this.handleEscKey)
+  },
+  beforeUnmount() {
+    window.removeEventListener('keydown', this.handleEscKey)
   },
   methods: {
     sanitizeHtml,
+    handleEscKey(e) {
+      if (e.key === 'Escape' && this.showNewsDetailsModal) this.closeNewsDetailsModal()
+    },
     formatDate(dateString) {
       if (!dateString) return ''
       const date = new Date(dateString)
@@ -690,7 +697,6 @@ export default {
 }
 
 .modes-trigger:hover {
-    transform: translateY(-3px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
     border-color: var(--color-primary);
 }
@@ -833,6 +839,7 @@ export default {
 
 .modal-title {
     margin: 0;
+    padding-bottom: 8px;
     font-size: 18px;
     font-weight: 600;
     color: #1a1a1a;
