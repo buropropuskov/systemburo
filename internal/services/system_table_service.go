@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"mime/multipart"
 	"net/http"
 	"time"
 
@@ -13,14 +12,6 @@ import (
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
 )
-
-// allowedImageTypes -- допустимые MIME-типы для загрузки фотографий.
-var allowedImageTypes = []string{
-	"image/jpeg",
-	"image/png",
-	"image/gif",
-	"image/webp",
-}
 
 // SystemTableService -- интерфейс бизнес-логики системных таблиц.
 type SystemTableService interface {
@@ -39,7 +30,7 @@ type SystemTableService interface {
 	DeleteTimeSlot(ctx context.Context, tableID, slotID int) error
 
 	// Фотографии
-	UploadPhoto(ctx context.Context, tableID int, username string, file *multipart.FileHeader) (int, error)
+	UploadPhoto(ctx context.Context, tableID int, username string, photoURL, fileName, mimeType string, fileSize int64) (int, error)
 	DeletePhoto(ctx context.Context, tableID, photoID int) error
 	SetMainPhoto(ctx context.Context, tableID, photoID int) error
 

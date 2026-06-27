@@ -3,24 +3,33 @@ package handlers
 import (
 	"context"
 	"net/http"
+	"path/filepath"
 	"strconv"
 
 	"systemburo/internal/models"
 	"systemburo/internal/services"
+	"systemburo/internal/upload"
 
 	"github.com/labstack/echo/v4"
 )
 
 // SystemTableHandler -- HTTP-обработчики системных таблиц.
 type SystemTableHandler struct {
-	service services.SystemTableService
-	history services.SystemTableHistoryService
+	service     services.SystemTableService
+	history     services.SystemTableHistoryService
+	maxFileSize int64
+	uploadDir   string
 }
 
 // NewSystemTableHandler создаёт новый экземпляр обработчика системных таблиц.
 // history может быть nil - тогда логирование действий отключено.
-func NewSystemTableHandler(service services.SystemTableService, history services.SystemTableHistoryService) *SystemTableHandler {
-	return &SystemTableHandler{service: service, history: history}
+func NewSystemTableHandler(service services.SystemTableService, history services.SystemTableHistoryService, maxFileSize int64, uploadDir string) *SystemTableHandler {
+	return &SystemTableHandler{
+		service:     service,
+		history:     history,
+		maxFileSize: maxFileSize,
+		uploadDir:   filepath.Join(uploadDir, "system_tables"),
+	}
 }
 
 // logAction пишет запись в историю если сервис подключён. Безопасно вызывать с nil-историей.
@@ -501,19 +510,20 @@ func (h *SystemTableHandler) UploadPhoto(c echo.Context) error {
 	}
 	username := c.Get("username").(string)
 
-	form, err := c.MultipartForm()
+	saved, err := upload.SaveMultipart(c, "photos", upload.Options{
+		Dir:          h.uploadDir,
+		URLPrefix:    "/api/uploads/system_tables",
+		MaxFileSize:  h.maxFileSize,
+		AllowedTypes: allowedImageTypes,
+		NameSuffix:   strconv.Itoa(tableID),
+	})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Error reading multipart")
+		return err
 	}
 
-	files := form.File["file"]
-	if len(files) == 0 {
-		return echo.NewHTTPError(http.StatusBadRequest, "No files provided")
-	}
-
-	var photoIDs []int
-	for _, file := range files {
-		id, err := h.service.UploadPhoto(c.Request().Context(), tableID, username, file)
+	photoIDs := make([]int, 0, len(saved))
+	for _, f := range saved {
+		id, err := h.service.UploadPhoto(c.Request().Context(), tableID, username, f.URL, f.FileName, f.MimeType, f.Size)
 		if err != nil {
 			return err
 		}

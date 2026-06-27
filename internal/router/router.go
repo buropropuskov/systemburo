@@ -70,7 +70,8 @@ type Dependencies struct {
 	LastSeen         echo.MiddlewareFunc
 
 	// Misc
-	JWTSecret []byte
+	JWTSecret  []byte
+	UploadPath string
 }
 
 // Setup регистрирует все маршруты. См. Dependencies для описания полей.
@@ -135,6 +136,14 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// Все API-роуты под префиксом /api — разделяет API и SPA-роуты (/news, /center
 	// и т.д. в Vue router). Nginx проксирует /api/ на backend, остальное — на frontend.
 	api := e.Group("/api")
+
+	// Статика загруженных файлов (фото мест разгрузки и системных таблиц).
+	// Публично, без JWT: тег <img> не отправляет Authorization. Под /api, чтобы
+	// прод-nginx (проксирует /api на backend) раздавал файлы без отдельного
+	// location и правок nginx.
+	if d.UploadPath != "" {
+		api.Static("/uploads", d.UploadPath)
+	}
 
 	// Public routes. /login опционально защищён per-IP rate limiter-ом.
 	loginHandlers := []echo.MiddlewareFunc{}

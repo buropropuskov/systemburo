@@ -227,7 +227,7 @@ func main() {
 	carHandler := handlers.NewCarHandler(carService)
 	employeeHandler := handlers.NewEmployeeHandler(employeeService)
 	systemTableHistoryService := services.NewSystemTableHistoryService(db)
-	systemTableHandler := handlers.NewSystemTableHandler(systemTableService, systemTableHistoryService)
+	systemTableHandler := handlers.NewSystemTableHandler(systemTableService, systemTableHistoryService, cfg.UploadMaxFileSize, cfg.UploadPath)
 	uniqueCarHandler := handlers.NewUniqueCarHandler(uniqueCarService)
 	uniqueEmployeeHandler := handlers.NewUniqueEmployeeHandler(uniqueEmployeeService)
 	feedbackHandler := handlers.NewFeedbackHandler(feedbackService)
@@ -326,6 +326,7 @@ func main() {
 		LoginLimiter:        loginLimiter,
 		LastSeen:            lastSeen,
 		JWTSecret:           []byte(cfg.JWTSecret),
+		UploadPath:          cfg.UploadPath,
 	})
 
 	// Общий ctx для фоновых задач и graceful shutdown. Отменяется по SIGINT/SIGTERM.
