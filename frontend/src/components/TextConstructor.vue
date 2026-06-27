@@ -869,6 +869,8 @@ defineExpose({ editor });
   min-height: inherit;
   line-height: 150%;
   word-break: break-word;
+  /* Дефолтный размер вводимого текста (без выбранного font-size-класса). */
+  font-size: 14px;
 }
 
 /* Чтобы плавающие (float) картинки не вылезали за пределы редактора. */
