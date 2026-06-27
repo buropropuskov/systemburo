@@ -169,13 +169,14 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	companyHandler := handlers.NewCompanyHandler(companyService)
 	usersHandler := handlers.NewUsersHandler(userService)
 	onboardingHandler := handlers.NewOnboardingHandler(onboardingService)
-	unloadPlaceHandler := handlers.NewUnloadPlaceHandler(unloadPlaceService, 10*1024*1024, "./uploads")
+	uploadDir := t.TempDir()
+	unloadPlaceHandler := handlers.NewUnloadPlaceHandler(unloadPlaceService, 10*1024*1024, uploadDir)
 	bureauHandler := handlers.NewBureauHandler(bureauService)
 	workModesHandler := handlers.NewWorkModesHandler(workModesService)
 	carHandler := handlers.NewCarHandler(carService)
 	employeeHandler := handlers.NewEmployeeHandler(employeeService)
 	systemTableHistoryService := services.NewSystemTableHistoryService(db)
-	systemTableHandler := handlers.NewSystemTableHandler(systemTableService, systemTableHistoryService)
+	systemTableHandler := handlers.NewSystemTableHandler(systemTableService, systemTableHistoryService, 10*1024*1024, uploadDir)
 	uniqueCarHandler := handlers.NewUniqueCarHandler(uniqueCarService)
 	uniqueEmployeeHandler := handlers.NewUniqueEmployeeHandler(uniqueEmployeeService)
 	feedbackHandler := handlers.NewFeedbackHandler(feedbackService)
@@ -259,6 +260,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 		PermResolver:        permissionResolver,
 		DenialLog:           accessDenialService,
 		JWTSecret:           []byte(TestJWTSecret),
+		UploadPath:          uploadDir,
 	})
 
 	// No-op cleanup: shared DB stays open for the test binary lifetime.

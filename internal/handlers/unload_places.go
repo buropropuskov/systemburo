@@ -1,8 +1,6 @@
 package handlers
 
 import (
-	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -11,7 +9,6 @@ import (
 	"systemburo/internal/services"
 	"systemburo/internal/upload"
 
-	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
 
@@ -362,65 +359,22 @@ func (h *UnloadPlaceHandler) UploadPhoto(c echo.Context) error {
 	}
 	username := c.Get("username").(string)
 
-	// Создаём директорию для загрузок
-	if err := os.MkdirAll(h.uploadDir, 0o755); err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to create upload directory")
-	}
-
-	form, err := c.MultipartForm()
+	saved, err := upload.SaveMultipart(c, "photos", upload.Options{
+		Dir:          h.uploadDir,
+		URLPrefix:    "/api/uploads/unload_places",
+		MaxFileSize:  h.maxFileSize,
+		AllowedTypes: allowedImageTypes,
+		NameSuffix:   strconv.Itoa(placeID),
+	})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Error reading multipart")
+		return err
 	}
 
-	var insertedIDs []int
-
-	files := form.File["file"]
-	for _, fh := range files {
-		if fh.Size > h.maxFileSize {
-			return echo.NewHTTPError(http.StatusBadRequest, "File too large. Max 10MB")
-		}
-
-		src, err := fh.Open()
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, "Error reading file")
-		}
-		defer src.Close()
-
-		// Валидация типа файла по magic bytes
-		detectedType, err := upload.ValidateFileType(src, allowedImageTypes)
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, "Invalid file type. Allowed: JPEG, PNG, GIF, WebP")
-		}
-		// Перематываем файл после чтения заголовка
-		if seeker, ok := src.(io.Seeker); ok {
-			if _, err := seeker.Seek(0, io.SeekStart); err != nil {
-				return echo.NewHTTPError(http.StatusInternalServerError, "Failed to process file")
-			}
-		}
-
-		ext := upload.MimeToExt(detectedType)
-		uniqueName := fmt.Sprintf("%s_%d%s", uuid.New().String(), placeID, ext)
-		dstPath := filepath.Join(h.uploadDir, uniqueName)
-		fileURL := fmt.Sprintf("/uploads/unload_places/%s", uniqueName)
-
-		dst, err := os.Create(dstPath)
-		if err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to write file")
-		}
-		defer dst.Close()
-
-		if _, err := io.Copy(dst, src); err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to write file")
-		}
-
-		mimeType := fh.Header.Get("Content-Type")
-		if mimeType == "" {
-			mimeType = "application/octet-stream"
-		}
-
+	insertedIDs := make([]int, 0, len(saved))
+	for _, f := range saved {
 		id, err := h.service.UploadPhoto(
 			c.Request().Context(), placeID, username,
-			fileURL, fh.Filename, mimeType, fh.Size,
+			f.URL, f.FileName, f.MimeType, f.Size,
 		)
 		if err != nil {
 			return err
@@ -462,8 +416,8 @@ func (h *UnloadPlaceHandler) DeletePhoto(c echo.Context) error {
 		return err
 	}
 
-	// Удаляем файл с диска
-	filePath := fmt.Sprintf("./%s", photoURL)
+	// Удаляем файл с диска по реальному пути (не по публичному URL).
+	filePath := filepath.Join(h.uploadDir, filepath.Base(photoURL))
 	if _, statErr := os.Stat(filePath); statErr == nil {
 		_ = os.Remove(filePath)
 	}
