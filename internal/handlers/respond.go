@@ -1,9 +1,11 @@
 package handlers
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 
+	"systemburo/internal/apperr"
 	"systemburo/internal/models"
 
 	"github.com/labstack/echo/v4"
@@ -38,8 +40,9 @@ func RespondPaginated(c echo.Context, data any, meta models.PaginationMeta) erro
 }
 
 // CustomHTTPErrorHandler wraps all errors in the unified envelope format.
-// Replaces Echo's default error handler. Handles echo.HTTPError, plain errors,
-// and service-layer errors that are already echo.HTTPError.
+// Replaces Echo's default error handler. Единая точка маппинга ошибок в статус и
+// тело {success:false,error}: типизированные apperr.Error -> свой статус/сообщение,
+// echo.HTTPError -> как раньше, всё прочее -> 500 + лог.
 func CustomHTTPErrorHandler(err error, c echo.Context) {
 	if c.Response().Committed {
 		return
@@ -48,7 +51,14 @@ func CustomHTTPErrorHandler(err error, c echo.Context) {
 	code := http.StatusInternalServerError
 	msg := "Internal server error"
 
-	if he, ok := err.(*echo.HTTPError); ok {
+	var ae *apperr.Error
+	if errors.As(err, &ae) {
+		code = ae.Code
+		msg = ae.Message
+		if code >= http.StatusInternalServerError {
+			slog.Error("internal error", "error", err)
+		}
+	} else if he, ok := err.(*echo.HTTPError); ok {
 		code = he.Code
 		switch m := he.Message.(type) {
 		case string:
