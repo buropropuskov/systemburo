@@ -239,6 +239,23 @@
               </button>
             </div>
           </div>
+
+          <div class="filter-section">
+            <div class="filter-section__header">
+              <span class="filter-label">Теги</span>
+            </div>
+            <div class="status-buttons">
+              <button
+                v-for="tag in tags"
+                :key="tag.value"
+                class="status-btn"
+                :class="{ 'status-btn--active': selectedTags.includes(tag.value) }"
+                @click="toggleTag(tag.value)"
+              >
+                {{ tag.label }}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -357,7 +374,10 @@
         </div>
       </div>
             
-      <div class="table-body">
+      <div
+        class="table-body"
+        :class="{ 'table-body--single-row': filteredApplications.length === 1 }"
+      >
         <SkeletonTransition :loading="loading">
           <template #skeleton>
             <SkeletonTable
@@ -610,6 +630,7 @@ export default {
             selectedOrganizationName: '',
             selectedConfirmations: [],
             selectedApplicationStatuses: [],
+            selectedTags: [],
             organizations: [],
             sortField: null,
             sortDirection: 'desc',
@@ -641,6 +662,13 @@ export default {
                 { value: 'Отказано', label: 'Отказано' }
             ],
             
+            tags: [
+                { value: 'chs', label: 'ЧС' },
+                { value: 'roof', label: 'Крыша' },
+                { value: 'parking', label: 'Парковка' },
+                { value: 'important', label: 'Важный' },
+            ],
+
             archiveMode: 'active',
             archiveTabs: [
                 { key: 'active', label: 'Активные' },
@@ -691,6 +719,21 @@ export default {
                 filtered = filtered.filter(app =>
                     this.selectedApplicationStatuses.includes(app.status) ||
                     (includeUnread && !app.is_read)
+                );
+            }
+
+            // Фильтр по тегам (OR: хотя бы один из выбранных тегов присутствует)
+            if (this.selectedTags.length > 0) {
+                filtered = filtered.filter(app =>
+                    this.selectedTags.some(tag => {
+                        switch (tag) {
+                            case 'chs': return this.blacklistFlagCount(app) > 0;
+                            case 'roof': return app.has_roof_access;
+                            case 'parking': return app.has_free_parking;
+                            case 'important': return app.sender_is_important;
+                            default: return false;
+                        }
+                    })
                 );
             }
 
@@ -780,6 +823,7 @@ export default {
                    !!this.selectedOrganizationId ||
                    this.selectedConfirmations.length > 0 ||
                    this.selectedApplicationStatuses.length > 0 ||
+                   this.selectedTags.length > 0 ||
                    !!this.selectedDate ||
                    (this.dateRangeStart && this.dateRangeEnd) ||
                    this.activeToday;
@@ -969,6 +1013,16 @@ export default {
             }
             this.applyFilters();
         },
+
+        toggleTag(tag) {
+            const index = this.selectedTags.indexOf(tag);
+            if (index > -1) {
+                this.selectedTags.splice(index, 1);
+            } else {
+                this.selectedTags.push(tag);
+            }
+            this.applyFilters();
+        },
         
         resetFilters() {
             this.searchQuery = '';
@@ -977,6 +1031,7 @@ export default {
             this.selectedOrganizationName = '';
             this.selectedConfirmations = [];
             this.selectedApplicationStatuses = [];
+            this.selectedTags = [];
             this.selectedDate = null;
             this.dateRangeStart = null;
             this.dateRangeEnd = null;
@@ -1124,6 +1179,7 @@ export default {
                 this.selectedOrganizationId ||
                 this.selectedConfirmations.length ||
                 this.selectedApplicationStatuses.length ||
+                this.selectedTags.length ||
                 this.selectedDate ||
                 (this.dateRangeStart && this.dateRangeEnd) ||
                 this.activeToday
@@ -2213,6 +2269,22 @@ export default {
 .table-body {
     scrollbar-width: thin;
     scrollbar-color: #D9E2FF transparent;
+}
+
+/* При одной строке таблица схлопывается до fit-content, а overflow:hidden/.table-body scroll
+   обрезает подсказки, раскрывающиеся вниз. Поднимаем их вверх от элемента. */
+.table-body--single-row .sender-tooltip-anchor::after,
+.table-body--single-row .tag-hint::after {
+    top: auto;
+    bottom: calc(100% + 6px);
+}
+
+.table-body--single-row .sender-tooltip-anchor::before,
+.table-body--single-row .tag-hint::before {
+    top: auto;
+    bottom: 100%;
+    border-bottom-color: transparent;
+    border-top-color: #333;
 }
 
 .applications-list::-webkit-scrollbar {
