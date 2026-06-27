@@ -21,7 +21,10 @@
     >
       <div class="existing-cars-header">
         <span class="existing-cars-count">Машин добавлено: {{ selectedExistingCars.length }}</span>
-        <div class="existing-cars-actions">
+        <div
+          class="existing-cars-actions"
+          style="position: relative"
+        >
           <button
             class="view-cars-btn"
             @click="openExistingCarsModal"
@@ -32,10 +35,37 @@
             class="add-existing-btn"
             :disabled="!canAddExistingCars"
             @click="addExistingCars"
+            @mouseenter="showExistingTooltip = true"
+            @mouseleave="showExistingTooltip = false"
           >
             Добавить
           </button>
+          <div
+            v-if="showExistingTooltip && !canAddExistingCars"
+            class="tooltip"
+          >
+            <div class="tooltip-content">
+              хотя бы одно место разгрузки
+            </div>
+          </div>
         </div>
+      </div>
+      <!-- Список добавленных машин: номер - марка -->
+      <div class="existing-cars-list">
+        <div
+          v-for="car in displayedExistingCars"
+          :key="car.id || car.number"
+          class="existing-car-item"
+        >
+          {{ car.number }} - {{ car.mark || 'не указана' }}
+        </div>
+        <button
+          v-if="selectedExistingCars.length > 5 && !showAllExistingCars"
+          class="show-all-btn"
+          @click="showAllExistingCars = true"
+        >
+          Показать все ({{ selectedExistingCars.length }})
+        </button>
       </div>
     </div>
 
@@ -476,6 +506,8 @@ export default {
             allowedLatinLetters: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'],
             showExistingCarsModal: false,
             selectedExistingCars: [],
+            showExistingTooltip: false,
+            showAllExistingCars: false,
             editingVehicle: null,
             inactiveTooltip: {
                 visible: false,
@@ -504,6 +536,10 @@ export default {
             const placesOk = !this.fieldVisible('unloading_places') || (this.selectedUnloadingPlaces.length > 0 && !hasInactiveSelected);
             return this.selectedExistingCars.length > 0 && placesOk;
         },
+        displayedExistingCars() {
+            if (this.showAllExistingCars) return this.selectedExistingCars;
+            return this.selectedExistingCars.slice(0, 5);
+        },
     },
     watch: {
         // Следим за изменениями частей номера для проверки активности
@@ -512,6 +548,23 @@ export default {
             handler() {
                 this.checkVehicleActive();
                 this.checkBlacklist();
+            }
+        },
+        // Авто-выделение: если organizationId пришёл позже mounted() (async loadUserData),
+        // а места ещё не выбраны - подставляем по организации.
+        userOrganizationId(newVal, oldVal) {
+            if (newVal && !oldVal &&
+                this.selectedUnloadingPlaces.length === 0 &&
+                this.applicationUnloadPlaces.length === 0) {
+                this.autoSelectPlaces();
+            }
+        },
+        userCompanyId(newVal, oldVal) {
+            if (newVal && !oldVal &&
+                !this.userOrganizationId &&
+                this.selectedUnloadingPlaces.length === 0 &&
+                this.applicationUnloadPlaces.length === 0) {
+                this.autoSelectPlaces();
             }
         }
     },
@@ -626,6 +679,47 @@ export default {
                 }
             } catch (error) {
                 console.error("Ошибка при загрузке форматов номеров:", error);
+            }
+        },
+
+        // Авто-выделение мест по организации / компании (без сброса allUnloadingPlaces).
+        // Вызывается из watch, когда userOrganizationId приходит позже mounted().
+        async autoSelectPlaces() {
+            try {
+                if (this.userOrganizationId) {
+                    const orgRes = await apiRequest(`/organizations/${this.userOrganizationId}/unload-places`, { method: 'GET' });
+                    if (orgRes.ok) {
+                        const places = await orgRes.json();
+                        if (Array.isArray(places) && places.length > 0) {
+                            const active = places.filter(p => p.status === 'active');
+                            this.attachedUnloadingPlaces = places;
+                            this.selectedUnloadingPlaces = active.map(p => p.id);
+                            if (this.selectedUnloadingPlaces.length > 0) {
+                                useDeletionsStore().notify({ prefix: 'Место разгрузки выбрано автоматически для вашей', bold: ' организации' });
+                                this.$emit('update:unload-places', [...this.selectedUnloadingPlaces]);
+                            }
+                            return;
+                        }
+                    }
+                }
+
+                if (this.userCompanyId) {
+                    const compRes = await apiRequest(`/companies/${this.userCompanyId}/unload-places`, { method: 'GET' });
+                    if (compRes.ok) {
+                        const places = await compRes.json();
+                        if (Array.isArray(places) && places.length > 0) {
+                            const active = places.filter(p => p.status === 'active');
+                            this.attachedUnloadingPlaces = places;
+                            this.selectedUnloadingPlaces = active.map(p => p.id);
+                            if (this.selectedUnloadingPlaces.length > 0) {
+                                useDeletionsStore().notify({ prefix: 'Место разгрузки выбрано автоматически для вашей', bold: ' компании' });
+                                this.$emit('update:unload-places', [...this.selectedUnloadingPlaces]);
+                            }
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('Ошибка при авто-выделении мест разгрузки:', err);
             }
         },
 
@@ -907,6 +1001,7 @@ export default {
 
         onExistingCarsSelected(cars) {
             this.selectedExistingCars = cars;
+            this.showAllExistingCars = false;
             this.showExistingCarsModal = false;
             this.clearVehicleFormPartial();
         },
@@ -1737,7 +1832,7 @@ export default {
     margin-bottom: 15px;
     padding: 10px;
     background: #f8f9fa;
-    border-radius: 10px;
+    border-radius: 15px;
     border: 1px solid #e6e6e6;
 }
 
@@ -1790,6 +1885,37 @@ export default {
     background: #a2a2a2;
     cursor: not-allowed;
     opacity: 0.6;
+}
+
+.existing-cars-list {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.existing-car-item {
+    font-size: 12px;
+    color: #555;
+    padding: 3px 6px;
+    background: #fff;
+    border-radius: 8px;
+    border: 1px solid #e6e6e6;
+}
+
+.show-all-btn {
+    margin-top: 2px;
+    background: none;
+    border: none;
+    color: #4F5BDF;
+    font-size: 11px;
+    cursor: pointer;
+    padding: 2px 6px;
+    text-align: left;
+}
+
+.show-all-btn:hover {
+    text-decoration: underline;
 }
 
 .dropdown-enter-active,
