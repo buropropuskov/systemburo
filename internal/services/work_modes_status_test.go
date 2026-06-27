@@ -9,7 +9,7 @@ import (
 // результат был детерминирован в любой момент суток (привязка к "сегодня" и к
 // слотам, открытым/закрытым независимо от времени).
 func TestComputeWorkModeStatus(t *testing.T) {
-	today := int(time.Now().Weekday()+6) % 7
+	today := int(time.Now().In(moscowWorkModeLoc).Weekday()+6) % 7
 	otherDay := (today + 1) % 7
 
 	cases := []struct {

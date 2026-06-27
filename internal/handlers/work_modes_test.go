@@ -13,8 +13,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// todayDOW -- текущий день недели в формате слотов (0=Пн..6=Вс).
-func todayDOW() int { return int(time.Now().Weekday()+6) % 7 }
+// todayDOW -- текущий день недели в формате слотов (0=Пн..6=Вс) в МСК,
+// как и сервис (computeWorkModeStatus считает в Europe/Moscow).
+func todayDOW() int {
+	return int(time.Now().In(time.FixedZone("MSK", 3*60*60)).Weekday()+6) % 7
+}
 
 func TestWorkModes_Unauthorized(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)

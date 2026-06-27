@@ -135,12 +135,18 @@ func buildBureauWorkMode(slots []models.BureauTimeSlot) WorkModeEntity {
 	}
 }
 
+// moscowWorkModeLoc -- бизнес-зона расписаний (МСК, UTC+3 без DST с 2014).
+// FixedZone, а не LoadLocation: в alpine-образе нет tzdata, LoadLocation упал бы
+// на UTC и статус "Открыто/Закрыто" съехал бы на 3 часа (баг #868: пятница в
+// рабочее время по Москве показывало "Закрыто", т.к. в контейнере UTC).
+var moscowWorkModeLoc = time.FixedZone("MSK", 3*60*60)
+
 // computeWorkModeStatus вычисляет текущий статус (open/closed) по слотам единой
 // формы. Зеркалит canonical computeUnloadPlaceStatus/computeCurrentStatus
 // (круглосуточный слот 00:00-23:59, переход через полночь is_next_day), но без
 // проверки операционного статуса -- применяется к Бюро, которое всегда active.
 func computeWorkModeStatus(slots []WorkModeSlot) string {
-	now := time.Now()
+	now := time.Now().In(moscowWorkModeLoc)
 	// 0=Пн..6=Вс (Go Weekday: 0=Вс).
 	currentDay := int(now.Weekday()+6) % 7
 	currentTime := now.Format("15:04")

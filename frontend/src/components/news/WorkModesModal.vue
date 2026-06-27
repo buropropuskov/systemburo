@@ -77,13 +77,24 @@
 
             <div class="modes__body">
               <div
-                v-if="!currentItems.length"
-                class="modes__empty"
+                v-if="activeCat !== 'bureau'"
+                class="modes__search"
               >
-                Нет объектов в этой категории
+                <input
+                  v-model="searchQuery"
+                  type="text"
+                  class="lk-input"
+                  placeholder="Поиск по названию..."
+                >
               </div>
               <div
-                v-for="item in currentItems"
+                v-if="!visibleItems.length"
+                class="modes__empty"
+              >
+                {{ searchQuery ? 'Ничего не найдено' : 'Нет объектов в этой категории' }}
+              </div>
+              <div
+                v-for="item in visibleItems"
                 v-else
                 :key="`${item.kind}:${item.id}`"
                 class="obj"
@@ -221,6 +232,7 @@ export default {
       error: false,
       loadSeq: 0,
       activeCat: 'bureau',
+      searchQuery: '',
       openKeys: [],
       titleId: `work-modes-title-${uid}`,
     };
@@ -233,13 +245,19 @@ export default {
     categories() {
       const d = this.data;
       return [
-        { key: 'bureau', label: 'Бюро', items: d?.bureau ? [d.bureau] : [], showCount: false },
+        { key: 'bureau', label: 'Бюро пропусков', items: d?.bureau ? [d.bureau] : [], showCount: false },
         { key: 'unload', label: 'Места разгрузки', items: d?.unload_places || [], showCount: true },
         { key: 'pass', label: 'Места прохода', items: d?.checkpoints || [], showCount: true },
       ];
     },
     currentItems() {
       return this.categories.find((c) => c.key === this.activeCat)?.items || [];
+    },
+    // Список с учётом поиска (поиск показывается для мест разгрузки/прохода).
+    visibleItems() {
+      const q = this.searchQuery.trim().toLowerCase();
+      if (!q) return this.currentItems;
+      return this.currentItems.filter((it) => (it.name || '').toLowerCase().includes(q));
     },
   },
   watch: {
@@ -248,6 +266,10 @@ export default {
     show(visible) {
       document.body.style.overflow = visible ? 'hidden' : '';
       if (visible) this.load();
+    },
+    // Сброс поиска при переключении категории.
+    activeCat() {
+      this.searchQuery = '';
     },
   },
   mounted() {
@@ -361,7 +383,9 @@ export default {
 
 .modes {
   width: min(720px, 100%);
-  max-height: 88vh;
+  /* Фиксированная высота: список едет скроллом в .modes__body, модалка не прыгает
+     при смене вкладок Бюро пропусков/Места разгрузки/Места прохода. */
+  height: min(620px, 88vh);
   background: #fff;
   border-radius: 30px;
   display: flex;
@@ -489,6 +513,16 @@ export default {
 .modes__body {
   padding: 16px 26px 8px;
   overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.modes__search {
+  margin-bottom: 12px;
+}
+
+.modes__search .lk-input {
+  width: 100%;
 }
 
 .modes__body::-webkit-scrollbar {
