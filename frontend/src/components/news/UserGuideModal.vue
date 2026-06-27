@@ -296,8 +296,9 @@ export default {
 
 .guide {
   width: min(720px, 100%);
-  min-height: min(520px, 88vh);
-  max-height: 88vh;
+  /* Фиксированная высота: контент вкладок едет скроллом в .guide__body, модалка
+     не меняет высоту при смене роли Пользователь/Охранник/Администратор. */
+  height: min(560px, 88vh);
   background: #fff;
   border-radius: 30px;
   display: flex;
@@ -409,7 +410,8 @@ export default {
 .guide__body {
   padding: 18px 26px 8px;
   overflow-y: auto;
-  min-height: 200px;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .file-card {

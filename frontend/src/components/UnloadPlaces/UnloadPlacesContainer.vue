@@ -1801,8 +1801,8 @@ async uploadPhotoFiles(files) {
 
 .photos-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 10px;
   max-height: 250px;
   overflow-y: auto;
   padding: 4px;
