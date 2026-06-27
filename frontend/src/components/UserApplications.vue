@@ -168,7 +168,13 @@
                   >
                     <div class="application-row">
                       <div class="application-col id-col">
-                        <span class="application-id">{{ application.application_number }}</span>
+                        <span
+                          class="application-id application-number--copyable"
+                          tabindex="0"
+                          data-tooltip="Копировать"
+                          @click.stop="copyApplicationNumber(application.application_number)"
+                          @keydown.enter.prevent="copyApplicationNumber(application.application_number)"
+                        >{{ application.application_number }}</span>
                       </div>
                       <div class="application-col date-col">
                         {{ formatDateTime(application.sending_datetime) }}
@@ -312,6 +318,7 @@
 import { apiRequest } from '@/api/client'
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import { useAuthStore } from '@/stores/auth'
+import { useDeletionsStore } from '@/stores/deletions'
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import DateFilter from './DateFilter.vue';
@@ -384,6 +391,9 @@ export default {
             application.responsible_name,
             application.responsible_full_name,
             application.responsible_comment,
+            application.has_roof_access ? 'Крыша' : null,
+            application.has_free_parking ? 'Парковка' : null,
+            blacklistFlagCount(application) > 0 ? 'ЧС' : null,
           ].filter(Boolean).join(' '),
           variants,
         ));
@@ -741,6 +751,28 @@ export default {
         }
       } catch (error) {
         console.error("Ошибка сети при получении текущего пользователя:", error);
+      }
+    },
+
+    async copyApplicationNumber(number) {
+      if (!number) return;
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(String(number));
+        } else {
+          const textarea = document.createElement('textarea');
+          textarea.value = String(number);
+          textarea.setAttribute('readonly', '');
+          textarea.style.position = 'absolute';
+          textarea.style.left = '-9999px';
+          document.body.appendChild(textarea);
+          textarea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textarea);
+        }
+        useDeletionsStore().notify({ prefix: 'Скопирован номер ', bold: String(number), type: 'success' });
+      } catch {
+        useDeletionsStore().notify({ prefix: 'Не удалось ', bold: 'скопировать номер', type: 'error' });
       }
     },
 
@@ -1212,6 +1244,47 @@ export default {
 .application-id {
   color: #4F5BDF;
   font-weight: 600;
+}
+
+.application-number--copyable {
+  position: relative;
+  cursor: pointer;
+  transition: color 0.15s;
+  user-select: none;
+  border-radius: 4px;
+  outline: none;
+}
+
+.application-number--copyable:hover,
+.application-number--copyable:focus-visible {
+  color: #3a45c0;
+}
+
+.application-number--copyable:focus-visible {
+  box-shadow: 0 0 0 2px rgba(79, 91, 223, 0.3);
+}
+
+.application-number--copyable::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #333;
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  white-space: nowrap;
+  z-index: 1000;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.application-number--copyable:hover::after {
+  opacity: 1;
 }
 
 /* Бейджи подтверждения */
