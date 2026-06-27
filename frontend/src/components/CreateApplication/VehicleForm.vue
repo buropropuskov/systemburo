@@ -1959,6 +1959,9 @@ export default {
 
 .add-existing-wrap {
     position: relative;
+    /* inline-flex плотно оборачивает кнопку - она остаётся в исходной позиции
+       и виде, не смещается; tooltip позиционируется относительно неё. */
+    display: inline-flex;
 }
 
 .show-all-btn {

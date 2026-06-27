@@ -251,14 +251,32 @@
                 @click="tagsDropdownOpen = !tagsDropdownOpen"
               >
                 {{ selectedTags.length ? `Выбрано: ${selectedTags.length}` : 'Все теги' }}
-                <span class="tags-dropdown__chev" :class="{ open: tagsDropdownOpen }">▾</span>
+                <svg
+                  class="tags-dropdown__arrow"
+                  :class="{ 'tags-dropdown__arrow--open': tagsDropdownOpen }"
+                  viewBox="0 0 10 6"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M1 1L5 5L9 1"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
               </button>
-              <template v-if="tagsDropdownOpen">
+              <div
+                v-if="tagsDropdownOpen"
+                class="tags-dropdown__backdrop"
+                @click="tagsDropdownOpen = false"
+              />
+              <transition name="tags-dd">
                 <div
-                  class="tags-dropdown__backdrop"
-                  @click="tagsDropdownOpen = false"
-                />
-                <div class="tags-dropdown__panel">
+                  v-if="tagsDropdownOpen"
+                  class="tags-dropdown__panel"
+                >
                   <button
                     v-for="tag in tags"
                     :key="tag.value"
@@ -269,7 +287,7 @@
                     {{ tag.label }}
                   </button>
                 </div>
-              </template>
+              </transition>
             </div>
           </div>
         </div>
@@ -2318,11 +2336,14 @@ export default {
     border-color: var(--color-primary, #4F5BDF);
     color: var(--color-primary, #4F5BDF);
 }
-.tags-dropdown__chev {
-    font-size: 10px;
-    transition: transform 0.15s;
+.tags-dropdown__arrow {
+    width: 10px;
+    height: 10px;
+    flex-shrink: 0;
+    color: #666;
+    transition: transform 0.2s;
 }
-.tags-dropdown__chev.open {
+.tags-dropdown__arrow--open {
     transform: rotate(180deg);
 }
 .tags-dropdown__backdrop {
@@ -2330,7 +2351,20 @@ export default {
     inset: 0;
     z-index: 40;
 }
+/* Плавное появление панели (как BaseDropdown). */
+.tags-dd-enter-active {
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.tags-dd-leave-active {
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.tags-dd-enter-from,
+.tags-dd-leave-to {
+    opacity: 0;
+    transform: translateY(-4px);
+}
 .tags-dropdown__panel {
+    transform-origin: top left;
     position: absolute;
     top: calc(100% + 6px);
     left: 0;
