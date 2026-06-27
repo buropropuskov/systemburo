@@ -394,10 +394,16 @@ export default {
   justify-content: center;
   padding-top: 6px;
   flex-shrink: 0;
+  overflow: hidden;
+  /* Плавное схлопывание при прочтении: ширина -> 0 и отрицательный margin
+     поглощает flex-gap, поэтому контент уезжает влево анимированно, без рывка. */
+  transition: width 0.25s ease, margin-right 0.25s ease, opacity 0.2s ease;
 }
 
 .notification-item:not(.unread) .notification-dot-wrapper {
-  display: none;
+  width: 0;
+  margin-right: -10px;
+  opacity: 0;
 }
 
 .notification-dot {
