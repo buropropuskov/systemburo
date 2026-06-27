@@ -340,9 +340,10 @@ export default {
 /* --- Список документов --- */
 .docs-block__list {
   padding: 0;
-  /* Ровно 3 строки документа (высота строки фикс. через .doc-row min-height),
-     4-я и далее - скроллом. Гарантирует, что минимум 3 документа видны без обрезка. */
-  max-height: 171px;
+  /* Фиксированная высота на 3 строки (высота строки фикс. через .doc-row min-height):
+     4-я и далее - скроллом, при 1-2 документах остаётся та же высота. Высота блока не
+     прыгает при смене группы. */
+  height: 171px;
   overflow-y: auto;
 }
 
@@ -356,6 +357,13 @@ export default {
 }
 
 .docs-block__empty {
+  /* Та же высота, что у списка - высота блока не меняется между группой с
+     документами и пустой группой. */
+  min-height: 171px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   padding: 24px;
   text-align: center;
   color: #b9b9c6;
