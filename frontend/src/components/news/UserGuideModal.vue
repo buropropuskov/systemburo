@@ -122,7 +122,7 @@
               >
                 <span class="file-card__icon">
                   <FileTypeIcon
-                    ext="pdf"
+                    ext=""
                     :size="40"
                   />
                 </span>
@@ -131,7 +131,7 @@
                     Файл руководства ещё не загружен
                   </div>
                   <div class="file-card__meta">
-                    Скоро здесь появится PDF для скачивания
+                    Скоро здесь появится файл для скачивания
                   </div>
                 </div>
               </div>
@@ -244,7 +244,7 @@ export default {
     },
     fileTypeLabel(file) {
       const ext = (file.ext || '').replace(/^\./, '').toUpperCase();
-      return ext || 'PDF';
+      return ext;
     },
     formatSize(bytes) {
       if (!bytes) return '';
@@ -296,6 +296,7 @@ export default {
 
 .guide {
   width: min(720px, 100%);
+  min-height: min(520px, 88vh);
   max-height: 88vh;
   background: #fff;
   border-radius: 30px;
@@ -408,6 +409,7 @@ export default {
 .guide__body {
   padding: 18px 26px 8px;
   overflow-y: auto;
+  min-height: 200px;
 }
 
 .file-card {
