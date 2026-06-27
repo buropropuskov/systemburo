@@ -21,31 +21,30 @@
     >
       <div class="existing-cars-header">
         <span class="existing-cars-count">Машин добавлено: {{ selectedExistingCars.length }}</span>
-        <div
-          class="existing-cars-actions"
-          style="position: relative"
-        >
+        <div class="existing-cars-actions">
           <button
             class="view-cars-btn"
             @click="openExistingCarsModal"
           >
             Просмотреть
           </button>
-          <button
-            class="add-existing-btn"
-            :disabled="!canAddExistingCars"
-            @click="addExistingCars"
-            @mouseenter="showExistingTooltip = true"
-            @mouseleave="showExistingTooltip = false"
-          >
-            Добавить
-          </button>
-          <div
-            v-if="showExistingTooltip && !canAddExistingCars"
-            class="tooltip"
-          >
-            <div class="tooltip-content">
-              хотя бы одно место разгрузки
+          <div class="add-existing-wrap">
+            <button
+              class="add-existing-btn"
+              :disabled="!canAddExistingCars"
+              @click="addExistingCars"
+              @mouseenter="showExistingTooltip = true"
+              @mouseleave="showExistingTooltip = false"
+            >
+              Добавить
+            </button>
+            <div
+              v-if="showExistingTooltip && !canAddExistingCars"
+              class="tooltip"
+            >
+              <div class="tooltip-content">
+                {{ existingCarsTooltip }}
+              </div>
             </div>
           </div>
         </div>
@@ -57,7 +56,15 @@
           :key="car.id || car.number"
           class="existing-car-item"
         >
-          {{ car.number }} - {{ car.mark || 'не указана' }}
+          <span>{{ car.number }} - {{ car.mark || 'не указана' }}</span>
+          <button
+            class="existing-car-remove"
+            type="button"
+            title="Убрать машину"
+            @click="removeExistingCar(car)"
+          >
+            ×
+          </button>
         </div>
         <button
           v-if="selectedExistingCars.length > 5 && !showAllExistingCars"
@@ -536,6 +543,23 @@ export default {
             const placesOk = !this.fieldVisible('unloading_places') || (this.selectedUnloadingPlaces.length > 0 && !hasInactiveSelected);
             return this.selectedExistingCars.length > 0 && placesOk;
         },
+        existingCarsTooltip() {
+            if (this.canAddExistingCars) return '';
+            const hasInactiveSelected = this.selectedUnloadingPlaces.some(placeId => {
+                const place = this.allUnloadingPlaces.find(p => p.id === placeId);
+                return place && place.status !== 'active';
+            });
+            const missing = [];
+            if (this.fieldVisible('unloading_places') && this.selectedUnloadingPlaces.length === 0) {
+                missing.push('хотя бы одно место разгрузки');
+            }
+            if (hasInactiveSelected) {
+                missing.push('убрать неактивное место разгрузки');
+            }
+            if (missing.length === 0) return 'Заполните обязательные поля';
+            if (missing.length === 1) return `Заполните поле: ${missing[0]}`;
+            return `Заполните поля:\n${missing.map(f => `• ${f}`).join('\n')}`;
+        },
         displayedExistingCars() {
             if (this.showAllExistingCars) return this.selectedExistingCars;
             return this.selectedExistingCars.slice(0, 5);
@@ -1004,6 +1028,13 @@ export default {
             this.showAllExistingCars = false;
             this.showExistingCarsModal = false;
             this.clearVehicleFormPartial();
+        },
+
+        // Отмена добавления конкретной существующей машины из блока "Машин добавлено".
+        removeExistingCar(car) {
+            const key = car.id || car.number;
+            this.selectedExistingCars = this.selectedExistingCars.filter(c => (c.id || c.number) !== key);
+            if (this.selectedExistingCars.length <= 5) this.showAllExistingCars = false;
         },
 
         addExistingCars() {
@@ -1895,12 +1926,39 @@ export default {
 }
 
 .existing-car-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
     font-size: 12px;
     color: #555;
     padding: 3px 6px;
     background: #fff;
     border-radius: 8px;
     border: 1px solid #e6e6e6;
+}
+
+.existing-car-remove {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    line-height: 1;
+    border: none;
+    border-radius: 50%;
+    background: #f1f1f4;
+    color: #888;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.existing-car-remove:hover {
+    background: #ffe0e0;
+    color: #d33;
+}
+
+.add-existing-wrap {
+    position: relative;
 }
 
 .show-all-btn {

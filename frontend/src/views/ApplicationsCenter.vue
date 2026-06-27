@@ -244,16 +244,32 @@
             <div class="filter-section__header">
               <span class="filter-label">Теги</span>
             </div>
-            <div class="status-buttons">
+            <div class="tags-dropdown">
               <button
-                v-for="tag in tags"
-                :key="tag.value"
-                class="status-btn"
-                :class="{ 'status-btn--active': selectedTags.includes(tag.value) }"
-                @click="toggleTag(tag.value)"
+                class="tags-dropdown__btn"
+                :class="{ 'tags-dropdown__btn--active': selectedTags.length > 0 }"
+                @click="tagsDropdownOpen = !tagsDropdownOpen"
               >
-                {{ tag.label }}
+                {{ selectedTags.length ? `Выбрано: ${selectedTags.length}` : 'Все теги' }}
+                <span class="tags-dropdown__chev" :class="{ open: tagsDropdownOpen }">▾</span>
               </button>
+              <template v-if="tagsDropdownOpen">
+                <div
+                  class="tags-dropdown__backdrop"
+                  @click="tagsDropdownOpen = false"
+                />
+                <div class="tags-dropdown__panel">
+                  <button
+                    v-for="tag in tags"
+                    :key="tag.value"
+                    class="status-btn tags-dropdown__item"
+                    :class="{ 'status-btn--active': selectedTags.includes(tag.value) }"
+                    @click="toggleTag(tag.value)"
+                  >
+                    {{ tag.label }}
+                  </button>
+                </div>
+              </template>
             </div>
           </div>
         </div>
@@ -631,6 +647,7 @@ export default {
             selectedConfirmations: [],
             selectedApplicationStatuses: [],
             selectedTags: [],
+            tagsDropdownOpen: false,
             organizations: [],
             sortField: null,
             sortDirection: 'desc',
@@ -2271,20 +2288,62 @@ export default {
     scrollbar-color: #D9E2FF transparent;
 }
 
-/* При одной строке таблица схлопывается до fit-content, а overflow:hidden/.table-body scroll
-   обрезает подсказки, раскрывающиеся вниз. Поднимаем их вверх от элемента. */
-.table-body--single-row .sender-tooltip-anchor::after,
-.table-body--single-row .tag-hint::after {
-    top: auto;
-    bottom: calc(100% + 6px);
+/* При одной строке таблица низкая, а overflow:hidden + scroll обрезали подсказки
+   (раскрываются вниз, top:100%). Скролл при одной строке не нужен - включаем
+   overflow:visible, и подсказка показывается целиком вниз от элемента. */
+.applications-table:has(.table-body--single-row) {
+    overflow: visible;
+}
+.table-body--single-row {
+    overflow: visible;
 }
 
-.table-body--single-row .sender-tooltip-anchor::before,
-.table-body--single-row .tag-hint::before {
-    top: auto;
-    bottom: 100%;
-    border-bottom-color: transparent;
-    border-top-color: #333;
+/* Фильтр по тегам - компактный дропдаун, чтобы фильтры держались в строке. */
+.tags-dropdown {
+    position: relative;
+}
+.tags-dropdown__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border: 1px solid #e0e0e0;
+    border-radius: 12px;
+    background: #fff;
+    cursor: pointer;
+    font-size: 13px;
+    white-space: nowrap;
+}
+.tags-dropdown__btn--active {
+    border-color: var(--color-primary, #4F5BDF);
+    color: var(--color-primary, #4F5BDF);
+}
+.tags-dropdown__chev {
+    font-size: 10px;
+    transition: transform 0.15s;
+}
+.tags-dropdown__chev.open {
+    transform: rotate(180deg);
+}
+.tags-dropdown__backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+}
+.tags-dropdown__panel {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 50;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-width: 170px;
+    padding: 10px;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
 }
 
 .applications-list::-webkit-scrollbar {
