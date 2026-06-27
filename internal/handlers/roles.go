@@ -1,8 +1,6 @@
 package handlers
 
 import (
-	"net/http"
-
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
@@ -38,7 +36,7 @@ func (h *RoleHandler) Create(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusCreated, map[string]any{"success": true, "data": role})
+	return RespondCreated(c, role)
 }
 
 // Update -- PUT /roles/:id.

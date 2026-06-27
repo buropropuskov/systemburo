@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
-	"net/http"
 	"os"
 	"path/filepath"
+
+	"systemburo/internal/apperr"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -36,16 +37,16 @@ type Options struct {
 func SaveMultipart(c echo.Context, field string, opts Options) ([]SavedFile, error) {
 	form, err := c.MultipartForm()
 	if err != nil {
-		return nil, echo.NewHTTPError(http.StatusBadRequest, "Не удалось прочитать форму загрузки")
+		return nil, apperr.Validation("Не удалось прочитать форму загрузки")
 	}
 
 	files := form.File[field]
 	if len(files) == 0 {
-		return nil, echo.NewHTTPError(http.StatusBadRequest, "Файл не выбран")
+		return nil, apperr.Validation("Файл не выбран")
 	}
 
 	if err := os.MkdirAll(opts.Dir, 0o755); err != nil {
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Не удалось создать директорию загрузки")
+		return nil, apperr.Internal("Не удалось создать директорию загрузки")
 	}
 
 	saved := make([]SavedFile, 0, len(files))
@@ -63,22 +64,22 @@ func SaveMultipart(c echo.Context, field string, opts Options) ([]SavedFile, err
 // на каждой итерации, а не копился до конца функции (утечка дескрипторов).
 func saveOne(fh *multipart.FileHeader, opts Options) (SavedFile, error) {
 	if opts.MaxFileSize > 0 && fh.Size > opts.MaxFileSize {
-		return SavedFile{}, echo.NewHTTPError(http.StatusBadRequest, "Файл слишком большой")
+		return SavedFile{}, apperr.Validation("Файл слишком большой")
 	}
 
 	src, err := fh.Open()
 	if err != nil {
-		return SavedFile{}, echo.NewHTTPError(http.StatusBadRequest, "Не удалось прочитать файл")
+		return SavedFile{}, apperr.Validation("Не удалось прочитать файл")
 	}
 	defer src.Close()
 
 	detected, err := ValidateFileType(src, opts.AllowedTypes)
 	if err != nil {
-		return SavedFile{}, echo.NewHTTPError(http.StatusBadRequest, "Недопустимый тип файла")
+		return SavedFile{}, apperr.Validation("Недопустимый тип файла")
 	}
 	if seeker, ok := src.(io.Seeker); ok {
 		if _, err := seeker.Seek(0, io.SeekStart); err != nil {
-			return SavedFile{}, echo.NewHTTPError(http.StatusInternalServerError, "Не удалось обработать файл")
+			return SavedFile{}, apperr.Internal("Не удалось обработать файл")
 		}
 	}
 
@@ -90,12 +91,12 @@ func saveOne(fh *multipart.FileHeader, opts Options) (SavedFile, error) {
 
 	dst, err := os.Create(filepath.Join(opts.Dir, name))
 	if err != nil {
-		return SavedFile{}, echo.NewHTTPError(http.StatusInternalServerError, "Не удалось записать файл")
+		return SavedFile{}, apperr.Internal("Не удалось записать файл")
 	}
 	defer dst.Close()
 
 	if _, err := io.Copy(dst, src); err != nil {
-		return SavedFile{}, echo.NewHTTPError(http.StatusInternalServerError, "Не удалось записать файл")
+		return SavedFile{}, apperr.Internal("Не удалось записать файл")
 	}
 
 	mimeType := fh.Header.Get("Content-Type")

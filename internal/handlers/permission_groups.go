@@ -51,7 +51,7 @@ func (h *PermissionGroupHandler) Create(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusCreated, map[string]any{"success": true, "data": group})
+	return RespondCreated(c, group)
 }
 
 // Update -- PUT /permission-groups/:id.
@@ -93,7 +93,7 @@ func (h *PermissionGroupHandler) Merge(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusCreated, map[string]any{"success": true, "data": group})
+	return RespondCreated(c, group)
 }
 
 // ListForUser -- GET /users/:user_id/permission-groups.
