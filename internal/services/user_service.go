@@ -62,7 +62,7 @@ type PasswordPolicyProvider interface {
 type userService struct {
 	db                  *gorm.DB
 	notificationService NotificationService
-	history             UserHistoryService
+	recorder            AuditRecorder
 	banCache            *BanCheckService
 	policy              PasswordPolicyProvider
 }
@@ -76,7 +76,7 @@ func NewUserService(db *gorm.DB, notificationService NotificationService) UserSe
 	return &userService{
 		db:                  db,
 		notificationService: notificationService,
-		history:             NewUserHistoryService(db),
+		recorder:            NewAuditRecorder(db),
 	}
 }
 
@@ -142,7 +142,7 @@ func (s *userService) Create(ctx context.Context, callerUserID int, req models.R
 		slog.Error("не удалось создать пользователя", "error", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error creating user")
 	}
-	s.history.Log(ctx, user.ID, &callerUserID, models.UserActionCreated, map[string]any{
+	s.recorder.Log(ctx, nil, models.AuditEntityUser, &user.ID, models.UserActionCreated, &callerUserID, map[string]any{
 		"username": user.Username,
 		"type_id":  user.TypeID,
 	})
@@ -214,7 +214,7 @@ func (s *userService) UpdateType(ctx context.Context, callerUserID int, username
 
 	if req.TypeID != oldType {
 		if id := s.targetUserID(ctx, username); id != 0 {
-			s.history.Log(ctx, id, &callerUserID, models.UserActionTypeChanged, map[string]any{"old": oldType, "new": req.TypeID})
+			s.recorder.Log(ctx, nil, models.AuditEntityUser, &id, models.UserActionTypeChanged, &callerUserID, map[string]any{"old": oldType, "new": req.TypeID})
 		}
 	}
 	return nil
@@ -249,7 +249,7 @@ func (s *userService) UpdatePassword(ctx context.Context, callerUserID int, user
 			Update("is_revoked", true)
 
 		// Аудит: факт сброса пароля без значения.
-		s.history.Log(ctx, user.ID, &callerUserID, models.UserActionPasswordReset, nil)
+		s.recorder.Log(ctx, nil, models.AuditEntityUser, &user.ID, models.UserActionPasswordReset, &callerUserID, nil)
 
 		// Уведомление о смене пароля. selfChange определяется по совпадению id
 		// вызывающего с целевым (гейт page.admin.users допускает и смену
@@ -355,7 +355,7 @@ func (s *userService) UpdateInfo(ctx context.Context, callerUserID int, username
 			details["is_important"] = map[string]any{"old": prev.IsImportant, "new": *req.IsImportant}
 		}
 		if len(details) > 0 {
-			s.history.Log(ctx, id, &callerUserID, models.UserActionUpdated, details)
+			s.recorder.Log(ctx, nil, models.AuditEntityUser, &id, models.UserActionUpdated, &callerUserID, details)
 		}
 	}
 	return nil
@@ -379,7 +379,7 @@ func (s *userService) UpdateOrganization(ctx context.Context, callerUserID int, 
 
 	if req.OrganizationID != oldVal {
 		if id := s.targetUserID(ctx, username); id != 0 {
-			s.history.Log(ctx, id, &callerUserID, models.UserActionOrgChanged, map[string]any{"old": prev.OrganizationID, "new": req.OrganizationID})
+			s.recorder.Log(ctx, nil, models.AuditEntityUser, &id, models.UserActionOrgChanged, &callerUserID, map[string]any{"old": prev.OrganizationID, "new": req.OrganizationID})
 		}
 	}
 	return nil
@@ -403,7 +403,7 @@ func (s *userService) UpdateCompany(ctx context.Context, callerUserID int, usern
 
 	if req.CompanyID != oldVal {
 		if id := s.targetUserID(ctx, username); id != 0 {
-			s.history.Log(ctx, id, &callerUserID, models.UserActionCompanyChanged, map[string]any{"old": prev.CompanyID, "new": req.CompanyID})
+			s.recorder.Log(ctx, nil, models.AuditEntityUser, &id, models.UserActionCompanyChanged, &callerUserID, map[string]any{"old": prev.CompanyID, "new": req.CompanyID})
 		}
 	}
 	return nil
@@ -458,7 +458,7 @@ func (s *userService) setActive(ctx context.Context, username string, active boo
 	if !active {
 		action = models.UserActionArchived
 	}
-	s.history.Log(ctx, user.ID, &callerUserID, action, nil)
+	s.recorder.Log(ctx, nil, models.AuditEntityUser, &user.ID, action, &callerUserID, nil)
 
 	// Сбрасываем кэш блокировок, чтобы архив/восстановление подействовали мгновенно
 	// (BanCheck на следующем запросе перечитает is_active, не дожидаясь TTL).
@@ -469,12 +469,53 @@ func (s *userService) setActive(ctx context.Context, username string, active boo
 }
 
 // GetHistory возвращает историю действий над пользователем по username (admin-only).
+// Переходный период #870: новые записи идут в audit_log, старые лежат в user_histories.
+// UNION объединяет обе таблицы в одинаковую форму ответа.
 func (s *userService) GetHistory(ctx context.Context, username string) ([]models.UserHistoryItem, error) {
 	id := s.targetUserID(ctx, username)
 	if id == 0 {
 		return nil, echo.NewHTTPError(http.StatusNotFound, "User not found")
 	}
-	return s.history.GetHistory(ctx, id)
+	const actorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`
+	sql := `
+		SELECT id, action_type, details, actor_user_id, actor_name, created_at FROM (
+			SELECT h.id AS id, h.action_type AS action_type, h.details AS details,
+				h.actor_user_id AS actor_user_id, ` + actorName + ` AS actor_name, h.created_at AS created_at
+			FROM user_histories h LEFT JOIN users u ON u.id = h.actor_user_id
+			WHERE h.target_user_id = ?
+			UNION ALL
+			SELECT a.id AS id, a.action AS action_type, a.details AS details,
+				a.actor_user_id AS actor_user_id, ` + actorName + ` AS actor_name, a.created_at AS created_at
+			FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
+			WHERE a.entity_type = ? AND a.entity_id = ?
+		) merged
+		ORDER BY created_at DESC, id DESC`
+
+	type row struct {
+		ID          int             `gorm:"column:id"`
+		ActionType  string          `gorm:"column:action_type"`
+		Details     json.RawMessage `gorm:"column:details"`
+		ActorUserID *int            `gorm:"column:actor_user_id"`
+		ActorName   string          `gorm:"column:actor_name"`
+		CreatedAt   time.Time       `gorm:"column:created_at"`
+	}
+	var rows []row
+	if err := s.db.WithContext(ctx).Raw(sql, id, models.AuditEntityUser, id).Scan(&rows).Error; err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching user history")
+	}
+
+	items := make([]models.UserHistoryItem, 0, len(rows))
+	for _, r := range rows {
+		items = append(items, models.UserHistoryItem{
+			ID:          r.ID,
+			ActionType:  r.ActionType,
+			Details:     r.Details,
+			ActorUserID: r.ActorUserID,
+			ActorName:   r.ActorName,
+			CreatedAt:   r.CreatedAt,
+		})
+	}
+	return items, nil
 }
 
 // resolveUserID резолвит id по username, возвращает 404 если не найден.
