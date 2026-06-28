@@ -144,10 +144,9 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	// Create maintenance service early so authHandler can get it.
 	maintenanceService := services.NewMaintenanceService(db)
 	markService := services.NewMarkService(db)
-	vehicleBlacklistHistoryService := services.NewVehicleBlacklistHistoryService(db)
-	vehicleBlacklistService := services.NewVehicleBlacklistService(db, vehicleBlacklistHistoryService)
-	personBlacklistHistoryService := services.NewPersonBlacklistHistoryService(db)
-	personBlacklistService := services.NewPersonBlacklistService(db, personBlacklistHistoryService)
+	blacklistAuditRecorder := services.NewAuditRecorder(db)
+	vehicleBlacklistService := services.NewVehicleBlacklistService(db, blacklistAuditRecorder)
+	personBlacklistService := services.NewPersonBlacklistService(db, blacklistAuditRecorder)
 	applicationService := services.NewApplicationService(db, permissionService, notificationService, vehicleBlacklistService, personBlacklistService)
 	attachmentTemplateService := services.NewAttachmentTemplateService(db, "./uploads")
 	attachmentFieldConfigService := services.NewAttachmentFieldConfigService(db)

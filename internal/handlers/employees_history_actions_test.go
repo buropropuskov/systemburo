@@ -113,8 +113,9 @@ func TestCheckExpiredAttachments_CreatesEmployeeDeactivateHistory(t *testing.T) 
 
 	permSvc := services.NewPermissionService(db)
 	notifSvc := services.NewNotificationService(db)
-	vblSvc := services.NewVehicleBlacklistService(db, services.NewVehicleBlacklistHistoryService(db))
-	pblSvc := services.NewPersonBlacklistService(db, services.NewPersonBlacklistHistoryService(db))
+	blRecorder := services.NewAuditRecorder(db)
+	vblSvc := services.NewVehicleBlacklistService(db, blRecorder)
+	pblSvc := services.NewPersonBlacklistService(db, blRecorder)
 	appSvc := services.NewApplicationService(db, permSvc, notifSvc, vblSvc, pblSvc)
 
 	token := testutil.RegisterAndLogin(t, e, "emphist_expiry1", "pass123", 1, td.OrgID, td.CompanyID)
