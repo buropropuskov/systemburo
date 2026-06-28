@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"systemburo/internal/models"
 
@@ -22,13 +23,13 @@ type ApproverService interface {
 }
 
 type approverService struct {
-	db      *gorm.DB
-	history ApproverHistoryService
+	db       *gorm.DB
+	recorder AuditRecorder
 }
 
 // NewApproverService создаёт сервис для управления утверждающими заявок.
 func NewApproverService(db *gorm.DB) ApproverService {
-	return &approverService{db: db, history: NewApproverHistoryService(db)}
+	return &approverService{db: db, recorder: NewAuditRecorder(db)}
 }
 
 // GetAll возвращает список всех утверждающих с информацией о пользователях.
@@ -94,9 +95,10 @@ func (s *approverService) Create(ctx context.Context, userID int, createdByUsern
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error creating approver")
 	}
 
-	// Снимок имени добавляемого принимающего для аудита.
+	// Снимок имени: approver_name в details (поле было плоской колонкой в старой таблице).
 	approverName := s.resolveUserName(ctx, userID)
-	s.history.Log(ctx, userID, approverName, &createdByID, models.ApproverActionCreated)
+	s.recorder.Log(ctx, nil, models.AuditEntityApprover, &userID, models.ApproverActionCreated, &createdByID,
+		map[string]any{"approver_name": approverName})
 	return nil
 }
 
@@ -132,14 +134,61 @@ func (s *approverService) Delete(ctx context.Context, id int, actorUsername stri
 		if err := s.db.WithContext(ctx).Table("users").Select("id").Where("username = ?", actorUsername).Row().Scan(&aid); err == nil {
 			actorID = &aid
 		}
-		s.history.Log(ctx, snap.UserID, snap.Name, actorID, models.ApproverActionDeleted)
+		s.recorder.Log(ctx, nil, models.AuditEntityApprover, &snap.UserID, models.ApproverActionDeleted, actorID,
+			map[string]any{"approver_name": snap.Name})
 	}
 	return nil
 }
 
 // GetHistory возвращает глобальный журнал принимающих (новые сверху).
+// Переходный период #870: запись уже идёт в audit_log; старые строки лежат в
+// application_approver_histories до финального backfill. Чтение объединяет обе
+// таблицы в одинаковую форму ответа (форму стережёт TestApprovers_History_*).
 func (s *approverService) GetHistory(ctx context.Context) ([]models.ApplicationApproverHistoryItem, error) {
-	return s.history.GetAll(ctx)
+	const actorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`
+	sql := `
+		SELECT id, approver_user_id, approver_name, action_type, actor_user_id, actor_name, created_at FROM (
+			SELECT h.id AS id, h.approver_user_id AS approver_user_id, h.approver_name AS approver_name,
+				h.action_type AS action_type, h.actor_user_id AS actor_user_id,
+				` + actorName + ` AS actor_name, h.created_at AS created_at
+			FROM application_approver_histories h LEFT JOIN users u ON u.id = h.actor_user_id
+			UNION ALL
+			SELECT a.id AS id, a.entity_id AS approver_user_id,
+				COALESCE(a.details->>'approver_name', '') AS approver_name,
+				a.action AS action_type, a.actor_user_id AS actor_user_id,
+				` + actorName + ` AS actor_name, a.created_at AS created_at
+			FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
+			WHERE a.entity_type = ?
+		) merged
+		ORDER BY created_at DESC, id DESC`
+
+	type row struct {
+		ID             int       `gorm:"column:id"`
+		ApproverUserID int       `gorm:"column:approver_user_id"`
+		ApproverName   string    `gorm:"column:approver_name"`
+		ActionType     string    `gorm:"column:action_type"`
+		ActorUserID    *int      `gorm:"column:actor_user_id"`
+		ActorName      string    `gorm:"column:actor_name"`
+		CreatedAt      time.Time `gorm:"column:created_at"`
+	}
+	var rows []row
+	if err := s.db.WithContext(ctx).Raw(sql, models.AuditEntityApprover).Scan(&rows).Error; err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching approver history")
+	}
+
+	items := make([]models.ApplicationApproverHistoryItem, 0, len(rows))
+	for _, r := range rows {
+		items = append(items, models.ApplicationApproverHistoryItem{
+			ID:             r.ID,
+			ApproverUserID: r.ApproverUserID,
+			ApproverName:   r.ApproverName,
+			ActionType:     r.ActionType,
+			ActorUserID:    r.ActorUserID,
+			ActorName:      r.ActorName,
+			CreatedAt:      r.CreatedAt,
+		})
+	}
+	return items, nil
 }
 
 // resolveUserName возвращает форматированное имя пользователя по ID
