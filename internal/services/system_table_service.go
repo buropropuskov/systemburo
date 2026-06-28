@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -42,6 +43,10 @@ type SystemTableService interface {
 	// SeedMissingFields добавляет default-поля, которых ещё нет у существующих таблиц.
 	// Вызывается один раз при старте сервиса для миграции старых таблиц.
 	SeedMissingFields(ctx context.Context) error
+
+	// GetHistory возвращает историю изменений системной таблицы (новые сверху).
+	// Переходный период #870: чтение объединяет legacy system_table_histories и audit_log.
+	GetHistory(ctx context.Context, tableID int) ([]models.SystemTableHistoryItem, error)
 }
 
 type systemTableService struct {
@@ -624,8 +629,6 @@ func (s *systemTableService) Restore(ctx context.Context, id int) error {
 	return nil
 }
 
-
-
 // UpdateFields bulk-обновляет видимость и (опционально) порядок столбцов таблицы.
 // Поля, отсутствующие в БД, игнорируются. DisplayOrder применяется только если задан.
 func (s *systemTableService) UpdateFields(ctx context.Context, tableID int, req models.UpdateFieldsRequest) error {
@@ -1001,4 +1004,52 @@ func (s *systemTableService) fixFactVisibilityFromCatalog(ctx context.Context, t
 		slog.Info("исправил факт-видимость до каталога (#345)", "fixed", fixed)
 	}
 	return nil
+}
+
+// GetHistory возвращает историю изменений системной таблицы (новые сверху).
+// Переходный период #870: запись идёт в audit_log, старые строки — в замороженной
+// system_table_histories. Union объединяет обе таблицы в идентичную форму ответа.
+func (s *systemTableService) GetHistory(ctx context.Context, tableID int) ([]models.SystemTableHistoryItem, error) {
+	const actorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`
+	sql := `
+		SELECT id, action_type, details, user_id, user_name, created_at FROM (
+			SELECT h.id, h.action_type, h.details, h.user_id,
+				` + actorName + ` AS user_name,
+				h.created_at
+			FROM system_table_histories h LEFT JOIN users u ON u.id = h.user_id
+			WHERE h.system_table_id = ?
+			UNION ALL
+			SELECT a.id, a.action AS action_type, a.details, a.actor_user_id AS user_id,
+				` + actorName + ` AS user_name,
+				a.created_at
+			FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
+			WHERE a.entity_type = ? AND a.entity_id = ?
+		) merged
+		ORDER BY created_at DESC, id DESC`
+
+	type row struct {
+		ID         int             `gorm:"column:id"`
+		ActionType string          `gorm:"column:action_type"`
+		Details    json.RawMessage `gorm:"column:details"`
+		UserID     *int            `gorm:"column:user_id"`
+		UserName   string          `gorm:"column:user_name"`
+		CreatedAt  time.Time       `gorm:"column:created_at"`
+	}
+	var rows []row
+	if err := s.db.WithContext(ctx).Raw(sql, tableID, models.AuditEntitySystemTable, tableID).Scan(&rows).Error; err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching system table history")
+	}
+
+	items := make([]models.SystemTableHistoryItem, 0, len(rows))
+	for _, r := range rows {
+		items = append(items, models.SystemTableHistoryItem{
+			ID:         r.ID,
+			ActionType: r.ActionType,
+			Details:    r.Details,
+			UserID:     r.UserID,
+			UserName:   r.UserName,
+			CreatedAt:  r.CreatedAt,
+		})
+	}
+	return items, nil
 }

@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"time"
@@ -34,12 +33,13 @@ type TrashService interface {
 }
 
 type trashService struct {
-	db *gorm.DB
+	db       *gorm.DB
+	recorder AuditRecorder
 }
 
 // NewTrashService создаёт сервис корзины.
-func NewTrashService(db *gorm.DB) TrashService {
-	return &trashService{db: db}
+func NewTrashService(db *gorm.DB, recorder AuditRecorder) TrashService {
+	return &trashService{db: db, recorder: recorder}
 }
 
 // ListCarsTrash возвращает удалённые из этой таблицы машины. Скоуп определяется
@@ -369,37 +369,44 @@ func (s *trashService) ClearEmployeesTrash(ctx context.Context, systemTableID, u
 }
 
 // ListTrashHistory возвращает лог массовых действий с корзиной таблицы.
+// Переходный период #870: union объединяет legacy system_table_trash_histories и audit_log.
 func (s *trashService) ListTrashHistory(ctx context.Context, systemTableID int) ([]models.TrashHistoryItem, error) {
+	const userName = `COALESCE(format_short_name(u.last_name, u.first_name, u.middle_name), '')`
 	sql := `
-		SELECT h.id, h.action_type, h.affected_count, h.details,
-			COALESCE(format_short_name(u.last_name, u.first_name, u.middle_name), '') AS user_name,
-			h.created_at
-		FROM system_table_trash_histories h
-		LEFT JOIN users u ON u.id = h.user_id
-		WHERE h.system_table_id = ?
-		ORDER BY h.created_at DESC`
+		SELECT id, action_type, affected_count, details, user_name, created_at FROM (
+			SELECT h.id, h.action_type, h.affected_count, h.details,
+				` + userName + ` AS user_name,
+				h.created_at
+			FROM system_table_trash_histories h LEFT JOIN users u ON u.id = h.user_id
+			WHERE h.system_table_id = ?
+			UNION ALL
+			SELECT a.id, a.action AS action_type,
+				COALESCE((a.details->>'affected_count')::int, 0) AS affected_count,
+				COALESCE(a.details->'items', '[]'::jsonb) AS details,
+				` + userName + ` AS user_name,
+				a.created_at
+			FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
+			WHERE a.entity_type = ? AND a.entity_id = ?
+		) merged
+		ORDER BY created_at DESC, id DESC`
 	rows := make([]models.TrashHistoryItem, 0)
-	if err := s.db.WithContext(ctx).Raw(sql, systemTableID).Scan(&rows).Error; err != nil {
+	if err := s.db.WithContext(ctx).Raw(sql, systemTableID, models.AuditEntitySystemTableTrash, systemTableID).Scan(&rows).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения истории корзины")
 	}
 	return rows, nil
 }
 
-// logTrashAction пишет запись в лог корзины. Ошибка не прерывает основную операцию.
-func (s *trashService) logTrashAction(ctx context.Context, systemTableID int, action string, count, userID int, details []models.TrashDetail) {
+// logTrashAction пишет запись аудита для корзины. Ошибка не прерывает основную операцию.
+func (s *trashService) logTrashAction(ctx context.Context, systemTableID int, action string, count, userID int, items []models.TrashDetail) {
 	uid := userID
-	rec := models.SystemTableTrashHistory{
-		SystemTableID: systemTableID,
-		ActionType:    action,
+	details := struct {
+		AffectedCount int                  `json:"affected_count"`
+		Items         []models.TrashDetail `json:"items,omitempty"`
+	}{
 		AffectedCount: count,
-		UserID:        &uid,
+		Items:         items,
 	}
-	if len(details) > 0 {
-		if b, err := json.Marshal(details); err == nil {
-			rec.Details = b
-		}
-	}
-	_ = s.db.WithContext(ctx).Create(&rec).Error
+	s.recorder.Log(ctx, nil, models.AuditEntitySystemTableTrash, &systemTableID, action, &uid, details)
 }
 
 // carDetails возвращает [{id,label}] машин для лога корзины (номер + марка).
