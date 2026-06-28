@@ -30,6 +30,7 @@ func (AuditLog) TableName() string { return "audit_log" }
 // сущностей на audit_log (#870).
 const (
 	AuditEntityCitizenship = "citizenship"
+	AuditEntityCompany     = "company"
 )
 
 // AuditLogItem - запись аудита для API с разрезолвленным именем актора
