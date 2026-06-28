@@ -2,9 +2,11 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"systemburo/internal/models"
 
@@ -141,13 +143,13 @@ type MyOrganizationResponse struct {
 // --- Реализация ---
 
 type organizationService struct {
-	db      *gorm.DB
-	history OrganizationHistoryService
+	db       *gorm.DB
+	recorder AuditRecorder
 }
 
 // NewOrganizationService создаёт новый экземпляр сервиса организаций.
 func NewOrganizationService(db *gorm.DB) OrganizationService {
-	return &organizationService{db: db, history: NewOrganizationHistoryService(db)}
+	return &organizationService{db: db, recorder: NewAuditRecorder(db)}
 }
 
 // GetAll возвращает список всех организаций.
@@ -183,7 +185,7 @@ func (s *organizationService) Create(ctx context.Context, callerUserID int, req 
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating organization")
 	}
 	slog.Info("организация создана", "id", org.ID, "name", org.Name)
-	s.history.Log(ctx, org.ID, &callerUserID, models.OrganizationActionCreated, map[string]any{"name": org.Name})
+	s.recorder.Log(ctx, nil, models.AuditEntityOrganization, &org.ID, models.OrganizationActionCreated, &callerUserID, map[string]any{"name": org.Name})
 	return &OrganizationInfoResponse{ID: org.ID, Name: org.Name}, nil
 }
 
@@ -216,7 +218,7 @@ func (s *organizationService) Update(ctx context.Context, callerUserID, id int, 
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error updating organization")
 	}
 	slog.Info("организация обновлена", "id", id, "name", req.Name)
-	s.history.Log(ctx, id, &callerUserID, models.OrganizationActionRenamed, map[string]any{"name": req.Name})
+	s.recorder.Log(ctx, nil, models.AuditEntityOrganization, &id, models.OrganizationActionRenamed, &callerUserID, map[string]any{"name": req.Name})
 	return &OrganizationInfoResponse{ID: id, Name: req.Name}, nil
 }
 
@@ -253,7 +255,7 @@ func (s *organizationService) Delete(ctx context.Context, callerUserID, id int) 
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error archiving organization")
 	}
 	slog.Info("организация архивирована", "id", id)
-	s.history.Log(ctx, id, &callerUserID, models.OrganizationActionArchived, nil)
+	s.recorder.Log(ctx, nil, models.AuditEntityOrganization, &id, models.OrganizationActionArchived, &callerUserID, nil)
 	return nil
 }
 
@@ -286,13 +288,56 @@ func (s *organizationService) Restore(ctx context.Context, callerUserID, id int)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error restoring organization")
 	}
 	slog.Info("организация восстановлена", "id", id)
-	s.history.Log(ctx, id, &callerUserID, models.OrganizationActionRestored, nil)
+	s.recorder.Log(ctx, nil, models.AuditEntityOrganization, &id, models.OrganizationActionRestored, &callerUserID, nil)
 	return nil
 }
 
-// GetHistory возвращает историю изменений организации.
+// GetHistory возвращает историю изменений организации (admin-only, новые сверху).
+// Переходный период #870: запись уже идёт в audit_log, но старые строки лежат в
+// замороженной organization_histories до финального backfill. Чтение объединяет обе
+// таблицы в одинаковую форму ответа (форму стережёт TestOrganizations_History).
+// Действие renamed хранит только {name:new} (без old) - details передаётся как есть.
 func (s *organizationService) GetHistory(ctx context.Context, id int) ([]models.OrganizationHistoryItem, error) {
-	return s.history.GetHistory(ctx, id)
+	const actorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`
+	sql := `
+		SELECT id, action_type, details, actor_user_id, actor_name, created_at FROM (
+			SELECT h.id AS id, h.action_type AS action_type, h.details AS details,
+				h.actor_user_id AS actor_user_id, ` + actorName + ` AS actor_name, h.created_at AS created_at
+			FROM organization_histories h LEFT JOIN users u ON u.id = h.actor_user_id
+			WHERE h.organization_id = ?
+			UNION ALL
+			SELECT a.id AS id, a.action AS action_type, a.details AS details,
+				a.actor_user_id AS actor_user_id, ` + actorName + ` AS actor_name, a.created_at AS created_at
+			FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
+			WHERE a.entity_type = ? AND a.entity_id = ?
+		) merged
+		ORDER BY created_at DESC, id DESC`
+
+	type row struct {
+		ID          int             `gorm:"column:id"`
+		ActionType  string          `gorm:"column:action_type"`
+		Details     json.RawMessage `gorm:"column:details"`
+		ActorUserID *int            `gorm:"column:actor_user_id"`
+		ActorName   string          `gorm:"column:actor_name"`
+		CreatedAt   time.Time       `gorm:"column:created_at"`
+	}
+	var rows []row
+	if err := s.db.WithContext(ctx).Raw(sql, id, models.AuditEntityOrganization, id).Scan(&rows).Error; err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching organization history")
+	}
+
+	items := make([]models.OrganizationHistoryItem, 0, len(rows))
+	for _, r := range rows {
+		items = append(items, models.OrganizationHistoryItem{
+			ID:          r.ID,
+			ActionType:  r.ActionType,
+			Details:     r.Details,
+			ActorUserID: r.ActorUserID,
+			ActorName:   r.ActorName,
+			CreatedAt:   r.CreatedAt,
+		})
+	}
+	return items, nil
 }
 
 // GetWithUsers возвращает организации с количеством привязанных пользователей.
