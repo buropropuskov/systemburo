@@ -197,7 +197,7 @@ func (s *statisticsService) computeHeavySummary(ctx context.Context, from, to ti
 	// после переноса записи (1.12c) въезды из audit_log тоже попадали в счётчик.
 	if err := s.db.WithContext(ctx).
 		Table(carsHistoryUnion + " ch").
-		Where("action_type = 'entry' AND created_at BETWEEN ? AND ?", from, to).
+		Where("ch.action_type = 'entry' AND ch.created_at BETWEEN ? AND ?", from, to).
 		Count(&summary.CarsEntered).Error; err != nil {
 		return nil, fmt.Errorf("statistics: cars_entered: %w", err)
 	}
@@ -444,7 +444,7 @@ type timelineSource struct {
 func resolveTimelineSource(metric, granularity string) (src timelineSource, unit string, err error) {
 	metricMap := map[string]timelineSource{
 		"applications":   {table: "applications", tsColumn: "sending_datetime", filter: ""},
-		"car_entries":    {table: carsHistoryUnion + " ch", tsColumn: "created_at", filter: "action_type='entry'"},
+		"car_entries":    {table: carsHistoryUnion + " ch", tsColumn: "ch.created_at", filter: "ch.action_type='entry'"},
 		"people_entries": {table: "employees_history", tsColumn: "created_at", filter: "action_type='entry'"},
 	}
 	granularityMap := map[string]string{
