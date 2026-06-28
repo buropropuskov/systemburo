@@ -514,7 +514,7 @@ export default {
 
             const missingFields = [];
             if (!this.organization?.trim() && !this.company?.trim()) missingFields.push('организация или компания');
-            if (!this.responsiblePerson) missingFields.push('ответственный');
+            if (!this.responsiblePerson) missingFields.push('инициатор заявки');
             if (!this.phoneNumber) missingFields.push('телефон');
             if (!this.consentGiven) missingFields.push('согласие на обработку данных');
             if (missingFields.length > 0) {
@@ -575,7 +575,7 @@ export default {
             const globalErrors = [];
             if (this.attachments.length === 0) globalErrors.push('Не добавлено ни одного вложения');
             if (!this.organization?.trim() && !this.company?.trim()) globalErrors.push('Не заполнена организация или компания');
-            if (!this.responsiblePerson) globalErrors.push('Не указано ответственное лицо');
+            if (!this.responsiblePerson) globalErrors.push('Не указан инициатор заявки');
             if (!this.phoneNumber) globalErrors.push('Не указан номер телефона');
             if (!this.consentGiven) globalErrors.push('Не дано согласие на обработку данных');
 

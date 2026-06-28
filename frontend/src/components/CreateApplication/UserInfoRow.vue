@@ -36,7 +36,7 @@
       </div>
     </div>
     <div class="user__input">
-      <label class="input__label">Ответственное лицо <span class="required">*</span></label>
+      <label class="input__label">Инициатор заявки <span class="required">*</span></label>
       <input
         class="input"
         placeholder="Введите ФИО"
@@ -57,6 +57,7 @@
       <input
         class="input"
         placeholder="Номер телефона"
+        maxlength="18"
         :value="phoneNumber"
         :class="{ 'input--error': errors.phone }"
         @input="handlePhoneInput($event)"
@@ -74,6 +75,8 @@
 </template>
 
 <script>
+import { formatPhoneNumberImmediately } from '@/composables/usePhoneFormat'
+
 export default {
     name: 'UserInfoRow',
     props: {
@@ -94,7 +97,13 @@ export default {
     ],
     methods: {
         handlePhoneInput(event) {
-            this.$emit('update:phone-number', event.target.value);
+            // Живое форматирование: не больше 11 цифр, маска +7 (XXX) XXX-XX-XX.
+            const digits = event.target.value.replace(/\D/g, '').slice(0, 11);
+            const { formatted } = formatPhoneNumberImmediately(digits);
+            const value = formatted || digits;
+            // Поле на one-way :value, поэтому синхронизируем отображение сразу.
+            event.target.value = value;
+            this.$emit('update:phone-number', value);
             this.$emit('validate-field', 'phone');
         }
     }
