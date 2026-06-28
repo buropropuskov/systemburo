@@ -3,10 +3,10 @@ package handlers
 import (
 	"errors"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 
+	"systemburo/internal/download"
 	"systemburo/internal/services"
 
 	"github.com/labstack/echo/v4"
@@ -81,16 +81,11 @@ func (h *GuideHandler) Download(c echo.Context) error {
 	}
 
 	path := filepath.Join(h.fileSvc.UploadDir(), sec.StoredName)
-	if _, statErr := os.Stat(path); statErr != nil {
-		return echo.NewHTTPError(http.StatusNotFound, "guide file not available")
-	}
-
 	name := sec.FileName
 	if name == "" {
 		name = "guide.pdf"
 	}
-	c.Response().Header().Set("Content-Disposition", `attachment; filename="`+sanitizeHeader(name)+`"`)
-	return c.File(path)
+	return download.Serve(c, download.File{Path: path, Name: name})
 }
 
 // AdminListSections godoc

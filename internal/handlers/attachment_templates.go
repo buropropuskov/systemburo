@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"systemburo/internal/download"
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
@@ -104,7 +105,7 @@ func (h *AttachmentTemplateHandler) DownloadFileByID(c echo.Context) error {
 	if t.FilePath == "" {
 		return echo.NewHTTPError(http.StatusNotFound, "Файл шаблона не загружен")
 	}
-	return c.File(t.FilePath)
+	return download.Serve(c, download.File{Path: t.FilePath})
 }
 
 // Upload godoc
@@ -216,7 +217,7 @@ func (h *AttachmentTemplateHandler) DownloadFile(c echo.Context) error {
 	if t.FilePath == "" {
 		return echo.NewHTTPError(http.StatusNotFound, "Файл шаблона не загружен")
 	}
-	return c.File(t.FilePath)
+	return download.Serve(c, download.File{Path: t.FilePath})
 }
 
 // GetFields godoc
