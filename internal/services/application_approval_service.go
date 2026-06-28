@@ -12,11 +12,12 @@ import (
 )
 
 // ForwardApplication пересылает заявку указанным ответственным и просматривающим.
+//
+// Пересылка разрешена и для архивных заявок (#869): это маршрутизация (аддитивно
+// добавляет получателей), а не изменение статуса. Read-only архива оставлен только
+// на статус-меняющих действиях (взять в работу, согласование) - они зовут
+// checkNotArchived сами.
 func (s *applicationService) ForwardApplication(ctx context.Context, username string, applicationID int, req ForwardApplicationRequest) error {
-	if err := s.checkNotArchived(ctx, applicationID); err != nil {
-		return err
-	}
-
 	var user struct {
 		ID         int
 		LastName   *string
