@@ -458,6 +458,15 @@ func (s *applicationService) CanAccessApplication(ctx context.Context, applicati
 		return false
 	}
 
+	// Принимающий (глобальный оператор бюро, admin-раздел "Принимающие") видит и
+	// открывает ВСЕ заявки - как и список центра (applyApplicationAccessFilter
+	// пускает isApprover без фильтра). Без этой ветки принимающий видел заявку в
+	// списке, но детальные эндпоинты (/details,/attachments,/viewers,/history)
+	// отдавали 403: security-аудит добавил гейт деталей без ветки принимающего.
+	if isApprover, _ := s.isApprover(ctx, user.ID); isApprover {
+		return true
+	}
+
 	var app models.Application
 	if err := s.db.WithContext(ctx).Select("id, sender_user_id").Where("id = ?", applicationID).First(&app).Error; err != nil {
 		return false
