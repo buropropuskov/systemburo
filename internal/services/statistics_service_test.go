@@ -15,7 +15,8 @@ func TestResolveTimelineSource_ValidInputs(t *testing.T) {
 		{"applications", "day", "applications", "sending_datetime", "day"},
 		{"applications", "week", "applications", "sending_datetime", "week"},
 		{"applications", "month", "applications", "sending_datetime", "month"},
-		{"car_entries", "day", "cars_history", "created_at", "day"},
+		// car_entries читает union cars_history + audit_log[car] (#870, срез 1.12b).
+		{"car_entries", "day", carsHistoryUnion + " ch", "created_at", "day"},
 		{"people_entries", "week", "employees_history", "created_at", "week"},
 	}
 
