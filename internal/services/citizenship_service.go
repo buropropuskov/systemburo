@@ -2,9 +2,11 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"systemburo/internal/models"
 
@@ -25,13 +27,13 @@ type CitizenshipService interface {
 }
 
 type citizenshipService struct {
-	db      *gorm.DB
-	history CitizenshipHistoryService
+	db       *gorm.DB
+	recorder AuditRecorder
 }
 
 // NewCitizenshipService создаёт реализацию CitizenshipService.
 func NewCitizenshipService(db *gorm.DB) CitizenshipService {
-	return &citizenshipService{db: db, history: NewCitizenshipHistoryService(db)}
+	return &citizenshipService{db: db, recorder: NewAuditRecorder(db)}
 }
 
 // GetAll возвращает список гражданств.
@@ -83,7 +85,7 @@ func (s *citizenshipService) Create(ctx context.Context, userID int, req models.
 	}
 
 	slog.Info("гражданство создано", "id", citizenship.ID)
-	s.history.Log(ctx, citizenship.ID, &userID, models.CitizenshipActionCreated, map[string]any{"name": req.Name})
+	s.recorder.Log(ctx, nil, models.AuditEntityCitizenship, &citizenship.ID, models.CitizenshipActionCreated, &userID, map[string]any{"name": req.Name})
 	return citizenship.ID, nil
 }
 
@@ -135,7 +137,7 @@ func (s *citizenshipService) Update(ctx context.Context, userID, id int, req mod
 
 	// Логируем только если что-то реально изменилось - иначе спам "Изменены данные".
 	if len(details) > 0 {
-		s.history.Log(ctx, id, &userID, models.CitizenshipActionUpdated, details)
+		s.recorder.Log(ctx, nil, models.AuditEntityCitizenship, &id, models.CitizenshipActionUpdated, &userID, details)
 	}
 	return nil
 }
@@ -163,7 +165,7 @@ func (s *citizenshipService) Delete(ctx context.Context, userID, id int) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error archiving citizenship")
 	}
 	slog.Info("гражданство архивировано", "id", id)
-	s.history.Log(ctx, id, &userID, models.CitizenshipActionArchived, nil)
+	s.recorder.Log(ctx, nil, models.AuditEntityCitizenship, &id, models.CitizenshipActionArchived, &userID, nil)
 	return nil
 }
 
@@ -185,13 +187,55 @@ func (s *citizenshipService) Restore(ctx context.Context, userID, id int) error 
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error restoring citizenship")
 	}
 	slog.Info("гражданство восстановлено", "id", id)
-	s.history.Log(ctx, id, &userID, models.CitizenshipActionRestored, nil)
+	s.recorder.Log(ctx, nil, models.AuditEntityCitizenship, &id, models.CitizenshipActionRestored, &userID, nil)
 	return nil
 }
 
 // GetHistory возвращает историю изменений гражданства (новые сверху).
+// Переходный период #870: запись уже идёт в audit_log, но старые строки лежат в
+// замороженной citizenship_histories до финального backfill. Чтение объединяет обе
+// таблицы в одинаковую форму ответа (форму стережёт TestCitizenships_History).
 func (s *citizenshipService) GetHistory(ctx context.Context, id int) ([]models.CitizenshipHistoryItem, error) {
-	return s.history.GetHistory(ctx, id)
+	const actorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`
+	sql := `
+		SELECT id, action_type, details, actor_user_id, actor_name, created_at FROM (
+			SELECT h.id AS id, h.action_type AS action_type, h.details AS details,
+				h.actor_user_id AS actor_user_id, ` + actorName + ` AS actor_name, h.created_at AS created_at
+			FROM citizenship_histories h LEFT JOIN users u ON u.id = h.actor_user_id
+			WHERE h.citizenship_id = ?
+			UNION ALL
+			SELECT a.id AS id, a.action AS action_type, a.details AS details,
+				a.actor_user_id AS actor_user_id, ` + actorName + ` AS actor_name, a.created_at AS created_at
+			FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
+			WHERE a.entity_type = ? AND a.entity_id = ?
+		) merged
+		ORDER BY created_at DESC, id DESC`
+
+	type row struct {
+		ID          int             `gorm:"column:id"`
+		ActionType  string          `gorm:"column:action_type"`
+		Details     json.RawMessage `gorm:"column:details"`
+		ActorUserID *int            `gorm:"column:actor_user_id"`
+		ActorName   string          `gorm:"column:actor_name"`
+		CreatedAt   time.Time       `gorm:"column:created_at"`
+	}
+	var rows []row
+	if err := s.db.WithContext(ctx).Raw(sql, id, models.AuditEntityCitizenship, id).Scan(&rows).Error; err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching citizenship history")
+	}
+
+	items := make([]models.CitizenshipHistoryItem, 0, len(rows))
+	for _, r := range rows {
+		items = append(items, models.CitizenshipHistoryItem{
+			ID:          r.ID,
+			ActionType:  r.ActionType,
+			Details:     r.Details,
+			ActorUserID: r.ActorUserID,
+			ActorName:   r.ActorName,
+			CreatedAt:   r.CreatedAt,
+		})
+	}
+	return items, nil
 }
 
 // ClearDefaults сбрасывает флаг «по умолчанию» у всех гражданств.

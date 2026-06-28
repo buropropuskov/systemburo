@@ -26,6 +26,12 @@ type AuditLog struct {
 // TableName задаёт имя таблицы явно (singular per #870), без gorm-плюрализации.
 func (AuditLog) TableName() string { return "audit_log" }
 
+// AuditEntity* - значения AuditLog.EntityType. Добавляются по мере переноса
+// сущностей на audit_log (#870).
+const (
+	AuditEntityCitizenship = "citizenship"
+)
+
 // AuditLogItem - запись аудита для API с разрезолвленным именем актора
 // (LEFT JOIN users). Унифицирует поле актора: старые модели отдавали то actor_name,
 // то user_name - generic-ответ всегда actor_name.
