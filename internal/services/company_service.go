@@ -2,9 +2,11 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"systemburo/internal/models"
 
@@ -135,13 +137,13 @@ type CompanyUserResponse struct {
 // --- Реализация ---
 
 type companyService struct {
-	db      *gorm.DB
-	history CompanyHistoryService
+	db       *gorm.DB
+	recorder AuditRecorder
 }
 
 // NewCompanyService создаёт экземпляр сервиса компаний.
 func NewCompanyService(db *gorm.DB) CompanyService {
-	return &companyService{db: db, history: NewCompanyHistoryService(db)}
+	return &companyService{db: db, recorder: NewAuditRecorder(db)}
 }
 
 // GetAll возвращает список всех компаний.
@@ -242,7 +244,7 @@ func (s *companyService) Create(ctx context.Context, callerUserID int, req Creat
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating company")
 	}
 	slog.Info("компания создана", "id", company.ID, "name", company.Name)
-	s.history.Log(ctx, company.ID, &callerUserID, models.CompanyActionCreated, map[string]any{"name": company.Name})
+	s.recorder.Log(ctx, nil, models.AuditEntityCompany, &company.ID, models.CompanyActionCreated, &callerUserID, map[string]any{"name": company.Name})
 	return &company, nil
 }
 
@@ -274,7 +276,7 @@ func (s *companyService) Update(ctx context.Context, callerUserID, companyID int
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error updating company")
 	}
 	slog.Info("компания обновлена", "id", companyID, "name", company.Name)
-	s.history.Log(ctx, companyID, &callerUserID, models.CompanyActionRenamed, map[string]any{"name": company.Name})
+	s.recorder.Log(ctx, nil, models.AuditEntityCompany, &companyID, models.CompanyActionRenamed, &callerUserID, map[string]any{"name": company.Name})
 	return &company, nil
 }
 
@@ -308,7 +310,7 @@ func (s *companyService) Delete(ctx context.Context, callerUserID, companyID int
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error archiving company")
 	}
 	slog.Info("компания архивирована", "id", companyID)
-	s.history.Log(ctx, companyID, &callerUserID, models.CompanyActionArchived, nil)
+	s.recorder.Log(ctx, nil, models.AuditEntityCompany, &companyID, models.CompanyActionArchived, &callerUserID, nil)
 	return nil
 }
 
@@ -341,13 +343,56 @@ func (s *companyService) Restore(ctx context.Context, callerUserID, companyID in
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error restoring company")
 	}
 	slog.Info("компания восстановлена", "id", companyID)
-	s.history.Log(ctx, companyID, &callerUserID, models.CompanyActionRestored, nil)
+	s.recorder.Log(ctx, nil, models.AuditEntityCompany, &companyID, models.CompanyActionRestored, &callerUserID, nil)
 	return nil
 }
 
-// GetHistory возвращает историю изменений компании (admin-only).
+// GetHistory возвращает историю изменений компании (admin-only, новые сверху).
+// Переходный период #870: запись уже идёт в audit_log, но старые строки лежат в
+// замороженной company_histories до финального backfill. Чтение объединяет обе
+// таблицы в одинаковую форму ответа (форму стережёт TestCompanies_History).
+// Действие renamed хранит только {name:new} (без old) - details передаётся как есть.
 func (s *companyService) GetHistory(ctx context.Context, companyID int) ([]models.CompanyHistoryItem, error) {
-	return s.history.GetHistory(ctx, companyID)
+	const actorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`
+	sql := `
+		SELECT id, action_type, details, actor_user_id, actor_name, created_at FROM (
+			SELECT h.id AS id, h.action_type AS action_type, h.details AS details,
+				h.actor_user_id AS actor_user_id, ` + actorName + ` AS actor_name, h.created_at AS created_at
+			FROM company_histories h LEFT JOIN users u ON u.id = h.actor_user_id
+			WHERE h.company_id = ?
+			UNION ALL
+			SELECT a.id AS id, a.action AS action_type, a.details AS details,
+				a.actor_user_id AS actor_user_id, ` + actorName + ` AS actor_name, a.created_at AS created_at
+			FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
+			WHERE a.entity_type = ? AND a.entity_id = ?
+		) merged
+		ORDER BY created_at DESC, id DESC`
+
+	type row struct {
+		ID          int             `gorm:"column:id"`
+		ActionType  string          `gorm:"column:action_type"`
+		Details     json.RawMessage `gorm:"column:details"`
+		ActorUserID *int            `gorm:"column:actor_user_id"`
+		ActorName   string          `gorm:"column:actor_name"`
+		CreatedAt   time.Time       `gorm:"column:created_at"`
+	}
+	var rows []row
+	if err := s.db.WithContext(ctx).Raw(sql, companyID, models.AuditEntityCompany, companyID).Scan(&rows).Error; err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching company history")
+	}
+
+	items := make([]models.CompanyHistoryItem, 0, len(rows))
+	for _, r := range rows {
+		items = append(items, models.CompanyHistoryItem{
+			ID:          r.ID,
+			ActionType:  r.ActionType,
+			Details:     r.Details,
+			ActorUserID: r.ActorUserID,
+			ActorName:   r.ActorName,
+			CreatedAt:   r.CreatedAt,
+		})
+	}
+	return items, nil
 }
 
 // GetUsers возвращает ответственных пользователей компании.
