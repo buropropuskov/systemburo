@@ -18,7 +18,10 @@ const CATALOG = [
   { key: 'action.grant.admin', display_name: 'Выдача прав администратора', category: 'Администрирование', super_only: true },
 ];
 
-const ROLES = [{ id: 1, name: 'Пользователь', code: 'user' }, { id: 2, name: 'Охранник', code: 'guard' }];
+const ROLES = [
+  { id: 1, name: 'Пользователь', code: 'user', direct_grants: ['page.center'], default_groups: [] },
+  { id: 2, name: 'Охранник', code: 'guard', direct_grants: [], default_groups: [] },
+];
 const GROUPS = [
   { id: 5, name: 'Аналитика', keys: ['page.statistics'] },
   { id: 6, name: 'Все таблицы', keys: [] },
@@ -111,6 +114,17 @@ describe('UserAccessModal (#187 Фаза 3, две колонки)', () => {
     expect(wrapper.vm.stateByKey['page.cars']).toMatchObject({ on: false, source: null });
     // super-only заблокировано для не-супера.
     expect(wrapper.vm.stateByKey['action.grant.admin'].locked).toBe(true);
+  });
+
+  it('смена роли сразу пересчитывает наследованные тумблеры (#867 UX)', async () => {
+    const wrapper = await mountModal();
+    // Роль 1 (Пользователь) грантит page.center -> тумблер включён.
+    expect(wrapper.vm.stateByKey['page.center']).toMatchObject({ on: true, source: 'role' });
+    // Меняем роль на 2 (Охранник, без грантов) через дропдаун - тумблер обновляется
+    // сразу, без переоткрытия (как в браузере: v-model -> watch -> recomputeInherited).
+    wrapper.findComponent('[data-testid="role-select"]').vm.$emit('update:model-value', 2);
+    await flushPromises();
+    expect(wrapper.vm.stateByKey['page.center']).toMatchObject({ on: false, source: null });
   });
 
   it('включение флага Администратор делает все не-super права on и сохраняется через setUserAdmin', async () => {

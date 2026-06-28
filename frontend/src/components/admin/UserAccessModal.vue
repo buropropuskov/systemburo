@@ -338,6 +338,20 @@ export default {
       return result;
     },
   },
+  watch: {
+    // Дерево тумблеров отражает наследованные права (роль + её default-группы +
+    // назначенные группы). Пересчитываем сразу при смене роли/групп, чтобы не
+    // требовалось переоткрывать модалку (#867 UX).
+    'form.role_id'() {
+      this.recomputeInherited();
+    },
+    selectedGroupIds() {
+      this.recomputeInherited();
+    },
+    roles() {
+      this.recomputeInherited();
+    },
+  },
   created() {
     this.overlay.close = () => this.close();
   },
@@ -356,6 +370,36 @@ export default {
       if (this.leaving) return;
       this.leaving = true;
       setTimeout(() => this.$emit('close'), 250);
+    },
+    // Наследованные allow/source = гранты выбранной роли (direct + её default-группы)
+    // + ключи назначенных групп. Зовётся из load() и watch'ей роли/групп.
+    recomputeInherited() {
+      const allow = new Set();
+      const source = {};
+      const role = this.roles.find((r) => r.id === this.form.role_id) || null;
+      if (role) {
+        for (const g of role.default_groups || []) {
+          for (const k of g.keys || []) {
+            allow.add(k);
+            source[k] = 'group';
+          }
+        }
+        for (const k of role.direct_grants || []) {
+          allow.add(k);
+          source[k] = 'role';
+        }
+      }
+      for (const gid of this.selectedGroupIds) {
+        const g = this.groups.find((x) => x.id === gid);
+        if (g) {
+          for (const k of g.keys || []) {
+            allow.add(k);
+            source[k] = 'group';
+          }
+        }
+      }
+      this.inheritedAllow = allow;
+      this.inheritedSource = source;
     },
     async load() {
       if (!this.user) return;
@@ -382,16 +426,8 @@ export default {
         this.initialIsAdmin = this.effective.mode === 'admin' || !!this.user.is_admin;
         this.localIsAdmin = this.initialIsAdmin;
 
-        const inh = new Set();
-        const src = {};
-        for (const p of this.effective.permissions || []) {
-          if (p.source === 'role' || p.source === 'group') {
-            inh.add(p.key);
-            src[p.key] = p.source;
-          }
-        }
-        this.inheritedAllow = inh;
-        this.inheritedSource = src;
+        // inheritedAllow/inheritedSource теперь computed (от выбранной роли/групп) -
+        // снимок из effective тут больше не нужен, иначе он бы "замораживал" дерево.
 
         const ov = {};
         if (Array.isArray(overrides)) {
@@ -399,6 +435,8 @@ export default {
         }
         this.overrideInit = { ...ov };
         this.overrideMap = { ...ov };
+
+        this.recomputeInherited();
 
         this.banReasonInput = this.banReasonCurrent;
       } catch (e) {
