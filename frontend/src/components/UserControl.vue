@@ -314,7 +314,7 @@
               <label class="detail-label">Организация:</label>
               <BaseDropdown
                 :model-value="selectedUser.organization_id"
-                :options="organizations"
+                :options="orgOptionsWithNone"
                 label-key="name"
                 value-key="id"
                 placeholder="Не выбрано"
@@ -373,7 +373,7 @@
               <label class="detail-label">Компания:</label>
               <BaseDropdown
                 :model-value="selectedUser.company_id"
-                :options="companies"
+                :options="companyOptionsWithNone"
                 label-key="name"
                 value-key="id"
                 placeholder="Не выбрано"
@@ -490,7 +490,7 @@
     <BaseModal
       :show="showCreateModal"
       title="Создание пользователя"
-      width="740px"
+      width="600px"
       content-class="user-create-modal"
       @close="closeCreateModal"
     >
@@ -1857,12 +1857,17 @@ export default {
 
 .modal-input {
   width: 100%;
-  padding: 10px 12px;
+  padding: 8px 12px;
   border: 1px solid #e0e0e0;
   border-radius: 15px;
   font-size: 14px;
   transition: border-color 0.2s ease;
   background: #fff;
+}
+
+/* Модалка создания пользователя: чуть уже (width prop 600) и скруглённее. */
+:deep(.user-create-modal) {
+  border-radius: 30px;
 }
 
 .modal-input:focus {
