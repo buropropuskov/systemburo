@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"time"
 
 	"systemburo/internal/models"
 
@@ -70,13 +71,17 @@ func (s *permissionService) GetUserPermissions(ctx context.Context, userID int) 
 func (s *permissionService) getUserPermissionsList(ctx context.Context, userID int) ([]models.UserPermissionResponse, error) {
 	var results []models.UserPermissionResponse
 
+	// Читаем из user_permission_overrides (источник точечных прав). LEFT JOIN, а
+	// не INNER: каталожные ключи (page.*, tab.*) - Go-константы, их нет строкой в
+	// permissions, и INNER JOIN их выбрасывал -> тумблер слетал после F5 (#867).
+	// Ключ берём из up.permission_key, чтобы он был и для каталожных.
 	err := s.db.WithContext(ctx).
-		Table("user_permissions up").
-		Select("p.key, p.category, p.display_name, up.value, u.username as granted_by_name").
-		Joins("JOIN permissions p ON p.key = up.permission_key").
+		Table("user_permission_overrides up").
+		Select("up.permission_key as key, p.category, p.display_name, up.value, u.username as granted_by_name").
+		Joins("LEFT JOIN permissions p ON p.key = up.permission_key").
 		Joins("LEFT JOIN users u ON u.id = up.granted_by").
 		Where("up.user_id = ?", userID).
-		Order("p.category, p.key").
+		Order("up.permission_key").
 		Scan(&results).Error
 	if err != nil {
 		slog.Error("не удалось получить разрешения пользователя", "user_id", userID, "error", err)
@@ -131,23 +136,28 @@ func (s *permissionService) UpdateUserPermissions(ctx context.Context, isSuperAd
 
 	adminID := actorID
 
+	now := time.Now()
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		for _, p := range req.Permissions {
-			up := models.UserPermission{
+			// Точечные права пишем в user_permission_overrides - именно их читает
+			// резолвер (computeSet). Раньше писали в legacy user_permissions, которую
+			// резолвер не смотрит, поэтому выдача прав не имела эффекта (#867).
+			ov := models.UserPermissionOverride{
 				UserID:        userID,
 				PermissionKey: p.Key,
 				Value:         p.Value,
+				GrantedAt:     now,
 			}
 			if adminID > 0 {
-				up.GrantedBy = &adminID
+				ov.GrantedBy = &adminID
 			}
 
 			// Upsert: update value if exists, create if not
 			result := tx.Where("user_id = ? AND permission_key = ?", userID, p.Key).
-				Assign(models.UserPermission{Value: p.Value, GrantedBy: up.GrantedBy}).
-				FirstOrCreate(&up)
+				Assign(models.UserPermissionOverride{Value: p.Value, GrantedBy: ov.GrantedBy, GrantedAt: now}).
+				FirstOrCreate(&ov)
 			if result.Error != nil {
-				slog.Error("не удалось обновить разрешение", "user_id", userID, "key", p.Key, "error", result.Error)
+				slog.Error("не удалось обновить override прав", "user_id", userID, "key", p.Key, "error", result.Error)
 				return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка обновления разрешений")
 			}
 		}
