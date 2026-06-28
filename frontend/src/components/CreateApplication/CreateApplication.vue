@@ -1,10 +1,17 @@
 <template>
   <div class="create">
     <div class="create__header">
-      <div class="create__title">
-        <h3>Оформление и подача заявки</h3>
+      <div class="create__header-top">
+        <div class="create__title">
+          <h3>Оформление и подача заявки</h3>
+        </div>
+        <h4>{{ currentFormTitle }}</h4>
       </div>
-      <h4>{{ currentFormTitle }}</h4>
+      <ApplicationRecipientsRow
+        :approvers="defaultApprovers"
+        :readers="readers"
+        @update:readers="readers = $event"
+      />
     </div>
 
     <div class="create__container">
@@ -326,6 +333,7 @@ import UniversalBindingModal from './UniversalBindingModal.vue';
 import ApplicationSuccessModal from './ApplicationSuccessModal.vue';
 import CustomFieldsSection from './CustomFieldsSection.vue';
 import TextConstructor from '@/components/TextConstructor.vue';
+import ApplicationRecipientsRow from './ApplicationRecipientsRow.vue';
 
 export default {
     name: 'CreateApplication',
@@ -342,7 +350,8 @@ export default {
         UniversalBindingModal,
         ApplicationSuccessModal,
         CustomFieldsSection,
-        TextConstructor
+        TextConstructor,
+        ApplicationRecipientsRow
     },
     data() {
         return {
@@ -364,7 +373,12 @@ export default {
 
             organizationId: null,
             companyId: null,
-            
+
+            // Получатели заявки (#884): дефолтные согласующие орг/компании (показ,
+            // удалить нельзя) и добавленные читатели (read-only доступ, уходят в payload.readers).
+            defaultApprovers: [],
+            readers: [],
+
             selectedAttachment: null,
             attachments: [],
 
@@ -1022,7 +1036,9 @@ export default {
                     
                     this.hasOrganization = !!this.organizationId;
                     this.hasCompany = !!this.companyId;
-                    
+
+                    this.loadDefaultApprovers();
+
                     const lastName = userData.last_name || '';
                     const firstName = userData.first_name || '';
                     const middleName = userData.middle_name || '';
@@ -1041,6 +1057,37 @@ export default {
             } catch (error) {
                 console.error("Ошибка:", error);
             }
+        },
+
+        /**
+         * Дефолтные согласующие заявки (#884) - ответственные орг/компании с
+         * required_approval. Показываются как неудаляемые чипы-получатели; бэк и так
+         * добавляет их в ответственные при подаче, тут только отображение.
+         */
+        async loadDefaultApprovers() {
+            const byId = new Map();
+            const collect = async (url) => {
+                try {
+                    const r = await apiRequest(url, {});
+                    if (!r.ok) return;
+                    const users = await r.json();
+                    (users || []).forEach(u => {
+                        if (u.required_approval && !byId.has(u.id)) {
+                            byId.set(u.id, { user_id: u.id, name: this.userDisplayName(u) });
+                        }
+                    });
+                } catch (error) {
+                    console.error('Ошибка загрузки согласующих:', error);
+                }
+            };
+            if (this.organizationId) await collect(`/organizations/${this.organizationId}/users`);
+            if (this.companyId) await collect(`/companies/${this.companyId}/users`);
+            this.defaultApprovers = Array.from(byId.values());
+        },
+
+        userDisplayName(u) {
+            const names = [u.last_name, u.first_name, u.middle_name].filter(Boolean);
+            return names.length ? names.join(' ') : (u.username || '');
         },
 
         handleFormatPhoneNumber() {
@@ -1815,6 +1862,7 @@ export default {
             }
             this.selectedAttachment = null;
             this.attachments = [];
+            this.readers = [];
 
             this.clearLocalStorageAfterSubmit();
         },
@@ -1832,6 +1880,8 @@ export default {
                 responsible_person: this.responsiblePerson,
                 contact_phone: this.phoneNumber.replace(/\D/g, ''),
                 data_approval: this.consentGiven,
+                // Читатели-получатели (#884): только просмотр заявки после подачи.
+                readers: this.readers.map(r => r.user_id),
                 attachments: []
             };
 
@@ -2114,6 +2164,7 @@ export default {
             }
             this.selectedAttachment = null;
             this.attachments = [];
+            this.readers = [];
 
             this.clearLocalStorageAfterSubmit();
         },
@@ -2130,6 +2181,7 @@ export default {
                     phoneNumber: this.phoneNumber,
                     rawPhoneNumber: this.rawPhoneNumber,
                     consentGiven: this.consentGiven,
+                    readers: this.readers,
 
                     // attachments - источник истины для UI. Без них vehiclesByAttachment
                     // остаётся сиротским (ключи без самих attachment-записей) - BlankSelector
@@ -2172,6 +2224,7 @@ export default {
                     this.phoneNumber = parsedData.phoneNumber || '';
                     this.rawPhoneNumber = parsedData.rawPhoneNumber || '';
                     this.consentGiven = parsedData.consentGiven || false;
+                    this.readers = parsedData.readers || [];
 
                     this.attachments = parsedData.attachments || [];
 
@@ -2295,9 +2348,16 @@ export default {
 
     .create__header {
         display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+        padding-bottom: 15px;
+    }
+
+    .create__header-top {
+        display: flex;
         align-items: center;
         justify-content: space-between;
-        padding-bottom: 15px;
     }
 
     .create__container {

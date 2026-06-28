@@ -118,6 +118,65 @@ func submitCompleteApplication(t *testing.T, e *echo.Echo, token string, orgName
 	return resp.ApplicationID
 }
 
+// TestSubmitCompleteApplication_AddsReaders: получатели-читатели (#884) кладутся в
+// application_viewers и получают view-доступ к заявке, не становясь согласующими.
+func TestSubmitCompleteApplication_AddsReaders(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	senderToken := testutil.RegisterAndLogin(t, e, "rsender", "pass123", 1, td.OrgID, td.CompanyID)
+	readerToken := testutil.RegisterAndLogin(t, e, "rreader", "pass123", 1, td.OrgID, td.CompanyID)
+	readerID := getUserID(t, db, "rreader")
+	uaID := seedUniqueAttachment(t, db, "cars", "cars_rd", "Cars RD")
+
+	body := fmt.Sprintf(`{
+		"message": "app with readers",
+		"organization": "Test Organization",
+		"responsible_person": "Test Person",
+		"contact_phone": "+79001234567",
+		"data_approval": true,
+		"readers": [%d],
+		"attachments": [{
+			"attachment_type": "cars",
+			"attachment_name": "cars_template",
+			"attachment_display_name": "Cars Template",
+			"unique_attachment_id": %d,
+			"entry_date_from": "2026-04-01",
+			"entry_date_to": "2099-12-31",
+			"entry_time_from": "08:00",
+			"entry_time_to": "18:00",
+			"data": { "vehicles": [{ "car_number": "A001AA777", "car_brand": "Toyota" }] }
+		}]
+	}`, readerID, uaID)
+
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(senderToken))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	appID := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec).ApplicationID
+
+	// Читатель попал в список viewers заявки.
+	vrec := testutil.GET(t, e, fmt.Sprintf("/applications/%d/viewers", appID), testutil.AuthHeader(senderToken))
+	require.Equal(t, http.StatusOK, vrec.Code, vrec.Body.String())
+	viewers := testutil.ParseResponse[[]services.ViewerWithUser](t, vrec)
+	foundViewer := false
+	for _, v := range viewers {
+		if v.UserID == readerID {
+			foundViewer = true
+		}
+	}
+	assert.True(t, foundViewer, "читатель должен попасть в application_viewers")
+
+	// Читатель получил view-доступ к заявке (раньше 403 - не свой/не ответственный).
+	arec := testutil.GET(t, e, fmt.Sprintf("/applications/%d", appID), testutil.AuthHeader(readerToken))
+	assert.Equal(t, http.StatusOK, arec.Code, "читатель должен видеть заявку")
+
+	// Но в согласующих его нет (только просмотр).
+	var respCount int64
+	db.Raw("SELECT COUNT(*) FROM application_responsible_users WHERE application_id = ? AND user_id = ?", appID, readerID).Scan(&respCount)
+	assert.Zero(t, respCount, "читатель не должен попадать в ответственных/согласующих")
+}
+
 // --- 401 Unauthorized tests ---
 
 func TestApplications_Unauthorized(t *testing.T) {
