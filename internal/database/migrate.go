@@ -17,6 +17,7 @@ import (
 func AllModels() []interface{} {
 	return []interface{}{
 		// Core (no FK dependencies)
+		&models.AuditLog{},
 		&models.SystemSetting{},
 		&models.UserType{},
 		&models.UserTypeHistory{},
