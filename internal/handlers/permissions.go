@@ -105,6 +105,8 @@ func (h *PermissionHandler) UpdateUserPermissions(c echo.Context) error {
 	if err := h.service.UpdateUserPermissions(c.Request().Context(), IsSuperAdmin(c), GetUserID(c), userID, req); err != nil {
 		return err
 	}
+	// Сбрасываем кэш резолвера (TTL 30s), чтобы выданные права применились сразу.
+	h.resolver.Invalidate(userID)
 	return RespondMessage(c, "ok")
 }
 
