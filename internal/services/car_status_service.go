@@ -30,7 +30,7 @@ func (s *carService) GetCarsCurrentStatus(ctx context.Context) ([]CarCurrentStat
 			c.territory_entry_time,
 			(
 				SELECT created_at
-				FROM cars_history
+				FROM ` + carsHistoryUnion + ` ch
 				WHERE car_id = c.id AND action_type = 'exit'
 				ORDER BY created_at DESC
 				LIMIT 1
