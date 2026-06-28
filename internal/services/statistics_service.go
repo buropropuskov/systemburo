@@ -193,10 +193,11 @@ func (s *statisticsService) computeHeavySummary(ctx context.Context, from, to ti
 		return nil, fmt.Errorf("statistics: in_work: %w", err)
 	}
 
-	// cars_entered
+	// cars_entered: union cars_history + audit_log[car] (#870, срез 1.12b), чтобы
+	// после переноса записи (1.12c) въезды из audit_log тоже попадали в счётчик.
 	if err := s.db.WithContext(ctx).
-		Table("cars_history").
-		Where("action_type = 'entry' AND created_at BETWEEN ? AND ?", from, to).
+		Table(carsHistoryUnion + " ch").
+		Where("ch.action_type = 'entry' AND ch.created_at BETWEEN ? AND ?", from, to).
 		Count(&summary.CarsEntered).Error; err != nil {
 		return nil, fmt.Errorf("statistics: cars_entered: %w", err)
 	}
@@ -443,7 +444,7 @@ type timelineSource struct {
 func resolveTimelineSource(metric, granularity string) (src timelineSource, unit string, err error) {
 	metricMap := map[string]timelineSource{
 		"applications":   {table: "applications", tsColumn: "sending_datetime", filter: ""},
-		"car_entries":    {table: "cars_history", tsColumn: "created_at", filter: "action_type='entry'"},
+		"car_entries":    {table: carsHistoryUnion + " ch", tsColumn: "ch.created_at", filter: "ch.action_type='entry'"},
 		"people_entries": {table: "employees_history", tsColumn: "created_at", filter: "action_type='entry'"},
 	}
 	granularityMap := map[string]string{
@@ -538,7 +539,7 @@ func (s *statisticsService) GetRecentPassages(ctx context.Context, limit int) (*
 	}
 
 	if err := s.db.WithContext(ctx).
-		Table("cars_history ch").
+		Table(carsHistoryUnion + " ch").
 		Joins("JOIN cars c ON c.id = ch.car_id").
 		Joins("LEFT JOIN attachments a ON a.id = c.attachment_id").
 		Joins("LEFT JOIN applications app ON app.id = a.application_id").

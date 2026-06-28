@@ -97,8 +97,12 @@ var aggMetricRegistry = map[string]aggMetricSchema{
 			"attachment_type": {expr: "COALESCE(ua.display_name, att.attachment_display_name, att.attachment_type)", join: jAttach},
 		},
 	},
+	// base — подзапрос-union cars_history + audit_log[car] (#870, срез 1.12b):
+	// подставляется как FROM (...) ch, поэтому baseWhere/tsColumn/joinBlock читают
+	// ch.* как и раньше. После переноса записи (1.12c) въезды из audit_log тоже
+	// попадают в отчёт без правок движка.
 	"car_entries_count": {
-		base:      "cars_history ch",
+		base:      carsHistoryUnion + " ch",
 		aggExpr:   "COUNT(*)",
 		baseWhere: "ch.action_type = 'entry'",
 		tsColumn:  "ch.created_at",
@@ -155,7 +159,7 @@ var aggMetricRegistry = map[string]aggMetricSchema{
 	// деление на число календарных дней бина выполняет RunReport (postprocess),
 	// поэтому aggExpr тут — счётчик, а не среднее. Доступные разрезы: period/none.
 	"avg_cars_per_day": {
-		base:      "cars_history ch",
+		base:      carsHistoryUnion + " ch",
 		aggExpr:   "COUNT(*)",
 		baseWhere: "ch.action_type = 'entry'",
 		tsColumn:  "ch.created_at",
