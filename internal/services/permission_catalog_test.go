@@ -111,6 +111,25 @@ func TestGuideKeysInCatalog(t *testing.T) {
 	}
 }
 
+// TestCatalogMeta фиксирует единый SoT каталога (#887): метаданные каталожного
+// ключа берутся из Go-каталога; динамические table.* и мусор метаданных не имеют.
+func TestCatalogMeta(t *testing.T) {
+	t.Parallel()
+	meta, ok := CatalogMeta(KeyPageCenter)
+	if !ok {
+		t.Fatal("page.center должен быть в каталоге")
+	}
+	if meta.DisplayName != "Центр заявок" || meta.Category != CatNavigation {
+		t.Errorf("неожиданные метаданные page.center: %+v", meta)
+	}
+	if _, ok := CatalogMeta("table.kpp4.view"); ok {
+		t.Error("динамический table.* не должен иметь метаданных в статическом каталоге")
+	}
+	if _, ok := CatalogMeta("garbage"); ok {
+		t.Error("мусорный ключ не должен иметь метаданных")
+	}
+}
+
 func TestAllCatalogKeysMatchesSet(t *testing.T) {
 	t.Parallel()
 	keys := AllCatalogKeys()

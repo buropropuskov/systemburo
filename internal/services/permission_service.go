@@ -72,9 +72,11 @@ func (s *permissionService) getUserPermissionsList(ctx context.Context, userID i
 	var results []models.UserPermissionResponse
 
 	// Читаем из user_permission_overrides (источник точечных прав). LEFT JOIN, а
-	// не INNER: каталожные ключи (page.*, tab.*) - Go-константы, их нет строкой в
-	// permissions, и INNER JOIN их выбрасывал -> тумблер слетал после F5 (#867).
-	// Ключ берём из up.permission_key, чтобы он был и для каталожных.
+	// не INNER: каталожные ключи (page.*, header.* ...) - Go-константы, их нет
+	// строкой в permissions, и INNER JOIN их выбрасывал -> тумблер слетал после
+	// F5 (#867). Ключ берём из up.permission_key, чтобы он был и для каталожных.
+	// category/display_name из p.* осмысленны только для динамических table.* -
+	// каталожные обогащаем ниже из Go-каталога (единый SoT, #887).
 	err := s.db.WithContext(ctx).
 		Table("user_permission_overrides up").
 		Select("up.permission_key as key, p.category, p.display_name, up.value, u.username as granted_by_name").
@@ -86,6 +88,15 @@ func (s *permissionService) getUserPermissionsList(ctx context.Context, userID i
 	if err != nil {
 		slog.Error("не удалось получить разрешения пользователя", "user_id", userID, "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения разрешений")
+	}
+
+	// Метаданные каталожных ключей - из Go-каталога (единый источник правды, #887):
+	// в permissions их нет, поэтому LEFT JOIN дал бы пустые category/display_name.
+	for i := range results {
+		if meta, ok := CatalogMeta(results[i].Key); ok {
+			results[i].Category = meta.Category
+			results[i].DisplayName = meta.DisplayName
+		}
 	}
 
 	if results == nil {

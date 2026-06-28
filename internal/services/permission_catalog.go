@@ -145,13 +145,16 @@ func Catalog() []CatalogNode {
 	return staticCatalog()
 }
 
-// catalogKeySet -- множество всех статических ключей каталога (для O(1) валидации).
-var catalogKeySet = func() map[string]struct{} {
-	m := make(map[string]struct{})
+// catalogByKey -- плоская карта "ключ -> узел" статического каталога. Единый
+// источник правды для каталожных ключей: их существования (O(1) валидация) и их
+// метаданных (DisplayName/Category). В таблице permissions каталожных ключей нет
+// (там только динамические table.*), поэтому метаданные берём отсюда, а не из БД (#887).
+var catalogByKey = func() map[string]CatalogNode {
+	m := make(map[string]CatalogNode)
 	for _, n := range staticCatalog() {
-		m[n.Key] = struct{}{}
+		m[n.Key] = n
 		for _, c := range n.Children {
-			m[c.Key] = struct{}{}
+			m[c.Key] = c
 		}
 	}
 	return m
@@ -159,8 +162,8 @@ var catalogKeySet = func() map[string]struct{} {
 
 // AllCatalogKeys возвращает плоский список всех статических ключей каталога.
 func AllCatalogKeys() []string {
-	keys := make([]string, 0, len(catalogKeySet))
-	for k := range catalogKeySet {
+	keys := make([]string, 0, len(catalogByKey))
+	for k := range catalogByKey {
 		keys = append(keys, k)
 	}
 	return keys
@@ -174,8 +177,16 @@ func IsSuperOnly(key string) bool {
 
 // IsCatalogKey сообщает, что ключ есть в статическом каталоге.
 func IsCatalogKey(key string) bool {
-	_, ok := catalogKeySet[key]
+	_, ok := catalogByKey[key]
 	return ok
+}
+
+// CatalogMeta возвращает узел каталога по ключу. Источник правды для метаданных
+// каталожного ключа (DisplayName/Category) -- этот Go-каталог; код чтения прав
+// обогащает им ответы, не полагаясь на таблицу permissions (#887).
+func CatalogMeta(key string) (CatalogNode, bool) {
+	n, ok := catalogByKey[key]
+	return n, ok
 }
 
 // IsValidKey сообщает, что ключ валиден для назначения: либо статический из
