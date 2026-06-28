@@ -2,10 +2,12 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"systemburo/internal/models"
 
@@ -34,13 +36,13 @@ type AttachmentService interface {
 }
 
 type attachmentService struct {
-	db      *gorm.DB
-	history AttachmentHistoryService
+	db       *gorm.DB
+	recorder AuditRecorder
 }
 
 // NewAttachmentService создаёт новый экземпляр AttachmentService.
 func NewAttachmentService(db *gorm.DB) AttachmentService {
-	return &attachmentService{db: db, history: NewAttachmentHistoryService(db)}
+	return &attachmentService{db: db, recorder: NewAuditRecorder(db)}
 }
 
 // GetActive возвращает все активные шаблоны вложений.
@@ -113,7 +115,7 @@ func (s *attachmentService) Create(ctx context.Context, userID int, req models.C
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка при создании вложения")
 	}
 
-	s.history.Log(ctx, attachment.ID, &userID, models.UniqueAttachmentActionCreated, map[string]any{"display_name": req.DisplayName})
+	s.recorder.Log(ctx, nil, models.AuditEntityUniqueAttachment, &attachment.ID, models.UniqueAttachmentActionCreated, &userID, map[string]any{"display_name": req.DisplayName})
 	return &models.CreateUniqueAttachmentResponse{
 		ID:      attachment.ID,
 		Message: "Вложение успешно создано",
@@ -154,7 +156,7 @@ func (s *attachmentService) Update(ctx context.Context, userID, id int, req mode
 
 	// Логируем только если что-то реально изменилось - иначе спам "Изменены данные".
 	if len(details) > 0 {
-		s.history.Log(ctx, id, &userID, models.UniqueAttachmentActionUpdated, details)
+		s.recorder.Log(ctx, nil, models.AuditEntityUniqueAttachment, &id, models.UniqueAttachmentActionUpdated, &userID, details)
 	}
 	return nil
 }
@@ -174,7 +176,7 @@ func (s *attachmentService) Delete(ctx context.Context, userID, id int) error {
 	if err := s.db.WithContext(ctx).Model(&attachment).Update("is_active", false).Error; err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error deleting attachment")
 	}
-	s.history.Log(ctx, id, &userID, models.UniqueAttachmentActionArchived, nil)
+	s.recorder.Log(ctx, nil, models.AuditEntityUniqueAttachment, &id, models.UniqueAttachmentActionArchived, &userID, nil)
 	return nil
 }
 
@@ -193,13 +195,55 @@ func (s *attachmentService) Restore(ctx context.Context, userID, id int) error {
 	if err := s.db.WithContext(ctx).Model(&attachment).Update("is_active", true).Error; err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error restoring attachment")
 	}
-	s.history.Log(ctx, id, &userID, models.UniqueAttachmentActionRestored, nil)
+	s.recorder.Log(ctx, nil, models.AuditEntityUniqueAttachment, &id, models.UniqueAttachmentActionRestored, &userID, nil)
 	return nil
 }
 
 // GetHistory возвращает историю изменений шаблона вложения (новые сверху).
+// Переходный период #870: запись уже идёт в audit_log, но старые строки лежат в
+// замороженной unique_attachment_histories до финального backfill. Чтение объединяет обе
+// таблицы в одинаковую форму ответа (форму стережёт TestAttachments_History_*).
 func (s *attachmentService) GetHistory(ctx context.Context, id int) ([]models.UniqueAttachmentHistoryItem, error) {
-	return s.history.GetHistory(ctx, id)
+	const actorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`
+	sql := `
+		SELECT id, action_type, details, actor_user_id, actor_name, created_at FROM (
+			SELECT h.id AS id, h.action_type AS action_type, h.details AS details,
+				h.actor_user_id AS actor_user_id, ` + actorName + ` AS actor_name, h.created_at AS created_at
+			FROM unique_attachment_histories h LEFT JOIN users u ON u.id = h.actor_user_id
+			WHERE h.unique_attachment_id = ?
+			UNION ALL
+			SELECT a.id AS id, a.action AS action_type, a.details AS details,
+				a.actor_user_id AS actor_user_id, ` + actorName + ` AS actor_name, a.created_at AS created_at
+			FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
+			WHERE a.entity_type = ? AND a.entity_id = ?
+		) merged
+		ORDER BY created_at DESC, id DESC`
+
+	type row struct {
+		ID          int             `gorm:"column:id"`
+		ActionType  string          `gorm:"column:action_type"`
+		Details     json.RawMessage `gorm:"column:details"`
+		ActorUserID *int            `gorm:"column:actor_user_id"`
+		ActorName   string          `gorm:"column:actor_name"`
+		CreatedAt   time.Time       `gorm:"column:created_at"`
+	}
+	var rows []row
+	if err := s.db.WithContext(ctx).Raw(sql, id, models.AuditEntityUniqueAttachment, id).Scan(&rows).Error; err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching attachment history")
+	}
+
+	items := make([]models.UniqueAttachmentHistoryItem, 0, len(rows))
+	for _, r := range rows {
+		items = append(items, models.UniqueAttachmentHistoryItem{
+			ID:          r.ID,
+			ActionType:  r.ActionType,
+			Details:     r.Details,
+			ActorUserID: r.ActorUserID,
+			ActorName:   r.ActorName,
+			CreatedAt:   r.CreatedAt,
+		})
+	}
+	return items, nil
 }
 
 // buildAttachmentUpdateDetails собирает diff изменённых полей шаблона вложения как {old, new}.
