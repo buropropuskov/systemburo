@@ -2,11 +2,13 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 	"reflect"
 	"sort"
+	"time"
 
 	"systemburo/internal/models"
 
@@ -25,13 +27,13 @@ type LicensePlateFormatService interface {
 }
 
 type licensePlateFormatService struct {
-	db      *gorm.DB
-	history LicensePlateFormatHistoryService
+	db       *gorm.DB
+	recorder AuditRecorder
 }
 
 // NewLicensePlateFormatService создаёт сервис для управления форматами номерных знаков.
 func NewLicensePlateFormatService(db *gorm.DB) LicensePlateFormatService {
-	return &licensePlateFormatService{db: db, history: NewLicensePlateFormatHistoryService(db)}
+	return &licensePlateFormatService{db: db, recorder: NewAuditRecorder(db)}
 }
 
 // GetAll возвращает форматы номерных знаков с ячейками.
@@ -116,7 +118,7 @@ func (s *licensePlateFormatService) Create(ctx context.Context, callerUserID int
 		return 0, err
 	}
 	slog.Info("формат номеров создан", "id", formatID)
-	s.history.Log(ctx, formatID, &callerUserID, models.LicensePlateFormatActionCreated, map[string]any{"name": req.Name})
+	s.recorder.Log(ctx, nil, models.AuditEntityLicensePlateFormat, &formatID, models.LicensePlateFormatActionCreated, &callerUserID, map[string]any{"name": req.Name})
 	return formatID, nil
 }
 
@@ -193,7 +195,7 @@ func (s *licensePlateFormatService) Update(ctx context.Context, callerUserID, id
 
 	// Логируем только если что-то реально изменилось - иначе спам "Изменены данные" без диффа.
 	if len(details) > 0 {
-		s.history.Log(ctx, id, &callerUserID, models.LicensePlateFormatActionUpdated, details)
+		s.recorder.Log(ctx, nil, models.AuditEntityLicensePlateFormat, &id, models.LicensePlateFormatActionUpdated, &callerUserID, details)
 	}
 	return nil
 }
@@ -221,7 +223,7 @@ func (s *licensePlateFormatService) Delete(ctx context.Context, callerUserID, id
 		return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка архивации формата номеров")
 	}
 	slog.Info("формат номеров архивирован", "id", id)
-	s.history.Log(ctx, id, &callerUserID, models.LicensePlateFormatActionArchived, nil)
+	s.recorder.Log(ctx, nil, models.AuditEntityLicensePlateFormat, &id, models.LicensePlateFormatActionArchived, &callerUserID, nil)
 	return nil
 }
 
@@ -244,13 +246,54 @@ func (s *licensePlateFormatService) Restore(ctx context.Context, callerUserID, i
 		return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка восстановления формата номеров")
 	}
 	slog.Info("формат номеров восстановлен", "id", id)
-	s.history.Log(ctx, id, &callerUserID, models.LicensePlateFormatActionRestored, nil)
+	s.recorder.Log(ctx, nil, models.AuditEntityLicensePlateFormat, &id, models.LicensePlateFormatActionRestored, &callerUserID, nil)
 	return nil
 }
 
 // GetHistory возвращает историю изменений формата номеров (новые сверху).
+// Переходный период #870: новые записи идут в audit_log, старые лежат в
+// замороженной license_plate_format_histories. Чтение объединяет обе таблицы.
 func (s *licensePlateFormatService) GetHistory(ctx context.Context, id int) ([]models.LicensePlateFormatHistoryItem, error) {
-	return s.history.GetHistory(ctx, id)
+	const actorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`
+	sql := `
+		SELECT id, action_type, details, actor_user_id, actor_name, created_at FROM (
+			SELECT h.id AS id, h.action_type AS action_type, h.details AS details,
+				h.actor_user_id AS actor_user_id, ` + actorName + ` AS actor_name, h.created_at AS created_at
+			FROM license_plate_format_histories h LEFT JOIN users u ON u.id = h.actor_user_id
+			WHERE h.format_id = ?
+			UNION ALL
+			SELECT a.id AS id, a.action AS action_type, a.details AS details,
+				a.actor_user_id AS actor_user_id, ` + actorName + ` AS actor_name, a.created_at AS created_at
+			FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
+			WHERE a.entity_type = ? AND a.entity_id = ?
+		) merged
+		ORDER BY created_at DESC, id DESC`
+
+	type row struct {
+		ID          int             `gorm:"column:id"`
+		ActionType  string          `gorm:"column:action_type"`
+		Details     json.RawMessage `gorm:"column:details"`
+		ActorUserID *int            `gorm:"column:actor_user_id"`
+		ActorName   string          `gorm:"column:actor_name"`
+		CreatedAt   time.Time       `gorm:"column:created_at"`
+	}
+	var rows []row
+	if err := s.db.WithContext(ctx).Raw(sql, id, models.AuditEntityLicensePlateFormat, id).Scan(&rows).Error; err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching license plate format history")
+	}
+
+	items := make([]models.LicensePlateFormatHistoryItem, 0, len(rows))
+	for _, r := range rows {
+		items = append(items, models.LicensePlateFormatHistoryItem{
+			ID:          r.ID,
+			ActionType:  r.ActionType,
+			Details:     r.Details,
+			ActorUserID: r.ActorUserID,
+			ActorName:   r.ActorName,
+			CreatedAt:   r.CreatedAt,
+		})
+	}
+	return items, nil
 }
 
 // ptrOrDefault возвращает указатель на значение или значение по умолчанию.
