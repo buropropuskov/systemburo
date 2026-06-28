@@ -2,9 +2,11 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"systemburo/internal/models"
 
@@ -49,13 +51,13 @@ type UserTypeService interface {
 }
 
 type userTypeService struct {
-	db      *gorm.DB
-	history UserTypeHistoryService
+	db       *gorm.DB
+	recorder AuditRecorder
 }
 
 // NewUserTypeService создаёт новый экземпляр сервиса управления типами пользователей.
 func NewUserTypeService(db *gorm.DB) UserTypeService {
-	return &userTypeService{db: db, history: NewUserTypeHistoryService(db)}
+	return &userTypeService{db: db, recorder: NewAuditRecorder(db)}
 }
 
 // typeFlags возвращает признак системного типа и факт его существования.
@@ -118,7 +120,7 @@ func (s *userTypeService) Create(ctx context.Context, callerUserID int, req Crea
 	}
 
 	slog.Info("тип пользователя создан", "id", id)
-	s.history.Log(ctx, id, &callerUserID, models.UserTypeActionCreated, map[string]any{
+	s.recorder.Log(ctx, nil, models.AuditEntityUserType, &id, models.UserTypeActionCreated, &callerUserID, map[string]any{
 		"name": req.Name,
 		"code": req.Code,
 	})
@@ -145,7 +147,7 @@ func (s *userTypeService) Update(ctx context.Context, callerUserID, id int, req 
 	}
 
 	slog.Info("тип пользователя обновлён", "id", id)
-	s.history.Log(ctx, id, &callerUserID, models.UserTypeActionRenamed, map[string]any{"name": req.Name})
+	s.recorder.Log(ctx, nil, models.AuditEntityUserType, &id, models.UserTypeActionRenamed, &callerUserID, map[string]any{"name": req.Name})
 	return nil
 }
 
@@ -189,7 +191,7 @@ func (s *userTypeService) Delete(ctx context.Context, callerUserID, id int) erro
 	}
 
 	slog.Info("тип пользователя удалён", "id", id)
-	s.history.Log(ctx, id, &callerUserID, models.UserTypeActionDeleted, map[string]any{
+	s.recorder.Log(ctx, nil, models.AuditEntityUserType, &id, models.UserTypeActionDeleted, &callerUserID, map[string]any{
 		"name": snapshot.Name,
 		"code": snapshot.Code,
 	})
@@ -197,6 +199,47 @@ func (s *userTypeService) Delete(ctx context.Context, callerUserID, id int) erro
 }
 
 // GetHistory возвращает историю изменений типа пользователя (admin-only).
+// Переходный период #870: запись уже идёт в audit_log, но старые строки лежат в
+// замороженной user_type_histories до финального backfill. Чтение объединяет обе таблицы.
 func (s *userTypeService) GetHistory(ctx context.Context, id int) ([]models.UserTypeHistoryItem, error) {
-	return s.history.GetHistory(ctx, id)
+	const actorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`
+	sql := `
+		SELECT id, action_type, details, actor_user_id, actor_name, created_at FROM (
+			SELECT h.id AS id, h.action_type AS action_type, h.details AS details,
+				h.actor_user_id AS actor_user_id, ` + actorName + ` AS actor_name, h.created_at AS created_at
+			FROM user_type_histories h LEFT JOIN users u ON u.id = h.actor_user_id
+			WHERE h.user_type_id = ?
+			UNION ALL
+			SELECT a.id AS id, a.action AS action_type, a.details AS details,
+				a.actor_user_id AS actor_user_id, ` + actorName + ` AS actor_name, a.created_at AS created_at
+			FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
+			WHERE a.entity_type = ? AND a.entity_id = ?
+		) merged
+		ORDER BY created_at DESC, id DESC`
+
+	type row struct {
+		ID          int             `gorm:"column:id"`
+		ActionType  string          `gorm:"column:action_type"`
+		Details     json.RawMessage `gorm:"column:details"`
+		ActorUserID *int            `gorm:"column:actor_user_id"`
+		ActorName   string          `gorm:"column:actor_name"`
+		CreatedAt   time.Time       `gorm:"column:created_at"`
+	}
+	var rows []row
+	if err := s.db.WithContext(ctx).Raw(sql, id, models.AuditEntityUserType, id).Scan(&rows).Error; err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching user type history")
+	}
+
+	items := make([]models.UserTypeHistoryItem, 0, len(rows))
+	for _, r := range rows {
+		items = append(items, models.UserTypeHistoryItem{
+			ID:          r.ID,
+			ActionType:  r.ActionType,
+			Details:     r.Details,
+			ActorUserID: r.ActorUserID,
+			ActorName:   r.ActorName,
+			CreatedAt:   r.CreatedAt,
+		})
+	}
+	return items, nil
 }
