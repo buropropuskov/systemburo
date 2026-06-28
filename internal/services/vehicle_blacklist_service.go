@@ -492,8 +492,7 @@ func (s *vehicleBlacklistService) deactivateMatchingCars(ctx context.Context, tx
 			Updates(map[string]interface{}{"status": 0, "date_removed": now}).Error; err != nil {
 			return 0, err
 		}
-		hist := models.CarHistory{CarID: id, UserID: &userID, ActionType: "blacklisted", Comment: &comment, CreatedAt: now}
-		if err := tx.Create(&hist).Error; err != nil {
+		if err := s.recorder.Record(ctx, tx, models.AuditEntityCar, &id, "blacklisted", &userID, carAuditDetails{Comment: &comment}); err != nil {
 			return 0, err
 		}
 	}
@@ -523,15 +522,13 @@ func (s *vehicleBlacklistService) reactivateMatchingCars(ctx context.Context, tx
 		Pluck("c.id", &ids).Error; err != nil {
 		return 0, err
 	}
-	now := time.Now().UTC()
 	comment := fmt.Sprintf("Автомобиль %s %s снят с чёрного списка", e.CarNumber, e.MarkName)
 	for _, id := range ids {
 		if err := tx.Model(&models.Car{}).Where("id = ?", id).
 			Updates(map[string]interface{}{"status": 1, "date_removed": nil}).Error; err != nil {
 			return 0, err
 		}
-		hist := models.CarHistory{CarID: id, UserID: &userID, ActionType: "unblacklisted", Comment: &comment, CreatedAt: now}
-		if err := tx.Create(&hist).Error; err != nil {
+		if err := s.recorder.Record(ctx, tx, models.AuditEntityCar, &id, "unblacklisted", &userID, carAuditDetails{Comment: &comment}); err != nil {
 			return 0, err
 		}
 	}

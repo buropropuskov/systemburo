@@ -149,7 +149,7 @@ func TestTrash_PurgeOneRemovesFromTrash(t *testing.T) {
 	assert.True(t, car.IsPurged)
 
 	var purgeCount int64
-	db.Model(&models.CarHistory{}).Where("car_id = ? AND action_type = 'purge'", carID).Count(&purgeCount)
+	db.Model(&models.AuditLog{}).Where("entity_type = ? AND entity_id = ? AND action = 'purge'", models.AuditEntityCar, carID).Count(&purgeCount)
 	assert.Equal(t, int64(1), purgeCount)
 }
 
