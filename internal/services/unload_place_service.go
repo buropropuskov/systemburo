@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -91,13 +92,13 @@ type UnloadPlaceService interface {
 }
 
 type unloadPlaceService struct {
-	db      *gorm.DB
-	history UnloadPlaceHistoryService
+	db       *gorm.DB
+	recorder AuditRecorder
 }
 
 // NewUnloadPlaceService создаёт реализацию UnloadPlaceService.
 func NewUnloadPlaceService(db *gorm.DB) UnloadPlaceService {
-	return &unloadPlaceService{db: db, history: NewUnloadPlaceHistoryService(db)}
+	return &unloadPlaceService{db: db, recorder: NewAuditRecorder(db)}
 }
 
 // computeUnloadPlaceStatus определяет текущий статус (open/closed) по расписанию.
@@ -227,7 +228,7 @@ func (s *unloadPlaceService) Create(ctx context.Context, callerUserID int, req C
 		return 0, echo.NewHTTPError(http.StatusInternalServerError, "Error creating unload place")
 	}
 	slog.Info("место разгрузки создано", "id", place.ID)
-	s.history.Log(ctx, place.ID, &callerUserID, models.UnloadPlaceActionCreated, map[string]any{"name": place.Name})
+	s.recorder.Log(ctx, nil, models.AuditEntityUnloadPlace, &place.ID, models.UnloadPlaceActionCreated, &callerUserID, map[string]any{"name": place.Name})
 	return place.ID, nil
 }
 
@@ -271,7 +272,7 @@ func (s *unloadPlaceService) Update(ctx context.Context, callerUserID, id int, r
 	}
 	slog.Info("место разгрузки обновлено", "id", id)
 	if req.Name != nil && *req.Name != place.Name {
-		s.history.Log(ctx, id, &callerUserID, models.UnloadPlaceActionRenamed, map[string]any{"name": *req.Name})
+		s.recorder.Log(ctx, nil, models.AuditEntityUnloadPlace, &id, models.UnloadPlaceActionRenamed, &callerUserID, map[string]any{"name": *req.Name})
 	}
 	return nil
 }
@@ -331,7 +332,7 @@ func (s *unloadPlaceService) Delete(ctx context.Context, callerUserID, id int) e
 		return echo.NewHTTPError(http.StatusNotFound, "Место разгрузки не найдено")
 	}
 	slog.Info("место разгрузки архивировано", "id", id)
-	s.history.Log(ctx, id, &callerUserID, models.UnloadPlaceActionArchived, nil)
+	s.recorder.Log(ctx, nil, models.AuditEntityUnloadPlace, &id, models.UnloadPlaceActionArchived, &callerUserID, nil)
 	return nil
 }
 
@@ -349,11 +350,51 @@ func (s *unloadPlaceService) Restore(ctx context.Context, callerUserID, id int) 
 		return echo.NewHTTPError(http.StatusNotFound, "Место разгрузки не найдено")
 	}
 	slog.Info("место разгрузки восстановлено", "id", id)
-	s.history.Log(ctx, id, &callerUserID, models.UnloadPlaceActionRestored, nil)
+	s.recorder.Log(ctx, nil, models.AuditEntityUnloadPlace, &id, models.UnloadPlaceActionRestored, &callerUserID, nil)
 	return nil
 }
 
-// GetHistory возвращает историю изменений места разгрузки.
+// GetHistory возвращает историю изменений места разгрузки: union старой таблицы
+// и audit_log (#870), новые сверху.
 func (s *unloadPlaceService) GetHistory(ctx context.Context, id int) ([]models.UnloadPlaceHistoryItem, error) {
-	return s.history.GetHistory(ctx, id)
+	const actorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`
+	sql := `
+		SELECT id, action_type, details, actor_user_id, actor_name, created_at FROM (
+			SELECT h.id AS id, h.action_type AS action_type, h.details AS details,
+				h.actor_user_id AS actor_user_id, ` + actorName + ` AS actor_name, h.created_at AS created_at
+			FROM unload_place_histories h LEFT JOIN users u ON u.id = h.actor_user_id
+			WHERE h.unload_place_id = ?
+			UNION ALL
+			SELECT a.id AS id, a.action AS action_type, a.details AS details,
+				a.actor_user_id AS actor_user_id, ` + actorName + ` AS actor_name, a.created_at AS created_at
+			FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
+			WHERE a.entity_type = ? AND a.entity_id = ?
+		) merged
+		ORDER BY created_at DESC, id DESC`
+
+	type row struct {
+		ID          int             `gorm:"column:id"`
+		ActionType  string          `gorm:"column:action_type"`
+		Details     json.RawMessage `gorm:"column:details"`
+		ActorUserID *int            `gorm:"column:actor_user_id"`
+		ActorName   string          `gorm:"column:actor_name"`
+		CreatedAt   time.Time       `gorm:"column:created_at"`
+	}
+	var rows []row
+	if err := s.db.WithContext(ctx).Raw(sql, id, models.AuditEntityUnloadPlace, id).Scan(&rows).Error; err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching unload place history")
+	}
+
+	items := make([]models.UnloadPlaceHistoryItem, 0, len(rows))
+	for _, r := range rows {
+		items = append(items, models.UnloadPlaceHistoryItem{
+			ID:          r.ID,
+			ActionType:  r.ActionType,
+			Details:     r.Details,
+			ActorUserID: r.ActorUserID,
+			ActorName:   r.ActorName,
+			CreatedAt:   r.CreatedAt,
+		})
+	}
+	return items, nil
 }
