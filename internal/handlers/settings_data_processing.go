@@ -1,12 +1,12 @@
 package handlers
 
 import (
-	"fmt"
 	"net/http"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"systemburo/internal/download"
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
@@ -35,15 +35,13 @@ func (h *SettingsHandler) ServeDataProcessingDoc(c echo.Context) error {
 	if meta == nil {
 		return echo.NewHTTPError(http.StatusNotFound, "Документ согласия не загружен")
 	}
-	disposition := "inline"
-	if c.QueryParam("download") == "1" {
-		disposition = "attachment"
-	}
 	filePath := filepath.Join(h.fileSvc.UploadDir(), meta.StoredName)
-	c.Response().Header().Set("Content-Disposition",
-		fmt.Sprintf(`%s; filename="%s"`, disposition, meta.FileName))
-	c.Response().Header().Set("Content-Type", meta.MimeType)
-	return c.File(filePath)
+	return download.Serve(c, download.File{
+		Path:   filePath,
+		Name:   meta.FileName,
+		Mime:   meta.MimeType,
+		Inline: c.QueryParam("download") != "1",
+	})
 }
 
 // UploadDataProcessingDoc сохраняет новый документ согласия, заменяя предыдущий.
