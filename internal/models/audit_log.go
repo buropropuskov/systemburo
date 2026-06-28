@@ -29,8 +29,20 @@ func (AuditLog) TableName() string { return "audit_log" }
 // AuditEntity* - значения AuditLog.EntityType. Добавляются по мере переноса
 // сущностей на audit_log (#870).
 const (
-	AuditEntityCitizenship = "citizenship"
-	AuditEntityCompany     = "company"
+	AuditEntityCitizenship        = "citizenship"
+	AuditEntityCompany            = "company"
+	AuditEntityOrganization       = "organization"
+	AuditEntityUserType           = "user_type"
+	AuditEntityLicensePlateFormat = "license_plate_format"
+	AuditEntityUnloadPlace        = "unload_place"
+	AuditEntityUniqueAttachment   = "unique_attachment"
+	AuditEntityUser               = "user"
+	AuditEntityApprover           = "approver"
+	AuditEntityPersonBlacklist    = "person_blacklist"
+	AuditEntityVehicleBlacklist   = "vehicle_blacklist"
+	AuditEntitySystemTable        = "system_table"
+	AuditEntitySystemTableTrash   = "system_table_trash"
+	AuditEntityMark               = "mark"
 )
 
 // AuditLogItem - запись аудита для API с разрезолвленным именем актора
