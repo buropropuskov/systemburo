@@ -256,6 +256,7 @@ func main() {
 	documentHandler := handlers.NewDocumentHandler(documentService, documentFileService)
 	guideHandler := handlers.NewGuideHandler(guideService, guideFileService, cfg.UploadMaxFileSize)
 	statisticsHandler := handlers.NewStatisticsHandler(statisticsService)
+	auditHandler := handlers.NewAuditHandler(services.NewAuditReader(db))
 
 	// Swagger UI: http://localhost:8090/swagger/index.html
 	if cfg.SwaggerEnabled {
@@ -319,6 +320,7 @@ func main() {
 		WorkModes:           workModesHandler,
 		Statistics:          statisticsHandler,
 		Onboarding:          onboardingHandler,
+		Audit:               auditHandler,
 		PermResolver:        permissionResolver,
 		DenialLog:           accessDenialService,
 		MaintenanceBlock:    maintenanceBlock,
