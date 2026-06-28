@@ -291,25 +291,9 @@ func TestGetApplications_ActiveToday_FiltersByAttachmentPeriod(t *testing.T) {
 	assert.Equal(t, float64(todayAppID), apps[0]["id"])
 }
 
-func TestForwardApplication_ArchivedReturns403(t *testing.T) {
-	e, db, cleanup := testutil.SetupTestApp(t)
-	defer cleanup()
-	testutil.CleanDB(t, db)
-	td := testutil.SeedTestData(t, db)
-
-	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
-
-	// Create and archive an application
-	uaID := seedUniqueAttachment(t, db, "cars", "cars_tmpl3", "Cars3")
-	appID := submitCompleteApplication(t, e, token, "Test Organization", uaID)
-	db.Model(&models.Application{}).Where("id = ?", appID).Update("status", models.StatusCompleted)
-	db.Model(&models.Attachment{}).Where("application_id = ?", appID).Update("entry_date_to", "2025-01-01")
-
-	// Try to forward — should get 403
-	body := `{"users":[{"user_id":1,"required_approval":true}]}`
-	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/forward", appID), body, testutil.AuthHeader(token))
-	assert.Equal(t, http.StatusForbidden, rec.Code)
-}
+// Пересылка архивной заявки разрешена с #869 - позитивный кейс в
+// applications_forward_archive_test.go (TestForwardApplication_Archived_Allowed).
+// Read-only архива остаётся на approve/take-to-work (тесты ниже).
 
 func TestApproveApplication_ArchivedReturns403(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
