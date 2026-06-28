@@ -3,49 +3,9 @@
     <div class="create__header">
       <div class="create__title">
         <h3>Оформление и подача заявки</h3>
-        <button
-          v-if="selectedAttachment && selectedAttachment.instruction"
-          class="tables__instruction"
-          @click="showAttachmentInstruction = true"
-        >
-          <img
-            src="@/assets/icons/instruction.png"
-            class="tables__icon"
-          >
-          <p class="instruction__text">
-            Инструкция
-          </p>
-        </button>
       </div>
       <h4>{{ currentFormTitle }}</h4>
     </div>
-
-    <!-- Модальное окно инструкции к вложению -->
-    <Teleport to="body">
-      <div
-        v-if="showAttachmentInstruction"
-        class="modal-overlay"
-        @click.self="showAttachmentInstruction = false"
-      >
-        <div class="instruction-modal-large">
-          <div class="modal-header">
-            <h3>Инструкция: <span class="blue">{{ selectedAttachment && selectedAttachment.display_name }}</span></h3>
-            <button
-              class="modal-close"
-              @click="showAttachmentInstruction = false"
-            >
-              ×
-            </button>
-          </div>
-          <div class="instruction-content">
-            <div
-              class="text-constructor-content"
-              v-html="sanitizedAttachmentInstruction"
-            />
-          </div>
-        </div>
-      </div>
-    </Teleport>
 
     <div class="create__container">
       <BlankSelector
@@ -348,7 +308,6 @@
 </template>
 
 <script>
-import { sanitizeHtml } from '@/utils/sanitize'
 import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import { useDeletionsStore } from '@/stores/deletions'
@@ -451,8 +410,6 @@ export default {
             showSubmitTooltip: false,
             tooltipTimer: null,
 
-            showAttachmentInstruction: false,
-
             customFieldsByAttachment: {},
             customFieldDefinitions: {},
             // Настройка полей по UniqueAttachment (#529): { [uaId]: { [fieldKey]: { visible, required, locked, requirable } } }.
@@ -461,10 +418,6 @@ export default {
         }
     },
     computed: {
-        sanitizedAttachmentInstruction() {
-            return sanitizeHtml(this.selectedAttachment?.instruction || '');
-        },
-
         currentFormTitle() {
             if (this.selectedAttachment) {
                 return this.selectedAttachment.display_name;
@@ -799,18 +752,11 @@ export default {
             this.saveCurrentAttachmentData();
             this.saveToLocalStorage();
         });
-        window.addEventListener('keydown', this.handleGlobalKeyDown);
     },
     beforeUnmount() {
         window.removeEventListener('beforeunload', this.saveToLocalStorage);
-        window.removeEventListener('keydown', this.handleGlobalKeyDown);
     },
     methods: {
-        handleGlobalKeyDown(e) {
-            if (e.key === 'Escape' && this.showAttachmentInstruction) {
-                this.showAttachmentInstruction = false;
-            }
-        },
 
         async loadPassageTables() {
             try {
@@ -2392,8 +2338,8 @@ export default {
     }
 
     .create__form .form__message-tc {
-        flex: 3 1 0;
-        max-width: 850px;
+        flex: 4 1 0;
+        max-width: 1000px;
         min-width: 0;
         margin-bottom: 0;
         border-radius: 30px;
@@ -2410,8 +2356,8 @@ export default {
     /* Согласие + кнопка отправки — выделены в блок справа от поля сообщения */
     .form__submit-bar {
         flex: 1 1 0;
-        min-width: 200px;
-        max-width: 300px;
+        min-width: 190px;
+        max-width: 270px;
         align-self: flex-start;
         display: flex;
         flex-direction: column;
