@@ -335,8 +335,18 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 			WHERE att5.application_id = a.id AND (` + itemCond + `)
 		)`
 
+		// --- вложения: наименование вложения ---
+		// Имя вложения редактируется пользователем при подаче (#883) и хранится в
+		// attachments.attachment_display_name; ищем по нему и по служебному attachment_name.
+		attNameCond, attNameArgs := ilikePatternsArgs([]string{"att6.attachment_display_name", "att6.attachment_name"}, variants)
+		attNameSubquery := `EXISTS(
+			SELECT 1 FROM attachments att6
+			WHERE att6.application_id = a.id AND (` + attNameCond + `)
+		)`
+
 		fullCond := baseCond + " OR " + carSubquery + " OR " + empSubquery +
-			" OR " + upSubquery + " OR " + apprSubquery + " OR " + itemSubquery
+			" OR " + upSubquery + " OR " + apprSubquery + " OR " + itemSubquery +
+			" OR " + attNameSubquery
 
 		allArgs := baseArgs
 		allArgs = append(allArgs, carNumArgs...)
@@ -349,6 +359,7 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 		allArgs = append(allArgs, apprIlikeArgs...)
 		allArgs = append(allArgs, raw) // для word_similarity согласующих
 		allArgs = append(allArgs, itemArgs...)
+		allArgs = append(allArgs, attNameArgs...)
 
 		query = query.Where(fullCond, allArgs...)
 	}

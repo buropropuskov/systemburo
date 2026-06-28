@@ -240,6 +240,38 @@ func TestGetApplications_SearchFindsItemWork(t *testing.T) {
 	assert.True(t, found, "заявка должна находиться по наименованию работ из items-вложения")
 }
 
+// TestGetApplications_SearchFindsAttachmentName: поиск находит заявку по
+// пользовательскому наименованию вложения (#883). Имя вложения редактируется
+// при подаче и хранится в attachments.attachment_display_name; раньше в мега-поиске
+// не участвовало - заявку по переименованному вложению было не найти.
+func TestGetApplications_SearchFindsAttachmentName(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "attnamesearch", "pass123", 1, td.OrgID, td.CompanyID)
+	appID := createSimpleApplication(t, e, token, td.OrgID)
+
+	require.NoError(t, db.Exec(
+		`INSERT INTO attachments (application_id, attachment_type, attachment_display_name, created_at, updated_at)
+		 VALUES (?, 'cars', ?, now(), now())`, appID, "Грузовикиzzqx уникальное").Error)
+
+	rec := testutil.GET(t, e,
+		"/applications?search_query="+url.QueryEscape("Грузовикиzzqx уникальное"),
+		testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	apps := testutil.ParseResponse[[]map[string]interface{}](t, rec)
+	found := false
+	for _, a := range apps {
+		if id, ok := a["id"].(float64); ok && int(id) == appID {
+			found = true
+		}
+	}
+	assert.True(t, found, "заявка должна находиться по наименованию вложения")
+}
+
 // --- GET /applications/user ---
 
 func TestGetUserApplications_ReturnsOwnApplications(t *testing.T) {

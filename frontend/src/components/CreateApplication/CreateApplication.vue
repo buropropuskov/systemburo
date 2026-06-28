@@ -16,6 +16,7 @@
         @attachment-selected="handleAttachmentSelected"
         @attachment-added="handleAttachmentAdded"
         @attachment-removed="handleAttachmentRemoved"
+        @attachment-renamed="handleAttachmentRenamed"
       />
 
       <div
@@ -1162,6 +1163,19 @@ export default {
 
         selectAttachment(attachment) {
             this.selectedAttachment = attachment;
+        },
+
+        handleAttachmentRenamed({ attachment, display_name }) {
+            const key = this.attachmentKey(attachment);
+            // attachments - источник истины для payload (сериализуется отсюда) и для чипов.
+            const target = this.attachments.find(a => this.attachmentKey(a) === key);
+            if (target) target.display_name = display_name;
+            // selectedAttachment может быть копией (withCurrentInstruction) - обновляем и его,
+            // чтобы заголовок формы (currentFormTitle) подхватил новое имя.
+            if (this.selectedAttachment && this.attachmentKey(this.selectedAttachment) === key) {
+                this.selectedAttachment.display_name = display_name;
+            }
+            this.saveToLocalStorage();
         },
 
         handleAttachmentRemoved(attachment) {

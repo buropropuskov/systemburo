@@ -22,27 +22,54 @@
             v-for="attachment in getCategoryAttachments(category)"
             :key="getAttachmentKey(attachment)"
             class="attachment"
-            :class="{ selected: isSelected(attachment) }"
+            :class="{ selected: isSelected(attachment), editing: isEditing(attachment) }"
             @click="selectAttachment(attachment)"
             @mouseenter="handleMouseEnter(attachment, $event)"
             @mouseleave="handleMouseLeave"
           >
-            <input
-              v-model="selectedAttachments"
-              type="checkbox"
-              :value="getAttachmentKey(attachment)"
-              class="attachment-checkbox"
-              @click.stop
-            >
-            <span class="attachment-name">{{ attachment.display_name }}</span>
+            <template v-if="isEditing(attachment)">
+              <input
+                ref="renameInput"
+                v-model="editingName"
+                type="text"
+                class="attachment-name-input"
+                maxlength="255"
+                @click.stop
+                @keydown.enter.prevent="commitRename(attachment)"
+                @keydown.esc.prevent="cancelRename"
+                @blur="commitRename(attachment)"
+              >
+            </template>
+            <template v-else>
+              <input
+                v-model="selectedAttachments"
+                type="checkbox"
+                :value="getAttachmentKey(attachment)"
+                class="attachment-checkbox"
+                @click.stop
+              >
+              <span
+                class="attachment-name"
+                @dblclick.stop="startRename(attachment)"
+              >{{ attachment.display_name }}</span>
 
-            <button
-              v-if="hoveredAttachment === getAttachmentKey(attachment)"
-              class="delete-btn"
-              @click.stop="confirmDelete(attachment)"
-            >
-              ×
-            </button>
+              <button
+                v-if="hoveredAttachment === getAttachmentKey(attachment)"
+                class="edit-btn"
+                title="Переименовать"
+                @click.stop="startRename(attachment)"
+              >
+                ✎
+              </button>
+              <button
+                v-if="hoveredAttachment === getAttachmentKey(attachment)"
+                class="delete-btn"
+                title="Удалить"
+                @click.stop="confirmDelete(attachment)"
+              >
+                ×
+              </button>
+            </template>
           </div>
         </transition-group>
 
@@ -114,7 +141,7 @@ export default {
             default: () => ({})
         }
     },
-    emits: ['attachment-added', 'attachment-removed', 'attachment-selected'],
+    emits: ['attachment-added', 'attachment-removed', 'attachment-selected', 'attachment-renamed'],
     setup() {
         // Онбординг-тур просит показать реальную форму, добавляя демо-вложение
         // нужного типа (см. watch onboardingStore.demoAttachmentType ниже).
@@ -133,7 +160,10 @@ export default {
             tooltipTimeout: null,
             selectedAttachments: [],
             // Демо-вложение, добавленное онбордингом (чтобы убрать его потом).
-            demoAttachment: null
+            demoAttachment: null,
+            // Inline-переименование вложения (#883): ключ редактируемого + черновик имени.
+            editingKey: null,
+            editingName: ''
         }
     },
     computed: {
@@ -161,6 +191,11 @@ export default {
             handler(newAttachments) {
                 const existingIds = new Set(newAttachments.map(a => this.getAttachmentKey(a)));
                 this.selectedAttachments = this.selectedAttachments.filter(id => existingIds.has(id));
+
+                // Редактируемое вложение удалили - выходим из режима переименования.
+                if (this.editingKey !== null && !existingIds.has(this.editingKey)) {
+                    this.cancelRename();
+                }
 
                 if (this.selectedAttachment && !existingIds.has(this.getAttachmentKey(this.selectedAttachment))) {
                     this.selectedAttachment = null;
@@ -333,6 +368,38 @@ export default {
             const enriched = this.withCurrentInstruction(attachment);
             this.selectedAttachment = enriched;
             this.$emit('attachment-selected', enriched);
+        },
+
+        isEditing(attachment) {
+            return this.editingKey !== null && this.editingKey === this.getAttachmentKey(attachment);
+        },
+
+        startRename(attachment) {
+            this.editingKey = this.getAttachmentKey(attachment);
+            this.editingName = attachment.display_name || '';
+            this.$nextTick(() => {
+                const input = this.$el.querySelector('.attachment-name-input');
+                if (input) {
+                    input.focus();
+                    input.select();
+                }
+            });
+        },
+
+        commitRename(attachment) {
+            // Enter и blur оба зовут commit; после первого editingKey уже null - выходим.
+            if (this.editingKey === null) return;
+            const name = this.editingName.trim();
+            this.editingKey = null;
+            this.editingName = '';
+            // Пустое имя или без изменений - откатываем без эмита.
+            if (!name || name === attachment.display_name) return;
+            this.$emit('attachment-renamed', { attachment, display_name: name });
+        },
+
+        cancelRename() {
+            this.editingKey = null;
+            this.editingName = '';
         },
 
         withCurrentInstruction(attachment) {
@@ -642,6 +709,45 @@ export default {
 
 .delete-btn:hover {
     background-color: rgba(255, 68, 68, 0.1);
+}
+
+.edit-btn {
+    background: none;
+    border: none;
+    font-size: 11px;
+    color: #4F5BDF;
+    cursor: pointer;
+    padding: 0;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: background-color 0.3s ease;
+    flex-shrink: 0;
+}
+
+.edit-btn:hover {
+    background-color: rgba(79, 91, 223, 0.1);
+}
+
+/* В режиме переименования чип занимает всю ширину панели - чтобы инпут был удобным. */
+.attachment.editing {
+    max-width: none;
+}
+
+.attachment-name-input {
+    flex: 1;
+    min-width: 0;
+    border: 1px solid #4F5BDF;
+    border-radius: 8px;
+    padding: 2px 6px;
+    font-size: 12px;
+    font-weight: 500;
+    color: #000;
+    outline: none;
+    background: #fff;
 }
 
 .tooltip {
