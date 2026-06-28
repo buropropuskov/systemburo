@@ -68,8 +68,9 @@ func TestApplicationService_GetUnreadCount_PermissionCheck(t *testing.T) {
 
 	permSvc := services.NewPermissionService(db)
 	notifSvc := services.NewNotificationService(db)
-	vblSvc := services.NewVehicleBlacklistService(db, services.NewVehicleBlacklistHistoryService(db))
-	pblSvc := services.NewPersonBlacklistService(db, services.NewPersonBlacklistHistoryService(db))
+	blRecorder := services.NewAuditRecorder(db)
+	vblSvc := services.NewVehicleBlacklistService(db, blRecorder)
+	pblSvc := services.NewPersonBlacklistService(db, blRecorder)
 	appSvc := services.NewApplicationService(db, permSvc, notifSvc, vblSvc, pblSvc)
 
 	// outsider не должен видеть эту заявку в счётчике.

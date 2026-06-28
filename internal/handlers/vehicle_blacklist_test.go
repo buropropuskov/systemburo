@@ -19,7 +19,7 @@ import (
 )
 
 func newVehicleBlacklistService(db *gorm.DB) services.VehicleBlacklistService {
-	return services.NewVehicleBlacklistService(db, services.NewVehicleBlacklistHistoryService(db))
+	return services.NewVehicleBlacklistService(db, services.NewAuditRecorder(db))
 }
 
 // seedMark пересоздаёт марку с заданным именем (marks не чистятся CleanDB - убираем
@@ -169,7 +169,7 @@ func TestVehicleBlacklist_CascadeDeactivatesActiveCar(t *testing.T) {
 	assert.Equal(t, int64(1), carHistCount, "должна быть запись cars_history blacklisted")
 
 	var blHistCount int64
-	db.Model(&models.VehicleBlacklistHistory{}).Where("entity_id = ? AND action_type = ?", entry.ID, models.BlacklistActionCreated).Count(&blHistCount)
+	db.Table("audit_log").Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityVehicleBlacklist, entry.ID, models.BlacklistActionCreated).Count(&blHistCount)
 	assert.Equal(t, int64(1), blHistCount)
 }
 

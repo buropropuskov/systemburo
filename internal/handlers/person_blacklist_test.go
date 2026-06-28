@@ -14,7 +14,7 @@ import (
 )
 
 func newPersonBlacklistService(db *gorm.DB) services.PersonBlacklistService {
-	return services.NewPersonBlacklistService(db, services.NewPersonBlacklistHistoryService(db))
+	return services.NewPersonBlacklistService(db, services.NewAuditRecorder(db))
 }
 
 // TestPersonBlacklist_Lifecycle: create/check/строгое-ФИО/дубль/archive/restore без employees.
@@ -116,7 +116,7 @@ func TestPersonBlacklist_CascadeDeactivatesActiveEmployee(t *testing.T) {
 	assert.Equal(t, int64(1), empHistCount, "должна быть запись employees_history blacklisted")
 
 	var blHistCount int64
-	db.Model(&models.PersonBlacklistHistory{}).Where("entity_id = ? AND action_type = ?", entry.ID, models.BlacklistActionCreated).Count(&blHistCount)
+	db.Table("audit_log").Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityPersonBlacklist, entry.ID, models.BlacklistActionCreated).Count(&blHistCount)
 	assert.Equal(t, int64(1), blHistCount)
 }
 

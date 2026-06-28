@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -60,13 +61,13 @@ type VehicleBlacklistService interface {
 }
 
 type vehicleBlacklistService struct {
-	db      *gorm.DB
-	history VehicleBlacklistHistoryService
+	db       *gorm.DB
+	recorder AuditRecorder
 }
 
 // NewVehicleBlacklistService создаёт реализацию.
-func NewVehicleBlacklistService(db *gorm.DB, history VehicleBlacklistHistoryService) VehicleBlacklistService {
-	return &vehicleBlacklistService{db: db, history: history}
+func NewVehicleBlacklistService(db *gorm.DB, recorder AuditRecorder) VehicleBlacklistService {
+	return &vehicleBlacklistService{db: db, recorder: recorder}
 }
 
 func (s *vehicleBlacklistService) GetAll(ctx context.Context, includeArchived bool) ([]models.VehicleBlacklist, error) {
@@ -126,7 +127,7 @@ func (s *vehicleBlacklistService) Create(ctx context.Context, req models.CreateV
 			"reason":           entry.Reason,
 			"cars_deactivated": deactivated,
 		}
-		return s.history.Log(ctx, tx, entry.ID, &userID, models.BlacklistActionCreated, details)
+		return s.recorder.Record(ctx, tx, models.AuditEntityVehicleBlacklist, &entry.ID, models.BlacklistActionCreated, &userID, details)
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -158,7 +159,7 @@ func (s *vehicleBlacklistService) Archive(ctx context.Context, id int, userID in
 			"mark_name":        e.MarkName,
 			"cars_reactivated": reactivated,
 		}
-		return s.history.Log(ctx, tx, e.ID, &userID, models.BlacklistActionArchived, details)
+		return s.recorder.Record(ctx, tx, models.AuditEntityVehicleBlacklist, &e.ID, models.BlacklistActionArchived, &userID, details)
 	})
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка снятия из чёрного списка")
@@ -246,7 +247,7 @@ func (s *vehicleBlacklistService) Update(ctx context.Context, id int, req models
 			details["cars_reactivated"] = reactivated
 			details["cars_deactivated"] = deactivated
 		}
-		return s.history.Log(ctx, tx, e.ID, &userID, models.BlacklistActionUpdated, details)
+		return s.recorder.Record(ctx, tx, models.AuditEntityVehicleBlacklist, &e.ID, models.BlacklistActionUpdated, &userID, details)
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -274,7 +275,7 @@ func (s *vehicleBlacklistService) Purge(ctx context.Context, id int, userID int)
 			"mark_name":  e.MarkName,
 			"reason":     e.Reason,
 		}
-		if err := s.history.Log(ctx, tx, e.ID, &userID, models.BlacklistActionPurged, details); err != nil {
+		if err := s.recorder.Record(ctx, tx, models.AuditEntityVehicleBlacklist, &e.ID, models.BlacklistActionPurged, &userID, details); err != nil {
 			return err
 		}
 		return tx.Where("id = ?", e.ID).Delete(&models.VehicleBlacklist{}).Error
@@ -306,7 +307,7 @@ func (s *vehicleBlacklistService) Restore(ctx context.Context, id int, userID in
 			"mark_name":        e.MarkName,
 			"cars_deactivated": deactivated,
 		}
-		return s.history.Log(ctx, tx, e.ID, &userID, models.BlacklistActionRestored, details)
+		return s.recorder.Record(ctx, tx, models.AuditEntityVehicleBlacklist, &e.ID, models.BlacklistActionRestored, &userID, details)
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -403,12 +404,70 @@ func (s *vehicleBlacklistService) FindSimilar(ctx context.Context, carNumber str
 	return matches, nil
 }
 
+// GetHistory возвращает историю записи ЧС машин (новые сверху).
+// Переходный период #870: новые события пишутся в audit_log, старые строки лежат в
+// замороженной vehicle_blacklist_histories. Чтение объединяет обе таблицы.
 func (s *vehicleBlacklistService) GetHistory(ctx context.Context, id int) ([]models.VehicleBlacklistHistoryItem, error) {
-	return s.history.GetHistory(ctx, id)
+	return s.queryHistory(ctx, &id)
 }
 
+// GetAllHistory возвращает весь журнал ЧС машин (все записи, включая удалённые).
 func (s *vehicleBlacklistService) GetAllHistory(ctx context.Context) ([]models.VehicleBlacklistHistoryItem, error) {
-	return s.history.GetAllHistory(ctx)
+	return s.queryHistory(ctx, nil)
+}
+
+const vehicleBLActorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`
+
+func (s *vehicleBlacklistService) queryHistory(ctx context.Context, entityID *int) ([]models.VehicleBlacklistHistoryItem, error) {
+	legacyWhere := ""
+	auditWhere := "a.entity_type = ?"
+	args := []interface{}{models.AuditEntityVehicleBlacklist}
+	if entityID != nil {
+		legacyWhere = "WHERE h.entity_id = ?"
+		auditWhere += " AND a.entity_id = ?"
+		args = []interface{}{*entityID, models.AuditEntityVehicleBlacklist, *entityID}
+	}
+
+	query := `
+		SELECT id, entity_id, action_type, details, user_id, user_name, created_at FROM (
+			SELECT h.id, h.entity_id, h.action_type, h.details, h.user_id,
+				` + vehicleBLActorName + ` AS user_name, h.created_at
+			FROM vehicle_blacklist_histories h LEFT JOIN users u ON u.id = h.user_id
+			` + legacyWhere + `
+			UNION ALL
+			SELECT a.id, a.entity_id, a.action AS action_type, a.details, a.actor_user_id AS user_id,
+				` + vehicleBLActorName + ` AS user_name, a.created_at
+			FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
+			WHERE ` + auditWhere + `
+		) merged
+		ORDER BY created_at DESC, id DESC`
+
+	type row struct {
+		ID         int             `gorm:"column:id"`
+		EntityID   int             `gorm:"column:entity_id"`
+		ActionType string          `gorm:"column:action_type"`
+		Details    json.RawMessage `gorm:"column:details"`
+		UserID     *int            `gorm:"column:user_id"`
+		UserName   string          `gorm:"column:user_name"`
+		CreatedAt  time.Time       `gorm:"column:created_at"`
+	}
+	var rows []row
+	if err := s.db.WithContext(ctx).Raw(query, args...).Scan(&rows).Error; err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения истории чёрного списка")
+	}
+	items := make([]models.VehicleBlacklistHistoryItem, 0, len(rows))
+	for _, r := range rows {
+		items = append(items, models.VehicleBlacklistHistoryItem{
+			ID:         r.ID,
+			EntityID:   r.EntityID,
+			ActionType: r.ActionType,
+			Details:    r.Details,
+			UserID:     r.UserID,
+			UserName:   r.UserName,
+			CreatedAt:  r.CreatedAt,
+		})
+	}
+	return items, nil
 }
 
 // deactivateMatchingCars деактивирует (status 1 -> 0) активные cars, совпадающие с записью
