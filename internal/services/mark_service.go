@@ -24,12 +24,13 @@ type MarkService interface {
 }
 
 type markService struct {
-	db *gorm.DB
+	db       *gorm.DB
+	recorder AuditRecorder
 }
 
 // NewMarkService создаёт реализацию MarkService.
 func NewMarkService(db *gorm.DB) MarkService {
-	return &markService{db: db}
+	return &markService{db: db, recorder: NewAuditRecorder(db)}
 }
 
 func (s *markService) GetAll(ctx context.Context, includeArchived bool) ([]models.Mark, error) {
@@ -65,12 +66,8 @@ func (s *markService) Create(ctx context.Context, req models.CreateMarkRequest, 
 		if err := tx.Create(&mark).Error; err != nil {
 			return err
 		}
-		return tx.Create(&models.MarkHistory{
-			MarkID:     mark.ID,
-			ActionType: models.MarkActionCreated,
-			NewValue:   &req.Name,
-			UserID:     &userID,
-		}).Error
+		return s.recorder.Record(ctx, tx, models.AuditEntityMark, &mark.ID, models.MarkActionCreated, &userID,
+			map[string]any{"new_value": req.Name})
 	})
 	if err != nil {
 		// uniqueIndex на name дублирует - 409.
@@ -95,13 +92,8 @@ func (s *markService) Update(ctx context.Context, id int, req models.UpdateMarkR
 		if err := tx.Model(&existing).Update("name", req.Name).Error; err != nil {
 			return err
 		}
-		return tx.Create(&models.MarkHistory{
-			MarkID:     id,
-			ActionType: models.MarkActionRenamed,
-			OldValue:   &oldName,
-			NewValue:   &req.Name,
-			UserID:     &userID,
-		}).Error
+		return s.recorder.Record(ctx, tx, models.AuditEntityMark, &id, models.MarkActionRenamed, &userID,
+			map[string]any{"old_value": oldName, "new_value": req.Name})
 	})
 	if err != nil {
 		return echo.NewHTTPError(http.StatusConflict, "Марка с таким именем уже существует")
@@ -144,15 +136,47 @@ func (s *markService) setActive(ctx context.Context, id int, active bool, userID
 		if err := tx.Model(&existing).Update("is_active", active).Error; err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка обновления марки")
 		}
-		return tx.Create(&models.MarkHistory{
-			MarkID:     id,
-			ActionType: action,
-			UserID:     &userID,
-		}).Error
+		return s.recorder.Record(ctx, tx, models.AuditEntityMark, &id, action, &userID, nil)
 	})
 }
 
+// GetHistory возвращает историю изменений марки (новые сверху).
+// Переходный период #870: запись уже идёт в audit_log, но старые строки лежат в
+// замороженной mark_histories до финального backfill. Чтение объединяет обе
+// таблицы в одинаковую форму ответа (форму стережёт TestMarkService_CRUD).
+//
+// Плоская схема mark_histories (old_value/new_value) маппится в детали аудит-лога
+// при записи; обратно из audit_log извлекаем через ->> оператор jsonb.
 func (s *markService) GetHistory(ctx context.Context, id int) ([]models.MarkHistoryItem, error) {
+	const actorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`
+	sql := `
+		SELECT id, mark_id, action_type, old_value, new_value, user_id, user_name, comment, created_at FROM (
+			SELECT h.id AS id,
+				h.mark_id AS mark_id,
+				h.action_type AS action_type,
+				h.old_value AS old_value,
+				h.new_value AS new_value,
+				h.user_id AS user_id,
+				` + actorName + ` AS user_name,
+				h.comment AS comment,
+				h.created_at AS created_at
+			FROM mark_histories h LEFT JOIN users u ON u.id = h.user_id
+			WHERE h.mark_id = ?
+			UNION ALL
+			SELECT a.id AS id,
+				COALESCE(a.entity_id, 0) AS mark_id,
+				a.action AS action_type,
+				a.details->>'old_value' AS old_value,
+				a.details->>'new_value' AS new_value,
+				a.actor_user_id AS user_id,
+				` + actorName + ` AS user_name,
+				NULL::text AS comment,
+				a.created_at AS created_at
+			FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
+			WHERE a.entity_type = ? AND a.entity_id = ?
+		) merged
+		ORDER BY created_at DESC, id DESC`
+
 	type row struct {
 		ID         int       `gorm:"column:id"`
 		MarkID     int       `gorm:"column:mark_id"`
@@ -165,15 +189,7 @@ func (s *markService) GetHistory(ctx context.Context, id int) ([]models.MarkHist
 		CreatedAt  time.Time `gorm:"column:created_at"`
 	}
 	var rows []row
-	if err := s.db.WithContext(ctx).
-		Table("mark_histories AS h").
-		Select(`h.id, h.mark_id, h.action_type, h.old_value, h.new_value, h.user_id, h.comment,
-			COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '') AS user_name,
-			h.created_at`).
-		Joins("LEFT JOIN users u ON u.id = h.user_id").
-		Where("h.mark_id = ?", id).
-		Order("h.created_at DESC").
-		Scan(&rows).Error; err != nil {
+	if err := s.db.WithContext(ctx).Raw(sql, id, models.AuditEntityMark, id).Scan(&rows).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения истории")
 	}
 
