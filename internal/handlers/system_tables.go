@@ -16,25 +16,25 @@ import (
 // SystemTableHandler -- HTTP-обработчики системных таблиц.
 type SystemTableHandler struct {
 	service     services.SystemTableService
-	history     services.SystemTableHistoryService
+	recorder    services.AuditRecorder
 	maxFileSize int64
 	uploadDir   string
 }
 
 // NewSystemTableHandler создаёт новый экземпляр обработчика системных таблиц.
-// history может быть nil - тогда логирование действий отключено.
-func NewSystemTableHandler(service services.SystemTableService, history services.SystemTableHistoryService, maxFileSize int64, uploadDir string) *SystemTableHandler {
+// recorder может быть nil - тогда логирование действий отключено.
+func NewSystemTableHandler(service services.SystemTableService, recorder services.AuditRecorder, maxFileSize int64, uploadDir string) *SystemTableHandler {
 	return &SystemTableHandler{
 		service:     service,
-		history:     history,
+		recorder:    recorder,
 		maxFileSize: maxFileSize,
 		uploadDir:   filepath.Join(uploadDir, "system_tables"),
 	}
 }
 
-// logAction пишет запись в историю если сервис подключён. Безопасно вызывать с nil-историей.
+// logAction пишет запись аудита. Безопасно вызывать с nil-recorder.
 func (h *SystemTableHandler) logAction(ctx context.Context, c echo.Context, tableID int, actionType string, details interface{}) {
-	if h.history == nil {
+	if h.recorder == nil {
 		return
 	}
 	var userID *int
@@ -43,7 +43,7 @@ func (h *SystemTableHandler) logAction(ctx context.Context, c echo.Context, tabl
 			userID = &id
 		}
 	}
-	_ = h.history.Log(ctx, tableID, userID, actionType, details)
+	h.recorder.Log(ctx, nil, models.AuditEntitySystemTable, &tableID, actionType, userID, details)
 }
 
 // GetAll godoc
@@ -290,10 +290,7 @@ func (h *SystemTableHandler) GetHistory(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
 	}
-	if h.history == nil {
-		return RespondSuccess(c, []models.SystemTableHistoryItem{})
-	}
-	items, err := h.history.GetHistory(c.Request().Context(), id)
+	items, err := h.service.GetHistory(c.Request().Context(), id)
 	if err != nil {
 		return err
 	}
