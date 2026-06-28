@@ -63,7 +63,7 @@ func (s *carService) GetCarHistory(ctx context.Context, carID int) ([]CarHistory
 			h.table_id,
 			st.display_name AS table_name,
 			app.id AS application_id
-		FROM cars_history h
+		FROM ` + carsHistoryUnion + ` h
 		LEFT JOIN users u ON h.user_id = u.id
 		-- car.attachment_id иммутабелен (машина не перепривязывается к другой заявке),
 		-- поэтому app.id = заявка-источник машины. LEFT JOIN, чтобы не терять записи истории.
@@ -145,7 +145,7 @@ func (s *carService) GetAllCarsHistory(ctx context.Context) ([]AllCarsHistoryIte
 			COALESCE(c2.name, '') AS company,
 			h.table_id,
 			st.display_name AS table_name
-		FROM cars_history h
+		FROM ` + carsHistoryUnion + ` h
 		LEFT JOIN users u ON h.user_id = u.id
 		JOIN cars c ON h.car_id = c.id
 		LEFT JOIN attachments a ON c.attachment_id = a.id
@@ -251,7 +251,7 @@ func (s *carService) GetUnifiedCarHistory(ctx context.Context, req UnifiedCarHis
 			h.table_id,
 			st.display_name AS table_name,
 			app.id AS application_id
-		FROM cars_history h
+		FROM ` + carsHistoryUnion + ` h
 		LEFT JOIN users u ON h.user_id = u.id
 		JOIN cars c ON h.car_id = c.id
 		LEFT JOIN attachments a ON c.attachment_id = a.id

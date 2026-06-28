@@ -43,6 +43,7 @@ const (
 	AuditEntitySystemTable        = "system_table"
 	AuditEntitySystemTableTrash   = "system_table_trash"
 	AuditEntityMark               = "mark"
+	AuditEntityCar                = "car"
 )
 
 // AuditLogItem - запись аудита для API с разрезолвленным именем актора
