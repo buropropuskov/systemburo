@@ -231,6 +231,9 @@ type CompleteApplicationRequest struct {
 	DataApproval      bool                 `json:"data_approval"`
 	Attachments       []AttachmentData     `json:"attachments"`
 	RequiredUsers     *[]RequiredUserInput `json:"required_users"`
+	// Readers - получатели-читатели заявки (#884): доступ только на просмотр.
+	// Кладутся в application_viewers (как форвард-флоу), без права согласования.
+	Readers *[]int `json:"readers"`
 }
 
 // AttachmentData данные вложения при создании заявки.
@@ -1478,6 +1481,26 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 			INSERT INTO application_history (application_id, user_id, action_type, metadata, created_at)
 			VALUES (?, ?, 'assigned_responsible', ?, ?)
 		`, appID, ru.UserID, string(meta), historyTime)
+	}
+
+	// Читатели-получатели заявки (#884): доступ только на просмотр через application_viewers
+	// (как форвард-флоу) - CanAccessApplication пускает их на чтение, но не в согласующие.
+	// Пропускаем тех, кто уже ответственный (у них доступ и так есть).
+	if req.Readers != nil {
+		seenViewer := make(map[int]bool, len(responsibleUsers))
+		for _, ru := range responsibleUsers {
+			seenViewer[ru.UserID] = true
+		}
+		for _, readerID := range *req.Readers {
+			if readerID <= 0 || seenViewer[readerID] {
+				continue
+			}
+			seenViewer[readerID] = true
+			tx.Exec(`
+				INSERT INTO application_viewers (application_id, user_id, created_at, created_by)
+				VALUES (?, ?, ?, ?)
+			`, appID, readerID, baseTime, user.ID)
+		}
 	}
 
 	// Вставленные машины/сотрудники для пост-коммит проверки близости к ЧС (#481).
