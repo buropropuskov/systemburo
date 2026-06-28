@@ -58,6 +58,7 @@ type Dependencies struct {
 	Statistics          *handlers.StatisticsHandler
 	Bureau              *handlers.BureauHandler
 	WorkModes           *handlers.WorkModesHandler
+	Audit               *handlers.AuditHandler
 
 	// Services (для middleware и audit)
 	PermResolver *services.PermissionResolver
@@ -118,6 +119,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	guide := d.Guide
 	statistics := d.Statistics
 	bureau := d.Bureau
+	audit := d.Audit
 	permResolver := d.PermResolver
 	denialLog := d.DenialLog
 	// requireAdmin — гейт admin-страниц по page.admin (super/admin проходят,
@@ -201,6 +203,10 @@ func Setup(e *echo.Echo, d Dependencies) {
 	att.PUT("/:id/restore", attachments.Restore)
 	att.GET("/:id/history", attachments.GetHistory)
 	att.GET("/:id", attachments.GetByID)
+
+	// Единый журнал аудита (#870): сводный + история одной сущности через фильтры
+	// entity_type/entity_id. Admin-only - кросс-сущностный аудит чувствителен.
+	protected.GET("/audit", audit.GetAuditLog, requireAdmin)
 
 	// Управление типами пользователей (admin-only, page.admin)
 	utm := protected.Group("/user-types-management", requireAdmin)

@@ -207,6 +207,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	documentGroupHandler := handlers.NewDocumentGroupHandler(documentGroupService)
 	documentHandler := handlers.NewDocumentHandler(documentService, documentFileService)
 	guideHandler := handlers.NewGuideHandler(guideService, guideFileService, 10*1024*1024)
+	auditHandler := handlers.NewAuditHandler(services.NewAuditReader(db))
 
 	// Setup Echo with routes (no rate limiter, no logger — clean for tests)
 	e := echo.New()
@@ -258,6 +259,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 		DocumentGroups:      documentGroupHandler,
 		Documents:           documentHandler,
 		Guide:               guideHandler,
+		Audit:               auditHandler,
 		PermResolver:        permissionResolver,
 		DenialLog:           accessDenialService,
 		JWTSecret:           []byte(TestJWTSecret),
