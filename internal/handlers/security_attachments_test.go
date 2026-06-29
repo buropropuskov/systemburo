@@ -46,7 +46,7 @@ func setupSecurityHTTP(t *testing.T) secHTTPWorld {
 	guardID := secUserIDByUsername(t, db, "guardhttp")
 	senderID := secUserIDByUsername(t, db, "userhttp")
 
-	svc := services.NewApplicationService(db, nil, nil, nil, nil)
+	svc := services.NewApplicationService(db, nil, nil, nil, nil, services.NewAuditRecorder(db))
 	w := secWorld{db: db, svc: svc, orgID: td.OrgID, senderID: senderID, guardID: guardID}
 	return secHTTPWorld{e: e, w: w, guardToken: guardToken, userToken: userToken, adminToken: adminToken}
 }

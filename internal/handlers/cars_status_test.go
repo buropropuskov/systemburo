@@ -126,10 +126,10 @@ func TestCarTerritoryStatus_DeactivateSetsDateRemoved(t *testing.T) {
 	assert.Equal(t, 2, *carAfter.Status, "status should change to 2 after deactivation")
 	assert.NotNil(t, carAfter.DateRemoved, "date_removed should be set after deactivation")
 
-	// Verify history has a "delete" entry
+	// Деактивация пишется в audit_log (#870, срез 1.12c).
 	var historyCount int64
-	db.Model(&models.CarHistory{}).Where("car_id = ? AND action_type = ?", carID, "delete").Count(&historyCount)
-	assert.Equal(t, int64(1), historyCount, "should have exactly one delete history entry")
+	db.Model(&models.AuditLog{}).Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityCar, carID, "delete").Count(&historyCount)
+	assert.Equal(t, int64(1), historyCount, "should have exactly one delete entry in audit_log")
 }
 
 func TestCarTerritoryStatus_ActivateAfterDeactivateClearsDateRemoved(t *testing.T) {
@@ -167,10 +167,10 @@ func TestCarTerritoryStatus_ActivateAfterDeactivateClearsDateRemoved(t *testing.
 	assert.Equal(t, 1, *carActivated.Status, "status should be 1 after activation")
 	assert.Nil(t, carActivated.DateRemoved, "date_removed should be cleared after activation")
 
-	// Verify history has both delete and activate entries
+	// delete и activate пишутся в audit_log (#870, срез 1.12c).
 	var deleteCount, activateCount int64
-	db.Model(&models.CarHistory{}).Where("car_id = ? AND action_type = ?", carID, "delete").Count(&deleteCount)
-	db.Model(&models.CarHistory{}).Where("car_id = ? AND action_type = ?", carID, "activate").Count(&activateCount)
-	assert.Equal(t, int64(1), deleteCount, "should have one delete history entry")
-	assert.Equal(t, int64(1), activateCount, "should have one activate history entry")
+	db.Model(&models.AuditLog{}).Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityCar, carID, "delete").Count(&deleteCount)
+	db.Model(&models.AuditLog{}).Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityCar, carID, "activate").Count(&activateCount)
+	assert.Equal(t, int64(1), deleteCount, "should have one delete entry in audit_log")
+	assert.Equal(t, int64(1), activateCount, "should have one activate entry in audit_log")
 }

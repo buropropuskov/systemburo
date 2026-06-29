@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -24,11 +25,11 @@ func findHistByAction(items []map[string]interface{}, action string) map[string]
 	return nil
 }
 
-// TestCars_History_UnionLegacyAndAudit проверяет переходную модель #870 (срез 1.12a):
-// чтение истории машины объединяет замороженную cars_history (legacy create от заявки)
-// и новые строки из audit_log[car]. Запись ещё НЕ перенесена (1.12c) - строки audit_log
-// вставляются напрямую, имитируя пост-cutover события. Гарантирует, что после переноса
-// записи история останется той же формы (плоские поля собираются из details).
+// TestCars_History_UnionLegacyAndAudit проверяет переходную модель #870: чтение
+// истории машины объединяет замороженную cars_history (legacy-строки до cutover) и
+// новые строки из audit_log[car]. После среза 1.12c запись переведена на recorder -
+// submit пишет 'create' уже в audit_log; legacy-строка вставляется вручную, чтобы
+// проверить, что union по-прежнему читает frozen-таблицу (плоские поля из details).
 func TestCars_History_UnionLegacyAndAudit(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
@@ -39,13 +40,18 @@ func TestCars_History_UnionLegacyAndAudit(t *testing.T) {
 	_, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 	userID := getUserID(t, db, "carunion1")
 
-	// Legacy 'create' уже в cars_history (его пишет submit заявки).
-	var legacyCreate int64
-	require.NoError(t, db.Model(&models.CarHistory{}).
-		Where("car_id = ? AND action_type = 'create'", carID).Count(&legacyCreate).Error)
-	require.Equal(t, int64(1), legacyCreate, "submit заявки пишет legacy create в cars_history")
+	// После cutover (1.12c) submit пишет 'create' уже в audit_log, не в cars_history.
+	var auditCreate int64
+	require.NoError(t, db.Model(&models.AuditLog{}).
+		Where("entity_type = ? AND entity_id = ? AND action = 'create'", models.AuditEntityCar, carID).Count(&auditCreate).Error)
+	require.Equal(t, int64(1), auditCreate, "submit пишет create в audit_log")
 
 	now := time.Now().UTC()
+	// Замороженная legacy-строка в cars_history (осталась с до-cutover) - union обязан её читать.
+	legacyComment := "Выезд (legacy cars_history)"
+	require.NoError(t, db.Create(&models.CarHistory{
+		CarID: carID, ActionType: "exit", Comment: &legacyComment, CreatedAt: now.Add(-time.Hour),
+	}).Error)
 	// Новое событие въезда - напрямую в audit_log (как после среза 1.12c).
 	entry := models.AuditLog{
 		EntityType:  models.AuditEntityCar,
@@ -70,7 +76,7 @@ func TestCars_History_UnionLegacyAndAudit(t *testing.T) {
 	rec := testutil.GET(t, e, fmt.Sprintf("/cars/%d/history", carID), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	hist := testutil.ParseSlice(t, rec)
-	require.GreaterOrEqual(t, len(hist), 3, "union: legacy create + entry + data_changed")
+	require.GreaterOrEqual(t, len(hist), 4, "union: audit create + legacy exit + entry + data_changed")
 
 	// Новейшее сверху (data_changed позже entry позже create).
 	assert.Equal(t, "data_changed", hist[0]["action_type"], "новейшее сверху")
@@ -87,8 +93,10 @@ func TestCars_History_UnionLegacyAndAudit(t *testing.T) {
 	assert.Equal(t, "B002BB", changedRow["new_value"])
 	assert.Equal(t, map[string]interface{}{"src": "manual"}, changedRow["metadata"], "metadata собран из details->'metadata'")
 
-	// Legacy create по-прежнему виден через union.
-	assert.NotNil(t, findHistByAction(hist, "create"), "legacy create из cars_history виден")
+	// Замороженная строка из cars_history по-прежнему видна через union.
+	legacyRow := findHistByAction(hist, "exit")
+	require.NotNil(t, legacyRow, "legacy exit из cars_history виден через union")
+	assert.Equal(t, "Выезд (legacy cars_history)", legacyRow["comment"], "comment из замороженной cars_history")
 
 	// /cars/history/all фильтрует action_type IN ('entry','exit') - audit-ветка union
 	// тоже должна попадать под фильтр.
@@ -156,4 +164,67 @@ func TestCars_Trash_UnionAuditDeleteRow(t *testing.T) {
 	var car models.Car
 	require.NoError(t, db.First(&car, carID).Error)
 	assert.True(t, car.IsPurged, "ClearCarsTrash через union находит машину по audit_log delete")
+}
+
+// TestCars_WriteFlip_AllActionsToAuditLog проверяет cutover записи (#870, срез 1.12c):
+// каждое действие через реальный endpoint пишет строку в audit_log[car], а замороженная
+// cars_history больше НЕ растёт. Заодно проверяет round-trip плоских полей (data_changed
+// -> details -> union собирает field_name/old/new обратно).
+func TestCars_WriteFlip_AllActionsToAuditLog(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "carflip1", "pass123", 1, td.OrgID, td.CompanyID)
+	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
+	activateCarViaApp(t, e, db, appID, td)
+
+	// cars_history заморожена: submit уже не пишет в неё. Фиксируем счётчик до действий.
+	var legacyBefore int64
+	require.NoError(t, db.Model(&models.CarHistory{}).Where("car_id = ?", carID).Count(&legacyBefore).Error)
+
+	// Прогоняем все основные действия через endpoint-ы.
+	steps := []struct {
+		method, path, body string
+	}{
+		{"PUT", fmt.Sprintf("/cars/%d/territory-status", carID), `{"territory_status":1}`},
+		{"PUT", fmt.Sprintf("/cars/%d/territory-status", carID), `{"territory_status":2}`},
+		{"POST", fmt.Sprintf("/cars/%d/history", carID), `{"action_type":"data_changed","field_name":"car_number","old_value":"A001AA","new_value":"B002BB"}`},
+		{"PUT", fmt.Sprintf("/cars/%d/deactivate", carID), `{"status":2}`},
+		{"PUT", fmt.Sprintf("/cars/%d/activate", carID), `{}`},
+	}
+	for _, s := range steps {
+		var rec *httptest.ResponseRecorder
+		switch s.method {
+		case "POST":
+			rec = testutil.POST(t, e, s.path, s.body, testutil.AuthHeader(token))
+		default:
+			rec = testutil.PUT(t, e, s.path, s.body, testutil.AuthHeader(token))
+		}
+		require.Equal(t, http.StatusOK, rec.Code, "%s %s: %s", s.method, s.path, rec.Body.String())
+	}
+
+	// Каждое действие пишет строку в audit_log[car] (create - от submit).
+	for _, action := range []string{"create", "entry", "exit", "data_changed", "delete", "activate"} {
+		var n int64
+		require.NoError(t, db.Model(&models.AuditLog{}).
+			Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityCar, carID, action).
+			Count(&n).Error)
+		assert.GreaterOrEqualf(t, n, int64(1), "действие %q должно писаться в audit_log", action)
+	}
+
+	// cars_history НЕ выросла - старый write-path убран.
+	var legacyAfter int64
+	require.NoError(t, db.Model(&models.CarHistory{}).Where("car_id = ?", carID).Count(&legacyAfter).Error)
+	assert.Equal(t, legacyBefore, legacyAfter, "cars_history не должна расти после cutover")
+
+	// data_changed: плоские поля собираются из details обратно в форму cars_history.
+	rec := testutil.GET(t, e, fmt.Sprintf("/cars/%d/history", carID), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	changed := findHistByAction(testutil.ParseSlice(t, rec), "data_changed")
+	require.NotNil(t, changed, "data_changed виден в истории через union")
+	assert.Equal(t, "car_number", changed["field_name"])
+	assert.Equal(t, "A001AA", changed["old_value"])
+	assert.Equal(t, "B002BB", changed["new_value"])
 }

@@ -101,15 +101,7 @@ func (s *carService) UpdateCarTerritoryStatus(ctx context.Context, carID int, re
 			comment = fmt.Sprintf("Автомобиль %s выехал с территории", carNumber)
 		}
 
-		history := models.CarHistory{
-			CarID:      carID,
-			UserID:     req.UserID,
-			ActionType: actionType,
-			Comment:    &comment,
-			CreatedAt:  now,
-			TableID:    req.TableID,
-		}
-		if err := tx.Create(&history).Error; err != nil {
+		if err := s.recorder.Record(ctx, tx, models.AuditEntityCar, &carID, actionType, req.UserID, carAuditDetails{Comment: &comment, TableID: req.TableID}); err != nil {
 			slog.Error("не удалось добавить запись в историю автомобиля", "car_id", carID, "action_type", actionType, "error", err)
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error adding car history entry")
 		}
@@ -150,15 +142,7 @@ func (s *carService) DeactivateCar(ctx context.Context, carID int, req Deactivat
 		}
 		comment := fmt.Sprintf("Автомобиль %s %s удалён пользователем", carNumber, carBrand)
 		actionType := "delete"
-		history := models.CarHistory{
-			CarID:      carID,
-			UserID:     req.UserID,
-			ActionType: actionType,
-			Comment:    &comment,
-			CreatedAt:  now,
-			TableID:    req.TableID,
-		}
-		if err := tx.Create(&history).Error; err != nil {
+		if err := s.recorder.Record(ctx, tx, models.AuditEntityCar, &carID, actionType, req.UserID, carAuditDetails{Comment: &comment, TableID: req.TableID}); err != nil {
 			slog.Error("не удалось добавить запись в историю автомобиля", "car_id", carID, "action_type", actionType, "error", err)
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error adding car history entry")
 		}
@@ -199,14 +183,7 @@ func (s *carService) ActivateCar(ctx context.Context, carID int, req ActivateCar
 		}
 		comment := fmt.Sprintf("Автомобиль %s %s введён в работу", carNumber, carBrand)
 		actionType := "activate"
-		history := models.CarHistory{
-			CarID:      carID,
-			UserID:     req.UserID,
-			ActionType: actionType,
-			Comment:    &comment,
-			CreatedAt:  now,
-		}
-		if err := tx.Create(&history).Error; err != nil {
+		if err := s.recorder.Record(ctx, tx, models.AuditEntityCar, &carID, actionType, req.UserID, carAuditDetails{Comment: &comment}); err != nil {
 			slog.Error("не удалось добавить запись в историю автомобиля", "car_id", carID, "action_type", actionType, "error", err)
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error adding car history entry")
 		}
@@ -247,14 +224,7 @@ func (s *carService) RestoreCar(ctx context.Context, carID int, req RestoreCarRe
 		}
 		comment := fmt.Sprintf("Автомобиль %s %s восстановлен", carNumber, carBrand)
 		actionType := "restore"
-		history := models.CarHistory{
-			CarID:      carID,
-			UserID:     req.UserID,
-			ActionType: actionType,
-			Comment:    &comment,
-			CreatedAt:  now,
-		}
-		if err := tx.Create(&history).Error; err != nil {
+		if err := s.recorder.Record(ctx, tx, models.AuditEntityCar, &carID, actionType, req.UserID, carAuditDetails{Comment: &comment}); err != nil {
 			slog.Error("не удалось добавить запись в историю автомобиля", "car_id", carID, "action_type", actionType, "error", err)
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error adding car history entry")
 		}

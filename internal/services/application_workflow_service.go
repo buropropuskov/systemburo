@@ -302,10 +302,9 @@ func (s *applicationService) CheckExpiredAttachments(ctx context.Context) error 
 	tx.Exec("UPDATE employees SET status = 0 WHERE attachment_id IN ?", attachmentIDs)
 
 	for _, car := range cars {
-		tx.Exec(`
-			INSERT INTO cars_history (car_id, user_id, action_type, comment, created_at)
-			VALUES (?, NULL, 'deactivate', ?, NOW())
-		`, car.ID, fmt.Sprintf("Срок действия заявки на автомобиль %s %s истёк", car.CarNumber, car.CarBrand))
+		carID := car.ID
+		comment := fmt.Sprintf("Срок действия заявки на автомобиль %s %s истёк", car.CarNumber, car.CarBrand)
+		s.recorder.Log(ctx, tx, models.AuditEntityCar, &carID, "deactivate", nil, carAuditDetails{Comment: &comment})
 	}
 
 	for _, emp := range employees {

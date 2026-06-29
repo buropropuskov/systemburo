@@ -83,23 +83,16 @@ func (s *carService) GetCarHistory(ctx context.Context, carID int) ([]CarHistory
 
 // AddCarHistoryEntry добавляет запись в историю автомобиля.
 func (s *carService) AddCarHistoryEntry(ctx context.Context, carID int, req AddCarHistoryRequest) error {
-	var metadataStr *string
+	details := carAuditDetails{
+		FieldName: req.FieldName,
+		OldValue:  req.OldValue,
+		NewValue:  req.NewValue,
+		Comment:   req.Comment,
+	}
 	if req.Metadata != nil {
-		s := string(*req.Metadata)
-		metadataStr = &s
+		details.Metadata = *req.Metadata
 	}
-
-	history := models.CarHistory{
-		CarID:      carID,
-		UserID:     req.UserID,
-		ActionType: req.ActionType,
-		FieldName:  req.FieldName,
-		OldValue:   req.OldValue,
-		NewValue:   req.NewValue,
-		Comment:    req.Comment,
-		Metadata:   metadataStr,
-	}
-	if err := s.db.WithContext(ctx).Create(&history).Error; err != nil {
+	if err := s.recorder.Record(ctx, nil, models.AuditEntityCar, &carID, req.ActionType, req.UserID, details); err != nil {
 		slog.Error("не удалось добавить запись в историю автомобиля", "car_id", carID, "action_type", req.ActionType, "error", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error adding car history entry")
 	}

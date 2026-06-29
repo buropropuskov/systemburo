@@ -165,8 +165,8 @@ func TestVehicleBlacklist_CascadeDeactivatesActiveCar(t *testing.T) {
 	assert.NotNil(t, after.DateRemoved, "date_removed должен проставиться")
 
 	var carHistCount int64
-	db.Model(&models.CarHistory{}).Where("car_id = ? AND action_type = ?", carID, "blacklisted").Count(&carHistCount)
-	assert.Equal(t, int64(1), carHistCount, "должна быть запись cars_history blacklisted")
+	db.Model(&models.AuditLog{}).Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityCar, carID, "blacklisted").Count(&carHistCount)
+	assert.Equal(t, int64(1), carHistCount, "должна быть запись audit_log blacklisted (#870, срез 1.12c)")
 
 	var blHistCount int64
 	db.Table("audit_log").Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityVehicleBlacklist, entry.ID, models.BlacklistActionCreated).Count(&blHistCount)
@@ -208,8 +208,8 @@ func TestVehicleBlacklist_UnblacklistRestoresActiveApplicationCar(t *testing.T) 
 	assert.Nil(t, restored.DateRemoved, "date_removed должен очиститься")
 
 	var carHistCount int64
-	db.Model(&models.CarHistory{}).Where("car_id = ? AND action_type = ?", carID, "unblacklisted").Count(&carHistCount)
-	assert.Equal(t, int64(1), carHistCount, "должна быть запись cars_history unblacklisted")
+	db.Model(&models.AuditLog{}).Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityCar, carID, "unblacklisted").Count(&carHistCount)
+	assert.Equal(t, int64(1), carHistCount, "должна быть запись audit_log unblacklisted (#870, срез 1.12c)")
 }
 
 // TestVehicleBlacklist_UnblacklistSkipsExpiredPass: снятие из ЧС не возрождает машину,

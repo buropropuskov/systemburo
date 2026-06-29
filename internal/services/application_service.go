@@ -583,16 +583,18 @@ type applicationService struct {
 	notificationService NotificationService
 	vehicleBlacklist    VehicleBlacklistService
 	personBlacklist     PersonBlacklistService
+	recorder            AuditRecorder
 }
 
 // NewApplicationService создаёт экземпляр сервиса заявок.
-func NewApplicationService(db *gorm.DB, permSvc PermissionService, notifSvc NotificationService, vehicleBL VehicleBlacklistService, personBL PersonBlacklistService) ApplicationService {
+func NewApplicationService(db *gorm.DB, permSvc PermissionService, notifSvc NotificationService, vehicleBL VehicleBlacklistService, personBL PersonBlacklistService, recorder AuditRecorder) ApplicationService {
 	return &applicationService{
 		db:                  db,
 		permissionService:   permSvc,
 		notificationService: notifSvc,
 		vehicleBlacklist:    vehicleBL,
 		personBlacklist:     personBL,
+		recorder:            recorder,
 	}
 }
 
@@ -1542,11 +1544,8 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 
 					pendingVehicleFlags = append(pendingVehicleFlags, pendingVehicleFlag{carID: carID, carNumber: v.CarNumber})
 
-					carHistoryTime := baseTime.Add(time.Millisecond)
-					tx.Exec(`
-						INSERT INTO cars_history (car_id, user_id, action_type, comment, created_at)
-						VALUES (?, ?, 'create', ?, ?)
-					`, carID, user.ID, fmt.Sprintf("Автомобиль %s %s создан", v.CarNumber, v.CarBrand), carHistoryTime)
+					carCreateComment := fmt.Sprintf("Автомобиль %s %s создан", v.CarNumber, v.CarBrand)
+					s.recorder.Log(ctx, tx, models.AuditEntityCar, &carID, "create", &user.ID, carAuditDetails{Comment: &carCreateComment})
 
 					for _, placeID := range v.UnloadPlaces {
 						tx.Exec("INSERT INTO car_unload_places (car_id, unload_place_id, order_index) VALUES (?, ?, 1)", carID, placeID)

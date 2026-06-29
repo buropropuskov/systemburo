@@ -44,7 +44,7 @@ func setupSecurityWorld(t *testing.T) secWorld {
 	sender := models.User{Username: "sender1", Password: "x", TypeID: userTypeID, OrganizationID: secPtrInt(td.OrgID)}
 	require.NoError(t, db.Create(&sender).Error)
 
-	svc := services.NewApplicationService(db, nil, nil, nil, nil)
+	svc := services.NewApplicationService(db, nil, nil, nil, nil, services.NewAuditRecorder(db))
 	return secWorld{db: db, svc: svc, orgID: td.OrgID, senderID: sender.ID, guardID: guard.ID}
 }
 

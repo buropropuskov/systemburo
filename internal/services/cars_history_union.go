@@ -1,6 +1,27 @@
 package services
 
-import "systemburo/internal/models"
+import (
+	"encoding/json"
+
+	"systemburo/internal/models"
+)
+
+// carAuditDetails - форма details jsonb для записей car в audit_log (#870, срез
+// 1.12c). Ключи ОБЯЗАНЫ совпадать с тем, что извлекает carsHistoryUnion
+// (field_name/old_value/new_value/comment/table_id/metadata), иначе union-чтение
+// потеряет поля. omitempty + указатели дают семантику старой nullable cars_history:
+// nil -> ключ опущен -> details->>'key' = NULL (как незаполненная колонка); &"" ->
+// пустая строка (сохраняет не-nil Comment старого write-path). metadata пишется
+// вложенным объектом, чтобы details->'metadata' вернул тот же jsonb, что давала
+// колонка cars_history.metadata.
+type carAuditDetails struct {
+	FieldName *string         `json:"field_name,omitempty"`
+	OldValue  *string         `json:"old_value,omitempty"`
+	NewValue  *string         `json:"new_value,omitempty"`
+	Comment   *string         `json:"comment,omitempty"`
+	TableID   *int            `json:"table_id,omitempty"`
+	Metadata  json.RawMessage `json:"metadata,omitempty"`
+}
 
 // carsHistoryUnion - подзапрос-мост (#870, срез 1.12): отдаёт строки истории
 // машин в форме таблицы cars_history, объединяя замороженную cars_history и

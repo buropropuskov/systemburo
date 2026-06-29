@@ -78,9 +78,10 @@ func TestCarHistory_DeleteActionRecordedAtUTC(t *testing.T) {
 	afterUTC := time.Now().UTC().Add(2 * time.Second)
 
 	// Получаем запись из БД напрямую и убеждаемся, что момент в UTC-окне.
-	var hist models.CarHistory
+	// После cutover (#870, срез 1.12c) delete пишется в audit_log.
+	var hist models.AuditLog
 	require.NoError(t,
-		db.Where("car_id = ? AND action_type = ?", carID, "delete").
+		db.Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityCar, carID, "delete").
 			Order("created_at DESC").
 			First(&hist).Error)
 

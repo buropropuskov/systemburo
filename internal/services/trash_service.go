@@ -222,12 +222,7 @@ func (s *trashService) RestoreCars(ctx context.Context, systemTableID int, ids [
 				return errors.New("not in trash")
 			}
 			tableID := systemTableID
-			return tx.Create(&models.CarHistory{
-				CarID:      id,
-				UserID:     &userID,
-				ActionType: "restore",
-				TableID:    &tableID,
-			}).Error
+			return s.recorder.Record(ctx, tx, models.AuditEntityCar, &id, "restore", &userID, carAuditDetails{TableID: &tableID})
 		})
 		if err == nil {
 			restoredIDs = append(restoredIDs, id)
@@ -284,14 +279,7 @@ func (s *trashService) PurgeCar(ctx context.Context, systemTableID, id, userID i
 		}
 		tableID := systemTableID
 		comment := "Безвозвратно удалён из корзины"
-		return tx.Create(&models.CarHistory{
-			CarID:      id,
-			UserID:     &userID,
-			ActionType: "purge",
-			TableID:    &tableID,
-			Comment:    &comment,
-			CreatedAt:  now,
-		}).Error
+		return s.recorder.Record(ctx, tx, models.AuditEntityCar, &id, "purge", &userID, carAuditDetails{Comment: &comment, TableID: &tableID})
 	})
 }
 

@@ -387,15 +387,15 @@ func TestBlacklistOverride_HistoryAndSuppression(t *testing.T) {
 		assert.Equal(t, int64(1), appHist, "запись в истории заявки")
 
 		var carHist int64
-		db.Table("cars_history").
-			Where("car_id = ? AND action_type = 'blacklist_override'", carID).Count(&carHist)
-		assert.Equal(t, int64(1), carHist, "запись в истории машины")
+		db.Table("audit_log").
+			Where("entity_type = ? AND entity_id = ? AND action = 'blacklist_override'", models.AuditEntityCar, carID).Count(&carHist)
+		assert.Equal(t, int64(1), carHist, "запись в истории машины (audit_log, #870 срез 1.12c)")
 
 		// В комментарии видно, КАКУЮ машину пропустили и причину - иначе в истории непонятно.
 		var carComment string
-		db.Table("cars_history").
-			Where("car_id = ? AND action_type = 'blacklist_override'", carID).
-			Select("comment").Scan(&carComment)
+		db.Table("audit_log").
+			Where("entity_type = ? AND entity_id = ? AND action = 'blacklist_override'", models.AuditEntityCar, carID).
+			Select("details->>'comment'").Scan(&carComment)
 		assert.Contains(t, carComment, "H777HH798", "в истории должен быть номер машины")
 		assert.Contains(t, carComment, "проверил лично", "в истории должна быть причина")
 	})

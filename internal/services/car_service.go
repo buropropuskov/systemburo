@@ -219,12 +219,13 @@ type CarCurrentStatus struct {
 // --- Реализация ---
 
 type carService struct {
-	db *gorm.DB
+	db       *gorm.DB
+	recorder AuditRecorder
 }
 
 // NewCarService создаёт новый экземпляр CarService.
-func NewCarService(db *gorm.DB) CarService {
-	return &carService{db: db}
+func NewCarService(db *gorm.DB, recorder AuditRecorder) CarService {
+	return &carService{db: db, recorder: recorder}
 }
 
 // CreateCar создаёт автомобиль с привязкой к местам разгрузки и записью в историю.
@@ -264,14 +265,7 @@ func (s *carService) CreateCar(ctx context.Context, req CreateCarRequest, userID
 		}
 
 		comment := fmt.Sprintf("Автомобиль %s %s создан", req.CarNumber, req.CarBrand)
-		actionType := "create"
-		history := models.CarHistory{
-			CarID:      carID,
-			UserID:     &userID,
-			ActionType: actionType,
-			Comment:    &comment,
-		}
-		if err := tx.Create(&history).Error; err != nil {
+		if err := s.recorder.Record(ctx, tx, models.AuditEntityCar, &carID, "create", &userID, carAuditDetails{Comment: &comment}); err != nil {
 			slog.Error("не удалось добавить запись в историю автомобиля", "car_id", carID, "error", err)
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error adding car history entry")
 		}
