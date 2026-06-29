@@ -884,6 +884,36 @@ func auditBackfillSources() []auditBackfillSource {
 			table:      "unique_attachment_histories",
 			projection: "unique_attachment_id, action_type, actor_user_id, details, created_at",
 		},
+		// F.3 ref-батч B (спец-форма details): user/system_table - details уже jsonb
+		// (verbatim); approver/mark/trash - плоские колонки сворачиваются в details в ту
+		// же форму, что пишет recorder сущности (иначе read-switch вернёт не ту историю,
+		// стережёт golden). actor у этой пятёрки: user/approver - actor_user_id,
+		// mark/system_table/trash - user_id.
+		{
+			entity:     models.AuditEntityUser,
+			table:      "user_histories",
+			projection: "target_user_id, action_type, actor_user_id, details, created_at",
+		},
+		{
+			entity:     models.AuditEntityApprover,
+			table:      "application_approver_histories",
+			projection: "approver_user_id, action_type, actor_user_id, jsonb_build_object('approver_name', approver_name), created_at",
+		},
+		{
+			entity:     models.AuditEntityMark,
+			table:      "mark_histories",
+			projection: "mark_id, action_type, user_id, jsonb_build_object('old_value', old_value, 'new_value', new_value), created_at",
+		},
+		{
+			entity:     models.AuditEntitySystemTable,
+			table:      "system_table_histories",
+			projection: "system_table_id, action_type, user_id, details, created_at",
+		},
+		{
+			entity:     models.AuditEntitySystemTableTrash,
+			table:      "system_table_trash_histories",
+			projection: "system_table_id, action_type, user_id, jsonb_build_object('affected_count', affected_count, 'items', COALESCE(details, '[]'::jsonb)), created_at",
+		},
 	}
 }
 

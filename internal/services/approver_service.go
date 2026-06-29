@@ -141,26 +141,20 @@ func (s *approverService) Delete(ctx context.Context, id int, actorUsername stri
 }
 
 // GetHistory возвращает глобальный журнал принимающих (новые сверху).
-// Переходный период #870: запись уже идёт в audit_log; старые строки лежат в
-// application_approver_histories до финального backfill. Чтение объединяет обе
-// таблицы в одинаковую форму ответа (форму стережёт TestApprovers_History_*).
+// Read-switch #870 (F.3): до-cutover строки application_approver_histories подняты в
+// audit_log разовым backfill'ом (approver_name из плоской колонки свёрнут в
+// details->>'approver_name'), читаем только audit_log. Форму стережёт
+// TestApprovers_History_BackfillLegacyIntoAudit. История глобальная (без entity_id).
 func (s *approverService) GetHistory(ctx context.Context) ([]models.ApplicationApproverHistoryItem, error) {
 	const actorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`
 	sql := `
-		SELECT id, approver_user_id, approver_name, action_type, actor_user_id, actor_name, created_at FROM (
-			SELECT h.id AS id, h.approver_user_id AS approver_user_id, h.approver_name AS approver_name,
-				h.action_type AS action_type, h.actor_user_id AS actor_user_id,
-				` + actorName + ` AS actor_name, h.created_at AS created_at
-			FROM application_approver_histories h LEFT JOIN users u ON u.id = h.actor_user_id
-			UNION ALL
-			SELECT a.id AS id, a.entity_id AS approver_user_id,
-				COALESCE(a.details->>'approver_name', '') AS approver_name,
-				a.action AS action_type, a.actor_user_id AS actor_user_id,
-				` + actorName + ` AS actor_name, a.created_at AS created_at
-			FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
-			WHERE a.entity_type = ?
-		) merged
-		ORDER BY created_at DESC, id DESC`
+		SELECT a.id AS id, a.entity_id AS approver_user_id,
+			COALESCE(a.details->>'approver_name', '') AS approver_name,
+			a.action AS action_type, a.actor_user_id AS actor_user_id,
+			` + actorName + ` AS actor_name, a.created_at AS created_at
+		FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
+		WHERE a.entity_type = ?
+		ORDER BY a.created_at DESC, a.id DESC`
 
 	type row struct {
 		ID             int       `gorm:"column:id"`
