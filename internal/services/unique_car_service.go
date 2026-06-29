@@ -757,11 +757,10 @@ func (s *uniqueCarService) recordCarChanges(ctx context.Context, before, after *
 // Доступ: у пользователя должны быть права редактирования (canEditCar) -
 // иначе он не имеет права видеть аудит.
 //
-// Переходный период #870 (срез 1.12d): запись уже идёт в audit_log[unique_car],
-// но старые строки лежат в замороженной unique_cars_history до финального
-// backfill. Чтение объединяет обе таблицы в прежнюю форму UniqueCarHistoryItem
-// (форму стережёт TestUniqueCarService_GetHistory_ReturnsRecords); плоские
-// field_name/old/new у audit_log лежат внутри details jsonb.
+// Read-switch #870 (F.4): до-cutover строки unique_cars_history подняты в
+// audit_log разовым backfill'ом (плоские field_name/old/new/comment свёрнуты в
+// details jsonb в форме carAuditDetails), читаем только audit_log в прежнюю форму
+// UniqueCarHistoryItem. Форму стережёт TestUniqueCarService_GetHistory_ReturnsRecords.
 func (s *uniqueCarService) GetHistory(ctx context.Context, username string, id int) ([]UniqueCarHistoryItem, error) {
 	ownerInfo, err := s.getCarOwnerInfo(ctx, username)
 	if err != nil {
@@ -785,11 +784,6 @@ func (s *uniqueCarService) GetHistory(ctx context.Context, username string, id i
 			u.last_name AS user_last_name, u.first_name AS user_first_name,
 			m.action_type, m.field_name, m.old_value, m.new_value, m.comment, m.created_at
 		FROM (
-			SELECT h.id, h.unique_car_id, h.user_id, h.action_type, h.field_name,
-				h.old_value, h.new_value, h.comment, h.created_at
-			FROM unique_cars_history h
-			WHERE h.unique_car_id = ?
-			UNION ALL
 			SELECT a.id, a.entity_id AS unique_car_id, a.actor_user_id AS user_id,
 				a.action AS action_type, a.details->>'field_name' AS field_name,
 				a.details->>'old_value' AS old_value, a.details->>'new_value' AS new_value,
@@ -801,7 +795,7 @@ func (s *uniqueCarService) GetHistory(ctx context.Context, username string, id i
 		ORDER BY m.created_at DESC, m.id DESC`
 
 	items := make([]UniqueCarHistoryItem, 0)
-	if err := s.db.WithContext(ctx).Raw(sql, id, models.AuditEntityUniqueCar, id).Scan(&items).Error; err != nil {
+	if err := s.db.WithContext(ctx).Raw(sql, models.AuditEntityUniqueCar, id).Scan(&items).Error; err != nil {
 		slog.Error("failed to load unique_car history", "id", id, "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching history")
 	}

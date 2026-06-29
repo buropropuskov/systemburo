@@ -690,11 +690,10 @@ func (s *uniqueEmployeeService) Delete(ctx context.Context, username string, id 
 // Доступ: у пользователя должны быть права редактирования (canEditEmployee) -
 // иначе он не имеет права видеть аудит.
 //
-// Переходный период #870 (срез 1.13c): запись уже идёт в audit_log[unique_employee],
-// но старые строки лежат в замороженной unique_employees_history до финального
-// backfill. Чтение объединяет обе таблицы в прежнюю форму UniqueEmployeeHistoryItem
-// (форму стережёт TestUniqueEmployeeService_GetHistory_ReturnsRecords); плоские
-// field_name/old/new у audit_log лежат внутри details jsonb.
+// Read-switch #870 (F.4): до-cutover строки unique_employees_history подняты в
+// audit_log разовым backfill'ом (плоские field_name/old/new/comment свёрнуты в
+// details jsonb в форме carAuditDetails), читаем только audit_log в прежнюю форму
+// UniqueEmployeeHistoryItem. Форму стережёт TestUniqueEmployeeService_GetHistory_ReturnsRecords.
 func (s *uniqueEmployeeService) GetHistory(ctx context.Context, username string, id int) ([]UniqueEmployeeHistoryItem, error) {
 	ownerInfo, err := s.getEmployeeOwnerInfo(ctx, username)
 	if err != nil {
@@ -718,11 +717,6 @@ func (s *uniqueEmployeeService) GetHistory(ctx context.Context, username string,
 			u.last_name AS user_last_name, u.first_name AS user_first_name,
 			m.action_type, m.field_name, m.old_value, m.new_value, m.comment, m.created_at
 		FROM (
-			SELECT h.id, h.unique_employee_id, h.user_id, h.action_type, h.field_name,
-				h.old_value, h.new_value, h.comment, h.created_at
-			FROM unique_employees_history h
-			WHERE h.unique_employee_id = ?
-			UNION ALL
 			SELECT a.id, a.entity_id AS unique_employee_id, a.actor_user_id AS user_id,
 				a.action AS action_type, a.details->>'field_name' AS field_name,
 				a.details->>'old_value' AS old_value, a.details->>'new_value' AS new_value,
@@ -734,7 +728,7 @@ func (s *uniqueEmployeeService) GetHistory(ctx context.Context, username string,
 		ORDER BY m.created_at DESC, m.id DESC`
 
 	items := make([]UniqueEmployeeHistoryItem, 0)
-	if err := s.db.WithContext(ctx).Raw(sql, id, models.AuditEntityUniqueEmployee, id).Scan(&items).Error; err != nil {
+	if err := s.db.WithContext(ctx).Raw(sql, models.AuditEntityUniqueEmployee, id).Scan(&items).Error; err != nil {
 		slog.Error("failed to load unique_employee history", "id", id, "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching history")
 	}
