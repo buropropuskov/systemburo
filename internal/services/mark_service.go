@@ -149,33 +149,23 @@ func (s *markService) setActive(ctx context.Context, id int, active bool, userID
 // при записи; обратно из audit_log извлекаем через ->> оператор jsonb.
 func (s *markService) GetHistory(ctx context.Context, id int) ([]models.MarkHistoryItem, error) {
 	const actorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`
+	// Read-switch #870 (F.3): до-cutover строки mark_histories подняты в audit_log
+	// разовым backfill'ом (old_value/new_value свёрнуты в details), читаем только
+	// audit_log. comment приложением никогда не писался (плоская колонка всегда NULL) -
+	// сохраняем NULL. Форму стережёт TestMarks_History_BackfillLegacyIntoAudit.
 	sql := `
-		SELECT id, mark_id, action_type, old_value, new_value, user_id, user_name, comment, created_at FROM (
-			SELECT h.id AS id,
-				h.mark_id AS mark_id,
-				h.action_type AS action_type,
-				h.old_value AS old_value,
-				h.new_value AS new_value,
-				h.user_id AS user_id,
-				` + actorName + ` AS user_name,
-				h.comment AS comment,
-				h.created_at AS created_at
-			FROM mark_histories h LEFT JOIN users u ON u.id = h.user_id
-			WHERE h.mark_id = ?
-			UNION ALL
-			SELECT a.id AS id,
-				COALESCE(a.entity_id, 0) AS mark_id,
-				a.action AS action_type,
-				a.details->>'old_value' AS old_value,
-				a.details->>'new_value' AS new_value,
-				a.actor_user_id AS user_id,
-				` + actorName + ` AS user_name,
-				NULL::text AS comment,
-				a.created_at AS created_at
-			FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
-			WHERE a.entity_type = ? AND a.entity_id = ?
-		) merged
-		ORDER BY created_at DESC, id DESC`
+		SELECT a.id AS id,
+			COALESCE(a.entity_id, 0) AS mark_id,
+			a.action AS action_type,
+			a.details->>'old_value' AS old_value,
+			a.details->>'new_value' AS new_value,
+			a.actor_user_id AS user_id,
+			` + actorName + ` AS user_name,
+			NULL::text AS comment,
+			a.created_at AS created_at
+		FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
+		WHERE a.entity_type = ? AND a.entity_id = ?
+		ORDER BY a.created_at DESC, a.id DESC`
 
 	type row struct {
 		ID         int       `gorm:"column:id"`
@@ -189,7 +179,7 @@ func (s *markService) GetHistory(ctx context.Context, id int) ([]models.MarkHist
 		CreatedAt  time.Time `gorm:"column:created_at"`
 	}
 	var rows []row
-	if err := s.db.WithContext(ctx).Raw(sql, id, models.AuditEntityMark, id).Scan(&rows).Error; err != nil {
+	if err := s.db.WithContext(ctx).Raw(sql, models.AuditEntityMark, id).Scan(&rows).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения истории")
 	}
 

@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"systemburo/internal/database"
 	"systemburo/internal/models"
 	"systemburo/internal/testutil"
 
@@ -14,10 +15,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestSystemTable_History_UnionLegacyAndAudit проверяет переходную модель #870:
-// новые действия пишутся в audit_log, а строки из замороженной system_table_histories
-// по-прежнему видны в истории через union.
-func TestSystemTable_History_UnionLegacyAndAudit(t *testing.T) {
+// TestSystemTable_History_BackfillLegacyIntoAudit проверяет финал #870 (срез F.3):
+// читатель истории таблицы переведён на audit_log-only, а до-cutover строки замороженной
+// system_table_histories поднимаются в audit_log разовым BackfillAuditFromLegacy.
+// details уже jsonb - переносится verbatim.
+func TestSystemTable_History_BackfillLegacyIntoAudit(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
@@ -30,14 +32,7 @@ func TestSystemTable_History_UnionLegacyAndAudit(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	id := int(testutil.ParseMap(t, rec)["id"].(float64))
 
-	// Подтверждаем что новая запись физически в audit_log (не в старой таблице).
-	var auditCount, legacyCount int64
-	require.NoError(t, db.Table("audit_log").Where("entity_type = ? AND entity_id = ?", models.AuditEntitySystemTable, id).Count(&auditCount).Error)
-	assert.Equal(t, int64(1), auditCount, "created должен попасть в audit_log")
-	require.NoError(t, db.Table("system_table_histories").Where("system_table_id = ?", id).Count(&legacyCount).Error)
-	assert.Equal(t, int64(0), legacyCount, "старая таблица больше не пишется")
-
-	// Легаси-строка напрямую в старую таблицу с более ранним временем (как до cutover).
+	// Легаси-строка напрямую в замороженную таблицу с более ранним временем (как до cutover).
 	legacy := models.SystemTableHistory{
 		SystemTableID: id,
 		ActionType:    models.SystemTableActionUpdated,
@@ -46,19 +41,48 @@ func TestSystemTable_History_UnionLegacyAndAudit(t *testing.T) {
 	}
 	require.NoError(t, db.Create(&legacy).Error)
 
-	// История endpoint-а объединяет обе таблицы, новые сверху.
+	// До backfill читатель видит только audit_log -> legacy-строка ещё невидима.
+	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/history", id), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Len(t, testutil.ParseSlice(t, rec), 1, "до backfill видно только audit_log")
+
+	// CleanDB-Seed уже выставил гард-флаг (backfill прогонялся на пустой таблице) -
+	// снимаем, чтобы перенести только что вставленную legacy-строку.
+	require.NoError(t, db.Where("key = ?", "audit_backfilled:"+models.AuditEntitySystemTable).
+		Delete(&models.SystemSetting{}).Error)
+	require.NoError(t, database.BackfillAuditFromLegacy(db))
+
+	// Легаси-строка физически скопирована в audit_log, а старая таблица цела (бэкап).
+	var auditCount, legacyCount int64
+	require.NoError(t, db.Table("audit_log").
+		Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntitySystemTable, id, models.SystemTableActionUpdated).
+		Count(&auditCount).Error)
+	assert.Equal(t, int64(1), auditCount, "legacy updated перенесён в audit_log")
+	require.NoError(t, db.Table("system_table_histories").Where("system_table_id = ?", id).Count(&legacyCount).Error)
+	assert.Equal(t, int64(1), legacyCount, "старая таблица не тронута backfill'ом - read-only бэкап")
+
+	// История отдаёт обе записи из audit_log, новые сверху, details verbatim.
 	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/history", id), h)
 	require.Equal(t, http.StatusOK, rec.Code)
 	hist := testutil.ParseSlice(t, rec)
-	require.Len(t, hist, 2, "union должен отдать и audit_log, и legacy-строку")
+	require.Len(t, hist, 2, "после backfill видны и created, и перенесённая legacy-строка")
 	assert.Equal(t, "created", hist[0]["action_type"], "новее сверху - created из audit_log")
 	assert.Equal(t, "updated", hist[1]["action_type"], "legacy updated час назад - ниже")
+	assert.Equal(t, "Old Name", hist[1]["details"].(map[string]interface{})["display_name"], "details перенесены verbatim")
 	assert.NotEmpty(t, hist[0]["user_name"], "user_name должен заполняться")
+
+	// Идемпотентность: повторный backfill не дублирует (гард-флаг снова стоит).
+	require.NoError(t, database.BackfillAuditFromLegacy(db))
+	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/history", id), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Len(t, testutil.ParseSlice(t, rec), 2, "повторный backfill не создаёт дублей")
 }
 
-// TestTrash_History_UnionLegacyAndAudit проверяет что история корзины (#870)
-// объединяет legacy system_table_trash_histories и новые записи audit_log.
-func TestTrash_History_UnionLegacyAndAudit(t *testing.T) {
+// TestTrash_History_BackfillLegacyIntoAudit проверяет финал #870 (срез F.3):
+// читатель истории корзины переведён на audit_log-only, а до-cutover строки замороженной
+// system_table_trash_histories поднимаются в audit_log разовым BackfillAuditFromLegacy.
+// Плоский affected_count + items сворачиваются в details в форме recorder'а.
+func TestTrash_History_BackfillLegacyIntoAudit(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
@@ -87,14 +111,7 @@ func TestTrash_History_UnionLegacyAndAudit(t *testing.T) {
 		fmt.Sprintf(`{"ids":[%d]}`, carID), h)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
-	// Подтверждаем что запись попала в audit_log.
-	var auditCount, legacyCount int64
-	require.NoError(t, db.Table("audit_log").Where("entity_type = ? AND entity_id = ?", models.AuditEntitySystemTableTrash, tbl.ID).Count(&auditCount).Error)
-	assert.Equal(t, int64(1), auditCount, "bulk_restored должен попасть в audit_log")
-	require.NoError(t, db.Table("system_table_trash_histories").Where("system_table_id = ?", tbl.ID).Count(&legacyCount).Error)
-	assert.Equal(t, int64(0), legacyCount, "старая таблица больше не пишется")
-
-	// Легаси-строка с более ранним временем.
+	// Легаси-строка с более ранним временем (накоплена до cutover, ещё не перенесена).
 	uid := u.ID
 	legacy := models.SystemTableTrashHistory{
 		SystemTableID: tbl.ID,
@@ -105,15 +122,39 @@ func TestTrash_History_UnionLegacyAndAudit(t *testing.T) {
 	}
 	require.NoError(t, db.Create(&legacy).Error)
 
-	// История корзины объединяет обе таблицы.
+	// До backfill читатель видит только audit_log -> legacy-строка ещё невидима.
+	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/trash/history", tbl.ID), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Len(t, testutil.ParseSlice(t, rec), 1, "до backfill видно только audit_log")
+
+	// CleanDB-Seed уже выставил гард-флаг (backfill прогонялся на пустой таблице) -
+	// снимаем, чтобы перенести только что вставленную legacy-строку.
+	require.NoError(t, db.Where("key = ?", "audit_backfilled:"+models.AuditEntitySystemTableTrash).
+		Delete(&models.SystemSetting{}).Error)
+	require.NoError(t, database.BackfillAuditFromLegacy(db))
+
+	// Легаси-строка физически скопирована в audit_log, а старая таблица цела (бэкап).
+	var auditCount, legacyCount int64
+	require.NoError(t, db.Table("audit_log").Where("entity_type = ? AND entity_id = ?", models.AuditEntitySystemTableTrash, tbl.ID).Count(&auditCount).Error)
+	assert.Equal(t, int64(2), auditCount, "bulk_restored из API + перенесённая legacy-строка")
+	require.NoError(t, db.Table("system_table_trash_histories").Where("system_table_id = ?", tbl.ID).Count(&legacyCount).Error)
+	assert.Equal(t, int64(1), legacyCount, "старая таблица не тронута backfill'ом - read-only бэкап")
+
+	// История корзины отдаёт обе записи из audit_log, новые сверху; affected_count свёрнут в details.
 	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/trash/history", tbl.ID), h)
 	require.Equal(t, http.StatusOK, rec.Code)
 	hist := testutil.ParseSlice(t, rec)
-	require.Len(t, hist, 2, "union должен отдать и audit_log, и legacy-строку")
+	require.Len(t, hist, 2, "после backfill видны и bulk_restored, и перенесённая legacy-строка")
 	assert.Equal(t, "bulk_restored", hist[0]["action_type"], "новее сверху - bulk_restored из audit_log")
 	assert.Equal(t, float64(1), hist[0]["affected_count"], "affected_count из audit_log")
 	assert.Equal(t, "cleared", hist[1]["action_type"], "legacy cleared час назад - ниже")
-	assert.Equal(t, float64(5), hist[1]["affected_count"], "affected_count из legacy")
+	assert.Equal(t, float64(5), hist[1]["affected_count"], "перенесённый affected_count из details")
+
+	// Идемпотентность: повторный backfill не дублирует (гард-флаг снова стоит).
+	require.NoError(t, database.BackfillAuditFromLegacy(db))
+	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/trash/history", tbl.ID), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Len(t, testutil.ParseSlice(t, rec), 2, "повторный backfill не создаёт дублей")
 }
 
 // TestSystemTables_WriteFlip_ColumnsUpdatedToAuditLog проверяет что оба endpoint-а

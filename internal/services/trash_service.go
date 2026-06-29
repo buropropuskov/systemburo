@@ -345,28 +345,22 @@ func (s *trashService) ClearEmployeesTrash(ctx context.Context, systemTableID, u
 }
 
 // ListTrashHistory возвращает лог массовых действий с корзиной таблицы.
-// Переходный период #870: union объединяет legacy system_table_trash_histories и audit_log.
+// Read-switch #870 (F.3): до-cutover строки system_table_trash_histories подняты в
+// audit_log разовым backfill'ом (affected_count + items свёрнуты в details в форму
+// recorder'а), читаем только audit_log. Форму стережёт TestTrash_History_BackfillLegacyIntoAudit.
 func (s *trashService) ListTrashHistory(ctx context.Context, systemTableID int) ([]models.TrashHistoryItem, error) {
 	const userName = `COALESCE(format_short_name(u.last_name, u.first_name, u.middle_name), '')`
 	sql := `
-		SELECT id, action_type, affected_count, details, user_name, created_at FROM (
-			SELECT h.id, h.action_type, h.affected_count, h.details,
-				` + userName + ` AS user_name,
-				h.created_at
-			FROM system_table_trash_histories h LEFT JOIN users u ON u.id = h.user_id
-			WHERE h.system_table_id = ?
-			UNION ALL
-			SELECT a.id, a.action AS action_type,
-				COALESCE((a.details->>'affected_count')::int, 0) AS affected_count,
-				COALESCE(a.details->'items', '[]'::jsonb) AS details,
-				` + userName + ` AS user_name,
-				a.created_at
-			FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
-			WHERE a.entity_type = ? AND a.entity_id = ?
-		) merged
-		ORDER BY created_at DESC, id DESC`
+		SELECT a.id, a.action AS action_type,
+			COALESCE((a.details->>'affected_count')::int, 0) AS affected_count,
+			COALESCE(a.details->'items', '[]'::jsonb) AS details,
+			` + userName + ` AS user_name,
+			a.created_at
+		FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
+		WHERE a.entity_type = ? AND a.entity_id = ?
+		ORDER BY a.created_at DESC, a.id DESC`
 	rows := make([]models.TrashHistoryItem, 0)
-	if err := s.db.WithContext(ctx).Raw(sql, systemTableID, models.AuditEntitySystemTableTrash, systemTableID).Scan(&rows).Error; err != nil {
+	if err := s.db.WithContext(ctx).Raw(sql, models.AuditEntitySystemTableTrash, systemTableID).Scan(&rows).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения истории корзины")
 	}
 	return rows, nil
