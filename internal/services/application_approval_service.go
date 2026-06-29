@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"time"
 
+	"systemburo/internal/models"
+
 	"github.com/labstack/echo/v4"
 )
 
@@ -67,7 +69,6 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 	tx.Raw("SELECT confirmation FROM applications WHERE id = ?", applicationID).Scan(&oldConfirmation)
 
 	baseTime := time.Now().UTC()
-	historyTime := baseTime
 
 	type addedResp struct {
 		UserID           int
@@ -148,32 +149,29 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 		}
 	}
 
-	// Записываем историю назначений ответственных
+	// Записываем историю назначений ответственных. Актор в user_id - НАЗНАЧЕННЫЙ
+	// пользователь (квирк заявки), действующий лежит в metadata.forwarded_by.
 	for _, resp := range addedResponsibleUsers {
-		historyTime = historyTime.Add(time.Millisecond)
 		meta, _ := json.Marshal(map[string]interface{}{
 			"required_approval": resp.RequiredApproval,
 			"is_primary":        false,
 			"forwarded_by":      currentUserName,
 			"type":              "responsible",
 		})
-		tx.Exec(`
-			INSERT INTO application_history (application_id, user_id, action_type, metadata, created_at)
-			VALUES (?, ?, 'assigned_responsible', ?, ?)
-		`, applicationID, resp.UserID, string(meta), historyTime)
+		respUserID := resp.UserID
+		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "assigned_responsible", &respUserID,
+			applicationAuditDetails{Metadata: meta})
 	}
 
-	// Записываем историю назначений просматривающих
+	// Записываем историю назначений просматривающих (user_id - назначенный viewer).
 	for _, viewerID := range addedViewers {
-		historyTime = historyTime.Add(time.Millisecond)
 		meta, _ := json.Marshal(map[string]interface{}{
 			"forwarded_by": currentUserName,
 			"type":         "viewer",
 		})
-		tx.Exec(`
-			INSERT INTO application_history (application_id, user_id, action_type, metadata, created_at)
-			VALUES (?, ?, 'assigned_viewer', ?, ?)
-		`, applicationID, viewerID, string(meta), historyTime)
+		vID := viewerID
+		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "assigned_viewer", &vID,
+			applicationAuditDetails{Metadata: meta})
 	}
 
 	// Сводная запись о пересылке: всю заявку или конкретные вложения (#680).
@@ -189,16 +187,13 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 				ORDER BY COALESCE(attachment_display_name, attachment_name, '')
 			`, applicationID, req.AttachmentIDs).Scan(&attNames)
 		}
-		historyTime = historyTime.Add(time.Millisecond)
 		meta, _ := json.Marshal(map[string]interface{}{
 			"forwarded_by": currentUserName,
 			"whole":        len(attNames) == 0,
 			"attachments":  attNames,
 		})
-		tx.Exec(`
-			INSERT INTO application_history (application_id, user_id, action_type, metadata, created_at)
-			VALUES (?, ?, 'forwarded', ?, ?)
-		`, applicationID, user.ID, string(meta), historyTime)
+		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "forwarded", &user.ID,
+			applicationAuditDetails{Metadata: meta})
 	}
 
 	// Обновляем confirmation если были добавлены ответственные
@@ -214,11 +209,8 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 	tx.Raw("SELECT confirmation FROM applications WHERE id = ?", applicationID).Scan(&newConfirmation)
 
 	if (oldConfirmation == nil) != (newConfirmation == nil) || (oldConfirmation != nil && newConfirmation != nil && *oldConfirmation != *newConfirmation) {
-		statusChangeTime := historyTime.Add(time.Millisecond)
-		tx.Exec(`
-			INSERT INTO application_history (application_id, user_id, action_type, old_value, new_value, created_at)
-			VALUES (?, ?, 'confirmation_change', ?, ?, ?)
-		`, applicationID, user.ID, oldConfirmation, newConfirmation, statusChangeTime)
+		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "confirmation_change", &user.ID,
+			applicationAuditDetails{OldValue: oldConfirmation, NewValue: newConfirmation})
 	}
 
 	if err := tx.Commit().Error; err != nil {
@@ -352,7 +344,6 @@ func (s *applicationService) ApproveApplicationByUser(ctx context.Context, usern
 	tx.Raw("SELECT confirmation FROM applications WHERE id = ?", applicationID).Scan(&oldConfirmation)
 
 	nowUTC := time.Now().UTC()
-	historyTime := nowUTC
 
 	// Обновляем голос
 	tx.Exec(`
@@ -367,10 +358,8 @@ func (s *applicationService) ApproveApplicationByUser(ctx context.Context, usern
 		actionType = "reject"
 	}
 	meta, _ := json.Marshal(map[string]interface{}{"required_approval": responsible.RequiredApproval})
-	tx.Exec(`
-		INSERT INTO application_history (application_id, user_id, action_type, comment, metadata, created_at)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, applicationID, user.ID, actionType, req.Comment, string(meta), historyTime)
+	s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, actionType, &user.ID,
+		applicationAuditDetails{Comment: req.Comment, Metadata: meta})
 
 	// Пересчитываем confirmation
 	if err := s.updateConfirmationBasedOnApprovals(tx, applicationID); err != nil {
@@ -383,11 +372,8 @@ func (s *applicationService) ApproveApplicationByUser(ctx context.Context, usern
 	tx.Raw("SELECT confirmation FROM applications WHERE id = ?", applicationID).Scan(&newConfirmation)
 
 	if (oldConfirmation == nil) != (newConfirmation == nil) || (oldConfirmation != nil && newConfirmation != nil && *oldConfirmation != *newConfirmation) {
-		statusChangeTime := historyTime.Add(time.Millisecond)
-		tx.Exec(`
-			INSERT INTO application_history (application_id, user_id, action_type, old_value, new_value, created_at)
-			VALUES (?, ?, 'confirmation_change', ?, ?, ?)
-		`, applicationID, user.ID, oldConfirmation, newConfirmation, statusChangeTime)
+		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "confirmation_change", &user.ID,
+			applicationAuditDetails{OldValue: oldConfirmation, NewValue: newConfirmation})
 	}
 
 	if err := tx.Commit().Error; err != nil {
@@ -455,19 +441,14 @@ func (s *applicationService) RevokeApproval(ctx context.Context, username string
 	var oldConfirmation *string
 	tx.Raw("SELECT confirmation FROM applications WHERE id = ?", applicationID).Scan(&oldConfirmation)
 
-	nowUTC := time.Now().UTC()
-	historyTime := nowUTC
-
 	tx.Exec(`
 		UPDATE application_responsible_users
 		SET approval_status = 'pending', approval_comment = NULL, approval_datetime = NULL
 		WHERE application_id = ? AND user_id = ?
 	`, applicationID, user.ID)
 
-	tx.Exec(`
-		INSERT INTO application_history (application_id, user_id, action_type, comment, created_at)
-		VALUES (?, ?, 'revoke_approval', ?, ?)
-	`, applicationID, user.ID, req.Comment, historyTime)
+	s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "revoke_approval", &user.ID,
+		applicationAuditDetails{Comment: req.Comment})
 
 	if err := s.updateConfirmationBasedOnApprovals(tx, applicationID); err != nil {
 		tx.Rollback()
@@ -478,11 +459,8 @@ func (s *applicationService) RevokeApproval(ctx context.Context, username string
 	tx.Raw("SELECT confirmation FROM applications WHERE id = ?", applicationID).Scan(&newConfirmation)
 
 	if (oldConfirmation == nil) != (newConfirmation == nil) || (oldConfirmation != nil && newConfirmation != nil && *oldConfirmation != *newConfirmation) {
-		statusChangeTime := historyTime.Add(time.Millisecond)
-		tx.Exec(`
-			INSERT INTO application_history (application_id, user_id, action_type, old_value, new_value, created_at)
-			VALUES (?, ?, 'confirmation_change', ?, ?, ?)
-		`, applicationID, user.ID, oldConfirmation, newConfirmation, statusChangeTime)
+		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "confirmation_change", &user.ID,
+			applicationAuditDetails{OldValue: oldConfirmation, NewValue: newConfirmation})
 	}
 
 	if err := tx.Commit().Error; err != nil {

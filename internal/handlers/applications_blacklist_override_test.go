@@ -314,9 +314,9 @@ func TestBlacklistOverride_Delete(t *testing.T) {
 		assert.Equal(t, int64(0), overrideCount(), "override-строка удалена")
 
 		var histCnt int64
-		db.Table("application_history").
-			Where("application_id = ? AND action_type = 'blacklist_override_revoke'", appID).Count(&histCnt)
-		assert.Equal(t, int64(1), histCnt, "факт отмены залогирован в историю заявки")
+		db.Table("audit_log").
+			Where("entity_type = ? AND entity_id = ? AND action = 'blacklist_override_revoke'", models.AuditEntityApplication, appID).Count(&histCnt)
+		assert.Equal(t, int64(1), histCnt, "факт отмены залогирован в историю заявки (audit_log, #870 срез 1.14)")
 
 		rec = testutil.POST(t, e, fmt.Sprintf("/applications/%d/approve", appID), approveBody, testutil.AuthHeader(apprToken))
 		require.Equal(t, http.StatusConflict, rec.Code, "согласование снова заблокировано: %s", rec.Body.String())
@@ -382,9 +382,9 @@ func TestBlacklistOverride_HistoryAndSuppression(t *testing.T) {
 
 	t.Run("override пишет историю заявки и машины", func(t *testing.T) {
 		var appHist int64
-		db.Table("application_history").
-			Where("application_id = ? AND action_type = 'blacklist_override'", appID).Count(&appHist)
-		assert.Equal(t, int64(1), appHist, "запись в истории заявки")
+		db.Table("audit_log").
+			Where("entity_type = ? AND entity_id = ? AND action = 'blacklist_override'", models.AuditEntityApplication, appID).Count(&appHist)
+		assert.Equal(t, int64(1), appHist, "запись в истории заявки (audit_log, #870 срез 1.14)")
 
 		var carHist int64
 		db.Table("audit_log").

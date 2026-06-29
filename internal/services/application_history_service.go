@@ -2,45 +2,94 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 
+	"systemburo/internal/models"
+
 	"github.com/labstack/echo/v4"
 )
+
+// applicationAuditDetails - форма details jsonb для записей application в audit_log
+// (#870, срез 1.14). Ключи ОБЯЗАНЫ совпадать с тем, что извлекает union в
+// GetApplicationHistory (action_status/old_value/new_value/comment/metadata), иначе
+// чтение потеряет поля. nil-указатель -> ключ опущен -> details->>'key' = NULL (как
+// незаполненная колонка application_history). metadata кладётся вложенным jsonb-объектом,
+// чтобы details->'metadata' вернул тот же объект, что давала колонка
+// application_history.metadata. action_user_id заявки - мёртвая колонка (нигде не
+// писалась и не читалась), в audit_log не переносится.
+type applicationAuditDetails struct {
+	ActionStatus *string         `json:"action_status,omitempty"`
+	OldValue     *string         `json:"old_value,omitempty"`
+	NewValue     *string         `json:"new_value,omitempty"`
+	Comment      *string         `json:"comment,omitempty"`
+	Metadata     json.RawMessage `json:"metadata,omitempty"`
+}
 
 // GetApplicationResponsibleUsers возвращает ответственных пользователей заявки.
 func (s *applicationService) GetApplicationResponsibleUsers(ctx context.Context, applicationID int) ([]ResponsibleUserInfo, error) {
 	return s.fetchResponsibleUsers(s.db.WithContext(ctx), applicationID)
 }
 
-// GetApplicationHistory возвращает историю изменений заявки.
+// GetApplicationHistory возвращает историю изменений заявки (новые сверху).
+// Переходный период #870 (срез 1.14): запись уже идёт в audit_log[application], а
+// старые строки лежат в замороженной application_history до финального backfill.
+// Чтение объединяет обе таблицы в идентичную форму ответа (форму стерегут
+// TestApplications_HistoryGolden_*). Плоские поля старой схемы
+// (action_status/old_value/new_value/comment) у audit_log лежат внутри details jsonb,
+// metadata - вложенным объектом details->'metadata'. INNER JOIN users сохранён как в
+// исходном чтении: строки с user_id IS NULL в историю не попадают (заявка всегда пишет
+// не-NULL автора). Порядок created_at DESC, id DESC - id-тайбрейкер делает
+// детерминированным порядок записей одного действия (старый код разносил их ручным
+// инкрементом created_at на 1мс; recorder проставляет created_at временем вставки -
+// монотонно растущим, как и id). id двух таблиц из разных sequence не сопоставимы, но
+// в переходный период application_history заморожена (новые строки идут только в
+// audit_log), поэтому кросс-источниковый tie по created_at не возникает.
 func (s *applicationService) GetApplicationHistory(ctx context.Context, applicationID int) ([]ApplicationHistoryItem, error) {
-	items := make([]ApplicationHistoryItem, 0)
-	err := s.db.WithContext(ctx).Raw(`
+	const userName = `CONCAT(COALESCE(u.last_name, ''),
+		CASE WHEN u.first_name IS NOT NULL AND u.first_name != '' THEN ' ' || u.first_name ELSE '' END,
+		CASE WHEN u.middle_name IS NOT NULL AND u.middle_name != '' THEN ' ' || u.middle_name ELSE '' END
+	)`
+	sql := `
 		SELECT
-			h.id,
-			h.application_id,
-			h.user_id,
-			CONCAT(COALESCE(u.last_name, ''),
-				CASE WHEN u.first_name IS NOT NULL AND u.first_name != '' THEN ' ' || u.first_name ELSE '' END,
-				CASE WHEN u.middle_name IS NOT NULL AND u.middle_name != '' THEN ' ' || u.middle_name ELSE '' END
-			) as user_name,
+			m.id,
+			m.application_id,
+			m.user_id,
+			` + userName + ` as user_name,
 			u.last_name,
 			u.first_name,
 			u.middle_name,
-			h.action_type,
-			h.action_status,
-			h.old_value,
-			h.new_value,
-			h.comment,
-			h.created_at,
-			h.metadata
-		FROM application_history h
-		JOIN users u ON h.user_id = u.id
-		WHERE h.application_id = ?
-		ORDER BY h.created_at DESC
-	`, applicationID).Scan(&items).Error
+			m.action_type,
+			m.action_status,
+			m.old_value,
+			m.new_value,
+			m.comment,
+			m.created_at,
+			m.metadata
+		FROM (
+			SELECT id, application_id, user_id, action_type, action_status,
+				old_value, new_value, comment, metadata, created_at
+			FROM application_history
+			WHERE application_id = ?
+			UNION ALL
+			SELECT a.id, a.entity_id AS application_id, a.actor_user_id AS user_id,
+				a.action AS action_type,
+				a.details->>'action_status' AS action_status,
+				a.details->>'old_value' AS old_value,
+				a.details->>'new_value' AS new_value,
+				a.details->>'comment' AS comment,
+				a.details->'metadata' AS metadata,
+				a.created_at
+			FROM audit_log a
+			WHERE a.entity_type = ? AND a.entity_id = ?
+		) m
+		JOIN users u ON m.user_id = u.id
+		ORDER BY m.created_at DESC, m.id DESC
+	`
 
+	items := make([]ApplicationHistoryItem, 0)
+	err := s.db.WithContext(ctx).Raw(sql, applicationID, models.AuditEntityApplication, applicationID).Scan(&items).Error
 	if err != nil {
 		slog.Error("Ошибка получения истории заявки", "application_id", applicationID, "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching application history")
@@ -49,15 +98,22 @@ func (s *applicationService) GetApplicationHistory(ctx context.Context, applicat
 	return items, nil
 }
 
-// AddHistoryEntry добавляет запись в историю заявки.
+// AddHistoryEntry добавляет ручную запись в историю заявки (POST /applications/history).
+// #870 (срез 1.14): пишет в audit_log[application] через recorder; ошибка проброса -
+// как в прежнем write-path (раньше возвращался 500 при провале INSERT).
 func (s *applicationService) AddHistoryEntry(ctx context.Context, req AddHistoryEntryRequest) error {
-	result := s.db.WithContext(ctx).Exec(`
-		INSERT INTO application_history (application_id, user_id, action_type, action_status, old_value, new_value, comment, metadata)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-	`, req.ApplicationID, req.UserID, req.ActionType, req.ActionStatus, req.OldValue, req.NewValue, req.Comment, req.Metadata)
-
-	if result.Error != nil {
-		slog.Error("Ошибка добавления записи истории", "error", result.Error)
+	details := applicationAuditDetails{
+		ActionStatus: req.ActionStatus,
+		OldValue:     req.OldValue,
+		NewValue:     req.NewValue,
+		Comment:      req.Comment,
+	}
+	if req.Metadata != nil {
+		details.Metadata = json.RawMessage(*req.Metadata)
+	}
+	actorID := req.UserID
+	if err := s.recorder.Record(ctx, nil, models.AuditEntityApplication, &req.ApplicationID, req.ActionType, &actorID, details); err != nil {
+		slog.Error("Ошибка добавления записи истории", "error", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error adding history entry")
 	}
 

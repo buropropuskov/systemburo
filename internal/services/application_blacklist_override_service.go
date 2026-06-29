@@ -84,7 +84,7 @@ func (s *applicationService) OverrideBlacklistFlag(ctx context.Context, username
 		if err := tx.Create(&override).Error; err != nil {
 			return err
 		}
-		return s.logBlacklistOverrideAction(ctx, tx, flag, user.ID, "blacklist_override", comment, now)
+		return s.logBlacklistOverrideAction(ctx, tx, flag, user.ID, "blacklist_override", comment)
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -100,7 +100,7 @@ func (s *applicationService) OverrideBlacklistFlag(ctx context.Context, username
 // срез C-followup). actionType: 'blacklist_override' / 'blacklist_override_revoke'. В комментарий
 // кладём, КАКОЙ элемент и на что похоже (+ причину для подтверждения), иначе в истории не видно,
 // о какой машине/человеке речь.
-func (s *applicationService) logBlacklistOverrideAction(ctx context.Context, tx *gorm.DB, flag models.ApplicationBlacklistFlag, userID int, actionType, reason string, at time.Time) error {
+func (s *applicationService) logBlacklistOverrideAction(ctx context.Context, tx *gorm.DB, flag models.ApplicationBlacklistFlag, userID int, actionType, reason string) error {
 	label := s.blacklistElementLabel(tx, flag)
 	desc := label
 	if flag.MatchedValue != "" {
@@ -117,10 +117,11 @@ func (s *applicationService) logBlacklistOverrideAction(ctx context.Context, tx 
 		"matched_value":        flag.MatchedValue,
 		"element":              label,
 	})
-	if err := tx.Exec(`
-		INSERT INTO application_history (application_id, user_id, action_type, comment, metadata, created_at)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, flag.ApplicationID, userID, actionType, comment, string(meta), at).Error; err != nil {
+	// created_at проставляет recorder временем вставки (#870, срез 1.14): в рамках одной
+	// транзакции расхождение с моментом override - микросекунды, история заявки и элемента
+	// разные endpoint-ы. Как и у car/employee веток ниже.
+	if err := s.recorder.Record(ctx, tx, models.AuditEntityApplication, &flag.ApplicationID, actionType, &userID,
+		applicationAuditDetails{Comment: &comment, Metadata: meta}); err != nil {
 		return err
 	}
 
@@ -216,7 +217,7 @@ func (s *applicationService) DeleteBlacklistOverride(ctx context.Context, userna
 			return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка отмены подтверждения пропуска")
 		}
 		// Отмена без причины - комментарий пустой, история элемента подставит matched_value.
-		if err := s.logBlacklistOverrideAction(ctx, tx, flag, user.ID, "blacklist_override_revoke", "", time.Now().UTC()); err != nil {
+		if err := s.logBlacklistOverrideAction(ctx, tx, flag, user.ID, "blacklist_override_revoke", ""); err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка записи истории")
 		}
 		return nil

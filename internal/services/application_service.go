@@ -768,10 +768,8 @@ func (s *applicationService) GetApplicationByID(ctx context.Context, username st
 			return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error updating application status")
 		}
 		// Записываем прочтение в историю
-		tx.Exec(`
-			INSERT INTO application_history (application_id, user_id, action_type, old_value, new_value, created_at)
-			VALUES (?, ?, 'read', 'Непрочитано', 'В обработке', NOW())
-		`, applicationID, user.ID)
+		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "read", &user.ID,
+			applicationAuditDetails{OldValue: ptrString("Непрочитано"), NewValue: ptrString("В обработке")})
 	}
 
 	// Получаем ответственных
@@ -1355,7 +1353,6 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 	}()
 
 	baseTime := time.Now().UTC()
-	historyTime := baseTime
 	datePart := baseTime.Format("20060102")
 
 	var count int64
@@ -1393,10 +1390,8 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 
 	// Записываем создание в историю
 	metaCreate, _ := json.Marshal(map[string]string{"confirmation": "Согласование", "status": "Непрочитано"})
-	tx.Exec(`
-		INSERT INTO application_history (application_id, user_id, action_type, new_value, metadata, created_at)
-		VALUES (?, ?, 'create', ?, ?, ?)
-	`, appID, user.ID, applicationNumber, string(metaCreate), historyTime)
+	s.recorder.Log(ctx, tx, models.AuditEntityApplication, &appID, "create", &user.ID,
+		applicationAuditDetails{NewValue: &applicationNumber, Metadata: metaCreate})
 
 	// Собираем ответственных
 	type respUser struct {
@@ -1474,15 +1469,13 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 			ON CONFLICT (application_id, user_id) DO UPDATE SET is_primary = EXCLUDED.is_primary, required_approval = EXCLUDED.required_approval
 		`, appID, ru.UserID, ru.IsPrimary, ru.RequiredApproval, baseTime)
 
-		historyTime = historyTime.Add(time.Millisecond)
 		meta, _ := json.Marshal(map[string]interface{}{
 			"required_approval": ru.RequiredApproval,
 			"is_primary":        ru.IsPrimary,
 		})
-		tx.Exec(`
-			INSERT INTO application_history (application_id, user_id, action_type, metadata, created_at)
-			VALUES (?, ?, 'assigned_responsible', ?, ?)
-		`, appID, ru.UserID, string(meta), historyTime)
+		ruUserID := ru.UserID
+		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &appID, "assigned_responsible", &ruUserID,
+			applicationAuditDetails{Metadata: meta})
 	}
 
 	// Читатели-получатели заявки (#884): доступ только на просмотр через application_viewers

@@ -59,10 +59,8 @@ func (s *applicationService) TakeApplicationToWork(ctx context.Context, username
 		tx.Exec("UPDATE applications SET status = ?, responsible_user_id = ?, responsible_comment = ? WHERE id = ?",
 			models.StatusInWork, user.ID, req.Comment, applicationID)
 
-		tx.Exec(`
-			INSERT INTO application_history (application_id, user_id, action_type, old_value, new_value, comment, created_at)
-			VALUES (?, ?, 'take_to_work', ?, ?, ?, NOW())
-		`, applicationID, user.ID, oldStatus, models.StatusInWork, req.Comment)
+		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "take_to_work", &user.ID,
+			applicationAuditDetails{OldValue: oldStatus, NewValue: ptrString(models.StatusInWork), Comment: req.Comment})
 
 		if err := s.activateApplicationItems(tx, applicationID, true); err != nil {
 			tx.Rollback()
@@ -77,10 +75,8 @@ func (s *applicationService) TakeApplicationToWork(ctx context.Context, username
 		tx.Exec("UPDATE applications SET status = ?, responsible_user_id = ?, responsible_comment = ? WHERE id = ?",
 			models.StatusRefused, user.ID, req.Comment, applicationID)
 
-		tx.Exec(`
-			INSERT INTO application_history (application_id, user_id, action_type, old_value, new_value, comment, created_at)
-			VALUES (?, ?, 'reject', ?, ?, ?, NOW())
-		`, applicationID, user.ID, oldStatus, models.StatusRefused, req.Comment)
+		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "reject", &user.ID,
+			applicationAuditDetails{OldValue: oldStatus, NewValue: ptrString(models.StatusRefused), Comment: req.Comment})
 
 		if err := s.activateApplicationItems(tx, applicationID, false); err != nil {
 			tx.Rollback()
@@ -129,10 +125,8 @@ func (s *applicationService) RevokeApplicationFromWork(ctx context.Context, user
 
 	tx.Exec("UPDATE applications SET status = ?, responsible_user_id = NULL, responsible_comment = NULL WHERE id = ?", models.StatusProcessing, applicationID)
 
-	tx.Exec(`
-		INSERT INTO application_history (application_id, user_id, action_type, old_value, new_value, comment, created_at)
-		VALUES (?, ?, 'revoke_from_work', ?, ?, ?, NOW())
-	`, applicationID, user.ID, app.Status, models.StatusProcessing, req.Comment)
+	s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "revoke_from_work", &user.ID,
+		applicationAuditDetails{OldValue: app.Status, NewValue: ptrString(models.StatusProcessing), Comment: req.Comment})
 
 	if err := s.activateApplicationItems(tx, applicationID, false); err != nil {
 		tx.Rollback()
@@ -180,10 +174,8 @@ func (s *applicationService) RestoreApplicationToWork(ctx context.Context, usern
 
 	tx.Exec("UPDATE applications SET status = ?, responsible_user_id = NULL, responsible_comment = NULL WHERE id = ?", models.StatusProcessing, applicationID)
 
-	tx.Exec(`
-		INSERT INTO application_history (application_id, user_id, action_type, old_value, new_value, comment, created_at)
-		VALUES (?, ?, 'restore_to_work', ?, ?, ?, NOW())
-	`, applicationID, user.ID, app.Status, models.StatusProcessing, req.Comment)
+	s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "restore_to_work", &user.ID,
+		applicationAuditDetails{OldValue: app.Status, NewValue: ptrString(models.StatusProcessing), Comment: req.Comment})
 
 	if err := s.activateApplicationItems(tx, applicationID, false); err != nil {
 		tx.Rollback()
