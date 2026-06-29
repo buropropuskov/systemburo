@@ -914,6 +914,31 @@ func auditBackfillSources() []auditBackfillSource {
 			table:      "system_table_trash_histories",
 			projection: "system_table_id, action_type, user_id, jsonb_build_object('affected_count', affected_count, 'items', COALESCE(details, '[]'::jsonb)), created_at",
 		},
+		// F.4 blacklist + unique: blacklist - details уже jsonb (каскад reason/cars/
+		// employees переносится verbatim), actor в плоской колонке user_id; unique_car/
+		// unique_employee - плоские field_name/old/new/comment сворачиваются в details в
+		// форме carAuditDetails (как пишет recorder), иначе read-switch вернёт не ту
+		// историю (стережёт golden Test*_GetHistory_ReturnsRecords).
+		{
+			entity:     models.AuditEntityPersonBlacklist,
+			table:      "person_blacklist_histories",
+			projection: "entity_id, action_type, user_id, details, created_at",
+		},
+		{
+			entity:     models.AuditEntityVehicleBlacklist,
+			table:      "vehicle_blacklist_histories",
+			projection: "entity_id, action_type, user_id, details, created_at",
+		},
+		{
+			entity:     models.AuditEntityUniqueCar,
+			table:      "unique_cars_history",
+			projection: "unique_car_id, action_type, user_id, jsonb_build_object('field_name', field_name, 'old_value', old_value, 'new_value', new_value, 'comment', comment), created_at",
+		},
+		{
+			entity:     models.AuditEntityUniqueEmployee,
+			table:      "unique_employees_history",
+			projection: "unique_employee_id, action_type, user_id, jsonb_build_object('field_name', field_name, 'old_value', old_value, 'new_value', new_value, 'comment', comment), created_at",
+		},
 	}
 }
 

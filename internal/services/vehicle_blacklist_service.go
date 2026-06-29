@@ -405,8 +405,9 @@ func (s *vehicleBlacklistService) FindSimilar(ctx context.Context, carNumber str
 }
 
 // GetHistory возвращает историю записи ЧС машин (новые сверху).
-// Переходный период #870: новые события пишутся в audit_log, старые строки лежат в
-// замороженной vehicle_blacklist_histories. Чтение объединяет обе таблицы.
+// Read-switch #870 (F.4): до-cutover строки vehicle_blacklist_histories подняты в
+// audit_log разовым backfill'ом (details уже jsonb - перенос verbatim), читаем
+// только audit_log. Форму стережёт TestVehicleBlacklist_History_BackfillLegacyIntoAudit.
 func (s *vehicleBlacklistService) GetHistory(ctx context.Context, id int) ([]models.VehicleBlacklistHistoryItem, error) {
 	return s.queryHistory(ctx, &id)
 }
@@ -419,28 +420,19 @@ func (s *vehicleBlacklistService) GetAllHistory(ctx context.Context) ([]models.V
 const vehicleBLActorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`
 
 func (s *vehicleBlacklistService) queryHistory(ctx context.Context, entityID *int) ([]models.VehicleBlacklistHistoryItem, error) {
-	legacyWhere := ""
-	auditWhere := "a.entity_type = ?"
+	where := "a.entity_type = ?"
 	args := []interface{}{models.AuditEntityVehicleBlacklist}
 	if entityID != nil {
-		legacyWhere = "WHERE h.entity_id = ?"
-		auditWhere += " AND a.entity_id = ?"
-		args = []interface{}{*entityID, models.AuditEntityVehicleBlacklist, *entityID}
+		where += " AND a.entity_id = ?"
+		args = append(args, *entityID)
 	}
 
 	query := `
-		SELECT id, entity_id, action_type, details, user_id, user_name, created_at FROM (
-			SELECT h.id, h.entity_id, h.action_type, h.details, h.user_id,
-				` + vehicleBLActorName + ` AS user_name, h.created_at
-			FROM vehicle_blacklist_histories h LEFT JOIN users u ON u.id = h.user_id
-			` + legacyWhere + `
-			UNION ALL
-			SELECT a.id, a.entity_id, a.action AS action_type, a.details, a.actor_user_id AS user_id,
-				` + vehicleBLActorName + ` AS user_name, a.created_at
-			FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
-			WHERE ` + auditWhere + `
-		) merged
-		ORDER BY created_at DESC, id DESC`
+		SELECT a.id, a.entity_id, a.action AS action_type, a.details, a.actor_user_id AS user_id,
+			` + vehicleBLActorName + ` AS user_name, a.created_at
+		FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
+		WHERE ` + where + `
+		ORDER BY a.created_at DESC, a.id DESC`
 
 	type row struct {
 		ID         int             `gorm:"column:id"`

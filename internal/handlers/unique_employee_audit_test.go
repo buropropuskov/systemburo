@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"systemburo/internal/database"
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 	"systemburo/internal/testutil"
@@ -13,12 +14,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestUniqueEmployee_History_UnionLegacyAndAudit проверяет, что GetHistory объединяет
-// замороженные строки unique_employees_history (старый write-path) и новые записи
-// audit_log[unique_employee] в одну ленту (#870, срез 1.13c). Легаси-строка пишется
-// напрямую в таблицу, новое изменение идёт через сервис (recorder -> audit_log) -
-// оба видны, новейшее первым, с разрезолвленным username.
-func TestUniqueEmployee_History_UnionLegacyAndAudit(t *testing.T) {
+// TestUniqueEmployee_History_BackfillLegacyIntoAudit проверяет финал #870 (срез F.4):
+// GetHistory переведён на audit_log-only, а замороженные строки unique_employees_history
+// поднимаются в audit_log разовым BackfillAuditFromLegacy (плоские field_name/old/new/
+// comment сворачиваются в details jsonb формы carAuditDetails). Новое изменение идёт
+// через сервис (recorder -> audit_log), legacy - через backfill; оба видны, новейшее
+// первым, с разрезолвленным username.
+func TestUniqueEmployee_History_BackfillLegacyIntoAudit(t *testing.T) {
 	_, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
@@ -74,22 +76,30 @@ func TestUniqueEmployee_History_UnionLegacyAndAudit(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Новая запись в audit_log, легаси-таблица не выросла.
-	var legacyCount int64
+	// До backfill читатель видит только audit_log -> legacy-строка ещё невидима.
+	items, err := svc.GetHistory(context.Background(), owner.Username, emp.ID)
+	require.NoError(t, err)
+	require.Len(t, items, 1, "до backfill видно только audit_log (position)")
+
+	// Снять гард-флаг (Seed выставил его на пустой таблице) и перенести legacy-строку.
+	require.NoError(t, db.Where("key = ?", "audit_backfilled:"+models.AuditEntityUniqueEmployee).
+		Delete(&models.SystemSetting{}).Error)
+	require.NoError(t, database.BackfillAuditFromLegacy(db))
+
+	// Легаси-строка скопирована в audit_log, замороженная таблица цела (бэкап).
+	var legacyCount, auditCount int64
 	require.NoError(t, db.Model(&models.UniqueEmployeeHistory{}).
 		Where("unique_employee_id = ?", emp.ID).Count(&legacyCount).Error)
-	assert.Equal(t, int64(1), legacyCount, "unique_employees_history содержит только легаси-строку")
-
-	var auditCount int64
+	assert.Equal(t, int64(1), legacyCount, "unique_employees_history не тронута backfill'ом - read-only бэкап")
 	require.NoError(t, db.Model(&models.AuditLog{}).
 		Where("entity_type = ? AND entity_id = ?", models.AuditEntityUniqueEmployee, emp.ID).
 		Count(&auditCount).Error)
-	assert.Equal(t, int64(1), auditCount, "изменение position записано в audit_log")
+	assert.Equal(t, int64(2), auditCount, "position (cutover) + перенесённая middle_name (backfill)")
 
-	// Union-чтение возвращает обе записи, новейшая (audit, position) первой.
-	items, err := svc.GetHistory(context.Background(), owner.Username, emp.ID)
+	// Чтение возвращает обе записи, новейшая (audit, position) первой.
+	items, err = svc.GetHistory(context.Background(), owner.Username, emp.ID)
 	require.NoError(t, err)
-	require.Len(t, items, 2, "история объединяет легаси-строку и audit_log")
+	require.Len(t, items, 2, "история отдаёт и audit_log, и перенесённую legacy-строку")
 
 	assert.Equal(t, "data_changed", items[0].ActionType)
 	assert.Equal(t, "position", deref(items[0].FieldName))
@@ -103,4 +113,10 @@ func TestUniqueEmployee_History_UnionLegacyAndAudit(t *testing.T) {
 	assert.Equal(t, legacyNew, deref(items[1].NewValue))
 	require.NotNil(t, items[1].Username)
 	assert.Equal(t, owner.Username, *items[1].Username)
+
+	// Идемпотентность: повторный backfill не дублирует (гард-флаг снова стоит).
+	require.NoError(t, database.BackfillAuditFromLegacy(db))
+	items, err = svc.GetHistory(context.Background(), owner.Username, emp.ID)
+	require.NoError(t, err)
+	assert.Len(t, items, 2, "повторный backfill не создаёт дублей")
 }

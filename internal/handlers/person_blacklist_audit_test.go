@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"systemburo/internal/database"
 	"systemburo/internal/models"
 	"systemburo/internal/testutil"
 
@@ -14,10 +15,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestPersonBlacklist_History_UnionLegacyAndAudit проверяет переходную модель #870:
-// новые действия пишутся в audit_log, а строки из замороженной person_blacklist_histories
-// по-прежнему видны в истории через union. Гарантирует "история та же" до backfill.
-func TestPersonBlacklist_History_UnionLegacyAndAudit(t *testing.T) {
+// TestPersonBlacklist_History_BackfillLegacyIntoAudit проверяет финал #870 (срез F.4):
+// читатель истории переведён на audit_log-only, а до-cutover строки замороженной
+// person_blacklist_histories поднимаются в audit_log разовым BackfillAuditFromLegacy.
+// details ЧС людей уже jsonb - переносится verbatim.
+func TestPersonBlacklist_History_BackfillLegacyIntoAudit(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
@@ -31,14 +33,8 @@ func TestPersonBlacklist_History_UnionLegacyAndAudit(t *testing.T) {
 	entryMap := testutil.ParseMap(t, rec)
 	id := int(entryMap["id"].(float64))
 
-	// Подтверждаем: новая запись физически в audit_log, а не в старой таблице.
-	var auditCount, legacyCount int64
-	require.NoError(t, db.Table("audit_log").Where("entity_type = ? AND entity_id = ?", models.AuditEntityPersonBlacklist, id).Count(&auditCount).Error)
-	assert.Equal(t, int64(1), auditCount, "created должен попасть в audit_log")
-	require.NoError(t, db.Table("person_blacklist_histories").Where("entity_id = ?", id).Count(&legacyCount).Error)
-	assert.Equal(t, int64(0), legacyCount, "старая таблица больше не пишется")
-
-	// Легаси-строка напрямую в старую таблицу с более ранним временем (как до миграции).
+	// Легаси-строка напрямую в замороженную таблицу с более ранним временем - как
+	// строка, накопленная до cutover и ещё не перенесённая в audit_log.
 	legacy := models.PersonBlacklistHistory{
 		EntityID:   id,
 		ActionType: models.BlacklistActionArchived,
@@ -47,18 +43,47 @@ func TestPersonBlacklist_History_UnionLegacyAndAudit(t *testing.T) {
 	}
 	require.NoError(t, db.Create(&legacy).Error)
 
-	// История per-id объединяет обе таблицы, новые сверху.
+	// До backfill читатель видит только audit_log -> legacy-строка ещё невидима.
+	rec = testutil.GET(t, e, fmt.Sprintf("/person-blacklist/%d/history", id), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Len(t, testutil.ParseSlice(t, rec), 1, "до backfill видно только audit_log")
+
+	// CleanDB-Seed уже выставил гард-флаг (backfill прогонялся на пустой таблице) -
+	// снимаем, чтобы перенести только что вставленную legacy-строку.
+	require.NoError(t, db.Where("key = ?", "audit_backfilled:"+models.AuditEntityPersonBlacklist).
+		Delete(&models.SystemSetting{}).Error)
+	require.NoError(t, database.BackfillAuditFromLegacy(db))
+
+	// Легаси-строка физически скопирована в audit_log, старая таблица цела (бэкап).
+	var auditCount, legacyCount int64
+	require.NoError(t, db.Table("audit_log").
+		Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityPersonBlacklist, id, models.BlacklistActionArchived).
+		Count(&auditCount).Error)
+	assert.Equal(t, int64(1), auditCount, "legacy archived перенесён в audit_log")
+	require.NoError(t, db.Table("person_blacklist_histories").Where("entity_id = ?", id).Count(&legacyCount).Error)
+	assert.Equal(t, int64(1), legacyCount, "старая таблица не тронута backfill'ом - read-only бэкап")
+
+	// История per-id отдаёт обе записи из audit_log, новые сверху, details verbatim.
 	rec = testutil.GET(t, e, fmt.Sprintf("/person-blacklist/%d/history", id), h)
 	require.Equal(t, http.StatusOK, rec.Code)
 	hist := testutil.ParseSlice(t, rec)
-	require.Len(t, hist, 2, "union должен отдать и audit_log, и legacy-строку")
+	require.Len(t, hist, 2, "после backfill видны и created, и перенесённая legacy-строка")
 	assert.Equal(t, "created", hist[0]["action_type"], "новее сверху - created из audit_log")
 	assert.Equal(t, "archived", hist[1]["action_type"], "legacy archived час назад - ниже")
+	details := hist[1]["details"].(map[string]interface{})
+	assert.Equal(t, "Аудитов Аудит", details["full_name"], "details перенесены verbatim")
+
+	// Идемпотентность: повторный backfill не дублирует (гард-флаг снова стоит).
+	require.NoError(t, database.BackfillAuditFromLegacy(db))
+	rec = testutil.GET(t, e, fmt.Sprintf("/person-blacklist/%d/history", id), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Len(t, testutil.ParseSlice(t, rec), 2, "повторный backfill не создаёт дублей")
 }
 
-// TestPersonBlacklist_AllHistory_UnionLegacyAndAudit проверяет глобальный журнал (#870):
-// GET /person-blacklist/history отдаёт события из обеих таблиц через union.
-func TestPersonBlacklist_AllHistory_UnionLegacyAndAudit(t *testing.T) {
+// TestPersonBlacklist_AllHistory_BackfillLegacyIntoAudit проверяет глобальный журнал (#870, F.4):
+// GET /person-blacklist/history читает audit_log-only, до-cutover строки (в т.ч. по уже
+// удалённым записям) поднимаются backfill'ом.
+func TestPersonBlacklist_AllHistory_BackfillLegacyIntoAudit(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
@@ -81,24 +106,33 @@ func TestPersonBlacklist_AllHistory_UnionLegacyAndAudit(t *testing.T) {
 	}
 	require.NoError(t, db.Create(&legacy).Error)
 
-	// GET /person-blacklist/history объединяет обе таблицы.
+	// До backfill глобальный журнал видит только created из audit_log.
+	rec = testutil.GET(t, e, "/person-blacklist/history", h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.False(t, hasBlacklistEntry(testutil.ParseSlice(t, rec), legacyEntityID, models.BlacklistActionPurged),
+		"до backfill legacy-строка ещё невидима")
+
+	// Снять гард-флаг и перенести legacy-строку.
+	require.NoError(t, db.Where("key = ?", "audit_backfilled:"+models.AuditEntityPersonBlacklist).
+		Delete(&models.SystemSetting{}).Error)
+	require.NoError(t, database.BackfillAuditFromLegacy(db))
+
+	// После backfill глобальный журнал отдаёт обе записи.
 	rec = testutil.GET(t, e, "/person-blacklist/history", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 	hist := testutil.ParseSlice(t, rec)
+	assert.True(t, hasBlacklistEntry(hist, id, models.BlacklistActionCreated), "должна быть запись created из audit_log")
+	assert.True(t, hasBlacklistEntry(hist, legacyEntityID, models.BlacklistActionPurged), "перенесённая legacy-строка purged видна")
+}
 
-	var sawCreated, sawLegacyPurged bool
+// hasBlacklistEntry ищет в журнале ЧС строку по entity_id+action_type.
+func hasBlacklistEntry(hist []map[string]interface{}, entityID int, action string) bool {
 	for _, item := range hist {
-		eid := int(item["entity_id"].(float64))
-		action := item["action_type"].(string)
-		if eid == id && action == models.BlacklistActionCreated {
-			sawCreated = true
-		}
-		if eid == legacyEntityID && action == models.BlacklistActionPurged {
-			sawLegacyPurged = true
+		if int(item["entity_id"].(float64)) == entityID && item["action_type"].(string) == action {
+			return true
 		}
 	}
-	assert.True(t, sawCreated, "должна быть запись created из audit_log")
-	assert.True(t, sawLegacyPurged, "должна быть legacy-строка purged")
+	return false
 }
 
 // TestPersonBlacklist_WriteFlip_UpdateRestoreToAuditLog: update/archive/restore через API
