@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"systemburo/internal/database"
 	"systemburo/internal/handlers"
 	"systemburo/internal/models"
 	"systemburo/internal/services"
@@ -18,11 +19,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestStatistics_CarEntriesUnionAuditLog проверяет переходную модель #870 (срез 1.12b):
-// аналитика въездов машин читает union cars_history + audit_log[car], поэтому событие
-// въезда, записанное в audit_log (как будет после переноса записи в 1.12c), уже сейчас
-// учитывается в сводке (cars_entered), таймлайне (car_entries) и живой ленте проездов.
-// Запись ещё НЕ перенесена - строка audit_log вставляется напрямую, имитируя пост-cutover.
+// TestStatistics_CarEntriesUnionAuditLog проверяет финал #870 (срез F.5):
+// аналитика въездов машин читает audit_log[car]-only, поэтому событие въезда из
+// audit_log (как пишет recorder после 1.12c) учитывается в сводке (cars_entered),
+// таймлайне (car_entries) и живой ленте проездов, а до-cutover legacy-строка
+// cars_history попадает в ту же аналитику, будучи разово перенесённой в audit_log
+// через BackfillAuditFromLegacy. Итог = legacy(перенесён) + audit = 2.
 func TestStatistics_CarEntriesUnionAuditLog(t *testing.T) {
 	_, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
@@ -48,7 +50,7 @@ func TestStatistics_CarEntriesUnionAuditLog(t *testing.T) {
 	// 09:00 UTC = 12:00 МСК, 10:00 UTC = 13:00 МСК - обе в пределах суток 2026-06-15 МСК.
 	day := time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)
 
-	// Legacy въезд - в замороженной cars_history (как пишет текущий путь до 1.12c).
+	// Legacy въезд - в замороженной cars_history (накоплен до cutover).
 	legacy := models.CarHistory{CarID: car.ID, ActionType: "entry", CreatedAt: day}
 	require.NoError(t, db.Create(&legacy).Error)
 
@@ -62,6 +64,12 @@ func TestStatistics_CarEntriesUnionAuditLog(t *testing.T) {
 		CreatedAt:   day.Add(time.Hour),
 	}
 	require.NoError(t, db.Create(&auditEntry).Error)
+
+	// F.5: читатель audit_log-only, поэтому legacy-строку поднимаем в audit_log
+	// backfill'ом (флаг audit_backfilled:car снят CleanDB, снимаем повторно defensively).
+	require.NoError(t, db.Where("key = ?", "audit_backfilled:"+models.AuditEntityCar).
+		Delete(&models.SystemSetting{}).Error)
+	require.NoError(t, database.BackfillAuditFromLegacy(db))
 
 	h := handlers.NewStatisticsHandler(services.NewStatisticsService(db, 0))
 
@@ -107,8 +115,9 @@ func TestStatistics_CarEntriesUnionAuditLog(t *testing.T) {
 }
 
 // TestRunReport_CarEntriesCountUnionAuditLog проверяет, что конструктор отчётов (#632)
-// тоже читает union cars_history + audit_log[car] для метрики car_entries_count:
-// движок собирает base как FROM (union) ch, поэтому въезд из audit_log попадает в отчёт.
+// после F.5 читает audit_log[car]-only для метрики car_entries_count: движок собирает
+// base как FROM (audit-source) ch, поэтому въезд из audit_log попадает в отчёт, а
+// до-cutover legacy-въезд cars_history учитывается, будучи перенесённым backfill'ом.
 func TestRunReport_CarEntriesCountUnionAuditLog(t *testing.T) {
 	_, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
@@ -136,6 +145,11 @@ func TestRunReport_CarEntriesCountUnionAuditLog(t *testing.T) {
 		EntityType: models.AuditEntityCar, EntityID: &car.ID, Action: "entry",
 		ActorUserID: &user.ID, Details: json.RawMessage(`{}`), CreatedAt: day.Add(time.Hour),
 	}).Error)
+
+	// F.5: отчёт читает audit_log-only, legacy-въезд поднимаем в audit_log backfill'ом.
+	require.NoError(t, db.Where("key = ?", "audit_backfilled:"+models.AuditEntityCar).
+		Delete(&models.SystemSetting{}).Error)
+	require.NoError(t, database.BackfillAuditFromLegacy(db))
 
 	svc := services.NewStatisticsService(db, 0)
 	res, err := svc.RunReport(context.Background(), models.ReportRequest{
