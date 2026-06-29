@@ -853,6 +853,37 @@ func auditBackfillSources() []auditBackfillSource {
 			table:      "citizenship_histories",
 			projection: "citizenship_id, action_type, actor_user_id, details, created_at",
 		},
+		// F.2 ref-батч A: чистые зеркала pilot - details уже jsonb, переносится verbatim.
+		{
+			entity:     models.AuditEntityCompany,
+			table:      "company_histories",
+			projection: "company_id, action_type, actor_user_id, details, created_at",
+		},
+		{
+			entity:     models.AuditEntityOrganization,
+			table:      "organization_histories",
+			projection: "organization_id, action_type, actor_user_id, details, created_at",
+		},
+		{
+			entity:     models.AuditEntityUserType,
+			table:      "user_type_histories",
+			projection: "user_type_id, action_type, actor_user_id, details, created_at",
+		},
+		{
+			entity:     models.AuditEntityLicensePlateFormat,
+			table:      "license_plate_format_histories",
+			projection: "format_id, action_type, actor_user_id, details, created_at",
+		},
+		{
+			entity:     models.AuditEntityUnloadPlace,
+			table:      "unload_place_histories",
+			projection: "unload_place_id, action_type, actor_user_id, details, created_at",
+		},
+		{
+			entity:     models.AuditEntityUniqueAttachment,
+			table:      "unique_attachment_histories",
+			projection: "unique_attachment_id, action_type, actor_user_id, details, created_at",
+		},
 	}
 }
 
