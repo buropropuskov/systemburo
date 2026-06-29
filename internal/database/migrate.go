@@ -967,6 +967,24 @@ func auditBackfillSources() []auditBackfillSource {
 				"|| CASE WHEN metadata IS NOT NULL THEN jsonb_build_object('metadata', metadata) ELSE '{}'::jsonb END, " +
 				"created_at",
 		},
+		// F.7 application: НЕ зеркало car/employee - другая плоская схема. Поля
+		// action_status/old/new/comment сворачиваются в details (читатель берёт их через
+		// ->>', где JSON-null == отсутствию ключа, поэтому CASE им не нужен; нет
+		// field_name/table_id. metadata - вложенным jsonb-объектом ТОЛЬКО когда колонка не
+		// NULL (тот же квирк, что у car/employee: читатель берёт details->'metadata' через
+		// ->, и {"metadata":null} дал бы jsonb-null вместо отсутствия, разойдясь с recorder
+		// omitempty). actor=user_id; квирк assigned_responsible/assigned_viewer (user_id =
+		// назначенный, не действующий) переносится как есть. action_user_id - мёртвая
+		// колонка (нигде не писалась/читалась), не переносится. Стережёт golden
+		// TestApplications_HistoryGolden_* + TestApplications_History_BackfillLegacyIntoAudit.
+		{
+			entity: models.AuditEntityApplication,
+			table:  "application_history",
+			projection: "application_id, action_type, user_id, " +
+				"jsonb_build_object('action_status', action_status, 'old_value', old_value, 'new_value', new_value, 'comment', comment) " +
+				"|| CASE WHEN metadata IS NOT NULL THEN jsonb_build_object('metadata', metadata) ELSE '{}'::jsonb END, " +
+				"created_at",
+		},
 	}
 }
 

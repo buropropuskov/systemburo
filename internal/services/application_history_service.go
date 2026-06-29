@@ -12,13 +12,16 @@ import (
 )
 
 // applicationAuditDetails - форма details jsonb для записей application в audit_log
-// (#870, срез 1.14). Ключи ОБЯЗАНЫ совпадать с тем, что извлекает union в
-// GetApplicationHistory (action_status/old_value/new_value/comment/metadata), иначе
-// чтение потеряет поля. nil-указатель -> ключ опущен -> details->>'key' = NULL (как
-// незаполненная колонка application_history). metadata кладётся вложенным jsonb-объектом,
-// чтобы details->'metadata' вернул тот же объект, что давала колонка
-// application_history.metadata. action_user_id заявки - мёртвая колонка (нигде не
-// писалась и не читалась), в audit_log не переносится.
+// (#870, срез 1.14). Ключи ОБЯЗАНЫ совпадать с тем, что извлекает GetApplicationHistory
+// (action_status/old_value/new_value/comment/metadata), иначе чтение потеряет поля.
+// nil-указатель -> ключ опущен -> details->>'key' = NULL (как незаполненная колонка
+// application_history). metadata кладётся вложенным jsonb-объектом, чтобы
+// details->'metadata' вернул тот же объект, что давала колонка
+// application_history.metadata. Та же форма используется backfill'ом F.7
+// (auditBackfillSources в migrate.go), который сворачивает плоские колонки замороженной
+// application_history в этот details - иначе read-switch вернул бы не ту историю.
+// action_user_id заявки - мёртвая колонка (нигде не писалась и не читалась), в audit_log
+// не переносится.
 type applicationAuditDetails struct {
 	ActionStatus *string         `json:"action_status,omitempty"`
 	OldValue     *string         `json:"old_value,omitempty"`
@@ -33,19 +36,18 @@ func (s *applicationService) GetApplicationResponsibleUsers(ctx context.Context,
 }
 
 // GetApplicationHistory возвращает историю изменений заявки (новые сверху).
-// Переходный период #870 (срез 1.14): запись уже идёт в audit_log[application], а
-// старые строки лежат в замороженной application_history до финального backfill.
-// Чтение объединяет обе таблицы в идентичную форму ответа (форму стерегут
-// TestApplications_HistoryGolden_*). Плоские поля старой схемы
+// #870 (срез 1.14 -> read-switch F.7): запись идёт в audit_log[application], а
+// до-cutover строки замороженной application_history разово перенесены в audit_log
+// (BackfillAuditFromLegacy, форма applicationAuditDetails), поэтому читаем ТОЛЬКО
+// audit_log[application] - он уже содержит и исторические, и новые события.
+// application_history осталась read-only бэкапом до дроп-sweep (F.8). Форму ответа
+// стерегут TestApplications_HistoryGolden_*. Плоские поля старой схемы
 // (action_status/old_value/new_value/comment) у audit_log лежат внутри details jsonb,
 // metadata - вложенным объектом details->'metadata'. INNER JOIN users сохранён как в
 // исходном чтении: строки с user_id IS NULL в историю не попадают (заявка всегда пишет
 // не-NULL автора). Порядок created_at DESC, id DESC - id-тайбрейкер делает
-// детерминированным порядок записей одного действия (старый код разносил их ручным
-// инкрементом created_at на 1мс; recorder проставляет created_at временем вставки -
-// монотонно растущим, как и id). id двух таблиц из разных sequence не сопоставимы, но
-// в переходный период application_history заморожена (новые строки идут только в
-// audit_log), поэтому кросс-источниковый tie по created_at не возникает.
+// детерминированным порядок записей одного действия (recorder проставляет created_at
+// временем вставки - монотонно растущим, как и id).
 func (s *applicationService) GetApplicationHistory(ctx context.Context, applicationID int) ([]ApplicationHistoryItem, error) {
 	const userName = `CONCAT(COALESCE(u.last_name, ''),
 		CASE WHEN u.first_name IS NOT NULL AND u.first_name != '' THEN ' ' || u.first_name ELSE '' END,
@@ -68,11 +70,6 @@ func (s *applicationService) GetApplicationHistory(ctx context.Context, applicat
 			m.created_at,
 			m.metadata
 		FROM (
-			SELECT id, application_id, user_id, action_type, action_status,
-				old_value, new_value, comment, metadata, created_at
-			FROM application_history
-			WHERE application_id = ?
-			UNION ALL
 			SELECT a.id, a.entity_id AS application_id, a.actor_user_id AS user_id,
 				a.action AS action_type,
 				a.details->>'action_status' AS action_status,
@@ -89,7 +86,7 @@ func (s *applicationService) GetApplicationHistory(ctx context.Context, applicat
 	`
 
 	items := make([]ApplicationHistoryItem, 0)
-	err := s.db.WithContext(ctx).Raw(sql, applicationID, models.AuditEntityApplication, applicationID).Scan(&items).Error
+	err := s.db.WithContext(ctx).Raw(sql, models.AuditEntityApplication, applicationID).Scan(&items).Error
 	if err != nil {
 		slog.Error("Ошибка получения истории заявки", "application_id", applicationID, "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching application history")
