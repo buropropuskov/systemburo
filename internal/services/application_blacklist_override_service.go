@@ -126,6 +126,8 @@ func (s *applicationService) logBlacklistOverrideAction(ctx context.Context, tx 
 
 	switch flag.ElementType {
 	case models.BlacklistElementCar:
+		// recorder проставляет created_at временем вставки, а не `at`: в рамках одной
+		// транзакции расхождение микросекунды, история заявки и машины - разные endpoint-ы.
 		return s.recorder.Record(ctx, tx, models.AuditEntityCar, &flag.ElementID, actionType, &userID, carAuditDetails{Comment: &comment})
 	case models.BlacklistElementEmployee:
 		return tx.Exec(`
