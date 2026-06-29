@@ -193,8 +193,8 @@ func (s *statisticsService) computeHeavySummary(ctx context.Context, from, to ti
 		return nil, fmt.Errorf("statistics: in_work: %w", err)
 	}
 
-	// cars_entered: union cars_history + audit_log[car] (#870, срез 1.12b), чтобы
-	// после переноса записи (1.12c) въезды из audit_log тоже попадали в счётчик.
+	// cars_entered: источник carsHistoryUnion (audit_log[car], #870 F.5 read-switch);
+	// до-cutover въезды cars_history перенесены в audit_log backfill'ом.
 	if err := s.db.WithContext(ctx).
 		Table(carsHistoryUnion + " ch").
 		Where("ch.action_type = 'entry' AND ch.created_at BETWEEN ? AND ?", from, to).
@@ -202,9 +202,8 @@ func (s *statisticsService) computeHeavySummary(ctx context.Context, from, to ti
 		return nil, fmt.Errorf("statistics: cars_entered: %w", err)
 	}
 
-	// people_entered: union employees_history + audit_log[employee] (#870, срез
-	// 1.13a), чтобы после переноса записи (1.13b) въезды из audit_log тоже
-	// попадали в счётчик.
+	// people_entered: источник employeesHistoryUnion (audit_log[employee], #870 F.6
+	// read-switch); до-cutover въезды employees_history перенесены backfill'ом.
 	if err := s.db.WithContext(ctx).
 		Table(employeesHistoryUnion + " eh").
 		Where("eh.action_type = 'entry' AND eh.created_at BETWEEN ? AND ?", from, to).

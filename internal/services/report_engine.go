@@ -97,10 +97,10 @@ var aggMetricRegistry = map[string]aggMetricSchema{
 			"attachment_type": {expr: "COALESCE(ua.display_name, att.attachment_display_name, att.attachment_type)", join: jAttach},
 		},
 	},
-	// base — подзапрос-union cars_history + audit_log[car] (#870, срез 1.12b):
+	// base — подзапрос-источник carsHistoryUnion (audit_log[car], #870 F.5 read-switch):
 	// подставляется как FROM (...) ch, поэтому baseWhere/tsColumn/joinBlock читают
-	// ch.* как и раньше. После переноса записи (1.12c) въезды из audit_log тоже
-	// попадают в отчёт без правок движка.
+	// ch.* как и раньше. До-cutover въезды cars_history перенесены в audit_log
+	// backfill'ом, поэтому отчёт видит и исторические, и новые события.
 	"car_entries_count": {
 		base:      carsHistoryUnion + " ch",
 		aggExpr:   "COUNT(*)",
@@ -128,10 +128,10 @@ var aggMetricRegistry = map[string]aggMetricSchema{
 			"unload_place":    {expr: "c.unload_place", join: jChain},
 		},
 	},
-	// base — подзапрос-union employees_history + audit_log[employee] (#870, срез
-	// 1.13a): подставляется как FROM (...) eh, поэтому baseWhere/tsColumn/joinBlock
-	// читают eh.* как и раньше. После переноса записи (1.13b) въезды из audit_log
-	// тоже попадают в отчёт без правок движка.
+	// base — подзапрос-источник employeesHistoryUnion (audit_log[employee], #870 F.6
+	// read-switch): подставляется как FROM (...) eh, поэтому baseWhere/tsColumn/joinBlock
+	// читают eh.* как и раньше. До-cutover въезды employees_history перенесены в
+	// audit_log backfill'ом, поэтому отчёт видит и исторические, и новые события.
 	"people_entries_count": {
 		base:      employeesHistoryUnion + " eh",
 		aggExpr:   "COUNT(*)",
