@@ -108,6 +108,7 @@ func TestUniqueEmployee_History_BackfillLegacyIntoAudit(t *testing.T) {
 	require.NotNil(t, items[0].Username)
 	assert.Equal(t, owner.Username, *items[0].Username)
 
+	assert.Equal(t, "data_changed", items[1].ActionType)
 	assert.Equal(t, "middle_name", deref(items[1].FieldName))
 	assert.Equal(t, legacyOld, deref(items[1].OldValue))
 	assert.Equal(t, legacyNew, deref(items[1].NewValue))
