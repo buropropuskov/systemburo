@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"systemburo/internal/database"
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 	"systemburo/internal/testutil"
@@ -16,13 +17,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestEmployees_History_UnionLegacyAndAudit проверяет переходную модель #870: чтение
-// истории сотрудника объединяет замороженную employees_history (legacy-строки до
-// cutover) и новые строки из audit_log[employee]. После среза 1.13b запись переведена
-// на recorder - submit пишет 'create' уже в audit_log; legacy-строка вставляется
-// вручную, чтобы проверить, что union по-прежнему читает frozen-таблицу (плоские
-// поля собираются из details).
-func TestEmployees_History_UnionLegacyAndAudit(t *testing.T) {
+// TestEmployees_History_BackfillLegacyIntoAudit проверяет финал #870 (срез F.6):
+// читатель истории сотрудника переведён на audit_log-only, а до-cutover строки
+// замороженной employees_history разово поднимаются в audit_log через
+// BackfillAuditFromLegacy. Плоские поля и metadata сворачиваются в details в форму
+// carAuditDetails - то же, что пишет recorder, поэтому история байт-в-байт совпадает
+// с до-switch union. Зеркало F.5 car.
+func TestEmployees_History_BackfillLegacyIntoAudit(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
@@ -40,11 +41,6 @@ func TestEmployees_History_UnionLegacyAndAudit(t *testing.T) {
 	require.Equal(t, int64(1), auditCreate, "submit пишет create в audit_log")
 
 	now := time.Now().UTC()
-	// Замороженная legacy-строка в employees_history (осталась с до-cutover) - union обязан её читать.
-	legacyComment := "Вход (legacy employees_history)"
-	require.NoError(t, db.Create(&models.EmployeeHistory{
-		EmployeeID: empID, ActionType: "entry", Comment: &legacyComment, CreatedAt: now.Add(-time.Hour),
-	}).Error)
 	// Новое событие выхода - напрямую в audit_log (как пишет recorder после cutover).
 	exit := models.AuditLog{
 		EntityType:  models.AuditEntityEmployee,
@@ -66,12 +62,38 @@ func TestEmployees_History_UnionLegacyAndAudit(t *testing.T) {
 	}
 	require.NoError(t, db.Create(&changed).Error)
 
+	// Замороженная legacy-строка в employees_history (накоплена до cutover, ещё не перенесена).
+	// metadata в плоской jsonb-колонке проверяет, что backfill переносит её через
+	// details->'metadata', а не теряет.
+	legacyComment := "Вход (legacy employees_history)"
+	legacyMeta := `{"src":"legacy"}`
+	require.NoError(t, db.Create(&models.EmployeeHistory{
+		EmployeeID: empID, ActionType: "entry", Comment: &legacyComment,
+		Metadata: &legacyMeta, CreatedAt: now.Add(-time.Hour),
+	}).Error)
+
+	// До backfill читатель видит только audit_log -> legacy entry ещё невидим.
 	rec := testutil.GET(t, e, fmt.Sprintf("/employees/%d/history", empID), h)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	hist := testutil.ParseSlice(t, rec)
-	require.GreaterOrEqual(t, len(hist), 4, "union: audit create + legacy entry + audit exit + audit data_changed")
+	require.Nil(t, findHistByAction(testutil.ParseSlice(t, rec), "entry"), "до backfill legacy entry невидим")
 
-	// Новейшее сверху (data_changed позже exit).
+	// CleanDB-Seed уже выставил гард-флаг (backfill прогонялся на пустой таблице) -
+	// снимаем, чтобы перенести только что вставленную legacy-строку.
+	require.NoError(t, db.Where("key = ?", "audit_backfilled:"+models.AuditEntityEmployee).
+		Delete(&models.SystemSetting{}).Error)
+	require.NoError(t, database.BackfillAuditFromLegacy(db))
+
+	// Старая таблица не тронута backfill'ом - read-only бэкап.
+	var legacyCount int64
+	require.NoError(t, db.Model(&models.EmployeeHistory{}).Where("employee_id = ? AND action_type = 'entry'", empID).Count(&legacyCount).Error)
+	assert.Equal(t, int64(1), legacyCount, "employees_history цела как бэкап")
+
+	rec = testutil.GET(t, e, fmt.Sprintf("/employees/%d/history", empID), h)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	hist := testutil.ParseSlice(t, rec)
+	require.GreaterOrEqual(t, len(hist), 4, "create + exit + data_changed + перенесённый legacy entry")
+
+	// Новейшее сверху (data_changed позже exit; legacy entry на час раньше).
 	assert.Equal(t, "data_changed", hist[0]["action_type"], "новейшее сверху")
 
 	exitRow := findHistByAction(hist, "exit")
@@ -88,23 +110,43 @@ func TestEmployees_History_UnionLegacyAndAudit(t *testing.T) {
 	// поэтому контракт employee возвращает metadata строкой jsonb, не объектом.
 	assert.Equal(t, `{"src": "manual"}`, changedRow["metadata"], "metadata собран из details->'metadata' (как text)")
 
-	// Замороженная строка из employees_history (entry) по-прежнему видна через union.
+	// Перенесённая legacy-строка видна, comment и metadata сохранены через backfill.
 	entryRow := findHistByAction(hist, "entry")
-	require.NotNil(t, entryRow, "legacy entry из employees_history виден через union")
-	assert.Equal(t, "Вход (legacy employees_history)", entryRow["comment"], "comment из замороженной employees_history")
+	require.NotNil(t, entryRow, "legacy entry поднят в audit_log backfill'ом")
+	assert.Equal(t, "Вход (legacy employees_history)", entryRow["comment"], "comment перенесён из employees_history")
+	assert.Equal(t, `{"src": "legacy"}`, entryRow["metadata"], "metadata перенесён через details->'metadata' (как text)")
 
-	// /employees/history/all фильтрует action_type IN ('entry','exit') - audit-ветка
-	// union (exit) тоже должна попадать под фильтр.
+	// /employees/history/all фильтрует action_type IN ('entry','exit') - и audit-exit, и
+	// перенесённый legacy-entry попадают под фильтр.
 	recAll := testutil.GET(t, e, "/employees/history/all", h)
 	require.Equal(t, http.StatusOK, recAll.Code, recAll.Body.String())
-	var foundExit bool
+	var foundExit, foundEntry bool
 	for _, it := range testutil.ParseSlice(t, recAll) {
-		if it["employee_id"] == float64(empID) && it["action_type"] == "exit" {
+		if it["employee_id"] != float64(empID) {
+			continue
+		}
+		switch it["action_type"] {
+		case "exit":
 			foundExit = true
 			assert.Equal(t, "Выход через КПП", it["comment"])
+		case "entry":
+			foundEntry = true
 		}
 	}
 	assert.True(t, foundExit, "событие exit из audit_log видно в /employees/history/all")
+	assert.True(t, foundEntry, "перенесённый legacy entry виден в /employees/history/all")
+
+	// Идемпотентность: повторный backfill не дублирует (гард-флаг снова стоит).
+	require.NoError(t, database.BackfillAuditFromLegacy(db))
+	rec = testutil.GET(t, e, fmt.Sprintf("/employees/%d/history", empID), h)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var entryCount int
+	for _, it := range testutil.ParseSlice(t, rec) {
+		if it["action_type"] == "entry" {
+			entryCount++
+		}
+	}
+	assert.Equal(t, 1, entryCount, "повторный backfill не создаёт дублей legacy entry")
 }
 
 // TestEmployees_Trash_UnionAuditDeleteRow проверяет, что корзина скоупит удалённых

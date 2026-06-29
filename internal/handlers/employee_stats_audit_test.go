@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"systemburo/internal/database"
 	"systemburo/internal/handlers"
 	"systemburo/internal/models"
 	"systemburo/internal/services"
@@ -21,7 +22,8 @@ import (
 
 // seedEmployeeForStatsAudit создаёт сотрудника с вложением/заявкой/организацией и
 // возвращает его + пользователя-актора. Нужен для проверки, что аналитика въездов
-// людей разрешает ФИО/организацию из заявки через union employees_history + audit_log.
+// людей разрешает ФИО/организацию из заявки через audit_log[employee] (до-cutover
+// строки employees_history подняты backfill'ом).
 func seedEmployeeForStatsAudit(t *testing.T, db *gorm.DB, orgName, username, num string) (models.Employee, models.User) {
 	t.Helper()
 	org := models.Organization{Name: orgName, IsActive: true}
@@ -41,11 +43,12 @@ func seedEmployeeForStatsAudit(t *testing.T, db *gorm.DB, orgName, username, num
 	return emp, user
 }
 
-// TestStatistics_PeopleEntriesUnionAuditLog проверяет переходную модель #870 (срез 1.13a):
-// аналитика въездов людей читает union employees_history + audit_log[employee], поэтому
-// событие въезда, записанное в audit_log (как будет после переноса записи в 1.13b), уже
-// сейчас учитывается в сводке (people_entered), таймлайне (people_entries) и живой ленте.
-// Запись ещё НЕ перенесена - строка audit_log вставляется напрямую, имитируя пост-cutover.
+// TestStatistics_PeopleEntriesUnionAuditLog проверяет финал #870 (срез F.6):
+// аналитика въездов людей читает audit_log[employee]-only, поэтому событие въезда из
+// audit_log (как пишет recorder после 1.13b) учитывается в сводке (people_entered),
+// таймлайне (people_entries) и живой ленте, а до-cutover legacy-строка
+// employees_history попадает в ту же аналитику, будучи разово перенесённой в audit_log
+// через BackfillAuditFromLegacy. Итог = legacy(перенесён) + audit = 2.
 func TestStatistics_PeopleEntriesUnionAuditLog(t *testing.T) {
 	_, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
@@ -56,7 +59,7 @@ func TestStatistics_PeopleEntriesUnionAuditLog(t *testing.T) {
 	// 09:00 UTC = 12:00 МСК, 10:00 UTC = 13:00 МСК - обе в пределах суток 2026-06-15 МСК.
 	day := time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)
 
-	// Legacy въезд - в замороженной employees_history (как пишет текущий путь до 1.13b).
+	// Legacy въезд - в замороженной employees_history (накоплен до cutover).
 	require.NoError(t, db.Create(&models.EmployeeHistory{EmployeeID: emp.ID, ActionType: "entry", CreatedAt: day}).Error)
 	// Новый въезд - напрямую в audit_log[employee] (как после переноса записи).
 	require.NoError(t, db.Create(&models.AuditLog{
@@ -67,6 +70,12 @@ func TestStatistics_PeopleEntriesUnionAuditLog(t *testing.T) {
 		Details:     json.RawMessage(`{"comment":"Въезд через КПП"}`),
 		CreatedAt:   day.Add(time.Hour),
 	}).Error)
+
+	// F.6: читатель audit_log-only, поэтому legacy-строку поднимаем в audit_log
+	// backfill'ом (CleanDB->Seed заново ставит гард-флаг, снимаем перед переносом).
+	require.NoError(t, db.Where("key = ?", "audit_backfilled:"+models.AuditEntityEmployee).
+		Delete(&models.SystemSetting{}).Error)
+	require.NoError(t, database.BackfillAuditFromLegacy(db))
 
 	h := handlers.NewStatisticsHandler(services.NewStatisticsService(db, 0))
 
@@ -89,19 +98,19 @@ func TestStatistics_PeopleEntriesUnionAuditLog(t *testing.T) {
 	// 1. Сводка: people_entered учитывает обе записи (1 legacy + 1 audit) = 2.
 	var summary models.StatsSummary
 	callJSON(h.GetSummary, "/statistics/summary?from=2026-06-15&to=2026-06-15", &summary)
-	assert.Equal(t, int64(2), summary.PeopleEntered, "union: legacy + audit_log[employee] въезды")
+	assert.Equal(t, int64(2), summary.PeopleEntered, "backfill+audit: legacy(перенесён) + audit_log[employee] въезды")
 
 	// 2. Таймлайн: точка дня содержит оба въезда.
 	var points []models.StatsTimelinePoint
 	callJSON(h.GetTimeline, "/statistics/timeline?metric=people_entries&granularity=day&from=2026-06-15&to=2026-06-15", &points)
 	require.Len(t, points, 1, "один день в окне")
 	assert.Equal(t, "2026-06-15", points[0].Date)
-	assert.Equal(t, int64(2), points[0].Count, "union: оба въезда в одной точке")
+	assert.Equal(t, int64(2), points[0].Count, "backfill+audit: оба въезда в одной точке")
 
 	// 3. Живая лента: оба прохода видны (legacy + audit), ФИО и организация из заявки.
 	var passages models.RecentPassages
 	callJSON(h.GetRecentPassages, "/statistics/recent-passages", &passages)
-	require.Len(t, passages.People, 2, "union: legacy + audit_log[employee] проходы в ленте")
+	require.Len(t, passages.People, 2, "backfill+audit: legacy(перенесён) + audit_log[employee] проходы в ленте")
 	for _, p := range passages.People {
 		assert.Equal(t, "entry", p.ActionType)
 		assert.Equal(t, "Иванов Иван Иванович", p.Subject, "ФИО из employees")
@@ -110,8 +119,9 @@ func TestStatistics_PeopleEntriesUnionAuditLog(t *testing.T) {
 }
 
 // TestRunReport_PeopleEntriesCountUnionAuditLog проверяет, что конструктор отчётов (#632)
-// тоже читает union employees_history + audit_log[employee] для метрики people_entries_count:
-// движок собирает base как FROM (union) eh, поэтому въезд из audit_log попадает в отчёт.
+// после F.6 читает audit_log[employee]-only для метрики people_entries_count: движок
+// собирает base как FROM (audit-source) eh, поэтому въезд из audit_log попадает в отчёт,
+// а до-cutover legacy-въезд employees_history учитывается, будучи перенесённым backfill'ом.
 func TestRunReport_PeopleEntriesCountUnionAuditLog(t *testing.T) {
 	_, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
@@ -126,6 +136,11 @@ func TestRunReport_PeopleEntriesCountUnionAuditLog(t *testing.T) {
 		ActorUserID: &user.ID, Details: json.RawMessage(`{}`), CreatedAt: day.Add(time.Hour),
 	}).Error)
 
+	// F.6: отчёт читает audit_log-only, legacy-въезд поднимаем backfill'ом (снять гард-флаг).
+	require.NoError(t, db.Where("key = ?", "audit_backfilled:"+models.AuditEntityEmployee).
+		Delete(&models.SystemSetting{}).Error)
+	require.NoError(t, database.BackfillAuditFromLegacy(db))
+
 	svc := services.NewStatisticsService(db, 0)
 	res, err := svc.RunReport(context.Background(), models.ReportRequest{
 		Mode:      "aggregate",
@@ -137,6 +152,6 @@ func TestRunReport_PeopleEntriesCountUnionAuditLog(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, res.MetricRows, 1)
-	assert.Equal(t, int64(2), res.MetricRows[0].Values["people_entries_count"], "union: legacy + audit въезды в отчёте")
+	assert.Equal(t, int64(2), res.MetricRows[0].Values["people_entries_count"], "backfill+audit: legacy(перенесён) + audit въезды в отчёте")
 	assert.Equal(t, int64(2), res.Totals["people_entries_count"])
 }

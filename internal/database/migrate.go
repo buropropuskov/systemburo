@@ -955,6 +955,18 @@ func auditBackfillSources() []auditBackfillSource {
 				"|| CASE WHEN metadata IS NOT NULL THEN jsonb_build_object('metadata', metadata) ELSE '{}'::jsonb END, " +
 				"created_at",
 		},
+		// F.6 employee: employees_history - колонка-в-колонку зеркало cars_history
+		// (общий журнал событий сотрудника). Та же проекция в carAuditDetails-форму,
+		// metadata тем же CASE (см. F.5 car выше). Стережёт golden
+		// TestEmployees_History_BackfillLegacyIntoAudit + analytics-тесты.
+		{
+			entity: models.AuditEntityEmployee,
+			table:  "employees_history",
+			projection: "employee_id, action_type, user_id, " +
+				"jsonb_build_object('field_name', field_name, 'old_value', old_value, 'new_value', new_value, 'comment', comment, 'table_id', table_id) " +
+				"|| CASE WHEN metadata IS NOT NULL THEN jsonb_build_object('metadata', metadata) ELSE '{}'::jsonb END, " +
+				"created_at",
+		},
 	}
 }
 
