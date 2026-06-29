@@ -815,5 +815,99 @@ func Seed(db *gorm.DB) error {
 		return err
 	}
 
+	// Разовый перенос замороженных *_history строк в общий audit_log (#870, финал):
+	// читатели сущностей переведены на audit_log-only, до-cutover история берётся уже
+	// из audit_log, а legacy-таблицы остаются read-only бэкапом до дроп-sweep (F.8).
+	if err := BackfillAuditFromLegacy(db); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// auditBackfillSource описывает разовый перенос одной замороженной *_history таблицы
+// в общий audit_log (#870, финал). projection - список колонок/выражений источника
+// в порядке (entity_id, action, actor_user_id, details, created_at); вместе с
+// литералом entity_type он проецируется ровно в колонки INSERT внутри
+// BackfillAuditFromLegacy. Для сущностей с плоской схемой (mark old/new, approver
+// approver_name, car field_name/...) слот details - это jsonb_build_object(...) в той
+// же форме, что пишет recorder сущности, иначе read-switch вернёт не ту историю
+// (стережёт golden-тест). ORDER BY created_at, id даёт новым id audit_log тот же
+// относительный порядок, что был в legacy (тайбрейкер истории - created_at DESC, id DESC).
+//
+// ВАЖНО: table и projection конкатенируются в SQL сырыми (не bind-параметры) - это
+// допустимо ТОЛЬКО потому, что значения статические литералы из auditBackfillSources().
+// Никогда не подставлять сюда данные из запроса/БД/внешнего источника - будет инъекция.
+type auditBackfillSource struct {
+	entity     string // models.AuditEntity* - и суффикс гард-флага
+	table      string // legacy-таблица-источник (probe to_regclass: могла быть дропнута в F.8)
+	projection string // entity_id, action, actor_user_id, details, created_at (статические SQL-выражения)
+}
+
+// auditBackfillSources - сущности, чьи читатели переведены на audit_log-only
+// (#870, финал). Пополняется по мере срезов F.1 (citizenship) -> F.7 (application).
+func auditBackfillSources() []auditBackfillSource {
+	return []auditBackfillSource{
+		{
+			entity:     models.AuditEntityCitizenship,
+			table:      "citizenship_histories",
+			projection: "citizenship_id, action_type, actor_user_id, details, created_at",
+		},
+	}
+}
+
+// BackfillAuditFromLegacy один раз на сущность переносит замороженные *_history строки
+// в общий audit_log (#870, финал). До перевода читателя на audit_log-only история
+// бралась union'ом legacy+audit_log; backfill копирует legacy-часть в audit_log, после
+// чего читатель сущности читает только audit_log, а legacy-таблица остаётся read-only
+// бэкапом до дроп-sweep (F.8).
+//
+// Идемпотентно: гард-флаг system_settings 'audit_backfilled:<entity>' ставится в той же
+// транзакции, что и INSERT, поэтому повторный старт пропускает перенос и дублей не
+// создаёт. При параллельном старте двух инстанций оба могут пройти проверку флага, но
+// unique constraint на system_settings.key даёт зафиксироваться ровно одной транзакции
+// - вторая откатится вместе со своими INSERT'ами, дублей в audit_log не остаётся.
+// to_regclass-probe делает перенос no-op, если legacy-таблица уже дропнута (F.8).
+// Зовётся из Seed (каждый старт сервера) после AutoMigrate - к первому запросу истории
+// audit_log уже наполнен.
+func BackfillAuditFromLegacy(db *gorm.DB) error {
+	for _, src := range auditBackfillSources() {
+		flag := "audit_backfilled:" + src.entity
+		var flagged int64
+		if err := db.Model(&models.SystemSetting{}).Where("key = ?", flag).Count(&flagged).Error; err != nil {
+			return fmt.Errorf("backfill audit %s: check flag: %w", src.entity, err)
+		}
+		if flagged > 0 {
+			continue
+		}
+
+		var sourceExists bool
+		if err := db.Raw("SELECT to_regclass(?) IS NOT NULL", src.table).Scan(&sourceExists).Error; err != nil {
+			return fmt.Errorf("backfill audit %s: probe %s: %w", src.entity, src.table, err)
+		}
+
+		if err := db.Transaction(func(tx *gorm.DB) error {
+			var moved int64
+			if sourceExists {
+				res := tx.Exec(
+					"INSERT INTO audit_log (entity_type, entity_id, action, actor_user_id, details, created_at) "+
+						"SELECT ?, "+src.projection+" FROM "+src.table+" ORDER BY created_at, id",
+					src.entity)
+				if res.Error != nil {
+					return res.Error
+				}
+				moved = res.RowsAffected
+			}
+			if err := tx.Create(&models.SystemSetting{Key: flag, Value: "1", Type: "bool"}).Error; err != nil {
+				return err
+			}
+			// Логируем всегда (в т.ч. rows=0 на свежей установке) - оператору видно,
+			// что backfill отработал, а не молча не дошёл сюда.
+			slog.Info("audit backfill done", "entity", src.entity, "rows", moved)
+			return nil
+		}); err != nil {
+			return fmt.Errorf("backfill audit %s: %w", src.entity, err)
+		}
+	}
 	return nil
 }
