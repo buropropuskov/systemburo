@@ -449,8 +449,7 @@ func (s *personBlacklistService) deactivateMatchingEmployees(ctx context.Context
 			Updates(map[string]interface{}{"status": 0, "date_deleted": now}).Error; err != nil {
 			return 0, err
 		}
-		hist := models.EmployeeHistory{EmployeeID: id, UserID: &userID, ActionType: "blacklisted", Comment: &comment, CreatedAt: now}
-		if err := tx.Create(&hist).Error; err != nil {
+		if err := s.recorder.Record(ctx, tx, models.AuditEntityEmployee, &id, "blacklisted", &userID, carAuditDetails{Comment: &comment}); err != nil {
 			return 0, err
 		}
 	}
@@ -477,15 +476,13 @@ func (s *personBlacklistService) reactivateMatchingEmployees(ctx context.Context
 		Pluck("emp.id", &ids).Error; err != nil {
 		return 0, err
 	}
-	now := time.Now().UTC()
 	comment := fmt.Sprintf("Сотрудник %s снят с чёрного списка", personFullName(e))
 	for _, id := range ids {
 		if err := tx.Model(&models.Employee{}).Where("id = ?", id).
 			Updates(map[string]interface{}{"status": 1, "date_deleted": nil}).Error; err != nil {
 			return 0, err
 		}
-		hist := models.EmployeeHistory{EmployeeID: id, UserID: &userID, ActionType: "unblacklisted", Comment: &comment, CreatedAt: now}
-		if err := tx.Create(&hist).Error; err != nil {
+		if err := s.recorder.Record(ctx, tx, models.AuditEntityEmployee, &id, "unblacklisted", &userID, carAuditDetails{Comment: &comment}); err != nil {
 			return 0, err
 		}
 	}

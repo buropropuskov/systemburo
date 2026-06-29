@@ -308,11 +308,10 @@ func (s *applicationService) CheckExpiredAttachments(ctx context.Context) error 
 	}
 
 	for _, emp := range employees {
+		empID := emp.ID
 		fullName := formatFullName(emp.LastName, emp.FirstName, emp.MiddleName)
-		tx.Exec(`
-			INSERT INTO employees_history (employee_id, user_id, action_type, comment, created_at)
-			VALUES (?, NULL, 'deactivate', ?, NOW())
-		`, emp.ID, fmt.Sprintf("Срок действия заявки на сотрудника %s истёк", fullName))
+		comment := fmt.Sprintf("Срок действия заявки на сотрудника %s истёк", fullName)
+		s.recorder.Log(ctx, tx, models.AuditEntityEmployee, &empID, "deactivate", nil, carAuditDetails{Comment: &comment})
 	}
 
 	// Завершаем заявки, у которых все вложения неактивны

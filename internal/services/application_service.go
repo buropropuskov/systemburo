@@ -1585,7 +1585,6 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 					}
 					empID := employee.ID
 
-					empHistoryTime := baseTime.Add(time.Millisecond)
 					empMiddle := ""
 					if e.MiddleName != nil {
 						empMiddle = *e.MiddleName
@@ -1594,10 +1593,7 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 						empID: empID, lastName: lastName, firstName: firstName, middleName: empMiddle,
 					})
 					empComment := fmt.Sprintf("Сотрудник %s создан", strings.TrimSpace(strings.Join([]string{lastName, firstName, empMiddle}, " ")))
-					tx.Exec(`
-						INSERT INTO employees_history (employee_id, user_id, action_type, comment, created_at)
-						VALUES (?, ?, 'create', ?, ?)
-					`, empID, user.ID, empComment, empHistoryTime)
+					s.recorder.Log(ctx, tx, models.AuditEntityEmployee, &empID, "create", &user.ID, carAuditDetails{Comment: &empComment})
 
 					for _, tableID := range e.TargetTables {
 						tx.Exec("INSERT INTO employee_target_tables (employee_id, table_id, order_index) VALUES (?, ?, 1)", empID, tableID)

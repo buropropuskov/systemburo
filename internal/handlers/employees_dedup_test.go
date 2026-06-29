@@ -116,7 +116,7 @@ func TestEmployeeDedup_OnePersonTwoAttachments(t *testing.T) {
 	).Error)
 
 	// Вызов сервиса
-	svc := services.NewEmployeeService(db)
+	svc := services.NewEmployeeService(db, services.NewAuditRecorder(db))
 	result, err := svc.GetActiveEmployeesForTable(context.Background(), int(tableID))
 	require.NoError(t, err)
 
@@ -221,7 +221,7 @@ func TestEmployeeDedup_NullPassportNotCollapsed(t *testing.T) {
 	).Error)
 
 	// Вызов сервиса
-	svc := services.NewEmployeeService(db)
+	svc := services.NewEmployeeService(db, services.NewAuditRecorder(db))
 	result, err := svc.GetActiveEmployeesForTable(context.Background(), int(tableID))
 	require.NoError(t, err)
 

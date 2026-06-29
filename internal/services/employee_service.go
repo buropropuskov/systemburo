@@ -95,12 +95,13 @@ type TableEmployeeResponse struct {
 // --- Реализация ---
 
 type employeeService struct {
-	db *gorm.DB
+	db       *gorm.DB
+	recorder AuditRecorder
 }
 
 // NewEmployeeService создаёт новый экземпляр EmployeeService.
-func NewEmployeeService(db *gorm.DB) EmployeeService {
-	return &employeeService{db: db}
+func NewEmployeeService(db *gorm.DB, recorder AuditRecorder) EmployeeService {
+	return &employeeService{db: db, recorder: recorder}
 }
 
 // CreateEmployee создаёт сотрудника и связи с целевыми таблицами в транзакции.
@@ -319,15 +320,7 @@ func (s *employeeService) UpdateEmployeeTerritoryStatus(ctx context.Context, emp
 			comment = fmt.Sprintf("Сотрудник %s вышел с территории", fullName)
 		}
 
-		history := models.EmployeeHistory{
-			EmployeeID: employeeID,
-			UserID:     req.UserID,
-			ActionType: actionType,
-			Comment:    &comment,
-			CreatedAt:  now,
-			TableID:    req.TableID,
-		}
-		if err := tx.Create(&history).Error; err != nil {
+		if err := s.recorder.Record(ctx, tx, models.AuditEntityEmployee, &employeeID, actionType, req.UserID, carAuditDetails{Comment: &comment, TableID: req.TableID}); err != nil {
 			slog.Error("не удалось добавить запись в историю сотрудника", "employee_id", employeeID, "action_type", actionType, "error", err)
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error adding employee history entry")
 		}
@@ -363,15 +356,7 @@ func (s *employeeService) DeactivateEmployee(ctx context.Context, employeeID int
 		fullName := formatFullName(employee.LastName, employee.FirstName, employee.MiddleName)
 		comment := fmt.Sprintf("Сотрудник %s удалён пользователем", fullName)
 		actionType := "delete"
-		history := models.EmployeeHistory{
-			EmployeeID: employeeID,
-			UserID:     req.UserID,
-			ActionType: actionType,
-			Comment:    &comment,
-			CreatedAt:  now,
-			TableID:    req.TableID,
-		}
-		if err := tx.Create(&history).Error; err != nil {
+		if err := s.recorder.Record(ctx, tx, models.AuditEntityEmployee, &employeeID, actionType, req.UserID, carAuditDetails{Comment: &comment, TableID: req.TableID}); err != nil {
 			slog.Error("не удалось добавить запись в историю сотрудника", "employee_id", employeeID, "action_type", actionType, "error", err)
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error adding employee history entry")
 		}
@@ -406,14 +391,7 @@ func (s *employeeService) ActivateEmployee(ctx context.Context, employeeID int, 
 		fullName := formatFullName(employee.LastName, employee.FirstName, employee.MiddleName)
 		comment := fmt.Sprintf("Сотрудник %s введён в работу", fullName)
 		actionType := "activate"
-		history := models.EmployeeHistory{
-			EmployeeID: employeeID,
-			UserID:     req.UserID,
-			ActionType: actionType,
-			Comment:    &comment,
-			CreatedAt:  now,
-		}
-		if err := tx.Create(&history).Error; err != nil {
+		if err := s.recorder.Record(ctx, tx, models.AuditEntityEmployee, &employeeID, actionType, req.UserID, carAuditDetails{Comment: &comment}); err != nil {
 			slog.Error("не удалось добавить запись в историю сотрудника", "employee_id", employeeID, "action_type", actionType, "error", err)
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error adding employee history entry")
 		}
@@ -448,14 +426,7 @@ func (s *employeeService) RestoreEmployee(ctx context.Context, employeeID int, r
 		fullName := formatFullName(employee.LastName, employee.FirstName, employee.MiddleName)
 		comment := fmt.Sprintf("Сотрудник %s восстановлен", fullName)
 		actionType := "restore"
-		history := models.EmployeeHistory{
-			EmployeeID: employeeID,
-			UserID:     req.UserID,
-			ActionType: actionType,
-			Comment:    &comment,
-			CreatedAt:  now,
-		}
-		if err := tx.Create(&history).Error; err != nil {
+		if err := s.recorder.Record(ctx, tx, models.AuditEntityEmployee, &employeeID, actionType, req.UserID, carAuditDetails{Comment: &comment}); err != nil {
 			slog.Error("не удалось добавить запись в историю сотрудника", "employee_id", employeeID, "action_type", actionType, "error", err)
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error adding employee history entry")
 		}

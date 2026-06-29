@@ -112,8 +112,8 @@ func TestPersonBlacklist_CascadeDeactivatesActiveEmployee(t *testing.T) {
 	assert.NotNil(t, after.DateDeleted, "date_deleted должен проставиться")
 
 	var empHistCount int64
-	db.Model(&models.EmployeeHistory{}).Where("employee_id = ? AND action_type = ?", empID, "blacklisted").Count(&empHistCount)
-	assert.Equal(t, int64(1), empHistCount, "должна быть запись employees_history blacklisted")
+	db.Model(&models.AuditLog{}).Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityEmployee, empID, "blacklisted").Count(&empHistCount)
+	assert.Equal(t, int64(1), empHistCount, "должна быть запись audit_log blacklisted (#870, срез 1.13b)")
 
 	var blHistCount int64
 	db.Table("audit_log").Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityPersonBlacklist, entry.ID, models.BlacklistActionCreated).Count(&blHistCount)
@@ -153,7 +153,7 @@ func TestPersonBlacklist_UnblacklistRestoresActiveApplicationEmployee(t *testing
 	assert.Nil(t, restored.DateDeleted, "date_deleted должен очиститься")
 
 	var empHistCount int64
-	db.Model(&models.EmployeeHistory{}).Where("employee_id = ? AND action_type = ?", empID, "unblacklisted").Count(&empHistCount)
+	db.Model(&models.AuditLog{}).Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityEmployee, empID, "unblacklisted").Count(&empHistCount)
 	assert.Equal(t, int64(1), empHistCount)
 }
 
