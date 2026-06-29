@@ -111,7 +111,7 @@ const baseSelectSQL = `
 		e.middle_name AS employee_middle_name,
 		COALESCE(org.name, '') AS organization,
 		COALESCE(comp.name, '') AS company
-	FROM employees_history eh
+	FROM ` + employeesHistoryUnion + ` eh
 	LEFT JOIN users u ON eh.user_id = u.id
 	LEFT JOIN system_tables st ON eh.table_id = st.id
 	JOIN employees e ON eh.employee_id = e.id
@@ -185,9 +185,9 @@ func (s *employeesHistoryService) GetCurrentStatus(ctx context.Context) ([]Emplo
 			e.territory_entry_time,
 			(
 				SELECT created_at
-				FROM employees_history
-				WHERE employee_id = e.id AND action_type = 'exit'
-				ORDER BY created_at DESC
+				FROM ` + employeesHistoryUnion + ` eh
+				WHERE eh.employee_id = e.id AND eh.action_type = 'exit'
+				ORDER BY eh.created_at DESC
 				LIMIT 1
 			) AS last_exit_time
 		FROM employees e

@@ -124,7 +124,7 @@ func (s *trashService) ListEmployeesTrash(ctx context.Context, systemTableID int
 			e.date_deleted AS deleted_at,
 			COALESCE((
 				SELECT format_short_name(u.last_name, u.first_name, u.middle_name)
-				FROM employees_history eh JOIN users u ON u.id = eh.user_id
+				FROM ` + employeesHistoryUnion + ` eh JOIN users u ON u.id = eh.user_id
 				WHERE eh.employee_id = e.id AND eh.action_type = 'delete' AND eh.table_id = ?
 				ORDER BY eh.created_at DESC LIMIT 1
 			), '') AS deleted_by_name
@@ -136,7 +136,7 @@ func (s *trashService) ListEmployeesTrash(ctx context.Context, systemTableID int
 		LEFT JOIN citizenships cit ON cit.id = e.citizenship_id
 		WHERE e.status = 0 AND e.date_deleted IS NOT NULL AND e.is_purged = false
 			AND EXISTS (
-				SELECT 1 FROM employees_history eh
+				SELECT 1 FROM ` + employeesHistoryUnion + ` eh
 				WHERE eh.employee_id = e.id AND eh.action_type = 'delete' AND eh.table_id = ?
 			)`
 	args := []any{systemTableID, systemTableID}
@@ -336,8 +336,8 @@ func (s *trashService) ClearCarsTrash(ctx context.Context, systemTableID, userID
 func (s *trashService) ClearEmployeesTrash(ctx context.Context, systemTableID, userID int) (int, error) {
 	now := time.Now().UTC()
 	subqIDs := func() *gorm.DB {
-		return s.db.Table("employees_history").Select("DISTINCT employee_id").
-			Where("action_type = 'delete' AND table_id = ?", systemTableID)
+		return s.db.Raw(`SELECT DISTINCT eh.employee_id FROM `+employeesHistoryUnion+` eh
+			WHERE eh.action_type = 'delete' AND eh.table_id = ?`, systemTableID)
 	}
 	purgeIDs := make([]int, 0)
 	s.db.WithContext(ctx).Model(&models.Employee{}).

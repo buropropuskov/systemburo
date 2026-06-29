@@ -45,6 +45,7 @@ const (
 	AuditEntityMark               = "mark"
 	AuditEntityCar                = "car"
 	AuditEntityUniqueCar          = "unique_car"
+	AuditEntityEmployee           = "employee"
 )
 
 // AuditLogItem - запись аудита для API с разрезолвленным именем актора

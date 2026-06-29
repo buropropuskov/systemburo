@@ -128,8 +128,12 @@ var aggMetricRegistry = map[string]aggMetricSchema{
 			"unload_place":    {expr: "c.unload_place", join: jChain},
 		},
 	},
+	// base — подзапрос-union employees_history + audit_log[employee] (#870, срез
+	// 1.13a): подставляется как FROM (...) eh, поэтому baseWhere/tsColumn/joinBlock
+	// читают eh.* как и раньше. После переноса записи (1.13b) въезды из audit_log
+	// тоже попадают в отчёт без правок движка.
 	"people_entries_count": {
-		base:      "employees_history eh",
+		base:      employeesHistoryUnion + " eh",
 		aggExpr:   "COUNT(*)",
 		baseWhere: "eh.action_type = 'entry'",
 		tsColumn:  "eh.created_at",
