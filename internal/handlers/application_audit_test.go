@@ -218,6 +218,223 @@ func TestApplications_History_UnionLegacyAndAudit(t *testing.T) {
 	assert.Len(t, testutil.ParseSlice(t, rec), 2, "строка с NULL user_id не видна (INNER JOIN users)")
 }
 
+// TestApplications_WriteFlip_ReadAndWorkflowToAuditLog (#870): проверяет, что действия
+// workflow-цикла принимающего (read, take_to_work, reject, revoke_from_work, restore_to_work)
+// пишутся в audit_log[application]. Используются два приложения:
+// appAccept — флоу accept -> revoke; appReject — флоу reject -> restore.
+func TestApplications_WriteFlip_ReadAndWorkflowToAuditLog(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	// Принимающий (approver) - тип 6, запись в application_approvers.
+	testutil.RegisterUser(t, e, "wf1appr", "pass123", 6, td.OrgID, td.CompanyID)
+	approverID := getUserID(t, db, "wf1appr")
+	db.Exec("INSERT INTO application_approvers (user_id, created_at) VALUES (?, NOW()) ON CONFLICT DO NOTHING", approverID)
+	approverToken, _ := testutil.LoginUser(t, e, "wf1appr", "pass123")
+
+	senderToken := testutil.RegisterAndLogin(t, e, "wf1sndr", "pass123", 1, td.OrgID, td.CompanyID)
+
+	// --- appAccept: read -> take_to_work(accept) -> revoke_from_work ---
+
+	appAccept := createSimpleApplication(t, e, senderToken, td.OrgID)
+
+	// read: принимающий открывает заявку со статусом "Непрочитано" -> action='read'.
+	rec := testutil.GET(t, e, fmt.Sprintf("/applications/%d", appAccept), testutil.AuthHeader(approverToken))
+	require.Equal(t, http.StatusOK, rec.Code, "GET app для read: %s", rec.Body.String())
+
+	var n int64
+	require.NoError(t, db.Table("audit_log").
+		Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityApplication, appAccept, "read").
+		Count(&n).Error)
+	assert.GreaterOrEqual(t, n, int64(1), "action='read' должна появиться в audit_log после открытия принимающим")
+
+	// take_to_work(accept): принимающий берёт заявку в работу.
+	rec = testutil.POST(t, e, fmt.Sprintf("/applications/%d/take-to-work", appAccept),
+		fmt.Sprintf(`{"user_id":%d,"action":"accept"}`, approverID),
+		testutil.AuthHeader(approverToken))
+	require.Equal(t, http.StatusOK, rec.Code, "take-to-work accept: %s", rec.Body.String())
+
+	n = 0
+	require.NoError(t, db.Table("audit_log").
+		Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityApplication, appAccept, "take_to_work").
+		Count(&n).Error)
+	assert.Equal(t, int64(1), n, "action='take_to_work' должна появиться в audit_log")
+
+	// revoke_from_work: принимающий отзывает заявку из работы.
+	rec = testutil.POST(t, e, fmt.Sprintf("/applications/%d/revoke-from-work", appAccept),
+		fmt.Sprintf(`{"user_id":%d,"comment":"нужны правки"}`, approverID),
+		testutil.AuthHeader(approverToken))
+	require.Equal(t, http.StatusOK, rec.Code, "revoke-from-work: %s", rec.Body.String())
+
+	n = 0
+	require.NoError(t, db.Table("audit_log").
+		Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityApplication, appAccept, "revoke_from_work").
+		Count(&n).Error)
+	assert.Equal(t, int64(1), n, "action='revoke_from_work' должна появиться в audit_log")
+
+	// --- appReject: take_to_work(reject) -> restore_to_work ---
+
+	appReject := createSimpleApplication(t, e, senderToken, td.OrgID)
+
+	// take_to_work(reject): принимающий отказывает в принятии заявки.
+	rec = testutil.POST(t, e, fmt.Sprintf("/applications/%d/take-to-work", appReject),
+		fmt.Sprintf(`{"user_id":%d,"action":"reject","comment":"не подходит"}`, approverID),
+		testutil.AuthHeader(approverToken))
+	require.Equal(t, http.StatusOK, rec.Code, "take-to-work reject: %s", rec.Body.String())
+
+	n = 0
+	require.NoError(t, db.Table("audit_log").
+		Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityApplication, appReject, "reject").
+		Count(&n).Error)
+	assert.Equal(t, int64(1), n, "action='reject' (take-to-work путь) должна появиться в audit_log")
+
+	// restore_to_work: принимающий возвращает отклонённую заявку в обработку.
+	rec = testutil.POST(t, e, fmt.Sprintf("/applications/%d/restore-to-work", appReject),
+		fmt.Sprintf(`{"user_id":%d,"comment":"пересмотрим"}`, approverID),
+		testutil.AuthHeader(approverToken))
+	require.Equal(t, http.StatusOK, rec.Code, "restore-to-work: %s", rec.Body.String())
+
+	n = 0
+	require.NoError(t, db.Table("audit_log").
+		Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityApplication, appReject, "restore_to_work").
+		Count(&n).Error)
+	assert.Equal(t, int64(1), n, "action='restore_to_work' должна появиться в audit_log")
+}
+
+// TestApplications_WriteFlip_ForwardAndApprovalToAuditLog (#870): проверяет, что действия
+// пересылки и согласования пишутся в audit_log[application]:
+//   - assigned_responsible, assigned_viewer, forwarded — при forward;
+//   - approve, confirmation_change — при approve(approved);
+//   - revoke_approval, confirmation_change — при revoke_approval;
+//   - reject (approve-путь), confirmation_change — при approve(rejected) на отдельной заявке.
+func TestApplications_WriteFlip_ForwardAndApprovalToAuditLog(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	senderToken := testutil.RegisterAndLogin(t, e, "wf2sndr", "pass123", 1, td.OrgID, td.CompanyID)
+
+	// wf2resp — получает пересылку как ответственный (required_approval=true) и затем согласует.
+	testutil.RegisterUser(t, e, "wf2resp", "pass123", 1, td.OrgID, td.CompanyID)
+	respID := getUserID(t, db, "wf2resp")
+	respToken, _ := testutil.LoginUser(t, e, "wf2resp", "pass123")
+
+	// wf2view — получает пересылку как просматривающий (can_view=true).
+	testutil.RegisterUser(t, e, "wf2view", "pass123", 1, td.OrgID, td.CompanyID)
+	viewerID := getUserID(t, db, "wf2view")
+
+	// --- Sub-test A: forward(resp+viewer) -> approve(approved) -> revoke_approval ---
+
+	t.Run("ForwardApproveRevoke", func(t *testing.T) {
+		appFwd := createSimpleApplication(t, e, senderToken, td.OrgID)
+
+		// Пересылка: sender -> wf2resp(required_approval) + wf2view(viewer).
+		fwdBody := fmt.Sprintf(`{"users":[
+			{"user_id":%d,"required_approval":true,"can_view":false},
+			{"user_id":%d,"required_approval":false,"can_view":true}
+		]}`, respID, viewerID)
+		rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/forward", appFwd), fwdBody, testutil.AuthHeader(senderToken))
+		require.Equal(t, http.StatusOK, rec.Code, "forward: %s", rec.Body.String())
+
+		var n int64
+		// assigned_responsible: одна запись на wf2resp.
+		require.NoError(t, db.Table("audit_log").
+			Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityApplication, appFwd, "assigned_responsible").
+			Count(&n).Error)
+		assert.Equal(t, int64(1), n, "assigned_responsible должен быть записан после forward")
+
+		// assigned_viewer: одна запись на wf2view.
+		n = 0
+		require.NoError(t, db.Table("audit_log").
+			Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityApplication, appFwd, "assigned_viewer").
+			Count(&n).Error)
+		assert.Equal(t, int64(1), n, "assigned_viewer должен быть записан после forward")
+
+		// forwarded: одна сводная запись.
+		n = 0
+		require.NoError(t, db.Table("audit_log").
+			Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityApplication, appFwd, "forwarded").
+			Count(&n).Error)
+		assert.Equal(t, int64(1), n, "forwarded должен быть записан после forward")
+
+		// approve(approved): wf2resp голосует за.
+		approveBody := fmt.Sprintf(`{"user_id":%d,"status":"approved","comment":"ок"}`, respID)
+		rec = testutil.POST(t, e, fmt.Sprintf("/applications/%d/approve", appFwd), approveBody, testutil.AuthHeader(respToken))
+		require.Equal(t, http.StatusOK, rec.Code, "approve(approved): %s", rec.Body.String())
+
+		n = 0
+		require.NoError(t, db.Table("audit_log").
+			Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityApplication, appFwd, "approve").
+			Count(&n).Error)
+		assert.Equal(t, int64(1), n, "action='approve' должен быть записан после approve(approved)")
+
+		// confirmation_change: после approve(approved) confirmation меняется "Согласование" -> "Согласовано".
+		n = 0
+		require.NoError(t, db.Table("audit_log").
+			Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityApplication, appFwd, "confirmation_change").
+			Count(&n).Error)
+		assert.GreaterOrEqual(t, n, int64(1), "confirmation_change должен быть записан после approve(approved)")
+		afterApproveConfChange := n
+
+		// revoke_approval: wf2resp отзывает согласование.
+		rec = testutil.POST(t, e, fmt.Sprintf("/applications/%d/revoke-approval", appFwd),
+			`{"comment":"передумал"}`,
+			testutil.AuthHeader(respToken))
+		require.Equal(t, http.StatusOK, rec.Code, "revoke-approval: %s", rec.Body.String())
+
+		n = 0
+		require.NoError(t, db.Table("audit_log").
+			Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityApplication, appFwd, "revoke_approval").
+			Count(&n).Error)
+		assert.Equal(t, int64(1), n, "action='revoke_approval' должен быть записан после revoke-approval")
+
+		// confirmation_change должен добавить ещё одну запись (возврат к "Согласование").
+		n = 0
+		require.NoError(t, db.Table("audit_log").
+			Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityApplication, appFwd, "confirmation_change").
+			Count(&n).Error)
+		assert.Greater(t, n, afterApproveConfChange, "revoke_approval должен добавить ещё один confirmation_change")
+	})
+
+	// --- Sub-test B: forward(required) -> approve(rejected) ---
+
+	t.Run("ForwardApproveReject", func(t *testing.T) {
+		// wf2rej — ответственный для ветки отклонения.
+		testutil.RegisterUser(t, e, "wf2rej", "pass123", 1, td.OrgID, td.CompanyID)
+		rejID := getUserID(t, db, "wf2rej")
+		rejToken, _ := testutil.LoginUser(t, e, "wf2rej", "pass123")
+
+		appRej := createSimpleApplication(t, e, senderToken, td.OrgID)
+
+		// Пересылка: sender -> wf2rej(required_approval).
+		fwdBody := fmt.Sprintf(`{"users":[{"user_id":%d,"required_approval":true,"can_view":false}]}`, rejID)
+		rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/forward", appRej), fwdBody, testutil.AuthHeader(senderToken))
+		require.Equal(t, http.StatusOK, rec.Code, "forward для reject-ветки: %s", rec.Body.String())
+
+		// approve(rejected): wf2rej отклоняет заявку.
+		rejectBody := fmt.Sprintf(`{"user_id":%d,"status":"rejected","comment":"не соответствует требованиям"}`, rejID)
+		rec = testutil.POST(t, e, fmt.Sprintf("/applications/%d/approve", appRej), rejectBody, testutil.AuthHeader(rejToken))
+		require.Equal(t, http.StatusOK, rec.Code, "approve(rejected): %s", rec.Body.String())
+
+		var n int64
+		// action='reject' (approve-путь).
+		require.NoError(t, db.Table("audit_log").
+			Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityApplication, appRej, "reject").
+			Count(&n).Error)
+		assert.Equal(t, int64(1), n, "action='reject' (approve-путь) должен быть записан после approve(rejected)")
+
+		// confirmation_change: "Согласование" -> "Не согласовано".
+		n = 0
+		require.NoError(t, db.Table("audit_log").
+			Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityApplication, appRej, "confirmation_change").
+			Count(&n).Error)
+		assert.GreaterOrEqual(t, n, int64(1), "confirmation_change должен быть записан после approve(rejected)")
+	})
+}
+
 // TestApplications_History_TiebreakerByID - при РАВНОМ created_at порядок задаёт id DESC
 // (новее = больший id сверху). Воспроизводит эффект старого ручного +1мс инкремента для
 // нескольких записей одного действия, когда recorder проставил им один момент вставки.

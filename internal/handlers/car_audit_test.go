@@ -228,3 +228,34 @@ func TestCars_WriteFlip_AllActionsToAuditLog(t *testing.T) {
 	assert.Equal(t, "A001AA", changed["old_value"])
 	assert.Equal(t, "B002BB", changed["new_value"])
 }
+
+// TestCars_WriteFlip_RestoreToAuditLog проверяет что PUT /cars/:id/restore пишет
+// action='restore' в audit_log (#870, срез 1.12c). TestRestoreCar_Success ассертит
+// только HTTP 200; этот тест закрывает непокрытую проверку записи в audit_log.
+func TestCars_WriteFlip_RestoreToAuditLog(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "carrestore_audit1", "pass123", 1, td.OrgID, td.CompanyID)
+	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
+	activateCarViaApp(t, e, db, appID, td)
+	h := testutil.AuthHeader(token)
+
+	// Деактивируем машину чтобы restore был валиден (предусловие из TestRestoreCar_Success).
+	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/deactivate", carID), `{"status": 2}`, h)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	// Восстанавливаем через endpoint.
+	rec = testutil.PUT(t, e, fmt.Sprintf("/cars/%d/restore", carID), `{}`, h)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	// Проверяем что action='restore' попал в audit_log[car].
+	var n int64
+	require.NoError(t, db.Model(&models.AuditLog{}).
+		Where("entity_type = ? AND entity_id = ? AND action = ?",
+			models.AuditEntityCar, carID, "restore").
+		Count(&n).Error)
+	assert.GreaterOrEqual(t, n, int64(1), "PUT /cars/:id/restore должен писать action=restore в audit_log")
+}
