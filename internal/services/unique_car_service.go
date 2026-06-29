@@ -146,12 +146,13 @@ type UniqueCarService interface {
 }
 
 type uniqueCarService struct {
-	db *gorm.DB
+	db       *gorm.DB
+	recorder AuditRecorder
 }
 
 // NewUniqueCarService создаёт реализацию UniqueCarService.
 func NewUniqueCarService(db *gorm.DB) UniqueCarService {
-	return &uniqueCarService{db: db}
+	return &uniqueCarService{db: db, recorder: NewAuditRecorder(db)}
 }
 
 // getCarOwnerInfo получает информацию о владельце по username.
@@ -727,8 +728,14 @@ func (s *uniqueCarService) Delete(ctx context.Context, username string, id int) 
 	return nil
 }
 
-// recordCarChanges сравнивает старое и новое состояние UniqueCar
-// и пишет по одной записи data_changed на каждое изменённое поле.
+// recordCarChanges сравнивает старое и новое состояние UniqueCar и пишет в
+// audit_log по одной записи data_changed на каждое изменённое поле (#870, срез
+// 1.12d). Плоские field_name/old/new кладутся в details: намеренно переиспользуем
+// carAuditDetails (та же плоская схема, что у car), но контракт здесь - именно
+// JSON-ключи field_name/old_value/new_value; их извлекает union-SQL в GetHistory.
+// Доп. поля carAuditDetails (table_id/metadata) для unique_car не пишутся и не
+// читаются - при расширении типа реальный контракт остаётся в этих трёх ключах.
+// Вызывается вне транзакции (caller логирует ошибку, апдейт уже завершён) - exec=nil.
 func (s *uniqueCarService) recordCarChanges(ctx context.Context, before, after *models.UniqueCar, userID int) error {
 	changes := diffUniqueCar(before, after)
 	if len(changes) == 0 {
@@ -736,20 +743,12 @@ func (s *uniqueCarService) recordCarChanges(ctx context.Context, before, after *
 	}
 
 	uid := userID
-	records := make([]models.UniqueCarHistory, 0, len(changes))
 	for _, c := range changes {
 		field := c.Field
-		records = append(records, models.UniqueCarHistory{
-			UniqueCarID: after.ID,
-			UserID:      &uid,
-			ActionType:  "data_changed",
-			FieldName:   &field,
-			OldValue:    c.Old,
-			NewValue:    c.New,
-		})
-	}
-	if err := s.db.WithContext(ctx).Create(&records).Error; err != nil {
-		return fmt.Errorf("create unique_car history: %w", err)
+		details := carAuditDetails{FieldName: &field, OldValue: c.Old, NewValue: c.New}
+		if err := s.recorder.Record(ctx, nil, models.AuditEntityUniqueCar, &after.ID, "data_changed", &uid, details); err != nil {
+			return fmt.Errorf("record unique_car change: %w", err)
+		}
 	}
 	return nil
 }
@@ -757,6 +756,12 @@ func (s *uniqueCarService) recordCarChanges(ctx context.Context, before, after *
 // GetHistory возвращает историю изменений мастер-записи машины.
 // Доступ: у пользователя должны быть права редактирования (canEditCar) -
 // иначе он не имеет права видеть аудит.
+//
+// Переходный период #870 (срез 1.12d): запись уже идёт в audit_log[unique_car],
+// но старые строки лежат в замороженной unique_cars_history до финального
+// backfill. Чтение объединяет обе таблицы в прежнюю форму UniqueCarHistoryItem
+// (форму стережёт TestUniqueCarService_GetHistory_ReturnsRecords); плоские
+// field_name/old/new у audit_log лежат внутри details jsonb.
 func (s *uniqueCarService) GetHistory(ctx context.Context, username string, id int) ([]UniqueCarHistoryItem, error) {
 	ownerInfo, err := s.getCarOwnerInfo(ctx, username)
 	if err != nil {
@@ -775,17 +780,28 @@ func (s *uniqueCarService) GetHistory(ctx context.Context, username string, id i
 		return nil, echo.NewHTTPError(http.StatusForbidden, "You don't have permission to view this car history")
 	}
 
+	const sql = `
+		SELECT m.id, m.unique_car_id, m.user_id, u.username,
+			u.last_name AS user_last_name, u.first_name AS user_first_name,
+			m.action_type, m.field_name, m.old_value, m.new_value, m.comment, m.created_at
+		FROM (
+			SELECT h.id, h.unique_car_id, h.user_id, h.action_type, h.field_name,
+				h.old_value, h.new_value, h.comment, h.created_at
+			FROM unique_cars_history h
+			WHERE h.unique_car_id = ?
+			UNION ALL
+			SELECT a.id, a.entity_id AS unique_car_id, a.actor_user_id AS user_id,
+				a.action AS action_type, a.details->>'field_name' AS field_name,
+				a.details->>'old_value' AS old_value, a.details->>'new_value' AS new_value,
+				a.details->>'comment' AS comment, a.created_at
+			FROM audit_log a
+			WHERE a.entity_type = ? AND a.entity_id = ?
+		) m
+		LEFT JOIN users u ON u.id = m.user_id
+		ORDER BY m.created_at DESC, m.id DESC`
+
 	items := make([]UniqueCarHistoryItem, 0)
-	err = s.db.WithContext(ctx).
-		Table("unique_cars_history h").
-		Select(`h.id, h.unique_car_id, h.user_id, u.username, u.last_name as user_last_name,
-			u.first_name as user_first_name, h.action_type, h.field_name, h.old_value,
-			h.new_value, h.comment, h.created_at`).
-		Joins("LEFT JOIN users u ON h.user_id = u.id").
-		Where("h.unique_car_id = ?", id).
-		Order("h.created_at DESC, h.id DESC").
-		Scan(&items).Error
-	if err != nil {
+	if err := s.db.WithContext(ctx).Raw(sql, id, models.AuditEntityUniqueCar, id).Scan(&items).Error; err != nil {
 		slog.Error("failed to load unique_car history", "id", id, "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching history")
 	}

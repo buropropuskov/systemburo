@@ -2,6 +2,7 @@ package handlers_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"testing"
 
@@ -193,14 +194,28 @@ func TestUniqueCarService_UpdateByNumber_RecordsChanges(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 
-	var history []models.UniqueCarHistory
-	require.NoError(t, db.Where("unique_car_id = ?", car.ID).Order("id").Find(&history).Error)
-	require.Len(t, history, 1, "ожидается ровно одна запись (format_id)")
-	assert.Equal(t, "data_changed", history[0].ActionType)
-	require.NotNil(t, history[0].FieldName)
-	assert.Equal(t, "format_id", *history[0].FieldName)
-	assert.Equal(t, "1", deref(history[0].OldValue))
-	assert.Equal(t, "2", deref(history[0].NewValue))
+	// После cutover (#870, срез 1.12d) запись идёт в audit_log[unique_car],
+	// а замороженная unique_cars_history больше не растёт.
+	var legacyCount int64
+	require.NoError(t, db.Model(&models.UniqueCarHistory{}).
+		Where("unique_car_id = ?", car.ID).Count(&legacyCount).Error)
+	assert.Equal(t, int64(0), legacyCount, "после cutover запись не идёт в unique_cars_history")
+
+	var entries []models.AuditLog
+	require.NoError(t, db.Where("entity_type = ? AND entity_id = ?", models.AuditEntityUniqueCar, car.ID).
+		Order("id").Find(&entries).Error)
+	require.Len(t, entries, 1, "ожидается ровно одна запись (format_id) в audit_log")
+	assert.Equal(t, "data_changed", entries[0].Action)
+
+	var det struct {
+		FieldName *string `json:"field_name"`
+		OldValue  *string `json:"old_value"`
+		NewValue  *string `json:"new_value"`
+	}
+	require.NoError(t, json.Unmarshal(entries[0].Details, &det))
+	assert.Equal(t, "format_id", deref(det.FieldName))
+	assert.Equal(t, "1", deref(det.OldValue))
+	assert.Equal(t, "2", deref(det.NewValue))
 }
 
 // TestUniqueEmployeeService_GetHistory_ReturnsRecords проверяет, что GetHistory
