@@ -248,12 +248,7 @@ func (s *trashService) RestoreEmployees(ctx context.Context, systemTableID int, 
 				return errors.New("not in trash")
 			}
 			tableID := systemTableID
-			return tx.Create(&models.EmployeeHistory{
-				EmployeeID: id,
-				UserID:     &userID,
-				ActionType: "restore",
-				TableID:    &tableID,
-			}).Error
+			return s.recorder.Record(ctx, tx, models.AuditEntityEmployee, &id, "restore", &userID, carAuditDetails{TableID: &tableID})
 		})
 		if err == nil {
 			restoredIDs = append(restoredIDs, id)
@@ -297,14 +292,7 @@ func (s *trashService) PurgeEmployee(ctx context.Context, systemTableID, id, use
 		}
 		tableID := systemTableID
 		comment := "Безвозвратно удалён из корзины"
-		return tx.Create(&models.EmployeeHistory{
-			EmployeeID: id,
-			UserID:     &userID,
-			ActionType: "purge",
-			TableID:    &tableID,
-			Comment:    &comment,
-			CreatedAt:  now,
-		}).Error
+		return s.recorder.Record(ctx, tx, models.AuditEntityEmployee, &id, "purge", &userID, carAuditDetails{Comment: &comment, TableID: &tableID})
 	})
 }
 

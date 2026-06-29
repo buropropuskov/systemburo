@@ -1,6 +1,7 @@
 package handlers_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -8,17 +9,19 @@ import (
 	"time"
 
 	"systemburo/internal/models"
+	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// TestEmployees_History_UnionLegacyAndAudit проверяет переходную модель #870 (срез
-// 1.13a): чтение истории сотрудника объединяет employees_history (legacy-строки,
-// записываются текущим write-path) и новые строки из audit_log[employee]. Запись
-// ещё НЕ переведена на recorder (это 1.13b), поэтому audit_log-строки вставляются
-// вручную - так проверяем, что union читает ОБЕ таблицы в прежнюю форму ответа.
+// TestEmployees_History_UnionLegacyAndAudit проверяет переходную модель #870: чтение
+// истории сотрудника объединяет замороженную employees_history (legacy-строки до
+// cutover) и новые строки из audit_log[employee]. После среза 1.13b запись переведена
+// на recorder - submit пишет 'create' уже в audit_log; legacy-строка вставляется
+// вручную, чтобы проверить, что union по-прежнему читает frozen-таблицу (плоские
+// поля собираются из details).
 func TestEmployees_History_UnionLegacyAndAudit(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
@@ -30,17 +33,19 @@ func TestEmployees_History_UnionLegacyAndAudit(t *testing.T) {
 	_, _, empID := seedEmployeeViaCompleteApp(t, e, db, token, "Test Organization")
 	userID := getUserID(t, db, "empunion1")
 
-	// Legacy-путь ещё активен: entry пишется в employees_history (frozen после 1.13b).
-	putBody := `{"territory_status":1,"user_id":null}`
-	rec := testutil.PUT(t, e, fmt.Sprintf("/employees/%d/territory-status", empID), putBody, h)
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	var legacyEntry int64
-	require.NoError(t, db.Model(&models.EmployeeHistory{}).
-		Where("employee_id = ? AND action_type = 'entry'", empID).Count(&legacyEntry).Error)
-	require.Equal(t, int64(1), legacyEntry, "entry пишется в employees_history (до cutover)")
+	// После cutover (1.13b) submit пишет 'create' уже в audit_log, не в employees_history.
+	var auditCreate int64
+	require.NoError(t, db.Model(&models.AuditLog{}).
+		Where("entity_type = ? AND entity_id = ? AND action = 'create'", models.AuditEntityEmployee, empID).Count(&auditCreate).Error)
+	require.Equal(t, int64(1), auditCreate, "submit пишет create в audit_log")
 
 	now := time.Now().UTC()
-	// Новое событие выхода - напрямую в audit_log (как будет после среза 1.13b).
+	// Замороженная legacy-строка в employees_history (осталась с до-cutover) - union обязан её читать.
+	legacyComment := "Вход (legacy employees_history)"
+	require.NoError(t, db.Create(&models.EmployeeHistory{
+		EmployeeID: empID, ActionType: "entry", Comment: &legacyComment, CreatedAt: now.Add(-time.Hour),
+	}).Error)
+	// Новое событие выхода - напрямую в audit_log (как пишет recorder после cutover).
 	exit := models.AuditLog{
 		EntityType:  models.AuditEntityEmployee,
 		EntityID:    &empID,
@@ -61,10 +66,10 @@ func TestEmployees_History_UnionLegacyAndAudit(t *testing.T) {
 	}
 	require.NoError(t, db.Create(&changed).Error)
 
-	rec = testutil.GET(t, e, fmt.Sprintf("/employees/%d/history", empID), h)
+	rec := testutil.GET(t, e, fmt.Sprintf("/employees/%d/history", empID), h)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	hist := testutil.ParseSlice(t, rec)
-	require.GreaterOrEqual(t, len(hist), 3, "union: legacy entry/create + audit exit + audit data_changed")
+	require.GreaterOrEqual(t, len(hist), 4, "union: audit create + legacy entry + audit exit + audit data_changed")
 
 	// Новейшее сверху (data_changed позже exit).
 	assert.Equal(t, "data_changed", hist[0]["action_type"], "новейшее сверху")
@@ -86,6 +91,7 @@ func TestEmployees_History_UnionLegacyAndAudit(t *testing.T) {
 	// Замороженная строка из employees_history (entry) по-прежнему видна через union.
 	entryRow := findHistByAction(hist, "entry")
 	require.NotNil(t, entryRow, "legacy entry из employees_history виден через union")
+	assert.Equal(t, "Вход (legacy employees_history)", entryRow["comment"], "comment из замороженной employees_history")
 
 	// /employees/history/all фильтрует action_type IN ('entry','exit') - audit-ветка
 	// union (exit) тоже должна попадать под фильтр.
@@ -155,4 +161,59 @@ func TestEmployees_Trash_UnionAuditDeleteRow(t *testing.T) {
 	var emp models.Employee
 	require.NoError(t, db.First(&emp, empID).Error)
 	assert.True(t, emp.IsPurged, "ClearEmployeesTrash через union находит сотрудника по audit_log delete")
+}
+
+// TestEmployees_WriteFlip_AllActionsToAuditLog проверяет cutover записи (#870, срез
+// 1.13b): каждое действие (entry/exit/delete/activate/restore через employee-endpoint,
+// purge через trash-сервис) пишет строку в audit_log[employee], а замороженная
+// employees_history больше НЕ растёт.
+func TestEmployees_WriteFlip_AllActionsToAuditLog(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "empflip1", "pass123", 1, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+	_, _, empID := seedEmployeeViaCompleteApp(t, e, db, token, "Test Organization")
+
+	// employees_history заморожена: submit уже не пишет в неё (create -> audit_log).
+	var legacyBefore int64
+	require.NoError(t, db.Model(&models.EmployeeHistory{}).Where("employee_id = ?", empID).Count(&legacyBefore).Error)
+
+	// Прогоняем все основные действия через endpoint-ы. restore требует предварительной
+	// деактивации, поэтому delete встречается дважды.
+	steps := []struct{ path, body string }{
+		{fmt.Sprintf("/employees/%d/territory-status", empID), `{"territory_status":1}`}, // entry
+		{fmt.Sprintf("/employees/%d/territory-status", empID), `{"territory_status":2}`}, // exit
+		{fmt.Sprintf("/employees/%d/deactivate", empID), `{"status":0}`},                 // delete
+		{fmt.Sprintf("/employees/%d/restore", empID), `{}`},                              // restore
+		{fmt.Sprintf("/employees/%d/deactivate", empID), `{"status":0}`},                 // delete (повторно)
+		{fmt.Sprintf("/employees/%d/activate", empID), `{}`},                             // activate
+	}
+	for _, s := range steps {
+		rec := testutil.PUT(t, e, s.path, s.body, h)
+		require.Equal(t, http.StatusOK, rec.Code, "PUT %s: %s", s.path, rec.Body.String())
+	}
+
+	// purge идёт через trashService.PurgeEmployee (tx-critical Record), отдельный
+	// от employee-endpoint путь - доводим сотрудника до status=0 и вычищаем из корзины.
+	recDel := testutil.PUT(t, e, fmt.Sprintf("/employees/%d/deactivate", empID), `{"status":0}`, h)
+	require.Equal(t, http.StatusOK, recDel.Code, recDel.Body.String())
+	trashSvc := services.NewTrashService(db, services.NewAuditRecorder(db))
+	require.NoError(t, trashSvc.PurgeEmployee(context.Background(), seedSystemTable(t, db), empID, getUserID(t, db, "empflip1")))
+
+	// Каждое действие пишет строку в audit_log[employee] (create - от submit заявки).
+	for _, action := range []string{"create", "entry", "exit", "delete", "activate", "restore", "purge"} {
+		var n int64
+		require.NoError(t, db.Model(&models.AuditLog{}).
+			Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityEmployee, empID, action).
+			Count(&n).Error)
+		assert.GreaterOrEqualf(t, n, int64(1), "действие %q должно писаться в audit_log", action)
+	}
+
+	// employees_history НЕ выросла - старый write-path убран.
+	var legacyAfter int64
+	require.NoError(t, db.Model(&models.EmployeeHistory{}).Where("employee_id = ?", empID).Count(&legacyAfter).Error)
+	assert.Equal(t, legacyBefore, legacyAfter, "employees_history не должна расти после cutover")
 }

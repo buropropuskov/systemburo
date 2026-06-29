@@ -382,9 +382,9 @@ func TestUpdateEmployeeTerritoryStatus_Entry(t *testing.T) {
 	require.NotNil(t, updated.TerritoryEntryTime, "entry_time должен быть установлен при въезде")
 
 	var historyCount int64
-	db.Model(&models.EmployeeHistory{}).
-		Where("employee_id = ? AND action_type = ?", empID, "entry").Count(&historyCount)
-	assert.Equal(t, int64(1), historyCount, "в history должна быть запись action_type=entry")
+	db.Model(&models.AuditLog{}).
+		Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityEmployee, empID, "entry").Count(&historyCount)
+	assert.Equal(t, int64(1), historyCount, "в audit_log должна быть запись entry (#870, срез 1.13b)")
 }
 
 func TestUpdateEmployeeTerritoryStatus_Exit(t *testing.T) {
@@ -406,8 +406,8 @@ func TestUpdateEmployeeTerritoryStatus_Exit(t *testing.T) {
 	assert.Equal(t, 2, *updated.TerritoryStatus)
 
 	var historyCount int64
-	db.Model(&models.EmployeeHistory{}).
-		Where("employee_id = ? AND action_type = ?", empID, "exit").Count(&historyCount)
+	db.Model(&models.AuditLog{}).
+		Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityEmployee, empID, "exit").Count(&historyCount)
 	assert.Equal(t, int64(1), historyCount)
 }
 

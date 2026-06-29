@@ -130,10 +130,8 @@ func (s *applicationService) logBlacklistOverrideAction(ctx context.Context, tx 
 		// транзакции расхождение микросекунды, история заявки и машины - разные endpoint-ы.
 		return s.recorder.Record(ctx, tx, models.AuditEntityCar, &flag.ElementID, actionType, &userID, carAuditDetails{Comment: &comment})
 	case models.BlacklistElementEmployee:
-		return tx.Exec(`
-			INSERT INTO employees_history (employee_id, user_id, action_type, comment, created_at)
-			VALUES (?, ?, ?, ?, ?)
-		`, flag.ElementID, userID, actionType, comment, at).Error
+		// created_at проставляет recorder временем вставки, как у car-ветки выше.
+		return s.recorder.Record(ctx, tx, models.AuditEntityEmployee, &flag.ElementID, actionType, &userID, carAuditDetails{Comment: &comment})
 	}
 	return nil
 }

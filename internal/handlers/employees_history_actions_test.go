@@ -77,8 +77,8 @@ func seedEmployeeViaCompleteApp(t *testing.T, e *echo.Echo, db *gorm.DB, token s
 }
 
 // TestSubmitApplication_CreatesEmployeeHistoryEntry проверяет, что при подаче
-// заявки на сотрудника в employees_history создаётся запись action_type=create.
-// По аналогии с cars (ровно та же запись делается в application_service.go).
+// заявки на сотрудника в audit_log[employee] создаётся запись action=create
+// (после cutover #870, срез 1.13b). По аналогии с cars.
 func TestSubmitApplication_CreatesEmployeeHistoryEntry(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
@@ -89,22 +89,21 @@ func TestSubmitApplication_CreatesEmployeeHistoryEntry(t *testing.T) {
 	_, _, empID := seedEmployeeViaCompleteApp(t, e, db, token, "Test Organization")
 
 	var historyCount int64
-	db.Model(&models.EmployeeHistory{}).
-		Where("employee_id = ? AND action_type = ?", empID, "create").
+	db.Model(&models.AuditLog{}).
+		Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityEmployee, empID, "create").
 		Count(&historyCount)
-	assert.Equal(t, int64(1), historyCount, "должна быть ровно одна запись create в истории сотрудника")
+	assert.Equal(t, int64(1), historyCount, "должна быть ровно одна запись create в audit_log сотрудника")
 
-	var history models.EmployeeHistory
-	require.NoError(t, db.Where("employee_id = ? AND action_type = ?", empID, "create").First(&history).Error)
-	require.NotNil(t, history.Comment)
-	assert.Contains(t, *history.Comment, "Ivanov", "комментарий должен содержать ФИО сотрудника")
-	assert.Contains(t, *history.Comment, "создан")
-	require.NotNil(t, history.UserID, "user_id должен быть установлен (отправитель заявки)")
+	var entry models.AuditLog
+	require.NoError(t, db.Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityEmployee, empID, "create").First(&entry).Error)
+	require.NotNil(t, entry.ActorUserID, "actor_user_id должен быть установлен (отправитель заявки)")
+	assert.Contains(t, string(entry.Details), "Ivanov", "details.comment должен содержать ФИО сотрудника")
+	assert.Contains(t, string(entry.Details), "создан")
 }
 
 // TestCheckExpiredAttachments_CreatesEmployeeDeactivateHistory проверяет, что при
-// истечении срока заявки на сотрудника пишется запись action_type=deactivate
-// в employees_history (по аналогии с cars).
+// истечении срока заявки на сотрудника пишется запись action=deactivate в
+// audit_log[employee] (после cutover #870, срез 1.13b; по аналогии с cars).
 func TestCheckExpiredAttachments_CreatesEmployeeDeactivateHistory(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
@@ -135,16 +134,16 @@ func TestCheckExpiredAttachments_CreatesEmployeeDeactivateHistory(t *testing.T) 
 	assert.Equal(t, 0, *emp.Status, "сотрудник должен быть деактивирован")
 
 	var historyCount int64
-	db.Model(&models.EmployeeHistory{}).
-		Where("employee_id = ? AND action_type = ?", empID, "deactivate").
+	db.Model(&models.AuditLog{}).
+		Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityEmployee, empID, "deactivate").
 		Count(&historyCount)
-	assert.Equal(t, int64(1), historyCount, "должна быть запись deactivate при истечении срока")
+	assert.Equal(t, int64(1), historyCount, "должна быть запись deactivate в audit_log при истечении срока")
 
-	var history models.EmployeeHistory
-	require.NoError(t, db.Where("employee_id = ? AND action_type = ?", empID, "deactivate").First(&history).Error)
-	require.NotNil(t, history.Comment)
-	assert.Contains(t, *history.Comment, "Ivanov", "комментарий должен содержать ФИО")
-	assert.Contains(t, *history.Comment, "истёк", "комментарий должен указывать на истечение срока")
+	var entry models.AuditLog
+	require.NoError(t, db.Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityEmployee, empID, "deactivate").First(&entry).Error)
+	assert.Nil(t, entry.ActorUserID, "деактивация по сроку без актора (user NULL)")
+	assert.Contains(t, string(entry.Details), "Ivanov", "details должен содержать ФИО")
+	assert.Contains(t, string(entry.Details), "истёк", "details должен указывать на истечение срока")
 }
 
 // TestDeactivateEmployee_CreatesDeleteHistory проверяет PUT /employees/:id/deactivate.
@@ -171,17 +170,16 @@ func TestDeactivateEmployee_CreatesDeleteHistory(t *testing.T) {
 	require.NotNil(t, emp.DateDeleted, "date_deleted должно быть установлено")
 
 	var deleteCount int64
-	db.Model(&models.EmployeeHistory{}).
-		Where("employee_id = ? AND action_type = ?", empID, "delete").
+	db.Model(&models.AuditLog{}).
+		Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityEmployee, empID, "delete").
 		Count(&deleteCount)
-	assert.Equal(t, int64(1), deleteCount, "должна быть запись delete в истории сотрудника")
+	assert.Equal(t, int64(1), deleteCount, "должна быть запись delete в audit_log сотрудника")
 
-	var history models.EmployeeHistory
-	require.NoError(t, db.Where("employee_id = ? AND action_type = ?", empID, "delete").First(&history).Error)
-	require.NotNil(t, history.Comment)
-	assert.Contains(t, *history.Comment, "Ivanov")
-	require.NotNil(t, history.UserID)
-	assert.Equal(t, userID, *history.UserID)
+	var entry models.AuditLog
+	require.NoError(t, db.Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityEmployee, empID, "delete").First(&entry).Error)
+	assert.Contains(t, string(entry.Details), "Ivanov")
+	require.NotNil(t, entry.ActorUserID)
+	assert.Equal(t, userID, *entry.ActorUserID)
 }
 
 // TestDeactivateEmployee_InputValidation покрывает edge-кейсы PUT /employees/:id/deactivate.
@@ -248,10 +246,10 @@ func TestActivateEmployee_AfterDeactivateCreatesActivateHistory(t *testing.T) {
 	assert.Nil(t, emp.DateDeleted, "date_deleted должно быть очищено")
 
 	var deleteCount, activateCount int64
-	db.Model(&models.EmployeeHistory{}).
-		Where("employee_id = ? AND action_type = ?", empID, "delete").Count(&deleteCount)
-	db.Model(&models.EmployeeHistory{}).
-		Where("employee_id = ? AND action_type = ?", empID, "activate").Count(&activateCount)
+	db.Model(&models.AuditLog{}).
+		Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityEmployee, empID, "delete").Count(&deleteCount)
+	db.Model(&models.AuditLog{}).
+		Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityEmployee, empID, "activate").Count(&activateCount)
 	assert.Equal(t, int64(1), deleteCount, "должна быть одна запись delete")
 	assert.Equal(t, int64(1), activateCount, "должна быть одна запись activate")
 }
@@ -282,8 +280,8 @@ func TestRestoreEmployee_CreatesRestoreHistory(t *testing.T) {
 	assert.Nil(t, emp.DateDeleted, "date_deleted должно быть очищено")
 
 	var restoreCount int64
-	db.Model(&models.EmployeeHistory{}).
-		Where("employee_id = ? AND action_type = ?", empID, "restore").
+	db.Model(&models.AuditLog{}).
+		Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityEmployee, empID, "restore").
 		Count(&restoreCount)
 	assert.Equal(t, int64(1), restoreCount, "должна быть одна запись restore")
 }

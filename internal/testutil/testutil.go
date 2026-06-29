@@ -116,7 +116,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	bureauService := services.NewBureauService(db)
 	auditRecorder := services.NewAuditRecorder(db)
 	carService := services.NewCarService(db, auditRecorder)
-	employeeService := services.NewEmployeeService(db)
+	employeeService := services.NewEmployeeService(db, auditRecorder)
 	permissionService := services.NewPermissionService(db)
 	permissionResolver := services.NewPermissionResolver(db)
 	permissionGroupService := services.NewPermissionGroupService(db, permissionResolver)
