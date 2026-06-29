@@ -161,12 +161,13 @@ type UniqueEmployeeService interface {
 }
 
 type uniqueEmployeeService struct {
-	db *gorm.DB
+	db       *gorm.DB
+	recorder AuditRecorder
 }
 
 // NewUniqueEmployeeService создаёт реализацию UniqueEmployeeService.
 func NewUniqueEmployeeService(db *gorm.DB) UniqueEmployeeService {
-	return &uniqueEmployeeService{db: db}
+	return &uniqueEmployeeService{db: db, recorder: NewAuditRecorder(db)}
 }
 
 // getEmployeeOwnerInfo получает информацию о владельце по username.
@@ -582,7 +583,7 @@ func (s *uniqueEmployeeService) Update(ctx context.Context, username string, id 
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching updated employee")
 	}
 
-	// Аудит изменений: пишем по одной записи в unique_employees_history
+	// Аудит изменений: пишем по одной записи в audit_log[unique_employee]
 	// на каждое изменённое поле. Ошибка аудита не должна откатывать апдейт,
 	// поэтому только логируем — апдейт уже зафиксирован.
 	if err := s.recordEmployeeChanges(ctx, &existing, &updated, ownerInfo.UserID); err != nil {
@@ -593,8 +594,13 @@ func (s *uniqueEmployeeService) Update(ctx context.Context, username string, id 
 }
 
 // recordEmployeeChanges сравнивает старое и новое состояние UniqueEmployee
-// и пишет по одной записи data_changed на каждое изменённое поле.
-// Поля HMAC и служебные поля игнорируются — они вычисляются автоматически.
+// и пишет в audit_log по одной записи data_changed на каждое изменённое поле
+// (#870, срез 1.13c). Поля HMAC и служебные поля игнорируются — они вычисляются
+// автоматически. Плоские field_name/old/new кладутся в details: переиспользуем
+// carAuditDetails (та же плоская схема, что у car/unique_car), но контракт здесь -
+// именно JSON-ключи field_name/old_value/new_value; их извлекает union-SQL в
+// GetHistory. Вызывается вне транзакции (caller логирует ошибку, апдейт уже
+// завершён) - exec=nil.
 func (s *uniqueEmployeeService) recordEmployeeChanges(ctx context.Context, before, after *models.UniqueEmployee, userID int) error {
 	changes := diffUniqueEmployee(before, after)
 	if len(changes) == 0 {
@@ -602,22 +608,12 @@ func (s *uniqueEmployeeService) recordEmployeeChanges(ctx context.Context, befor
 	}
 
 	uid := userID
-	records := make([]models.UniqueEmployeeHistory, 0, len(changes))
 	for _, c := range changes {
 		field := c.Field
-		oldVal := c.Old
-		newVal := c.New
-		records = append(records, models.UniqueEmployeeHistory{
-			UniqueEmployeeID: after.ID,
-			UserID:           &uid,
-			ActionType:       "data_changed",
-			FieldName:        &field,
-			OldValue:         oldVal,
-			NewValue:         newVal,
-		})
-	}
-	if err := s.db.WithContext(ctx).Create(&records).Error; err != nil {
-		return fmt.Errorf("create unique_employee history: %w", err)
+		details := carAuditDetails{FieldName: &field, OldValue: c.Old, NewValue: c.New}
+		if err := s.recorder.Record(ctx, nil, models.AuditEntityUniqueEmployee, &after.ID, "data_changed", &uid, details); err != nil {
+			return fmt.Errorf("record unique_employee change: %w", err)
+		}
 	}
 	return nil
 }
@@ -693,6 +689,12 @@ func (s *uniqueEmployeeService) Delete(ctx context.Context, username string, id 
 // GetHistory возвращает историю изменений мастер-записи сотрудника.
 // Доступ: у пользователя должны быть права редактирования (canEditEmployee) -
 // иначе он не имеет права видеть аудит.
+//
+// Переходный период #870 (срез 1.13c): запись уже идёт в audit_log[unique_employee],
+// но старые строки лежат в замороженной unique_employees_history до финального
+// backfill. Чтение объединяет обе таблицы в прежнюю форму UniqueEmployeeHistoryItem
+// (форму стережёт TestUniqueEmployeeService_GetHistory_ReturnsRecords); плоские
+// field_name/old/new у audit_log лежат внутри details jsonb.
 func (s *uniqueEmployeeService) GetHistory(ctx context.Context, username string, id int) ([]UniqueEmployeeHistoryItem, error) {
 	ownerInfo, err := s.getEmployeeOwnerInfo(ctx, username)
 	if err != nil {
@@ -711,17 +713,28 @@ func (s *uniqueEmployeeService) GetHistory(ctx context.Context, username string,
 		return nil, echo.NewHTTPError(http.StatusForbidden, "You don't have permission to view this employee history")
 	}
 
+	const sql = `
+		SELECT m.id, m.unique_employee_id, m.user_id, u.username,
+			u.last_name AS user_last_name, u.first_name AS user_first_name,
+			m.action_type, m.field_name, m.old_value, m.new_value, m.comment, m.created_at
+		FROM (
+			SELECT h.id, h.unique_employee_id, h.user_id, h.action_type, h.field_name,
+				h.old_value, h.new_value, h.comment, h.created_at
+			FROM unique_employees_history h
+			WHERE h.unique_employee_id = ?
+			UNION ALL
+			SELECT a.id, a.entity_id AS unique_employee_id, a.actor_user_id AS user_id,
+				a.action AS action_type, a.details->>'field_name' AS field_name,
+				a.details->>'old_value' AS old_value, a.details->>'new_value' AS new_value,
+				a.details->>'comment' AS comment, a.created_at
+			FROM audit_log a
+			WHERE a.entity_type = ? AND a.entity_id = ?
+		) m
+		LEFT JOIN users u ON u.id = m.user_id
+		ORDER BY m.created_at DESC, m.id DESC`
+
 	items := make([]UniqueEmployeeHistoryItem, 0)
-	err = s.db.WithContext(ctx).
-		Table("unique_employees_history h").
-		Select(`h.id, h.unique_employee_id, h.user_id, u.username, u.last_name as user_last_name,
-			u.first_name as user_first_name, h.action_type, h.field_name, h.old_value,
-			h.new_value, h.comment, h.created_at`).
-		Joins("LEFT JOIN users u ON h.user_id = u.id").
-		Where("h.unique_employee_id = ?", id).
-		Order("h.created_at DESC, h.id DESC").
-		Scan(&items).Error
-	if err != nil {
+	if err := s.db.WithContext(ctx).Raw(sql, id, models.AuditEntityUniqueEmployee, id).Scan(&items).Error; err != nil {
 		slog.Error("failed to load unique_employee history", "id", id, "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching history")
 	}
