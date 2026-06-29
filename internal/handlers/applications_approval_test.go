@@ -330,11 +330,12 @@ func TestForwardAttachments(t *testing.T) {
 		return rows
 	}
 
-	// forwardedMeta читает metadata сводной записи истории action_type='forwarded'.
+	// forwardedMeta читает metadata сводной записи forwarded. #870 (срез 1.14): запись
+	// ушла в audit_log[application], metadata лежит внутри details->'metadata'.
 	forwardedMeta := func(t *testing.T, appID int) map[string]interface{} {
 		t.Helper()
 		var raw string
-		err := db.Raw("SELECT metadata::text FROM application_history WHERE application_id = ? AND action_type = 'forwarded'", appID).Scan(&raw).Error
+		err := db.Raw("SELECT (details->'metadata')::text FROM audit_log WHERE entity_type = 'application' AND entity_id = ? AND action = 'forwarded'", appID).Scan(&raw).Error
 		require.NoError(t, err)
 		require.NotEmpty(t, raw, "должна быть запись истории forwarded")
 		var m map[string]interface{}
