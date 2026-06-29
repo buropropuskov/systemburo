@@ -103,11 +103,19 @@ func NewUnloadPlaceService(db *gorm.DB) UnloadPlaceService {
 
 // computeUnloadPlaceStatus определяет текущий статус (open/closed) по расписанию.
 func computeUnloadPlaceStatus(status string, slots []models.UnloadPlaceTimeSlot) string {
+	return computeUnloadPlaceStatusAt(time.Now(), status, slots)
+}
+
+// computeUnloadPlaceStatusAt - чистое ядро статуса с инъекцией now (для теста).
+// День недели и время берутся в МСК (как bureau computeWorkModeStatus): сервер
+// крутится в UTC, а слоты заданы в московском дне - без конверсии у границы суток
+// (21:00-24:00 UTC) currentDay уходит на сутки назад и статус врёт.
+func computeUnloadPlaceStatusAt(now time.Time, status string, slots []models.UnloadPlaceTimeSlot) string {
 	if status != "active" {
 		return "closed"
 	}
 
-	now := time.Now()
+	now = now.In(moscowWorkModeLoc)
 	// 0=Пн, 6=Вс (совпадает с Rust: weekday().num_days_from_monday())
 	currentDay := int(now.Weekday()+6) % 7
 	currentTime := now.Format("15:04")

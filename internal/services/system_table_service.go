@@ -68,11 +68,19 @@ func NewSystemTableService(db *gorm.DB, uploadDir string, maxFileSize int64, per
 
 // computeCurrentStatus вычисляет текущий статус (open/closed) на основании расписания и статуса таблицы.
 func computeCurrentStatus(tableStatus string, slots []models.SystemTableTimeSlot) string {
+	return computeCurrentStatusAt(time.Now(), tableStatus, slots)
+}
+
+// computeCurrentStatusAt - чистое ядро статуса с инъекцией now (для теста).
+// День недели и время берутся в МСК (как bureau computeWorkModeStatus): сервер в
+// UTC, слоты заданы в московском дне - без конверсии у границы суток (21:00-24:00
+// UTC) currentDay уходит на сутки назад и статус системной таблицы врёт.
+func computeCurrentStatusAt(now time.Time, tableStatus string, slots []models.SystemTableTimeSlot) string {
 	if tableStatus != "active" {
 		return "closed"
 	}
 
-	now := time.Now()
+	now = now.In(moscowWorkModeLoc)
 	// 0=Пн, 6=Вс (Go Weekday: 0=Вс, 1=Пн ... 6=Сб)
 	goDay := int(now.Weekday())
 	currentDay := (goDay + 6) % 7
