@@ -202,10 +202,12 @@ func (s *statisticsService) computeHeavySummary(ctx context.Context, from, to ti
 		return nil, fmt.Errorf("statistics: cars_entered: %w", err)
 	}
 
-	// people_entered
+	// people_entered: union employees_history + audit_log[employee] (#870, срез
+	// 1.13a), чтобы после переноса записи (1.13b) въезды из audit_log тоже
+	// попадали в счётчик.
 	if err := s.db.WithContext(ctx).
-		Table("employees_history").
-		Where("action_type = 'entry' AND created_at BETWEEN ? AND ?", from, to).
+		Table(employeesHistoryUnion + " eh").
+		Where("eh.action_type = 'entry' AND eh.created_at BETWEEN ? AND ?", from, to).
 		Count(&summary.PeopleEntered).Error; err != nil {
 		return nil, fmt.Errorf("statistics: people_entered: %w", err)
 	}
@@ -445,7 +447,7 @@ func resolveTimelineSource(metric, granularity string) (src timelineSource, unit
 	metricMap := map[string]timelineSource{
 		"applications":   {table: "applications", tsColumn: "sending_datetime", filter: ""},
 		"car_entries":    {table: carsHistoryUnion + " ch", tsColumn: "ch.created_at", filter: "ch.action_type='entry'"},
-		"people_entries": {table: "employees_history", tsColumn: "created_at", filter: "action_type='entry'"},
+		"people_entries": {table: employeesHistoryUnion + " eh", tsColumn: "eh.created_at", filter: "eh.action_type='entry'"},
 	}
 	granularityMap := map[string]string{
 		"day":   "day",
@@ -519,7 +521,7 @@ func (s *statisticsService) GetRecentPassages(ctx context.Context, limit int) (*
 	}
 
 	if err := s.db.WithContext(ctx).
-		Table("employees_history eh").
+		Table(employeesHistoryUnion + " eh").
 		Joins("JOIN employees e ON e.id = eh.employee_id").
 		Joins("LEFT JOIN attachments a ON a.id = e.attachment_id").
 		Joins("LEFT JOIN applications app ON app.id = a.application_id").
