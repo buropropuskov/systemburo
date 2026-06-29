@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"systemburo/internal/database"
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 	"systemburo/internal/testutil"
@@ -177,6 +178,13 @@ func TestRunReport_AvgCarsPerDayWeekly(t *testing.T) {
 		}
 	}
 
+	// F.5: отчёт читает audit_log[car]-only, поэтому до-cutover въезды cars_history
+	// поднимаем в audit_log backfill'ом. CleanDB->Seed заново ставит гард-флаг
+	// (backfill на пустых таблицах), снимаем его, чтобы перенести вставленные строки.
+	require.NoError(t, db.Where("key = ?", "audit_backfilled:"+models.AuditEntityCar).
+		Delete(&models.SystemSetting{}).Error)
+	require.NoError(t, database.BackfillAuditFromLegacy(db))
+
 	svc := services.NewStatisticsService(db, 0)
 	res, err := svc.RunReport(context.Background(), models.ReportRequest{
 		Mode:        "aggregate",
@@ -237,6 +245,12 @@ func TestRunReport_AvgCarsPartialBin(t *testing.T) {
 			require.NoError(t, db.Create(&h).Error)
 		}
 	}
+
+	// F.5: отчёт читает audit_log[car]-only, до-cutover въезды поднимаем backfill'ом.
+	// CleanDB->Seed заново ставит гард-флаг, снимаем перед переносом.
+	require.NoError(t, db.Where("key = ?", "audit_backfilled:"+models.AuditEntityCar).
+		Delete(&models.SystemSetting{}).Error)
+	require.NoError(t, database.BackfillAuditFromLegacy(db))
 
 	svc := services.NewStatisticsService(db, 0)
 	res, err := svc.RunReport(context.Background(), models.ReportRequest{

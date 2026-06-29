@@ -939,6 +939,22 @@ func auditBackfillSources() []auditBackfillSource {
 			table:      "unique_employees_history",
 			projection: "unique_employee_id, action_type, user_id, jsonb_build_object('field_name', field_name, 'old_value', old_value, 'new_value', new_value, 'comment', comment), created_at",
 		},
+		// F.5 car: cars_history - общий журнал событий машины (история/корзина/статус/
+		// статистика/отчёты). Плоские поля сворачиваются в details в форму carAuditDetails
+		// (field_name/old/new/comment/table_id), как пишет recorder. metadata - отдельным
+		// ключом ТОЛЬКО когда колонка не NULL: читатель берёт его через details->'metadata'
+		// (jsonb, не ->>'), и пустой ключ дал бы jsonb 'null' вместо отсутствия, разойдясь
+		// с recorder (omitempty опускает ключ). table_id/прочие читаются через ->>' и
+		// JSON-null = отсутствию ключа, поэтому их CASE не нужен. Стережёт golden
+		// TestCars_History_BackfillLegacyIntoAudit + analytics-тесты.
+		{
+			entity: models.AuditEntityCar,
+			table:  "cars_history",
+			projection: "car_id, action_type, user_id, " +
+				"jsonb_build_object('field_name', field_name, 'old_value', old_value, 'new_value', new_value, 'comment', comment, 'table_id', table_id) " +
+				"|| CASE WHEN metadata IS NOT NULL THEN jsonb_build_object('metadata', metadata) ELSE '{}'::jsonb END, " +
+				"created_at",
+		},
 	}
 }
 
