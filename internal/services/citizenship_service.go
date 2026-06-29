@@ -192,24 +192,18 @@ func (s *citizenshipService) Restore(ctx context.Context, userID, id int) error 
 }
 
 // GetHistory возвращает историю изменений гражданства (новые сверху).
-// Переходный период #870: запись уже идёт в audit_log, но старые строки лежат в
-// замороженной citizenship_histories до финального backfill. Чтение объединяет обе
-// таблицы в одинаковую форму ответа (форму стережёт TestCitizenships_History).
+// #870, финал F.1: запись и до-cutover строки живут в общем audit_log (старые
+// перенесены backfill'ом BackfillAuditFromLegacy), поэтому чтение идёт только из
+// audit_log. Замороженная citizenship_histories остаётся read-only бэкапом до
+// дроп-sweep (F.8) и больше не читается. Форму ответа стережёт TestCitizenships_History.
 func (s *citizenshipService) GetHistory(ctx context.Context, id int) ([]models.CitizenshipHistoryItem, error) {
 	const actorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`
 	sql := `
-		SELECT id, action_type, details, actor_user_id, actor_name, created_at FROM (
-			SELECT h.id AS id, h.action_type AS action_type, h.details AS details,
-				h.actor_user_id AS actor_user_id, ` + actorName + ` AS actor_name, h.created_at AS created_at
-			FROM citizenship_histories h LEFT JOIN users u ON u.id = h.actor_user_id
-			WHERE h.citizenship_id = ?
-			UNION ALL
-			SELECT a.id AS id, a.action AS action_type, a.details AS details,
-				a.actor_user_id AS actor_user_id, ` + actorName + ` AS actor_name, a.created_at AS created_at
-			FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
-			WHERE a.entity_type = ? AND a.entity_id = ?
-		) merged
-		ORDER BY created_at DESC, id DESC`
+		SELECT a.id AS id, a.action AS action_type, a.details AS details,
+			a.actor_user_id AS actor_user_id, ` + actorName + ` AS actor_name, a.created_at AS created_at
+		FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
+		WHERE a.entity_type = ? AND a.entity_id = ?
+		ORDER BY a.created_at DESC, a.id DESC`
 
 	type row struct {
 		ID          int             `gorm:"column:id"`
@@ -220,7 +214,7 @@ func (s *citizenshipService) GetHistory(ctx context.Context, id int) ([]models.C
 		CreatedAt   time.Time       `gorm:"column:created_at"`
 	}
 	var rows []row
-	if err := s.db.WithContext(ctx).Raw(sql, id, models.AuditEntityCitizenship, id).Scan(&rows).Error; err != nil {
+	if err := s.db.WithContext(ctx).Raw(sql, models.AuditEntityCitizenship, id).Scan(&rows).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching citizenship history")
 	}
 
