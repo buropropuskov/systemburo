@@ -21,12 +21,14 @@ type UserBanService struct {
 	db       *gorm.DB
 	resolver *PermissionResolver
 	banCache *BanCheckService
+	recorder AuditRecorder
 }
 
 // NewUserBanService конструирует сервис. banCache опционален: если nil,
-// инвалидация ban-кэша пропускается (полезно для тестов).
-func NewUserBanService(db *gorm.DB, resolver *PermissionResolver, banCache *BanCheckService) *UserBanService {
-	return &UserBanService{db: db, resolver: resolver, banCache: banCache}
+// инвалидация ban-кэша пропускается (полезно для тестов). recorder пишет
+// историю блокировок в audit_log[user] рядом с остальными действиями юзера.
+func NewUserBanService(db *gorm.DB, resolver *PermissionResolver, banCache *BanCheckService, recorder AuditRecorder) *UserBanService {
+	return &UserBanService{db: db, resolver: resolver, banCache: banCache, recorder: recorder}
 }
 
 // Ban блокирует пользователя и отзывает его активные refresh-токены.
@@ -44,9 +46,10 @@ func (s *UserBanService) Ban(ctx context.Context, targetUserID, actorUserID int,
 		return echo.NewHTTPError(http.StatusForbidden, "Нельзя заблокировать супер-администратора")
 	}
 
+	trimmedReason := strings.TrimSpace(reason)
 	var banReason *string
-	if trimmed := strings.TrimSpace(reason); trimmed != "" {
-		banReason = &trimmed
+	if trimmedReason != "" {
+		banReason = &trimmedReason
 	}
 
 	now := time.Now()
@@ -73,6 +76,10 @@ func (s *UserBanService) Ban(ctx context.Context, targetUserID, actorUserID int,
 		if s.banCache != nil {
 			s.banCache.Invalidate(targetUserID)
 		}
+		// История блокировки -- в audit_log[user] (fire-and-forget: провал записи
+		// не должен откатывать сам бан). reason тот же trimmed, что и в users.ban_reason.
+		s.recorder.Log(ctx, nil, models.AuditEntityUser, &targetUserID, models.UserActionBanned, &actorUserID,
+			map[string]any{"reason": trimmedReason})
 	}
 	return err
 }
@@ -80,7 +87,7 @@ func (s *UserBanService) Ban(ctx context.Context, targetUserID, actorUserID int,
 // Unban разблокирует пользователя. Refresh-токены остаются revoked --
 // юзеру нужно перелогиниться (это нормально, т.к. в момент бана сессия
 // прервалась).
-func (s *UserBanService) Unban(ctx context.Context, targetUserID int) error {
+func (s *UserBanService) Unban(ctx context.Context, targetUserID, actorUserID int) error {
 	if err := s.db.WithContext(ctx).Model(&models.User{}).Where("id = ?", targetUserID).
 		Updates(map[string]any{
 			"is_banned":  false,
@@ -94,5 +101,7 @@ func (s *UserBanService) Unban(ctx context.Context, targetUserID int) error {
 	if s.banCache != nil {
 		s.banCache.Invalidate(targetUserID)
 	}
+	// Разблокировка тоже в историю пользователя (кем/когда), причины тут нет.
+	s.recorder.Log(ctx, nil, models.AuditEntityUser, &targetUserID, models.UserActionUnbanned, &actorUserID, nil)
 	return nil
 }

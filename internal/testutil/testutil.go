@@ -118,7 +118,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	permissionGroupService := services.NewPermissionGroupService(db, permissionResolver)
 	roleService := services.NewRoleService(db, permissionResolver)
 	accessDenialService := services.NewAccessDenialService(db)
-	userBanService := services.NewUserBanService(db, permissionResolver, nil)
+	userBanService := services.NewUserBanService(db, permissionResolver, nil, auditRecorder)
 	systemTableService := services.NewSystemTableService(db, "./uploads", 10*1024*1024, permissionService)
 	workModesService := services.NewWorkModesService(unloadPlaceService, systemTableService, bureauService)
 	uniqueCarService := services.NewUniqueCarService(db)

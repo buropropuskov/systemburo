@@ -15,6 +15,8 @@ const (
 	UserActionPasswordReset  = "password_reset"
 	UserActionArchived       = "archived"
 	UserActionRestored       = "restored"
+	UserActionBanned         = "banned"
+	UserActionUnbanned       = "unbanned"
 )
 
 // UserHistoryItem - запись истории с именем актора для API (LEFT JOIN users).

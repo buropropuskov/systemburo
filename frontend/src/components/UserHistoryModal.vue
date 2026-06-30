@@ -212,6 +212,8 @@ const ACTION_TEXTS = {
   password_reset: 'Сброшен пароль',
   archived: 'Учётная запись архивирована',
   restored: 'Учётная запись восстановлена из архива',
+  banned: 'Заблокирован',
+  unbanned: 'Разблокирован',
 };
 
 const ACTION_DOT_CLASS = {
@@ -223,6 +225,8 @@ const ACTION_DOT_CLASS = {
   password_reset: 'dot-update',
   archived: 'dot-deactivate',
   restored: 'dot-activate',
+  banned: 'dot-deactivate',
+  unbanned: 'dot-activate',
 };
 
 // Читаемые лейблы для полей в details (updated/created).
@@ -481,9 +485,12 @@ export default {
         case 'company_changed':
           if (this.isDiff(d)) return `${this.companyName(d.old)} → ${this.companyName(d.new)}`;
           return `Новая компания: ${this.companyName(d.company_id)}`;
+        case 'banned':
+          return d.reason ? `Причина: ${d.reason}` : '';
         case 'password_reset':
         case 'archived':
         case 'restored':
+        case 'unbanned':
         default:
           return '';
       }
