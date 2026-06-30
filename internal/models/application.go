@@ -23,24 +23,6 @@ type Application struct {
 	Company              *Company     `json:"-"`
 }
 
-type ApplicationHistory struct {
-	ID            int         `json:"id"`
-	ApplicationID int         `gorm:"index" json:"application_id"`
-	Application   Application `gorm:"constraint:OnDelete:CASCADE" json:"-"`
-	UserID        *int        `gorm:"index" json:"user_id"`
-	User          *User       `json:"-"`
-	ActionType    string      `gorm:"size:50" json:"action_type"`
-	ActionStatus  *string     `gorm:"size:50" json:"action_status"`
-	OldValue      *string     `gorm:"type:text" json:"old_value"`
-	NewValue      *string     `gorm:"type:text" json:"new_value"`
-	Comment       *string     `gorm:"type:text" json:"comment"`
-	CreatedAt     time.Time   `json:"created_at"`
-	Metadata      *string     `gorm:"type:jsonb" json:"metadata"`
-	ActionUserID  *int        `json:"action_user_id"`
-}
-
-func (ApplicationHistory) TableName() string { return "application_history" }
-
 type ApplicationStatusHistory struct {
 	ID              int         `json:"id"`
 	ApplicationID   int         `gorm:"index" json:"application_id"`
