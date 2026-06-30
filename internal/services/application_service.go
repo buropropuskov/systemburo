@@ -128,6 +128,9 @@ type ApplicationService interface {
 	// RestoreApplicationToWork возврат заявки в обработку.
 	RestoreApplicationToWork(ctx context.Context, username string, applicationID int, req RevokeFromWorkRequest) error
 
+	// WithdrawApplication отзыв своей заявки отправителем (#951).
+	WithdrawApplication(ctx context.Context, username string, applicationID int) error
+
 	// GetApplicationResponsibleUsers возвращает ответственных пользователей заявки.
 	GetApplicationResponsibleUsers(ctx context.Context, applicationID int) ([]ResponsibleUserInfo, error)
 
@@ -1683,6 +1686,9 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 func (s *applicationService) UpdateApplication(ctx context.Context, username string, applicationID int, req ApplicationUpdateRequest) (*ApplicationUpdateResponse, error) {
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.checkNotWithdrawn(ctx, applicationID); err != nil {
 		return nil, err
 	}
 

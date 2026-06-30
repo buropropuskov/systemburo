@@ -70,6 +70,13 @@
               >
                 Продублировать
               </button>
+              <button
+                v-if="canWithdraw"
+                class="withdraw-btn"
+                @click="withdrawApplication"
+              >
+                Отозвать
+              </button>
             </template>
           </ApplicationActionBar>
 
@@ -415,7 +422,7 @@ export default {
             default: 'center'
         }
     },
-    emits: ['close', 'confirmation-updated', 'duplicate', 'application-updated', 'update-application', 'application-changed'],
+    emits: ['close', 'confirmation-updated', 'duplicate', 'withdraw', 'application-updated', 'update-application', 'application-changed'],
     setup() {
         const permissionsStore = usePermissionsStore();
         return { permissionsStore };
@@ -476,6 +483,14 @@ export default {
         isApprover() {
             if (!this.currentUserId || !this.approvers.length) return false;
             return this.approvers.some(approver => approver.user_id === this.currentUserId);
+        },
+
+        // Отозвать свою заявку может только отправитель и только пока она не в
+        // терминальном (закрытом) статусе - зеркалит BE-гейт WithdrawApplication (#951).
+        canWithdraw() {
+            const a = this.applicationData;
+            if (!a || a.sender_user_id !== this.currentUserId) return false;
+            return !['Завершено', 'Не согласовано', 'Отказано', 'Отозвана'].includes(a.status);
         },
 
         // Отменить подтверждение пропуска может ответственный по заявке ИЛИ принимающий -
@@ -927,6 +942,31 @@ export default {
             } catch (error) {
                 console.error('Ошибка при дублировании заявки:', error);
                 useDeletionsStore().notify({ prefix: 'Не удалось продублировать заявку: ', bold: 'ошибка', type: 'error' });
+            }
+        },
+
+        async withdrawApplication() {
+            const ok = await useUiStore().confirm({
+                title: 'Отозвать заявку?',
+                message: 'При отзыве все машины, люди и вложения в заявке станут неактивны, и заявка перестанет действовать - охрана не пропустит. Вернуть заявку в работу нельзя; можно только продублировать её для повторного согласования.',
+                confirmText: 'Отозвать',
+                cancelText: 'Отмена',
+                danger: true,
+            });
+            if (!ok) return;
+
+            try {
+                const response = await apiRequest(`/applications/${this.applicationData.id}/withdraw`, { method: 'POST' });
+                if (response.ok) {
+                    useDeletionsStore().notify({ bold: 'Заявка отозвана', type: 'success' });
+                    this.$emit('withdraw');
+                    this.close();
+                } else {
+                    const data = await response.json().catch(() => ({}));
+                    useDeletionsStore().notify({ prefix: 'Не удалось отозвать заявку: ', bold: data.message || 'ошибка', type: 'error' });
+                }
+            } catch {
+                useDeletionsStore().notify({ prefix: 'Не удалось отозвать заявку: ', bold: 'ошибка сети', type: 'error' });
             }
         },
 
@@ -1681,6 +1721,23 @@ export default {
 
 .duplicate-btn:hover {
     background: #3a45c0;
+}
+
+.withdraw-btn {
+    padding: 6px 24px;
+    border: 1px solid #e6e6e6;
+    border-radius: 50px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 140px;
+    background: #e53935;
+    color: white;
+}
+
+.withdraw-btn:hover {
+    background: #c62828;
 }
 
 .revoke-btn, .restore-btn {

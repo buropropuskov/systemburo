@@ -276,6 +276,34 @@ func (h *ApplicationHandler) RestoreApplicationToWork(c echo.Context) error {
 	return RespondMessage(c, "Application restored, ready to take to work")
 }
 
+// WithdrawApplication godoc
+// @Summary      Отзыв своей заявки отправителем
+// @Description  Отправитель отзывает собственную заявку: статус -> "Отозвана",
+// @Description  машины/люди/вложения деактивируются. Обратного пути нет (только дублирование).
+// @Tags         applications
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID заявки"
+// @Success      200 {object} map[string]interface{} "success + message"
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      409 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /applications/{id}/withdraw [post]
+func (h *ApplicationHandler) WithdrawApplication(c echo.Context) error {
+	username := c.Get("username").(string)
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
+	}
+
+	if err := h.service.WithdrawApplication(c.Request().Context(), username, id); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Application withdrawn")
+}
+
 // RevokeApproval godoc
 // @Summary      Отзыв согласования
 // @Description  Пользователь отзывает ранее данное согласование/отказ.

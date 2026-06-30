@@ -10,13 +10,15 @@ const (
 	StatusInWork     = "В работе"
 	StatusCompleted  = "Завершено"
 	StatusRefused    = "Отказано"
+	StatusWithdrawn  = "Отозвана"
 )
 
 // ArchivableStatuses — статусы заявки, при которых она считается закрытой и
 // подлежит переносу в архив (после того как срок действия вложений истёк
 // более месяца назад). Заявки "В работе"/"В обработке"/"Непрочитано" остаются
 // активными независимо от срока - они ещё действуют либо не обработаны.
-var ArchivableStatuses = []string{StatusCompleted, StatusRejected, StatusRefused}
+// "Отозвана" - отзыв отправителем (#951): заявка закрыта и обратного пути нет.
+var ArchivableStatuses = []string{StatusCompleted, StatusRejected, StatusRefused, StatusWithdrawn}
 
 // Application confirmations
 const (

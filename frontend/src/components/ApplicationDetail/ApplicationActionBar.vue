@@ -6,7 +6,7 @@
       class="action-buttons"
     >
       <!-- Для пользователей, которые одновременно являются принимающими и ответственными -->
-      <template v-if="ready && isApproverUser && isResponsibleUser">
+      <template v-if="ready && isApproverUser && isResponsibleUser && application.status !== 'Отозвана'">
         <!-- Если пользователь еще не голосовал -->
         <template v-if="!hasUserVoted">
           <!-- Показываем кнопки согласования, если заявка не отклонена окончательно и не завершена -->
@@ -134,7 +134,7 @@
       </template>
 
       <!-- Для принимающих заявки (не ответственных) -->
-      <template v-else-if="ready && isApproverUser">
+      <template v-else-if="ready && isApproverUser && application.status !== 'Отозвана'">
         <!-- Если заявка в работе - показываем статус и кнопку отзыва -->
         <template v-if="application.status === 'В работе'">
           <button
@@ -212,7 +212,7 @@
       </template>
 
       <!-- Для ответственных за согласование (не принимающих) -->
-      <template v-else-if="ready && isResponsibleUser">
+      <template v-else-if="ready && isResponsibleUser && application.status !== 'Отозвана'">
         <!-- Если пользователь еще не голосовал -->
         <template v-if="!hasUserVoted">
           <!-- Показываем кнопки согласования, когда заявка не отклонена и не завершена -->
@@ -307,7 +307,13 @@
       <!-- Для остальных пользователей - только информация -->
       <template v-else>
         <div
-          v-if="application.status === 'В работе'"
+          v-if="application.status === 'Отозвана'"
+          class="status-badge status-rejected-badge"
+        >
+          Отозвана
+        </div>
+        <div
+          v-else-if="application.status === 'В работе'"
           class="status-badge status-in-work-badge"
         >
           В работе

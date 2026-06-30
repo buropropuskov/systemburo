@@ -29,6 +29,9 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 	if err := s.db.WithContext(ctx).Raw("SELECT id, last_name, first_name, middle_name FROM users WHERE username = ?", username).Scan(&user).Error; err != nil || user.ID == 0 {
 		return echo.NewHTTPError(http.StatusUnauthorized, "User not found")
 	}
+	if err := s.checkNotWithdrawn(ctx, applicationID); err != nil {
+		return err
+	}
 	currentUserName := formatFullName(user.LastName, user.FirstName, user.MiddleName)
 
 	tx := s.db.WithContext(ctx).Begin()
@@ -278,6 +281,9 @@ func (s *applicationService) ApproveApplicationByUser(ctx context.Context, usern
 	if err := s.checkNotArchived(ctx, applicationID); err != nil {
 		return err
 	}
+	if err := s.checkNotWithdrawn(ctx, applicationID); err != nil {
+		return err
+	}
 
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
@@ -409,6 +415,9 @@ func (s *applicationService) CheckApprovalStatus(ctx context.Context, applicatio
 func (s *applicationService) RevokeApproval(ctx context.Context, username string, applicationID int, req RevokeApprovalRequest) (*RevokeApprovalResponse, error) {
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.checkNotWithdrawn(ctx, applicationID); err != nil {
 		return nil, err
 	}
 

@@ -303,6 +303,7 @@
         :mode="'user'"
         @close="closeApplicationDetail"
         @duplicate="handleDuplicate"
+        @withdraw="handleWithdraw"
       />
     </teleport>
     <DownloadBlanksModal
@@ -636,7 +637,8 @@ export default {
         'В обработке': 'status-processing',
         'В работе': 'status-in-progress',
         'Завершено': 'status-completed',
-        'Отказано': 'status-rejected'
+        'Отказано': 'status-rejected',
+        'Отозвана': 'status-rejected'
       };
       return statusClasses[status] || 'status-default';
     },
@@ -679,6 +681,12 @@ export default {
     handleDuplicate() {
       this.closeApplicationDetail();
       this.$router.push('/new-application');
+    },
+
+    // Заявка отозвана (#951) - деталь сама закрылась, обновляем список,
+    // чтобы заявка переехала в завершённые с актуальным статусом "Отозвана".
+    handleWithdraw() {
+      this.fetchUserApplications();
     },
 
     downloadApplication(application) {

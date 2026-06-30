@@ -137,8 +137,11 @@ const availableAttachmentSelect = `
 // = доступ; "обслуживание" места не должно молча скрывать вложение). Не пересекается с
 // forward_attachments (#680) - другой источник видимости.
 func securityVisibilityWhere(userID int, isSuperAdmin bool) (string, []interface{}) {
-	confirm := "app.confirmation = ?"
-	args := []interface{}{models.ConfirmationApproved}
+	// Отозванные заявки (#951) недоступны охране независимо от confirmation: при отзыве
+	// заявка перестаёт действовать и пропадает из "Доступные мне". IS DISTINCT FROM
+	// пропускает NULL-статус (он не равен "Отозвана") в обычную выдачу.
+	confirm := "app.confirmation = ? AND app.status IS DISTINCT FROM ?"
+	args := []interface{}{models.ConfirmationApproved, models.StatusWithdrawn}
 	if isSuperAdmin {
 		return confirm, args
 	}

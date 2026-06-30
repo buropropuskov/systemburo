@@ -229,6 +229,33 @@ func TestGetAvailableAttachments_ApprovedGate(t *testing.T) {
 	require.False(t, secContainsAttachment(rows, pendingAtt), "non-approved application hidden")
 }
 
+// TestGetAvailableAttachments_WithdrawnHidden закрывает дыру #951: отозванная заявка
+// остаётся confirmation='Согласовано', но должна пропасть из "Доступные мне" охраны -
+// иначе обещание "охрана не пропустит" ложно для уже согласованных заявок.
+func TestGetAvailableAttachments_WithdrawnHidden(t *testing.T) {
+	w := setupSecurityWorld(t)
+	ctx := context.Background()
+
+	myPlace := w.newUnloadPlace(t, "Склад В", true)
+	w.assignUnloadPlace(t, myPlace)
+
+	// Контроль: согласованная активная заявка видна охране.
+	activeApp := w.newApp(t, models.ConfirmationApproved)
+	activeAtt := w.newAttachment(t, activeApp, "cars")
+	w.attachPlace(t, activeAtt, myPlace)
+
+	// Отозванная: confirmation='Согласовано', но статус "Отозвана" - скрыта.
+	withdrawnApp := w.newAppWithStatus(t, models.ConfirmationApproved, models.StatusWithdrawn)
+	withdrawnAtt := w.newAttachment(t, withdrawnApp, "cars")
+	w.attachPlace(t, withdrawnAtt, myPlace)
+
+	rows, total, err := w.svc.GetAvailableAttachmentsForSecurity(ctx, w.guardID, false, services.AvailableAttachmentFilters{}, 1, 50)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, total)
+	require.True(t, secContainsAttachment(rows, activeAtt))
+	require.False(t, secContainsAttachment(rows, withdrawnAtt), "отозванная заявка скрыта от охраны несмотря на confirmation=Согласовано")
+}
+
 func TestGetAvailableAttachments_SuperAdminSeesAllApproved(t *testing.T) {
 	w := setupSecurityWorld(t)
 	ctx := context.Background()
