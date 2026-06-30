@@ -76,18 +76,12 @@ func TestCheckExpiredAttachments(t *testing.T) {
 				require.NotNil(t, car.Status)
 				assert.Equal(t, 0, *car.Status, "car should be deactivated")
 
-				// Деактивация пишется в audit_log (#870, срез 1.12c), а замороженная
-				// cars_history больше не растёт.
+				// Деактивация по сроку пишется в audit_log (#870, срез 1.12c).
 				var auditCount int64
 				db.Model(&models.AuditLog{}).
 					Where("entity_type = ? AND entity_id = ? AND action = 'deactivate'", models.AuditEntityCar, car.ID).
 					Count(&auditCount)
 				assert.Equal(t, int64(1), auditCount, "car deactivation should be in audit_log")
-				var legacyCount int64
-				db.Model(&models.CarHistory{}).
-					Where("car_id = ? AND action_type = 'deactivate'", car.ID).
-					Count(&legacyCount)
-				assert.Equal(t, int64(0), legacyCount, "cars_history больше не растёт после cutover")
 			},
 		},
 		{

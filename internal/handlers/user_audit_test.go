@@ -1,13 +1,10 @@
 package handlers_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
-	"time"
 
-	"systemburo/internal/database"
 	"systemburo/internal/models"
 	"systemburo/internal/testutil"
 
@@ -90,80 +87,4 @@ func TestUsers_WriteFlip_ChangesToAuditLog(t *testing.T) {
 			models.AuditEntityUser, targetUserID, models.UserActionRestored).
 		Count(&n).Error)
 	assert.GreaterOrEqual(t, n, int64(1), "audit_log должен содержать restored")
-}
-
-// TestUsers_History_BackfillLegacyIntoAudit проверяет финал #870 (срез F.3):
-// читатель истории переведён на audit_log-only, а до-cutover строки замороженной
-// user_histories поднимаются в audit_log разовым BackfillAuditFromLegacy. details
-// пользователя уже jsonb - переносится verbatim.
-func TestUsers_History_BackfillLegacyIntoAudit(t *testing.T) {
-	e, db, cleanup := testutil.SetupTestApp(t)
-	defer cleanup()
-	testutil.CleanDB(t, db)
-	td := testutil.SeedTestData(t, db)
-	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
-	h := testutil.AuthHeader(token)
-
-	// Создание пользователя через API -> запись created уходит уже в audit_log.
-	body := fmt.Sprintf(`{"username":"audituser","password":"password123","type_id":1,"organization_id":%d}`, td.OrgID)
-	rec := testutil.POST(t, e, "/users", body, h)
-	require.Equal(t, http.StatusOK, rec.Code)
-
-	// Находим ID созданного пользователя
-	rec = testutil.GET(t, e, "/users/all", h)
-	require.Equal(t, http.StatusOK, rec.Code)
-	var userID int
-	for _, u := range testutil.ParseSlice(t, rec) {
-		if u["username"] == "audituser" {
-			userID = int(u["id"].(float64))
-			break
-		}
-	}
-	require.Greater(t, userID, 0, "созданный пользователь должен иметь ID")
-
-	// Легаси-строка напрямую в замороженную таблицу с более ранним временем - как
-	// строка, накопленная до cutover и ещё не перенесённая в audit_log.
-	legacy := models.UserHistory{
-		TargetUserID: userID,
-		ActionType:   models.UserActionUpdated,
-		Details:      json.RawMessage(`{"last_name":{"old":"","new":"Иванов"}}`),
-		CreatedAt:    time.Now().Add(-time.Hour),
-	}
-	require.NoError(t, db.Create(&legacy).Error)
-
-	// До backfill читатель видит только audit_log -> legacy-строка ещё невидима.
-	rec = testutil.GET(t, e, "/users/audituser/history", h)
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.Len(t, testutil.ParseSlice(t, rec), 1, "до backfill видно только audit_log")
-
-	// CleanDB-Seed уже выставил гард-флаг (backfill прогонялся на пустой таблице) -
-	// снимаем, чтобы перенести только что вставленную legacy-строку.
-	require.NoError(t, db.Where("key = ?", "audit_backfilled:"+models.AuditEntityUser).
-		Delete(&models.SystemSetting{}).Error)
-	require.NoError(t, database.BackfillAuditFromLegacy(db))
-
-	// Легаси-строка физически скопирована в audit_log, а старая таблица цела (бэкап).
-	var auditCount, legacyCount int64
-	require.NoError(t, db.Table("audit_log").
-		Where("entity_type = ? AND entity_id = ? AND action = ?", models.AuditEntityUser, userID, models.UserActionUpdated).
-		Count(&auditCount).Error)
-	assert.Equal(t, int64(1), auditCount, "legacy updated перенесён в audit_log")
-	require.NoError(t, db.Table("user_histories").Where("target_user_id = ?", userID).Count(&legacyCount).Error)
-	assert.Equal(t, int64(1), legacyCount, "старая таблица не тронута backfill'ом - read-only бэкап")
-
-	// История отдаёт обе записи из audit_log, новые сверху, details verbatim.
-	rec = testutil.GET(t, e, "/users/audituser/history", h)
-	require.Equal(t, http.StatusOK, rec.Code)
-	hist := testutil.ParseSlice(t, rec)
-	require.Len(t, hist, 2, "после backfill видны и created, и перенесённая legacy-строка")
-	assert.Equal(t, "created", hist[0]["action_type"], "новее сверху - created из audit_log")
-	assert.Equal(t, "updated", hist[1]["action_type"], "legacy updated час назад - ниже")
-	ln := hist[1]["details"].(map[string]interface{})["last_name"].(map[string]interface{})
-	assert.Equal(t, "Иванов", ln["new"], "details перенесены verbatim")
-
-	// Идемпотентность: повторный backfill не дублирует (гард-флаг снова стоит).
-	require.NoError(t, database.BackfillAuditFromLegacy(db))
-	rec = testutil.GET(t, e, "/users/audituser/history", h)
-	require.Equal(t, http.StatusOK, rec.Code)
-	assert.Len(t, testutil.ParseSlice(t, rec), 2, "повторный backfill не создаёт дублей")
 }

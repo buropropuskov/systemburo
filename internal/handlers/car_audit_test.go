@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"systemburo/internal/database"
 	"systemburo/internal/models"
 	"systemburo/internal/testutil"
 
@@ -24,135 +23,6 @@ func findHistByAction(items []map[string]interface{}, action string) map[string]
 		}
 	}
 	return nil
-}
-
-// TestCars_History_BackfillLegacyIntoAudit проверяет финал #870 (срез F.5):
-// читатель истории машины переведён на audit_log-only, а до-cutover строки
-// замороженной cars_history разово поднимаются в audit_log через
-// BackfillAuditFromLegacy. Плоские поля (field_name/old/new/comment/table_id) и
-// metadata сворачиваются в details в форму carAuditDetails - то же, что пишет
-// recorder, поэтому история байт-в-байт совпадает с до-switch union.
-func TestCars_History_BackfillLegacyIntoAudit(t *testing.T) {
-	e, db, cleanup := testutil.SetupTestApp(t)
-	defer cleanup()
-	testutil.CleanDB(t, db)
-	td := testutil.SeedTestData(t, db)
-
-	token := testutil.RegisterAndLogin(t, e, "carunion1", "pass123", 1, td.OrgID, td.CompanyID)
-	_, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
-	userID := getUserID(t, db, "carunion1")
-
-	// После cutover (1.12c) submit пишет 'create' уже в audit_log, не в cars_history.
-	var auditCreate int64
-	require.NoError(t, db.Model(&models.AuditLog{}).
-		Where("entity_type = ? AND entity_id = ? AND action = 'create'", models.AuditEntityCar, carID).Count(&auditCreate).Error)
-	require.Equal(t, int64(1), auditCreate, "submit пишет create в audit_log")
-
-	now := time.Now().UTC()
-	// Новое событие въезда - напрямую в audit_log (как после среза 1.12c).
-	entry := models.AuditLog{
-		EntityType:  models.AuditEntityCar,
-		EntityID:    &carID,
-		Action:      "entry",
-		ActorUserID: &userID,
-		Details:     json.RawMessage(`{"comment":"Въезд через КПП"}`),
-		CreatedAt:   now,
-	}
-	require.NoError(t, db.Create(&entry).Error)
-	// Поячеечный diff - проверяем сборку плоских полей из details (field_name/old/new/metadata).
-	changed := models.AuditLog{
-		EntityType:  models.AuditEntityCar,
-		EntityID:    &carID,
-		Action:      "data_changed",
-		ActorUserID: &userID,
-		Details:     json.RawMessage(`{"field_name":"car_number","old_value":"A001AA","new_value":"B002BB","metadata":{"src":"manual"}}`),
-		CreatedAt:   now.Add(time.Second),
-	}
-	require.NoError(t, db.Create(&changed).Error)
-
-	// Замороженная legacy-строка в cars_history (накоплена до cutover, ещё не перенесена).
-	// metadata в плоской jsonb-колонке проверяет, что backfill переносит её через
-	// details->'metadata', а не теряет.
-	legacyComment := "Выезд (legacy cars_history)"
-	legacyMeta := `{"src":"legacy"}`
-	require.NoError(t, db.Create(&models.CarHistory{
-		CarID: carID, ActionType: "exit", Comment: &legacyComment,
-		Metadata: &legacyMeta, CreatedAt: now.Add(-time.Hour),
-	}).Error)
-
-	// До backfill читатель видит только audit_log -> legacy exit ещё невидим.
-	rec := testutil.GET(t, e, fmt.Sprintf("/cars/%d/history", carID), testutil.AuthHeader(token))
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	require.Nil(t, findHistByAction(testutil.ParseSlice(t, rec), "exit"), "до backfill legacy exit невидим")
-
-	// CleanDB-Seed уже выставил гард-флаг (backfill прогонялся на пустой таблице) -
-	// снимаем, чтобы перенести только что вставленную legacy-строку.
-	require.NoError(t, db.Where("key = ?", "audit_backfilled:"+models.AuditEntityCar).
-		Delete(&models.SystemSetting{}).Error)
-	require.NoError(t, database.BackfillAuditFromLegacy(db))
-
-	// Старая таблица не тронута backfill'ом - read-only бэкап.
-	var legacyCount int64
-	require.NoError(t, db.Model(&models.CarHistory{}).Where("car_id = ? AND action_type = 'exit'", carID).Count(&legacyCount).Error)
-	assert.Equal(t, int64(1), legacyCount, "cars_history цела как бэкап")
-
-	rec = testutil.GET(t, e, fmt.Sprintf("/cars/%d/history", carID), testutil.AuthHeader(token))
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	hist := testutil.ParseSlice(t, rec)
-	require.GreaterOrEqual(t, len(hist), 4, "create + entry + data_changed + перенесённый legacy exit")
-
-	// Новейшее сверху (data_changed позже entry позже create; legacy exit на час раньше).
-	assert.Equal(t, "data_changed", hist[0]["action_type"], "новейшее сверху")
-
-	entryRow := findHistByAction(hist, "entry")
-	require.NotNil(t, entryRow, "событие entry из audit_log должно быть в истории")
-	assert.Equal(t, "Въезд через КПП", entryRow["comment"])
-	assert.NotEmpty(t, entryRow["user_name"], "актор из audit_log разрезолвлен")
-
-	changedRow := findHistByAction(hist, "data_changed")
-	require.NotNil(t, changedRow)
-	assert.Equal(t, "car_number", changedRow["field_name"], "field_name собран из details")
-	assert.Equal(t, "A001AA", changedRow["old_value"])
-	assert.Equal(t, "B002BB", changedRow["new_value"])
-	assert.Equal(t, map[string]interface{}{"src": "manual"}, changedRow["metadata"], "metadata собран из details->'metadata'")
-
-	// Перенесённая legacy-строка видна, comment и metadata сохранены через backfill.
-	legacyRow := findHistByAction(hist, "exit")
-	require.NotNil(t, legacyRow, "legacy exit поднят в audit_log backfill'ом")
-	assert.Equal(t, "Выезд (legacy cars_history)", legacyRow["comment"], "comment перенесён из cars_history")
-	assert.Equal(t, map[string]interface{}{"src": "legacy"}, legacyRow["metadata"], "metadata перенесён через details->'metadata'")
-
-	// /cars/history/all фильтрует action_type IN ('entry','exit') - и audit-entry, и
-	// перенесённый legacy-exit попадают под фильтр.
-	recAll := testutil.GET(t, e, "/cars/history/all", testutil.AuthHeader(token))
-	require.Equal(t, http.StatusOK, recAll.Code, recAll.Body.String())
-	var foundEntry, foundExit bool
-	for _, it := range testutil.ParseSlice(t, recAll) {
-		if it["car_id"] != float64(carID) {
-			continue
-		}
-		switch it["action_type"] {
-		case "entry":
-			foundEntry = true
-			assert.Equal(t, "Въезд через КПП", it["comment"])
-		case "exit":
-			foundExit = true
-		}
-	}
-	assert.True(t, foundEntry, "событие entry из audit_log видно в /cars/history/all")
-	assert.True(t, foundExit, "перенесённый legacy exit виден в /cars/history/all")
-
-	// Идемпотентность: повторный backfill не дублирует (гард-флаг снова стоит).
-	require.NoError(t, database.BackfillAuditFromLegacy(db))
-	rec = testutil.GET(t, e, fmt.Sprintf("/cars/%d/history", carID), testutil.AuthHeader(token))
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	var exitCount int
-	for _, it := range testutil.ParseSlice(t, rec) {
-		if it["action_type"] == "exit" {
-			exitCount++
-		}
-	}
-	assert.Equal(t, 1, exitCount, "повторный backfill не создаёт дублей legacy exit")
 }
 
 // TestCars_Trash_UnionAuditDeleteRow проверяет, что корзина скоупит удалённые машины
@@ -200,8 +70,8 @@ func TestCars_Trash_UnionAuditDeleteRow(t *testing.T) {
 	assert.Equal(t, float64(carID), items[0]["id"])
 	assert.NotEmpty(t, items[0]["deleted_by_name"], "deleted_by_name собран через union из audit_log")
 
-	// Очистка корзины (ClearCarsTrash) скоупит машины подзапросом по cars_history.
-	// Проверяем, что union находит и машину, помеченную delete-строкой из audit_log.
+	// Очистка корзины (ClearCarsTrash) скоупит машины подзапросом по audit_log.
+	// Проверяем, что скоуп находит и машину, помеченную delete-строкой из audit_log.
 	recClear := testutil.DELETE(t, e, fmt.Sprintf("/system-tables/%d/trash", tbl.ID), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, recClear.Code, recClear.Body.String())
 	var car models.Car
@@ -210,9 +80,9 @@ func TestCars_Trash_UnionAuditDeleteRow(t *testing.T) {
 }
 
 // TestCars_WriteFlip_AllActionsToAuditLog проверяет cutover записи (#870, срез 1.12c):
-// каждое действие через реальный endpoint пишет строку в audit_log[car], а замороженная
-// cars_history больше НЕ растёт. Заодно проверяет round-trip плоских полей (data_changed
-// -> details -> union собирает field_name/old/new обратно).
+// каждое действие через реальный endpoint пишет строку в audit_log[car]. Заодно
+// проверяет round-trip плоских полей (data_changed -> details -> union собирает
+// field_name/old/new обратно).
 func TestCars_WriteFlip_AllActionsToAuditLog(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
@@ -222,10 +92,6 @@ func TestCars_WriteFlip_AllActionsToAuditLog(t *testing.T) {
 	token := testutil.RegisterAndLogin(t, e, "carflip1", "pass123", 1, td.OrgID, td.CompanyID)
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td)
-
-	// cars_history заморожена: submit уже не пишет в неё. Фиксируем счётчик до действий.
-	var legacyBefore int64
-	require.NoError(t, db.Model(&models.CarHistory{}).Where("car_id = ?", carID).Count(&legacyBefore).Error)
 
 	// Прогоняем все основные действия через endpoint-ы.
 	steps := []struct {
@@ -257,12 +123,7 @@ func TestCars_WriteFlip_AllActionsToAuditLog(t *testing.T) {
 		assert.GreaterOrEqualf(t, n, int64(1), "действие %q должно писаться в audit_log", action)
 	}
 
-	// cars_history НЕ выросла - старый write-path убран.
-	var legacyAfter int64
-	require.NoError(t, db.Model(&models.CarHistory{}).Where("car_id = ?", carID).Count(&legacyAfter).Error)
-	assert.Equal(t, legacyBefore, legacyAfter, "cars_history не должна расти после cutover")
-
-	// data_changed: плоские поля собираются из details обратно в форму cars_history.
+	// data_changed: плоские поля собираются из details обратно в форму истории.
 	rec := testutil.GET(t, e, fmt.Sprintf("/cars/%d/history", carID), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	changed := findHistByAction(testutil.ParseSlice(t, rec), "data_changed")

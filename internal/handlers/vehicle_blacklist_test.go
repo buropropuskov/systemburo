@@ -30,7 +30,6 @@ func seedMark(t *testing.T, db *gorm.DB, name string) models.Mark {
 	mark := models.Mark{Name: name, IsActive: true}
 	require.NoError(t, db.Create(&mark).Error)
 	t.Cleanup(func() {
-		db.Where("mark_id = ?", mark.ID).Delete(&models.MarkHistory{})
 		db.Delete(&models.Mark{}, mark.ID)
 	})
 	return mark
