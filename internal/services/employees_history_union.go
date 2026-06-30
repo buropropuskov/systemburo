@@ -15,7 +15,7 @@ import (
 // audit_log[employee]. После F.6 до-cutover строки employees_history разово
 // перенесены в audit_log (BackfillAuditFromLegacy, форма carAuditDetails), поэтому
 // читаем ТОЛЬКО audit_log[employee] - он уже содержит и исторические, и новые
-// события. employees_history осталась read-only бэкапом до дроп-sweep (F.8).
+// события. employees_history дропнута в дроп-sweep (F.8).
 //
 // Плоские поля старой схемы (field_name/old_value/new_value/comment/table_id) у
 // audit_log лежат внутри details jsonb, metadata - вложенным объектом

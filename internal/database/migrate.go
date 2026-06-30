@@ -20,29 +20,18 @@ func AllModels() []interface{} {
 		&models.AuditLog{},
 		&models.SystemSetting{},
 		&models.UserType{},
-		&models.UserTypeHistory{},
 		&models.Organization{},
-		&models.OrganizationHistory{},
 		&models.Company{},
-		&models.CompanyHistory{},
 		&models.Citizenship{},
-		&models.CitizenshipHistory{},
 		&models.LicensePlateFormat{},
-		&models.LicensePlateFormatHistory{},
 		&models.Mark{},
-		&models.MarkHistory{},
 		&models.VehicleBlacklist{},
-		&models.VehicleBlacklistHistory{},
 		&models.PersonBlacklist{},
-		&models.PersonBlacklistHistory{},
 		&models.UnloadPlace{},
-		&models.UnloadPlaceHistory{},
 		&models.SystemTable{},
-		&models.SystemTableHistory{},
 
 		// Users (depends on UserType, Organization, Company)
 		&models.User{},
-		&models.UserHistory{},
 		&models.UserBanHistory{},
 		&models.RefreshToken{},
 		&models.AuthEvent{},
@@ -72,20 +61,15 @@ func AllModels() []interface{} {
 		// Applications (depends on User, Organization, Company)
 		&models.Application{},
 		&models.ApplicationRead{},
-		&models.ApplicationHistory{},
 		&models.ApplicationStatusHistory{},
 		&models.ApplicationResponsibleUser{},
 		&models.ApplicationApprover{},
-		&models.ApplicationApproverHistory{},
 		&models.ApplicationViewer{},
 
 		// Unique records
 		&models.UniqueAttachment{},
-		&models.UniqueAttachmentHistory{},
 		&models.UniqueCar{},
-		&models.UniqueCarHistory{},
 		&models.UniqueEmployee{},
-		&models.UniqueEmployeeHistory{},
 
 		// Attachments (depends on Application, UniqueAttachment)
 		&models.Attachment{},
@@ -108,12 +92,10 @@ func AllModels() []interface{} {
 
 		// Cars (depends on Attachment)
 		&models.Car{},
-		&models.CarHistory{},
 		&models.CarUnloadPlace{},
 
 		// Employees (depends on Attachment, Citizenship)
 		&models.Employee{},
-		&models.EmployeeHistory{},
 		&models.ApplicationEmployee{},
 		&models.EmployeeFile{},
 		&models.EmployeeTargetTable{},
@@ -140,8 +122,6 @@ func AllModels() []interface{} {
 		// Logging
 		&models.RequestLog{},
 		// request_logs партиционируется нативно (installLogPartitioning) - вне AutoMigrate.
-		// Trash history для system_tables (#186)
-		&models.SystemTableTrashHistory{},
 
 		// Permissions
 		&models.Permission{},
@@ -222,14 +202,13 @@ func AutoMigrate(db *gorm.DB) error {
 }
 
 // createStatisticsIndexes добавляет индексы под реальные запросы аналитики (#632):
-// фильтр по дате подачи заявок, движок въездов/входов (action_type='entry' + период
-// по created_at), список машин по статусу на территории. Все CREATE INDEX IF NOT
-// EXISTS — идемпотентны и аддитивны, существующие данные/схему не трогают.
+// фильтр по дате подачи заявок, список машин по статусу на территории. Все CREATE INDEX
+// IF NOT EXISTS — идемпотентны и аддитивны, существующие данные/схему не трогают.
+// Движок въездов/входов читает audit_log (#870, F.5/F.6) — его покрывает idx_audit_entity
+// из модели AuditLog; индексы на дропнутых cars_history/employees_history убраны в F.8.
 func createStatisticsIndexes(db *gorm.DB) error {
 	stmts := []string{
 		`CREATE INDEX IF NOT EXISTS idx_applications_sending_datetime ON applications (sending_datetime)`,
-		`CREATE INDEX IF NOT EXISTS idx_cars_history_action_created ON cars_history (action_type, created_at)`,
-		`CREATE INDEX IF NOT EXISTS idx_employees_history_action_created ON employees_history (action_type, created_at)`,
 		`CREATE INDEX IF NOT EXISTS idx_cars_territory_status ON cars (territory_status)`,
 	}
 	for _, stmt := range stmts {
@@ -822,6 +801,13 @@ func Seed(db *gorm.DB) error {
 		return err
 	}
 
+	// Дроп замороженных legacy *_history таблиц (#870, F.8) - строго ПОСЛЕ backfill:
+	// он уже перенёс их строки в audit_log, читатели на audit_log-only, таблицы стали
+	// мёртвым бэкапом. Дропаются только подтверждённо-перенесённые (гард-флаг).
+	if err := DropBackfilledLegacyHistory(db); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -1039,6 +1025,38 @@ func BackfillAuditFromLegacy(db *gorm.DB) error {
 			return nil
 		}); err != nil {
 			return fmt.Errorf("backfill audit %s: %w", src.entity, err)
+		}
+	}
+	return nil
+}
+
+// DropBackfilledLegacyHistory дропает замороженные legacy *_history таблицы (#870, F.8)
+// ПОСЛЕ того как BackfillAuditFromLegacy перенёс их строки в audit_log, а все читатели
+// переведены на audit_log-only. Дропается только таблица, чей перенос подтверждён гард-
+// флагом system_settings 'audit_backfilled:<entity>' (его backfill ставит в одной
+// транзакции с INSERT - флаг есть ⟺ строки скопированы), иначе таблицу с ещё-не-
+// перенесённой до-cutover историей оставляем нетронутой. Зовётся из Seed строго ПОСЛЕ
+// BackfillAuditFromLegacy: на первом деплое (backfill+drop разом) копирование
+// фиксируется до дропа. Идемпотентно (DROP TABLE IF EXISTS - повторный старт no-op).
+// Источник списка - auditBackfillSources() (ровно 19 переведённых сущностей;
+// application_status_history и user_ban_histories в него не входят и НЕ дропаются).
+//
+// ВАЖНО: src.table конкатенируется в DDL сырым - допустимо ТОЛЬКО потому, что это
+// статический литерал из auditBackfillSources(), не данные извне (как и в backfill).
+func DropBackfilledLegacyHistory(db *gorm.DB) error {
+	for _, src := range auditBackfillSources() {
+		flag := "audit_backfilled:" + src.entity
+		var flagged int64
+		if err := db.Model(&models.SystemSetting{}).Where("key = ?", flag).Count(&flagged).Error; err != nil {
+			return fmt.Errorf("drop legacy %s: check flag: %w", src.entity, err)
+		}
+		if flagged == 0 {
+			// Перенос ещё не подтверждён - НЕ дропаем (защита до-cutover истории).
+			slog.Warn("skip legacy drop: backfill not confirmed", "entity", src.entity, "table", src.table)
+			continue
+		}
+		if err := db.Exec("DROP TABLE IF EXISTS " + src.table).Error; err != nil {
+			return fmt.Errorf("drop legacy %s (%s): %w", src.entity, src.table, err)
 		}
 	}
 	return nil

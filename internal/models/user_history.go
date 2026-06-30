@@ -5,22 +5,7 @@ import (
 	"time"
 )
 
-// UserHistory логирует действия над учётной записью пользователя: создание,
-// изменение данных/типа/организации/компании, сброс пароля, архивацию и
-// восстановление. Нужна для аудита ("кто и что сделал с учёткой").
-//
-// TargetUserID - чья учётка изменена, ActorUserID - кто совершил действие.
-// FK на пользователей намеренно без constraint: аудит должен пережить удаление.
-type UserHistory struct {
-	ID           int             `json:"id"`
-	TargetUserID int             `gorm:"index;not null" json:"target_user_id"`
-	ActorUserID  *int            `gorm:"index" json:"actor_user_id,omitempty"`
-	ActionType   string          `gorm:"size:32;index" json:"action_type"`
-	Details      json.RawMessage `gorm:"type:jsonb" json:"details,omitempty"`
-	CreatedAt    time.Time       `json:"created_at"`
-}
-
-// UserActionType - константы для UserHistory.ActionType.
+// UserActionType - константы action-типов истории учётных записей.
 const (
 	UserActionCreated        = "created"
 	UserActionUpdated        = "updated"

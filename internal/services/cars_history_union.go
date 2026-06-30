@@ -32,8 +32,8 @@ type carAuditDetails struct {
 // До F.5 это был UNION замороженной cars_history и новых записей audit_log[car].
 // После F.5 до-cutover строки cars_history разово перенесены в audit_log
 // (BackfillAuditFromLegacy, форма carAuditDetails), поэтому читаем ТОЛЬКО audit_log[car]
-// - он уже содержит и исторические, и новые события. cars_history осталась read-only
-// бэкапом до дроп-sweep (F.8). Имя с "Union" сохранено: подзапрос по-прежнему
+// - он уже содержит и исторические, и новые события. cars_history дропнута в
+// дроп-sweep (F.8). Имя с "Union" сохранено: подзапрос по-прежнему
 // единственная точка, через которую все 5 читателей берут историю машин.
 //
 // Плоские поля старой схемы (field_name/old_value/new_value/comment/table_id) у

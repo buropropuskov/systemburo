@@ -5,21 +5,7 @@ import (
 	"time"
 )
 
-// OrganizationHistory логирует действия над организацией: создание,
-// переименование, архивацию и восстановление. Нужна для аудита (#412).
-//
-// OrganizationID - над какой организацией действие, ActorUserID - кто его
-// совершил. FK намеренно без constraint: аудит должен пережить любые изменения.
-type OrganizationHistory struct {
-	ID             int             `json:"id"`
-	OrganizationID int             `gorm:"index;not null" json:"organization_id"`
-	ActorUserID    *int            `gorm:"index" json:"actor_user_id,omitempty"`
-	ActionType     string          `gorm:"size:32;index" json:"action_type"`
-	Details        json.RawMessage `gorm:"type:jsonb" json:"details,omitempty"`
-	CreatedAt      time.Time       `json:"created_at"`
-}
-
-// OrganizationActionType - константы для OrganizationHistory.ActionType.
+// OrganizationActionType - константы action-типов истории организации.
 const (
 	OrganizationActionCreated  = "created"
 	OrganizationActionRenamed  = "renamed"

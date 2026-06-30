@@ -5,21 +5,7 @@ import (
 	"time"
 )
 
-// CompanyHistory логирует действия над компанией: создание, переименование,
-// архивацию и восстановление. Нужна для аудита (#412).
-//
-// CompanyID - над какой компанией действие, ActorUserID - кто его совершил.
-// FK намеренно без constraint: аудит должен пережить любые изменения.
-type CompanyHistory struct {
-	ID          int             `json:"id"`
-	CompanyID   int             `gorm:"index;not null" json:"company_id"`
-	ActorUserID *int            `gorm:"index" json:"actor_user_id,omitempty"`
-	ActionType  string          `gorm:"size:32;index" json:"action_type"`
-	Details     json.RawMessage `gorm:"type:jsonb" json:"details,omitempty"`
-	CreatedAt   time.Time       `json:"created_at"`
-}
-
-// CompanyActionType - константы для CompanyHistory.ActionType.
+// CompanyActionType - константы action-типов истории компании.
 const (
 	CompanyActionCreated  = "created"
 	CompanyActionRenamed  = "renamed"

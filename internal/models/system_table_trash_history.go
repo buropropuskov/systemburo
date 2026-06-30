@@ -5,21 +5,7 @@ import (
 	"time"
 )
 
-// SystemTableTrashHistory логирует массовые действия с корзиной таблицы (#186):
-// очистка (cleared) и массовое восстановление (bulk_restored). Действия с
-// отдельными элементами логируются в cars_history/employees_history.
-type SystemTableTrashHistory struct {
-	ID            int             `json:"id"`
-	SystemTableID int             `gorm:"index" json:"system_table_id"`
-	ActionType    string          `gorm:"size:30;index" json:"action_type"` // cleared | bulk_restored | purged_one
-	AffectedCount int             `json:"affected_count"`
-	Details       json.RawMessage `gorm:"type:jsonb" json:"details,omitempty"` // [{id,label}] затронутых элементов
-	UserID        *int            `gorm:"index" json:"user_id,omitempty"`
-	User          *User           `gorm:"foreignKey:UserID" json:"-"`
-	CreatedAt     time.Time `json:"created_at"`
-}
-
-// TrashActionType - константы для SystemTableTrashHistory.ActionType.
+// TrashActionType - константы action-типов массовых действий с корзиной таблицы.
 const (
 	TrashActionCleared      = "cleared"
 	TrashActionBulkRestored = "bulk_restored"

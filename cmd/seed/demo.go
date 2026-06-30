@@ -308,7 +308,7 @@ func seedOneApp(db *gorm.DB, spec appSpec, orgID, compID, userID int, uaIDs uniq
 	`, appID, userID)
 }
 
-// seedAttachmentCars создаёт вложение cars с 2 машинами и cars_history.
+// seedAttachmentCars создаёт вложение cars с 2 машинами и их историей в audit_log.
 func seedAttachmentCars(db *gorm.DB, appID, uaCarsID int, fromStr, toStr string, userID int, placeNames []string) {
 	var attachmentID int
 	db.Raw(`
@@ -368,10 +368,12 @@ func seedAttachmentCars(db *gorm.DB, appID, uaCarsID int, fromStr, toStr string,
 		{"exit", "Убытие с территории", -1 * time.Hour},
 	}
 	for _, h := range history {
+		// Демо-история машины пишется в общий audit_log (#870): cars_history дропнута,
+		// читатели истории на audit_log-only. Форма details - {comment} как у recorder.
 		db.Exec(`
-			INSERT INTO cars_history (car_id, user_id, action_type, comment, created_at)
-			VALUES (?, ?, ?, ?, ?)
-		`, firstCarID, userID, h.action, h.comment, now.Add(h.offset))
+			INSERT INTO audit_log (entity_type, entity_id, action, actor_user_id, details, created_at)
+			VALUES ('car', ?, ?, ?, jsonb_build_object('comment', ?::text), ?)
+		`, firstCarID, h.action, userID, h.comment, now.Add(h.offset))
 	}
 }
 

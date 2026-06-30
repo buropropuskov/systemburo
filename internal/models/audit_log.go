@@ -10,7 +10,7 @@ import (
 // сущности своя история через фильтр (entity_type, entity_id) - не общая "свалка".
 //
 // EntityID/ActorUserID намеренно без FK constraint: аудит должен пережить удаление
-// родителя или пользователя (как в новом паттерне *History, см. CitizenshipHistory).
+// родителя или пользователя (как в legacy *History-моделях).
 // Details (jsonb) - надмножество всех старых схем: новый паттерн пишет details как
 // есть; плоский field_name/old/new/comment/metadata и snapshot-поля маппятся внутрь.
 type AuditLog struct {
