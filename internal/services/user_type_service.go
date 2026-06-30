@@ -201,8 +201,8 @@ func (s *userTypeService) Delete(ctx context.Context, callerUserID, id int) erro
 // GetHistory возвращает историю изменений типа пользователя (admin-only).
 // #870, финал F.2: запись и до-cutover строки живут в общем audit_log (старые
 // перенесены backfill'ом BackfillAuditFromLegacy), поэтому чтение идёт только из
-// audit_log. Замороженная user_type_histories остаётся read-only бэкапом до
-// дроп-sweep (F.8) и больше не читается. Форму ответа стережёт TestUserTypes_History.
+// audit_log. Замороженная user_type_histories дропнута в дроп-sweep (F.8).
+// Форму ответа стережёт TestUserTypes_History.
 func (s *userTypeService) GetHistory(ctx context.Context, id int) ([]models.UserTypeHistoryItem, error) {
 	const actorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`
 	sql := `

@@ -478,7 +478,7 @@ func (s *userService) GetHistory(ctx context.Context, username string) ([]models
 	}
 	const actorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`
 	// Read-switch #870 (F.3): до-cutover строки user_histories подняты в audit_log
-	// разовым backfill'ом, читаем только audit_log. Старая таблица - read-only бэкап.
+	// разовым backfill'ом, читаем только audit_log. Старая таблица user_histories дропнута (F.8).
 	sql := `
 		SELECT a.id AS id, a.action AS action_type, a.details AS details,
 			a.actor_user_id AS actor_user_id, ` + actorName + ` AS actor_name, a.created_at AS created_at

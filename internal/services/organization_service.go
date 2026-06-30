@@ -295,8 +295,8 @@ func (s *organizationService) Restore(ctx context.Context, callerUserID, id int)
 // GetHistory возвращает историю изменений организации (admin-only, новые сверху).
 // #870, финал F.2: запись и до-cutover строки живут в общем audit_log (старые
 // перенесены backfill'ом BackfillAuditFromLegacy), поэтому чтение идёт только из
-// audit_log. Замороженная organization_histories остаётся read-only бэкапом до
-// дроп-sweep (F.8) и больше не читается. Форму ответа стережёт TestOrganizations_History.
+// audit_log. Замороженная organization_histories дропнута в дроп-sweep (F.8).
+// Форму ответа стережёт TestOrganizations_History.
 // Действие renamed хранит только {name:new} (без old) - details передаётся как есть.
 func (s *organizationService) GetHistory(ctx context.Context, id int) ([]models.OrganizationHistoryItem, error) {
 	const actorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`

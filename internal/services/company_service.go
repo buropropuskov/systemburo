@@ -350,8 +350,8 @@ func (s *companyService) Restore(ctx context.Context, callerUserID, companyID in
 // GetHistory возвращает историю изменений компании (admin-only, новые сверху).
 // #870, финал F.2: запись и до-cutover строки живут в общем audit_log (старые
 // перенесены backfill'ом BackfillAuditFromLegacy), поэтому чтение идёт только из
-// audit_log. Замороженная company_histories остаётся read-only бэкапом до
-// дроп-sweep (F.8) и больше не читается. Форму ответа стережёт TestCompanies_History.
+// audit_log. Замороженная company_histories дропнута в дроп-sweep (F.8).
+// Форму ответа стережёт TestCompanies_History.
 // Действие renamed хранит только {name:new} (без old) - details передаётся как есть.
 func (s *companyService) GetHistory(ctx context.Context, companyID int) ([]models.CompanyHistoryItem, error) {
 	const actorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`
