@@ -365,8 +365,8 @@ func (s *unloadPlaceService) Restore(ctx context.Context, callerUserID, id int) 
 // GetHistory возвращает историю изменений места разгрузки (новые сверху).
 // #870, финал F.2: запись и до-cutover строки живут в общем audit_log (старые
 // перенесены backfill'ом BackfillAuditFromLegacy), поэтому чтение идёт только из
-// audit_log. Замороженная unload_place_histories остаётся read-only бэкапом до
-// дроп-sweep (F.8) и больше не читается. Форму стережёт TestUnloadPlaces_History.
+// audit_log. Замороженная unload_place_histories дропнута в дроп-sweep (F.8).
+// Форму стережёт TestUnloadPlaces_History.
 func (s *unloadPlaceService) GetHistory(ctx context.Context, id int) ([]models.UnloadPlaceHistoryItem, error) {
 	const actorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`
 	sql := `

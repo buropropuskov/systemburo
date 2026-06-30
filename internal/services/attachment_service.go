@@ -202,8 +202,8 @@ func (s *attachmentService) Restore(ctx context.Context, userID, id int) error {
 // GetHistory возвращает историю изменений шаблона вложения (новые сверху).
 // #870, финал F.2: запись и до-cutover строки живут в общем audit_log (старые
 // перенесены backfill'ом BackfillAuditFromLegacy), поэтому чтение идёт только из
-// audit_log. Замороженная unique_attachment_histories остаётся read-only бэкапом до
-// дроп-sweep (F.8) и больше не читается. Форму стережёт TestAttachments_History_*.
+// audit_log. Замороженная unique_attachment_histories дропнута в дроп-sweep (F.8).
+// Форму стережёт TestAttachments_History_*.
 func (s *attachmentService) GetHistory(ctx context.Context, id int) ([]models.UniqueAttachmentHistoryItem, error) {
 	const actorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`
 	sql := `

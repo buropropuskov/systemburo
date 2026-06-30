@@ -40,7 +40,7 @@ func (s *applicationService) GetApplicationResponsibleUsers(ctx context.Context,
 // до-cutover строки замороженной application_history разово перенесены в audit_log
 // (BackfillAuditFromLegacy, форма applicationAuditDetails), поэтому читаем ТОЛЬКО
 // audit_log[application] - он уже содержит и исторические, и новые события.
-// application_history осталась read-only бэкапом до дроп-sweep (F.8). Форму ответа
+// application_history дропнута в дроп-sweep (F.8). Форму ответа
 // стерегут TestApplications_HistoryGolden_*. Плоские поля старой схемы
 // (action_status/old_value/new_value/comment) у audit_log лежат внутри details jsonb,
 // metadata - вложенным объектом details->'metadata'. INNER JOIN users сохранён как в

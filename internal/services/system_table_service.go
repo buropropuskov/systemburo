@@ -1021,7 +1021,7 @@ func (s *systemTableService) GetHistory(ctx context.Context, tableID int) ([]mod
 	const actorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`
 	// Read-switch #870 (F.3): до-cutover строки system_table_histories подняты в
 	// audit_log разовым backfill'ом (details уже jsonb, verbatim), читаем только
-	// audit_log. Старая таблица - read-only бэкап до дроп-sweep (F.8).
+	// audit_log. Старая таблица system_table_histories дропнута в дроп-sweep (F.8).
 	sql := `
 		SELECT a.id, a.action AS action_type, a.details, a.actor_user_id AS user_id,
 			` + actorName + ` AS user_name,

@@ -796,7 +796,7 @@ func Seed(db *gorm.DB) error {
 
 	// Разовый перенос замороженных *_history строк в общий audit_log (#870, финал):
 	// читатели сущностей переведены на audit_log-only, до-cutover история берётся уже
-	// из audit_log, а legacy-таблицы остаются read-only бэкапом до дроп-sweep (F.8).
+	// из audit_log, а legacy-таблицы затем дропаются DropBackfilledLegacyHistory (ниже).
 	if err := BackfillAuditFromLegacy(db); err != nil {
 		return err
 	}
@@ -977,8 +977,8 @@ func auditBackfillSources() []auditBackfillSource {
 // BackfillAuditFromLegacy один раз на сущность переносит замороженные *_history строки
 // в общий audit_log (#870, финал). До перевода читателя на audit_log-only история
 // бралась union'ом legacy+audit_log; backfill копирует legacy-часть в audit_log, после
-// чего читатель сущности читает только audit_log, а legacy-таблица остаётся read-only
-// бэкапом до дроп-sweep (F.8).
+// чего читатель сущности читает только audit_log, а legacy-таблица дропается
+// DropBackfilledLegacyHistory (F.8, тот же Seed, строго после этого переноса).
 //
 // Идемпотентно: гард-флаг system_settings 'audit_backfilled:<entity>' ставится в той же
 // транзакции, что и INSERT, поэтому повторный старт пропускает перенос и дублей не

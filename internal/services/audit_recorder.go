@@ -14,6 +14,11 @@ import (
 // AuditRecorder - единая точка записи аудита (#870), заменяет ~15 копий
 // *_history_service. Каждая сущность пишет свои действия сюда с своим entity_type;
 // чтение - через единый reader с фильтром (entity_type, entity_id).
+//
+// КОНВЕНЦИЯ (итог #870): любую НОВУЮ историю/аудит-журнал вести ТОЛЬКО через этот
+// recorder (Record/Log + новая константа models.AuditEntity*), НЕ заводя отдельную
+// *_history таблицу/модель/сервис/endpoint. Это стережёт guard-тест
+// database.TestAllModels_NoLegacyHistoryTables.
 type AuditRecorder interface {
 	// Record пишет запись аудита через exec и ВОЗВРАЩАЕТ ошибку. Для критичных
 	// действий передавать exec=tx: провал записи откатит всю операцию (паттерн
