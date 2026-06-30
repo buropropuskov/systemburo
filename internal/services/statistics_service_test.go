@@ -15,11 +15,11 @@ func TestResolveTimelineSource_ValidInputs(t *testing.T) {
 		{"applications", "day", "applications", "sending_datetime", "day"},
 		{"applications", "week", "applications", "sending_datetime", "week"},
 		{"applications", "month", "applications", "sending_datetime", "month"},
-		// car_entries читает union cars_history + audit_log[car] (#870, срез 1.12b);
-		// колонки квалифицированы alias'ом ch (как в report_engine).
+		// car_entries читает audit_log[car] (#870, F.5 read-switch); источник в
+		// carsHistoryUnion, колонки квалифицированы alias'ом ch (как в report_engine).
 		{"car_entries", "day", carsHistoryUnion + " ch", "ch.created_at", "day"},
-		// people_entries читает union employees_history + audit_log[employee] (#870,
-		// срез 1.13a); колонки квалифицированы alias'ом eh (как в report_engine).
+		// people_entries читает audit_log[employee] (#870, F.6 read-switch); источник в
+		// employeesHistoryUnion, колонки квалифицированы alias'ом eh (как в report_engine).
 		{"people_entries", "week", employeesHistoryUnion + " eh", "eh.created_at", "week"},
 	}
 

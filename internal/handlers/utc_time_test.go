@@ -156,6 +156,3 @@ func TestCarsCurrentStatus_TerritoryEntryTimeIsUTC(t *testing.T) {
 		strings.Count(entryTime, "-") >= 3
 	assert.Truef(t, hasTZ, "entry_time=%q должно содержать TZ-маркер", entryTime)
 }
-
-// проверяем, что объект models.CarHistory не используется напрямую -- референс через тип:
-var _ = models.CarHistory{}

@@ -251,7 +251,7 @@ func TestGetActiveEmployeesForTable_WithActiveEmployee(t *testing.T) {
 }
 
 // TestEmployeeHistory_ReadEndpoints проверяет что после PUT /territory-status
-// запись в employees_history читается через GET /:id/history и /history/unified
+// запись в audit_log[employee] читается через GET /:id/history и /history/unified
 // без 500. Ранее ломалось из-за обращения к несуществующим полям org.short_name.
 func TestEmployeeHistory_ReadEndpoints(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
@@ -274,7 +274,7 @@ func TestEmployeeHistory_ReadEndpoints(t *testing.T) {
 	token := testutil.RegisterAndLogin(t, e, "emphist1", "pass123", 1, td.OrgID, td.CompanyID)
 	h := testutil.AuthHeader(token)
 
-	// Регистрируем entry - должен создать запись в employees_history.
+	// Регистрируем entry - должен создать запись в audit_log[employee].
 	putBody := `{"territory_status":1,"user_id":null}`
 	rec := testutil.PUT(t, e, fmt.Sprintf("/employees/%d/territory-status", employee.ID), putBody, h)
 	require.Equal(t, http.StatusOK, rec.Code, "PUT territory-status должен пройти")

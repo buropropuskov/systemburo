@@ -10,16 +10,16 @@ import (
 )
 
 // TestStatisticsIndexes_Created проверяет, что аддитивные индексы аналитики (#632)
-// создаются AutoMigrate. Индексы под фильтр даты заявок, движок въездов/входов и
-// список машин по статусу — ускоряют реальные запросы отчётов.
+// создаются AutoMigrate. Индексы под фильтр даты заявок, движок въездов/входов
+// (audit_log по entity/created_at) и список машин по статусу — ускоряют реальные
+// запросы отчётов.
 func TestStatisticsIndexes_Created(t *testing.T) {
 	_, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 
 	expected := []string{
 		"idx_applications_sending_datetime",
-		"idx_cars_history_action_created",
-		"idx_employees_history_action_created",
+		"idx_audit_entity",
 		"idx_cars_territory_status",
 	}
 	for _, idx := range expected {

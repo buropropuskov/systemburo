@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"systemburo/internal/database"
 	"systemburo/internal/models"
 	"systemburo/internal/testutil"
 
@@ -146,107 +145,6 @@ func TestApplications_HistoryGolden_FlowShape(t *testing.T) {
 		}
 		prev = ts
 	}
-}
-
-// TestApplications_History_BackfillLegacyIntoAudit проверяет финал #870 (срез F.7):
-// читатель истории заявки переведён на audit_log-only, а до-cutover строки замороженной
-// application_history разово поднимаются в audit_log через BackfillAuditFromLegacy.
-// Плоские поля заявки (action_status/old/new/comment) и metadata сворачиваются в details
-// в форму applicationAuditDetails - то же, что пишет recorder, поэтому история байт-в-байт
-// совпадает с до-switch union. Это НЕ зеркало car/employee: схема плоских полей другая
-// (action_status вместо field_name, нет table_id).
-func TestApplications_History_BackfillLegacyIntoAudit(t *testing.T) {
-	e, db, cleanup := testutil.SetupTestApp(t)
-	defer cleanup()
-	testutil.CleanDB(t, db)
-	td := testutil.SeedTestData(t, db)
-
-	token := testutil.RegisterAndLogin(t, e, "appbf1", "pass123", 1, td.OrgID, td.CompanyID)
-	appID := createSimpleApplication(t, e, token, td.OrgID)
-	userID := getUserID(t, db, "appbf1")
-
-	// Новое действие через API -> уходит в audit_log (как после cutover 1.14).
-	// action_status + metadata-объект проверяют сборку гибридных полей заявки из details
-	// (которых нет у простых сущностей).
-	body := fmt.Sprintf(`{
-		"application_id": %d, "user_id": %d,
-		"action_type": "comment", "action_status": "custom",
-		"old_value": "before", "new_value": "after", "comment": "audit row",
-		"metadata": {"src": "audit"}
-	}`, appID, userID)
-	rec := testutil.POST(t, e, "/applications/history", body, testutil.AuthHeader(token))
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-
-	// Замороженные legacy-строки напрямую в application_history (накоплены до cutover,
-	// ещё не перенесены). Одна с автором (видима после переноса), одна с NULL user_id
-	// (невидима через INNER JOIN users - фиксируем поведение). metadata в jsonb-колонке
-	// проверяет, что backfill переносит её через details->'metadata', а не теряет.
-	require.NoError(t, db.Exec(`
-		INSERT INTO application_history (application_id, user_id, action_type, action_status, old_value, new_value, comment, metadata, created_at)
-		VALUES (?, ?, 'legacy_event', 'legacy_status', 'o', 'n', 'legacy comment', ?, ?)
-	`, appID, userID, `{"src":"legacy"}`, time.Now().Add(-time.Hour)).Error)
-	require.NoError(t, db.Exec(`
-		INSERT INTO application_history (application_id, user_id, action_type, created_at)
-		VALUES (?, NULL, 'orphan_event', ?)
-	`, appID, time.Now().Add(-2*time.Hour)).Error)
-
-	// До backfill читатель видит только audit_log -> legacy_event ещё невидим.
-	rec = testutil.GET(t, e, fmt.Sprintf("/applications/%d/history", appID), testutil.AuthHeader(token))
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	require.Nil(t, findHistByAction(testutil.ParseSlice(t, rec), "legacy_event"), "до backfill legacy невидим")
-
-	// CleanDB-Seed уже выставил гард-флаг (backfill прогонялся на пустой таблице) -
-	// снимаем, чтобы перенести только что вставленные legacy-строки.
-	require.NoError(t, db.Where("key = ?", "audit_backfilled:"+models.AuditEntityApplication).
-		Delete(&models.SystemSetting{}).Error)
-	require.NoError(t, database.BackfillAuditFromLegacy(db))
-
-	// Старая таблица не тронута backfill'ом - read-only бэкап.
-	var legacyCount int64
-	require.NoError(t, db.Table("application_history").
-		Where("application_id = ? AND action_type = ?", appID, "legacy_event").Count(&legacyCount).Error)
-	assert.Equal(t, int64(1), legacyCount, "application_history цела как бэкап")
-
-	rec = testutil.GET(t, e, fmt.Sprintf("/applications/%d/history", appID), testutil.AuthHeader(token))
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	hist := testutil.ParseSlice(t, rec)
-
-	// Новейшее сверху: audit-comment позже legacy (час назад).
-	assert.Equal(t, "comment", hist[0]["action_type"], "новейшее сверху")
-
-	// audit_log-строка (новое действие): action_status + metadata-объект собраны из details.
-	auditRow := findHistoryEntry(t, hist, "comment")
-	assert.Equal(t, "custom", auditRow["action_status"])
-	assert.Equal(t, "before", auditRow["old_value"])
-	assert.Equal(t, "after", auditRow["new_value"])
-	auditMeta, ok := auditRow["metadata"].(map[string]interface{})
-	require.True(t, ok, "metadata audit-строки - объект: %#v", auditRow["metadata"])
-	assert.Equal(t, "audit", auditMeta["src"])
-
-	// Перенесённая legacy-строка видна, плоские поля + metadata сохранены через backfill.
-	legacyRow := findHistoryEntry(t, hist, "legacy_event")
-	assert.Equal(t, "legacy_status", legacyRow["action_status"], "action_status перенесён")
-	assert.Equal(t, "o", legacyRow["old_value"])
-	assert.Equal(t, "n", legacyRow["new_value"])
-	assert.Equal(t, "legacy comment", legacyRow["comment"])
-	legacyMeta, ok := legacyRow["metadata"].(map[string]interface{})
-	require.True(t, ok, "legacy.metadata перенесена через details->'metadata'")
-	assert.Equal(t, "legacy", legacyMeta["src"])
-
-	// Строка с NULL user_id перенесена в audit_log, но в историю не попадает (INNER JOIN users).
-	assert.Nil(t, findHistByAction(hist, "orphan_event"), "NULL user_id не виден (INNER JOIN users)")
-
-	// Идемпотентность: повторный backfill (гард-флаг снова стоит) не дублирует legacy.
-	require.NoError(t, database.BackfillAuditFromLegacy(db))
-	rec = testutil.GET(t, e, fmt.Sprintf("/applications/%d/history", appID), testutil.AuthHeader(token))
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	var legacyEventCount int
-	for _, it := range testutil.ParseSlice(t, rec) {
-		if it["action_type"] == "legacy_event" {
-			legacyEventCount++
-		}
-	}
-	assert.Equal(t, 1, legacyEventCount, "повторный backfill не создаёт дублей legacy")
 }
 
 // TestApplications_WriteFlip_ReadAndWorkflowToAuditLog (#870): проверяет, что действия

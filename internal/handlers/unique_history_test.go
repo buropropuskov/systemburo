@@ -70,13 +70,7 @@ func TestUniqueEmployeeService_Update_RecordsChanges(t *testing.T) {
 	require.NotNil(t, resp)
 	assert.Equal(t, "Петров", *resp.LastName)
 
-	// После cutover (#870, срез 1.13c) запись идёт в audit_log[unique_employee],
-	// а замороженная unique_employees_history больше не растёт.
-	var legacyCount int64
-	require.NoError(t, db.Model(&models.UniqueEmployeeHistory{}).
-		Where("unique_employee_id = ?", emp.ID).Count(&legacyCount).Error)
-	assert.Equal(t, int64(0), legacyCount, "после cutover запись не идёт в unique_employees_history")
-
+	// После cutover (#870, срез 1.13c) запись идёт в audit_log[unique_employee].
 	// Должно быть ровно две записи — last_name и position.
 	var entries []models.AuditLog
 	require.NoError(t, db.Where("entity_type = ? AND entity_id = ?", models.AuditEntityUniqueEmployee, emp.ID).
@@ -209,13 +203,7 @@ func TestUniqueCarService_UpdateByNumber_RecordsChanges(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 
-	// После cutover (#870, срез 1.12d) запись идёт в audit_log[unique_car],
-	// а замороженная unique_cars_history больше не растёт.
-	var legacyCount int64
-	require.NoError(t, db.Model(&models.UniqueCarHistory{}).
-		Where("unique_car_id = ?", car.ID).Count(&legacyCount).Error)
-	assert.Equal(t, int64(0), legacyCount, "после cutover запись не идёт в unique_cars_history")
-
+	// После cutover (#870, срез 1.12d) запись идёт в audit_log[unique_car].
 	var entries []models.AuditLog
 	require.NoError(t, db.Where("entity_type = ? AND entity_id = ?", models.AuditEntityUniqueCar, car.ID).
 		Order("id").Find(&entries).Error)
