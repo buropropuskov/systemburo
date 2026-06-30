@@ -166,9 +166,10 @@
                   class="lk-button lk-button--danger ban-box__btn"
                   data-testid="ban-button"
                   :disabled="isSuper || banActionLoading"
+                  :title="isSuper ? 'Супер-администратора заблокировать нельзя' : ''"
                   @click="handleBan"
                 >
-                  {{ isSuper ? 'Нельзя заблокировать супер-админа' : 'Заблокировать' }}
+                  {{ isSuper ? 'Невозможно' : 'Заблокировать' }}
                 </button>
               </template>
             </div>

@@ -49,19 +49,49 @@ describe('UserHistoryModal — лейблы блокировки', () => {
 
     const item = wrapper.find('.history-item');
     expect(item.find('.action-text').text()).toBe('Заблокирован');
-    expect(item.find('.action-comment').text()).toBe('Причина: Нарушение режима доступа');
+    expect(item.find('.action-comment').text()).toBe('Причина: «Нарушение режима доступа»');
     expect(item.find('.timeline-dot').classes()).toContain('dot-deactivate');
   });
 
-  it('unbanned: "Разблокирован" без комментария, зелёный dot', async () => {
+  it('unbanned: срок блокировки + снятая причина, зелёный dot', async () => {
+    // banned_at снимок (08:00) до момента разбана created_at (10:00) = 2 часа.
     const wrapper = await mountWith([
-      entry({ id: 2, action_type: 'unbanned', details: null }),
+      entry({
+        id: 2,
+        action_type: 'unbanned',
+        details: { reason: 'Нарушение режима доступа', banned_at: '2026-05-01T08:00:00Z' },
+        created_at: '2026-05-01T10:00:00Z',
+      }),
+    ]);
+
+    const item = wrapper.find('.history-item');
+    expect(item.find('.action-text').text()).toBe('Разблокирован');
+    expect(item.find('.action-comment').text()).toBe('Был в блокировке: 2 ч., причина: «Нарушение режима доступа»');
+    expect(item.find('.timeline-dot').classes()).toContain('dot-activate');
+  });
+
+  it('unbanned: только срок, если причины блокировки не было', async () => {
+    const wrapper = await mountWith([
+      entry({
+        id: 5,
+        action_type: 'unbanned',
+        details: { banned_at: '2026-04-29T07:00:00Z' },
+        created_at: '2026-05-01T10:00:00Z',
+      }),
+    ]);
+
+    // 2026-04-29 07:00 -> 2026-05-01 10:00 = 2 дня 3 часа.
+    expect(wrapper.find('.action-comment').text()).toBe('Был в блокировке: 2 дн. 3 ч.');
+  });
+
+  it('unbanned без снимка блокировки: "Разблокирован" без комментария', async () => {
+    const wrapper = await mountWith([
+      entry({ id: 6, action_type: 'unbanned', details: null }),
     ]);
 
     const item = wrapper.find('.history-item');
     expect(item.find('.action-text').text()).toBe('Разблокирован');
     expect(item.find('.action-comment').exists()).toBe(false);
-    expect(item.find('.timeline-dot').classes()).toContain('dot-activate');
   });
 
   it('banned без причины: лейбл есть, комментарий не рендерится', async () => {
@@ -72,5 +102,13 @@ describe('UserHistoryModal — лейблы блокировки', () => {
     const item = wrapper.find('.history-item');
     expect(item.find('.action-text').text()).toBe('Заблокирован');
     expect(item.find('.action-comment').exists()).toBe(false);
+  });
+
+  it('formatBanDuration: минуты при сроке меньше часа, "меньше минуты" при нуле', async () => {
+    const wrapper = await mountWith([entry()]);
+    const vm = wrapper.vm;
+    expect(vm.formatBanDuration('2026-05-01T09:52:00Z', '2026-05-01T10:00:00Z')).toBe('8 мин.');
+    expect(vm.formatBanDuration('2026-05-01T10:00:00Z', '2026-05-01T10:00:30Z')).toBe('меньше минуты');
+    expect(vm.formatBanDuration('2026-05-01T10:00:00Z', '2026-05-01T09:00:00Z')).toBe('');
   });
 });
