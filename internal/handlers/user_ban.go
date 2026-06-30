@@ -43,7 +43,8 @@ func (h *UserBanHandler) Unban(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	if err := h.service.Unban(c.Request().Context(), targetID); err != nil {
+	actorID := GetUserID(c)
+	if err := h.service.Unban(c.Request().Context(), targetID, actorID); err != nil {
 		return err
 	}
 	return RespondSuccess(c, map[string]any{"unbanned": true})

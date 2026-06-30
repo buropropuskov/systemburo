@@ -178,7 +178,7 @@ func TestRequirePermissionV2_LogsBannedReason(t *testing.T) {
 func TestUserBanService_BanRevokesRefreshTokens(t *testing.T) {
 	_, db, _ := testutil.SetupTestApp(t)
 	resolver := services.NewPermissionResolver(db)
-	banSvc := services.NewUserBanService(db, resolver, nil)
+	banSvc := services.NewUserBanService(db, resolver, nil, services.NewAuditRecorder(db))
 
 	targetID, _, cleanup := setupMWUser(t, db, false, false)
 	defer cleanup()
@@ -216,7 +216,7 @@ func TestUserBanService_BanRevokesRefreshTokens(t *testing.T) {
 func TestUserBanService_CannotBanSelf(t *testing.T) {
 	_, db, _ := testutil.SetupTestApp(t)
 	resolver := services.NewPermissionResolver(db)
-	banSvc := services.NewUserBanService(db, resolver, nil)
+	banSvc := services.NewUserBanService(db, resolver, nil, services.NewAuditRecorder(db))
 
 	userID, _, cleanup := setupMWUser(t, db, true, false)
 	defer cleanup()
@@ -230,7 +230,7 @@ func TestUserBanService_CannotBanSelf(t *testing.T) {
 func TestUserBanService_CannotBanSuperAdmin(t *testing.T) {
 	_, db, _ := testutil.SetupTestApp(t)
 	resolver := services.NewPermissionResolver(db)
-	banSvc := services.NewUserBanService(db, resolver, nil)
+	banSvc := services.NewUserBanService(db, resolver, nil, services.NewAuditRecorder(db))
 
 	targetID, _, cleanup := setupMWUser(t, db, true, false)
 	defer cleanup()
@@ -338,7 +338,7 @@ func TestBanCheck_InvalidationAfterBanReflectsImmediately(t *testing.T) {
 	_, db, _ := testutil.SetupTestApp(t)
 	banCache := services.NewBanCheckService(db, time.Hour)
 	resolver := services.NewPermissionResolver(db)
-	banSvc := services.NewUserBanService(db, resolver, banCache)
+	banSvc := services.NewUserBanService(db, resolver, banCache, services.NewAuditRecorder(db))
 
 	targetID, _, cleanup := setupMWUser(t, db, false, false)
 	defer cleanup()
