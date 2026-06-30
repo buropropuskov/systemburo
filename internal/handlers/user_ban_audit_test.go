@@ -67,6 +67,15 @@ func TestUserBan_AuditWritesToUserHistory(t *testing.T) {
 	require.NotNil(t, unbanned, "разбан должен писать audit_log[user] action=unbanned")
 	require.NotNil(t, unbanned.ActorUserID, "у записи разбана должен быть актор")
 	assert.Equal(t, actorID, *unbanned.ActorUserID, "актор разбана = тот, кто разбанил")
+	// Разбан фиксирует снятую причину и момент начала блокировки -- по ним
+	// модалка истории показывает "был в блокировке <срок>, причина: ...".
+	var unbanDetails struct {
+		Reason   string `json:"reason"`
+		BannedAt string `json:"banned_at"`
+	}
+	require.NoError(t, json.Unmarshal(unbanned.Details, &unbanDetails))
+	assert.Equal(t, reason, unbanDetails.Reason, "разбан фиксирует снятую причину блокировки")
+	assert.NotEmpty(t, unbanDetails.BannedAt, "разбан фиксирует момент начала блокировки для расчёта срока")
 
 	recHist2 := testutil.GET(t, e, "/users/bantarget/history", h)
 	require.Equal(t, http.StatusOK, recHist2.Code, recHist2.Body.String())

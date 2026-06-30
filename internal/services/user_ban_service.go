@@ -88,6 +88,12 @@ func (s *UserBanService) Ban(ctx context.Context, targetUserID, actorUserID int,
 // юзеру нужно перелогиниться (это нормально, т.к. в момент бана сессия
 // прервалась).
 func (s *UserBanService) Unban(ctx context.Context, targetUserID, actorUserID int) error {
+	// Снимок текущей блокировки ДО очистки полей: нужен, чтобы записать в историю
+	// снятую причину и момент начала блокировки -- по ним модалка показывает
+	// "был в блокировке <срок>, причина: ...".
+	var prev models.User
+	hasPrev := s.db.WithContext(ctx).Select("ban_reason, banned_at").First(&prev, targetUserID).Error == nil
+
 	if err := s.db.WithContext(ctx).Model(&models.User{}).Where("id = ?", targetUserID).
 		Updates(map[string]any{
 			"is_banned":  false,
@@ -101,7 +107,20 @@ func (s *UserBanService) Unban(ctx context.Context, targetUserID, actorUserID in
 	if s.banCache != nil {
 		s.banCache.Invalidate(targetUserID)
 	}
-	// Разблокировка тоже в историю пользователя (кем/когда), причины тут нет.
-	s.recorder.Log(ctx, nil, models.AuditEntityUser, &targetUserID, models.UserActionUnbanned, &actorUserID, nil)
+	// Разблокировка в историю: кто/когда + снятая причина и начало блокировки.
+	details := map[string]any{}
+	if hasPrev {
+		if prev.BanReason != nil {
+			details["reason"] = *prev.BanReason
+		}
+		if prev.BannedAt != nil {
+			details["banned_at"] = prev.BannedAt.UTC().Format(time.RFC3339)
+		}
+	}
+	var d any
+	if len(details) > 0 {
+		d = details
+	}
+	s.recorder.Log(ctx, nil, models.AuditEntityUser, &targetUserID, models.UserActionUnbanned, &actorUserID, d)
 	return nil
 }

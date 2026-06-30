@@ -195,7 +195,11 @@ describe('UserAccessModal (#187 Фаза 3, две колонки)', () => {
     const wrapper = await mountModal({ ...USER, is_super_admin: true });
 
     expect(wrapper.find('[data-testid="admin-toggle"]').attributes('disabled')).toBeDefined();
-    expect(wrapper.find('[data-testid="ban-button"]').attributes('disabled')).toBeDefined();
+    const banBtn = wrapper.find('[data-testid="ban-button"]');
+    expect(banBtn.attributes('disabled')).toBeDefined();
+    // Короткая надпись, влезающая в кнопку; полный текст -- в title-тултипе.
+    expect(banBtn.text()).toBe('Невозможно');
+    expect(banBtn.attributes('title')).toBe('Супер-администратора заблокировать нельзя');
     expect(wrapper.vm.stateByKey['page.cars']).toMatchObject({ on: true, locked: true });
   });
 });

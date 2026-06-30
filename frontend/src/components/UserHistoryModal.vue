@@ -486,14 +486,43 @@ export default {
           if (this.isDiff(d)) return `${this.companyName(d.old)} → ${this.companyName(d.new)}`;
           return `Новая компания: ${this.companyName(d.company_id)}`;
         case 'banned':
-          return d.reason ? `Причина: ${d.reason}` : '';
+          return d.reason ? `Причина: «${d.reason}»` : '';
+        case 'unbanned': {
+          // Сколько пробыл в блокировке (от banned_at снимка до момента разбана)
+          // и по какой причине был заблокирован -- чтобы запись была информативной.
+          const dur = d.banned_at ? this.formatBanDuration(d.banned_at, item.created_at) : '';
+          if (dur && d.reason) return `Был в блокировке: ${dur}, причина: «${d.reason}»`;
+          if (dur) return `Был в блокировке: ${dur}`;
+          if (d.reason) return `Причина блокировки: «${d.reason}»`;
+          return '';
+        }
         case 'password_reset':
         case 'archived':
         case 'restored':
-        case 'unbanned':
         default:
           return '';
       }
+    },
+
+    /**
+     * Длительность блокировки человекочитаемо (до двух старших единиц):
+     * "2 дн. 3 ч.", "5 ч. 12 мин.", "8 мин.", "меньше минуты".
+     */
+    formatBanDuration(fromIso, toIso) {
+      const from = new Date(fromIso).getTime();
+      const to = new Date(toIso).getTime();
+      if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return '';
+      let mins = Math.floor((to - from) / 60000);
+      if (mins < 1) return 'меньше минуты';
+      const days = Math.floor(mins / 1440);
+      mins -= days * 1440;
+      const hours = Math.floor(mins / 60);
+      mins -= hours * 60;
+      const parts = [];
+      if (days) parts.push(`${days} дн.`);
+      if (hours) parts.push(`${hours} ч.`);
+      if (mins && !days) parts.push(`${mins} мин.`);
+      return parts.join(' ') || 'меньше минуты';
     },
 
     isDiff(v) {
