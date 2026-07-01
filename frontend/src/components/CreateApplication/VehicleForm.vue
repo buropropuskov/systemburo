@@ -715,9 +715,8 @@ export default {
                     if (orgRes.ok) {
                         const places = await orgRes.json();
                         if (Array.isArray(places) && places.length > 0) {
-                            const active = places.filter(p => p.status === 'active');
                             this.attachedUnloadingPlaces = places;
-                            this.selectedUnloadingPlaces = active.map(p => p.id);
+                            this.selectedUnloadingPlaces = this.activeAttachedIds(places);
                             if (this.selectedUnloadingPlaces.length > 0) {
                                 useDeletionsStore().notify({ prefix: 'Место разгрузки выбрано автоматически для вашей', bold: ' организации' });
                                 this.$emit('update:unload-places', [...this.selectedUnloadingPlaces]);
@@ -732,9 +731,8 @@ export default {
                     if (compRes.ok) {
                         const places = await compRes.json();
                         if (Array.isArray(places) && places.length > 0) {
-                            const active = places.filter(p => p.status === 'active');
                             this.attachedUnloadingPlaces = places;
-                            this.selectedUnloadingPlaces = active.map(p => p.id);
+                            this.selectedUnloadingPlaces = this.activeAttachedIds(places);
                             if (this.selectedUnloadingPlaces.length > 0) {
                                 useDeletionsStore().notify({ prefix: 'Место разгрузки выбрано автоматически для вашей', bold: ' компании' });
                                 this.$emit('update:unload-places', [...this.selectedUnloadingPlaces]);
@@ -745,6 +743,19 @@ export default {
             } catch (err) {
                 console.error('Ошибка при авто-выделении мест разгрузки:', err);
             }
+        },
+
+        // Из привязанных к организации/компании мест берём id тех, что реально активны.
+        // org/company-эндпоинт отдаёт места без поля status (SELECT только id/name/description),
+        // поэтому статус сверяем с авторитетным allUnloadingPlaces (по нему же рендерится грид) -
+        // иначе фильтр `place.status === 'active'` по ответу без status давал пусто и автовыбор не
+        // срабатывал (в отличие от людей, где нормализация дефолтит status в 'active').
+        activeAttachedIds(attachedPlaces) {
+            const ids = attachedPlaces.map(place => place.id);
+            // Общий список ещё не подгружен (гонка позднего organizationId) - берём все
+            // привязанные: бэк уже вернул только is_active, статус уточнится при рендере.
+            if (this.allUnloadingPlaces.length === 0) return ids;
+            return ids.filter(id => this.allUnloadingPlaces.some(place => place.id === id && place.status === 'active'));
         },
 
         async loadUnloadingPlaces() {
@@ -778,8 +789,7 @@ export default {
 
                         if (orgPlacesResponse.ok) {
                             this.attachedUnloadingPlaces = await orgPlacesResponse.json();
-                            const activeAttachedPlaces = this.attachedUnloadingPlaces.filter(place => place.status === 'active');
-                            this.selectedUnloadingPlaces = activeAttachedPlaces.map(place => place.id);
+                            this.selectedUnloadingPlaces = this.activeAttachedIds(this.attachedUnloadingPlaces);
                             if (this.selectedUnloadingPlaces.length > 0) {
                                 useDeletionsStore().notify({ prefix: 'Место разгрузки выбрано автоматически для вашей', bold: ' организации' });
                             }
@@ -792,8 +802,7 @@ export default {
 
                         if (companyPlacesResponse.ok) {
                             this.attachedUnloadingPlaces = await companyPlacesResponse.json();
-                            const activeAttachedPlaces = this.attachedUnloadingPlaces.filter(place => place.status === 'active');
-                            this.selectedUnloadingPlaces = activeAttachedPlaces.map(place => place.id);
+                            this.selectedUnloadingPlaces = this.activeAttachedIds(this.attachedUnloadingPlaces);
                             if (this.selectedUnloadingPlaces.length > 0) {
                                 useDeletionsStore().notify({ prefix: 'Место разгрузки выбрано автоматически для вашей', bold: ' компании' });
                             }
