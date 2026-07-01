@@ -5,11 +5,22 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"systemburo/internal/models"
 
 	"github.com/labstack/echo/v4"
 )
+
+// ForwardMessageItem - одно сопроводительное сообщение при пересылке заявки (#967).
+// Собирается из сводных записей forwarded в audit_log, у которых непустой comment.
+type ForwardMessageItem struct {
+	ID         int       `json:"id"`
+	AuthorID   int       `json:"author_id"`
+	AuthorName string    `json:"author_name"`
+	Message    string    `json:"message"`
+	CreatedAt  time.Time `json:"created_at"`
+}
 
 // applicationAuditDetails - форма details jsonb для записей application в audit_log
 // (#870, срез 1.14). Ключи ОБЯЗАНЫ совпадать с тем, что извлекает GetApplicationHistory
@@ -90,6 +101,39 @@ func (s *applicationService) GetApplicationHistory(ctx context.Context, applicat
 	if err != nil {
 		slog.Error("Ошибка получения истории заявки", "application_id", applicationID, "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching application history")
+	}
+
+	return items, nil
+}
+
+// GetForwardMessages возвращает сопроводительные сообщения при пересылке заявки (#967),
+// новые сверху. Источник - сводные записи forwarded в audit_log с непустым comment;
+// actor_user_id - пересылающий (автор сообщения), JOIN users даёт его ФИО (как в
+// GetApplicationHistory). Пустые/отсутствующие comment отсекаются на уровне SQL, чтобы
+// пересылки без текста не попадали в блок.
+func (s *applicationService) GetForwardMessages(ctx context.Context, applicationID int) ([]ForwardMessageItem, error) {
+	const authorName = `CONCAT(COALESCE(u.last_name, ''),
+		CASE WHEN u.first_name IS NOT NULL AND u.first_name != '' THEN ' ' || u.first_name ELSE '' END,
+		CASE WHEN u.middle_name IS NOT NULL AND u.middle_name != '' THEN ' ' || u.middle_name ELSE '' END
+	)`
+	sql := `
+		SELECT
+			a.id,
+			a.actor_user_id AS author_id,
+			` + authorName + ` AS author_name,
+			a.details->>'comment' AS message,
+			a.created_at
+		FROM audit_log a
+		JOIN users u ON a.actor_user_id = u.id
+		WHERE a.entity_type = ? AND a.entity_id = ? AND a.action = 'forwarded'
+			AND COALESCE(a.details->>'comment', '') <> ''
+		ORDER BY a.created_at DESC, a.id DESC
+	`
+
+	items := make([]ForwardMessageItem, 0)
+	if err := s.db.WithContext(ctx).Raw(sql, models.AuditEntityApplication, applicationID).Scan(&items).Error; err != nil {
+		slog.Error("Ошибка получения сообщений пересылки", "application_id", applicationID, "error", err)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching forward messages")
 	}
 
 	return items, nil

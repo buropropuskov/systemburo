@@ -85,6 +85,11 @@ export async function getApplicationHistory(id) {
   return res.json();
 }
 
+export async function getForwardMessages(id) {
+  const res = await apiRequest(`/applications/${id}/forward-messages`);
+  return res.json();
+}
+
 export async function getApplicationDetails(id) {
   const res = await apiRequest(`/applications/${id}/details`);
   return res.json();

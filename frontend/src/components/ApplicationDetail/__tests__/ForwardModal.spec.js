@@ -116,3 +116,44 @@ describe('ForwardModal — выбор вложений (#680, срез fe-select
     expect(wrapper.vm.selectedAttachmentIds).toEqual([1, 2, 3]);
   });
 });
+
+describe('ForwardModal — сопроводительное сообщение (#967)', () => {
+  it('send эмитит введённое сообщение (обрезанное по краям)', async () => {
+    const wrapper = await mountOpened({ attachments: [] });
+    wrapper.vm.addUser(USER);
+    await wrapper.vm.$nextTick();
+    await wrapper.find('[data-testid="forward-modal-message"]').setValue('  Прошу согласовать  ');
+
+    await wrapper.find('[data-testid="forward-modal-button-send"]').trigger('click');
+
+    const events = wrapper.emitted('send');
+    expect(events).toHaveLength(1);
+    expect(events[0][0].message).toBe('Прошу согласовать');
+  });
+
+  it('без текста сообщение в payload пустое', async () => {
+    const wrapper = await mountOpened({ attachments: [] });
+    wrapper.vm.addUser(USER);
+    await wrapper.vm.$nextTick();
+
+    await wrapper.find('[data-testid="forward-modal-button-send"]').trigger('click');
+
+    expect(wrapper.emitted('send')[0][0].message).toBe('');
+  });
+
+  it('показывает предупреждение о видимости бюро пропусков', async () => {
+    const wrapper = await mountOpened();
+    const warning = wrapper.find('[data-testid="forward-modal-warning"]');
+    expect(warning.exists()).toBe(true);
+    expect(warning.text()).toContain('бюро пропусков');
+  });
+
+  it('повторное открытие сбрасывает сообщение', async () => {
+    const wrapper = await mountOpened({ attachments: [] });
+    await wrapper.find('[data-testid="forward-modal-message"]').setValue('черновик');
+    expect(wrapper.vm.message).toBe('черновик');
+    await wrapper.setProps({ show: false });
+    await wrapper.setProps({ show: true });
+    expect(wrapper.vm.message).toBe('');
+  });
+});

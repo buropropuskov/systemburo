@@ -137,6 +137,9 @@ type ApplicationService interface {
 	// GetApplicationHistory возвращает историю заявки.
 	GetApplicationHistory(ctx context.Context, applicationID int) ([]ApplicationHistoryItem, error)
 
+	// GetForwardMessages возвращает сопроводительные сообщения при пересылке заявки (#967).
+	GetForwardMessages(ctx context.Context, applicationID int) ([]ForwardMessageItem, error)
+
 	// AddHistoryEntry добавляет запись в историю заявки.
 	AddHistoryEntry(ctx context.Context, req AddHistoryEntryRequest) error
 
@@ -311,9 +314,12 @@ type ApplicationUpdateRequest struct {
 // AttachmentIDs - общий для всех получателей список вложений (#680): пустой -> получатели
 // видят все вложения заявки; непустой -> в forward_attachments пишется строка на каждого
 // получателя x каждое вложение, и при чтении получатель видит только перечисленные.
+// Message - необязательное сопроводительное сообщение (#967): попадает в comment сводной
+// записи forwarded, видно всем получателям и принимающим. Пустое после trim -> не пишется.
 type ForwardApplicationRequest struct {
 	Users         []ForwardUser `json:"users"`
 	AttachmentIDs []int         `json:"attachment_ids"`
+	Message       string        `json:"message" validate:"max=2000"`
 }
 
 // ForwardUser пользователь для пересылки. required_approval и can_view не могут быть оба true.

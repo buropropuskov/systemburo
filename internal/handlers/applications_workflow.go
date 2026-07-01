@@ -43,6 +43,37 @@ func (h *ApplicationHandler) ForwardApplication(c echo.Context) error {
 	return RespondMessage(c, "Application forwarded successfully")
 }
 
+// GetForwardMessages godoc
+// @Summary      Сопроводительные сообщения при пересылке
+// @Description  Возвращает сообщения, приложенные при пересылке заявки (#967), новые сверху. Видно всем получателям заявки.
+// @Tags         applications
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID заявки"
+// @Success      200 {array}  services.ForwardMessageItem
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /applications/{id}/forward-messages [get]
+func (h *ApplicationHandler) GetForwardMessages(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
+	}
+
+	username := c.Get("username").(string)
+	if !h.service.CanAccessApplication(c.Request().Context(), id, username, IsSuperAdmin(c)) {
+		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
+	}
+
+	messages, err := h.service.GetForwardMessages(c.Request().Context(), id)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, messages)
+}
+
 // ApproveApplicationByUser godoc
 // @Summary      Согласование заявки пользователем
 // @Description  Пользователь голосует за согласование или отказ заявки.
