@@ -64,12 +64,15 @@
             @comment-clear="clearCommentFromLocalStorage"
           >
             <template #user-actions>
-              <button
-                class="duplicate-btn"
-                @click="duplicateApplication"
-              >
-                Продублировать
-              </button>
+              <BaseDropdown
+                class="duplicate-dropdown"
+                :options="duplicatePresets"
+                :model-value="null"
+                label-key="label"
+                value-key="key"
+                placeholder="Продублировать"
+                @update:model-value="handleDuplicatePreset"
+              />
               <button
                 v-if="canWithdraw"
                 class="withdraw-btn"
@@ -415,6 +418,7 @@ import BlacklistOverrideModal from './BlacklistOverrideModal.vue'
 import VehicleDetailsModal from '../CreateApplication/VehicleDetailsModal.vue'
 import EmployeeDetailsModal from '../CreateApplication/EmployeeDetailsModal.vue'
 import Badge from '@/components/ui/Badge.vue'
+import BaseDropdown from '@/components/ui/BaseDropdown.vue'
 import { sanitizeHtml } from '@/utils/sanitize'
 import ApplicationMessageModal from './ApplicationMessageModal.vue'
 
@@ -431,6 +435,7 @@ export default {
         VehicleDetailsModal,
         EmployeeDetailsModal,
         Badge,
+        BaseDropdown,
         ApplicationMessageModal
     },
     props: {
@@ -472,6 +477,13 @@ export default {
             processingApplication: false,
             loadingAttachmentDetails: false,
             actionsReady: false,
+            // Пресеты срока для дропдауна "Продублировать": проставляют дату действия
+            // во все вложения дубля. 'other' - дублирует без даты (пользователь задаёт сам).
+            duplicatePresets: [
+                { key: 'nextMonth', label: 'На следующий месяц' },
+                { key: 'tomorrow', label: 'На завтра' },
+                { key: 'other', label: 'Другой срок' }
+            ],
             isLeftColumnCollapsed: false,
             showForwardModal: false,
             isForwarding: false,
@@ -869,7 +881,7 @@ export default {
             }
         },
 
-        async duplicateApplication() {
+        async duplicateApplication(preset = 'other') {
             try {
                 const fetchResults = await Promise.all(
                     this.attachments.map(attachment => {
@@ -897,6 +909,9 @@ export default {
                 const vehiclesByAttachment = {};
                 const employeesByAttachment = {};
                 const itemsByAttachment = {};
+                const attachmentDatesByAttachment = {};
+                // Дата действия по выбранному пресету - одна на все вложения ('other' -> null, без даты).
+                const presetDate = this.buildPresetDate(preset);
 
                 for (const { attachment, data } of fetchResults) {
                     // local_id как в BlankSelector.addAttachment — числовой ключ без id существующего вложения
@@ -916,6 +931,19 @@ export default {
                         created_at: new Date().toISOString(),
                         is_active: true,
                     });
+
+                    // Пресет проставляет дату действия во все вложения; время копируем из
+                    // исходного вложения (обрезаем секунды: "12:00:00" -> "12:00").
+                    if (presetDate) {
+                        attachmentDatesByAttachment[localId] = {
+                            ...presetDate,
+                            startTime: (attachment.entry_time_from || '').slice(0, 5),
+                            endTime: (attachment.entry_time_to || '').slice(0, 5),
+                            roofAccess: false,
+                            freeParking: false,
+                            errors: {},
+                        };
+                    }
 
                     if (attachment.attachment_type === 'cars') {
                         vehiclesByAttachment[localId] = data.map((car, idx) => ({
@@ -960,8 +988,8 @@ export default {
                     vehiclesByAttachment,
                     employeesByAttachment,
                     itemsByAttachment,
-                    // Даты не копируем — пользователь выберет новый период
-                    attachmentDatesByAttachment: {},
+                    // Пресет проставил дату действия ('other' -> пусто, пользователь задаёт сам).
+                    attachmentDatesByAttachment,
                     customFieldsByAttachment: {},
                     consentGiven: false,
                     vehicleIdCounter: 1,
@@ -975,6 +1003,31 @@ export default {
                 console.error('Ошибка при дублировании заявки:', error);
                 useDeletionsStore().notify({ prefix: 'Не удалось продублировать заявку: ', bold: 'ошибка', type: 'error' });
             }
+        },
+
+        // Дропдаун "Продублировать": ключ пресета -> дублирование с проставленной датой.
+        handleDuplicatePreset(preset) {
+            this.duplicateApplication(preset);
+        },
+
+        // Дата действия для пресета срока (формат дд.мм.гггг, как ждёт форма заявки).
+        // tomorrow - один день (завтра); nextMonth - весь следующий календарный месяц
+        // (как пресет nextMonth в DateFilter); other/иное - null (дублируем без даты).
+        buildPresetDate(preset) {
+            const pad = n => String(n).padStart(2, '0');
+            const fmt = d => `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
+            const now = new Date();
+            if (preset === 'tomorrow') {
+                const t = new Date(now);
+                t.setDate(now.getDate() + 1);
+                return { isOneDay: true, singleDate: fmt(t), startDate: '', endDate: '' };
+            }
+            if (preset === 'nextMonth') {
+                const start = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+                const end = new Date(now.getFullYear(), now.getMonth() + 2, 0);
+                return { isOneDay: false, singleDate: '', startDate: fmt(start), endDate: fmt(end) };
+            }
+            return null;
         },
 
         async withdrawApplication() {
@@ -1737,22 +1790,39 @@ export default {
     flex-shrink: 0;
 }
 
-.duplicate-btn {
-    padding: 6px 24px;
-    border: none;
-    border-radius: 50px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    min-width: 140px;
-    border: 1px solid #e6e6e6;
-    background: #4F5BDF;
-    color: white;
+/* Дропдаун "Продублировать": перекрашиваем триггер BaseDropdown в синюю primary-кнопку
+   (как была прежняя .duplicate-btn), меню остаётся штатным белым. */
+.duplicate-dropdown {
+    min-width: 160px;
 }
 
-.duplicate-btn:hover {
+/* Меню шире кнопки, чтобы длинные пункты ("На следующий месяц") не обрезались. */
+.duplicate-dropdown :deep(.base-dropdown__menu) {
+    width: max-content;
+    min-width: 100%;
+}
+
+.duplicate-dropdown :deep(.base-dropdown__button) {
+    min-height: 34px;
+    justify-content: center;
+    gap: 8px;
+    border-color: #4F5BDF;
+    background: #4F5BDF;
+}
+
+.duplicate-dropdown :deep(.base-dropdown__button:hover:not(:disabled)) {
+    border-color: #3a45c0;
     background: #3a45c0;
+}
+
+.duplicate-dropdown :deep(.base-dropdown__text),
+.duplicate-dropdown :deep(.base-dropdown__text--placeholder) {
+    color: #fff;
+    font-weight: 600;
+}
+
+.duplicate-dropdown :deep(.base-dropdown__arrow) {
+    color: #fff;
 }
 
 .withdraw-btn {

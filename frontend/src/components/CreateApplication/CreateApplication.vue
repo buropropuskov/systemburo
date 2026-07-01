@@ -2242,10 +2242,13 @@ export default {
                     this.itemIdCounter = parsedData.itemIdCounter || 1;
 
                     const hasAttachments = this.attachments.length > 0;
-                    
+
                     if (!hasAttachments) {
                         this.message = '';
                         this.consentGiven = false;
+                    } else {
+                        // Открываем первое вложение сверху, чтобы форма дубля не осталась пустой (#952).
+                        this.selectedAttachment = this.attachments[0];
                     }
                 }
             } catch (error) {

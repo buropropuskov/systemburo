@@ -56,7 +56,7 @@ async function makeResponsible(w) {
 
 const forward = w => w.find('[data-testid="app-detail-button-forward"]');
 const actionBar = w => w.find('.action-bar-stub');
-const duplicate = w => w.find('.duplicate-btn');
+const duplicate = w => w.find('.duplicate-dropdown');
 const history = w => w.find('.history-button-section');
 const comment = w => w.find('.comment-action-section');
 
