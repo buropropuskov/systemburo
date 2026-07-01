@@ -1,57 +1,64 @@
 class AdminPermissionGroupsPage {
   constructor(page) {
     this.page = page;
-    this.title = page.getByRole('heading', { name: 'Группы прав' });
-    this.createButton = page.getByRole('button', { name: '+ Создать группу' });
-    this.cards = page.locator('.permission-groups .cards .card');
-    this.emptyState = page.locator('.permission-groups .empty');
-    this.loadingIndicator = page.locator('.permission-groups .loading');
+    this.title = page.getByRole('heading', { name: 'Группы прав доступа' });
+    this.createButton = page.getByTestId('group-add-btn');
+    // Master-detail (эталон TableConstructor): слева строки-список, справа детали.
+    this.cards = page.getByTestId('group-row');
+    this.details = page.getByTestId('group-details');
+    this.noSelection = page.locator('.no-selection-message');
+    this.emptyState = page.locator('.no-results');
 
-    // Модалка имеет класс .rename-modal в AdminPermissionGroups.vue,
-    // h3 - "Новая группа прав" (create) или "Имя и описание" (edit).
-    this.renameModal = page.locator('.rename-modal');
-    this.renameName = this.renameModal.getByRole('textbox', { name: 'Название' });
-    this.renameDescription = this.renameModal.getByRole('textbox', { name: /Описание/ });
-    // Кнопка submit зависит от режима: create → "Создать и редактировать ключи",
-    // edit → "Сохранить".
-    this.renameSubmitCreate = this.renameModal.getByRole('button', { name: /Создать/ });
-    this.renameSubmitEdit = this.renameModal.getByRole('button', { name: 'Сохранить' });
-    this.renameCancel = this.renameModal.getByRole('button', { name: 'Отмена' });
+    // Модалка создания/копирования группы (Teleport, radius 30px).
+    this.renameModal = page.getByTestId('group-modal');
+    this.renameName = page.getByTestId('group-input-name');
+    this.renameDescription = page.getByTestId('group-input-description');
+    this.renameSubmitCreate = page.getByTestId('group-modal-save');
+    this.renameCancel = page.getByTestId('group-modal-cancel');
+    this.copyButton = page.getByTestId('group-copy');
 
-    // GroupPermissionsModal - тумблер-дерево прав (стиль карточки прав пользователя).
-    // Каждое право - строка с data-key и тумблером .tgl (aria-pressed = вкл/выкл).
+    // Inline-редактирование выбранной группы в панели деталей.
+    this.detailName = page.getByTestId('group-detail-name');
+    this.detailDescription = page.getByTestId('group-detail-description');
+    this.saveDetails = page.getByTestId('group-save');
+    this.editPermsButton = page.getByTestId('group-edit-perms');
+    this.deleteButton = page.getByTestId('group-delete');
+
+    // GroupPermissionsModal - тумблер-дерево прав (data-key + .tgl, aria-pressed).
     this.treeModal = page.getByTestId('group-permissions-modal');
     this.treeSearch = page.getByTestId('group-permissions-search');
     this.treeSave = page.getByTestId('group-permissions-save');
     this.treeCancel = page.getByTestId('group-permissions-cancel');
   }
 
-  /**
-   * Тумблер права по ключу (например 'page.cars'). Клик переключает право.
-   */
+  /** Тумблер права по ключу (например 'page.cars'). Клик переключает право. */
   treeKey(key) {
     return this.treeModal.locator(`[data-key="${key}"] .tgl`);
   }
 
-  /**
-   * Совместимость со старым деревом: в тумблер-дереве категории всегда раскрыты,
-   * сворачивания нет -- ничего не делаем.
-   */
+  /** Совместимость: тумблер-дерево не сворачивает категории. */
   async expandGroup() {
-    /* no-op: тумблер-дерево не сворачивает категории */
+    /* no-op */
   }
 
   async goto() {
     await this.page.goto('/admin/permission-groups');
     await this.title.waitFor({ state: 'visible' });
-    // Дожидаемся завершения загрузки списка (спиннер исчез). Без этого assert
-    // карточки упирается в 5с-таймаут expect, пока под нагрузкой CI ещё идёт
-    // GET /permission-groups - источник флака shard 4 (#413/#437).
-    await this.loadingIndicator.waitFor({ state: 'hidden' });
+    // Дожидаемся отрисовки списка (строка или пустое состояние), чтобы assert
+    // по строке не упирался в таймаут, пока идёт GET /permission-groups.
+    await this.page.locator('[data-testid="group-row"], .no-results').first()
+      .waitFor({ state: 'visible' });
   }
 
+  /** Строка списка по имени группы. */
   card(name) {
     return this.cards.filter({ hasText: name });
+  }
+
+  /** Выбрать группу кликом по строке -> открывается панель деталей. */
+  async select(name) {
+    await this.card(name).first().click();
+    await this.details.waitFor({ state: 'visible' });
   }
 
   async openCreate() {
@@ -65,8 +72,9 @@ class AdminPermissionGroupsPage {
     if (description) await this.renameDescription.fill(description);
     await this.renameSubmitCreate.click();
     await this.renameModal.waitFor({ state: 'hidden' });
-    // После клика "Создать и редактировать ключи" открывается treeModal.
-    // Закрываем его (cancel), нам нужна только сама группа.
+    // После создания панель деталей авто-открывает редактор прав (openPermissions) -
+    // он нам не нужен, закрываем.
+    await this.treeModal.waitFor({ state: 'visible', timeout: 4000 }).catch(() => {});
     if (await this.treeModal.isVisible().catch(() => false)) {
       await this.treeCancel.click().catch(() => {});
       await this.treeModal.waitFor({ state: 'hidden' }).catch(() => {});
@@ -77,17 +85,17 @@ class AdminPermissionGroupsPage {
     await this.treeKey(key).click();
   }
 
-  /**
-   * "Редактировать" в карточке группы открывает редактор прав (GroupPermissionsModal)
-   * с тумблер-деревом. Метод ждёт появления модалки.
-   */
+  /** Выбрать группу и открыть редактор прав (GroupPermissionsModal). */
   async clickEditTree(name) {
-    await this.card(name).getByRole('button', { name: 'Редактировать' }).click();
+    await this.select(name);
+    await this.editPermsButton.click();
     await this.treeModal.waitFor({ state: 'visible' });
   }
 
+  /** Выбрать группу и нажать «Удалить» (откроется ConfirmationModal). */
   async clickDelete(name) {
-    await this.card(name).getByRole('button', { name: 'Удалить' }).click();
+    await this.select(name);
+    await this.deleteButton.click();
   }
 }
 
