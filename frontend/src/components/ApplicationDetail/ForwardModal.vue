@@ -193,6 +193,36 @@
           Выберите хотя бы одно вложение для пересылки
         </p>
       </div>
+
+      <FormField
+        label="Сопроводительное сообщение"
+        class="forward-message-field"
+      >
+        <div class="forward-message-wrapper">
+          <textarea
+            v-model="message"
+            class="lk-textarea forward-message-textarea"
+            data-testid="forward-modal-message"
+            :maxlength="messageMaxLength"
+            rows="3"
+            placeholder="Например: Прошу дополнительно согласовать заявку с вами"
+          />
+          <div
+            class="forward-message-counter"
+            :class="{ 'forward-message-counter--warning': messageNearLimit }"
+          >
+            {{ message.length }}/{{ messageMaxLength }}
+          </div>
+        </div>
+      </FormField>
+
+      <div
+        class="forward-message-warning"
+        data-testid="forward-modal-warning"
+      >
+        <span class="forward-message-warning-icon">⚠</span>
+        <span>Ваше сообщение увидит и бюро пропусков (принимающие), а не только выбранные получатели.</span>
+      </div>
     </div>
 
     <template #actions>
@@ -219,10 +249,11 @@
 
 <script>
 import BaseModal from '@/components/ui/BaseModal.vue'
+import FormField from '@/components/ui/FormField.vue'
 
 export default {
     name: 'ForwardModal',
-    components: { BaseModal },
+    components: { BaseModal, FormField },
     props: {
         show: {
             type: Boolean,
@@ -262,7 +293,9 @@ export default {
             searchResults: [],
             showDropdown: false,
             selectedUsers: [], // Каждый пользователь будет иметь поля: requires_approval, required_approval
-            selectedAttachmentIds: [] // ID вложений для пересылки; по умолчанию выбраны все
+            selectedAttachmentIds: [], // ID вложений для пересылки; по умолчанию выбраны все
+            message: '', // Сопроводительное сообщение при пересылке (#967), необязательное
+            messageMaxLength: 2000
         }
     },
     computed: {
@@ -340,6 +373,11 @@ export default {
                 return false;
             }
             return true;
+        },
+
+        // Счётчик подсвечивается у порога длины (последние 100 символов).
+        messageNearLimit() {
+            return this.message.length >= this.messageMaxLength - 100;
         }
     },
     watch: {
@@ -433,7 +471,8 @@ export default {
 
             this.$emit('send', {
                 users: usersToSend,
-                attachment_ids: [...this.selectedAttachmentIds]
+                attachment_ids: [...this.selectedAttachmentIds],
+                message: this.message.trim()
             });
         },
 
@@ -441,6 +480,7 @@ export default {
             this.selectedUsers = [];
             this.searchQuery = '';
             this.showDropdown = false;
+            this.message = '';
             // По умолчанию пересылаем все вложения (старое поведение), пользователь сужает.
             this.selectedAttachmentIds = this.attachments.map(a => a.id);
         }
@@ -816,6 +856,52 @@ export default {
 .forward-users-list-container::-webkit-scrollbar-thumb:hover,
 .forward-attachments-list::-webkit-scrollbar-thumb:hover {
     background: #a8a8a8;
+}
+
+.forward-message-field {
+    margin-top: 20px;
+    margin-bottom: 12px;
+}
+
+.forward-message-wrapper {
+    position: relative;
+}
+
+.forward-message-textarea {
+    min-height: 80px;
+    padding-bottom: 26px;
+}
+
+.forward-message-counter {
+    position: absolute;
+    right: 12px;
+    bottom: 8px;
+    font-size: 12px;
+    color: var(--color-text-muted);
+    pointer-events: none;
+}
+
+.forward-message-counter--warning {
+    color: var(--color-danger);
+}
+
+.forward-message-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 12px;
+    background: #fff8e6;
+    border: 1px solid var(--color-warning);
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--color-text);
+}
+
+.forward-message-warning-icon {
+    flex-shrink: 0;
+    font-size: 14px;
+    line-height: 1.4;
 }
 </style>
 

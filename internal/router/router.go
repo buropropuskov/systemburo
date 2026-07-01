@@ -494,6 +494,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	apg.GET("/:id/blank", attachmentBlanks.Download) // #183 - скачать заполненный .xlsx
 	apg.POST("/:id/update-items-status", app.UpdateApplicationItemsStatus)
 	apg.POST("/:id/forward", app.ForwardApplication)
+	apg.GET("/:id/forward-messages", app.GetForwardMessages) // #967 - сообщения при пересылке
 	apg.POST("/:id/approve", app.ApproveApplicationByUser)
 	apg.POST("/:id/blacklist-overrides", app.OverrideBlacklistFlag)     // #481 - "всё равно пропустить"
 	apg.DELETE("/:id/blacklist-overrides", app.DeleteBlacklistOverride) // #481 - отмена подтверждения (срез C)

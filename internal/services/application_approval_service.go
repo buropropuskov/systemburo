@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"systemburo/internal/models"
@@ -195,8 +196,13 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 			"whole":        len(attNames) == 0,
 			"attachments":  attNames,
 		})
-		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "forwarded", &user.ID,
-			applicationAuditDetails{Metadata: meta})
+		// Сопроводительное сообщение (#967) кладём в comment той же сводной записи.
+		// Пустое после trim -> comment не пишем: чтение forward-messages его отсекает.
+		details := applicationAuditDetails{Metadata: meta}
+		if msg := strings.TrimSpace(req.Message); msg != "" {
+			details.Comment = &msg
+		}
+		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "forwarded", &user.ID, details)
 	}
 
 	// Обновляем confirmation если были добавлены ответственные

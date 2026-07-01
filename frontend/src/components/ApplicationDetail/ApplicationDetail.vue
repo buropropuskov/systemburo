@@ -144,6 +144,12 @@
             @close="showMessageModal = false"
           />
 
+          <!-- Сообщения при пересылке (#967), видны всем получателям -->
+          <ForwardMessages
+            ref="forwardMessagesComponent"
+            :application-id="applicationData.id"
+          />
+
           <!-- Детали выбранного вложения -->
           <ApplicationAttachmentDetail
             v-if="selectedAttachment"
@@ -412,6 +418,7 @@ import ApplicationAttachments from './ApplicationAttachments.vue'
 import ApplicationConfirmation from './ApplicationConfirmation.vue'
 import ApplicationHistory from './ApplicationHistory.vue'
 import ForwardModal from './ForwardModal.vue'
+import ForwardMessages from './ForwardMessages.vue'
 import ApplicationActionBar from './ApplicationActionBar.vue'
 import ApplicationAttachmentDetail from './ApplicationAttachmentDetail.vue'
 import BlacklistOverrideModal from './BlacklistOverrideModal.vue'
@@ -429,6 +436,7 @@ export default {
         ApplicationConfirmation,
         ApplicationHistory,
         ForwardModal,
+        ForwardMessages,
         ApplicationActionBar,
         ApplicationAttachmentDetail,
         BlacklistOverrideModal,
@@ -843,7 +851,7 @@ export default {
             this.showForwardModal = false;
         },
 
-        async sendForwardRequest({ users = [], attachment_ids = [] } = {}) {
+        async sendForwardRequest({ users = [], attachment_ids = [], message = '' } = {}) {
             if (users.length === 0) return;
 
             this.isForwarding = true;
@@ -858,22 +866,27 @@ export default {
                     method: "POST",
                     body: JSON.stringify({
                         users: usersToSend,
-                        attachment_ids
+                        attachment_ids,
+                        message
                     })
                 });
 
                 if (response.ok) {
                     useDeletionsStore().notify({ bold: 'Заявка переслана', type: 'success' });
                     this.closeForwardModal();
-                    
+
                     await this.loadApplicationDetails(this.applicationData);
-                    
+
                     if (this.$refs.historyComponent) {
                         this.$refs.historyComponent.loadHistory();
                     }
-                    
+
+                    if (this.$refs.forwardMessagesComponent) {
+                        this.$refs.forwardMessagesComponent.load();
+                    }
+
                     this.$emit('application-changed', this.applicationData);
-                    
+
                 } else {
                     const errorText = await response.text();
                     useDeletionsStore().notify({ prefix: 'Не удалось переслать: ', bold: errorText || 'ошибка', type: 'error' });
