@@ -517,8 +517,10 @@ var baseRoleGrants = []string{
 	"guide.user",
 	"detail.open_application",
 	"detail.documents",
-	"detail.full_history",
-	"detail.entry_exit_history",
+	// detail.full_history и detail.entry_exit_history НЕ выдаём базовой роли: рядовой
+	// пользователь не видит "Полную историю" и "Историю проходов" даже у своих
+	// сущностей (админ/супер видят по флагу adminAll/allowAll). Снятие со старых БД -
+	// revokeBaseRoleHistoryGrants.
 }
 
 // seedBaseRole создаёт неудаляемую базовую роль "Пользователь" и её дефолтные
@@ -547,6 +549,32 @@ func seedBaseRole(db *gorm.DB) error {
 			FirstOrCreate(&grant).Error; err != nil {
 			return fmt.Errorf("failed to seed base role grant %s: %w", key, err)
 		}
+	}
+	return nil
+}
+
+// revokeBaseRoleHistoryGrants снимает с базовой роли "Пользователь" права
+// detail.full_history и detail.entry_exit_history. Их убрали из baseRoleGrants
+// (рядовой юзер не должен видеть "Полную историю"/"Историю проходов"), но на уже
+// засеянных БД грант остался - seedBaseRole только добавляет. Удаляем разово; delete
+// идемпотентен (повторный прогон снимает 0 строк). Затрагивает ТОЛЬКО системную роль
+// "user" - гранты кастомных ролей не трогаем. Админ/супер видят историю по флагу.
+func RevokeBaseRoleHistoryGrants(db *gorm.DB) error {
+	var role models.Role
+	if err := db.Where("code = ? AND is_system = ?", "user", true).First(&role).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil // базовая роль ещё не засеяна
+		}
+		return fmt.Errorf("load base role for history grant revoke: %w", err)
+	}
+	keys := []string{"detail.full_history", "detail.entry_exit_history"}
+	res := db.Where("role_id = ? AND permission_key IN ?", role.ID, keys).
+		Delete(&models.RolePermissionGrant{})
+	if res.Error != nil {
+		return fmt.Errorf("revoke base role history grants: %w", res.Error)
+	}
+	if res.RowsAffected > 0 {
+		slog.Info("revoked history grants from base role", "grants_removed", res.RowsAffected)
 	}
 	return nil
 }
@@ -780,6 +808,12 @@ func Seed(db *gorm.DB) error {
 
 	// Базовая роль "Пользователь" с дефолтными правами (фундамент новой системы прав).
 	if err := seedBaseRole(db); err != nil {
+		return err
+	}
+
+	// Снять с базовой роли права на полную историю/историю проходов (рядовой юзер их
+	// не видит; админ/супер - по флагу). Разовое снятие для уже засеянных БД.
+	if err := RevokeBaseRoleHistoryGrants(db); err != nil {
 		return err
 	}
 
