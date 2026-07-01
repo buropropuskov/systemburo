@@ -310,7 +310,7 @@
           v-if="application.status === 'Отозвана'"
           class="status-badge status-rejected-badge"
         >
-          Отозвана
+          Отозвана инициатором
         </div>
         <div
           v-else-if="application.status === 'В работе'"

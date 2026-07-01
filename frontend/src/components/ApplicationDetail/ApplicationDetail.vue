@@ -200,9 +200,10 @@
             </div>
           </div>
 
-          <!-- Блок статуса заявки (для принятых/отказанных/завершенных) -->
+          <!-- Блок статуса заявки (для принятых/отказанных/завершенных/отозванных).
+               Отозвана держим здесь же: после отзыва инфо о принятии не должно пропадать. -->
           <div
-            v-if="applicationData.status === 'В работе' || applicationData.status === 'Отказано' || applicationData.status === 'Завершено'"
+            v-if="['В работе', 'Отказано', 'Завершено', 'Отозвана'].includes(applicationData.status)"
             class="application-status-section"
           >
             <div class="status-header">
@@ -211,7 +212,7 @@
                 class="status-mini-badge"
                 :class="getStatusBadgeClass(applicationData.status)"
               >
-                {{ applicationData.status }}
+                {{ formatStatusLabel(applicationData.status) }}
               </span>
             </div>
                         
@@ -282,6 +283,34 @@
                 <span class="status-info-label">Комментарий:</span>
                 <div class="status-info-value comment-text">
                   {{ applicationData.completion_comment || 'Комментария нет' }}
+                </div>
+              </div>
+            </div>
+
+            <!-- Для статуса Отозвана: если заявку успели принять до отзыва - показываем,
+                 кто принял, чтобы информация не пропадала после отзыва. -->
+            <div
+              v-else-if="applicationData.status === 'Отозвана' && applicationData.responsible_user_id"
+              class="status-info"
+            >
+              <div class="status-info-row">
+                <span class="status-info-label">Принял(-а):</span>
+                <span class="status-info-value">{{ applicationData.responsible_name || 'Не указан' }}</span>
+              </div>
+              <div
+                v-if="applicationData.confirmation_datetime"
+                class="status-info-row"
+              >
+                <span class="status-info-label">Время принятия:</span>
+                <span class="status-info-value">{{ formatDateTime(applicationData.confirmation_datetime) }}</span>
+              </div>
+              <div
+                v-if="applicationData.responsible_comment"
+                class="status-info-row comment-row"
+              >
+                <span class="status-info-label">Комментарий:</span>
+                <div class="status-info-value comment-text">
+                  {{ applicationData.responsible_comment }}
                 </div>
               </div>
             </div>
@@ -503,7 +532,7 @@ export default {
         // сознательно: isApprover - глобальная роль, видит все заявки, и на чужой forward
         // вернул бы 403. Отправителя тоже нет - в режиме "Центр" у него нет UI-пути к кнопке.
         canForwardApplication() {
-            return this.isResponsibleUser;
+            return this.isResponsibleUser && this.applicationData.status !== 'Отозвана';
         },
 
         hasUserVoted() {
@@ -540,7 +569,9 @@ export default {
 
         canLeaveComment() {
             if (this.processingApplication) return false;
-            
+            // Отозванную заявку нельзя ни принять/согласовать, ни прокомментировать (#951).
+            if (this.applicationData.status === 'Отозвана') return false;
+
             if (this.isApprover && !this.isResponsibleUser) {
                 return !this.isApproverActionDone;
             }
@@ -606,9 +637,16 @@ export default {
             const classes = {
                 'В работе': 'status-mini-work',
                 'Отказано': 'status-mini-rejected',
-                'Завершено': 'status-mini-completed'
+                'Завершено': 'status-mini-completed',
+                'Отозвана': 'status-mini-rejected'
             };
             return classes[status] || '';
+        },
+
+        // В деталях заявки статус "Отозвана" показываем как "Отозвана инициатором" -
+        // подчёркиваем, что заявку закрыл сам отправитель (#951).
+        formatStatusLabel(status) {
+            return status === 'Отозвана' ? 'Отозвана инициатором' : status;
         },
 
         saveCommentToLocalStorage() {

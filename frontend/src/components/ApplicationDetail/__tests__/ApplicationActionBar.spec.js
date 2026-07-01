@@ -63,7 +63,7 @@ describe('ApplicationActionBar - гейт ЧС (#481, срез 6b)', () => {
 });
 
 describe('ApplicationActionBar - отозванная заявка (#951)', () => {
-  it('approver/responsible-действия скрыты, виден бейдж "Отозвана"', () => {
+  it('approver/responsible-действия скрыты, виден бейдж "Отозвана инициатором"', () => {
     const wrapper = mountBar({
       application: { id: 1, confirmation: 'Согласование', status: 'Отозвана' },
       responsibleUsers: [{ id: 1, approval_status: 'pending' }],
@@ -71,6 +71,6 @@ describe('ApplicationActionBar - отозванная заявка (#951)', () =
     });
     expect(wrapper.find(APPROVE).exists()).toBe(false);
     expect(wrapper.find(REJECT).exists()).toBe(false);
-    expect(wrapper.text()).toContain('Отозвана');
+    expect(wrapper.text()).toContain('Отозвана инициатором');
   });
 });
