@@ -501,6 +501,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	apg.POST("/:id/take-to-work", app.TakeApplicationToWork)
 	apg.POST("/:id/revoke-from-work", app.RevokeApplicationFromWork)
 	apg.POST("/:id/restore-to-work", app.RestoreApplicationToWork)
+	apg.POST("/:id/withdraw", app.WithdrawApplication)
 	apg.GET("/:id/history", app.GetApplicationHistory)
 	apg.POST("/:id/revoke-approval", app.RevokeApproval)
 	apg.POST("/history", app.AddHistoryEntry)

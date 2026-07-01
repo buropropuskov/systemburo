@@ -38,6 +38,20 @@ func (s *applicationService) checkNotArchived(ctx context.Context, applicationID
 	return nil
 }
 
+// checkNotWithdrawn возвращает ошибку 409, если заявка отозвана отправителем (#951).
+// Отзыв необратим штатными средствами: над "Отозвана" нельзя совершать рабочие и
+// согласовательные действия (принять в работу, согласовать, отказать и обратные им).
+func (s *applicationService) checkNotWithdrawn(ctx context.Context, applicationID int) error {
+	var app struct{ Status *string }
+	if err := s.db.WithContext(ctx).Raw("SELECT status FROM applications WHERE id = ?", applicationID).Scan(&app).Error; err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to check application status")
+	}
+	if app.Status != nil && *app.Status == models.StatusWithdrawn {
+		return echo.NewHTTPError(http.StatusConflict, "Заявка отозвана отправителем - действия недоступны")
+	}
+	return nil
+}
+
 // MarkAsRead фиксирует прочтение заявки пользователем (идемпотентно).
 func (s *applicationService) MarkAsRead(ctx context.Context, applicationID int, username string) error {
 	user, err := s.getUserByUsername(ctx, username)

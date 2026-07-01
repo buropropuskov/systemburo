@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 
 	"systemburo/internal/models"
 
@@ -14,6 +15,9 @@ import (
 // TakeApplicationToWork принимает заявку в работу или отказывает в ней.
 func (s *applicationService) TakeApplicationToWork(ctx context.Context, username string, applicationID int, req TakeToWorkRequest) error {
 	if err := s.checkNotArchived(ctx, applicationID); err != nil {
+		return err
+	}
+	if err := s.checkNotWithdrawn(ctx, applicationID); err != nil {
 		return err
 	}
 
@@ -105,6 +109,9 @@ func (s *applicationService) RevokeApplicationFromWork(ctx context.Context, user
 	if !isApprover {
 		return echo.NewHTTPError(http.StatusForbidden, "Only approver can revoke the application")
 	}
+	if err := s.checkNotWithdrawn(ctx, applicationID); err != nil {
+		return err
+	}
 
 	tx := s.db.WithContext(ctx).Begin()
 	if tx.Error != nil {
@@ -154,6 +161,9 @@ func (s *applicationService) RestoreApplicationToWork(ctx context.Context, usern
 	if !isApprover {
 		return echo.NewHTTPError(http.StatusForbidden, "Only approver can restore the application")
 	}
+	if err := s.checkNotWithdrawn(ctx, applicationID); err != nil {
+		return err
+	}
 
 	tx := s.db.WithContext(ctx).Begin()
 	if tx.Error != nil {
@@ -189,8 +199,84 @@ func (s *applicationService) RestoreApplicationToWork(ctx context.Context, usern
 	return nil
 }
 
+// WithdrawApplication отзывает СВОЮ заявку отправителем (#951): статус -> "Отозвана",
+// машины/сотрудники/вложения деактивируются, в историю пишется кто и когда отозвал.
+// Обратного пути нет - вернуть в работу нельзя, только продублировать. Отозвать может
+// только отправитель и только пока заявка не в терминальном (закрытом) статусе.
+func (s *applicationService) WithdrawApplication(ctx context.Context, username string, applicationID int) error {
+	user, err := s.getUserByUsername(ctx, username)
+	if err != nil {
+		return err
+	}
+
+	tx := s.db.WithContext(ctx).Begin()
+	if tx.Error != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to start transaction")
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Читаем статус/владельца внутри транзакции с блокировкой строки (FOR UPDATE),
+	// чтобы конкурентное действие не проскочило мимо терминального гейта.
+	var app struct {
+		Status       *string
+		SenderUserID int
+	}
+	result := tx.Raw("SELECT status, sender_user_id FROM applications WHERE id = ? FOR UPDATE", applicationID).Scan(&app)
+	if result.Error != nil {
+		tx.Rollback()
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to load application")
+	}
+	if result.RowsAffected == 0 {
+		tx.Rollback()
+		return echo.NewHTTPError(http.StatusNotFound, "Application not found")
+	}
+	if app.SenderUserID != user.ID {
+		tx.Rollback()
+		return echo.NewHTTPError(http.StatusForbidden, "Отозвать можно только собственную заявку")
+	}
+	// Терминальные (закрытые) статусы совпадают с ArchivableStatuses - из них отзыв запрещён.
+	if app.Status != nil && slices.Contains(models.ArchivableStatuses, *app.Status) {
+		tx.Rollback()
+		return echo.NewHTTPError(http.StatusConflict, "Заявку в этом статусе отозвать нельзя")
+	}
+
+	if err := tx.Exec("UPDATE applications SET status = ? WHERE id = ?", models.StatusWithdrawn, applicationID).Error; err != nil {
+		tx.Rollback()
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to withdraw application")
+	}
+
+	s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "withdraw", &user.ID,
+		applicationAuditDetails{OldValue: app.Status, NewValue: ptrString(models.StatusWithdrawn)})
+
+	// Деактивируем машины и сотрудников вложений...
+	if err := s.activateApplicationItems(tx, applicationID, false); err != nil {
+		tx.Rollback()
+		return err
+	}
+	// ...и сами вложения (общий helper их не трогает - он про cars/employees).
+	if err := tx.Exec("UPDATE attachments SET status = 0 WHERE application_id = ?", applicationID).Error; err != nil {
+		tx.Rollback()
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to deactivate attachments")
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
+	}
+
+	return nil
+}
+
 // UpdateApplicationItemsStatus обновляет статусы машин и сотрудников заявки.
 func (s *applicationService) UpdateApplicationItemsStatus(ctx context.Context, applicationID int) error {
+	// Отозванную заявку нельзя реактивировать через массовое выставление статусов (#951).
+	if err := s.checkNotWithdrawn(ctx, applicationID); err != nil {
+		return err
+	}
+
 	tx := s.db.WithContext(ctx).Begin()
 	if tx.Error != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to start transaction")
