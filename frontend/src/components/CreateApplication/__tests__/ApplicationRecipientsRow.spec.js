@@ -87,3 +87,47 @@ describe('ApplicationRecipientsRow (#884)', () => {
     expect(w.emitted('update:readers')).toBeFalsy();
   });
 });
+
+describe('ApplicationRecipientsRow - доработка отображения', () => {
+  it('shortName: полное ФИО -> Фамилия И.О.', async () => {
+    const w = await mountRow();
+    expect(w.vm.shortName('Иванов Иван Иванович')).toBe('Иванов И.И.');
+    expect(w.vm.shortName('Иванов Иван')).toBe('Иванов И.');
+    expect(w.vm.shortName('Иванов')).toBe('Иванов');
+  });
+
+  it('allChips: согласующие isApprover=true, читатели false', async () => {
+    const w = await mountRow({
+      approvers: [{ user_id: 1, name: 'Иванов Иван' }],
+      readers: [{ user_id: 2, name: 'Петров Пётр' }],
+    });
+    const chips = w.vm.allChips;
+    expect(chips.find(c => c.userId === 1).isApprover).toBe(true);
+    expect(chips.find(c => c.userId === 2).isApprover).toBe(false);
+  });
+
+  it('чип: короткое ФИО в тексте, полное в data-hint, у согласующего класс is-approver', async () => {
+    const w = await mountRow({ approvers: [{ user_id: 1, name: 'Иванов Иван Иванович' }] });
+    const chip = w.find('.recipient-chip');
+    expect(chip.find('.recipient-chip__name').text()).toBe('Иванов И.И.');
+    expect(chip.attributes('data-hint')).toBe('Иванов Иван Иванович');
+    expect(chip.classes()).toContain('is-approver');
+  });
+
+  it('поиск: placeholder "Поиск"; когда добавить некого -> "Пользователей нет"', async () => {
+    // все руководители (1,2,4) уже согласующие -> availableManagers пуст.
+    const w = await mountRow({
+      approvers: [{ user_id: 1, name: 'a' }, { user_id: 2, name: 'b' }, { user_id: 4, name: 'c' }],
+    });
+    await w.setData({ showAdd: true });
+    expect(w.find('.recipients-search').attributes('placeholder')).toBe('Поиск');
+    expect(w.find('.recipients-add-empty').text()).toBe('Пользователей нет');
+  });
+
+  it('клик вне "+ получатель" закрывает дропдаун', async () => {
+    const w = await mountRow();
+    await w.setData({ showAdd: true });
+    w.vm.handleOutside({ target: document.body });
+    expect(w.vm.showAdd).toBe(false);
+  });
+});

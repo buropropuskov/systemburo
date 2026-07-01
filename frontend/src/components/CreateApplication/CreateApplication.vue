@@ -2,16 +2,18 @@
   <div class="create">
     <div class="create__header">
       <div class="create__header-top">
-        <div class="create__title">
-          <h3>Оформление и подача заявки</h3>
+        <div class="create__header-left">
+          <div class="create__title">
+            <h3>Оформление и подача заявки</h3>
+          </div>
+          <ApplicationRecipientsRow
+            :approvers="defaultApprovers"
+            :readers="readers"
+            @update:readers="readers = $event"
+          />
         </div>
         <h4>{{ currentFormTitle }}</h4>
       </div>
-      <ApplicationRecipientsRow
-        :approvers="defaultApprovers"
-        :readers="readers"
-        @update:readers="readers = $event"
-      />
     </div>
 
     <div class="create__container">
@@ -2465,6 +2467,16 @@ export default {
         display: flex;
         align-items: center;
         justify-content: space-between;
+        gap: 16px;
+    }
+
+    /* Заголовок + "Получатели:" в одной строке слева (#884). */
+    .create__header-left {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        flex-wrap: wrap;
+        min-width: 0;
     }
 
     .create__container {
