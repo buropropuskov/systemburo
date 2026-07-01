@@ -19,9 +19,9 @@ function mountDetail(application = {}) {
   });
 }
 
-// Достаёт последний записанный черновик заявки из localStorage.setItem.
+// Дубль пишется во временный ключ pendingDuplicateState (не затирая черновик формы, #952).
 function draftFrom(setItem) {
-  const call = [...setItem.mock.calls].reverse().find(c => c[0] === 'draftApplicationState');
+  const call = [...setItem.mock.calls].reverse().find(c => c[0] === 'pendingDuplicateState');
   return call ? JSON.parse(call[1]) : null;
 }
 
