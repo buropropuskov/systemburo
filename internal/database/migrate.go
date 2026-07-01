@@ -553,17 +553,32 @@ func seedBaseRole(db *gorm.DB) error {
 	return nil
 }
 
-// revokeBaseRoleHistoryGrants снимает с базовой роли "Пользователь" права
-// detail.full_history и detail.entry_exit_history. Их убрали из baseRoleGrants
-// (рядовой юзер не должен видеть "Полную историю"/"Историю проходов"), но на уже
-// засеянных БД грант остался - seedBaseRole только добавляет. Удаляем разово; delete
-// идемпотентен (повторный прогон снимает 0 строк). Затрагивает ТОЛЬКО системную роль
-// "user" - гранты кастомных ролей не трогаем. Админ/супер видят историю по флагу.
+// baseRoleHistoryRevokeMarker - ключ в system_settings, отмечающий, что разовое снятие
+// прав истории с базовой роли уже выполнено. После этого функция не трогает роль, и
+// админ может при желании вернуть detail.full_history/detail.entry_exit_history базовой
+// роли через админку - оно НЕ сбросится на следующем старте.
+const baseRoleHistoryRevokeMarker = "base_role_history_grants_revoked"
+
+// RevokeBaseRoleHistoryGrants РАЗОВО снимает с базовой роли "Пользователь" права
+// detail.full_history и detail.entry_exit_history (их убрали из baseRoleGrants: рядовой
+// юзер не видит "Полную историю"/"Историю проходов"). Нужно, т.к. seedBaseRole только
+// добавляет, а на уже засеянных БД гранты остались. Выполняется ОДИН раз (маркер в
+// system_settings) - чтобы админ мог потом вернуть эти права роли через UI без авто-сброса.
+// Затрагивает ТОЛЬКО системную роль "user"; кастомные роли/группы/override не трогаем.
 func RevokeBaseRoleHistoryGrants(db *gorm.DB) error {
+	var done int64
+	if err := db.Model(&models.SystemSetting{}).
+		Where("key = ?", baseRoleHistoryRevokeMarker).Count(&done).Error; err != nil {
+		return fmt.Errorf("check base role history revoke marker: %w", err)
+	}
+	if done > 0 {
+		return nil // уже снимали разово - больше не трогаем
+	}
+
 	var role models.Role
 	if err := db.Where("code = ? AND is_system = ?", "user", true).First(&role).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil // базовая роль ещё не засеяна
+			return nil // базовая роль ещё не засеяна - снимем на следующем прогоне (маркер не ставим)
 		}
 		return fmt.Errorf("load base role for history grant revoke: %w", err)
 	}
@@ -574,7 +589,12 @@ func RevokeBaseRoleHistoryGrants(db *gorm.DB) error {
 		return fmt.Errorf("revoke base role history grants: %w", res.Error)
 	}
 	if res.RowsAffected > 0 {
-		slog.Info("revoked history grants from base role", "grants_removed", res.RowsAffected)
+		slog.Info("revoked history grants from base role (one-time)", "grants_removed", res.RowsAffected)
+	}
+
+	marker := models.SystemSetting{Key: baseRoleHistoryRevokeMarker, Value: "true", Type: "bool"}
+	if err := db.Create(&marker).Error; err != nil {
+		return fmt.Errorf("set base role history revoke marker: %w", err)
 	}
 	return nil
 }

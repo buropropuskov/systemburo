@@ -15,45 +15,62 @@ import (
 
 var historyGrantKeys = []string{"detail.full_history", "detail.entry_exit_history"}
 
-// TestBaseRole_NoHistoryGrants: базовая роль "Пользователь" не выдаёт detail.full_history
-// и detail.entry_exit_history - рядовой юзер не видит "Полную историю"/"Историю проходов"
-// (админ/супер видят по флагу adminAll/allowAll, минуя гранты роли). Проверяем и итог
-// сида, и что revoke снимает гранты со старой БД, не трогая прочие права базовой роли.
-func TestBaseRole_NoHistoryGrants(t *testing.T) {
+const historyRevokeMarker = "base_role_history_grants_revoked"
+
+func grantHistory(t *testing.T, tx *gorm.DB, roleID int) {
+	t.Helper()
+	for _, k := range historyGrantKeys {
+		require.NoError(t, tx.Where("role_id = ? AND permission_key = ?", roleID, k).
+			FirstOrCreate(&models.RolePermissionGrant{RoleID: roleID, PermissionKey: k, Value: "allow"}).Error)
+	}
+}
+
+func countHistory(t *testing.T, tx *gorm.DB, roleID int) int64 {
+	t.Helper()
+	var n int64
+	require.NoError(t, tx.Model(&models.RolePermissionGrant{}).
+		Where("role_id = ? AND permission_key IN ?", roleID, historyGrantKeys).Count(&n).Error)
+	return n
+}
+
+// TestBaseRole_HistoryRevokeOneTime: базовая роль "Пользователь" по итогу сида не имеет
+// прав истории; сама revoke-функция разовая - снимает гранты и ставит маркер, а
+// повторный прогон уже НЕ трогает роль (админ может вернуть права истории через UI, и
+// они не сбросятся на следующем старте). Админ/супер видят историю по флагу, минуя роль.
+func TestBaseRole_HistoryRevokeOneTime(t *testing.T) {
 	_, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 
 	var baseRole models.Role
 	require.NoError(t, db.Where("code = ? AND is_system = ?", "user", true).First(&baseRole).Error)
 
-	// После сидирования (seed без ключей + revoke) базовая роль истории не имеет.
-	var seeded int64
-	require.NoError(t, db.Model(&models.RolePermissionGrant{}).
-		Where("role_id = ? AND permission_key IN ?", baseRole.ID, historyGrantKeys).Count(&seeded).Error)
-	assert.EqualValues(t, 0, seeded, "после сида базовая роль без грантов истории")
+	// После сида (seed без ключей + разовый revoke) базовая роль без грантов истории.
+	assert.EqualValues(t, 0, countHistory(t, db, baseRole.ID), "после сида базовая роль без грантов истории")
 
-	// Транзакция с откатом: глобальная роль расшарена между тестами (урок #706) -
-	// вставленные/удалённые гранты не должны персистить.
+	// Транзакция с откатом: глобальная роль расшарена между тестами (урок #706).
 	rollback := errors.New("rollback")
 	err := db.Transaction(func(tx *gorm.DB) error {
-		// Симулируем старую БД: возвращаем базовой роли гранты истории.
-		for _, k := range historyGrantKeys {
-			require.NoError(t, tx.Where("role_id = ? AND permission_key = ?", baseRole.ID, k).
-				FirstOrCreate(&models.RolePermissionGrant{RoleID: baseRole.ID, PermissionKey: k, Value: "allow"}).Error)
-		}
+		// Симулируем "ещё не снимали": убираем маркер и возвращаем базовой роли гранты.
+		require.NoError(t, tx.Where("key = ?", historyRevokeMarker).Delete(&models.SystemSetting{}).Error)
+		grantHistory(t, tx, baseRole.ID)
 
+		// Первый прогон: снимает гранты и ставит маркер разовости.
 		require.NoError(t, database.RevokeBaseRoleHistoryGrants(tx))
+		assert.EqualValues(t, 0, countHistory(t, tx, baseRole.ID), "revoke снял гранты истории с базовой роли")
+		var marker int64
+		require.NoError(t, tx.Model(&models.SystemSetting{}).Where("key = ?", historyRevokeMarker).Count(&marker).Error)
+		assert.EqualValues(t, 1, marker, "маркер разовости поставлен")
 
-		var after int64
-		require.NoError(t, tx.Model(&models.RolePermissionGrant{}).
-			Where("role_id = ? AND permission_key IN ?", baseRole.ID, historyGrantKeys).Count(&after).Error)
-		assert.EqualValues(t, 0, after, "revoke снял гранты истории с базовой роли")
-
-		// Прочие гранты базовой роли не тронуты.
+		// detail.documents (прочий грант базовой роли) не тронут.
 		var docs int64
 		require.NoError(t, tx.Model(&models.RolePermissionGrant{}).
 			Where("role_id = ? AND permission_key = ?", baseRole.ID, "detail.documents").Count(&docs).Error)
-		assert.EqualValues(t, 1, docs, "detail.documents у базовой роли остаётся")
+		assert.EqualValues(t, 1, docs, "detail.documents остаётся")
+
+		// Разовость: админ вернул гранты роли - повторный прогон их НЕ сбрасывает.
+		grantHistory(t, tx, baseRole.ID)
+		require.NoError(t, database.RevokeBaseRoleHistoryGrants(tx))
+		assert.EqualValues(t, 2, countHistory(t, tx, baseRole.ID), "повторный revoke не сбрасывает гранты (разовость)")
 
 		return rollback
 	})
