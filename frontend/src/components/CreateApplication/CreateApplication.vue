@@ -314,39 +314,12 @@
     />
 
     <!-- #952: дубль пришёл, а в форме уже есть данные - заменить/объединить/отмена. -->
-    <BaseModal
+    <DuplicateConflictModal
       :show="showDuplicateConflict"
-      title="В форме уже есть данные"
-      width="460px"
-      @close="onDuplicateConflictCancel"
-    >
-      <p class="duplicate-conflict__text">
-        В "Оформлении и подаче заявки" уже есть заполненные данные. Что сделать с дублируемой заявкой?
-      </p>
-      <template #actions>
-        <button
-          type="button"
-          class="lk-button lk-button--ghost"
-          @click="onDuplicateConflictCancel"
-        >
-          Отмена
-        </button>
-        <button
-          type="button"
-          class="lk-button lk-button--primary"
-          @click="onDuplicateConflictMerge"
-        >
-          Объединить
-        </button>
-        <button
-          type="button"
-          class="lk-button lk-button--danger"
-          @click="onDuplicateConflictReplace"
-        >
-          Заменить
-        </button>
-      </template>
-    </BaseModal>
+      @replace="onDuplicateConflictReplace"
+      @merge="onDuplicateConflictMerge"
+      @cancel="onDuplicateConflictCancel"
+    />
   </div>
 </template>
 
@@ -369,7 +342,7 @@ import ApplicationSuccessModal from './ApplicationSuccessModal.vue';
 import CustomFieldsSection from './CustomFieldsSection.vue';
 import TextConstructor from '@/components/TextConstructor.vue';
 import ApplicationRecipientsRow from './ApplicationRecipientsRow.vue';
-import BaseModal from '@/components/ui/BaseModal.vue';
+import DuplicateConflictModal from './DuplicateConflictModal.vue';
 
 export default {
     name: 'CreateApplication',
@@ -388,7 +361,7 @@ export default {
         CustomFieldsSection,
         TextConstructor,
         ApplicationRecipientsRow,
-        BaseModal
+        DuplicateConflictModal
     },
     data() {
         return {
