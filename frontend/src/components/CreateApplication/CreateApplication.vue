@@ -312,6 +312,41 @@
       :attachments-data="createdAttachmentsData"
       @close="onSuccessClose"
     />
+
+    <!-- #952: дубль пришёл, а в форме уже есть данные - заменить/объединить/отмена. -->
+    <BaseModal
+      :show="showDuplicateConflict"
+      title="В форме уже есть данные"
+      width="460px"
+      @close="onDuplicateConflictCancel"
+    >
+      <p class="duplicate-conflict__text">
+        В "Оформлении и подаче заявки" уже есть заполненные данные. Что сделать с дублируемой заявкой?
+      </p>
+      <template #actions>
+        <button
+          type="button"
+          class="lk-button lk-button--ghost"
+          @click="onDuplicateConflictCancel"
+        >
+          Отмена
+        </button>
+        <button
+          type="button"
+          class="lk-button lk-button--primary"
+          @click="onDuplicateConflictMerge"
+        >
+          Объединить
+        </button>
+        <button
+          type="button"
+          class="lk-button lk-button--danger"
+          @click="onDuplicateConflictReplace"
+        >
+          Заменить
+        </button>
+      </template>
+    </BaseModal>
   </div>
 </template>
 
@@ -334,6 +369,7 @@ import ApplicationSuccessModal from './ApplicationSuccessModal.vue';
 import CustomFieldsSection from './CustomFieldsSection.vue';
 import TextConstructor from '@/components/TextConstructor.vue';
 import ApplicationRecipientsRow from './ApplicationRecipientsRow.vue';
+import BaseModal from '@/components/ui/BaseModal.vue';
 
 export default {
     name: 'CreateApplication',
@@ -351,11 +387,16 @@ export default {
         ApplicationSuccessModal,
         CustomFieldsSection,
         TextConstructor,
-        ApplicationRecipientsRow
+        ApplicationRecipientsRow,
+        BaseModal
     },
     data() {
         return {
             message: '',
+            // Конфликт дублирования (#952): на странице уже есть черновик, а из ЛК пришёл
+            // дубль - показываем модалку "Заменить / Объединить / Отмена".
+            showDuplicateConflict: false,
+            pendingDuplicate: null,
             organization: '',
             company: '',
             responsiblePerson: '',
@@ -758,6 +799,7 @@ export default {
     },
     mounted() {
         this.restoreFromLocalStorage();
+        this.checkPendingDuplicate();
         this.loadUserData();
         this.loadAllUnloadingPlaces();
         this.loadLicensePlateFormats();
@@ -2254,6 +2296,95 @@ export default {
             } catch (error) {
                 console.error('Ошибка восстановления состояния из localStorage:', error);
             }
+        },
+
+        // #952: пришёл дубль из ЛК (pendingDuplicateState). Если на странице уже начат
+        // черновик - спрашиваем "Заменить / Объединить / Отмена"; если пусто - берём сразу.
+        checkPendingDuplicate() {
+            const pendingRaw = localStorage.getItem('pendingDuplicateState');
+            if (!pendingRaw) return;
+
+            let pending;
+            try {
+                pending = JSON.parse(pendingRaw);
+            } catch (e) {
+                console.error('Битый pendingDuplicateState, пропускаю:', e);
+                localStorage.removeItem('pendingDuplicateState');
+                return;
+            }
+
+            if (this.hasExistingDraftData()) {
+                this.pendingDuplicate = pending;
+                this.showDuplicateConflict = true;
+            } else {
+                this.applyPendingDuplicate(pending, 'replace');
+                localStorage.removeItem('pendingDuplicateState');
+            }
+        },
+
+        // Есть ли на странице осмысленный черновик (вложения или текст сообщения).
+        hasExistingDraftData() {
+            const raw = localStorage.getItem('draftApplicationState');
+            if (!raw) return false;
+            try {
+                const d = JSON.parse(raw);
+                return (Array.isArray(d.attachments) && d.attachments.length > 0)
+                    || (typeof d.message === 'string' && d.message.trim().length > 0);
+            } catch (e) {
+                console.error('Битый draftApplicationState:', e);
+                return false;
+            }
+        },
+
+        // Применяет дубль: replace - целиком заменяет черновик; merge - дописывает вложения
+        // дубля к существующим (шапка/сообщение не трогаются). Затем перечитывает состояние.
+        applyPendingDuplicate(pending, mode) {
+            let finalDraft = pending;
+            if (mode === 'merge') {
+                const raw = localStorage.getItem('draftApplicationState');
+                const existing = raw ? JSON.parse(raw) : {};
+                finalDraft = this.mergeDrafts(existing, pending);
+            }
+            localStorage.setItem('draftApplicationState', JSON.stringify(finalDraft));
+            this.restoreFromLocalStorage();
+        },
+
+        // Объединение: существующие данные и вложения остаются, вложения дубля добавляются.
+        // local_id вложений уникальны (Date.now()+random), коллизий ключей нет.
+        mergeDrafts(existing, dup) {
+            return {
+                ...existing,
+                attachments: [...(existing.attachments || []), ...(dup.attachments || [])],
+                vehiclesByAttachment: { ...(existing.vehiclesByAttachment || {}), ...(dup.vehiclesByAttachment || {}) },
+                employeesByAttachment: { ...(existing.employeesByAttachment || {}), ...(dup.employeesByAttachment || {}) },
+                itemsByAttachment: { ...(existing.itemsByAttachment || {}), ...(dup.itemsByAttachment || {}) },
+                attachmentDatesByAttachment: { ...(existing.attachmentDatesByAttachment || {}), ...(dup.attachmentDatesByAttachment || {}) },
+                customFieldsByAttachment: { ...(existing.customFieldsByAttachment || {}), ...(dup.customFieldsByAttachment || {}) },
+                vehicleIdCounter: Math.max(existing.vehicleIdCounter || 1, dup.vehicleIdCounter || 1),
+                employeeIdCounter: Math.max(existing.employeeIdCounter || 1, dup.employeeIdCounter || 1),
+                itemIdCounter: Math.max(existing.itemIdCounter || 1, dup.itemIdCounter || 1),
+            };
+        },
+
+        onDuplicateConflictReplace() {
+            this.applyPendingDuplicate(this.pendingDuplicate, 'replace');
+            this.finishDuplicateConflict();
+        },
+
+        onDuplicateConflictMerge() {
+            this.applyPendingDuplicate(this.pendingDuplicate, 'merge');
+            this.finishDuplicateConflict();
+        },
+
+        onDuplicateConflictCancel() {
+            // Черновик уже восстановлен в mounted - просто закрываем и выкидываем дубль.
+            this.finishDuplicateConflict();
+        },
+
+        finishDuplicateConflict() {
+            localStorage.removeItem('pendingDuplicateState');
+            this.pendingDuplicate = null;
+            this.showDuplicateConflict = false;
         },
 
         async loadApplication(applicationId) {

@@ -997,7 +997,10 @@ export default {
                     itemIdCounter: 1,
                 };
 
-                localStorage.setItem('draftApplicationState', JSON.stringify(draftState));
+                // Пишем во временный ключ, а НЕ в draftApplicationState: на странице
+                // оформления может быть уже начатый черновик - CreateApplication сам решит
+                // (заменить/объединить/отмена), забирать ли этот дубль (#952).
+                localStorage.setItem('pendingDuplicateState', JSON.stringify(draftState));
                 this.$emit('duplicate');
             } catch (error) {
                 console.error('Ошибка при дублировании заявки:', error);
