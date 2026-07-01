@@ -72,3 +72,54 @@ describe('ApplicationDetail - отзыв своей заявки (#951)', () => 
     expect(wrapper.emitted('withdraw')).toBeFalsy();
   });
 });
+
+describe('ApplicationDetail - отображение отозванной заявки (#951)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    apiRequest.mockReset().mockResolvedValue({ ok: true, json: () => Promise.resolve([]) });
+    confirmMock.mockReset();
+  });
+
+  it('formatStatusLabel: "Отозвана" -> "Отозвана инициатором", остальные без изменений', () => {
+    const vm = mountDetail().vm;
+    expect(vm.formatStatusLabel('Отозвана')).toBe('Отозвана инициатором');
+    expect(vm.formatStatusLabel('В работе')).toBe('В работе');
+  });
+
+  it('блок "Статус заявки" остаётся после отзыва и показывает, кто принял', () => {
+    const wrapper = mountDetail({
+      status: 'Отозвана',
+      responsible_user_id: 3,
+      responsible_name: 'Иванов И.',
+      confirmation_datetime: '2026-07-01T10:00:00Z',
+    });
+    const text = wrapper.text();
+    expect(text).toContain('Статус заявки');
+    expect(text).toContain('Отозвана инициатором');
+    expect(text).toContain('Принял(-а):');
+    expect(text).toContain('Иванов И.');
+  });
+
+  it('отозванная без принятия: блок статуса виден, но без "Принял(-а)"', () => {
+    const wrapper = mountDetail({ status: 'Отозвана', responsible_user_id: null });
+    const text = wrapper.text();
+    expect(text).toContain('Отозвана инициатором');
+    expect(text).not.toContain('Принял(-а):');
+  });
+
+  it('canLeaveComment/canForwardApplication: отозванную нельзя комментировать/переслать', async () => {
+    // Ставим сценарий, где иначе действия были бы доступны (ответственный, ещё не голосовал).
+    const wrapper = mountDetail({ status: 'Отозвана' });
+    await wrapper.setData({ responsibleUsers: [{ id: 1, approval_status: 'pending' }] });
+    expect(wrapper.vm.isResponsibleUser).toBe(true);
+    expect(wrapper.vm.canLeaveComment).toBe(false);
+    expect(wrapper.vm.canForwardApplication).toBe(false);
+  });
+
+  it('контроль: у не-отозванной те же действия доступны', async () => {
+    const wrapper = mountDetail({ status: 'Согласование' });
+    await wrapper.setData({ responsibleUsers: [{ id: 1, approval_status: 'pending' }] });
+    expect(wrapper.vm.canLeaveComment).toBe(true);
+    expect(wrapper.vm.canForwardApplication).toBe(true);
+  });
+});
