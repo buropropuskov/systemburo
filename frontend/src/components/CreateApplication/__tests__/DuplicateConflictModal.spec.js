@@ -18,7 +18,7 @@ describe('DuplicateConflictModal (#952)', () => {
     expect(w.find('.dup-conflict-dialog').exists()).toBe(false);
   });
 
-  it('show=true -> три кнопки с текстом и подсказками (title)', () => {
+  it('show=true -> три кнопки с текстом и подсказками (data-hint, стиль #333)', () => {
     const w = mountModal(true);
     expect(w.find('.dup-conflict-dialog').exists()).toBe(true);
 
@@ -27,10 +27,10 @@ describe('DuplicateConflictModal (#952)', () => {
     const cancel = btn(w, 'Отмена');
     expect(replace && merge && cancel).toBeTruthy();
 
-    // Подсказки при наведении - через title.
-    expect(replace.attributes('title')).toMatch(/Удалит текущие данные/);
-    expect(merge.attributes('title')).toMatch(/Добавит вложения/);
-    expect(cancel.attributes('title')).toMatch(/Оставит текущие данные/);
+    // Подсказки при наведении - системный стиль #333 через data-hint (::after content).
+    expect(replace.attributes('data-hint')).toMatch(/Удалит текущие данные/);
+    expect(merge.attributes('data-hint')).toMatch(/Добавит вложения/);
+    expect(cancel.attributes('data-hint')).toMatch(/Оставит текущие данные/);
   });
 
   it('клики по кнопкам эмитят replace / merge / cancel', async () => {

@@ -31,7 +31,7 @@
             <button
               type="button"
               class="dup-conflict-dialog__btn dup-conflict-dialog__btn--cancel"
-              title="Оставит текущие данные формы как есть, дубль не применится"
+              data-hint="Оставит текущие данные формы как есть, дубль не применится"
               @click="$emit('cancel')"
             >
               Отмена
@@ -39,7 +39,7 @@
             <button
               type="button"
               class="dup-conflict-dialog__btn dup-conflict-dialog__btn--primary"
-              title="Добавит вложения дублируемой заявки к текущим, уже заполненное не меняется"
+              data-hint="Добавит вложения дублируемой заявки к текущим, уже заполненное не меняется"
               @click="$emit('merge')"
             >
               Объединить
@@ -47,7 +47,7 @@
             <button
               type="button"
               class="dup-conflict-dialog__btn dup-conflict-dialog__btn--danger"
-              title="Удалит текущие данные формы и подставит дублируемую заявку целиком"
+              data-hint="Удалит текущие данные формы и подставит дублируемую заявку целиком"
               @click="$emit('replace')"
             >
               Заменить
@@ -91,7 +91,7 @@ useEscapeClose(() => emit('cancel'), () => props.show);
   background: #ffffff;
   border-radius: 30px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-  overflow: hidden;
+  /* без overflow:hidden - иначе всплывающая подсказка над кнопкой обрезается по краю диалога */
   font-family: 'Montserrat', sans-serif;
 }
 
@@ -145,6 +145,7 @@ useEscapeClose(() => emit('cancel'), () => props.show);
 }
 
 .dup-conflict-dialog__btn {
+  position: relative;
   padding: 9px 20px;
   border-radius: var(--radius-pill, 50px);
   cursor: pointer;
@@ -154,6 +155,50 @@ useEscapeClose(() => emit('cancel'), () => props.show);
   border: 1px solid transparent;
   min-width: 90px;
   font-family: inherit;
+}
+
+/* Всплывающая подсказка над кнопкой (единый системный стиль #333, как .tag-hint). */
+.dup-conflict-dialog__btn[data-hint]::after {
+  content: attr(data-hint);
+  position: absolute;
+  bottom: calc(100% + 9px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 220px;
+  background: #333;
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.35;
+  text-align: center;
+  white-space: normal;
+  z-index: 10;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.dup-conflict-dialog__btn[data-hint]::before {
+  content: '';
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #333;
+  z-index: 11;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.dup-conflict-dialog__btn[data-hint]:hover::after,
+.dup-conflict-dialog__btn[data-hint]:hover::before {
+  opacity: 1;
 }
 
 .dup-conflict-dialog__btn--cancel {
