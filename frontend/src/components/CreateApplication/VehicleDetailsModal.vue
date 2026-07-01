@@ -417,6 +417,7 @@ import CarHistoryModal from '../CarHistoryModal.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import AddToBlacklistModal from '@/components/admin/blacklist/AddToBlacklistModal.vue';
 import { useOverlayClose } from '@/composables/useOverlayClose';
+import { useEscapeClose } from '@/composables/useEscapeClose';
 import { usePermissionsStore } from '@/stores/permissions';
 import { getModalActionPermission } from '@/constants/detailModalActions';
 import { useDeletionsStore } from '@/stores/deletions';
@@ -486,8 +487,9 @@ export default {
         }
     },
     emits: ['close', 'open-application', 'override', 'cancel-override'],
-    setup(_, { emit }) {
+    setup(props, { emit }) {
         const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => emit('close'));
+        useEscapeClose(() => emit('close'), () => props.show);
         return { onOverlayMousedown, onOverlayMouseup };
     },
     data() {

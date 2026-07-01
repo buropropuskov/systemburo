@@ -735,8 +735,14 @@ export default {
                     this.viewers = await viewersResponse.json();
                 }
 
-                await this.fetchAllUsers();
-                await this.fetchApprovers();
+                // Списки всех пользователей и согласующих нужны только в "Центре заявок"
+                // (пересылка, определение согласующего). Рядовому отправителю в ЛК их не
+                // отдают (403) - не дёргаем админ-эндпоинты, иначе всплывает generic-тост
+                // "Недостаточно прав для этого действия" при открытии своей же заявки.
+                if (this.mode === 'center') {
+                    await this.fetchAllUsers();
+                    await this.fetchApprovers();
+                }
 
             } catch (error) {
                 console.error("Ошибка при загрузке деталей заявки:", error);
@@ -749,8 +755,8 @@ export default {
 
         async fetchAllUsers() {
             try {
-                const response = await apiRequest("/users/all", {
-                });
+                // silent403 - на случай контекста без права: без пугающего тоста, деградируем тихо.
+                const response = await apiRequest("/users/all", { silent403: true });
                 if (response.ok) {
                     this.allUsers = await response.json();
                 }
@@ -761,8 +767,7 @@ export default {
 
         async fetchApprovers() {
             try {
-                const response = await apiRequest("/application-approvers", {
-                });
+                const response = await apiRequest("/application-approvers", { silent403: true });
                 if (response.ok) {
                     this.approvers = await response.json();
                 }

@@ -647,7 +647,19 @@ export default {
             }
         }
     },
+    mounted() {
+        document.addEventListener('keydown', this.handleEscKey);
+    },
+    beforeUnmount() {
+        document.removeEventListener('keydown', this.handleEscKey);
+    },
     methods: {
+        // Закрытие по Escape (фон закрывается через @click.self на оверлее).
+        handleEscKey(e) {
+            if (e.key === 'Escape' && this.show) {
+                this.close();
+            }
+        },
         close() {
     this.$emit('close');
     this.closeTableDetails();
