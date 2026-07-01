@@ -14,15 +14,17 @@
             {{ message }}
           </div>
           <div class="modal-actions">
-            <button 
-              class="cancel-btn" 
+            <button
+              class="cancel-btn"
+              data-testid="confirmation-cancel"
               :style="cancelButtonStyle"
               @click="handleCancel"
             >
               {{ cancelText }}
             </button>
-            <button 
-              class="confirm-btn" 
+            <button
+              class="confirm-btn"
+              data-testid="confirmation-confirm"
               :style="confirmButtonStyle"
               @click="handleConfirm"
             >

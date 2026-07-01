@@ -44,8 +44,8 @@ test.describe('AdminPermissionGroups - UI delete + tree open', () => {
     await groupsPage.goto();
 
     await groupsPage.clickDelete(name);
-    // Нативный confirm заменён на кастомную модалку ConfirmDialog - подтверждаем в ней.
-    await page.getByTestId('confirm-ok').click();
+    // Удаление подтверждаем в ConfirmationModal (эталонная модалка, не нативный confirm).
+    await page.getByTestId('confirmation-confirm').click();
 
     await expect(groupsPage.card(name)).toHaveCount(0, { timeout: 5000 });
 

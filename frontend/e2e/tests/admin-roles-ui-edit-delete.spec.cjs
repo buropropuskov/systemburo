@@ -28,10 +28,8 @@ test.describe('AdminRoles - UI edit/delete карточек', () => {
     const rolesPage = new AdminRolesPage(page);
     await rolesPage.goto();
 
-    await rolesPage.openEditMeta(code);
-    await rolesPage.metaName.fill('Updated UI Name');
-    await rolesPage.metaDescription.fill('updated desc');
-    await rolesPage.submitMeta();
+    // В master-detail имя/описание правятся inline в панели деталей.
+    await rolesPage.editMeta(code, { name: 'Updated UI Name', description: 'updated desc' });
 
     // Проверяем через API
     const all = await listRoles(request, token);
@@ -52,10 +50,10 @@ test.describe('AdminRoles - UI edit/delete карточек', () => {
     await rolesPage.goto();
 
     await rolesPage.clickDelete(code);
-    // Нативный confirm заменён на кастомную модалку ConfirmDialog - подтверждаем в ней.
-    await page.getByTestId('confirm-ok').click();
+    // Удаление подтверждаем в ConfirmationModal (эталонная модалка, не нативный confirm).
+    await page.getByTestId('confirmation-confirm').click();
 
-    // Карточка пропала
+    // Строка пропала
     await expect(rolesPage.card(code)).toHaveCount(0, { timeout: 5000 });
 
     // API подтверждает
