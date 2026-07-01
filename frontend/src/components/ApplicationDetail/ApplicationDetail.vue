@@ -212,7 +212,7 @@
                 class="status-mini-badge"
                 :class="getStatusBadgeClass(applicationData.status)"
               >
-                {{ formatStatusLabel(applicationData.status) }}
+                {{ applicationData.status }}
               </span>
             </div>
                         
@@ -641,12 +641,6 @@ export default {
                 'Отозвана': 'status-mini-rejected'
             };
             return classes[status] || '';
-        },
-
-        // В деталях заявки статус "Отозвана" показываем как "Отозвана инициатором" -
-        // подчёркиваем, что заявку закрыл сам отправитель (#951).
-        formatStatusLabel(status) {
-            return status === 'Отозвана' ? 'Отозвана инициатором' : status;
         },
 
         saveCommentToLocalStorage() {

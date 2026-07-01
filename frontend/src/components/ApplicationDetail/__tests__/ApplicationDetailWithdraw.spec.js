@@ -80,13 +80,7 @@ describe('ApplicationDetail - отображение отозванной зая
     confirmMock.mockReset();
   });
 
-  it('formatStatusLabel: "Отозвана" -> "Отозвана инициатором", остальные без изменений', () => {
-    const vm = mountDetail().vm;
-    expect(vm.formatStatusLabel('Отозвана')).toBe('Отозвана инициатором');
-    expect(vm.formatStatusLabel('В работе')).toBe('В работе');
-  });
-
-  it('блок "Статус заявки" остаётся после отзыва и показывает, кто принял', () => {
+  it('блок "Статус заявки" остаётся после отзыва, статус сырой "Отозвана" (без "инициатором")', () => {
     const wrapper = mountDetail({
       status: 'Отозвана',
       responsible_user_id: 3,
@@ -95,7 +89,9 @@ describe('ApplicationDetail - отображение отозванной зая
     });
     const text = wrapper.text();
     expect(text).toContain('Статус заявки');
-    expect(text).toContain('Отозвана инициатором');
+    expect(text).toContain('Отозвана');
+    // "Отозвана инициатором" - только в шапке (ActionBar), не в блоке "Статус заявки".
+    expect(text).not.toContain('инициатором');
     expect(text).toContain('Принял(-а):');
     expect(text).toContain('Иванов И.');
   });
@@ -103,7 +99,7 @@ describe('ApplicationDetail - отображение отозванной зая
   it('отозванная без принятия: блок статуса виден, но без "Принял(-а)"', () => {
     const wrapper = mountDetail({ status: 'Отозвана', responsible_user_id: null });
     const text = wrapper.text();
-    expect(text).toContain('Отозвана инициатором');
+    expect(text).toContain('Отозвана');
     expect(text).not.toContain('Принял(-а):');
   });
 
