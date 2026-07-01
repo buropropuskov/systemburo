@@ -10,11 +10,10 @@
         v-for="chip in visibleChips"
         :key="chip.key"
         class="recipient-chip"
-        :class="{ 'is-reader': chip.removable }"
-        :title="chip.name + ' — ' + chip.roleLabel"
+        :class="{ 'is-approver': chip.isApprover }"
+        :data-hint="chip.name"
       >
-        <span class="recipient-chip__name">{{ chip.name }}</span>
-        <span class="recipient-chip__role">{{ chip.roleLabel }}</span>
+        <span class="recipient-chip__name">{{ shortName(chip.name) }}</span>
         <button
           v-if="chip.removable"
           class="recipient-chip__remove"
@@ -33,6 +32,7 @@
       <!-- Переполнение: остальные получатели в выпадающем списке -->
       <div
         v-if="overflowChips.length"
+        ref="overflowRef"
         class="recipients-extra"
       >
         <button
@@ -55,10 +55,9 @@
               v-for="chip in overflowChips"
               :key="chip.key"
               class="recipient-chip"
-              :class="{ 'is-reader': chip.removable }"
+              :class="{ 'is-approver': chip.isApprover }"
             >
               <span class="recipient-chip__name">{{ chip.name }}</span>
-              <span class="recipient-chip__role">{{ chip.roleLabel }}</span>
               <button
                 v-if="chip.removable"
                 class="recipient-chip__remove"
@@ -73,11 +72,13 @@
       </div>
 
       <!-- Добавить читателя (только Руководители) -->
-      <div class="recipients-add">
+      <div
+        ref="addRef"
+        class="recipients-add"
+      >
         <button
           class="recipients-add__btn"
           type="button"
-          title="Добавить получателя-читателя (только руководители)"
           @click="toggleAdd"
         >
           + получатель
@@ -91,7 +92,7 @@
               v-model="search"
               class="recipients-search"
               type="text"
-              placeholder="Поиск руководителя"
+              placeholder="Поиск"
             >
             <div class="recipients-add-list">
               <button
@@ -111,7 +112,7 @@
                 v-if="!availableManagers.length"
                 class="recipients-add-empty"
               >
-                {{ managerUsers.length ? 'Все руководители уже добавлены' : 'Нет руководителей' }}
+                Пользователей нет
               </div>
             </div>
           </div>
@@ -123,6 +124,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { formatShortName } from '@/utils/formatName'
 
 const MAX_VISIBLE = 4
 
@@ -155,14 +157,14 @@ export default {
         key: `a-${a.user_id}`,
         userId: a.user_id,
         name: a.name,
-        roleLabel: 'согласующий',
+        isApprover: true,
         removable: false
       }))
       const readerChips = this.readers.map(r => ({
         key: `r-${r.user_id}`,
         userId: r.user_id,
         name: r.name,
-        roleLabel: 'читатель',
+        isApprover: false,
         removable: true
       }))
       return [...approverChips, ...readerChips]
@@ -215,6 +217,18 @@ export default {
       return names.length ? names.join(' ') : u.username
     },
 
+    // Полное ФИО-строку "Фамилия Имя Отчество" -> "Фамилия И.О." (общий формат, formatName).
+    // Имена в чипах приходят строкой, поэтому разбираем на части перед сокращением.
+    shortName(full) {
+      const parts = String(full || '').trim().split(/\s+/)
+      if (parts.length < 2) return full || ''
+      return formatShortName({
+        last_name: parts[0],
+        first_name: parts[1],
+        middle_name: parts.slice(2).join(' ')
+      })
+    },
+
     addReader(user) {
       if (this.readers.some(r => r.user_id === user.userId)) return
       this.$emit('update:readers', [
@@ -239,9 +253,15 @@ export default {
       if (this.showOverflow) this.showAdd = false
     },
 
+    // Клик вне конкретного дропдауна закрывает именно его - в т.ч. клик по свободному
+    // месту при открытом "+ получатель".
     handleOutside(event) {
-      if (this.$refs.root && !this.$refs.root.contains(event.target)) {
+      const addEl = this.$refs.addRef
+      if (this.showAdd && addEl && !addEl.contains(event.target)) {
         this.showAdd = false
+      }
+      const overflowEl = this.$refs.overflowRef
+      if (this.showOverflow && overflowEl && !overflowEl.contains(event.target)) {
         this.showOverflow = false
       }
     }
@@ -255,7 +275,6 @@ export default {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  margin-top: 10px;
 }
 
 .recipients-label {
@@ -273,6 +292,7 @@ export default {
 }
 
 .recipient-chip {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -285,24 +305,57 @@ export default {
   white-space: nowrap;
 }
 
-.recipient-chip.is-reader {
-  border-color: rgba(79, 91, 223, 0.35);
-  background: rgba(79, 91, 223, 0.08);
+/* Согласующих выделяем синим border (без текста роли). */
+.recipient-chip.is-approver {
+  border-color: #4F5BDF;
 }
 
 .recipient-chip__name {
   font-weight: 500;
 }
 
-.recipient-chip__role {
-  font-size: 0.62rem;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  color: #94a3b8;
+/* Полное ФИО во всплывающей подсказке под чипом (системный стиль #333, как .tag-hint). */
+.recipient-chip[data-hint]::after {
+  content: attr(data-hint);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 240px;
+  background: #333;
+  color: #fff;
+  padding: 5px 9px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.3;
+  text-align: center;
+  white-space: normal;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
-.recipient-chip.is-reader .recipient-chip__role {
-  color: #4F5BDF;
+.recipient-chip[data-hint]::before {
+  content: '';
+  position: absolute;
+  top: calc(100% + 1px);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-bottom-color: #333;
+  z-index: 61;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.recipient-chip[data-hint]:hover::after,
+.recipient-chip[data-hint]:hover::before {
+  opacity: 1;
 }
 
 .recipient-chip__remove {
