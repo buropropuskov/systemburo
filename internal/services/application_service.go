@@ -137,7 +137,8 @@ type ApplicationService interface {
 	// GetApplicationHistory возвращает историю заявки.
 	GetApplicationHistory(ctx context.Context, applicationID int) ([]ApplicationHistoryItem, error)
 
-	// GetForwardMessages возвращает сопроводительные сообщения при пересылке заявки (#967).
+	// GetForwardMessages возвращает ветку заявки (#967) - все пересылки с получателями
+	// и сопроводительным текстом (если был), хронологически (старые сверху).
 	GetForwardMessages(ctx context.Context, applicationID int) ([]ForwardMessageItem, error)
 
 	// AddHistoryEntry добавляет запись в историю заявки.

@@ -13,6 +13,7 @@ const MSG = {
   author_id: 5,
   author_name: 'Петров Пётр Петрович',
   message: 'Прошу дополнительно согласовать заявку с вами',
+  recipients: ['Иванов Иван Иванович', 'Сидоров Сидор Сидорович'],
   created_at: '2026-07-01T10:00:00Z',
 };
 
@@ -21,7 +22,7 @@ describe('ForwardMessages (#967)', () => {
     getForwardMessages.mockReset();
   });
 
-  it('рендерит список сообщений с автором и текстом', async () => {
+  it('рендерит пересылку с автором, получателями и текстом', async () => {
     getForwardMessages.mockResolvedValue([MSG]);
     const wrapper = mount(ForwardMessages, { props: { applicationId: 42 } });
     await flushPromises();
@@ -31,6 +32,20 @@ describe('ForwardMessages (#967)', () => {
     expect(items).toHaveLength(1);
     expect(wrapper.text()).toContain('Петров Пётр Петрович');
     expect(wrapper.text()).toContain('Прошу дополнительно согласовать заявку с вами');
+    expect(wrapper.text()).toContain('Иванов Иван Иванович, Сидоров Сидор Сидорович');
+  });
+
+  it('пересылка без текста показывает только кто -> кому', async () => {
+    getForwardMessages.mockResolvedValue([
+      { id: 2, author_id: 5, author_name: 'Петров Пётр Петрович', message: '', recipients: ['Кузнецов Кузьма'], created_at: '2026-07-01T11:00:00Z' },
+    ]);
+    const wrapper = mount(ForwardMessages, { props: { applicationId: 42 } });
+    await flushPromises();
+
+    expect(wrapper.findAll('[data-testid="forward-message-item"]')).toHaveLength(1);
+    expect(wrapper.text()).toContain('Петров Пётр Петрович');
+    expect(wrapper.text()).toContain('Кузнецов Кузьма');
+    expect(wrapper.find('.forward-message-text').exists()).toBe(false);
   });
 
   it('скрывает блок при пустом списке', async () => {

@@ -12,13 +12,16 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// ForwardMessageItem - одно сопроводительное сообщение при пересылке заявки (#967).
-// Собирается из сводных записей forwarded в audit_log, у которых непустой comment.
+// ForwardMessageItem - одна пересылка заявки в "ветке заявки" (#967).
+// Источник - сводные записи forwarded в audit_log. Message - сопроводительный текст
+// (может быть пустым: пересылка без текста тоже попадает в ветку), Recipients - кому
+// переслано (из metadata.recipients), AuthorName - кто переслал.
 type ForwardMessageItem struct {
 	ID         int       `json:"id"`
 	AuthorID   int       `json:"author_id"`
 	AuthorName string    `json:"author_name"`
 	Message    string    `json:"message"`
+	Recipients []string  `json:"recipients"`
 	CreatedAt  time.Time `json:"created_at"`
 }
 
@@ -106,11 +109,11 @@ func (s *applicationService) GetApplicationHistory(ctx context.Context, applicat
 	return items, nil
 }
 
-// GetForwardMessages возвращает сопроводительные сообщения при пересылке заявки (#967),
-// новые сверху. Источник - сводные записи forwarded в audit_log с непустым comment;
-// actor_user_id - пересылающий (автор сообщения), JOIN users даёт его ФИО (как в
-// GetApplicationHistory). Пустые/отсутствующие comment отсекаются на уровне SQL, чтобы
-// пересылки без текста не попадали в блок.
+// GetForwardMessages возвращает ветку заявки - все пересылки (#967), хронологически
+// (старые сверху, как переписка). Источник - сводные записи forwarded в audit_log;
+// actor_user_id - пересылающий, JOIN users даёт его ФИО (как в GetApplicationHistory).
+// Пересылки без сопроводительного текста тоже входят в ветку (message пустой) - показывается
+// только "кто -> кому". Получатели берутся из metadata.recipients.
 func (s *applicationService) GetForwardMessages(ctx context.Context, applicationID int) ([]ForwardMessageItem, error) {
 	const authorName = `CONCAT(COALESCE(u.last_name, ''),
 		CASE WHEN u.first_name IS NOT NULL AND u.first_name != '' THEN ' ' || u.first_name ELSE '' END,
@@ -121,19 +124,48 @@ func (s *applicationService) GetForwardMessages(ctx context.Context, application
 			a.id,
 			a.actor_user_id AS author_id,
 			` + authorName + ` AS author_name,
-			a.details->>'comment' AS message,
+			COALESCE(a.details->>'comment', '') AS message,
+			COALESCE(a.details->'metadata'->>'recipients', '[]') AS recipients_json,
 			a.created_at
 		FROM audit_log a
 		JOIN users u ON a.actor_user_id = u.id
 		WHERE a.entity_type = ? AND a.entity_id = ? AND a.action = 'forwarded'
-			AND COALESCE(a.details->>'comment', '') <> ''
-		ORDER BY a.created_at DESC, a.id DESC
+		ORDER BY a.created_at ASC, a.id ASC
 	`
 
-	items := make([]ForwardMessageItem, 0)
-	if err := s.db.WithContext(ctx).Raw(sql, models.AuditEntityApplication, applicationID).Scan(&items).Error; err != nil {
-		slog.Error("Ошибка получения сообщений пересылки", "application_id", applicationID, "error", err)
+	type forwardMessageRow struct {
+		ID             int
+		AuthorID       int
+		AuthorName     string
+		Message        string
+		RecipientsJSON string
+		CreatedAt      time.Time
+	}
+	var rows []forwardMessageRow
+	if err := s.db.WithContext(ctx).Raw(sql, models.AuditEntityApplication, applicationID).Scan(&rows).Error; err != nil {
+		slog.Error("Ошибка получения ветки заявки", "application_id", applicationID, "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching forward messages")
+	}
+
+	items := make([]ForwardMessageItem, 0, len(rows))
+	for _, r := range rows {
+		recipients := []string{}
+		if r.RecipientsJSON != "" {
+			// Битый recipients не роняет ветку: деградируем к пустому списку получателей
+			// (запись всё равно показывает автора/текст), но логируем аномалию.
+			if err := json.Unmarshal([]byte(r.RecipientsJSON), &recipients); err != nil {
+				slog.Warn("не удалось разобрать recipients пересылки", "audit_id", r.ID, "error", err)
+				recipients = []string{}
+			}
+		}
+		items = append(items, ForwardMessageItem{
+			ID:         r.ID,
+			AuthorID:   r.AuthorID,
+			AuthorName: r.AuthorName,
+			Message:    r.Message,
+			Recipients: recipients,
+			CreatedAt:  r.CreatedAt,
+		})
 	}
 
 	return items, nil
