@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Мокап: Вопросы к заявке (Q&A)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --color-primary: #4F5BDF;
+    --color-primary-hover: #3d49c7;
+    --color-primary-tint: rgba(79, 91, 223, 0.08);
+    --color-success: #28a745;
+    --color-danger: #dc3545;
+    --color-warning: #ffc107;
+    --color-text: #333;
+    --color-text-muted: #999;
+    --color-border: #e6e6e6;
+    --color-bg: #f8f9ff;
+    --radius-md: 15px;
+    --radius-lg: 20px;
+    --radius-pill: 999px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Montserrat', sans-serif;
+    background: var(--color-bg);
+    color: var(--color-text);
+    padding: 24px;
+    line-height: 1.4;
+  }
+  .mockup-note {
+    max-width: 1280px; margin: 0 auto 18px; padding: 12px 18px;
+    background: #fff8e6; border: 1px solid var(--color-warning);
+    border-radius: var(--radius-md); font-size: 13px; color: #6b5900;
+  }
+  .mockup-note b { color: #4a4400; }
+
+  /* ---- Карточка детали заявки ---- */
+  .detail {
+    max-width: 1280px; margin: 0 auto 26px; background: #fff;
+    border: 1px solid var(--color-border); border-radius: 30px; overflow: hidden;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.06);
+  }
+  .detail-header {
+    display: flex; align-items: center; gap: 16px; padding: 16px 24px;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .detail-header h1 { font-size: 20px; font-weight: 700; }
+  .detail-header .sub { color: var(--color-text-muted); font-size: 13px; }
+  .detail-header .spacer { flex: 1; }
+  .detail-content { display: flex; min-height: 520px; }
+  .col-left { width: 240px; border-right: 1px solid var(--color-border); background: #fafafa; padding: 15px; }
+  .col-main { flex: 1; padding: 15px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; max-height: 720px; }
+  .col-right { width: 320px; border-left: 1px solid var(--color-border); background: #fafafa; padding: 15px; }
+
+  .col-title { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--color-text-muted); margin-bottom: 10px; }
+  .att-item { padding: 10px 12px; border-radius: var(--radius-md); background: #fff; border: 1px solid var(--color-border); margin-bottom: 8px; font-size: 13px; font-weight: 500; cursor: pointer; }
+  .att-item.active { border-color: var(--color-primary); background: var(--color-primary-tint); }
+
+  /* ---- Секция-карточка (эталон .message-section / ForwardMessages) ---- */
+  .section { background: #fff; border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: 0 2px 12px rgba(0,0,0,.06); }
+  .section-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 15px; border-bottom: 1px solid var(--color-border);
+  }
+  .section-head .toggle {
+    display: flex; align-items: center; gap: 10px; flex: 1;
+    background: none; border: none; padding: 0; margin: 0; cursor: pointer;
+    font-family: inherit; text-align: left;
+  }
+  .section-head .chevron { transition: transform .2s ease; color: var(--color-text-muted); font-size: 12px; }
+  .section.collapsed .section-head .chevron { transform: rotate(-90deg); }
+  .section-head h4 { font-size: 14px; color: var(--color-text-muted); font-weight: 500; margin: 0; }
+  .section-head .count-pill { font-size: 12px; color: var(--color-primary); background: var(--color-primary-tint); padding: 2px 9px; border-radius: var(--radius-pill); font-weight: 600; }
+
+  /* Плавное сворачивание высотой (grid-rows, урок #510) */
+  .section-body-wrap { display: grid; grid-template-rows: 1fr; transition: grid-template-rows .25s ease; }
+  .section.collapsed .section-body-wrap { grid-template-rows: 0fr; }
+  .section-body-inner { min-height: 0; overflow: hidden; }
+  .section-body { padding: 15px; }
+
+  .plain { font-size: 14px; color: var(--color-text); }
+
+  /* ---- Ветка заявки ---- */
+  .thread-item { padding: 12px 0; border-bottom: 1px solid #eee; }
+  .thread-item:first-child { padding-top: 0; }
+  .thread-item:last-child { padding-bottom: 0; border-bottom: none; }
+  .row-meta { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 4px; }
+  .author { font-size: 14px; font-weight: 600; color: #000; }
+  .author .tag-init { font-weight: 500; color: var(--color-primary); font-size: 12px; }
+  .when { font-size: 12px; color: var(--color-text-muted); flex-shrink: 0; }
+  .action-line { font-size: 13px; font-weight: 500; color: #333; margin-bottom: 3px; }
+  .to-line { font-size: 13px; color: #666; margin-bottom: 3px; }
+  .to-line .lbl { color: var(--color-text-muted); }
+  .body-text { font-size: 14px; color: #333; white-space: pre-wrap; }
+
+  /* ---- Кнопки ---- */
+  .btn { font-family: inherit; cursor: pointer; border: none; border-radius: var(--radius-pill); font-weight: 600; font-size: 13px; padding: 7px 16px; transition: background .15s ease; }
+  .btn--primary { background: var(--color-primary); color: #fff; }
+  .btn--primary:hover { background: var(--color-primary-hover); }
+  .btn--ghost { background: transparent; color: var(--color-primary); border: 1px solid var(--color-border); }
+  .btn--sm { padding: 5px 12px; font-size: 12px; }
+
+  /* ---- Вопросы к заявке ---- */
+  .q-empty { font-size: 13px; color: var(--color-text-muted); padding: 8px 0; }
+  .q-item { padding: 14px 0; border-bottom: 1px solid #eee; }
+  .q-item:first-child { padding-top: 0; }
+  .q-item:last-child { padding-bottom: 0; border-bottom: none; }
+  .q-subject { font-size: 15px; font-weight: 700; color: #111; margin-bottom: 4px; }
+  .q-atts { margin: 4px 0 6px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .q-atts .lbl { font-size: 12px; color: var(--color-text-muted); }
+  .chip { font-size: 11px; font-weight: 600; color: var(--color-primary); background: var(--color-primary-tint); padding: 2px 9px; border-radius: 8px; }
+  .q-text { font-size: 14px; color: #222; margin-bottom: 8px; white-space: pre-wrap; }
+
+  .toggle-answers { background: none; border: none; color: var(--color-primary); font-family: inherit; font-weight: 600; font-size: 13px; cursor: pointer; padding: 2px 0; display: inline-flex; align-items: center; gap: 6px; }
+  .toggle-answers .tri { font-size: 10px; transition: transform .2s ease; }
+  .q-item.open .toggle-answers .tri { transform: rotate(90deg); }
+
+  .answers { margin: 8px 0 0 14px; padding-left: 14px; border-left: 2px solid #eef0ff; display: none; }
+  .q-item.open .answers { display: block; }
+  .answer { padding: 8px 0; }
+  .answer + .answer { border-top: 1px solid #f2f2f2; }
+  .a-text { font-size: 13.5px; color: #333; white-space: pre-wrap; }
+
+  .reply-box { margin-top: 10px; display: flex; gap: 8px; align-items: flex-start; }
+  .reply-box textarea { flex: 1; font-family: inherit; font-size: 13px; padding: 9px 12px; border: 1px solid var(--color-border); border-radius: var(--radius-md); resize: vertical; min-height: 40px; }
+  .reply-box textarea:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 3px var(--color-primary-tint); }
+
+  /* ---- Правая колонка ---- */
+  .info-row { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; }
+  .info-row .lbl { font-size: 12px; color: var(--color-text-muted); }
+  .info-row .val { font-size: 14px; font-weight: 500; }
+  .badge { display: inline-block; font-size: 12px; font-weight: 600; padding: 3px 12px; border-radius: var(--radius-pill); }
+  .badge--work { background: rgba(79,91,223,.12); color: var(--color-primary); }
+  .badge--ok { background: rgba(40,167,69,.12); color: var(--color-success); }
+
+  /* ---- Модалка ---- */
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: none; align-items: center; justify-content: center; z-index: 100; }
+  .overlay.show { display: flex; }
+  .modal { background: #fff; border-radius: 30px; width: 600px; max-width: calc(100vw - 40px); max-height: 92vh; overflow-y: auto; box-shadow: 0 8px 30px rgba(0,0,0,.15); }
+  .modal-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid var(--color-border); }
+  .modal-head h3 { font-size: 18px; font-weight: 600; }
+  .modal-close { background: none; border: none; font-size: 24px; color: #999; cursor: pointer; width: 32px; height: 32px; border-radius: 50%; }
+  .modal-close:hover { background: #f5f5f5; }
+  .modal-body { padding: 20px; }
+  .field { margin-bottom: 16px; }
+  .field-label { font-size: 13px; font-weight: 600; margin-bottom: 6px; display: block; }
+  .modal-body input[type=text], .modal-body textarea { width: 100%; font-family: inherit; font-size: 14px; padding: 10px 12px; border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+  .modal-body textarea { resize: vertical; min-height: 90px; }
+  .modal-body input:focus, .modal-body textarea:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 3px var(--color-primary-tint); }
+  .att-pick-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .att-pick-head h4 { font-size: 15px; font-weight: 600; }
+  .att-check { display: flex; align-items: center; gap: 10px; padding: 9px 8px; border-radius: var(--radius-md); cursor: pointer; font-size: 14px; }
+  .att-check:hover { background: #f5f7ff; }
+  .att-check input { width: 16px; height: 16px; accent-color: var(--color-primary); }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; padding: 15px 20px; border-top: 1px solid var(--color-border); }
+
+  /* ---- Мок-строка Центра заявок ---- */
+  .center-demo { max-width: 1280px; margin: 0 auto; }
+  .center-demo h2 { font-size: 16px; margin-bottom: 12px; color: var(--color-text-muted); font-weight: 600; }
+  .center-row { display: grid; grid-template-columns: 130px 90px 120px 1fr 200px 140px; align-items: center; gap: 12px; padding: 14px 18px; background: #fff; border: 1px solid var(--color-border); border-radius: var(--radius-md); font-size: 13px; }
+  .center-row.unread { border-left: 3px solid var(--color-primary); }
+  .center-row .num { font-weight: 700; }
+  .tags { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .tag { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: var(--radius-pill); }
+  .tag--danger { background: rgba(220,53,69,.12); color: var(--color-danger); }
+  /* иконка-индикатор вопросов (вместо текстового бейджа) */
+  .q-marker { position: relative; display: inline-flex; color: var(--color-primary); }
+  .q-marker svg { display: block; }
+  .q-marker .q-dot { position: absolute; top: -2px; right: -2px; width: 9px; height: 9px; border-radius: 50%; background: var(--color-danger); border: 2px solid #fff; }
+</style>
+</head>
+<body>
+
+<div class="mockup-note">
+  <b>Мокап (не рабочий код)</b> — прототип фичи «Вопросы к заявке». Блоки по умолчанию свёрнуты — разверни по заголовку.
+  Можно раскрыть ответы, «Задать вопрос», «Ответить». Ниже — как маркер выглядит в «Центре заявок».
+</div>
+
+<!-- ============ ДЕТАЛЬ ЗАЯВКИ ============ -->
+<div class="detail">
+  <div class="detail-header">
+    <h1>Заявка №2026-0453</h1>
+    <span class="sub">23.05.2026, 14:28</span>
+    <span class="spacer"></span>
+    <span class="badge badge--work">В работе</span>
+  </div>
+  <div class="detail-content">
+    <!-- Левая: вложения -->
+    <div class="col-left">
+      <div class="col-title">Вложения</div>
+      <div class="att-item active">Автозаявка №1</div>
+      <div class="att-item">Проведение работ</div>
+      <div class="att-item">Разовый пропуск</div>
+    </div>
+
+    <!-- Центр -->
+    <div class="col-main">
+      <!-- Сообщение -->
+      <div class="section" id="sec-msg">
+        <div class="section-head">
+          <button class="toggle" onclick="toggleSection('sec-msg')">
+            <span class="chevron">▾</span>
+            <h4>Сообщение к заявке</h4>
+          </button>
+        </div>
+        <div class="section-body-wrap"><div class="section-body-inner"><div class="section-body">
+          <div class="plain">Прошу оформить пропуск на въезд техники для проведения работ на территории склада.</div>
+        </div></div></div>
+      </div>
+
+      <!-- Ветка заявки (СВЁРНУТА по умолчанию) -->
+      <div class="section collapsed" id="sec-thread">
+        <div class="section-head">
+          <button class="toggle" onclick="toggleSection('sec-thread')">
+            <span class="chevron">▾</span>
+            <h4>Ветка заявки</h4>
+            <span class="count-pill">2</span>
+          </button>
+        </div>
+        <div class="section-body-wrap"><div class="section-body-inner"><div class="section-body">
+          <div class="thread-item">
+            <div class="row-meta"><span class="author">Петров Пётр Петрович <span class="tag-init">· Инициатор заявки</span></span><span class="when">15.06.2026 14:30</span></div>
+            <div class="action-line">Переслал(-а) всю заявку</div>
+            <div class="to-line"><span class="lbl">Кому:</span> Иванов И.И., Сидоров С.С.</div>
+            <div class="body-text">Прошу согласовать до пятницы</div>
+          </div>
+          <div class="thread-item">
+            <div class="row-meta"><span class="author">Иванов Иван Иванович</span><span class="when">16.06.2026 09:10</span></div>
+            <div class="action-line">Переслал(-а) вложения: Автозаявка №1</div>
+            <div class="to-line"><span class="lbl">Кому:</span> Кузнецов К.К.</div>
+          </div>
+        </div></div></div>
+      </div>
+
+      <!-- ВОПРОСЫ К ЗАЯВКЕ (СВЁРНУТ по умолчанию; "Задать вопрос" в шапке) -->
+      <div class="section collapsed" id="sec-q">
+        <div class="section-head">
+          <button class="toggle" onclick="toggleSection('sec-q')">
+            <span class="chevron">▾</span>
+            <h4>Вопросы к заявке</h4>
+            <span class="count-pill" id="q-count">2</span>
+          </button>
+          <button class="btn btn--primary btn--sm" onclick="openModal()">+ Задать вопрос</button>
+        </div>
+        <div class="section-body-wrap"><div class="section-body-inner"><div class="section-body">
+          <div id="q-list">
+            <!-- Вопрос 1 -->
+            <div class="q-item open">
+              <div class="row-meta"><span class="author">Иванов Иван Иванович</span><span class="when">17.06.2026 10:05</span></div>
+              <div class="q-subject">Прицеп у фуры</div>
+              <div class="q-atts"><span class="lbl">по вложениям:</span> <span class="chip">Автозаявка №1</span></div>
+              <div class="q-text">В списке машин не указан прицеп. Заезжает ли фура с прицепом? Нужно уточнить для оформления.</div>
+              <button class="toggle-answers" onclick="toggleAnswers(this)"><span class="tri">▸</span> <span class="lbl-txt">Скрыть ответы (2)</span></button>
+              <div class="answers">
+                <div class="answer">
+                  <div class="row-meta"><span class="author">Петров Пётр Петрович <span class="tag-init">· Инициатор заявки</span></span><span class="when">17.06.2026 10:40</span></div>
+                  <div class="a-text">Да, фура с прицепом. Прицеп добавлю в заявку сегодня.</div>
+                </div>
+                <div class="answer">
+                  <div class="row-meta"><span class="author">Иванов Иван Иванович</span><span class="when">17.06.2026 10:52</span></div>
+                  <div class="a-text">Отлично, тогда согласую после добавления.</div>
+                </div>
+                <div class="reply-box">
+                  <textarea placeholder="Написать ответ..."></textarea>
+                  <button class="btn btn--primary btn--sm" onclick="addReply(this)">Ответить</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Вопрос 2 -->
+            <div class="q-item">
+              <div class="row-meta"><span class="author">Кузнецов Кузьма Кузьмич</span><span class="when">18.06.2026 08:15</span></div>
+              <div class="q-subject">Время въезда</div>
+              <div class="q-text">Уточните время въезда — в заявке 09:00, но охрана открывает в 08:30. Можно раньше?</div>
+              <button class="toggle-answers" onclick="toggleAnswers(this)"><span class="tri">▸</span> <span class="lbl-txt">Показать ответы (1)</span></button>
+              <div class="answers">
+                <div class="answer">
+                  <div class="row-meta"><span class="author">Петров Пётр Петрович <span class="tag-init">· Инициатор заявки</span></span><span class="when">18.06.2026 08:30</span></div>
+                  <div class="a-text">Да, 08:30 подойдёт.</div>
+                </div>
+                <div class="reply-box">
+                  <textarea placeholder="Написать ответ..."></textarea>
+                  <button class="btn btn--primary btn--sm" onclick="addReply(this)">Ответить</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div></div></div>
+      </div>
+    </div>
+
+    <!-- Правая: инфо -->
+    <div class="col-right">
+      <div class="col-title">Основная информация</div>
+      <div class="info-row"><span class="lbl">Организация</span><span class="val">ООО «СтройГарант»</span></div>
+      <div class="info-row"><span class="lbl">Инициатор</span><span class="val">Петров Пётр Петрович</span></div>
+      <div class="info-row"><span class="lbl">Статус</span><span><span class="badge badge--work">В работе</span></span></div>
+      <div class="info-row"><span class="lbl">Согласование</span><span><span class="badge badge--ok">Согласовано</span></span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ ЦЕНТР ЗАЯВОК: маркер-иконка ============ -->
+<div class="center-demo">
+  <h2>Центр заявок — маркер «есть новые вопросы/ответы»</h2>
+  <div class="center-row unread">
+    <span><span class="badge badge--ok">Согласовано</span></span>
+    <span class="num">№2026-0453</span>
+    <span>23.05.2026</span>
+    <span>ООО «СтройГарант»</span>
+    <span><span class="badge badge--work">В работе</span></span>
+    <span class="tags">
+      <span class="q-marker" title="Есть новые вопросы/ответы">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+        <span class="q-dot"></span>
+      </span>
+      <span class="tag tag--danger">ЧС</span>
+    </span>
+  </div>
+  <p style="font-size:12px;color:#999;margin-top:8px;">Уведомления (колокольчик) приходят на КАЖДЫЙ вопрос (инициатору заявки) и на КАЖДЫЙ ответ (участникам обсуждения - «на ваш вопрос ответили»), кроме автора самого сообщения. Иконка-индикатор в Центре - дополнительный визуальный маркер непросмотренных вопросов/ответов (красная точка), пропадает после открытия заявки.</p>
+</div>
+
+<!-- ============ МОДАЛКА «Задать вопрос» ============ -->
+<div class="overlay" id="ask-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Задать вопрос</h3>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label class="field-label">Тема вопроса</label>
+        <input type="text" id="ask-subject" placeholder="Например: Прицеп у фуры" maxlength="150">
+      </div>
+      <div class="field">
+        <label class="field-label">Вопрос</label>
+        <textarea id="ask-text" placeholder="Например: в списке машин не указан прицеп — заезжает ли фура с прицепом?"></textarea>
+      </div>
+      <div class="field">
+        <div class="att-pick-head">
+          <h4>Вложения, по которым вопрос <span style="font-weight:400;color:#999;font-size:13px;">(необязательно)</span></h4>
+          <label style="font-size:13px;cursor:pointer;"><input type="checkbox" onclick="toggleAll(this)"> Выбрать все</label>
+        </div>
+        <label class="att-check"><input type="checkbox" class="ap"> Автозаявка №1</label>
+        <label class="att-check"><input type="checkbox" class="ap"> Проведение работ</label>
+        <label class="att-check"><input type="checkbox" class="ap"> Разовый пропуск</label>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn--ghost" onclick="closeModal()">Отмена</button>
+      <button class="btn btn--primary" onclick="submitQuestion()">Отправить</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  function toggleSection(id) {
+    document.getElementById(id).classList.toggle('collapsed');
+  }
+  function toggleAnswers(btn) {
+    const item = btn.closest('.q-item');
+    item.classList.toggle('open');
+    const open = item.classList.contains('open');
+    const n = item.querySelectorAll('.answer').length;
+    btn.querySelector('.lbl-txt').textContent = (open ? 'Скрыть ответы (' : 'Показать ответы (') + n + ')';
+  }
+  function openModal() { document.getElementById('ask-modal').classList.add('show'); }
+  function closeModal() { document.getElementById('ask-modal').classList.remove('show'); }
+  function toggleAll(cb) { document.querySelectorAll('.ap').forEach(x => x.checked = cb.checked); }
+
+  function addReply(btn) {
+    const ta = btn.previousElementSibling;
+    const text = ta.value.trim();
+    if (!text) return;
+    const box = btn.closest('.reply-box');
+    const a = document.createElement('div');
+    a.className = 'answer';
+    a.innerHTML = '<div class="row-meta"><span class="author">Вы</span><span class="when">только что</span></div><div class="a-text"></div>';
+    a.querySelector('.a-text').textContent = text;
+    box.parentNode.insertBefore(a, box);
+    ta.value = '';
+  }
+
+  function submitQuestion() {
+    const subject = document.getElementById('ask-subject').value.trim();
+    const text = document.getElementById('ask-text').value.trim();
+    if (!subject || !text) return;
+    const checked = [...document.querySelectorAll('.ap:checked')].map(x => x.parentNode.textContent.trim());
+    const list = document.getElementById('q-list');
+    const item = document.createElement('div');
+    item.className = 'q-item';
+    let atts = '';
+    if (checked.length) {
+      atts = '<div class="q-atts"><span class="lbl">по вложениям:</span> ' + checked.map(c => '<span class="chip">' + c + '</span>').join(' ') + '</div>';
+    }
+    item.innerHTML = '<div class="row-meta"><span class="author">Вы</span><span class="when">только что</span></div>' +
+      '<div class="q-subject"></div>' +
+      atts +
+      '<div class="q-text"></div>' +
+      '<button class="toggle-answers" onclick="toggleAnswers(this)"><span class="tri">▸</span> <span class="lbl-txt">Показать ответы (0)</span></button>' +
+      '<div class="answers"><div class="reply-box"><textarea placeholder="Написать ответ..."></textarea><button class="btn btn--primary btn--sm" onclick="addReply(this)">Ответить</button></div></div>';
+    item.querySelector('.q-subject').textContent = subject;
+    item.querySelector('.q-text').textContent = text;
+    list.insertBefore(item, list.firstChild);
+    document.getElementById('q-count').textContent = list.querySelectorAll('.q-item').length;
+    document.getElementById('ask-subject').value = '';
+    document.getElementById('ask-text').value = '';
+    document.querySelectorAll('.ap').forEach(x => x.checked = false);
+    closeModal();
+  }
+</script>
+</body>
+</html>
