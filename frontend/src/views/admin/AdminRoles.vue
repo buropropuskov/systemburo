@@ -176,35 +176,22 @@
                 data-testid="role-detail-description"
               />
 
-              <div class="groups-block">
-                <label class="field-label">Дефолтные группы прав</label>
+              <div class="perms-block">
+                <label class="field-label">Права роли</label>
                 <span class="field-hint">
-                  Пользователи с этой ролью получают права из всех выбранных групп.
+                  Собственные точечные права роли и дефолтные группы. Права из групп добавляются к точечным.
                 </span>
-                <div class="groups-list">
-                  <label
-                    v-for="g in allGroups"
-                    :key="g.id"
-                    class="group-row"
-                  >
-                    <input
-                      type="checkbox"
-                      class="checkbox"
-                      :checked="selectedGroupIds.has(g.id)"
-                      :disabled="isSaving"
-                      data-testid="role-group-checkbox"
-                      @change="toggleGroupId(g.id)"
-                    >
-                    <span class="group-row__name">{{ g.name }}</span>
-                    <span class="group-row__count">{{ (g.keys || []).length }} прав</span>
-                  </label>
-                  <p
-                    v-if="!allGroups.length"
-                    class="groups-empty"
-                  >
-                    Нет ни одной группы. Сначала создайте группы прав.
-                  </p>
-                </div>
+                <button
+                  type="button"
+                  class="manage-perms-btn"
+                  data-testid="role-perms-btn"
+                  @click="openPermsModal"
+                >
+                  Настроить права
+                  <span class="manage-perms-btn__meta">
+                    {{ currentDirectKeys.length }} точечных · {{ currentGroupIds.length }} групп
+                  </span>
+                </button>
               </div>
 
               <div
@@ -341,6 +328,18 @@
         </transition>
       </Teleport>
 
+      <RolePermissionsModal
+        :show="permsModal.show"
+        :role-name="original.name"
+        :catalog="catalog"
+        :groups="allGroups"
+        :initial-direct-keys="currentDirectKeys"
+        :initial-group-ids="currentGroupIds"
+        :saving="permsSaving"
+        @close="permsModal.show = false"
+        @save="handleSavePerms"
+      />
+
       <ConfirmationModal
         :show="!!deleteConfirm"
         title="Удаление роли"
@@ -361,6 +360,7 @@ import SearchComponent from '@/components/SearchComponent.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
+import RolePermissionsModal from '@/components/admin/RolePermissionsModal.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { registerDirtyTracker, confirmIfAnyDirty } from '@/utils/dirtyTracker';
 import { useOverlayClose } from '@/composables/useOverlayClose';
@@ -370,12 +370,14 @@ import {
   updateRole,
   deleteRole,
   setRoleDefaultGroups,
+  setRolePermissions,
   listPermissionGroups,
+  getPermissionCatalog,
 } from '@/api/permissions';
 
 export default {
   name: 'AdminRoles',
-  components: { AdminPageShell, SearchComponent, RefreshButton, ConfirmationModal, LoaderSpinner },
+  components: { AdminPageShell, SearchComponent, RefreshButton, ConfirmationModal, LoaderSpinner, RolePermissionsModal },
   setup() {
     // Колбэк закрытия модалки присваивается в created - нужен доступ к this с проверкой dirty.
     const overlay = { close: () => {} };
@@ -386,14 +388,17 @@ export default {
     return {
       roles: [],
       allGroups: [],
+      catalog: [],
       searchQuery: '',
       sortField: null,
       sortDirection: 'asc',
       isLoading: false,
       selectedRole: null,
       original: { name: '', description: '' },
-      selectedGroupIds: new Set(),
-      originalGroupIds: new Set(),
+      currentGroupIds: [],
+      currentDirectKeys: [],
+      permsModal: { show: false },
+      permsSaving: false,
       detailError: '',
       isSaving: false,
       showMetaModal: false,
@@ -431,16 +436,8 @@ export default {
     isDetailsDirty() {
       const s = this.selectedRole;
       if (!s) return false;
-      const metaDirty = s.name.trim() !== this.original.name
+      return s.name.trim() !== this.original.name
         || (s.description || '').trim() !== this.original.description;
-      return metaDirty || this.groupsDirty;
-    },
-    groupsDirty() {
-      if (this.selectedGroupIds.size !== this.originalGroupIds.size) return true;
-      for (const id of this.selectedGroupIds) {
-        if (!this.originalGroupIds.has(id)) return true;
-      }
-      return false;
     },
     isDirty() {
       return this.isMetaModalDirty || this.isDetailsDirty;
@@ -465,9 +462,6 @@ export default {
           }
           if ((s.description || '').trim() !== this.original.description) {
             ch.push({ label: 'Описание', from: this.original.description || '—', to: (s.description || '').trim() || '—' });
-          }
-          if (this.groupsDirty) {
-            ch.push({ label: 'Дефолтные группы', from: `${this.originalGroupIds.size}`, to: `${this.selectedGroupIds.size}` });
           }
           return ch;
         }
@@ -512,16 +506,20 @@ export default {
     syncSelectedFrom(fresh) {
       this.selectedRole = { id: fresh.id, code: fresh.code, name: fresh.name, description: fresh.description || '' };
       this.original = { name: fresh.name, description: fresh.description || '' };
-      const ids = (fresh.default_groups || []).map(g => g.id);
-      this.selectedGroupIds = new Set(ids);
-      this.originalGroupIds = new Set(ids);
+      this.currentGroupIds = (fresh.default_groups || []).map(g => g.id);
+      this.currentDirectKeys = [...(fresh.direct_grants || [])];
     },
     async refresh() {
       this.isLoading = true;
       try {
-        const [roles, groups] = await Promise.all([listRoles(), listPermissionGroups()]);
+        const [roles, groups, catalog] = await Promise.all([
+          listRoles(),
+          listPermissionGroups(),
+          getPermissionCatalog(),
+        ]);
         this.roles = Array.isArray(roles) ? roles : [];
         this.allGroups = Array.isArray(groups) ? groups : [];
+        this.catalog = Array.isArray(catalog) ? catalog : [];
         if (this.selectedRole) {
           const fresh = this.roles.find(r => r.id === this.selectedRole.id);
           if (fresh && !this.isDetailsDirty) {
@@ -542,12 +540,6 @@ export default {
       this.syncSelectedFrom(role);
       this.detailError = '';
     },
-    toggleGroupId(id) {
-      const next = new Set(this.selectedGroupIds);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      this.selectedGroupIds = next;
-    },
     async saveSelected() {
       if (!this.isDetailsDirty || this.isSaving) return;
       const s = this.selectedRole;
@@ -559,22 +551,55 @@ export default {
       this.isSaving = true;
       this.detailError = '';
       try {
-        const metaDirty = name !== this.original.name
-          || (s.description || '').trim() !== this.original.description;
-        if (metaDirty) {
-          const res = await updateRole(s.id, { name, description: (s.description || '').trim() || null });
-          if (res && res.message && res.updated === undefined) throw new Error(res.message);
-        }
-        if (this.groupsDirty) {
-          const res = await setRoleDefaultGroups(s.id, Array.from(this.selectedGroupIds));
-          if (res && res.message && res.updated === undefined) throw new Error(res.message);
-        }
+        const res = await updateRole(s.id, { name, description: (s.description || '').trim() || null });
+        if (res && res.message && res.updated === undefined) throw new Error(res.message);
         useDeletionsStore().notify({ prefix: 'Изменения сохранены в ', bold: name });
         await this.refresh();
       } catch (e) {
         this.detailError = e?.message || 'Не удалось сохранить';
       } finally {
         this.isSaving = false;
+      }
+    },
+    openPermsModal() {
+      if (!this.selectedRole) return;
+      this.permsModal.show = true;
+    },
+    sameKeys(a, b) {
+      if (a.length !== b.length) return false;
+      const setB = new Set(b);
+      return a.every(k => setB.has(k));
+    },
+    async handleSavePerms({ directKeys, groupIds }) {
+      const s = this.selectedRole;
+      if (!s || this.permsSaving) return;
+      const groupsChanged = !this.sameKeys(groupIds, this.currentGroupIds);
+      const grantsChanged = !this.sameKeys(directKeys, this.currentDirectKeys);
+      if (!groupsChanged && !grantsChanged) {
+        this.permsModal.show = false;
+        return;
+      }
+      this.permsSaving = true;
+      try {
+        if (groupsChanged) {
+          const res = await setRoleDefaultGroups(s.id, groupIds);
+          if (res && res.message && res.updated === undefined) throw new Error(res.message);
+        }
+        if (grantsChanged) {
+          const res = await setRolePermissions(s.id, directKeys);
+          if (res && res.message && res.updated === undefined) throw new Error(res.message);
+        }
+        useDeletionsStore().notify({ prefix: 'Права роли ', bold: this.original.name, suffix: ' обновлены' });
+        this.permsModal.show = false;
+        await this.refresh();
+      } catch (e) {
+        useDeletionsStore().notify({
+          prefix: 'Не удалось сохранить права: ',
+          bold: e?.message || 'ошибка',
+          type: 'error',
+        });
+      } finally {
+        this.permsSaving = false;
       }
     },
     openCreate() {
@@ -588,7 +613,7 @@ export default {
     openCopy(role) {
       this.modalMode = 'copy';
       this.copySource = { id: role.id, name: this.original.name || role.name };
-      this.copySourceGroupIds = Array.from(this.selectedGroupIds);
+      this.copySourceGroupIds = [...this.currentGroupIds];
       this.metaForm = {
         name: `Копия: ${this.original.name || role.name}`,
         code: `${role.code}_copy`,
@@ -1035,57 +1060,38 @@ export default {
   resize: vertical;
 }
 
-.groups-block {
+.perms-block {
   display: flex;
   flex-direction: column;
   gap: 6px;
   margin-top: 8px;
 }
 
-.groups-list {
-  max-height: 220px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 8px;
-  background: #f8f9ff;
-  border-radius: 15px;
-  border: 1px solid #e6e6e6;
-}
-
-.group-row {
-  display: grid;
-  grid-template-columns: 18px 1fr auto;
+.manage-perms-btn {
+  align-self: flex-start;
+  margin-top: 4px;
+  display: inline-flex;
   align-items: center;
   gap: 10px;
-  padding: 7px 10px;
-  border-radius: 10px;
+  padding: 9px 18px;
+  background: #fff;
+  color: #4F5BDF;
+  border: 1px solid #4F5BDF;
+  border-radius: 30px;
   cursor: pointer;
   font-size: 13px;
-  transition: background 0.15s ease;
+  font-weight: 500;
+  transition: background 0.2s ease;
 }
 
-.group-row:hover {
+.manage-perms-btn:hover {
   background: #eef0ff;
 }
 
-.group-row__name {
-  font-weight: 500;
-  color: #333;
-}
-
-.group-row__count {
+.manage-perms-btn__meta {
   font-size: 11px;
-  color: #a2a2a2;
-}
-
-.groups-empty {
-  margin: 0;
-  padding: 8px;
-  font-size: 12px;
-  color: #a2a2a2;
-  font-style: italic;
+  color: #6b7280;
+  font-weight: 400;
 }
 
 .details-actions {
