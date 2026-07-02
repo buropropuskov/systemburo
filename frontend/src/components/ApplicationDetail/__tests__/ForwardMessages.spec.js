@@ -96,3 +96,71 @@ describe('ForwardMessages (#967)', () => {
     expect(wrapper.findAll('[data-testid="forward-message-item"]')).toHaveLength(1);
   });
 });
+
+describe('ForwardMessages — сворачивание', () => {
+  beforeEach(() => {
+    getForwardMessages.mockReset();
+    localStorage.clear();
+  });
+
+  it('по умолчанию свёрнут', async () => {
+    getForwardMessages.mockResolvedValue([MSG]);
+    const wrapper = mount(ForwardMessages, { props: { applicationId: 42 } });
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="forward-messages"]').classes()).toContain('collapsed');
+    expect(wrapper.find('[data-testid="forward-messages-toggle"]').attributes('aria-expanded')).toBe('false');
+  });
+
+  it('клик по заголовку разворачивает и сохраняет выбор', async () => {
+    getForwardMessages.mockResolvedValue([MSG]);
+    const wrapper = mount(ForwardMessages, { props: { applicationId: 42 } });
+    await flushPromises();
+
+    await wrapper.find('[data-testid="forward-messages-toggle"]').trigger('click');
+
+    expect(wrapper.find('[data-testid="forward-messages"]').classes()).not.toContain('collapsed');
+    expect(wrapper.find('[data-testid="forward-messages-toggle"]').attributes('aria-expanded')).toBe('true');
+    expect(localStorage.getItem('forwardThread.collapsed')).toBe('false');
+  });
+
+  it('уважает сохранённое развёрнутое состояние', async () => {
+    localStorage.setItem('forwardThread.collapsed', 'false');
+    getForwardMessages.mockResolvedValue([MSG]);
+    const wrapper = mount(ForwardMessages, { props: { applicationId: 42 } });
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="forward-messages"]').classes()).not.toContain('collapsed');
+  });
+
+  it('повторный клик снова сворачивает', async () => {
+    getForwardMessages.mockResolvedValue([MSG]);
+    const wrapper = mount(ForwardMessages, { props: { applicationId: 42 } });
+    await flushPromises();
+    const toggle = wrapper.find('[data-testid="forward-messages-toggle"]');
+
+    await toggle.trigger('click'); // развернуть
+    await toggle.trigger('click'); // снова свернуть
+
+    expect(wrapper.find('[data-testid="forward-messages"]').classes()).toContain('collapsed');
+    expect(toggle.attributes('aria-expanded')).toBe('false');
+    expect(localStorage.getItem('forwardThread.collapsed')).toBe('true');
+  });
+
+  it('не падает, если localStorage недоступен', async () => {
+    const getSpy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('denied'); });
+    const setSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('denied'); });
+    getForwardMessages.mockResolvedValue([MSG]);
+
+    const wrapper = mount(ForwardMessages, { props: { applicationId: 42 } });
+    await flushPromises();
+    // дефолт свёрнут при недоступном localStorage
+    expect(wrapper.find('[data-testid="forward-messages"]').classes()).toContain('collapsed');
+    // клик не роняет компонент
+    await wrapper.find('[data-testid="forward-messages-toggle"]').trigger('click');
+    expect(wrapper.find('[data-testid="forward-messages"]').classes()).not.toContain('collapsed');
+
+    getSpy.mockRestore();
+    setSpy.mockRestore();
+  });
+});

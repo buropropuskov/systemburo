@@ -1,45 +1,66 @@
 <!-- ForwardMessages.vue -->
 <!-- Ветка заявки (#967): хронология пересылок (как ветка письма в Outlook). Каждый пункт -
      кто переслал, кому и когда, плюс сопроводительный текст если он был. Виден всем
-     получателям. Пустой список -> блок скрыт. -->
+     получателям. Пустой список -> блок скрыт. Заголовок сворачивает/разворачивает список
+     (свёрнут по умолчанию, выбор запоминается в localStorage). -->
 <template>
   <section
     v-if="messages.length > 0"
     class="forward-messages-section"
+    :class="{ collapsed }"
     data-testid="forward-messages"
   >
-    <div class="forward-messages-header">
+    <button
+      type="button"
+      class="forward-messages-header"
+      :aria-expanded="!collapsed"
+      :aria-controls="bodyId"
+      data-testid="forward-messages-toggle"
+      @click="toggleCollapse"
+    >
+      <span
+        class="fm-chevron"
+        aria-hidden="true"
+      >▾</span>
       <h4>Ветка заявки</h4>
+      <span class="fm-count">{{ messages.length }}</span>
+    </button>
+    <div
+      :id="bodyId"
+      class="forward-messages-body"
+    >
+      <div class="forward-messages-body-inner">
+        <ul class="forward-messages-list">
+          <li
+            v-for="msg in messages"
+            :key="msg.id"
+            class="forward-message-item"
+            data-testid="forward-message-item"
+          >
+            <div class="forward-message-meta">
+              <span class="forward-message-author">{{ msg.author_name || 'Пользователь' }}</span>
+              <span class="forward-message-date">{{ formatDateTime(msg.created_at) }}</span>
+            </div>
+            <p class="forward-message-action">
+              {{ actionText(msg) }}
+            </p>
+            <p
+              v-if="recipientsText(msg)"
+              class="forward-message-recipients"
+            >
+              <span class="forward-message-recipients-label">Кому:</span>
+              {{ recipientsText(msg) }}
+            </p>
+            <p
+              v-if="msg.message"
+              class="forward-message-text"
+            >
+              {{ msg.message }}
+            </p>
+          </li>
+        </ul>
+      </div>
     </div>
-    <ul class="forward-messages-list">
-      <li
-        v-for="msg in messages"
-        :key="msg.id"
-        class="forward-message-item"
-        data-testid="forward-message-item"
-      >
-        <div class="forward-message-meta">
-          <span class="forward-message-author">{{ msg.author_name || 'Пользователь' }}</span>
-          <span class="forward-message-date">{{ formatDateTime(msg.created_at) }}</span>
-        </div>
-        <p class="forward-message-action">
-          {{ actionText(msg) }}
-        </p>
-        <p
-          v-if="recipientsText(msg)"
-          class="forward-message-recipients"
-        >
-          <span class="forward-message-recipients-label">Кому:</span>
-          {{ recipientsText(msg) }}
-        </p>
-        <p
-          v-if="msg.message"
-          class="forward-message-text"
-        >
-          {{ msg.message }}
-        </p>
-      </li>
-    </ul>
   </section>
 </template>
 
@@ -57,7 +78,15 @@ export default {
     data() {
         return {
             messages: [],
-            loadSeq: 0
+            loadSeq: 0,
+            // Свёрнут по умолчанию; выбор пользователя запоминаем в localStorage.
+            collapsed: this.readCollapsed()
+        }
+    },
+    computed: {
+        // id тела для aria-controls кнопки-заголовка (disclosure widget).
+        bodyId() {
+            return `forward-messages-body-${this.applicationId}`;
         }
     },
     watch: {
@@ -83,6 +112,25 @@ export default {
                 // Ветка заявки - вспомогательный показ; при сбое сохраняем то, что уже
                 // отрисовано, и не роняем деталь заявки.
                 if (seq !== this.loadSeq) return;
+            }
+        },
+
+        // Дефолт свёрнут: сохранённое 'false' раскрывает, любое другое/отсутствие -> свёрнуто.
+        readCollapsed() {
+            try {
+                return localStorage.getItem('forwardThread.collapsed') !== 'false';
+            } catch {
+                // localStorage может быть недоступен (приватный режим) - не критично для показа.
+                return true;
+            }
+        },
+
+        toggleCollapse() {
+            this.collapsed = !this.collapsed;
+            try {
+                localStorage.setItem('forwardThread.collapsed', String(this.collapsed));
+            } catch {
+                // Персист необязателен - молча пропускаем, если localStorage недоступен.
             }
         },
 
@@ -120,28 +168,76 @@ export default {
     background: white;
     border: 1px solid #e6e6e6;
     border-radius: 20px;
-    padding: 15px;
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
     overflow: hidden;
 }
 
 .forward-messages-header {
-    margin: -15px -15px 12px;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
     padding: 12px 15px;
+    background: none;
+    border: none;
     border-bottom: 1px solid #e6e6e6;
+    cursor: pointer;
+    font-family: inherit;
+    text-align: left;
+    transition: border-color 0.2s ease;
+}
+
+.forward-messages-section.collapsed .forward-messages-header {
+    border-bottom-color: transparent;
+}
+
+.fm-chevron {
+    color: #a2a2a2;
+    font-size: 12px;
+    transition: transform 0.2s ease;
+}
+
+.forward-messages-section.collapsed .fm-chevron {
+    transform: rotate(-90deg);
 }
 
 .forward-messages-header h4 {
     margin: 0;
+    flex: 1;
     font-size: 14px;
     color: #a2a2a2;
     font-weight: 400;
 }
 
+.fm-count {
+    font-size: 12px;
+    color: var(--color-primary, #4F5BDF);
+    background: rgba(79, 91, 223, 0.08);
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-weight: 600;
+}
+
+/* Плавное сворачивание высотой (grid-rows 1fr<->0fr + min-height:0, урок #510). */
+.forward-messages-body {
+    display: grid;
+    grid-template-rows: 1fr;
+    transition: grid-template-rows 0.25s ease;
+}
+
+.forward-messages-section.collapsed .forward-messages-body {
+    grid-template-rows: 0fr;
+}
+
+.forward-messages-body-inner {
+    min-height: 0;
+    overflow: hidden;
+}
+
 .forward-messages-list {
     list-style: none;
     margin: 0;
-    padding: 0;
+    padding: 15px;
     display: flex;
     flex-direction: column;
 }
