@@ -77,6 +77,12 @@ func AllModels() []interface{} {
 		// Forward attachments (#680: пер-вложенный пересыл; depends on Application, User, Attachment)
 		&models.ForwardAttachment{},
 
+		// Вопросы к заявке (#973: Q&A; depends on Application, User, Attachment)
+		&models.ApplicationQuestion{},
+		&models.ApplicationAnswer{},
+		&models.ApplicationQuestionAttachment{},
+		&models.ApplicationQuestionView{},
+
 		// Доступные мне (#706): привязка мест к охраннику + место разгрузки на уровне вложения
 		// (depends on User, UnloadPlace, SystemTable, Attachment)
 		&models.SecurityUserUnloadPlace{},
