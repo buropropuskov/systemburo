@@ -19,15 +19,26 @@ type AvailableAttachmentDetail struct {
 	Items      []services.ItemInfo           `json:"items,omitempty"`
 }
 
-// requireSecurityOrAdmin - ролевой гейт вкладки "Доступные мне" (#706): доступ только охраннику
-// (user_types.code='security') или супер-админу. Возвращает (userID, isSuperAdmin) для проброса
-// в сервис фильтрации, либо 403 для прочих типов аккаунтов.
+// requireSecurityOrAdmin - гейт вкладки "Доступные мне" (#706, #976). Доступ имеют: супер-админ,
+// обычный админ, любой носитель права page.available и тип "Охранник" (user_types.code='security').
+// Второй возврат - "видит всё": true у super/admin/носителя page.available (все вложения без фильтра
+// по местам, как супер), у охранника по типу - false (только его места прохода). Прочим - 403.
+// Набор совпадает с FE-гейтом canViewAccessibleAttachments; рассинхрон давал 403 при видимой вкладке.
 func (h *ApplicationHandler) requireSecurityOrAdmin(c echo.Context) (int, bool, error) {
 	userID := GetUserID(c)
-	isSuperAdmin := IsSuperAdmin(c)
-	if isSuperAdmin {
+	if IsSuperAdmin(c) {
 		return userID, true, nil
 	}
+	// Has(page.available) истинно для админа (allowAll) и для явного гранта роли/группы/override.
+	// Резолвер учитывает бан (у забаненного Has=false) и личные deny-override.
+	set, err := h.resolver.Resolve(c.Request().Context(), userID)
+	if err != nil {
+		return 0, false, err
+	}
+	if set.Has(services.KeyPageAvailable) {
+		return userID, true, nil
+	}
+	// Тип "Охранник" получает доступ по типу аккаунта (без права), но видит только по своим местам.
 	isSecurity, err := h.service.IsSecurityUser(c.Request().Context(), userID)
 	if err != nil {
 		return 0, false, err
@@ -40,7 +51,7 @@ func (h *ApplicationHandler) requireSecurityOrAdmin(c echo.Context) (int, bool, 
 
 // GetAvailableAttachments godoc
 // @Summary      Доступные мне вложения
-// @Description  Плоский список вложений подтверждённых заявок, доступных охраннику по совпадению мест разгрузки/прохода. Супер-админ видит все подтверждённые вложения. Прочим типам - 403.
+// @Description  Плоский список вложений подтверждённых заявок. Супер-админ, обычный админ и носитель права page.available видят все подтверждённые вложения; охранник (тип security) - по совпадению мест разгрузки/прохода. Прочим - 403.
 // @Tags         applications
 // @Produce      json
 // @Security     BearerAuth
@@ -87,7 +98,7 @@ func (h *ApplicationHandler) GetAvailableAttachments(c echo.Context) error {
 
 // GetAvailableAttachmentDetail godoc
 // @Summary      Деталь доступного вложения
-// @Description  Заголовок вложения с инфо заявки и типизированное содержимое (автомобили/сотрудники/ТМЦ). Доступ только охраннику с совпавшим местом или супер-админу, иначе 403.
+// @Description  Заголовок вложения с инфо заявки и типизированное содержимое (автомобили/сотрудники/ТМЦ). Доступ: супер-админ/админ/носитель page.available - любое подтверждённое вложение; охранник - только по совпавшему месту; иначе 403.
 // @Tags         applications
 // @Produce      json
 // @Security     BearerAuth
