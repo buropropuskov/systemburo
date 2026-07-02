@@ -2,6 +2,12 @@ package models
 
 import "time"
 
+// Значения SystemTable.TableType.
+const (
+	TableTypeCars   = "cars"
+	TableTypePeople = "people"
+)
+
 type SystemTable struct {
 	ID                  int       `json:"id"`
 	Name                string    `gorm:"size:100" json:"name"`

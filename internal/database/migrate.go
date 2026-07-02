@@ -164,6 +164,10 @@ func AllModels() []interface{} {
 		&models.UserOnlinePeak{},
 		// Снимок тёплого кэша аналитики дашборда/insights (прогрев после рестарта)
 		&models.AnalyticsCache{},
+
+		// Слепки суточного состояния таблиц (#980): полный набор строк со статусами
+		// перед сбросом в 06:00 + ручные снимки. Depends on SystemTable, User.
+		&models.TableSnapshot{},
 	}
 }
 
