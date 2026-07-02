@@ -150,6 +150,17 @@
             :application-id="applicationData.id"
           />
 
+          <!-- Вопросы к заявке (#973): вопрос-топик + тред ответов -->
+          <ApplicationQuestions
+            ref="questionsComponent"
+            :application-id="applicationData.id"
+            :attachments="attachments"
+            :current-user-id="currentUserId"
+            :current-user-name="currentUserName"
+            :initiator-user-id="applicationData.sender_user_id"
+            :can-ask="canAskQuestion"
+          />
+
           <!-- Детали выбранного вложения -->
           <ApplicationAttachmentDetail
             v-if="selectedAttachment"
@@ -419,6 +430,7 @@ import ApplicationConfirmation from './ApplicationConfirmation.vue'
 import ApplicationHistory from './ApplicationHistory.vue'
 import ForwardModal from './ForwardModal.vue'
 import ForwardMessages from './ForwardMessages.vue'
+import ApplicationQuestions from './ApplicationQuestions.vue'
 import ApplicationActionBar from './ApplicationActionBar.vue'
 import ApplicationAttachmentDetail from './ApplicationAttachmentDetail.vue'
 import BlacklistOverrideModal from './BlacklistOverrideModal.vue'
@@ -437,6 +449,7 @@ export default {
         ApplicationHistory,
         ForwardModal,
         ForwardMessages,
+        ApplicationQuestions,
         ApplicationActionBar,
         ApplicationAttachmentDetail,
         BlacklistOverrideModal,
@@ -532,6 +545,19 @@ export default {
         isApprover() {
             if (!this.currentUserId || !this.approvers.length) return false;
             return this.approvers.some(approver => approver.user_id === this.currentUserId);
+        },
+
+        isViewer() {
+            if (!this.currentUserId || !this.viewers.length) return false;
+            return this.viewers.some(viewer => viewer.user_id === this.currentUserId);
+        },
+
+        // Задать вопрос может принимающий/согласующий/читатель, но НЕ инициатор (он адресат
+        // и отвечает). Реальный гейт на бэке; фронт лишь прячет кнопку. Инициатор видит блок.
+        canAskQuestion() {
+            const a = this.applicationData;
+            if (!a || a.sender_user_id === this.currentUserId) return false;
+            return this.isResponsibleUser || this.isApprover || this.isViewer;
         },
 
         // Отозвать свою заявку может только отправитель и только пока она не в
