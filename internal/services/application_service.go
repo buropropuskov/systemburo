@@ -191,13 +191,14 @@ type ApplicationService interface {
 	IsSecurityUser(ctx context.Context, userID int) (bool, error)
 
 	// GetAvailableAttachmentsForSecurity возвращает страницу вложений подтверждённых заявок,
-	// доступных охраннику по совпадению мест (#706), и общее количество. Супер-админ - без
-	// фильтра по местам. filter (BE-S6) опционально сужает выдачу поверх гейта видимости.
-	GetAvailableAttachmentsForSecurity(ctx context.Context, userID int, isSuperAdmin bool, filter AvailableAttachmentFilters, page, perPage int) ([]AvailableAttachment, int64, error)
+	// доступных охраннику по совпадению мест (#706), и общее количество. unrestricted
+	// (super/admin/носитель page.available, #976) - без фильтра по местам. filter (BE-S6)
+	// опционально сужает выдачу поверх гейта видимости.
+	GetAvailableAttachmentsForSecurity(ctx context.Context, userID int, unrestricted bool, filter AvailableAttachmentFilters, page, perPage int) ([]AvailableAttachment, int64, error)
 
 	// CanSecurityViewAttachment сообщает, доступно ли конкретное вложение охраннику по тем же
 	// правилам, что и листинг (#706). Для 403 на чужое вложение в детальном эндпоинте.
-	CanSecurityViewAttachment(ctx context.Context, userID int, isSuperAdmin bool, attachmentID int) (bool, error)
+	CanSecurityViewAttachment(ctx context.Context, userID int, unrestricted bool, attachmentID int) (bool, error)
 
 	// GetAvailableAttachmentByID возвращает заголовок вложения с инфо заявки для детали
 	// "Доступные мне" (#706). nil без ошибки - вложение не найдено. Без проверки доступа,

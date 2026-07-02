@@ -12,12 +12,13 @@ import (
 
 // ApplicationHandler HTTP-обработчики для работы с заявками.
 type ApplicationHandler struct {
-	service services.ApplicationService
+	service  services.ApplicationService
+	resolver *services.PermissionResolver
 }
 
 // NewApplicationHandler создаёт экземпляр обработчика заявок.
-func NewApplicationHandler(service services.ApplicationService) *ApplicationHandler {
-	return &ApplicationHandler{service: service}
+func NewApplicationHandler(service services.ApplicationService, resolver *services.PermissionResolver) *ApplicationHandler {
+	return &ApplicationHandler{service: service, resolver: resolver}
 }
 
 // GetApplications godoc

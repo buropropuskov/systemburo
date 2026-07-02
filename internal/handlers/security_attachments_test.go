@@ -99,6 +99,41 @@ func TestAvailableAttachments_RoleGate(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, "супер-админ имеет доступ: %s", rec.Body.String())
 }
 
+// TestAvailableAttachments_AdminAndPermissionGate — обычный админ (is_admin, не супер, не security)
+// и любой носитель права page.available открывают "Доступные мне" со всеми подтверждёнными вложениями
+// (без фильтра по местам). Раньше бэкенд-гейт пускал только супера и тип security -> 403 при видимой
+// на фронте вкладке (#976).
+func TestAvailableAttachments_AdminAndPermissionGate(t *testing.T) {
+	h := setupSecurityHTTP(t)
+	w := h.w
+
+	// Подтверждённое вложение, НЕ привязанное к местам админа/носителя права: place-filtered охранник
+	// его бы не увидел, а unrestricted (админ/право) видит.
+	app := w.newApp(t, models.ConfirmationApproved)
+	w.newAttachment(t, app, "cars")
+
+	userTypeID := secUserTypeIDByCode(t, w.db, "user")
+
+	// Обычный админ: is_admin=true, is_super_admin=false, тип "user".
+	adminTok := testutil.RegisterAndLogin(t, h.e, "admin_nonsuper", secHTTPPassword, userTypeID, w.orgID, 0)
+	require.NoError(t, w.db.Table("users").Where("username = ?", "admin_nonsuper").Update("is_admin", true).Error)
+	rec := testutil.GET(t, h.e, "/applications/available-attachments", testutil.AuthHeader(adminTok))
+	require.Equal(t, http.StatusOK, rec.Code, "обычный админ имеет доступ: %s", rec.Body.String())
+	require.NotEmpty(t, testutil.ParseResponse[[]services.AvailableAttachment](t, rec),
+		"админ видит все подтверждённые вложения без фильтра по местам")
+
+	// Носитель права page.available (не админ, не security) через личный allow-override.
+	permTok := testutil.RegisterAndLogin(t, h.e, "perm_available", secHTTPPassword, userTypeID, w.orgID, 0)
+	permID := secUserIDByUsername(t, w.db, "perm_available")
+	require.NoError(t, w.db.Create(&models.UserPermissionOverride{
+		UserID: permID, PermissionKey: services.KeyPageAvailable, Value: "allow",
+	}).Error)
+	rec = testutil.GET(t, h.e, "/applications/available-attachments", testutil.AuthHeader(permTok))
+	require.Equal(t, http.StatusOK, rec.Code, "носитель права page.available имеет доступ: %s", rec.Body.String())
+	require.NotEmpty(t, testutil.ParseResponse[[]services.AvailableAttachment](t, rec),
+		"носитель page.available видит все подтверждённые вложения")
+}
+
 func TestAvailableAttachments_PaginationMeta(t *testing.T) {
 	h := setupSecurityHTTP(t)
 	w := h.w

@@ -180,7 +180,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	notificationHandler := handlers.NewNotificationHandler(notificationService)
 	requestLogsHandler := handlers.NewRequestLogsHandler(requestLogsService)
 	employeesHistoryHandler := handlers.NewEmployeesHistoryHandler(employeesHistoryService)
-	applicationHandler := handlers.NewApplicationHandler(applicationService)
+	applicationHandler := handlers.NewApplicationHandler(applicationService, permissionResolver)
 	approverHandler := handlers.NewApproverHandler(approverService)
 	permissionHandler := handlers.NewPermissionHandler(permissionService, permissionResolver)
 	permissionGroupHandler := handlers.NewPermissionGroupHandler(permissionGroupService)

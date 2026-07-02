@@ -132,17 +132,17 @@ const availableAttachmentSelect = `
 // (ссылается на алиасы a = attachments, app = applications) и его аргументы. Инвариант (#706):
 // confirmation = 'Согласовано' И пересечение мест вложения с местами охранника непусто. Места:
 // cars/items - attachment_unload_places ∩ security_user_unload_places; people - места прохода
-// сотрудников (employee_target_tables) ∩ security_user_tables. Супер-админ отбрасывает предикат
-// по местам, оставляя только confirmation-гейт. НЕ смотрит is_active/status места (факт назначения
-// = доступ; "обслуживание" места не должно молча скрывать вложение). Не пересекается с
-// forward_attachments (#680) - другой источник видимости.
-func securityVisibilityWhere(userID int, isSuperAdmin bool) (string, []interface{}) {
+// сотрудников (employee_target_tables) ∩ security_user_tables. unrestricted (super/admin/носитель
+// права page.available, #976) отбрасывает предикат по местам, оставляя только confirmation-гейт. НЕ
+// смотрит is_active/status места (факт назначения = доступ; "обслуживание" места не должно молча
+// скрывать вложение). Не пересекается с forward_attachments (#680) - другой источник видимости.
+func securityVisibilityWhere(userID int, unrestricted bool) (string, []interface{}) {
 	// Отозванные заявки (#951) недоступны охране независимо от confirmation: при отзыве
 	// заявка перестаёт действовать и пропадает из "Доступные мне". IS DISTINCT FROM
 	// пропускает NULL-статус (он не равен "Отозвана") в обычную выдачу.
 	confirm := "app.confirmation = ? AND app.status IS DISTINCT FROM ?"
 	args := []interface{}{models.ConfirmationApproved, models.StatusWithdrawn}
-	if isSuperAdmin {
+	if unrestricted {
 		return confirm, args
 	}
 	place := `(
@@ -307,13 +307,13 @@ func (s *applicationService) securityHasAnyPlace(ctx context.Context, userID int
 
 // GetAvailableAttachmentsForSecurity возвращает страницу вложений подтверждённых заявок, доступных
 // охраннику по совпадению мест (#706), и общее количество. Один плоский SQL без N+1, пагинация по
-// образцу GetApplicationsPaginated (отдельный COUNT + страница). Супер-админ видит все вложения
-// подтверждённых заявок без фильтра по местам. Охранник без назначенных мест -> пустая страница
-// без основного запроса.
-func (s *applicationService) GetAvailableAttachmentsForSecurity(ctx context.Context, userID int, isSuperAdmin bool, filter AvailableAttachmentFilters, page, perPage int) ([]AvailableAttachment, int64, error) {
+// образцу GetApplicationsPaginated (отдельный COUNT + страница). unrestricted (super/admin/носитель
+// page.available, #976) видит все вложения подтверждённых заявок без фильтра по местам. Охранник без
+// назначенных мест -> пустая страница без основного запроса.
+func (s *applicationService) GetAvailableAttachmentsForSecurity(ctx context.Context, userID int, unrestricted bool, filter AvailableAttachmentFilters, page, perPage int) ([]AvailableAttachment, int64, error) {
 	page, perPage = normalizePage(page, perPage)
 
-	if !isSuperAdmin {
+	if !unrestricted {
 		hasPlaces, err := s.securityHasAnyPlace(ctx, userID)
 		if err != nil {
 			return nil, 0, err
@@ -323,7 +323,7 @@ func (s *applicationService) GetAvailableAttachmentsForSecurity(ctx context.Cont
 		}
 	}
 
-	where, args := securityVisibilityWhere(userID, isSuperAdmin)
+	where, args := securityVisibilityWhere(userID, unrestricted)
 	if filterWhere, filterArgs := availableAttachmentFilterWhere(filter); filterWhere != "" {
 		where += filterWhere
 		args = append(args, filterArgs...)
@@ -354,10 +354,11 @@ func (s *applicationService) GetAvailableAttachmentsForSecurity(ctx context.Cont
 }
 
 // CanSecurityViewAttachment сообщает, доступно ли конкретное вложение охраннику по тем же правилам,
-// что и листинг (#706). Используется детальным эндпоинтом для 403 на чужое вложение. Супер-админ
-// проходит фильтр по местам, но confirmation-гейт применяется и к нему.
-func (s *applicationService) CanSecurityViewAttachment(ctx context.Context, userID int, isSuperAdmin bool, attachmentID int) (bool, error) {
-	where, args := securityVisibilityWhere(userID, isSuperAdmin)
+// что и листинг (#706). Используется детальным эндпоинтом для 403 на чужое вложение. unrestricted
+// (super/admin/носитель page.available, #976) проходит фильтр по местам, но confirmation-гейт
+// применяется и к нему.
+func (s *applicationService) CanSecurityViewAttachment(ctx context.Context, userID int, unrestricted bool, attachmentID int) (bool, error) {
+	where, args := securityVisibilityWhere(userID, unrestricted)
 	sql := `SELECT EXISTS (
 		SELECT 1 FROM attachments a
 		JOIN applications app ON app.id = a.application_id
