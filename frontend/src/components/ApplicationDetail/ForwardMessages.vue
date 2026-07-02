@@ -1,6 +1,7 @@
 <!-- ForwardMessages.vue -->
-<!-- Блок сопроводительных сообщений при пересылке заявки (#967). Виден всем получателям,
-     собирает пересылы от разных согласующих. Пустой список -> блок скрыт. -->
+<!-- Ветка заявки (#967): хронология пересылок (как ветка письма в Outlook). Каждый пункт -
+     кто переслал, кому и когда, плюс сопроводительный текст если он был. Виден всем
+     получателям. Пустой список -> блок скрыт. -->
 <template>
   <section
     v-if="messages.length > 0"
@@ -8,7 +9,7 @@
     data-testid="forward-messages"
   >
     <div class="forward-messages-header">
-      <h4>Сообщения при пересылке</h4>
+      <h4>Ветка заявки</h4>
     </div>
     <ul class="forward-messages-list">
       <li
@@ -21,7 +22,17 @@
           <span class="forward-message-author">{{ msg.author_name || 'Пользователь' }}</span>
           <span class="forward-message-date">{{ formatDateTime(msg.created_at) }}</span>
         </div>
-        <p class="forward-message-text">
+        <p
+          v-if="recipientsText(msg)"
+          class="forward-message-recipients"
+        >
+          <span class="forward-message-recipients-label">Кому:</span>
+          {{ recipientsText(msg) }}
+        </p>
+        <p
+          v-if="msg.message"
+          class="forward-message-text"
+        >
           {{ msg.message }}
         </p>
       </li>
@@ -66,10 +77,14 @@ export default {
                 if (seq !== this.loadSeq) return;
                 this.messages = Array.isArray(data) ? data : [];
             } catch {
-                // Блок сообщений - вспомогательный показ; при сбое сохраняем то, что уже
+                // Ветка заявки - вспомогательный показ; при сбое сохраняем то, что уже
                 // отрисовано, и не роняем деталь заявки.
                 if (seq !== this.loadSeq) return;
             }
+        },
+
+        recipientsText(msg) {
+            return Array.isArray(msg.recipients) ? msg.recipients.join(', ') : '';
         },
 
         formatDateTime(value) {
@@ -117,14 +132,21 @@ export default {
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 12px;
 }
 
+/* Плоская ветка (как переписка): разделители между пунктами, без карточек/фона. */
 .forward-message-item {
-    background: var(--color-bg-secondary, #f7f7f9);
-    border: 1px solid var(--color-border, #e6e6e6);
-    border-radius: var(--radius-md, 15px);
-    padding: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid #eee;
+}
+
+.forward-message-item:first-child {
+    padding-top: 0;
+}
+
+.forward-message-item:last-child {
+    padding-bottom: 0;
+    border-bottom: none;
 }
 
 .forward-message-meta {
@@ -132,7 +154,7 @@ export default {
     align-items: baseline;
     justify-content: space-between;
     gap: 10px;
-    margin-bottom: 6px;
+    margin-bottom: 4px;
 }
 
 .forward-message-author {
@@ -147,8 +169,20 @@ export default {
     flex-shrink: 0;
 }
 
+.forward-message-recipients {
+    margin: 0 0 4px;
+    font-size: 13px;
+    color: #666;
+    line-height: 140%;
+    word-break: break-word;
+}
+
+.forward-message-recipients-label {
+    color: #a2a2a2;
+}
+
 .forward-message-text {
-    margin: 0;
+    margin: 4px 0 0;
     font-size: 14px;
     line-height: 150%;
     color: #333;

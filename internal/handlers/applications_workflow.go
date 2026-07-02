@@ -44,8 +44,8 @@ func (h *ApplicationHandler) ForwardApplication(c echo.Context) error {
 }
 
 // GetForwardMessages godoc
-// @Summary      Сопроводительные сообщения при пересылке
-// @Description  Возвращает сообщения, приложенные при пересылке заявки (#967), новые сверху. Видно всем получателям заявки.
+// @Summary      Ветка заявки (пересылки)
+// @Description  Возвращает ветку заявки (#967) - все пересылки с автором, получателями и сопроводительным текстом (если он был), хронологически (старые сверху). Видно всем получателям заявки.
 // @Tags         applications
 // @Produce      json
 // @Security     BearerAuth

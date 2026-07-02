@@ -145,7 +145,7 @@ describe('ForwardModal — сопроводительное сообщение (
     const wrapper = await mountOpened();
     const warning = wrapper.find('[data-testid="forward-modal-warning"]');
     expect(warning.exists()).toBe(true);
-    expect(warning.text()).toContain('бюро пропусков');
+    expect(warning.text()).toContain('Бюро пропусков');
   });
 
   it('повторное открытие сбрасывает сообщение', async () => {

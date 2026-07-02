@@ -191,13 +191,53 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 				ORDER BY COALESCE(attachment_display_name, attachment_name, '')
 			`, applicationID, req.AttachmentIDs).Scan(&attNames)
 		}
+		// Получатели этой пересылки (#967, ветка заявки): ответственные, затем
+		// просматривающие - в том же порядке кладём в metadata.recipients, чтобы
+		// GetForwardMessages показал "Кому переслано" без досбора из assigned_* записей.
+		recipientIDs := make([]int, 0, len(addedResponsibleUsers)+len(addedViewers))
+		seenRecipient := make(map[int]struct{}, cap(recipientIDs))
+		addRecipient := func(id int) {
+			if _, dup := seenRecipient[id]; dup {
+				return
+			}
+			seenRecipient[id] = struct{}{}
+			recipientIDs = append(recipientIDs, id)
+		}
+		for _, resp := range addedResponsibleUsers {
+			addRecipient(resp.UserID)
+		}
+		for _, viewerID := range addedViewers {
+			addRecipient(viewerID)
+		}
+		recipientNames := make([]string, 0, len(recipientIDs))
+		if len(recipientIDs) > 0 {
+			type recipientRow struct {
+				ID         int
+				LastName   *string
+				FirstName  *string
+				MiddleName *string
+			}
+			var recipientRows []recipientRow
+			tx.Raw("SELECT id, last_name, first_name, middle_name FROM users WHERE id IN ?", recipientIDs).Scan(&recipientRows)
+			nameByID := make(map[int]string, len(recipientRows))
+			for _, r := range recipientRows {
+				nameByID[r.ID] = formatFullName(r.LastName, r.FirstName, r.MiddleName)
+			}
+			for _, id := range recipientIDs {
+				if name := nameByID[id]; name != "" {
+					recipientNames = append(recipientNames, name)
+				}
+			}
+		}
 		meta, _ := json.Marshal(map[string]interface{}{
 			"forwarded_by": currentUserName,
 			"whole":        len(attNames) == 0,
 			"attachments":  attNames,
+			"recipients":   recipientNames,
 		})
 		// Сопроводительное сообщение (#967) кладём в comment той же сводной записи.
-		// Пустое после trim -> comment не пишем: чтение forward-messages его отсекает.
+		// Пустое после trim -> comment не пишем; пересылка всё равно попадёт в ветку
+		// заявки (message пустой), т.к. GetForwardMessages по comment больше не фильтрует.
 		details := applicationAuditDetails{Metadata: meta}
 		if msg := strings.TrimSpace(req.Message); msg != "" {
 			details.Comment = &msg

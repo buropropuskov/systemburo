@@ -13,10 +13,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestForwardMessages_RoundTrip закрывает #967: сопроводительное сообщение при пересылке
-// пишется в comment сводной записи forwarded, отдаётся GET /forward-messages с ФИО автора,
-// попадает в историю, видно получателям и закрыто от посторонних. Пустое сообщение записи
-// не создаёт.
+// TestForwardMessages_RoundTrip закрывает #967: ветка заявки. Сопроводительное сообщение
+// при пересылке пишется в comment сводной записи forwarded, отдаётся GET /forward-messages
+// с ФИО автора и получателей (recipients), попадает в историю, видно получателям и закрыто
+// от посторонних. Пересылка без текста тоже входит в ветку (message пустой), порядок
+// хронологический (старые сверху).
 func TestForwardMessages_RoundTrip(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
@@ -30,9 +31,13 @@ func TestForwardMessages_RoundTrip(t *testing.T) {
 		Updates(map[string]interface{}{"last_name": "Петров", "first_name": "Пётр", "middle_name": "Петрович"}).Error)
 	const wantAuthor = "Петров Пётр Петрович"
 
-	// Получатель-читатель: видит заявку и должен видеть сообщения пересылки.
+	// Получатель-читатель: видит заявку и должен видеть ветку. ФИО проставляем, чтобы
+	// recipients в ответе был детерминированным.
 	testutil.RegisterUser(t, e, "fwdmsg_viewer", "pass123", 1, td.OrgID, td.CompanyID)
 	viewerID := getUserID(t, db, "fwdmsg_viewer")
+	require.NoError(t, db.Model(&models.User{}).Where("username = ?", "fwdmsg_viewer").
+		Updates(map[string]interface{}{"last_name": "Иванов", "first_name": "Иван", "middle_name": "Иванович"}).Error)
+	const wantRecipient = "Иванов Иван Иванович"
 	viewerToken, _ := testutil.LoginUser(t, e, "fwdmsg_viewer", "pass123")
 
 	// Посторонний: доступа к заявке нет -> 403.
@@ -54,6 +59,7 @@ func TestForwardMessages_RoundTrip(t *testing.T) {
 	require.Len(t, msgs, 1, "должна быть одна запись сообщения пересылки")
 	assert.Equal(t, wantMessage, msgs[0].Message)
 	assert.Equal(t, wantAuthor, msgs[0].AuthorName)
+	assert.Equal(t, []string{wantRecipient}, msgs[0].Recipients, "recipients должны нести ФИО получателя")
 
 	// История заявки: запись forwarded несёт comment с тем же текстом.
 	rec = testutil.GET(t, e, fmt.Sprintf("/applications/%d/history", appID), testutil.AuthHeader(senderToken))
@@ -73,9 +79,12 @@ func TestForwardMessages_RoundTrip(t *testing.T) {
 	rec = testutil.GET(t, e, fmt.Sprintf("/applications/%d/forward-messages", appID), testutil.AuthHeader(outsiderToken))
 	assert.Equal(t, http.StatusForbidden, rec.Code, "посторонний не должен видеть сообщения пересылки")
 
-	// Пересылка без сообщения новому получателю: запись сообщения НЕ добавляется.
+	// Пересылка без сообщения новому получателю: тоже входит в ветку (message пустой).
 	testutil.RegisterUser(t, e, "fwdmsg_viewer2", "pass123", 1, td.OrgID, td.CompanyID)
 	viewer2ID := getUserID(t, db, "fwdmsg_viewer2")
+	require.NoError(t, db.Model(&models.User{}).Where("username = ?", "fwdmsg_viewer2").
+		Updates(map[string]interface{}{"last_name": "Сидоров", "first_name": "Сидор", "middle_name": "Сидорович"}).Error)
+	const wantRecipient2 = "Сидоров Сидор Сидорович"
 	emptyBody := fmt.Sprintf(`{"users":[{"user_id":%d,"required_approval":false,"can_view":true}],"message":"   "}`, viewer2ID)
 	rec = testutil.POST(t, e, fmt.Sprintf("/applications/%d/forward", appID), emptyBody, testutil.AuthHeader(senderToken))
 	require.Equal(t, http.StatusOK, rec.Code, "forward без сообщения: %s", rec.Body.String())
@@ -83,5 +92,9 @@ func TestForwardMessages_RoundTrip(t *testing.T) {
 	rec = testutil.GET(t, e, fmt.Sprintf("/applications/%d/forward-messages", appID), testutil.AuthHeader(senderToken))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	afterEmpty := testutil.ParseResponse[[]services.ForwardMessageItem](t, rec)
-	assert.Len(t, afterEmpty, 1, "пустое сообщение не должно добавлять запись")
+	require.Len(t, afterEmpty, 2, "пересылка без текста тоже входит в ветку")
+	// Порядок хронологический (старые сверху): первая - с текстом, вторая - пустая.
+	assert.Equal(t, wantMessage, afterEmpty[0].Message, "первая пересылка сверху")
+	assert.Empty(t, afterEmpty[1].Message, "пересылка без текста несёт пустое сообщение")
+	assert.Equal(t, []string{wantRecipient2}, afterEmpty[1].Recipients, "recipients пустой пересылки")
 }

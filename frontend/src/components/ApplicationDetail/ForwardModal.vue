@@ -221,7 +221,7 @@
         data-testid="forward-modal-warning"
       >
         <span class="forward-message-warning-icon">⚠</span>
-        <span>Ваше сообщение увидит и бюро пропусков (принимающие), а не только выбранные получатели.</span>
+        <span>К данной ветке заявки и сообщениям внутри получит доступ и сможет видеть Бюро пропусков.</span>
       </div>
     </div>
 
