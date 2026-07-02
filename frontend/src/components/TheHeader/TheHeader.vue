@@ -454,24 +454,24 @@ h3 {
 
 .appl-btn__container {
   width: 155px;
-  height: 30px;
+  height: 26px;
   border-radius: 50px;
   background-color: #f2f2f2;
 }
 
 .appl-btn {
   position: relative;
-  height: 30px;
+  height: 26px;
   width: fit-content;
-  padding: 0 20px;
-  font-size: 15px;
+  padding: 0 16px;
+  font-size: 13px;
   color: #000;
   background-color: #fff;
   border: 1px solid #4F5BDF;
   outline: none;
   cursor: pointer;
   font-weight: 400;
-  border-radius: 15px;
+  border-radius: 13px;
   transition: .2s;
   box-shadow: 0 2px 2px rgba(0,0,0,0.05);
 }
