@@ -19,6 +19,7 @@ const stubs = {
   ApplicationAttachmentDetail: true,
   ApplicationConfirmation: true,
   ApplicationHistory: true,
+  ApplicationQuestions: true,
   VehicleDetailsModal: true,
   EmployeeDetailsModal: true,
   BlacklistOverrideModal: true,

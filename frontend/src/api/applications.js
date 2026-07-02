@@ -135,3 +135,58 @@ export async function getAccessibleAttachmentDetail(id) {
   }
   return body.data;
 }
+
+/**
+ * Вопросы к заявке (Q&A #973). Envelope снят в apiRequest -> массив вопросов с вложенными ответами.
+ * @param {number} id ID заявки
+ * @returns {Promise<Array>}
+ */
+export async function getQuestions(id) {
+  const res = await apiRequest(`/applications/${id}/questions`);
+  return res.json();
+}
+
+/**
+ * Создать вопрос к заявке (#973).
+ * @param {number} id ID заявки
+ * @param {{subject: string, text: string, attachment_ids?: number[]}} data
+ * @returns {Promise<object>} созданный вопрос
+ */
+export async function createQuestion(id, data) {
+  const res = await apiRequestRaw(`/applications/${id}/questions`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  const body = await res.json();
+  if (!res.ok || !body || !body.success) {
+    throw new Error(body?.error || 'Не удалось отправить вопрос');
+  }
+  return body.data;
+}
+
+/**
+ * Добавить ответ в тред вопроса (#973).
+ * @param {number} applicationId ID заявки
+ * @param {number} questionId ID вопроса
+ * @param {{text: string}} data
+ * @returns {Promise<object>} созданный ответ
+ */
+export async function createAnswer(applicationId, questionId, data) {
+  const res = await apiRequestRaw(`/applications/${applicationId}/questions/${questionId}/answers`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  const body = await res.json();
+  if (!res.ok || !body || !body.success) {
+    throw new Error(body?.error || 'Не удалось отправить ответ');
+  }
+  return body.data;
+}
+
+/**
+ * Отметить вопросы заявки просмотренными (#973). Fire-and-forget, как markAsRead.
+ * @param {number} id ID заявки
+ */
+export async function markQuestionsSeen(id) {
+  return apiRequest(`/applications/${id}/questions/seen`, { method: 'POST' });
+}
