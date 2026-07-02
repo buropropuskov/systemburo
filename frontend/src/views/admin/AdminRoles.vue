@@ -598,6 +598,9 @@ export default {
           bold: e?.message || 'ошибка',
           type: 'error',
         });
+        // Первый вызов (группы) мог пройти, второй (гранты) упасть -- перечитываем,
+        // чтобы currentGroupIds/currentDirectKeys и счётчики не остались устаревшими.
+        await this.refresh();
       } finally {
         this.permsSaving = false;
       }

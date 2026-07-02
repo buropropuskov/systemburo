@@ -96,6 +96,26 @@ describe('RolePermissionsModal', () => {
     expect(payload.groupIds).toEqual([]);
   });
 
+  it('ключ, изначально и собственный, и покрытый группой: залочен, но выживает в directKeys', async () => {
+    // page.center есть и в initialDirectKeys, и в группе 2 (Базовые -> page.center).
+    const w = mountModal({ initialDirectKeys: ['page.center', 'entity.cars.read'], initialGroupIds: [2] });
+    const t = toggle(w, 'page.center');
+    expect(t.attributes('aria-pressed')).toBe('true');
+    expect(t.attributes('disabled')).toBeDefined();
+    expect(w.get('[data-key="page.center"]').find('.src--group').exists()).toBe(true);
+    await save(w);
+    const payload = lastSave(w);
+    // Собственный грант не теряется, даже пока замаскирован группой.
+    expect([...payload.directKeys].sort()).toEqual(['entity.cars.read', 'page.center']);
+    expect(payload.groupIds).toEqual([2]);
+  });
+
+  it('осиротевший ключ (нет в каталоге) не уходит в directKeys при сохранении', async () => {
+    const w = mountModal({ initialDirectKeys: ['entity.cars.read', 'page.obsolete'] });
+    await save(w);
+    expect(lastSave(w).directKeys).toEqual(['entity.cars.read']);
+  });
+
   it('super_only-право заблокировано и не попадает в directKeys', async () => {
     const w = mountModal();
     const su = toggle(w, 'page.admin.system_control');
