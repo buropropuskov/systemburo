@@ -78,6 +78,7 @@
         <UserNotifications
           :show="showNotifications"
           @update:unread-count="unreadCount = $event"
+          @close="showNotifications = false"
         />
       </div>
       <div

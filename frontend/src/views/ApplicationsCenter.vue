@@ -482,7 +482,7 @@
                 </div>
                 <div class="application-col tags-col">
                   <div
-                    v-if="blacklistFlagCount(application) > 0 || application.has_roof_access || application.has_free_parking || application.sender_is_important"
+                    v-if="blacklistFlagCount(application) > 0 || application.has_roof_access || application.has_free_parking || application.sender_is_important || application.has_unseen_questions"
                     class="application-tags"
                     :class="{ 'application-tags--compact': tagsAreCompact(application) }"
                   >
@@ -554,6 +554,31 @@
                         stroke-linejoin="round"
                       ><polygon points="12 2 15 8.6 22 9.3 16.8 14 18.3 21 12 17.3 5.7 21 7.2 14 2 9.3 9 8.6" /></svg>
                       <span class="rt-tag__text">Важный</span>
+                    </Badge>
+                    <Badge
+                      v-if="application.has_unseen_questions"
+                      variant="primary"
+                      size="sm"
+                      class="rt-tag rt-tag--questions tag-hint"
+                      data-hint="Есть новые вопросы или ответы"
+                      :data-testid="`center-questions-badge-${application.id}`"
+                    >
+                      <svg
+                        class="rt-tag__icon"
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      ><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>
+                      <span class="rt-tag__text">Вопросы</span>
+                      <span
+                        class="rt-tag__q-dot"
+                        aria-hidden="true"
+                      />
                     </Badge>
                   </div>
                 </div>
@@ -875,6 +900,11 @@ export default {
         '$route.query.archive'(val) {
             this.archiveMode = val === 'true' && this.canViewArchive ? 'archive' : 'active';
         },
+        // Переход из уведомления, когда пользователь уже на /center: mounted не
+        // перевызывается, поэтому открываем заявку по смене query.open (#973).
+        '$route.query.open'(val) {
+            if (val) this.openFromDeepLink();
+        },
     },
     mounted() {
         this.startShakeAnimation();
@@ -884,7 +914,7 @@ export default {
         }
 
         this.fetchOrganizations();
-        this.fetchApplications();
+        this.fetchApplications().then(() => this.openFromDeepLink());
         this.getCurrentUser();
 
         // Polling 30s: инкрементально добавляет новые заявки в начало и
@@ -1193,7 +1223,8 @@ export default {
                 (this.blacklistFlagCount(application) > 0 ? 1 : 0) +
                 (application.has_roof_access ? 1 : 0) +
                 (application.has_free_parking ? 1 : 0) +
-                (application.sender_is_important ? 1 : 0);
+                (application.sender_is_important ? 1 : 0) +
+                (application.has_unseen_questions ? 1 : 0);
             return count >= 2;
         },
 
@@ -1258,7 +1289,8 @@ export default {
                     if (
                         updated.status !== a.status ||
                         updated.confirmation !== a.confirmation ||
-                        updated.is_read !== a.is_read
+                        updated.is_read !== a.is_read ||
+                        updated.has_unseen_questions !== a.has_unseen_questions
                     ) {
                         return { ...a, ...updated };
                     }
@@ -1372,7 +1404,27 @@ export default {
                 }
             }
 
+            // Открытие заявки гасит маркер вопросов: блок вопросов в детали сам дёрнет
+            // markQuestionsSeen на бэке, тут оптимистично снимаем иконку в списке (#973).
+            if (application.has_unseen_questions) {
+                application.has_unseen_questions = false;
+            }
+
             this.selectedApplication = application;
+        },
+
+        // Переход из уведомления: /center?open=<id> открывает заявку и чистит query,
+        // чтобы обновление страницы её повторно не открывало (#973).
+        openFromDeepLink() {
+            const openId = Number(this.$route.query.open);
+            if (!openId) return;
+            const app = this.applications.find(a => a.id === openId);
+            if (app) {
+                this.openApplication(app);
+            }
+            const query = { ...this.$route.query };
+            delete query.open;
+            this.$router.replace({ query }).catch(() => {});
         },
 
         closeDetail() {
@@ -1918,22 +1970,42 @@ export default {
    строку. ЧС держим полным текстом - критичный флаг, его не прячем. */
 .application-tags--compact .rt-tag--roof .rt-tag__text,
 .application-tags--compact .rt-tag--parking .rt-tag__text,
-.application-tags--compact .rt-tag--important .rt-tag__text {
+.application-tags--compact .rt-tag--important .rt-tag__text,
+.application-tags--compact .rt-tag--questions .rt-tag__text {
     max-width: 0;
     opacity: 0;
 }
 
 .application-tags--compact .rt-tag--roof .rt-tag__icon,
 .application-tags--compact .rt-tag--parking .rt-tag__icon,
-.application-tags--compact .rt-tag--important .rt-tag__icon {
+.application-tags--compact .rt-tag--important .rt-tag__icon,
+.application-tags--compact .rt-tag--questions .rt-tag__icon {
     width: 13px;
     opacity: 1;
 }
 
 .application-tags--compact .rt-tag--roof.badge--sm,
 .application-tags--compact .rt-tag--parking.badge--sm,
-.application-tags--compact .rt-tag--important.badge--sm {
+.application-tags--compact .rt-tag--important.badge--sm,
+.application-tags--compact .rt-tag--questions.badge--sm {
     padding: 4px;
+}
+
+/* Маркер вопросов: красная точка-индикатор поверх бейджа (видна всегда, #973). */
+.rt-tag--questions {
+    position: relative;
+}
+
+.rt-tag__q-dot {
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--color-danger);
+    border: 1.5px solid #fff;
+    pointer-events: none;
 }
 
 /* Колонка тегов фиксированная: 120px когда таблица просторная, 90px когда тесно (нав-меню

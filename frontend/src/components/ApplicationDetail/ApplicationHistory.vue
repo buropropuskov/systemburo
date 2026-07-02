@@ -653,7 +653,8 @@ export default {
                 'confirmation_change': 'dot-system',
                 'status_change': 'dot-system',
                 'blacklist_override': 'dot-success',
-                'blacklist_override_revoke': 'dot-warning'
+                'blacklist_override_revoke': 'dot-warning',
+                'question_created': 'dot-info'
             };
             return classes[actionType] || 'dot-default';
         },
@@ -681,6 +682,12 @@ export default {
                     return 'Переслал(-а) всю заявку';
                 }
                 return `Переслал(-а) вложения: ${names.join(', ')}`;
+            }
+
+            // Создание вопроса к заявке (#973): тема вопроса в metadata.subject.
+            if (item.action_type === 'question_created') {
+                const subject = item.metadata?.subject;
+                return subject ? `Задал(-а) вопрос: ${subject}` : 'Задал(-а) вопрос';
             }
 
             const texts = {
