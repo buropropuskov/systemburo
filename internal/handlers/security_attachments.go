@@ -69,7 +69,7 @@ func (h *ApplicationHandler) requireSecurityOrAdmin(c echo.Context) (int, bool, 
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/available-attachments [get]
 func (h *ApplicationHandler) GetAvailableAttachments(c echo.Context) error {
-	userID, isSuperAdmin, err := h.requireSecurityOrAdmin(c)
+	userID, unrestricted, err := h.requireSecurityOrAdmin(c)
 	if err != nil {
 		return err
 	}
@@ -86,7 +86,7 @@ func (h *ApplicationHandler) GetAvailableAttachments(c echo.Context) error {
 	params.Normalize()
 
 	data, total, err := h.service.GetAvailableAttachmentsForSecurity(
-		c.Request().Context(), userID, isSuperAdmin, filter, params.Page, params.PerPage,
+		c.Request().Context(), userID, unrestricted, filter, params.Page, params.PerPage,
 	)
 	if err != nil {
 		return err
@@ -111,7 +111,7 @@ func (h *ApplicationHandler) GetAvailableAttachments(c echo.Context) error {
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/available-attachments/{id} [get]
 func (h *ApplicationHandler) GetAvailableAttachmentDetail(c echo.Context) error {
-	userID, isSuperAdmin, err := h.requireSecurityOrAdmin(c)
+	userID, unrestricted, err := h.requireSecurityOrAdmin(c)
 	if err != nil {
 		return err
 	}
@@ -122,7 +122,7 @@ func (h *ApplicationHandler) GetAvailableAttachmentDetail(c echo.Context) error 
 	}
 
 	ctx := c.Request().Context()
-	canView, err := h.service.CanSecurityViewAttachment(ctx, userID, isSuperAdmin, id)
+	canView, err := h.service.CanSecurityViewAttachment(ctx, userID, unrestricted, id)
 	if err != nil {
 		return err
 	}
