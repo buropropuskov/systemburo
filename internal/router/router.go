@@ -510,6 +510,12 @@ func Setup(e *echo.Echo, d Dependencies) {
 	apg.POST("/:id/read", app.MarkAsRead)
 	apg.GET("/:id/reads", app.GetReads)
 
+	// Вопросы к заявке (#973: Q&A-топики + тред ответов)
+	apg.GET("/:id/questions", app.GetApplicationQuestions)
+	apg.POST("/:id/questions", app.CreateApplicationQuestion)
+	apg.POST("/:id/questions/seen", app.MarkQuestionsSeen)
+	apg.POST("/:id/questions/:questionId/answers", app.CreateApplicationAnswer)
+
 	// Вложения заявок (cars/employees/items внутри вложений)
 	att.GET("/:id/cars", app.GetAttachmentCars)
 	att.GET("/:id/employees", app.GetAttachmentEmployees)

@@ -53,7 +53,13 @@ const applicationsListSelect = `
 		EXISTS (SELECT 1 FROM application_reads ar WHERE ar.application_id = a.id AND ar.user_id = ?) as is_read,
 		EXISTS (SELECT 1 FROM attachments att WHERE att.application_id = a.id AND att.roof_access = true AND ` + forwardAttachmentVisible + `) as has_roof_access,
 		EXISTS (SELECT 1 FROM attachments att WHERE att.application_id = a.id AND att.free_parking = true AND ` + forwardAttachmentVisible + `) as has_free_parking,
-		(SELECT COUNT(*) FROM application_blacklist_flags f WHERE f.application_id = a.id AND NOT EXISTS (SELECT 1 FROM application_blacklist_overrides o WHERE o.flag_id = f.id)) as blacklist_flags_count
+		(SELECT COUNT(*) FROM application_blacklist_flags f WHERE f.application_id = a.id AND NOT EXISTS (SELECT 1 FROM application_blacklist_overrides o WHERE o.flag_id = f.id)) as blacklist_flags_count,
+		(
+			EXISTS (SELECT 1 FROM application_questions q WHERE q.application_id = a.id
+				AND q.created_at > COALESCE((SELECT qv.last_seen_at FROM application_question_views qv WHERE qv.application_id = a.id AND qv.user_id = ?), to_timestamp(0)))
+			OR EXISTS (SELECT 1 FROM application_answers ans WHERE ans.application_id = a.id
+				AND ans.created_at > COALESCE((SELECT qv.last_seen_at FROM application_question_views qv WHERE qv.application_id = a.id AND qv.user_id = ?), to_timestamp(0)))
+		) as has_unseen_questions
 	`
 
 // applicationsListSelectArgs связывает плейсхолдеры applicationsListSelect: is_read (1)
@@ -65,6 +71,8 @@ func applicationsListSelectArgs(readUserID, forwardViewerID int) []interface{} {
 		readUserID,
 		forwardViewerID, forwardViewerID, forwardViewerID,
 		forwardViewerID, forwardViewerID, forwardViewerID,
+		// has_unseen_questions (#973): last-seen текущего пользователя в двух EXISTS.
+		readUserID, readUserID,
 	}
 }
 
@@ -203,6 +211,24 @@ type ApplicationService interface {
 	// "Доступные мне" (#706). nil без ошибки - вложение не найдено. Без проверки доступа,
 	// вызывать после CanSecurityViewAttachment.
 	GetAvailableAttachmentByID(ctx context.Context, attachmentID int) (*AvailableAttachment, error)
+
+	// GetApplicationQuestions возвращает вопросы к заявке (#973) с вложенными ответами,
+	// вложениями и ФИО авторов; вопросы новые сверху, ответы в хронологии треда.
+	// viewerUserID (#680): вложения вопроса скрываются, если недоступны читателю по
+	// пер-вложенному пересылу; 0 - супер-админ (видит все).
+	GetApplicationQuestions(ctx context.Context, applicationID, viewerUserID int) ([]QuestionWithAnswers, error)
+
+	// CreateApplicationQuestion создаёт вопрос-топик (#973): гейт canAsk (не чистый sender),
+	// история question_created, уведомление инициатору. Возвращает созданный вопрос.
+	CreateApplicationQuestion(ctx context.Context, username string, applicationID int, isSuperAdmin bool, req CreateQuestionRequest) (*QuestionWithAnswers, error)
+
+	// CreateApplicationAnswer добавляет ответ в тред вопроса (#973): доступ - любой с доступом
+	// к заявке; уведомляет участников обсуждения; в историю не пишет.
+	CreateApplicationAnswer(ctx context.Context, username string, applicationID, questionID int, req CreateAnswerRequest) (*AnswerItem, error)
+
+	// MarkQuestionsSeen обновляет last-seen пользователя по Q&A заявки (#973) - гасит маркер
+	// "новые вопросы/ответы" в списке.
+	MarkQuestionsSeen(ctx context.Context, username string, applicationID int) error
 }
 
 // --- DTO: запросы ---
@@ -397,6 +423,7 @@ type ApplicationWithDetails struct {
 	BlacklistFlagsCount  int        `json:"blacklist_flags_count"`
 	HasRoofAccess        bool       `json:"has_roof_access"`
 	HasFreeParking       bool       `json:"has_free_parking"`
+	HasUnseenQuestions   bool       `json:"has_unseen_questions"`
 }
 
 // ApplicationCreateResponse ответ при создании заявки.
