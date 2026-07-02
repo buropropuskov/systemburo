@@ -92,7 +92,7 @@ export default {
       default: false,
     },
   },
-  emits: ['update:unread-count'],
+  emits: ['update:unread-count', 'close'],
   data() {
     return {
       notifications: [],
@@ -140,18 +140,38 @@ export default {
     },
 
     async markAsRead(item) {
-      if (item.is_read) return
-      try {
-        const response = await apiRequest(`/notifications/${item.id}/read`, {
-          method: 'PUT',
-          body: JSON.stringify({ is_read: true }),
-        })
-        if (response.ok) {
-          item.is_read = true
+      if (!item.is_read) {
+        try {
+          const response = await apiRequest(`/notifications/${item.id}/read`, {
+            method: 'PUT',
+            body: JSON.stringify({ is_read: true }),
+          })
+          if (response.ok) {
+            item.is_read = true
+          }
+        } catch {
+          // ignore
         }
-      } catch {
-        // ignore
       }
+      // Клик по уведомлению о заявке открывает её в Центре (#973).
+      const appId = this.notificationAppId(item)
+      if (appId) {
+        this.$emit('close')
+        this.$router.push({ path: '/center', query: { open: appId } }).catch(() => {})
+      }
+    },
+
+    // application_id для навигации лежит в data (jsonb-строка) уведомлений о заявках.
+    notificationAppId(item) {
+      let data = item.data
+      if (typeof data === 'string') {
+        try {
+          data = JSON.parse(data)
+        } catch {
+          return null
+        }
+      }
+      return data && data.application_id ? Number(data.application_id) : null
     },
 
     async deleteNotification(id) {

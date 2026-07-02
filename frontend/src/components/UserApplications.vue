@@ -202,7 +202,7 @@
                       </div>
                       <div class="application-col tags-col">
                         <div
-                          v-if="blacklistFlagCount(application) > 0 || application.has_roof_access || application.has_free_parking"
+                          v-if="blacklistFlagCount(application) > 0 || application.has_roof_access || application.has_free_parking || application.has_unseen_questions"
                           class="application-tags"
                           :class="{
                             'application-tags--both': application.has_roof_access && application.has_free_parking,
@@ -258,6 +258,31 @@
                               stroke-linejoin="round"
                             ><path d="M8 4h8a4 4 0 0 1 4 4v8a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4z" /><path d="M9 16V8h3.2a2.4 2.4 0 0 1 0 4.8H9" /></svg>
                             <span class="rt-tag__text">Парковка</span>
+                          </Badge>
+                          <Badge
+                            v-if="application.has_unseen_questions"
+                            variant="primary"
+                            size="sm"
+                            class="rt-tag rt-tag--questions tag-hint"
+                            data-hint="Есть новые вопросы или ответы"
+                            :data-testid="`user-questions-badge-${application.id}`"
+                          >
+                            <svg
+                              class="rt-tag__q-svg"
+                              width="13"
+                              height="13"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                            ><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>
+                            <span class="rt-tag__text">Вопросы</span>
+                            <span
+                              class="rt-tag__q-dot"
+                              aria-hidden="true"
+                            />
                           </Badge>
                         </div>
                       </div>
@@ -661,6 +686,11 @@ export default {
     },
 
     async openApplication(application) {
+      // Открытие гасит маркер вопросов: блок вопросов в детали сам отметит seen на
+      // бэке, тут оптимистично снимаем иконку в списке (#973).
+      if (application.has_unseen_questions) {
+        application.has_unseen_questions = false;
+      }
       this.selectedApplication = application;
       await this.fetchResponsibleUsers(application.id);
       this.showDetailModal = true;
@@ -1120,6 +1150,27 @@ export default {
 
 .tags-col .rt-tag__icon {
   display: none;
+}
+
+/* Маркер вопросов (#973): чат-иконка (всегда видна) + красная точка-индикатор. */
+.rt-tag__q-svg {
+  flex-shrink: 0;
+}
+
+.rt-tag--questions {
+  position: relative;
+}
+
+.rt-tag__q-dot {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-danger);
+  border: 1.5px solid #fff;
+  pointer-events: none;
 }
 
 /* ЧС не сворачивается. Крыша/Парковка -> иконки только когда ОБА (--both) и тесно.

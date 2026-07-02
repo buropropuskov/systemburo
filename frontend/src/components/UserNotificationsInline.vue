@@ -180,18 +180,37 @@ export default {
     },
 
     async markRead(notif) {
-      if (notif.is_read) return
-      try {
-        const response = await apiRequest(`/notifications/${notif.id}/read`, {
-          method: 'PUT',
-          body: JSON.stringify({ is_read: true }),
-        })
-        if (response.ok) {
-          notif.is_read = true
+      if (!notif.is_read) {
+        try {
+          const response = await apiRequest(`/notifications/${notif.id}/read`, {
+            method: 'PUT',
+            body: JSON.stringify({ is_read: true }),
+          })
+          if (response.ok) {
+            notif.is_read = true
+          }
+        } catch {
+          // ignore
         }
-      } catch {
-        // ignore
       }
+      // Клик по уведомлению о заявке открывает её в Центре (#973).
+      const appId = this.notificationAppId(notif)
+      if (appId) {
+        this.$router.push({ path: '/center', query: { open: appId } }).catch(() => {})
+      }
+    },
+
+    // application_id для навигации лежит в data (jsonb-строка) уведомлений о заявках.
+    notificationAppId(notif) {
+      let data = notif.data
+      if (typeof data === 'string') {
+        try {
+          data = JSON.parse(data)
+        } catch {
+          return null
+        }
+      }
+      return data && data.application_id ? Number(data.application_id) : null
     },
 
     async deleteNotification(id) {
