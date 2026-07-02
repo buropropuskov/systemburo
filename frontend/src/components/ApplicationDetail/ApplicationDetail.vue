@@ -1637,6 +1637,12 @@ export default {
     gap: 10px;
 }
 
+/* Блоки колонки держат свою высоту, а колонка скроллится. Без этого flex-column
+   сжимает дочерние блоки (у части overflow:hidden) и контент режется вместо скролла. */
+.detail-main-column > * {
+    flex-shrink: 0;
+}
+
 .detail-right-column {
     width: 360px;
     border-left: 1px solid #e6e6e6;

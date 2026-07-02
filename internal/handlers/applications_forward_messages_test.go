@@ -60,6 +60,8 @@ func TestForwardMessages_RoundTrip(t *testing.T) {
 	assert.Equal(t, wantMessage, msgs[0].Message)
 	assert.Equal(t, wantAuthor, msgs[0].AuthorName)
 	assert.Equal(t, []string{wantRecipient}, msgs[0].Recipients, "recipients должны нести ФИО получателя")
+	assert.True(t, msgs[0].Whole, "переслана вся заявка (без выбора вложений)")
+	assert.Empty(t, msgs[0].Attachments, "у пересылки всей заявки нет перечня вложений")
 
 	// История заявки: запись forwarded несёт comment с тем же текстом.
 	rec = testutil.GET(t, e, fmt.Sprintf("/applications/%d/history", appID), testutil.AuthHeader(senderToken))
@@ -97,4 +99,38 @@ func TestForwardMessages_RoundTrip(t *testing.T) {
 	assert.Equal(t, wantMessage, afterEmpty[0].Message, "первая пересылка сверху")
 	assert.Empty(t, afterEmpty[1].Message, "пересылка без текста несёт пустое сообщение")
 	assert.Equal(t, []string{wantRecipient2}, afterEmpty[1].Recipients, "recipients пустой пересылки")
+}
+
+// TestForwardMessages_AttachmentSubset: пересылка конкретных вложений (#967, обогащение
+// ветки) даёт в ветке действие whole=false с перечнем вложений. Проверяет, что
+// GetForwardMessages извлекает whole/attachments из живого Postgres - каст
+// metadata->>'whole'::boolean на реальном false и разбор metadata.attachments.
+func TestForwardMessages_AttachmentSubset(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	senderToken := testutil.RegisterAndLogin(t, e, "fwdatt_sender", "pass123", 1, td.OrgID, td.CompanyID)
+	testutil.RegisterUser(t, e, "fwdatt_viewer", "pass123", 1, td.OrgID, td.CompanyID)
+	viewerID := getUserID(t, db, "fwdatt_viewer")
+
+	uaID := seedUniqueAttachment(t, db, "cars", "cars_fwdatt", "Cars Template")
+	appID := submitCompleteApplication(t, e, senderToken, "Test Organization", uaID)
+
+	var attID int
+	require.NoError(t, db.Raw("SELECT id FROM attachments WHERE application_id = ? LIMIT 1", appID).Scan(&attID).Error)
+	require.NotZero(t, attID, "у заявки должно быть вложение")
+
+	// Пересылка ТОЛЬКО этого вложения (subset), без сопроводительного текста.
+	fwdBody := fmt.Sprintf(`{"users":[{"user_id":%d,"required_approval":false,"can_view":true}],"attachment_ids":[%d]}`, viewerID, attID)
+	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/forward", appID), fwdBody, testutil.AuthHeader(senderToken))
+	require.Equal(t, http.StatusOK, rec.Code, "forward subset: %s", rec.Body.String())
+
+	rec = testutil.GET(t, e, fmt.Sprintf("/applications/%d/forward-messages", appID), testutil.AuthHeader(senderToken))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	msgs := testutil.ParseResponse[[]services.ForwardMessageItem](t, rec)
+	require.Len(t, msgs, 1)
+	assert.False(t, msgs[0].Whole, "переслана не вся заявка, а выбранное вложение")
+	assert.Equal(t, []string{"Cars Template"}, msgs[0].Attachments, "перечень вложений в ветке")
 }

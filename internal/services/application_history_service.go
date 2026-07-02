@@ -15,14 +15,17 @@ import (
 // ForwardMessageItem - одна пересылка заявки в "ветке заявки" (#967).
 // Источник - сводные записи forwarded в audit_log. Message - сопроводительный текст
 // (может быть пустым: пересылка без текста тоже попадает в ветку), Recipients - кому
-// переслано (из metadata.recipients), AuthorName - кто переслал.
+// переслано (из metadata.recipients), AuthorName - кто переслал. Whole/Attachments -
+// что переслано (вся заявка либо перечень вложений), для строки "действия" в ветке.
 type ForwardMessageItem struct {
-	ID         int       `json:"id"`
-	AuthorID   int       `json:"author_id"`
-	AuthorName string    `json:"author_name"`
-	Message    string    `json:"message"`
-	Recipients []string  `json:"recipients"`
-	CreatedAt  time.Time `json:"created_at"`
+	ID          int       `json:"id"`
+	AuthorID    int       `json:"author_id"`
+	AuthorName  string    `json:"author_name"`
+	Message     string    `json:"message"`
+	Recipients  []string  `json:"recipients"`
+	Whole       bool      `json:"whole"`
+	Attachments []string  `json:"attachments"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 // applicationAuditDetails - форма details jsonb для записей application в audit_log
@@ -126,6 +129,8 @@ func (s *applicationService) GetForwardMessages(ctx context.Context, application
 			` + authorName + ` AS author_name,
 			COALESCE(a.details->>'comment', '') AS message,
 			COALESCE(a.details->'metadata'->>'recipients', '[]') AS recipients_json,
+			COALESCE((a.details->'metadata'->>'whole')::boolean, true) AS whole,
+			COALESCE(a.details->'metadata'->>'attachments', '[]') AS attachments_json,
 			a.created_at
 		FROM audit_log a
 		JOIN users u ON a.actor_user_id = u.id
@@ -134,12 +139,14 @@ func (s *applicationService) GetForwardMessages(ctx context.Context, application
 	`
 
 	type forwardMessageRow struct {
-		ID             int
-		AuthorID       int
-		AuthorName     string
-		Message        string
-		RecipientsJSON string
-		CreatedAt      time.Time
+		ID              int
+		AuthorID        int
+		AuthorName      string
+		Message         string
+		RecipientsJSON  string
+		Whole           bool
+		AttachmentsJSON string
+		CreatedAt       time.Time
 	}
 	var rows []forwardMessageRow
 	if err := s.db.WithContext(ctx).Raw(sql, models.AuditEntityApplication, applicationID).Scan(&rows).Error; err != nil {
@@ -147,24 +154,31 @@ func (s *applicationService) GetForwardMessages(ctx context.Context, application
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching forward messages")
 	}
 
+	// Битый JSON-массив в metadata не роняет ветку: деградируем к пустому списку
+	// (запись всё равно показывает автора/действие/текст), но логируем аномалию.
+	parseStrings := func(raw, field string, auditID int) []string {
+		out := []string{}
+		if raw == "" {
+			return out
+		}
+		if err := json.Unmarshal([]byte(raw), &out); err != nil {
+			slog.Warn("не удалось разобрать массив пересылки", "field", field, "audit_id", auditID, "error", err)
+			return []string{}
+		}
+		return out
+	}
+
 	items := make([]ForwardMessageItem, 0, len(rows))
 	for _, r := range rows {
-		recipients := []string{}
-		if r.RecipientsJSON != "" {
-			// Битый recipients не роняет ветку: деградируем к пустому списку получателей
-			// (запись всё равно показывает автора/текст), но логируем аномалию.
-			if err := json.Unmarshal([]byte(r.RecipientsJSON), &recipients); err != nil {
-				slog.Warn("не удалось разобрать recipients пересылки", "audit_id", r.ID, "error", err)
-				recipients = []string{}
-			}
-		}
 		items = append(items, ForwardMessageItem{
-			ID:         r.ID,
-			AuthorID:   r.AuthorID,
-			AuthorName: r.AuthorName,
-			Message:    r.Message,
-			Recipients: recipients,
-			CreatedAt:  r.CreatedAt,
+			ID:          r.ID,
+			AuthorID:    r.AuthorID,
+			AuthorName:  r.AuthorName,
+			Message:     r.Message,
+			Recipients:  parseStrings(r.RecipientsJSON, "recipients", r.ID),
+			Whole:       r.Whole,
+			Attachments: parseStrings(r.AttachmentsJSON, "attachments", r.ID),
+			CreatedAt:   r.CreatedAt,
 		})
 	}
 

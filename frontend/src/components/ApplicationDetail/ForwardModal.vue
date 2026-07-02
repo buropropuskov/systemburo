@@ -221,7 +221,7 @@
         data-testid="forward-modal-warning"
       >
         <span class="forward-message-warning-icon">⚠</span>
-        <span>К данной ветке заявки и сообщениям внутри получит доступ и сможет видеть Бюро пропусков.</span>
+        <span>Ваше сообщение увидят все получатели заявки и бюро пропусков (принимающие), а не только выбранные вами.</span>
       </div>
     </div>
 
@@ -906,15 +906,13 @@ export default {
 </style>
 
 <!-- не scoped: контент BaseModal телепортится в body и несёт data-v самого BaseModal,
-     поэтому радиус и overflow задаём глобально двойным классом (бьёт scoped .base-modal BaseModal).
-     overflow: visible нужен, чтобы выпадающий список поиска не обрезался скроллом модалки. -->
+     поэтому радиус задаём глобально двойным классом (бьёт scoped .base-modal BaseModal).
+     overflow НЕ переопределяем: бокс сохраняет свой max-height:92vh + overflow-y:auto из
+     BaseModal, поэтому высокий контент (получатели + вложения + сообщение + предупреждение)
+     помещается со скроллом. Раньше здесь стоял overflow:visible ради выпадающего списка
+     поиска - он ломал вмещение и контент вылезал за экран. -->
 <style>
 .base-modal.forward-modal {
     border-radius: 30px;
-    overflow: visible;
-}
-
-.base-modal.forward-modal .base-modal__body {
-    overflow: visible;
 }
 </style>
