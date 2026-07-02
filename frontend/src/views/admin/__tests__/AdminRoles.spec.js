@@ -6,10 +6,12 @@ const { notifyMock } = vi.hoisted(() => ({ notifyMock: vi.fn() }));
 vi.mock('@/api/permissions', () => ({
   listRoles: vi.fn(),
   listPermissionGroups: vi.fn(),
+  getPermissionCatalog: vi.fn(),
   createRole: vi.fn(),
   updateRole: vi.fn(),
   deleteRole: vi.fn(),
   setRoleDefaultGroups: vi.fn(),
+  setRolePermissions: vi.fn(),
 }));
 
 vi.mock('@/stores/deletions', () => ({
@@ -29,10 +31,12 @@ import AdminRoles from '../AdminRoles.vue';
 import {
   listRoles,
   listPermissionGroups,
+  getPermissionCatalog,
   createRole,
   updateRole,
   deleteRole,
   setRoleDefaultGroups,
+  setRolePermissions,
 } from '@/api/permissions';
 
 const ROLES = [
@@ -42,8 +46,13 @@ const ROLES = [
     name: 'Арендатор',
     description: 'Права арендатора',
     default_groups: [{ id: 10, name: 'G1' }, { id: 11, name: 'G2' }],
+    direct_grants: ['page.center'],
   },
   { id: 2, code: 'guard', name: 'Охранник', description: null, default_groups: [] },
+];
+
+const CATALOG = [
+  { key: 'page.center', display_name: 'Центр заявок', category: 'Навигация' },
 ];
 
 const GROUPS = [
@@ -58,6 +67,7 @@ const stubs = {
   RefreshButton: true,
   ConfirmationModal: true,
   LoaderSpinner: true,
+  RolePermissionsModal: true,
 };
 
 function mountRoles() {
@@ -80,10 +90,12 @@ describe('AdminRoles master-detail', () => {
     vi.clearAllMocks();
     listRoles.mockResolvedValue(ROLES);
     listPermissionGroups.mockResolvedValue(GROUPS);
+    getPermissionCatalog.mockResolvedValue(CATALOG);
     createRole.mockResolvedValue({ id: 99, code: 'tenant_copy', name: 'Копия: Арендатор', description: 'Права арендатора' });
     updateRole.mockResolvedValue({ updated: true });
     deleteRole.mockResolvedValue({ deleted: true });
     setRoleDefaultGroups.mockResolvedValue({ updated: true });
+    setRolePermissions.mockResolvedValue({ updated: true });
   });
 
   it('рендерит список ролей и футер «Всего: N»', async () => {
@@ -95,16 +107,15 @@ describe('AdminRoles master-detail', () => {
     expect(wrapper.find('[data-testid="role-details"]').exists()).toBe(false);
   });
 
-  it('выбор роли открывает детали с наименованием, кодом и дефолтными группами', async () => {
+  it('выбор роли открывает детали и загружает её группы и точечные права', async () => {
     const wrapper = await mountReady();
     await wrapper.findAll('[data-testid="role-row"]')[0].trigger('click');
     await flushPromises();
     expect(wrapper.find('[data-testid="role-details"]').exists()).toBe(true);
     expect(wrapper.find('.details-title').text()).toBe('Арендатор');
-    // Из двух групп роли отмечены ровно две
-    expect(wrapper.vm.selectedGroupIds.size).toBe(2);
-    expect(wrapper.vm.selectedGroupIds.has(10)).toBe(true);
-    expect(wrapper.vm.selectedGroupIds.has(11)).toBe(true);
+    // Группы и собственные гранты роли подгружены из ответа listRoles
+    expect(wrapper.vm.currentGroupIds).toEqual([10, 11]);
+    expect(wrapper.vm.currentDirectKeys).toEqual(['page.center']);
   });
 
   it('openCopy предзаполняет модалку «Копия: X», код и описание источника', async () => {
@@ -162,16 +173,39 @@ describe('AdminRoles master-detail', () => {
     expect(wrapper.vm.modalMode).toBe('create');
   });
 
-  it('saveSelected сохраняет изменённые группы через setRoleDefaultGroups', async () => {
+  it('saveSelected сохраняет только мету роли (updateRole), группы не трогает', async () => {
     const wrapper = await mountReady();
-    await wrapper.vm.selectRole(ROLES[0]);
-    wrapper.vm.toggleGroupId(12); // добавили третью группу
-    expect(wrapper.vm.groupsDirty).toBe(true);
-    await wrapper.vm.saveSelected();
+    await wrapper.findAll('[data-testid="role-row"]')[0].trigger('click');
+    await flushPromises();
+    await wrapper.find('[data-testid="role-detail-name"]').setValue('Арендатор+');
+    await wrapper.find('[data-testid="role-save"]').trigger('click');
     await flushPromises();
 
+    expect(updateRole).toHaveBeenCalledWith(1, { name: 'Арендатор+', description: 'Права арендатора' });
+    expect(setRoleDefaultGroups).not.toHaveBeenCalled();
+    expect(setRolePermissions).not.toHaveBeenCalled();
+  });
+
+  it('handleSavePerms шлёт только изменённое: точечные права и группы раздельно', async () => {
+    const wrapper = await mountReady();
+    await wrapper.vm.selectRole(ROLES[0]); // группы [10,11], гранты ['page.center']
+
+    // Меняются только точечные права -> зовётся setRolePermissions, группы не трогаются.
+    await wrapper.vm.handleSavePerms({ directKeys: ['page.center', 'page.cars'], groupIds: [10, 11] });
+    await flushPromises();
+    expect(setRolePermissions).toHaveBeenCalledWith(1, ['page.center', 'page.cars']);
+    expect(setRoleDefaultGroups).not.toHaveBeenCalled();
+  });
+
+  it('handleSavePerms при изменении только групп не трогает точечные права (инвариант)', async () => {
+    const wrapper = await mountReady();
+    await wrapper.vm.selectRole(ROLES[0]); // группы [10,11], гранты ['page.center']
+
+    // Добавили группу, точечные права те же -> setRolePermissions НЕ вызывается.
+    await wrapper.vm.handleSavePerms({ directKeys: ['page.center'], groupIds: [10, 11, 12] });
+    await flushPromises();
     expect(setRoleDefaultGroups).toHaveBeenCalledWith(1, [10, 11, 12]);
-    expect(updateRole).not.toHaveBeenCalled(); // мета не менялась
+    expect(setRolePermissions).not.toHaveBeenCalled();
   });
 
   it('submitMeta показывает ошибку из envelope при неуспешном создании', async () => {

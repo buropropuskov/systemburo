@@ -23,6 +23,12 @@ class AdminRolesPage {
     this.detailDescription = page.getByTestId('role-detail-description');
     this.saveDetails = page.getByTestId('role-save');
     this.deleteButton = page.getByTestId('role-delete');
+
+    // Модалка «Права роли»: дефолтные группы (чекбоксы) + точечные права (тумблер-дерево).
+    this.permsButton = page.getByTestId('role-perms-btn');
+    this.permsModal = page.getByTestId('role-permissions-modal');
+    this.permsSave = page.getByTestId('role-permissions-save');
+    this.permsCancel = page.getByTestId('role-permissions-cancel');
   }
 
   async goto() {
@@ -80,6 +86,23 @@ class AdminRolesPage {
   async clickDelete(code) {
     await this.select(code);
     await this.deleteButton.click();
+  }
+
+  /** Выбрать роль и открыть модалку прав (группы + точечные права). */
+  async openPerms(code) {
+    await this.select(code);
+    await this.permsButton.click();
+    await this.permsModal.waitFor({ state: 'visible' });
+  }
+
+  /** Тумблер права по ключу каталога внутри модалки прав. */
+  permToggle(key) {
+    return this.permsModal.locator(`[data-key="${key}"] .tgl`);
+  }
+
+  /** Чекбокс дефолтной группы по id внутри модалки прав. */
+  permGroup(id) {
+    return this.permsModal.locator(`[data-testid="role-perms-group"][data-group-id="${id}"]`);
   }
 }
 
