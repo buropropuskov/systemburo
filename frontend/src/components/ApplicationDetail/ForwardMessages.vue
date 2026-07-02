@@ -22,6 +22,9 @@
           <span class="forward-message-author">{{ msg.author_name || 'Пользователь' }}</span>
           <span class="forward-message-date">{{ formatDateTime(msg.created_at) }}</span>
         </div>
+        <p class="forward-message-action">
+          {{ actionText(msg) }}
+        </p>
         <p
           v-if="recipientsText(msg)"
           class="forward-message-recipients"
@@ -85,6 +88,15 @@ export default {
 
         recipientsText(msg) {
             return Array.isArray(msg.recipients) ? msg.recipients.join(', ') : '';
+        },
+
+        // Действие пересылки теми же словами, что в блоке История (getActionText).
+        actionText(msg) {
+            const names = msg.attachments;
+            if (msg.whole || !Array.isArray(names) || names.length === 0) {
+                return 'Переслал(-а) всю заявку';
+            }
+            return `Переслал(-а) вложения: ${names.join(', ')}`;
         },
 
         formatDateTime(value) {
@@ -167,6 +179,15 @@ export default {
     font-size: 12px;
     color: #a2a2a2;
     flex-shrink: 0;
+}
+
+.forward-message-action {
+    margin: 0 0 4px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #333;
+    line-height: 140%;
+    word-break: break-word;
 }
 
 .forward-message-recipients {
