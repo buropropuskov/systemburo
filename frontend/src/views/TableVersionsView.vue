@@ -211,7 +211,7 @@
          странице) и preview-режим реальных CarsTable/PeopleTable с колонками и
          строками на момент снимка. Показываем, когда есть версии и нет ошибки. -->
     <article
-      v-if="!error && items.length && !listError"
+      v-if="!error && (items.length || listLoading) && !listError"
       class="versions-table-card"
       data-testid="tv-body"
     >

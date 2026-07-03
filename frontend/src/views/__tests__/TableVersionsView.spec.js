@@ -301,6 +301,25 @@ describe('TableVersionsView (#980 polish-r2)', () => {
     expect(getTableSnapshot).not.toHaveBeenCalled();
   });
 
+  it('на первом заходе (список ещё грузится) показывает спиннер, а не "версий нет"', async () => {
+    // Список висит: listLoading=true, items ещё пуст. Карточка таблицы должна
+    // показать спиннер, а не пропасть (иначе флэш пустоты между тулбаром и футером).
+    let resolveList;
+    listTableSnapshots.mockReturnValue(new Promise((r) => { resolveList = r; }));
+    wrapper = mountView();
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="tv-body"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="tv-detail-loading"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="tv-empty"]').exists()).toBe(false);
+
+    resolveList({ items: [], total: 0 });
+    await flushPromises();
+    // Пришёл пустой список -> "версий пока нет", карточки таблицы уже нет.
+    expect(wrapper.find('[data-testid="tv-empty"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="tv-body"]').exists()).toBe(false);
+  });
+
   it('показывает "таблица была пуста" для снимка без строк', async () => {
     listTableSnapshots.mockResolvedValue({ items: [snapItem(1)], total: 1 });
     getTableSnapshot.mockResolvedValue(carsSnapshot(1, []));
