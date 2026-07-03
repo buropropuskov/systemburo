@@ -1,6 +1,7 @@
 package handlers_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -721,4 +722,124 @@ func TestTableSnapshot_Cleanup_BadOlderThan_400(t *testing.T) {
 
 	zero := testutil.DELETE(t, e, fmt.Sprintf("/system-tables/%d/snapshots?older_than=0", tbl.ID), testutil.AuthHeader(adminToken))
 	assert.Equal(t, http.StatusBadRequest, zero.Code, "older_than=0 - 400")
+}
+
+// seedCarSnapshotWithCyrillic создаёт версию cars-таблицы с кириллическими значениями
+// в payload - чтобы экспорт (особенно PDF) прогонял реальную кириллицу.
+func seedCarSnapshotWithCyrillic(t *testing.T, db *gorm.DB, tableID int) int {
+	t.Helper()
+	rows := json.RawMessage(`[{"id":1,"car_number":"А123ВС77","car_brand":"Камаз","organization":"ООО Ромашка","company":"Компания","application_number":"№ 42","territory_status":1,"unload_places":["Склад №1"]}]`)
+	payloadJSON, err := json.Marshal(models.SnapshotPayload{TableType: models.TableTypeCars, Rows: rows})
+	require.NoError(t, err)
+	countsJSON, err := json.Marshal(models.SnapshotCounts{OnTerritory: 1, Total: 1})
+	require.NoError(t, err)
+	snap := models.TableSnapshot{
+		TableID: tableID, TakenAt: time.Now().UTC(), Reason: models.SnapshotReasonManual,
+		Payload: payloadJSON, Counts: countsJSON,
+	}
+	require.NoError(t, db.Create(&snap).Error)
+	return snap.ID
+}
+
+// TestTableSnapshot_Export_Xlsx: экспорт версии в xlsx - 200, верный content-type,
+// attachment-заголовок, тело - валидный zip (xlsx).
+func TestTableSnapshot_Export_Xlsx(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "snap_xlsx", "pass123", 1, td.OrgID, td.CompanyID)
+	dn := "Экспорт машин"
+	tbl := models.SystemTable{Name: "export_cars_x", DisplayName: &dn, TableType: models.TableTypeCars, IsActive: true}
+	require.NoError(t, db.Create(&tbl).Error)
+	sid := seedCarSnapshotWithCyrillic(t, db, tbl.ID)
+
+	rec := testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/snapshots/%d/export?format=xlsx", tbl.ID, sid), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", rec.Header().Get("Content-Type"))
+	assert.Contains(t, rec.Header().Get("Content-Disposition"), "attachment")
+	assert.Contains(t, rec.Header().Get("Content-Disposition"), ".xlsx")
+	body := rec.Body.Bytes()
+	require.NotEmpty(t, body, "xlsx не пустой")
+	assert.True(t, bytes.HasPrefix(body, []byte{'P', 'K', 0x03, 0x04}), "xlsx - это zip-архив")
+}
+
+// TestTableSnapshot_Export_Pdf_EmbedsCyrillic: экспорт версии в pdf - 200, content-type
+// pdf, валидная сигнатура, встроен кириллический шрифт DejaVu (кириллица рендерится
+// глифами, а не заменяется на «?»).
+func TestTableSnapshot_Export_Pdf_EmbedsCyrillic(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "snap_pdf", "pass123", 1, td.OrgID, td.CompanyID)
+	dn := "Экспорт машин"
+	tbl := models.SystemTable{Name: "export_cars_p", DisplayName: &dn, TableType: models.TableTypeCars, IsActive: true}
+	require.NoError(t, db.Create(&tbl).Error)
+	sid := seedCarSnapshotWithCyrillic(t, db, tbl.ID)
+
+	rec := testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/snapshots/%d/export?format=pdf", tbl.ID, sid), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, "application/pdf", rec.Header().Get("Content-Type"))
+	assert.Contains(t, rec.Header().Get("Content-Disposition"), ".pdf")
+	body := rec.Body.Bytes()
+	require.NotEmpty(t, body, "pdf не пустой")
+	assert.True(t, bytes.HasPrefix(body, []byte("%PDF")), "валидная сигнатура PDF")
+	raw := string(body)
+	assert.Contains(t, raw, "/BaseFont /utf8dejavu", "встроен кириллический шрифт DejaVu")
+	assert.Contains(t, raw, "FontFile2", "TTF-программа шрифта встроена (не core-шрифт)")
+}
+
+// TestTableSnapshot_Export_Current: sid=current экспортирует текущее состояние таблицы
+// (без версии в БД), формат по умолчанию xlsx.
+func TestTableSnapshot_Export_Current(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "snap_cur", "pass123", 1, td.OrgID, td.CompanyID)
+	dn := "Текущее состояние"
+	tbl := models.SystemTable{Name: "export_current", DisplayName: &dn, TableType: models.TableTypeCars, IsActive: true}
+	require.NoError(t, db.Create(&tbl).Error)
+
+	rec := testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/snapshots/current/export", tbl.ID), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", rec.Header().Get("Content-Type"))
+	assert.True(t, bytes.HasPrefix(rec.Body.Bytes(), []byte{'P', 'K', 0x03, 0x04}), "текущее состояние выгружено в xlsx")
+}
+
+// TestTableSnapshot_Export_InvalidFormat_400: неизвестный формат отбивается 400.
+func TestTableSnapshot_Export_InvalidFormat_400(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "snap_badfmt", "pass123", 1, td.OrgID, td.CompanyID)
+	dn := "Экспорт машин"
+	tbl := models.SystemTable{Name: "export_badfmt", DisplayName: &dn, TableType: models.TableTypeCars, IsActive: true}
+	require.NoError(t, db.Create(&tbl).Error)
+	sid := seedCarSnapshotWithCyrillic(t, db, tbl.ID)
+
+	rec := testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/snapshots/%d/export?format=csv", tbl.ID, sid), testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusBadRequest, rec.Code, "формат csv не поддерживается")
+}
+
+// TestTableSnapshot_Export_NotFound_404: экспорт несуществующей версии - 404.
+func TestTableSnapshot_Export_NotFound_404(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "snap_exp404", "pass123", 1, td.OrgID, td.CompanyID)
+	dn := "Экспорт машин"
+	tbl := models.SystemTable{Name: "export_404", DisplayName: &dn, TableType: models.TableTypeCars, IsActive: true}
+	require.NoError(t, db.Create(&tbl).Error)
+
+	rec := testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/snapshots/999999/export?format=xlsx", tbl.ID), testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusNotFound, rec.Code, "несуществующая версия - 404")
 }

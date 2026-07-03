@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"systemburo/internal/export"
 	"systemburo/internal/models"
 
 	"github.com/labstack/echo/v4"
@@ -53,6 +54,11 @@ type TableSnapshotService interface {
 	// DeleteSnapshotsOlderThan удаляет версии таблицы старше months месяцев и
 	// возвращает число удалённых. Свежие (>= порога) остаются. months > 0.
 	DeleteSnapshotsOlderThan(ctx context.Context, tableID, months int) (int64, error)
+	// BuildSnapshotExport собирает формат-нейтральные табличные данные версии для
+	// выгрузки (Excel/PDF). snapshotID == nil - текущее состояние таблицы (тот же
+	// слепок, что снял бы снимок сейчас, без записи в БД). Возвращает готовую таблицу
+	// и ASCII-базу имени файла (без расширения) для Content-Disposition.
+	BuildSnapshotExport(ctx context.Context, tableID int, snapshotID *int) (export.Table, string, error)
 }
 
 // SnapshotListItem - строка списка версий: метаданные без payload (он тяжёлый и
