@@ -57,6 +57,14 @@ describe('ApplicationsCenter — маркер вопросов (#973)', () => {
     expect(app.has_unseen_questions).toBe(true);
   });
 
+  it('onQuestionsRead гасит маркер заявки в списке (все вопросы прочитаны в детали)', async () => {
+    wrapper = mountCenter();
+    const app = { id: 7, is_read: true, has_unseen_questions: true, application_number: 'A-7', organization_name: 'Орг' };
+    wrapper.vm.applications = [app];
+    wrapper.vm.onQuestionsRead(7);
+    expect(app.has_unseen_questions).toBe(false);
+  });
+
   it('маркер вопросов рендерится, даже если у заявки нет других тегов', async () => {
     wrapper = mountCenter();
     wrapper.vm.loading = false;

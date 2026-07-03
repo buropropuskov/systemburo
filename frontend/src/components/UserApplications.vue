@@ -329,6 +329,7 @@
         @close="closeApplicationDetail"
         @duplicate="handleDuplicate"
         @withdraw="handleWithdraw"
+        @questions-read="onQuestionsRead"
       />
     </teleport>
     <DownloadBlanksModal
@@ -700,6 +701,14 @@ export default {
 
       // Блокируем скролл body при открытии модального окна
       document.body.style.overflow = 'hidden';
+    },
+
+    // Все вопросы заявки прочитаны в детали -> гасим маркер в списке оптимистично (#973).
+    onQuestionsRead(applicationId) {
+      const app = this.applications.find(a => a.id === applicationId);
+      if (app) {
+        app.has_unseen_questions = false;
+      }
     },
 
     // Переход из уведомления: /personal-cabinet?open=<id> открывает заявку и чистит

@@ -240,7 +240,7 @@ export default {
 <style scoped>
 .qi {
     padding: 14px 0;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid #d5d5d5;
 }
 
 .qi:first-child {

@@ -92,7 +92,7 @@
                 :current-user-id="currentUserId"
                 :current-user-name="currentUserName"
                 :initiator-user-id="initiatorUserId"
-                :is-new="snapshotNewIds.includes(question.id)"
+                :is-new="snapshotNewIds.includes(question.id) && !readIds.includes(question.id)"
                 @answered="load"
                 @read="onTopicRead"
               />
@@ -147,6 +147,7 @@ export default {
             default: false
         }
     },
+    emits: ['all-questions-read'],
     data() {
         return {
             questions: [],
@@ -154,11 +155,13 @@ export default {
             collapsed: this.readCollapsed(),
             showAskModal: false,
             submitting: false,
-            // Снимок новизны при открытии заявки: id топиков, что были новыми. Бейджи "новое"
-            // держатся по снимку весь сеанс - не мигают, когда отметка прочтения ушла на бэк.
+            // Снимок новизны при открытии заявки: id топиков, что были новыми. Нужен, чтобы
+            // прочитанные ранее (is_new=false с бэка) не светились, а бейдж показывался только
+            // тем, что реально было новым на момент захода.
             snapshotNewIds: [],
             snapshotTaken: false,
-            // Топики, прочитанные в этом сеансе (клик) - гасят индикатор заголовка.
+            // Топики, прочитанные в этом сеансе (клик). Гасят бейдж топика И индикатор заголовка
+            // сразу; недочитанные остаются новыми.
             readIds: []
         }
     },
@@ -185,12 +188,16 @@ export default {
         this.load();
     },
     methods: {
-        // Помечаем конкретный топик прочитанным по клику (#973): гасит индикатор заголовка,
-        // но бейдж самого топика держится по снимку до перезахода. Fire-and-forget.
+        // Помечаем топик прочитанным по клику (#973): его бейдж и (когда прочитаны все) индикатор
+        // заголовка гаснут сразу. Когда в сеансе не осталось непрочитанного - сообщаем наверх,
+        // чтобы маркер вопросов в списке заявок тоже погас, не дожидаясь перезагрузки списка.
         onTopicRead(questionId) {
             if (this.readIds.includes(questionId)) return;
             this.readIds.push(questionId);
             markQuestionRead(this.applicationId, questionId).catch(() => {});
+            if (!this.hasUnreadInSession) {
+                this.$emit('all-questions-read', this.applicationId);
+            }
         },
 
         // Ключ свёрнутости - per-заявка: разные заявки помнят своё состояние независимо.

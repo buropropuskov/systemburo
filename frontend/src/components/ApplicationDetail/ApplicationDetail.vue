@@ -159,6 +159,7 @@
             :current-user-name="currentUserName"
             :initiator-user-id="applicationData.sender_user_id"
             :can-ask="canAskQuestion"
+            @all-questions-read="$emit('questions-read', $event)"
           />
 
           <!-- Детали выбранного вложения -->
@@ -477,7 +478,7 @@ export default {
             default: 'center'
         }
     },
-    emits: ['close', 'confirmation-updated', 'duplicate', 'withdraw', 'application-updated', 'update-application', 'application-changed'],
+    emits: ['close', 'confirmation-updated', 'duplicate', 'withdraw', 'application-updated', 'update-application', 'application-changed', 'questions-read'],
     setup() {
         const permissionsStore = usePermissionsStore();
         return { permissionsStore };
