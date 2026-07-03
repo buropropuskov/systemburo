@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/xuri/excelize/v2"
 )
 
 func sampleTable() Table {
@@ -61,6 +63,47 @@ func TestToPDF_EmbedsCyrillicFont(t *testing.T) {
 		if !strings.Contains(raw, marker) {
 			t.Fatalf("в PDF нет маркера встроенного кириллического шрифта %q", marker)
 		}
+	}
+}
+
+// TestToXLSX_AdaptiveColumnWidths: ширина столбца подгоняется под контент - колонка с
+// длинными значениями шире узкой, в пределах [minColWidth, maxColWidth]. Без этого
+// excelize ставит всем дефолт ~8.43 и длинные значения обрезаются (замечание #980).
+func TestToXLSX_AdaptiveColumnWidths(t *testing.T) {
+	tbl := Table{
+		Headers: []string{"№", "Организация"},
+		Rows: [][]string{
+			{"1", "Коротко"},
+			{"2", "Очень длинное название организации для проверки ширины столбца"},
+		},
+	}
+	data, err := ToXLSX(tbl)
+	if err != nil {
+		t.Fatalf("ToXLSX: %v", err)
+	}
+	f, err := excelize.OpenReader(bytes.NewReader(data))
+	if err != nil {
+		t.Fatalf("OpenReader: %v", err)
+	}
+	defer func() { _ = f.Close() }()
+	sheet := f.GetSheetName(0)
+
+	wNarrow, err := f.GetColWidth(sheet, "A")
+	if err != nil {
+		t.Fatalf("GetColWidth A: %v", err)
+	}
+	wWide, err := f.GetColWidth(sheet, "B")
+	if err != nil {
+		t.Fatalf("GetColWidth B: %v", err)
+	}
+	if wWide <= wNarrow {
+		t.Fatalf("колонка с длинными значениями должна быть шире узкой: A=%.1f B=%.1f", wNarrow, wWide)
+	}
+	if wNarrow < minColWidth {
+		t.Fatalf("узкая колонка уже минимума: %.1f < %.1f", wNarrow, minColWidth)
+	}
+	if wWide > maxColWidth {
+		t.Fatalf("широкая колонка шире потолка: %.1f > %.1f", wWide, maxColWidth)
 	}
 }
 

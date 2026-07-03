@@ -863,3 +863,46 @@ func TestTableSnapshot_Export_WrongTable_404(t *testing.T) {
 	rec := testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/snapshots/%d/export?format=xlsx", tblB.ID, sid), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusNotFound, rec.Code, "версия таблицы A недоступна на экспорт через таблицу B")
 }
+
+// TestTableSnapshot_CapturesColumnStructure: снимок сохраняет настройку колонок таблицы
+// (все поля, в порядке display_order, со скрытыми) - чтобы просмотр версии показал ровно
+// те столбцы, что были настроены на момент слепка (самодостаточность, замечание #980).
+func TestTableSnapshot_CapturesColumnStructure(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	_ = testutil.SeedTestData(t, db)
+
+	dn := "Снимок колонок"
+	tbl := models.SystemTable{Name: "snap_cols_tbl", DisplayName: &dn, TableType: models.TableTypeCars, IsActive: true}
+	require.NoError(t, db.Create(&tbl).Error)
+
+	ord := func(n int) *int { return &n }
+	fields := []models.TableField{
+		{TableID: tbl.ID, FieldName: "car_brand", DisplayOrder: ord(1), IsVisible: true, Width: 15},
+		{TableID: tbl.ID, FieldName: "car_number", DisplayOrder: ord(0), IsVisible: true, Width: 20},
+		{TableID: tbl.ID, FieldName: "organization", DisplayOrder: ord(2), IsVisible: false, Width: 10},
+	}
+	require.NoError(t, db.Create(&fields).Error)
+	// GORM с gorm:"default:true" игнорирует IsVisible:false при Create (bool zero-value) -
+	// в проде столбец скрывают UPDATE'ом из конструктора; в фикстуре делаем так же.
+	require.NoError(t, db.Model(&models.TableField{}).
+		Where("table_id = ? AND field_name = ?", tbl.ID, "organization").
+		Update("is_visible", false).Error)
+
+	snapID, err := newSnapshotService(db).SnapshotTable(context.Background(), tbl.ID, models.SnapshotReasonManual, nil)
+	require.NoError(t, err)
+
+	var snap models.TableSnapshot
+	require.NoError(t, db.First(&snap, snapID).Error)
+	var payload models.SnapshotPayload
+	require.NoError(t, json.Unmarshal(snap.Payload, &payload))
+
+	require.Len(t, payload.Fields, 3, "все колонки таблицы сохранены в снимке")
+	assert.Equal(t, "car_number", payload.Fields[0].FieldName, "порядок колонок по display_order")
+	assert.Equal(t, "car_brand", payload.Fields[1].FieldName)
+	assert.Equal(t, "organization", payload.Fields[2].FieldName)
+	assert.False(t, payload.Fields[2].IsVisible, "скрытая колонка запомнена как скрытая")
+	assert.True(t, payload.Fields[0].IsVisible)
+	assert.Equal(t, 20, payload.Fields[0].Width, "ширина колонки сохранена в снимке")
+}

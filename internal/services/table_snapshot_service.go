@@ -116,8 +116,12 @@ func (s *tableSnapshotService) SnapshotTable(ctx context.Context, tableID int, r
 	if err != nil {
 		return 0, err
 	}
+	fields, err := s.collectFields(ctx, tableID)
+	if err != nil {
+		return 0, err
+	}
 
-	payloadJSON, err := json.Marshal(models.SnapshotPayload{TableType: table.TableType, Rows: rowsJSON})
+	payloadJSON, err := json.Marshal(models.SnapshotPayload{TableType: table.TableType, Rows: rowsJSON, Fields: fields})
 	if err != nil {
 		return 0, fmt.Errorf("failed to marshal snapshot payload: %w", err)
 	}
@@ -233,6 +237,35 @@ func (s *tableSnapshotService) collectRows(ctx context.Context, table models.Sys
 	default:
 		return nil, models.SnapshotCounts{}, echo.NewHTTPError(http.StatusUnprocessableEntity, "Unsupported table type for snapshot")
 	}
+}
+
+// collectFields снимает настройку колонок таблицы (видимость/порядок/ширина) в порядке
+// display_order - чтобы просмотр версии отрисовал те же столбцы, что были настроены на
+// момент слепка (самодостаточность снимка). Скрытые поля тоже сохраняются: их видимость
+// - часть состояния, а решение показать/скрыть остаётся за рендером страницы.
+func (s *tableSnapshotService) collectFields(ctx context.Context, tableID int) ([]models.SnapshotField, error) {
+	var fields []models.TableField
+	if err := s.db.WithContext(ctx).
+		Where("table_id = ?", tableID).
+		Order("display_order ASC NULLS LAST, id ASC").
+		Find(&fields).Error; err != nil {
+		return nil, fmt.Errorf("failed to load fields for snapshot of table %d: %w", tableID, err)
+	}
+	out := make([]models.SnapshotField, len(fields))
+	for i, f := range fields {
+		out[i] = models.SnapshotField{
+			FieldName:          f.FieldName,
+			FieldType:          f.FieldType,
+			DisplayOrder:       f.DisplayOrder,
+			IsVisible:          f.IsVisible,
+			Width:              f.Width,
+			Priority:           f.Priority,
+			EnlargedIsVisible:  f.EnlargedIsVisible,
+			EnlargedWidth:      f.EnlargedWidth,
+			EnlargedFontWeight: f.EnlargedFontWeight,
+		}
+	}
+	return out, nil
 }
 
 // snapshotListRow - строка выборки списка версий с приклеенным автором (LEFT JOIN
