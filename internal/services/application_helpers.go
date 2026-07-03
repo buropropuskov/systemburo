@@ -205,15 +205,25 @@ func applyApplicationAccessFilter(query *gorm.DB, userID int, isApprover bool) *
 // все заявки - зеркало applyApplicationAccessFilter). Аудитория real-time сигнала
 // обновления Центра (#840). Ошибка загрузки approver-ов не фатальна: сигнал
 // best-effort, аудитория без них лучше, чем сбой публикации.
-func (s *applicationService) centerAudience(ctx context.Context, senderID int, responsibleIDs []int) []int {
-	var approverIDs []int
-	if err := s.db.WithContext(ctx).
-		Table("application_approvers").
-		Distinct("user_id").
-		Pluck("user_id", &approverIDs).Error; err != nil {
-		slog.Warn("center audience: load approvers failed", "err", err)
+func (s *applicationService) centerAudience(ctx context.Context, applicationID, senderID int) []int {
+	// Аудиторию читаем из БД по applicationID (после commit заявка и её связи уже
+	// записаны) - зеркалит applyApplicationAccessFilter и не зависит от того, что
+	// оказалось в scope вызывающего кода. best-effort: сбой любого запроса лишь
+	// сузит аудиторию, не свалит публикацию.
+	load := func(table string, query *gorm.DB) []int {
+		var ids []int
+		if err := query.Distinct("user_id").Pluck("user_id", &ids).Error; err != nil {
+			slog.Warn("center audience: load failed", "table", table, "err", err)
+		}
+		return ids
 	}
-	return mergeUniqueIDs(senderID, responsibleIDs, approverIDs)
+	responsibleIDs := load("application_responsible_users", s.db.WithContext(ctx).
+		Table("application_responsible_users").Where("application_id = ?", applicationID))
+	viewerIDs := load("application_viewers", s.db.WithContext(ctx).
+		Table("application_viewers").Where("application_id = ?", applicationID))
+	approverIDs := load("application_approvers", s.db.WithContext(ctx).
+		Table("application_approvers"))
+	return mergeUniqueIDs(senderID, responsibleIDs, viewerIDs, approverIDs)
 }
 
 // mergeUniqueIDs объединяет senderID и переданные группы id в слайс без дублей

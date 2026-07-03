@@ -1736,11 +1736,7 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 	// появляется в списке (автор, ответственные/согласующие, принимающие). Лёгкий
 	// сигнал event-then-fetch, best-effort - на успех создания заявки не влияет.
 	if s.realtimePublisher != nil {
-		responsibleIDs := make([]int, 0, len(responsibleUsers))
-		for _, ru := range responsibleUsers {
-			responsibleIDs = append(responsibleIDs, ru.UserID)
-		}
-		audience := s.centerAudience(ctx, user.ID, responsibleIDs)
+		audience := s.centerAudience(ctx, appID, user.ID)
 		s.realtimePublisher.PublishMany(audience, realtime.Event{Type: "applications.refresh", Scope: "applications-center"})
 	}
 
