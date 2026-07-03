@@ -6,13 +6,19 @@ vi.mock('@/api/applications', () => ({
   getQuestions: vi.fn(),
   createQuestion: vi.fn(),
   createAnswer: vi.fn(),
-  markQuestionsSeen: vi.fn(() => Promise.resolve()),
+  markQuestionRead: vi.fn(() => Promise.resolve()),
 }));
-import { getQuestions } from '@/api/applications';
+import { getQuestions, markQuestionRead } from '@/api/applications';
 import ApplicationQuestions from '../ApplicationQuestions.vue';
 
 const QUESTIONS = [
-  { id: 1, author_user_id: 5, author_name: 'Иванов', subject: 'Тема1', text: 'Т1', attachments: [], answers: [], created_at: '2026-07-01T10:00:00Z' },
+  { id: 1, author_user_id: 5, author_name: 'Иванов', subject: 'Тема1', text: 'Т1', attachments: [], answers: [], created_at: '2026-07-01T10:00:00Z', is_new: false },
+];
+
+// Два новых топика для снимка новизны.
+const QUESTIONS_NEW = [
+  { id: 1, author_user_id: 5, author_name: 'Иванов', subject: 'Тема1', text: 'Т1', attachments: [], answers: [], created_at: '2026-07-01T10:00:00Z', is_new: true },
+  { id: 2, author_user_id: 5, author_name: 'Иванов', subject: 'Тема2', text: 'Т2', attachments: [], answers: [], created_at: '2026-07-01T11:00:00Z', is_new: true },
 ];
 
 function mountQ(props = {}) {
@@ -26,6 +32,7 @@ describe('ApplicationQuestions (#973)', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     getQuestions.mockReset();
+    markQuestionRead.mockClear();
     localStorage.clear();
   });
 
@@ -76,5 +83,54 @@ describe('ApplicationQuestions (#973)', () => {
     await wrapper.vm.load();
     await flushPromises();
     expect(wrapper.findAll('[data-testid="question-item"]')).toHaveLength(1);
+  });
+
+  it('НЕ помечает прочитанным при открытии заявки (нет авто-markSeen)', async () => {
+    getQuestions.mockResolvedValue(QUESTIONS_NEW);
+    mountQ();
+    await flushPromises();
+    expect(markQuestionRead).not.toHaveBeenCalled();
+  });
+
+  it('индикатор заголовка виден при новых топиках (снимок is_new)', async () => {
+    getQuestions.mockResolvedValue(QUESTIONS_NEW);
+    const wrapper = mountQ();
+    await flushPromises();
+    expect(wrapper.find('[data-testid="questions-new-indicator"]').exists()).toBe(true);
+    // Бейджи "Новое" на каждом новом топике.
+    expect(wrapper.findAll('[data-testid="question-new-badge"]')).toHaveLength(2);
+  });
+
+  it('клик по топику шлёт read, гасит индикатор только когда прочитаны ВСЕ, бейджи держатся', async () => {
+    getQuestions.mockResolvedValue(QUESTIONS_NEW);
+    const wrapper = mountQ();
+    await flushPromises();
+
+    const subjects = wrapper.findAll('[data-testid="question-subject"]');
+    expect(subjects).toHaveLength(2);
+
+    // Клик по первому топику -> read по нему; индикатор ещё горит (второй не прочитан).
+    await subjects[0].trigger('click');
+    expect(markQuestionRead).toHaveBeenCalledWith(42, 1);
+    expect(wrapper.find('[data-testid="questions-new-indicator"]').exists()).toBe(true);
+    // Бейдж прочитанного топика держится по снимку (не мигает).
+    expect(wrapper.findAll('[data-testid="question-new-badge"]')).toHaveLength(2);
+
+    // Клик по второму -> все прочитаны, индикатор гаснет.
+    await subjects[1].trigger('click');
+    expect(markQuestionRead).toHaveBeenCalledWith(42, 2);
+    expect(wrapper.find('[data-testid="questions-new-indicator"]').exists()).toBe(false);
+    // Бейджи топиков всё равно на месте (снимок весь сеанс).
+    expect(wrapper.findAll('[data-testid="question-new-badge"]')).toHaveLength(2);
+  });
+
+  it('повторный клик по тому же топику не шлёт read дважды', async () => {
+    getQuestions.mockResolvedValue(QUESTIONS_NEW);
+    const wrapper = mountQ();
+    await flushPromises();
+    const subject = wrapper.findAll('[data-testid="question-subject"]')[0];
+    await subject.trigger('click');
+    await subject.trigger('click');
+    expect(markQuestionRead).toHaveBeenCalledTimes(1);
   });
 });

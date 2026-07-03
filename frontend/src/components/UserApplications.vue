@@ -692,11 +692,8 @@ export default {
     },
 
     async openApplication(application) {
-      // Открытие гасит маркер вопросов: блок вопросов в детали сам отметит seen на
-      // бэке, тут оптимистично снимаем иконку в списке (#973).
-      if (application.has_unseen_questions) {
-        application.has_unseen_questions = false;
-      }
+      // Маркер вопросов гасит ПРОЧТЕНИЕ топиков в детали (клик), не факт открытия (#973):
+      // иконка обновится при следующей загрузке списка. Оптимистично не снимаем.
       this.selectedApplication = application;
       await this.fetchResponsibleUsers(application.id);
       this.showDetailModal = true;

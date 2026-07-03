@@ -84,4 +84,26 @@ describe('ApplicationQuestionItem (#973)', () => {
     expect(wrapper.findAll('[data-testid="answer-item"]')).toHaveLength(1);
     expect(wrapper.vm.replyText).toBe('Упадёт');
   });
+
+  it('бейдж «Новое» виден при is-new и скрыт без него (#973)', () => {
+    expect(mountItem({ isNew: false }).find('[data-testid="question-new-badge"]').exists()).toBe(false);
+    expect(mountItem({ isNew: true }).find('[data-testid="question-new-badge"]').exists()).toBe(true);
+  });
+
+  it('клик по теме эмитит read и разворачивает тред (#973)', async () => {
+    const wrapper = mountItem({ isNew: true });
+    expect(wrapper.vm.expanded).toBe(false);
+    await wrapper.find('[data-testid="question-subject"]').trigger('click');
+
+    expect(wrapper.emitted('read')).toBeTruthy();
+    expect(wrapper.emitted('read')[0]).toEqual([1]);
+    expect(wrapper.vm.expanded).toBe(true);
+  });
+
+  it('разворачивание треда кнопкой тоже эмитит read (#973)', async () => {
+    const wrapper = mountItem();
+    await wrapper.find('[data-testid="question-toggle-answers"]').trigger('click');
+    expect(wrapper.emitted('read')).toBeTruthy();
+    expect(wrapper.emitted('read')[0]).toEqual([1]);
+  });
 });
