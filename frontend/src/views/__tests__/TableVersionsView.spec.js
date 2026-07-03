@@ -481,7 +481,7 @@ describe('TableVersionsView поиск и фильтр даты (#980 polish-r3)
     expect(wrapper.find('[data-testid="tv-subbar"]').exists()).toBe(false);
   });
 
-  it('выбор даты сужает список версий запросом from=to за этот день', async () => {
+  it('выбор даты сужает список версий границами локального дня (ISO)', async () => {
     listTableSnapshots.mockResolvedValue({ items: [snapItem(1)], total: 1 });
     wrapper = mountView();
     await flushPromises();
@@ -492,10 +492,39 @@ describe('TableVersionsView поиск и фильтр даты (#980 polish-r3)
     await date.trigger('change');
     await flushPromises();
 
-    expect(listTableSnapshots).toHaveBeenCalledWith(
-      5,
-      expect.objectContaining({ from: '2026-07-01', to: '2026-07-01', page: 1 }),
-    );
+    expect(listTableSnapshots).toHaveBeenCalledTimes(1);
+    const { from, to, page } = listTableSnapshots.mock.calls[0][1];
+    expect(page).toBe(1);
+    // from/to - ISO-границы локального дня 01.07.2026 (TZ-независимая проверка:
+    // обе границы приходятся на этот календарный день в локальной зоне).
+    const ref = new Date('2026-07-01T12:00:00').toDateString();
+    expect(new Date(from).toDateString()).toBe(ref);
+    expect(new Date(to).toDateString()).toBe(ref);
+    expect(new Date(from).getTime()).toBeLessThan(new Date(to).getTime());
+  });
+
+  it('быстрая повторная смена даты: применяется только ответ последнего запроса (#632)', async () => {
+    // onMounted-загрузку держим висящей (медленный запрос), второй по смене даты -
+    // быстрый; поздний резолв первого не должен затереть актуальный список.
+    let resolveSlow;
+    listTableSnapshots
+      .mockReturnValueOnce(new Promise((r) => { resolveSlow = r; }))
+      .mockResolvedValueOnce({ items: [snapItem(42)], total: 1 });
+    wrapper = mountView();
+    await flushPromises(); // fetchTable отработал, первый (висящий) fetchList стартовал
+
+    const date = wrapper.find('[data-testid="tv-date-filter"]');
+    date.element.value = '2026-06-10';
+    await date.trigger('change');
+    await flushPromises(); // второй запрос резолвится версией 42
+
+    // Поздний резолв устаревшего первого ответа - должен быть отброшен по listSeq.
+    resolveSlow({ items: [snapItem(1), snapItem(2)], total: 2 });
+    await flushPromises();
+
+    const opts = wrapper.findAll('[data-testid="tv-version-select"] option');
+    expect(opts).toHaveLength(1);
+    expect(opts[0].attributes('value')).toBe('42');
   });
 
   it('смена даты сбрасывает выбор и автовыбирает первую версию нового дня', async () => {

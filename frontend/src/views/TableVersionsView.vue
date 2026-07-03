@@ -68,9 +68,13 @@
           >
             Ещё
           </button>
-          <label class="versions-datefilter">
-            <span class="versions-datefilter__label">Дата</span>
+          <div class="versions-datefilter">
+            <label
+              class="versions-datefilter__label"
+              for="tv-date-filter"
+            >Дата</label>
             <input
+              id="tv-date-filter"
               type="date"
               class="versions-datefilter__input"
               :value="dateFilter"
@@ -87,7 +91,7 @@
             >
               &times;
             </button>
-          </label>
+          </div>
         </div>
 
         <div class="versions-card__spacer" />
@@ -225,7 +229,6 @@
             <SearchComponent
               v-model="searchQuery"
               title="Поиск по таблице"
-              class="versions-search"
             />
           </div>
 
@@ -387,6 +390,19 @@ function reasonLabel(reason) {
   return REASON_LABELS[reason] || reason || 'Снимок';
 }
 
+// Границы выбранного дня в ISO (RFC3339) по ЛОКАЛЬНОЙ зоне браузера. BE парсит
+// голую YYYY-MM-DD в UTC, а дропдаун версий рендерит taken_at через formatDateTime
+// в локальной зоне - для снимка, чьё UTC-время попадает в другой календарный день,
+// фильтр по видимой дате разъехался бы на сутки. Локальные границы + офсет в ISO
+// (parseSnapshotBound понимает RFC3339) держат фильтр в тех же сутках, что и лейбл.
+function dayBoundsISO(ymd) {
+  if (!ymd) return { from: '', to: '' };
+  return {
+    from: new Date(`${ymd}T00:00:00`).toISOString(),
+    to: new Date(`${ymd}T23:59:59.999`).toISOString(),
+  };
+}
+
 function reasonVariant(reason) {
   return REASON_VARIANTS[reason] || 'neutral';
 }
@@ -451,12 +467,12 @@ async function fetchList({ reset = true } = {}) {
   listError.value = false;
   const seq = ++listSeq;
   try {
+    const { from, to } = dayBoundsISO(dateFilter.value);
     const { items: data, total: t } = await listTableSnapshots(tableID.value, {
       page: page.value,
       perPage: PER_PAGE,
-      // Один день: from=to=дата, BE трактует to как конец суток включительно.
-      from: dateFilter.value,
-      to: dateFilter.value,
+      from,
+      to,
     });
     if (seq !== listSeq) return;
     items.value = reset ? data : [...items.value, ...data];
