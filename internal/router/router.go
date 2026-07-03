@@ -60,6 +60,7 @@ type Dependencies struct {
 	Bureau              *handlers.BureauHandler
 	WorkModes           *handlers.WorkModesHandler
 	Audit               *handlers.AuditHandler
+	Events              *handlers.EventsHandler
 
 	// Services (для middleware и audit)
 	PermResolver *services.PermissionResolver
@@ -122,6 +123,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	statistics := d.Statistics
 	bureau := d.Bureau
 	audit := d.Audit
+	events := d.Events
 	permResolver := d.PermResolver
 	denialLog := d.DenialLog
 	// requireAdmin — гейт admin-страниц по page.admin (super/admin проходят,
@@ -162,6 +164,13 @@ func Setup(e *echo.Echo, d Dependencies) {
 	api.GET("/settings/maintenance", maintenance.GetPublicStatus)
 	// Публичные контакты Бюро пропусков - нужны на логине и в плашке блокировки.
 	api.GET("/settings/contacts", settings.GetPublicContacts)
+
+	// Real-time SSE-поток (#840). Публичный роут намеренно: EventSource не шлёт
+	// заголовок Authorization, поэтому хендлер сам валидирует access-токен из query
+	// (тем же services.DecodeAccessToken), не проходя JWTAuth-middleware.
+	if events != nil {
+		api.GET("/events", events.Stream)
+	}
 
 	// Protected routes
 	protected := api.Group("")
