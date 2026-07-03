@@ -512,11 +512,17 @@ export default {
       this.fetchUserApplications();
     },
     userId() {
-      this.fetchUserApplications();
+      // После разрешения userId список перезагружается - тогда же пробуем открыть
+      // заявку из deep-link (на холодной навигации mounted-попытка была с пустым списком).
+      this.fetchUserApplications().then(() => this.openFromDeepLink());
+    },
+    // Переход из уведомления в кабинет: /personal-cabinet?open=<id> (#973).
+    '$route.query.open'(val) {
+      if (val) this.openFromDeepLink();
     }
   },
   mounted() {
-    this.fetchUserApplications();
+    this.fetchUserApplications().then(() => this.openFromDeepLink());
     this.getCurrentUser();
     
     // Добавляем стили для анимации уведомлений
@@ -694,9 +700,25 @@ export default {
       this.selectedApplication = application;
       await this.fetchResponsibleUsers(application.id);
       this.showDetailModal = true;
-      
+
       // Блокируем скролл body при открытии модального окна
       document.body.style.overflow = 'hidden';
+    },
+
+    // Переход из уведомления: /personal-cabinet?open=<id> открывает заявку и чистит
+    // query, чтобы обновление страницы её повторно не открывало (#973). Query чистим
+    // ТОЛЬКО когда заявка реально найдена и открыта: на холодной навигации список
+    // грузится после разрешения userId (AccountComponent), поэтому первый вызов может
+    // прийти с пустым списком - тогда откроем после fetch по вотчеру userId.
+    openFromDeepLink() {
+      const openId = Number(this.$route.query.open);
+      if (!openId) return;
+      const app = this.applications.find(a => a.id === openId);
+      if (!app) return;
+      this.openApplication(app);
+      const query = { ...this.$route.query };
+      delete query.open;
+      this.$router.replace({ query }).catch(() => {});
     },
 
     closeApplicationDetail() {

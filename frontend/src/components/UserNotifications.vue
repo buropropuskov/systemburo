@@ -83,6 +83,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { usePermissionsStore } from '@/stores/permissions'
 
 export default {
   name: 'UserNotifications',
@@ -157,7 +158,9 @@ export default {
       const appId = this.notificationAppId(item)
       if (appId) {
         this.$emit('close')
-        this.$router.push({ path: '/center', query: { open: appId } }).catch(() => {})
+        // Заявитель без доступа к Центру заявок открывает заявку в личном кабинете (#973).
+        const path = usePermissionsStore().hasPermission('page.center') ? '/center' : '/personal-cabinet'
+        this.$router.push({ path, query: { open: appId } }).catch(() => {})
       }
     },
 
