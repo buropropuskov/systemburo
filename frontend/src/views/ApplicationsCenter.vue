@@ -2417,8 +2417,8 @@ export default {
     color: var(--color-primary, #4F5BDF);
 }
 .tags-dropdown__arrow {
-    width: 10px;
-    height: 10px;
+    width: 11px;
+    height: 7px;
     flex-shrink: 0;
     color: #666;
     transition: transform 0.2s;

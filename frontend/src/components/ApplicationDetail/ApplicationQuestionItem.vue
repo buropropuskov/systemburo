@@ -243,24 +243,18 @@ export default {
 </script>
 
 <style scoped>
+/* Разделитель между топиками задаёт РОДИТЕЛЬ (li) в ApplicationQuestions.vue: .qi -
+   единственный ребёнок своего li, поэтому :first/:last-child здесь сработали бы у КАЖДОГО
+   топика и обнулили padding/border. Тут только внутренние отступы. */
 .qi {
     padding: 16px 0;
-    border-bottom: 1px solid #e6e6e6;
-}
-
-.qi:first-child {
-    padding-top: 0;
-}
-
-.qi:last-child {
-    padding-bottom: 0;
-    border-bottom: none;
 }
 
 .qi-subject {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
+    position: relative;
+    /* Резерв справа под бейдж "Новое": он absolute, поэтому его появление/исчезновение
+       не двигает текст темы (размеры топика стабильны при прочтении). */
+    padding-right: 62px;
     font-size: 15px;
     font-weight: 700;
     color: #111;
@@ -269,20 +263,18 @@ export default {
     cursor: pointer;
 }
 
-.qi-subject-text {
-    flex: 1;
-    min-width: 0;
-}
-
-/* Бейдж "Новое" на топике (#973): жёлтый, гаснет при прочтении. */
+/* Бейдж "Новое" на топике (#973): пастельно-жёлтый (как непрочитанные заявки в Центре),
+   absolute - гаснет при прочтении без сдвига раскладки. */
 .qi-new {
-    flex-shrink: 0;
+    position: absolute;
+    top: 0;
+    right: 0;
     font-size: 11px;
     line-height: 1;
     font-weight: 600;
     letter-spacing: 0.2px;
-    color: #7a5c00;
-    background: var(--color-warning, #ffc107);
+    color: #856404;
+    background: #ffeeba;
     padding: 3px 8px;
     border-radius: 999px;
 }

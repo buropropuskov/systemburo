@@ -326,8 +326,8 @@ export default {
 .q-new-dot {
     font-size: 11px;
     line-height: 1;
-    color: #7a5c00;
-    background: var(--color-warning, #ffc107);
+    color: #856404;
+    background: #ffeeba;
     padding: 3px 8px;
     border-radius: 999px;
     font-weight: 600;
@@ -380,7 +380,19 @@ export default {
     padding: 0;
     display: flex;
     flex-direction: column;
-    /* Без gap: разделитель между топиками - border-bottom самого .qi, линия идёт по
-       центру симметричного отступа, а не "висит" под вопросом с пустотой снизу. */
+}
+
+/* Разделитель между топиками - на уровне li (не внутри .qi, где :last-child ловил бы
+   каждый топик). Линия идёт по центру симметричного padding соседних .qi. */
+.questions-list li:not(:last-child) {
+    border-bottom: 1px solid #e6e6e6;
+}
+
+.questions-list li:first-child :deep(.qi) {
+    padding-top: 0;
+}
+
+.questions-list li:last-child :deep(.qi) {
+    padding-bottom: 0;
 }
 </style>
