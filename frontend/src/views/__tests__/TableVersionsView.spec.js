@@ -107,7 +107,23 @@ const stubs = {
         @click="$emit('update:modelValue', t.key)">{{ t.label }}</button>
     </div>`,
   },
+  // Календарь версии: маркер-корень, дату/apply/clear тесты эмитят через vm.$emit
+  // (как реальный DateFilter: applySelection -> update:selectedDate + apply).
+  DateFilter: {
+    props: ['mode', 'selectedDate'],
+    emits: ['update:selectedDate', 'apply', 'clear'],
+    template: '<div data-testid="tv-date-filter"></div>',
+  },
 };
+
+// Выбор дня в календаре версии: эмитит выбранную дату, затем apply (порядок как
+// у реального DateFilter). date - Date или null (сброс).
+async function pickVersionDate(wr, date) {
+  const df = wr.findComponent('[data-testid="tv-date-filter"]');
+  df.vm.$emit('update:selectedDate', date);
+  df.vm.$emit('apply');
+  await flushPromises();
+}
 
 function mockTable(over = {}, fields = [{ field_name: 'car_number', is_visible: true }]) {
   apiRequest.mockResolvedValue({
@@ -511,16 +527,13 @@ describe('TableVersionsView поиск и фильтр даты (#980 polish-r3)
     expect(wrapper.find('[data-testid="tv-subbar"]').exists()).toBe(false);
   });
 
-  it('выбор даты сужает список версий границами локального дня (ISO)', async () => {
+  it('выбор дня в календаре сужает список версий границами локального дня (ISO)', async () => {
     listTableSnapshots.mockResolvedValue({ items: [snapItem(1)], total: 1 });
     wrapper = mountView();
     await flushPromises();
     listTableSnapshots.mockClear();
 
-    const date = wrapper.find('[data-testid="tv-date-filter"]');
-    date.element.value = '2026-07-01';
-    await date.trigger('change');
-    await flushPromises();
+    await pickVersionDate(wrapper, new Date('2026-07-01T00:00:00'));
 
     expect(listTableSnapshots).toHaveBeenCalledTimes(1);
     const { from, to, page } = listTableSnapshots.mock.calls[0][1];
@@ -533,8 +546,8 @@ describe('TableVersionsView поиск и фильтр даты (#980 polish-r3)
     expect(new Date(from).getTime()).toBeLessThan(new Date(to).getTime());
   });
 
-  it('быстрая повторная смена даты: применяется только ответ последнего запроса (#632)', async () => {
-    // onMounted-загрузку держим висящей (медленный запрос), второй по смене даты -
+  it('быстрый повторный выбор дня: применяется только ответ последнего запроса (#632)', async () => {
+    // onMounted-загрузку держим висящей (медленный запрос), второй по выбору дня -
     // быстрый; поздний резолв первого не должен затереть актуальный список.
     let resolveSlow;
     listTableSnapshots
@@ -543,10 +556,7 @@ describe('TableVersionsView поиск и фильтр даты (#980 polish-r3)
     wrapper = mountView();
     await flushPromises(); // fetchTable отработал, первый (висящий) fetchList стартовал
 
-    const date = wrapper.find('[data-testid="tv-date-filter"]');
-    date.element.value = '2026-06-10';
-    await date.trigger('change');
-    await flushPromises(); // второй запрос резолвится версией 42
+    await pickVersionDate(wrapper, new Date('2026-06-10T00:00:00')); // второй запрос -> версия 42
 
     // Поздний резолв устаревшего первого ответа - должен быть отброшен по listSeq.
     resolveSlow({ items: [snapItem(1), snapItem(2)], total: 2 });
@@ -557,7 +567,7 @@ describe('TableVersionsView поиск и фильтр даты (#980 polish-r3)
     expect(opts[0].attributes('value')).toBe('42');
   });
 
-  it('смена даты сбрасывает выбор и автовыбирает первую версию нового дня', async () => {
+  it('выбор дня сбрасывает выбор и автовыбирает первую версию нового дня', async () => {
     listTableSnapshots
       .mockResolvedValueOnce({ items: [snapItem(1), snapItem(2)], total: 2 })
       .mockResolvedValueOnce({ items: [snapItem(9)], total: 1 });
@@ -565,40 +575,28 @@ describe('TableVersionsView поиск и фильтр даты (#980 polish-r3)
     await flushPromises();
     getTableSnapshot.mockClear();
 
-    const date = wrapper.find('[data-testid="tv-date-filter"]');
-    date.element.value = '2026-06-15';
-    await date.trigger('change');
-    await flushPromises();
+    await pickVersionDate(wrapper, new Date('2026-06-15T00:00:00'));
 
     // Автовыбор первой версии отфильтрованного дня -> деталь запрошена по её id.
     expect(getTableSnapshot).toHaveBeenLastCalledWith(5, 9);
   });
 
-  it('сброс даты возвращает полный список версий (from/to пустые)', async () => {
+  it('сброс даты в календаре возвращает полный список версий (from/to пустые)', async () => {
     listTableSnapshots.mockResolvedValue({ items: [snapItem(1)], total: 1 });
     wrapper = mountView();
     await flushPromises();
 
-    const date = wrapper.find('[data-testid="tv-date-filter"]');
-    date.element.value = '2026-07-01';
-    await date.trigger('change');
-    await flushPromises();
+    await pickVersionDate(wrapper, new Date('2026-07-01T00:00:00'));
     listTableSnapshots.mockClear();
 
-    await wrapper.find('[data-testid="tv-date-clear"]').trigger('click');
+    const df = wrapper.findComponent('[data-testid="tv-date-filter"]');
+    df.vm.$emit('update:selectedDate', null);
+    df.vm.$emit('clear');
     await flushPromises();
 
     expect(listTableSnapshots).toHaveBeenCalledWith(
       5,
       expect.objectContaining({ from: '', to: '', page: 1 }),
     );
-  });
-
-  it('кнопка сброса даты скрыта, пока дата не выбрана', async () => {
-    listTableSnapshots.mockResolvedValue({ items: [snapItem(1)], total: 1 });
-    wrapper = mountView();
-    await flushPromises();
-
-    expect(wrapper.find('[data-testid="tv-date-clear"]').exists()).toBe(false);
   });
 });
