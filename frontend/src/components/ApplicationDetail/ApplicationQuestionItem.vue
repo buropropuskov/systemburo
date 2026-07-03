@@ -92,6 +92,7 @@
           placeholder="Написать ответ..."
           maxlength="2000"
           rows="2"
+          @focus="markRead"
         />
         <button
           type="button"
@@ -172,10 +173,14 @@ export default {
             return this.initiatorUserId != null && userId === this.initiatorUserId;
         },
 
-        // Клик по теме = "открыл вопрос" -> помечаем топик прочитанным (#973) и разворачиваем
-        // тред, если есть ответы. Бейдж "Новое" держится по снимку до перезахода.
-        onSubjectClick() {
+        // Помечаем топик прочитанным (#973): бейдж "Новое" гаснет сразу.
+        markRead() {
             this.$emit('read', this.question.id);
+        },
+
+        // Клик по теме = "открыл вопрос": прочитан + разворачиваем тред, если есть ответы.
+        onSubjectClick() {
+            this.markRead();
             if (this.answers.length > 0) {
                 this.expanded = true;
             }
@@ -185,7 +190,7 @@ export default {
         toggleAnswers() {
             this.expanded = !this.expanded;
             if (this.expanded) {
-                this.$emit('read', this.question.id);
+                this.markRead();
             }
         },
 
@@ -240,7 +245,7 @@ export default {
 <style scoped>
 .qi {
     padding: 16px 0;
-    border-bottom: 1px solid #c9c9c9;
+    border-bottom: 1px solid #e6e6e6;
 }
 
 .qi:first-child {
@@ -269,15 +274,15 @@ export default {
     min-width: 0;
 }
 
-/* Бейдж "Новое" на топике держится весь сеанс по снимку новизны (#973). */
+/* Бейдж "Новое" на топике (#973): жёлтый, гаснет при прочтении. */
 .qi-new {
     flex-shrink: 0;
     font-size: 11px;
     line-height: 1;
     font-weight: 600;
     letter-spacing: 0.2px;
-    color: #c0392b;
-    background: rgba(220, 53, 69, 0.12);
+    color: #7a5c00;
+    background: var(--color-warning, #ffc107);
     padding: 3px 8px;
     border-radius: 999px;
 }

@@ -326,8 +326,8 @@ export default {
 .q-new-dot {
     font-size: 11px;
     line-height: 1;
-    color: #c0392b;
-    background: rgba(220, 53, 69, 0.12);
+    color: #7a5c00;
+    background: var(--color-warning, #ffc107);
     padding: 3px 8px;
     border-radius: 999px;
     font-weight: 600;
