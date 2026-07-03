@@ -123,34 +123,16 @@
         >
           {{ exporting === 'pdf' ? 'Выгрузка...' : 'PDF' }}
         </button>
-        <div
+        <button
           v-if="canCleanup"
-          class="versions-cleanup"
+          type="button"
+          class="lk-button lk-button--danger versions-action"
+          :disabled="!tableID || !!error || cleanupRunning"
+          data-testid="tv-cleanup"
+          @click="openCleanup"
         >
-          <select
-            v-model.number="cleanupMonths"
-            class="lk-select versions-cleanup__select"
-            :disabled="cleanupRunning"
-            data-testid="tv-cleanup-period"
-          >
-            <option
-              v-for="opt in CLEANUP_OPTIONS"
-              :key="opt.months"
-              :value="opt.months"
-            >
-              {{ opt.label }}
-            </option>
-          </select>
-          <button
-            type="button"
-            class="lk-button lk-button--danger versions-action"
-            :disabled="!tableID || !!error || cleanupRunning"
-            data-testid="tv-cleanup"
-            @click="openCleanup"
-          >
-            Очистить старые
-          </button>
-        </div>
+          {{ cleanupRunning ? 'Очистка...' : 'Очистить старые версии' }}
+        </button>
         <RefreshButton
           :loading="listLoading"
           @refresh="refresh"
@@ -286,15 +268,49 @@
       </div>
     </article>
 
-    <ConfirmationModal
+    <BaseModal
       :show="cleanupOpen"
       title="Очистка старых версий"
-      :message="cleanupMessage"
-      confirm-text="Удалить"
-      cancel-text="Отмена"
-      @confirm="confirmCleanup"
-      @cancel="cleanupOpen = false"
-    />
+      width="440px"
+      :close-on-overlay="!cleanupRunning"
+      :closable="!cleanupRunning"
+      data-testid="tv-cleanup-modal"
+      @close="closeCleanup"
+    >
+      <div class="cleanup-dialog">
+        <span class="cleanup-dialog__label">Удалить версии старше:</span>
+        <FilterTabs
+          v-model="cleanupPeriod"
+          :tabs="CLEANUP_TABS"
+          data-testid="tv-cleanup-period"
+        />
+        <p
+          class="cleanup-dialog__hint"
+          data-testid="tv-cleanup-hint"
+        >
+          {{ cleanupHint }}
+        </p>
+      </div>
+      <template #actions>
+        <button
+          type="button"
+          class="lk-button lk-button--secondary"
+          :disabled="cleanupRunning"
+          @click="closeCleanup"
+        >
+          Отмена
+        </button>
+        <button
+          type="button"
+          class="lk-button lk-button--danger"
+          :disabled="cleanupRunning"
+          data-testid="tv-cleanup-confirm"
+          @click="confirmCleanup"
+        >
+          {{ cleanupRunning ? 'Удаление...' : 'Удалить' }}
+        </button>
+      </template>
+    </BaseModal>
   </section>
 </template>
 
@@ -304,7 +320,8 @@ import { useRoute } from 'vue-router';
 import RefreshButton from '@/components/RefreshButton.vue';
 import Badge from '@/components/ui/Badge.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
-import ConfirmationModal from '@/components/ConfirmationModal.vue';
+import BaseModal from '@/components/ui/BaseModal.vue';
+import FilterTabs from '@/components/ui/FilterTabs.vue';
 import SearchComponent from '@/components/SearchComponent.vue';
 import CarsTable from '@/components/CarsTable.vue';
 import PeopleTable from '@/components/PeopleTable.vue';
@@ -324,10 +341,11 @@ import { normalizeSnapshotRows } from '@/utils/snapshotRows';
 
 const PER_PAGE = 20;
 
-// Периоды чистки: дефолт хранения версий - 24 месяца (context.md).
-const CLEANUP_OPTIONS = [
-  { months: 12, label: 'Старше 1 года' },
-  { months: 24, label: 'Старше 2 лет' },
+// Периоды чистки как сегмент-контрол (FilterTabs требует строковые key).
+// Дефолт хранения версий - 24 месяца = "2 лет" (context.md).
+const CLEANUP_TABS = [
+  { key: '12', label: '1 года' },
+  { key: '24', label: '2 лет' },
 ];
 
 const route = useRoute();
@@ -363,7 +381,8 @@ const dateFilter = ref('');
 // Действия: ручной снимок, экспорт выбранной версии, чистка старых.
 const snapshotSaving = ref(false);
 const exporting = ref(''); // '' | 'xlsx' | 'pdf' - какой формат сейчас выгружается
-const cleanupMonths = ref(24);
+// Выбранный порог чистки как строка (key сегмента), в месяцы конвертим при вызове API.
+const cleanupPeriod = ref('24');
 const cleanupOpen = ref(false);
 const cleanupRunning = ref(false);
 
@@ -371,10 +390,10 @@ const cleanupRunning = ref(false);
 // (page.admin) - иначе "вижу кнопку, но 403" (#976). super/admin проходят.
 const canCleanup = computed(() => can('page.admin'));
 
-const cleanupMessage = computed(() => {
-  const opt = CLEANUP_OPTIONS.find((o) => o.months === cleanupMonths.value);
-  const label = opt ? opt.label.toLowerCase() : `старше ${cleanupMonths.value} мес.`;
-  return `Удалить все сохранённые версии таблицы ${label}? Действие необратимо.`;
+// Пояснение под сегментом: что именно удалится. Грамматика согласована с выбором.
+const cleanupHint = computed(() => {
+  const phrase = cleanupPeriod.value === '12' ? 'одного года' : 'двух лет';
+  return `Будут безвозвратно удалены все версии этой таблицы старше ${phrase}. Более свежие версии сохранятся.`;
 });
 
 // Токены последовательности от гонки устаревшего ответа (#632): быстрое
@@ -535,16 +554,23 @@ async function exportSnapshot(format) {
 }
 
 function openCleanup() {
-  if (cleanupRunning.value) return;
+  if (cleanupRunning.value || !tableID.value) return;
+  // Каждый раз открываем с дефолтным порогом - предсказуемо, без залипшего выбора.
+  cleanupPeriod.value = '24';
   cleanupOpen.value = true;
 }
 
-async function confirmCleanup() {
+function closeCleanup() {
+  if (cleanupRunning.value) return;
   cleanupOpen.value = false;
+}
+
+async function confirmCleanup() {
   if (cleanupRunning.value || !tableID.value) return;
   cleanupRunning.value = true;
   try {
-    const { deleted } = await cleanupTableSnapshots(tableID.value, cleanupMonths.value);
+    const { deleted } = await cleanupTableSnapshots(tableID.value, Number(cleanupPeriod.value));
+    cleanupOpen.value = false;
     if (deleted > 0) {
       deletions.notify({ prefix: 'Удалено старых версий:', bold: String(deleted), type: 'success' });
       refresh();
@@ -552,6 +578,7 @@ async function confirmCleanup() {
       deletions.notify({ prefix: 'Старых версий для удаления не нашлось', type: 'success' });
     }
   } catch {
+    // Модалку не закрываем - даём повторить или отменить.
     deletions.notify({ prefix: 'Не удалось очистить старые версии', type: 'error' });
   } finally {
     cleanupRunning.value = false;
@@ -721,17 +748,24 @@ onMounted(async () => {
   font-size: 13px;
 }
 
-.versions-cleanup {
+.cleanup-dialog {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
 }
 
-.versions-cleanup__select {
-  height: 34px;
-  padding: 0 12px;
+.cleanup-dialog__label {
+  font-weight: 600;
+  font-size: 15px;
+  color: #1a1a1a;
+}
+
+.cleanup-dialog__hint {
+  margin: 0;
   font-size: 13px;
-  width: auto;
+  line-height: 1.5;
+  color: #8a8a8a;
 }
 
 .versions-load-more {
