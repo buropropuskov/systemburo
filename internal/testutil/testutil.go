@@ -174,6 +174,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	carHandler := handlers.NewCarHandler(carService)
 	employeeHandler := handlers.NewEmployeeHandler(employeeService)
 	systemTableHandler := handlers.NewSystemTableHandler(systemTableService, auditRecorder, 10*1024*1024, uploadDir)
+	tableSnapshotHandler := handlers.NewTableSnapshotHandler(services.NewTableSnapshotService(db, carService, employeeService, employeesHistoryService))
 	uniqueCarHandler := handlers.NewUniqueCarHandler(uniqueCarService)
 	uniqueEmployeeHandler := handlers.NewUniqueEmployeeHandler(uniqueEmployeeService)
 	feedbackHandler := handlers.NewFeedbackHandler(feedbackService)
@@ -228,6 +229,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 		Cars:                carHandler,
 		Employees:           employeeHandler,
 		SystemTable:         systemTableHandler,
+		TableSnapshot:       tableSnapshotHandler,
 		UniqueCar:           uniqueCarHandler,
 		UniqueEmployee:      uniqueEmployeeHandler,
 		Feedback:            feedbackHandler,
