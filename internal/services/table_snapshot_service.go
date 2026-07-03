@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"systemburo/internal/models"
@@ -42,6 +43,28 @@ type TableSnapshotService interface {
 	// сколько удалось/сорвалось. err возвращается только если не удалось получить
 	// сам список таблиц (иначе дневная джоба должна дойти до сброса статусов).
 	SnapshotAllActiveTables(ctx context.Context, reason string) (created, failed int, err error)
+	// ListSnapshots отдаёт версии таблицы (метаданные без тяжёлого payload):
+	// дата, причина, автор, агрегаты. Пагинация + опциональный фильтр периода
+	// [from, to] по taken_at. Возвращает страницу и общее число под фильтром.
+	ListSnapshots(ctx context.Context, tableID int, from, to *time.Time, page, perPage int) ([]SnapshotListItem, int64, error)
+	// GetSnapshot отдаёт одну версию с полным payload. Скоуплено по tableID -
+	// чужой sid другой таблицы = 404 (не даём читать снимок вне таблицы из URL).
+	GetSnapshot(ctx context.Context, tableID, snapshotID int) (*models.TableSnapshot, error)
+	// DeleteSnapshotsOlderThan удаляет версии таблицы старше months месяцев и
+	// возвращает число удалённых. Свежие (>= порога) остаются. months > 0.
+	DeleteSnapshotsOlderThan(ctx context.Context, tableID, months int) (int64, error)
+}
+
+// SnapshotListItem - строка списка версий: метаданные без payload (он тяжёлый и
+// нужен только при открытии конкретной версии). Counts распакованы для UI.
+type SnapshotListItem struct {
+	ID          int                   `json:"id"`
+	TableID     int                   `json:"table_id"`
+	TakenAt     time.Time             `json:"taken_at"`
+	Reason      string                `json:"reason"`
+	ActorUserID *int                  `json:"actor_user_id,omitempty"`
+	ActorName   string                `json:"actor_name,omitempty"`
+	Counts      models.SnapshotCounts `json:"counts"`
 }
 
 type tableSnapshotService struct {
@@ -204,6 +227,124 @@ func (s *tableSnapshotService) collectRows(ctx context.Context, table models.Sys
 	default:
 		return nil, models.SnapshotCounts{}, echo.NewHTTPError(http.StatusUnprocessableEntity, "Unsupported table type for snapshot")
 	}
+}
+
+// snapshotListRow - строка выборки списка версий с приклеенным автором (LEFT JOIN
+// users). Payload намеренно не выбирается - он тяжёлый и в списке не нужен.
+type snapshotListRow struct {
+	ID             int
+	TableID        int
+	TakenAt        time.Time
+	Reason         string
+	ActorUserID    *int
+	Counts         json.RawMessage
+	ActorFirstName *string
+	ActorLastName  *string
+	ActorUsername  *string
+}
+
+func (s *tableSnapshotService) ListSnapshots(ctx context.Context, tableID int, from, to *time.Time, page, perPage int) ([]SnapshotListItem, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if perPage < 1 || perPage > 100 {
+		perPage = 20
+	}
+
+	// Единый набор условий для Count и выборки - строится заново на каждый запрос,
+	// чтобы состояние билдера не перетекало между вызовами.
+	base := func() *gorm.DB {
+		q := s.db.WithContext(ctx).Model(&models.TableSnapshot{}).
+			Where("table_snapshots.table_id = ?", tableID)
+		if from != nil {
+			q = q.Where("table_snapshots.taken_at >= ?", *from)
+		}
+		if to != nil {
+			q = q.Where("table_snapshots.taken_at <= ?", *to)
+		}
+		return q
+	}
+
+	var total int64
+	if err := base().Count(&total).Error; err != nil {
+		return nil, 0, fmt.Errorf("failed to count snapshots for table %d: %w", tableID, err)
+	}
+
+	var rows []snapshotListRow
+	if err := base().
+		Select("table_snapshots.id, table_snapshots.table_id, table_snapshots.taken_at, " +
+			"table_snapshots.reason, table_snapshots.actor_user_id, table_snapshots.counts, " +
+			"u.first_name AS actor_first_name, u.last_name AS actor_last_name, u.username AS actor_username").
+		Joins("LEFT JOIN users u ON u.id = table_snapshots.actor_user_id").
+		Order("table_snapshots.taken_at DESC, table_snapshots.id DESC").
+		Limit(perPage).Offset((page - 1) * perPage).
+		Scan(&rows).Error; err != nil {
+		return nil, 0, fmt.Errorf("failed to list snapshots for table %d: %w", tableID, err)
+	}
+
+	items := make([]SnapshotListItem, len(rows))
+	for i, r := range rows {
+		var counts models.SnapshotCounts
+		if len(r.Counts) > 0 {
+			if err := json.Unmarshal(r.Counts, &counts); err != nil {
+				return nil, 0, fmt.Errorf("failed to unmarshal counts of snapshot %d: %w", r.ID, err)
+			}
+		}
+		items[i] = SnapshotListItem{
+			ID:          r.ID,
+			TableID:     r.TableID,
+			TakenAt:     r.TakenAt,
+			Reason:      r.Reason,
+			ActorUserID: r.ActorUserID,
+			ActorName:   snapshotActorName(r.ActorFirstName, r.ActorLastName, r.ActorUsername),
+			Counts:      counts,
+		}
+	}
+	return items, total, nil
+}
+
+func (s *tableSnapshotService) GetSnapshot(ctx context.Context, tableID, snapshotID int) (*models.TableSnapshot, error) {
+	var snap models.TableSnapshot
+	err := s.db.WithContext(ctx).
+		Where("id = ? AND table_id = ?", snapshotID, tableID).
+		First(&snap).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, echo.NewHTTPError(http.StatusNotFound, "Snapshot not found")
+		}
+		return nil, fmt.Errorf("failed to load snapshot %d of table %d: %w", snapshotID, tableID, err)
+	}
+	return &snap, nil
+}
+
+func (s *tableSnapshotService) DeleteSnapshotsOlderThan(ctx context.Context, tableID, months int) (int64, error) {
+	if months <= 0 {
+		return 0, echo.NewHTTPError(http.StatusBadRequest, "older_than must be a positive number of months")
+	}
+	cutoff := time.Now().UTC().AddDate(0, -months, 0)
+	res := s.db.WithContext(ctx).
+		Where("table_id = ? AND taken_at < ?", tableID, cutoff).
+		Delete(&models.TableSnapshot{})
+	if res.Error != nil {
+		return 0, fmt.Errorf("failed to delete snapshots older than %d months for table %d: %w", months, tableID, res.Error)
+	}
+	return res.RowsAffected, nil
+}
+
+// snapshotActorName собирает отображаемое имя автора снимка: "Имя Фамилия", либо
+// username, если ФИО пустое, либо "" для дневного (без актора).
+func snapshotActorName(first, last, username *string) string {
+	deref := func(p *string) string {
+		if p == nil {
+			return ""
+		}
+		return *p
+	}
+	full := strings.TrimSpace(deref(first) + " " + deref(last))
+	if full != "" {
+		return full
+	}
+	return deref(username)
 }
 
 // computeSnapshotCounts агрегирует строки по территориальному статусу.

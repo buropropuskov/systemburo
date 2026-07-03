@@ -23,6 +23,7 @@ type PermissionService interface {
 	GetPermissionTree(ctx context.Context) ([]models.PermissionTreeNode, error)
 	GetCatalog(ctx context.Context) ([]CatalogNode, error)
 	AutoGenerateForTable(ctx context.Context, tableID int, tableName string) error
+	ReconcileAllTablePermissions(ctx context.Context) error
 	HasPermission(ctx context.Context, userID int, key string) (bool, error)
 	HasPermissionValue(ctx context.Context, userID int, key string, value string) (bool, error)
 	GrantDefaultPermissions(ctx context.Context, userID int) error
@@ -287,6 +288,7 @@ var tableVerbs = []struct{ Verb, Title string }{
 	{"exit", "Отметка выезда/выхода"},
 	{"detail", "Открытие карточки из таблицы"},
 	{"history", "История таблицы"},
+	{"versions", "Сохранённые версии"},
 	{"export", "Экспорт"},
 	{"trash", "Корзина"},
 	{"delete", "Удаление записи"},
@@ -392,6 +394,56 @@ func (s *permissionService) AutoGenerateForTable(ctx context.Context, tableID in
 	}
 
 	slog.Info("разрешения для таблицы созданы", "table_id", tableID, "table_name", tableName)
+	return nil
+}
+
+// ReconcileAllTablePermissions догенерирует недостающие права table.<slug>.<verb>
+// для всех существующих таблиц (идемпотентно). AutoGenerateForTable пишет права лишь
+// при создании таблицы, поэтому при добавлении нового глагола в tableVerbs старые
+// таблицы остались бы без соответствующего права (его нельзя было бы выдать в дереве).
+// Вызывается на старте: за один проход подбирает то, чего не хватает, и молчит, если
+// всё на месте.
+func (s *permissionService) ReconcileAllTablePermissions(ctx context.Context) error {
+	var tables []models.SystemTable
+	if err := s.db.WithContext(ctx).Select("id", "name").Find(&tables).Error; err != nil {
+		return fmt.Errorf("failed to list tables for permission reconcile: %w", err)
+	}
+
+	var existingKeys []string
+	if err := s.db.WithContext(ctx).Model(&models.Permission{}).
+		Where("category = ?", "table").
+		Pluck("key", &existingKeys).Error; err != nil {
+		return fmt.Errorf("failed to load existing table permissions: %w", err)
+	}
+	have := make(map[string]struct{}, len(existingKeys))
+	for _, k := range existingKeys {
+		have[k] = struct{}{}
+	}
+
+	created := 0
+	for _, t := range tables {
+		for _, v := range tableVerbs {
+			key := fmt.Sprintf("table.%s.%s", t.Name, v.Verb)
+			if _, ok := have[key]; ok {
+				continue
+			}
+			tableID := t.ID
+			perm := models.Permission{
+				Key:         key,
+				Category:    "table",
+				EntityID:    &tableID,
+				DisplayName: fmt.Sprintf("%s: %s", t.Name, v.Title),
+				ParentKey:   nil,
+			}
+			if err := s.db.WithContext(ctx).Create(&perm).Error; err != nil {
+				return fmt.Errorf("failed to create permission %s: %w", key, err)
+			}
+			created++
+		}
+	}
+	if created > 0 {
+		slog.Info("догенерированы недостающие права таблиц", "created", created)
+	}
 	return nil
 }
 
