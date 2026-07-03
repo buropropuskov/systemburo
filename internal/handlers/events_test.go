@@ -9,35 +9,19 @@ import (
 	"time"
 
 	"systemburo/internal/realtime"
-	"systemburo/internal/services"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
 )
 
-var eventsTestSecret = []byte("test-jwt-secret-that-is-at-least-32-chars!!")
-
-func makeAccessToken(t *testing.T, userID int, ttl time.Duration) string {
-	t.Helper()
-	claims := services.Claims{
-		UserID: userID,
-		RegisteredClaims: jwt.RegisteredClaims{
-			Subject:   "tester",
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(ttl)),
-		},
-	}
-	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	signed, err := tok.SignedString(eventsTestSecret)
-	if err != nil {
-		t.Fatalf("подписать токен: %v", err)
-	}
-	return signed
+func newEventsHandler() (*EventsHandler, *realtime.Hub, *realtime.TicketStore) {
+	hub := realtime.NewHub()
+	tickets := realtime.NewTicketStore(time.Minute)
+	return NewEventsHandler(hub, tickets), hub, tickets
 }
 
-func newEventsServer(t *testing.T, hub *realtime.Hub) *httptest.Server {
+func newEventsServer(t *testing.T, h *EventsHandler) *httptest.Server {
 	t.Helper()
 	e := echo.New()
-	h := NewEventsHandler(hub, eventsTestSecret)
 	e.GET("/api/events", h.Stream)
 	srv := httptest.NewServer(e)
 	t.Cleanup(srv.Close)
@@ -79,40 +63,92 @@ func readFrame(t *testing.T, r *bufio.Reader) string {
 	}
 }
 
-func TestEventsStream_RejectsMissingToken(t *testing.T) {
+func TestEventsIssueTicket_ReturnsTicketForAuthedUser(t *testing.T) {
 	t.Parallel()
-	srv := newEventsServer(t, realtime.NewHub())
+	h, _, tickets := newEventsHandler()
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodPost, "/api/events/ticket", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.Set("user_id", 42)
+
+	if err := h.IssueTicket(c); err != nil {
+		t.Fatalf("IssueTicket: %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("ожидали 200, получили %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), `"ticket"`) {
+		t.Fatalf("в ответе нет билета: %s", rec.Body.String())
+	}
+	// Выданный билет должен резолвиться в того же пользователя ровно один раз.
+	// Достаём его из ответа косвенно: любой валидный билет из store consume-ится.
+	uid, ok := tickets.Consume(extractTicket(t, rec.Body.String()), time.Now())
+	if !ok || uid != 42 {
+		t.Fatalf("билет не резолвится в userID=42: uid=%d ok=%v", uid, ok)
+	}
+}
+
+func TestEventsIssueTicket_RejectsAnonymous(t *testing.T) {
+	t.Parallel()
+	h, _, _ := newEventsHandler()
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodPost, "/api/events/ticket", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec) // user_id не выставлен
+
+	err := h.IssueTicket(c)
+	if err == nil {
+		t.Fatal("ожидали ошибку авторизации для анонима")
+	}
+	if he, ok := err.(*echo.HTTPError); !ok || he.Code != http.StatusUnauthorized {
+		t.Fatalf("ожидали 401, получили %v", err)
+	}
+}
+
+func TestEventsStream_RejectsMissingTicket(t *testing.T) {
+	t.Parallel()
+	h, _, _ := newEventsHandler()
+	srv := newEventsServer(t, h)
+
 	resp, err := http.Get(srv.URL + "/api/events")
 	if err != nil {
 		t.Fatalf("GET: %v", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("без токена ожидали 401, получили %d", resp.StatusCode)
+		t.Fatalf("без билета ожидали 401, получили %d", resp.StatusCode)
 	}
 }
 
-func TestEventsStream_RejectsInvalidToken(t *testing.T) {
+func TestEventsStream_RejectsInvalidTicket(t *testing.T) {
 	t.Parallel()
-	srv := newEventsServer(t, realtime.NewHub())
-	resp, err := http.Get(srv.URL + "/api/events?access_token=garbage")
+	h, _, _ := newEventsHandler()
+	srv := newEventsServer(t, h)
+
+	resp, err := http.Get(srv.URL + "/api/events?ticket=garbage")
 	if err != nil {
 		t.Fatalf("GET: %v", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("с мусорным токеном ожидали 401, получили %d", resp.StatusCode)
+		t.Fatalf("с невалидным билетом ожидали 401, получили %d", resp.StatusCode)
 	}
 }
 
 func TestEventsStream_DeliversPublishedEvent(t *testing.T) {
 	t.Parallel()
-	hub := realtime.NewHub()
-	srv := newEventsServer(t, hub)
+	h, hub, tickets := newEventsHandler()
+	srv := newEventsServer(t, h)
 
-	token := makeAccessToken(t, 42, time.Hour)
-	req, _ := http.NewRequest("GET", srv.URL+"/api/events?access_token="+token, nil)
-	resp, err := http.DefaultClient.Do(req)
+	ticket, err := tickets.Issue(42, time.Now())
+	if err != nil {
+		t.Fatalf("Issue: %v", err)
+	}
+
+	resp, err := http.Get(srv.URL + "/api/events?ticket=" + ticket)
 	if err != nil {
 		t.Fatalf("GET: %v", err)
 	}
@@ -130,13 +166,56 @@ func TestEventsStream_DeliversPublishedEvent(t *testing.T) {
 		t.Fatalf("ожидали connected-кадр, получили %q", first)
 	}
 
-	// connected-кадр приходит после hub.Subscribe в хендлере (Subscribe -> запись
-	// кадра -> flush), поэтому к этому моменту подписка уже зарегистрирована и
-	// публикация гарантированно долетит в поток.
+	// connected-кадр приходит после hub.Subscribe в хендлере, поэтому к этому
+	// моменту подписка зарегистрирована и публикация гарантированно долетит.
 	hub.Publish(42, realtime.Event{Type: "available.new", Scope: "available-attachments", Count: 3})
 
 	frame := readFrame(t, r)
 	if !strings.Contains(frame, `"type":"available.new"`) || !strings.Contains(frame, `"count":3`) {
 		t.Fatalf("ожидали data-кадр с событием, получили %q", frame)
 	}
+}
+
+func TestEventsStream_TicketIsOneTime(t *testing.T) {
+	t.Parallel()
+	h, _, tickets := newEventsHandler()
+	srv := newEventsServer(t, h)
+
+	ticket, _ := tickets.Issue(7, time.Now())
+
+	// Первый коннект использует билет.
+	resp1, err := http.Get(srv.URL + "/api/events?ticket=" + ticket)
+	if err != nil {
+		t.Fatalf("GET1: %v", err)
+	}
+	resp1.Body.Close()
+	if resp1.StatusCode != http.StatusOK {
+		t.Fatalf("первый коннект ожидали 200, получили %d", resp1.StatusCode)
+	}
+
+	// Повторное использование того же билета отвергается.
+	resp2, err := http.Get(srv.URL + "/api/events?ticket=" + ticket)
+	if err != nil {
+		t.Fatalf("GET2: %v", err)
+	}
+	resp2.Body.Close()
+	if resp2.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("повторный билет ожидали 401, получили %d", resp2.StatusCode)
+	}
+}
+
+// extractTicket достаёт значение билета из JSON-ответа {success,data:{ticket}}.
+func extractTicket(t *testing.T, body string) string {
+	t.Helper()
+	const key = `"ticket":"`
+	i := strings.Index(body, key)
+	if i < 0 {
+		t.Fatalf("билет не найден в %s", body)
+	}
+	rest := body[i+len(key):]
+	j := strings.IndexByte(rest, '"')
+	if j < 0 {
+		t.Fatalf("билет не закрыт в %s", body)
+	}
+	return rest[:j]
 }

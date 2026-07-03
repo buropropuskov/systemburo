@@ -166,8 +166,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	api.GET("/settings/contacts", settings.GetPublicContacts)
 
 	// Real-time SSE-поток (#840). Публичный роут намеренно: EventSource не шлёт
-	// заголовок Authorization, поэтому хендлер сам валидирует access-токен из query
-	// (тем же services.DecodeAccessToken), не проходя JWTAuth-middleware.
+	// заголовок Authorization. Подключение авторизуется одноразовым билетом из query
+	// (выдаётся защищённым POST /events/ticket ниже), а не access-токеном - токен в
+	// query утёк бы в журналы. Consume билета внутри Stream.
 	if events != nil {
 		api.GET("/events", events.Stream)
 	}
@@ -203,6 +204,12 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// помечает прохождение ДЛЯ СЕБЯ (userID из JWT). Не admin-only.
 	protected.GET("/onboarding", onboarding.GetStatus)
 	protected.POST("/onboarding/complete", onboarding.MarkComplete)
+
+	// Выдача одноразового билета для SSE-потока (#840). Защищён JWTAuth+banCheck:
+	// забаненный/разлогиненный билет не получит, значит и поток не переоткроет.
+	if events != nil {
+		protected.POST("/events/ticket", events.IssueTicket)
+	}
 
 	// Шаблоны вложений (unique_attachments)
 	att := protected.Group("/attachments")

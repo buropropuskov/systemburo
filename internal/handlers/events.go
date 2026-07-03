@@ -7,44 +7,61 @@ import (
 	"time"
 
 	"systemburo/internal/realtime"
-	"systemburo/internal/services"
 
 	"github.com/labstack/echo/v4"
 )
 
 // eventsHeartbeatInterval - период heartbeat-комментария в SSE-поток. Держит
-// соединение живым (прокси не рвёт idle) и служит тиком ре-валидации токена.
-// Меньше access-TTL, чтобы протухание ловилось задолго до накопления.
+// соединение живым (прокси не рвёт idle) и служит тиком проверки времени жизни.
 const eventsHeartbeatInterval = 25 * time.Second
 
-// EventsHandler отдаёт SSE-поток лёгких real-time сигналов (issue #840).
-// Аутентификация - своя, по query-токену: EventSource не умеет слать заголовок
-// Authorization, поэтому этот эндпоинт висит на публичной группе /api (вне
-// JWTAuth-middleware) и валидирует токен сам тем же services.DecodeAccessToken.
+// eventsStreamMaxLifetime - максимальное время жизни одного SSE-соединения. По
+// истечении сервер закрывает поток сигналом reconnect; фронт берёт новый билет
+// (через защищённый POST -> JWTAuth+banCheck) и переоткрывает. Так отзыв доступа
+// (истёкшая сессия, бан) отрабатывает на выдаче билета, а не тянется в стриме.
+const eventsStreamMaxLifetime = 10 * time.Minute
+
+// EventsHandler отдаёт SSE-поток лёгких real-time сигналов (issue #840) и выдаёт
+// одноразовые билеты для его установления. См. realtime.TicketStore про то, почему
+// билет, а не access-токен в query.
 type EventsHandler struct {
-	hub       *realtime.Hub
-	jwtSecret []byte
+	hub     *realtime.Hub
+	tickets *realtime.TicketStore
 }
 
 // NewEventsHandler создаёт хендлер SSE-потока.
-func NewEventsHandler(hub *realtime.Hub, jwtSecret []byte) *EventsHandler {
-	return &EventsHandler{hub: hub, jwtSecret: jwtSecret}
+func NewEventsHandler(hub *realtime.Hub, tickets *realtime.TicketStore) *EventsHandler {
+	return &EventsHandler{hub: hub, tickets: tickets}
 }
 
-// Stream держит SSE-соединение: GET /api/events?access_token=<jwt>.
+// IssueTicket выдаёт одноразовый билет для подключения к потоку.
+// POST /api/events/ticket (protected: userID берём из JWT-контекста).
+func (h *EventsHandler) IssueTicket(c echo.Context) error {
+	userID := GetUserID(c)
+	if userID == 0 {
+		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
+	}
+	ticket, err := h.tickets.Issue(userID, time.Now())
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to issue ticket")
+	}
+	return RespondSuccess(c, map[string]string{"ticket": ticket})
+}
+
+// Stream держит SSE-соединение: GET /api/events?ticket=<one-time>.
 //
 // В поток идут только сигналы вида {"type":"available.new",...} - клиент по ним
-// делает обычный запрос (event-then-fetch). Токен ре-валидируется на heartbeat:
-// протух за время стрима - шлём событие auth.expired и закрываем, фронт обновляет
-// access через свой single-flight refresh и переоткрывает EventSource.
+// делает обычный запрос (event-then-fetch). Билет одноразовый: consume привязывает
+// соединение к userID. По eventsStreamMaxLifetime поток закрывается сигналом
+// reconnect - фронт переоткрывает с новым билетом.
 func (h *EventsHandler) Stream(c echo.Context) error {
-	token := c.QueryParam("access_token")
-	if token == "" {
-		return echo.NewHTTPError(http.StatusUnauthorized, "missing access_token")
+	ticket := c.QueryParam("ticket")
+	if ticket == "" {
+		return echo.NewHTTPError(http.StatusUnauthorized, "missing ticket")
 	}
-	claims, err := services.DecodeAccessToken(token, h.jwtSecret)
-	if err != nil || claims.UserID == 0 {
-		return echo.NewHTTPError(http.StatusUnauthorized, "invalid token")
+	userID, ok := h.tickets.Consume(ticket, time.Now())
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "invalid or expired ticket")
 	}
 
 	res := c.Response()
@@ -55,7 +72,7 @@ func (h *EventsHandler) Stream(c echo.Context) error {
 	res.Header().Set("X-Accel-Buffering", "no")
 	res.WriteHeader(http.StatusOK)
 
-	ch, unsub := h.hub.Subscribe(claims.UserID)
+	ch, unsub := h.hub.Subscribe(userID)
 	defer unsub()
 
 	// Первый кадр сразу - у клиента срабатывает onopen, соединение "поднято".
@@ -66,6 +83,7 @@ func (h *EventsHandler) Stream(c echo.Context) error {
 
 	heartbeat := time.NewTicker(eventsHeartbeatInterval)
 	defer heartbeat.Stop()
+	start := time.Now()
 
 	ctx := c.Request().Context()
 	for {
@@ -85,8 +103,8 @@ func (h *EventsHandler) Stream(c echo.Context) error {
 			}
 			res.Flush()
 		case <-heartbeat.C:
-			if claims.ExpiresAt != nil && time.Now().After(claims.ExpiresAt.Time) {
-				fmt.Fprint(res, "event: auth.expired\ndata: {}\n\n")
+			if time.Since(start) > eventsStreamMaxLifetime {
+				fmt.Fprint(res, "event: reconnect\ndata: {}\n\n")
 				res.Flush()
 				return nil
 			}

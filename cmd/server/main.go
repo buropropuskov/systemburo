@@ -285,7 +285,8 @@ func main() {
 
 	// Routes
 	eventsHub := realtime.NewHub()
-	eventsHandler := handlers.NewEventsHandler(eventsHub, []byte(cfg.JWTSecret))
+	eventsTickets := realtime.NewTicketStore(60 * time.Second)
+	eventsHandler := handlers.NewEventsHandler(eventsHub, eventsTickets)
 
 	router.Setup(e, router.Dependencies{
 		Auth:                authHandler,
