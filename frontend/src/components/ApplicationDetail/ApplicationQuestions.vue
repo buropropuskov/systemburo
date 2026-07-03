@@ -326,11 +326,11 @@ export default {
 .q-new-dot {
     font-size: 11px;
     line-height: 1;
-    color: #fff;
-    background: var(--color-danger, #e5484d);
+    color: #c0392b;
+    background: rgba(220, 53, 69, 0.12);
     padding: 3px 8px;
     border-radius: 999px;
-    font-weight: 700;
+    font-weight: 600;
     letter-spacing: 0.2px;
 }
 
@@ -380,6 +380,7 @@ export default {
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    /* Без gap: разделитель между топиками - border-bottom самого .qi, линия идёт по
+       центру симметричного отступа, а не "висит" под вопросом с пустотой снизу. */
 }
 </style>
