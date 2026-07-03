@@ -56,7 +56,7 @@
             v-else
             class="versions-picker__none"
           >
-            {{ listLoading ? 'Загрузка...' : 'нет версий' }}
+            {{ listLoading ? 'Загрузка...' : (dateFilter ? 'нет версий за дату' : 'нет версий') }}
           </span>
           <button
             v-if="items.length < total"
@@ -68,6 +68,26 @@
           >
             Ещё
           </button>
+          <label class="versions-datefilter">
+            <span class="versions-datefilter__label">Дата</span>
+            <input
+              type="date"
+              class="versions-datefilter__input"
+              :value="dateFilter"
+              data-testid="tv-date-filter"
+              @change="onDateChange"
+            >
+            <button
+              v-if="dateFilter"
+              type="button"
+              class="versions-datefilter__clear"
+              aria-label="Сбросить дату"
+              data-testid="tv-date-clear"
+              @click="clearDate"
+            >
+              &times;
+            </button>
+          </label>
         </div>
 
         <div class="versions-card__spacer" />
@@ -194,6 +214,21 @@
             </div>
           </div>
 
+          <!-- Поиск по строкам снимка. SearchComponent как на основной странице;
+               фильтрация идёт внутри CarsTable/PeopleTable по :search-query тем же
+               buildSearchVariants/matchesSearch, счётчики версии не трогает. -->
+          <div
+            v-if="detail && previewItems.length"
+            class="versions-subbar"
+            data-testid="tv-subbar"
+          >
+            <SearchComponent
+              v-model="searchQuery"
+              title="Поиск по таблице"
+              class="versions-search"
+            />
+          </div>
+
           <!-- Таблица снимка на всю ширину: preview-режим реальных CarsTable/PeopleTable
                с колонками (previewFields) и строками (previewItems) на момент снимка. -->
           <div
@@ -224,6 +259,7 @@
                 :preview="true"
                 :preview-fields="previewFields"
                 :preview-items="previewItems"
+                :search-query="searchQuery"
                 :table-id="tableID"
               />
               <PeopleTable
@@ -231,6 +267,7 @@
                 :preview="true"
                 :preview-fields="previewFields"
                 :preview-items="previewItems"
+                :search-query="searchQuery"
                 :table-name="''"
               />
             </div>
@@ -265,6 +302,7 @@ import RefreshButton from '@/components/RefreshButton.vue';
 import Badge from '@/components/ui/Badge.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
+import SearchComponent from '@/components/SearchComponent.vue';
 import CarsTable from '@/components/CarsTable.vue';
 import PeopleTable from '@/components/PeopleTable.vue';
 import { apiRequest } from '@/api/client';
@@ -313,6 +351,11 @@ const listError = ref(false);
 
 const selectedId = ref(null);
 const detail = ref(null);
+
+// Поиск по строкам показанной версии (фильтрует внутри CarsTable/PeopleTable) и
+// фильтр списка версий по дате (YYYY-MM-DD, уходит как from=to в BE-эндпоинт).
+const searchQuery = ref('');
+const dateFilter = ref('');
 
 // Действия: ручной снимок, экспорт выбранной версии, чистка старых.
 const snapshotSaving = ref(false);
@@ -411,6 +454,9 @@ async function fetchList({ reset = true } = {}) {
     const { items: data, total: t } = await listTableSnapshots(tableID.value, {
       page: page.value,
       perPage: PER_PAGE,
+      // Один день: from=to=дата, BE трактует to как конец суток включительно.
+      from: dateFilter.value,
+      to: dateFilter.value,
     });
     if (seq !== listSeq) return;
     items.value = reset ? data : [...items.value, ...data];
@@ -449,6 +495,8 @@ async function saveSnapshotNow() {
   try {
     await createTableSnapshot(tableID.value);
     deletions.notify({ prefix: 'Сохранена версия таблицы', bold: displayName.value, type: 'success' });
+    // Сбрасываем фильтр даты - свежий снимок сегодняшний, под старым фильтром не виден.
+    dateFilter.value = '';
     refresh();
   } catch {
     deletions.notify({ prefix: 'Не удалось сохранить версию', type: 'error' });
@@ -504,6 +552,18 @@ function refresh() {
   selectedId.value = null;
   detail.value = null;
   fetchList({ reset: true });
+}
+
+// Смена даты - сузить список версий к выбранному дню и автовыбрать первую.
+function onDateChange(e) {
+  dateFilter.value = e.target.value || '';
+  refresh();
+}
+
+function clearDate() {
+  if (!dateFilter.value) return;
+  dateFilter.value = '';
+  refresh();
 }
 
 onMounted(async () => {
@@ -679,6 +739,56 @@ onMounted(async () => {
 .versions-load-more:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.versions-datefilter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.versions-datefilter__label {
+  font-weight: 600;
+  font-size: 15px;
+  color: #000;
+}
+
+.versions-datefilter__input {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #e6e6e6;
+  border-radius: 15px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 13px;
+  color: #1a1a1a;
+}
+
+.versions-datefilter__clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: #f2f2f2;
+  border: none;
+  border-radius: 50%;
+  font-size: 16px;
+  line-height: 1;
+  color: #666;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.versions-datefilter__clear:hover {
+  background: #e6e6e6;
+  color: #000;
+}
+
+.versions-subbar {
+  display: flex;
+  align-items: center;
+  padding: 12px 20px 0;
 }
 
 .versions-meta {

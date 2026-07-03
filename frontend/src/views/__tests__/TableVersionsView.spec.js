@@ -55,10 +55,11 @@ import { apiRequest } from '@/api/client';
 // Стаб реальной таблицы: отражает полученные preview-props в дерево, чтобы можно
 // было ассертить, что versions-view нормализовал строки и передал колонки снимка.
 const tableStub = (testid) => ({
-  props: ['preview', 'previewFields', 'previewItems', 'tableId', 'tableName'],
+  props: ['preview', 'previewFields', 'previewItems', 'searchQuery', 'tableId', 'tableName'],
   template: `<div :data-testid="'${testid}'"
       :data-rows="previewItems ? previewItems.length : 0"
-      :data-fields="previewFields ? previewFields.length : 0">
+      :data-fields="previewFields ? previewFields.length : 0"
+      :data-search="searchQuery || ''">
       <span v-for="it in (previewItems || [])" :key="it.id" class="preview-cell"
         :data-org="it.organization_name" :data-entry="String(it.entry_checked)"
         :data-exit="String(it.exit_checked)">{{ it.car_number || it.last_name }}</span>
@@ -80,6 +81,13 @@ const stubs = {
   },
   CarsTable: tableStub('tv-cars'),
   PeopleTable: tableStub('tv-people'),
+  // Поиск: отражаем ввод как update:modelValue, чтобы проверить проброс в таблицу.
+  SearchComponent: {
+    props: ['title', 'modelValue'],
+    emits: ['update:modelValue'],
+    template: `<input class="tv-search-input" :placeholder="title" :value="modelValue"
+      @input="$emit('update:modelValue', $event.target.value)" />`,
+  },
   ConfirmationModal: {
     props: ['show', 'title', 'message', 'confirmText', 'cancelText'],
     template: `<div v-if="show" data-testid="tv-confirm" :data-message="message">
@@ -444,5 +452,94 @@ describe('TableVersionsView действия (#980 polish-r2)', () => {
     expect(wrapper.find('[data-testid="tv-cleanup-period"]').exists()).toBe(false);
     // Снимок и экспорт доступны всем, кто видит вкладку версий.
     expect(wrapper.find('[data-testid="tv-snapshot-now"]').exists()).toBe(true);
+  });
+});
+
+describe('TableVersionsView поиск и фильтр даты (#980 polish-r3)', () => {
+  it('поиск по строкам пробрасывается в CarsTable как search-query', async () => {
+    listTableSnapshots.mockResolvedValue({ items: [snapItem(7)], total: 1 });
+    getTableSnapshot.mockResolvedValue(carsSnapshot(7, [
+      { id: 1, car_number: 'А123ВС', car_brand: 'BMW', organization: 'ООО Ромашка', territory_status: 1 },
+    ]));
+    wrapper = mountView();
+    await flushPromises();
+
+    // Поиск виден, когда есть строки; фильтрация делегируется CarsTable.
+    const search = wrapper.find('.tv-search-input');
+    expect(search.exists()).toBe(true);
+    await search.setValue('BMW');
+
+    expect(wrapper.find('[data-testid="tv-cars"]').attributes('data-search')).toBe('BMW');
+  });
+
+  it('поиск не показывается, пока в версии нет строк', async () => {
+    listTableSnapshots.mockResolvedValue({ items: [snapItem(1)], total: 1 });
+    getTableSnapshot.mockResolvedValue(carsSnapshot(1, []));
+    wrapper = mountView();
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="tv-subbar"]').exists()).toBe(false);
+  });
+
+  it('выбор даты сужает список версий запросом from=to за этот день', async () => {
+    listTableSnapshots.mockResolvedValue({ items: [snapItem(1)], total: 1 });
+    wrapper = mountView();
+    await flushPromises();
+    listTableSnapshots.mockClear();
+
+    const date = wrapper.find('[data-testid="tv-date-filter"]');
+    date.element.value = '2026-07-01';
+    await date.trigger('change');
+    await flushPromises();
+
+    expect(listTableSnapshots).toHaveBeenCalledWith(
+      5,
+      expect.objectContaining({ from: '2026-07-01', to: '2026-07-01', page: 1 }),
+    );
+  });
+
+  it('смена даты сбрасывает выбор и автовыбирает первую версию нового дня', async () => {
+    listTableSnapshots
+      .mockResolvedValueOnce({ items: [snapItem(1), snapItem(2)], total: 2 })
+      .mockResolvedValueOnce({ items: [snapItem(9)], total: 1 });
+    wrapper = mountView();
+    await flushPromises();
+    getTableSnapshot.mockClear();
+
+    const date = wrapper.find('[data-testid="tv-date-filter"]');
+    date.element.value = '2026-06-15';
+    await date.trigger('change');
+    await flushPromises();
+
+    // Автовыбор первой версии отфильтрованного дня -> деталь запрошена по её id.
+    expect(getTableSnapshot).toHaveBeenLastCalledWith(5, 9);
+  });
+
+  it('сброс даты возвращает полный список версий (from/to пустые)', async () => {
+    listTableSnapshots.mockResolvedValue({ items: [snapItem(1)], total: 1 });
+    wrapper = mountView();
+    await flushPromises();
+
+    const date = wrapper.find('[data-testid="tv-date-filter"]');
+    date.element.value = '2026-07-01';
+    await date.trigger('change');
+    await flushPromises();
+    listTableSnapshots.mockClear();
+
+    await wrapper.find('[data-testid="tv-date-clear"]').trigger('click');
+    await flushPromises();
+
+    expect(listTableSnapshots).toHaveBeenCalledWith(
+      5,
+      expect.objectContaining({ from: '', to: '', page: 1 }),
+    );
+  });
+
+  it('кнопка сброса даты скрыта, пока дата не выбрана', async () => {
+    listTableSnapshots.mockResolvedValue({ items: [snapItem(1)], total: 1 });
+    wrapper = mountView();
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="tv-date-clear"]').exists()).toBe(false);
   });
 });
