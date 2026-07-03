@@ -3,6 +3,7 @@ package realtime
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"fmt"
 	"sync"
 	"time"
 )
@@ -34,7 +35,7 @@ func NewTicketStore(ttl time.Duration) *TicketStore {
 func (s *TicketStore) Issue(userID int, now time.Time) (string, error) {
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to generate ticket: %w", err)
 	}
 	ticket := base64.RawURLEncoding.EncodeToString(raw)
 

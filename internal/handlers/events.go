@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -36,6 +37,17 @@ func NewEventsHandler(hub *realtime.Hub, tickets *realtime.TicketStore) *EventsH
 
 // IssueTicket выдаёт одноразовый билет для подключения к потоку.
 // POST /api/events/ticket (protected: userID берём из JWT-контекста).
+//
+// IssueTicket godoc
+// @Summary      Выдать одноразовый билет для SSE-потока
+// @Description  Короткоживущий одноразовый билет для подключения к /events. EventSource не шлёт Authorization, поэтому подключение авторизуется билетом, а не access-токеном.
+// @Tags         events
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {object} map[string]interface{} "ticket: string"
+// @Failure      401 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /events/ticket [post]
 func (h *EventsHandler) IssueTicket(c echo.Context) error {
 	userID := GetUserID(c)
 	if userID == 0 {
@@ -43,6 +55,7 @@ func (h *EventsHandler) IssueTicket(c echo.Context) error {
 	}
 	ticket, err := h.tickets.Issue(userID, time.Now())
 	if err != nil {
+		slog.Error("events: issue ticket failed", "user_id", userID, "error", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to issue ticket")
 	}
 	return RespondSuccess(c, map[string]string{"ticket": ticket})
@@ -54,6 +67,16 @@ func (h *EventsHandler) IssueTicket(c echo.Context) error {
 // делает обычный запрос (event-then-fetch). Билет одноразовый: consume привязывает
 // соединение к userID. По eventsStreamMaxLifetime поток закрывается сигналом
 // reconnect - фронт переоткрывает с новым билетом.
+//
+// Stream godoc
+// @Summary      SSE-поток real-time сигналов
+// @Description  Server-Sent Events: лёгкие сигналы "сходи обнови" (event-then-fetch). Авторизация одноразовым билетом из query (см. POST /events/ticket). Поток живёт до 10 минут, затем закрывается событием reconnect.
+// @Tags         events
+// @Produce      text/event-stream
+// @Param        ticket query string true "Одноразовый билет из POST /events/ticket"
+// @Success      200 {string} string "SSE-поток событий"
+// @Failure      401 {object} models.HTTPError
+// @Router       /events [get]
 func (h *EventsHandler) Stream(c echo.Context) error {
 	ticket := c.QueryParam("ticket")
 	if ticket == "" {
