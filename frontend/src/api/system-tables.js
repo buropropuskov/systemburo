@@ -92,3 +92,63 @@ export async function getTableSnapshot(tableId, snapshotId) {
   const body = await res.json();
   return body && body.success ? body.data : body;
 }
+
+/**
+ * Ручной снимок текущего состояния таблицы (#980 срез 6): создаёт новую версию
+ * reason=manual. apiRequestRaw + res.ok, чтобы провал (400/404/5xx) бросал явно,
+ * а не проглатывался в {message} (wrapJsonUnwrap на !success не кидает).
+ * @param {number} tableId
+ * @returns {Promise<{ id: number, message: string }>}
+ */
+export async function createTableSnapshot(tableId) {
+  const res = await apiRequestRaw(`/system-tables/${tableId}/snapshots`, {
+    method: 'POST',
+    silent403: true,
+  });
+  if (!res.ok) throw new Error(`Failed to create snapshot: ${res.status}`);
+  const body = await res.json();
+  return body && body.success ? body.data : body;
+}
+
+/**
+ * Выгрузка версии (или текущего состояния) таблицы файлом (#980 срез 6). Читаем
+ * бинарный ответ через apiRequestRaw, имя берём из Content-Disposition (RFC 5987
+ * filename* с кириллицей + ASCII-фолбэк), сохраняем через saveBlobAs.
+ * @param {number} tableId
+ * @param {number|'current'} snapshotId  ID версии либо 'current' для текущего состояния
+ * @param {'xlsx'|'pdf'} [format]
+ * @returns {Promise<{ blob: Blob, filename: string }>}
+ */
+export async function exportTableSnapshot(tableId, snapshotId, format = 'xlsx') {
+  const res = await apiRequestRaw(
+    `/system-tables/${tableId}/snapshots/${snapshotId}/export?format=${format}`,
+    { silent403: true },
+  );
+  if (!res.ok) throw new Error(`Failed to export snapshot: ${res.status}`);
+  const blob = await res.blob();
+  const cd = res.headers.get('Content-Disposition') || '';
+  const utf8Match = cd.match(/filename\*=UTF-8''(.+)/i);
+  const basicMatch = cd.match(/filename="?([^";]+)"?/);
+  const filename = utf8Match
+    ? decodeURIComponent(utf8Match[1])
+    : basicMatch ? basicMatch[1] : `snapshot.${format === 'pdf' ? 'pdf' : 'xlsx'}`;
+  return { blob, filename };
+}
+
+/**
+ * Чистка версий таблицы старше olderThanMonths месяцев (#980 срез 6).
+ * Разрушительно - BE гейтит requireAdmin (page.admin); FE-кнопку гейтим тем же
+ * правом. apiRequestRaw + res.ok для честного проброса ошибки.
+ * @param {number} tableId
+ * @param {number} olderThanMonths
+ * @returns {Promise<{ deleted: number, message: string }>}
+ */
+export async function cleanupTableSnapshots(tableId, olderThanMonths) {
+  const res = await apiRequestRaw(
+    `/system-tables/${tableId}/snapshots?older_than=${olderThanMonths}`,
+    { method: 'DELETE', silent403: true },
+  );
+  if (!res.ok) throw new Error(`Failed to cleanup snapshots: ${res.status}`);
+  const body = await res.json();
+  return body && body.success ? body.data : body;
+}
