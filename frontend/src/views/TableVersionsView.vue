@@ -39,10 +39,39 @@
 
     <article class="versions-card">
       <div class="versions-card__header">
-        <h3 class="versions-card__title">
-          Сохранённые версии
-        </h3>
+        <div class="versions-picker">
+          <span class="versions-picker__label">Версия</span>
+          <BaseDropdown
+            v-if="items.length"
+            :model-value="selectedId"
+            :options="versionOptions"
+            label-key="label"
+            value-key="id"
+            placeholder="Выберите версию"
+            class="versions-picker__dropdown"
+            data-testid="tv-version-select"
+            @update:model-value="selectSnapshot"
+          />
+          <span
+            v-else
+            class="versions-picker__none"
+          >
+            {{ listLoading ? 'Загрузка...' : 'нет версий' }}
+          </span>
+          <button
+            v-if="items.length < total"
+            type="button"
+            class="versions-load-more"
+            :disabled="listLoading"
+            data-testid="tv-load-more"
+            @click="loadMore"
+          >
+            Ещё
+          </button>
+        </div>
+
         <div class="versions-card__spacer" />
+
         <button
           type="button"
           class="lk-button lk-button--primary versions-action"
@@ -51,6 +80,24 @@
           @click="saveSnapshotNow"
         >
           {{ snapshotSaving ? 'Сохранение...' : 'Сохранить сейчас' }}
+        </button>
+        <button
+          type="button"
+          class="lk-button lk-button--secondary versions-action"
+          :disabled="selectedId === null || exporting !== ''"
+          data-testid="tv-export-xlsx"
+          @click="exportSnapshot('xlsx')"
+        >
+          {{ exporting === 'xlsx' ? 'Выгрузка...' : 'Excel' }}
+        </button>
+        <button
+          type="button"
+          class="lk-button lk-button--ghost versions-action"
+          :disabled="selectedId === null || exporting !== ''"
+          data-testid="tv-export-pdf"
+          @click="exportSnapshot('pdf')"
+        >
+          {{ exporting === 'pdf' ? 'Выгрузка...' : 'PDF' }}
         </button>
         <div
           v-if="canCleanup"
@@ -94,205 +141,108 @@
         {{ error }}
       </div>
 
-      <div
-        v-else
-        class="versions-content"
-      >
-        <!-- Список снимков (master) -->
+      <template v-else>
         <div
-          class="versions-list-section"
-          :class="{ 'with-details': selectedId !== null }"
+          v-if="!items.length && !listLoading"
+          class="versions-state versions-empty"
+          data-testid="tv-empty"
         >
-          <div
-            v-if="listLoading && !items.length"
-            class="versions-state"
-            data-testid="tv-loading"
-          >
-            <span class="versions-spinner" />
-          </div>
-
-          <div
-            v-else-if="items.length"
-            class="versions-cards"
-            data-testid="tv-list"
-          >
-            <button
-              v-for="s in items"
-              :key="s.id"
-              type="button"
-              class="versions-card-item"
-              :class="{ 'versions-card-item--active': s.id === selectedId }"
-              data-testid="tv-card"
-              @click="selectSnapshot(s.id)"
-            >
-              <div class="versions-card-item__head">
-                <Badge
-                  :variant="reasonVariant(s.reason)"
-                  size="sm"
-                >
-                  {{ reasonLabel(s.reason) }}
-                </Badge>
-                <span class="versions-card-item__date">{{ formatDateTime(s.taken_at) }}</span>
-              </div>
-              <div class="versions-card-item__counts">
-                <span class="versions-count versions-count--on">На территории: {{ s.counts.on_territory }}</span>
-                <span class="versions-count versions-count--exit">Выехал: {{ s.counts.exited }}</span>
-                <span class="versions-count versions-count--total">Всего: {{ s.counts.total }}</span>
-              </div>
-              <div
-                v-if="s.reason === 'manual' && s.actor_name"
-                class="versions-card-item__actor"
-              >
-                {{ s.actor_name }}
-              </div>
-            </button>
-
-            <button
-              v-if="items.length < total"
-              type="button"
-              class="versions-load-more"
-              :disabled="listLoading"
-              data-testid="tv-load-more"
-              @click="loadMore"
-            >
-              Показать ещё
-            </button>
-          </div>
-
-          <div
-            v-else-if="listError"
-            class="versions-state versions-state--error"
-            data-testid="tv-list-error"
-          >
-            Не удалось загрузить версии
-          </div>
-
-          <div
-            v-else
-            class="versions-state versions-empty"
-            data-testid="tv-empty"
-          >
-            <p>Версий пока нет</p>
-            <span class="versions-empty__hint">
-              Снимки состояния создаются автоматически ночью перед сбросом статусов
-              (в 06:00) и вручную.
-            </span>
-          </div>
-
-          <div
-            class="versions-footer"
-            data-testid="tv-footer"
-          >
-            Всего: {{ total }}
-          </div>
+          <p>Версий пока нет</p>
+          <span class="versions-empty__hint">
+            Снимки состояния создаются автоматически ночью перед сбросом статусов
+            (в 06:00) и вручную кнопкой «Сохранить сейчас».
+          </span>
         </div>
 
-        <!-- Состав снимка (detail) -->
         <div
-          v-if="selectedId !== null"
-          class="versions-detail-section"
-          data-testid="tv-detail"
+          v-else-if="listError"
+          class="versions-state versions-state--error"
+          data-testid="tv-list-error"
         >
-          <template v-if="detail">
-            <div class="versions-detail__head">
-              <div class="versions-detail__headline">
-                <h4 class="versions-detail__title">
-                  Состав на {{ formatDateTime(detail.taken_at) }}
-                </h4>
-                <div class="versions-detail__export">
-                  <button
-                    type="button"
-                    class="lk-button lk-button--secondary versions-action"
-                    :disabled="exporting !== ''"
-                    data-testid="tv-export-xlsx"
-                    @click="exportSnapshot('xlsx')"
-                  >
-                    {{ exporting === 'xlsx' ? 'Выгрузка...' : 'Экспорт Excel' }}
-                  </button>
-                  <button
-                    type="button"
-                    class="lk-button lk-button--ghost versions-action"
-                    :disabled="exporting !== ''"
-                    data-testid="tv-export-pdf"
-                    @click="exportSnapshot('pdf')"
-                  >
-                    {{ exporting === 'pdf' ? 'Выгрузка...' : 'Экспорт PDF' }}
-                  </button>
-                </div>
-              </div>
-              <div class="versions-detail__counts">
-                <span class="versions-count versions-count--on">На территории: {{ detailCounts.on_territory }}</span>
-                <span class="versions-count versions-count--exit">Выехал: {{ detailCounts.exited }}</span>
-                <span class="versions-count versions-count--not">Не въезжал: {{ detailCounts.not_entered }}</span>
-                <span class="versions-count versions-count--total">Всего: {{ detailCounts.total }}</span>
-              </div>
-            </div>
+          Не удалось загрузить версии
+        </div>
 
-            <div
-              v-if="detailRows.length"
-              class="versions-table-wrap"
-            >
-              <table
-                class="versions-table"
-                data-testid="tv-composition"
+        <template v-else>
+          <!-- Метаданные выбранной версии: дата, тип, автор, счётчики. Берём из
+               элемента списка (детальный ответ снимка автора/counts-в-удобной-форме
+               не содержит), поэтому мета видна сразу, пока грузится payload. -->
+          <div
+            v-if="selectedItem"
+            class="versions-meta"
+            data-testid="tv-meta"
+          >
+            <div class="versions-meta__head">
+              <Badge
+                :variant="reasonVariant(selectedItem.reason)"
+                size="sm"
               >
-                <thead>
-                  <tr>
-                    <th
-                      v-for="col in detailColumns"
-                      :key="col.key"
-                      class="versions-table__th"
-                    >
-                      {{ col.label }}
-                    </th>
-                    <th class="versions-table__th">
-                      Статус
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr
-                    v-for="(row, idx) in detailRows"
-                    :key="idx"
-                    class="versions-table__row"
-                    data-testid="tv-row"
-                  >
-                    <td
-                      v-for="col in detailColumns"
-                      :key="col.key"
-                      class="versions-table__td"
-                    >
-                      {{ cellValue(row, col) }}
-                    </td>
-                    <td class="versions-table__td">
-                      <span
-                        class="versions-status"
-                        :class="statusClass(row.territory_status)"
-                      >
-                        {{ statusLabel(row.territory_status) }}
-                      </span>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+                {{ reasonLabel(selectedItem.reason) }}
+              </Badge>
+              <span class="versions-meta__date">{{ formatDateTime(selectedItem.taken_at) }}</span>
+              <span
+                v-if="selectedItem.reason === 'manual' && selectedItem.actor_name"
+                class="versions-meta__actor"
+              >
+                {{ selectedItem.actor_name }}
+              </span>
+            </div>
+            <div class="versions-meta__counts">
+              <span class="versions-count versions-count--on">На территории: {{ detailCounts.on_territory }}</span>
+              <span class="versions-count versions-count--exit">Выехал: {{ detailCounts.exited }}</span>
+              <span class="versions-count versions-count--not">Не въезжал: {{ detailCounts.not_entered }}</span>
+              <span class="versions-count versions-count--total">Всего: {{ detailCounts.total }}</span>
+            </div>
+          </div>
+
+          <!-- Таблица снимка на всю ширину: preview-режим реальных CarsTable/PeopleTable
+               с колонками (previewFields) и строками (previewItems) на момент снимка. -->
+          <div
+            class="versions-body"
+            data-testid="tv-body"
+          >
+            <div
+              v-if="!detail"
+              class="versions-state"
+              data-testid="tv-detail-loading"
+            >
+              <span class="versions-spinner" />
             </div>
             <div
-              v-else
+              v-else-if="!previewItems.length"
               class="versions-state"
               data-testid="tv-detail-empty"
             >
               На момент снимка таблица была пуста
             </div>
-          </template>
-
-          <div
-            v-else
-            class="versions-state"
-            data-testid="tv-detail-loading"
-          >
-            <span class="versions-spinner" />
+            <div
+              v-else
+              class="versions-preview"
+              data-testid="tv-preview"
+            >
+              <CarsTable
+                v-if="detailType === 'cars'"
+                :preview="true"
+                :preview-fields="previewFields"
+                :preview-items="previewItems"
+                :table-id="tableID"
+              />
+              <PeopleTable
+                v-else-if="detailType === 'people'"
+                :preview="true"
+                :preview-fields="previewFields"
+                :preview-items="previewItems"
+                :table-name="''"
+              />
+            </div>
           </div>
-        </div>
+        </template>
+      </template>
+
+      <div
+        class="versions-footer"
+        data-testid="tv-footer"
+      >
+        Всего версий: {{ total }}
       </div>
     </article>
 
@@ -313,7 +263,10 @@ import { ref, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import RefreshButton from '@/components/RefreshButton.vue';
 import Badge from '@/components/ui/Badge.vue';
+import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
+import CarsTable from '@/components/CarsTable.vue';
+import PeopleTable from '@/components/PeopleTable.vue';
 import { apiRequest } from '@/api/client';
 import {
   listTableSnapshots,
@@ -325,7 +278,8 @@ import {
 import { saveBlobAs } from '@/api/attachment-templates';
 import { usePermission } from '@/composables/usePermission';
 import { useDeletionsStore } from '@/stores/deletions';
-import { formatDateTime, formatDateRu } from '@/utils/datetime';
+import { formatDateTime } from '@/utils/datetime';
+import { normalizeSnapshotRows } from '@/utils/snapshotRows';
 
 const PER_PAGE = 20;
 
@@ -345,6 +299,9 @@ const tableID = ref(0);
 const tableType = ref('');
 const displayName = ref('');
 const error = ref('');
+// Текущие поля таблицы - фолбэк колонок для старых снимков без payload.fields
+// (снимки до r1). Приходят тем же ответом, что и таблица (data.fields).
+const fallbackFields = ref([]);
 
 const items = ref([]);
 const total = ref(0);
@@ -357,7 +314,7 @@ const listError = ref(false);
 const selectedId = ref(null);
 const detail = ref(null);
 
-// Действия среза 6: ручной снимок, экспорт выбранной версии, чистка старых.
+// Действия: ручной снимок, экспорт выбранной версии, чистка старых.
 const snapshotSaving = ref(false);
 const exporting = ref(''); // '' | 'xlsx' | 'pdf' - какой формат сейчас выгружается
 const cleanupMonths = ref(24);
@@ -375,8 +332,8 @@ const cleanupMessage = computed(() => {
 });
 
 // Токены последовательности от гонки устаревшего ответа (#632): быстрое
-// переключение снимков/повторный refresh пускают параллельные запросы в общий
-// ref, применяем только ответ последнего.
+// переключение версий/повторный refresh пускают параллельные запросы в общий ref,
+// применяем только ответ последнего.
 let listSeq = 0;
 let detailSeq = 0;
 
@@ -391,49 +348,33 @@ function reasonVariant(reason) {
   return REASON_VARIANTS[reason] || 'neutral';
 }
 
-// territory_status: 1=на территории, 2=выехал, 0/null=не въезжал (модель SnapshotCounts).
-function statusLabel(status) {
-  if (status === 1) return 'На территории';
-  if (status === 2) return 'Выехал';
-  return 'Не въезжал';
-}
+// Опции дропдауна версий: дата + тип. Счётчики показываем под дропдауном для
+// выбранной версии, чтобы метка оставалась короткой.
+const versionOptions = computed(() =>
+  items.value.map((s) => ({
+    id: s.id,
+    label: `${formatDateTime(s.taken_at)} · ${reasonLabel(s.reason)}`,
+  })),
+);
 
-function statusClass(status) {
-  if (status === 1) return 'versions-status--on';
-  if (status === 2) return 'versions-status--exit';
-  return 'versions-status--not';
-}
-
-const CARS_COLUMNS = [
-  { key: 'car_number', label: 'Номер Т/С' },
-  { key: 'car_brand', label: 'Марка' },
-  { key: 'organization', label: 'Организация' },
-  { key: 'entry_date_to', label: 'Действует до', format: 'date' },
-];
-const PEOPLE_COLUMNS = [
-  { key: 'last_name', label: 'Фамилия' },
-  { key: 'first_name', label: 'Имя' },
-  { key: 'middle_name', label: 'Отчество' },
-  { key: 'organization', label: 'Организация' },
-  { key: 'position', label: 'Должность' },
-];
-
-// Тип берём из payload снимка (что было на момент), а не из текущей таблицы -
-// снимок самодостаточен.
+// Тип и колонки берём из payload снимка (что было на момент), а не из текущей
+// таблицы - снимок самодостаточен. Для старых снимков без fields - фолбэк на
+// текущие поля таблицы.
 const detailType = computed(() => detail.value?.payload?.table_type || tableType.value);
-const detailColumns = computed(() => (detailType.value === 'people' ? PEOPLE_COLUMNS : CARS_COLUMNS));
-const detailRows = computed(() => {
-  const rows = detail.value?.payload?.rows;
-  return Array.isArray(rows) ? rows : [];
+const previewFields = computed(() => {
+  const snapFields = detail.value?.payload?.fields;
+  if (Array.isArray(snapFields) && snapFields.length) return snapFields;
+  return fallbackFields.value;
 });
-const detailCounts = computed(() => detail.value?.counts || { on_territory: 0, exited: 0, not_entered: 0, total: 0 });
-
-function cellValue(row, col) {
-  const raw = row[col.key];
-  if (raw === null || raw === undefined || raw === '') return '—';
-  if (col.format === 'date') return formatDateRu(raw) || '—';
-  return raw;
-}
+const previewItems = computed(() =>
+  normalizeSnapshotRows(detail.value?.payload?.rows, detailType.value),
+);
+const selectedItem = computed(
+  () => items.value.find((s) => s.id === selectedId.value) || null,
+);
+const detailCounts = computed(
+  () => selectedItem.value?.counts || { on_territory: 0, exited: 0, not_entered: 0, total: 0 },
+);
 
 async function fetchTable() {
   error.value = '';
@@ -448,6 +389,7 @@ async function fetchTable() {
     tableID.value = tbl.id;
     tableType.value = tbl.table_type;
     displayName.value = tbl.display_name || tbl.name || tableName.value;
+    fallbackFields.value = Array.isArray(data?.fields) ? data.fields : [];
     if (tableType.value !== 'cars' && tableType.value !== 'people') {
       error.value = 'Этот тип таблицы не поддерживает версии';
       return false;
@@ -473,8 +415,7 @@ async function fetchList({ reset = true } = {}) {
     if (seq !== listSeq) return;
     items.value = reset ? data : [...items.value, ...data];
     total.value = t;
-    // Автовыбор первого снимка на свежем списке - сразу показываем состав, как
-    // master-detail эталон (не пустая правая панель).
+    // Автовыбор первого снимка на свежем списке - сразу показываем состав.
     if (reset && items.value.length && selectedId.value === null) {
       selectSnapshot(items.value[0].id);
     }
@@ -655,12 +596,10 @@ onMounted(async () => {
 .versions-card {
   background: #fff;
   border: 1px solid #e6e6e6;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.05);
   border-radius: 30px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  max-height: 640px;
 }
 
 .versions-card__header {
@@ -668,16 +607,32 @@ onMounted(async () => {
   align-items: center;
   gap: 12px;
   padding: 0 20px;
-  height: 50px;
+  min-height: 50px;
   border-bottom: 1px solid #e6e6e6;
   flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
-.versions-card__title {
-  margin: 0;
+.versions-picker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+}
+
+.versions-picker__label {
   font-weight: 600;
-  font-size: 16px;
+  font-size: 15px;
   color: #000;
+}
+
+.versions-picker__dropdown {
+  min-width: 260px;
+}
+
+.versions-picker__none {
+  font-size: 14px;
+  color: #a2a2a2;
 }
 
 .versions-card__spacer {
@@ -703,110 +658,9 @@ onMounted(async () => {
   width: auto;
 }
 
-.versions-content {
-  display: flex;
-  min-height: 0;
-  flex: 1;
-  overflow: hidden;
-}
-
-.versions-list-section {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
-.versions-list-section.with-details {
-  width: 42%;
-  border-right: 1px solid #e6e6e6;
-}
-
-.versions-cards {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 15px;
-}
-
-.versions-card-item {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  width: 100%;
-  text-align: left;
-  padding: 12px 14px;
-  background: #fff;
-  border: 1px solid #e6e6e6;
-  border-radius: 15px;
-  cursor: pointer;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
-}
-
-.versions-card-item:hover {
-  border-color: #4f5bdf;
-  box-shadow: 0 3px 10px rgba(79, 91, 223, 0.15);
-}
-
-.versions-card-item--active {
-  border-color: #4f5bdf;
-  background: #f5f6ff;
-  box-shadow: 0 3px 10px rgba(79, 91, 223, 0.18);
-}
-
-.versions-card-item__head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.versions-card-item__date {
-  font-weight: 600;
-  font-size: 14px;
-  color: #1a1a1a;
-}
-
-.versions-card-item__counts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 12px;
-}
-
-.versions-card-item__actor {
-  font-size: 12.5px;
-  color: #8a8a8a;
-}
-
-.versions-count {
-  font-size: 12.5px;
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.versions-count--on {
-  color: #1f9d55;
-}
-
-.versions-count--exit {
-  color: #8a8a8a;
-}
-
-.versions-count--not {
-  color: #a2792b;
-}
-
-.versions-count--total {
-  color: #555;
-}
-
 .versions-load-more {
-  align-self: center;
-  margin-top: 4px;
   height: 30px;
-  padding: 0 18px;
+  padding: 0 14px;
   background: #fff;
   border: 1px solid #e6e6e6;
   border-radius: 50px;
@@ -827,6 +681,69 @@ onMounted(async () => {
   cursor: not-allowed;
 }
 
+.versions-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 20px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.versions-meta__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.versions-meta__date {
+  font-weight: 600;
+  font-size: 15px;
+  color: #1a1a1a;
+}
+
+.versions-meta__actor {
+  font-size: 13px;
+  color: #8a8a8a;
+}
+
+.versions-meta__counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+}
+
+.versions-count {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.versions-count--on {
+  color: #1f9d55;
+}
+
+.versions-count--exit {
+  color: #8a8a8a;
+}
+
+.versions-count--not {
+  color: #a2792b;
+}
+
+.versions-count--total {
+  color: #555;
+}
+
+.versions-body {
+  min-height: 200px;
+}
+
+/* Preview-таблица занимает всю ширину как основная страница; её собственные
+   отступы/скролл управляются самим компонентом CarsTable/PeopleTable. */
+.versions-preview {
+  padding: 4px 6px 10px;
+}
+
 .versions-footer {
   flex-shrink: 0;
   padding: 12px 20px;
@@ -835,112 +752,8 @@ onMounted(async () => {
   color: #666;
 }
 
-.versions-detail-section {
-  width: 58%;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  overflow-y: auto;
-  padding: 15px;
-}
-
-.versions-detail__head {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #eee;
-}
-
-.versions-detail__headline {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.versions-detail__export {
-  display: flex;
-  gap: 8px;
-}
-
-.versions-detail__title {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 700;
-  color: #4f5bdf;
-}
-
-.versions-detail__counts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 14px;
-}
-
-.versions-table-wrap {
-  overflow-x: auto;
-}
-
-.versions-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.versions-table__th {
-  padding: 10px 12px;
-  text-align: left;
-  font-weight: 500;
-  font-size: 13px;
-  color: #a2a2a2;
-  white-space: nowrap;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.versions-table__row:hover {
-  background: #f8f9ff;
-}
-
-.versions-table__td {
-  padding: 10px 12px;
-  font-size: 13.5px;
-  color: #000;
-  border-top: 1px solid #f0f0f0;
-  white-space: nowrap;
-}
-
-.versions-status {
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 10px;
-  border-radius: 50px;
-  font-size: 11px;
-  font-weight: 500;
-  white-space: nowrap;
-  border: 1px solid;
-}
-
-.versions-status--on {
-  background: #e6f6ec;
-  color: #1f9d55;
-  border-color: #bfe6cd;
-}
-
-.versions-status--exit {
-  background: #f1f3f5;
-  color: #475569;
-  border-color: #e2e8f0;
-}
-
-.versions-status--not {
-  background: #fff;
-  color: #a2a2a2;
-  border-color: #e6e6e6;
-}
-
 .versions-state {
-  flex: 1;
-  min-height: 160px;
+  min-height: 200px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -966,7 +779,7 @@ onMounted(async () => {
 .versions-empty__hint {
   font-size: 13px;
   color: #a2a2a2;
-  max-width: 340px;
+  max-width: 360px;
 }
 
 .versions-spinner {
@@ -980,22 +793,5 @@ onMounted(async () => {
 
 @keyframes versions-spin {
   to { transform: rotate(360deg); }
-}
-
-@media (max-width: 900px) {
-  .versions-content {
-    flex-direction: column;
-  }
-
-  .versions-list-section,
-  .versions-list-section.with-details,
-  .versions-detail-section {
-    width: 100%;
-  }
-
-  .versions-list-section.with-details {
-    border-right: none;
-    border-bottom: 1px solid #e6e6e6;
-  }
 }
 </style>
