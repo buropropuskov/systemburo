@@ -121,27 +121,29 @@ describe('ApplicationQuestions (#973)', () => {
     expect(wrapper.findAll('[data-testid="question-new-badge"]')).toHaveLength(2);
   });
 
-  it('клик по топику шлёт read, гасит индикатор только когда прочитаны ВСЕ, бейджи держатся', async () => {
+  it('клик гасит бейдж топика сразу, индикатор - когда прочитаны все, и эмитит all-questions-read', async () => {
     getQuestions.mockResolvedValue(QUESTIONS_NEW);
     const wrapper = mountQ();
     await flushPromises();
 
     const subjects = wrapper.findAll('[data-testid="question-subject"]');
     expect(subjects).toHaveLength(2);
+    expect(wrapper.findAll('[data-testid="question-new-badge"]')).toHaveLength(2);
 
-    // Клик по первому топику -> read по нему; индикатор ещё горит (второй не прочитан).
+    // Клик по первому -> его бейдж гаснет СРАЗУ (динамика), второй держится; индикатор горит.
     await subjects[0].trigger('click');
     expect(markQuestionRead).toHaveBeenCalledWith(42, 1);
+    expect(wrapper.findAll('[data-testid="question-new-badge"]')).toHaveLength(1);
     expect(wrapper.find('[data-testid="questions-new-indicator"]').exists()).toBe(true);
-    // Бейдж прочитанного топика держится по снимку (не мигает).
-    expect(wrapper.findAll('[data-testid="question-new-badge"]')).toHaveLength(2);
+    expect(wrapper.emitted('all-questions-read')).toBeFalsy();
 
-    // Клик по второму -> все прочитаны, индикатор гаснет.
+    // Клик по второму -> все прочитаны: бейджи ушли, индикатор гаснет, эмит наверх (для списка).
     await subjects[1].trigger('click');
     expect(markQuestionRead).toHaveBeenCalledWith(42, 2);
+    expect(wrapper.findAll('[data-testid="question-new-badge"]')).toHaveLength(0);
     expect(wrapper.find('[data-testid="questions-new-indicator"]').exists()).toBe(false);
-    // Бейджи топиков всё равно на месте (снимок весь сеанс).
-    expect(wrapper.findAll('[data-testid="question-new-badge"]')).toHaveLength(2);
+    expect(wrapper.emitted('all-questions-read')).toBeTruthy();
+    expect(wrapper.emitted('all-questions-read')[0]).toEqual([42]);
   });
 
   it('повторный клик по тому же топику не шлёт read дважды', async () => {

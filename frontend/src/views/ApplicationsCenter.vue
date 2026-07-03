@@ -625,6 +625,7 @@
       @application-updated="handleApplicationUpdate"
       @duplicate="handleDuplicate"
       @application-changed="handleApplicationChanged"
+      @questions-read="onQuestionsRead"
     />
     <DownloadBlanksModal
       :show="!!(showDownloadModal && downloadAppId)"
@@ -1404,10 +1405,19 @@ export default {
                 }
             }
 
-            // Маркер вопросов теперь гасит ПРОЧТЕНИЕ топиков в детали (клик), а не факт
-            // открытия заявки (#973): иконка отражает непрочитанное и обновится при
-            // следующей загрузке списка. Оптимистично при открытии не снимаем.
+            // Маркер вопросов гасит ПРОЧТЕНИЕ топиков в детали (клик), а не факт открытия
+            // заявки (#973). Когда все вопросы прочитаны, деталь эмитит questions-read ->
+            // onQuestionsRead снимает иконку в списке сразу (см. ниже).
             this.selectedApplication = application;
+        },
+
+        // Все вопросы заявки прочитаны в детали -> гасим маркер в списке оптимистично (#973),
+        // не дожидаясь перезагрузки списка.
+        onQuestionsRead(applicationId) {
+            const app = this.applications.find(a => a.id === applicationId);
+            if (app) {
+                app.has_unseen_questions = false;
+            }
         },
 
         // Переход из уведомления: /center?open=<id> открывает заявку и чистит query,
