@@ -106,7 +106,7 @@
           />
           <span
             v-else
-            class="versions-picker__none"
+            class="versions-filter__none"
           >
             {{ listLoading ? 'Загрузка...' : (dateFilter ? 'нет версий за дату' : 'нет версий') }}
           </span>
@@ -764,7 +764,7 @@ onMounted(async () => {
   min-width: 260px;
 }
 
-.versions-picker__none {
+.versions-filter__none {
   font-size: 14px;
   color: #a2a2a2;
 }
