@@ -88,11 +88,23 @@ const stubs = {
     template: `<input class="tv-search-input" :placeholder="title" :value="modelValue"
       @input="$emit('update:modelValue', $event.target.value)" />`,
   },
-  ConfirmationModal: {
-    props: ['show', 'title', 'message', 'confirmText', 'cancelText'],
-    template: `<div v-if="show" data-testid="tv-confirm" :data-message="message">
-      <button data-testid="confirmation-confirm" @click="$emit('confirm')" />
-      <button data-testid="confirmation-cancel" @click="$emit('cancel')" />
+  // BaseModal рендерит содержимое инлайн (без Teleport, чтобы find видел слоты).
+  BaseModal: {
+    props: ['show', 'title', 'width', 'closeOnOverlay', 'closable'],
+    emits: ['close'],
+    template: `<div v-if="show" data-testid="tv-cleanup-modal" :data-title="title">
+      <slot />
+      <div class="modal-actions"><slot name="actions" /></div>
+    </div>`,
+  },
+  // Сегмент периода: pill-кнопки, клик эмитит выбранный key.
+  FilterTabs: {
+    props: ['modelValue', 'tabs'],
+    emits: ['update:modelValue'],
+    template: `<div data-testid="tv-cleanup-period">
+      <button v-for="t in tabs" :key="t.key" :data-testid="'tv-period-' + t.key"
+        :class="{ active: modelValue === t.key }"
+        @click="$emit('update:modelValue', t.key)">{{ t.label }}</button>
     </div>`,
   },
 };
@@ -395,35 +407,53 @@ describe('TableVersionsView действия (#980 polish-r2)', () => {
     expect(saveBlobAs).not.toHaveBeenCalled();
   });
 
-  it('чистка: подтверждение удаляет версии старше периода и уведомляет', async () => {
+  it('чистка: окно с сегментом периода (дефолт 2 года) удаляет и уведомляет', async () => {
     listTableSnapshots.mockResolvedValue({ items: [snapItem(1)], total: 1 });
     cleanupTableSnapshots.mockResolvedValue({ deleted: 3, message: 'ok' });
     wrapper = mountView();
     await flushPromises();
 
-    expect(wrapper.find('[data-testid="tv-confirm"]').exists()).toBe(false);
+    // Окно закрыто, сегмент/пояснение не в дереве, пока не нажали "Очистить".
+    expect(wrapper.find('[data-testid="tv-cleanup-modal"]').exists()).toBe(false);
     await wrapper.find('[data-testid="tv-cleanup"]').trigger('click');
-    expect(wrapper.find('[data-testid="tv-confirm"]').attributes('data-message')).toContain('старше 2 лет');
+    expect(wrapper.find('[data-testid="tv-cleanup-modal"]').exists()).toBe(true);
+    // Дефолтный период - 2 года: пояснение говорит "двух лет".
+    expect(wrapper.find('[data-testid="tv-cleanup-hint"]').text()).toContain('двух лет');
 
-    await wrapper.find('[data-testid="confirmation-confirm"]').trigger('click');
+    await wrapper.find('[data-testid="tv-cleanup-confirm"]').trigger('click');
     await flushPromises();
 
     expect(cleanupTableSnapshots).toHaveBeenCalledWith(5, 24);
     expect(notify).toHaveBeenCalledWith(expect.objectContaining({ prefix: 'Удалено старых версий:', bold: '3', type: 'success' }));
-    expect(wrapper.find('[data-testid="tv-confirm"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="tv-cleanup-modal"]').exists()).toBe(false);
   });
 
-  it('чистка учитывает выбранный период 1 год (12 мес.)', async () => {
+  it('чистка учитывает выбранный сегмент 1 год (12 мес.) и пояснение меняется', async () => {
     listTableSnapshots.mockResolvedValue({ items: [snapItem(1)], total: 1 });
     wrapper = mountView();
     await flushPromises();
 
-    await wrapper.find('[data-testid="tv-cleanup-period"]').setValue('12');
     await wrapper.find('[data-testid="tv-cleanup"]').trigger('click');
-    await wrapper.find('[data-testid="confirmation-confirm"]').trigger('click');
+    await wrapper.find('[data-testid="tv-period-12"]').trigger('click');
+    expect(wrapper.find('[data-testid="tv-cleanup-hint"]').text()).toContain('одного года');
+    await wrapper.find('[data-testid="tv-cleanup-confirm"]').trigger('click');
     await flushPromises();
 
     expect(cleanupTableSnapshots).toHaveBeenCalledWith(5, 12);
+  });
+
+  it('чистка: Отмена закрывает окно без вызова API', async () => {
+    listTableSnapshots.mockResolvedValue({ items: [snapItem(1)], total: 1 });
+    wrapper = mountView();
+    await flushPromises();
+
+    await wrapper.find('[data-testid="tv-cleanup"]').trigger('click');
+    // Кнопка "Отмена" - первая в слоте actions окна (перед "Удалить").
+    await wrapper.find('[data-testid="tv-cleanup-modal"] .modal-actions button').trigger('click');
+    await flushPromises();
+
+    expect(cleanupTableSnapshots).not.toHaveBeenCalled();
+    expect(wrapper.find('[data-testid="tv-cleanup-modal"]').exists()).toBe(false);
   });
 
   it('блокирует действия, пока таблица не загружена (нет тихого no-op)', async () => {
