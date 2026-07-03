@@ -34,7 +34,7 @@ describe('normalizeSnapshotRows', () => {
     expect(item.exit_checked).toBe(false);
   });
 
-  it('cars: статус выехал/не въезжал проецируется на entry/exit', () => {
+  it('cars: статус выехал/не въезжал проецируется на entry/exit взаимоисключающе', () => {
     const [exited, notEntered] = normalizeSnapshotRows(
       [
         { id: 1, car_number: 'Х1', territory_status: 2 },
@@ -42,8 +42,9 @@ describe('normalizeSnapshotRows', () => {
       ],
       'cars',
     );
-    // territory_status=2 (выехал): обе кнопки отмечены.
-    expect(exited.entry_checked).toBe(true);
+    // territory_status=2 (выехал): Въезд НЕ отмечен, Выехал отмечен - как на
+    // основной странице (item.entry_checked = ts===1, item.exit_checked = ts===2).
+    expect(exited.entry_checked).toBe(false);
     expect(exited.exit_checked).toBe(true);
     // territory_status=0 (не въезжал): ни одной.
     expect(notEntered.entry_checked).toBe(false);

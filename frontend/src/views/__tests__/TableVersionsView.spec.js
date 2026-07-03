@@ -199,9 +199,10 @@ describe('TableVersionsView (#980 polish-r2)', () => {
     const meta = wrapper.find('[data-testid="tv-meta"]');
     expect(meta.text()).toContain('На территории: 0');
     expect(meta.text()).toContain('Выехал: 1');
-    // Строка со статусом 2 -> обе кнопки отмечены в preview.
+    // Строка со статусом 2 (выехал): Въезд НЕ отмечен, Выезд отмечен - как на
+    // основной странице, не противоречит счётчику "Выехал".
     const cell = wrapper.find('.preview-cell');
-    expect(cell.attributes('data-entry')).toBe('true');
+    expect(cell.attributes('data-entry')).toBe('false');
     expect(cell.attributes('data-exit')).toBe('true');
   });
 

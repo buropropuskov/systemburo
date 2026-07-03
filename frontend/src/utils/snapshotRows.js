@@ -18,9 +18,12 @@
  */
 function territoryChecks(status) {
   const ts = Number(status) || 0;
+  // Взаимоисключающая проекция, как в CarsTable/PeopleTable/FactTable: 1=на
+  // территории (Въезд), 2=выехал (Выезд). Для выехавшего Въезд НЕ отмечен -
+  // иначе строка противоречит счётчику "Выехал" в шапке версии.
   return {
     territory_status: ts,
-    entry_checked: ts === 1 || ts === 2,
+    entry_checked: ts === 1,
     exit_checked: ts === 2,
   };
 }
