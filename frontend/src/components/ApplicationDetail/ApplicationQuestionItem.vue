@@ -7,8 +7,17 @@
     class="qi"
     data-testid="question-item"
   >
-    <div class="qi-subject">
-      {{ question.subject }}
+    <div
+      class="qi-subject"
+      data-testid="question-subject"
+      @click="onSubjectClick"
+    >
+      <span class="qi-subject-text">{{ question.subject }}</span>
+      <span
+        v-if="isNew"
+        class="qi-new"
+        data-testid="question-new-badge"
+      >Новое</span>
     </div>
     <div class="qi-meta">
       <span class="qi-author">
@@ -42,7 +51,7 @@
       class="qi-toggle"
       :aria-expanded="expanded"
       data-testid="question-toggle-answers"
-      @click="expanded = !expanded"
+      @click="toggleAnswers"
     >
       <span
         class="qi-tri"
@@ -124,9 +133,13 @@ export default {
         initiatorUserId: {
             type: Number,
             default: null
+        },
+        isNew: {
+            type: Boolean,
+            default: false
         }
     },
-    emits: ['answered'],
+    emits: ['answered', 'read'],
     data() {
         return {
             expanded: false,
@@ -157,6 +170,23 @@ export default {
     methods: {
         isInitiator(userId) {
             return this.initiatorUserId != null && userId === this.initiatorUserId;
+        },
+
+        // Клик по теме = "открыл вопрос" -> помечаем топик прочитанным (#973) и разворачиваем
+        // тред, если есть ответы. Бейдж "Новое" держится по снимку до перезахода.
+        onSubjectClick() {
+            this.$emit('read', this.question.id);
+            if (this.answers.length > 0) {
+                this.expanded = true;
+            }
+        },
+
+        // Разворачивание треда кнопкой тоже засчитывается как прочтение топика.
+        toggleAnswers() {
+            this.expanded = !this.expanded;
+            if (this.expanded) {
+                this.$emit('read', this.question.id);
+            }
         },
 
         async submitReply() {
@@ -223,11 +253,33 @@ export default {
 }
 
 .qi-subject {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
     font-size: 15px;
     font-weight: 700;
     color: #111;
     margin-bottom: 4px;
     word-break: break-word;
+    cursor: pointer;
+}
+
+.qi-subject-text {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Бейдж "Новое" на топике держится весь сеанс по снимку новизны (#973). */
+.qi-new {
+    flex-shrink: 0;
+    font-size: 11px;
+    line-height: 1;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    color: #fff;
+    background: var(--color-danger, #e5484d);
+    padding: 3px 8px;
+    border-radius: 999px;
 }
 
 .qi-meta {

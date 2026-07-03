@@ -190,3 +190,13 @@ export async function createAnswer(applicationId, questionId, data) {
 export async function markQuestionsSeen(id) {
   return apiRequest(`/applications/${id}/questions/seen`, { method: 'POST' });
 }
+
+/**
+ * Пометить конкретный вопрос-топик прочитанным (#973). Гасит его новизну для пользователя
+ * (недочитанные топики остаются новыми). Fire-and-forget.
+ * @param {number} applicationId ID заявки
+ * @param {number} questionId ID вопроса
+ */
+export async function markQuestionRead(applicationId, questionId) {
+  return apiRequest(`/applications/${applicationId}/questions/${questionId}/read`, { method: 'POST' });
+}

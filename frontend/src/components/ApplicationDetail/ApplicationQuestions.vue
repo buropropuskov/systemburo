@@ -26,6 +26,12 @@
           v-if="questions.length > 0"
           class="q-count"
         >{{ questions.length }}</span>
+        <span
+          v-if="hasUnreadInSession"
+          class="q-new-dot"
+          data-testid="questions-new-indicator"
+          aria-label="Есть непрочитанные вопросы или ответы"
+        >Новое</span>
       </button>
       <button
         v-if="canAsk"
@@ -86,7 +92,9 @@
                 :current-user-id="currentUserId"
                 :current-user-name="currentUserName"
                 :initiator-user-id="initiatorUserId"
+                :is-new="snapshotNewIds.includes(question.id)"
                 @answered="load"
+                @read="onTopicRead"
               />
             </li>
           </ul>
@@ -105,7 +113,7 @@
 </template>
 
 <script>
-import { getQuestions, createQuestion, markQuestionsSeen } from '@/api/applications'
+import { getQuestions, createQuestion, markQuestionRead } from '@/api/applications'
 import { useDeletionsStore } from '@/stores/deletions'
 import ApplicationQuestionItem from './ApplicationQuestionItem.vue'
 import AskQuestionModal from './AskQuestionModal.vue'
@@ -145,30 +153,42 @@ export default {
             loadSeq: 0,
             collapsed: this.readCollapsed(),
             showAskModal: false,
-            submitting: false
+            submitting: false,
+            // Снимок новизны при открытии заявки: id топиков, что были новыми. Бейджи "новое"
+            // держатся по снимку весь сеанс - не мигают, когда отметка прочтения ушла на бэк.
+            snapshotNewIds: [],
+            snapshotTaken: false,
+            // Топики, прочитанные в этом сеансе (клик) - гасят индикатор заголовка.
+            readIds: []
         }
     },
     computed: {
         bodyId() {
             return `application-questions-body-${this.applicationId}`;
+        },
+        // Индикатор заголовка горит, пока есть новый топик, ещё не прочитанный в этом сеансе.
+        hasUnreadInSession() {
+            return this.snapshotNewIds.some(id => !this.readIds.includes(id));
         }
     },
     watch: {
         applicationId() {
+            this.snapshotTaken = false;
+            this.snapshotNewIds = [];
+            this.readIds = [];
             this.load();
-            this.markSeen();
         }
     },
     mounted() {
         this.load();
-        this.markSeen();
     },
     methods: {
-        // Отмечаем вопросы/ответы просмотренными при открытии заявки -> гасит маркер
-        // has_unseen_questions в списке (#973). Fire-and-forget, как markAsRead.
-        markSeen() {
-            if (!this.applicationId) return;
-            markQuestionsSeen(this.applicationId).catch(() => {});
+        // Помечаем конкретный топик прочитанным по клику (#973): гасит индикатор заголовка,
+        // но бейдж самого топика держится по снимку до перезахода. Fire-and-forget.
+        onTopicRead(questionId) {
+            if (this.readIds.includes(questionId)) return;
+            this.readIds.push(questionId);
+            markQuestionRead(this.applicationId, questionId).catch(() => {});
         },
 
         readCollapsed() {
@@ -196,6 +216,12 @@ export default {
                 const data = await getQuestions(this.applicationId);
                 if (seq !== this.loadSeq) return;
                 this.questions = Array.isArray(data) ? data : [];
+                // Снимок берём один раз за сеанс просмотра заявки: повторные load (после
+                // отправки вопроса/ответа) не пересобирают его, иначе бейджи мигали бы.
+                if (!this.snapshotTaken) {
+                    this.snapshotNewIds = this.questions.filter(q => q.is_new).map(q => q.id);
+                    this.snapshotTaken = true;
+                }
             } catch {
                 // Блок вспомогательный: при сбое сохраняем отрисованное, деталь не роняем.
                 if (seq !== this.loadSeq) return;
@@ -279,6 +305,19 @@ export default {
     padding: 2px 9px;
     border-radius: 999px;
     font-weight: 600;
+}
+
+/* Индикатор "есть непрочитанное" на заголовке блока: гаснет, когда все новые топики
+   прочитаны в этом сеансе (#973). */
+.q-new-dot {
+    font-size: 11px;
+    line-height: 1;
+    color: #fff;
+    background: var(--color-danger, #e5484d);
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
 }
 
 .question-ask-button {

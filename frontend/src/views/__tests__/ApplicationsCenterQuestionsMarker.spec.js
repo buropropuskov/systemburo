@@ -47,12 +47,14 @@ describe('ApplicationsCenter — маркер вопросов (#973)', () => {
   });
   afterEach(() => wrapper?.unmount());
 
-  it('openApplication гасит маркер вопросов в списке', async () => {
+  it('openApplication НЕ гасит маркер вопросов при открытии (#973: гасит прочтение топиков)', async () => {
     wrapper = mountCenter();
     const app = { id: 1, is_read: true, has_unseen_questions: true, application_number: 'A-1', organization_name: 'Орг' };
     wrapper.vm.applications = [app];
     await wrapper.vm.openApplication(app);
-    expect(app.has_unseen_questions).toBe(false);
+    // Открытие заявки больше не снимает иконку - её гасит прочтение топиков в детали,
+    // список обновится при следующей загрузке.
+    expect(app.has_unseen_questions).toBe(true);
   });
 
   it('маркер вопросов рендерится, даже если у заявки нет других тегов', async () => {
