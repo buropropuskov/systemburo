@@ -100,6 +100,7 @@
             label-key="label"
             value-key="id"
             placeholder="Выберите версию"
+            searchable
             class="versions-filter__dropdown"
             data-testid="tv-version-select"
             @update:model-value="selectSnapshot"
@@ -337,7 +338,9 @@ import { useDeletionsStore } from '@/stores/deletions';
 import { formatDateTime } from '@/utils/datetime';
 import { normalizeSnapshotRows } from '@/utils/snapshotRows';
 
-const PER_PAGE = 20;
+// Максимум бэка (per_page 1-100). Грузим крупным блоком, чтобы поиск в дропдауне
+// версий покрывал сразу много снимков; дальше "Ещё"/календарь по дате.
+const PER_PAGE = 100;
 
 // Периоды чистки как сегмент-контрол (FilterTabs требует строковые key).
 // Дефолт хранения версий - 24 месяца = "2 лет" (context.md).
@@ -919,6 +922,14 @@ onMounted(async () => {
    отступы/скролл управляются самим компонентом CarsTable/PeopleTable. */
 .versions-preview {
   padding: 4px 6px 10px;
+}
+
+/* Preview рендерит реальный CarsTable/PeopleTable, чей корень .selected-table-card
+   имеет свою рамку+скругление 30px - внутри нашей карточки таблицы это лишняя
+   "карточка в карточке". Снимаем рамку и радиус у вложенной таблицы. */
+.versions-preview :deep(.selected-table-card) {
+  border: none;
+  border-radius: 0;
 }
 
 .versions-footer {
