@@ -1907,7 +1907,8 @@ export default {
     padding: 16px;
   }
 
-  .card-header__settings {
+  .card-header__settings,
+  .card-header__actions {
     width: 100%;
     justify-content: flex-end;
   }

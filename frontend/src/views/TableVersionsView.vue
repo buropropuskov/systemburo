@@ -729,9 +729,10 @@ onMounted(async () => {
   background: #fff;
   border: 1px solid #e6e6e6;
   border-radius: 30px;
-  /* overflow: visible - иначе выпадающее меню версии/попап календаря (position:
-     absolute внутри карточки) обрезаются краем низкой карточки. Дети прозрачные,
-     скругление 30px держится на самой карточке, углы не страдают. */
+  /* overflow: visible - иначе выпадающее меню версии (BaseDropdown, position:
+     absolute, z-index 1000, без Teleport) обрезается краем низкой карточки.
+     Дети прозрачные, скругление 30px держится на самой карточке, углы целы.
+     Попап DateFilter через Teleport/fixed - от overflow не зависит. */
   overflow: visible;
   display: flex;
   flex-direction: column;
