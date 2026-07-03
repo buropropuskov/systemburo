@@ -206,7 +206,8 @@ func main() {
 	blacklistAuditRecorder := services.NewAuditRecorder(db)
 	vehicleBlacklistService := services.NewVehicleBlacklistService(db, blacklistAuditRecorder)
 	personBlacklistService := services.NewPersonBlacklistService(db, blacklistAuditRecorder)
-	applicationService := services.NewApplicationService(db, permissionService, notificationService, vehicleBlacklistService, personBlacklistService, auditRecorder)
+	eventsHub := realtime.NewHub()
+	applicationService := services.NewApplicationService(db, permissionService, notificationService, vehicleBlacklistService, personBlacklistService, auditRecorder, services.WithRealtimePublisher(eventsHub))
 	attachmentTemplateService := services.NewAttachmentTemplateService(db, cfg.UploadPath)
 	attachmentFieldConfigService := services.NewAttachmentFieldConfigService(db)
 	attachmentBlankService := services.NewAttachmentBlankService(db)
@@ -284,7 +285,6 @@ func main() {
 	lastSeen := mw.LastSeen(db)
 
 	// Routes
-	eventsHub := realtime.NewHub()
 	eventsTickets := realtime.NewTicketStore(60 * time.Second)
 	eventsHandler := handlers.NewEventsHandler(eventsHub, eventsTickets)
 

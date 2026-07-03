@@ -200,6 +200,49 @@ func applyApplicationAccessFilter(query *gorm.DB, userID int, isApprover bool) *
 	`, userID, userID, userID)
 }
 
+// centerAudience собирает пользователей, у которых заявка появляется в Центре
+// заявок: автор, ответственные/согласующие и все принимающие (approver-ы видят
+// все заявки - зеркало applyApplicationAccessFilter). Аудитория real-time сигнала
+// обновления Центра (#840). Ошибка загрузки approver-ов не фатальна: сигнал
+// best-effort, аудитория без них лучше, чем сбой публикации.
+func (s *applicationService) centerAudience(ctx context.Context, applicationID, senderID int) []int {
+	// Аудиторию читаем из БД по applicationID (после commit заявка и её связи уже
+	// записаны) - зеркалит applyApplicationAccessFilter и не зависит от того, что
+	// оказалось в scope вызывающего кода. best-effort: сбой любого запроса лишь
+	// сузит аудиторию, не свалит публикацию.
+	load := func(table string, query *gorm.DB) []int {
+		var ids []int
+		if err := query.Distinct("user_id").Pluck("user_id", &ids).Error; err != nil {
+			slog.Warn("center audience: load failed", "table", table, "err", err)
+		}
+		return ids
+	}
+	responsibleIDs := load("application_responsible_users", s.db.WithContext(ctx).
+		Table("application_responsible_users").Where("application_id = ?", applicationID))
+	viewerIDs := load("application_viewers", s.db.WithContext(ctx).
+		Table("application_viewers").Where("application_id = ?", applicationID))
+	approverIDs := load("application_approvers", s.db.WithContext(ctx).
+		Table("application_approvers"))
+	return mergeUniqueIDs(senderID, responsibleIDs, viewerIDs, approverIDs)
+}
+
+// mergeUniqueIDs объединяет senderID и переданные группы id в слайс без дублей
+// (порядок не гарантирован). Вынесено из centerAudience для юнит-тестируемости
+// слияния отдельно от загрузки approver-ов из БД.
+func mergeUniqueIDs(senderID int, groups ...[]int) []int {
+	set := map[int]struct{}{senderID: {}}
+	for _, g := range groups {
+		for _, id := range g {
+			set[id] = struct{}{}
+		}
+	}
+	out := make([]int, 0, len(set))
+	for id := range set {
+		out = append(out, id)
+	}
+	return out
+}
+
 // buildSearchVariants возвращает уникальный набор вариантов поискового запроса:
 // оригинал, альтернативная раскладка и нормализованный госномер (если запрос похож на номер).
 // Используется для покрытия ввода без переключения раскладки и номеров с омоглифами/нулями.

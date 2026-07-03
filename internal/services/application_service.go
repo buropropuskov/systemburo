@@ -11,6 +11,7 @@ import (
 
 	"systemburo/internal/models"
 	"systemburo/internal/normalize"
+	"systemburo/internal/realtime"
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
@@ -630,11 +631,21 @@ type applicationService struct {
 	vehicleBlacklist    VehicleBlacklistService
 	personBlacklist     PersonBlacklistService
 	recorder            AuditRecorder
+	realtimePublisher   realtime.Publisher
+}
+
+// ApplicationServiceOption конфигурирует applicationService при создании.
+type ApplicationServiceOption func(*applicationService)
+
+// WithRealtimePublisher включает публикацию real-time сигналов обновления Центра
+// заявок (#840). Опционально: без неё сигналы не шлются (тесты, offline).
+func WithRealtimePublisher(p realtime.Publisher) ApplicationServiceOption {
+	return func(s *applicationService) { s.realtimePublisher = p }
 }
 
 // NewApplicationService создаёт экземпляр сервиса заявок.
-func NewApplicationService(db *gorm.DB, permSvc PermissionService, notifSvc NotificationService, vehicleBL VehicleBlacklistService, personBL PersonBlacklistService, recorder AuditRecorder) ApplicationService {
-	return &applicationService{
+func NewApplicationService(db *gorm.DB, permSvc PermissionService, notifSvc NotificationService, vehicleBL VehicleBlacklistService, personBL PersonBlacklistService, recorder AuditRecorder, opts ...ApplicationServiceOption) ApplicationService {
+	s := &applicationService{
 		db:                  db,
 		permissionService:   permSvc,
 		notificationService: notifSvc,
@@ -642,6 +653,10 @@ func NewApplicationService(db *gorm.DB, permSvc PermissionService, notifSvc Noti
 		personBlacklist:     personBL,
 		recorder:            recorder,
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 // --- Основные методы ---
@@ -1715,6 +1730,14 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 				slog.Warn("notification create failed", "err", err, "user_id", ru.UserID, "app_id", appID)
 			}
 		}
+	}
+
+	// Real-time сигнал обновления Центра заявок (#840): тем, у кого новая заявка
+	// появляется в списке (автор, ответственные/согласующие, принимающие). Лёгкий
+	// сигнал event-then-fetch, best-effort - на успех создания заявки не влияет.
+	if s.realtimePublisher != nil {
+		audience := s.centerAudience(ctx, appID, user.ID)
+		s.realtimePublisher.PublishMany(audience, realtime.Event{Type: "applications.refresh", Scope: "applications-center"})
 	}
 
 	return &CompleteApplicationResponse{
