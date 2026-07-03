@@ -43,6 +43,43 @@
           Сохранённые версии
         </h3>
         <div class="versions-card__spacer" />
+        <button
+          type="button"
+          class="lk-button lk-button--primary versions-action"
+          :disabled="!tableID || !!error || snapshotSaving"
+          data-testid="tv-snapshot-now"
+          @click="saveSnapshotNow"
+        >
+          {{ snapshotSaving ? 'Сохранение...' : 'Сохранить сейчас' }}
+        </button>
+        <div
+          v-if="canCleanup"
+          class="versions-cleanup"
+        >
+          <select
+            v-model.number="cleanupMonths"
+            class="lk-select versions-cleanup__select"
+            :disabled="cleanupRunning"
+            data-testid="tv-cleanup-period"
+          >
+            <option
+              v-for="opt in CLEANUP_OPTIONS"
+              :key="opt.months"
+              :value="opt.months"
+            >
+              {{ opt.label }}
+            </option>
+          </select>
+          <button
+            type="button"
+            class="lk-button lk-button--danger versions-action"
+            :disabled="!tableID || !!error || cleanupRunning"
+            data-testid="tv-cleanup"
+            @click="openCleanup"
+          >
+            Очистить старые
+          </button>
+        </div>
         <RefreshButton
           :loading="listLoading"
           @refresh="refresh"
@@ -158,9 +195,31 @@
         >
           <template v-if="detail">
             <div class="versions-detail__head">
-              <h4 class="versions-detail__title">
-                Состав на {{ formatDateTime(detail.taken_at) }}
-              </h4>
+              <div class="versions-detail__headline">
+                <h4 class="versions-detail__title">
+                  Состав на {{ formatDateTime(detail.taken_at) }}
+                </h4>
+                <div class="versions-detail__export">
+                  <button
+                    type="button"
+                    class="lk-button lk-button--secondary versions-action"
+                    :disabled="exporting !== ''"
+                    data-testid="tv-export-xlsx"
+                    @click="exportSnapshot('xlsx')"
+                  >
+                    {{ exporting === 'xlsx' ? 'Выгрузка...' : 'Экспорт Excel' }}
+                  </button>
+                  <button
+                    type="button"
+                    class="lk-button lk-button--ghost versions-action"
+                    :disabled="exporting !== ''"
+                    data-testid="tv-export-pdf"
+                    @click="exportSnapshot('pdf')"
+                  >
+                    {{ exporting === 'pdf' ? 'Выгрузка...' : 'Экспорт PDF' }}
+                  </button>
+                </div>
+              </div>
               <div class="versions-detail__counts">
                 <span class="versions-count versions-count--on">На территории: {{ detailCounts.on_territory }}</span>
                 <span class="versions-count versions-count--exit">Выехал: {{ detailCounts.exited }}</span>
@@ -236,6 +295,16 @@
         </div>
       </div>
     </article>
+
+    <ConfirmationModal
+      :show="cleanupOpen"
+      title="Очистка старых версий"
+      :message="cleanupMessage"
+      confirm-text="Удалить"
+      cancel-text="Отмена"
+      @confirm="confirmCleanup"
+      @cancel="cleanupOpen = false"
+    />
   </section>
 </template>
 
@@ -244,15 +313,31 @@ import { ref, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import RefreshButton from '@/components/RefreshButton.vue';
 import Badge from '@/components/ui/Badge.vue';
+import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import { apiRequest } from '@/api/client';
-import { listTableSnapshots, getTableSnapshot } from '@/api/system-tables';
+import {
+  listTableSnapshots,
+  getTableSnapshot,
+  createTableSnapshot,
+  exportTableSnapshot,
+  cleanupTableSnapshots,
+} from '@/api/system-tables';
+import { saveBlobAs } from '@/api/attachment-templates';
+import { usePermission } from '@/composables/usePermission';
 import { useDeletionsStore } from '@/stores/deletions';
 import { formatDateTime, formatDateRu } from '@/utils/datetime';
 
 const PER_PAGE = 20;
 
+// Периоды чистки: дефолт хранения версий - 24 месяца (context.md).
+const CLEANUP_OPTIONS = [
+  { months: 12, label: 'Старше 1 года' },
+  { months: 24, label: 'Старше 2 лет' },
+];
+
 const route = useRoute();
 const deletions = useDeletionsStore();
+const { can } = usePermission();
 
 const tableName = computed(() => route.params.tableName);
 
@@ -271,6 +356,23 @@ const listError = ref(false);
 
 const selectedId = ref(null);
 const detail = ref(null);
+
+// Действия среза 6: ручной снимок, экспорт выбранной версии, чистка старых.
+const snapshotSaving = ref(false);
+const exporting = ref(''); // '' | 'xlsx' | 'pdf' - какой формат сейчас выгружается
+const cleanupMonths = ref(24);
+const cleanupOpen = ref(false);
+const cleanupRunning = ref(false);
+
+// Кнопку чистки показываем только тем, кого пустит BE-гейт requireAdmin
+// (page.admin) - иначе "вижу кнопку, но 403" (#976). super/admin проходят.
+const canCleanup = computed(() => can('page.admin'));
+
+const cleanupMessage = computed(() => {
+  const opt = CLEANUP_OPTIONS.find((o) => o.months === cleanupMonths.value);
+  const label = opt ? opt.label.toLowerCase() : `старше ${cleanupMonths.value} мес.`;
+  return `Удалить все сохранённые версии таблицы ${label}? Действие необратимо.`;
+});
 
 // Токены последовательности от гонки устаревшего ответа (#632): быстрое
 // переключение снимков/повторный refresh пускают параллельные запросы в общий
@@ -397,6 +499,57 @@ async function selectSnapshot(id) {
     if (seq !== detailSeq) return;
     selectedId.value = null;
     deletions.notify({ prefix: 'Не удалось открыть версию', type: 'error' });
+  }
+}
+
+async function saveSnapshotNow() {
+  if (snapshotSaving.value || !tableID.value) return;
+  snapshotSaving.value = true;
+  try {
+    await createTableSnapshot(tableID.value);
+    deletions.notify({ prefix: 'Сохранена версия таблицы', bold: displayName.value, type: 'success' });
+    refresh();
+  } catch {
+    deletions.notify({ prefix: 'Не удалось сохранить версию', type: 'error' });
+  } finally {
+    snapshotSaving.value = false;
+  }
+}
+
+async function exportSnapshot(format) {
+  if (exporting.value || selectedId.value === null) return;
+  exporting.value = format;
+  try {
+    const { blob, filename } = await exportTableSnapshot(tableID.value, selectedId.value, format);
+    saveBlobAs(blob, filename);
+  } catch {
+    deletions.notify({ prefix: 'Не удалось выгрузить файл', type: 'error' });
+  } finally {
+    exporting.value = '';
+  }
+}
+
+function openCleanup() {
+  if (cleanupRunning.value) return;
+  cleanupOpen.value = true;
+}
+
+async function confirmCleanup() {
+  cleanupOpen.value = false;
+  if (cleanupRunning.value || !tableID.value) return;
+  cleanupRunning.value = true;
+  try {
+    const { deleted } = await cleanupTableSnapshots(tableID.value, cleanupMonths.value);
+    if (deleted > 0) {
+      deletions.notify({ prefix: 'Удалено старых версий:', bold: String(deleted), type: 'success' });
+      refresh();
+    } else {
+      deletions.notify({ prefix: 'Старых версий для удаления не нашлось', type: 'success' });
+    }
+  } catch {
+    deletions.notify({ prefix: 'Не удалось очистить старые версии', type: 'error' });
+  } finally {
+    cleanupRunning.value = false;
   }
 }
 
@@ -529,6 +682,25 @@ onMounted(async () => {
 
 .versions-card__spacer {
   flex: 1;
+}
+
+.versions-action {
+  height: 34px;
+  padding: 0 16px;
+  font-size: 13px;
+}
+
+.versions-cleanup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.versions-cleanup__select {
+  height: 34px;
+  padding: 0 12px;
+  font-size: 13px;
+  width: auto;
 }
 
 .versions-content {
@@ -678,6 +850,19 @@ onMounted(async () => {
   gap: 8px;
   padding-bottom: 12px;
   border-bottom: 1px solid #eee;
+}
+
+.versions-detail__headline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.versions-detail__export {
+  display: flex;
+  gap: 8px;
 }
 
 .versions-detail__title {

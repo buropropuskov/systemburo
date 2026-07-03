@@ -10,10 +10,23 @@ import { createPinia, setActivePinia } from 'pinia';
 vi.mock('@/api/system-tables', () => ({
   listTableSnapshots: vi.fn(),
   getTableSnapshot: vi.fn(),
+  createTableSnapshot: vi.fn(),
+  exportTableSnapshot: vi.fn(),
+  cleanupTableSnapshots: vi.fn(),
 }));
 
 vi.mock('@/api/client', () => ({
   apiRequest: vi.fn(),
+}));
+
+const saveBlobAs = vi.fn();
+vi.mock('@/api/attachment-templates', () => ({
+  saveBlobAs: (...a) => saveBlobAs(...a),
+}));
+
+const { permState } = vi.hoisted(() => ({ permState: { can: () => true } }));
+vi.mock('@/composables/usePermission', () => ({
+  usePermission: () => ({ can: (k) => permState.can(k) }),
 }));
 
 const notify = vi.fn();
@@ -29,12 +42,27 @@ vi.mock('vue-router', () => ({
 }));
 
 import TableVersionsView from '@/views/TableVersionsView.vue';
-import { listTableSnapshots, getTableSnapshot } from '@/api/system-tables';
+import {
+  listTableSnapshots,
+  getTableSnapshot,
+  createTableSnapshot,
+  exportTableSnapshot,
+  cleanupTableSnapshots,
+} from '@/api/system-tables';
 import { apiRequest } from '@/api/client';
 
 const stubs = {
   RouterLink: { props: ['to'], template: '<a><slot /></a>' },
   RefreshButton: { template: '<button class="refresh-stub" @click="$emit(\'refresh\')" />' },
+  // Инлайн-стаб вместо Teleport-модалки: рендерит confirm/cancel в дереве wrapper,
+  // чтобы find() их видел (реальная модалка телепортируется в body).
+  ConfirmationModal: {
+    props: ['show', 'title', 'message', 'confirmText', 'cancelText'],
+    template: `<div v-if="show" data-testid="tv-confirm" :data-message="message">
+      <button data-testid="confirmation-confirm" @click="$emit('confirm')" />
+      <button data-testid="confirmation-cancel" @click="$emit('cancel')" />
+    </div>`,
+  },
 };
 
 function mockTable(over = {}) {
@@ -75,8 +103,12 @@ beforeEach(() => {
   setActivePinia(createPinia());
   vi.clearAllMocks();
   routeState.params = { tableName: 'kpp-1' };
+  permState.can = () => true;
   mockTable();
   getTableSnapshot.mockResolvedValue(carsSnapshot(1, []));
+  createTableSnapshot.mockResolvedValue({ id: 99, message: 'ok' });
+  exportTableSnapshot.mockResolvedValue({ blob: new Blob(['x']), filename: 'КПП-1.xlsx' });
+  cleanupTableSnapshots.mockResolvedValue({ deleted: 0, message: 'ok' });
 });
 
 afterEach(() => {
@@ -236,5 +268,140 @@ describe('TableVersionsView (#980 срез 5)', () => {
 
     expect(listTableSnapshots).toHaveBeenLastCalledWith(5, expect.objectContaining({ page: 2 }));
     expect(wrapper.findAll('[data-testid="tv-card"]')).toHaveLength(3);
+  });
+});
+
+describe('TableVersionsView действия (#980 срез 6)', () => {
+  it('"Сохранить сейчас" делает ручной снимок, уведомляет и перезагружает список', async () => {
+    listTableSnapshots.mockResolvedValue({ items: [snapItem(1)], total: 1 });
+    wrapper = mountView();
+    await flushPromises();
+    listTableSnapshots.mockClear();
+
+    await wrapper.find('[data-testid="tv-snapshot-now"]').trigger('click');
+    await flushPromises();
+
+    expect(createTableSnapshot).toHaveBeenCalledWith(5);
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ prefix: 'Сохранена версия таблицы', bold: 'КПП-1', type: 'success' }));
+    // refresh() перезагрузил список.
+    expect(listTableSnapshots).toHaveBeenCalled();
+  });
+
+  it('уведомляет об ошибке ручного снимка', async () => {
+    listTableSnapshots.mockResolvedValue({ items: [snapItem(1)], total: 1 });
+    createTableSnapshot.mockRejectedValue(new Error('boom'));
+    wrapper = mountView();
+    await flushPromises();
+
+    await wrapper.find('[data-testid="tv-snapshot-now"]').trigger('click');
+    await flushPromises();
+
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ prefix: 'Не удалось сохранить версию', type: 'error' }));
+  });
+
+  it('"Экспорт Excel"/"Экспорт PDF" выгружают выбранную версию и сохраняют файл', async () => {
+    listTableSnapshots.mockResolvedValue({ items: [snapItem(7)], total: 1 });
+    getTableSnapshot.mockResolvedValue(carsSnapshot(7, []));
+    wrapper = mountView();
+    await flushPromises(); // автовыбор снимка 7
+
+    await wrapper.find('[data-testid="tv-export-xlsx"]').trigger('click');
+    await flushPromises();
+    expect(exportTableSnapshot).toHaveBeenCalledWith(5, 7, 'xlsx');
+    expect(saveBlobAs).toHaveBeenCalledWith(expect.any(Blob), 'КПП-1.xlsx');
+
+    await wrapper.find('[data-testid="tv-export-pdf"]').trigger('click');
+    await flushPromises();
+    expect(exportTableSnapshot).toHaveBeenLastCalledWith(5, 7, 'pdf');
+  });
+
+  it('уведомляет об ошибке экспорта, файл не сохраняет', async () => {
+    listTableSnapshots.mockResolvedValue({ items: [snapItem(7)], total: 1 });
+    getTableSnapshot.mockResolvedValue(carsSnapshot(7, []));
+    exportTableSnapshot.mockRejectedValue(new Error('boom'));
+    wrapper = mountView();
+    await flushPromises();
+
+    await wrapper.find('[data-testid="tv-export-xlsx"]').trigger('click');
+    await flushPromises();
+
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ prefix: 'Не удалось выгрузить файл', type: 'error' }));
+    expect(saveBlobAs).not.toHaveBeenCalled();
+  });
+
+  it('чистка: подтверждение удаляет версии старше выбранного периода и уведомляет', async () => {
+    listTableSnapshots.mockResolvedValue({ items: [snapItem(1)], total: 1 });
+    cleanupTableSnapshots.mockResolvedValue({ deleted: 3, message: 'ok' });
+    wrapper = mountView();
+    await flushPromises();
+
+    // Модалка появляется только по клику (не висит открытой).
+    expect(wrapper.find('[data-testid="tv-confirm"]').exists()).toBe(false);
+    await wrapper.find('[data-testid="tv-cleanup"]').trigger('click');
+    expect(wrapper.find('[data-testid="tv-confirm"]').attributes('data-message')).toContain('старше 2 лет');
+
+    await wrapper.find('[data-testid="confirmation-confirm"]').trigger('click');
+    await flushPromises();
+
+    // Дефолт периода - 24 месяца (retention).
+    expect(cleanupTableSnapshots).toHaveBeenCalledWith(5, 24);
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ prefix: 'Удалено старых версий:', bold: '3', type: 'success' }));
+    expect(wrapper.find('[data-testid="tv-confirm"]').exists()).toBe(false);
+  });
+
+  it('чистка учитывает выбранный период 1 год (12 мес.)', async () => {
+    listTableSnapshots.mockResolvedValue({ items: [snapItem(1)], total: 1 });
+    wrapper = mountView();
+    await flushPromises();
+
+    await wrapper.find('[data-testid="tv-cleanup-period"]').setValue('12');
+    await wrapper.find('[data-testid="tv-cleanup"]').trigger('click');
+    await wrapper.find('[data-testid="confirmation-confirm"]').trigger('click');
+    await flushPromises();
+
+    expect(cleanupTableSnapshots).toHaveBeenCalledWith(5, 12);
+  });
+
+  it('чистка без старых версий (deleted=0) - отдельное уведомление, без перезагрузки', async () => {
+    listTableSnapshots.mockResolvedValue({ items: [snapItem(1)], total: 1 });
+    cleanupTableSnapshots.mockResolvedValue({ deleted: 0, message: 'ok' });
+    wrapper = mountView();
+    await flushPromises();
+    listTableSnapshots.mockClear();
+
+    await wrapper.find('[data-testid="tv-cleanup"]').trigger('click');
+    await wrapper.find('[data-testid="confirmation-confirm"]').trigger('click');
+    await flushPromises();
+
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ prefix: 'Старых версий для удаления не нашлось' }));
+    expect(listTableSnapshots).not.toHaveBeenCalled();
+  });
+
+  it('блокирует действия, пока таблица не загружена (нет тихого no-op)', async () => {
+    let resolveTable;
+    apiRequest.mockReturnValue(new Promise((r) => { resolveTable = r; }));
+    listTableSnapshots.mockResolvedValue({ items: [], total: 0 });
+    wrapper = mountView();
+    await flushPromises(); // fetchTable ещё висит - tableID=0
+
+    expect(wrapper.find('[data-testid="tv-snapshot-now"]').attributes('disabled')).toBeDefined();
+    expect(wrapper.find('[data-testid="tv-cleanup"]').attributes('disabled')).toBeDefined();
+
+    resolveTable({ json: () => Promise.resolve({ table: { id: 5, table_type: 'cars', display_name: 'КПП-1' } }) });
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="tv-snapshot-now"]').attributes('disabled')).toBeUndefined();
+  });
+
+  it('кнопка чистки скрыта без права page.admin (гейт под BE requireAdmin, #976)', async () => {
+    permState.can = (k) => k !== 'page.admin';
+    listTableSnapshots.mockResolvedValue({ items: [snapItem(1)], total: 1 });
+    wrapper = mountView();
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="tv-cleanup"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="tv-cleanup-period"]').exists()).toBe(false);
+    // Ручной снимок и экспорт доступны всем, кто видит вкладку версий.
+    expect(wrapper.find('[data-testid="tv-snapshot-now"]').exists()).toBe(true);
   });
 });
