@@ -1,4 +1,5 @@
 import { apiRequest, apiRequestRaw } from './client';
+import { parseContentDispositionFilename } from '@/utils/download';
 
 export async function getSystemTables() {
   const res = await apiRequest('/system-tables');
@@ -127,11 +128,7 @@ export async function exportTableSnapshot(tableId, snapshotId, format = 'xlsx') 
   if (!res.ok) throw new Error(`Failed to export snapshot: ${res.status}`);
   const blob = await res.blob();
   const cd = res.headers.get('Content-Disposition') || '';
-  const utf8Match = cd.match(/filename\*=UTF-8''(.+)/i);
-  const basicMatch = cd.match(/filename="?([^";]+)"?/);
-  const filename = utf8Match
-    ? decodeURIComponent(utf8Match[1])
-    : basicMatch ? basicMatch[1] : `snapshot.${format === 'pdf' ? 'pdf' : 'xlsx'}`;
+  const filename = parseContentDispositionFilename(cd, `snapshot.${format === 'pdf' ? 'pdf' : 'xlsx'}`);
   return { blob, filename };
 }
 

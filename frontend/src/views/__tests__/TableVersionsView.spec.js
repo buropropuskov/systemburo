@@ -377,6 +377,22 @@ describe('TableVersionsView действия (#980 срез 6)', () => {
     expect(listTableSnapshots).not.toHaveBeenCalled();
   });
 
+  it('блокирует действия, пока таблица не загружена (нет тихого no-op)', async () => {
+    let resolveTable;
+    apiRequest.mockReturnValue(new Promise((r) => { resolveTable = r; }));
+    listTableSnapshots.mockResolvedValue({ items: [], total: 0 });
+    wrapper = mountView();
+    await flushPromises(); // fetchTable ещё висит - tableID=0
+
+    expect(wrapper.find('[data-testid="tv-snapshot-now"]').attributes('disabled')).toBeDefined();
+    expect(wrapper.find('[data-testid="tv-cleanup"]').attributes('disabled')).toBeDefined();
+
+    resolveTable({ json: () => Promise.resolve({ table: { id: 5, table_type: 'cars', display_name: 'КПП-1' } }) });
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="tv-snapshot-now"]').attributes('disabled')).toBeUndefined();
+  });
+
   it('кнопка чистки скрыта без права page.admin (гейт под BE requireAdmin, #976)', async () => {
     permState.can = (k) => k !== 'page.admin';
     listTableSnapshots.mockResolvedValue({ items: [snapItem(1)], total: 1 });

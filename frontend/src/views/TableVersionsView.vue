@@ -46,7 +46,7 @@
         <button
           type="button"
           class="lk-button lk-button--primary versions-action"
-          :disabled="!!error || snapshotSaving"
+          :disabled="!tableID || !!error || snapshotSaving"
           data-testid="tv-snapshot-now"
           @click="saveSnapshotNow"
         >
@@ -73,7 +73,7 @@
           <button
             type="button"
             class="lk-button lk-button--danger versions-action"
-            :disabled="!!error || cleanupRunning"
+            :disabled="!tableID || !!error || cleanupRunning"
             data-testid="tv-cleanup"
             @click="openCleanup"
           >

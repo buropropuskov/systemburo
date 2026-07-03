@@ -1,4 +1,5 @@
 import { apiRequest } from './client';
+import { parseContentDispositionFilename } from '@/utils/download';
 
 /**
  * API клиент Excel-бланков и кастомных полей вложений (#183).
@@ -169,13 +170,8 @@ export async function downloadBlank(applicationID, attachmentID) {
     throw new Error(`Failed to download blank: ${res.status}`);
   }
   const blob = await res.blob();
-  // Извлекаем имя файла из Content-Disposition.
   const cd = res.headers.get('Content-Disposition') || '';
-  const utf8Match = cd.match(/filename\*=UTF-8''(.+)/i);
-  const basicMatch = cd.match(/filename="?([^";]+)"?/);
-  const filename = utf8Match
-    ? decodeURIComponent(utf8Match[1])
-    : basicMatch ? basicMatch[1] : `blank_${applicationID}_${attachmentID}.xlsx`;
+  const filename = parseContentDispositionFilename(cd, `blank_${applicationID}_${attachmentID}.xlsx`);
   return { blob, filename };
 }
 
