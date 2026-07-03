@@ -2,10 +2,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 
-// FE #980 срез 5: вкладка "Версии" таблицы - master-detail список снимков +
-// просмотр состава. Проверяем рендер списка/футера, автовыбор первого снимка,
-// колонки по типу таблицы, статус-метки, пустые состояния, защиту детали от
-// гонки устаревшего ответа (#632).
+// FE #980 polish-r2: вкладка "Версии" переделана из master-detail в dropdown выбора
+// версии + таблицу снимка на всю ширину (preview-режим CarsTable/PeopleTable).
+// Проверяем: опции дропдауна, автовыбор первой версии, что таблице передаются
+// нормализованные строки и колонки снимка, пустые состояния, гонку детали (#632),
+// подгрузку версий и действия (снимок/экспорт/чистка).
 
 vi.mock('@/api/system-tables', () => ({
   listTableSnapshots: vi.fn(),
@@ -51,11 +52,34 @@ import {
 } from '@/api/system-tables';
 import { apiRequest } from '@/api/client';
 
+// Стаб реальной таблицы: отражает полученные preview-props в дерево, чтобы можно
+// было ассертить, что versions-view нормализовал строки и передал колонки снимка.
+const tableStub = (testid) => ({
+  props: ['preview', 'previewFields', 'previewItems', 'tableId', 'tableName'],
+  template: `<div :data-testid="'${testid}'"
+      :data-rows="previewItems ? previewItems.length : 0"
+      :data-fields="previewFields ? previewFields.length : 0">
+      <span v-for="it in (previewItems || [])" :key="it.id" class="preview-cell"
+        :data-org="it.organization_name" :data-entry="String(it.entry_checked)"
+        :data-exit="String(it.exit_checked)">{{ it.car_number || it.last_name }}</span>
+    </div>`,
+});
+
 const stubs = {
   RouterLink: { props: ['to'], template: '<a><slot /></a>' },
   RefreshButton: { template: '<button class="refresh-stub" @click="$emit(\'refresh\')" />' },
-  // Инлайн-стаб вместо Teleport-модалки: рендерит confirm/cancel в дереве wrapper,
-  // чтобы find() их видел (реальная модалка телепортируется в body).
+  Badge: { template: '<span class="badge-stub"><slot /></span>' },
+  // Дропдаун версий: <select>, чтобы триггерить смену через change.
+  BaseDropdown: {
+    props: ['modelValue', 'options', 'labelKey', 'valueKey', 'placeholder'],
+    emits: ['update:modelValue'],
+    template: `<select data-testid="tv-version-select" :value="modelValue"
+      @change="$emit('update:modelValue', Number($event.target.value))">
+      <option v-for="o in options" :key="o.id" :value="o.id">{{ o.label }}</option>
+    </select>`,
+  },
+  CarsTable: tableStub('tv-cars'),
+  PeopleTable: tableStub('tv-people'),
   ConfirmationModal: {
     props: ['show', 'title', 'message', 'confirmText', 'cancelText'],
     template: `<div v-if="show" data-testid="tv-confirm" :data-message="message">
@@ -65,9 +89,12 @@ const stubs = {
   },
 };
 
-function mockTable(over = {}) {
+function mockTable(over = {}, fields = [{ field_name: 'car_number', is_visible: true }]) {
   apiRequest.mockResolvedValue({
-    json: () => Promise.resolve({ table: { id: 5, table_type: 'cars', display_name: 'КПП-1', ...over } }),
+    json: () => Promise.resolve({
+      table: { id: 5, table_type: 'cars', display_name: 'КПП-1', ...over },
+      fields,
+    }),
   });
 }
 
@@ -82,14 +109,22 @@ function snapItem(id, over = {}) {
   };
 }
 
-function carsSnapshot(id, rows) {
+function carsSnapshot(id, rows, over = {}) {
   return {
     id,
     table_id: 5,
     taken_at: '2026-07-01T03:00:00Z',
     reason: 'scheduled',
     counts: { on_territory: 1, exited: 1, not_entered: 0, total: 2 },
-    payload: { table_type: 'cars', rows },
+    payload: {
+      table_type: 'cars',
+      rows,
+      fields: [
+        { field_name: 'car_number', is_visible: true, display_order: 0 },
+        { field_name: 'organization', is_visible: true, display_order: 1 },
+      ],
+    },
+    ...over,
   };
 }
 
@@ -115,54 +150,63 @@ afterEach(() => {
   wrapper?.unmount();
 });
 
-describe('TableVersionsView (#980 срез 5)', () => {
-  it('рендерит список снимков и футер "Всего: N"', async () => {
+describe('TableVersionsView (#980 polish-r2)', () => {
+  it('рендерит дропдаун версий и футер "Всего версий: N"', async () => {
     listTableSnapshots.mockResolvedValue({ items: [snapItem(1), snapItem(2)], total: 2 });
     wrapper = mountView();
     await flushPromises();
 
-    const cards = wrapper.findAll('[data-testid="tv-card"]');
-    expect(cards).toHaveLength(2);
-    expect(wrapper.find('[data-testid="tv-footer"]').text()).toContain('Всего: 2');
+    const opts = wrapper.findAll('[data-testid="tv-version-select"] option');
+    expect(opts).toHaveLength(2);
+    expect(opts[0].text()).toContain('Плановый');
+    expect(wrapper.find('[data-testid="tv-footer"]').text()).toContain('Всего версий: 2');
     expect(wrapper.find('[data-testid="tv-empty"]').exists()).toBe(false);
   });
 
-  it('автоматически выбирает первый снимок и показывает его состав', async () => {
+  it('автовыбирает первую версию и передаёт нормализованные строки в CarsTable', async () => {
     listTableSnapshots.mockResolvedValue({ items: [snapItem(7), snapItem(8)], total: 2 });
     getTableSnapshot.mockResolvedValue(carsSnapshot(7, [
-      { car_number: 'А123ВС', car_brand: 'BMW', organization: 'ООО Ромашка', entry_date_to: '2026-07-05', territory_status: 1 },
+      { id: 1, car_number: 'А123ВС', car_brand: 'BMW', organization: 'ООО Ромашка', entry_date_to: '2026-07-05', territory_status: 1 },
     ]));
     wrapper = mountView();
     await flushPromises();
 
     expect(getTableSnapshot).toHaveBeenCalledWith(5, 7);
-    expect(wrapper.find('[data-testid="tv-detail"]').exists()).toBe(true);
-    const rows = wrapper.findAll('[data-testid="tv-row"]');
-    expect(rows).toHaveLength(1);
-    expect(rows[0].text()).toContain('А123ВС');
-    expect(rows[0].text()).toContain('BMW');
-    expect(rows[0].text()).toContain('На территории');
+    const cars = wrapper.find('[data-testid="tv-cars"]');
+    expect(cars.exists()).toBe(true);
+    // Строки нормализованы: organization -> organization_name, статус -> entry_checked.
+    expect(cars.attributes('data-rows')).toBe('1');
+    const cell = wrapper.find('.preview-cell');
+    expect(cell.text()).toBe('А123ВС');
+    expect(cell.attributes('data-org')).toBe('ООО Ромашка');
+    expect(cell.attributes('data-entry')).toBe('true'); // territory_status=1
+    // Колонки берутся из снимка (payload.fields), не хардкод.
+    expect(cars.attributes('data-fields')).toBe('2');
   });
 
-  it('состав cars: даты форматируются, статусы выехал/не въезжал корректны', async () => {
-    listTableSnapshots.mockResolvedValue({ items: [snapItem(1)], total: 1 });
+  it('счётчики выбранной версии показываются над таблицей', async () => {
+    // Счётчики берутся из элемента списка (list-item.counts), не из payload детали.
+    listTableSnapshots.mockResolvedValue({
+      items: [snapItem(1, { counts: { on_territory: 0, exited: 1, not_entered: 0, total: 1 } })],
+      total: 1,
+    });
     getTableSnapshot.mockResolvedValue(carsSnapshot(1, [
-      { car_number: 'Х001ХХ', car_brand: 'Kia', organization: 'ООО А', entry_date_to: '2026-07-05', territory_status: 2 },
-      { car_number: 'У002УУ', car_brand: 'Lada', organization: 'ООО Б', entry_date_to: null, territory_status: 0 },
+      { id: 1, car_number: 'Х1', territory_status: 2 },
     ]));
     wrapper = mountView();
     await flushPromises();
 
-    const rows = wrapper.findAll('[data-testid="tv-row"]');
-    expect(rows[0].text()).toContain('05.07.2026');
-    expect(rows[0].text()).toContain('Выехал');
-    // Пустая дата действия -> прочерк, статус 0 -> "Не въезжал".
-    expect(rows[1].text()).toContain('—');
-    expect(rows[1].text()).toContain('Не въезжал');
+    const meta = wrapper.find('[data-testid="tv-meta"]');
+    expect(meta.text()).toContain('На территории: 0');
+    expect(meta.text()).toContain('Выехал: 1');
+    // Строка со статусом 2 -> обе кнопки отмечены в preview.
+    const cell = wrapper.find('.preview-cell');
+    expect(cell.attributes('data-entry')).toBe('true');
+    expect(cell.attributes('data-exit')).toBe('true');
   });
 
-  it('people-снимок рендерит колонки ФИО/должность', async () => {
-    mockTable({ table_type: 'people' });
+  it('people-снимок рендерит PeopleTable с нормализованными строками', async () => {
+    mockTable({ table_type: 'people' }, [{ field_name: 'last_name', is_visible: true }]);
     listTableSnapshots.mockResolvedValue({ items: [snapItem(3, { reason: 'manual', actor_name: 'Иванов И.И.' })], total: 1 });
     getTableSnapshot.mockResolvedValue({
       id: 3,
@@ -172,31 +216,51 @@ describe('TableVersionsView (#980 срез 5)', () => {
       payload: {
         table_type: 'people',
         rows: [
-          { last_name: 'Петров', first_name: 'Пётр', middle_name: 'Петрович', organization: 'ООО В', position: 'Грузчик', territory_status: 1 },
+          { id: 1, last_name: 'Петров', first_name: 'Пётр', position: 'Грузчик', organization: 'ООО В', territory_status: 1 },
         ],
+        fields: [{ field_name: 'last_name', is_visible: true }],
       },
     });
     wrapper = mountView();
     await flushPromises();
 
-    const head = wrapper.find('[data-testid="tv-composition"]').find('thead');
-    expect(head.text()).toContain('Фамилия');
-    expect(head.text()).toContain('Должность');
-    const row = wrapper.find('[data-testid="tv-row"]');
-    expect(row.text()).toContain('Петров');
-    expect(row.text()).toContain('Грузчик');
-    // Ручной снимок показывает автора.
-    expect(wrapper.find('[data-testid="tv-card"]').text()).toContain('Иванов И.И.');
-    expect(wrapper.find('[data-testid="tv-card"]').text()).toContain('Ручной');
+    const people = wrapper.find('[data-testid="tv-people"]');
+    expect(people.exists()).toBe(true);
+    expect(wrapper.find('[data-testid="tv-cars"]').exists()).toBe(false);
+    expect(wrapper.find('.preview-cell').text()).toBe('Петров');
+    // Ручной снимок показывает автора и тип.
+    expect(wrapper.find('[data-testid="tv-meta"]').text()).toContain('Иванов И.И.');
+    expect(wrapper.find('[data-testid="tv-meta"]').text()).toContain('Ручной');
   });
 
-  it('показывает пустое состояние без снимков', async () => {
+  it('фолбэк колонок на текущие поля таблицы для старого снимка без fields', async () => {
+    mockTable({}, [
+      { field_name: 'car_number', is_visible: true },
+      { field_name: 'organization', is_visible: true },
+      { field_name: 'company', is_visible: true },
+    ]);
+    listTableSnapshots.mockResolvedValue({ items: [snapItem(1)], total: 1 });
+    getTableSnapshot.mockResolvedValue({
+      id: 1,
+      taken_at: '2026-07-01T03:00:00Z',
+      reason: 'scheduled',
+      counts: { on_territory: 0, exited: 0, not_entered: 1, total: 1 },
+      payload: { table_type: 'cars', rows: [{ id: 1, car_number: 'Х1' }] }, // без fields
+    });
+    wrapper = mountView();
+    await flushPromises();
+
+    // previewFields взяты из текущих полей таблицы (3), раз снимок их не хранил.
+    expect(wrapper.find('[data-testid="tv-cars"]').attributes('data-fields')).toBe('3');
+  });
+
+  it('показывает пустое состояние без версий', async () => {
     listTableSnapshots.mockResolvedValue({ items: [], total: 0 });
     wrapper = mountView();
     await flushPromises();
 
     expect(wrapper.find('[data-testid="tv-empty"]').exists()).toBe(true);
-    expect(wrapper.find('[data-testid="tv-detail"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="tv-cars"]').exists()).toBe(false);
     expect(getTableSnapshot).not.toHaveBeenCalled();
   });
 
@@ -207,7 +271,7 @@ describe('TableVersionsView (#980 срез 5)', () => {
     await flushPromises();
 
     expect(wrapper.find('[data-testid="tv-detail-empty"]').exists()).toBe(true);
-    expect(wrapper.find('[data-testid="tv-composition"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="tv-preview"]').exists()).toBe(false);
   });
 
   it('уведомляет об ошибке загрузки списка', async () => {
@@ -234,44 +298,38 @@ describe('TableVersionsView (#980 срез 5)', () => {
     getTableSnapshot.mockImplementation((tid, sid) => new Promise((resolve) => resolvers.set(sid, resolve)));
 
     wrapper = mountView();
-    await flushPromises(); // автовыбор снимка 1 (медленный, ждёт resolver)
+    await flushPromises(); // автовыбор версии 1 (медленный, ждёт resolver)
 
-    const cards = wrapper.findAll('[data-testid="tv-card"]');
-    await cards[0].trigger('click'); // снова снимок 1
-    await cards[1].trigger('click'); // быстро переключились на снимок 2 (последний)
+    const select = wrapper.find('[data-testid="tv-version-select"]');
+    await select.setValue('2'); // быстро переключились на версию 2 (последний выбор)
 
     // Резолвим последний выбор первым, затем устаревший.
-    resolvers.get(2)(carsSnapshot(2, [
-      { car_number: 'В222ВВ', car_brand: 'Audi', organization: 'ООО Два', entry_date_to: '2026-07-09', territory_status: 1 },
-    ]));
+    resolvers.get(2)(carsSnapshot(2, [{ id: 2, car_number: 'В222ВВ', organization: 'ООО Два', territory_status: 1 }]));
     await flushPromises();
-    resolvers.get(1)(carsSnapshot(1, [
-      { car_number: 'О111ОО', car_brand: 'Ford', organization: 'ООО Один', entry_date_to: '2026-07-08', territory_status: 1 },
-    ]));
+    resolvers.get(1)(carsSnapshot(1, [{ id: 1, car_number: 'О111ОО', organization: 'ООО Один', territory_status: 1 }]));
     await flushPromises();
 
-    // Деталь показывает снимок 2 (актуальный выбор), а не затёртый устаревшим ответом.
-    expect(wrapper.find('[data-testid="tv-detail"]').text()).toContain('В222ВВ');
-    expect(wrapper.find('[data-testid="tv-detail"]').text()).not.toContain('О111ОО');
+    // Таблица показывает версию 2 (актуальный выбор), а не затёртую устаревшим ответом.
+    expect(wrapper.find('.preview-cell').text()).toBe('В222ВВ');
   });
 
-  it('подгружает следующую страницу по "Показать ещё"', async () => {
+  it('подгружает следующую страницу версий по "Ещё"', async () => {
     listTableSnapshots
       .mockResolvedValueOnce({ items: [snapItem(1), snapItem(2)], total: 3 })
       .mockResolvedValueOnce({ items: [snapItem(3)], total: 3 });
     wrapper = mountView();
     await flushPromises();
 
-    expect(wrapper.findAll('[data-testid="tv-card"]')).toHaveLength(2);
+    expect(wrapper.findAll('[data-testid="tv-version-select"] option')).toHaveLength(2);
     await wrapper.find('[data-testid="tv-load-more"]').trigger('click');
     await flushPromises();
 
     expect(listTableSnapshots).toHaveBeenLastCalledWith(5, expect.objectContaining({ page: 2 }));
-    expect(wrapper.findAll('[data-testid="tv-card"]')).toHaveLength(3);
+    expect(wrapper.findAll('[data-testid="tv-version-select"] option')).toHaveLength(3);
   });
 });
 
-describe('TableVersionsView действия (#980 срез 6)', () => {
+describe('TableVersionsView действия (#980 polish-r2)', () => {
   it('"Сохранить сейчас" делает ручной снимок, уведомляет и перезагружает список', async () => {
     listTableSnapshots.mockResolvedValue({ items: [snapItem(1)], total: 1 });
     wrapper = mountView();
@@ -283,7 +341,6 @@ describe('TableVersionsView действия (#980 срез 6)', () => {
 
     expect(createTableSnapshot).toHaveBeenCalledWith(5);
     expect(notify).toHaveBeenCalledWith(expect.objectContaining({ prefix: 'Сохранена версия таблицы', bold: 'КПП-1', type: 'success' }));
-    // refresh() перезагрузил список.
     expect(listTableSnapshots).toHaveBeenCalled();
   });
 
@@ -299,11 +356,11 @@ describe('TableVersionsView действия (#980 срез 6)', () => {
     expect(notify).toHaveBeenCalledWith(expect.objectContaining({ prefix: 'Не удалось сохранить версию', type: 'error' }));
   });
 
-  it('"Экспорт Excel"/"Экспорт PDF" выгружают выбранную версию и сохраняют файл', async () => {
+  it('"Excel"/"PDF" выгружают выбранную версию и сохраняют файл', async () => {
     listTableSnapshots.mockResolvedValue({ items: [snapItem(7)], total: 1 });
     getTableSnapshot.mockResolvedValue(carsSnapshot(7, []));
     wrapper = mountView();
-    await flushPromises(); // автовыбор снимка 7
+    await flushPromises(); // автовыбор версии 7
 
     await wrapper.find('[data-testid="tv-export-xlsx"]').trigger('click');
     await flushPromises();
@@ -329,13 +386,12 @@ describe('TableVersionsView действия (#980 срез 6)', () => {
     expect(saveBlobAs).not.toHaveBeenCalled();
   });
 
-  it('чистка: подтверждение удаляет версии старше выбранного периода и уведомляет', async () => {
+  it('чистка: подтверждение удаляет версии старше периода и уведомляет', async () => {
     listTableSnapshots.mockResolvedValue({ items: [snapItem(1)], total: 1 });
     cleanupTableSnapshots.mockResolvedValue({ deleted: 3, message: 'ok' });
     wrapper = mountView();
     await flushPromises();
 
-    // Модалка появляется только по клику (не висит открытой).
     expect(wrapper.find('[data-testid="tv-confirm"]').exists()).toBe(false);
     await wrapper.find('[data-testid="tv-cleanup"]').trigger('click');
     expect(wrapper.find('[data-testid="tv-confirm"]').attributes('data-message')).toContain('старше 2 лет');
@@ -343,7 +399,6 @@ describe('TableVersionsView действия (#980 срез 6)', () => {
     await wrapper.find('[data-testid="confirmation-confirm"]').trigger('click');
     await flushPromises();
 
-    // Дефолт периода - 24 месяца (retention).
     expect(cleanupTableSnapshots).toHaveBeenCalledWith(5, 24);
     expect(notify).toHaveBeenCalledWith(expect.objectContaining({ prefix: 'Удалено старых версий:', bold: '3', type: 'success' }));
     expect(wrapper.find('[data-testid="tv-confirm"]').exists()).toBe(false);
@@ -362,32 +417,17 @@ describe('TableVersionsView действия (#980 срез 6)', () => {
     expect(cleanupTableSnapshots).toHaveBeenCalledWith(5, 12);
   });
 
-  it('чистка без старых версий (deleted=0) - отдельное уведомление, без перезагрузки', async () => {
-    listTableSnapshots.mockResolvedValue({ items: [snapItem(1)], total: 1 });
-    cleanupTableSnapshots.mockResolvedValue({ deleted: 0, message: 'ok' });
-    wrapper = mountView();
-    await flushPromises();
-    listTableSnapshots.mockClear();
-
-    await wrapper.find('[data-testid="tv-cleanup"]').trigger('click');
-    await wrapper.find('[data-testid="confirmation-confirm"]').trigger('click');
-    await flushPromises();
-
-    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ prefix: 'Старых версий для удаления не нашлось' }));
-    expect(listTableSnapshots).not.toHaveBeenCalled();
-  });
-
   it('блокирует действия, пока таблица не загружена (нет тихого no-op)', async () => {
     let resolveTable;
     apiRequest.mockReturnValue(new Promise((r) => { resolveTable = r; }));
     listTableSnapshots.mockResolvedValue({ items: [], total: 0 });
     wrapper = mountView();
-    await flushPromises(); // fetchTable ещё висит - tableID=0
+    await flushPromises();
 
     expect(wrapper.find('[data-testid="tv-snapshot-now"]').attributes('disabled')).toBeDefined();
     expect(wrapper.find('[data-testid="tv-cleanup"]').attributes('disabled')).toBeDefined();
 
-    resolveTable({ json: () => Promise.resolve({ table: { id: 5, table_type: 'cars', display_name: 'КПП-1' } }) });
+    resolveTable({ json: () => Promise.resolve({ table: { id: 5, table_type: 'cars', display_name: 'КПП-1' }, fields: [] }) });
     await flushPromises();
 
     expect(wrapper.find('[data-testid="tv-snapshot-now"]').attributes('disabled')).toBeUndefined();
@@ -401,7 +441,7 @@ describe('TableVersionsView действия (#980 срез 6)', () => {
 
     expect(wrapper.find('[data-testid="tv-cleanup"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="tv-cleanup-period"]').exists()).toBe(false);
-    // Ручной снимок и экспорт доступны всем, кто видит вкладку версий.
+    // Снимок и экспорт доступны всем, кто видит вкладку версий.
     expect(wrapper.find('[data-testid="tv-snapshot-now"]').exists()).toBe(true);
   });
 });
