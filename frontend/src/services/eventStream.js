@@ -4,6 +4,10 @@
  * переподключается с backoff, а после нескольких неудач сообщает статус 'fallback'
  * (потребитель возвращается к обычному поллингу). По сигналу от сервера дёргает
  * подписчиков нужного scope - те делают обычный запрос (event-then-fetch).
+ *
+ * Статусы: 'connected' | 'reconnecting' | 'fallback' | 'disconnected'. Потребитель
+ * гасит поллинг только на 'connected'; на 'reconnecting'/'fallback' поллинг снова
+ * подстраховывает, чтобы обрыв не задерживал обновления.
  */
 import { apiRequest, API_BASE_URL } from '@/api/client'
 
@@ -15,7 +19,9 @@ let source = null
 let refCount = 0
 let attempts = 0
 let reconnectTimer = null
-let closedByUs = false
+// generation инвалидирует in-flight openStream при disconnect/новом подключении:
+// сверяем локальный myGen с глобальным после await билета.
+let generation = 0
 let status = 'disconnected'
 
 const scopeHandlers = new Map() // scope -> Set<fn>
@@ -42,16 +48,22 @@ function handleMessage(event) {
   if (data && data.scope) emitScope(data.scope, data)
 }
 
-async function openStream() {
-  closedByUs = false
-  let ticket
+async function fetchTicket() {
   try {
     const res = await apiRequest('/events/ticket', { method: 'POST' })
-    ticket = res && res.ticket
+    if (!res.ok) return null
+    const data = await res.json()
+    return (data && data.ticket) || null
   } catch {
-    // билет не выдали (нет сети / 401) - ниже уйдём в reconnect
+    return null // нет сети / refresh не удался - уйдём в reconnect
   }
-  if (closedByUs || refCount <= 0) return // disconnect пришёл, пока брали билет
+}
+
+async function openStream() {
+  const myGen = ++generation
+  const ticket = await fetchTicket()
+  // Пока брали билет, могли отключиться (disconnect) или переоткрыться (новый gen).
+  if (myGen !== generation || refCount <= 0) return
   if (!ticket) {
     scheduleReconnect()
     return
@@ -63,7 +75,7 @@ async function openStream() {
     setStatus('connected')
   }
   source.onmessage = handleMessage
-  // Сервер закрывает поток по максимальному времени жизни - переоткрываем с новым билетом.
+  // Сервер закрывает поток по максимальному времени жизни - переоткрываем новым билетом.
   source.addEventListener('reconnect', () => restart())
   source.onerror = () => {
     if (source) {
@@ -75,9 +87,11 @@ async function openStream() {
 }
 
 function scheduleReconnect() {
-  if (closedByUs || refCount <= 0) return
+  if (refCount <= 0) return
   attempts += 1
-  if (attempts >= FALLBACK_AFTER_FAILURES) setStatus('fallback')
+  // Снимаем 'connected' сразу при обрыве, чтобы потребитель включил поллинг-подстраховку,
+  // не дожидаясь окончательного fallback.
+  setStatus(attempts >= FALLBACK_AFTER_FAILURES ? 'fallback' : 'reconnecting')
   const delay = Math.min(RECONNECT_BASE_MS * 2 ** (attempts - 1), RECONNECT_MAX_MS)
   clearTimeout(reconnectTimer)
   reconnectTimer = setTimeout(() => openStream(), delay)
@@ -101,7 +115,7 @@ function connect() {
 function disconnect() {
   refCount = Math.max(0, refCount - 1)
   if (refCount === 0) {
-    closedByUs = true
+    generation += 1 // инвалидирует любой in-flight openStream
     clearTimeout(reconnectTimer)
     if (source) {
       source.close()
@@ -124,7 +138,7 @@ function subscribe(scope, handler) {
   }
 }
 
-/** onStatus подписывает handler на смену статуса ('connected'|'fallback'|'disconnected'). */
+/** onStatus подписывает handler на смену статуса. Возвращает функцию отписки. */
 function onStatus(handler) {
   statusHandlers.add(handler)
   return () => statusHandlers.delete(handler)
@@ -134,7 +148,7 @@ function onStatus(handler) {
 function __resetForTests() {
   refCount = 0
   attempts = 0
-  closedByUs = false
+  generation += 1
   status = 'disconnected'
   clearTimeout(reconnectTimer)
   if (source) {

@@ -702,6 +702,7 @@ export default {
             sseConnected: false,
             eventStreamOff: null,
             eventStreamStatusOff: null,
+            fetchSeq: 0,
             isInitialLoad: true,
             // Инкрементальный polling: после первого полного fetch прибавляем только новые
             // заявки в начало списка без перерисовки всего. pollPrimed=false пока не
@@ -1322,6 +1323,9 @@ export default {
         },
 
         async fetchApplications() {
+            // seq-токен: fetchApplications дёргается фильтрами, поллингом, ручным refresh
+            // и SSE-сигналом (#840) - при пачке вызовов пишем только ответ последнего (#632).
+            const seq = ++this.fetchSeq;
             this.refreshing = true;
             try {
                 const authStore = useAuthStore();
@@ -1373,6 +1377,7 @@ export default {
 
                 if (response.ok) {
                     const data = await response.json();
+                    if (seq !== this.fetchSeq) return; // устарел - актуальный запрос уже идёт
                     this.applications = data;
                     // После первого полного fetch включаем инкрементальный polling со звуком.
                     this.pollPrimed = true;
@@ -1382,8 +1387,11 @@ export default {
             } catch (error) {
                 console.error("Ошибка сети при загрузке заявок:", error);
             } finally {
-                this.loading = false;
-                this.refreshing = false;
+                // Индикатор гасит только актуальный запрос, устаревший его не сбрасывает.
+                if (seq === this.fetchSeq) {
+                    this.loading = false;
+                    this.refreshing = false;
+                }
             }
         },
 
