@@ -15,6 +15,12 @@
         </h3>
       </div>
       <div
+        v-if="$slots['header-actions']"
+        class="card-header__actions"
+      >
+        <slot name="header-actions" />
+      </div>
+      <div
         v-if="!preview"
         class="card-header__settings"
       >
@@ -1378,6 +1384,14 @@ export default {
   flex-shrink: 1;
 }
 
+/* Слот для действий в шапке (напр. поиск в preview версий) - прижат вправо. */
+.card-header__actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .card-header__settings {
   display: flex;
   gap: 12px;
@@ -1840,7 +1854,8 @@ export default {
     padding: 16px;
   }
 
-  .card-header__settings {
+  .card-header__settings,
+  .card-header__actions {
     width: 100%;
     justify-content: flex-end;
   }
