@@ -123,6 +123,14 @@
           </div>
 
           <div
+            v-else-if="listError"
+            class="versions-state versions-state--error"
+            data-testid="tv-list-error"
+          >
+            Не удалось загрузить версии
+          </div>
+
+          <div
             v-else
             class="versions-state versions-empty"
             data-testid="tv-empty"
@@ -257,6 +265,9 @@ const items = ref([]);
 const total = ref(0);
 const page = ref(1);
 const listLoading = ref(false);
+// Ошибка загрузки списка отдельно от "версий пока нет": пустой items при провале
+// иначе рисует тот же блок "версий нет" и вводит в заблуждение (тост исчезает).
+const listError = ref(false);
 
 const selectedId = ref(null);
 const detail = ref(null);
@@ -350,6 +361,7 @@ async function fetchList({ reset = true } = {}) {
   if (!tableID.value) return;
   if (reset) page.value = 1;
   listLoading.value = true;
+  listError.value = false;
   const seq = ++listSeq;
   try {
     const { items: data, total: t } = await listTableSnapshots(tableID.value, {
@@ -366,6 +378,7 @@ async function fetchList({ reset = true } = {}) {
     }
   } catch {
     if (seq !== listSeq) return;
+    if (reset) listError.value = true;
     deletions.notify({ prefix: 'Не удалось загрузить версии', type: 'error' });
   } finally {
     if (seq === listSeq) listLoading.value = false;

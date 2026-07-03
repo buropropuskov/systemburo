@@ -84,6 +84,11 @@ export async function listTableSnapshots(tableId, { page = 1, perPage = 20, from
  *   actor_user_id?: number, payload: { table_type: string, rows: Array }, counts: object }>}
  */
 export async function getTableSnapshot(tableId, snapshotId) {
-  const res = await apiRequest(`/system-tables/${tableId}/snapshots/${snapshotId}`);
-  return res.json();
+  // apiRequestRaw + res.ok, а НЕ apiRequest: wrapJsonUnwrap при success:false не
+  // бросает, а отдаёт {message}, и вычищенный ретеншном снимок (404 между
+  // загрузкой списка и кликом) молча стал бы "пустой версией" вместо ошибки.
+  const res = await apiRequestRaw(`/system-tables/${tableId}/snapshots/${snapshotId}`);
+  if (!res.ok) throw new Error(`Failed to load snapshot: ${res.status}`);
+  const body = await res.json();
+  return body && body.success ? body.data : body;
 }
