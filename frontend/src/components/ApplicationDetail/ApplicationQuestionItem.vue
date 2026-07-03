@@ -342,11 +342,11 @@ export default {
     width: 100%;
     font-family: inherit;
     font-size: 13px;
-    padding: 9px 92px 9px 12px;
+    padding: 9px 108px 9px 12px;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     resize: vertical;
-    min-height: 40px;
+    min-height: 44px;
 }
 
 .qi-reply-input:focus {
@@ -357,8 +357,8 @@ export default {
 
 .qi-reply-send {
     position: absolute;
-    right: 8px;
-    bottom: 8px;
+    right: 10px;
+    bottom: 15px;
     font-family: inherit;
     font-size: 12px;
     font-weight: 600;

@@ -79,7 +79,7 @@ const routes = [
     path: '/center',
     name: 'ApplicationsCenter',
     component: ApplicationsCenter,
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true, permission: 'page.center' }
   },
   // "Доступные мне": вложения согласованных заявок, совпавших по месту с местами
   // охранника. Доступ - охранник (user_type code 'security') или супер-админ.
