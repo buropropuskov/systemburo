@@ -60,6 +60,7 @@ type Dependencies struct {
 	Bureau              *handlers.BureauHandler
 	WorkModes           *handlers.WorkModesHandler
 	Audit               *handlers.AuditHandler
+	Events              *handlers.EventsHandler
 
 	// Services (для middleware и audit)
 	PermResolver *services.PermissionResolver
@@ -122,6 +123,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	statistics := d.Statistics
 	bureau := d.Bureau
 	audit := d.Audit
+	events := d.Events
 	permResolver := d.PermResolver
 	denialLog := d.DenialLog
 	// requireAdmin — гейт admin-страниц по page.admin (super/admin проходят,
@@ -163,6 +165,14 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// Публичные контакты Бюро пропусков - нужны на логине и в плашке блокировки.
 	api.GET("/settings/contacts", settings.GetPublicContacts)
 
+	// Real-time SSE-поток (#840). Публичный роут намеренно: EventSource не шлёт
+	// заголовок Authorization. Подключение авторизуется одноразовым билетом из query
+	// (выдаётся защищённым POST /events/ticket ниже), а не access-токеном - токен в
+	// query утёк бы в журналы. Consume билета внутри Stream.
+	if events != nil {
+		api.GET("/events", events.Stream)
+	}
+
 	// Protected routes
 	protected := api.Group("")
 	protected.Use(mw.JWTAuth(jwtSecret))
@@ -194,6 +204,12 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// помечает прохождение ДЛЯ СЕБЯ (userID из JWT). Не admin-only.
 	protected.GET("/onboarding", onboarding.GetStatus)
 	protected.POST("/onboarding/complete", onboarding.MarkComplete)
+
+	// Выдача одноразового билета для SSE-потока (#840). Защищён JWTAuth+banCheck:
+	// забаненный/разлогиненный билет не получит, значит и поток не переоткроет.
+	if events != nil {
+		protected.POST("/events/ticket", events.IssueTicket)
+	}
 
 	// Шаблоны вложений (unique_attachments)
 	att := protected.Group("/attachments")

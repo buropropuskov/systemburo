@@ -19,6 +19,7 @@ import (
 	"systemburo/internal/handlers"
 	mw "systemburo/internal/middleware"
 	"systemburo/internal/models"
+	"systemburo/internal/realtime"
 	"systemburo/internal/router"
 	"systemburo/internal/services"
 	appvalidator "systemburo/internal/validator"
@@ -283,6 +284,10 @@ func main() {
 	lastSeen := mw.LastSeen(db)
 
 	// Routes
+	eventsHub := realtime.NewHub()
+	eventsTickets := realtime.NewTicketStore(60 * time.Second)
+	eventsHandler := handlers.NewEventsHandler(eventsHub, eventsTickets)
+
 	router.Setup(e, router.Dependencies{
 		Auth:                authHandler,
 		UserTypes:           userTypesHandler,
@@ -329,6 +334,7 @@ func main() {
 		Statistics:          statisticsHandler,
 		Onboarding:          onboardingHandler,
 		Audit:               auditHandler,
+		Events:              eventsHandler,
 		PermResolver:        permissionResolver,
 		DenialLog:           accessDenialService,
 		MaintenanceBlock:    maintenanceBlock,
