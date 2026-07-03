@@ -254,14 +254,14 @@
                 <svg
                   class="tags-dropdown__arrow"
                   :class="{ 'tags-dropdown__arrow--open': tagsDropdownOpen }"
-                  viewBox="0 0 10 6"
+                  viewBox="0 0 24 24"
                   fill="none"
                   xmlns="http://www.w3.org/2000/svg"
                 >
                   <path
-                    d="M1 1L5 5L9 1"
+                    d="M6 9L12 15L18 9"
                     stroke="currentColor"
-                    stroke-width="1.5"
+                    stroke-width="2.5"
                     stroke-linecap="round"
                     stroke-linejoin="round"
                   />
@@ -2417,10 +2417,10 @@ export default {
     color: var(--color-primary, #4F5BDF);
 }
 .tags-dropdown__arrow {
-    width: 4.5px;
-    height: 2.25px;
+    width: 9px;
+    height: 9px;
     flex-shrink: 0;
-    color: #666;
+    color: #555;
     transition: transform 0.2s;
 }
 .tags-dropdown__arrow--open {
