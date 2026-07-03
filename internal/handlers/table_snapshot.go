@@ -3,9 +3,12 @@ package handlers
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
+	"systemburo/internal/export"
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
@@ -129,6 +132,80 @@ func (h *TableSnapshotHandler) Get(c echo.Context) error {
 		return err
 	}
 	return RespondSuccess(c, snap)
+}
+
+// Export godoc
+// @Summary      Экспорт версии/текущего состояния таблицы (Excel/PDF)
+// @Description  Отдаёт полную таблицу версии (или текущего состояния при sid=current / ?current=1) файлом на скачивание. format=xlsx (по умолчанию) или pdf. На сервере не хранится.
+// @Tags         table-snapshots
+// @Produce      application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+// @Produce      application/pdf
+// @Security     BearerAuth
+// @Param        id path int true "ID таблицы"
+// @Param        sid path string true "ID версии или 'current' для текущего состояния"
+// @Param        format query string false "Формат: xlsx (по умолчанию) или pdf"
+// @Param        current query int false "1 - экспорт текущего состояния (sid игнорируется)"
+// @Success      200 {file} binary "Файл выгрузки"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Router       /system-tables/{id}/snapshots/{sid}/export [get]
+func (h *TableSnapshotHandler) Export(c echo.Context) error {
+	id, err := ParseID(c, "id")
+	if err != nil {
+		return err
+	}
+
+	format := strings.ToLower(c.QueryParam("format"))
+	if format == "" {
+		format = "xlsx"
+	}
+	if format != "xlsx" && format != "pdf" {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid format, expected xlsx or pdf")
+	}
+
+	// Текущее состояние: sid=current (RESTful) либо ?current=1 (совместимость). Иначе
+	// sid обязан быть валидным ID версии.
+	var snapshotID *int
+	if c.Param("sid") == "current" || c.QueryParam("current") == "1" {
+		snapshotID = nil
+	} else {
+		sid, err := ParseID(c, "sid")
+		if err != nil {
+			return err
+		}
+		snapshotID = &sid
+	}
+
+	tbl, filenameBase, err := h.service.BuildSnapshotExport(c.Request().Context(), id, snapshotID)
+	if err != nil {
+		return err
+	}
+
+	var (
+		data []byte
+		mime string
+		ext  string
+	)
+	switch format {
+	case "pdf":
+		data, err = export.ToPDF(tbl)
+		mime, ext = export.MIMEPDF, "pdf"
+	default:
+		data, err = export.ToXLSX(tbl)
+		mime, ext = export.MIMEXLSX, "xlsx"
+	}
+	if err != nil {
+		return err
+	}
+
+	// Кириллическое имя - через filename* (RFC 5987) с ASCII-фолбэком, по образцу
+	// attachment_blank.go: старые клиенты возьмут snapshot.<ext>, современные - имя с
+	// названием таблицы и датой.
+	displayName := url.PathEscape(filenameBase + "." + ext)
+	c.Response().Header().Set(echo.HeaderContentDisposition,
+		`attachment; filename="snapshot.`+ext+`"; filename*=UTF-8''`+displayName)
+	return c.Blob(http.StatusOK, mime, data)
 }
 
 // Cleanup godoc

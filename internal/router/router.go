@@ -438,6 +438,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	stg.POST("/:id/snapshots", tsnap.Create)
 	stg.GET("/:id/snapshots", tsnap.List)
 	stg.GET("/:id/snapshots/:sid", tsnap.Get)
+	// Экспорт версии/текущего состояния (xlsx|pdf) файлом на скачивание. Читалка -
+	// auth-only, как соседи; sid=current экспортирует текущее состояние таблицы.
+	stg.GET("/:id/snapshots/:sid/export", tsnap.Export)
 	stg.DELETE("/:id/snapshots", tsnap.Cleanup, requireAdmin)
 
 	// Столбцы таблицы (#345)
