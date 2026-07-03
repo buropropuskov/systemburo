@@ -68,3 +68,20 @@ type ApplicationQuestionView struct {
 
 // TableName задаёт имя таблицы явно.
 func (ApplicationQuestionView) TableName() string { return "application_question_views" }
+
+// ApplicationQuestionRead - per-user отметка прочтения КОНКРЕТНОГО вопроса-топика (#973).
+// В отличие от ApplicationQuestionView (одна метка на заявку - временная граница), read_at
+// живёт на топик: непрочитанный топик остаётся новым независимо от других (пользователь
+// "остановился на одном, а третье забыл"). Топик новый, если вопрос или его ответ созданы
+// позже read_at (или отметки нет). Ставится при взаимодействии с топиком.
+type ApplicationQuestionRead struct {
+	ID         int                 `json:"id"`
+	QuestionID int                 `gorm:"uniqueIndex:idx_q_read,priority:1" json:"question_id"`
+	Question   ApplicationQuestion `gorm:"constraint:OnDelete:CASCADE" json:"-"`
+	UserID     int                 `gorm:"uniqueIndex:idx_q_read,priority:2" json:"user_id"`
+	User       User                `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"-"`
+	ReadAt     time.Time           `json:"read_at"`
+}
+
+// TableName задаёт имя таблицы явно.
+func (ApplicationQuestionRead) TableName() string { return "application_question_reads" }
