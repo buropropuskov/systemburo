@@ -552,12 +552,13 @@ export default {
             return this.viewers.some(viewer => viewer.user_id === this.currentUserId);
         },
 
-        // Задать вопрос может принимающий/согласующий/читатель, но НЕ инициатор (он адресат
-        // и отвечает). Реальный гейт на бэке; фронт лишь прячет кнопку. Инициатор видит блок.
         canAskQuestion() {
+            // Задать вопрос может любой с доступом к заявке, ВКЛЮЧАЯ инициатора (#973
+            // followup): инициатор задаёт вопросы к своей же заявке. Реальный гейт - на бэке.
             const a = this.applicationData;
-            if (!a || a.sender_user_id === this.currentUserId) return false;
-            return this.isResponsibleUser || this.isApprover || this.isViewer;
+            if (!a) return false;
+            return this.isResponsibleUser || this.isApprover || this.isViewer ||
+                a.sender_user_id === this.currentUserId;
         },
 
         // Отозвать свою заявку может только отправитель и только пока она не в

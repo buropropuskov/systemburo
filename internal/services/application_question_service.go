@@ -59,34 +59,6 @@ type QuestionWithAnswers struct {
 
 const questionAuthorName = `format_full_name(u.last_name, u.first_name, u.middle_name)`
 
-// canAskQuestion: вопрос могут задавать принимающий/согласующий/читатель (и супер-админ как
-// глобальный оператор). Чистый инициатор (только sender) - НЕ может (он адресат вопроса).
-func (s *applicationService) canAskQuestion(ctx context.Context, applicationID, userID int, isSuperAdmin bool) (bool, error) {
-	if isSuperAdmin {
-		return true, nil
-	}
-	approver, err := s.isApprover(ctx, userID)
-	if err != nil {
-		return false, err
-	}
-	if approver {
-		return true, nil
-	}
-	var count int64
-	if err := s.db.WithContext(ctx).Model(&models.ApplicationResponsibleUser{}).
-		Where("application_id = ? AND user_id = ?", applicationID, userID).Count(&count).Error; err != nil {
-		return false, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
-	}
-	if count > 0 {
-		return true, nil
-	}
-	if err := s.db.WithContext(ctx).Model(&models.ApplicationViewer{}).
-		Where("application_id = ? AND user_id = ?", applicationID, userID).Count(&count).Error; err != nil {
-		return false, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
-	}
-	return count > 0, nil
-}
-
 // GetApplicationQuestions возвращает вопросы к заявке (#973) с ответами и вложениями.
 func (s *applicationService) GetApplicationQuestions(ctx context.Context, applicationID, viewerUserID int) ([]QuestionWithAnswers, error) {
 	type qRow struct {
@@ -222,13 +194,8 @@ func (s *applicationService) CreateApplicationQuestion(ctx context.Context, user
 		return nil, echo.NewHTTPError(http.StatusNotFound, "Application not found")
 	}
 
-	canAsk, err := s.canAskQuestion(ctx, applicationID, user.ID, isSuperAdmin)
-	if err != nil {
-		return nil, err
-	}
-	if !canAsk {
-		return nil, echo.NewHTTPError(http.StatusForbidden, "Задать вопрос может принимающий, согласующий или читатель заявки")
-	}
+	// Задать вопрос может любой с доступом к заявке, включая инициатора (#973):
+	// гейт доступа делает handler через CanAccessApplication.
 
 	subject := strings.TrimSpace(req.Subject)
 	text := strings.TrimSpace(req.Text)
@@ -319,10 +286,11 @@ func (s *applicationService) CreateApplicationQuestion(ctx context.Context, user
 	// Уведомление инициатору о новом вопросе (best-effort).
 	if s.notificationService != nil && app.SenderUserID != 0 && app.SenderUserID != user.ID {
 		appNum := applicationNumberOrFallback(app.ApplicationNumber, applicationID)
+		authorName := formatFullName(user.LastName, user.FirstName, user.MiddleName)
 		payloadStr := questionNotificationPayload(applicationID, appNum, question.ID)
 		if err := s.notificationService.CreateForUser(ctx, app.SenderUserID, "application_question",
 			"Новый вопрос по заявке",
-			fmt.Sprintf("По заявке %s задали вопрос: %s", appNum, subject),
+			fmt.Sprintf("%s задал(-а) вопрос по заявке %s: %s", authorName, appNum, subject),
 			&payloadStr); err != nil {
 			slog.Warn("не удалось создать уведомление о вопросе", "user_id", app.SenderUserID, "error", err)
 		}
@@ -428,11 +396,12 @@ func (s *applicationService) CreateApplicationAnswer(ctx context.Context, userna
 			var appNumber string
 			s.db.WithContext(ctx).Raw("SELECT application_number FROM applications WHERE id = ?", applicationID).Scan(&appNumber)
 			appNum := applicationNumberOrFallback(appNumber, applicationID)
+			authorName := formatFullName(user.LastName, user.FirstName, user.MiddleName)
 			payloadStr := questionNotificationPayload(applicationID, appNum, questionID)
 			for _, rid := range recipientIDs {
 				if err := s.notificationService.CreateForUser(ctx, rid, "application_answer",
 					"Новый ответ на вопрос",
-					fmt.Sprintf("По заявке %s ответили на вопрос: %s", appNum, q.Subject),
+					fmt.Sprintf("%s ответил(-а) на вопрос «%s» по заявке %s", authorName, q.Subject, appNum),
 					&payloadStr); err != nil {
 					slog.Warn("не удалось создать уведомление об ответе", "user_id", rid, "error", err)
 				}

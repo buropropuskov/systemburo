@@ -32,8 +32,8 @@ func markerFor(t *testing.T, e *echo.Echo, token string, appID int) bool {
 
 // TestQuestions_RoundTrip закрывает #973: согласующий задаёт вопрос (тема+текст+вложение),
 // это пишется в историю (question_created) и шлёт уведомление инициатору; вопрос отдаётся
-// GET /questions с ФИО автора и вложениями; посторонний получает 403; чистый инициатор
-// вопрос задать не может (403).
+// GET /questions с ФИО автора и вложениями; посторонний получает 403; инициатор ТОЖЕ может
+// задать вопрос к своей заявке (#973 followup).
 func TestQuestions_RoundTrip(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
@@ -86,18 +86,22 @@ func TestQuestions_RoundTrip(t *testing.T) {
 	entry := findHistoryEntry(t, hist, "question_created")
 	assert.Equal(t, wantText, entry["comment"], "question_created должен нести текст вопроса")
 
-	// Уведомление инициатору: тип application_question, payload с application_id.
+	// Уведомление инициатору: тип application_question, payload с application_id,
+	// текст содержит имя автора вопроса (информативность).
 	var notif struct {
-		Type *string
-		Data *string
+		Type    *string
+		Data    *string
+		Message *string
 	}
-	require.NoError(t, db.Raw("SELECT type, data FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 1", senderID).Scan(&notif).Error)
+	require.NoError(t, db.Raw("SELECT type, data, message FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 1", senderID).Scan(&notif).Error)
 	require.NotNil(t, notif.Type)
 	assert.Equal(t, "application_question", *notif.Type)
 	require.NotNil(t, notif.Data)
 	var payload map[string]any
 	require.NoError(t, json.Unmarshal([]byte(*notif.Data), &payload))
 	assert.EqualValues(t, appID, payload["application_id"], "payload несёт application_id для навигации")
+	require.NotNil(t, notif.Message)
+	assert.Contains(t, *notif.Message, wantAuthor, "уведомление называет автора вопроса")
 
 	// GET /questions виден инициатору.
 	rec = testutil.GET(t, e, fmt.Sprintf("/applications/%d/questions", appID), testutil.AuthHeader(senderToken))
@@ -113,9 +117,9 @@ func TestQuestions_RoundTrip(t *testing.T) {
 	rec = testutil.POST(t, e, fmt.Sprintf("/applications/%d/questions", appID), `{"subject":"x","text":"y"}`, testutil.AuthHeader(outsiderToken))
 	assert.Equal(t, http.StatusForbidden, rec.Code)
 
-	// Чистый инициатор не может задать вопрос (canAsk).
-	rec = testutil.POST(t, e, fmt.Sprintf("/applications/%d/questions", appID), `{"subject":"x","text":"y"}`, testutil.AuthHeader(senderToken))
-	assert.Equal(t, http.StatusForbidden, rec.Code, "инициатор не задаёт вопрос")
+	// Инициатор ТОЖЕ может задать вопрос к своей заявке (#973 followup).
+	rec = testutil.POST(t, e, fmt.Sprintf("/applications/%d/questions", appID), `{"subject":"Свой вопрос","text":"уточнение"}`, testutil.AuthHeader(senderToken))
+	assert.Equal(t, http.StatusCreated, rec.Code, "инициатор задаёт вопрос к своей заявке: %s", rec.Body.String())
 }
 
 // TestQuestions_AnswerAndNotify: ответ отдаётся в треде, НЕ пишется в историю, шлёт

@@ -1,8 +1,7 @@
 <!-- ApplicationQuestions.vue -->
 <!-- Блок "Вопросы к заявке" (#973): список вопросов-топиков + тред ответов (YouTube-стиль).
      Сворачивается по заголовку (свёрнут по умолчанию), "Задать вопрос" - в шапке. Виден всем
-     с доступом к заявке (включая инициатора); кнопка "Задать вопрос" - только тем, кто может
-     задавать (принимающий/согласующий/читатель), не инициатору. -->
+     с доступом к заявке. Задать вопрос может любой с доступом, включая инициатора. -->
 <template>
   <section
     class="questions-section"
@@ -35,7 +34,28 @@
         data-testid="question-ask-button"
         @click="showAskModal = true"
       >
-        + Задать вопрос
+        <svg
+          class="qab-icon"
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        ><circle
+          cx="12"
+          cy="12"
+          r="10"
+        /><path d="M9.1 9a3 3 0 0 1 5.82 1c0 2-3 3-3 3" /><line
+          x1="12"
+          y1="17"
+          x2="12.01"
+          y2="17"
+        /></svg>
+        Задать вопрос
       </button>
     </div>
 
@@ -262,6 +282,16 @@ export default {
 }
 
 .question-ask-button {
+    flex-shrink: 0;
+    height: 24px;
+    padding: 0 12px;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.qab-icon {
     flex-shrink: 0;
 }
 

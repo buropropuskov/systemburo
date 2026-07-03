@@ -125,6 +125,7 @@
 import { apiRequest } from '@/api/client'
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
 import { useUiStore } from '@/stores/ui'
+import { usePermissionsStore } from '@/stores/permissions'
 
 export default {
   name: 'UserNotificationsInline',
@@ -196,7 +197,9 @@ export default {
       // Клик по уведомлению о заявке открывает её в Центре (#973).
       const appId = this.notificationAppId(notif)
       if (appId) {
-        this.$router.push({ path: '/center', query: { open: appId } }).catch(() => {})
+        // Заявитель без доступа к Центру заявок открывает заявку в личном кабинете (#973).
+        const path = usePermissionsStore().hasPermission('page.center') ? '/center' : '/personal-cabinet'
+        this.$router.push({ path, query: { open: appId } }).catch(() => {})
       }
     },
 

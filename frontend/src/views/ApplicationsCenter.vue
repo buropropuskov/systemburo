@@ -1419,9 +1419,10 @@ export default {
             const openId = Number(this.$route.query.open);
             if (!openId) return;
             const app = this.applications.find(a => a.id === openId);
-            if (app) {
-                this.openApplication(app);
-            }
+            // Query чистим только когда заявка найдена и открыта: если список ещё не
+            // подъехал (или заявка под фильтром/архивом), оставляем ?open до след. попытки.
+            if (!app) return;
+            this.openApplication(app);
             const query = { ...this.$route.query };
             delete query.open;
             this.$router.replace({ query }).catch(() => {});

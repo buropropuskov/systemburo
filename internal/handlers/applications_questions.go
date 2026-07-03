@@ -43,7 +43,7 @@ func (h *ApplicationHandler) GetApplicationQuestions(c echo.Context) error {
 
 // CreateApplicationQuestion godoc
 // @Summary      Задать вопрос к заявке
-// @Description  Создаёт вопрос-топик (#973). Доступно принимающему/согласующему/читателю (не чистому инициатору). Пишется в историю, инициатору уходит уведомление.
+// @Description  Создаёт вопрос-топик (#973). Доступно любому с доступом к заявке, включая инициатора. Пишется в историю, инициатору уходит уведомление (если он не автор).
 // @Tags         applications
 // @Accept       json
 // @Produce      json
