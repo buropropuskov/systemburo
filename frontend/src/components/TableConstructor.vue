@@ -259,6 +259,14 @@
                   История
                 </button>
                 <button
+                  v-if="!selectedTable.table.is_active && can(`table.${selectedTable.table.name}.versions`)"
+                  class="action-btn versions-btn"
+                  data-testid="table-versions-btn"
+                  @click="openVersions"
+                >
+                  Версии
+                </button>
+                <button
                   v-if="selectedTable.table.is_active"
                   class="action-btn view-btn"
                   @click="openTable"
@@ -633,6 +641,7 @@ import { apiRequest } from '@/api/client'
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import { confirmIfAnyDirty } from '@/utils/dirtyTracker';
 import { useDeletionsStore } from '@/stores/deletions';
+import { usePermissionsStore } from '@/stores/permissions';
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import TextConstructor from './TextConstructor.vue';
@@ -661,6 +670,10 @@ export default {
     ConfirmationModal,
     BaseDropdown,
     AdminPageShell,
+  },
+  setup() {
+    const permissionsStore = usePermissionsStore();
+    return { permissionsStore };
   },
   data() {
     return {
@@ -1028,7 +1041,19 @@ export default {
         this.$router.push(`/table/${this.selectedTable.table.name}`);
       }
     },
-    
+
+    // Гейтинг кнопки «Версии» тем же ключом, что роут /table/:name/versions и
+    // кнопка входа на странице таблицы (#980) - иначе кнопка видна, а роут отбивает.
+    can(key) {
+      return this.permissionsStore.hasPermission(key);
+    },
+
+    openVersions() {
+      if (this.selectedTable) {
+        this.$router.push(`/table/${this.selectedTable.table.name}/versions`);
+      }
+    },
+
     sortBy(field) {
       if (this.sortField === field) {
         this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
@@ -1231,7 +1256,8 @@ export default {
   background: #0da271;
 }
 
-.history-btn {
+.history-btn,
+.versions-btn {
   padding: 8px 16px;
   background: #fff;
   color: #4F5BDF;
@@ -1243,7 +1269,8 @@ export default {
   transition: background 0.2s ease;
 }
 
-.history-btn:hover {
+.history-btn:hover,
+.versions-btn:hover {
   background: #eef0ff;
 }
 
