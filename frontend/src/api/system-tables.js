@@ -1,4 +1,4 @@
-import { apiRequest } from './client';
+import { apiRequest, apiRequestRaw } from './client';
 
 export async function getSystemTables() {
   const res = await apiRequest('/system-tables');
@@ -51,4 +51,39 @@ export async function setMainTablePhoto(tableId, photoId) {
   return apiRequest(`/system-tables/${tableId}/photos/${photoId}/main`, {
     method: 'POST',
   });
+}
+
+/**
+ * Версии (снимки) состояния таблицы (#980). Список - метаданные без payload
+ * (дата, причина, автор, агрегаты); пагинация + опц. фильтр периода from/to.
+ * Читаем сырой ответ (apiRequestRaw), т.к. total лежит в meta пагинации, а
+ * wrapJsonUnwrap отдаёт только data.
+ * @param {number} tableId
+ * @param {{ page?: number, perPage?: number, from?: string, to?: string }} [opts]
+ * @returns {Promise<{ items: Array, total: number }>}
+ */
+export async function listTableSnapshots(tableId, { page = 1, perPage = 20, from = '', to = '' } = {}) {
+  const params = new URLSearchParams();
+  params.set('page', String(page));
+  params.set('per_page', String(perPage));
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  const res = await apiRequestRaw(`/system-tables/${tableId}/snapshots?${params.toString()}`);
+  if (!res.ok) throw new Error(`Failed to list snapshots: ${res.status}`);
+  const body = await res.json();
+  const items = body && body.success ? (body.data || []) : (Array.isArray(body) ? body : []);
+  const total = body && body.meta && typeof body.meta.total === 'number' ? body.meta.total : items.length;
+  return { items, total };
+}
+
+/**
+ * Полная версия (слепок) состояния таблицы: payload со строками+статусами.
+ * @param {number} tableId
+ * @param {number} snapshotId
+ * @returns {Promise<{ id: number, table_id: number, taken_at: string, reason: string,
+ *   actor_user_id?: number, payload: { table_type: string, rows: Array }, counts: object }>}
+ */
+export async function getTableSnapshot(tableId, snapshotId) {
+  const res = await apiRequest(`/system-tables/${tableId}/snapshots/${snapshotId}`);
+  return res.json();
 }
