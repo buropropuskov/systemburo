@@ -8,7 +8,7 @@ import { buildBugContext, saveBugContext } from '@/composables/useBugReport'
 // API_BASE_URL оставляем настраиваемым для локальной разработки с отдельным backend-портом,
 // но на staging/prod он пуст и префикс /api обеспечивает маршрутизацию через nginx:
 // location /api/ -> backend:8080.
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '') + '/api'
+export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '') + '/api'
 const AUTH_ENDPOINTS = ['/login', '/refresh-token', '/logout']
 
 // Пути, на которых 403 не показывает уведомление: фоновые/ожидаемые запросы,

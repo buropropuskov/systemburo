@@ -638,6 +638,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import eventStream from '@/services/eventStream'
 import { useAuthStore } from '@/stores/auth'
 import { useSoundStore } from '@/stores/sound'
 import { usePermissionsStore } from '@/stores/permissions'
@@ -698,6 +699,9 @@ export default {
             shouldShake: false,
             shakeInterval: null,
             applicationsPollInterval: null,
+            sseConnected: false,
+            eventStreamOff: null,
+            eventStreamStatusOff: null,
             isInitialLoad: true,
             // Инкрементальный polling: после первого полного fetch прибавляем только новые
             // заявки в начало списка без перерисовки всего. pollPrimed=false пока не
@@ -928,11 +932,23 @@ export default {
                 if (_fullReloadCounter >= 10) {
                     _fullReloadCounter = 0;
                     this.fetchApplications();
-                } else {
+                } else if (!this.sseConnected) {
+                    // Инкрементальный опрос новых заявок нужен только без real-time (#840):
+                    // при активном SSE новые прилетают сигналом. Полный reload выше
+                    // остаётся всегда - он ловит смену статуса существующих заявок.
                     this._pollApplicationsIncremental();
                 }
             }
         }, 30000);
+
+        // Real-time обновление Центра (#840): по сигналу сервера перезагружаем список.
+        eventStream.connect();
+        this.eventStreamOff = eventStream.subscribe('applications-center', () => {
+            this.fetchApplications();
+        });
+        this.eventStreamStatusOff = eventStream.onStatus((status) => {
+            this.sseConnected = status === 'connected';
+        });
 
         setTimeout(() => {
             this.isInitialLoad = false;
@@ -960,6 +976,9 @@ export default {
         if (this.applicationsPollInterval) {
             clearInterval(this.applicationsPollInterval);
         }
+        if (this.eventStreamOff) this.eventStreamOff();
+        if (this.eventStreamStatusOff) this.eventStreamStatusOff();
+        eventStream.disconnect();
         if (this.searchDebounceTimer) {
             clearTimeout(this.searchDebounceTimer);
         }
