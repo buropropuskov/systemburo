@@ -14,6 +14,13 @@ type Event struct {
 	Count int    `json:"count,omitempty"`
 }
 
+// Publisher - контракт адресной публикации real-time событий. Реализуется *Hub;
+// доменные сервисы принимают его, а не конкретный хаб (accept interfaces).
+type Publisher interface {
+	Publish(userID int, ev Event)
+	PublishMany(userIDs []int, ev Event)
+}
+
 // subscriberBuffer - глубина буфера на подписчика. При переполнении (медленный
 // клиент) сигнал дропается: при следующем событии или реконнекте клиент всё равно
 // перезапросит данные, поэтому потеря отдельного сигнала не критична.
