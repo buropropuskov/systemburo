@@ -73,6 +73,26 @@ describe('ApplicationQuestions (#973)', () => {
     expect(wrapper.find('[data-testid="application-questions"]').classes()).not.toContain('collapsed');
   });
 
+  it('свёрнутость запоминается по каждой заявке отдельно', async () => {
+    getQuestions.mockResolvedValue([]);
+    const wrapper = mountQ({ applicationId: 100 });
+    await flushPromises();
+
+    // Развернуть заявку 100.
+    await wrapper.find('[data-testid="questions-toggle"]').trigger('click');
+    expect(wrapper.find('[data-testid="application-questions"]').classes()).not.toContain('collapsed');
+
+    // Другая заявка 200 - своё состояние (дефолт свёрнута), не наследует от 100.
+    await wrapper.setProps({ applicationId: 200 });
+    await flushPromises();
+    expect(wrapper.find('[data-testid="application-questions"]').classes()).toContain('collapsed');
+
+    // Возврат на 100 - помнит развёрнутость.
+    await wrapper.setProps({ applicationId: 100 });
+    await flushPromises();
+    expect(wrapper.find('[data-testid="application-questions"]').classes()).not.toContain('collapsed');
+  });
+
   it('load() перезагружает вопросы', async () => {
     getQuestions.mockResolvedValue([]);
     const wrapper = mountQ();

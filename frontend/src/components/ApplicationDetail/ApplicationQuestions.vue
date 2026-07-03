@@ -176,6 +176,8 @@ export default {
             this.snapshotTaken = false;
             this.snapshotNewIds = [];
             this.readIds = [];
+            // Свёрнутость - per-заявка: перечитываем состояние новой заявки.
+            this.collapsed = this.readCollapsed();
             this.load();
         }
     },
@@ -191,9 +193,14 @@ export default {
             markQuestionRead(this.applicationId, questionId).catch(() => {});
         },
 
+        // Ключ свёрнутости - per-заявка: разные заявки помнят своё состояние независимо.
+        collapseKey() {
+            return `applicationQuestions.collapsed.${this.applicationId}`;
+        },
+
         readCollapsed() {
             try {
-                return localStorage.getItem('applicationQuestions.collapsed') !== 'false';
+                return localStorage.getItem(this.collapseKey()) !== 'false';
             } catch {
                 return true;
             }
@@ -202,7 +209,7 @@ export default {
         toggleCollapse() {
             this.collapsed = !this.collapsed;
             try {
-                localStorage.setItem('applicationQuestions.collapsed', String(this.collapsed));
+                localStorage.setItem(this.collapseKey(), String(this.collapsed));
             } catch {
                 // Персист необязателен.
             }
