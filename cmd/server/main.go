@@ -180,6 +180,11 @@ func main() {
 	if err := systemTableService.SeedMissingFields(context.Background()); err != nil {
 		slog.Error("не удалось досидить отсутствующие поля таблиц (#345)", "error", err)
 	}
+	// Догенерировать недостающие права таблиц - в т.ч. новый глагол versions (#980)
+	// для таблиц, созданных до его появления. Идемпотентно, не блокирует старт.
+	if err := permissionService.ReconcileAllTablePermissions(context.Background()); err != nil {
+		slog.Error("не удалось догенерировать права таблиц", "error", err)
+	}
 	workModesService := services.NewWorkModesService(unloadPlaceService, systemTableService, bureauService)
 	uniqueCarService := services.NewUniqueCarService(db)
 	uniqueEmployeeService := services.NewUniqueEmployeeService(db)

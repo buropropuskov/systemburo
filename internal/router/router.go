@@ -431,11 +431,14 @@ func Setup(e *echo.Echo, d Dependencies) {
 	stg.DELETE("/:table_id/photos/:photo_id", st.DeletePhoto)
 	stg.POST("/:table_id/photos/:photo_id/main", st.SetMainPhoto)
 
-	// Версии (слепки) состояния таблицы (#980): ручной снимок «Сохранить сейчас».
-	// Дневной снимок в 06:00 снимает джоба (см. startDailyStatusReset).
-	// Право table.<slug>.versions навесит срез 3 - пока под общей auth-защитой,
-	// как соседние write-роуты system-tables (Create/Update/Delete).
+	// Версии (слепки) состояния таблицы (#980). Дневной снимок в 06:00 снимает джоба
+	// (см. startDailyStatusReset), ручной - POST. Читалки под общей auth-защитой, как
+	// соседние sub-роуты system-tables (trash/history): доступ вкладки гейтит фронт
+	// правом table.<slug>.versions. Чистка разрушительна - только admin/super.
 	stg.POST("/:id/snapshots", tsnap.Create)
+	stg.GET("/:id/snapshots", tsnap.List)
+	stg.GET("/:id/snapshots/:sid", tsnap.Get)
+	stg.DELETE("/:id/snapshots", tsnap.Cleanup, requireAdmin)
 
 	// Столбцы таблицы (#345)
 	stg.PUT("/:id/fields", st.UpdateFields)

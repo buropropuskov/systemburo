@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"systemburo/internal/models"
 	"systemburo/internal/services"
@@ -437,4 +438,287 @@ func TestTableSnapshot_AllActiveTables_ContinuesOnPerTableFailure(t *testing.T) 
 	require.NoError(t, db.Model(&models.TableSnapshot{}).Where("table_id = ?", peopleTbl.ID).Count(&peopleN).Error)
 	assert.Zero(t, carsN, "сбойная таблица осталась без снимка")
 	assert.EqualValues(t, 1, peopleN, "рабочая таблица снята")
+}
+
+// seedSnapshot вставляет версию напрямую (минуя сбор строк) - для тестов чтения/чистки,
+// где важны метаданные/payload и возраст, а не механика снятия. Payload - валидный
+// cars-слепок с одной строкой.
+func seedSnapshot(t *testing.T, db *gorm.DB, tableID int, reason string, actor *int, takenAt time.Time, counts models.SnapshotCounts) int {
+	t.Helper()
+	countsJSON, err := json.Marshal(counts)
+	require.NoError(t, err)
+	payloadJSON, err := json.Marshal(models.SnapshotPayload{
+		TableType: models.TableTypeCars,
+		Rows:      json.RawMessage(`[{"id":1,"territory_status":1}]`),
+	})
+	require.NoError(t, err)
+	snap := models.TableSnapshot{
+		TableID:     tableID,
+		TakenAt:     takenAt,
+		Reason:      reason,
+		ActorUserID: actor,
+		Payload:     payloadJSON,
+		Counts:      countsJSON,
+	}
+	require.NoError(t, db.Create(&snap).Error)
+	return snap.ID
+}
+
+// TestTableSnapshot_List_ReturnsMetadataWithoutPayload: GET списка отдаёт версии
+// метаданными (reason, автор, распакованные counts) в порядке taken_at DESC, БЕЗ payload.
+func TestTableSnapshot_List_ReturnsMetadataWithoutPayload(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "snap_list", "pass123", 1, td.OrgID, td.CompanyID)
+	userID := getUserID(t, db, "snap_list")
+
+	dn := "Список версий"
+	tbl := models.SystemTable{Name: "list_snap_tbl", DisplayName: &dn, TableType: models.TableTypeCars, IsActive: true}
+	require.NoError(t, db.Create(&tbl).Error)
+
+	base := time.Date(2026, 6, 1, 8, 0, 0, 0, time.UTC)
+	seedSnapshot(t, db, tbl.ID, models.SnapshotReasonScheduled, nil, base, models.SnapshotCounts{OnTerritory: 2, Total: 2})
+	newer := seedSnapshot(t, db, tbl.ID, models.SnapshotReasonManual, &userID, base.Add(48*time.Hour), models.SnapshotCounts{Exited: 1, Total: 1})
+
+	rec := testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/snapshots", tbl.ID), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	var resp struct {
+		Data []struct {
+			ID        int                   `json:"id"`
+			Reason    string                `json:"reason"`
+			ActorName string                `json:"actor_name"`
+			Counts    models.SnapshotCounts `json:"counts"`
+			Payload   json.RawMessage       `json:"payload"`
+		} `json:"data"`
+		Meta struct {
+			Total int64 `json:"total"`
+		} `json:"meta"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	require.Len(t, resp.Data, 2)
+	assert.EqualValues(t, 2, resp.Meta.Total)
+	// taken_at DESC: свежий (manual) первым.
+	assert.Equal(t, newer, resp.Data[0].ID)
+	assert.Equal(t, models.SnapshotReasonManual, resp.Data[0].Reason)
+	assert.Equal(t, 1, resp.Data[0].Counts.Exited, "counts распакованы в списке")
+	assert.NotEmpty(t, resp.Data[0].ActorName, "автор ручного снимка подставлен")
+	assert.Empty(t, resp.Data[0].Payload, "payload в списке не отдаётся")
+	assert.Empty(t, resp.Data[1].ActorName, "дневной снимок без актора")
+}
+
+// TestTableSnapshot_List_FilterByPeriod: фильтр from по дате отсекает версии старше границы.
+func TestTableSnapshot_List_FilterByPeriod(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "snap_filter", "pass123", 1, td.OrgID, td.CompanyID)
+
+	dn := "Фильтр версий"
+	tbl := models.SystemTable{Name: "filter_snap_tbl", DisplayName: &dn, TableType: models.TableTypeCars, IsActive: true}
+	require.NoError(t, db.Create(&tbl).Error)
+
+	seedSnapshot(t, db, tbl.ID, models.SnapshotReasonScheduled, nil, time.Date(2026, 1, 10, 8, 0, 0, 0, time.UTC), models.SnapshotCounts{Total: 1})
+	mid := seedSnapshot(t, db, tbl.ID, models.SnapshotReasonScheduled, nil, time.Date(2026, 6, 15, 8, 0, 0, 0, time.UTC), models.SnapshotCounts{Total: 1})
+
+	rec := testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/snapshots?from=2026-06-01", tbl.ID), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	var resp struct {
+		Data []struct {
+			ID int `json:"id"`
+		} `json:"data"`
+		Meta struct {
+			Total int64 `json:"total"`
+		} `json:"meta"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	require.Len(t, resp.Data, 1, "только версия после границы")
+	assert.EqualValues(t, 1, resp.Meta.Total)
+	assert.Equal(t, mid, resp.Data[0].ID)
+
+	// Верхняя граница date-only включает весь день (endOfDay): to=дата снимка отдаёт
+	// снимок этого дня, снятый в 08:00 (при трактовке границы как полуночи он бы выпал).
+	recTo := testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/snapshots?to=2026-01-10", tbl.ID), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, recTo.Code, recTo.Body.String())
+	var respTo struct {
+		Meta struct {
+			Total int64 `json:"total"`
+		} `json:"meta"`
+	}
+	require.NoError(t, json.Unmarshal(recTo.Body.Bytes(), &respTo))
+	assert.EqualValues(t, 1, respTo.Meta.Total, "снимок в 08:00 верхней границы-дня включён (endOfDay)")
+
+	// Кривой фильтр даты - явная 400, не молчаливое игнорирование.
+	bad := testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/snapshots?from=notadate", tbl.ID), testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusBadRequest, bad.Code)
+}
+
+// TestPermissions_ReconcileAllTablePermissions_BackfillsMissingVerb: реконсиляция
+// догенеривает недостающий глагол таблице, созданной до его появления, и идемпотентна.
+func TestPermissions_ReconcileAllTablePermissions_BackfillsMissingVerb(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+
+	dn := "Реконсиляция прав"
+	tbl := models.SystemTable{Name: "reconcile_tbl", DisplayName: &dn, TableType: models.TableTypeCars, IsActive: true}
+	require.NoError(t, db.Create(&tbl).Error)
+
+	svc := services.NewPermissionService(db)
+	require.NoError(t, svc.AutoGenerateForTable(context.Background(), tbl.ID, tbl.Name))
+
+	// Симулируем таблицу «до глагола versions»: удаляем это право.
+	require.NoError(t, db.Where("key = ?", "table.reconcile_tbl.versions").Delete(&models.Permission{}).Error)
+	var before int64
+	require.NoError(t, db.Model(&models.Permission{}).Where("key LIKE ?", "table.reconcile_tbl.%").Count(&before).Error)
+	require.EqualValues(t, 8, before, "versions удалён - осталось 8")
+
+	// Реконсиляция восстанавливает недостающее право.
+	require.NoError(t, svc.ReconcileAllTablePermissions(context.Background()))
+	var after int64
+	require.NoError(t, db.Model(&models.Permission{}).Where("key LIKE ?", "table.reconcile_tbl.%").Count(&after).Error)
+	assert.EqualValues(t, 9, after, "versions догенерирован")
+
+	var versionsPerm models.Permission
+	require.NoError(t, db.Where("key = ?", "table.reconcile_tbl.versions").First(&versionsPerm).Error)
+	assert.Equal(t, "table", versionsPerm.Category)
+	require.NotNil(t, versionsPerm.EntityID)
+	assert.Equal(t, tbl.ID, *versionsPerm.EntityID)
+
+	// Идемпотентность: повторный вызов не плодит дублей.
+	require.NoError(t, svc.ReconcileAllTablePermissions(context.Background()))
+	var again int64
+	require.NoError(t, db.Model(&models.Permission{}).Where("key LIKE ?", "table.reconcile_tbl.%").Count(&again).Error)
+	assert.EqualValues(t, 9, again, "повторная реконсиляция без дублей")
+}
+
+// TestTableSnapshot_Get_ReturnsPayload: GET версии отдаёт полный payload со строками.
+func TestTableSnapshot_Get_ReturnsPayload(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "snap_get", "pass123", 1, td.OrgID, td.CompanyID)
+
+	dn := "Получение версии"
+	tbl := models.SystemTable{Name: "get_snap_tbl", DisplayName: &dn, TableType: models.TableTypeCars, IsActive: true}
+	require.NoError(t, db.Create(&tbl).Error)
+	sid := seedSnapshot(t, db, tbl.ID, models.SnapshotReasonManual, nil, time.Now().UTC(), models.SnapshotCounts{OnTerritory: 1, Total: 1})
+
+	rec := testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/snapshots/%d", tbl.ID, sid), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	var resp struct {
+		Data struct {
+			ID      int                    `json:"id"`
+			Payload models.SnapshotPayload `json:"payload"`
+			Counts  models.SnapshotCounts  `json:"counts"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	assert.Equal(t, sid, resp.Data.ID)
+	assert.Equal(t, models.TableTypeCars, resp.Data.Payload.TableType)
+	assert.Equal(t, 1, resp.Data.Counts.OnTerritory)
+	var rows []map[string]any
+	require.NoError(t, json.Unmarshal(resp.Data.Payload.Rows, &rows))
+	require.Len(t, rows, 1, "payload со строками отдан")
+}
+
+// TestTableSnapshot_Get_WrongTable_404: версию нельзя прочитать через ID чужой таблицы.
+func TestTableSnapshot_Get_WrongTable_404(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "snap_scope", "pass123", 1, td.OrgID, td.CompanyID)
+
+	dnA, dnB := "Таблица A", "Таблица B"
+	tblA := models.SystemTable{Name: "scope_a", DisplayName: &dnA, TableType: models.TableTypeCars, IsActive: true}
+	tblB := models.SystemTable{Name: "scope_b", DisplayName: &dnB, TableType: models.TableTypeCars, IsActive: true}
+	require.NoError(t, db.Create(&tblA).Error)
+	require.NoError(t, db.Create(&tblB).Error)
+	sid := seedSnapshot(t, db, tblA.ID, models.SnapshotReasonManual, nil, time.Now().UTC(), models.SnapshotCounts{Total: 1})
+
+	rec := testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/snapshots/%d", tblB.ID, sid), testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusNotFound, rec.Code, "снимок таблицы A недоступен через таблицу B")
+}
+
+// TestTableSnapshot_Cleanup_DeletesOldKeepsFresh: admin-чистка удаляет версии старше
+// порога, свежие остаются; удаление скоуплено по таблице.
+func TestTableSnapshot_Cleanup_DeletesOldKeepsFresh(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	dn := "Чистка версий"
+	tbl := models.SystemTable{Name: "cleanup_snap_tbl", DisplayName: &dn, TableType: models.TableTypeCars, IsActive: true}
+	require.NoError(t, db.Create(&tbl).Error)
+
+	now := time.Now().UTC()
+	oldSid := seedSnapshot(t, db, tbl.ID, models.SnapshotReasonScheduled, nil, now.AddDate(0, -14, 0), models.SnapshotCounts{Total: 1})
+	freshSid := seedSnapshot(t, db, tbl.ID, models.SnapshotReasonScheduled, nil, now.AddDate(0, -1, 0), models.SnapshotCounts{Total: 1})
+
+	rec := testutil.DELETE(t, e, fmt.Sprintf("/system-tables/%d/snapshots?older_than=12", tbl.ID), testutil.AuthHeader(adminToken))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	var resp struct {
+		Data struct {
+			Deleted int64 `json:"deleted"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	assert.EqualValues(t, 1, resp.Data.Deleted, "удалена одна старая версия")
+
+	assert.ErrorIs(t, db.First(&models.TableSnapshot{}, oldSid).Error, gorm.ErrRecordNotFound, "старая версия удалена")
+	require.NoError(t, db.First(&models.TableSnapshot{}, freshSid).Error, "свежая версия осталась")
+}
+
+// TestTableSnapshot_Cleanup_Forbidden_NormalUser: чистка недоступна не-админу (requireAdmin).
+func TestTableSnapshot_Cleanup_Forbidden_NormalUser(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "snap_nodel", "pass123", 1, td.OrgID, td.CompanyID)
+
+	dn := "Чистка без прав"
+	tbl := models.SystemTable{Name: "nodel_snap_tbl", DisplayName: &dn, TableType: models.TableTypeCars, IsActive: true}
+	require.NoError(t, db.Create(&tbl).Error)
+	sid := seedSnapshot(t, db, tbl.ID, models.SnapshotReasonScheduled, nil, time.Now().UTC().AddDate(0, -24, 0), models.SnapshotCounts{Total: 1})
+
+	rec := testutil.DELETE(t, e, fmt.Sprintf("/system-tables/%d/snapshots?older_than=1", tbl.ID), testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusForbidden, rec.Code, "не-админ не чистит версии")
+	require.NoError(t, db.First(&models.TableSnapshot{}, sid).Error, "версия на месте - удаления не было")
+}
+
+// TestTableSnapshot_Cleanup_BadOlderThan_400: без валидного older_than чистка - 400 (даже админу).
+func TestTableSnapshot_Cleanup_BadOlderThan_400(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	dn := "Плохой порог"
+	tbl := models.SystemTable{Name: "badthr_snap_tbl", DisplayName: &dn, TableType: models.TableTypeCars, IsActive: true}
+	require.NoError(t, db.Create(&tbl).Error)
+
+	missing := testutil.DELETE(t, e, fmt.Sprintf("/system-tables/%d/snapshots", tbl.ID), testutil.AuthHeader(adminToken))
+	assert.Equal(t, http.StatusBadRequest, missing.Code, "без older_than - 400")
+
+	zero := testutil.DELETE(t, e, fmt.Sprintf("/system-tables/%d/snapshots?older_than=0", tbl.ID), testutil.AuthHeader(adminToken))
+	assert.Equal(t, http.StatusBadRequest, zero.Code, "older_than=0 - 400")
 }
