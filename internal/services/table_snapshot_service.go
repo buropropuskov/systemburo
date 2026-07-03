@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 // листинги, а не пишет свой SQL.
 type snapshotCarLister interface {
 	GetActiveCarsForTables(ctx context.Context) ([]TableCarResponse, error)
+	GetFactCarsForTables(ctx context.Context) ([]TableCarResponse, error)
 }
 
 type snapshotEmployeeLister interface {
@@ -35,6 +37,11 @@ type TableSnapshotService interface {
 	// SnapshotTable сохраняет текущее состояние таблицы (строки со статусами) как
 	// новую версию и возвращает её id. reason - scheduled|manual.
 	SnapshotTable(ctx context.Context, tableID int, reason string, actorUserID *int) (int, error)
+	// SnapshotAllActiveTables снимает слепок каждой активной cars/people-таблицы.
+	// Провал одной таблицы логируется и не прерывает остальные: created/failed -
+	// сколько удалось/сорвалось. err возвращается только если не удалось получить
+	// сам список таблиц (иначе дневная джоба должна дойти до сброса статусов).
+	SnapshotAllActiveTables(ctx context.Context, reason string) (created, failed int, err error)
 }
 
 type tableSnapshotService struct {
@@ -56,13 +63,20 @@ type snapshotEmployeeRow struct {
 	TerritoryStatus *int `json:"territory_status"`
 }
 
+// snapshotCarRow — строка машины в слепке: те же поля, что отдаёт страница, плюс
+// is_fact - машина из блока «по факту», который страница показывает при show_fact_table.
+type snapshotCarRow struct {
+	TableCarResponse
+	IsFact bool `json:"is_fact"`
+}
+
 func (s *tableSnapshotService) SnapshotTable(ctx context.Context, tableID int, reason string, actorUserID *int) (int, error) {
 	if reason != models.SnapshotReasonScheduled && reason != models.SnapshotReasonManual {
 		return 0, echo.NewHTTPError(http.StatusBadRequest, "Invalid snapshot reason")
 	}
 
 	var table models.SystemTable
-	if err := s.db.WithContext(ctx).Select("id", "table_type").First(&table, tableID).Error; err != nil {
+	if err := s.db.WithContext(ctx).Select("id", "table_type", "show_fact_table").First(&table, tableID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return 0, echo.NewHTTPError(http.StatusNotFound, "Table not found")
 		}
@@ -97,22 +111,59 @@ func (s *tableSnapshotService) SnapshotTable(ctx context.Context, tableID int, r
 	return snap.ID, nil
 }
 
+// SnapshotAllActiveTables снимает слепок каждой активной cars/people-таблицы.
+// Провал одной таблицы логируется и не прерывает остальные - дневная джоба обязана
+// дойти до сброса статусов, поэтому per-table ошибки не всплывают наверх.
+func (s *tableSnapshotService) SnapshotAllActiveTables(ctx context.Context, reason string) (created, failed int, err error) {
+	var tables []models.SystemTable
+	if err := s.db.WithContext(ctx).
+		Select("id").
+		Where("is_active = ?", true).
+		Where("table_type IN ?", []string{models.TableTypeCars, models.TableTypePeople}).
+		Find(&tables).Error; err != nil {
+		return 0, 0, fmt.Errorf("failed to list active tables for snapshot: %w", err)
+	}
+	for _, t := range tables {
+		if _, serr := s.SnapshotTable(ctx, t.ID, reason, nil); serr != nil {
+			failed++
+			slog.Error("не удалось снять слепок таблицы", "table_id", t.ID, "reason", reason, "error", serr)
+			continue
+		}
+		created++
+	}
+	return created, failed, nil
+}
+
 // collectRows строит слепок строк таблицы и агрегаты по её типу. Возвращает сырой JSON
 // строк (для payload) и подсчитанные counts.
 func (s *tableSnapshotService) collectRows(ctx context.Context, table models.SystemTable) (json.RawMessage, models.SnapshotCounts, error) {
 	switch table.TableType {
 	case models.TableTypeCars:
 		// Листинг машин глобален (не скоуплен по table_id) - как и страница cars-таблицы;
-		// territory_status уже в TableCarResponse.
+		// territory_status уже в TableCarResponse. Если таблица показывает блок «по факту»
+		// (show_fact_table), подмешиваем его тем же листингом, что и страница, помечая
+		// строки is_fact - иначе слепок терял бы машины «по факту», стоявшие на территории.
 		cars, err := s.cars.GetActiveCarsForTables(ctx)
 		if err != nil {
 			return nil, models.SnapshotCounts{}, fmt.Errorf("failed to list cars for snapshot: %w", err)
 		}
-		statuses := make([]*int, len(cars))
-		for i, c := range cars {
-			statuses[i] = c.TerritoryStatus
+		rows := make([]snapshotCarRow, 0, len(cars))
+		statuses := make([]*int, 0, len(cars))
+		for _, c := range cars {
+			rows = append(rows, snapshotCarRow{TableCarResponse: c})
+			statuses = append(statuses, c.TerritoryStatus)
 		}
-		raw, err := json.Marshal(cars)
+		if table.ShowFactTable {
+			facts, err := s.cars.GetFactCarsForTables(ctx)
+			if err != nil {
+				return nil, models.SnapshotCounts{}, fmt.Errorf("failed to list fact cars for snapshot: %w", err)
+			}
+			for _, c := range facts {
+				rows = append(rows, snapshotCarRow{TableCarResponse: c, IsFact: true})
+				statuses = append(statuses, c.TerritoryStatus)
+			}
+		}
+		raw, err := json.Marshal(rows)
 		if err != nil {
 			return nil, models.SnapshotCounts{}, fmt.Errorf("failed to marshal car rows: %w", err)
 		}

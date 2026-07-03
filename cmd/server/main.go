@@ -18,6 +18,7 @@ import (
 	"systemburo/internal/database"
 	"systemburo/internal/handlers"
 	mw "systemburo/internal/middleware"
+	"systemburo/internal/models"
 	"systemburo/internal/router"
 	"systemburo/internal/services"
 	appvalidator "systemburo/internal/validator"
@@ -187,6 +188,7 @@ func main() {
 	notificationService := notificationServiceEarly
 	requestLogsService := services.NewRequestLogsService(db)
 	employeesHistoryService := services.NewEmployeesHistoryService(db)
+	tableSnapshotService := services.NewTableSnapshotService(db, carService, employeeService, employeesHistoryService)
 	approverService := services.NewApproverService(db)
 	consentService := services.NewConsentService(db)
 	settingsService := services.NewSettingsService(db, cfg)
@@ -227,6 +229,7 @@ func main() {
 	carHandler := handlers.NewCarHandler(carService)
 	employeeHandler := handlers.NewEmployeeHandler(employeeService)
 	systemTableHandler := handlers.NewSystemTableHandler(systemTableService, auditRecorder, cfg.UploadMaxFileSize, cfg.UploadPath)
+	tableSnapshotHandler := handlers.NewTableSnapshotHandler(tableSnapshotService)
 	uniqueCarHandler := handlers.NewUniqueCarHandler(uniqueCarService)
 	uniqueEmployeeHandler := handlers.NewUniqueEmployeeHandler(uniqueEmployeeService)
 	feedbackHandler := handlers.NewFeedbackHandler(feedbackService)
@@ -288,6 +291,7 @@ func main() {
 		Cars:                carHandler,
 		Employees:           employeeHandler,
 		SystemTable:         systemTableHandler,
+		TableSnapshot:       tableSnapshotHandler,
 		UniqueCar:           uniqueCarHandler,
 		UniqueEmployee:      uniqueEmployeeHandler,
 		Feedback:            feedbackHandler,
@@ -349,7 +353,7 @@ func main() {
 		resetLoc = time.UTC
 	}
 	resetService := services.NewTerritoryResetService(db)
-	go startDailyStatusReset(ctxSig, resetService, resetLoc)
+	go startDailyStatusReset(ctxSig, tableSnapshotService, resetService, resetLoc)
 
 	// Снимок дневного пика онлайна (#632): раз в минуту фиксирует текущий онлайн
 	// как пик за сегодня (peak_count = MAX(...)). Останавливается по ctxSig.
@@ -436,10 +440,11 @@ func startAccessDenialsArchiver(ctx context.Context, svc *services.AccessDenialS
 	}
 }
 
-// startDailyStatusReset сбрасывает территориальные статусы "Покинул/Выехал" (2) -> "Не входил/Не въезжал" (0)
-// ежедневно в 06:00 по location. Статус "На территории" (1) не затрагивается.
+// startDailyStatusReset ежедневно в 06:00 по location снимает дневные слепки всех
+// активных таблиц, затем сбрасывает территориальные статусы "Покинул/Выехал" (2) ->
+// "Не входил/Не въезжал" (0). Статус "На территории" (1) не затрагивается.
 // Ошибки логируются, паники нет.
-func startDailyStatusReset(ctx context.Context, svc services.TerritoryResetService, location *time.Location) {
+func startDailyStatusReset(ctx context.Context, snapSvc services.TableSnapshotService, svc services.TerritoryResetService, location *time.Location) {
 	now := time.Now().In(location)
 	next := time.Date(now.Year(), now.Month(), now.Day(), 6, 0, 0, 0, location)
 	if !next.After(now) {
@@ -457,12 +462,7 @@ func startDailyStatusReset(ctx context.Context, svc services.TerritoryResetServi
 	case <-timer.C:
 	}
 
-	emp, cars, err := svc.ResetExitedStatuses(ctx)
-	if err != nil {
-		slog.Error("сброс территориальных статусов завершился ошибкой", "error", err)
-	} else {
-		slog.Info("сброс территориальных статусов выполнен", "employees", emp, "cars", cars)
-	}
+	snapshotThenReset(ctx, snapSvc, svc)
 
 	ticker := time.NewTicker(24 * time.Hour)
 	defer ticker.Stop()
@@ -472,13 +472,27 @@ func startDailyStatusReset(ctx context.Context, svc services.TerritoryResetServi
 			slog.Info("планировщик сброса статусов остановлен")
 			return
 		case <-ticker.C:
-			emp, cars, err := svc.ResetExitedStatuses(ctx)
-			if err != nil {
-				slog.Error("сброс территориальных статусов завершился ошибкой", "error", err)
-			} else {
-				slog.Info("сброс территориальных статусов выполнен", "employees", emp, "cars", cars)
-			}
+			snapshotThenReset(ctx, snapSvc, svc)
 		}
+	}
+}
+
+// snapshotThenReset снимает дневные слепки всех активных таблиц ПЕРЕД сбросом
+// территориальных статусов, чтобы сохранить суточное состояние до обнуления.
+// Провал снимка логируется, но не отменяет сброс - сброс важнее и должен пройти.
+func snapshotThenReset(ctx context.Context, snapSvc services.TableSnapshotService, svc services.TerritoryResetService) {
+	created, failed, err := snapSvc.SnapshotAllActiveTables(ctx, models.SnapshotReasonScheduled)
+	if err != nil {
+		slog.Error("дневной снимок таблиц не выполнен, продолжаем сброс", "error", err)
+	} else {
+		slog.Info("дневной снимок таблиц выполнен", "created", created, "failed", failed)
+	}
+
+	emp, cars, err := svc.ResetExitedStatuses(ctx)
+	if err != nil {
+		slog.Error("сброс территориальных статусов завершился ошибкой", "error", err)
+	} else {
+		slog.Info("сброс территориальных статусов выполнен", "employees", emp, "cars", cars)
 	}
 }
 

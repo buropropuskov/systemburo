@@ -28,6 +28,7 @@ type Dependencies struct {
 	Cars                *handlers.CarHandler
 	Employees           *handlers.EmployeeHandler
 	SystemTable         *handlers.SystemTableHandler
+	TableSnapshot       *handlers.TableSnapshotHandler
 	UniqueCar           *handlers.UniqueCarHandler
 	UniqueEmployee      *handlers.UniqueEmployeeHandler
 	Feedback            *handlers.FeedbackHandler
@@ -90,6 +91,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	cars := d.Cars
 	employees := d.Employees
 	st := d.SystemTable
+	tsnap := d.TableSnapshot
 	uc := d.UniqueCar
 	ue := d.UniqueEmployee
 	fb := d.Feedback
@@ -428,6 +430,12 @@ func Setup(e *echo.Echo, d Dependencies) {
 	stg.POST("/:id/photos", st.UploadPhoto)
 	stg.DELETE("/:table_id/photos/:photo_id", st.DeletePhoto)
 	stg.POST("/:table_id/photos/:photo_id/main", st.SetMainPhoto)
+
+	// Версии (слепки) состояния таблицы (#980): ручной снимок «Сохранить сейчас».
+	// Дневной снимок в 06:00 снимает джоба (см. startDailyStatusReset).
+	// Право table.<slug>.versions навесит срез 3 - пока под общей auth-защитой,
+	// как соседние write-роуты system-tables (Create/Update/Delete).
+	stg.POST("/:id/snapshots", tsnap.Create)
 
 	// Столбцы таблицы (#345)
 	stg.PUT("/:id/fields", st.UpdateFields)
