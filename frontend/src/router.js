@@ -64,6 +64,12 @@ const routes = [
     meta: { requiresAuth: true, permission: (to) => `table.${to.params.tableName}.trash` }
   },
   {
+    path: '/table/:tableName/versions',
+    name: 'TableVersions',
+    component: () => import('@/views/TableVersionsView.vue'),
+    meta: { requiresAuth: true, permission: (to) => `table.${to.params.tableName}.versions` }
+  },
+  {
     path: '/personal-cabinet',
     name: 'Account',
     component: AccountComponent,

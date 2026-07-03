@@ -124,6 +124,20 @@
       </div>
       <div class="filters__options">
         <RouterLink
+          v-if="can(`table.${$route.params.tableName}.versions`)"
+          :to="`/table/${$route.params.tableName}/versions`"
+          class="options__versions-link"
+          title="Версии состояния таблицы"
+          data-testid="table-versions-link"
+          aria-label="Версии состояния таблицы"
+        >
+          <img
+            src="@/assets/icons/recent-changes.png"
+            class="options__icon"
+            alt=""
+          >
+        </RouterLink>
+        <RouterLink
           v-if="can(`table.${$route.params.tableName}.trash`)"
           :to="`/table/${$route.params.tableName}/trash`"
           class="options__trash-link"
