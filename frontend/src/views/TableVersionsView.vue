@@ -38,9 +38,61 @@
     </header>
 
     <article class="versions-card">
-      <div class="versions-card__header">
-        <div class="versions-picker">
-          <span class="versions-picker__label">Версия</span>
+      <!-- Строка действий: заголовок раздела слева, операции над версиями справа. -->
+      <div class="versions-toolbar">
+        <h3 class="versions-toolbar__title">
+          Версии таблицы
+        </h3>
+        <div class="versions-toolbar__actions">
+          <button
+            type="button"
+            class="lk-button lk-button--primary versions-action"
+            :disabled="!tableID || !!error || snapshotSaving"
+            data-testid="tv-snapshot-now"
+            @click="saveSnapshotNow"
+          >
+            {{ snapshotSaving ? 'Сохранение...' : 'Сохранить сейчас' }}
+          </button>
+          <button
+            type="button"
+            class="lk-button lk-button--secondary versions-action"
+            :disabled="selectedId === null || exporting !== ''"
+            data-testid="tv-export-xlsx"
+            @click="exportSnapshot('xlsx')"
+          >
+            {{ exporting === 'xlsx' ? 'Выгрузка...' : 'Excel' }}
+          </button>
+          <button
+            type="button"
+            class="lk-button lk-button--ghost versions-action"
+            :disabled="selectedId === null || exporting !== ''"
+            data-testid="tv-export-pdf"
+            @click="exportSnapshot('pdf')"
+          >
+            {{ exporting === 'pdf' ? 'Выгрузка...' : 'PDF' }}
+          </button>
+          <button
+            v-if="canCleanup"
+            type="button"
+            class="lk-button lk-button--danger versions-action"
+            :disabled="!tableID || !!error || cleanupRunning"
+            data-testid="tv-cleanup"
+            @click="openCleanup"
+          >
+            {{ cleanupRunning ? 'Очистка...' : 'Очистить старые версии' }}
+          </button>
+          <RefreshButton
+            :loading="listLoading"
+            @refresh="refresh"
+          />
+        </div>
+      </div>
+
+      <!-- Строка поиска ВЕРСИИ: выбор снимка из списка + сужение списка по дате.
+           Отдельно от поиска по строкам таблицы (тот - в тулбаре самой таблицы). -->
+      <div class="versions-filter">
+        <div class="versions-filter__group">
+          <span class="versions-filter__label">Версия</span>
           <BaseDropdown
             v-if="items.length"
             :model-value="selectedId"
@@ -48,7 +100,7 @@
             label-key="label"
             value-key="id"
             placeholder="Выберите версию"
-            class="versions-picker__dropdown"
+            class="versions-filter__dropdown"
             data-testid="tv-version-select"
             @update:model-value="selectSnapshot"
           />
@@ -68,75 +120,32 @@
           >
             Ещё
           </button>
-          <div class="versions-datefilter">
-            <label
-              class="versions-datefilter__label"
-              for="tv-date-filter"
-            >Дата</label>
-            <input
-              id="tv-date-filter"
-              type="date"
-              class="versions-datefilter__input"
-              :value="dateFilter"
-              data-testid="tv-date-filter"
-              @change="onDateChange"
-            >
-            <button
-              v-if="dateFilter"
-              type="button"
-              class="versions-datefilter__clear"
-              aria-label="Сбросить дату"
-              data-testid="tv-date-clear"
-              @click="clearDate"
-            >
-              &times;
-            </button>
-          </div>
         </div>
 
-        <div class="versions-card__spacer" />
-
-        <button
-          type="button"
-          class="lk-button lk-button--primary versions-action"
-          :disabled="!tableID || !!error || snapshotSaving"
-          data-testid="tv-snapshot-now"
-          @click="saveSnapshotNow"
-        >
-          {{ snapshotSaving ? 'Сохранение...' : 'Сохранить сейчас' }}
-        </button>
-        <button
-          type="button"
-          class="lk-button lk-button--secondary versions-action"
-          :disabled="selectedId === null || exporting !== ''"
-          data-testid="tv-export-xlsx"
-          @click="exportSnapshot('xlsx')"
-        >
-          {{ exporting === 'xlsx' ? 'Выгрузка...' : 'Excel' }}
-        </button>
-        <button
-          type="button"
-          class="lk-button lk-button--ghost versions-action"
-          :disabled="selectedId === null || exporting !== ''"
-          data-testid="tv-export-pdf"
-          @click="exportSnapshot('pdf')"
-        >
-          {{ exporting === 'pdf' ? 'Выгрузка...' : 'PDF' }}
-        </button>
-        <button
-          v-if="canCleanup"
-          type="button"
-          class="lk-button lk-button--danger versions-action"
-          :disabled="!tableID || !!error || cleanupRunning"
-          data-testid="tv-cleanup"
-          @click="openCleanup"
-        >
-          {{ cleanupRunning ? 'Очистка...' : 'Очистить старые версии' }}
-        </button>
-        <RefreshButton
-          :loading="listLoading"
-          @refresh="refresh"
-        />
+        <div class="versions-filter__group">
+          <label
+            class="versions-filter__label"
+            for="tv-date-filter"
+          >По дате</label>
+          <input
+            id="tv-date-filter"
+            type="date"
+            class="versions-datefilter__input"
+            :value="dateFilter"
+            data-testid="tv-date-filter"
+            @change="onDateChange"
+          >
+          <button
+            v-if="dateFilter"
+            type="button"
+            class="versions-datefilter__clear"
+            aria-label="Сбросить дату"
+            data-testid="tv-date-clear"
+            @click="clearDate"
+          >
+            &times;
+          </button>
+        </div>
       </div>
 
       <div
@@ -200,22 +209,10 @@
             </div>
           </div>
 
-          <!-- Поиск по строкам снимка. SearchComponent как на основной странице;
-               фильтрация идёт внутри CarsTable/PeopleTable по :search-query тем же
-               buildSearchVariants/matchesSearch, счётчики версии не трогает. -->
-          <div
-            v-if="detail && previewItems.length"
-            class="versions-subbar"
-            data-testid="tv-subbar"
-          >
-            <SearchComponent
-              v-model="searchQuery"
-              title="Поиск по таблице"
-            />
-          </div>
-
-          <!-- Таблица снимка на всю ширину: preview-режим реальных CarsTable/PeopleTable
-               с колонками (previewFields) и строками (previewItems) на момент снимка. -->
+          <!-- Таблица снимка: собственный тулбар (заголовок + поиск по строкам,
+               поиск ВНУТРИ таблицы как на основной странице), затем preview-режим
+               реальных CarsTable/PeopleTable с колонками и строками на момент снимка.
+               Фильтрация делегируется таблице через :search-query, счётчики не трогает. -->
           <div
             class="versions-body"
             data-testid="tv-body"
@@ -236,25 +233,37 @@
             </div>
             <div
               v-else
-              class="versions-preview"
+              class="versions-table"
               data-testid="tv-preview"
             >
-              <CarsTable
-                v-if="detailType === 'cars'"
-                :preview="true"
-                :preview-fields="previewFields"
-                :preview-items="previewItems"
-                :search-query="searchQuery"
-                :table-id="tableID"
-              />
-              <PeopleTable
-                v-else-if="detailType === 'people'"
-                :preview="true"
-                :preview-fields="previewFields"
-                :preview-items="previewItems"
-                :search-query="searchQuery"
-                :table-name="''"
-              />
+              <div
+                class="versions-table__toolbar"
+                data-testid="tv-subbar"
+              >
+                <span class="versions-table__title">Состав версии</span>
+                <SearchComponent
+                  v-model="searchQuery"
+                  title="Поиск по строкам"
+                />
+              </div>
+              <div class="versions-preview">
+                <CarsTable
+                  v-if="detailType === 'cars'"
+                  :preview="true"
+                  :preview-fields="previewFields"
+                  :preview-items="previewItems"
+                  :search-query="searchQuery"
+                  :table-id="tableID"
+                />
+                <PeopleTable
+                  v-else-if="detailType === 'people'"
+                  :preview="true"
+                  :preview-fields="previewFields"
+                  :preview-items="previewItems"
+                  :search-query="searchQuery"
+                  :table-name="''"
+                />
+              </div>
             </div>
           </div>
         </template>
@@ -705,41 +714,59 @@ onMounted(async () => {
   flex-direction: column;
 }
 
-.versions-card__header {
+.versions-toolbar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 0 20px;
-  min-height: 50px;
+  justify-content: space-between;
+  gap: 12px 16px;
+  padding: 14px 20px;
   border-bottom: 1px solid #e6e6e6;
-  flex-shrink: 0;
   flex-wrap: wrap;
 }
 
-.versions-picker {
+.versions-toolbar__title {
+  margin: 0;
+  font-weight: 700;
+  font-size: 16px;
+  color: #1a1a1a;
+}
+
+.versions-toolbar__actions {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 0;
+  flex-wrap: wrap;
 }
 
-.versions-picker__label {
+.versions-filter {
+  display: flex;
+  align-items: center;
+  gap: 12px 28px;
+  padding: 12px 20px;
+  border-bottom: 1px solid #e6e6e6;
+  flex-wrap: wrap;
+}
+
+.versions-filter__group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.versions-filter__label {
   font-weight: 600;
-  font-size: 15px;
-  color: #000;
+  font-size: 14px;
+  color: #555;
+  white-space: nowrap;
 }
 
-.versions-picker__dropdown {
+.versions-filter__dropdown {
   min-width: 260px;
 }
 
 .versions-picker__none {
   font-size: 14px;
   color: #a2a2a2;
-}
-
-.versions-card__spacer {
-  flex: 1;
 }
 
 .versions-action {
@@ -791,18 +818,6 @@ onMounted(async () => {
   cursor: not-allowed;
 }
 
-.versions-datefilter {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.versions-datefilter__label {
-  font-weight: 600;
-  font-size: 15px;
-  color: #000;
-}
-
 .versions-datefilter__input {
   height: 34px;
   padding: 0 10px;
@@ -835,10 +850,24 @@ onMounted(async () => {
   color: #000;
 }
 
-.versions-subbar {
+.versions-table {
+  display: flex;
+  flex-direction: column;
+}
+
+.versions-table__toolbar {
   display: flex;
   align-items: center;
-  padding: 12px 20px 0;
+  justify-content: space-between;
+  gap: 12px 16px;
+  padding: 12px 20px;
+  flex-wrap: wrap;
+}
+
+.versions-table__title {
+  font-weight: 600;
+  font-size: 15px;
+  color: #1a1a1a;
 }
 
 .versions-meta {
