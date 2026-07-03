@@ -3,6 +3,7 @@ package handlers
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -198,7 +199,12 @@ func (h *TableSnapshotHandler) Export(c echo.Context) error {
 		return err
 	}
 
-	c.Response().Header().Set(echo.HeaderContentDisposition, fmt.Sprintf("attachment; filename=%q", filenameBase+"."+ext))
+	// Кириллическое имя - через filename* (RFC 5987) с ASCII-фолбэком, по образцу
+	// attachment_blank.go: старые клиенты возьмут snapshot.<ext>, современные - имя с
+	// названием таблицы и датой.
+	displayName := url.PathEscape(filenameBase + "." + ext)
+	c.Response().Header().Set(echo.HeaderContentDisposition,
+		`attachment; filename="snapshot.`+ext+`"; filename*=UTF-8''`+displayName)
 	return c.Blob(http.StatusOK, mime, data)
 }
 

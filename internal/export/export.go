@@ -124,11 +124,22 @@ func ToPDF(t Table) ([]byte, error) {
 	if len(t.Headers) > 0 {
 		colW := usableW / float64(len(t.Headers))
 		const rowH = 6.0
+		_, pageH := pdf.GetPageSize()
+		_, _, _, bottomM := pdf.GetMargins()
 
-		pdf.SetFont(pdfFontFamily, "", 8)
-		pdf.SetFillColor(230, 230, 230)
-		drawPDFRow(pdf, t.Headers, colW, rowH, true)
+		// Шапку колонок повторяем на каждой странице - иначе на 2-й+ странице крупной
+		// таблицы (700-1500 строк) непонятно, что за колонки.
+		drawHeader := func() {
+			pdf.SetFont(pdfFontFamily, "", 8)
+			pdf.SetFillColor(230, 230, 230)
+			drawPDFRow(pdf, t.Headers, colW, rowH, true)
+		}
+		drawHeader()
 		for _, r := range t.Rows {
+			if pdf.GetY()+rowH > pageH-bottomM {
+				pdf.AddPage()
+				drawHeader()
+			}
 			drawPDFRow(pdf, r, colW, rowH, false)
 		}
 	}
@@ -152,7 +163,10 @@ func drawPDFRow(pdf *fpdf.Fpdf, cells []string, colW, rowH float64, fill bool) {
 // truncateToWidth усекает строку до ширины maxW (в единицах документа), добавляя
 // многоточие. Нужен потому, что fpdf.CellFormat не переносит и не обрезает текст сам.
 func truncateToWidth(pdf *fpdf.Fpdf, s string, maxW float64) string {
-	if maxW <= 0 || pdf.GetStringWidth(s) <= maxW {
+	if maxW <= 0 {
+		return ""
+	}
+	if pdf.GetStringWidth(s) <= maxW {
 		return s
 	}
 	runes := []rune(s)

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -67,7 +66,7 @@ func (s *tableSnapshotService) BuildSnapshotExport(ctx context.Context, tableID 
 		return export.Table{}, "", echo.NewHTTPError(http.StatusUnprocessableEntity, "Unsupported table type for export")
 	}
 
-	return tbl, snapshotExportFilename(tableID, snapshotID, mskAt), nil
+	return tbl, snapshotExportFilename(tbl.Title, snapshotID, mskAt), nil
 }
 
 // resolveExportPayload отдаёт сырой payload и момент состояния: для версии - из БД,
@@ -100,15 +99,15 @@ func snapshotTableTitle(t models.SystemTable) string {
 	return t.Name
 }
 
-// snapshotExportFilename строит ASCII-базу имени файла (без расширения):
-// snapshot_<tableID>_<sid|current>_<yyyymmdd>. ASCII - чтобы не возиться с
-// кодированием кириллицы в Content-Disposition.
-func snapshotExportFilename(tableID int, snapshotID *int, at time.Time) string {
-	sidPart := "current"
-	if snapshotID != nil {
-		sidPart = strconv.Itoa(*snapshotID)
+// snapshotExportFilename строит человекочитаемую базу имени файла (без расширения),
+// напр. «Машины - версия 03.07.2026». Кириллица - handler отдаёт её в
+// Content-Disposition через filename* (RFC 5987) с ASCII-фолбэком.
+func snapshotExportFilename(title string, snapshotID *int, at time.Time) string {
+	kind := "версия"
+	if snapshotID == nil {
+		kind = "текущее состояние"
 	}
-	return fmt.Sprintf("snapshot_%d_%s_%s", tableID, sidPart, at.Format("20060102"))
+	return fmt.Sprintf("%s - %s %s", title, kind, at.Format("02.01.2006"))
 }
 
 // carExportRows раскладывает строки-машины снимка в шапку и ячейки выгрузки. Колонка

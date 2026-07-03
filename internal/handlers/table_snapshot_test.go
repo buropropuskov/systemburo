@@ -843,3 +843,23 @@ func TestTableSnapshot_Export_NotFound_404(t *testing.T) {
 	rec := testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/snapshots/999999/export?format=xlsx", tbl.ID), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusNotFound, rec.Code, "несуществующая версия - 404")
 }
+
+// TestTableSnapshot_Export_WrongTable_404: экспорт версии через ID чужой таблицы -
+// 404 (IDOR закрыт, как у Get). Новая поверхность /export фиксируется явно.
+func TestTableSnapshot_Export_WrongTable_404(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "snap_exp_idor", "pass123", 1, td.OrgID, td.CompanyID)
+	dnA, dnB := "Таблица A", "Таблица B"
+	tblA := models.SystemTable{Name: "export_idor_a", DisplayName: &dnA, TableType: models.TableTypeCars, IsActive: true}
+	tblB := models.SystemTable{Name: "export_idor_b", DisplayName: &dnB, TableType: models.TableTypeCars, IsActive: true}
+	require.NoError(t, db.Create(&tblA).Error)
+	require.NoError(t, db.Create(&tblB).Error)
+	sid := seedCarSnapshotWithCyrillic(t, db, tblA.ID)
+
+	rec := testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/snapshots/%d/export?format=xlsx", tblB.ID, sid), testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusNotFound, rec.Code, "версия таблицы A недоступна на экспорт через таблицу B")
+}

@@ -2,6 +2,8 @@ package export
 
 import (
 	"bytes"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -59,5 +61,31 @@ func TestToPDF_EmbedsCyrillicFont(t *testing.T) {
 		if !strings.Contains(raw, marker) {
 			t.Fatalf("в PDF нет маркера встроенного кириллического шрифта %q", marker)
 		}
+	}
+}
+
+// TestToPDF_ManyRows_MultiPage: большая таблица разбивается на несколько страниц
+// (проверяем /Count в корневом Pages-объекте). Тем самым прогоняется путь переноса
+// страницы с повтором шапки колонок (drawHeader на каждой новой странице).
+func TestToPDF_ManyRows_MultiPage(t *testing.T) {
+	rows := make([][]string, 0, 400)
+	for i := 0; i < 400; i++ {
+		rows = append(rows, []string{"А123ВС77", "Камаз", "На территории"})
+	}
+	data, err := ToPDF(Table{
+		Title:   "Снимок",
+		Headers: []string{"№ машины", "Марка", "Статус на территории"},
+		Rows:    rows,
+	})
+	if err != nil {
+		t.Fatalf("ToPDF: %v", err)
+	}
+	m := regexp.MustCompile(`/Count (\d+)`).FindStringSubmatch(string(data))
+	if m == nil {
+		t.Fatal("в PDF нет /Count Pages-объекта")
+	}
+	pages, _ := strconv.Atoi(m[1])
+	if pages < 2 {
+		t.Fatalf("ожидали многостраничный PDF, страниц: %d", pages)
 	}
 }
