@@ -234,15 +234,13 @@
         class="versions-table"
         data-testid="tv-preview"
       >
+        <!-- Заголовок раздела - ВНЕ таблицы. Поиск по строкам - в РОДНОЙ шапке
+             CarsTable/PeopleTable (слот header-actions), а не отдельной полосой. -->
         <div
           class="versions-table__toolbar"
           data-testid="tv-subbar"
         >
           <span class="versions-table__title">Состав версии</span>
-          <SearchComponent
-            v-model="searchQuery"
-            title="Поиск по строкам"
-          />
         </div>
         <div class="versions-preview">
           <CarsTable
@@ -252,7 +250,14 @@
             :preview-items="previewItems"
             :search-query="searchQuery"
             :table-id="tableID"
-          />
+          >
+            <template #header-actions>
+              <SearchComponent
+                v-model="searchQuery"
+                title="Поиск по строкам"
+              />
+            </template>
+          </CarsTable>
           <PeopleTable
             v-else-if="detailType === 'people'"
             :preview="true"
@@ -260,7 +265,14 @@
             :preview-items="previewItems"
             :search-query="searchQuery"
             :table-name="''"
-          />
+          >
+            <template #header-actions>
+              <SearchComponent
+                v-model="searchQuery"
+                title="Поиск по строкам"
+              />
+            </template>
+          </PeopleTable>
         </div>
       </div>
     </article>
@@ -717,7 +729,10 @@ onMounted(async () => {
   background: #fff;
   border: 1px solid #e6e6e6;
   border-radius: 30px;
-  overflow: hidden;
+  /* overflow: visible - иначе выпадающее меню версии/попап календаря (position:
+     absolute внутри карточки) обрезаются краем низкой карточки. Дети прозрачные,
+     скругление 30px держится на самой карточке, углы не страдают. */
+  overflow: visible;
   display: flex;
   flex-direction: column;
 }

@@ -56,10 +56,13 @@ import { apiRequest } from '@/api/client';
 // было ассертить, что versions-view нормализовал строки и передал колонки снимка.
 const tableStub = (testid) => ({
   props: ['preview', 'previewFields', 'previewItems', 'searchQuery', 'tableId', 'tableName'],
+  // Рендерим слот header-actions - в него versions-view кладёт поиск по строкам
+  // (теперь в родной шапке таблицы), чтобы .tv-search-input был в дереве.
   template: `<div :data-testid="'${testid}'"
       :data-rows="previewItems ? previewItems.length : 0"
       :data-fields="previewFields ? previewFields.length : 0"
       :data-search="searchQuery || ''">
+      <slot name="header-actions" />
       <span v-for="it in (previewItems || [])" :key="it.id" class="preview-cell"
         :data-org="it.organization_name" :data-entry="String(it.entry_checked)"
         :data-exit="String(it.exit_checked)">{{ it.car_number || it.last_name }}</span>
