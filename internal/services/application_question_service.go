@@ -55,12 +55,18 @@ type QuestionWithAnswers struct {
 	Attachments   []QuestionAttachmentItem `json:"attachments"`
 	CreatedAt     time.Time                `json:"created_at"`
 	Answers       []AnswerItem             `json:"answers"`
+	// IsNew - в топике есть непрочитанное для смотрящего (#973): вопрос или его ответ созданы
+	// позже read_at топика (или отметки прочтения нет), автор события != смотрящий.
+	IsNew bool `json:"is_new"`
 }
 
 const questionAuthorName = `format_full_name(u.last_name, u.first_name, u.middle_name)`
 
 // GetApplicationQuestions возвращает вопросы к заявке (#973) с ответами и вложениями.
-func (s *applicationService) GetApplicationQuestions(ctx context.Context, applicationID, viewerUserID int) ([]QuestionWithAnswers, error) {
+// forwardViewerID - id для фильтра пер-вложенного пересыла (#680): 0 = супер-админ (видит все).
+// readerUserID - РЕАЛЬНЫЙ id смотрящего для флага IsNew (у супера тоже реальный, иначе его
+// прочтения по user_id=0 не нашлись бы).
+func (s *applicationService) GetApplicationQuestions(ctx context.Context, applicationID, forwardViewerID, readerUserID int) ([]QuestionWithAnswers, error) {
 	type qRow struct {
 		ID           int
 		AuthorUserID int
@@ -156,7 +162,7 @@ func (s *applicationService) GetApplicationQuestions(ctx context.Context, applic
 	}
 	// Пер-вложенный пересыл (#680): читателю с ограничением не показываем имена вложений,
 	// которые ему персонально не пересылали.
-	allowed, restricted, err := s.resolveForwardFilter(ctx, applicationID, viewerUserID)
+	allowed, restricted, err := s.resolveForwardFilter(ctx, applicationID, forwardViewerID)
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +178,43 @@ func (s *applicationService) GetApplicationQuestions(ctx context.Context, applic
 		}
 	}
 
+	// Флаг новизны по per-топик отметке прочтения (#973). read_at топика читается ДО любого
+	// обновления - клик пометки прочтения идёт отдельным эндпоинтом.
+	type readRow struct {
+		QuestionID int
+		ReadAt     time.Time
+	}
+	var readRows []readRow
+	if err := s.db.WithContext(ctx).Raw(`
+		SELECT question_id, read_at FROM application_question_reads
+		WHERE user_id = ? AND question_id IN ?
+	`, readerUserID, ids).Scan(&readRows).Error; err != nil {
+		slog.Error("Ошибка получения отметок прочтения вопросов", "application_id", applicationID, "error", err)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching question reads")
+	}
+	readAt := make(map[int]time.Time, len(readRows))
+	for _, r := range readRows {
+		readAt[r.QuestionID] = r.ReadAt
+	}
+	for i := range questions {
+		questions[i].IsNew = topicHasUnseen(&questions[i], readAt[questions[i].ID], readerUserID)
+	}
+
 	return questions, nil
+}
+
+// topicHasUnseen: в топике есть непрочитанное для readerUserID - вопрос или любой ответ
+// созданы позже read (или отметки нет, read = нулевое время), автор события != смотрящий.
+func topicHasUnseen(q *QuestionWithAnswers, read time.Time, readerUserID int) bool {
+	if q.AuthorUserID != readerUserID && q.CreatedAt.After(read) {
+		return true
+	}
+	for _, a := range q.Answers {
+		if a.AuthorUserID != readerUserID && a.CreatedAt.After(read) {
+			return true
+		}
+	}
+	return false
 }
 
 // CreateApplicationQuestion создаёт вопрос-топик (#973).
@@ -376,6 +418,12 @@ func (s *applicationService) CreateApplicationAnswer(ctx context.Context, userna
 		tx.Rollback()
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to update seen state")
 	}
+	// Автор ответа участвовал в топике -> он прочитал его (свой ответ и всё прежнее не светят
+	// ему новизну; чужой ответ позже снова пометит топик новым, #973).
+	if err := tx.Exec(questionReadUpsert, questionID, user.ID).Error; err != nil {
+		tx.Rollback()
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to mark question read")
+	}
 	if err := tx.Commit().Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
 	}
@@ -443,6 +491,35 @@ func (s *applicationService) MarkQuestionsSeen(ctx context.Context, username str
 const questionViewUpsert = `INSERT INTO application_question_views (application_id, user_id, last_seen_at)
 	VALUES (?, ?, now())
 	ON CONFLICT (application_id, user_id) DO UPDATE SET last_seen_at = now()`
+
+// questionReadUpsert - идемпотентный upsert per-топик прочтения (question_id, user_id).
+const questionReadUpsert = `INSERT INTO application_question_reads (question_id, user_id, read_at)
+	VALUES (?, ?, now())
+	ON CONFLICT (question_id, user_id) DO UPDATE SET read_at = now()`
+
+// MarkQuestionRead помечает конкретный вопрос-топик прочитанным смотрящим (#973): гасит его
+// новизну (и учтённые в нём ответы) для этого пользователя. Идемпотентно.
+func (s *applicationService) MarkQuestionRead(ctx context.Context, username string, applicationID, questionID int) error {
+	user, err := s.getUserByUsername(ctx, username)
+	if err != nil {
+		return err
+	}
+	var q struct {
+		ID            int
+		ApplicationID int
+	}
+	if err := s.db.WithContext(ctx).Raw("SELECT id, application_id FROM application_questions WHERE id = ?", questionID).Scan(&q).Error; err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Database error")
+	}
+	if q.ID == 0 || q.ApplicationID != applicationID {
+		return echo.NewHTTPError(http.StatusNotFound, "Question not found")
+	}
+	if err := s.db.WithContext(ctx).Exec(questionReadUpsert, questionID, user.ID).Error; err != nil {
+		slog.Error("Ошибка отметки прочтения вопроса", "question_id", questionID, "error", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to mark question read")
+	}
+	return nil
+}
 
 func applicationNumberOrFallback(number string, applicationID int) string {
 	if number == "" {

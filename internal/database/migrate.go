@@ -82,6 +82,7 @@ func AllModels() []interface{} {
 		&models.ApplicationAnswer{},
 		&models.ApplicationQuestionAttachment{},
 		&models.ApplicationQuestionView{},
+		&models.ApplicationQuestionRead{},
 
 		// Доступные мне (#706): привязка мест к охраннику + место разгрузки на уровне вложения
 		// (depends on User, UnloadPlace, SystemTable, Attachment)

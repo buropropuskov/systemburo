@@ -529,6 +529,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	apg.POST("/:id/questions", app.CreateApplicationQuestion)
 	apg.POST("/:id/questions/seen", app.MarkQuestionsSeen)
 	apg.POST("/:id/questions/:questionId/answers", app.CreateApplicationAnswer)
+	apg.POST("/:id/questions/:questionId/read", app.MarkQuestionRead)
 
 	// Вложения заявок (cars/employees/items внутри вложений)
 	att.GET("/:id/cars", app.GetAttachmentCars)

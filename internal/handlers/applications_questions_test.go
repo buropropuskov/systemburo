@@ -200,22 +200,85 @@ func TestQuestions_Marker(t *testing.T) {
 	// Согласующий задаёт вопрос.
 	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/questions", appID), `{"subject":"Т","text":"В?"}`, testutil.AuthHeader(respToken))
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	q := testutil.ParseResponse[services.QuestionWithAnswers](t, rec)
 
-	// Читатель видит маркер; автор вопроса - нет (seen-on-post).
+	// Читатель видит маркер; автор вопроса - нет (свой вопрос не светит, author-exclusion).
 	assert.True(t, markerFor(t, e, viewerToken, appID), "читатель видит новые вопросы")
 	assert.False(t, markerFor(t, e, respToken, appID), "автор вопроса свой маркер не видит")
 
-	// Читатель отметил просмотренным -> маркер гаснет.
-	rec = testutil.POST(t, e, fmt.Sprintf("/applications/%d/questions/seen", appID), ``, testutil.AuthHeader(viewerToken))
+	// Читатель пометил вопрос прочитанным (per-топик) -> маркер гаснет.
+	rec = testutil.POST(t, e, fmt.Sprintf("/applications/%d/questions/%d/read", appID, q.ID), ``, testutil.AuthHeader(viewerToken))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	assert.False(t, markerFor(t, e, viewerToken, appID), "после просмотра маркер гаснет")
+	assert.False(t, markerFor(t, e, viewerToken, appID), "после прочтения топика маркер гаснет")
 
-	// Новый ответ -> у читателя снова активность после его last-seen.
-	var qID int
-	require.NoError(t, db.Raw("SELECT id FROM application_questions WHERE application_id = ? LIMIT 1", appID).Scan(&qID).Error)
-	rec = testutil.POST(t, e, fmt.Sprintf("/applications/%d/questions/%d/answers", appID, qID), `{"text":"ответ"}`, testutil.AuthHeader(senderToken))
+	// Новый ответ -> у читателя снова активность после его прочтения топика.
+	rec = testutil.POST(t, e, fmt.Sprintf("/applications/%d/questions/%d/answers", appID, q.ID), `{"text":"ответ"}`, testutil.AuthHeader(senderToken))
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 	assert.True(t, markerFor(t, e, viewerToken, appID), "новый ответ снова зажигает маркер")
+}
+
+// TestQuestions_IsNewPerTopic закрывает #973 (индикатор новизны в блоке): флаг is_new per-топик
+// в GET /questions. Новый топик - is_new=true; прочитанный - false; недочитанный ОСТАЁТСЯ new
+// (per-топик отметка, не одна граница на заявку); свой вопрос - false; новый ответ в прочитанном
+// топике снова зажигает is_new.
+func TestQuestions_IsNewPerTopic(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	senderToken := testutil.RegisterAndLogin(t, e, "qn_sender", "pass123", 1, td.OrgID, td.CompanyID)
+	senderID := getUserID(t, db, "qn_sender")
+	testutil.RegisterUser(t, e, "qn_resp", "pass123", 1, td.OrgID, td.CompanyID)
+	respID := getUserID(t, db, "qn_resp")
+	respToken, _ := testutil.LoginUser(t, e, "qn_resp", "pass123")
+
+	appID := createSimpleApplication(t, e, senderToken, td.OrgID)
+	require.NoError(t, db.Exec(`INSERT INTO application_responsible_users
+		(application_id, user_id, required_approval, approval_status, created_at, created_by, is_primary)
+		VALUES (?, ?, false, 'pending', NOW(), ?, false)`, appID, respID, senderID).Error)
+
+	// Согласующий задаёт ДВА топика.
+	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/questions", appID), `{"subject":"Первый","text":"вопрос 1"}`, testutil.AuthHeader(respToken))
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	q1 := testutil.ParseResponse[services.QuestionWithAnswers](t, rec)
+	rec = testutil.POST(t, e, fmt.Sprintf("/applications/%d/questions", appID), `{"subject":"Второй","text":"вопрос 2"}`, testutil.AuthHeader(respToken))
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	q2 := testutil.ParseResponse[services.QuestionWithAnswers](t, rec)
+
+	isNewByID := func(token string) map[int]bool {
+		rc := testutil.GET(t, e, fmt.Sprintf("/applications/%d/questions", appID), testutil.AuthHeader(token))
+		require.Equal(t, http.StatusOK, rc.Code, rc.Body.String())
+		list := testutil.ParseResponse[[]services.QuestionWithAnswers](t, rc)
+		m := make(map[int]bool, len(list))
+		for _, q := range list {
+			m[q.ID] = q.IsNew
+		}
+		return m
+	}
+
+	// Инициатор: оба топика чужие и непрочитанные -> is_new.
+	m := isNewByID(senderToken)
+	assert.True(t, m[q1.ID], "новый топик 1 is_new для читателя")
+	assert.True(t, m[q2.ID], "новый топик 2 is_new для читателя")
+
+	// Автор (resp): свои вопросы не новые.
+	ma := isNewByID(respToken)
+	assert.False(t, ma[q1.ID], "свой вопрос не is_new для автора")
+	assert.False(t, ma[q2.ID], "свой вопрос не is_new для автора")
+
+	// Инициатор прочитал ТОЛЬКО топик 1 -> он гаснет, топик 2 ОСТАЁТСЯ новым (не одна граница).
+	rec = testutil.POST(t, e, fmt.Sprintf("/applications/%d/questions/%d/read", appID, q1.ID), ``, testutil.AuthHeader(senderToken))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	m = isNewByID(senderToken)
+	assert.False(t, m[q1.ID], "прочитанный топик 1 больше не is_new")
+	assert.True(t, m[q2.ID], "недочитанный топик 2 остаётся is_new")
+
+	// Новый ответ в прочитанном топике 1 (от resp) -> снова is_new для инициатора.
+	rec = testutil.POST(t, e, fmt.Sprintf("/applications/%d/questions/%d/answers", appID, q1.ID), `{"text":"новый ответ"}`, testutil.AuthHeader(respToken))
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	m = isNewByID(senderToken)
+	assert.True(t, m[q1.ID], "новый чужой ответ снова зажигает is_new прочитанного топика")
 }
 
 // TestQuestions_AttachmentForwardRestriction: вложения вопроса уважают пер-вложенный
@@ -305,6 +368,10 @@ func TestQuestions_AnswerWrongApplication(t *testing.T) {
 	// Ответить на этот вопрос через ДРУГУЮ заявку -> 404.
 	rec = testutil.POST(t, e, fmt.Sprintf("/applications/%d/questions/%d/answers", otherAppID, q.ID), `{"text":"x"}`, testutil.AuthHeader(senderToken))
 	assert.Equal(t, http.StatusNotFound, rec.Code, "ответ через чужую заявку не проходит")
+
+	// Пометить прочитанным вопрос через ДРУГУЮ заявку -> 404 (вопрос ей не принадлежит).
+	rec = testutil.POST(t, e, fmt.Sprintf("/applications/%d/questions/%d/read", otherAppID, q.ID), ``, testutil.AuthHeader(senderToken))
+	assert.Equal(t, http.StatusNotFound, rec.Code, "пометка прочтения через чужую заявку не проходит")
 }
 
 // TestQuestions_Unauthorized: без токена все Q&A-эндпоинты отдают 401.
@@ -320,6 +387,8 @@ func TestQuestions_Unauthorized(t *testing.T) {
 	rec = testutil.POST(t, e, "/applications/1/questions/1/answers", `{"text":"y"}`, nil)
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
 	rec = testutil.POST(t, e, "/applications/1/questions/seen", ``, nil)
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+	rec = testutil.POST(t, e, "/applications/1/questions/1/read", ``, nil)
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
 	_ = db
 }

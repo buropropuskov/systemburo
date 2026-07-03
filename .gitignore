@@ -22,3 +22,6 @@ frontend/test-results/
 *.tmp
 mockup-*.html
 sidebar-*.png
+
+# Runtime-загрузки (тестовые/локальные артефакты, не хранятся в VCS)
+internal/handlers/uploads/

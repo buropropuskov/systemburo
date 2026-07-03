@@ -29,12 +29,14 @@ func (h *ApplicationHandler) GetApplicationQuestions(c echo.Context) error {
 	if !h.service.CanAccessApplication(c.Request().Context(), id, username, IsSuperAdmin(c)) {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
-	// viewerID для фильтра пер-вложенного пересыла (#680): 0 - супер-админ (видит все).
-	viewerID := GetUserID(c)
+	// forwardViewerID для фильтра пер-вложенного пересыла (#680): 0 - супер-админ (видит все).
+	// readerID - реальный id для флага IsNew (per-топик прочтение), у супера тоже реальный.
+	readerID := GetUserID(c)
+	forwardViewerID := readerID
 	if IsSuperAdmin(c) {
-		viewerID = 0
+		forwardViewerID = 0
 	}
-	questions, err := h.service.GetApplicationQuestions(c.Request().Context(), id, viewerID)
+	questions, err := h.service.GetApplicationQuestions(c.Request().Context(), id, forwardViewerID, readerID)
 	if err != nil {
 		return err
 	}
@@ -137,4 +139,36 @@ func (h *ApplicationHandler) MarkQuestionsSeen(c echo.Context) error {
 		return err
 	}
 	return RespondMessage(c, "Questions marked as seen")
+}
+
+// MarkQuestionRead godoc
+// @Summary      Отметить вопрос-топик прочитанным
+// @Description  Помечает конкретный вопрос-топик прочитанным (#973): гасит его новизну для пользователя. Недочитанные топики остаются новыми.
+// @Tags         applications
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID заявки"
+// @Param        questionId path int true "ID вопроса"
+// @Success      200 {object} map[string]string
+// @Failure      400 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Router       /applications/{id}/questions/{questionId}/read [post]
+func (h *ApplicationHandler) MarkQuestionRead(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
+	}
+	questionID, err := strconv.Atoi(c.Param("questionId"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid question ID")
+	}
+	username := c.Get("username").(string)
+	if !h.service.CanAccessApplication(c.Request().Context(), id, username, IsSuperAdmin(c)) {
+		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
+	}
+	if err := h.service.MarkQuestionRead(c.Request().Context(), username, id, questionID); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Question marked as read")
 }

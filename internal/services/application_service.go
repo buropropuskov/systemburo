@@ -56,9 +56,11 @@ const applicationsListSelect = `
 		(SELECT COUNT(*) FROM application_blacklist_flags f WHERE f.application_id = a.id AND NOT EXISTS (SELECT 1 FROM application_blacklist_overrides o WHERE o.flag_id = f.id)) as blacklist_flags_count,
 		(
 			EXISTS (SELECT 1 FROM application_questions q WHERE q.application_id = a.id
-				AND q.created_at > COALESCE((SELECT qv.last_seen_at FROM application_question_views qv WHERE qv.application_id = a.id AND qv.user_id = ?), to_timestamp(0)))
+				AND q.author_user_id <> ?
+				AND q.created_at > COALESCE((SELECT r.read_at FROM application_question_reads r WHERE r.question_id = q.id AND r.user_id = ?), to_timestamp(0)))
 			OR EXISTS (SELECT 1 FROM application_answers ans WHERE ans.application_id = a.id
-				AND ans.created_at > COALESCE((SELECT qv.last_seen_at FROM application_question_views qv WHERE qv.application_id = a.id AND qv.user_id = ?), to_timestamp(0)))
+				AND ans.author_user_id <> ?
+				AND ans.created_at > COALESCE((SELECT r.read_at FROM application_question_reads r WHERE r.question_id = ans.question_id AND r.user_id = ?), to_timestamp(0)))
 		) as has_unseen_questions
 	`
 
@@ -71,8 +73,9 @@ func applicationsListSelectArgs(readUserID, forwardViewerID int) []interface{} {
 		readUserID,
 		forwardViewerID, forwardViewerID, forwardViewerID,
 		forwardViewerID, forwardViewerID, forwardViewerID,
-		// has_unseen_questions (#973): last-seen текущего пользователя в двух EXISTS.
-		readUserID, readUserID,
+		// has_unseen_questions (#973): per-топик отметка прочтения. На каждый из двух EXISTS -
+		// author_user_id <> reader (свой вопрос/ответ не светит) + read по вопросу этого reader.
+		readUserID, readUserID, readUserID, readUserID,
 	}
 }
 
@@ -215,9 +218,10 @@ type ApplicationService interface {
 
 	// GetApplicationQuestions возвращает вопросы к заявке (#973) с вложенными ответами,
 	// вложениями и ФИО авторов; вопросы новые сверху, ответы в хронологии треда.
-	// viewerUserID (#680): вложения вопроса скрываются, если недоступны читателю по
-	// пер-вложенному пересылу; 0 - супер-админ (видит все).
-	GetApplicationQuestions(ctx context.Context, applicationID, viewerUserID int) ([]QuestionWithAnswers, error)
+	// forwardViewerID (#680): вложения вопроса скрываются, если недоступны читателю по
+	// пер-вложенному пересылу; 0 - супер-админ (видит все). readerUserID - реальный id для
+	// флага IsNew (per-топик отметка прочтения).
+	GetApplicationQuestions(ctx context.Context, applicationID, forwardViewerID, readerUserID int) ([]QuestionWithAnswers, error)
 
 	// CreateApplicationQuestion создаёт вопрос-топик (#973): гейт canAsk (не чистый sender),
 	// история question_created, уведомление инициатору. Возвращает созданный вопрос.
@@ -230,6 +234,10 @@ type ApplicationService interface {
 	// MarkQuestionsSeen обновляет last-seen пользователя по Q&A заявки (#973) - гасит маркер
 	// "новые вопросы/ответы" в списке.
 	MarkQuestionsSeen(ctx context.Context, username string, applicationID int) error
+
+	// MarkQuestionRead помечает конкретный вопрос-топик прочитанным (#973) - гасит его новизну
+	// для пользователя (per-топик отметка, недочитанные топики остаются новыми).
+	MarkQuestionRead(ctx context.Context, username string, applicationID, questionID int) error
 }
 
 // --- DTO: запросы ---
