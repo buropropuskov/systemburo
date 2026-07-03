@@ -98,6 +98,7 @@ function scheduleReconnect() {
 }
 
 function restart() {
+  if (refCount <= 0) return // уже отключились - не дёргаем лишний билет
   if (source) {
     source.close()
     source = null
