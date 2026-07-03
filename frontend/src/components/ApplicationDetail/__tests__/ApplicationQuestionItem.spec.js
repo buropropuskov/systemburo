@@ -106,4 +106,11 @@ describe('ApplicationQuestionItem (#973)', () => {
     expect(wrapper.emitted('read')).toBeTruthy();
     expect(wrapper.emitted('read')[0]).toEqual([1]);
   });
+
+  it('фокус по полю ответа тоже эмитит read (#973)', async () => {
+    const wrapper = mountItem();
+    await wrapper.find('[data-testid="answer-input"]').trigger('focus');
+    expect(wrapper.emitted('read')).toBeTruthy();
+    expect(wrapper.emitted('read')[0]).toEqual([1]);
+  });
 });
