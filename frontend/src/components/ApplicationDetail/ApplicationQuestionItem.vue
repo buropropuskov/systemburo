@@ -239,8 +239,8 @@ export default {
 
 <style scoped>
 .qi {
-    padding: 14px 0;
-    border-bottom: 1px solid #d5d5d5;
+    padding: 16px 0;
+    border-bottom: 1px solid #c9c9c9;
 }
 
 .qi:first-child {
@@ -274,10 +274,10 @@ export default {
     flex-shrink: 0;
     font-size: 11px;
     line-height: 1;
-    font-weight: 700;
+    font-weight: 600;
     letter-spacing: 0.2px;
-    color: #fff;
-    background: var(--color-danger, #e5484d);
+    color: #c0392b;
+    background: rgba(220, 53, 69, 0.12);
     padding: 3px 8px;
     border-radius: 999px;
 }
