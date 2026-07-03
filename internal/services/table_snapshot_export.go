@@ -77,6 +77,8 @@ func (s *tableSnapshotService) resolveExportPayload(ctx context.Context, table m
 		if err != nil {
 			return nil, time.Time{}, err
 		}
+		// Fields здесь не собираем: экспорт (carExportRows/employeeExportRows) рендерит
+		// колонки по жёсткой шапке, payload.Fields не читает - лишний SELECT ни к чему.
 		payloadJSON, err := json.Marshal(models.SnapshotPayload{TableType: table.TableType, Rows: rows})
 		if err != nil {
 			return nil, time.Time{}, fmt.Errorf("failed to marshal current payload for export: %w", err)

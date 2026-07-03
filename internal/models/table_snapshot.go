@@ -48,10 +48,31 @@ type SnapshotCounts struct {
 	Total       int `json:"total"`
 }
 
-// SnapshotPayload — обёртка слепка: тип таблицы + сырые строки. Rows хранит
-// маршалированный срез DTO строк (cars/people), чтобы просмотр и экспорт версии
-// рендерили ровно то, что показывала страница на момент снимка.
+// SnapshotPayload — обёртка слепка: тип таблицы + сырые строки + структура колонок.
+// Rows хранит маршалированный срез DTO строк (cars/people), Fields — снимок настройки
+// колонок таблицы, чтобы просмотр и экспорт версии рендерили ровно те столбцы (и в том
+// порядке), что показывала страница на момент снимка.
 type SnapshotPayload struct {
 	TableType string          `json:"table_type"`
 	Rows      json.RawMessage `json:"rows"`
+	// Fields — снимок настройки колонок (видимость/порядок/ширина) на момент слепка.
+	// omitempty: старые снимки без Fields читаются без ошибки (фронт берёт фолбэк).
+	Fields []SnapshotField `json:"fields,omitempty"`
+}
+
+// SnapshotField — снимок структуры колонки таблицы на момент слепка. Зеркалит поля
+// TableField, которыми страница управляет рендером столбцов (видимость/порядок/ширина/
+// приоритет + enlarged-режим), чтобы просмотр версии показал ровно те колонки, что были
+// настроены тогда. Человекочитаемый заголовок вшит в компонент таблицы, потому в снимке
+// не хранится - достаточно field_name.
+type SnapshotField struct {
+	FieldName          string  `json:"field_name"`
+	FieldType          *string `json:"field_type"`
+	DisplayOrder       *int    `json:"display_order"`
+	IsVisible          bool    `json:"is_visible"`
+	Width              int     `json:"width"`
+	Priority           int     `json:"priority"`
+	EnlargedIsVisible  bool    `json:"enlarged_is_visible"`
+	EnlargedWidth      int     `json:"enlarged_width"`
+	EnlargedFontWeight int     `json:"enlarged_font_weight"`
 }

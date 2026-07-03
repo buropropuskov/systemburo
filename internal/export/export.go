@@ -7,6 +7,7 @@ package export
 import (
 	"bytes"
 	"fmt"
+	"unicode/utf8"
 
 	"github.com/go-pdf/fpdf"
 	"github.com/xuri/excelize/v2"
@@ -63,12 +64,58 @@ func ToXLSX(t Table) ([]byte, error) {
 	}
 
 	styleHeader(f, sheet, headerRow, len(t.Headers))
+	adjustColWidths(f, sheet, t.Headers, t.Rows)
 
 	buf, err := f.WriteToBuffer()
 	if err != nil {
 		return nil, fmt.Errorf("failed to write xlsx: %w", err)
 	}
 	return buf.Bytes(), nil
+}
+
+// Границы адаптивной ширины столбца xlsx (в «символах» - единица ширины excelize,
+// примерно равная числу знаков моноширинного текста).
+const (
+	minColWidth = 10.0
+	maxColWidth = 50.0
+	colWidthPad = 2.0 // запас на пропорциональный шрифт и отступы ячейки
+)
+
+// adjustColWidths подгоняет ширину каждого столбца под самое длинное значение (шапка или
+// ячейка) в пределах [minColWidth, maxColWidth]. Без этого excelize оставляет всем
+// дефолтные ~8.43 знака, и длинные значения (организация, места разгрузки) обрезаются.
+func adjustColWidths(f *excelize.File, sheet string, headers []string, rows [][]string) {
+	cols := len(headers)
+	for _, r := range rows {
+		if len(r) > cols {
+			cols = len(r)
+		}
+	}
+	for i := 0; i < cols; i++ {
+		maxLen := 0
+		if i < len(headers) {
+			maxLen = utf8.RuneCountInString(headers[i])
+		}
+		for _, r := range rows {
+			if i < len(r) {
+				if l := utf8.RuneCountInString(r[i]); l > maxLen {
+					maxLen = l
+				}
+			}
+		}
+		w := float64(maxLen) + colWidthPad
+		if w < minColWidth {
+			w = minColWidth
+		}
+		if w > maxColWidth {
+			w = maxColWidth
+		}
+		name, err := excelize.ColumnNumberToName(i + 1)
+		if err != nil {
+			continue
+		}
+		_ = f.SetColWidth(sheet, name, name, w)
+	}
 }
 
 // setCell пишет значение в ячейку (col,row) 1-based. Координаты строятся здесь же и
