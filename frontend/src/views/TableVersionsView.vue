@@ -123,28 +123,19 @@
         </div>
 
         <div class="versions-filter__group">
-          <label
-            class="versions-filter__label"
-            for="tv-date-filter"
-          >По дате</label>
-          <input
-            id="tv-date-filter"
-            type="date"
-            class="versions-datefilter__input"
-            :value="dateFilter"
+          <span class="versions-filter__label">Найти по дате</span>
+          <!-- Календарь (стандартный DateFilter проекта) - основной способ найти
+               версию: список снимков растёт ~1/день, выбор дня сужает его к дате.
+               Одиночный режим, границы дня считает fetchList через dayBoundsISO. -->
+          <DateFilter
+            :mode="'single'"
+            :selected-date="selectedDateObj"
+            class="versions-filter__date"
             data-testid="tv-date-filter"
-            @change="onDateChange"
-          >
-          <button
-            v-if="dateFilter"
-            type="button"
-            class="versions-datefilter__clear"
-            aria-label="Сбросить дату"
-            data-testid="tv-date-clear"
-            @click="clearDate"
-          >
-            &times;
-          </button>
+            @update:selected-date="onVersionDatePick"
+            @apply="applyVersionDate"
+            @clear="clearDate"
+          />
         </div>
       </div>
 
@@ -156,124 +147,121 @@
         {{ error }}
       </div>
 
-      <template v-else>
-        <div
-          v-if="!items.length && !listLoading"
-          class="versions-state versions-empty"
-          data-testid="tv-empty"
-        >
-          <p>Версий пока нет</p>
-          <span class="versions-empty__hint">
-            Снимки состояния создаются автоматически ночью перед сбросом статусов
-            (в 06:00) и вручную кнопкой «Сохранить сейчас».
+      <div
+        v-else-if="!items.length && !listLoading"
+        class="versions-state versions-empty"
+        data-testid="tv-empty"
+      >
+        <p>Версий пока нет</p>
+        <span class="versions-empty__hint">
+          Снимки состояния создаются автоматически ночью перед сбросом статусов
+          (в 06:00) и вручную кнопкой «Сохранить сейчас».
+        </span>
+      </div>
+
+      <div
+        v-else-if="listError"
+        class="versions-state versions-state--error"
+        data-testid="tv-list-error"
+      >
+        Не удалось загрузить версии
+      </div>
+
+      <!-- Метаданные выбранной версии: дата, тип, автор, счётчики. Берём из
+           элемента списка (детальный ответ снимка автора/counts-в-удобной-форме
+           не содержит), поэтому мета видна сразу, пока грузится payload. -->
+      <div
+        v-else-if="selectedItem"
+        class="versions-meta"
+        data-testid="tv-meta"
+      >
+        <div class="versions-meta__head">
+          <Badge
+            :variant="reasonVariant(selectedItem.reason)"
+            size="sm"
+          >
+            {{ reasonLabel(selectedItem.reason) }}
+          </Badge>
+          <span class="versions-meta__date">{{ formatDateTime(selectedItem.taken_at) }}</span>
+          <span
+            v-if="selectedItem.reason === 'manual' && selectedItem.actor_name"
+            class="versions-meta__actor"
+          >
+            {{ selectedItem.actor_name }}
           </span>
         </div>
-
-        <div
-          v-else-if="listError"
-          class="versions-state versions-state--error"
-          data-testid="tv-list-error"
-        >
-          Не удалось загрузить версии
+        <div class="versions-meta__counts">
+          <span class="versions-count versions-count--on">На территории: {{ detailCounts.on_territory }}</span>
+          <span class="versions-count versions-count--exit">Выехал: {{ detailCounts.exited }}</span>
+          <span class="versions-count versions-count--not">Не въезжал: {{ detailCounts.not_entered }}</span>
+          <span class="versions-count versions-count--total">Всего: {{ detailCounts.total }}</span>
         </div>
-
-        <template v-else>
-          <!-- Метаданные выбранной версии: дата, тип, автор, счётчики. Берём из
-               элемента списка (детальный ответ снимка автора/counts-в-удобной-форме
-               не содержит), поэтому мета видна сразу, пока грузится payload. -->
-          <div
-            v-if="selectedItem"
-            class="versions-meta"
-            data-testid="tv-meta"
-          >
-            <div class="versions-meta__head">
-              <Badge
-                :variant="reasonVariant(selectedItem.reason)"
-                size="sm"
-              >
-                {{ reasonLabel(selectedItem.reason) }}
-              </Badge>
-              <span class="versions-meta__date">{{ formatDateTime(selectedItem.taken_at) }}</span>
-              <span
-                v-if="selectedItem.reason === 'manual' && selectedItem.actor_name"
-                class="versions-meta__actor"
-              >
-                {{ selectedItem.actor_name }}
-              </span>
-            </div>
-            <div class="versions-meta__counts">
-              <span class="versions-count versions-count--on">На территории: {{ detailCounts.on_territory }}</span>
-              <span class="versions-count versions-count--exit">Выехал: {{ detailCounts.exited }}</span>
-              <span class="versions-count versions-count--not">Не въезжал: {{ detailCounts.not_entered }}</span>
-              <span class="versions-count versions-count--total">Всего: {{ detailCounts.total }}</span>
-            </div>
-          </div>
-
-          <!-- Таблица снимка: собственный тулбар (заголовок + поиск по строкам,
-               поиск ВНУТРИ таблицы как на основной странице), затем preview-режим
-               реальных CarsTable/PeopleTable с колонками и строками на момент снимка.
-               Фильтрация делегируется таблице через :search-query, счётчики не трогает. -->
-          <div
-            class="versions-body"
-            data-testid="tv-body"
-          >
-            <div
-              v-if="!detail"
-              class="versions-state"
-              data-testid="tv-detail-loading"
-            >
-              <span class="versions-spinner" />
-            </div>
-            <div
-              v-else-if="!previewItems.length"
-              class="versions-state"
-              data-testid="tv-detail-empty"
-            >
-              На момент снимка таблица была пуста
-            </div>
-            <div
-              v-else
-              class="versions-table"
-              data-testid="tv-preview"
-            >
-              <div
-                class="versions-table__toolbar"
-                data-testid="tv-subbar"
-              >
-                <span class="versions-table__title">Состав версии</span>
-                <SearchComponent
-                  v-model="searchQuery"
-                  title="Поиск по строкам"
-                />
-              </div>
-              <div class="versions-preview">
-                <CarsTable
-                  v-if="detailType === 'cars'"
-                  :preview="true"
-                  :preview-fields="previewFields"
-                  :preview-items="previewItems"
-                  :search-query="searchQuery"
-                  :table-id="tableID"
-                />
-                <PeopleTable
-                  v-else-if="detailType === 'people'"
-                  :preview="true"
-                  :preview-fields="previewFields"
-                  :preview-items="previewItems"
-                  :search-query="searchQuery"
-                  :table-name="''"
-                />
-              </div>
-            </div>
-          </div>
-        </template>
-      </template>
+      </div>
 
       <div
         class="versions-footer"
         data-testid="tv-footer"
       >
         Всего версий: {{ total }}
+      </div>
+    </article>
+
+    <!-- Сама таблица снимка - отдельной карточкой ПОД карточкой версий: свой
+         тулбар (заголовок + поиск по строкам, поиск ВНУТРИ таблицы как на основной
+         странице) и preview-режим реальных CarsTable/PeopleTable с колонками и
+         строками на момент снимка. Показываем, когда есть версии и нет ошибки. -->
+    <article
+      v-if="!error && (items.length || listLoading) && !listError"
+      class="versions-table-card"
+      data-testid="tv-body"
+    >
+      <div
+        v-if="!detail"
+        class="versions-state"
+        data-testid="tv-detail-loading"
+      >
+        <span class="versions-spinner" />
+      </div>
+      <div
+        v-else-if="!previewItems.length"
+        class="versions-state"
+        data-testid="tv-detail-empty"
+      >
+        На момент снимка таблица была пуста
+      </div>
+      <div
+        v-else
+        class="versions-table"
+        data-testid="tv-preview"
+      >
+        <div
+          class="versions-table__toolbar"
+          data-testid="tv-subbar"
+        >
+          <span class="versions-table__title">Состав версии</span>
+          <SearchComponent
+            v-model="searchQuery"
+            title="Поиск по строкам"
+          />
+        </div>
+        <div class="versions-preview">
+          <CarsTable
+            v-if="detailType === 'cars'"
+            :preview="true"
+            :preview-fields="previewFields"
+            :preview-items="previewItems"
+            :search-query="searchQuery"
+            :table-id="tableID"
+          />
+          <PeopleTable
+            v-else-if="detailType === 'people'"
+            :preview="true"
+            :preview-fields="previewFields"
+            :preview-items="previewItems"
+            :search-query="searchQuery"
+            :table-name="''"
+          />
+        </div>
       </div>
     </article>
 
@@ -332,6 +320,7 @@ import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import BaseModal from '@/components/ui/BaseModal.vue';
 import FilterTabs from '@/components/ui/FilterTabs.vue';
 import SearchComponent from '@/components/SearchComponent.vue';
+import DateFilter from '@/components/DateFilter.vue';
 import CarsTable from '@/components/CarsTable.vue';
 import PeopleTable from '@/components/PeopleTable.vue';
 import { apiRequest } from '@/api/client';
@@ -386,6 +375,9 @@ const detail = ref(null);
 // фильтр списка версий по дате (YYYY-MM-DD, уходит как from=to в BE-эндпоинт).
 const searchQuery = ref('');
 const dateFilter = ref('');
+// Выбранный в календаре день как Date (для DateFilter :selected-date); строковый
+// dateFilter (YYYY-MM-DD) - производная, её и шлём в fetchList.
+const selectedDateObj = ref(null);
 
 // Действия: ручной снимок, экспорт выбранной версии, чистка старых.
 const snapshotSaving = ref(false);
@@ -541,6 +533,7 @@ async function saveSnapshotNow() {
     deletions.notify({ prefix: 'Сохранена версия таблицы', bold: displayName.value, type: 'success' });
     // Сбрасываем фильтр даты - свежий снимок сегодняшний, под старым фильтром не виден.
     dateFilter.value = '';
+    selectedDateObj.value = null;
     refresh();
   } catch {
     deletions.notify({ prefix: 'Не удалось сохранить версию', type: 'error' });
@@ -606,13 +599,28 @@ function refresh() {
   fetchList({ reset: true });
 }
 
-// Смена даты - сузить список версий к выбранному дню и автовыбрать первую.
-function onDateChange(e) {
-  dateFilter.value = e.target.value || '';
+// Локальная дата в YYYY-MM-DD (dayBoundsISO трактует её как границы локального дня,
+// см. фикс таймзоны r3) - не через toISOString, чтобы день не уехал в UTC.
+function toLocalYMD(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+// Календарь эмитит выбранный день перед apply - просто запоминаем его.
+function onVersionDatePick(date) {
+  selectedDateObj.value = date;
+}
+
+// Применение выбора в календаре - сузить список версий к дню и автовыбрать первую.
+function applyVersionDate() {
+  dateFilter.value = selectedDateObj.value ? toLocalYMD(selectedDateObj.value) : '';
   refresh();
 }
 
 function clearDate() {
+  selectedDateObj.value = null;
   if (!dateFilter.value) return;
   dateFilter.value = '';
   refresh();
@@ -714,6 +722,17 @@ onMounted(async () => {
   flex-direction: column;
 }
 
+/* Сама таблица снимка - отдельной карточкой под карточкой версий. */
+.versions-table-card {
+  margin-top: 15px;
+  background: #fff;
+  border: 1px solid #e6e6e6;
+  border-radius: 30px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
 .versions-toolbar {
   display: flex;
   align-items: center;
@@ -760,8 +779,13 @@ onMounted(async () => {
   white-space: nowrap;
 }
 
+/* Фиксированная ширина контролов фильтра - не скачут при смене выбранной версии/даты. */
 .versions-filter__dropdown {
-  min-width: 260px;
+  width: 280px;
+}
+
+.versions-filter__date {
+  flex-shrink: 0;
 }
 
 .versions-filter__none {
@@ -816,38 +840,6 @@ onMounted(async () => {
 .versions-load-more:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-.versions-datefilter__input {
-  height: 34px;
-  padding: 0 10px;
-  border: 1px solid #e6e6e6;
-  border-radius: 15px;
-  font-family: 'Montserrat', sans-serif;
-  font-size: 13px;
-  color: #1a1a1a;
-}
-
-.versions-datefilter__clear {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  background: #f2f2f2;
-  border: none;
-  border-radius: 50%;
-  font-size: 16px;
-  line-height: 1;
-  color: #666;
-  cursor: pointer;
-  transition: background 0.2s ease;
-}
-
-.versions-datefilter__clear:hover {
-  background: #e6e6e6;
-  color: #000;
 }
 
 .versions-table {
@@ -921,10 +913,6 @@ onMounted(async () => {
 
 .versions-count--total {
   color: #555;
-}
-
-.versions-body {
-  min-height: 200px;
 }
 
 /* Preview-таблица занимает всю ширину как основная страница; её собственные
