@@ -327,5 +327,6 @@ export default {
     padding: 0;
     display: flex;
     flex-direction: column;
+    gap: 10px;
 }
 </style>
