@@ -705,6 +705,7 @@ export default {
             eventStreamOff: null,
             eventStreamStatusOff: null,
             fetchSeq: 0,
+            pendingRefreshCount: 0,
             isInitialLoad: true,
             // Инкрементальный polling: после первого полного fetch прибавляем только новые
             // заявки в начало списка без перерисовки всего. pollPrimed=false пока не
@@ -946,8 +947,15 @@ export default {
 
         // Real-time обновление Центра (#840): по сигналу сервера перезагружаем список.
         eventStream.connect();
-        this.eventStreamOff = eventStream.subscribe('applications-center', () => {
-            this.fetchApplications(true); // тихо: без оверлея, TransitionGroup анимирует дельту
+        this.eventStreamOff = eventStream.subscribe('applications-center', async () => {
+            if (this.isInitialLoad) return; // как поллинг: не трогаем в первую секунду после mount
+            const beforeIds = new Set(this.applications.map((a) => a.id));
+            await this.fetchApplications(true); // тихо: без оверлея, TransitionGroup анимирует дельту
+            // Звук на реально новую заявку (на /center). Вне /center звучит NavMenu по тому же сигналу.
+            const hasNew = this.applications.some((a) => !beforeIds.has(a.id));
+            if (hasNew && this.pollPrimed && this.soundStore.enabled) {
+                playPreset(this.soundStore.selectedPreset, this.soundStore.volume);
+            }
         });
         this.eventStreamStatusOff = eventStream.onStatus((status) => {
             this.sseConnected = status === 'connected';
@@ -1330,7 +1338,10 @@ export default {
             // silent (real-time push): без оверлея refreshing - список обновляется тихо,
             // а TransitionGroup анимирует только дельту (новые заявки въезжают, соседи едут).
             const seq = ++this.fetchSeq;
-            if (!silent) this.refreshing = true;
+            if (!silent) {
+                this.pendingRefreshCount += 1;
+                this.refreshing = true;
+            }
             try {
                 const authStore = useAuthStore();
                 if (!authStore.token) {
@@ -1391,10 +1402,18 @@ export default {
             } catch (error) {
                 console.error("Ошибка сети при загрузке заявок:", error);
             } finally {
-                // Индикатор гасит только актуальный запрос, устаревший его не сбрасывает.
                 if (seq === this.fetchSeq) {
                     this.loading = false;
-                    if (!silent) this.refreshing = false;
+                }
+                // refreshing развязан от seq-токена (по ревью): считаем активные non-silent
+                // запросы, оверлей гаснет с завершением последнего. Иначе гонка silent(SSE)
+                // и non-silent(фильтр) могла оставить оверлей «Обновление…» залипшим.
+                if (!silent) {
+                    this.pendingRefreshCount -= 1;
+                    if (this.pendingRefreshCount <= 0) {
+                        this.pendingRefreshCount = 0;
+                        this.refreshing = false;
+                    }
                 }
             }
         },

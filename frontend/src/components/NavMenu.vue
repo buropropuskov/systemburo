@@ -580,6 +580,7 @@ import { useUiStore } from '@/stores/ui'
 import { useSoundStore } from '@/stores/sound'
 import { usePermissionsStore } from '@/stores/permissions'
 import { playPreset } from '@/utils/notificationSound'
+import eventStream from '@/services/eventStream'
 import NavIcon from '@/components/icons/NavIcon.vue'
 
 export default {
@@ -614,6 +615,7 @@ export default {
       lastSoundAt: 0,
       applicationsPollingInterval: null,
       tablesPollingInterval: null,
+      eventStreamOff: null,
       mobileOpen: false,
       isBanned: false,
       searchQuery: '',
@@ -1086,6 +1088,13 @@ export default {
         this.fetchNewApplicationsCount();
         this.fetchNewFeedbackCount();
       }, 30000);
+      // Real-time (#840): по сигналу о новой заявке сразу пересчитываем счётчик и
+      // (вне /center) играем звук - не дожидаясь следующего 30с-опроса. fetchNewApplicationsCount
+      // сам гейтит звук по росту счётчика, праву page.center и route !== '/center'.
+      eventStream.connect();
+      this.eventStreamOff = eventStream.subscribe('applications-center', () => {
+        this.fetchNewApplicationsCount();
+      });
     },
 
     startTablesPolling() {
@@ -1103,6 +1112,11 @@ export default {
         clearInterval(this.tablesPollingInterval);
         this.tablesPollingInterval = null;
       }
+      if (this.eventStreamOff) {
+        this.eventStreamOff();
+        this.eventStreamOff = null;
+      }
+      eventStream.disconnect();
     },
 
     logout() {
