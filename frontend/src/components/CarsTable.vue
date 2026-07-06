@@ -471,6 +471,7 @@ import { apiRequest } from '@/api/client'
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import { useDeletionsStore } from '@/stores/deletions';
 import { usePermissionsStore } from '@/stores/permissions';
+import eventStream from '@/services/eventStream';
 import { useOrientation } from '@/composables/useOrientation';
 import RefreshButton from './RefreshButton.vue';
 import VehicleDetailsModal from './CreateApplication/VehicleDetailsModal.vue';
@@ -530,6 +531,12 @@ export default {
       selectedVehicle: null,
       showCarsTableHistory: false,
       pollingInterval: null,
+      // Real-time (#840): подписка на tables:<tableId>, статус SSE-соединения и seq-токен
+      // против гонки конкурентных silentRefresh (таймер + SSE-сигнал, урок #632/#840).
+      eventStreamOff: null,
+      eventStreamStatusOff: null,
+      sseConnected: false,
+      refreshSeq: 0,
       enlarged: false,
       fieldsVisibility: {},
       fieldOrders: {},
@@ -655,6 +662,7 @@ export default {
         if (newVal) {
           this.fetchFieldsVisibility();
         }
+        this.subscribeTableScope(newVal);
       }
     },
     enlarged(value) {
@@ -698,9 +706,26 @@ export default {
     // Подгружаем настроенные длительности уведомлений после авторизации
     // (на холодном старте App.vue запрос мог уйти до получения токена).
     useDeletionsStore().loadDurations();
+
+    // Real-time (#840): по сигналу продюсера tables.refresh тихо перезагружаем строки
+    // вместо ожидания поллинга. Сама подписка на scope - в watch tableId (уже immediate).
+    eventStream.connect();
+    this.eventStreamStatusOff = eventStream.onStatus((status) => {
+      this.sseConnected = status === 'connected';
+    });
   },
   beforeUnmount() {
     this.stopPolling();
+    if (this.preview) return; // preview никогда не подключался - нечего отключать
+    if (this.eventStreamOff) {
+      this.eventStreamOff();
+      this.eventStreamOff = null;
+    }
+    if (this.eventStreamStatusOff) {
+      this.eventStreamStatusOff();
+      this.eventStreamStatusOff = null;
+    }
+    eventStream.disconnect();
   },
   methods: {
     // Гейтинг по правам (#187 Фаза 2). super -> всегда true, admin -> всё кроме
@@ -708,16 +733,30 @@ export default {
     can(key) {
       return this.permissionsStore.hasPermission(key);
     },
-    // Основной метод загрузки данных с флагом silent (без показа лоадера)
+    // Real-time (#840): подписка на scope конкретной таблицы, пересобирается при смене tableId.
+    subscribeTableScope(tableId) {
+      if (this.eventStreamOff) {
+        this.eventStreamOff();
+        this.eventStreamOff = null;
+      }
+      if (!tableId) return;
+      this.eventStreamOff = eventStream.subscribe(`tables:${tableId}`, () => {
+        this.silentRefresh();
+      });
+    },
+    // Основной метод загрузки данных с флагом silent (без показа лоадера).
+    // seq-токен против гонки конкурентных вызовов (поллинг + SSE-сигнал, #632/#840):
+    // устаревший (медленно резолвнутый) ответ не должен затирать более свежие данные.
     async _loadData(silent = false) {
+      const seq = ++this.refreshSeq;
       if (!silent && this.isLoading) return;
       if (!silent) this.isLoading = true;
       try {
         await this.fetchUnloadingPlaces();
         await this.fetchLicensePlateFormats();
-        await this.fetchCarsData();
-        await this.fetchCarUnloadPlaces();
-        await this.fetchCarHistoryStatus();
+        await this.fetchCarsData(seq);
+        await this.fetchCarUnloadPlaces(seq);
+        await this.fetchCarHistoryStatus(seq);
       } catch (error) {
         console.error('Ошибка при загрузке машин:', error);
       } finally {
@@ -763,7 +802,7 @@ export default {
       }
     },
 
-    async fetchCarsData() {
+    async fetchCarsData(seq) {
       try {
         const response = await apiRequest("/cars/active-for-tables", {});
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -810,20 +849,22 @@ export default {
             unloadPlaces: car.unload_place_ids || []
           };
         });
+        if (seq !== undefined && seq !== this.refreshSeq) return; // устарел - новее уже в работе/загружен
         // Заменяем массив целиком – Vue отреагирует оптимально
         this.itemsData = newItems;
       } catch (error) {
         console.error("Ошибка при загрузке данных машин:", error);
-        this.itemsData = [];
+        if (seq === undefined || seq === this.refreshSeq) this.itemsData = [];
         throw error;
       }
     },
 
-    async fetchCarHistoryStatus() {
+    async fetchCarHistoryStatus(seq) {
       try {
         const response = await apiRequest("/cars/history/current-status", {});
         if (response.ok) {
           const statuses = await response.json();
+          if (seq !== undefined && seq !== this.refreshSeq) return; // устарел
           const statusMap = {};
           statuses.forEach(status => { statusMap[status.car_id] = status; });
           this.itemsData.forEach(item => {
@@ -841,11 +882,14 @@ export default {
       }
     },
 
-    async fetchCarUnloadPlaces() {
+    async fetchCarUnloadPlaces(seq) {
       try {
         const response = await apiRequest("/cars/unload-places", {});
         if (response.ok) {
           const carUnloadPlaces = await response.json();
+          // seq-guard (#632/#840): устаревший ответ не должен перезаписывать карту
+          // мест разгрузки и мутировать unload_place_ids уже отрисованных строк.
+          if (seq !== undefined && seq !== this.refreshSeq) return;
           this.carUnloadPlacesMap = {};
           carUnloadPlaces.forEach(cup => {
             if (!this.carUnloadPlacesMap[cup.car_id]) this.carUnloadPlacesMap[cup.car_id] = [];
@@ -865,7 +909,7 @@ export default {
         }
       } catch (error) {
         console.error("Ошибка при загрузке связей машин с местами разгрузки:", error);
-        this.carUnloadPlacesMap = {};
+        if (seq === undefined || seq === this.refreshSeq) this.carUnloadPlacesMap = {};
       }
     },
 
@@ -1055,8 +1099,11 @@ export default {
       if (this.pollingInterval) return;
       this.silentRefresh(); // сразу загружаем без лоадера
       this.pollingInterval = setInterval(() => {
+        // На живом SSE поллинг молчит (обновление уже пришло сигналом tables.refresh) -
+        // таймер остаётся подстраховкой на 60с и мгновенно подхватывает при разрыве (#840).
+        if (this.sseConnected) return;
         this.silentRefresh();
-      }, 10000); // каждые 10 секунд
+      }, 60000);
     },
 
     stopPolling() {

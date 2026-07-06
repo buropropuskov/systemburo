@@ -496,6 +496,7 @@ import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import { useDeletionsStore } from '@/stores/deletions';
 import { usePermissionsStore } from '@/stores/permissions';
 import { useOrientation } from '@/composables/useOrientation';
+import eventStream from '@/services/eventStream';
 import RefreshButton from './RefreshButton.vue';
 import EmployeeDetailsModal from './CreateApplication/EmployeeDetailsModal.vue';
 import EmployeesTableHistoryModal from './CreateApplication/EmployeesTableHistoryModal.vue';
@@ -583,6 +584,12 @@ export default {
       selectedEmployee: null,
       showEmployeesHistory: false,
       pollingInterval: null,
+      // Real-time (#840): подписка на tables:<tableId>, статус SSE-соединения и seq-токен
+      // против гонки конкурентных silentRefresh (таймер + SSE-сигнал, урок #632/#840).
+      eventStreamOff: null,
+      eventStreamStatusOff: null,
+      sseConnected: false,
+      refreshSeq: 0,
       enlarged: false,
       fieldsVisibility: {},
       fieldOrders: {},
@@ -737,6 +744,12 @@ export default {
         this.fieldPriorities = nextP;
         this.markConfigReady();
       }
+    },
+    // Real-time (#840): tableId для PeopleTable известен только после первого fetchPeopleData
+    // (резолвится по tableName), поэтому подписываемся/пересобираем по watch, а не в mounted.
+    currentTableId(newVal) {
+      if (this.preview) return;
+      this.subscribeTableScope(newVal);
     }
   },
   mounted() {
@@ -746,9 +759,26 @@ export default {
     // Подгружаем настроенные длительности уведомлений после авторизации
     // (на холодном старте App.vue запрос мог уйти до получения токена).
     useDeletionsStore().loadDurations();
+
+    // Real-time (#840): по сигналу продюсера tables.refresh тихо перезагружаем строки
+    // вместо ожидания поллинга. Сама подписка на scope - в watch currentTableId.
+    eventStream.connect();
+    this.eventStreamStatusOff = eventStream.onStatus((status) => {
+      this.sseConnected = status === 'connected';
+    });
   },
   beforeUnmount() {
     this.stopPolling();
+    if (this.preview) return; // preview никогда не подключался - нечего отключать
+    if (this.eventStreamOff) {
+      this.eventStreamOff();
+      this.eventStreamOff = null;
+    }
+    if (this.eventStreamStatusOff) {
+      this.eventStreamStatusOff();
+      this.eventStreamStatusOff = null;
+    }
+    eventStream.disconnect();
   },
   methods: {
     // Гейтинг по правам (#187 Фаза 2). super -> всегда true, admin -> всё кроме
@@ -756,14 +786,28 @@ export default {
     can(key) {
       return this.permissionsStore.hasPermission(key);
     },
+    // Real-time (#840): подписка на scope конкретной таблицы, пересобирается при смене tableId.
+    subscribeTableScope(tableId) {
+      if (this.eventStreamOff) {
+        this.eventStreamOff();
+        this.eventStreamOff = null;
+      }
+      if (!tableId) return;
+      this.eventStreamOff = eventStream.subscribe(`tables:${tableId}`, () => {
+        this.silentRefresh();
+      });
+    },
+    // seq-токен против гонки конкурентных вызовов (поллинг + SSE-сигнал, #632/#840):
+    // устаревший (медленно резолвнутый) ответ не должен затирать более свежие данные.
     async _loadData(silent = false) {
+      const seq = ++this.refreshSeq;
       if (!silent && this.isLoading) return;
       if (!silent) this.isLoading = true;
       try {
         await this.fetchAllTables();
         await this.fetchOrganizations();
-        await this.fetchPeopleData();
-        await this.fetchEmployeesStatus();
+        await this.fetchPeopleData(seq);
+        await this.fetchEmployeesStatus(seq);
       } catch (error) {
         console.error('Ошибка при загрузке людей:', error);
       } finally {
@@ -808,7 +852,7 @@ export default {
       }
     },
 
-    async fetchPeopleData() {
+    async fetchPeopleData(seq) {
       try {
         if (!this.tableName) return;
 
@@ -868,7 +912,7 @@ export default {
           nameToIdMap[this.organizationsMap[id]] = id;
         });
 
-        this.itemsData = employees.map(emp => {
+        const newItems = employees.map(emp => {
           const orgName = emp.organization || '';
           const orgId = nameToIdMap[orgName] || emp.organization_id;
           return {
@@ -897,17 +941,20 @@ export default {
             territory_status: 0
           };
         });
+        if (seq !== undefined && seq !== this.refreshSeq) return; // устарел - новее уже в работе/загружен
+        this.itemsData = newItems;
       } catch (error) {
         console.error("Ошибка при загрузке сотрудников:", error);
-        this.itemsData = [];
+        if (seq === undefined || seq === this.refreshSeq) this.itemsData = [];
       }
     },
 
-    async fetchEmployeesStatus() {
+    async fetchEmployeesStatus(seq) {
       try {
         const response = await apiRequest("/employees/history/current-status", { method: "GET" });
         if (response.ok) {
           const statuses = await response.json();
+          if (seq !== undefined && seq !== this.refreshSeq) return; // устарел
           const statusMap = {};
           statuses.forEach(status => { statusMap[status.employee_id] = status; });
           this.itemsData.forEach(item => {
@@ -1077,8 +1124,11 @@ export default {
       if (this.pollingInterval) return;
       this.silentRefresh();
       this.pollingInterval = setInterval(() => {
+        // На живом SSE поллинг молчит (обновление уже пришло сигналом tables.refresh) -
+        // таймер остаётся подстраховкой на 60с и мгновенно подхватывает при разрыве (#840).
+        if (this.sseConnected) return;
         this.silentRefresh();
-      }, 10000);
+      }, 60000);
     },
 
     stopPolling() {
