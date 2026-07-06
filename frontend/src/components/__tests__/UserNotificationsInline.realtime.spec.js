@@ -78,6 +78,19 @@ describe('UserNotificationsInline - real-time доставка через SSE (#
     vi.useRealTimers();
   });
 
+  it('onStatus-колбэк ставит sseConnected по статусу connected/иначе', async () => {
+    const wrapper = mountN();
+    await flushPromises();
+
+    const statusCb = eventStream.onStatus.mock.calls[0][0];
+    statusCb('connected');
+    expect(wrapper.vm.sseConnected).toBe(true);
+    statusCb('reconnecting');
+    expect(wrapper.vm.sseConnected).toBe(false);
+
+    wrapper.unmount();
+  });
+
   it('при unmount отписывается и отключает eventStream', async () => {
     const unsubScope = vi.fn();
     const unsubStatus = vi.fn();

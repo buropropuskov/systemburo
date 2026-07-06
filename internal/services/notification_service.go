@@ -121,6 +121,12 @@ func (s *notificationService) Create(ctx context.Context, req models.CreateNotif
 	if err := s.db.WithContext(ctx).Create(&n).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating notification")
 	}
+	// Тот же real-time сигнал, что и в CreateForUser (#840): admin-эндпоинт и
+	// внутренние триггеры создают уведомление адресно req.UserID - доставляем
+	// мгновенно, а не через 30с-поллинг. best-effort, на возврат не влияет.
+	if s.realtimePublisher != nil {
+		s.realtimePublisher.Publish(n.UserID, realtime.Event{Type: "notification.new", Scope: "notifications"})
+	}
 	return &n, nil
 }
 
