@@ -829,17 +829,30 @@ export default {
       await this.refreshData();
     },
 
+    /**
+     * Достаёт человекочитаемое сообщение об ошибке из ответа apiRequest.
+     * wrapJsonUnwrap на !success кладёт текст ошибки бэка в поле message (в самом
+     * envelope ключ - error), поэтому читаем response.json().message, а не сырое
+     * тело: иначе в уведомление попадает JSON целиком (скобки, имена полей).
+     * @param {Response} response
+     * @returns {Promise<string>}
+     */
+    async requestErrorMessage(response) {
+      try {
+        const body = await response.json();
+        return (body && body.message) || 'неизвестная ошибка';
+      } catch {
+        return 'неизвестная ошибка';
+      }
+    },
+
     async restoreTable(tableObj) {
       try {
         const response = await apiRequest(`/system-tables/${tableObj.table.id}/restore`, {
           method: 'POST',
         });
         if (!response.ok) {
-          const errorText = await response.text();
-          let message = errorText;
-          try {
-            message = JSON.parse(errorText).message || errorText;
-          } catch { /* not JSON */ }
+          const message = await this.requestErrorMessage(response);
           useDeletionsStore().notify({ prefix: 'Ошибка восстановления: ', bold: message, type: 'error' });
           return;
         }
@@ -966,8 +979,8 @@ export default {
           useDeletionsStore().notify(phrase);
           await this.refreshSelectedTable();
         } else {
-          const errorText = await response.text();
-          useDeletionsStore().notify({ prefix: 'Не удалось обновить: ', bold: errorText || 'неизвестная ошибка', type: 'error' });
+          const message = await this.requestErrorMessage(response);
+          useDeletionsStore().notify({ prefix: 'Не удалось обновить: ', bold: message, type: 'error' });
         }
       } catch (error) {
         console.error("Error updating table:", error);
@@ -1008,15 +1021,7 @@ export default {
           await this.refreshData();
           useDeletionsStore().notify({ prefix: 'Таблица ', bold: archivedName, suffix: ' архивирована' });
         } else {
-          const errorText = await response.text();
-          console.error('Error response text:', errorText);
-          let message = errorText;
-          try {
-            const errorJson = JSON.parse(errorText);
-            message = errorJson.message || errorText;
-          } catch {
-            // оставляем сырой текст
-          }
+          const message = await this.requestErrorMessage(response);
           useDeletionsStore().notify({ prefix: 'Не удалось архивировать: ', bold: message, type: 'error' });
         }
       } catch (error) {
