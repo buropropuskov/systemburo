@@ -92,6 +92,7 @@ func (s *applicationService) TakeApplicationToWork(ctx context.Context, username
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
 	}
 
+	s.notifyApplicationUpdated(ctx, applicationID)
 	return nil
 }
 
@@ -144,6 +145,7 @@ func (s *applicationService) RevokeApplicationFromWork(ctx context.Context, user
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
 	}
 
+	s.notifyApplicationUpdated(ctx, applicationID)
 	return nil
 }
 
@@ -196,6 +198,7 @@ func (s *applicationService) RestoreApplicationToWork(ctx context.Context, usern
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
 	}
 
+	s.notifyApplicationUpdated(ctx, applicationID)
 	return nil
 }
 
@@ -267,6 +270,7 @@ func (s *applicationService) WithdrawApplication(ctx context.Context, username s
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
 	}
 
+	s.notifyApplicationUpdated(ctx, applicationID)
 	return nil
 }
 
@@ -313,6 +317,8 @@ func (s *applicationService) UpdateApplicationItemsStatus(ctx context.Context, a
 	// Активированные машины/сотрудники появились в таблицах проходной - сигналим
 	// их аудитории обновиться live (#840 V2.2). После commit: строки уже видны.
 	s.tablesProducer.NotifyApplicationActivated(ctx, applicationID)
+	// Принятие сменило статус заявки - участники увидят его в детали live (#840 V4).
+	s.notifyApplicationUpdated(ctx, applicationID)
 
 	return nil
 }

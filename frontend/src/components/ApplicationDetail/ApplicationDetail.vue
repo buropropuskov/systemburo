@@ -441,6 +441,7 @@ import Badge from '@/components/ui/Badge.vue'
 import BaseDropdown from '@/components/ui/BaseDropdown.vue'
 import { sanitizeHtml } from '@/utils/sanitize'
 import ApplicationMessageModal from './ApplicationMessageModal.vue'
+import eventStream from '@/services/eventStream'
 
 export default {
     name: 'ApplicationDetail',
@@ -486,6 +487,9 @@ export default {
     data() {
         return {
             applicationData: { ...this.application },
+            eventStreamOff: null,
+            eventStreamAppId: null,
+            loadDetailSeq: 0,
             showMessageModal: false,
             messageClamped: false,
             attachments: [],
@@ -644,6 +648,7 @@ export default {
                     this.loadApplicationDetails(newApplication);
                     if (!oldApplication || oldApplication.id !== newApplication.id) {
                         markAsRead(newApplication.id).catch(() => {});
+                        this.subscribeToApplication(newApplication.id);
                     }
                 }
             },
@@ -656,10 +661,49 @@ export default {
     mounted() {
         this.loadCommonData();
         this.$nextTick(() => this.updateMessageClamp());
+        // Real-time (#840 V4): подписка на изменения открытой заявки (сам scope
+        // ставится в watch application по её id). connect - refcount'ный.
+        eventStream.connect();
+    },
+    beforeUnmount() {
+        if (this.eventStreamOff) {
+            this.eventStreamOff();
+            this.eventStreamOff = null;
+        }
+        eventStream.disconnect();
     },
     methods: {
         can(key) {
             return this.permissionsStore.hasPermission(key);
+        },
+        // Подписка на real-time обновления конкретной заявки (#840 V4): снимает
+        // старую подписку, подписывается на scope application:<id>.
+        subscribeToApplication(appId) {
+            if (this.eventStreamOff) {
+                this.eventStreamOff();
+                this.eventStreamOff = null;
+            }
+            if (!appId) return;
+            this.eventStreamAppId = appId;
+            this.eventStreamOff = eventStream.subscribe(`application:${appId}`, () => this.refreshLiveDetail());
+        },
+        // Тихий рефетч открытой детали по сигналу application.updated: статус/
+        // согласующие/вложения (loadApplicationDetails) + история + вопросы. Обновляет
+        // только текущую заявку - участник видит изменения без F5.
+        refreshLiveDetail() {
+            if (!this.applicationData || !this.applicationData.id) return;
+            // preserveSelection: фоновый рефетч от чужого действия не должен сбрасывать
+            // выбранное вложение и мигать кнопками действий (это не наше действие).
+            this.loadApplicationDetails(this.applicationData, { preserveSelection: true });
+            if (this.$refs.historyComponent && this.$refs.historyComponent.loadHistory) {
+                this.$refs.historyComponent.loadHistory();
+            }
+            if (this.$refs.questionsComponent && this.$refs.questionsComponent.load) {
+                this.$refs.questionsComponent.load();
+            }
+            if (this.$refs.forwardMessagesComponent && this.$refs.forwardMessagesComponent.load) {
+                this.$refs.forwardMessagesComponent.load();
+            }
         },
         updateMessageClamp() {
             const el = this.$refs.messagePreview;
@@ -713,8 +757,10 @@ export default {
             }
         },
 
-        async loadApplicationDetails(application) {
-            this.actionsReady = false;
+        async loadApplicationDetails(application, { preserveSelection = false } = {}) {
+            const seq = ++this.loadDetailSeq;
+            // На фоновом live-рефетче (не наше действие) кнопки не гасим - иначе мигание.
+            if (!preserveSelection) this.actionsReady = false;
             try {
                 const [appResponse, attachmentsResponse, viewersResponse] = await Promise.all([
                     apiRequest(`/applications/${application.id}/details`, {
@@ -730,7 +776,10 @@ export default {
 
                 if (appResponse.ok) {
                     const appData = await appResponse.json();
-                    
+                    // seq-guard (#632/#840): при подряд идущих live-сигналах устаревший
+                    // ответ не должен затирать данные более свежего рефетча.
+                    if (seq !== this.loadDetailSeq) return;
+
                     this.applicationData = {
                         ...this.applicationData,
                         ...appData
@@ -760,15 +809,23 @@ export default {
                 }
 
                 if (attachmentsResponse.ok) {
-                    this.attachments = await attachmentsResponse.json();
+                    // При live-рефетче сохраняем выбранное вложение по id (не сбрасываем
+                    // на первое) - иначе фоновое обновление перекинет чужую вкладку.
+                    const prevSelectedId = preserveSelection && this.selectedAttachment ? this.selectedAttachment.id : null;
+                    const newAttachments = await attachmentsResponse.json();
+                    if (seq !== this.loadDetailSeq) return;
+                    this.attachments = newAttachments;
                     if (this.attachments.length > 0) {
-                        this.selectedAttachment = this.attachments[0];
+                        const keep = prevSelectedId ? this.attachments.find(a => a.id === prevSelectedId) : null;
+                        this.selectedAttachment = keep || this.attachments[0];
                         await this.loadAttachmentDetails(this.selectedAttachment.id);
                     }
                 }
 
                 if (viewersResponse.ok) {
-                    this.viewers = await viewersResponse.json();
+                    const newViewers = await viewersResponse.json();
+                    if (seq !== this.loadDetailSeq) return;
+                    this.viewers = newViewers;
                 }
 
                 // Списки всех пользователей и согласующих нужны только в "Центре заявок"

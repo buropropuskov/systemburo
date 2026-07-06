@@ -351,6 +351,8 @@ func (s *applicationService) CreateApplicationQuestion(ctx context.Context, user
 		}
 	}
 
+	s.notifyApplicationUpdated(ctx, applicationID)
+
 	return &QuestionWithAnswers{
 		ID:            question.ID,
 		ApplicationID: applicationID,
@@ -456,6 +458,8 @@ func (s *applicationService) CreateApplicationAnswer(ctx context.Context, userna
 			}
 		}
 	}
+
+	s.notifyApplicationUpdated(ctx, applicationID)
 
 	return &AnswerItem{
 		ID:           answer.ID,
