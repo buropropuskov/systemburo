@@ -36,10 +36,10 @@ vi.mock('@/stores/deletions', () => ({
 }));
 
 const { routeState } = vi.hoisted(() => ({
-  routeState: { params: { tableName: 'kpp-1' } },
+  routeState: { params: { tableName: 'kpp-1' }, query: {} },
 }));
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ params: routeState.params }),
+  useRoute: () => ({ params: routeState.params, query: routeState.query }),
 }));
 
 import TableVersionsView from '@/views/TableVersionsView.vue';
@@ -177,6 +177,7 @@ beforeEach(() => {
   setActivePinia(createPinia());
   vi.clearAllMocks();
   routeState.params = { tableName: 'kpp-1' };
+  routeState.query = {};
   permState.can = () => true;
   mockTable();
   getTableSnapshot.mockResolvedValue(carsSnapshot(1, []));
@@ -208,6 +209,20 @@ describe('TableVersionsView (#980 polish-r2)', () => {
     await flushPromises();
 
     expect(apiRequest).toHaveBeenCalledWith('/system-tables/name/kpp-1?allow_archived=1');
+  });
+
+  it('«Назад» ведёт на страницу таблицы, а из админ-конструктора (from=admin) - в конструктор', async () => {
+    listTableSnapshots.mockResolvedValue({ items: [snapItem(1)], total: 1 });
+
+    wrapper = mountView();
+    await flushPromises();
+    expect(wrapper.findComponent('[data-testid="tv-back"]').props('to')).toBe('/table/kpp-1');
+    wrapper.unmount();
+
+    routeState.query = { from: 'admin' };
+    wrapper = mountView();
+    await flushPromises();
+    expect(wrapper.findComponent('[data-testid="tv-back"]').props('to')).toBe('/table-constructor');
   });
 
   it('автовыбирает первую версию и передаёт нормализованные строки в CarsTable', async () => {

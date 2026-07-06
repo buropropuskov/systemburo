@@ -60,7 +60,9 @@ describe('TableConstructor — кнопка «Версии» архивной т
     expect(btn.exists()).toBe(true);
 
     await btn.trigger('click');
-    expect(push).toHaveBeenCalledWith('/table/cargo_cars/versions');
+    // from=admin: "Назад" на странице версий вернёт в конструктор, а не на
+    // публичную /table/:name (её для архивной таблицы нет).
+    expect(push).toHaveBeenCalledWith('/table/cargo_cars/versions?from=admin');
   });
 
   it('активная таблица: кнопки «Версии» нет (версии архивных - из Конструктора)', async () => {

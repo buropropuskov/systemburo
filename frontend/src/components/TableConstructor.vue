@@ -1055,7 +1055,10 @@ export default {
 
     openVersions() {
       if (this.selectedTable) {
-        this.$router.push(`/table/${this.selectedTable.table.name}/versions`);
+        // from=admin: страница версий откроется для архивной таблицы, и "Назад"
+        // должно вернуть в конструктор (сюда), а не на публичную /table/:name,
+        // которой для архивной таблицы нет.
+        this.$router.push(`/table/${this.selectedTable.table.name}/versions?from=admin`);
       }
     },
 
