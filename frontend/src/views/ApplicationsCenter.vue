@@ -1451,6 +1451,9 @@ export default {
                     });
                     if (response.ok) {
                         application.is_read = true;
+                        // Гасим бейдж непрочитанных в меню сразу: NavMenu слушает
+                        // 'application-read' и перезапрашивает счётчик, не дожидаясь 30с-опроса.
+                        this.$bus.emit('application-read', application.id);
                     }
                 } catch (error) {
                     console.error("Ошибка при отметке прочтения:", error);

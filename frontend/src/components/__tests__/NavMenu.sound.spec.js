@@ -93,4 +93,59 @@ describe('NavMenu - звук новой заявки гейтится page.cente
     expect(wrapper.vm.newApplicationsCount).toBe(2);
     wrapper.unmount();
   });
+
+  it('не обнуляет счётчик при ошибке опроса и не играет ложный звук при восстановлении', async () => {
+    hasPermission.mockImplementation((key) => key === 'page.center');
+    getUnreadCount.mockResolvedValue({ count: 5 });
+    const wrapper = await mountNav();
+    wrapper.vm.soundStore.setEnabled(true);
+    expect(wrapper.vm.newApplicationsCount).toBe(5);
+    // Сетевой сбой опроса не должен обнулять базу сравнения.
+    getUnreadCount.mockRejectedValueOnce(new Error('network'));
+    await wrapper.vm.fetchNewApplicationsCount();
+    expect(wrapper.vm.newApplicationsCount).toBe(5);
+    // Следующий успешный опрос с тем же реальным значением - не рост - без ложного звука.
+    getUnreadCount.mockResolvedValue({ count: 5 });
+    await wrapper.vm.fetchNewApplicationsCount();
+    expect(playPreset).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
+
+  it('игнорирует устаревший конкурентный ответ и не играет ложный звук на мнимом росте', async () => {
+    hasPermission.mockImplementation((key) => key === 'page.center');
+    getUnreadCount.mockResolvedValue({ count: 5 });
+    const wrapper = await mountNav();
+    wrapper.vm.soundStore.setEnabled(true);
+    // A - медленный вызов с УСТАРЕВШИМ снимком 5; B - быстрый с реально упавшим 4.
+    let resolveA;
+    getUnreadCount
+      .mockImplementationOnce(() => new Promise((res) => { resolveA = () => res({ count: 5 }); }))
+      .mockImplementationOnce(() => Promise.resolve({ count: 4 }));
+    const pA = wrapper.vm.fetchNewApplicationsCount();
+    const pB = wrapper.vm.fetchNewApplicationsCount();
+    await pB;
+    expect(wrapper.vm.newApplicationsCount).toBe(4);
+    resolveA();
+    await pA;
+    // Устаревший A не затирает актуальное 4 и не играет звук на 5 > 4.
+    expect(wrapper.vm.newApplicationsCount).toBe(4);
+    expect(playPreset).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
+
+  it('перезапрашивает счётчик по событию application-read (мгновенное гашение бейджа)', async () => {
+    hasPermission.mockImplementation((key) => key === 'page.center');
+    getUnreadCount.mockResolvedValue({ count: 9 });
+    const wrapper = await mountNav();
+    const onCall = wrapper.vm.$bus.on.mock.calls.find((c) => c[0] === 'application-read');
+    expect(onCall).toBeTruthy();
+    const readHandler = onCall[1];
+    getUnreadCount.mockClear();
+    getUnreadCount.mockResolvedValue({ count: 8 });
+    readHandler();
+    await flushPromises();
+    expect(getUnreadCount).toHaveBeenCalled();
+    expect(wrapper.vm.newApplicationsCount).toBe(8);
+    wrapper.unmount();
+  });
 });
