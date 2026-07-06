@@ -126,6 +126,7 @@ import { apiRequest } from '@/api/client'
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
 import { useUiStore } from '@/stores/ui'
 import { usePermissionsStore } from '@/stores/permissions'
+import eventStream from '@/services/eventStream'
 
 export default {
   name: 'UserNotificationsInline',
@@ -138,6 +139,9 @@ export default {
       loading: false,
       pollTimer: null,
       filter: 'all',
+      eventStreamOff: null,
+      eventStreamStatusOff: null,
+      sseConnected: false,
     }
   },
 
@@ -155,7 +159,22 @@ export default {
 
   mounted() {
     this.fetchNotifications()
-    this.pollTimer = setInterval(this.fetchNotifications, 30000)
+    this.pollTimer = setInterval(() => {
+      // На живом SSE поллинг молчит (сигнал уже обновил список) - таймер
+      // продолжает крутиться и мгновенно подхватывает при разрыве соединения.
+      if (this.sseConnected) return
+      this.fetchNotifications()
+    }, 30000)
+
+    // Real-time доставка (#840 V1): по сигналу сервера мгновенно перезапрашиваем
+    // уведомления вместо ожидания 30с-поллинга.
+    eventStream.connect()
+    this.eventStreamOff = eventStream.subscribe('notifications', () => {
+      this.fetchNotifications()
+    })
+    this.eventStreamStatusOff = eventStream.onStatus((status) => {
+      this.sseConnected = status === 'connected'
+    })
   },
 
   beforeUnmount() {
@@ -163,6 +182,15 @@ export default {
       clearInterval(this.pollTimer)
       this.pollTimer = null
     }
+    if (this.eventStreamOff) {
+      this.eventStreamOff()
+      this.eventStreamOff = null
+    }
+    if (this.eventStreamStatusOff) {
+      this.eventStreamStatusOff()
+      this.eventStreamStatusOff = null
+    }
+    eventStream.disconnect()
   },
 
   methods: {

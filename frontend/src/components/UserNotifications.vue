@@ -84,6 +84,7 @@
 <script>
 import { apiRequest } from '@/api/client'
 import { usePermissionsStore } from '@/stores/permissions'
+import eventStream from '@/services/eventStream'
 
 export default {
   name: 'UserNotifications',
@@ -99,6 +100,9 @@ export default {
       notifications: [],
       loading: false,
       pollTimer: null,
+      eventStreamOff: null,
+      eventStreamStatusOff: null,
+      sseConnected: false,
     }
   },
   computed: {
@@ -121,9 +125,29 @@ export default {
     // непрочитанных в шапке был актуален без открытия dropdown.
     this.fetchNotifications()
     this.startPolling()
+
+    // Real-time доставка (#840 V1): по сигналу сервера мгновенно перезапрашиваем
+    // уведомления вместо ожидания 30с-поллинга. Поллинг остаётся подстраховкой -
+    // гасится только пока SSE реально подключён (см. startPolling).
+    eventStream.connect()
+    this.eventStreamOff = eventStream.subscribe('notifications', () => {
+      this.fetchNotifications()
+    })
+    this.eventStreamStatusOff = eventStream.onStatus((status) => {
+      this.sseConnected = status === 'connected'
+    })
   },
   beforeUnmount() {
     this.stopPolling()
+    if (this.eventStreamOff) {
+      this.eventStreamOff()
+      this.eventStreamOff = null
+    }
+    if (this.eventStreamStatusOff) {
+      this.eventStreamStatusOff()
+      this.eventStreamStatusOff = null
+    }
+    eventStream.disconnect()
   },
   methods: {
     async fetchNotifications() {
@@ -207,6 +231,9 @@ export default {
     startPolling() {
       this.stopPolling()
       this.pollTimer = setInterval(() => {
+        // На живом SSE поллинг молчит (сигнал уже обновил список) - таймер
+        // продолжает крутиться и мгновенно подхватывает при разрыве соединения.
+        if (this.sseConnected) return
         this.fetchNotifications()
       }, 30000)
     },

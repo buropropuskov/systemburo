@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"systemburo/internal/models"
+	"systemburo/internal/realtime"
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
@@ -21,12 +22,28 @@ type NotificationService interface {
 }
 
 type notificationService struct {
-	db *gorm.DB
+	db                *gorm.DB
+	realtimePublisher realtime.Publisher
+}
+
+// NotificationServiceOption конфигурирует notificationService при создании.
+type NotificationServiceOption func(*notificationService)
+
+// WithNotificationRealtimePublisher включает публикацию real-time сигнала
+// "новое уведомление" (#840) адресно юзеру, чтобы фронт мгновенно перезапросил
+// колокольчик вместо ожидания 30с-поллинга. Опционально: без неё сигналы не
+// шлются (тесты, offline).
+func WithNotificationRealtimePublisher(p realtime.Publisher) NotificationServiceOption {
+	return func(s *notificationService) { s.realtimePublisher = p }
 }
 
 // NewNotificationService создаёт реализацию NotificationService.
-func NewNotificationService(db *gorm.DB) NotificationService {
-	return &notificationService{db: db}
+func NewNotificationService(db *gorm.DB, opts ...NotificationServiceOption) NotificationService {
+	s := &notificationService{db: db}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 func (s *notificationService) GetByUserID(ctx context.Context, userID int) ([]models.Notification, error) {
@@ -123,5 +140,11 @@ func (s *notificationService) CreateForUser(ctx context.Context, userID int, not
 		Message: &m,
 		Data:    data,
 	}
-	return s.db.WithContext(ctx).Create(&n).Error
+	if err := s.db.WithContext(ctx).Create(&n).Error; err != nil {
+		return err
+	}
+	if s.realtimePublisher != nil {
+		s.realtimePublisher.Publish(userID, realtime.Event{Type: "notification.new", Scope: "notifications"})
+	}
+	return nil
 }
