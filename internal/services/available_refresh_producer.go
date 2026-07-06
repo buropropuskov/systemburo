@@ -62,6 +62,9 @@ func (p *AvailableRefreshPublisher) availableAudience(ctx context.Context) ([]in
 		Code string
 	}
 	var rows []userRow
+	// is_active=true: архивным аккаунтам сигнал не шлём (живой сессии у них нет).
+	// Гейт эндпоинта is_active не смотрит, но это сужение безвредно - в худшем
+	// случае деградация до pre-V3 (обновление по F5), а не потеря доступа.
 	if err := p.db.WithContext(ctx).
 		Table("users").
 		Select("users.id, user_types.code").
