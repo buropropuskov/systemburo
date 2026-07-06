@@ -26,6 +26,17 @@ vi.mock('@/stores/deletions', () => ({
   useDeletionsStore: () => ({ notify }),
 }));
 
+// onMounted поднимает real-time подписку (#840 V3) - без мока реальный eventStream
+// тянет api/client и уходит в fetchTicket/reconnect в тестовой среде.
+vi.mock('@/services/eventStream', () => ({
+  default: {
+    connect: vi.fn(),
+    disconnect: vi.fn(),
+    subscribe: vi.fn(() => vi.fn()),
+    onStatus: vi.fn(() => vi.fn()),
+  },
+}));
+
 // Роутер мокаем, чтобы тестировать URL-как-state без поднятия реального роутера:
 // route.query - источник стартовых фильтров, router.replace - запись фильтров в URL.
 const { routeState, replace } = vi.hoisted(() => ({
@@ -38,6 +49,7 @@ vi.mock('vue-router', () => ({
 }));
 
 import AccessibleAttachmentsView from '@/views/AccessibleAttachmentsView.vue';
+import eventStream from '@/services/eventStream';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import { getAccessibleAttachments, getAccessibleAttachmentDetail } from '@/api/applications';
 import { getOrganizations, getCompanies } from '@/api/organizations';
@@ -437,5 +449,30 @@ describe('AccessibleAttachmentsView (FE-S6) фильтры', () => {
     expect(
       wrapper.find('[data-testid="aa-filter-reset"]').attributes('disabled'),
     ).toBeUndefined();
+  });
+});
+
+describe('AccessibleAttachmentsView - real-time available.new (#840 V3)', () => {
+  it('подписывается на available, рефетчит по сигналу и отписывается при unmount', async () => {
+    getAccessibleAttachments.mockResolvedValue({ items: [], meta: { total: 0 } });
+    const unsub = vi.fn();
+    eventStream.subscribe.mockReturnValue(unsub);
+
+    wrapper = mountView();
+    await flushPromises();
+
+    expect(eventStream.connect).toHaveBeenCalledTimes(1);
+    expect(eventStream.subscribe).toHaveBeenCalledWith('available', expect.any(Function));
+
+    const cb = eventStream.subscribe.mock.calls.find((c) => c[0] === 'available')[1];
+    getAccessibleAttachments.mockClear();
+    cb();
+    await flushPromises();
+    expect(getAccessibleAttachments).toHaveBeenCalled();
+
+    wrapper.unmount();
+    wrapper = null;
+    expect(unsub).toHaveBeenCalledTimes(1);
+    expect(eventStream.disconnect).toHaveBeenCalledTimes(1);
   });
 });

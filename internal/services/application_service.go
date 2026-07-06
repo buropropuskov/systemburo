@@ -633,6 +633,7 @@ type applicationService struct {
 	recorder            AuditRecorder
 	realtimePublisher   realtime.Publisher
 	tablesProducer      *TablesRefreshPublisher
+	availableProducer   *AvailableRefreshPublisher
 }
 
 // ApplicationServiceOption конфигурирует applicationService при создании.
@@ -649,6 +650,12 @@ func WithRealtimePublisher(p realtime.Publisher) ApplicationServiceOption {
 // проходной live. Опционально.
 func WithApplicationTablesProducer(p *TablesRefreshPublisher) ApplicationServiceOption {
 	return func(s *applicationService) { s.tablesProducer = p }
+}
+
+// WithApplicationAvailableProducer включает публикацию available.new при переходе
+// заявки в "Согласовано" (#840 V3): её вложения появляются в "Доступные мне" охраны.
+func WithApplicationAvailableProducer(p *AvailableRefreshPublisher) ApplicationServiceOption {
+	return func(s *applicationService) { s.availableProducer = p }
 }
 
 // NewApplicationService создаёт экземпляр сервиса заявок.

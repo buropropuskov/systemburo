@@ -328,6 +328,7 @@ import { previewBlank } from '@/api/attachment-templates';
 import { getOrganizations, getCompanies } from '@/api/organizations';
 import { useDeletionsStore } from '@/stores/deletions';
 import { formatDateRu, formatDateTime } from '@/utils/datetime';
+import eventStream from '@/services/eventStream';
 
 const PER_PAGE = 30;
 const SEARCH_DEBOUNCE_MS = 300;
@@ -618,12 +619,26 @@ function closePreview() {
   previewError.value = '';
 }
 
+// Real-time (#840 V3): при согласовании заявки её вложения появляются в списке -
+// сервер шлёт available.new, обновляем список без F5. Раньше вкладка была F5-only,
+// поллинг не добавляем (fetchList сбрасывает пагинацию - периодический сброс мешал
+// бы прокрутке; approve - редкое событие, SSE даёт живость без дизрапта).
+let unsubAvailable = null;
 onMounted(() => {
   loadFilterOptions();
   fetchList({ reset: true });
+  eventStream.connect();
+  unsubAvailable = eventStream.subscribe('available', () => fetchList({ reset: true }));
 });
 
-onBeforeUnmount(() => clearTimeout(searchTimer));
+onBeforeUnmount(() => {
+  clearTimeout(searchTimer);
+  if (unsubAvailable) {
+    unsubAvailable();
+    unsubAvailable = null;
+  }
+  eventStream.disconnect();
+});
 </script>
 
 <style scoped>

@@ -433,6 +433,15 @@ func (s *applicationService) ApproveApplicationByUser(ctx context.Context, usern
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
 	}
 
+	// Заявка перешла в "Согласовано" -> её вложения появились в "Доступные мне"
+	// охраны (#840 V3). Сигналим аудитории обновить список (event-then-fetch). Только
+	// на переходе: повторное согласование не рождает нового доступного.
+	becameApproved := newConfirmation != nil && *newConfirmation == models.ConfirmationApproved &&
+		(oldConfirmation == nil || *oldConfirmation != models.ConfirmationApproved)
+	if becameApproved {
+		s.availableProducer.NotifyAvailableChanged(ctx)
+	}
+
 	slog.Info("заявка одобрена/отклонена", "application_id", applicationID, "user_id", user.ID, "status", req.Status)
 	return nil
 }
