@@ -18,7 +18,7 @@ import (
 type SystemTableService interface {
 	GetAll(ctx context.Context, includeArchived bool) ([]models.SystemTableWithDetails, error)
 	GetByID(ctx context.Context, id int) (*models.SystemTableWithDetails, error)
-	GetByName(ctx context.Context, name string) (*models.SystemTableWithDetails, error)
+	GetByName(ctx context.Context, name string, includeArchived bool) (*models.SystemTableWithDetails, error)
 	Create(ctx context.Context, req models.CreateSystemTableRequest) (int, error)
 	Update(ctx context.Context, id int, req models.UpdateSystemTableRequest) error
 	Delete(ctx context.Context, id int) error
@@ -238,9 +238,18 @@ func (s *systemTableService) GetByID(ctx context.Context, id int) (*models.Syste
 	return result, nil
 }
 
-// GetByName возвращает системную таблицу по имени с деталями.
-func (s *systemTableService) GetByName(ctx context.Context, name string) (*models.SystemTableWithDetails, error) {
-	query := s.db.WithContext(ctx).Where("name = ? AND is_active = ?", name, true)
+// GetByName возвращает системную таблицу по имени с деталями. При includeArchived
+// в выборку попадают и архивные (is_active=false) таблицы - нужно для просмотра
+// версий архивной таблицы, куда ведёт кнопка "Версии" из архива. Имя не уникально,
+// поэтому при коллизии активной и архивной с одним именем архивная идёт первой
+// (Order is_active ASC): версии открываются именно для архивной.
+func (s *systemTableService) GetByName(ctx context.Context, name string, includeArchived bool) (*models.SystemTableWithDetails, error) {
+	query := s.db.WithContext(ctx).Where("name = ?", name)
+	if includeArchived {
+		query = query.Order("is_active ASC")
+	} else {
+		query = query.Where("is_active = ?", true)
+	}
 	result, err := s.loadTableWithPreload(ctx, query)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
