@@ -7,6 +7,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"systemburo/internal/models"
 	"systemburo/internal/realtime"
 )
 
@@ -143,7 +144,7 @@ func (p *TablesRefreshPublisher) carsTableIDs(ctx context.Context) ([]int, error
 	var ids []int
 	if err := p.db.WithContext(ctx).
 		Table("system_tables").
-		Where("table_type = ? AND is_active = ?", "cars", true).
+		Where("table_type = ? AND is_active = ?", models.TableTypeCars, true).
 		Pluck("id", &ids).Error; err != nil {
 		return nil, fmt.Errorf("failed to load cars table ids: %w", err)
 	}

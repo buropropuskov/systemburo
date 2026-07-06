@@ -67,6 +67,10 @@ func TestTablesRefresh_AcceptanceAndCarEntry(t *testing.T) {
 	guardID := getUserID(t, db, "guard_a")
 	grantTableView(t, db, guardID, "kpp_a")
 
+	// Юзер без права table.kpp_a.view - не должен попасть в аудиторию.
+	testutil.RegisterAndLogin(t, e, "guard_nogrant", "pass123", 1, td.OrgID, td.CompanyID)
+	nograntID := getUserID(t, db, "guard_nogrant")
+
 	testutil.RegisterAndLogin(t, e, "trtsender", "pass123", 1, td.OrgID, td.CompanyID)
 	uaID := seedUniqueAttachment(t, db, "cars", "cars_tr", "Cars TR")
 
@@ -112,6 +116,7 @@ func TestTablesRefresh_AcceptanceAndCarEntry(t *testing.T) {
 	audience := findTablesRefresh(fake, scope)
 	require.NotNil(t, audience, "принятие заявки с машиной должно послать tables.refresh cars-таблице")
 	assert.Contains(t, audience, guardID, "аудитория должна включать юзера с правом table.kpp_a.view")
+	assert.NotContains(t, audience, nograntID, "юзер без права table.kpp_a.view не должен попасть в аудиторию")
 
 	// Въезд этой машины -> снова сигнал cars-таблице.
 	var carID int
