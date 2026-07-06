@@ -489,6 +489,7 @@ export default {
             applicationData: { ...this.application },
             eventStreamOff: null,
             eventStreamAppId: null,
+            loadDetailSeq: 0,
             showMessageModal: false,
             messageClamped: false,
             attachments: [],
@@ -691,12 +692,17 @@ export default {
         // только текущую заявку - участник видит изменения без F5.
         refreshLiveDetail() {
             if (!this.applicationData || !this.applicationData.id) return;
-            this.loadApplicationDetails(this.applicationData);
+            // preserveSelection: фоновый рефетч от чужого действия не должен сбрасывать
+            // выбранное вложение и мигать кнопками действий (это не наше действие).
+            this.loadApplicationDetails(this.applicationData, { preserveSelection: true });
             if (this.$refs.historyComponent && this.$refs.historyComponent.loadHistory) {
                 this.$refs.historyComponent.loadHistory();
             }
             if (this.$refs.questionsComponent && this.$refs.questionsComponent.load) {
                 this.$refs.questionsComponent.load();
+            }
+            if (this.$refs.forwardMessagesComponent && this.$refs.forwardMessagesComponent.load) {
+                this.$refs.forwardMessagesComponent.load();
             }
         },
         updateMessageClamp() {
@@ -751,8 +757,10 @@ export default {
             }
         },
 
-        async loadApplicationDetails(application) {
-            this.actionsReady = false;
+        async loadApplicationDetails(application, { preserveSelection = false } = {}) {
+            const seq = ++this.loadDetailSeq;
+            // На фоновом live-рефетче (не наше действие) кнопки не гасим - иначе мигание.
+            if (!preserveSelection) this.actionsReady = false;
             try {
                 const [appResponse, attachmentsResponse, viewersResponse] = await Promise.all([
                     apiRequest(`/applications/${application.id}/details`, {
@@ -768,7 +776,10 @@ export default {
 
                 if (appResponse.ok) {
                     const appData = await appResponse.json();
-                    
+                    // seq-guard (#632/#840): при подряд идущих live-сигналах устаревший
+                    // ответ не должен затирать данные более свежего рефетча.
+                    if (seq !== this.loadDetailSeq) return;
+
                     this.applicationData = {
                         ...this.applicationData,
                         ...appData
@@ -798,15 +809,23 @@ export default {
                 }
 
                 if (attachmentsResponse.ok) {
-                    this.attachments = await attachmentsResponse.json();
+                    // При live-рефетче сохраняем выбранное вложение по id (не сбрасываем
+                    // на первое) - иначе фоновое обновление перекинет чужую вкладку.
+                    const prevSelectedId = preserveSelection && this.selectedAttachment ? this.selectedAttachment.id : null;
+                    const newAttachments = await attachmentsResponse.json();
+                    if (seq !== this.loadDetailSeq) return;
+                    this.attachments = newAttachments;
                     if (this.attachments.length > 0) {
-                        this.selectedAttachment = this.attachments[0];
+                        const keep = prevSelectedId ? this.attachments.find(a => a.id === prevSelectedId) : null;
+                        this.selectedAttachment = keep || this.attachments[0];
                         await this.loadAttachmentDetails(this.selectedAttachment.id);
                     }
                 }
 
                 if (viewersResponse.ok) {
-                    this.viewers = await viewersResponse.json();
+                    const newViewers = await viewersResponse.json();
+                    if (seq !== this.loadDetailSeq) return;
+                    this.viewers = newViewers;
                 }
 
                 // Списки всех пользователей и согласующих нужны только в "Центре заявок"

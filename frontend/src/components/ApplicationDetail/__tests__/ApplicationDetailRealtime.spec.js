@@ -78,4 +78,33 @@ describe('ApplicationDetail - real-time application.updated (#840 V4)', () => {
     expect(unsub).toHaveBeenCalledTimes(1);
     expect(eventStream.disconnect).toHaveBeenCalledTimes(1);
   });
+
+  it('refreshLiveDetail рефетчит деталь с preserveSelection', async () => {
+    const wrapper = mountDetail();
+    await flushPromises();
+
+    const spy = vi.spyOn(wrapper.vm, 'loadApplicationDetails');
+    wrapper.vm.refreshLiveDetail();
+
+    expect(spy).toHaveBeenCalledWith(wrapper.vm.applicationData, { preserveSelection: true });
+  });
+
+  it('live-рефетч (preserveSelection) сохраняет выбранное вложение, не сбрасывает на первое', async () => {
+    apiRequest.mockImplementation((url) => {
+      if (url.endsWith('/attachments')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: 10 }, { id: 20 }]) });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+    });
+
+    const wrapper = mountDetail();
+    await flushPromises();
+
+    // Пользователь смотрит второе вложение.
+    wrapper.vm.selectedAttachment = { id: 20 };
+    await wrapper.vm.loadApplicationDetails(wrapper.vm.applicationData, { preserveSelection: true });
+    await flushPromises();
+
+    expect(wrapper.vm.selectedAttachment.id).toBe(20);
+  });
 });

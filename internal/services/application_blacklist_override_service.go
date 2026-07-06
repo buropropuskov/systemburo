@@ -92,6 +92,9 @@ func (s *applicationService) OverrideBlacklistFlag(ctx context.Context, username
 		}
 		return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка сохранения подтверждения пропуска")
 	}
+	// Подтверждение пропуска меняет доступность согласования - участники детали
+	// увидят это live (#840 V4).
+	s.notifyApplicationUpdated(ctx, applicationID)
 	return nil
 }
 
@@ -212,7 +215,7 @@ func (s *applicationService) DeleteBlacklistOverride(ctx context.Context, userna
 		return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения подтверждения пропуска")
 	}
 
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Delete(&models.ApplicationBlacklistOverride{}, override.ID).Error; err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка отмены подтверждения пропуска")
 		}
@@ -221,7 +224,12 @@ func (s *applicationService) DeleteBlacklistOverride(ctx context.Context, userna
 			return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка записи истории")
 		}
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+	// Снятие подтверждения снова блокирует согласование - участники увидят live (#840 V4).
+	s.notifyApplicationUpdated(ctx, applicationID)
+	return nil
 }
 
 // canManageBlacklistOverride - право отменять подтверждение пропуска (#481, срез C):
