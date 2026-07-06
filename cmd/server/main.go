@@ -165,7 +165,11 @@ func main() {
 	citizenshipService := services.NewCitizenshipService(db)
 	organizationService := services.NewOrganizationService(db)
 	companyService := services.NewCompanyService(db)
-	notificationServiceEarly := services.NewNotificationService(db)
+	// eventsHub создаётся до notificationService (#840 V1): паблишер real-time
+	// сигнала "notification.new" передаётся в конструктор опцией, поэтому хаб
+	// должен существовать раньше. Конструктор Hub ни от чего не зависит.
+	eventsHub := realtime.NewHub()
+	notificationServiceEarly := services.NewNotificationService(db, services.WithNotificationRealtimePublisher(eventsHub))
 	userService := services.NewUserService(db, notificationServiceEarly)
 	onboardingService := services.NewOnboardingService(db)
 	unloadPlaceService := services.NewUnloadPlaceService(db)
@@ -210,7 +214,6 @@ func main() {
 	blacklistAuditRecorder := services.NewAuditRecorder(db)
 	vehicleBlacklistService := services.NewVehicleBlacklistService(db, blacklistAuditRecorder)
 	personBlacklistService := services.NewPersonBlacklistService(db, blacklistAuditRecorder)
-	eventsHub := realtime.NewHub()
 	applicationService := services.NewApplicationService(db, permissionService, notificationService, vehicleBlacklistService, personBlacklistService, auditRecorder, services.WithRealtimePublisher(eventsHub))
 	attachmentTemplateService := services.NewAttachmentTemplateService(db, cfg.UploadPath)
 	attachmentFieldConfigService := services.NewAttachmentFieldConfigService(db)

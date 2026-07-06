@@ -5,6 +5,16 @@ import { setActivePinia, createPinia } from 'pinia';
 vi.mock('@/api/client', () => ({
   apiRequest: vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve([]) })),
 }));
+// mounted() теперь поднимает real-time подписку (#840); без мока реальный
+// eventStream ушёл бы в fetchTicket -> reconnect с фоновым таймером на весь прогон.
+vi.mock('@/services/eventStream', () => ({
+  default: {
+    connect: vi.fn(),
+    disconnect: vi.fn(),
+    subscribe: vi.fn(() => vi.fn()),
+    onStatus: vi.fn(() => vi.fn()),
+  },
+}));
 import { apiRequest } from '@/api/client';
 import { usePermissionsStore } from '@/stores/permissions';
 import UserNotifications from '../UserNotifications.vue';
