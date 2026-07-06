@@ -1087,7 +1087,9 @@ export default {
         const stats = await getFeedbackStats();
         this.newFeedbackCount = stats?.unread || 0;
       } catch {
-        this.newFeedbackCount = 0;
+        // При ошибке опроса сохраняем последнее известное значение, а не обнуляем:
+        // сброс в 0 при сетевом сбое даёт мигание бейджа (был N -> 0 -> снова N).
+        // На первом опросе значение и так дефолтное 0 - бейдж просто не появится.
       }
     },
 

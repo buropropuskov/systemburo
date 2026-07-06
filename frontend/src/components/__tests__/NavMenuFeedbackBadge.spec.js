@@ -93,4 +93,19 @@ describe('NavMenu: бейдж новых обращений', () => {
     expect(wrapper.find(BADGE).exists()).toBe(false);
     expect(wrapper.find('[data-testid="nav-link-admin"]').exists()).toBe(true);
   });
+
+  it('ошибка повторного опроса сохраняет последнее значение бейджа, не мигает в 0', async () => {
+    useAuthStore.mockReturnValue({ isSuperAdmin: true });
+    getFeedbackStats.mockResolvedValue({ unread: 3 });
+    wrapper = mountNav();
+    await flushPromises();
+    expect(wrapper.find(BADGE).text()).toBe('3');
+
+    // Сетевой сбой при следующем опросе не должен обнулять бейдж.
+    getFeedbackStats.mockRejectedValueOnce(new Error('boom'));
+    await wrapper.vm.fetchNewFeedbackCount();
+    await flushPromises();
+    expect(wrapper.find(BADGE).exists()).toBe(true);
+    expect(wrapper.find(BADGE).text()).toBe('3');
+  });
 });
