@@ -222,7 +222,11 @@ describe('TableVersionsView (#980 polish-r2)', () => {
     routeState.query = { from: 'admin' };
     wrapper = mountView();
     await flushPromises();
-    expect(wrapper.findComponent('[data-testid="tv-back"]').props('to')).toBe('/table-constructor');
+    // из админ-архива - в конструктор + open=<name>, чтобы он открыл ту же таблицу
+    expect(wrapper.findComponent('[data-testid="tv-back"]').props('to')).toEqual({
+      path: '/table-constructor',
+      query: { open: 'kpp-1' },
+    });
   });
 
   it('автовыбирает первую версию и передаёт нормализованные строки в CarsTable', async () => {
