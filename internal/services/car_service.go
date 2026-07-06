@@ -219,13 +219,27 @@ type CarCurrentStatus struct {
 // --- Реализация ---
 
 type carService struct {
-	db       *gorm.DB
-	recorder AuditRecorder
+	db             *gorm.DB
+	recorder       AuditRecorder
+	tablesProducer *TablesRefreshPublisher
+}
+
+// CarServiceOption конфигурирует carService при создании.
+type CarServiceOption func(*carService)
+
+// WithCarTablesProducer включает публикацию tables.refresh при въезде/выезде
+// машины (#840 V2.3): строка видна во всех cars-таблицах, обновляем их live.
+func WithCarTablesProducer(p *TablesRefreshPublisher) CarServiceOption {
+	return func(s *carService) { s.tablesProducer = p }
 }
 
 // NewCarService создаёт новый экземпляр CarService.
-func NewCarService(db *gorm.DB, recorder AuditRecorder) CarService {
-	return &carService{db: db, recorder: recorder}
+func NewCarService(db *gorm.DB, recorder AuditRecorder, opts ...CarServiceOption) CarService {
+	s := &carService{db: db, recorder: recorder}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 // CreateCar создаёт автомобиль с привязкой к местам разгрузки и записью в историю.

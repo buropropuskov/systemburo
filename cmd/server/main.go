@@ -175,10 +175,15 @@ func main() {
 	unloadPlaceService := services.NewUnloadPlaceService(db)
 	bureauService := services.NewBureauService(db)
 	auditRecorder := services.NewAuditRecorder(db)
-	carService := services.NewCarService(db, auditRecorder)
-	employeeService := services.NewEmployeeService(db, auditRecorder)
-	permissionService := services.NewPermissionService(db)
 	permissionResolver := services.NewPermissionResolver(db)
+	// Продюсер real-time сигналов обновления таблиц проходной (#840 V2.2/V2.3):
+	// аудитория считается по праву table.<name>.view (нужен резолвер), сигнал шлётся
+	// через хаб. Инжектится в car/employee/application-сервисы - точки, где строки
+	// таблиц меняются (въезд/выезд, принятие заявки).
+	tablesRefreshProducer := services.NewTablesRefreshPublisher(db, permissionResolver, eventsHub)
+	carService := services.NewCarService(db, auditRecorder, services.WithCarTablesProducer(tablesRefreshProducer))
+	employeeService := services.NewEmployeeService(db, auditRecorder, services.WithEmployeeTablesProducer(tablesRefreshProducer))
+	permissionService := services.NewPermissionService(db)
 	permissionGroupService := services.NewPermissionGroupService(db, permissionResolver)
 	roleService := services.NewRoleService(db, permissionResolver)
 	accessDenialService := services.NewAccessDenialService(db)
@@ -214,7 +219,7 @@ func main() {
 	blacklistAuditRecorder := services.NewAuditRecorder(db)
 	vehicleBlacklistService := services.NewVehicleBlacklistService(db, blacklistAuditRecorder)
 	personBlacklistService := services.NewPersonBlacklistService(db, blacklistAuditRecorder)
-	applicationService := services.NewApplicationService(db, permissionService, notificationService, vehicleBlacklistService, personBlacklistService, auditRecorder, services.WithRealtimePublisher(eventsHub))
+	applicationService := services.NewApplicationService(db, permissionService, notificationService, vehicleBlacklistService, personBlacklistService, auditRecorder, services.WithRealtimePublisher(eventsHub), services.WithApplicationTablesProducer(tablesRefreshProducer))
 	attachmentTemplateService := services.NewAttachmentTemplateService(db, cfg.UploadPath)
 	attachmentFieldConfigService := services.NewAttachmentFieldConfigService(db)
 	attachmentBlankService := services.NewAttachmentBlankService(db)

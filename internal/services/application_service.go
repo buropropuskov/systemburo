@@ -632,6 +632,7 @@ type applicationService struct {
 	personBlacklist     PersonBlacklistService
 	recorder            AuditRecorder
 	realtimePublisher   realtime.Publisher
+	tablesProducer      *TablesRefreshPublisher
 }
 
 // ApplicationServiceOption конфигурирует applicationService при создании.
@@ -641,6 +642,13 @@ type ApplicationServiceOption func(*applicationService)
 // заявок (#840). Опционально: без неё сигналы не шлются (тесты, offline).
 func WithRealtimePublisher(p realtime.Publisher) ApplicationServiceOption {
 	return func(s *applicationService) { s.realtimePublisher = p }
+}
+
+// WithApplicationTablesProducer включает публикацию tables.refresh при принятии
+// заявки (#840 V2.2): активированные машины/сотрудники появляются в таблицах
+// проходной live. Опционально.
+func WithApplicationTablesProducer(p *TablesRefreshPublisher) ApplicationServiceOption {
+	return func(s *applicationService) { s.tablesProducer = p }
 }
 
 // NewApplicationService создаёт экземпляр сервиса заявок.
