@@ -218,6 +218,38 @@ func TestSystemTables_GetByName_NotFound(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 }
 
+// Просмотр версий открывается для архивной таблицы: резолвер по имени должен
+// находить её только с allow_archived, иначе кнопка "Версии" из архива ведёт
+// в "Таблица не найдена".
+func TestSystemTables_GetByName_AllowArchived(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	rec := testutil.POST(t, e, "/system-tables",
+		`{"name":"arch_cars","display_name":"Архивная","table_type":"cars"}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	tableID := int(testutil.ParseMap(t, rec)["id"].(float64))
+
+	// Мягко удаляем (is_active=false) - таблица уходит в архив.
+	rec = testutil.DELETE(t, e, fmt.Sprintf("/system-tables/%d", tableID), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// Без флага архивная не резолвится - как основная страница таблицы.
+	rec = testutil.GET(t, e, "/system-tables/name/arch_cars", h)
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+
+	// С флагом - находится, is_active=false (нужно для страницы версий).
+	rec = testutil.GET(t, e, "/system-tables/name/arch_cars?allow_archived=1", h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	tbl := testutil.ParseMap(t, rec)["table"].(map[string]interface{})
+	assert.Equal(t, "arch_cars", tbl["name"])
+	assert.Equal(t, false, tbl["is_active"])
+}
+
 func TestSystemTables_PeopleType_DefaultFields(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
