@@ -419,8 +419,10 @@
               :columns="6"
             />
           </template>
-          <div
+          <TransitionGroup
             v-if="filteredApplications.length > 0"
+            tag="div"
+            name="app-row"
             class="applications-list"
           >
             <div
@@ -594,7 +596,7 @@
                 </div>
               </div>
             </div>
-          </div>
+          </TransitionGroup>
           <p
             v-else
             class="no-data-message"
@@ -945,7 +947,7 @@ export default {
         // Real-time обновление Центра (#840): по сигналу сервера перезагружаем список.
         eventStream.connect();
         this.eventStreamOff = eventStream.subscribe('applications-center', () => {
-            this.fetchApplications();
+            this.fetchApplications(true); // тихо: без оверлея, TransitionGroup анимирует дельту
         });
         this.eventStreamStatusOff = eventStream.onStatus((status) => {
             this.sseConnected = status === 'connected';
@@ -1322,11 +1324,13 @@ export default {
             }
         },
 
-        async fetchApplications() {
+        async fetchApplications(silent = false) {
             // seq-токен: fetchApplications дёргается фильтрами, поллингом, ручным refresh
             // и SSE-сигналом (#840) - при пачке вызовов пишем только ответ последнего (#632).
+            // silent (real-time push): без оверлея refreshing - список обновляется тихо,
+            // а TransitionGroup анимирует только дельту (новые заявки въезжают, соседи едут).
             const seq = ++this.fetchSeq;
-            this.refreshing = true;
+            if (!silent) this.refreshing = true;
             try {
                 const authStore = useAuthStore();
                 if (!authStore.token) {
@@ -1390,7 +1394,7 @@ export default {
                 // Индикатор гасит только актуальный запрос, устаревший его не сбрасывает.
                 if (seq === this.fetchSeq) {
                     this.loading = false;
-                    this.refreshing = false;
+                    if (!silent) this.refreshing = false;
                 }
             }
         },
@@ -2154,6 +2158,9 @@ export default {
 
 .applications-list {
     flex-grow: 1;
+    /* relative - чтобы leave-строка (position:absolute) держалась в пределах списка,
+       пока соседи плавно смыкаются (move). */
+    position: relative;
 }
 
 .application-item {
@@ -2172,9 +2179,9 @@ export default {
 }
 
 .application-item.filtered {
+    /* Отключаем каскад первой загрузки для последующих обновлений. opacity/transform
+       НЕ фиксируем - ими управляет TransitionGroup (app-row) при вставке новых строк. */
     animation: none;
-    opacity: 1;
-    transform: none;
 }
 
 @keyframes slideInFromTop {
@@ -2186,6 +2193,31 @@ export default {
         opacity: 1;
         transform: translateY(0);
     }
+}
+
+/* Точечная анимация списка Центра при real-time добавлении (#840): новая заявка
+   плавно проявляется и въезжает на свою позицию (с учётом сортировки), соседи
+   едут на новое место (FLIP move). Только transform/opacity. Пачка новых за раз
+   отрабатывается штатно - каждая enter + все сдвиги move одновременно. */
+.app-row-enter-active {
+    transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+}
+.app-row-enter-from {
+    opacity: 0;
+    transform: translateY(-20px);
+}
+.app-row-move {
+    transition: transform 0.3s ease;
+}
+.app-row-leave-active {
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    /* Выводим из потока, чтобы соседи плавно сомкнулись при выпадении заявки. */
+    position: absolute;
+    width: 100%;
+}
+.app-row-leave-to {
+    opacity: 0;
+    transform: translateY(-10px);
 }
 
 .application-item:hover:not(.download-btn:hover) {
