@@ -219,9 +219,9 @@ func TestSystemTables_GetByName_NotFound(t *testing.T) {
 }
 
 // Просмотр версий открывается для архивной таблицы: резолвер по имени должен
-// находить её только с include_archived, иначе кнопка "Версии" из архива ведёт
+// находить её только с allow_archived, иначе кнопка "Версии" из архива ведёт
 // в "Таблица не найдена".
-func TestSystemTables_GetByName_IncludeArchived(t *testing.T) {
+func TestSystemTables_GetByName_AllowArchived(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
@@ -243,7 +243,7 @@ func TestSystemTables_GetByName_IncludeArchived(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 
 	// С флагом - находится, is_active=false (нужно для страницы версий).
-	rec = testutil.GET(t, e, "/system-tables/name/arch_cars?include_archived=1", h)
+	rec = testutil.GET(t, e, "/system-tables/name/arch_cars?allow_archived=1", h)
 	require.Equal(t, http.StatusOK, rec.Code)
 	tbl := testutil.ParseMap(t, rec)["table"].(map[string]interface{})
 	assert.Equal(t, "arch_cars", tbl["name"])

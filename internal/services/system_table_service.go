@@ -18,7 +18,7 @@ import (
 type SystemTableService interface {
 	GetAll(ctx context.Context, includeArchived bool) ([]models.SystemTableWithDetails, error)
 	GetByID(ctx context.Context, id int) (*models.SystemTableWithDetails, error)
-	GetByName(ctx context.Context, name string, includeArchived bool) (*models.SystemTableWithDetails, error)
+	GetByName(ctx context.Context, name string, allowArchived bool) (*models.SystemTableWithDetails, error)
 	Create(ctx context.Context, req models.CreateSystemTableRequest) (int, error)
 	Update(ctx context.Context, id int, req models.UpdateSystemTableRequest) error
 	Delete(ctx context.Context, id int) error
@@ -238,14 +238,17 @@ func (s *systemTableService) GetByID(ctx context.Context, id int) (*models.Syste
 	return result, nil
 }
 
-// GetByName возвращает системную таблицу по имени с деталями. При includeArchived
-// в выборку попадают и архивные (is_active=false) таблицы - нужно для просмотра
-// версий архивной таблицы, куда ведёт кнопка "Версии" из архива. Имя не уникально,
-// поэтому при коллизии активной и архивной с одним именем архивная идёт первой
-// (Order is_active ASC): версии открываются именно для архивной.
-func (s *systemTableService) GetByName(ctx context.Context, name string, includeArchived bool) (*models.SystemTableWithDetails, error) {
+// GetByName возвращает системную таблицу по имени с деталями. При allowArchived
+// фильтр is_active снимается: в выборку попадают и архивные (is_active=false)
+// таблицы - нужно для страницы версий архивной таблицы (кнопка "Версии" из архива).
+// Параметр АДДИТИВНЫЙ (активные + архивные), в отличие от include_archived у GetAll,
+// который переключает выборку на ТОЛЬКО архивные - потому и имя другое.
+// Create проверяет уникальность имени по всем строкам без учёта is_active, так что
+// активная и архивная с одним именем штатно не сосуществуют; Order("is_active ASC")
+// - защита от гонки создания/легаси-данных, чтобы при таком дубле выбралась архивная.
+func (s *systemTableService) GetByName(ctx context.Context, name string, allowArchived bool) (*models.SystemTableWithDetails, error) {
 	query := s.db.WithContext(ctx).Where("name = ?", name)
-	if includeArchived {
+	if allowArchived {
 		query = query.Order("is_active ASC")
 	} else {
 		query = query.Where("is_active = ?", true)

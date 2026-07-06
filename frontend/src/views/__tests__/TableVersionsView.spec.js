@@ -202,6 +202,14 @@ describe('TableVersionsView (#980 polish-r2)', () => {
     expect(wrapper.find('[data-testid="tv-empty"]').exists()).toBe(false);
   });
 
+  it('резолвит таблицу с allow_archived=1 - иначе архивная не найдётся', async () => {
+    listTableSnapshots.mockResolvedValue({ items: [snapItem(1)], total: 1 });
+    wrapper = mountView();
+    await flushPromises();
+
+    expect(apiRequest).toHaveBeenCalledWith('/system-tables/name/kpp-1?allow_archived=1');
+  });
+
   it('автовыбирает первую версию и передаёт нормализованные строки в CarsTable', async () => {
     listTableSnapshots.mockResolvedValue({ items: [snapItem(7), snapItem(8)], total: 2 });
     getTableSnapshot.mockResolvedValue(carsSnapshot(7, [

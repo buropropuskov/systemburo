@@ -467,9 +467,9 @@ const detailCounts = computed(
 async function fetchTable() {
   error.value = '';
   try {
-    // include_archived: версии открываются из архива, где таблица уже is_active=false;
+    // allow_archived: версии открываются из архива, где таблица уже is_active=false;
     // без флага резолвер по имени её не найдёт и вернёт "Таблица не найдена".
-    const res = await apiRequest(`/system-tables/name/${tableName.value}?include_archived=1`);
+    const res = await apiRequest(`/system-tables/name/${tableName.value}?allow_archived=1`);
     const data = await res.json();
     const tbl = (data && data.table) || data;
     if (!tbl || !tbl.id) {

@@ -97,15 +97,15 @@ func (h *SystemTableHandler) GetByID(c echo.Context) error {
 // @Produce      json
 // @Security     BearerAuth
 // @Param        name path string true "Имя таблицы"
-// @Param        include_archived query bool false "Искать и среди архивных (для просмотра версий)"
+// @Param        allow_archived query bool false "Искать и среди архивных тоже (для страницы версий)"
 // @Success      200 {object} models.SystemTableWithDetails
 // @Failure      401 {object} models.HTTPError
 // @Failure      404 {object} models.HTTPError
 // @Router       /system-tables/name/{name} [get]
 func (h *SystemTableHandler) GetByName(c echo.Context) error {
 	name := c.Param("name")
-	includeArchived := c.QueryParam("include_archived") == "1" || c.QueryParam("include_archived") == "true"
-	table, err := h.service.GetByName(c.Request().Context(), name, includeArchived)
+	allowArchived := c.QueryParam("allow_archived") == "1" || c.QueryParam("allow_archived") == "true"
+	table, err := h.service.GetByName(c.Request().Context(), name, allowArchived)
 	if err != nil {
 		return err
 	}
