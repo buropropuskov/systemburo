@@ -546,7 +546,7 @@ describe('TableVersionsView поиск и фильтр даты (#980 polish-r3)
     wrapper = mountView();
     await flushPromises();
 
-    expect(wrapper.find('[data-testid="tv-subbar"]').exists()).toBe(false);
+    expect(wrapper.find('.tv-search-input').exists()).toBe(false);
   });
 
   it('выбор дня в календаре сужает список версий границами локального дня (ISO)', async () => {

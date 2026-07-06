@@ -235,14 +235,8 @@
         class="versions-table"
         data-testid="tv-preview"
       >
-        <!-- Заголовок раздела - ВНЕ таблицы. Поиск по строкам - в РОДНОЙ шапке
-             CarsTable/PeopleTable (слот header-actions), а не отдельной полосой. -->
-        <div
-          class="versions-table__toolbar"
-          data-testid="tv-subbar"
-        >
-          <span class="versions-table__title">Состав версии</span>
-        </div>
+        <!-- Поиск по строкам - в РОДНОЙ шапке CarsTable/PeopleTable
+             (слот header-actions), отдельного заголовка над таблицей нет. -->
         <div class="versions-preview">
           <CarsTable
             v-if="detailType === 'cars'"
@@ -864,21 +858,6 @@ onMounted(async () => {
 .versions-table {
   display: flex;
   flex-direction: column;
-}
-
-.versions-table__toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px 16px;
-  padding: 12px 20px;
-  flex-wrap: wrap;
-}
-
-.versions-table__title {
-  font-weight: 600;
-  font-size: 15px;
-  color: #1a1a1a;
 }
 
 .versions-meta {
