@@ -310,6 +310,10 @@ func (s *applicationService) UpdateApplicationItemsStatus(ctx context.Context, a
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
 	}
 
+	// Активированные машины/сотрудники появились в таблицах проходной - сигналим
+	// их аудитории обновиться live (#840 V2.2). После commit: строки уже видны.
+	s.tablesProducer.NotifyApplicationActivated(ctx, applicationID)
+
 	return nil
 }
 

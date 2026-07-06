@@ -95,13 +95,27 @@ type TableEmployeeResponse struct {
 // --- Реализация ---
 
 type employeeService struct {
-	db       *gorm.DB
-	recorder AuditRecorder
+	db             *gorm.DB
+	recorder       AuditRecorder
+	tablesProducer *TablesRefreshPublisher
+}
+
+// EmployeeServiceOption конфигурирует employeeService при создании.
+type EmployeeServiceOption func(*employeeService)
+
+// WithEmployeeTablesProducer включает публикацию tables.refresh при въезде/выезде
+// сотрудника (#840 V2.3): обновляем его целевые таблицы проходной live.
+func WithEmployeeTablesProducer(p *TablesRefreshPublisher) EmployeeServiceOption {
+	return func(s *employeeService) { s.tablesProducer = p }
 }
 
 // NewEmployeeService создаёт новый экземпляр EmployeeService.
-func NewEmployeeService(db *gorm.DB, recorder AuditRecorder) EmployeeService {
-	return &employeeService{db: db, recorder: recorder}
+func NewEmployeeService(db *gorm.DB, recorder AuditRecorder, opts ...EmployeeServiceOption) EmployeeService {
+	s := &employeeService{db: db, recorder: recorder}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 // CreateEmployee создаёт сотрудника и связи с целевыми таблицами в транзакции.
@@ -284,7 +298,7 @@ func (s *employeeService) UpdateEmployeeTerritoryStatus(ctx context.Context, emp
 		actionType = "exit"
 	}
 
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var employee models.Employee
 		if err := tx.Select("id", "last_name", "first_name", "middle_name", "territory_status").
 			First(&employee, employeeID).Error; err != nil {
@@ -327,6 +341,14 @@ func (s *employeeService) UpdateEmployeeTerritoryStatus(ctx context.Context, emp
 		slog.Info("территориальный статус сотрудника обновлён", "employee_id", employeeID, "action_type", actionType, "status", req.TerritoryStatus)
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+
+	// Въезд/выезд изменил строку сотрудника - обновляем его целевые таблицы live
+	// (#840 V2.3).
+	s.tablesProducer.NotifyEmployeeChanged(ctx, employeeID)
+	return nil
 }
 
 // DeactivateEmployee деактивирует сотрудника и записывает удаление в историю.

@@ -68,7 +68,7 @@ func (s *carService) UpdateCarTerritoryStatus(ctx context.Context, carID int, re
 		actionType = "exit"
 	}
 
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var car models.Car
 		if err := tx.Select("id", "car_number", "car_brand", "territory_status").
 			First(&car, carID).Error; err != nil {
@@ -108,6 +108,14 @@ func (s *carService) UpdateCarTerritoryStatus(ctx context.Context, carID int, re
 		slog.Info("территориальный статус автомобиля обновлён", "car_id", carID, "action_type", actionType, "status", req.TerritoryStatus)
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+
+	// Въезд/выезд изменил строку машины - она видна во всех cars-таблицах,
+	// сигналим их аудитории обновиться live (#840 V2.3).
+	s.tablesProducer.NotifyCarsChanged(ctx)
+	return nil
 }
 
 // DeactivateCar деактивирует автомобиль и записывает удаление в историю.
