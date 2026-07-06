@@ -613,9 +613,14 @@ export default {
       // логине при 0 -> N); lastSoundAt - метка для кулдауна (пачка заявок -> один звук).
       soundPrimed: false,
       lastSoundAt: 0,
+      // Токен последовательности опросов счётчика: конкурентные вызовы (30с-таймер + SSE)
+      // могут резолвиться не по порядку - устаревший ответ с бОльшим count не должен
+      // затирать актуальный и играть ложный звук. Пишет только последний запущенный.
+      unreadFetchSeq: 0,
       applicationsPollingInterval: null,
       tablesPollingInterval: null,
       eventStreamOff: null,
+      unreadReadHandler: null,
       mobileOpen: false,
       isBanned: false,
       searchQuery: '',
@@ -1045,8 +1050,12 @@ export default {
         return
       }
       const SOUND_COOLDOWN_MS = 5000
+      const seq = ++this.unreadFetchSeq
       try {
         const data = await getUnreadCount()
+        // Устаревший конкурентный ответ (не последний запущенный) игнорируем целиком:
+        // иначе его снимок count затирает актуальный и играет ложный звук на мнимом росте.
+        if (seq !== this.unreadFetchSeq) return
         const count = data.count || 0
         // Звук только при РОСТЕ счётчика после первичной загрузки (не на логине) и не чаще
         // кулдауна - пачка заявок в одном опросе даёт +N за раз = один звук.
@@ -1063,8 +1072,9 @@ export default {
         this.newApplicationsCount = count
         this.soundPrimed = true
       } catch {
-        this.newApplicationsCount = 0
-        this.soundPrimed = true
+        // При ошибке опроса НЕ обнуляем счётчик: сброс базы в 0 заставит следующий успешный
+        // опрос сыграть ложный звук на "росте с нуля" (0 -> реальный N). Сохраняем последнее
+        // известное значение и soundPrimed как есть - молча пропускаем неудачный тик.
       }
     },
 
@@ -1095,6 +1105,10 @@ export default {
       this.eventStreamOff = eventStream.subscribe('applications-center', () => {
         this.fetchNewApplicationsCount();
       });
+      // Прочтение заявки в Центре гасит счётчик непрочитанных сразу, не дожидаясь 30с-опроса
+      // (ApplicationsCenter эмитит 'application-read' после успешного POST /read).
+      this.unreadReadHandler = () => this.fetchNewApplicationsCount();
+      this.$bus.on('application-read', this.unreadReadHandler);
     },
 
     startTablesPolling() {
@@ -1115,6 +1129,10 @@ export default {
       if (this.eventStreamOff) {
         this.eventStreamOff();
         this.eventStreamOff = null;
+      }
+      if (this.unreadReadHandler) {
+        this.$bus.off('application-read', this.unreadReadHandler);
+        this.unreadReadHandler = null;
       }
       eventStream.disconnect();
     },
