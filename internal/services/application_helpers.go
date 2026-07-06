@@ -2,12 +2,14 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
 
 	"systemburo/internal/models"
 	"systemburo/internal/normalize"
+	"systemburo/internal/realtime"
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
@@ -241,6 +243,36 @@ func mergeUniqueIDs(senderID int, groups ...[]int) []int {
 		out = append(out, id)
 	}
 	return out
+}
+
+// applicationParticipants - аудитория детали заявки (#840 V4): все, у кого заявка
+// видна (та же логика, что centerAudience/applyApplicationAccessFilter - автор,
+// ответственные/согласующие, читатели, принимающие). Читает senderID из заявки.
+func (s *applicationService) applicationParticipants(ctx context.Context, applicationID int) []int {
+	var senderID int
+	if err := s.db.WithContext(ctx).
+		Table("applications").
+		Select("sender_user_id").
+		Where("id = ?", applicationID).
+		Scan(&senderID).Error; err != nil {
+		slog.Warn("application participants: load sender failed", "application_id", applicationID, "err", err)
+	}
+	return s.centerAudience(ctx, applicationID, senderID)
+}
+
+// notifyApplicationUpdated шлёт участникам заявки лёгкий сигнал application.updated
+// (scope application:<id>) - открытая деталь перезапросит статус/вопросы/согласующих
+// без F5 (#840 V4). Best-effort: без паблишера/при пустой аудитории - no-op, сбой не
+// влияет на бизнес-операцию. Звать ПОСЛЕ commit изменения.
+func (s *applicationService) notifyApplicationUpdated(ctx context.Context, applicationID int) {
+	if s.realtimePublisher == nil {
+		return
+	}
+	audience := s.applicationParticipants(ctx, applicationID)
+	s.realtimePublisher.PublishMany(audience, realtime.Event{
+		Type:  "application.updated",
+		Scope: fmt.Sprintf("application:%d", applicationID),
+	})
 }
 
 // buildSearchVariants возвращает уникальный набор вариантов поискового запроса:

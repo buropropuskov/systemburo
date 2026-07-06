@@ -441,6 +441,7 @@ import Badge from '@/components/ui/Badge.vue'
 import BaseDropdown from '@/components/ui/BaseDropdown.vue'
 import { sanitizeHtml } from '@/utils/sanitize'
 import ApplicationMessageModal from './ApplicationMessageModal.vue'
+import eventStream from '@/services/eventStream'
 
 export default {
     name: 'ApplicationDetail',
@@ -486,6 +487,8 @@ export default {
     data() {
         return {
             applicationData: { ...this.application },
+            eventStreamOff: null,
+            eventStreamAppId: null,
             showMessageModal: false,
             messageClamped: false,
             attachments: [],
@@ -644,6 +647,7 @@ export default {
                     this.loadApplicationDetails(newApplication);
                     if (!oldApplication || oldApplication.id !== newApplication.id) {
                         markAsRead(newApplication.id).catch(() => {});
+                        this.subscribeToApplication(newApplication.id);
                     }
                 }
             },
@@ -656,10 +660,44 @@ export default {
     mounted() {
         this.loadCommonData();
         this.$nextTick(() => this.updateMessageClamp());
+        // Real-time (#840 V4): подписка на изменения открытой заявки (сам scope
+        // ставится в watch application по её id). connect - refcount'ный.
+        eventStream.connect();
+    },
+    beforeUnmount() {
+        if (this.eventStreamOff) {
+            this.eventStreamOff();
+            this.eventStreamOff = null;
+        }
+        eventStream.disconnect();
     },
     methods: {
         can(key) {
             return this.permissionsStore.hasPermission(key);
+        },
+        // Подписка на real-time обновления конкретной заявки (#840 V4): снимает
+        // старую подписку, подписывается на scope application:<id>.
+        subscribeToApplication(appId) {
+            if (this.eventStreamOff) {
+                this.eventStreamOff();
+                this.eventStreamOff = null;
+            }
+            if (!appId) return;
+            this.eventStreamAppId = appId;
+            this.eventStreamOff = eventStream.subscribe(`application:${appId}`, () => this.refreshLiveDetail());
+        },
+        // Тихий рефетч открытой детали по сигналу application.updated: статус/
+        // согласующие/вложения (loadApplicationDetails) + история + вопросы. Обновляет
+        // только текущую заявку - участник видит изменения без F5.
+        refreshLiveDetail() {
+            if (!this.applicationData || !this.applicationData.id) return;
+            this.loadApplicationDetails(this.applicationData);
+            if (this.$refs.historyComponent && this.$refs.historyComponent.loadHistory) {
+                this.$refs.historyComponent.loadHistory();
+            }
+            if (this.$refs.questionsComponent && this.$refs.questionsComponent.load) {
+                this.$refs.questionsComponent.load();
+            }
         },
         updateMessageClamp() {
             const el = this.$refs.messagePreview;

@@ -319,6 +319,7 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 
 	slog.Info("заявка переслана", "application_id", applicationID, "user_id", user.ID,
 		"responsible_count", len(addedResponsibleUsers), "viewer_count", len(addedViewers))
+	s.notifyApplicationUpdated(ctx, applicationID)
 	return nil
 }
 
@@ -443,6 +444,7 @@ func (s *applicationService) ApproveApplicationByUser(ctx context.Context, usern
 	}
 
 	slog.Info("заявка одобрена/отклонена", "application_id", applicationID, "user_id", user.ID, "status", req.Status)
+	s.notifyApplicationUpdated(ctx, applicationID)
 	return nil
 }
 
@@ -538,6 +540,8 @@ func (s *applicationService) RevokeApproval(ctx context.Context, username string
 		Status       *string
 	}
 	s.db.WithContext(ctx).Raw("SELECT confirmation, status FROM applications WHERE id = ?", applicationID).Scan(&updatedApp)
+
+	s.notifyApplicationUpdated(ctx, applicationID)
 
 	return &RevokeApprovalResponse{
 		Success:      true,
