@@ -951,9 +951,11 @@ export default {
             if (this.isInitialLoad) return; // как поллинг: не трогаем в первую секунду после mount
             const beforeIds = new Set(this.applications.map((a) => a.id));
             await this.fetchApplications(true); // тихо: без оверлея, TransitionGroup анимирует дельту
-            // Звук на реально новую заявку (на /center). Вне /center звучит NavMenu по тому же сигналу.
+            // Звук на реально новую заявку. route === '/center' симметрично гейту NavMenu
+            // (там route !== '/center') - если юзер ушёл со страницы, пока летел запрос,
+            // звук сыграет только NavMenu, без двойного бипа на стыке навигации.
             const hasNew = this.applications.some((a) => !beforeIds.has(a.id));
-            if (hasNew && this.pollPrimed && this.soundStore.enabled) {
+            if (hasNew && this.pollPrimed && this.soundStore.enabled && this.$route?.path === '/center') {
                 playPreset(this.soundStore.selectedPreset, this.soundStore.volume);
             }
         });
