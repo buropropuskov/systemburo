@@ -362,9 +362,12 @@ const { can } = usePermission();
 const tableName = computed(() => route.params.tableName);
 
 // Куда ведёт "Назад": из админ-конструктора (from=admin, архивная таблица) - обратно
-// в конструктор; с публичной страницы таблицы - на неё же (/table/:name).
+// в конструктор, с open=<name> чтобы он открыл архив и выбрал ту же таблицу (юзер
+// вернётся ровно туда, где был); с публичной страницы таблицы - на неё же.
 const backTo = computed(() =>
-  route.query?.from === 'admin' ? '/table-constructor' : `/table/${tableName.value}`,
+  route.query?.from === 'admin'
+    ? { path: '/table-constructor', query: { open: tableName.value } }
+    : `/table/${tableName.value}`,
 );
 
 const tableID = ref(0);

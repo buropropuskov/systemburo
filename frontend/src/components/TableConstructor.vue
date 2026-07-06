@@ -771,8 +771,17 @@ export default {
       }
     },
   },
-  mounted() {
-    this.refreshData();
+  async mounted() {
+    // Возврат со страницы версий архивной таблицы (?open=<name>): открыть архив
+    // и выбрать ту же таблицу, чтобы юзер вернулся ровно туда, где был.
+    const openName = this.$route?.query?.open;
+    if (openName) this.showArchive = true;
+    await this.refreshData();
+    if (openName) {
+      const target = this.tables.find((t) => t.table.name === openName);
+      if (target) this.selectTable(target);
+      this.$router.replace({ query: {} });
+    }
 
     // Закрываем dropdown при клике вне них
     document.addEventListener('click', (e) => {
