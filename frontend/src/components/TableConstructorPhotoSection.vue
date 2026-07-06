@@ -183,6 +183,23 @@ export default {
       if (files && files.length) this.uploadFiles(files);
     },
 
+    /**
+     * Достаёт текст ошибки бэка из ответа apiRequest. wrapJsonUnwrap на !success
+     * кладёт его в message (в envelope ключ - error); сырой response.text() дал бы
+     * JSON целиком в уведомление.
+     * @param {Response} response
+     * @param {string} fallback
+     * @returns {Promise<string>}
+     */
+    async errorMessage(response, fallback) {
+      try {
+        const body = await response.json();
+        return (body && body.message) || fallback;
+      } catch {
+        return fallback;
+      }
+    },
+
     async uploadFiles(files) {
       const formData = new FormData();
       for (let i = 0; i < files.length; i++) {
@@ -201,8 +218,7 @@ export default {
           this.$emit('photos-changed');
           this.dispatchNotification('Фотографии успешно загружены', 'success');
         } else {
-          const errorText = await response.text();
-          this.dispatchNotification(errorText || 'Ошибка при загрузке фото', 'error');
+          this.dispatchNotification(await this.errorMessage(response, 'Ошибка при загрузке фото'), 'error');
         }
       } catch (error) {
         console.error('Error uploading photos:', error);
@@ -229,8 +245,7 @@ export default {
           this.$emit('photos-changed');
           this.dispatchNotification('Фотография удалена', 'success');
         } else {
-          const errorText = await response.text();
-          this.dispatchNotification(errorText || 'Ошибка при удалении фото', 'error');
+          this.dispatchNotification(await this.errorMessage(response, 'Ошибка при удалении фото'), 'error');
         }
       } catch (error) {
         console.error('Error deleting photo:', error);
@@ -248,8 +263,7 @@ export default {
           this.$emit('photos-changed');
           this.dispatchNotification('Главная фотография установлена', 'success');
         } else {
-          const errorText = await response.text();
-          this.dispatchNotification(errorText || 'Ошибка при установке главной фотографии', 'error');
+          this.dispatchNotification(await this.errorMessage(response, 'Ошибка при установке главной фотографии'), 'error');
         }
       } catch (error) {
         console.error('Error setting main photo:', error);

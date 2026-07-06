@@ -284,14 +284,13 @@ export default {
           this.$emit('created', result)
           this.resetForm()
         } else {
-          const errorText = await response.text()
-          let message = errorText || 'Ошибка при создании таблицы'
+          // wrapJsonUnwrap на !success кладёт текст ошибки бэка в message (в самом
+          // envelope ключ - error); сырой response.text() дал бы JSON целиком.
+          let message = 'Ошибка при создании таблицы'
           try {
-            const errorJson = JSON.parse(errorText)
-            message = errorJson.message || message
-          } catch {
-            // не JSON — используем текст как есть
-          }
+            const body = await response.json()
+            if (body && body.message) message = body.message
+          } catch { /* тело не JSON - остаётся дефолт */ }
           useDeletionsStore().notify({ prefix: 'Ошибка создания: ', bold: message, type: 'error' });
         }
       } catch (error) {
