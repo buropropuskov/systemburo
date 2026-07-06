@@ -181,6 +181,7 @@ func main() {
 	// через хаб. Инжектится в car/employee/application-сервисы - точки, где строки
 	// таблиц меняются (въезд/выезд, принятие заявки).
 	tablesRefreshProducer := services.NewTablesRefreshPublisher(db, permissionResolver, eventsHub)
+	availableRefreshProducer := services.NewAvailableRefreshPublisher(db, permissionResolver, eventsHub)
 	carService := services.NewCarService(db, auditRecorder, services.WithCarTablesProducer(tablesRefreshProducer))
 	employeeService := services.NewEmployeeService(db, auditRecorder, services.WithEmployeeTablesProducer(tablesRefreshProducer))
 	permissionService := services.NewPermissionService(db)
@@ -219,7 +220,7 @@ func main() {
 	blacklistAuditRecorder := services.NewAuditRecorder(db)
 	vehicleBlacklistService := services.NewVehicleBlacklistService(db, blacklistAuditRecorder)
 	personBlacklistService := services.NewPersonBlacklistService(db, blacklistAuditRecorder)
-	applicationService := services.NewApplicationService(db, permissionService, notificationService, vehicleBlacklistService, personBlacklistService, auditRecorder, services.WithRealtimePublisher(eventsHub), services.WithApplicationTablesProducer(tablesRefreshProducer))
+	applicationService := services.NewApplicationService(db, permissionService, notificationService, vehicleBlacklistService, personBlacklistService, auditRecorder, services.WithRealtimePublisher(eventsHub), services.WithApplicationTablesProducer(tablesRefreshProducer), services.WithApplicationAvailableProducer(availableRefreshProducer))
 	attachmentTemplateService := services.NewAttachmentTemplateService(db, cfg.UploadPath)
 	attachmentFieldConfigService := services.NewAttachmentFieldConfigService(db)
 	attachmentBlankService := services.NewAttachmentBlankService(db)
