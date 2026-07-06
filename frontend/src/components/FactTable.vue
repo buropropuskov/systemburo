@@ -631,7 +631,7 @@ export default {
         await this.fetchOrganizations();
         if (this.tableType === 'cars') {
           await this.fetchCarsData(seq);
-          await this.fetchFactCarUnloadPlaces();
+          await this.fetchFactCarUnloadPlaces(seq);
           await this.fetchCarHistoryStatus(seq);
         } else {
           await this.fetchPeopleData();
@@ -748,11 +748,14 @@ export default {
       }
     },
 
-    async fetchFactCarUnloadPlaces() {
+    async fetchFactCarUnloadPlaces(seq) {
       try {
         const response = await apiRequest("/cars/fact-unload-places", {});
         if (response.ok) {
           const carUnloadPlaces = await response.json();
+          // seq-guard (#632/#840): устаревший ответ не должен перезаписывать карту
+          // мест разгрузки и мутировать unload_place_ids уже отрисованных строк.
+          if (seq !== undefined && seq !== this.refreshSeq) return;
           this.factCarUnloadPlacesMap = {};
           carUnloadPlaces.forEach(cup => {
             if (!this.factCarUnloadPlacesMap[cup.car_id]) this.factCarUnloadPlacesMap[cup.car_id] = [];
@@ -772,7 +775,7 @@ export default {
         }
       } catch (error) {
         console.error("Ошибка при загрузке связей факт-машин с местами разгрузки:", error);
-        this.factCarUnloadPlacesMap = {};
+        if (seq === undefined || seq === this.refreshSeq) this.factCarUnloadPlacesMap = {};
       }
     },
 

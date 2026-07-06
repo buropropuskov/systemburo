@@ -755,7 +755,7 @@ export default {
         await this.fetchUnloadingPlaces();
         await this.fetchLicensePlateFormats();
         await this.fetchCarsData(seq);
-        await this.fetchCarUnloadPlaces();
+        await this.fetchCarUnloadPlaces(seq);
         await this.fetchCarHistoryStatus(seq);
       } catch (error) {
         console.error('Ошибка при загрузке машин:', error);
@@ -882,11 +882,14 @@ export default {
       }
     },
 
-    async fetchCarUnloadPlaces() {
+    async fetchCarUnloadPlaces(seq) {
       try {
         const response = await apiRequest("/cars/unload-places", {});
         if (response.ok) {
           const carUnloadPlaces = await response.json();
+          // seq-guard (#632/#840): устаревший ответ не должен перезаписывать карту
+          // мест разгрузки и мутировать unload_place_ids уже отрисованных строк.
+          if (seq !== undefined && seq !== this.refreshSeq) return;
           this.carUnloadPlacesMap = {};
           carUnloadPlaces.forEach(cup => {
             if (!this.carUnloadPlacesMap[cup.car_id]) this.carUnloadPlacesMap[cup.car_id] = [];
@@ -906,7 +909,7 @@ export default {
         }
       } catch (error) {
         console.error("Ошибка при загрузке связей машин с местами разгрузки:", error);
-        this.carUnloadPlacesMap = {};
+        if (seq === undefined || seq === this.refreshSeq) this.carUnloadPlacesMap = {};
       }
     },
 

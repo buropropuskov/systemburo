@@ -152,6 +152,35 @@ describe('CarsTable - real-time обновление по сигналу tables.
     wrapper.unmount();
   });
 
+  it('seq-guard в fetchCarUnloadPlaces: устаревший ответ не затирает карту мест разгрузки', async () => {
+    const wrapper = mountTable();
+    await flushPromises();
+
+    // Зафиксируем текущее состояние карты и seq после первичной загрузки.
+    wrapper.vm.carUnloadPlacesMap = { 1: [{ id: 5, name: 'Склад A' }] };
+    const staleSeq = wrapper.vm.refreshSeq - 1; // seq предыдущего (устаревшего) вызова
+
+    const dfr = deferred();
+    apiRequest.mockImplementation((url) => {
+      if (url.startsWith('/cars/unload-places')) {
+        return dfr.promise.then(() => okResponse([
+          { car_id: 9, unload_place_id: 99, unload_place_name: 'STALE' },
+        ]));
+      }
+      return Promise.resolve(okResponse([]));
+    });
+
+    const p = wrapper.vm.fetchCarUnloadPlaces(staleSeq);
+    dfr.resolve();
+    await flushPromises();
+    await p;
+
+    // Устаревший ответ отброшен guard'ом - карта не перезаписана данными STALE.
+    expect(wrapper.vm.carUnloadPlacesMap).toEqual({ 1: [{ id: 5, name: 'Склад A' }] });
+
+    wrapper.unmount();
+  });
+
   it('при unmount отписывается от scope и статуса, отключает eventStream', async () => {
     const unsubScope = vi.fn();
     const unsubStatus = vi.fn();
