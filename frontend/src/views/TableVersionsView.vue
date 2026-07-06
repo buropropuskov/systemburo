@@ -4,7 +4,7 @@
       <div class="versions-titlebar">
         <h2 class="versions-title">
           <RouterLink
-            :to="`/table/${tableName}`"
+            :to="backTo"
             class="versions-title__link"
           >
             <span class="versions-title__prefix">Таблица</span>
@@ -13,7 +13,7 @@
           <span class="versions-title__sep">/ Версии</span>
         </h2>
         <RouterLink
-          :to="`/table/${tableName}`"
+          :to="backTo"
           class="versions-back-btn"
           data-testid="tv-back"
         >
@@ -360,6 +360,12 @@ const deletions = useDeletionsStore();
 const { can } = usePermission();
 
 const tableName = computed(() => route.params.tableName);
+
+// Куда ведёт "Назад": из админ-конструктора (from=admin, архивная таблица) - обратно
+// в конструктор; с публичной страницы таблицы - на неё же (/table/:name).
+const backTo = computed(() =>
+  route.query?.from === 'admin' ? '/table-constructor' : `/table/${tableName.value}`,
+);
 
 const tableID = ref(0);
 const tableType = ref('');
