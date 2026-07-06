@@ -10,6 +10,10 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+	// В alpine-образе нет системной tzdata, а бинарь собран CGO_ENABLED=0 -
+	// без этого импорта time.LoadLocation("Europe/Moscow") падает в рантайме и
+	// планировщик 06:00 МСК уезжает на UTC (= 09:00 МСК). Вшивает зоны в бинарь.
+	_ "time/tzdata"
 
 	_ "systemburo/docs"
 	"systemburo/internal/api"
