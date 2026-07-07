@@ -12,6 +12,18 @@ vi.mock('@/api/guide', () => ({
   listGuideSections: (...a) => listGuideSections(...a),
 }));
 
+// NewsAndReview подписывается на eventStream (#840 news.refresh) в mounted -
+// без мока реальный модуль дёргает apiRequest('/events/ticket') и планирует
+// reconnect реальным таймером, засоряя тесты, не связанные с real-time.
+vi.mock('@/services/eventStream', () => ({
+  default: {
+    connect: vi.fn(),
+    disconnect: vi.fn(),
+    subscribe: vi.fn(() => vi.fn()),
+    onStatus: vi.fn(() => vi.fn()),
+  },
+}));
+
 import NewsAndReview from '../NewsAndReview.vue';
 
 function jsonResponse(body) {

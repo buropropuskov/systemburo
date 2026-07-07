@@ -2,10 +2,12 @@ package services
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"time"
 
 	"systemburo/internal/models"
+	"systemburo/internal/realtime"
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
@@ -33,12 +35,45 @@ type NewsService interface {
 }
 
 type newsService struct {
-	db *gorm.DB
+	db                *gorm.DB
+	realtimePublisher realtime.Publisher
+}
+
+// NewsServiceOption конфигурирует newsService при создании.
+type NewsServiceOption func(*newsService)
+
+// WithNewsRealtimePublisher включает публикацию real-time сигнала
+// "news.refresh" (#840) всем активным юзерам после мутации новости/объявления,
+// чтобы лента (NewsAndReview) обновилась без F5. Опционально: без неё сигналы
+// не шлются (тесты, offline).
+func WithNewsRealtimePublisher(p realtime.Publisher) NewsServiceOption {
+	return func(s *newsService) { s.realtimePublisher = p }
 }
 
 // NewNewsService создаёт реализацию NewsService.
-func NewNewsService(db *gorm.DB) NewsService {
-	return &newsService{db: db}
+func NewNewsService(db *gorm.DB, opts ...NewsServiceOption) NewsService {
+	s := &newsService{db: db}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
+}
+
+// notifyNewsChanged шлёт best-effort сигнал "news.refresh" всем активным
+// юзерам после успешной мутации новости/объявления. Новости/объявления видны
+// всем авторизованным (GetActiveNews/GetActiveAnnouncement без гейта прав),
+// поэтому аудитория сигнала = все активные аккаунты (activeUserIDs), в отличие
+// от table.<name>.view-гейтированных таблиц проходной.
+func (s *newsService) notifyNewsChanged(ctx context.Context) {
+	if s.realtimePublisher == nil {
+		return
+	}
+	ids, err := activeUserIDs(ctx, s.db)
+	if err != nil {
+		slog.Warn("news realtime: failed to resolve audience", "err", err)
+		return
+	}
+	s.realtimePublisher.PublishMany(ids, realtime.Event{Type: "news.refresh", Scope: "news"})
 }
 
 // --- News ---
@@ -105,6 +140,7 @@ func (s *newsService) CreateNews(ctx context.Context, userID int, req models.Cre
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching created news")
 	}
+	s.notifyNewsChanged(ctx)
 	return &result, nil
 }
 
@@ -145,6 +181,7 @@ func (s *newsService) UpdateNews(ctx context.Context, userID int, id int, req mo
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching updated news")
 	}
+	s.notifyNewsChanged(ctx)
 	return &result, nil
 }
 
@@ -156,6 +193,7 @@ func (s *newsService) DeleteNews(ctx context.Context, id int) error {
 	if result.RowsAffected == 0 {
 		return echo.NewHTTPError(http.StatusNotFound, "News not found")
 	}
+	s.notifyNewsChanged(ctx)
 	return nil
 }
 
@@ -240,6 +278,7 @@ func (s *newsService) CreateAnnouncement(ctx context.Context, userID int, req mo
 		Scan(&result).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching created announcement")
 	}
+	s.notifyNewsChanged(ctx)
 	return &result, nil
 }
 
@@ -254,7 +293,7 @@ func (s *newsService) SetActiveAnnouncement(ctx context.Context, userID int, req
 
 	now := time.Now().UTC()
 
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Деактивируем все объявления
 		if err := tx.Model(&models.Announcement{}).
 			Where("is_active = true").
@@ -277,6 +316,11 @@ func (s *newsService) SetActiveAnnouncement(ctx context.Context, userID int, req
 
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	s.notifyNewsChanged(ctx)
+	return nil
 }
 
 // HideAnnouncement снимает is_active с конкретного объявления (admin only).
@@ -296,6 +340,7 @@ func (s *newsService) HideAnnouncement(ctx context.Context, id int) error {
 	if res.RowsAffected == 0 {
 		return echo.NewHTTPError(http.StatusNotFound, "Announcement not found")
 	}
+	s.notifyNewsChanged(ctx)
 	return nil
 }
 
@@ -336,6 +381,7 @@ func (s *newsService) UpdateAnnouncement(ctx context.Context, userID int, id int
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching updated announcement")
 	}
+	s.notifyNewsChanged(ctx)
 	return &result, nil
 }
 
@@ -347,5 +393,6 @@ func (s *newsService) DeleteAnnouncement(ctx context.Context, id int) error {
 	if result.RowsAffected == 0 {
 		return echo.NewHTTPError(http.StatusNotFound, "Announcement not found")
 	}
+	s.notifyNewsChanged(ctx)
 	return nil
 }
