@@ -246,6 +246,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import eventStream from '@/services/eventStream'
 import RefreshButton from '../components/RefreshButton.vue'
 import AnnouncementModal from '../components/AnnouncementModal.vue'
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
@@ -282,14 +283,27 @@ export default {
       guideSections: [],
       guideLoading: false,
       guideLoaded: false,
+      eventStreamOff: null,
     }
   },
   mounted() {
     this.fetchAllData()
     window.addEventListener('keydown', this.handleEscKey)
+
+    // Real-time доставка (#840 news.refresh): по сигналу сервера мгновенно
+    // перезапрашиваем новости и активное объявление вместо ожидания F5.
+    eventStream.connect()
+    this.eventStreamOff = eventStream.subscribe('news', () => {
+      this.fetchAllData()
+    })
   },
   beforeUnmount() {
     window.removeEventListener('keydown', this.handleEscKey)
+    if (this.eventStreamOff) {
+      this.eventStreamOff()
+      this.eventStreamOff = null
+    }
+    eventStream.disconnect()
   },
   methods: {
     sanitizeHtml,

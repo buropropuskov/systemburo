@@ -204,7 +204,9 @@ func main() {
 	uniqueCarService := services.NewUniqueCarService(db)
 	uniqueEmployeeService := services.NewUniqueEmployeeService(db)
 	feedbackService := services.NewFeedbackService(db, services.WithFeedbackRealtimePublisher(eventsHub))
-	newsService := services.NewNewsService(db)
+	// news.refresh (#840): та же аудитория, что и news/announcement-эндпоинты -
+	// все активные юзера (страница видна всем авторизованным, без гейта прав).
+	newsService := services.NewNewsService(db, services.WithNewsRealtimePublisher(eventsHub))
 	notificationService := notificationServiceEarly
 	requestLogsService := services.NewRequestLogsService(db)
 	employeesHistoryService := services.NewEmployeesHistoryService(db)
