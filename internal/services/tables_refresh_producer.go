@@ -114,6 +114,15 @@ func (p *TablesRefreshPublisher) NotifyApplicationActivated(ctx context.Context,
 // tables.refresh со scope tables:<id>. Пустая аудитория пропускается (публиковать
 // некому).
 func (p *TablesRefreshPublisher) publishTables(ctx context.Context, tableIDs []int) {
+	// Список активных юзеров одинаков для всех таблиц сигнала - сканируем users один
+	// раз и переиспользуем как кандидатов для каждой таблицы (аудитория считается
+	// резолвером, кеш прав 30с). Раньше TableAudience делал этот скан на каждую таблицу.
+	candidates, err := activeUserIDs(ctx, p.db)
+	if err != nil {
+		slog.Warn("tables.refresh: load active users failed", "err", err)
+		return
+	}
+
 	seen := make(map[int]struct{}, len(tableIDs))
 	for _, tableID := range tableIDs {
 		if tableID <= 0 {
@@ -124,7 +133,7 @@ func (p *TablesRefreshPublisher) publishTables(ctx context.Context, tableIDs []i
 		}
 		seen[tableID] = struct{}{}
 
-		audience, err := TableAudience(ctx, p.db, p.resolver, tableID)
+		audience, err := tableAudienceFrom(ctx, p.db, p.resolver, tableID, candidates)
 		if err != nil {
 			slog.Warn("tables.refresh: audience failed", "table_id", tableID, "err", err)
 			continue

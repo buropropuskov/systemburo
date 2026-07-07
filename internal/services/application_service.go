@@ -1835,6 +1835,16 @@ func (s *applicationService) UpdateApplication(ctx context.Context, username str
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error updating application")
 	}
 
+	// Любое изменение заявки этим путём (статус/подтверждение/коммент) участники
+	// видят в детали live (#840 V4).
+	s.notifyApplicationUpdated(ctx, applicationID)
+	// Прямое выставление "Согласовано" (admin-путь, минуя approve-флоу) делает
+	// вложения доступными охране - сигналим обновить "Доступные мне" (#840 V3). Сигнал
+	// безданных, лишний при не-переходе безвреден (event-then-fetch, клиент рефетчит).
+	if req.Confirmation != nil && *req.Confirmation == models.ConfirmationApproved {
+		s.availableProducer.NotifyAvailableChanged(ctx)
+	}
+
 	return &ApplicationUpdateResponse{
 		Success:      true,
 		Message:      "Application updated successfully",

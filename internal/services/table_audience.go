@@ -28,6 +28,33 @@ import (
 // возможна оптимизация пересечением с онлайн-набором хаба, но она за контрактом
 // аудитории и не меняет его.
 func TableAudience(ctx context.Context, db *gorm.DB, resolver *PermissionResolver, tableID int) ([]int, error) {
+	userIDs, err := activeUserIDs(ctx, db)
+	if err != nil {
+		return nil, err
+	}
+	return tableAudienceFrom(ctx, db, resolver, tableID, userIDs)
+}
+
+// activeUserIDs - id всех активных аккаунтов (кандидаты любой аудитории, считаемой
+// резолвером). Вынесено, чтобы при публикации на несколько таблиц сразу
+// (publishTables) сканировать users ОДИН раз, а не по разу на таблицу.
+func activeUserIDs(ctx context.Context, db *gorm.DB) ([]int, error) {
+	var userIDs []int
+	if err := db.WithContext(ctx).
+		Table("users").
+		Where("is_active = ?", true).
+		Order("id").
+		Pluck("id", &userIDs).Error; err != nil {
+		return nil, fmt.Errorf("failed to load active users: %w", err)
+	}
+	return userIDs, nil
+}
+
+// tableAudienceFrom фильтрует переданных кандидатов по праву table.<name>.view
+// таблицы tableID. candidateUserIDs обычно = activeUserIDs (переиспользуется между
+// таблицами одного сигнала). resolver кеширует набор прав на 30с, поэтому повторные
+// резолвы тех же юзеров для соседних таблиц - кеш-хиты.
+func tableAudienceFrom(ctx context.Context, db *gorm.DB, resolver *PermissionResolver, tableID int, candidateUserIDs []int) ([]int, error) {
 	var name string
 	if err := db.WithContext(ctx).
 		Table("system_tables").
@@ -43,17 +70,8 @@ func TableAudience(ctx context.Context, db *gorm.DB, resolver *PermissionResolve
 	}
 	key := fmt.Sprintf("table.%s.view", name)
 
-	var userIDs []int
-	if err := db.WithContext(ctx).
-		Table("users").
-		Where("is_active = ?", true).
-		Order("id").
-		Pluck("id", &userIDs).Error; err != nil {
-		return nil, fmt.Errorf("failed to load users for table audience: %w", err)
-	}
-
-	audience := make([]int, 0, len(userIDs))
-	for _, uid := range userIDs {
+	audience := make([]int, 0, len(candidateUserIDs))
+	for _, uid := range candidateUserIDs {
 		set, err := resolver.Resolve(ctx, uid)
 		if err != nil {
 			// best-effort: сбой резолва одного юзера сужает аудиторию, но не должен
