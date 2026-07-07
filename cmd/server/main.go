@@ -191,7 +191,7 @@ func main() {
 	banCheckService := services.NewBanCheckService(db, 30*time.Second)
 	userService.SetBanCache(banCheckService) // архив/restore мгновенно сбрасывают кэш блокировок
 	userBanService := services.NewUserBanService(db, permissionResolver, banCheckService, auditRecorder)
-	systemTableService := services.NewSystemTableService(db, cfg.UploadPath, cfg.UploadMaxFileSize, permissionService)
+	systemTableService := services.NewSystemTableService(db, cfg.UploadPath, cfg.UploadMaxFileSize, permissionService, services.WithSystemTableRealtimePublisher(eventsHub))
 	if err := systemTableService.SeedMissingFields(context.Background()); err != nil {
 		slog.Error("не удалось досидить отсутствующие поля таблиц (#345)", "error", err)
 	}
@@ -203,7 +203,7 @@ func main() {
 	workModesService := services.NewWorkModesService(unloadPlaceService, systemTableService, bureauService)
 	uniqueCarService := services.NewUniqueCarService(db)
 	uniqueEmployeeService := services.NewUniqueEmployeeService(db)
-	feedbackService := services.NewFeedbackService(db)
+	feedbackService := services.NewFeedbackService(db, services.WithFeedbackRealtimePublisher(eventsHub))
 	newsService := services.NewNewsService(db)
 	notificationService := notificationServiceEarly
 	requestLogsService := services.NewRequestLogsService(db)
