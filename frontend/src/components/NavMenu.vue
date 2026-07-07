@@ -620,6 +620,10 @@ export default {
       applicationsPollingInterval: null,
       tablesPollingInterval: null,
       eventStreamOff: null,
+      eventStreamFeedbackOff: null,
+      eventStreamTablesOff: null,
+      eventStreamStatusOff: null,
+      sseConnected: false,
       unreadReadHandler: null,
       mobileOpen: false,
       isBanned: false,
@@ -1107,6 +1111,20 @@ export default {
       this.eventStreamOff = eventStream.subscribe('applications-center', () => {
         this.fetchNewApplicationsCount();
       });
+      // Новое обращение обратной связи -> мгновенно пересчитать бейдж (#840);
+      // fetchNewFeedbackCount сам гейтит по isSuperAdmin.
+      this.eventStreamFeedbackOff = eventStream.subscribe('feedback', () => {
+        this.fetchNewFeedbackCount();
+      });
+      // Изменение набора системных таблиц -> обновить список в нав-меню без 60с-опроса (#840).
+      this.eventStreamTablesOff = eventStream.subscribe('system-tables', () => {
+        this.fetchSystemTables();
+      });
+      // Статус SSE гейтит 60с-опрос таблиц (см. startTablesPolling): на живом
+      // соединении список обновляет сигнал, опрос молчит.
+      this.eventStreamStatusOff = eventStream.onStatus((status) => {
+        this.sseConnected = status === 'connected';
+      });
       // Прочтение заявки в Центре гасит счётчик непрочитанных сразу, не дожидаясь 30с-опроса
       // (ApplicationsCenter эмитит 'application-read' после успешного POST /read).
       this.unreadReadHandler = () => this.fetchNewApplicationsCount();
@@ -1115,6 +1133,9 @@ export default {
 
     startTablesPolling() {
       this.tablesPollingInterval = setInterval(() => {
+        // На живом SSE список таблиц обновляет сигнал system-tables.refresh -
+        // опрос молчит; при разрыве возобновляется (#840).
+        if (this.sseConnected) return;
         this.fetchSystemTables();
       }, 60000);
     },
@@ -1131,6 +1152,18 @@ export default {
       if (this.eventStreamOff) {
         this.eventStreamOff();
         this.eventStreamOff = null;
+      }
+      if (this.eventStreamFeedbackOff) {
+        this.eventStreamFeedbackOff();
+        this.eventStreamFeedbackOff = null;
+      }
+      if (this.eventStreamTablesOff) {
+        this.eventStreamTablesOff();
+        this.eventStreamTablesOff = null;
+      }
+      if (this.eventStreamStatusOff) {
+        this.eventStreamStatusOff();
+        this.eventStreamStatusOff = null;
       }
       if (this.unreadReadHandler) {
         this.$bus.off('application-read', this.unreadReadHandler);

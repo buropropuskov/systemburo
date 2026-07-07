@@ -3,11 +3,13 @@ package services
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
 	"systemburo/internal/models"
+	"systemburo/internal/realtime"
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
@@ -26,12 +28,47 @@ type FeedbackService interface {
 }
 
 type feedbackService struct {
-	db *gorm.DB
+	db                *gorm.DB
+	realtimePublisher realtime.Publisher
+}
+
+// FeedbackServiceOption конфигурирует feedbackService при создании.
+type FeedbackServiceOption func(*feedbackService)
+
+// WithFeedbackRealtimePublisher включает real-time сигнал feedback.new при новом
+// обращении (#840): бейдж обратной связи у супер-админов обновляется мгновенно,
+// не дожидаясь 30с-опроса. Опционально.
+func WithFeedbackRealtimePublisher(p realtime.Publisher) FeedbackServiceOption {
+	return func(s *feedbackService) { s.realtimePublisher = p }
 }
 
 // NewFeedbackService создаёт реализацию FeedbackService.
-func NewFeedbackService(db *gorm.DB) FeedbackService {
-	return &feedbackService{db: db}
+func NewFeedbackService(db *gorm.DB, opts ...FeedbackServiceOption) FeedbackService {
+	s := &feedbackService{db: db}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
+}
+
+// notifyFeedbackChanged шлёт feedback.new аудитории бейджа обратной связи -
+// активным супер-админам (FE гейтит бейдж по isSuperAdmin). Best-effort, nil-safe.
+func (s *feedbackService) notifyFeedbackChanged(ctx context.Context) {
+	if s.realtimePublisher == nil {
+		return
+	}
+	var ids []int
+	if err := s.db.WithContext(ctx).
+		Table("users").
+		Where("is_active = ? AND is_super_admin = ?", true, true).
+		Pluck("id", &ids).Error; err != nil {
+		slog.Warn("feedback.new: load super admins failed", "err", err)
+		return
+	}
+	if len(ids) == 0 {
+		return
+	}
+	s.realtimePublisher.PublishMany(ids, realtime.Event{Type: "feedback.new", Scope: "feedback"})
 }
 
 // getUserIDByUsername возвращает ID пользователя по username.
@@ -79,6 +116,7 @@ func (s *feedbackService) Create(ctx context.Context, username string, req model
 		return 0, echo.NewHTTPError(http.StatusInternalServerError, "Error creating feedback")
 	}
 
+	s.notifyFeedbackChanged(ctx)
 	return feedback.ID, nil
 }
 

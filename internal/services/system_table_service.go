@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"systemburo/internal/models"
+	"systemburo/internal/realtime"
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
@@ -50,20 +51,53 @@ type SystemTableService interface {
 }
 
 type systemTableService struct {
-	db          *gorm.DB
-	uploadDir   string
-	maxFileSize int64
-	permSvc     PermissionService
+	db                *gorm.DB
+	uploadDir         string
+	maxFileSize       int64
+	permSvc           PermissionService
+	realtimePublisher realtime.Publisher
+}
+
+// SystemTableServiceOption конфигурирует systemTableService при создании.
+type SystemTableServiceOption func(*systemTableService)
+
+// WithSystemTableRealtimePublisher включает real-time сигнал system-tables.refresh
+// при изменении набора таблиц (#840): список таблиц в нав-меню у всех обновляется
+// мгновенно, не дожидаясь 60с-опроса. Опционально.
+func WithSystemTableRealtimePublisher(p realtime.Publisher) SystemTableServiceOption {
+	return func(s *systemTableService) { s.realtimePublisher = p }
 }
 
 // NewSystemTableService создаёт реализацию SystemTableService.
-func NewSystemTableService(db *gorm.DB, uploadDir string, maxFileSize int64, permSvc PermissionService) SystemTableService {
-	return &systemTableService{
+func NewSystemTableService(db *gorm.DB, uploadDir string, maxFileSize int64, permSvc PermissionService, opts ...SystemTableServiceOption) SystemTableService {
+	s := &systemTableService{
 		db:          db,
 		uploadDir:   uploadDir,
 		maxFileSize: maxFileSize,
 		permSvc:     permSvc,
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
+}
+
+// notifyTablesChanged шлёт system-tables.refresh всем активным юзерам (список
+// таблиц виден в нав-меню каждому, клиент сам фильтрует по правам). Best-effort,
+// nil-safe.
+func (s *systemTableService) notifyTablesChanged(ctx context.Context) {
+	if s.realtimePublisher == nil {
+		return
+	}
+	ids, err := activeUserIDs(ctx, s.db)
+	if err != nil {
+		slog.Warn("system-tables.refresh: load active users failed", "err", err)
+		return
+	}
+	if len(ids) == 0 {
+		return
+	}
+	s.realtimePublisher.PublishMany(ids, realtime.Event{Type: "system-tables.refresh", Scope: "system-tables"})
 }
 
 // computeCurrentStatus вычисляет текущий статус (open/closed) на основании расписания и статуса таблицы.
@@ -467,6 +501,7 @@ func (s *systemTableService) Create(ctx context.Context, req models.CreateSystem
 	}
 
 	slog.Info("системная таблица создана", "id", table.ID, "name", req.Name)
+	s.notifyTablesChanged(ctx)
 	return table.ID, nil
 }
 
@@ -569,6 +604,7 @@ func (s *systemTableService) Update(ctx context.Context, id int, req models.Upda
 	}
 
 	slog.Info("системная таблица обновлена", "id", id)
+	s.notifyTablesChanged(ctx)
 	return nil
 }
 
@@ -621,6 +657,7 @@ func (s *systemTableService) Delete(ctx context.Context, id int) error {
 	}
 
 	slog.Info("системная таблица удалена (мягко)", "id", id)
+	s.notifyTablesChanged(ctx)
 	return nil
 }
 
@@ -646,6 +683,7 @@ func (s *systemTableService) Restore(ctx context.Context, id int) error {
 	}
 
 	slog.Info("системная таблица восстановлена из архива", "id", id)
+	s.notifyTablesChanged(ctx)
 	return nil
 }
 
