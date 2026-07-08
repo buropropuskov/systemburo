@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"systemburo/internal/models"
+	"systemburo/internal/realtime"
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
@@ -18,17 +19,46 @@ import (
 // доступ на следующем `/refresh` -- это работает в связке с frontend
 // polling по `/me/permissions`.
 type UserBanService struct {
-	db       *gorm.DB
-	resolver *PermissionResolver
-	banCache *BanCheckService
-	recorder AuditRecorder
+	db                *gorm.DB
+	resolver          *PermissionResolver
+	banCache          *BanCheckService
+	recorder          AuditRecorder
+	realtimePublisher realtime.Publisher
+}
+
+// UserBanServiceOption конфигурирует UserBanService при создании.
+type UserBanServiceOption func(*UserBanService)
+
+// WithBanRealtimePublisher включает real-time сигнал user.banned/user.unbanned
+// адресно заблокированному (#840): его App.vue мгновенно перезапрашивает права,
+// баннер ЧС всплывает и UI блокируется без ожидания 30с-опроса /me/permissions.
+// Опционально, best-effort nil-safe: только сигнал, на сам бан не влияет.
+func WithBanRealtimePublisher(p realtime.Publisher) UserBanServiceOption {
+	return func(s *UserBanService) { s.realtimePublisher = p }
 }
 
 // NewUserBanService конструирует сервис. banCache опционален: если nil,
 // инвалидация ban-кэша пропускается (полезно для тестов). recorder пишет
 // историю блокировок в audit_log[user] рядом с остальными действиями юзера.
-func NewUserBanService(db *gorm.DB, resolver *PermissionResolver, banCache *BanCheckService, recorder AuditRecorder) *UserBanService {
-	return &UserBanService{db: db, resolver: resolver, banCache: banCache, recorder: recorder}
+func NewUserBanService(db *gorm.DB, resolver *PermissionResolver, banCache *BanCheckService, recorder AuditRecorder, opts ...UserBanServiceOption) *UserBanService {
+	s := &UserBanService{db: db, resolver: resolver, banCache: banCache, recorder: recorder}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
+}
+
+// notifyBanChanged шлёт заблокированному/разблокированному адресный сигнал
+// (scope user:<id>) - его App.vue перезапросит права. Best-effort, nil-safe.
+// Звать ПОСЛЕ успешного commit бана/разбана.
+func (s *UserBanService) notifyBanChanged(targetUserID int, eventType string) {
+	if s.realtimePublisher == nil {
+		return
+	}
+	s.realtimePublisher.Publish(targetUserID, realtime.Event{
+		Type:  eventType,
+		Scope: fmt.Sprintf("user:%d", targetUserID),
+	})
 }
 
 // Ban блокирует пользователя и отзывает его активные refresh-токены.
@@ -80,6 +110,7 @@ func (s *UserBanService) Ban(ctx context.Context, targetUserID, actorUserID int,
 		// не должен откатывать сам бан). reason тот же trimmed, что и в users.ban_reason.
 		s.recorder.Log(ctx, nil, models.AuditEntityUser, &targetUserID, models.UserActionBanned, &actorUserID,
 			map[string]any{"reason": trimmedReason})
+		s.notifyBanChanged(targetUserID, "user.banned")
 	}
 	return err
 }
@@ -122,5 +153,6 @@ func (s *UserBanService) Unban(ctx context.Context, targetUserID, actorUserID in
 		d = details
 	}
 	s.recorder.Log(ctx, nil, models.AuditEntityUser, &targetUserID, models.UserActionUnbanned, &actorUserID, d)
+	s.notifyBanChanged(targetUserID, "user.unbanned")
 	return nil
 }
