@@ -8,9 +8,17 @@ import (
 	"time"
 
 	"systemburo/internal/models"
+	"systemburo/internal/realtime"
 
 	"gorm.io/gorm"
 )
+
+// permissionRealtimePublisher - узкий контракт публикации сигнала смены прав
+// (#840). Реализуется *realtime.Hub. Опционален: без него инвалидация молчит.
+type permissionRealtimePublisher interface {
+	Publish(userID int, ev realtime.Event)
+	PublishToEachConnected(mk func(userID int) realtime.Event)
+}
 
 // PermissionResolver вычисляет финальный набор прав пользователя.
 //
@@ -24,9 +32,10 @@ import (
 //
 // Кэш: in-memory sync.Map с TTL 30s, инвалидируется по Invalidate(userID).
 type PermissionResolver struct {
-	db    *gorm.DB
-	cache sync.Map // userID -> *cacheEntry
-	ttl   time.Duration
+	db                *gorm.DB
+	cache             sync.Map // userID -> *cacheEntry
+	ttl               time.Duration
+	realtimePublisher permissionRealtimePublisher
 }
 
 type cacheEntry struct {
@@ -159,10 +168,27 @@ func (r *PermissionResolver) HasPermission(ctx context.Context, userID int, key 
 	return set.Has(key), nil
 }
 
+// SetRealtimePublisher включает real-time сигнал смены прав (#840): при
+// инвалидации кэша прав юзера (смена роли/группы/override/бан) затронутому
+// шлётся user.permissions (scope user:<id>), его App.vue сразу перезапрашивает
+// права - без ожидания 30с-опроса. Опционально.
+func (r *PermissionResolver) SetRealtimePublisher(p permissionRealtimePublisher) {
+	r.realtimePublisher = p
+}
+
 // Invalidate сбрасывает кэш для конкретного юзера. Вызывается при изменении
 // роли, групп, override или флага is_admin/бана.
 func (r *PermissionResolver) Invalidate(userID int) {
 	r.cache.Delete(userID)
+	// Адресный сигнал перезапросить права затронутому (тот же scope user:<id>,
+	// что слушает App.vue для бана). Best-effort, nil-safe. После сброса кэша,
+	// чтобы перезапрос увидел свежие права. Примечание: при бане это сработает
+	// вдобавок к user.banned от UserBanService (тот тоже зовёт Invalidate) -
+	// забаненный получит два сигнала, оба -> fetchPermissions(true); дубль
+	// безвреден (идемпотентный refetch), бан - редкая операция.
+	if r.realtimePublisher != nil {
+		r.realtimePublisher.Publish(userID, permissionsChangedEvent(userID))
+	}
 }
 
 // InvalidateAll сбрасывает кэш для всех юзеров. Вызывается при изменении grants
@@ -172,6 +198,17 @@ func (r *PermissionResolver) InvalidateAll() {
 		r.cache.Delete(k)
 		return true
 	})
+	// Гранты роли/группы могли изменить права любого носителя - шлём каждому
+	// подключённому сигнал перезапросить своё (у каждого свой scope user:<id>;
+	// для незатронутых это no-op refetch). Best-effort, nil-safe.
+	if r.realtimePublisher != nil {
+		r.realtimePublisher.PublishToEachConnected(permissionsChangedEvent)
+	}
+}
+
+// permissionsChangedEvent - сигнал "перезапроси права" для юзера userID.
+func permissionsChangedEvent(userID int) realtime.Event {
+	return realtime.Event{Type: "user.permissions", Scope: fmt.Sprintf("user:%d", userID)}
 }
 
 // computeSet -- основная логика без кэша. Вынесена для тестируемости.

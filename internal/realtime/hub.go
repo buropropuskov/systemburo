@@ -96,3 +96,20 @@ func (h *Hub) PublishMany(userIDs []int, ev Event) {
 		h.Publish(uid, ev)
 	}
 }
+
+// PublishToEachConnected шлёт каждому подключённому пользователю событие,
+// построенное mk(userID). Нужно для broadcast с per-user scope: смена грантов
+// роли/группы затрагивает произвольный набор носителей, поэтому шлём всем онлайн
+// сигнал перезапросить своё (у каждого свой scope user:<id>). Снимок подключённых
+// берём под RLock, публикуем вне лока (Publish берёт RLock сам).
+func (h *Hub) PublishToEachConnected(mk func(userID int) Event) {
+	h.mu.RLock()
+	ids := make([]int, 0, len(h.subs))
+	for uid := range h.subs {
+		ids = append(ids, uid)
+	}
+	h.mu.RUnlock()
+	for _, uid := range ids {
+		h.Publish(uid, mk(uid))
+	}
+}

@@ -176,6 +176,7 @@ func main() {
 	bureauService := services.NewBureauService(db)
 	auditRecorder := services.NewAuditRecorder(db)
 	permissionResolver := services.NewPermissionResolver(db)
+	permissionResolver.SetRealtimePublisher(eventsHub) // #840: смена роли/группы/override -> user.permissions
 	// Продюсер real-time сигналов обновления таблиц проходной (#840 V2.2/V2.3):
 	// аудитория считается по праву table.<name>.view (нужен резолвер), сигнал шлётся
 	// через хаб. Инжектится в car/employee/application-сервисы - точки, где строки
