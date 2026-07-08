@@ -1,6 +1,7 @@
 package realtime
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -95,6 +96,34 @@ func TestHub_PublishManyFansOut(t *testing.T) {
 	if ev := recv(t, chB); ev.Type != "refresh" {
 		t.Fatal("B не получил fan-out")
 	}
+}
+
+func TestHub_PublishToEachConnectedPerUserEvent(t *testing.T) {
+	t.Parallel()
+	h := NewHub()
+	ch1, u1 := h.Subscribe(1)
+	defer u1()
+	ch2, u2 := h.Subscribe(2)
+	defer u2()
+
+	// Каждый подключённый получает событие, построенное по ЕГО userID (per-user scope).
+	h.PublishToEachConnected(func(uid int) Event {
+		return Event{Type: "user.permissions", Scope: fmt.Sprintf("user:%d", uid)}
+	})
+
+	if ev := recv(t, ch1); ev.Scope != "user:1" {
+		t.Fatalf("юзер 1 должен получить свой scope, got %q", ev.Scope)
+	}
+	if ev := recv(t, ch2); ev.Scope != "user:2" {
+		t.Fatalf("юзер 2 должен получить свой scope, got %q", ev.Scope)
+	}
+}
+
+func TestHub_PublishToEachConnectedNoSubscribers(t *testing.T) {
+	t.Parallel()
+	h := NewHub()
+	// Без подписчиков метод не паникует и ничего не шлёт (no-op).
+	h.PublishToEachConnected(func(int) Event { return Event{Type: "x"} })
 }
 
 func TestHub_UnsubscribeClosesAndStops(t *testing.T) {
