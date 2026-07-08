@@ -1932,7 +1932,8 @@ export default {
                             mark_id: vehicle.markId || null,
                             mark_name: vehicle.markName || vehicle.mark || null,
                             unload_place: vehicle.unloadingPlace,
-                            unload_places: vehicle.unloadPlaces || []
+                            unload_places: vehicle.unloadPlaces || [],
+                            passage_tables: vehicle.passage_tables || []
                         }));
                         break;
                     }
