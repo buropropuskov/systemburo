@@ -30,6 +30,17 @@ export async function getOrganizationsWithUsers() {
   return res.json();
 }
 
+/**
+ * Пользователи, привязанные к организации через organization_id (участники,
+ * дают user_count), в отличие от ответственных из /:id/users (#1046).
+ * @param {number} id
+ * @returns {Promise<Array>}
+ */
+export async function getOrganizationMembers(id) {
+  const res = await apiRequest(`/organizations/${id}/members`);
+  return res.json();
+}
+
 export async function getMyOrganization() {
   const res = await apiRequest('/get-organization');
   return res.json();
@@ -62,5 +73,16 @@ export async function deleteCompany(id) {
 
 export async function getCompaniesWithUsers() {
   const res = await apiRequest('/companies/with-users');
+  return res.json();
+}
+
+/**
+ * Пользователи, привязанные к компании через company_id (участники, дают
+ * user_count), в отличие от ответственных из /:id/users (#1046).
+ * @param {number} id
+ * @returns {Promise<Array>}
+ */
+export async function getCompanyMembers(id) {
+  const res = await apiRequest(`/companies/${id}/members`);
   return res.json();
 }
