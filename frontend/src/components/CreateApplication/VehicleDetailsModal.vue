@@ -255,6 +255,34 @@
                   </div>
                 </div>
 
+                <!-- Секция Проезд (таблицы) -->
+                <div class="details-section">
+                  <div class="section-header">
+                    <h4 class="section-title">
+                      Проезд
+                    </h4>
+                  </div>
+                  <div class="section-body">
+                    <div class="places-list">
+                      <div
+                        v-for="tableId in vehicle.target_tables"
+                        :key="tableId"
+                        class="place-item"
+                        :class="{ 'active': showTableModal && selectedTable && selectedTable.table && selectedTable.table.id === tableId }"
+                        @click="showTableDetails(tableId)"
+                      >
+                        {{ getTableName(tableId) }}
+                      </div>
+                      <div
+                        v-if="!vehicle.target_tables || vehicle.target_tables.length === 0"
+                        class="no-places"
+                      >
+                        Проезд не указан
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <!-- Секция Статус (только для автомобилей; в корзине не показываем) -->
                 <div
                   v-if="showStatusSection"
@@ -378,6 +406,23 @@
               />
             </div>
           </transition>
+
+          <!-- Дополнительное модальное окно с деталями таблицы «Проезд» (#1036) -->
+          <transition
+            name="place-slide"
+            @after-leave="onTableLeave"
+          >
+            <div
+              v-if="showTableModal"
+              class="place-modal-container"
+            >
+              <TableInfoModal
+                :table="selectedTable"
+                :all-tables="allTables"
+                @close="closeTableDetails"
+              />
+            </div>
+          </transition>
         </div>
       </div>
     </transition>
@@ -413,6 +458,7 @@
 <script>
 import { apiRequest } from '@/api/client'
 import UnloadPlaceModal from './UnloadPlaceModal.vue';
+import TableInfoModal from './TableInfoModal.vue';
 import CarHistoryModal from '../CarHistoryModal.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import AddToBlacklistModal from '@/components/admin/blacklist/AddToBlacklistModal.vue';
@@ -429,6 +475,7 @@ export default {
     name: 'VehicleDetailsModal',
     components: {
         UnloadPlaceModal,
+        TableInfoModal,
         CarHistoryModal,
         LoaderSpinner,
         AddToBlacklistModal
@@ -443,6 +490,10 @@ export default {
             default: null
         },
         allUnloadingPlaces: {
+            type: Array,
+            default: () => []
+        },
+        allTables: {
             type: Array,
             default: () => []
         },
@@ -498,6 +549,12 @@ export default {
             showPlaceModal: false,
             isMainShifted: false,
             shiftTimer: null,
+            // Drill-down таблиц «Проезд» (#1036): отдельный набор состояний от места
+            // разгрузки - общий слот place-modal-container один, поэтому подмодалки
+            // взаимоисключаются (открытие одной закрывает другую).
+            selectedTable: null,
+            showTableModal: false,
+            tableShiftTimer: null,
             history: [],          // полная история (все действия)
             loadingHistory: false,
             isExporting: false,
@@ -607,12 +664,14 @@ export default {
                     }
                 } else {
                     this.closeUnloadPlaceDetails();
+                    this.closeTableDetails();
                     if (this.shiftTimer) {
                         clearTimeout(this.shiftTimer);
                         this.shiftTimer = null;
                     }
                     this.isMainShifted = false;
                     this.selectedUnloadPlace = null;
+                    this.selectedTable = null;
                 }
             }
         },
@@ -633,17 +692,22 @@ export default {
         if (this.shiftTimer) {
             clearTimeout(this.shiftTimer);
         }
+        if (this.tableShiftTimer) {
+            clearTimeout(this.tableShiftTimer);
+        }
     },
     methods: {
         close() {
             this.$emit('close');
             this.closeUnloadPlaceDetails();
+            this.closeTableDetails();
             if (this.shiftTimer) {
                 clearTimeout(this.shiftTimer);
                 this.shiftTimer = null;
             }
             this.isMainShifted = false;
             this.selectedUnloadPlace = null;
+            this.selectedTable = null;
             this.showAddBlacklist = false;
         },
 
@@ -707,6 +771,15 @@ export default {
             const place = this.allUnloadingPlaces.find(p => p.id === placeId);
             if (!place) return;
 
+            // Взаимоисключение с drill-down таблицы: слот place-modal-container один,
+            // поэтому гасим подмодалку таблицы, если открыта.
+            if (this.tableShiftTimer) {
+                clearTimeout(this.tableShiftTimer);
+                this.tableShiftTimer = null;
+            }
+            this.showTableModal = false;
+            this.selectedTable = null;
+
             this.selectedUnloadPlace = place;
 
             if (this.shiftTimer) {
@@ -735,12 +808,69 @@ export default {
             this.selectedUnloadPlace = null;
         },
 
+        showTableDetails(tableId) {
+            const tableData = this.allTables.find(t => (t.table && t.table.id === tableId) || t.id === tableId);
+            if (!tableData) {
+                useDeletionsStore().notify({ bold: 'Информация о месте проезда недоступна', type: 'error' });
+                return;
+            }
+
+            // Взаимоисключение с drill-down места разгрузки (общий слот).
+            if (this.shiftTimer) {
+                clearTimeout(this.shiftTimer);
+                this.shiftTimer = null;
+            }
+            this.showPlaceModal = false;
+            this.selectedUnloadPlace = null;
+
+            this.selectedTable = {
+                table: tableData.table || tableData,
+                time_slots: tableData.time_slots || [],
+                photos: tableData.photos || [],
+                current_status: tableData.current_status || 'closed'
+            };
+
+            if (this.tableShiftTimer) {
+                clearTimeout(this.tableShiftTimer);
+                this.tableShiftTimer = null;
+            }
+
+            this.isMainShifted = true;
+
+            this.tableShiftTimer = setTimeout(() => {
+                this.showTableModal = true;
+                this.tableShiftTimer = null;
+            }, 300);
+        },
+
+        closeTableDetails() {
+            if (this.tableShiftTimer) {
+                clearTimeout(this.tableShiftTimer);
+                this.tableShiftTimer = null;
+            }
+            this.showTableModal = false;
+        },
+
+        onTableLeave() {
+            this.isMainShifted = false;
+            this.selectedTable = null;
+        },
+
         getPlaceName(placeId) {
             if (!this.allUnloadingPlaces || this.allUnloadingPlaces.length === 0) {
                 return `ID: ${placeId}`;
             }
             const place = this.allUnloadingPlaces.find(p => p.id === placeId);
             return place ? place.name : `ID: ${placeId}`;
+        },
+
+        getTableName(tableId) {
+            let found = this.allTables.find(t => (t.table && t.table.id === tableId) || t.id === tableId);
+            if (found) {
+                let tbl = found.table || found;
+                return tbl.display_name || tbl.name || `ID: ${tableId}`;
+            }
+            return `Неизвестное место (ID: ${tableId})`;
         },
 
         getFormatName(formatId) {

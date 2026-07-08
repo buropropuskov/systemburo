@@ -383,6 +383,7 @@
       :show="showVehicleModal"
       :vehicle="selectedVehicle"
       :all-unloading-places="allUnloadingPlaces"
+      :all-tables="allTables"
       :license-plate-formats="licensePlateFormats"
       :current-user-id="currentUserId"
       :current-user-name="currentUserName"
@@ -1057,6 +1058,7 @@ export default {
                             markName: car.car_brand || null,
                             unloadingPlace: car.unload_place || '',
                             unloadPlaces: car.unload_places || [],
+                            passage_tables: car.target_tables ? car.target_tables.map(t => t.id) : [],
                             formatId: null,
                             isExisting: false,
                         }));
@@ -1231,6 +1233,7 @@ export default {
                 companyId: car.company_id || null,
                 isExisting: true,
                 unloadPlaces: car.unload_places ? car.unload_places.map(p => p.id) : [],
+                target_tables: car.target_tables ? car.target_tables.map(t => t.id) : [],
                 entry_date_to: car.entry_date_to || null,
                 entry_time_from: car.entry_time_from || null,
                 entry_time_to: car.entry_time_to || null,
