@@ -51,7 +51,7 @@ describe('CarsTable - real-time обновление по сигналу tables.
     apiRequest.mockImplementation((url) => {
       if (url.startsWith('/unload-places')) return Promise.resolve(okResponse([]));
       if (url.startsWith('/license-plate-formats')) return Promise.resolve(okResponse([]));
-      if (url.startsWith('/cars/active-for-tables')) return Promise.resolve(okResponse([]));
+      if (url.startsWith('/cars/active-for-table/')) return Promise.resolve(okResponse([]));
       if (url.startsWith('/cars/unload-places')) return Promise.resolve(okResponse([]));
       if (url.startsWith('/cars/history/current-status')) return Promise.resolve(okResponse([]));
       if (url.startsWith('/organizations')) return Promise.resolve(okResponse([]));
@@ -85,7 +85,7 @@ describe('CarsTable - real-time обновление по сигналу tables.
     scopeCb();
     await flushPromises();
 
-    expect(apiRequest).toHaveBeenCalledWith('/cars/active-for-tables', {});
+    expect(apiRequest).toHaveBeenCalledWith('/cars/active-for-table/42', {});
 
     wrapper.unmount();
   });
@@ -98,12 +98,12 @@ describe('CarsTable - real-time обновление по сигналу tables.
     wrapper.vm.sseConnected = true;
     apiRequest.mockClear();
     await vi.advanceTimersByTimeAsync(60000);
-    expect(apiRequest).not.toHaveBeenCalledWith('/cars/active-for-tables', {});
+    expect(apiRequest).not.toHaveBeenCalledWith('/cars/active-for-table/42', {});
 
     wrapper.vm.sseConnected = false;
     apiRequest.mockClear();
     await vi.advanceTimersByTimeAsync(60000);
-    expect(apiRequest).toHaveBeenCalledWith('/cars/active-for-tables', {});
+    expect(apiRequest).toHaveBeenCalledWith('/cars/active-for-table/42', {});
 
     wrapper.unmount();
     vi.useRealTimers();
@@ -117,7 +117,7 @@ describe('CarsTable - real-time обновление по сигналу tables.
     const fast = deferred();
     let carsCall = 0;
     apiRequest.mockImplementation((url) => {
-      if (url.startsWith('/cars/active-for-tables')) {
+      if (url.startsWith('/cars/active-for-table/')) {
         carsCall += 1;
         if (carsCall === 1) {
           return slow.promise.then(() => okResponse([

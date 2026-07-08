@@ -47,7 +47,7 @@ describe('CarsTable - Увеличенный режим', () => {
     apiRequest.mockImplementation((url) => {
       if (url.startsWith('/unload-places')) return okResponse([]);
       if (url.startsWith('/license-plate-formats')) return okResponse([]);
-      if (url.startsWith('/cars/active-for-tables')) return okResponse([]);
+      if (url.startsWith('/cars/active-for-table/')) return okResponse([]);
       if (url.startsWith('/cars/unload-places')) return okResponse([]);
       if (url.startsWith('/cars/history/current-status')) return okResponse([]);
       if (url.startsWith('/organizations')) return okResponse([]);
