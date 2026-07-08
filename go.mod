@@ -1,6 +1,6 @@
 module systemburo
 
-go 1.25.11
+go 1.25.12
 
 require (
 	github.com/caarlos0/env/v11 v11.4.0
