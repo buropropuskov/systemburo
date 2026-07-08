@@ -48,6 +48,7 @@ import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import { usePermissionsStore } from '@/stores/permissions'
 import { useOnboardingStore } from '@/stores/onboarding'
+import eventStream from '@/services/eventStream'
 import NavMenu from './components/NavMenu.vue';
 import TheHeader from './components/TheHeader/TheHeader.vue';
 import ScrollTopButton from './components/ScrollTopButton.vue';
@@ -71,6 +72,14 @@ export default {
     OnboardingTour,
     BanOverlay,
   },
+  data() {
+    return {
+      // Функция отписки от real-time сигнала бана (scope user:<id>); null пока не подписаны.
+      banEventOff: null,
+      // userId, на который сейчас стоит подписка бана; держит её синхронной с токеном.
+      banSubUserId: null,
+    }
+  },
   computed: {
     isAuthenticated() {
       const authStore = useAuthStore()
@@ -93,9 +102,24 @@ export default {
     },
     isBanned() {
       return usePermissionsStore().banned
+    },
+    /**
+     * ID залогиненного пользователя - scope адресного real-time сигнала бана;
+     * null без токена. Реактивен к token (userPayload = decodeToken(token)):
+     * логин, logout и истечение сессии в client.js (сброс токена в обход
+     * logout()) двигают watch и переключают подписку.
+     */
+    banScopeUserId() {
+      const authStore = useAuthStore()
+      return authStore.token ? (authStore.userPayload?.user_id || null) : null
     }
   },
   watch: {
+    // Держим подписку бана синхронной с залогиненным юзером: смена/сброс токена
+    // (логин/logout/истечение сессии/смена юзера в той же вкладке) -> пере-подписка.
+    banScopeUserId() {
+      this.reconcileBanSubscription()
+    },
     /**
      * Реактивная блокировка: как только permissions-стор узнаёт о бане
      * (на навигации/загрузке), уводим юзера в ЛК - единственную доступную
@@ -118,14 +142,49 @@ export default {
       permissionsStore.fetchPermissions()
       authStore.loadUserTypeCode()
     }
+    // Подписка на бан для восстановленной при старте сессии; дальше её ведёт
+    // watch(banScopeUserId) на смену токена.
+    this.reconcileBanSubscription()
+  },
+  beforeUnmount() {
+    this.teardownBanSubscription()
   },
   methods: {
+    /**
+     * Приводит подписку на адресный real-time сигнал бана (scope user:<id>, #840)
+     * в соответствие с текущим залогиненным юзером. Прилетевший
+     * user.banned/user.unbanned -> fetchPermissions(true): force ОБЯЗАТЕЛЕН -
+     * без него свежие (<30с) права коротят вызов в no-op и бан не всплывёт;
+     * fetchPermissions ставит и флаг banned (баннер ЧС + watch уводит в ЛК), и
+     * набор прав (пустой при бане -> все can() false, UI блокируется) - без
+     * ожидания навигации/опроса. Идемпотентна: тот же userId -> no-op.
+     */
+    reconcileBanSubscription() {
+      const userId = this.banScopeUserId
+      if (userId === this.banSubUserId) return
+      this.teardownBanSubscription()
+      if (!userId) return
+      eventStream.connect()
+      this.banEventOff = eventStream.subscribe(`user:${userId}`, () => {
+        usePermissionsStore().fetchPermissions(true)
+      })
+      this.banSubUserId = userId
+    },
+    teardownBanSubscription() {
+      if (this.banEventOff) {
+        this.banEventOff()
+        this.banEventOff = null
+        eventStream.disconnect()
+      }
+      this.banSubUserId = null
+    },
     handleSuccessfulLogin(tokenData) {
       const authStore = useAuthStore()
       authStore.setTokens(tokenData.token)
       const permissionsStore = usePermissionsStore()
       permissionsStore.fetchPermissions()
       authStore.loadUserTypeCode()
+      // Подписку на бан для нового токена ставит watch(banScopeUserId).
     },
 
     async logout() {
@@ -137,6 +196,7 @@ export default {
       } catch {
         // сеть упала - всё равно чистим клиент
       } finally {
+        // clearTokens обнуляет banScopeUserId -> watch снимет подписку на бан.
         authStore.clearTokens()
         const permissionsStore = usePermissionsStore()
         permissionsStore.clearPermissions()

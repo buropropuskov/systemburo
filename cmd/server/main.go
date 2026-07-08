@@ -190,7 +190,7 @@ func main() {
 	accessDenialService := services.NewAccessDenialService(db)
 	banCheckService := services.NewBanCheckService(db, 30*time.Second)
 	userService.SetBanCache(banCheckService) // архив/restore мгновенно сбрасывают кэш блокировок
-	userBanService := services.NewUserBanService(db, permissionResolver, banCheckService, auditRecorder)
+	userBanService := services.NewUserBanService(db, permissionResolver, banCheckService, auditRecorder, services.WithBanRealtimePublisher(eventsHub))
 	systemTableService := services.NewSystemTableService(db, cfg.UploadPath, cfg.UploadMaxFileSize, permissionService, services.WithSystemTableRealtimePublisher(eventsHub))
 	if err := systemTableService.SeedMissingFields(context.Background()); err != nil {
 		slog.Error("не удалось досидить отсутствующие поля таблиц (#345)", "error", err)
