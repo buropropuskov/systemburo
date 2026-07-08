@@ -257,6 +257,31 @@ func (h *OrganizationHandler) GetOrganizationUsers(c echo.Context) error {
 	return RespondSuccess(c, users)
 }
 
+// GetMembers godoc
+// @Summary      Получить участников организации
+// @Description  Возвращает пользователей, привязанных к организации через organization_id (не ответственных)
+// @Tags         organizations
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID организации"
+// @Success      200 {array} services.MemberResponse
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Router       /organizations/{id}/members [get]
+func (h *OrganizationHandler) GetMembers(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid organization ID")
+	}
+
+	members, err := h.service.GetMembers(c.Request().Context(), id)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, members)
+}
+
 // UpdateOrganizationUsers godoc
 // @Summary      Обновить пользователей организации
 // @Description  Заменяет список ответственных пользователей организации (replace-стратегия)

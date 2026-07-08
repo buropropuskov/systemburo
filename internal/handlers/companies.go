@@ -235,6 +235,31 @@ func (h *CompanyHandler) GetUsers(c echo.Context) error {
 	return RespondSuccess(c, users)
 }
 
+// GetMembers godoc
+// @Summary      Получить участников компании
+// @Description  Возвращает пользователей, привязанных к компании через company_id (не ответственных)
+// @Tags         companies
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID компании"
+// @Success      200 {array} services.MemberResponse
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Router       /companies/{id}/members [get]
+func (h *CompanyHandler) GetMembers(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid company ID")
+	}
+
+	members, err := h.service.GetMembers(c.Request().Context(), id)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, members)
+}
+
 // UpdateUsers godoc
 // @Summary      Обновить пользователей компании
 // @Description  Заменяет список ответственных пользователей компании с поддержкой обязательного согласования

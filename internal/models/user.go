@@ -49,6 +49,9 @@ type User struct {
 type Organization struct {
 	ID   int    `json:"id"`
 	Name string `gorm:"size:100" json:"name"`
+	// Type - тип справочника (issue #1046): одно из OrgTypeValues либо NULL
+	// («не указан» у записей до появления поля). Валидируется в сервисе, не gorm-тегом.
+	Type *string `gorm:"size:32" json:"type"`
 	// IsActive - архивный флаг (soft-delete). Уникальность name обеспечивается
 	// partial unique index (WHERE is_active=true) в migrate.go, а не gorm-тегом,
 	// чтобы архивная запись не блокировала создание новой активной с тем же именем.
@@ -58,6 +61,8 @@ type Organization struct {
 type Company struct {
 	ID   int    `json:"id"`
 	Name string `gorm:"size:100" json:"name"`
+	// Type - тип справочника (issue #1046), см. Organization.Type.
+	Type *string `gorm:"size:32" json:"type"`
 	// IsActive - архивный флаг (soft-delete). Уникальность name - partial unique
 	// index (WHERE is_active=true) в migrate.go, см. Organization.
 	IsActive bool `gorm:"default:true;index" json:"is_active"`

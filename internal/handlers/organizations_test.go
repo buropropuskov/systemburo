@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"testing"
 
+	"systemburo/internal/models"
 	"systemburo/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
@@ -44,12 +45,13 @@ func TestOrganizations_Create(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 
-	body := `{"name":"New Organization"}`
+	body := `{"name":"New Organization","type":"Организация"}`
 	rec := testutil.POST(t, e, "/organizations", body, testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
 	org := testutil.ParseMap(t, rec)
 	assert.Equal(t, "New Organization", org["name"])
+	assert.Equal(t, "Организация", org["type"])
 	assert.NotZero(t, org["id"])
 }
 
@@ -91,7 +93,7 @@ func TestOrganizations_Delete(t *testing.T) {
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 
 	// Create a new org to delete (the seeded one has the admin user)
-	createRec := testutil.POST(t, e, "/organizations", `{"name":"To Delete"}`, testutil.AuthHeader(token))
+	createRec := testutil.POST(t, e, "/organizations", `{"name":"To Delete","type":"Отдел"}`, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, createRec.Code)
 	created := testutil.ParseMap(t, createRec)
 	orgID := int(created["id"].(float64))
@@ -125,7 +127,7 @@ func TestOrganizations_Restore(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 
-	created := testutil.ParseMap(t, testutil.POST(t, e, "/organizations", `{"name":"To Restore"}`, testutil.AuthHeader(token)))
+	created := testutil.ParseMap(t, testutil.POST(t, e, "/organizations", `{"name":"To Restore","type":"Отдел"}`, testutil.AuthHeader(token)))
 	orgID := int(created["id"].(float64))
 
 	require.Equal(t, http.StatusOK, testutil.DELETE(t, e, fmt.Sprintf("/organizations/%d", orgID), testutil.AuthHeader(token)).Code)
@@ -165,7 +167,7 @@ func TestOrganizations_History(t *testing.T) {
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 	h := testutil.AuthHeader(token)
 
-	created := testutil.ParseMap(t, testutil.POST(t, e, "/organizations", `{"name":"Ист Орг"}`, h))
+	created := testutil.ParseMap(t, testutil.POST(t, e, "/organizations", `{"name":"Ист Орг","type":"Организация"}`, h))
 	id := int(created["id"].(float64))
 	require.Equal(t, http.StatusOK, testutil.PUT(t, e, fmt.Sprintf("/organizations/%d", id), `{"name":"Ист Орг 2"}`, h).Code)
 	require.Equal(t, http.StatusOK, testutil.DELETE(t, e, fmt.Sprintf("/organizations/%d", id), h).Code)
@@ -189,10 +191,10 @@ func TestOrganizations_Restore_NameConflict_Fails(t *testing.T) {
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 
 	// Создаём «Конфликт», архивируем, создаём новую активную «Конфликт».
-	first := testutil.ParseMap(t, testutil.POST(t, e, "/organizations", `{"name":"Конфликт"}`, testutil.AuthHeader(token)))
+	first := testutil.ParseMap(t, testutil.POST(t, e, "/organizations", `{"name":"Конфликт","type":"Организация"}`, testutil.AuthHeader(token)))
 	firstID := int(first["id"].(float64))
 	require.Equal(t, http.StatusOK, testutil.DELETE(t, e, fmt.Sprintf("/organizations/%d", firstID), testutil.AuthHeader(token)).Code)
-	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/organizations", `{"name":"Конфликт"}`, testutil.AuthHeader(token)).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/organizations", `{"name":"Конфликт","type":"Организация"}`, testutil.AuthHeader(token)).Code)
 
 	// Восстановление первой невозможно - активное имя занято.
 	rec := testutil.POST(t, e, fmt.Sprintf("/organizations/%d/restore", firstID), "", testutil.AuthHeader(token))
@@ -206,8 +208,8 @@ func TestOrganizations_Create_DuplicateActiveName_Fails(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 
-	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/organizations", `{"name":"Dup Org"}`, testutil.AuthHeader(token)).Code)
-	rec := testutil.POST(t, e, "/organizations", `{"name":"Dup Org"}`, testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/organizations", `{"name":"Dup Org","type":"Организация"}`, testutil.AuthHeader(token)).Code)
+	rec := testutil.POST(t, e, "/organizations", `{"name":"Dup Org","type":"Организация"}`, testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
@@ -262,8 +264,15 @@ func TestOrganizations_GetWithUsersExtended(t *testing.T) {
 	assert.GreaterOrEqual(t, len(orgs), 1)
 	assert.Contains(t, orgs[0], "id")
 	assert.Contains(t, orgs[0], "name")
+	assert.Contains(t, orgs[0], "type")
 	assert.Contains(t, orgs[0], "user_count")
 	assert.Contains(t, orgs[0], "unload_places")
+	// Засиженная SeedTestData организация без типа -> «не указан» (NULL/nil).
+	for _, o := range orgs {
+		if int(o["id"].(float64)) == td.OrgID {
+			assert.Nil(t, o["type"], "у старой организации тип не указан (NULL)")
+		}
+	}
 }
 
 func TestOrganizations_GetMyOrganization(t *testing.T) {
@@ -490,4 +499,89 @@ func TestOrganizations_WithUsers_MultipleUsers(t *testing.T) {
 		}
 	}
 	t.Error("Test organization not found")
+}
+
+func TestOrganizations_Create_InvalidType_Fails(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	rec := testutil.POST(t, e, "/organizations", `{"name":"Плохой тип","type":"Ерунда"}`, testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestOrganizations_Create_MissingType_Fails(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	rec := testutil.POST(t, e, "/organizations", `{"name":"Без типа"}`, testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestOrganizations_Update_ChangesType(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	created := testutil.ParseMap(t, testutil.POST(t, e, "/organizations", `{"name":"Смена типа","type":"Арендатор"}`, h))
+	id := int(created["id"].(float64))
+
+	// Сменить тип на «Подрядчик».
+	upd := testutil.PUT(t, e, fmt.Sprintf("/organizations/%d", id), `{"name":"Смена типа","type":"Подрядчик"}`, h)
+	require.Equal(t, http.StatusOK, upd.Code)
+	assert.Equal(t, "Подрядчик", testutil.ParseMap(t, upd)["type"])
+
+	// Снять тип (nil) - «не указан».
+	cleared := testutil.PUT(t, e, fmt.Sprintf("/organizations/%d", id), `{"name":"Смена типа","type":null}`, h)
+	require.Equal(t, http.StatusOK, cleared.Code)
+	assert.Nil(t, testutil.ParseMap(t, cleared)["type"])
+}
+
+func TestOrganizations_Members_OnlyBoundActive(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	// testadmin привязан к td.OrgID (активный участник).
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	// Вторая организация, чтобы завести ответственного, НЕ являющегося участником td.OrgID.
+	org2 := testutil.ParseMap(t, testutil.POST(t, e, "/organizations", `{"name":"Орг2","type":"Отдел"}`, h))
+	org2ID := int(org2["id"].(float64))
+
+	// respuser - участник Орг2, но назначен ответственным Орг1 (junction organization_users).
+	testutil.RegisterUser(t, e, "respuser", "pass123456", 1, org2ID, td.CompanyID)
+	require.Equal(t, http.StatusOK, testutil.PUT(t, e, fmt.Sprintf("/organizations/%d/users", td.OrgID),
+		`{"users":[{"username":"respuser","is_primary":false,"required_approval":false}]}`, h).Code)
+
+	// Неактивный участник td.OrgID - в members попадать не должен. is_active=false
+	// ставим отдельным Update: у поля gorm-default true, при Create struct с zero-value
+	// (false) подставился бы default.
+	inactiveOrg := td.OrgID
+	inactive := models.User{Username: "inactivemember", Password: "x", OrganizationID: &inactiveOrg, TypeID: 1}
+	require.NoError(t, db.Create(&inactive).Error)
+	require.NoError(t, db.Model(&models.User{}).Where("id = ?", inactive.ID).Update("is_active", false).Error)
+
+	members := testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/organizations/%d/members", td.OrgID), h))
+	names := map[string]bool{}
+	for _, m := range members {
+		names[m["username"].(string)] = true
+	}
+	assert.True(t, names["testadmin"], "активный привязанный пользователь должен быть в members")
+	assert.False(t, names["respuser"], "ответственный (не привязанный) не должен быть в members")
+	assert.False(t, names["inactivemember"], "неактивный привязанный исключён")
+
+	// Тот же respuser виден в ответственных (/:id/users), в отличие от /members.
+	respUsers := testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/organizations/%d/users", td.OrgID), h))
+	require.Len(t, respUsers, 1)
+	assert.Equal(t, "respuser", respUsers[0]["username"])
 }

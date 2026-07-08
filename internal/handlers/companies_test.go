@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"testing"
 
+	"systemburo/internal/models"
 	"systemburo/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
@@ -44,12 +45,13 @@ func TestCompanies_Create(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 
-	body := `{"name":"New Company"}`
+	body := `{"name":"New Company","type":"Организация"}`
 	rec := testutil.POST(t, e, "/companies", body, testutil.AuthHeader(token))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
 	comp := testutil.ParseMap(t, rec)
 	assert.Equal(t, "New Company", comp["name"])
+	assert.Equal(t, "Организация", comp["type"])
 	assert.NotZero(t, comp["id"])
 }
 
@@ -103,7 +105,7 @@ func TestCompanies_Delete(t *testing.T) {
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 
 	// Create a new company to delete (seeded one has the admin user)
-	createRec := testutil.POST(t, e, "/companies", `{"name":"To Delete"}`, testutil.AuthHeader(token))
+	createRec := testutil.POST(t, e, "/companies", `{"name":"To Delete","type":"Отдел"}`, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, createRec.Code)
 	created := testutil.ParseMap(t, createRec)
 	compID := int(created["id"].(float64))
@@ -137,7 +139,7 @@ func TestCompanies_Restore(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 
-	created := testutil.ParseMap(t, testutil.POST(t, e, "/companies", `{"name":"To Restore"}`, testutil.AuthHeader(token)))
+	created := testutil.ParseMap(t, testutil.POST(t, e, "/companies", `{"name":"To Restore","type":"Отдел"}`, testutil.AuthHeader(token)))
 	compID := int(created["id"].(float64))
 	require.Equal(t, http.StatusOK, testutil.DELETE(t, e, fmt.Sprintf("/companies/%d", compID), testutil.AuthHeader(token)).Code)
 
@@ -175,7 +177,7 @@ func TestCompanies_History(t *testing.T) {
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 	h := testutil.AuthHeader(token)
 
-	created := testutil.ParseMap(t, testutil.POST(t, e, "/companies", `{"name":"Ист Ко"}`, h))
+	created := testutil.ParseMap(t, testutil.POST(t, e, "/companies", `{"name":"Ист Ко","type":"Организация"}`, h))
 	id := int(created["id"].(float64))
 	require.Equal(t, http.StatusOK, testutil.PUT(t, e, fmt.Sprintf("/companies/%d", id), `{"name":"Ист Ко 2"}`, h).Code)
 	require.Equal(t, http.StatusOK, testutil.DELETE(t, e, fmt.Sprintf("/companies/%d", id), h).Code)
@@ -208,10 +210,10 @@ func TestCompanies_Restore_NameConflict_Fails(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 
-	first := testutil.ParseMap(t, testutil.POST(t, e, "/companies", `{"name":"Конфликт Ко"}`, testutil.AuthHeader(token)))
+	first := testutil.ParseMap(t, testutil.POST(t, e, "/companies", `{"name":"Конфликт Ко","type":"Организация"}`, testutil.AuthHeader(token)))
 	firstID := int(first["id"].(float64))
 	require.Equal(t, http.StatusOK, testutil.DELETE(t, e, fmt.Sprintf("/companies/%d", firstID), testutil.AuthHeader(token)).Code)
-	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/companies", `{"name":"Конфликт Ко"}`, testutil.AuthHeader(token)).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/companies", `{"name":"Конфликт Ко","type":"Организация"}`, testutil.AuthHeader(token)).Code)
 
 	rec := testutil.POST(t, e, fmt.Sprintf("/companies/%d/restore", firstID), "", testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
@@ -224,8 +226,8 @@ func TestCompanies_Create_DuplicateActiveName_Fails(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 
-	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/companies", `{"name":"Dup Co"}`, testutil.AuthHeader(token)).Code)
-	rec := testutil.POST(t, e, "/companies", `{"name":"Dup Co"}`, testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/companies", `{"name":"Dup Co","type":"Организация"}`, testutil.AuthHeader(token)).Code)
+	rec := testutil.POST(t, e, "/companies", `{"name":"Dup Co","type":"Организация"}`, testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
@@ -291,8 +293,97 @@ func TestCompanies_GetWithUsersExtended(t *testing.T) {
 	assert.GreaterOrEqual(t, len(companies), 1)
 	assert.Contains(t, companies[0], "id")
 	assert.Contains(t, companies[0], "name")
+	assert.Contains(t, companies[0], "type")
 	assert.Contains(t, companies[0], "user_count")
 	assert.Contains(t, companies[0], "unload_places")
+	// Засиженная SeedTestData компания без типа -> «не указан» (NULL/nil).
+	for _, c := range companies {
+		if int(c["id"].(float64)) == td.CompanyID {
+			assert.Nil(t, c["type"], "у старой компании тип не указан (NULL)")
+		}
+	}
+}
+
+func TestCompanies_Create_InvalidType_Fails(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	rec := testutil.POST(t, e, "/companies", `{"name":"Плохой тип","type":"Ерунда"}`, testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestCompanies_Create_MissingType_Fails(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	rec := testutil.POST(t, e, "/companies", `{"name":"Без типа"}`, testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestCompanies_Update_ChangesType(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	created := testutil.ParseMap(t, testutil.POST(t, e, "/companies", `{"name":"Смена типа Ко","type":"Арендатор"}`, h))
+	id := int(created["id"].(float64))
+
+	upd := testutil.PUT(t, e, fmt.Sprintf("/companies/%d", id), `{"name":"Смена типа Ко","type":"Подрядчик"}`, h)
+	require.Equal(t, http.StatusOK, upd.Code)
+	assert.Equal(t, "Подрядчик", testutil.ParseMap(t, upd)["type"])
+
+	cleared := testutil.PUT(t, e, fmt.Sprintf("/companies/%d", id), `{"name":"Смена типа Ко","type":null}`, h)
+	require.Equal(t, http.StatusOK, cleared.Code)
+	assert.Nil(t, testutil.ParseMap(t, cleared)["type"])
+}
+
+func TestCompanies_Members_OnlyBoundActive(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	// testadmin привязан к td.CompanyID (активный участник).
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	// Вторая компания, чтобы завести ответственного, НЕ являющегося участником td.CompanyID.
+	comp2 := testutil.ParseMap(t, testutil.POST(t, e, "/companies", `{"name":"Ко2","type":"Отдел"}`, h))
+	comp2ID := int(comp2["id"].(float64))
+
+	// respuser - участник Ко2, но назначен ответственным Ко1 (junction companies_users).
+	testutil.RegisterUser(t, e, "crespuser", "pass123456", 1, td.OrgID, comp2ID)
+	require.Equal(t, http.StatusOK, testutil.PUT(t, e, fmt.Sprintf("/companies/%d/users", td.CompanyID),
+		`{"users":[{"username":"crespuser","is_primary":false,"required_approval":false}]}`, h).Code)
+
+	// Неактивный участник td.CompanyID - в members попадать не должен. is_active=false
+	// ставим отдельным Update: у поля gorm-default true, при Create struct с zero-value
+	// (false) подставился бы default.
+	inactiveComp := td.CompanyID
+	inactive := models.User{Username: "cinactivemember", Password: "x", CompanyID: &inactiveComp, TypeID: 1}
+	require.NoError(t, db.Create(&inactive).Error)
+	require.NoError(t, db.Model(&models.User{}).Where("id = ?", inactive.ID).Update("is_active", false).Error)
+
+	members := testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/companies/%d/members", td.CompanyID), h))
+	names := map[string]bool{}
+	for _, m := range members {
+		names[m["username"].(string)] = true
+	}
+	assert.True(t, names["testadmin"], "активный привязанный пользователь должен быть в members")
+	assert.False(t, names["crespuser"], "ответственный (не привязанный) не должен быть в members")
+	assert.False(t, names["cinactivemember"], "неактивный привязанный исключён")
+
+	respUsers := testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/companies/%d/users", td.CompanyID), h))
+	require.Len(t, respUsers, 1)
+	assert.Equal(t, "crespuser", respUsers[0]["username"])
 }
 
 func TestCompanies_WithUsers_MultipleUsers(t *testing.T) {
