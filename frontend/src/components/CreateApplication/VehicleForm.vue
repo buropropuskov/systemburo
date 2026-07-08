@@ -369,14 +369,74 @@
       </div>
     </div>
 
+    <!-- Проезд -->
+    <div
+      v-if="fieldVisible('passage_tables')"
+      class="completion__passage"
+    >
+      <label class="input__label">Проезд <span
+        v-if="fieldRequired('passage_tables')"
+        class="required"
+      >*</span></label>
+      <div
+        v-if="!loadingPassageTables && filteredPassageTables.length > 0"
+        class="passage__grid"
+      >
+        <div
+          v-for="table in filteredPassageTables"
+          :key="table.table.id"
+          class="passage__item"
+          :class="{
+            'passage__item--active': selectedPassageTables.includes(table.table.id) && table.table.status === 'active',
+            'passage__item--attached': attachedTablesIds.includes(table.table.id),
+            'passage__item--inactive': table.table.status !== 'active'
+          }"
+          @click="togglePassageTable(table)"
+          @mouseenter="showTableTooltip(table, $event)"
+          @mouseleave="hideTableTooltip"
+        >
+          {{ table.table.display_name }}
+        </div>
+      </div>
+      <div
+        v-else-if="loadingPassageTables"
+        class="loading-message"
+      >
+        Загрузка мест проезда...
+      </div>
+      <div
+        v-else
+        class="no-tables-message"
+      >
+        Нет доступных мест проезда
+      </div>
+      <div
+        v-if="errors.passageTables"
+        class="error-message"
+      >
+        {{ errors.passageTables }}
+      </div>
+    </div>
+
     <!-- Tooltip для неактивных мест -->
     <div
-      v-if="inactiveTooltip.visible" 
+      v-if="inactiveTooltip.visible"
       class="inactive-tooltip"
       :style="{ top: inactiveTooltip.y + 'px', left: inactiveTooltip.x + 'px' }"
     >
       <div class="inactive-tooltip-content">
         {{ inactiveTooltip.text }}
+      </div>
+    </div>
+
+    <!-- Tooltip для неактивных таблиц проезда -->
+    <div
+      v-if="tableTooltip.visible"
+      class="inactive-tooltip"
+      :style="{ top: tableTooltip.y + 'px', left: tableTooltip.x + 'px' }"
+    >
+      <div class="inactive-tooltip-content">
+        {{ tableTooltip.text }}
       </div>
     </div>
 
@@ -462,9 +522,13 @@ export default {
             })
 
             if (vm.selectedExistingCars.length > 0) {
-                return [
+                const existingRules = [
                     { check: !fieldVisible('unloading_places') || vm.selectedUnloadingPlaces.length > 0, message: 'хотя бы одно место разгрузки' }
                 ]
+                if (fieldVisible('passage_tables') && fieldRequired('passage_tables')) {
+                    existingRules.push({ check: vm.selectedPassageTables.length > 0, message: 'выберите хотя бы одно место проезда' })
+                }
+                return existingRules
             }
 
             return [
@@ -484,7 +548,8 @@ export default {
                     message: 'номер Т/С'
                 },
                 { check: !fieldVisible('mark') || !fieldRequired('mark') || vm.isMarkByFact || !!vm.selectedMark, message: 'марка Т/С' },
-                { check: !fieldVisible('unloading_places') || !fieldRequired('unloading_places') || vm.selectedUnloadingPlaces.length > 0, message: 'хотя бы одно место разгрузки' }
+                { check: !fieldVisible('unloading_places') || !fieldRequired('unloading_places') || vm.selectedUnloadingPlaces.length > 0, message: 'хотя бы одно место разгрузки' },
+                { check: !fieldVisible('passage_tables') || !fieldRequired('passage_tables') || vm.selectedPassageTables.length > 0, message: 'выберите хотя бы одно место проезда' }
             ]
         })
 
@@ -508,7 +573,17 @@ export default {
             attachedUnloadingPlaces: [],
             selectedUnloadingPlaces: [],
             loadingUnloadingPlaces: false,
-            errors: { unloadingPlaces: '' },
+            allPassageTables: [],
+            attachedPassageTables: [],
+            selectedPassageTables: [],
+            loadingPassageTables: false,
+            tableTooltip: {
+                visible: false,
+                text: '',
+                x: 0,
+                y: 0
+            },
+            errors: { unloadingPlaces: '', passageTables: '' },
             allowedCyrillicLetters: ['А', 'В', 'Е', 'К', 'М', 'Н', 'О', 'Р', 'С', 'Т', 'У', 'Х'],
             allowedLatinLetters: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'],
             showExistingCarsModal: false,
@@ -564,6 +639,21 @@ export default {
             if (this.showAllExistingCars) return this.selectedExistingCars;
             return this.selectedExistingCars.slice(0, 5);
         },
+        attachedTablesIds() {
+            return this.attachedPassageTables.map(table => table.id);
+        },
+        filteredPassageTables() {
+            return this.allPassageTables.filter(item => {
+                const table = item.table || item;
+                return table && table.table_type === 'cars';
+            }).map(item => {
+                if (item.table) {
+                    return item;
+                } else {
+                    return { table: item };
+                }
+            });
+        }
     },
     watch: {
         // Следим за изменениями частей номера для проверки активности
@@ -596,7 +686,8 @@ export default {
         await Promise.all([
             this.loadLicensePlateFormats(),
             this.loadUnloadingPlaces(),
-            this.loadMarks()
+            this.loadMarks(),
+            this.loadPassageTables()
         ]);
 
         document.addEventListener('click', (e) => {
@@ -827,6 +918,132 @@ export default {
             }
         },
 
+        async loadPassageTables() {
+            this.loadingPassageTables = true;
+            this.allPassageTables = [];
+            this.attachedPassageTables = [];
+            this.selectedPassageTables = [];
+
+            try {
+                const authStore = useAuthStore();
+                if (!authStore.token) {
+                    console.error("Токен не найден");
+                    return;
+                }
+
+                const allTablesResponse = await apiRequest("/system-tables", {
+                    method: "GET"});
+
+                if (allTablesResponse.ok) {
+                    const tables = await allTablesResponse.json();
+                    this.allPassageTables = tables.map(table => {
+                        if (table.table) {
+                            return table;
+                        } else {
+                            return {
+                                table: {
+                                    id: table.id,
+                                    name: table.name,
+                                    display_name: table.display_name,
+                                    table_type: table.table_type,
+                                    status: table.status || 'active',
+                                    status_comment: table.status_comment,
+                                    location_description: table.location_description,
+                                    map_link: table.map_link
+                                },
+                                time_slots: table.time_slots || [],
+                                photos: table.photos || [],
+                                current_status: table.current_status || 'closed'
+                            };
+                        }
+                    });
+                } else {
+                    console.error("Ошибка при загрузке системных таблиц");
+                }
+
+                if (this.userOrganizationId) {
+                    const orgTablesResponse = await apiRequest(`/organizations/${this.userOrganizationId}/tables`, {
+                        method: "GET"});
+
+                    if (orgTablesResponse.ok) {
+                        const orgTables = await orgTablesResponse.json();
+                        this.attachedPassageTables = orgTables.map(table => {
+                            if (table.table) {
+                                return table;
+                            } else {
+                                return {
+                                    table: {
+                                        id: table.id,
+                                        name: table.name,
+                                        display_name: table.display_name,
+                                        table_type: table.table_type,
+                                        status: table.status || 'active',
+                                        status_comment: table.status_comment,
+                                        location_description: table.location_description,
+                                        map_link: table.map_link
+                                    },
+                                    time_slots: table.time_slots || [],
+                                    photos: table.photos || [],
+                                    current_status: table.current_status || 'closed'
+                                };
+                            }
+                        });
+
+                        const activeAttachedTables = this.attachedPassageTables.filter(table => table.table.status === 'active');
+                        this.selectedPassageTables = activeAttachedTables.map(table => table.table.id);
+                        if (this.selectedPassageTables.length > 0) {
+                            useDeletionsStore().notify({ prefix: 'Места проезда выбраны автоматически для вашей', bold: ' организации' });
+                        }
+                    }
+                }
+
+                if (this.attachedPassageTables.length === 0 && this.userCompanyId) {
+                    const companyTablesResponse = await apiRequest(`/companies/${this.userCompanyId}/tables`, {
+                        method: "GET"});
+
+                    if (companyTablesResponse.ok) {
+                        const companyTables = await companyTablesResponse.json();
+                        this.attachedPassageTables = companyTables.map(table => {
+                            if (table.table) {
+                                return table;
+                            } else {
+                                return {
+                                    table: {
+                                        id: table.id,
+                                        name: table.name,
+                                        display_name: table.display_name,
+                                        table_type: table.table_type,
+                                        status: table.status || 'active',
+                                        status_comment: table.status_comment,
+                                        location_description: table.location_description,
+                                        map_link: table.map_link
+                                    },
+                                    time_slots: table.time_slots || [],
+                                    photos: table.photos || [],
+                                    current_status: table.current_status || 'closed'
+                                };
+                            }
+                        });
+
+                        const activeAttachedTables = this.attachedPassageTables.filter(table => table.table.status === 'active');
+                        this.selectedPassageTables = activeAttachedTables.map(table => table.table.id);
+                        if (this.selectedPassageTables.length > 0) {
+                            useDeletionsStore().notify({ prefix: 'Места проезда выбраны автоматически для вашей', bold: ' компании' });
+                        }
+                    }
+                }
+
+                this.validatePassageTables();
+
+            } catch (error) {
+                console.error("Ошибка при загрузке мест проезда:", error);
+                this.allPassageTables = [];
+                this.attachedPassageTables = [];
+            } finally {
+                this.loadingPassageTables = false;
+            }
+        },
+
         getPlaceTooltip(place) {
             if (place.status !== 'active') {
                 if (place.status_comment) {
@@ -857,6 +1074,27 @@ export default {
 
         hideInactiveTooltip() {
             this.inactiveTooltip.visible = false;
+        },
+
+        showTableTooltip(table, event) {
+            if (table.table.status !== 'active') {
+                const tooltipText = table.table.status_comment
+                    ? `Недоступно: ${table.table.status_comment}`
+                    : 'Недоступно';
+
+                this.tableTooltip.text = tooltipText;
+                this.tableTooltip.visible = true;
+
+                this.$nextTick(() => {
+                    const rect = event.target.getBoundingClientRect();
+                    this.tableTooltip.x = rect.left + rect.width / 2;
+                    this.tableTooltip.y = rect.top - 10;
+                });
+            }
+        },
+
+        hideTableTooltip() {
+            this.tableTooltip.visible = false;
         },
 
         initializeNumberParts() {
@@ -930,7 +1168,24 @@ export default {
         validateUnloadingPlaces() {
             this.errors.unloadingPlaces = this.selectedUnloadingPlaces.length === 0 ? '' : '';
         },
-        
+
+        togglePassageTable(table) {
+            if (table.table.status !== 'active') {
+                return;
+            }
+
+            const index = this.selectedPassageTables.indexOf(table.table.id);
+            if (index > -1) {
+                this.selectedPassageTables.splice(index, 1);
+            } else {
+                this.selectedPassageTables.push(table.table.id);
+            }
+        },
+
+        validatePassageTables() {
+            this.errors.passageTables = this.selectedPassageTables.length === 0 ? '' : '';
+        },
+
         formatUnloadingPlaces() {
             if (this.selectedUnloadingPlaces.length === 0) return '';
             
@@ -986,6 +1241,7 @@ export default {
                 markName: markName,
                 unloadingPlace: this.formatUnloadingPlaces(),
                 unloadPlaces: [...this.selectedUnloadingPlaces],
+                passage_tables: [...this.selectedPassageTables],
                 formatId: this.selectedFormat ? this.selectedFormat.format.id : null,
                 isExisting: false
             };
@@ -1015,9 +1271,11 @@ export default {
             this.selectedMark = '';
             this.selectedMarkId = null;
             this.selectedUnloadingPlaces = [];
+            this.selectedPassageTables = [];
             this.isNumberByFact = false;
             this.isMarkByFact = false;
             this.errors.unloadingPlaces = '';
+            this.errors.passageTables = '';
             this.selectedExistingCars = [];
             this.editingVehicle = null;
             this.activeCarInfo = null;
@@ -1064,6 +1322,7 @@ export default {
                 markName: car.mark_name || car.mark || null,
                 unloadingPlace: this.formatUnloadingPlaces(),
                 unloadPlaces: [...this.selectedUnloadingPlaces],
+                passage_tables: [...this.selectedPassageTables],
                 formatId: car.format_id,
                 isExisting: true,
                 existingCarId: car.id
@@ -1103,6 +1362,7 @@ export default {
                 restoreMarkSelection();
                 this.isNumberByFact = vehicle.plateNumber === 'По факту';
                 this.selectedUnloadingPlaces = vehicle.unloadPlaces || [];
+                this.selectedPassageTables = vehicle.passage_tables || [];
 
                 if (vehicle.formatId) {
                     const format = this.availableFormats.find(f => f.format.id === vehicle.formatId);
@@ -1125,6 +1385,7 @@ export default {
                 restoreMarkSelection();
 
                 this.selectedUnloadingPlaces = vehicle.unloadPlaces || [];
+                this.selectedPassageTables = vehicle.passage_tables || [];
             }
 
             // Перепроверяем ЧС для редактируемой машины (для "по факту" watcher
@@ -1841,6 +2102,72 @@ export default {
 }
 
 .no-places-message {
+    font-size: 12px;
+    color: #ff6b6b;
+    text-align: center;
+    padding: 20px;
+    background: #fff5f5;
+    border-radius: 8px;
+    margin-top: 10px;
+}
+
+.completion__passage {
+    margin-top: 15px;
+}
+
+.passage__grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    row-gap: 5px;
+    max-width: 425px;
+    margin-top: 5px;
+}
+
+.passage__item {
+    height: 30px;
+    background: #F2F2F2;
+    color: #a2a2a2;
+    border-radius: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    padding: 0 10px;
+    text-align: center;
+    border: 1px solid transparent;
+    position: relative;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.passage__item:hover:not(.passage__item--active):not(.passage__item--inactive) {
+    background: #e8e8e8;
+}
+
+.passage__item--active {
+    background: #4F5BDF;
+    color: #fff;
+    border-color: #4F5BDF;
+}
+
+.passage__item--inactive {
+    background: #ffe6e6;
+    color: #ff6b6b;
+    border-color: #ffcccc;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.passage__item--attached {
+    border-left: 3px solid #4F5BDF;
+}
+
+.no-tables-message {
     font-size: 12px;
     color: #ff6b6b;
     text-align: center;
