@@ -112,9 +112,9 @@ func (s *carService) UpdateCarTerritoryStatus(ctx context.Context, carID int, re
 		return err
 	}
 
-	// Въезд/выезд изменил строку машины - она видна во всех cars-таблицах,
-	// сигналим их аудитории обновиться live (#840 V2.3).
-	s.tablesProducer.NotifyCarsChanged(ctx)
+	// Въезд/выезд изменил строку машины - сигналим аудитории её таблиц «Проезд»
+	// обновиться live (#840 V2.3, scoped #1036).
+	s.tablesProducer.NotifyCarsChanged(ctx, carID)
 	return nil
 }
 
