@@ -260,10 +260,16 @@ func (s *applicationService) applicationParticipants(ctx context.Context, applic
 	return s.centerAudience(ctx, applicationID, senderID)
 }
 
-// notifyApplicationUpdated шлёт участникам заявки лёгкий сигнал application.updated
-// (scope application:<id>) - открытая деталь перезапросит статус/вопросы/согласующих
-// без F5 (#840 V4). Best-effort: без паблишера/при пустой аудитории - no-op, сбой не
-// влияет на бизнес-операцию. Звать ПОСЛЕ commit изменения.
+// notifyApplicationUpdated шлёт участникам заявки два лёгких сигнала (#840):
+//   - application.updated (scope application:<id>) - открытая деталь перезапросит
+//     статус/вопросы/согласующих без F5 (V4);
+//   - applications.refresh (scope applications-center) - список Центра у всех, кто
+//     видит заявку, тихо перерисует столбцы подтверждения/статуса и производные
+//     теги (иначе смена статуса протухала в списке до ручного обновления).
+//
+// Аудитория одна на оба - applicationParticipants (зеркало applyApplicationAccessFilter),
+// поэтому кто видит деталь, тот видит и строку в Центре. Best-effort: без паблишера/при
+// пустой аудитории - no-op, сбой не влияет на бизнес-операцию. Звать ПОСЛЕ commit изменения.
 func (s *applicationService) notifyApplicationUpdated(ctx context.Context, applicationID int) {
 	if s.realtimePublisher == nil {
 		return
@@ -272,6 +278,10 @@ func (s *applicationService) notifyApplicationUpdated(ctx context.Context, appli
 	s.realtimePublisher.PublishMany(audience, realtime.Event{
 		Type:  "application.updated",
 		Scope: fmt.Sprintf("application:%d", applicationID),
+	})
+	s.realtimePublisher.PublishMany(audience, realtime.Event{
+		Type:  "applications.refresh",
+		Scope: "applications-center",
 	})
 }
 
