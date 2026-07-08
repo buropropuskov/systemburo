@@ -173,6 +173,41 @@ func TestGetActiveCarsForTables_WithActiveCar(t *testing.T) {
 	assert.Equal(t, "B002BB799", cars[0]["car_number"])
 }
 
+// --- GET /cars/active-for-table/:table_id (scoped «Проезд», #1036) ---
+
+func TestGetActiveCarsForTable_ScopedByTargetTable(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "carscoped1", "pass123", 1, td.OrgID, td.CompanyID)
+	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
+	activateCarViaApp(t, e, db, appID, td)
+
+	// Две cars-таблицы; машину привязываем «Проездом» только к первой.
+	dnA, dnB := "Проезд A", "Проезд B"
+	tblA := models.SystemTable{Name: "cars_a", DisplayName: &dnA, TableType: "cars", IsActive: true}
+	tblB := models.SystemTable{Name: "cars_b", DisplayName: &dnB, TableType: "cars", IsActive: true}
+	require.NoError(t, db.Create(&tblA).Error)
+	require.NoError(t, db.Create(&tblB).Error)
+	require.NoError(t, db.Exec(
+		"INSERT INTO car_target_tables (car_id, table_id, order_index) VALUES (?, ?, 1)", carID, tblA.ID).Error)
+
+	// В привязанной таблице машина видна.
+	rec := testutil.GET(t, e, fmt.Sprintf("/cars/active-for-table/%d", tblA.ID), testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusOK, rec.Code)
+	inA := testutil.ParseSlice(t, rec)
+	require.Len(t, inA, 1, "машина видна в привязанной таблице «Проезд»")
+	assert.Equal(t, "B002BB799", inA[0]["car_number"])
+
+	// В непривязанной таблице — не видна (доказывает scope, а не «во всех сразу»).
+	rec = testutil.GET(t, e, fmt.Sprintf("/cars/active-for-table/%d", tblB.ID), testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusOK, rec.Code)
+	inB := testutil.ParseSlice(t, rec)
+	assert.Empty(t, inB, "машина не видна в непривязанной таблице")
+}
+
 // --- GET /cars/fact-for-tables ---
 
 func TestGetFactCarsForTables_Empty(t *testing.T) {
