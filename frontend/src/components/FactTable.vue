@@ -686,8 +686,9 @@ export default {
     },
 
     async fetchCarsData(seq) {
+      if (!this.tableId) return;
       try {
-        const response = await apiRequest("/cars/fact-for-tables", {});
+        const response = await apiRequest(`/cars/fact-for-table/${this.tableId}`, {});
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         const factCars = await response.json();
         const nameToIdMap = {};

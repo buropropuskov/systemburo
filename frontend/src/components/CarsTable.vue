@@ -803,8 +803,9 @@ export default {
     },
 
     async fetchCarsData(seq) {
+      if (!this.tableId) return;
       try {
-        const response = await apiRequest("/cars/active-for-tables", {});
+        const response = await apiRequest(`/cars/active-for-table/${this.tableId}`, {});
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         const cars = await response.json();
         await this.fetchOrganizations();

@@ -10,6 +10,16 @@ export async function getFactCarsForTables() {
   return res.json();
 }
 
+export async function getActiveCarsForTable(tableId) {
+  const res = await apiRequest(`/cars/active-for-table/${tableId}`);
+  return res.json();
+}
+
+export async function getFactCarsForTable(tableId) {
+  const res = await apiRequest(`/cars/fact-for-table/${tableId}`);
+  return res.json();
+}
+
 export async function getCarHistory(id) {
   const res = await apiRequest(`/cars/${id}/history`);
   return res.json();
