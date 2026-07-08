@@ -55,3 +55,13 @@ type CarUnloadPlace struct {
 	PlannedTime   *string `gorm:"size:20" json:"planned_time"`
 	Notes         *string `gorm:"type:text" json:"notes"`
 }
+
+// CarTargetTable — привязка машины к таблице проходной «Проезд» (#1036). Машина
+// показывается только в выбранных cars-таблицах, а не во всех сразу. Зеркало
+// EmployeeTargetTable для сотрудников.
+type CarTargetTable struct {
+	ID         int  `json:"id"`
+	CarID      int  `gorm:"index" json:"car_id"`
+	TableID    int  `gorm:"index" json:"table_id"`
+	OrderIndex *int `json:"order_index"`
+}

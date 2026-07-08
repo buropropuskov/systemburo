@@ -34,6 +34,26 @@ func (h *CarHandler) GetActiveCarsForTables(c echo.Context) error {
 	return RespondSuccess(c, cars)
 }
 
+// GetActiveCarsForTable обрабатывает GET /cars/active-for-table/:table_id.
+// @Summary Получение активных машин конкретной таблицы «Проезд»
+// @Tags cars
+// @Security BearerAuth
+// @Produce json
+// @Param table_id path int true "ID таблицы"
+// @Success 200 {array} services.TableCarResponse
+// @Router /cars/active-for-table/{table_id} [get]
+func (h *CarHandler) GetActiveCarsForTable(c echo.Context) error {
+	tableID, err := strconv.Atoi(c.Param("table_id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid table ID")
+	}
+	cars, err := h.service.GetActiveCarsForTable(c.Request().Context(), tableID)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, cars)
+}
+
 // GetFactCarsForTables обрабатывает GET /cars/fact-for-tables.
 // @Summary Получение машин «по факту» для таблиц
 // @Tags cars
@@ -43,6 +63,26 @@ func (h *CarHandler) GetActiveCarsForTables(c echo.Context) error {
 // @Router /cars/fact-for-tables [get]
 func (h *CarHandler) GetFactCarsForTables(c echo.Context) error {
 	cars, err := h.service.GetFactCarsForTables(c.Request().Context())
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, cars)
+}
+
+// GetFactCarsForTable обрабатывает GET /cars/fact-for-table/:table_id.
+// @Summary Получение машин «по факту» конкретной таблицы «Проезд»
+// @Tags cars
+// @Security BearerAuth
+// @Produce json
+// @Param table_id path int true "ID таблицы"
+// @Success 200 {array} services.TableCarResponse
+// @Router /cars/fact-for-table/{table_id} [get]
+func (h *CarHandler) GetFactCarsForTable(c echo.Context) error {
+	tableID, err := strconv.Atoi(c.Param("table_id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid table ID")
+	}
+	cars, err := h.service.GetFactCarsForTable(c.Request().Context(), tableID)
 	if err != nil {
 		return err
 	}

@@ -100,6 +100,9 @@ func AllModels() []interface{} {
 		// Cars (depends on Attachment)
 		&models.Car{},
 		&models.CarUnloadPlace{},
+		// Привязка машины к таблицам «Проезд» (#1036): машина видна только в
+		// выбранных cars-таблицах. Depends on Car, SystemTable.
+		&models.CarTargetTable{},
 
 		// Employees (depends on Attachment, Citizenship)
 		&models.Employee{},
@@ -191,6 +194,9 @@ func AutoMigrate(db *gorm.DB) error {
 		return err
 	}
 	if err := widenFactTableHint(db); err != nil {
+		return err
+	}
+	if err := backfillCarTargetTables(db); err != nil {
 		return err
 	}
 	if err := installSQLFunctions(db); err != nil {
@@ -387,6 +393,29 @@ func relaxApplicationOrgNotNull(db *gorm.DB) error {
 func widenFactTableHint(db *gorm.DB) error {
 	if err := db.Exec(`ALTER TABLE system_tables ALTER COLUMN fact_table_hint TYPE text`).Error; err != nil {
 		return fmt.Errorf("widen system_tables.fact_table_hint to text: %w", err)
+	}
+	return nil
+}
+
+// backfillCarTargetTables привязывает существующие машины ко всем cars-таблицам
+// (#1036). До «Проезда» активная машина показывалась во всех cars-таблицах; после
+// перехода на scoped-показ машина без связей исчезла бы из таблиц. Идемпотентно:
+// вставляет пары (car_id, table_id) только для машин, у которых ещё нет ни одной
+// связи, - повторный AutoMigrate и уже выбравшие «Проезд» новые заявки не трогаются.
+// Окончательно удалённые из корзины (is_purged) машины пропускаем.
+func backfillCarTargetTables(db *gorm.DB) error {
+	const q = `
+		INSERT INTO car_target_tables (car_id, table_id, order_index)
+		SELECT c.id, st.id, 1
+		FROM cars c
+		CROSS JOIN system_tables st
+		WHERE st.table_type = 'cars'
+		  AND c.is_purged = false
+		  AND NOT EXISTS (
+		      SELECT 1 FROM car_target_tables ctt WHERE ctt.car_id = c.id
+		  )`
+	if err := db.Exec(q).Error; err != nil {
+		return fmt.Errorf("backfill car_target_tables: %w", err)
 	}
 	return nil
 }
