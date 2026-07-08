@@ -77,6 +77,37 @@ func (h *ApproverHandler) Create(c echo.Context) error {
 	})
 }
 
+// Update godoc
+// @Summary      Задать/снять маску отображаемого имени принимающего
+// @Tags         application-approvers
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "Approver ID"
+// @Param        body body models.UpdateApproverRequest true "Display name (null/empty снимает маску)"
+// @Success      200 {object} map[string]string
+// @Failure      400 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /application-approvers/{id} [patch]
+func (h *ApproverHandler) Update(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	var req models.UpdateApproverRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	actorUsername, _ := c.Get("username").(string)
+	if err := h.service.Update(c.Request().Context(), id, req.DisplayName, actorUsername); err != nil {
+		return err
+	}
+	return RespondSuccess(c, map[string]string{
+		"message": "Approver updated successfully",
+	})
+}
+
 // Delete godoc
 // @Summary      Удалить утверждающего
 // @Tags         application-approvers

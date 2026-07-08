@@ -109,6 +109,14 @@ func (s *applicationService) GetApplicationHistory(ctx context.Context, applicat
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching application history")
 	}
 
+	// Маскировка ФИО актора-принимающего (напр. "Принял(-а) в работу") для заявитель-видимой истории.
+	if masks := loadApproverMasks(ctx, s.db); masks != nil {
+		for i := range items {
+			uid := items[i].UserID
+			items[i].UserName = maskName(masks, &uid, items[i].UserName)
+		}
+	}
+
 	return items, nil
 }
 

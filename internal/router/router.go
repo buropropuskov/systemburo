@@ -561,6 +561,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	aag.GET("/available-users", approvers.GetAvailableUsers, requireAdmin)
 	aag.GET("/history", approvers.GetHistory)
 	aag.POST("", approvers.Create, requireAdmin)
+	aag.PATCH("/:id", approvers.Update, requireAdmin)
 	aag.DELETE("/:id", approvers.Delete, requireAdmin)
 
 	// permission.audit.manage = управление системой прав (роли, группы, назначения,

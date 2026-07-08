@@ -30,6 +30,18 @@ export async function addApprover(userId) {
   return unwrap(res, 'Не удалось добавить принимающего');
 }
 
+/**
+ * Задать/снять маску отображаемого имени принимающего. displayName === null или пустая
+ * строка снимают маску (заявитель снова видит реальное ФИО).
+ */
+export async function updateApprover(id, displayName) {
+  const res = await apiRequest(`/application-approvers/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ display_name: displayName }),
+  });
+  return unwrap(res, 'Не удалось сохранить отображаемое имя');
+}
+
 export async function deleteApprover(id) {
   const res = await apiRequest(`/application-approvers/${id}`, { method: 'DELETE' });
   return unwrap(res, 'Не удалось удалить принимающего');

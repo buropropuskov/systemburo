@@ -8,6 +8,7 @@ import {
   getApprovers,
   getAllUsers,
   addApprover,
+  updateApprover,
   deleteApprover,
   getApproverHistory,
 } from '../approvers'
@@ -63,6 +64,31 @@ describe('api/approvers', () => {
     it('бросает при ошибке добавления', async () => {
       apiRequest.mockResolvedValue(errJson('Пользователь уже является принимающим', 409))
       await expect(addApprover(7)).rejects.toThrow('Пользователь уже является принимающим')
+    })
+  })
+
+  describe('updateApprover', () => {
+    it('PATCH /application-approvers/{id} с маской', async () => {
+      apiRequest.mockResolvedValue(okJson({ message: 'ok' }))
+      await updateApprover(3, 'Оператор Бюро')
+      expect(apiRequest).toHaveBeenCalledWith('/application-approvers/3', {
+        method: 'PATCH',
+        body: JSON.stringify({ display_name: 'Оператор Бюро' }),
+      })
+    })
+
+    it('PATCH с null снимает маску', async () => {
+      apiRequest.mockResolvedValue(okJson({ message: 'ok' }))
+      await updateApprover(3, null)
+      expect(apiRequest).toHaveBeenCalledWith('/application-approvers/3', {
+        method: 'PATCH',
+        body: JSON.stringify({ display_name: null }),
+      })
+    })
+
+    it('бросает при ошибке сохранения', async () => {
+      apiRequest.mockResolvedValue(errJson('Принимающий не найден', 404))
+      await expect(updateApprover(3, 'X')).rejects.toThrow('Принимающий не найден')
     })
   })
 

@@ -52,11 +52,14 @@ type ApplicationResponsibleUser struct {
 }
 
 type ApplicationApprover struct {
-	ID        int       `json:"id"`
-	UserID    int       `gorm:"uniqueIndex" json:"user_id"`
-	User      User      `gorm:"constraint:OnDelete:CASCADE" json:"-"`
-	CreatedAt time.Time `json:"created_at"`
-	CreatedBy *int      `json:"created_by"`
+	ID     int  `json:"id"`
+	UserID int  `gorm:"uniqueIndex" json:"user_id"`
+	User   User `gorm:"constraint:OnDelete:CASCADE" json:"-"`
+	// DisplayName - маска ФИО принимающего для заявитель-видимых мест ("Принял", история
+	// заявки). Пусто/NULL - показывается реальное ФИО из users. Само реальное ФИО не хранится.
+	DisplayName *string   `gorm:"size:255" json:"display_name"`
+	CreatedAt   time.Time `json:"created_at"`
+	CreatedBy   *int      `json:"created_by"`
 }
 
 // ApplicationApproverWithUser — ответ GET /application-approvers с данными пользователя.
@@ -70,6 +73,7 @@ type ApplicationApproverWithUser struct {
 	Position     *string    `json:"position"`
 	Organization *string    `json:"organization"`
 	Company      *string    `json:"company"`
+	DisplayName  *string    `json:"display_name"`
 	CreatedAt    *time.Time `json:"created_at"`
 }
 
@@ -88,6 +92,12 @@ type AvailableApproverUser struct {
 // CreateApproverRequest — запрос POST /application-approvers.
 type CreateApproverRequest struct {
 	UserID int `json:"user_id" validate:"gte=1"`
+}
+
+// UpdateApproverRequest — запрос PATCH /application-approvers/:id: задать/снять маску
+// отображаемого имени. null или пустая строка снимают маску (показывается реальное ФИО).
+type UpdateApproverRequest struct {
+	DisplayName *string `json:"display_name"`
 }
 
 type ApplicationViewer struct {
