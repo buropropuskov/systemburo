@@ -563,6 +563,9 @@ type CarWithPlaces struct {
 	Company        *string          `json:"company"`
 	CompanyID      *int             `json:"company_id"`
 	UnloadPlaces   []UnloadPlaceRef `json:"unload_places"`
+	// TargetTables - таблицы «Проезд», выбранные для машины (#1036), зеркало
+	// EmployeeWithTables.TargetTables у сотрудников.
+	TargetTables []TableInfoRef `json:"target_tables"`
 	// BlacklistSimilar - предупреждение о возможном обходе ЧС (#481): заполнено, если
 	// номер близок к активной записи ЧС (но не точное совпадение). nil - элемент чист.
 	BlacklistSimilar *BlacklistFlagInfo `json:"blacklist_similar,omitempty"`

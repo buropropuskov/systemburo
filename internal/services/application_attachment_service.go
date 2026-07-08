@@ -280,6 +280,15 @@ func (s *applicationService) GetAttachmentCars(ctx context.Context, attachmentID
 			ORDER BY cup.order_index
 		`, car.ID).Scan(&places)
 
+		tables := make([]TableInfoRef, 0)
+		s.db.WithContext(ctx).Raw(`
+			SELECT st.id, st.name, st.display_name
+			FROM car_target_tables ctt
+			JOIN system_tables st ON ctt.table_id = st.id
+			WHERE ctt.car_id = ?
+			ORDER BY ctt.order_index
+		`, car.ID).Scan(&tables)
+
 		result = append(result, CarWithPlaces{
 			ID:               car.ID,
 			CarNumber:        car.CarNumber,
@@ -294,6 +303,7 @@ func (s *applicationService) GetAttachmentCars(ctx context.Context, attachmentID
 			Company:          car.Company,
 			CompanyID:        car.CompanyID,
 			UnloadPlaces:     places,
+			TargetTables:     tables,
 			BlacklistSimilar: flags[car.ID],
 		})
 	}

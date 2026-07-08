@@ -260,6 +260,51 @@ func TestSubmitCar_PassageTablesWrittenAndScoped(t *testing.T) {
 	assert.Empty(t, testutil.ParseSlice(t, rec), "машина не видна в непривязанной таблице")
 }
 
+// GET /attachments/:id/cars отдаёт target_tables машины по образцу employee (#1036 срез E).
+func TestGetAttachmentCars_IncludesTargetTables(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	dn := "Проезд E"
+	tbl := models.SystemTable{Name: "cars_e_target", DisplayName: &dn, TableType: "cars", IsActive: true}
+	require.NoError(t, db.Create(&tbl).Error)
+
+	token := testutil.RegisterAndLogin(t, e, "cartarget1", "pass123", 1, td.OrgID, td.CompanyID)
+	uaID := seedUniqueAttachment(t, db, "cars", "cars_target_tmpl", "Cars Target")
+
+	body := fmt.Sprintf(`{
+		"message":"target tables test","organization":"Test Organization",
+		"responsible_person":"Test","contact_phone":"+79001234567","data_approval":true,
+		"attachments":[{"attachment_type":"cars","attachment_name":"cars_tmpl",
+			"attachment_display_name":"Cars Template","unique_attachment_id":%d,
+			"entry_date_from":"2026-04-01","entry_date_to":"2099-12-31",
+			"data":{"vehicles":[{"car_number":"D555DD177","car_brand":"Volvo","passage_tables":[%d]}]}}]
+	}`, uaID, tbl.ID)
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code)
+	createResp := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec)
+
+	rec = testutil.GET(t, e, fmt.Sprintf("/applications/%d/attachments", createResp.ApplicationID), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code)
+	atts := testutil.ParseSlice(t, rec)
+	require.NotEmpty(t, atts)
+	attID := int(atts[0]["id"].(float64))
+
+	rec = testutil.GET(t, e, fmt.Sprintf("/attachments/%d/cars", attID), testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusOK, rec.Code)
+	cars := testutil.ParseSlice(t, rec)
+	require.Len(t, cars, 1)
+
+	targetTables, ok := cars[0]["target_tables"].([]interface{})
+	require.True(t, ok, "target_tables должен присутствовать в ответе вложения-машины")
+	require.Len(t, targetTables, 1)
+	table := targetTables[0].(map[string]interface{})
+	assert.Equal(t, dn, table["display_name"])
+	assert.EqualValues(t, tbl.ID, table["id"])
+}
+
 // --- GET /cars/fact-for-tables ---
 
 func TestGetFactCarsForTables_Empty(t *testing.T) {

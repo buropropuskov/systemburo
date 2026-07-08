@@ -104,6 +104,15 @@
                       {{ getTruncatedPlacesList(car.unload_places) }}
                     </span>
                   </div>
+                  <div
+                    v-if="car.target_tables && car.target_tables.length > 0"
+                    class="target-tables-container"
+                    :title="getFullTablesList(car.target_tables)"
+                  >
+                    <span class="tables-list">
+                      {{ getTruncatedTablesList(car.target_tables) }}
+                    </span>
+                  </div>
                   <Badge
                     v-if="car.blacklist_similar"
                     class="blacklist-badge"
