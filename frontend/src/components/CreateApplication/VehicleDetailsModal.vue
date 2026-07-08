@@ -255,6 +255,32 @@
                   </div>
                 </div>
 
+                <!-- Секция Проезд (таблицы) -->
+                <div class="details-section">
+                  <div class="section-header">
+                    <h4 class="section-title">
+                      Проезд
+                    </h4>
+                  </div>
+                  <div class="section-body">
+                    <div class="places-list">
+                      <div
+                        v-for="tableId in vehicle.target_tables"
+                        :key="tableId"
+                        class="place-item"
+                      >
+                        {{ getTableName(tableId) }}
+                      </div>
+                      <div
+                        v-if="!vehicle.target_tables || vehicle.target_tables.length === 0"
+                        class="no-places"
+                      >
+                        Проезд не указан
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <!-- Секция Статус (только для автомобилей; в корзине не показываем) -->
                 <div
                   v-if="showStatusSection"
@@ -443,6 +469,10 @@ export default {
             default: null
         },
         allUnloadingPlaces: {
+            type: Array,
+            default: () => []
+        },
+        allTables: {
             type: Array,
             default: () => []
         },
@@ -741,6 +771,15 @@ export default {
             }
             const place = this.allUnloadingPlaces.find(p => p.id === placeId);
             return place ? place.name : `ID: ${placeId}`;
+        },
+
+        getTableName(tableId) {
+            let found = this.allTables.find(t => (t.table && t.table.id === tableId) || t.id === tableId);
+            if (found) {
+                let tbl = found.table || found;
+                return tbl.display_name || tbl.name || `ID: ${tableId}`;
+            }
+            return `Неизвестное место (ID: ${tableId})`;
         },
 
         getFormatName(formatId) {
