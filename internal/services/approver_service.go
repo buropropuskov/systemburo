@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"net/http"
+	"strings"
 	"time"
 
 	"systemburo/internal/models"
@@ -18,6 +19,7 @@ type ApproverService interface {
 	GetAll(ctx context.Context) ([]models.ApplicationApproverWithUser, error)
 	GetAvailableUsers(ctx context.Context) ([]models.AvailableApproverUser, error)
 	Create(ctx context.Context, userID int, createdByUsername string) error
+	Update(ctx context.Context, id int, displayName *string, actorUsername string) error
 	Delete(ctx context.Context, id int, actorUsername string) error
 	GetHistory(ctx context.Context) ([]models.ApplicationApproverHistoryItem, error)
 }
@@ -38,7 +40,7 @@ func (s *approverService) GetAll(ctx context.Context) ([]models.ApplicationAppro
 	err := s.db.WithContext(ctx).
 		Table("application_approvers aa").
 		Select(`aa.id, aa.user_id, u.username, u.last_name, u.first_name, u.middle_name,
-			u."position", o.name as organization, c.name as company, aa.created_at`).
+			u."position", o.name as organization, c.name as company, aa.display_name, aa.created_at`).
 		Joins("JOIN users u ON u.id = aa.user_id").
 		Joins("LEFT JOIN organizations o ON o.id = u.organization_id").
 		Joins("LEFT JOIN companies c ON c.id = u.company_id").
@@ -99,6 +101,44 @@ func (s *approverService) Create(ctx context.Context, userID int, createdByUsern
 	approverName := s.resolveUserName(ctx, userID)
 	s.recorder.Log(ctx, nil, models.AuditEntityApprover, &userID, models.ApproverActionCreated, &createdByID,
 		map[string]any{"approver_name": approverName})
+	return nil
+}
+
+// Update задаёт или снимает маску отображаемого имени принимающего. Пустая строка/только
+// пробелы -> NULL (показывается реальное ФИО). Изменение фиксируется в аудите принимающих.
+func (s *approverService) Update(ctx context.Context, id int, displayName *string, actorUsername string) error {
+	var mask *string
+	if displayName != nil {
+		if trimmed := strings.TrimSpace(*displayName); trimmed != "" {
+			mask = &trimmed
+		}
+	}
+
+	result := s.db.WithContext(ctx).
+		Model(&models.ApplicationApprover{}).
+		Where("id = ?", id).
+		Update("display_name", mask)
+	if result.Error != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error updating approver")
+	}
+	if result.RowsAffected == 0 {
+		return echo.NewHTTPError(http.StatusNotFound, "Approver not found")
+	}
+
+	// Аудит best-effort: снимок user_id и реального имени принимающего + новая маска.
+	var userID int
+	if err := s.db.WithContext(ctx).Table("application_approvers").Select("user_id").Where("id = ?", id).Row().Scan(&userID); err == nil && userID > 0 {
+		var actorID *int
+		var aid int
+		if err := s.db.WithContext(ctx).Table("users").Select("id").Where("username = ?", actorUsername).Row().Scan(&aid); err == nil {
+			actorID = &aid
+		}
+		details := map[string]any{"approver_name": s.resolveUserName(ctx, userID)}
+		if mask != nil {
+			details["display_name"] = *mask
+		}
+		s.recorder.Log(ctx, nil, models.AuditEntityApprover, &userID, models.ApproverActionRenamed, actorID, details)
+	}
 	return nil
 }
 

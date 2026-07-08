@@ -209,11 +209,13 @@ import ExcelJS from 'exceljs';
 const ACTION_TEXTS = {
   created: 'Добавлен принимающий',
   deleted: 'Удалён принимающий',
+  renamed: 'Изменена маска принимающего',
 };
 
 const ACTION_DOT_CLASS = {
   created: 'dot-create',
   deleted: 'dot-deactivate',
+  renamed: 'dot-update',
 };
 
 export default {
@@ -905,6 +907,7 @@ export default {
 
 .dot-create { background: #4F5BDF; }
 .dot-deactivate { background: #6b7280; }
+.dot-update { background: #f59e0b; }
 .dot-default { background: #9ca3af; }
 
 .history-content {

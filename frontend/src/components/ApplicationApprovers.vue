@@ -96,6 +96,13 @@
                 >
                   {{ getFullName(approver) }}
                 </span>
+                <span
+                  v-if="approver.display_name"
+                  class="mask-tag"
+                  :title="`Маска: ${approver.display_name}`"
+                >
+                  маска
+                </span>
               </div>
               <div class="table-col date-col">
                 <span class="cell-content">{{ formatDate(approver.created_at) }}</span>
@@ -128,6 +135,13 @@
               <h3 class="details-title">
                 {{ getFullName(selectedApprover) }}
               </h3>
+              <span
+                v-if="selectedApprover.display_name"
+                class="mask-tag"
+                :title="`Заявитель видит: ${selectedApprover.display_name}`"
+              >
+                {{ selectedApprover.display_name }}
+              </span>
             </div>
             <div class="details-header-actions">
               <button
@@ -156,6 +170,32 @@
             <div class="info-row">
               <span class="info-label">Добавлен:</span>
               <span class="info-value">{{ formatDate(selectedApprover.created_at) }}</span>
+            </div>
+
+            <div class="mask-block">
+              <span class="info-label">Отображаемое имя:</span>
+              <div class="mask-field">
+                <input
+                  v-model="maskDraft"
+                  class="lk-input mask-input"
+                  type="text"
+                  maxlength="255"
+                  placeholder="Реальное ФИО (по умолчанию)"
+                  data-testid="approver-mask-input"
+                  @keyup.enter="saveMask"
+                >
+                <button
+                  class="lk-button lk-button--primary mask-save"
+                  :disabled="isSavingMask || !maskChanged"
+                  data-testid="approver-mask-save"
+                  @click="saveMask"
+                >
+                  {{ isSavingMask ? 'Сохранение...' : 'Сохранить' }}
+                </button>
+              </div>
+              <p class="mask-hint">
+                Заявитель увидит это имя вместо реального ФИО в блоке «Принял» и в истории заявки. Пусто - реальное ФИО.
+              </p>
             </div>
 
             <div class="details-meta">
@@ -326,7 +366,7 @@ import { useDeletionsStore } from '@/stores/deletions';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import { apiRequest } from '@/api/client';
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
-import { getApprovers, getAllUsers, addApprover, deleteApprover } from '@/api/approvers';
+import { getApprovers, getAllUsers, addApprover, updateApprover, deleteApprover } from '@/api/approvers';
 
 export default {
   name: 'ApplicationApproversManagement',
@@ -345,6 +385,8 @@ export default {
       sortDirection: 'asc',
       isLoading: false,
       selectedApprover: null,
+      maskDraft: '',
+      isSavingMask: false,
       pendingDeleteIds: [],
       showAddModal: false,
       userSearchQuery: '',
@@ -402,6 +444,10 @@ export default {
         variants,
       )).slice(0, 10);
     },
+    maskChanged() {
+      const current = (this.selectedApprover?.display_name || '').trim();
+      return this.maskDraft.trim() !== current;
+    },
   },
   created() {
     this.overlay.close = () => { this.requestCloseAdd(); };
@@ -442,6 +488,26 @@ export default {
     },
     selectApprover(approver) {
       this.selectedApprover = approver;
+      this.maskDraft = approver.display_name || '';
+    },
+    async saveMask() {
+      if (!this.selectedApprover || this.isSavingMask || !this.maskChanged) return;
+      const approver = this.selectedApprover;
+      const value = this.maskDraft.trim();
+      this.isSavingMask = true;
+      try {
+        await updateApprover(approver.id, value || null);
+        await this.refresh();
+        if (value) {
+          useDeletionsStore().notify({ prefix: 'Отображаемое имя задано: ', bold: value });
+        } else {
+          useDeletionsStore().notify({ prefix: 'Маска снята, показывается реальное ФИО' });
+        }
+      } catch {
+        useDeletionsStore().notify({ prefix: 'Не удалось сохранить отображаемое имя', type: 'error' });
+      } finally {
+        this.isSavingMask = false;
+      }
     },
     openHistory() {
       this.showHistory = true;
@@ -471,6 +537,7 @@ export default {
           const fresh = this.approvers.find(a => a.id === this.selectedApprover.id);
           if (fresh) {
             this.selectedApprover = fresh;
+            this.maskDraft = fresh.display_name || '';
           } else if (!this.pendingDeleteIds.includes(this.selectedApprover.id)) {
             this.selectedApprover = null;
           }
@@ -903,6 +970,63 @@ export default {
   color: #a2a2a2;
   font-weight: 400;
   font-size: 14px;
+}
+
+/* Маска отображаемого имени */
+.name-col {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.name-col .truncate-text {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.mask-tag {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #eef0ff;
+  color: #4F5BDF;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mask-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 0 4px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.mask-field {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.mask-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.mask-save {
+  flex-shrink: 0;
+}
+
+.mask-hint {
+  margin: 0;
+  font-size: 12px;
+  color: #a2a2a2;
+  line-height: 1.4;
 }
 
 /* Модалка */

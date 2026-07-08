@@ -6,6 +6,7 @@ import "time"
 const (
 	ApproverActionCreated = "created"
 	ApproverActionDeleted = "deleted"
+	ApproverActionRenamed = "renamed"
 )
 
 // ApplicationApproverHistoryItem — запись аудита с именем актора для API (LEFT JOIN users).

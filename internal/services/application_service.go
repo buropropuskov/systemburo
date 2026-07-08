@@ -680,6 +680,20 @@ func NewApplicationService(db *gorm.DB, permSvc PermissionService, notifSvc Noti
 // --- Основные методы ---
 
 // GetApplications возвращает список заявок для Центра заявок с фильтрацией.
+// maskResponsibleNames подменяет ФИО принимающего его маской в списке заявок
+// (responsible_name / responsible_full_name) для заявитель-видимых списков. Sender и прочие
+// имена не трогаются. No-op, если ни у одного принимающего нет маски.
+func (s *applicationService) maskResponsibleNames(ctx context.Context, rows []ApplicationWithDetails) {
+	masks := loadApproverMasks(ctx, s.db)
+	if masks == nil {
+		return
+	}
+	for i := range rows {
+		rows[i].ResponsibleName = maskName(masks, rows[i].ResponsibleUserID, rows[i].ResponsibleName)
+		rows[i].ResponsibleFullName = maskNamePtr(masks, rows[i].ResponsibleUserID, rows[i].ResponsibleFullName)
+	}
+}
+
 func (s *applicationService) GetApplications(ctx context.Context, username string, filter ApplicationFilter) ([]ApplicationWithDetails, error) {
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
@@ -708,6 +722,7 @@ func (s *applicationService) GetApplications(ctx context.Context, username strin
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
 
+	s.maskResponsibleNames(ctx, rows)
 	return rows, nil
 }
 
@@ -756,6 +771,7 @@ func (s *applicationService) GetApplicationsPaginated(ctx context.Context, usern
 		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
 
+	s.maskResponsibleNames(ctx, rows)
 	return rows, total, nil
 }
 
@@ -782,6 +798,7 @@ func (s *applicationService) GetUserApplications(ctx context.Context, username s
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
 
+	s.maskResponsibleNames(ctx, rows)
 	return rows, nil
 }
 
@@ -879,6 +896,11 @@ func (s *applicationService) GetApplicationByID(ctx context.Context, username st
 		responsibleName = *row.ResponsibleName
 	}
 
+	// Маскировка ФИО принимающего (кто принял заявку) для заявитель-видимой детали.
+	masks := loadApproverMasks(ctx, s.db)
+	responsibleName = maskName(masks, row.ResponsibleUserID, responsibleName)
+	responsibleFullName := maskNamePtr(masks, row.ResponsibleUserID, row.ResponsibleFullName)
+
 	response := map[string]interface{}{
 		"id":                    row.ID,
 		"application_number":    row.ApplicationNumber,
@@ -897,7 +919,7 @@ func (s *applicationService) GetApplicationByID(ctx context.Context, username st
 		"message":               row.Message,
 		"status":                row.Status,
 		"responsible_user_id":   row.ResponsibleUserID,
-		"responsible_full_name": row.ResponsibleFullName,
+		"responsible_full_name": responsibleFullName,
 		"responsible_name":      responsibleName,
 		"responsible_comment":   row.ResponsibleComment,
 		"data_approval":         row.DataApproval,
@@ -972,6 +994,11 @@ func (s *applicationService) GetApplicationDetails(ctx context.Context, applicat
 		responsibleName = *row.ResponsibleName
 	}
 
+	// Маскировка ФИО принимающего (кто принял заявку) для заявитель-видимой детали.
+	masks := loadApproverMasks(ctx, s.db)
+	responsibleName = maskName(masks, row.ResponsibleUserID, responsibleName)
+	responsibleFullName := maskNamePtr(masks, row.ResponsibleUserID, row.ResponsibleFullName)
+
 	response := map[string]interface{}{
 		"id":                    row.ID,
 		"application_number":    row.ApplicationNumber,
@@ -990,7 +1017,7 @@ func (s *applicationService) GetApplicationDetails(ctx context.Context, applicat
 		"message":               row.Message,
 		"status":                row.Status,
 		"responsible_user_id":   row.ResponsibleUserID,
-		"responsible_full_name": row.ResponsibleFullName,
+		"responsible_full_name": responsibleFullName,
 		"responsible_name":      responsibleName,
 		"responsible_comment":   row.ResponsibleComment,
 		"data_approval":         row.DataApproval,
