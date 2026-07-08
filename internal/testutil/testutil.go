@@ -51,7 +51,7 @@ var tables = []string{
 	"feedback", "application_items", "items",
 	"application_blacklist_overrides", "application_blacklist_flags",
 	"employee_target_tables", "employee_files", "application_employees", "employees",
-	"car_unload_places", "cars",
+	"car_unload_places", "car_target_tables", "cars",
 	"vehicle_blacklists",
 	"person_blacklists",
 	"attachment_custom_values", "attachment_custom_fields", "attachment_field_configs",

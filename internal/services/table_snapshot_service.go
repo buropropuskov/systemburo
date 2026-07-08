@@ -22,8 +22,8 @@ import (
 // РОВНО тот набор строк, что показывает страница таблицы, поэтому переиспользует их
 // листинги, а не пишет свой SQL.
 type snapshotCarLister interface {
-	GetActiveCarsForTables(ctx context.Context) ([]TableCarResponse, error)
-	GetFactCarsForTables(ctx context.Context) ([]TableCarResponse, error)
+	GetActiveCarsForTable(ctx context.Context, tableID int) ([]TableCarResponse, error)
+	GetFactCarsForTable(ctx context.Context, tableID int) ([]TableCarResponse, error)
 }
 
 type snapshotEmployeeLister interface {
@@ -172,11 +172,11 @@ func (s *tableSnapshotService) SnapshotAllActiveTables(ctx context.Context, reas
 func (s *tableSnapshotService) collectRows(ctx context.Context, table models.SystemTable) (json.RawMessage, models.SnapshotCounts, error) {
 	switch table.TableType {
 	case models.TableTypeCars:
-		// Листинг машин глобален (не скоуплен по table_id) - как и страница cars-таблицы;
+		// Машины скоуплены по «Проезду» (table_id, #1036) - как и страница cars-таблицы;
 		// territory_status уже в TableCarResponse. Если таблица показывает блок «по факту»
 		// (show_fact_table), подмешиваем его тем же листингом, что и страница, помечая
 		// строки is_fact - иначе слепок терял бы машины «по факту», стоявшие на территории.
-		cars, err := s.cars.GetActiveCarsForTables(ctx)
+		cars, err := s.cars.GetActiveCarsForTable(ctx, table.ID)
 		if err != nil {
 			return nil, models.SnapshotCounts{}, fmt.Errorf("failed to list cars for snapshot: %w", err)
 		}
@@ -187,7 +187,7 @@ func (s *tableSnapshotService) collectRows(ctx context.Context, table models.Sys
 			statuses = append(statuses, c.TerritoryStatus)
 		}
 		if table.ShowFactTable {
-			facts, err := s.cars.GetFactCarsForTables(ctx)
+			facts, err := s.cars.GetFactCarsForTable(ctx, table.ID)
 			if err != nil {
 				return nil, models.SnapshotCounts{}, fmt.Errorf("failed to list fact cars for snapshot: %w", err)
 			}

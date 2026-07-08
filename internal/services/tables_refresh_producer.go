@@ -7,7 +7,6 @@ import (
 
 	"gorm.io/gorm"
 
-	"systemburo/internal/models"
 	"systemburo/internal/realtime"
 )
 
@@ -40,15 +39,15 @@ func NewTablesRefreshPublisher(db *gorm.DB, resolver *PermissionResolver, publis
 	return &TablesRefreshPublisher{db: db, resolver: resolver, publisher: publisher}
 }
 
-// NotifyCarsChanged публикует обновление всем активным cars-таблицам: строка
-// машины видна в каждой из них, поэтому изменение любой машины обновляет их все.
-func (p *TablesRefreshPublisher) NotifyCarsChanged(ctx context.Context) {
+// NotifyCarsChanged публикует обновление таблицам «Проезд» изменённой машины
+// (#1036): строка видна только в выбранных cars-таблицах, туда и шлём сигнал.
+func (p *TablesRefreshPublisher) NotifyCarsChanged(ctx context.Context, carID int) {
 	if p == nil || p.publisher == nil {
 		return
 	}
-	ids, err := p.carsTableIDs(ctx)
+	ids, err := p.carTargetTableIDs(ctx, []int{carID})
 	if err != nil {
-		slog.Warn("tables.refresh: load cars tables failed", "err", err)
+		slog.Warn("tables.refresh: load car tables failed", "car_id", carID, "err", err)
 		return
 	}
 	p.publishTables(ctx, ids)
@@ -69,9 +68,9 @@ func (p *TablesRefreshPublisher) NotifyEmployeeChanged(ctx context.Context, empl
 }
 
 // NotifyApplicationActivated публикует обновление таблицам, затронутым принятием
-// заявки: если активированы машины - всем cars-таблицам; для активированных
-// сотрудников - их целевым таблицам. Один момент принятия рождает сигналы всем
-// местам, где новые строки появляются live.
+// заявки: активированным машинам и сотрудникам - их целевым таблицам («Проезд» /
+// «Места прохода»). Один момент принятия рождает сигналы всем местам, где новые
+// строки появляются live.
 func (p *TablesRefreshPublisher) NotifyApplicationActivated(ctx context.Context, applicationID int) {
 	if p == nil || p.publisher == nil {
 		return
@@ -79,14 +78,16 @@ func (p *TablesRefreshPublisher) NotifyApplicationActivated(ctx context.Context,
 
 	var tableIDs []int
 
-	var hasCars bool
+	var carIDs []int
 	if err := p.db.WithContext(ctx).Raw(
-		`SELECT EXISTS(SELECT 1 FROM attachments WHERE application_id = ? AND attachment_type = 'cars')`,
-		applicationID).Scan(&hasCars).Error; err != nil {
-		slog.Warn("tables.refresh: application cars check failed", "application_id", applicationID, "err", err)
-	} else if hasCars {
-		if ids, err := p.carsTableIDs(ctx); err != nil {
-			slog.Warn("tables.refresh: load cars tables failed", "err", err)
+		`SELECT c.id FROM cars c
+		 JOIN attachments a ON a.id = c.attachment_id
+		 WHERE a.application_id = ? AND a.attachment_type = 'cars'`,
+		applicationID).Scan(&carIDs).Error; err != nil {
+		slog.Warn("tables.refresh: load application cars failed", "application_id", applicationID, "err", err)
+	} else if len(carIDs) > 0 {
+		if ids, err := p.carTargetTableIDs(ctx, carIDs); err != nil {
+			slog.Warn("tables.refresh: load car tables failed", "err", err)
 		} else {
 			tableIDs = append(tableIDs, ids...)
 		}
@@ -153,14 +154,18 @@ func (p *TablesRefreshPublisher) publishTables(ctx context.Context, tableIDs []i
 	}
 }
 
-// carsTableIDs - id всех активных таблиц типа cars.
-func (p *TablesRefreshPublisher) carsTableIDs(ctx context.Context) ([]int, error) {
+// carTargetTableIDs - id таблиц «Проезд» переданных машин (без дублей, #1036).
+func (p *TablesRefreshPublisher) carTargetTableIDs(ctx context.Context, carIDs []int) ([]int, error) {
+	if len(carIDs) == 0 {
+		return nil, nil
+	}
 	var ids []int
 	if err := p.db.WithContext(ctx).
-		Table("system_tables").
-		Where("table_type = ? AND is_active = ?", models.TableTypeCars, true).
-		Pluck("id", &ids).Error; err != nil {
-		return nil, fmt.Errorf("failed to load cars table ids: %w", err)
+		Table("car_target_tables").
+		Where("car_id IN ?", carIDs).
+		Distinct("table_id").
+		Pluck("table_id", &ids).Error; err != nil {
+		return nil, fmt.Errorf("failed to load car target table ids: %w", err)
 	}
 	return ids, nil
 }

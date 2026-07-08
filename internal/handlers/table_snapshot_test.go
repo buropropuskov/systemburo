@@ -47,6 +47,9 @@ func TestTableSnapshot_Cars_CapturesRowsAndCounts(t *testing.T) {
 
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td)
+	// Привязка «Проезд» к снимаемой таблице (#1036): снимок скоуплен по car_target_tables.
+	require.NoError(t, db.Exec(
+		"INSERT INTO car_target_tables (car_id, table_id, order_index) VALUES (?, ?, 1)", carID, tbl.ID).Error)
 	// На территории.
 	require.NoError(t, db.Model(&models.Car{}).Where("id = ?", carID).Update("territory_status", 1).Error)
 
@@ -310,6 +313,9 @@ func TestTableSnapshot_ScheduledBeforeReset_PreservesExitedState(t *testing.T) {
 
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td)
+	// Привязка «Проезд» к снимаемой таблице (#1036): снимок скоуплен по car_target_tables.
+	require.NoError(t, db.Exec(
+		"INSERT INTO car_target_tables (car_id, table_id, order_index) VALUES (?, ?, 1)", carID, tbl.ID).Error)
 	// Машина выехала (2) - именно её сброс обнулит.
 	require.NoError(t, db.Model(&models.Car{}).Where("id = ?", carID).Update("territory_status", 2).Error)
 
@@ -366,6 +372,12 @@ func TestTableSnapshot_FactCars_IncludedOnlyWhenShowFactTable(t *testing.T) {
 	noFact := models.SystemTable{Name: "fact_off", DisplayName: &dnOff, TableType: models.TableTypeCars, IsActive: true, ShowFactTable: false}
 	require.NoError(t, db.Create(&withFact).Error)
 	require.NoError(t, db.Create(&noFact).Error)
+	// Привязка «Проезд» к обеим таблицам (#1036), чтобы тест проверял эффект
+	// show_fact_table, а не scope: fact-машина видна в обеих по «Проезду».
+	for _, tid := range []int{withFact.ID, noFact.ID} {
+		require.NoError(t, db.Exec(
+			"INSERT INTO car_target_tables (car_id, table_id, order_index) VALUES (?, ?, 1)", carID, tid).Error)
+	}
 
 	svc := newSnapshotService(db)
 
@@ -399,11 +411,11 @@ func TestTableSnapshot_FactCars_IncludedOnlyWhenShowFactTable(t *testing.T) {
 // таблицы в SnapshotAllActiveTables не роняет остальные (per-table failed++/continue).
 type failingCarLister struct{}
 
-func (failingCarLister) GetActiveCarsForTables(_ context.Context) ([]services.TableCarResponse, error) {
+func (failingCarLister) GetActiveCarsForTable(_ context.Context, _ int) ([]services.TableCarResponse, error) {
 	return nil, fmt.Errorf("boom: не удалось получить список машин")
 }
 
-func (failingCarLister) GetFactCarsForTables(_ context.Context) ([]services.TableCarResponse, error) {
+func (failingCarLister) GetFactCarsForTable(_ context.Context, _ int) ([]services.TableCarResponse, error) {
 	return nil, fmt.Errorf("boom: не удалось получить список машин «по факту»")
 }
 

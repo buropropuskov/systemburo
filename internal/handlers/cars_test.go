@@ -208,6 +208,58 @@ func TestGetActiveCarsForTable_ScopedByTargetTable(t *testing.T) {
 	assert.Empty(t, inB, "машина не видна в непривязанной таблице")
 }
 
+// Подача заявки с выбранным «Проезд» пишет car_target_tables, и машина видна только
+// в выбранной таблице (#1036, срез B: end-to-end submit -> показ).
+func TestSubmitCar_PassageTablesWrittenAndScoped(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	dnA, dnB := "Проезд A", "Проезд B"
+	tblA := models.SystemTable{Name: "cars_pa", DisplayName: &dnA, TableType: "cars", IsActive: true}
+	tblB := models.SystemTable{Name: "cars_pb", DisplayName: &dnB, TableType: "cars", IsActive: true}
+	require.NoError(t, db.Create(&tblA).Error)
+	require.NoError(t, db.Create(&tblB).Error)
+
+	token := testutil.RegisterAndLogin(t, e, "carpass1", "pass123", 1, td.OrgID, td.CompanyID)
+	uaID := seedUniqueAttachment(t, db, "cars", "cars_pass_tmpl", "Cars Pass")
+
+	body := fmt.Sprintf(`{
+		"message":"passage test","organization":"Test Organization",
+		"responsible_person":"Test","contact_phone":"+79001234567","data_approval":true,
+		"attachments":[{"attachment_type":"cars","attachment_name":"cars_tmpl",
+			"attachment_display_name":"Cars Template","unique_attachment_id":%d,
+			"entry_date_from":"2026-04-01","entry_date_to":"2099-12-31",
+			"data":{"vehicles":[{"car_number":"C777CC177","car_brand":"Kia","passage_tables":[%d]}]}}]
+	}`, uaID, tblA.ID)
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// Связь «Проезд» записана подачей.
+	var linkCount int64
+	require.NoError(t, db.Table("car_target_tables ctt").
+		Joins("JOIN cars c ON c.id = ctt.car_id").
+		Where("ctt.table_id = ? AND c.car_number = ?", tblA.ID, "C777CC177").
+		Count(&linkCount).Error)
+	assert.EqualValues(t, 1, linkCount, "submit должен записать car_target_tables для выбранного «Проезда»")
+
+	// Активируем машину и проверяем scoped-показ.
+	var appID int
+	require.NoError(t, db.Raw(`SELECT app.id FROM applications app
+		JOIN attachments a ON a.application_id = app.id
+		JOIN cars c ON c.attachment_id = a.id WHERE c.car_number = ?`, "C777CC177").Scan(&appID).Error)
+	activateCarViaApp(t, e, db, appID, td)
+
+	rec = testutil.GET(t, e, fmt.Sprintf("/cars/active-for-table/%d", tblA.ID), testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusOK, rec.Code)
+	require.Len(t, testutil.ParseSlice(t, rec), 1, "машина видна в привязанной таблице «Проезд»")
+
+	rec = testutil.GET(t, e, fmt.Sprintf("/cars/active-for-table/%d", tblB.ID), testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Empty(t, testutil.ParseSlice(t, rec), "машина не видна в непривязанной таблице")
+}
+
 // --- GET /cars/fact-for-tables ---
 
 func TestGetFactCarsForTables_Empty(t *testing.T) {

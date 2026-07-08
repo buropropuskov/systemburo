@@ -312,6 +312,9 @@ type VehicleInput struct {
 	MarkID       *int    `json:"mark_id"`
 	UnloadPlace  *string `json:"unload_place"`
 	UnloadPlaces []int   `json:"unload_places"`
+	// TargetTables — таблицы «Проезд» (#1036): машина видна только в них. Зеркало
+	// EmployeeInput.TargetTables.
+	TargetTables []int `json:"passage_tables"`
 }
 
 // EmployeeInput данные сотрудника при создании.
@@ -1227,6 +1230,8 @@ func vehicleFieldPresent(v VehicleInput, key string) bool {
 		return v.MarkID != nil || strings.TrimSpace(v.CarBrand) != ""
 	case "unloading_places":
 		return len(v.UnloadPlaces) > 0
+	case "passage_tables":
+		return len(v.TargetTables) > 0
 	}
 	return true
 }
@@ -1619,6 +1624,12 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 					for _, placeID := range v.UnloadPlaces {
 						tx.Exec("INSERT INTO car_unload_places (car_id, unload_place_id, order_index) VALUES (?, ?, 1)", carID, placeID)
 						carPlacesSet[placeID] = struct{}{}
+					}
+
+					// Таблицы «Проезд» (#1036): машина видна только в выбранных cars-
+					// таблицах. Зеркало employee_target_tables.
+					for _, tableID := range v.TargetTables {
+						tx.Exec("INSERT INTO car_target_tables (car_id, table_id, order_index) VALUES (?, ?, 1)", carID, tableID)
 					}
 				}
 				// Пишем дедупированные места в attachment_unload_places (источник для охранника).

@@ -50,7 +50,8 @@ func findTablesRefresh(fake *fakePublisher, scope string) []int {
 
 // TestTablesRefresh_AcceptanceAndCarEntry: принятие заявки с машиной и последующий
 // въезд шлют tables.refresh аудитории cars-таблицы (#840 V2.2/V2.3). Машина видна
-// во всех cars-таблицах, поэтому сигнал идёт по scope tables:<carsTableID>.
+// только в выбранной таблице «Проезд» (#1036), поэтому сигнал идёт по scope
+// tables:<carsTableID> той таблицы, к которой машина привязана passage_tables.
 func TestTablesRefresh_AcceptanceAndCarEntry(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
@@ -104,7 +105,7 @@ func TestTablesRefresh_AcceptanceAndCarEntry(t *testing.T) {
 			EntryDateFrom:         &from,
 			EntryDateTo:           &to,
 			Data: services.AttachmentContentData{
-				Vehicles: &[]services.VehicleInput{{CarNumber: "A003AA777", CarBrand: "Toyota"}},
+				Vehicles: &[]services.VehicleInput{{CarNumber: "A003AA777", CarBrand: "Toyota", TargetTables: []int{carsTable.ID}}},
 			},
 		}},
 	}

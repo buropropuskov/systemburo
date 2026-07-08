@@ -65,6 +65,9 @@ var attachmentFieldRegistry = []FieldDef{
 	{Key: "number", Label: "Номер ТС", Group: FieldGroupCars, DefaultVisible: true, DefaultRequired: true, Requirable: true},
 	{Key: "mark", Label: "Марка ТС", Group: FieldGroupCars, DefaultVisible: true, DefaultRequired: true, Requirable: true},
 	{Key: "unloading_places", Label: "Места разгрузки", Group: FieldGroupCars, DefaultVisible: true, DefaultRequired: true, Requirable: true},
+	// «Проезд» (#1036): таблицы, в которых видна машина. DefaultRequired пока false —
+	// обязательность включается финальным срезом, когда FE-форма уже шлёт passage_tables.
+	{Key: "passage_tables", Label: "Проезд", Group: FieldGroupCars, DefaultVisible: true, DefaultRequired: false, Requirable: true},
 
 	// items
 	{Key: "item_name", Label: "Наименование ТМЦ", Group: FieldGroupItems, DefaultVisible: true, DefaultRequired: true, Requirable: true},
