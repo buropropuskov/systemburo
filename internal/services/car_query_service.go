@@ -45,12 +45,18 @@ func (s *carService) tableCarsBase(ctx context.Context, tableID *int) *gorm.DB {
 			c.entry_date_to, c.entry_time_from, c.entry_time_to,
 			c.status, app.id AS application_id, app.application_number AS application_number`).
 		Joins("JOIN attachments a ON c.attachment_id = a.id").
-		Joins("JOIN applications app ON a.application_id = app.id").
-		Joins("LEFT JOIN organizations o ON app.organization_id = o.id").
-		Joins("LEFT JOIN companies c2 ON app.company_id = c2.id").
+		// LEFT JOIN: ручные машины (#1049) висят на вложении-сироте без заявки
+		// (a.application_id IS NULL, a.is_manual). org/company тогда берутся с самого
+		// вложения (COALESCE), а app.* остаются NULL - это и есть метка «добавлено вручную».
+		Joins("LEFT JOIN applications app ON a.application_id = app.id").
+		Joins("LEFT JOIN organizations o ON o.id = COALESCE(app.organization_id, a.organization_id)").
+		Joins("LEFT JOIN companies c2 ON c2.id = COALESCE(app.company_id, a.company_id)").
 		Where("c.status = ?", 1).
-		Where("app.confirmation = ?", models.ConfirmationApproved).
-		Where("app.status IN ?", []string{models.StatusInWork, models.StatusCompleted})
+		// Заявочные машины видны только по согласованной активной заявке; ручные
+		// минуют это требование - у них заявки нет вовсе, гейт видимости берёт на себя
+		// принадлежность целевой таблице (car_target_tables) + security-видимость (S6).
+		Where("a.is_manual OR (app.confirmation = ? AND app.status IN ?)",
+			models.ConfirmationApproved, []string{models.StatusInWork, models.StatusCompleted})
 	if tableID != nil {
 		q = q.Joins("JOIN car_target_tables ctt ON ctt.car_id = c.id").
 			Where("ctt.table_id = ?", *tableID)

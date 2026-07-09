@@ -54,6 +54,29 @@ func (h *CarHandler) GetActiveCarsForTable(c echo.Context) error {
 	return RespondSuccess(c, cars)
 }
 
+// CreateManualCars обрабатывает POST /cars/manual.
+// @Summary Ручное добавление машин в таблицу без заявки (#1049)
+// @Tags cars
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param body body services.ManualCarRequest true "Машины, организация/компания и целевая таблица"
+// @Success 200 {object} services.ManualCarResponse
+// @Failure 400 {object} models.HTTPError
+// @Failure 403 {object} models.HTTPError
+// @Router /cars/manual [post]
+func (h *CarHandler) CreateManualCars(c echo.Context) error {
+	var req services.ManualCarRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	resp, err := h.service.CreateManualCars(c.Request().Context(), req, GetUserID(c))
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, resp)
+}
+
 // GetFactCarsForTables обрабатывает GET /cars/fact-for-tables.
 // @Summary Получение машин «по факту» для таблиц
 // @Tags cars

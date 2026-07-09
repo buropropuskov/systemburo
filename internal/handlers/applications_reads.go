@@ -179,6 +179,13 @@ func (h *ApplicationHandler) GetAttachmentCars(c echo.Context) error {
 	if err != nil {
 		return err
 	}
+	// Вложение-сирота ручного добавления (#1049, application_id NULL -> appID 0) не
+	// принадлежит заявке: app-detail путь к нему закрыт для всех, включая super и
+	// принимающего (иначе они байпасят CanAccessApplication на appID 0). Ручные машины
+	// доступны только через таблицы (/cars/active-for-table), не через вложение заявки.
+	if appID == 0 {
+		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
+	}
 	username := c.Get("username").(string)
 	if !h.service.CanAccessApplication(c.Request().Context(), appID, username, IsSuperAdmin(c)) {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
@@ -220,6 +227,13 @@ func (h *ApplicationHandler) GetAttachmentEmployees(c echo.Context) error {
 	if err != nil {
 		return err
 	}
+	// Вложение-сирота ручного добавления (#1049, application_id NULL -> appID 0) не
+	// принадлежит заявке: app-detail путь к нему закрыт для всех, включая super и
+	// принимающего (иначе они байпасят CanAccessApplication на appID 0). Ручные машины
+	// доступны только через таблицы (/cars/active-for-table), не через вложение заявки.
+	if appID == 0 {
+		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
+	}
 	username := c.Get("username").(string)
 	if !h.service.CanAccessApplication(c.Request().Context(), appID, username, IsSuperAdmin(c)) {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
@@ -260,6 +274,13 @@ func (h *ApplicationHandler) GetAttachmentItems(c echo.Context) error {
 	appID, err := h.service.GetApplicationIDByAttachment(c.Request().Context(), id)
 	if err != nil {
 		return err
+	}
+	// Вложение-сирота ручного добавления (#1049, application_id NULL -> appID 0) не
+	// принадлежит заявке: app-detail путь к нему закрыт для всех, включая super и
+	// принимающего (иначе они байпасят CanAccessApplication на appID 0). Ручные машины
+	// доступны только через таблицы (/cars/active-for-table), не через вложение заявки.
+	if appID == 0 {
+		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 	username := c.Get("username").(string)
 	if !h.service.CanAccessApplication(c.Request().Context(), appID, username, IsSuperAdmin(c)) {

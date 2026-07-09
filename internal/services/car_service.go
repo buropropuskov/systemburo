@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"systemburo/internal/models"
@@ -18,6 +19,10 @@ import (
 type CarService interface {
 	// CreateCar создаёт автомобиль и связи с местами разгрузки (транзакция).
 	CreateCar(ctx context.Context, req CreateCarRequest, userID int) (*CreateCarResponse, error)
+	// CreateManualCars добавляет машины прямо в таблицу без заявки (#1049, режим-1):
+	// создаёт вложение-сироту (application_id NULL, is_manual, org/company на вложении),
+	// сами машины со status=1 и привязку к целевым таблицам - одной транзакцией.
+	CreateManualCars(ctx context.Context, req ManualCarRequest, userID int) (*ManualCarResponse, error)
 	// GetActiveCarsForTables возвращает активные машины для всех таблиц (без «по факту»).
 	GetActiveCarsForTables(ctx context.Context) ([]TableCarResponse, error)
 	// GetActiveCarsForTable возвращает активные машины конкретной таблицы «Проезд» (#1036).
@@ -71,6 +76,43 @@ type CreateCarResponse struct {
 	Success bool   `json:"success"`
 	Message string `json:"message"`
 	CarID   int    `json:"car_id"`
+}
+
+// ManualCarRequest -- тело запроса ручного добавления машин в таблицу (#1049, режим-1
+// без заявки). org/company и время действия живут на вложении-сироте, само вложение
+// получает is_manual=true и application_id NULL. TableID -- таблица, из шапки которой
+// нажали «Добавить вручную»: машина гарантированно попадёт в неё (плюс любые таблицы
+// «Проезда», выбранные в форме, через Vehicles[].TargetTables).
+type ManualCarRequest struct {
+	OrganizationID int             `json:"organization_id"`
+	CompanyID      *int            `json:"company_id"`
+	TableID        int             `json:"table_id"`
+	EntryDateFrom  *string         `json:"entry_date_from"`
+	EntryDateTo    *string         `json:"entry_date_to"`
+	EntryTimeFrom  *string         `json:"entry_time_from"`
+	EntryTimeTo    *string         `json:"entry_time_to"`
+	RoofAccess     bool            `json:"roof_access"`
+	FreeParking    bool            `json:"free_parking"`
+	Vehicles       []ManualVehicle `json:"vehicles"`
+}
+
+// ManualVehicle -- одна машина в запросе ручного добавления (зеркало полей VehicleForm).
+type ManualVehicle struct {
+	CarNumber    string  `json:"car_number"`
+	CarBrand     string  `json:"car_brand"`
+	MarkID       *int    `json:"mark_id"`
+	MarkName     *string `json:"mark_name"`
+	UnloadPlace  *string `json:"unload_place"`
+	UnloadPlaces []int   `json:"unload_places"`
+	TargetTables []int   `json:"target_tables"`
+}
+
+// ManualCarResponse -- ответ после ручного добавления машин.
+type ManualCarResponse struct {
+	Success      bool   `json:"success"`
+	Message      string `json:"message"`
+	AttachmentID int    `json:"attachment_id"`
+	CarIDs       []int  `json:"car_ids"`
 }
 
 // CheckActiveCarRequest -- параметры запроса проверки активной машины.
@@ -299,6 +341,133 @@ func (s *carService) CreateCar(ctx context.Context, req CreateCarRequest, userID
 		Success: true,
 		Message: "Car created successfully",
 		CarID:   carID,
+	}, nil
+}
+
+// CreateManualCars добавляет машины в таблицу без заявки (#1049, режим-1). Создаёт
+// вложение-сироту (application_id NULL, is_manual, org/company на вложении), затем сами
+// машины со status=1 (одобрения нет - сразу активны), их места разгрузки, привязку к
+// целевым таблицам и записи аудита. Всё одной транзакцией: частичного добавления быть
+// не должно.
+func (s *carService) CreateManualCars(ctx context.Context, req ManualCarRequest, userID int) (*ManualCarResponse, error) {
+	if req.OrganizationID <= 0 {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Не указана организация")
+	}
+	if req.TableID <= 0 {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Не указана таблица")
+	}
+	if len(req.Vehicles) == 0 {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Не указаны машины")
+	}
+	for _, v := range req.Vehicles {
+		if strings.TrimSpace(v.CarNumber) == "" {
+			return nil, echo.NewHTTPError(http.StatusBadRequest, "У машины не указан номер")
+		}
+	}
+
+	var attID int
+	carIDs := make([]int, 0, len(req.Vehicles))
+
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		statusOne := 1
+		att := models.Attachment{
+			ApplicationID:   nil,
+			AttachmentType:  "cars",
+			EntryDateFrom:   req.EntryDateFrom,
+			EntryDateTo:     req.EntryDateTo,
+			EntryTimeFrom:   req.EntryTimeFrom,
+			EntryTimeTo:     req.EntryTimeTo,
+			RoofAccess:      req.RoofAccess,
+			FreeParking:     req.FreeParking,
+			OrganizationID:  &req.OrganizationID,
+			CompanyID:       req.CompanyID,
+			IsManual:        true,
+			CreatedByUserID: &userID,
+			Status:          &statusOne,
+		}
+		if err := tx.Create(&att).Error; err != nil {
+			slog.Error("не удалось создать ручное вложение", "error", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error creating manual attachment")
+		}
+		attID = att.ID
+
+		// Дедуп-union мест всех машин вложения для attachment_unload_places (источник
+		// видимости мест для охранника, S6). car_unload_places пишем на каждую машину.
+		attachPlaces := make(map[int]struct{})
+
+		for _, v := range req.Vehicles {
+			carStatus := statusOne
+			car := models.Car{
+				AttachmentID:  attID,
+				CarNumber:     &v.CarNumber,
+				CarBrand:      &v.CarBrand,
+				MarkID:        v.MarkID,
+				MarkName:      v.MarkName,
+				UnloadPlace:   v.UnloadPlace,
+				EntryDateFrom: req.EntryDateFrom,
+				EntryTimeFrom: req.EntryTimeFrom,
+				EntryDateTo:   req.EntryDateTo,
+				EntryTimeTo:   req.EntryTimeTo,
+				Status:        &carStatus,
+			}
+			if err := tx.Create(&car).Error; err != nil {
+				slog.Error("не удалось создать ручную машину", "car_number", v.CarNumber, "error", err)
+				return echo.NewHTTPError(http.StatusInternalServerError, "Error creating manual car")
+			}
+			carIDs = append(carIDs, car.ID)
+
+			for _, placeID := range v.UnloadPlaces {
+				orderIdx := 1
+				cup := models.CarUnloadPlace{CarID: car.ID, UnloadPlaceID: placeID, OrderIndex: &orderIdx}
+				if err := tx.Create(&cup).Error; err != nil {
+					slog.Error("не удалось создать связь машины с местом разгрузки", "car_id", car.ID, "unload_place_id", placeID, "error", err)
+					return echo.NewHTTPError(http.StatusInternalServerError, "Error creating car unload place")
+				}
+				attachPlaces[placeID] = struct{}{}
+			}
+
+			// Целевые таблицы: таблица со страницы (req.TableID, гарантирует показ там,
+			// откуда добавили) объединяется с выбранными в форме «Проездом».
+			targetTables := map[int]struct{}{req.TableID: {}}
+			for _, tableID := range v.TargetTables {
+				if tableID > 0 {
+					targetTables[tableID] = struct{}{}
+				}
+			}
+			for tableID := range targetTables {
+				ctt := models.CarTargetTable{CarID: car.ID, TableID: tableID}
+				if err := tx.Create(&ctt).Error; err != nil {
+					slog.Error("не удалось привязать машину к таблице", "car_id", car.ID, "table_id", tableID, "error", err)
+					return echo.NewHTTPError(http.StatusInternalServerError, "Error linking car to table")
+				}
+			}
+
+			comment := fmt.Sprintf("Автомобиль %s %s добавлен вручную", v.CarNumber, v.CarBrand)
+			if err := s.recorder.Record(ctx, tx, models.AuditEntityCar, &car.ID, "create", &userID, carAuditDetails{Comment: &comment}); err != nil {
+				slog.Error("не удалось записать историю ручной машины", "car_id", car.ID, "error", err)
+				return echo.NewHTTPError(http.StatusInternalServerError, "Error adding car history entry")
+			}
+		}
+
+		for placeID := range attachPlaces {
+			if err := tx.Exec("INSERT INTO attachment_unload_places (attachment_id, unload_place_id) VALUES (?, ?) ON CONFLICT DO NOTHING", attID, placeID).Error; err != nil {
+				slog.Error("не удалось записать место вложения", "attachment_id", attID, "unload_place_id", placeID, "error", err)
+				return echo.NewHTTPError(http.StatusInternalServerError, "Error creating attachment unload place")
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	slog.Info("ручные машины добавлены", "attachment_id", attID, "count", len(carIDs), "user_id", userID)
+	return &ManualCarResponse{
+		Success:      true,
+		Message:      "Machines added successfully",
+		AttachmentID: attID,
+		CarIDs:       carIDs,
 	}, nil
 }
 
