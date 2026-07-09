@@ -114,6 +114,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	auditRecorder := services.NewAuditRecorder(db)
 	carService := services.NewCarService(db, auditRecorder)
 	employeeService := services.NewEmployeeService(db, auditRecorder)
+	manualAttachService := services.NewManualAttachService(db, auditRecorder, nil, nil)
 	permissionService := services.NewPermissionService(db)
 	permissionResolver := services.NewPermissionResolver(db)
 	permissionGroupService := services.NewPermissionGroupService(db, permissionResolver)
@@ -173,6 +174,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	workModesHandler := handlers.NewWorkModesHandler(workModesService)
 	carHandler := handlers.NewCarHandler(carService)
 	employeeHandler := handlers.NewEmployeeHandler(employeeService)
+	manualAttachHandler := handlers.NewManualAttachHandler(manualAttachService)
 	systemTableHandler := handlers.NewSystemTableHandler(systemTableService, auditRecorder, 10*1024*1024, uploadDir)
 	tableSnapshotHandler := handlers.NewTableSnapshotHandler(services.NewTableSnapshotService(db, carService, employeeService, employeesHistoryService))
 	uniqueCarHandler := handlers.NewUniqueCarHandler(uniqueCarService)
@@ -217,6 +219,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 		Auth:                authHandler,
 		UserTypes:           userTypesHandler,
 		Attachments:         attachmentHandler,
+		ManualAttach:        manualAttachHandler,
 		LPF:                 lpfHandler,
 		Citizenship:         citizenshipHandler,
 		Organization:        organizationHandler,
