@@ -533,6 +533,9 @@ export default {
   margin: 0 0 12px;
   display: flex;
   align-items: center;
+  /* резерв под появляющиеся счётчик/Сохранить/Отмена (btn-mini 28px) - чтобы
+     их появление не двигало список ответственных ниже */
+  min-height: 28px;
   gap: 8px;
 }
 

@@ -216,6 +216,9 @@ export default {
   margin: 0 0 12px;
   display: flex;
   align-items: center;
+  /* резерв под появляющиеся Сохранить/Отмена (btn-mini 28px) - чтобы их
+     появление не двигало чипсы/список ниже */
+  min-height: 28px;
   gap: 8px;
 }
 

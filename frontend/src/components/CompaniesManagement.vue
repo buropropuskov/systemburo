@@ -1330,6 +1330,9 @@ export default {
   margin: 0 0 12px;
   display: flex;
   align-items: center;
+  /* единая высота шапок карточек (совпадает с sec-title детей, где появляются
+     кнопки) - чтобы стек карточек не дёргался */
+  min-height: 28px;
   gap: 8px;
 }
 

@@ -200,6 +200,7 @@ import { ref } from 'vue';
 import { apiRequest } from '@/api/client';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import { useDeletionsStore } from '@/stores/deletions';
+import { ORG_TYPE_UNSPECIFIED_LABEL } from '@/constants/orgTypes';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
 import ExcelJS from 'exceljs';
 
@@ -410,9 +411,19 @@ export default {
 
       switch (item.action_type) {
         case 'created':
-          return d.name ? `Наименование: ${d.name}` : '';
-        case 'renamed':
-          return d.name ? `Новое наименование: ${d.name}` : '';
+        case 'renamed': {
+          const parts = [];
+          if (d.name) {
+            const label = item.action_type === 'renamed' ? 'Новое наименование' : 'Наименование';
+            parts.push(`${label}: ${d.name}`);
+          }
+          // Ключ type появился вместе с типом компании (#1046); у старых
+          // записей его нет - тогда тип не показываем. Явный null = «не указан».
+          if ('type' in d) {
+            parts.push(`Тип: ${d.type || ORG_TYPE_UNSPECIFIED_LABEL}`);
+          }
+          return parts.join(' · ');
+        }
         default:
           return '';
       }
