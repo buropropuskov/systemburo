@@ -53,6 +53,12 @@ func TestCompanies_Create(t *testing.T) {
 	assert.Equal(t, "New Company", comp["name"])
 	assert.Equal(t, "Организация", comp["type"])
 	assert.NotZero(t, comp["id"])
+
+	// #1046: тип обязателен и должен быть валиден - невалидный и пустой дают 400.
+	assert.Equal(t, http.StatusBadRequest,
+		testutil.POST(t, e, "/companies", `{"name":"Плохой тип","type":"Ерунда"}`, testutil.AuthHeader(token)).Code)
+	assert.Equal(t, http.StatusBadRequest,
+		testutil.POST(t, e, "/companies", `{"name":"Без типа"}`, testutil.AuthHeader(token)).Code)
 }
 
 func TestCompanies_Create_Forbidden(t *testing.T) {
@@ -82,6 +88,19 @@ func TestCompanies_Update(t *testing.T) {
 	comp := testutil.ParseMap(t, rec)
 	assert.Equal(t, "Updated Company", comp["name"])
 	assert.Equal(t, float64(td.CompanyID), comp["id"])
+
+	// #1046: тип опционален - можно задать валидный и снять через null.
+	changed := testutil.PUT(t, e, fmt.Sprintf("/companies/%d", td.CompanyID), `{"name":"Updated Company","type":"Подрядчик"}`, testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, changed.Code)
+	assert.Equal(t, "Подрядчик", testutil.ParseMap(t, changed)["type"])
+
+	cleared := testutil.PUT(t, e, fmt.Sprintf("/companies/%d", td.CompanyID), `{"name":"Updated Company","type":null}`, testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, cleared.Code)
+	assert.Nil(t, testutil.ParseMap(t, cleared)["type"])
+
+	// Невалидный тип при обновлении - 400.
+	assert.Equal(t, http.StatusBadRequest,
+		testutil.PUT(t, e, fmt.Sprintf("/companies/%d", td.CompanyID), `{"name":"Updated Company","type":"Ерунда"}`, testutil.AuthHeader(token)).Code)
 }
 
 func TestCompanies_Update_Forbidden(t *testing.T) {
@@ -304,88 +323,6 @@ func TestCompanies_GetWithUsersExtended(t *testing.T) {
 	}
 }
 
-func TestCompanies_Create_InvalidType_Fails(t *testing.T) {
-	e, db, cleanup := testutil.SetupTestApp(t)
-	defer cleanup()
-	testutil.CleanDB(t, db)
-	td := testutil.SeedTestData(t, db)
-	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
-
-	rec := testutil.POST(t, e, "/companies", `{"name":"Плохой тип","type":"Ерунда"}`, testutil.AuthHeader(token))
-	assert.Equal(t, http.StatusBadRequest, rec.Code)
-}
-
-func TestCompanies_Create_MissingType_Fails(t *testing.T) {
-	e, db, cleanup := testutil.SetupTestApp(t)
-	defer cleanup()
-	testutil.CleanDB(t, db)
-	td := testutil.SeedTestData(t, db)
-	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
-
-	rec := testutil.POST(t, e, "/companies", `{"name":"Без типа"}`, testutil.AuthHeader(token))
-	assert.Equal(t, http.StatusBadRequest, rec.Code)
-}
-
-func TestCompanies_Update_ChangesType(t *testing.T) {
-	e, db, cleanup := testutil.SetupTestApp(t)
-	defer cleanup()
-	testutil.CleanDB(t, db)
-	td := testutil.SeedTestData(t, db)
-	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
-	h := testutil.AuthHeader(token)
-
-	created := testutil.ParseMap(t, testutil.POST(t, e, "/companies", `{"name":"Смена типа Ко","type":"Арендатор"}`, h))
-	id := int(created["id"].(float64))
-
-	upd := testutil.PUT(t, e, fmt.Sprintf("/companies/%d", id), `{"name":"Смена типа Ко","type":"Подрядчик"}`, h)
-	require.Equal(t, http.StatusOK, upd.Code)
-	assert.Equal(t, "Подрядчик", testutil.ParseMap(t, upd)["type"])
-
-	cleared := testutil.PUT(t, e, fmt.Sprintf("/companies/%d", id), `{"name":"Смена типа Ко","type":null}`, h)
-	require.Equal(t, http.StatusOK, cleared.Code)
-	assert.Nil(t, testutil.ParseMap(t, cleared)["type"])
-}
-
-func TestCompanies_Members_OnlyBoundActive(t *testing.T) {
-	e, db, cleanup := testutil.SetupTestApp(t)
-	defer cleanup()
-	testutil.CleanDB(t, db)
-	td := testutil.SeedTestData(t, db)
-	// testadmin привязан к td.CompanyID (активный участник).
-	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
-	h := testutil.AuthHeader(token)
-
-	// Вторая компания, чтобы завести ответственного, НЕ являющегося участником td.CompanyID.
-	comp2 := testutil.ParseMap(t, testutil.POST(t, e, "/companies", `{"name":"Ко2","type":"Отдел"}`, h))
-	comp2ID := int(comp2["id"].(float64))
-
-	// respuser - участник Ко2, но назначен ответственным Ко1 (junction companies_users).
-	testutil.RegisterUser(t, e, "crespuser", "pass123456", 1, td.OrgID, comp2ID)
-	require.Equal(t, http.StatusOK, testutil.PUT(t, e, fmt.Sprintf("/companies/%d/users", td.CompanyID),
-		`{"users":[{"username":"crespuser","is_primary":false,"required_approval":false}]}`, h).Code)
-
-	// Неактивный участник td.CompanyID - в members попадать не должен. is_active=false
-	// ставим отдельным Update: у поля gorm-default true, при Create struct с zero-value
-	// (false) подставился бы default.
-	inactiveComp := td.CompanyID
-	inactive := models.User{Username: "cinactivemember", Password: "x", CompanyID: &inactiveComp, TypeID: 1}
-	require.NoError(t, db.Create(&inactive).Error)
-	require.NoError(t, db.Model(&models.User{}).Where("id = ?", inactive.ID).Update("is_active", false).Error)
-
-	members := testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/companies/%d/members", td.CompanyID), h))
-	names := map[string]bool{}
-	for _, m := range members {
-		names[m["username"].(string)] = true
-	}
-	assert.True(t, names["testadmin"], "активный привязанный пользователь должен быть в members")
-	assert.False(t, names["crespuser"], "ответственный (не привязанный) не должен быть в members")
-	assert.False(t, names["cinactivemember"], "неактивный привязанный исключён")
-
-	respUsers := testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/companies/%d/users", td.CompanyID), h))
-	require.Len(t, respUsers, 1)
-	assert.Equal(t, "crespuser", respUsers[0]["username"])
-}
-
 func TestCompanies_WithUsers_MultipleUsers(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
@@ -449,6 +386,27 @@ func TestCompanies_UpdateUsers(t *testing.T) {
 	assert.Equal(t, "compuser1", users[0]["username"])
 	assert.Equal(t, true, users[0]["is_primary"])
 	assert.Equal(t, true, users[0]["required_approval"])
+
+	// #1046: /members возвращает привязанных по company_id (участники), а не
+	// ответственных из junction. Заводим ответственного, НЕ являющегося участником
+	// (company_id пуст), и неактивного участника - оба вне members.
+	testutil.RegisterUser(t, e, "comprespnotmember", "pass123456", 1, td.OrgID, 0)
+	require.Equal(t, http.StatusOK, testutil.PUT(t, e, fmt.Sprintf("/companies/%d/users", td.CompanyID),
+		`{"users":[{"username":"comprespnotmember"}]}`, testutil.AuthHeader(token)).Code)
+
+	inactiveComp := td.CompanyID
+	inactive := models.User{Username: "compinactivemember", Password: "x", CompanyID: &inactiveComp, TypeID: 1}
+	require.NoError(t, db.Create(&inactive).Error)
+	require.NoError(t, db.Model(&models.User{}).Where("id = ?", inactive.ID).Update("is_active", false).Error)
+
+	members := testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/companies/%d/members", td.CompanyID), testutil.AuthHeader(token)))
+	names := map[string]bool{}
+	for _, m := range members {
+		names[m["username"].(string)] = true
+	}
+	assert.True(t, names["testadmin"], "активный привязанный пользователь должен быть в members")
+	assert.False(t, names["comprespnotmember"], "ответственный без company_id не участник")
+	assert.False(t, names["compinactivemember"], "неактивный участник исключён")
 }
 
 func TestCompanies_GetUsers_ExcludesArchived(t *testing.T) {
