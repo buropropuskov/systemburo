@@ -18,6 +18,7 @@ type Dependencies struct {
 	Auth                *handlers.AuthHandler
 	UserTypes           *handlers.UserTypesHandler
 	Attachments         *handlers.AttachmentHandler
+	ManualAttach        *handlers.ManualAttachHandler
 	LPF                 *handlers.LicensePlateFormatHandler
 	Citizenship         *handlers.CitizenshipHandler
 	Organization        *handlers.OrganizationHandler
@@ -221,6 +222,10 @@ func Setup(e *echo.Echo, d Dependencies) {
 	att.PUT("/:id/restore", attachments.Restore)
 	att.GET("/:id/history", attachments.GetHistory)
 	att.GET("/:id", attachments.GetByID)
+	// Привязка ручного вложения-сироты к заявке (#1049 режим-2): только super/admin.
+	// Внимание: :id здесь = экземпляр attachments.id (ручная сирота), а НЕ unique_attachment
+	// (шаблон), как в CRUD-маршрутах группы выше. Разные таблицы под одним префиксом.
+	att.POST("/:id/attach-to-application", d.ManualAttach.AttachToApplication, requireAdmin)
 
 	// Единый журнал аудита (#870): сводный + история одной сущности через фильтры
 	// entity_type/entity_id. Admin-only - кросс-сущностный аудит чувствителен.

@@ -185,6 +185,7 @@ func main() {
 	availableRefreshProducer := services.NewAvailableRefreshPublisher(db, permissionResolver, eventsHub)
 	carService := services.NewCarService(db, auditRecorder, services.WithCarTablesProducer(tablesRefreshProducer))
 	employeeService := services.NewEmployeeService(db, auditRecorder, services.WithEmployeeTablesProducer(tablesRefreshProducer))
+	manualAttachService := services.NewManualAttachService(db, auditRecorder, tablesRefreshProducer, availableRefreshProducer)
 	permissionService := services.NewPermissionService(db)
 	permissionGroupService := services.NewPermissionGroupService(db, permissionResolver)
 	roleService := services.NewRoleService(db, permissionResolver)
@@ -241,6 +242,7 @@ func main() {
 	userTypesHandler := handlers.NewUserTypesHandler(userTypeService)
 	lpfHandler := handlers.NewLicensePlateFormatHandler(lpfService)
 	attachmentHandler := handlers.NewAttachmentHandler(attachmentService)
+	manualAttachHandler := handlers.NewManualAttachHandler(manualAttachService)
 	citizenshipHandler := handlers.NewCitizenshipHandler(citizenshipService)
 	organizationHandler := handlers.NewOrganizationHandler(organizationService, db)
 	companyHandler := handlers.NewCompanyHandler(companyService)
@@ -308,6 +310,7 @@ func main() {
 		Auth:                authHandler,
 		UserTypes:           userTypesHandler,
 		Attachments:         attachmentHandler,
+		ManualAttach:        manualAttachHandler,
 		LPF:                 lpfHandler,
 		Citizenship:         citizenshipHandler,
 		Organization:        organizationHandler,
