@@ -33,7 +33,7 @@ func TestRunReport_MultiMetric(t *testing.T) {
 		SenderUserID: user.ID, Status: &status}
 	require.NoError(t, db.Create(&app).Error)
 
-	att := models.Attachment{ApplicationID: app.ID, AttachmentType: "items"}
+	att := models.Attachment{ApplicationID: &app.ID, AttachmentType: "items"}
 	require.NoError(t, db.Create(&att).Error)
 
 	cnt := 4

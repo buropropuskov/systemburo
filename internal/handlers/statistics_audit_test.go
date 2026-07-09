@@ -38,7 +38,7 @@ func TestStatistics_CarEntriesUnionAuditLog(t *testing.T) {
 	app := models.Application{ApplicationNumber: &n, OrganizationID: org.ID,
 		SenderUserID: user.ID, Status: &status, SendingDatetime: &sent}
 	require.NoError(t, db.Create(&app).Error)
-	att := models.Attachment{ApplicationID: app.ID, AttachmentType: "cars"}
+	att := models.Attachment{ApplicationID: &app.ID, AttachmentType: "cars"}
 	require.NoError(t, db.Create(&att).Error)
 	num := "А777АА"
 	car := models.Car{AttachmentID: att.ID, CarNumber: &num}
@@ -123,7 +123,7 @@ func TestRunReport_CarEntriesCountUnionAuditLog(t *testing.T) {
 	app := models.Application{ApplicationNumber: &n, OrganizationID: org.ID,
 		SenderUserID: user.ID, Status: &status, SendingDatetime: &sent}
 	require.NoError(t, db.Create(&app).Error)
-	att := models.Attachment{ApplicationID: app.ID, AttachmentType: "cars"}
+	att := models.Attachment{ApplicationID: &app.ID, AttachmentType: "cars"}
 	require.NoError(t, db.Create(&att).Error)
 	num := "В888ВВ"
 	car := models.Car{AttachmentID: att.ID, CarNumber: &num}

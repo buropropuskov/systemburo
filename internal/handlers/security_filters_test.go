@@ -66,7 +66,7 @@ func (w secWorld) newAppOrg(t *testing.T, orgID int) int {
 
 func (w secWorld) newAttachmentNamed(t *testing.T, appID int, atype, name string) int {
 	t.Helper()
-	att := models.Attachment{ApplicationID: appID, AttachmentType: atype, AttachmentName: &name}
+	att := models.Attachment{ApplicationID: &appID, AttachmentType: atype, AttachmentName: &name}
 	require.NoError(t, w.db.Create(&att).Error)
 	return att.ID
 }

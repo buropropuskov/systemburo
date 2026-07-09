@@ -193,6 +193,9 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := relaxApplicationOrgNotNull(db); err != nil {
 		return err
 	}
+	if err := relaxAttachmentApplicationNotNull(db); err != nil {
+		return err
+	}
 	if err := widenFactTableHint(db); err != nil {
 		return err
 	}
@@ -381,6 +384,19 @@ func EnforceSingleSuperAdmin(db *gorm.DB) error {
 func relaxApplicationOrgNotNull(db *gorm.DB) error {
 	if err := db.Exec(`ALTER TABLE applications ALTER COLUMN organization_id DROP NOT NULL`).Error; err != nil {
 		return fmt.Errorf("relax applications.organization_id NOT NULL: %w", err)
+	}
+	return nil
+}
+
+// relaxAttachmentApplicationNotNull снимает NOT NULL с attachments.application_id:
+// ручное добавление в таблицы (#1049) создаёт вложение-сироту без заявки
+// (application_id NULL, is_manual=true, org/company хранятся на самом вложении).
+// Свежий AutoMigrate уже создаёт колонку nullable, но на БД из старой "NOT NULL"-эры
+// констрейнт остаётся - AutoMigrate существующие колонки не ослабляет. ALTER ...
+// DROP NOT NULL идемпотентен (на уже nullable колонке - noop).
+func relaxAttachmentApplicationNotNull(db *gorm.DB) error {
+	if err := db.Exec(`ALTER TABLE attachments ALTER COLUMN application_id DROP NOT NULL`).Error; err != nil {
+		return fmt.Errorf("relax attachments.application_id NOT NULL: %w", err)
 	}
 	return nil
 }

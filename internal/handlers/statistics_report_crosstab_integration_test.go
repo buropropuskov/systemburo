@@ -40,7 +40,7 @@ func TestRunReport_CrossTabAttachmentType(t *testing.T) {
 			SenderUserID: user.ID, Status: &s, SendingDatetime: &sent}
 		require.NoError(t, db.Create(&app).Error)
 		dn := display
-		att := models.Attachment{ApplicationID: app.ID, AttachmentType: "cars", AttachmentDisplayName: &dn}
+		att := models.Attachment{ApplicationID: &app.ID, AttachmentType: "cars", AttachmentDisplayName: &dn}
 		require.NoError(t, db.Create(&att).Error)
 	}
 
@@ -115,7 +115,7 @@ func TestRunReport_NoPivotUnchanged(t *testing.T) {
 		SenderUserID: user.ID, Status: &status, SendingDatetime: &sent}
 	require.NoError(t, db.Create(&app).Error)
 	dn := "Машины"
-	require.NoError(t, db.Create(&models.Attachment{ApplicationID: app.ID, AttachmentType: "cars", AttachmentDisplayName: &dn}).Error)
+	require.NoError(t, db.Create(&models.Attachment{ApplicationID: &app.ID, AttachmentType: "cars", AttachmentDisplayName: &dn}).Error)
 
 	svc := services.NewStatisticsService(db, 0)
 	res, err := svc.RunReport(context.Background(), models.ReportRequest{
@@ -160,7 +160,7 @@ func TestRunReport_AvgCarsPerDayWeekly(t *testing.T) {
 	app := models.Application{ApplicationNumber: &n, OrganizationID: org.ID,
 		SenderUserID: user.ID, Status: &status, SendingDatetime: &sent}
 	require.NoError(t, db.Create(&app).Error)
-	att := models.Attachment{ApplicationID: app.ID, AttachmentType: "cars"}
+	att := models.Attachment{ApplicationID: &app.ID, AttachmentType: "cars"}
 	require.NoError(t, db.Create(&att).Error)
 	num := "А001АА"
 	car := models.Car{AttachmentID: att.ID, CarNumber: &num}
@@ -223,7 +223,7 @@ func TestRunReport_AvgCarsPartialBin(t *testing.T) {
 	app := models.Application{ApplicationNumber: &n, OrganizationID: org.ID,
 		SenderUserID: user.ID, Status: &status, SendingDatetime: &sent}
 	require.NoError(t, db.Create(&app).Error)
-	att := models.Attachment{ApplicationID: app.ID, AttachmentType: "cars"}
+	att := models.Attachment{ApplicationID: &app.ID, AttachmentType: "cars"}
 	require.NoError(t, db.Create(&att).Error)
 	num := "В002ВВ"
 	car := models.Car{AttachmentID: att.ID, CarNumber: &num}

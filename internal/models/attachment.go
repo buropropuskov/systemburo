@@ -4,8 +4,8 @@ import "time"
 
 type Attachment struct {
 	ID                    int               `json:"id"`
-	ApplicationID         int               `gorm:"index" json:"application_id"`
-	Application           Application       `gorm:"constraint:OnDelete:CASCADE" json:"-"`
+	ApplicationID         *int              `gorm:"index" json:"application_id"`
+	Application           *Application      `gorm:"constraint:OnDelete:CASCADE" json:"-"`
 	AttachmentType        string            `gorm:"size:20" json:"attachment_type"` // cars, people, items
 	AttachmentName        *string           `gorm:"size:255" json:"attachment_name"`
 	AttachmentDisplayName *string           `gorm:"size:255" json:"attachment_display_name"`
@@ -21,6 +21,15 @@ type Attachment struct {
 	// Общие булевы параметры заявки (#529): сохраняются на вложении, в просмотре - теги.
 	RoofAccess  bool `gorm:"default:false" json:"roof_access"`
 	FreeParking bool `gorm:"default:false" json:"free_parking"`
+	// Ручное добавление в таблицы (#1049): вложение-сирота без заявки. При ручном
+	// добавлении application_id NULL + is_manual=true, а org/company хранятся прямо
+	// на вложении (у заявочных берутся из applications). См. .claude/context/active/manual-table-add.
+	OrganizationID  *int          `gorm:"index" json:"organization_id"`
+	Organization    *Organization `json:"-"`
+	CompanyID       *int          `gorm:"index" json:"company_id"`
+	Company         *Company      `json:"-"`
+	IsManual        bool          `gorm:"default:false;index" json:"is_manual"`
+	CreatedByUserID *int          `json:"created_by_user_id"`
 }
 
 type UniqueAttachment struct {
