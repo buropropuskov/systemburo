@@ -42,12 +42,14 @@ const (
 
 // Entity-level CRUD keys.
 const (
-	KeyEntityCarsRead       = "entity.cars.read"
-	KeyEntityCarsWrite      = "entity.cars.write"
-	KeyEntityCarsDelete     = "entity.cars.delete"
-	KeyEntityEmployeesRead  = "entity.employees.read"
-	KeyEntityEmployeesWrite = "entity.employees.write"
-	KeyEntityEmployeesDel   = "entity.employees.delete"
+	KeyEntityCarsRead           = "entity.cars.read"
+	KeyEntityCarsWrite          = "entity.cars.write"
+	KeyEntityCarsDelete         = "entity.cars.delete"
+	KeyEntityCarsManualAdd      = "entity.cars.manual_add"
+	KeyEntityEmployeesRead      = "entity.employees.read"
+	KeyEntityEmployeesWrite     = "entity.employees.write"
+	KeyEntityEmployeesDel       = "entity.employees.delete"
+	KeyEntityEmployeesManualAdd = "entity.employees.manual_add"
 )
 
 // Action-level keys (отдельные действия, не входящие в стандартный CRUD).
@@ -83,9 +85,11 @@ func AllStaticKeys() []string {
 		KeyEntityCarsRead,
 		KeyEntityCarsWrite,
 		KeyEntityCarsDelete,
+		KeyEntityCarsManualAdd,
 		KeyEntityEmployeesRead,
 		KeyEntityEmployeesWrite,
 		KeyEntityEmployeesDel,
+		KeyEntityEmployeesManualAdd,
 		KeyActionExportApplications,
 		KeyActionApproveApplication,
 		KeyActionForwardApplication,
