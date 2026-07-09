@@ -83,13 +83,15 @@ const availableAttachmentNightClause = `(
 // availableAttachmentFrom - общий FROM листинга и счётчика "Доступные мне". LEFT JOIN'ы
 // organizations/companies/users держат отношение 1:1 к вложению (все по PK), поэтому НЕ меняют
 // COUNT(*) и могут стоять в обоих запросах; благодаря им и подзапросы select, и фильтры BE-S6
-// (поиск по ФИО отправителя через su) видят алиасы o/c/su. attachments x applications - INNER
-// (вложение всегда принадлежит заявке).
+// (поиск по ФИО отправителя через su) видят алиасы o/c/su. applications - LEFT JOIN (#1049):
+// ручное вложение-сирота (application_id NULL, is_manual) НЕ принадлежит заявке; при INNER оно
+// выпало бы из выдачи. Для сирот app.* остаются NULL (метка "добавлено вручную"), а org/company
+// берутся с самого вложения через COALESCE(app.*, a.*).
 const availableAttachmentFrom = `
 	FROM attachments a
-	JOIN applications app ON app.id = a.application_id
-	LEFT JOIN organizations o ON o.id = app.organization_id
-	LEFT JOIN companies c ON c.id = app.company_id
+	LEFT JOIN applications app ON app.id = a.application_id
+	LEFT JOIN organizations o ON o.id = COALESCE(app.organization_id, a.organization_id)
+	LEFT JOIN companies c ON c.id = COALESCE(app.company_id, a.company_id)
 	LEFT JOIN users su ON su.id = app.sender_user_id`
 
 // availableAttachmentSelect - столбцы листинга. Подзапросы places ссылаются на a.id напрямую
@@ -136,11 +138,18 @@ const availableAttachmentSelect = `
 // права page.available, #976) отбрасывает предикат по местам, оставляя только confirmation-гейт. НЕ
 // смотрит is_active/status места (факт назначения = доступ; "обслуживание" места не должно молча
 // скрывать вложение). Не пересекается с forward_attachments (#680) - другой источник видимости.
+//
+// Ручные вложения (#1049 S6): у сироты (a.is_manual, application_id NULL) заявки нет, поэтому
+// confirmation-гейт к ней неприменим - её видимость несёт ТОЛЬКО пересечение мест (то же, что у
+// заявочных: назначен охраннику target-таблица/место -> видит). Ветка a.is_manual снимает
+// confirmation-часть, но пересечение мест остаётся - ручные видны наравне с заявочными, но не
+// шире (охранник без назначения места ручное не увидит). У сироты app.* при LEFT JOIN NULL:
+// ветка a.is_manual=TRUE сама делает OR истинной, а заведомо-NULL app.confirmation-предикат
+// сироту не отсекает (three-valued logic: TRUE OR NULL = TRUE, запрос не падает).
 func securityVisibilityWhere(userID int, unrestricted bool) (string, []interface{}) {
-	// Отозванные заявки (#951) недоступны охране независимо от confirmation: при отзыве
-	// заявка перестаёт действовать и пропадает из "Доступные мне". IS DISTINCT FROM
-	// пропускает NULL-статус (он не равен "Отозвана") в обычную выдачу.
-	confirm := "app.confirmation = ? AND app.status IS DISTINCT FROM ?"
+	// Заявочные: confirmation='Согласовано' И не "Отозвана" (#951, IS DISTINCT FROM пропускает
+	// NULL-статус в обычную выдачу). Ручные (a.is_manual) минуют весь app-гейт - заявки нет.
+	confirm := "(a.is_manual OR (app.confirmation = ? AND app.status IS DISTINCT FROM ?))"
 	args := []interface{}{models.ConfirmationApproved, models.StatusWithdrawn}
 	if unrestricted {
 		return confirm, args
@@ -181,12 +190,14 @@ func availableAttachmentFilterWhere(f AvailableAttachmentFilters) (string, []int
 			args = append(args, t)
 		}
 	}
+	// COALESCE(app.*, a.*): у ручных вложений (#1049) org/company хранятся на самом вложении,
+	// app.* NULL - иначе фильтр по организации молча скрыл бы ручные записи этой же орг.
 	if f.OrganizationID != nil {
-		clauses = append(clauses, "app.organization_id = ?")
+		clauses = append(clauses, "COALESCE(app.organization_id, a.organization_id) = ?")
 		args = append(args, *f.OrganizationID)
 	}
 	if f.CompanyID != nil {
-		clauses = append(clauses, "app.company_id = ?")
+		clauses = append(clauses, "COALESCE(app.company_id, a.company_id) = ?")
 		args = append(args, *f.CompanyID)
 	}
 	// Дефолт вкладки - скрыть завершённые; фильтр "Завершённые" (completed=true) - только их.
@@ -356,12 +367,14 @@ func (s *applicationService) GetAvailableAttachmentsForSecurity(ctx context.Cont
 // CanSecurityViewAttachment сообщает, доступно ли конкретное вложение охраннику по тем же правилам,
 // что и листинг (#706). Используется детальным эндпоинтом для 403 на чужое вложение. unrestricted
 // (super/admin/носитель page.available, #976) проходит фильтр по местам, но confirmation-гейт
-// применяется и к нему.
+// применяется и к нему. LEFT JOIN applications (#1049): без него ручное вложение-сирота
+// (application_id NULL) не прошло бы EXISTS и деталь давала бы 403 при видимом в списке - тот же
+// набор ролей должен гейтить и список, и деталь.
 func (s *applicationService) CanSecurityViewAttachment(ctx context.Context, userID int, unrestricted bool, attachmentID int) (bool, error) {
 	where, args := securityVisibilityWhere(userID, unrestricted)
 	sql := `SELECT EXISTS (
 		SELECT 1 FROM attachments a
-		JOIN applications app ON app.id = a.application_id
+		LEFT JOIN applications app ON app.id = a.application_id
 		WHERE a.id = ? AND ` + where + `)`
 	queryArgs := append([]interface{}{attachmentID}, args...)
 
