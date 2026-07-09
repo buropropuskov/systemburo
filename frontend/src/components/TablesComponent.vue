@@ -123,6 +123,15 @@
         />
       </div>
       <div class="filters__options">
+        <button
+          v-if="tableType === 'cars' && can('entity.cars.manual_add')"
+          class="options__manual-add"
+          data-testid="manual-add-button"
+          @click="showManualAdd = true"
+        >
+          <span class="options__manual-add-icon">+</span>
+          <span class="options__text">Добавить вручную</span>
+        </button>
         <RouterLink
           v-if="can(`table.${$route.params.tableName}.versions`)"
           :to="`/table/${$route.params.tableName}/versions`"
@@ -256,6 +265,14 @@
       @close="showExportModal = false"
       @export="handleExportChoice"
     />
+
+    <ManualAddModal
+      :show="showManualAdd"
+      :table-id="tableData?.table?.id"
+      :table-name="tableDisplayName"
+      @close="showManualAdd = false"
+      @added="onManualAdded"
+    />
   </div>
 </template>
 
@@ -272,6 +289,7 @@ import CarsTable from './CarsTable.vue';
 import PeopleTable from './PeopleTable.vue';
 import ApplicationDetail from './ApplicationDetail/ApplicationDetail.vue';
 import TableExportModal from './TableExportModal.vue';
+import ManualAddModal from './ManualAddModal.vue';
 import { usePermissionsStore } from '@/stores/permissions';
 
 export default {
@@ -285,6 +303,7 @@ export default {
         PeopleTable,
         ApplicationDetail,
         TableExportModal,
+        ManualAddModal,
     },
     emits: ['refresh-data'],
     setup() {
@@ -336,6 +355,7 @@ export default {
             showApplicationDetail: false,
             selectedApplication: null,
             showExportModal: false,
+            showManualAdd: false,
         };
     },
     computed: {
@@ -437,6 +457,13 @@ export default {
             } finally {
                 this.isRefreshing = false;
             }
+        },
+
+        // Ручные машины появились в текущей и fact-таблице (#1049) - перегружаем строки
+        // напрямую (real-time #840 продублирует по target-таблице, здесь для мгновенного отклика).
+        onManualAdded() {
+            this.$refs.carsTable?.loadData?.();
+            this.$refs.factTable?.loadData?.();
         },
         
         sanitizeHtml(content) {
@@ -796,6 +823,34 @@ export default {
 
 .options__export:hover {
     background: #f2f2f2;
+}
+
+.options__manual-add {
+    height: clamp(22px, 2.4vw, 25px);
+    padding: 0 clamp(8px, 1vw, 14px);
+    background: var(--color-primary, #4F5BDF);
+    color: #fff;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    gap: 5px;
+    font-size: clamp(10px, 1vw, 13px);
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.options__manual-add:hover {
+    background: var(--color-primary-hover, #3d49c7);
+}
+
+.options__manual-add-icon {
+    font-size: clamp(13px, 1.3vw, 16px);
+    line-height: 1;
+    font-weight: 600;
 }
 
 .options__text {

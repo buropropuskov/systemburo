@@ -15,6 +15,25 @@ export async function getActiveCarsForTable(tableId) {
   return res.json();
 }
 
+/**
+ * Ручное добавление машин в таблицу без заявки (#1049, режим-1).
+ * payload -> services.ManualCarRequest (snake_case): organization_id, company_id,
+ * table_id, entry_date_from/to, entry_time_from/to, roof_access, free_parking, vehicles[].
+ * @param {object} payload
+ * @returns {Promise<{success: boolean, message: string, attachment_id: number, car_ids: number[]}>}
+ */
+export async function createManualCars(payload) {
+  const res = await apiRequest('/cars/manual', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.message || 'Не удалось добавить машины вручную');
+  }
+  return res.json();
+}
+
 export async function getFactCarsForTable(tableId) {
   const res = await apiRequest(`/cars/fact-for-table/${tableId}`);
   return res.json();
