@@ -142,3 +142,30 @@ func TestAllCatalogKeysMatchesSet(t *testing.T) {
 		}
 	}
 }
+
+// TestManualAddKeysInCatalog фиксирует ключи ручного добавления в таблицы (#1049):
+// право должно быть валидным для назначения роли (IsValidKey), присутствовать в
+// каталоге с метаданными категории «Сотрудники и автомобили» и не быть super-only
+// -- иначе кнопку «Добавить вручную» нельзя выдать роли/группе.
+func TestManualAddKeysInCatalog(t *testing.T) {
+	t.Parallel()
+	for _, key := range []string{KeyEntityCarsManualAdd, KeyEntityEmployeesManualAdd} {
+		if !IsValidKey(key) {
+			t.Errorf("ключ %q должен быть валиден для назначения роли", key)
+		}
+		meta, ok := CatalogMeta(key)
+		if !ok {
+			t.Errorf("ключ %q должен быть в каталоге с метаданными", key)
+			continue
+		}
+		if meta.Category != CatRegistry {
+			t.Errorf("ключ %q: категория %q, ожидалась %q", key, meta.Category, CatRegistry)
+		}
+		if meta.DisplayName == "" {
+			t.Errorf("ключ %q: пустой DisplayName", key)
+		}
+		if IsSuperOnly(key) {
+			t.Errorf("ключ %q не должен быть super-only (super/admin проходят через allowAll)", key)
+		}
+	}
+}
