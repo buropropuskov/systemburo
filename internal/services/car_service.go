@@ -462,6 +462,10 @@ func (s *carService) CreateManualCars(ctx context.Context, req ManualCarRequest,
 		return nil, err
 	}
 
+	// Ручные машины появились в целевых таблицах live - обновляем их аудиторию (#1049,
+	// по target-таблице, т.к. заявки нет). Best-effort, вне транзакции.
+	s.tablesProducer.NotifyCarsChangedBatch(ctx, carIDs)
+
 	slog.Info("ручные машины добавлены", "attachment_id", attID, "count", len(carIDs), "user_id", userID)
 	return &ManualCarResponse{
 		Success:      true,

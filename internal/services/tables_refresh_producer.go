@@ -17,10 +17,10 @@ import (
 // таблицу).
 //
 // Scope сигнала - tables:<tableID>: каждая таблица проходной на фронте
-// подписывается на свой id. Куда попадает изменённая строка:
-//   - Машины: эндпоинт /cars/active-for-tables НЕ scoped по таблице - строка
-//     активной машины видна в КАЖДОЙ cars-таблице, поэтому любое изменение машины
-//     (активация при принятии, въезд/выезд) обновляет ВСЕ cars-таблицы.
+// подписывается на свой id. Куда попадает изменённая строка (обе сущности scoped по
+// целевым таблицам, поэтому сигнал идёт только затронутым):
+//   - Машины: видны в выбранных таблицах «Проезд» (car_target_tables, #1036) - шлём
+//     по ним (carTargetTableIDs), а не во все cars-таблицы разом.
 //   - Сотрудники: /employees/active-for-table/:table_id scoped - сотрудник виден
 //     только в своих целевых таблицах (employee_target_tables), туда и шлём.
 //
@@ -62,6 +62,36 @@ func (p *TablesRefreshPublisher) NotifyEmployeeChanged(ctx context.Context, empl
 	ids, err := p.employeeTargetTableIDs(ctx, []int{employeeID})
 	if err != nil {
 		slog.Warn("tables.refresh: load employee tables failed", "employee_id", employeeID, "err", err)
+		return
+	}
+	p.publishTables(ctx, ids)
+}
+
+// NotifyCarsChangedBatch публикует обновление таблицам «Проезд» пачки изменённых
+// машин одним проходом (дедуп таблиц внутри publishTables). Используется ручным
+// добавлением (#1049): у сироты нет applicationId, поэтому аудитория считается по
+// car_target_tables машин - той же связи, по которой строка видна в таблице.
+func (p *TablesRefreshPublisher) NotifyCarsChangedBatch(ctx context.Context, carIDs []int) {
+	if p == nil || p.publisher == nil || len(carIDs) == 0 {
+		return
+	}
+	ids, err := p.carTargetTableIDs(ctx, carIDs)
+	if err != nil {
+		slog.Warn("tables.refresh: load car tables failed", "car_ids", carIDs, "err", err)
+		return
+	}
+	p.publishTables(ctx, ids)
+}
+
+// NotifyEmployeesChangedBatch - зеркало NotifyCarsChangedBatch для пачки сотрудников
+// (ручное добавление #1049): аудитория по employee_target_tables, без заявки.
+func (p *TablesRefreshPublisher) NotifyEmployeesChangedBatch(ctx context.Context, employeeIDs []int) {
+	if p == nil || p.publisher == nil || len(employeeIDs) == 0 {
+		return
+	}
+	ids, err := p.employeeTargetTableIDs(ctx, employeeIDs)
+	if err != nil {
+		slog.Warn("tables.refresh: load employee tables failed", "employee_ids", employeeIDs, "err", err)
 		return
 	}
 	p.publishTables(ctx, ids)
