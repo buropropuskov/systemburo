@@ -1,29 +1,30 @@
 <template>
-  <div class="unload-places-section">
+  <div class="unload-places-section card">
     <div class="detail-group">
-      <div class="unload-places__header">
-        <label class="detail-label">Места разгрузки (по умолчанию):</label>
-        <div
+      <div class="sec-title">
+        Места разгрузки <span class="sec-note">(по умолчанию)</span>
+        <span
           v-if="hasSelectedPlaces"
-          class="places-actions"
+          class="sec-actions"
         >
-          <button 
-            class="save-places-btn" 
+          <span class="save-hint"><span class="dot" />несохранённые</span>
+          <button
+            class="btn-mini primary"
             :disabled="isSaving"
             @click="saveUnloadPlaces"
           >
             {{ isSaving ? 'Сохранение...' : 'Сохранить' }}
           </button>
-          <button 
-            class="cancel-places-btn" 
+          <button
+            class="btn-mini"
             :disabled="isSaving"
             @click="cancelUnloadPlacesChanges"
           >
             Отмена
           </button>
-        </div>
+        </span>
       </div>
-      
+
       <div class="unload-places-container">
         <div class="unload-places-grid">
           <div 
@@ -64,7 +65,7 @@ export default {
       validator: value => ['organization', 'company'].includes(value)
     }
   },
-  emits: ['places-updated'],
+  emits: ['places-updated', 'dirty-change'],
   data() {
     return {
       allUnloadPlaces: [],
@@ -75,7 +76,7 @@ export default {
   },
   computed: {
     hasSelectedPlaces() {
-      return JSON.stringify(this.selectedUnloadPlaces.map(p => p.id).sort()) !== 
+      return JSON.stringify(this.selectedUnloadPlaces.map(p => p.id).sort()) !==
              JSON.stringify(this.originalSelectedPlaces.map(p => p.id).sort());
     }
   },
@@ -86,6 +87,13 @@ export default {
         if (newEntity && newEntity.id) {
           this.fetchEntityUnloadPlaces(newEntity.id);
         }
+      }
+    },
+    // fix 5: поднимаем dirty-состояние мест в dirtyTracker родителя.
+    hasSelectedPlaces: {
+      immediate: true,
+      handler(dirty) {
+        this.$emit('dirty-change', dirty);
       }
     }
   },
@@ -188,14 +196,90 @@ export default {
 
 <style scoped>
 .unload-places-section {
-  margin-top: 5px;
+  box-sizing: border-box;
 }
 
-.unload-places__header {
+/* карточка-секция (эталон мокапа .card) */
+.card {
+  border: 1px solid #e6e6e6;
+  border-radius: 16px;
+  padding: 16px;
+  background: #fbfbfd;
+}
+
+.sec-title {
+  font-size: 0.82em;
+  font-weight: 700;
+  color: #2a2f39;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  margin: 0 0 12px;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  height: 35px;
+  gap: 8px;
+}
+
+.sec-note {
+  text-transform: none;
+  font-weight: 500;
+  color: #a2a2a2;
+}
+
+.sec-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-transform: none;
+}
+
+.save-hint {
+  font-size: 11px;
+  color: #b26a00;
+  background: #fff4e5;
+  border-radius: 8px;
+  padding: 3px 9px;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  font-weight: 600;
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #f0a020;
+  display: inline-block;
+}
+
+.btn-mini {
+  height: 28px;
+  border-radius: 8px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  border: 1px solid #e6e6e6;
+  background: #fff;
+  color: #4a5361;
+  white-space: nowrap;
+}
+
+.btn-mini.primary {
+  background: #4F5BDF;
+  color: #fff;
+  border-color: #4F5BDF;
+}
+
+.btn-mini:hover:not(:disabled) {
+  filter: brightness(0.97);
+}
+
+.btn-mini:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .unload-places-container {
@@ -248,68 +332,13 @@ export default {
   font-style: italic;
 }
 
-.places-actions {
-  display: flex;
-  gap: 8px; 
-}
-
-.save-places-btn {
-  padding: 0px 8px;
-  background: #4F5BDF;
-  color: white;
-  border: none;
-  border-radius: 15px;
-  font-size: 0.6em;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-  height: 20px;
-}
-
-.save-places-btn:hover:not(:disabled) {
-  background: #3a45b2;
-}
-
-.save-places-btn:disabled {
-  background: #9ca3af;
-  cursor: not-allowed;
-}
-
-.cancel-places-btn {
-  padding: 0px 8px;
-  font-weight: 600;
-  background: #6b7280;
-  color: white;
-  border: none;
-  border-radius: 15px;
-  font-size: 0.6em;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-  height: 20px;
-}
-
-.cancel-places-btn:hover:not(:disabled) {
-  background: #4b5563;
-}
-
-.cancel-places-btn:disabled {
-  background: #9ca3af;
-  cursor: not-allowed;
-}
-
-.detail-label {
-  font-size: 0.85em;
-  color: #a2a2a2;
-  font-weight: 400;
-}
-
 @media (max-width: 768px) {
   .unload-places-grid {
     grid-template-columns: repeat(2, 1fr);
   }
-  
-  .places-actions {
-    flex-direction: column;
+
+  .sec-actions {
+    flex-wrap: wrap;
   }
 }
 </style>
