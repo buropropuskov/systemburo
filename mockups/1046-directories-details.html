@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Мокап: детали справочников (#1046)</title>
+<style>
+  :root{
+    --primary:#4F5BDF; --primary-hover:#3a45b2;
+    --border:#e6e6e6; --muted:#a2a2a2; --ink:#000; --sub:#666;
+    --sel:#f0f2ff; --chip:#f2f2f2; --radius-md:15px;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:#eef0f4; color:var(--ink);
+    font-family:'Montserrat',-apple-system,'Segoe UI',Roboto,Arial,sans-serif;
+    font-size:14px; padding:24px;
+  }
+  .wrap{max-width:1280px; margin:0 auto}
+
+  /* --- панель управления мокапом --- */
+  .mock-bar{
+    display:flex; flex-wrap:wrap; align-items:center; gap:14px;
+    background:#fff; border:1px solid var(--border); border-radius:16px;
+    padding:14px 20px; margin-bottom:18px;
+  }
+  .mock-bar h1{font-size:16px; margin:0; font-weight:700}
+  .variant-toggle{display:flex; gap:8px; margin-left:auto}
+  .variant-toggle button{
+    border:1px solid var(--border); background:#fff; color:var(--sub);
+    border-radius:50px; padding:8px 16px; cursor:pointer; font-weight:600; font-size:13px;
+    transition:all .15s ease;
+  }
+  .variant-toggle button.active{background:var(--primary); color:#fff; border-color:var(--primary)}
+  .legend{width:100%; font-size:12px; color:var(--sub); line-height:1.6; margin-top:4px}
+  .legend b{color:var(--ink)}
+  .fix{display:inline-block; background:#eef0ff; color:var(--primary); border-radius:6px; padding:1px 7px; font-weight:600; font-size:11px}
+
+  /* --- карточка приложения --- */
+  .app-card{background:#fff; border:1px solid var(--border); border-radius:16px; overflow:hidden}
+  .app-header{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:0 20px; height:56px; border-bottom:1px solid var(--border); gap:12px;
+  }
+  .app-header h3{font-size:1.15em; margin:0; font-weight:600}
+  .header-controls{display:flex; align-items:center; gap:10px}
+  .ddl{
+    display:flex; align-items:center; gap:8px; height:34px; padding:0 14px;
+    border:1px solid var(--border); border-radius:50px; background:#fff; font-size:13px;
+    font-weight:500; color:var(--ink); cursor:pointer; white-space:nowrap;
+  }
+  .ddl .caret{color:#888}
+  .search{
+    display:flex; align-items:center; gap:8px; height:34px; padding:0 14px;
+    border:1px solid var(--border); border-radius:50px; color:var(--muted); font-size:13px; min-width:190px;
+  }
+  .btn-add{background:var(--primary); color:#fff; border:none; border-radius:50px; padding:9px 18px; font-weight:600; cursor:pointer; font-size:13px}
+  .btn-refresh{border:1px solid var(--border); background:#fff; color:var(--sub); border-radius:50px; padding:8px 14px; cursor:pointer; font-size:13px}
+
+  .content{display:flex; min-height:520px}
+
+  /* --- список слева (без изменений) --- */
+  .list{width:38%; border-right:1px solid var(--border); display:flex; flex-direction:column}
+  .list-head, .list-row{display:flex; align-items:center; padding:0 18px}
+  .list-head{height:42px; border-bottom:1px solid var(--border)}
+  .list-head span{font-size:13px; color:var(--muted); font-weight:600; display:flex; align-items:center; gap:4px}
+  .list-body{flex:1; overflow:auto}
+  .list-row{height:44px; border-bottom:1px solid #f0f0f0; cursor:pointer; font-size:13px}
+  .list-row:hover{background:#fafafa}
+  .list-row.sel{background:var(--sel)}
+  .c-id{width:14%; font-weight:600}
+  .c-name{width:40%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .c-type{width:26%; color:#333}
+  .c-type.unset{color:var(--muted); font-style:italic}
+  .c-users{width:20%; font-weight:600}
+  .list-foot{padding:8px 18px; border-top:1px solid var(--border); background:#f8fafc; text-align:right; font-size:12px; color:var(--muted); font-weight:500}
+  .sort-caret{font-size:10px; color:#bbb}
+
+  /* --- детали (переключаемые) --- */
+  .details{flex:1; display:none; min-width:0}
+  .details.active{display:block}
+
+  /* общие детали-элементы */
+  .field-label{font-size:.82em; color:var(--sub); font-weight:600; display:block; margin-bottom:6px}
+  .lk-input{width:100%; height:38px; border:1px solid var(--border); border-radius:var(--radius-md); padding:0 14px; font-size:14px; outline:none}
+  .lk-input:focus{border-color:var(--primary)}
+  .pill{display:inline-flex; align-items:center; height:30px; padding:0 14px; border-radius:50px; font-size:12px; font-weight:600}
+  .pill-primary{background:var(--primary); color:#fff}
+  .pill-ghost{background:#fff; color:var(--primary); border:1px solid var(--primary)}
+  .pill-danger{background:#fff; color:#dc3545; border:1px solid #fecaca}
+  .pill-muted{background:#eef1f5; color:#5a6472}
+  .btn-save{background:var(--primary); color:#fff; border:none; border-radius:var(--radius-md); height:38px; padding:0 18px; font-weight:600; cursor:pointer; font-size:13px}
+
+  /* тип-селект (fix #1 — меню НЕ обрезается) */
+  .type-select{position:relative}
+  .type-select .selected{display:flex; align-items:center; justify-content:space-between; height:38px; border:1px solid var(--border); border-radius:var(--radius-md); padding:0 14px; cursor:pointer}
+  .type-menu{position:absolute; top:calc(100% + 6px); left:0; width:100%; background:#fff; border:1px solid var(--border); border-radius:14px; box-shadow:0 8px 24px rgba(0,0,0,.12); z-index:50; overflow:hidden}
+  .type-menu div{padding:9px 14px; font-size:13px; cursor:pointer}
+  .type-menu div:hover{background:#f5f5f5}
+  .type-menu div.on{background:#f0f1ff; color:var(--primary); font-weight:600}
+
+  /* чипсы place-item / table-item — сохранены 1:1 */
+  .chip-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:5px}
+  .chip{height:30px; border-radius:50px; background:var(--chip); font-size:12px; font-weight:500; color:var(--muted); padding:0 12px; display:flex; align-items:center; justify-content:center; cursor:pointer; white-space:nowrap; user-select:none}
+  .chip:hover{background:#e8e8e8}
+  .chip.on{background:var(--primary); color:#fff}
+  .chip-box{border:1px solid var(--border); border-radius:12px; padding:12px; background:#fff}
+
+  /* участники / ответственные списки */
+  .person{display:flex; align-items:center; gap:10px; padding:8px 10px; border:1px solid #eee; border-radius:12px; background:#fff}
+  .avatar{width:30px; height:30px; border-radius:50%; background:#e7e9ff; color:var(--primary); font-weight:700; font-size:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0}
+  .person .who{display:flex; flex-direction:column; min-width:0}
+  .person .who b{font-size:13px; font-weight:600}
+  .person .who small{font-size:11px; color:var(--muted)}
+  .person .flags{margin-left:auto; display:flex; gap:6px; flex-shrink:0}
+  .tag{font-size:10px; font-weight:600; border-radius:6px; padding:2px 7px}
+  .tag-main{background:#e7f8ee; color:#12854a}
+  .tag-appr{background:#fff4e5; color:#b26a00}
+  .stack{display:flex; flex-direction:column; gap:8px}
+  .count-badge{display:inline-flex; align-items:center; justify-content:center; min-width:22px; height:20px; padding:0 7px; border-radius:50px; background:#eef0ff; color:var(--primary); font-size:11px; font-weight:700}
+
+  .sec-title{font-size:.9em; font-weight:700; color:#333; margin:0 0 10px; display:flex; align-items:center; gap:8px}
+  .muted-hint{color:var(--muted); font-size:.82em}
+  .save-hint{font-size:11px; color:#b26a00; background:#fff4e5; border-radius:8px; padding:6px 10px; display:inline-flex; gap:6px; align-items:center}
+
+  /* ---------- ВАРИАНТ A: карточки-секции (одна колонка) ---------- */
+  .vA{padding:18px 22px; display:flex; flex-direction:column; gap:14px; max-height:520px; overflow:auto}
+  .vA .head{display:flex; align-items:flex-start; justify-content:space-between; gap:12px}
+  .vA .head .title{display:flex; flex-direction:column; gap:6px}
+  .vA .head h2{margin:0; font-size:1.25em; font-weight:700}
+  .vA .head .acts{display:flex; gap:8px}
+  .vA .card{border:1px solid var(--border); border-radius:16px; padding:16px}
+  .vA .row2{display:grid; grid-template-columns:1fr 220px; gap:14px; align-items:end}
+
+  /* ---------- ВАРИАНТ B: табы ---------- */
+  .vB{padding:18px 22px; display:flex; flex-direction:column; gap:14px}
+  .vB .head{display:flex; align-items:center; justify-content:space-between; gap:12px}
+  .vB .head h2{margin:0; font-size:1.25em; font-weight:700; display:flex; align-items:center; gap:10px}
+  .tabs{display:flex; gap:6px; border-bottom:1px solid var(--border)}
+  .tabs button{border:none; background:none; padding:10px 14px; font-size:13px; font-weight:600; color:var(--sub); cursor:pointer; border-bottom:2px solid transparent; display:flex; align-items:center; gap:7px}
+  .tabs button.on{color:var(--primary); border-bottom-color:var(--primary)}
+  .tabpane{display:none; padding-top:4px}
+  .tabpane.on{display:block}
+  .vB .row2{display:grid; grid-template-columns:1fr 220px; gap:14px; align-items:end; margin-bottom:14px}
+
+  /* ---------- ВАРИАНТ C: двухколоночная сетка ---------- */
+  .vC{padding:18px 22px}
+  .vC .head{display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:16px}
+  .vC .head h2{margin:0; font-size:1.25em; font-weight:700}
+  .vC .grid{display:grid; grid-template-columns:1fr 1fr; gap:22px}
+  .vC .col{display:flex; flex-direction:column; gap:16px}
+  .vC .block > .sec-title{margin-bottom:10px}
+
+  .subtle{color:var(--muted)}
+  @media(max-width:900px){
+    .content{flex-direction:column}
+    .list{width:100%; border-right:none; border-bottom:1px solid var(--border)}
+    .vC .grid{grid-template-columns:1fr}
+    .vA .row2, .vB .row2{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="mock-bar">
+    <h1>Мокап: детали справочников — Организации / Компании (#1046)</h1>
+    <div class="variant-toggle">
+      <button data-v="A" class="active" onclick="setVariant('A')">Вариант A · Секции</button>
+      <button data-v="B" onclick="setVariant('B')">Вариант B · Табы</button>
+      <button data-v="C" onclick="setVariant('C')">Вариант C · 2 колонки</button>
+    </div>
+    <div class="legend">
+      Шапка и список слева — <b>без изменений</b>. Меняется только область деталей (справа). Чипсы <b>мест разгрузки</b> и <b>таблиц</b> сохранены 1:1.
+      Встроенные фиксы: <span class="fix">fix 1</span> меню «Тип» не обрезается (открывается поверх) ·
+      <span class="fix">fix 2</span> поиск ищет и по типу ·
+      <span class="fix">fix 3</span> 5-й тип «Компания» ·
+      <span class="fix">fix 5</span> предупреждение о несохранённых ответственных.
+    </div>
+  </div>
+
+  <div class="app-card">
+    <!-- ШАПКА (без изменений) -->
+    <div class="app-header">
+      <h3>Управление организациями / отделами</h3>
+      <div class="header-controls">
+        <div class="ddl">Активные <span class="caret">▾</span></div>
+        <div class="ddl">Тип: все <span class="caret">▾</span></div>
+        <div class="search">🔍 Поиск (имя · тип) <span class="fix">fix 2</span></div>
+        <button class="btn-add">Добавить</button>
+        <button class="btn-refresh">↻ Обновить</button>
+      </div>
+    </div>
+
+    <div class="content">
+      <!-- СПИСОК (без изменений) -->
+      <div class="list">
+        <div class="list-head">
+          <span class="c-id">ID <span class="sort-caret">↕</span></span>
+          <span class="c-name">Наименование <span class="sort-caret">↕</span></span>
+          <span class="c-type">Тип <span class="sort-caret">↕</span></span>
+          <span class="c-users">Польз. <span class="sort-caret">↕</span></span>
+        </div>
+        <div class="list-body">
+          <div class="list-row"><span class="c-id">7</span><span class="c-name">АО Демо-Логистика</span><span class="c-type unset">не указан</span><span class="c-users">3</span></div>
+          <div class="list-row sel"><span class="c-id">12</span><span class="c-name">ООО Ромашка</span><span class="c-type">Арендатор</span><span class="c-users">5</span></div>
+          <div class="list-row"><span class="c-id">15</span><span class="c-name">Отдел ИТ</span><span class="c-type">Отдел</span><span class="c-users">12</span></div>
+          <div class="list-row"><span class="c-id">18</span><span class="c-name">СК Восток</span><span class="c-type">Подрядчик</span><span class="c-users">0</span></div>
+          <div class="list-row"><span class="c-id">21</span><span class="c-name">м-н Фамилия</span><span class="c-type unset">не указан</span><span class="c-users">1</span></div>
+        </div>
+        <div class="list-foot">Всего организаций: 5</div>
+      </div>
+
+      <!-- ========== ВАРИАНТ A ========== -->
+      <div class="details active" data-variant="A">
+        <div class="vA">
+          <div class="head">
+            <div class="title">
+              <h2>ООО Ромашка</h2>
+              <div><span class="pill pill-muted">Тип: Арендатор</span></div>
+            </div>
+            <div class="acts">
+              <button class="pill pill-ghost">История</button>
+              <button class="pill pill-danger">В архив</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="sec-title">Основное</div>
+            <div class="row2">
+              <div>
+                <label class="field-label">Наименование</label>
+                <input class="lk-input" value="ООО Ромашка">
+              </div>
+              <div>
+                <label class="field-label">Тип</label>
+                <div class="type-select">
+                  <div class="selected" onclick="toggleTypeMenu(this)">Арендатор <span class="caret">▾</span></div>
+                </div>
+              </div>
+            </div>
+            <div style="margin-top:12px; display:flex; align-items:center; gap:12px">
+              <button class="btn-save">Сохранить</button>
+              <span class="muted-hint">Имя и тип сохраняются вместе</span>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="sec-title">Места разгрузки (по умолчанию)</div>
+            <div class="chip-box"><div class="chip-grid">
+              <div class="chip on">Рампа А</div><div class="chip on">Рампа Б</div><div class="chip">Северный въезд</div>
+              <div class="chip on">Склад №1</div><div class="chip">Склад №2</div><div class="chip">Ворота 3</div>
+            </div></div>
+          </div>
+
+          <div class="card">
+            <div class="sec-title">Целевые таблицы (по умолчанию)</div>
+            <div class="chip-box"><div class="chip-grid">
+              <div class="chip on">КПП №4</div><div class="chip">ПОСТ №72</div><div class="chip">Терминал А</div>
+            </div></div>
+          </div>
+
+          <div class="card">
+            <div class="sec-title">Ответственные <span class="save-hint">● есть несохранённые <span class="fix">fix 5</span></span></div>
+            <div class="stack">
+              <div class="person"><div class="avatar">СН</div><div class="who"><b>Суднишников Никита Михайлович</b><small>Продавец-кассир</small></div><div class="flags"><span class="tag tag-main">главный</span><span class="tag tag-appr">согласует</span></div></div>
+              <div class="person"><div class="avatar">КМ</div><div class="who"><b>Козлова Мария Ивановна</b><small>Менеджер</small></div><div class="flags"></div></div>
+              <div class="person" style="border-style:dashed; color:var(--muted); justify-content:center; cursor:pointer">+ Добавить ответственного</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="sec-title">Пользователи, привязанные к организации <span class="count-badge">5</span></div>
+            <div class="stack">
+              <div class="person"><div class="avatar">ИИ</div><div class="who"><b>Иванов Иван Петрович</b><small>Директор</small></div></div>
+              <div class="person"><div class="avatar">ПА</div><div class="who"><b>Петрова Анна Сергеевна</b><small>Бухгалтер</small></div></div>
+              <div class="person"><div class="avatar">СН</div><div class="who"><b>Суднишников Никита Михайлович</b><small>Продавец-кассир</small></div></div>
+              <div class="muted-hint" style="padding-left:6px">…и ещё 2</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== ВАРИАНТ B ========== -->
+      <div class="details" data-variant="B">
+        <div class="vB">
+          <div class="head">
+            <h2>ООО Ромашка <span class="pill pill-muted">Арендатор</span></h2>
+            <div style="display:flex; gap:8px">
+              <button class="pill pill-ghost">История</button>
+              <button class="pill pill-danger">В архив</button>
+            </div>
+          </div>
+
+          <div class="tabs">
+            <button class="on" onclick="setTab(this,'b-main')">Основное</button>
+            <button onclick="setTab(this,'b-places')">Места и таблицы</button>
+            <button onclick="setTab(this,'b-resp')">Ответственные <span class="save-hint" style="padding:1px 6px">●</span></button>
+            <button onclick="setTab(this,'b-members')">Участники <span class="count-badge">5</span></button>
+          </div>
+
+          <div id="b-main" class="tabpane on">
+            <div class="row2">
+              <div>
+                <label class="field-label">Наименование</label>
+                <input class="lk-input" value="ООО Ромашка">
+              </div>
+              <div>
+                <label class="field-label">Тип</label>
+                <div class="type-select">
+                  <div class="selected" onclick="toggleTypeMenu(this)">Арендатор <span class="caret">▾</span></div>
+                </div>
+              </div>
+            </div>
+            <button class="btn-save">Сохранить</button>
+            <span class="muted-hint" style="margin-left:12px">Имя и тип сохраняются вместе</span>
+          </div>
+
+          <div id="b-places" class="tabpane">
+            <div class="sec-title">Места разгрузки</div>
+            <div class="chip-box" style="margin-bottom:16px"><div class="chip-grid">
+              <div class="chip on">Рампа А</div><div class="chip on">Рампа Б</div><div class="chip">Северный въезд</div>
+              <div class="chip on">Склад №1</div><div class="chip">Склад №2</div><div class="chip">Ворота 3</div>
+            </div></div>
+            <div class="sec-title">Целевые таблицы</div>
+            <div class="chip-box"><div class="chip-grid">
+              <div class="chip on">КПП №4</div><div class="chip">ПОСТ №72</div><div class="chip">Терминал А</div>
+            </div></div>
+          </div>
+
+          <div id="b-resp" class="tabpane">
+            <div class="sec-title">Ответственные <span class="save-hint">● есть несохранённые <span class="fix">fix 5</span></span></div>
+            <div class="stack">
+              <div class="person"><div class="avatar">СН</div><div class="who"><b>Суднишников Никита Михайлович</b><small>Продавец-кассир</small></div><div class="flags"><span class="tag tag-main">главный</span><span class="tag tag-appr">согласует</span></div></div>
+              <div class="person"><div class="avatar">КМ</div><div class="who"><b>Козлова Мария Ивановна</b><small>Менеджер</small></div><div class="flags"></div></div>
+              <div class="person" style="border-style:dashed; color:var(--muted); justify-content:center; cursor:pointer">+ Добавить ответственного</div>
+            </div>
+          </div>
+
+          <div id="b-members" class="tabpane">
+            <div class="sec-title">Пользователи, привязанные к организации <span class="count-badge">5</span></div>
+            <div class="stack">
+              <div class="person"><div class="avatar">ИИ</div><div class="who"><b>Иванов Иван Петрович</b><small>Директор</small></div></div>
+              <div class="person"><div class="avatar">ПА</div><div class="who"><b>Петрова Анна Сергеевна</b><small>Бухгалтер</small></div></div>
+              <div class="person"><div class="avatar">СН</div><div class="who"><b>Суднишников Никита Михайлович</b><small>Продавец-кассир</small></div></div>
+              <div class="person"><div class="avatar">КМ</div><div class="who"><b>Козлова Мария Ивановна</b><small>Менеджер</small></div></div>
+              <div class="person"><div class="avatar">ФД</div><div class="who"><b>Фёдоров Дмитрий Олегович</b><small>Кладовщик</small></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== ВАРИАНТ C ========== -->
+      <div class="details" data-variant="C">
+        <div class="vC">
+          <div class="head">
+            <div>
+              <h2>ООО Ромашка</h2>
+              <div style="margin-top:6px"><span class="pill pill-muted">Тип: Арендатор</span></div>
+            </div>
+            <div style="display:flex; gap:8px">
+              <button class="pill pill-ghost">История</button>
+              <button class="pill pill-danger">В архив</button>
+            </div>
+          </div>
+
+          <div class="grid">
+            <div class="col">
+              <div class="block">
+                <div class="sec-title">Основное</div>
+                <label class="field-label">Наименование</label>
+                <input class="lk-input" value="ООО Ромашка" style="margin-bottom:12px">
+                <label class="field-label">Тип</label>
+                <div class="type-select" style="margin-bottom:12px">
+                  <div class="selected" onclick="toggleTypeMenu(this)">Арендатор <span class="caret">▾</span></div>
+                </div>
+                <button class="btn-save">Сохранить</button>
+              </div>
+              <div class="block">
+                <div class="sec-title">Места разгрузки</div>
+                <div class="chip-box"><div class="chip-grid">
+                  <div class="chip on">Рампа А</div><div class="chip on">Рампа Б</div><div class="chip">Северный въезд</div>
+                  <div class="chip on">Склад №1</div><div class="chip">Склад №2</div><div class="chip">Ворота 3</div>
+                </div></div>
+              </div>
+              <div class="block">
+                <div class="sec-title">Целевые таблицы</div>
+                <div class="chip-box"><div class="chip-grid">
+                  <div class="chip on">КПП №4</div><div class="chip">ПОСТ №72</div><div class="chip">Терминал А</div>
+                </div></div>
+              </div>
+            </div>
+
+            <div class="col">
+              <div class="block">
+                <div class="sec-title">Ответственные <span class="save-hint">● есть несохранённые <span class="fix">fix 5</span></span></div>
+                <div class="stack">
+                  <div class="person"><div class="avatar">СН</div><div class="who"><b>Суднишников Никита М.</b><small>Продавец-кассир</small></div><div class="flags"><span class="tag tag-main">главный</span></div></div>
+                  <div class="person"><div class="avatar">КМ</div><div class="who"><b>Козлова Мария И.</b><small>Менеджер</small></div></div>
+                  <div class="person" style="border-style:dashed; color:var(--muted); justify-content:center; cursor:pointer">+ Добавить</div>
+                </div>
+              </div>
+              <div class="block">
+                <div class="sec-title">Привязанные пользователи <span class="count-badge">5</span></div>
+                <div class="stack">
+                  <div class="person"><div class="avatar">ИИ</div><div class="who"><b>Иванов Иван П.</b><small>Директор</small></div></div>
+                  <div class="person"><div class="avatar">ПА</div><div class="who"><b>Петрова Анна С.</b><small>Бухгалтер</small></div></div>
+                  <div class="person"><div class="avatar">СН</div><div class="who"><b>Суднишников Никита М.</b><small>Продавец-кассир</small></div></div>
+                  <div class="muted-hint" style="padding-left:6px">…и ещё 2</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <p style="text-align:center; color:#8a94a3; font-size:12px; margin-top:16px">
+    Мокап для согласования · fix 3: у компаний в списке типов добавится «Компания» (в этом примере показаны организации).
+  </p>
+</div>
+
+<script>
+  function setVariant(v){
+    document.querySelectorAll('.variant-toggle button').forEach(b=>b.classList.toggle('active', b.dataset.v===v));
+    document.querySelectorAll('.details').forEach(d=>d.classList.toggle('active', d.dataset.variant===v));
+    document.querySelectorAll('.type-menu').forEach(m=>m.remove());
+  }
+  function setTab(btn, id){
+    btn.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('on'));
+    btn.classList.add('on');
+    const pane = document.getElementById(id);
+    pane.parentElement.querySelectorAll('.tabpane').forEach(p=>p.classList.remove('on'));
+    pane.classList.add('on');
+  }
+  function toggleTypeMenu(el){
+    const wrap = el.parentElement;
+    const existing = wrap.querySelector('.type-menu');
+    document.querySelectorAll('.type-menu').forEach(m=>m.remove());
+    if(existing) return;
+    const types = ['Арендатор','Подрядчик','Отдел','Организация','Компания'];
+    const menu = document.createElement('div');
+    menu.className='type-menu';
+    menu.innerHTML = types.map(t=>`<div class="${t==='Арендатор'?'on':''}" onclick="pickType(this,'${t}')">${t}${t==='Компания'?' <span style=\\'color:#4F5BDF;font-size:10px\\'>fix 3</span>':''}</div>`).join('') + '<div style="color:#a2a2a2">не указан</div>';
+    wrap.appendChild(menu);
+  }
+  function pickType(el,t){
+    const wrap = el.closest('.type-select');
+    wrap.querySelector('.selected').firstChild.textContent = t+' ';
+    wrap.querySelector('.type-menu').remove();
+  }
+  document.addEventListener('click', e=>{
+    if(!e.target.closest('.type-select')) document.querySelectorAll('.type-menu').forEach(m=>m.remove());
+  });
+</script>
+</body>
+</html>
