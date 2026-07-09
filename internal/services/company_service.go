@@ -43,6 +43,10 @@ type CompanyService interface {
 	// GetUsers возвращает ответственных пользователей компании.
 	GetUsers(ctx context.Context, companyID int) ([]CompanyUserResponse, error)
 
+	// GetMembers возвращает пользователей, привязанных к компании через
+	// users.company_id (участники), не ответственных из junction-таблицы.
+	GetMembers(ctx context.Context, companyID int) ([]MemberResponse, error)
+
 	// UpdateUsers обновляет ответственных пользователей компании с поддержкой обязательного согласования.
 	UpdateUsers(ctx context.Context, companyID int, req UpdateCompanyUsersRequest) error
 
@@ -62,8 +66,11 @@ type CompanyService interface {
 // --- DTO: запросы ---
 
 // CreateCompanyRequest тело запроса создания/обновления компании.
+// Type валидируется в сервисе (условно): при создании обязателен и должен быть
+// одним из models.OrgTypeValues; при обновлении опционален (nil снимает тип).
 type CreateCompanyRequest struct {
-	Name string `json:"name" validate:"required,min=1,max=100"`
+	Name string  `json:"name" validate:"required,min=1,max=100"`
+	Type *string `json:"type"`
 }
 
 // UpdateCompanyUsersRequest тело запроса обновления ответственных пользователей.
@@ -92,10 +99,11 @@ type UpdateCompanyTablesRequest struct {
 
 // CompanyWithUsersResponse компания с количеством пользователей.
 type CompanyWithUsersResponse struct {
-	ID        int    `json:"id"`
-	Name      string `json:"name"`
-	IsActive  bool   `json:"is_active"`
-	UserCount int64  `json:"user_count"`
+	ID        int     `json:"id"`
+	Name      string  `json:"name"`
+	Type      *string `json:"type"`
+	IsActive  bool    `json:"is_active"`
+	UserCount int64   `json:"user_count"`
 }
 
 // CompanyUnloadPlaceResponse место разгрузки компании.
@@ -117,6 +125,7 @@ type CompanyTableResponse struct {
 type CompanyWithUsersExtendedResponse struct {
 	ID           int                          `json:"id"`
 	Name         string                       `json:"name"`
+	Type         *string                      `json:"type"`
 	IsActive     bool                         `json:"is_active"`
 	UserCount    *int64                       `json:"user_count"`
 	UnloadPlaces []CompanyUnloadPlaceResponse `json:"unload_places"`
@@ -161,9 +170,9 @@ func (s *companyService) GetWithUsers(ctx context.Context, includeArchived bool)
 	result := make([]CompanyWithUsersResponse, 0)
 	q := s.db.WithContext(ctx).
 		Table("companies c").
-		Select("c.id, c.name, c.is_active, COUNT(u.id) FILTER (WHERE u.is_active = true) as user_count").
+		Select("c.id, c.name, c.type, c.is_active, COUNT(u.id) FILTER (WHERE u.is_active = true) as user_count").
 		Joins("LEFT JOIN users u ON u.company_id = c.id").
-		Group("c.id, c.name, c.is_active").
+		Group("c.id, c.name, c.type, c.is_active").
 		Order("c.name")
 	if !includeArchived {
 		q = q.Where("c.is_active = ?", true)
@@ -181,15 +190,16 @@ func (s *companyService) GetWithUsersExtended(ctx context.Context, includeArchiv
 	type companyRow struct {
 		ID        int
 		Name      string
+		Type      *string
 		IsActive  bool
 		UserCount *int64
 	}
 	companies := make([]companyRow, 0)
 	q := s.db.WithContext(ctx).
 		Table("companies c").
-		Select("c.id, c.name, c.is_active, COUNT(u.id) FILTER (WHERE u.is_active = true) as user_count").
+		Select("c.id, c.name, c.type, c.is_active, COUNT(u.id) FILTER (WHERE u.is_active = true) as user_count").
 		Joins("LEFT JOIN users u ON u.company_id = c.id").
-		Group("c.id, c.name, c.is_active").
+		Group("c.id, c.name, c.type, c.is_active").
 		Order("c.name")
 	if !includeArchived {
 		q = q.Where("c.is_active = ?", true)
@@ -218,6 +228,7 @@ func (s *companyService) GetWithUsersExtended(ctx context.Context, includeArchiv
 		result = append(result, CompanyWithUsersExtendedResponse{
 			ID:           c.ID,
 			Name:         c.Name,
+			Type:         c.Type,
 			IsActive:     c.IsActive,
 			UserCount:    c.UserCount,
 			UnloadPlaces: places,
@@ -227,8 +238,12 @@ func (s *companyService) GetWithUsersExtended(ctx context.Context, includeArchiv
 	return result, nil
 }
 
-// Create создаёт новую компанию (admin-only).
+// Create создаёт новую компанию (admin-only). Тип обязателен и должен быть валидным.
 func (s *companyService) Create(ctx context.Context, callerUserID int, req CreateCompanyRequest) (*models.Company, error) {
+	if req.Type == nil || !models.IsValidOrgType(*req.Type) {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Некорректный тип компании")
+	}
+
 	var active int64
 	if err := s.db.WithContext(ctx).Model(&models.Company{}).
 		Where("name = ? AND is_active = ?", req.Name, true).Count(&active).Error; err != nil {
@@ -238,18 +253,23 @@ func (s *companyService) Create(ctx context.Context, callerUserID int, req Creat
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Компания с таким названием уже существует")
 	}
 
-	company := models.Company{Name: req.Name, IsActive: true}
+	company := models.Company{Name: req.Name, Type: req.Type, IsActive: true}
 	if err := s.db.WithContext(ctx).Create(&company).Error; err != nil {
 		slog.Error("не удалось создать компанию", "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating company")
 	}
 	slog.Info("компания создана", "id", company.ID, "name", company.Name)
-	s.recorder.Log(ctx, nil, models.AuditEntityCompany, &company.ID, models.CompanyActionCreated, &callerUserID, map[string]any{"name": company.Name})
+	s.recorder.Log(ctx, nil, models.AuditEntityCompany, &company.ID, models.CompanyActionCreated, &callerUserID, map[string]any{"name": company.Name, "type": company.Type})
 	return &company, nil
 }
 
-// Update обновляет название компании (admin-only).
+// Update обновляет название и тип компании (admin-only). Тип опционален: nil
+// снимает его, непустое значение обязано быть валидным. Сохраняются вместе.
 func (s *companyService) Update(ctx context.Context, callerUserID, companyID int, req CreateCompanyRequest) (*models.Company, error) {
+	if req.Type != nil && !models.IsValidOrgType(*req.Type) {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Некорректный тип компании")
+	}
+
 	var company models.Company
 	if err := s.db.WithContext(ctx).First(&company, companyID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -270,13 +290,16 @@ func (s *companyService) Update(ctx context.Context, callerUserID, companyID int
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Компания с таким названием уже существует")
 	}
 
-	company.Name = req.Name
-	if err := s.db.WithContext(ctx).Save(&company).Error; err != nil {
+	// map-обновление (а не Save структуры) - чтобы явно записать type=NULL при снятии типа.
+	if err := s.db.WithContext(ctx).Model(&models.Company{}).
+		Where("id = ?", companyID).Updates(map[string]any{"name": req.Name, "type": req.Type}).Error; err != nil {
 		slog.Error("не удалось обновить компанию", "id", companyID, "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error updating company")
 	}
+	company.Name = req.Name
+	company.Type = req.Type
 	slog.Info("компания обновлена", "id", companyID, "name", company.Name)
-	s.recorder.Log(ctx, nil, models.AuditEntityCompany, &companyID, models.CompanyActionRenamed, &callerUserID, map[string]any{"name": company.Name})
+	s.recorder.Log(ctx, nil, models.AuditEntityCompany, &companyID, models.CompanyActionRenamed, &callerUserID, map[string]any{"name": company.Name, "type": company.Type})
 	return &company, nil
 }
 
@@ -352,7 +375,7 @@ func (s *companyService) Restore(ctx context.Context, callerUserID, companyID in
 // перенесены backfill'ом BackfillAuditFromLegacy), поэтому чтение идёт только из
 // audit_log. Замороженная company_histories дропнута в дроп-sweep (F.8).
 // Форму ответа стережёт TestCompanies_History.
-// Действие renamed хранит только {name:new} (без old) - details передаётся как есть.
+// Действия created/renamed хранят {name,type} (тип с #1046) - details как есть.
 func (s *companyService) GetHistory(ctx context.Context, companyID int) ([]models.CompanyHistoryItem, error) {
 	const actorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`
 	sql := `
@@ -404,6 +427,23 @@ func (s *companyService) GetUsers(ctx context.Context, companyID int) ([]Company
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching company users")
 	}
 	return users, nil
+}
+
+// GetMembers возвращает активных пользователей, привязанных к компании через
+// users.company_id (участники). Это те же пользователи, что дают user_count.
+func (s *companyService) GetMembers(ctx context.Context, companyID int) ([]MemberResponse, error) {
+	members := make([]MemberResponse, 0)
+	err := s.db.WithContext(ctx).
+		Table("users u").
+		Select("u.id, u.username, u.last_name, u.first_name, u.middle_name, u.position").
+		Where("u.company_id = ? AND u.is_active = ?", companyID, true).
+		Order("u.last_name, u.first_name, u.username").
+		Scan(&members).Error
+	if err != nil {
+		slog.Error("не удалось получить участников компании", "error", err)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching company members")
+	}
+	return members, nil
 }
 
 // UpdateUsers заменяет ответственных пользователей компании.

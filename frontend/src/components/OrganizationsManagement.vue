@@ -13,6 +13,15 @@
           value-key="value"
           @update:model-value="onArchiveModeChange"
         />
+        <BaseDropdown
+          class="type-filter-dropdown"
+          data-testid="orgs-type-filter"
+          :model-value="typeFilter"
+          :options="typeFilterOptions"
+          label-key="label"
+          value-key="value"
+          @update:model-value="typeFilter = $event"
+        />
         <SearchComponent
           v-model="searchQuery"
           :title="'Поиск организаций...'"
@@ -69,6 +78,22 @@
               >
             </div>
             <div
+              class="header-col type-col"
+              @click="sortBy('type')"
+            >
+              <p :class="{ 'active-sort': sortField === 'type' }">
+                Тип
+              </p>
+              <img
+                src="@/assets/icons/sort.png"
+                class="sort-icon"
+                :class="{
+                  'sorted': sortField === 'type',
+                  'desc': sortField === 'type' && sortDirection === 'desc'
+                }"
+              >
+            </div>
+            <div
               class="header-col users-col"
               @click="sortBy('user_count')"
             >
@@ -112,6 +137,13 @@
                     class="inactive-badge"
                   >(архив)</span>
                 </span>
+              </div>
+              <div class="table-col type-col">
+                <span
+                  class="truncate-text type-value"
+                  :class="{ 'type-unspecified': !org.type }"
+                  :title="orgTypeLabel(org.type)"
+                >{{ orgTypeLabel(org.type) }}</span>
               </div>
               <div class="table-col users-col">
                 <span class="cell-content user-count">
@@ -210,6 +242,18 @@
                 Сохранить
               </button>
             </div>
+            <label class="field-label">Тип</label>
+            <BaseDropdown
+              data-testid="orgs-detail-type"
+              :model-value="selectedOrganization.type"
+              :options="typeDetailOptions"
+              label-key="label"
+              value-key="value"
+              :placeholder="unspecifiedTypeLabel"
+              :disabled="!selectedOrganization.is_active || isSavingName"
+              @update:model-value="onDetailTypeChange"
+            />
+
             <div
               v-if="detailError"
               class="form-error"
@@ -236,6 +280,43 @@
             >
               Восстановите организацию, чтобы редактировать места разгрузки, таблицы и ответственных.
             </p>
+
+            <div
+              class="members-section"
+              data-testid="orgs-members"
+            >
+              <div class="members-title">
+                Пользователи, привязанные к организации «{{ originalSelectedName }}»: {{ members.length }}
+              </div>
+              <div
+                v-if="membersLoading"
+                class="members-loading"
+              >
+                <LoaderSpinner label="Загрузка пользователей..." />
+              </div>
+              <ul
+                v-else-if="members.length"
+                class="members-list"
+              >
+                <li
+                  v-for="m in members"
+                  :key="m.id"
+                  class="members-item"
+                >
+                  <span class="members-name">{{ memberFullName(m) }}</span>
+                  <span
+                    v-if="m.position"
+                    class="members-position"
+                  >{{ m.position }}</span>
+                </li>
+              </ul>
+              <p
+                v-else
+                class="members-empty"
+              >
+                Нет привязанных пользователей
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -309,6 +390,18 @@
                   @keyup.enter="submitAdd"
                 >
               </div>
+              <div class="form-group">
+                <label class="form-label">Тип</label>
+                <BaseDropdown
+                  data-testid="orgs-input-type"
+                  :model-value="addForm.type"
+                  :options="typeCreateOptions"
+                  label-key="label"
+                  value-key="value"
+                  placeholder="Выберите тип"
+                  @update:model-value="addForm.type = $event"
+                />
+              </div>
               <div
                 v-if="addError"
                 class="form-error"
@@ -327,7 +420,7 @@
               </button>
               <button
                 class="lk-button lk-button--primary"
-                :disabled="!addForm.name || isAdding"
+                :disabled="!addForm.name || !addForm.type || isAdding"
                 data-testid="orgs-modal-save"
                 @click="submitAdd"
               >
@@ -363,7 +456,16 @@
 <script>
 import { mapState, mapActions } from 'pinia';
 import { apiRequest } from '@/api/client';
+import { getOrganizationMembers } from '@/api/organizations';
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
+import {
+  ORG_TYPE_CREATE_OPTIONS,
+  ORG_TYPE_DETAIL_OPTIONS,
+  ORG_TYPE_FILTER_OPTIONS,
+  ORG_TYPE_FILTER_ALL,
+  ORG_TYPE_FILTER_UNSPECIFIED,
+  ORG_TYPE_UNSPECIFIED_LABEL,
+} from '@/constants/orgTypes';
 import { useOrganizationsStore } from '@/stores/organizations';
 import { useDeletionsStore } from '@/stores/deletions';
 import { registerDirtyTracker, confirmIfAnyDirty } from '@/utils/dirtyTracker';
@@ -401,12 +503,17 @@ export default {
     return {
       searchQuery: '',
       showArchive: false,
+      typeFilter: ORG_TYPE_FILTER_ALL,
       showAddModal: false,
-      addForm: { name: '' },
+      addForm: { name: '', type: null },
       addError: '',
       isAdding: false,
       selectedOrganization: null,
       originalSelectedName: '',
+      originalSelectedType: null,
+      members: [],
+      membersLoading: false,
+      membersSeq: 0,
       detailError: '',
       isSavingName: false,
       archiveConfirmOrg: null,
@@ -418,6 +525,10 @@ export default {
         { label: 'Активные', value: 'active' },
         { label: 'Архив', value: 'archive' },
       ],
+      typeCreateOptions: ORG_TYPE_CREATE_OPTIONS,
+      typeDetailOptions: ORG_TYPE_DETAIL_OPTIONS,
+      typeFilterOptions: ORG_TYPE_FILTER_OPTIONS,
+      unspecifiedTypeLabel: ORG_TYPE_UNSPECIFIED_LABEL,
     };
   },
   computed: {
@@ -426,12 +537,17 @@ export default {
       isLoading: 'isLoading',
     }),
     filteredOrganizations() {
-      const byMode = this.organizationsWithUsers.filter(org =>
+      let list = this.organizationsWithUsers.filter(org =>
         this.showArchive ? !org.is_active : org.is_active
       );
+      if (this.typeFilter === ORG_TYPE_FILTER_UNSPECIFIED) {
+        list = list.filter(org => !org.type);
+      } else if (this.typeFilter !== ORG_TYPE_FILTER_ALL) {
+        list = list.filter(org => org.type === this.typeFilter);
+      }
       const variants = buildSearchVariants(this.searchQuery);
-      if (!variants.length) return byMode;
-      return byMode.filter(org => matchesSearch(`${org.name} ${org.id}`, variants));
+      if (!variants.length) return list;
+      return list.filter(org => matchesSearch(`${org.name} ${org.id}`, variants));
     },
     sortedOrganizations() {
       const organizations = [...this.filteredOrganizations];
@@ -452,6 +568,11 @@ export default {
             valueA = a.name;
             valueB = b.name;
             break;
+          case 'type':
+            // «не указан» (null) -> пустая строка: сортируется первой при asc.
+            valueA = a.type || '';
+            valueB = b.type || '';
+            break;
           case 'user_count':
             valueA = a.user_count;
             valueB = b.user_count;
@@ -471,15 +592,17 @@ export default {
     },
     emptyText() {
       if (this.searchQuery.trim()) return 'Ничего не найдено по запросу';
+      if (this.typeFilter !== ORG_TYPE_FILTER_ALL) return 'Нет организаций с таким типом';
       return this.showArchive ? 'В архиве пусто' : 'Организаций пока нет';
     },
     isAddDirty() {
-      return this.showAddModal && this.addForm.name.trim() !== '';
+      return this.showAddModal && (this.addForm.name.trim() !== '' || !!this.addForm.type);
     },
     isDetailsDirty() {
-      return !!this.selectedOrganization
-        && this.selectedOrganization.is_active
-        && this.selectedOrganization.name.trim() !== this.originalSelectedName;
+      if (!this.selectedOrganization || !this.selectedOrganization.is_active) return false;
+      const nameChanged = this.selectedOrganization.name.trim() !== this.originalSelectedName;
+      const typeChanged = (this.selectedOrganization.type ?? null) !== (this.originalSelectedType ?? null);
+      return nameChanged || typeChanged;
     },
     isDirty() {
       return this.isAddDirty || this.isDetailsDirty;
@@ -505,7 +628,14 @@ export default {
       getChanges: () => {
         if (this.isAddDirty) return [`Новая организация: "${this.addForm.name.trim()}"`];
         if (this.isDetailsDirty) {
-          return [{ label: 'Наименование', from: this.originalSelectedName, to: this.selectedOrganization.name.trim() }];
+          const changes = [];
+          if (this.selectedOrganization.name.trim() !== this.originalSelectedName) {
+            changes.push({ label: 'Наименование', from: this.originalSelectedName, to: this.selectedOrganization.name.trim() });
+          }
+          if ((this.selectedOrganization.type ?? null) !== (this.originalSelectedType ?? null)) {
+            changes.push({ label: 'Тип', from: this.orgTypeLabel(this.originalSelectedType), to: this.orgTypeLabel(this.selectedOrganization.type) });
+          }
+          return changes;
         }
         return [];
       },
@@ -547,8 +677,10 @@ export default {
       if (fresh && visible && !this.isDetailsDirty) {
         this.selectedOrganization = { ...fresh };
         this.originalSelectedName = fresh.name;
+        this.originalSelectedType = fresh.type ?? null;
       } else if (!visible) {
         this.selectedOrganization = null;
+        this.members = [];
       }
     },
 
@@ -556,12 +688,14 @@ export default {
       if (this.isDetailsDirty && !(await confirmIfAnyDirty())) return;
       this.showArchive = value === 'archive';
       this.selectedOrganization = null;
+      this.members = [];
       this.detailError = '';
     },
 
     openAddModal() {
       this.showAddModal = true;
       this.addForm.name = '';
+      this.addForm.type = null;
       this.addError = '';
     },
 
@@ -573,16 +707,18 @@ export default {
     forceCloseAdd() {
       this.showAddModal = false;
       this.addForm.name = '';
+      this.addForm.type = null;
       this.addError = '';
     },
 
     async submitAdd() {
       const name = this.addForm.name.trim();
-      if (!name || this.isAdding) return;
+      const type = this.addForm.type;
+      if (!name || !type || this.isAdding) return;
       this.isAdding = true;
       this.addError = '';
 
-      const result = await this.createOrganization({ name }, { includeArchived: true });
+      const result = await this.createOrganization({ name, type }, { includeArchived: true });
 
       if (result.ok) {
         this.forceCloseAdd();
@@ -591,6 +727,8 @@ export default {
         if (created) {
           this.selectedOrganization = { ...created };
           this.originalSelectedName = created.name;
+          this.originalSelectedType = created.type ?? null;
+          this.loadMembers(created.id);
         }
         useDeletionsStore().notify({ prefix: 'Организация ', bold: name, suffix: ' создана' });
       } else {
@@ -604,25 +742,60 @@ export default {
       if (this.isDetailsDirty && !(await confirmIfAnyDirty())) return;
       this.selectedOrganization = { ...org };
       this.originalSelectedName = org.name;
+      this.originalSelectedType = org.type ?? null;
       this.detailError = '';
+      this.loadMembers(org.id);
+    },
+
+    onDetailTypeChange(value) {
+      if (this.selectedOrganization) this.selectedOrganization.type = value;
     },
 
     async saveSelectedName() {
       if (!this.isDetailsDirty || this.isSavingName) return;
       const name = this.selectedOrganization.name.trim();
+      const type = this.selectedOrganization.type ?? null;
       this.isSavingName = true;
       this.detailError = '';
 
-      const result = await this.updateOrganization(this.selectedOrganization.id, { name }, { includeArchived: true });
+      const result = await this.updateOrganization(this.selectedOrganization.id, { name, type }, { includeArchived: true });
 
       if (result.ok) {
         this.originalSelectedName = name;
+        this.originalSelectedType = type;
         this.selectedOrganization.name = name;
         useDeletionsStore().notify({ prefix: 'Изменения сохранены в ', bold: name });
       } else {
         this.detailError = result.message || 'Не удалось сохранить';
       }
       this.isSavingName = false;
+    },
+
+    async loadMembers(id) {
+      // seq-токен: быстрое переключение организаций может дать гонку, показываем
+      // только ответ последнего запроса (см. урок про авто-fetch по выбору).
+      const seq = ++this.membersSeq;
+      this.members = [];
+      this.membersLoading = true;
+      try {
+        const data = await getOrganizationMembers(id);
+        if (seq !== this.membersSeq) return;
+        this.members = Array.isArray(data) ? data : [];
+      } catch {
+        // Список участников - вспомогательная информация, при сбое оставляем пустым.
+        if (seq === this.membersSeq) this.members = [];
+      } finally {
+        if (seq === this.membersSeq) this.membersLoading = false;
+      }
+    },
+
+    memberFullName(m) {
+      const parts = [m.last_name, m.first_name, m.middle_name].filter(Boolean);
+      return parts.join(' ') || m.username || '—';
+    },
+
+    orgTypeLabel(type) {
+      return type || this.unspecifiedTypeLabel;
     },
 
     onArchiveClick(org) {
@@ -826,18 +999,37 @@ export default {
 }
 
 .id-col {
-  width: 15%;
-  min-width: 40px;
+  width: 12%;
+  min-width: 36px;
 }
 
 .name-col {
-  width: 55%;
-  min-width: 200px;
+  width: 38%;
+  min-width: 140px;
+}
+
+.type-col {
+  width: 26%;
+  min-width: 90px;
 }
 
 .users-col {
-  width: 30%;
-  min-width: 120px;
+  width: 24%;
+  min-width: 90px;
+}
+
+.type-value {
+  font-size: 13px;
+  color: #333;
+}
+
+.type-unspecified {
+  color: #a2a2a2;
+  font-style: italic;
+}
+
+.table-row.inactive .type-value {
+  color: #6b7280;
 }
 
 .table-body {
@@ -1077,6 +1269,64 @@ export default {
   line-height: 1.5;
 }
 
+.members-section {
+  margin-top: 6px;
+  padding-top: 12px;
+  border-top: 1px solid #e6e6e6;
+  min-width: 260px;
+}
+
+.members-title {
+  font-size: 0.85em;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.members-loading {
+  display: flex;
+  justify-content: center;
+  padding: 12px 0;
+}
+
+.members-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.members-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
+  background: #fff;
+  border: 1px solid #eee;
+  border-radius: 10px;
+}
+
+.members-name {
+  font-size: 13px;
+  color: #000;
+  font-weight: 500;
+}
+
+.members-position {
+  font-size: 12px;
+  color: #a2a2a2;
+}
+
+.members-empty {
+  margin: 0;
+  font-size: 0.85em;
+  color: #a2a2a2;
+}
+
 .responsible-section {
   flex: 1;
   background: #fff;
@@ -1256,15 +1506,19 @@ export default {
   }
 
   .id-col {
-    width: 20%;
+    width: 14%;
   }
 
   .name-col {
-    width: 50%;
+    width: 34%;
+  }
+
+  .type-col {
+    width: 28%;
   }
 
   .users-col {
-    width: 30%;
+    width: 24%;
   }
 
   .details-section,

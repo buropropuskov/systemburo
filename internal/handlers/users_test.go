@@ -243,7 +243,7 @@ func TestUsers_UpdateOrganization(t *testing.T) {
 	testutil.RegisterUser(t, e, "targetuser", "password123", 1, td.OrgID, td.CompanyID)
 
 	// Create a second organization
-	rec := testutil.POST(t, e, "/organizations", `{"name":"New Organization"}`, h)
+	rec := testutil.POST(t, e, "/organizations", `{"name":"New Organization","type":"Организация"}`, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	orgResp := testutil.ParseMap(t, rec)
@@ -283,7 +283,7 @@ func TestUsers_UpdateCompany(t *testing.T) {
 	testutil.RegisterUser(t, e, "targetuser", "password123", 1, td.OrgID, td.CompanyID)
 
 	// Create a second company
-	rec := testutil.POST(t, e, "/companies", `{"name":"New Company"}`, h)
+	rec := testutil.POST(t, e, "/companies", `{"name":"New Company","type":"Организация"}`, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	compResp := testutil.ParseMap(t, rec)

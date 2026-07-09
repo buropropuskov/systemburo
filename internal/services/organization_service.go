@@ -46,6 +46,10 @@ type OrganizationService interface {
 	// GetOrganizationUsers возвращает ответственных пользователей организации.
 	GetOrganizationUsers(ctx context.Context, orgID int) ([]OrganizationUserResponse, error)
 
+	// GetMembers возвращает пользователей, привязанных к организации через
+	// users.organization_id (участники), не ответственных из junction-таблицы.
+	GetMembers(ctx context.Context, orgID int) ([]MemberResponse, error)
+
 	// UpdateOrganizationUsers обновляет ответственных пользователей организации (replace-стратегия).
 	UpdateOrganizationUsers(ctx context.Context, orgID int, req UpdateOrganizationUsersRequest) error
 
@@ -65,8 +69,11 @@ type OrganizationService interface {
 // --- DTO: запросы ---
 
 // CreateOrganizationRequest — тело запроса на создание/обновление организации.
+// Type валидируется в сервисе (условно): при создании обязателен и должен быть
+// одним из models.OrgTypeValues; при обновлении опционален (nil снимает тип).
 type CreateOrganizationRequest struct {
-	Name string `json:"name" validate:"required,min=1,max=100"`
+	Name string  `json:"name" validate:"required,min=1,max=100"`
+	Type *string `json:"type"`
 }
 
 // UpdateOrganizationUsersRequest — тело запроса на обновление ответственных.
@@ -95,16 +102,31 @@ type UpdateOrganizationUnloadPlacesRequest struct {
 
 // OrganizationInfoResponse — краткая информация об организации.
 type OrganizationInfoResponse struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
+	ID   int     `json:"id"`
+	Name string  `json:"name"`
+	Type *string `json:"type"`
 }
 
 // OrganizationWithUsersResponse — организация с количеством пользователей.
 type OrganizationWithUsersResponse struct {
-	ID        int    `json:"id"`
-	Name      string `json:"name"`
-	IsActive  bool   `json:"is_active"`
-	UserCount int64  `json:"user_count"`
+	ID        int     `json:"id"`
+	Name      string  `json:"name"`
+	Type      *string `json:"type"`
+	IsActive  bool    `json:"is_active"`
+	UserCount int64   `json:"user_count"`
+}
+
+// MemberResponse — пользователь, привязанный к организации/компании через
+// users.organization_id/company_id (участник, по нему же считается user_count).
+// Не путать с ответственными (junction organization_users/companies_users) из
+// GetOrganizationUsers/GetUsers - там связь многие-ко-многим, здесь прямое поле.
+type MemberResponse struct {
+	ID         int     `json:"id"`
+	Username   string  `json:"username"`
+	LastName   *string `json:"last_name"`
+	FirstName  *string `json:"first_name"`
+	MiddleName *string `json:"middle_name"`
+	Position   *string `json:"position"`
 }
 
 // OrganizationUserResponse — ответственный пользователь организации.
@@ -168,8 +190,12 @@ func (s *organizationService) GetAll(ctx context.Context) ([]OrganizationInfoRes
 	return orgs, nil
 }
 
-// Create создаёт новую организацию.
+// Create создаёт новую организацию. Тип обязателен и должен быть валидным.
 func (s *organizationService) Create(ctx context.Context, callerUserID int, req CreateOrganizationRequest) (*OrganizationInfoResponse, error) {
+	if req.Type == nil || !models.IsValidOrgType(*req.Type) {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Некорректный тип организации")
+	}
+
 	var active int64
 	if err := s.db.WithContext(ctx).Model(&models.Organization{}).
 		Where("name = ? AND is_active = ?", req.Name, true).Count(&active).Error; err != nil {
@@ -179,18 +205,23 @@ func (s *organizationService) Create(ctx context.Context, callerUserID int, req 
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Организация с таким названием уже существует")
 	}
 
-	org := models.Organization{Name: req.Name, IsActive: true}
+	org := models.Organization{Name: req.Name, Type: req.Type, IsActive: true}
 	if err := s.db.WithContext(ctx).Create(&org).Error; err != nil {
 		slog.Error("Не удалось создать организацию", "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating organization")
 	}
 	slog.Info("организация создана", "id", org.ID, "name", org.Name)
-	s.recorder.Log(ctx, nil, models.AuditEntityOrganization, &org.ID, models.OrganizationActionCreated, &callerUserID, map[string]any{"name": org.Name})
-	return &OrganizationInfoResponse{ID: org.ID, Name: org.Name}, nil
+	s.recorder.Log(ctx, nil, models.AuditEntityOrganization, &org.ID, models.OrganizationActionCreated, &callerUserID, map[string]any{"name": org.Name, "type": org.Type})
+	return &OrganizationInfoResponse{ID: org.ID, Name: org.Name, Type: org.Type}, nil
 }
 
-// Update обновляет название организации по ID.
+// Update обновляет название и тип организации по ID. Тип опционален: nil снимает
+// его, непустое значение обязано быть валидным. Название и тип сохраняются вместе.
 func (s *organizationService) Update(ctx context.Context, callerUserID, id int, req CreateOrganizationRequest) (*OrganizationInfoResponse, error) {
+	if req.Type != nil && !models.IsValidOrgType(*req.Type) {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Некорректный тип организации")
+	}
+
 	var org models.Organization
 	if err := s.db.WithContext(ctx).First(&org, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -212,14 +243,15 @@ func (s *organizationService) Update(ctx context.Context, callerUserID, id int, 
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Организация с таким названием уже существует")
 	}
 
+	// map-обновление (а не struct) - чтобы явно записать type=NULL при снятии типа.
 	if err := s.db.WithContext(ctx).Model(&models.Organization{}).
-		Where("id = ?", id).Update("name", req.Name).Error; err != nil {
+		Where("id = ?", id).Updates(map[string]any{"name": req.Name, "type": req.Type}).Error; err != nil {
 		slog.Error("Не удалось обновить организацию", "id", id, "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error updating organization")
 	}
 	slog.Info("организация обновлена", "id", id, "name", req.Name)
-	s.recorder.Log(ctx, nil, models.AuditEntityOrganization, &id, models.OrganizationActionRenamed, &callerUserID, map[string]any{"name": req.Name})
-	return &OrganizationInfoResponse{ID: id, Name: req.Name}, nil
+	s.recorder.Log(ctx, nil, models.AuditEntityOrganization, &id, models.OrganizationActionRenamed, &callerUserID, map[string]any{"name": req.Name, "type": req.Type})
+	return &OrganizationInfoResponse{ID: id, Name: req.Name, Type: req.Type}, nil
 }
 
 // Delete архивирует организацию (soft-delete: is_active=false). Строка остаётся,
@@ -297,7 +329,7 @@ func (s *organizationService) Restore(ctx context.Context, callerUserID, id int)
 // перенесены backfill'ом BackfillAuditFromLegacy), поэтому чтение идёт только из
 // audit_log. Замороженная organization_histories дропнута в дроп-sweep (F.8).
 // Форму ответа стережёт TestOrganizations_History.
-// Действие renamed хранит только {name:new} (без old) - details передаётся как есть.
+// Действия created/renamed хранят {name,type} (тип с #1046) - details как есть.
 func (s *organizationService) GetHistory(ctx context.Context, id int) ([]models.OrganizationHistoryItem, error) {
 	const actorName = `COALESCE(NULLIF(TRIM(BOTH ' ' FROM CONCAT_WS(' ', u.last_name, u.first_name)), ''), u.username, '')`
 	sql := `
@@ -339,9 +371,9 @@ func (s *organizationService) GetWithUsers(ctx context.Context, includeArchived 
 	orgs := make([]OrganizationWithUsersResponse, 0)
 	q := s.db.WithContext(ctx).
 		Table("organizations o").
-		Select("o.id, o.name, o.is_active, COUNT(u.id) FILTER (WHERE u.is_active = true) as user_count").
+		Select("o.id, o.name, o.type, o.is_active, COUNT(u.id) FILTER (WHERE u.is_active = true) as user_count").
 		Joins("LEFT JOIN users u ON u.organization_id = o.id").
-		Group("o.id, o.name, o.is_active").
+		Group("o.id, o.name, o.type, o.is_active").
 		Order("o.name")
 	if !includeArchived {
 		q = q.Where("o.is_active = ?", true)
@@ -359,9 +391,9 @@ func (s *organizationService) GetWithUsersExtended(ctx context.Context, includeA
 	orgs := make([]OrganizationWithUsersResponse, 0)
 	q := s.db.WithContext(ctx).
 		Table("organizations o").
-		Select("o.id, o.name, o.is_active, COUNT(u.id) FILTER (WHERE u.is_active = true) as user_count").
+		Select("o.id, o.name, o.type, o.is_active, COUNT(u.id) FILTER (WHERE u.is_active = true) as user_count").
 		Joins("LEFT JOIN users u ON u.organization_id = o.id").
-		Group("o.id, o.name, o.is_active").
+		Group("o.id, o.name, o.type, o.is_active").
 		Order("o.name")
 	if !includeArchived {
 		q = q.Where("o.is_active = ?", true)
@@ -386,6 +418,7 @@ func (s *organizationService) GetWithUsersExtended(ctx context.Context, includeA
 		result = append(result, map[string]any{
 			"id":            org.ID,
 			"name":          org.Name,
+			"type":          org.Type,
 			"is_active":     org.IsActive,
 			"user_count":    org.UserCount,
 			"unload_places": places,
@@ -425,6 +458,23 @@ func (s *organizationService) GetOrganizationUsers(ctx context.Context, orgID in
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching organization users")
 	}
 	return users, nil
+}
+
+// GetMembers возвращает активных пользователей, привязанных к организации через
+// users.organization_id (участники). Это те же пользователи, что дают user_count.
+func (s *organizationService) GetMembers(ctx context.Context, orgID int) ([]MemberResponse, error) {
+	members := make([]MemberResponse, 0)
+	err := s.db.WithContext(ctx).
+		Table("users u").
+		Select("u.id, u.username, u.last_name, u.first_name, u.middle_name, u.position").
+		Where("u.organization_id = ? AND u.is_active = ?", orgID, true).
+		Order("u.last_name, u.first_name, u.username").
+		Scan(&members).Error
+	if err != nil {
+		slog.Error("Не удалось получить участников организации", "error", err)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching organization members")
+	}
+	return members, nil
 }
 
 // UpdateOrganizationUsers заменяет ответственных пользователей организации.
