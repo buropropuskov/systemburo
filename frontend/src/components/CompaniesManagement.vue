@@ -547,7 +547,7 @@ export default {
       }
       const variants = buildSearchVariants(this.searchQuery);
       if (!variants.length) return list;
-      return list.filter(comp => matchesSearch(`${comp.name} ${comp.id}`, variants));
+      return list.filter(comp => matchesSearch(`${comp.name} ${comp.id} ${comp.type || ''}`, variants));
     },
     sortedCompanies() {
       const companies = [...this.filteredCompanies];
@@ -1374,7 +1374,7 @@ export default {
   background: #fff;
   border-radius: 30px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-  overflow: hidden;
+  /* без overflow:hidden - иначе выпадающее меню дропдауна «Тип» обрезается краем модалки */
 }
 
 .modal-header {
