@@ -250,8 +250,29 @@ func (s *organizationService) Update(ctx context.Context, callerUserID, id int, 
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error updating organization")
 	}
 	slog.Info("организация обновлена", "id", id, "name", req.Name)
-	s.recorder.Log(ctx, nil, models.AuditEntityOrganization, &id, models.OrganizationActionRenamed, &callerUserID, map[string]any{"name": req.Name, "type": req.Type})
+	// org.* - старые значения (map-обновление структуру не трогает), req.* - новые.
+	// Различаем, что изменилось, чтобы история не писала «переименована» при
+	// смене одного лишь типа.
+	action := models.OrganizationActionRenamed
+	nameChanged := org.Name != req.Name
+	typeChanged := !strPtrEqual(org.Type, req.Type)
+	switch {
+	case nameChanged && typeChanged:
+		action = models.OrganizationActionUpdated
+	case typeChanged:
+		action = models.OrganizationActionRetyped
+	}
+	s.recorder.Log(ctx, nil, models.AuditEntityOrganization, &id, action, &callerUserID, map[string]any{"name": req.Name, "type": req.Type})
 	return &OrganizationInfoResponse{ID: id, Name: req.Name, Type: req.Type}, nil
+}
+
+// strPtrEqual сравнивает два *string как значения (оба nil = равны). Используется
+// org/company Update для определения, менялся ли тип (nil = «не указан»).
+func strPtrEqual(a, b *string) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
 }
 
 // Delete архивирует организацию (soft-delete: is_active=false). Строка остаётся,

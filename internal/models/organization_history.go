@@ -6,9 +6,14 @@ import (
 )
 
 // OrganizationActionType - константы action-типов истории организации.
+// renamed/retyped/updated различают, что именно изменилось при обновлении
+// (только имя / только тип / и то и другое) - чтобы история не писала
+// «переименована» при смене одного лишь типа.
 const (
 	OrganizationActionCreated  = "created"
 	OrganizationActionRenamed  = "renamed"
+	OrganizationActionRetyped  = "retyped"
+	OrganizationActionUpdated  = "updated"
 	OrganizationActionArchived = "archived"
 	OrganizationActionRestored = "restored"
 )

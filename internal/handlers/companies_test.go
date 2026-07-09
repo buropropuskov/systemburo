@@ -198,7 +198,8 @@ func TestCompanies_History(t *testing.T) {
 
 	created := testutil.ParseMap(t, testutil.POST(t, e, "/companies", `{"name":"Ист Ко","type":"Организация"}`, h))
 	id := int(created["id"].(float64))
-	require.Equal(t, http.StatusOK, testutil.PUT(t, e, fmt.Sprintf("/companies/%d", id), `{"name":"Ист Ко 2"}`, h).Code)
+	// Смена только имени (тип тот же) - «renamed».
+	require.Equal(t, http.StatusOK, testutil.PUT(t, e, fmt.Sprintf("/companies/%d", id), `{"name":"Ист Ко 2","type":"Организация"}`, h).Code)
 	require.Equal(t, http.StatusOK, testutil.DELETE(t, e, fmt.Sprintf("/companies/%d", id), h).Code)
 	require.Equal(t, http.StatusOK, testutil.POST(t, e, fmt.Sprintf("/companies/%d/restore", id), "", h).Code)
 
@@ -209,6 +210,18 @@ func TestCompanies_History(t *testing.T) {
 	assert.Equal(t, "renamed", hist[2]["action_type"])
 	assert.Equal(t, "created", hist[3]["action_type"])
 	assert.NotEmpty(t, hist[0]["actor_name"])
+
+	// Различаем, что изменилось: только тип -> «retyped», имя+тип -> «updated».
+	created2 := testutil.ParseMap(t, testutil.POST(t, e, "/companies", `{"name":"Тип Ко","type":"Подрядчик"}`, h))
+	id2 := int(created2["id"].(float64))
+	require.Equal(t, http.StatusOK, testutil.PUT(t, e, fmt.Sprintf("/companies/%d", id2), `{"name":"Тип Ко","type":"Отдел"}`, h).Code)
+	require.Equal(t, http.StatusOK, testutil.PUT(t, e, fmt.Sprintf("/companies/%d", id2), `{"name":"Тип Ко 2","type":"Арендатор"}`, h).Code)
+
+	hist2 := testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/companies/%d/history", id2), h))
+	require.Len(t, hist2, 3)
+	assert.Equal(t, "updated", hist2[0]["action_type"])
+	assert.Equal(t, "retyped", hist2[1]["action_type"])
+	assert.Equal(t, "created", hist2[2]["action_type"])
 }
 
 func TestCompanies_History_Forbidden(t *testing.T) {

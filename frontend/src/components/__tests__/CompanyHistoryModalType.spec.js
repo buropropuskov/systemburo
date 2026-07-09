@@ -27,7 +27,7 @@ function entry(over = {}) {
   return {
     id: 1,
     action_type: 'renamed',
-    details: { name: 'Альфа', type: 'Подрядчик' },
+    details: { name: 'Альфа' },
     actor_user_id: 3,
     actor_name: 'Петров П.П.',
     created_at: '2026-05-01T10:00:00Z',
@@ -35,38 +35,51 @@ function entry(over = {}) {
   };
 }
 
+function actionText(wrapper) {
+  const a = wrapper.find('.action-text');
+  return a.exists() ? a.text() : '';
+}
 function commentText(wrapper) {
   const c = wrapper.find('.action-comment');
   return c.exists() ? c.text() : '';
 }
 
-describe('CompanyHistoryModal — тип в истории изменений', () => {
+describe('CompanyHistoryModal — действия и тип в истории', () => {
   beforeEach(() => {
     apiRequest.mockReset();
     document.body.innerHTML = '';
   });
 
-  it('renamed: комментарий показывает наименование И тип', async () => {
-    const wrapper = await mountWith([entry()]);
-    const text = commentText(wrapper);
-    expect(text).toContain('Альфа');
-    expect(text).toContain('Тип: Подрядчик');
+  it('retyped: «Тип компании изменён» + «Тип: X», без слова про наименование', async () => {
+    const wrapper = await mountWith([entry({ action_type: 'retyped', details: { name: 'Альфа', type: 'Отдел' } })]);
+    expect(actionText(wrapper)).toBe('Тип компании изменён');
+    expect(commentText(wrapper)).toContain('Тип: Отдел');
+    expect(commentText(wrapper)).not.toContain('наименование');
   });
 
-  it('renamed со снятым типом (null): "Тип: не указан"', async () => {
-    const wrapper = await mountWith([entry({ details: { name: 'Альфа', type: null } })]);
+  it('retyped со снятым типом (null): «Тип: не указан»', async () => {
+    const wrapper = await mountWith([entry({ action_type: 'retyped', details: { name: 'Альфа', type: null } })]);
     expect(commentText(wrapper)).toContain('Тип: не указан');
   });
 
-  it('старая запись без ключа type: тип не показывается', async () => {
-    const wrapper = await mountWith([entry({ details: { name: 'Альфа' } })]);
+  it('renamed: «Компания переименована» + только наименование (без типа)', async () => {
+    const wrapper = await mountWith([entry({ action_type: 'renamed', details: { name: 'Бета', type: 'Отдел' } })]);
+    expect(actionText(wrapper)).toBe('Компания переименована');
+    expect(commentText(wrapper)).toContain('Новое наименование: Бета');
     expect(commentText(wrapper)).not.toContain('Тип:');
   });
 
-  it('created: тоже показывает тип', async () => {
-    const wrapper = await mountWith([
-      entry({ action_type: 'created', details: { name: 'Альфа', type: 'Отдел' } }),
-    ]);
-    expect(commentText(wrapper)).toContain('Тип: Отдел');
+  it('updated: «Компания изменена» + наименование И тип', async () => {
+    const wrapper = await mountWith([entry({ action_type: 'updated', details: { name: 'Гамма', type: 'Подрядчик' } })]);
+    expect(actionText(wrapper)).toBe('Компания изменена');
+    const text = commentText(wrapper);
+    expect(text).toContain('Новое наименование: Гамма');
+    expect(text).toContain('Тип: Подрядчик');
+  });
+
+  it('created: наименование И тип', async () => {
+    const wrapper = await mountWith([entry({ action_type: 'created', details: { name: 'Альфа', type: 'Организация' } })]);
+    expect(commentText(wrapper)).toContain('Наименование: Альфа');
+    expect(commentText(wrapper)).toContain('Тип: Организация');
   });
 });
