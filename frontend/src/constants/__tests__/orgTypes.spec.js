@@ -10,12 +10,12 @@ import {
 } from '../orgTypes'
 
 describe('константы типов справочников (#1046)', () => {
-  it('4 значения типа', () => {
-    expect(ORG_TYPES).toEqual(['Арендатор', 'Подрядчик', 'Отдел', 'Организация'])
+  it('5 значений типа (включая «Компания»)', () => {
+    expect(ORG_TYPES).toEqual(['Арендатор', 'Подрядчик', 'Отдел', 'Организация', 'Компания'])
   })
 
-  it('опции создания - только 4 значения без «не указан»', () => {
-    expect(ORG_TYPE_CREATE_OPTIONS).toHaveLength(4)
+  it('опции создания - только значения без «не указан»', () => {
+    expect(ORG_TYPE_CREATE_OPTIONS).toHaveLength(5)
     expect(ORG_TYPE_CREATE_OPTIONS.some(o => o.value === null)).toBe(false)
   })
 
@@ -25,8 +25,8 @@ describe('константы типов справочников (#1046)', () =>
     expect(unspecified.label).toBe('не указан')
   })
 
-  it('опции фильтра: «Тип: все» + 4 + «не указан»', () => {
-    expect(ORG_TYPE_FILTER_OPTIONS).toHaveLength(6)
+  it('опции фильтра: «Тип: все» + значения + «не указан»', () => {
+    expect(ORG_TYPE_FILTER_OPTIONS).toHaveLength(ORG_TYPES.length + 2)
     expect(ORG_TYPE_FILTER_OPTIONS[0].value).toBe(ORG_TYPE_FILTER_ALL)
     expect(ORG_TYPE_FILTER_OPTIONS.at(-1).value).toBe(ORG_TYPE_FILTER_UNSPECIFIED)
   })

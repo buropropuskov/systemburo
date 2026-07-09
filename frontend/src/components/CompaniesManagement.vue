@@ -174,26 +174,33 @@
         </div>
       </div>
 
-      <!-- Средняя часть - детали компании -->
-      <div
-        v-if="selectedCompany"
-        class="details-section"
-        data-testid="companies-details"
-      >
-        <div class="details-content">
-          <div class="details-header">
-            <div class="details-title-wrapper">
-              <h3 class="details-title">
+      <!-- Правая часть - детали (рабочая область, вариант 1) -->
+      <div class="details-column">
+        <div
+          v-if="selectedCompany"
+          class="v1"
+          data-testid="companies-details"
+        >
+          <!-- Хедер деталей -->
+          <div class="d-head">
+            <div class="d-head-info">
+              <h2 class="d-title">
                 {{ originalSelectedName }}
-              </h3>
+              </h2>
+              <div class="d-meta">
+                <span class="pill pill-type">Тип: {{ orgTypeLabel(originalSelectedType) }}</span>
+                <span class="muted-hint">
+                  · {{ members.length }} участников<template v-if="selectedCompany.is_active"> · {{ responsiblesCount }} ответственных</template>
+                </span>
+              </div>
             </div>
-            <div class="details-header-actions">
+            <div class="d-acts">
               <span
                 v-if="!selectedCompany.is_active"
                 class="archive-badge"
               >В архиве</span>
               <button
-                class="action-btn history-btn"
+                class="pill pill-ghost"
                 data-testid="companies-history"
                 @click="openHistory(selectedCompany)"
               >
@@ -201,7 +208,7 @@
               </button>
               <button
                 v-if="selectedCompany.is_active"
-                class="action-btn archive-action-btn"
+                class="pill pill-danger"
                 data-testid="companies-archive"
                 @click="onArchiveClick(selectedCompany)"
               >
@@ -209,7 +216,7 @@
               </button>
               <button
                 v-else
-                class="action-btn restore-btn"
+                class="pill pill-restore"
                 data-testid="companies-restore"
                 @click="onRestore(selectedCompany)"
               >
@@ -218,41 +225,40 @@
             </div>
           </div>
 
-          <div class="details-body">
-            <label class="field-label">Наименование</label>
-            <div class="name-edit-row">
-              <input
-                v-model.trim="selectedCompany.name"
-                type="text"
-                class="lk-input"
-                maxlength="100"
-                placeholder="Введите название компании"
-                autocomplete="off"
-                :disabled="!selectedCompany.is_active || isSavingName"
-                data-testid="companies-detail-name"
-                @keyup.enter="saveSelectedName"
-              >
-              <button
-                v-if="selectedCompany.is_active"
-                class="lk-button lk-button--primary"
-                :disabled="!isDetailsDirty || isSavingName"
-                data-testid="companies-save-name"
-                @click="saveSelectedName"
-              >
-                Сохранить
-              </button>
+          <!-- Основное -->
+          <div class="card">
+            <div class="sec-title">
+              Основное
             </div>
-            <label class="field-label">Тип</label>
-            <BaseDropdown
-              data-testid="companies-detail-type"
-              :model-value="selectedCompany.type"
-              :options="typeDetailOptions"
-              label-key="label"
-              value-key="value"
-              :placeholder="unspecifiedTypeLabel"
-              :disabled="!selectedCompany.is_active || isSavingName"
-              @update:model-value="onDetailTypeChange"
-            />
+            <div class="basic">
+              <div class="basic-field">
+                <label class="field-label">Наименование</label>
+                <input
+                  v-model.trim="selectedCompany.name"
+                  type="text"
+                  class="lk-input"
+                  maxlength="100"
+                  placeholder="Введите название компании"
+                  autocomplete="off"
+                  :disabled="!selectedCompany.is_active || isSavingName"
+                  data-testid="companies-detail-name"
+                  @keyup.enter="saveSelectedName"
+                >
+              </div>
+              <div class="basic-field">
+                <label class="field-label">Тип</label>
+                <BaseDropdown
+                  data-testid="companies-detail-type"
+                  :model-value="selectedCompany.type"
+                  :options="typeDetailOptions"
+                  label-key="label"
+                  value-key="value"
+                  :placeholder="unspecifiedTypeLabel"
+                  :disabled="!selectedCompany.is_active || isSavingName"
+                  @update:model-value="onDetailTypeChange"
+                />
+              </div>
+            </div>
 
             <div
               v-if="detailError"
@@ -261,91 +267,105 @@
               {{ detailError }}
             </div>
 
-            <template v-if="selectedCompany.is_active">
-              <SelectUnloadPlaces
-                :entity="selectedCompany"
-                :entity-type="'company'"
-                @places-updated="handlePlacesUpdated"
-              />
-
-              <SelectTables
-                :entity="selectedCompany"
-                :entity-type="'company'"
-                @tables-updated="handleTablesUpdated"
-              />
-            </template>
-            <p
-              v-else
-              class="archive-hint"
-            >
-              Восстановите компанию, чтобы редактировать места разгрузки, таблицы и ответственных.
-            </p>
-
             <div
-              class="members-section"
-              data-testid="companies-members"
+              v-if="selectedCompany.is_active"
+              class="save-actions"
             >
-              <div class="members-title">
-                Пользователи, привязанные к компании «{{ originalSelectedName }}»: {{ members.length }}
-              </div>
-              <div
-                v-if="membersLoading"
-                class="members-loading"
+              <button
+                class="lk-button lk-button--primary"
+                :disabled="!isDetailsDirty || isSavingName"
+                data-testid="companies-save-name"
+                @click="saveSelectedName"
               >
-                <LoaderSpinner label="Загрузка пользователей..." />
-              </div>
-              <ul
-                v-else-if="members.length"
-                class="members-list"
-              >
-                <li
-                  v-for="m in members"
-                  :key="m.id"
-                  class="members-item"
-                >
-                  <span class="members-name">{{ memberFullName(m) }}</span>
-                  <span
-                    v-if="m.position"
-                    class="members-position"
-                  >{{ m.position }}</span>
-                </li>
-              </ul>
-              <p
-                v-else
-                class="members-empty"
-              >
-                Нет привязанных пользователей
-              </p>
+                Сохранить
+              </button>
+              <span class="muted-hint">Имя и тип сохраняются вместе</span>
             </div>
           </div>
-        </div>
-      </div>
 
-      <!-- Правая часть - ответственные лица -->
-      <div
-        class="responsible-section"
-        :class="{'with-details': selectedCompany}"
-      >
-        <div
-          v-if="selectedCompany && selectedCompany.is_active"
-          class="responsible-content"
-        >
-          <ResponsibleUsersSection
-            :entity="selectedCompany"
-            :entity-type="'company'"
-            @users-updated="handleUsersUpdated"
-          />
+          <!-- Редактируемые секции (только для активной компании) -->
+          <template v-if="selectedCompany.is_active">
+            <SelectUnloadPlaces
+              ref="places"
+              :entity="selectedCompany"
+              :entity-type="'company'"
+              @places-updated="handlePlacesUpdated"
+              @dirty-change="placesDirty = $event"
+            />
+
+            <SelectTables
+              ref="tables"
+              :entity="selectedCompany"
+              :entity-type="'company'"
+              @tables-updated="handleTablesUpdated"
+              @dirty-change="tablesDirty = $event"
+            />
+
+            <ResponsibleUsersSection
+              ref="responsibles"
+              :entity="selectedCompany"
+              :entity-type="'company'"
+              @users-updated="handleUsersUpdated"
+              @dirty-change="responsiblesDirty = $event"
+              @count-change="responsiblesCount = $event"
+            />
+          </template>
+          <div
+            v-else
+            class="card"
+          >
+            <p class="archive-hint">
+              Восстановите компанию, чтобы редактировать места разгрузки, таблицы и ответственных.
+            </p>
+          </div>
+
+          <!-- Привязанные пользователи -->
+          <div
+            class="card"
+            data-testid="companies-members"
+          >
+            <div class="sec-title">
+              Пользователи, привязанные к компании
+              <span class="count-badge">{{ members.length }}</span>
+            </div>
+            <div
+              v-if="membersLoading"
+              class="members-loading"
+            >
+              <LoaderSpinner label="Загрузка пользователей..." />
+            </div>
+            <div
+              v-else-if="members.length"
+              class="stack"
+            >
+              <div
+                v-for="m in members"
+                :key="m.id"
+                class="person"
+              >
+                <div class="avatar">
+                  {{ memberInitials(m) }}
+                </div>
+                <div class="who">
+                  <b>{{ memberFullName(m) }}</b>
+                  <small v-if="m.position">{{ m.position }}</small>
+                </div>
+              </div>
+            </div>
+            <p
+              v-else
+              class="members-empty"
+            >
+              Нет привязанных пользователей
+            </p>
+          </div>
         </div>
+
         <div
           v-else
           class="no-selection-message"
         >
-          <p v-if="!selectedCompany">
-            Выберите компанию для просмотра
-          </p>
-          <p v-else>
-            Ответственные доступны после восстановления
-          </p>
+          <p>Выберите компанию для просмотра</p>
         </div>
       </div>
     </div>
@@ -514,6 +534,10 @@ export default {
       members: [],
       membersLoading: false,
       membersSeq: 0,
+      responsiblesDirty: false,
+      placesDirty: false,
+      tablesDirty: false,
+      responsiblesCount: 0,
       detailError: '',
       isSavingName: false,
       archiveConfirmComp: null,
@@ -547,7 +571,7 @@ export default {
       }
       const variants = buildSearchVariants(this.searchQuery);
       if (!variants.length) return list;
-      return list.filter(comp => matchesSearch(`${comp.name} ${comp.id}`, variants));
+      return list.filter(comp => matchesSearch(`${comp.name} ${comp.id} ${comp.type || ''}`, variants));
     },
     sortedCompanies() {
       const companies = [...this.filteredCompanies];
@@ -604,8 +628,13 @@ export default {
       const typeChanged = (this.selectedCompany.type ?? null) !== (this.originalSelectedType ?? null);
       return nameChanged || typeChanged;
     },
+    // fix 5: несохранённые изменения в области деталей = имя/тип ИЛИ любой из
+    // детей (места/таблицы/ответственные), поднявших свой dirty через emit.
+    detailsAreaDirty() {
+      return this.isDetailsDirty || this.placesDirty || this.tablesDirty || this.responsiblesDirty;
+    },
     isDirty() {
-      return this.isAddDirty || this.isDetailsDirty;
+      return this.isAddDirty || this.detailsAreaDirty;
     },
   },
   watch: {
@@ -627,21 +656,26 @@ export default {
       isDirty: () => this.isDirty,
       getChanges: () => {
         if (this.isAddDirty) return [`Новая компания: "${this.addForm.name.trim()}"`];
+        const changes = [];
         if (this.isDetailsDirty) {
-          const changes = [];
           if (this.selectedCompany.name.trim() !== this.originalSelectedName) {
             changes.push({ label: 'Наименование', from: this.originalSelectedName, to: this.selectedCompany.name.trim() });
           }
           if ((this.selectedCompany.type ?? null) !== (this.originalSelectedType ?? null)) {
             changes.push({ label: 'Тип', from: this.orgTypeLabel(this.originalSelectedType), to: this.orgTypeLabel(this.selectedCompany.type) });
           }
-          return changes;
         }
-        return [];
+        if (this.placesDirty) changes.push('Места разгрузки (несохранённые)');
+        if (this.tablesDirty) changes.push('Целевые таблицы (несохранённые)');
+        if (this.responsiblesDirty) changes.push('Ответственные (несохранённые)');
+        return changes;
       },
       save: async () => {
         if (this.isAddDirty) await this.submitAdd();
         if (this.isDetailsDirty) await this.saveSelectedName();
+        if (this.placesDirty) await this.$refs.places?.saveUnloadPlaces();
+        if (this.tablesDirty) await this.$refs.tables?.saveOrganizationTables();
+        if (this.responsiblesDirty) await this.$refs.responsibles?.saveResponsibleUsers();
       },
     });
     document.addEventListener('keydown', this.onKeydown);
@@ -681,15 +715,26 @@ export default {
       } else if (!visible) {
         this.selectedCompany = null;
         this.members = [];
+        this.resetChildDirty();
       }
     },
 
     async onArchiveModeChange(value) {
-      if (this.isDetailsDirty && !(await confirmIfAnyDirty())) return;
+      if (this.detailsAreaDirty && !(await confirmIfAnyDirty())) return;
       this.showArchive = value === 'archive';
       this.selectedCompany = null;
       this.members = [];
       this.detailError = '';
+      this.resetChildDirty();
+    },
+
+    // fix 5: сбрасываем поднятые dirty-флаги детей при смене/сбросе выбора -
+    // при уходе с активной сущности дети размонтируются и больше не эмитят.
+    resetChildDirty() {
+      this.placesDirty = false;
+      this.tablesDirty = false;
+      this.responsiblesDirty = false;
+      this.responsiblesCount = 0;
     },
 
     openAddModal() {
@@ -739,7 +784,8 @@ export default {
 
     async selectCompany(comp) {
       if (this.selectedCompany && this.selectedCompany.id === comp.id) return;
-      if (this.isDetailsDirty && !(await confirmIfAnyDirty())) return;
+      if (this.detailsAreaDirty && !(await confirmIfAnyDirty())) return;
+      this.resetChildDirty();
       this.selectedCompany = { ...comp };
       this.originalSelectedName = comp.name;
       this.originalSelectedType = comp.type ?? null;
@@ -794,6 +840,12 @@ export default {
       return parts.join(' ') || m.username || '—';
     },
 
+    memberInitials(m) {
+      const a = (m.last_name || m.first_name || m.username || '').trim().charAt(0);
+      const b = (m.last_name ? m.first_name : '') || '';
+      return ((a + b.charAt(0)).toUpperCase()) || '?';
+    },
+
     orgTypeLabel(type) {
       return type || this.unspecifiedTypeLabel;
     },
@@ -812,6 +864,7 @@ export default {
       if (result.ok) {
         if (this.selectedCompany && this.selectedCompany.id === comp.id && !this.showArchive) {
           this.selectedCompany = null;
+          this.resetChildDirty();
         }
         useDeletionsStore().notify({ prefix: 'Компания ', bold: comp.name, suffix: ' архивирована' });
       } else {
@@ -825,6 +878,7 @@ export default {
       if (result.ok) {
         if (this.selectedCompany && this.selectedCompany.id === comp.id && this.showArchive) {
           this.selectedCompany = null;
+          this.resetChildDirty();
         }
         useDeletionsStore().notify({ prefix: 'Компания ', bold: comp.name, suffix: ' восстановлена из архива' });
       } else {
@@ -929,7 +983,7 @@ export default {
 
 .content-container {
   display: flex;
-  height: 450px;
+  height: 540px;
   width: 100%;
 }
 
@@ -1138,46 +1192,63 @@ export default {
   font-weight: 500;
 }
 
-.details-section {
-  width: fit-content;
-  padding: 15px;
-  overflow-y: auto;
-  background: #fafafa;
-  border-right: 1px solid #e6e6e6;
-}
-
-.details-content {
-  height: 100%;
-}
-
-.details-header {
+/* ===== Детали: рабочая область (вариант 1) ===== */
+.details-column {
+  flex: 1;
+  min-width: 0;
+  background: #fff;
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+}
+
+.v1 {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* хедер деталей */
+.d-head {
+  display: flex;
   align-items: flex-start;
-  margin-bottom: 10px;
+  justify-content: space-between;
   gap: 12px;
 }
 
-.details-title-wrapper {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.d-head-info {
   min-width: 0;
 }
 
-.details-title {
+.d-title {
   margin: 0;
-  color: #000;
-  font-size: 1.2em;
-  font-weight: 600;
+  font-size: 1.3em;
+  font-weight: 700;
+  color: #111318;
   word-break: break-word;
 }
 
-.details-header-actions {
+.d-meta {
   display: flex;
+  gap: 8px;
   align-items: center;
-  gap: 10px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.d-acts {
+  display: flex;
+  gap: 8px;
+  align-items: center;
   flex-shrink: 0;
+}
+
+.muted-hint {
+  color: #a2a2a2;
+  font-size: 0.82em;
 }
 
 .archive-badge {
@@ -1190,97 +1261,183 @@ export default {
   white-space: nowrap;
 }
 
-.action-btn {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 30px;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 500;
-  transition: background 0.2s, border-color 0.2s;
-  display: flex;
+/* pill-кнопки (эталон мокапа) */
+.pill {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 50px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
   white-space: nowrap;
+  transition: background 0.2s, border-color 0.2s;
 }
 
-.history-btn {
+.pill-type {
+  background: #eef0ff;
+  color: #4F5BDF;
+  cursor: default;
+}
+
+.pill-ghost {
   background: #fff;
   color: #4F5BDF;
   border: 1px solid #4F5BDF;
 }
 
-.history-btn:hover {
+.pill-ghost:hover {
   background: #eef0ff;
 }
 
-.archive-action-btn {
+.pill-danger {
   background: #fff;
   color: #dc3545;
   border: 1px solid #fecaca;
 }
 
-.archive-action-btn:hover {
+.pill-danger:hover {
   background: #fff1f2;
   border-color: #dc3545;
 }
 
-.restore-btn {
+.pill-restore {
   background: #10b981;
   color: #fff;
 }
 
-.restore-btn:hover {
+.pill-restore:hover {
   background: #0da271;
 }
 
-.details-body {
+/* карточка-секция */
+.card {
+  border: 1px solid #e6e6e6;
+  border-radius: 16px;
+  padding: 16px;
+  background: #fbfbfd;
+}
+
+.sec-title {
+  font-size: 0.82em;
+  font-weight: 700;
+  color: #2a2f39;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  margin: 0 0 12px;
   display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding-bottom: 15px;
+  align-items: center;
+  gap: 8px;
+}
+
+.count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 50px;
+  background: #eef0ff;
+  color: #4F5BDF;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* карточка "Основное" */
+.basic {
+  display: grid;
+  grid-template-columns: 1fr 230px;
+  gap: 14px;
+  align-items: end;
+}
+
+.basic-field {
+  min-width: 0;
 }
 
 .field-label {
-  font-size: 0.85em;
-  color: #666;
-  font-weight: 500;
+  font-size: 0.78em;
+  color: #5a6472;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  display: block;
+  margin-bottom: 6px;
 }
 
-.name-edit-row {
+.save-actions {
   display: flex;
-  gap: 10px;
   align-items: center;
-}
-
-.name-edit-row .lk-input {
-  flex: 1;
+  gap: 10px;
+  margin-top: 14px;
 }
 
 .form-error {
   color: #d73a3a;
   font-size: 0.85em;
+  margin-top: 10px;
 }
 
 .archive-hint {
-  margin: 8px 0 0;
+  margin: 0;
   color: #a2a2a2;
-  font-size: 0.85em;
+  font-size: 0.9em;
   line-height: 1.5;
 }
 
-.members-section {
-  margin-top: 6px;
-  padding-top: 12px;
-  border-top: 1px solid #e6e6e6;
-  min-width: 260px;
+/* привязанные пользователи */
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.members-title {
-  font-size: 0.85em;
+.person {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid #eef0f3;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #e7e9ff;
+  color: #4F5BDF;
+  font-weight: 700;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.who {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.who b {
+  font-size: 13px;
   font-weight: 600;
-  color: #333;
-  margin-bottom: 8px;
+  color: #111318;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.who small {
+  font-size: 11px;
+  color: #a2a2a2;
 }
 
 .members-loading {
@@ -1289,54 +1446,10 @@ export default {
   padding: 12px 0;
 }
 
-.members-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  max-height: 180px;
-  overflow-y: auto;
-}
-
-.members-item {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 6px 10px;
-  background: #fff;
-  border: 1px solid #eee;
-  border-radius: 10px;
-}
-
-.members-name {
-  font-size: 13px;
-  color: #000;
-  font-weight: 500;
-}
-
-.members-position {
-  font-size: 12px;
-  color: #a2a2a2;
-}
-
 .members-empty {
   margin: 0;
   font-size: 0.85em;
   color: #a2a2a2;
-}
-
-.responsible-section {
-  flex: 1;
-  background: #fff;
-  display: flex;
-  flex-direction: column;
-}
-
-.responsible-content {
-  padding: 10px;
-  height: 100%;
 }
 
 .no-selection-message {
@@ -1374,7 +1487,7 @@ export default {
   background: #fff;
   border-radius: 30px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-  overflow: hidden;
+  /* без overflow:hidden - иначе выпадающее меню дропдауна «Тип» обрезается краем модалки */
 }
 
 .modal-header {
@@ -1469,8 +1582,7 @@ export default {
   }
 
   .table-section,
-  .details-section,
-  .responsible-section {
+  .details-column {
     width: 100% !important;
   }
 
@@ -1478,6 +1590,10 @@ export default {
     border-right: none;
     border-bottom: 1px solid #e6e6e6;
     height: 255px;
+  }
+
+  .basic {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -1521,18 +1637,17 @@ export default {
     width: 24%;
   }
 
-  .details-section,
-  .responsible-content {
+  .v1 {
     padding: 16px;
   }
 
-  .details-header {
+  .d-head {
     flex-direction: column;
     gap: 12px;
     align-items: flex-start;
   }
 
-  .details-header-actions {
+  .d-acts {
     align-self: flex-end;
   }
 }

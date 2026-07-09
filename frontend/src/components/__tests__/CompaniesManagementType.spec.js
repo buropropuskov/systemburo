@@ -126,7 +126,8 @@ describe('CompaniesManagement — тип/фильтр/сортировка/уч�
 
     expect(orgApi.getCompanyMembers).toHaveBeenCalledWith(1)
     const members = w.find('[data-testid="companies-members"]')
-    expect(members.text()).toContain('Пользователи, привязанные к компании «Альфа»: 1')
+    expect(members.text()).toContain('Пользователи, привязанные к компании')
+    expect(members.find('.count-badge').text()).toBe('1')
     expect(members.text()).toContain('Петров Пётр')
     expect(members.text()).toContain('Менеджер')
   })
@@ -146,5 +147,25 @@ describe('CompaniesManagement — тип/фильтр/сортировка/уч�
       { name: 'Альфа', type: 'Организация' },
       { includeArchived: true },
     )
+  })
+
+  it('fix 5: dirty-change ответственных/мест поднимает isDirty родителя (event-path)', async () => {
+    const { w } = await mountCmp()
+    await w.findAll('[data-testid="companies-row"]')[0].trigger('click')
+    await flushPromises()
+    expect(w.vm.isDirty).toBe(false)
+
+    w.findComponent({ name: 'ResponsibleUsersSection' }).vm.$emit('dirty-change', true)
+    await nextTick()
+    expect(w.vm.isDirty).toBe(true)
+
+    w.findComponent({ name: 'ResponsibleUsersSection' }).vm.$emit('dirty-change', false)
+    w.findComponent({ name: 'SelectUnloadPlaces' }).vm.$emit('dirty-change', true)
+    await nextTick()
+    expect(w.vm.isDirty).toBe(true)
+
+    w.findComponent({ name: 'SelectUnloadPlaces' }).vm.$emit('dirty-change', false)
+    await nextTick()
+    expect(w.vm.isDirty).toBe(false)
   })
 })
