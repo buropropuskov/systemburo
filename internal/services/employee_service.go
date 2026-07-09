@@ -321,6 +321,10 @@ func (s *employeeService) CreateManualEmployees(ctx context.Context, req ManualE
 		return nil, err
 	}
 
+	// Ручные сотрудники появились в целевых таблицах live - обновляем их аудиторию
+	// (#1049, по employee_target_tables, т.к. заявки нет). Best-effort, вне транзакции.
+	s.tablesProducer.NotifyEmployeesChangedBatch(ctx, employeeIDs)
+
 	slog.Info("ручные сотрудники добавлены", "attachment_id", attID, "count", len(employeeIDs), "user_id", userID)
 	return &ManualEmployeeResponse{
 		Success:      true,

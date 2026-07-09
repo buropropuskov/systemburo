@@ -117,8 +117,10 @@ const baseSelectSQL = `
 	JOIN employees e ON eh.employee_id = e.id
 	LEFT JOIN attachments a ON e.attachment_id = a.id
 	LEFT JOIN applications app ON a.application_id = app.id
-	LEFT JOIN organizations org ON app.organization_id = org.id
-	LEFT JOIN companies comp ON app.company_id = comp.id`
+	-- Ручные сотрудники (#1049) висят на вложении-сироте без заявки (app.* NULL, метка
+	-- application_id пустой), поэтому org/company берём через COALESCE с самого вложения.
+	LEFT JOIN organizations org ON org.id = COALESCE(app.organization_id, a.organization_id)
+	LEFT JOIN companies comp ON comp.id = COALESCE(app.company_id, a.company_id)`
 
 func (s *employeesHistoryService) GetByEmployee(ctx context.Context, employeeID int) ([]EmployeeHistoryItem, error) {
 	rows := make([]employeeHistoryRow, 0)

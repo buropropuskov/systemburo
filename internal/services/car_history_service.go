@@ -66,7 +66,8 @@ func (s *carService) GetCarHistory(ctx context.Context, carID int) ([]CarHistory
 		FROM ` + carsHistoryUnion + ` h
 		LEFT JOIN users u ON h.user_id = u.id
 		-- car.attachment_id иммутабелен (машина не перепривязывается к другой заявке),
-		-- поэтому app.id = заявка-источник машины. LEFT JOIN, чтобы не терять записи истории.
+		-- поэтому app.id = заявка-источник машины (NULL у ручных #1049 - метка «добавлено
+		-- вручную»). LEFT JOIN, чтобы не терять записи истории.
 		LEFT JOIN cars c ON h.car_id = c.id
 		LEFT JOIN attachments a ON c.attachment_id = a.id
 		LEFT JOIN applications app ON a.application_id = app.id
@@ -143,8 +144,10 @@ func (s *carService) GetAllCarsHistory(ctx context.Context) ([]AllCarsHistoryIte
 		JOIN cars c ON h.car_id = c.id
 		LEFT JOIN attachments a ON c.attachment_id = a.id
 		LEFT JOIN applications app ON a.application_id = app.id
-		LEFT JOIN organizations o ON app.organization_id = o.id
-		LEFT JOIN companies c2 ON app.company_id = c2.id
+		-- Ручные машины (#1049) висят на вложении-сироте без заявки (app.* NULL),
+		-- поэтому org/company берём через COALESCE с самого вложения.
+		LEFT JOIN organizations o ON o.id = COALESCE(app.organization_id, a.organization_id)
+		LEFT JOIN companies c2 ON c2.id = COALESCE(app.company_id, a.company_id)
 		LEFT JOIN system_tables st ON h.table_id = st.id
 		WHERE h.action_type IN ('entry', 'exit')
 		ORDER BY h.created_at DESC
@@ -189,15 +192,18 @@ func (s *carService) GetUnifiedCarHistory(ctx context.Context, req UnifiedCarHis
 	// - nil: не фильтруем (любая организация/компания) — агрегируем историю по ВСЕМ заявкам
 	//   с такой же парой car_number+car_brand. Клиент часто не знает org/comp машины.
 	// - не nil: точное совпадение.
+	// Ручные машины (#1049) без заявки (application_id NULL) - LEFT JOIN applications,
+	// org/company через COALESCE с вложения-сироты, иначе INNER JOIN выкинул бы их из
+	// объединённой истории тёзок по номеру+марке.
 	err := s.db.WithContext(ctx).Raw(`
 		SELECT c.id
 		FROM cars c
 		JOIN attachments a ON c.attachment_id = a.id
-		JOIN applications app ON a.application_id = app.id
+		LEFT JOIN applications app ON a.application_id = app.id
 		WHERE LOWER(TRIM(c.car_number)) = LOWER(TRIM(?))
 		AND LOWER(TRIM(c.car_brand)) = LOWER(TRIM(?))
-		AND (?::integer IS NULL OR app.organization_id = ?)
-		AND (?::integer IS NULL OR app.company_id = ?)
+		AND (?::integer IS NULL OR COALESCE(app.organization_id, a.organization_id) = ?)
+		AND (?::integer IS NULL OR COALESCE(app.company_id, a.company_id) = ?)
 		ORDER BY c.id
 	`, req.CarNumber, req.CarBrand,
 		req.OrganizationID, req.OrganizationID,
@@ -249,8 +255,9 @@ func (s *carService) GetUnifiedCarHistory(ctx context.Context, req UnifiedCarHis
 		JOIN cars c ON h.car_id = c.id
 		LEFT JOIN attachments a ON c.attachment_id = a.id
 		LEFT JOIN applications app ON a.application_id = app.id
-		LEFT JOIN organizations o ON app.organization_id = o.id
-		LEFT JOIN companies c2 ON app.company_id = c2.id
+		-- Ручные машины (#1049): org/company с вложения-сироты через COALESCE (app.* NULL).
+		LEFT JOIN organizations o ON o.id = COALESCE(app.organization_id, a.organization_id)
+		LEFT JOIN companies c2 ON c2.id = COALESCE(app.company_id, a.company_id)
 		LEFT JOIN system_tables st ON h.table_id = st.id
 		WHERE h.car_id IN ?
 		ORDER BY h.created_at DESC

@@ -67,6 +67,36 @@ func (p *TablesRefreshPublisher) NotifyEmployeeChanged(ctx context.Context, empl
 	p.publishTables(ctx, ids)
 }
 
+// NotifyCarsChangedBatch публикует обновление таблицам «Проезд» пачки изменённых
+// машин одним проходом (дедуп таблиц внутри publishTables). Используется ручным
+// добавлением (#1049): у сироты нет applicationId, поэтому аудитория считается по
+// car_target_tables машин - той же связи, по которой строка видна в таблице.
+func (p *TablesRefreshPublisher) NotifyCarsChangedBatch(ctx context.Context, carIDs []int) {
+	if p == nil || p.publisher == nil || len(carIDs) == 0 {
+		return
+	}
+	ids, err := p.carTargetTableIDs(ctx, carIDs)
+	if err != nil {
+		slog.Warn("tables.refresh: load car tables failed", "car_ids", carIDs, "err", err)
+		return
+	}
+	p.publishTables(ctx, ids)
+}
+
+// NotifyEmployeesChangedBatch - зеркало NotifyCarsChangedBatch для пачки сотрудников
+// (ручное добавление #1049): аудитория по employee_target_tables, без заявки.
+func (p *TablesRefreshPublisher) NotifyEmployeesChangedBatch(ctx context.Context, employeeIDs []int) {
+	if p == nil || p.publisher == nil || len(employeeIDs) == 0 {
+		return
+	}
+	ids, err := p.employeeTargetTableIDs(ctx, employeeIDs)
+	if err != nil {
+		slog.Warn("tables.refresh: load employee tables failed", "employee_ids", employeeIDs, "err", err)
+		return
+	}
+	p.publishTables(ctx, ids)
+}
+
 // NotifyApplicationActivated публикует обновление таблицам, затронутым принятием
 // заявки: активированным машинам и сотрудникам - их целевым таблицам («Проезд» /
 // «Места прохода»). Один момент принятия рождает сигналы всем местам, где новые
