@@ -426,6 +426,10 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// Сотрудники (в заявках)
 	empGroup := protected.Group("/employees")
 	empGroup.POST("", employees.CreateEmployee)
+	// Ручное добавление сотрудников без заявки (#1049): super/admin проходят авто,
+	// остальные - по гранту entity.employees.manual_add.
+	empGroup.POST("/manual", employees.CreateManualEmployees,
+		mw.RequirePermissionV2(permResolver, denialLog, services.KeyEntityEmployeesManualAdd))
 	empGroup.GET("/active-for-table/:table_id", employees.GetActiveEmployeesForTable)
 	empGroup.PUT("/:id/territory-status", employees.UpdateEmployeeTerritoryStatus)
 	empGroup.PUT("/:id/deactivate", employees.DeactivateEmployee)

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"systemburo/internal/models"
@@ -17,6 +18,10 @@ import (
 type EmployeeService interface {
 	// CreateEmployee создаёт сотрудника и связи с целевыми таблицами (транзакция).
 	CreateEmployee(ctx context.Context, req CreateEmployeeRequest) (*CreateEmployeeResponse, error)
+	// CreateManualEmployees добавляет сотрудников прямо в таблицу без заявки (#1049,
+	// режим-1): создаёт вложение-сироту (application_id NULL, is_manual, org/company и
+	// время действия на вложении), сотрудников со status=1 и привязку к целевым таблицам.
+	CreateManualEmployees(ctx context.Context, req ManualEmployeeRequest, userID int) (*ManualEmployeeResponse, error)
 	// GetActiveEmployeesForTable возвращает активных сотрудников для конкретной таблицы.
 	GetActiveEmployeesForTable(ctx context.Context, tableID int) ([]TableEmployeeResponse, error)
 	// UpdateEmployeeTerritoryStatus обновляет статус нахождения сотрудника на территории (въезд/выезд).
@@ -68,6 +73,44 @@ type CreateEmployeeResponse struct {
 	Success    bool   `json:"success"`
 	Message    string `json:"message"`
 	EmployeeID int    `json:"employee_id"`
+}
+
+// ManualEmployeeRequest -- тело запроса ручного добавления сотрудников в таблицу (#1049,
+// режим-1 без заявки, зеркало ManualCarRequest). org/company и время действия живут на
+// вложении-сироте (is_manual=true, application_id NULL). У сотрудника нет полей времени
+// на сущности - «когда действует пропуск» берётся с вложения. TableID -- таблица, из
+// шапки которой нажали «Добавить вручную»: сотрудник гарантированно попадёт в неё (плюс
+// любые таблицы прохода, выбранные в форме, через Employees[].TargetTables).
+type ManualEmployeeRequest struct {
+	OrganizationID int              `json:"organization_id"`
+	CompanyID      *int             `json:"company_id"`
+	TableID        int              `json:"table_id"`
+	EntryDateFrom  *string          `json:"entry_date_from"`
+	EntryDateTo    *string          `json:"entry_date_to"`
+	EntryTimeFrom  *string          `json:"entry_time_from"`
+	EntryTimeTo    *string          `json:"entry_time_to"`
+	Employees      []ManualEmployee `json:"employees"`
+}
+
+// ManualEmployee -- один сотрудник в запросе ручного добавления (зеркало полей EmployeeForm).
+type ManualEmployee struct {
+	LastName             string  `json:"last_name"`
+	FirstName            string  `json:"first_name"`
+	MiddleName           *string `json:"middle_name"`
+	CitizenshipID        int     `json:"citizenship_id"`
+	Position             string  `json:"position"`
+	PassportSeriesNumber string  `json:"passport_series_number"`
+	PatentNumber         *string `json:"patent_number"`
+	OtherPermission      *string `json:"other_permission"`
+	TargetTables         []int   `json:"target_tables"`
+}
+
+// ManualEmployeeResponse -- ответ после ручного добавления сотрудников.
+type ManualEmployeeResponse struct {
+	Success      bool   `json:"success"`
+	Message      string `json:"message"`
+	AttachmentID int    `json:"attachment_id"`
+	EmployeeIDs  []int  `json:"employee_ids"`
 }
 
 // --- DTO ответов ---
@@ -168,6 +211,125 @@ func (s *employeeService) CreateEmployee(ctx context.Context, req CreateEmployee
 	}, nil
 }
 
+// CreateManualEmployees добавляет сотрудников в таблицу без заявки (#1049, режим-1).
+// Создаёт вложение-сироту (application_id NULL, is_manual, org/company и время действия
+// на вложении), затем самих сотрудников со status=1 (одобрения нет - сразу активны),
+// привязку к целевым таблицам и записи аудита. Всё одной транзакцией: частичного
+// добавления быть не должно.
+func (s *employeeService) CreateManualEmployees(ctx context.Context, req ManualEmployeeRequest, userID int) (*ManualEmployeeResponse, error) {
+	if req.OrganizationID <= 0 {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Не указана организация")
+	}
+	if req.TableID <= 0 {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Не указана таблица")
+	}
+	if len(req.Employees) == 0 {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Не указаны сотрудники")
+	}
+	for _, emp := range req.Employees {
+		if strings.TrimSpace(emp.LastName) == "" || strings.TrimSpace(emp.FirstName) == "" {
+			return nil, echo.NewHTTPError(http.StatusBadRequest, "У сотрудника не указаны фамилия или имя")
+		}
+	}
+
+	var attID int
+	employeeIDs := make([]int, 0, len(req.Employees))
+
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		statusOne := 1
+		att := models.Attachment{
+			ApplicationID:   nil,
+			AttachmentType:  "people",
+			EntryDateFrom:   req.EntryDateFrom,
+			EntryDateTo:     req.EntryDateTo,
+			EntryTimeFrom:   req.EntryTimeFrom,
+			EntryTimeTo:     req.EntryTimeTo,
+			OrganizationID:  &req.OrganizationID,
+			CompanyID:       req.CompanyID,
+			IsManual:        true,
+			CreatedByUserID: &userID,
+			Status:          &statusOne,
+		}
+		if err := tx.Create(&att).Error; err != nil {
+			slog.Error("не удалось создать ручное вложение сотрудников", "error", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error creating manual attachment")
+		}
+		attID = att.ID
+
+		for _, emp := range req.Employees {
+			empStatus := statusOne
+			var citizenshipID *int
+			if emp.CitizenshipID > 0 {
+				citizenshipID = &emp.CitizenshipID
+			}
+			lastName, firstName, position := emp.LastName, emp.FirstName, emp.Position
+			// Пустой паспорт -> nil (а не &""): иначе HMAC("") одинаков у всех безпаспортных,
+			// и dedup PARTITION BY passport_hmac (rn=1) в GetActiveEmployeesForTable молча
+			// спрячет всех гостей без паспорта кроме одного. NULL-паспорт инвариантно не
+			// схлопывается (условие hmac IS NULL OR rn=1). Паспорт опционален - у мигрантов
+			// патент/иное разрешение вместо него.
+			var passportPtr *string
+			if strings.TrimSpace(emp.PassportSeriesNumber) != "" {
+				passport := emp.PassportSeriesNumber
+				passportPtr = &passport
+			}
+			employee := models.Employee{
+				AttachmentID:         &attID,
+				LastName:             &lastName,
+				FirstName:            &firstName,
+				MiddleName:           emp.MiddleName,
+				CitizenshipID:        citizenshipID,
+				Position:             &position,
+				PassportSeriesNumber: passportPtr,
+				PatentNumber:         emp.PatentNumber,
+				OtherPermission:      emp.OtherPermission,
+				Status:               &empStatus,
+			}
+			if err := tx.Create(&employee).Error; err != nil {
+				slog.Error("не удалось создать ручного сотрудника", "last_name", emp.LastName, "error", err)
+				return echo.NewHTTPError(http.StatusInternalServerError, "Error creating manual employee")
+			}
+			employeeIDs = append(employeeIDs, employee.ID)
+
+			// Целевые таблицы: таблица со страницы (req.TableID, гарантирует показ там,
+			// откуда добавили) объединяется с выбранными в форме таблицами прохода.
+			targetTables := map[int]struct{}{req.TableID: {}}
+			for _, tableID := range emp.TargetTables {
+				if tableID > 0 {
+					targetTables[tableID] = struct{}{}
+				}
+			}
+			for tableID := range targetTables {
+				orderIdx := 1
+				ett := models.EmployeeTargetTable{EmployeeID: employee.ID, TableID: tableID, OrderIndex: &orderIdx}
+				if err := tx.Create(&ett).Error; err != nil {
+					slog.Error("не удалось привязать сотрудника к таблице", "employee_id", employee.ID, "table_id", tableID, "error", err)
+					return echo.NewHTTPError(http.StatusInternalServerError, "Error linking employee to table")
+				}
+			}
+
+			comment := fmt.Sprintf("Сотрудник %s %s добавлен вручную", emp.LastName, emp.FirstName)
+			if err := s.recorder.Record(ctx, tx, models.AuditEntityEmployee, &employee.ID, "create", &userID, carAuditDetails{Comment: &comment}); err != nil {
+				slog.Error("не удалось записать историю ручного сотрудника", "employee_id", employee.ID, "error", err)
+				return echo.NewHTTPError(http.StatusInternalServerError, "Error adding employee history entry")
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	slog.Info("ручные сотрудники добавлены", "attachment_id", attID, "count", len(employeeIDs), "user_id", userID)
+	return &ManualEmployeeResponse{
+		Success:      true,
+		Message:      "Employees added successfully",
+		AttachmentID: attID,
+		EmployeeIDs:  employeeIDs,
+	}, nil
+}
+
 // GetActiveEmployeesForTable возвращает активных сотрудников для указанной таблицы.
 // Включает citizenship / position / company / pass_places (#116 пункт 10) чтобы
 // PeopleTable.vue мог отрисовать соответствующие колонки.
@@ -238,15 +400,21 @@ func (s *employeeService) GetActiveEmployeesForTable(ctx context.Context, tableI
 			FROM employees e
 			JOIN employee_target_tables ett ON e.id = ett.employee_id
 			JOIN attachments a ON e.attachment_id = a.id
-			JOIN applications app ON a.application_id = app.id
-			LEFT JOIN organizations o ON app.organization_id = o.id
-			LEFT JOIN companies co ON app.company_id = co.id
+			-- LEFT JOIN: ручные сотрудники (#1049) висят на вложении-сироте без заявки
+			-- (a.application_id IS NULL, a.is_manual). org/company тогда берутся с самого
+			-- вложения (COALESCE), а app.* остаются NULL - это и есть метка «добавлено вручную».
+			LEFT JOIN applications app ON a.application_id = app.id
+			LEFT JOIN organizations o ON o.id = COALESCE(app.organization_id, a.organization_id)
+			LEFT JOIN companies co ON co.id = COALESCE(app.company_id, a.company_id)
 			LEFT JOIN citizenships c ON e.citizenship_id = c.id
 			WHERE ett.table_id = ?
 			AND e.status = 1
-			AND app.confirmation = ?
-			AND app.status IN (?, ?)
-			AND CURRENT_DATE BETWEEN a.entry_date_from::date AND a.entry_date_to::date
+			-- Заявочные сотрудники видны только по согласованной активной заявке в окне
+			-- действия пропуска; ручные минуют оба требования - заявки у них нет вовсе,
+			-- гейт видимости берёт на себя принадлежность целевой таблице (employee_target_tables)
+			-- + security-видимость (S6). Показываются, пока активны (e.status = 1), как ручные машины.
+			AND (a.is_manual OR (app.confirmation = ? AND app.status IN (?, ?)))
+			AND (a.is_manual OR CURRENT_DATE BETWEEN a.entry_date_from::date AND a.entry_date_to::date)
 			GROUP BY e.id, e.last_name, e.first_name, e.middle_name,
 					 o.name, co.name, c.name, e.position,
 					 a.entry_date_to, a.entry_time_from,
