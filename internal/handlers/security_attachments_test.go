@@ -239,7 +239,7 @@ func secNewAttachmentWithUnique(t *testing.T, w secWorld, appID int, withActiveT
 	t.Cleanup(func() {
 		w.db.Where("unique_attachment_id = ?", ua.ID).Delete(&models.AttachmentTemplate{})
 	})
-	att := models.Attachment{ApplicationID: appID, AttachmentType: "cars", UniqueAttachmentID: &ua.ID}
+	att := models.Attachment{ApplicationID: &appID, AttachmentType: "cars", UniqueAttachmentID: &ua.ID}
 	require.NoError(t, w.db.Create(&att).Error)
 	if withActiveTemplate {
 		// IsActive имеет gorm default:true - при Create со значением false GORM опускает колонку и

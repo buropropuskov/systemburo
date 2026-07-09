@@ -575,7 +575,9 @@ func (s *applicationService) CanAccessApplication(ctx context.Context, applicati
 	return count > 0
 }
 
-// GetApplicationIDByAttachment возвращает ID заявки по ID вложения.
+// GetApplicationIDByAttachment возвращает ID заявки по ID вложения. Для manual-вложения
+// без заявки (#1049, application_id NULL) возвращает 0 - вызыватели-гейты доступа к
+// заявке трактуют 0 как "нет заявки" (application-detail путь к сироте недоступен).
 func (s *applicationService) GetApplicationIDByAttachment(ctx context.Context, attachmentID int) (int, error) {
 	var attachment models.Attachment
 	if err := s.db.WithContext(ctx).Select("id, application_id").Where("id = ?", attachmentID).First(&attachment).Error; err != nil {
@@ -584,7 +586,7 @@ func (s *applicationService) GetApplicationIDByAttachment(ctx context.Context, a
 		}
 		return 0, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
-	return attachment.ApplicationID, nil
+	return safeDerefInt(attachment.ApplicationID), nil
 }
 
 func ptrString(s string) *string { return &s }

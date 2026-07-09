@@ -33,7 +33,7 @@ func seedEmployeeForStatsAudit(t *testing.T, db *gorm.DB, orgName, username, num
 	app := models.Application{ApplicationNumber: &num, OrganizationID: org.ID,
 		SenderUserID: user.ID, Status: &status, SendingDatetime: &sent}
 	require.NoError(t, db.Create(&app).Error)
-	att := models.Attachment{ApplicationID: app.ID, AttachmentType: "people"}
+	att := models.Attachment{ApplicationID: &app.ID, AttachmentType: "people"}
 	require.NoError(t, db.Create(&att).Error)
 	ln, fn, mn, empStatus := "Иванов", "Иван", "Иванович", 1
 	emp := models.Employee{AttachmentID: &att.ID, LastName: &ln, FirstName: &fn, MiddleName: &mn, Status: &empStatus}

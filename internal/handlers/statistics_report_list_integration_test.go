@@ -59,7 +59,7 @@ func TestRunReportList_WorkApplications(t *testing.T) {
 	require.NoError(t, db.Create(&app).Error)
 
 	dateFrom, dateTo, timeFrom, timeTo := "2026-06-01", "2026-06-05", "09:00", "18:00"
-	att := models.Attachment{ApplicationID: app.ID, AttachmentType: "people", UniqueAttachmentID: &ua.ID,
+	att := models.Attachment{ApplicationID: &app.ID, AttachmentType: "people", UniqueAttachmentID: &ua.ID,
 		EntryDateFrom: &dateFrom, EntryDateTo: &dateTo, EntryTimeFrom: &timeFrom, EntryTimeTo: &timeTo}
 	require.NoError(t, db.Create(&att).Error)
 

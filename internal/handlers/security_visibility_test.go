@@ -72,7 +72,7 @@ func (w secWorld) newApp(t *testing.T, confirmation string) int {
 
 func (w secWorld) newAttachment(t *testing.T, appID int, atype string) int {
 	t.Helper()
-	att := models.Attachment{ApplicationID: appID, AttachmentType: atype}
+	att := models.Attachment{ApplicationID: &appID, AttachmentType: atype}
 	require.NoError(t, w.db.Create(&att).Error)
 	return att.ID
 }

@@ -196,7 +196,8 @@ type ApplicationService interface {
 	// CanAccessApplication проверяет, имеет ли пользователь доступ к заявке.
 	CanAccessApplication(ctx context.Context, applicationID int, username string, isSuperAdmin bool) bool
 
-	// GetApplicationIDByAttachment возвращает ID заявки по ID вложения.
+	// GetApplicationIDByAttachment возвращает ID заявки по ID вложения. Для manual-вложения
+	// без заявки (#1049) возвращает 0 - вызыватели трактуют 0 как "нет заявки".
 	GetApplicationIDByAttachment(ctx context.Context, attachmentID int) (int, error)
 
 	// IsSecurityUser сообщает, является ли аккаунт типом security (резолв по user_types.code).
