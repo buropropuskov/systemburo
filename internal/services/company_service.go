@@ -296,10 +296,23 @@ func (s *companyService) Update(ctx context.Context, callerUserID, companyID int
 		slog.Error("не удалось обновить компанию", "id", companyID, "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error updating company")
 	}
+	// Старые значения захватываем до перезаписи структуры - для определения,
+	// что именно изменилось (имя/тип/оба).
+	oldName := company.Name
+	oldType := company.Type
 	company.Name = req.Name
 	company.Type = req.Type
 	slog.Info("компания обновлена", "id", companyID, "name", company.Name)
-	s.recorder.Log(ctx, nil, models.AuditEntityCompany, &companyID, models.CompanyActionRenamed, &callerUserID, map[string]any{"name": company.Name, "type": company.Type})
+	action := models.CompanyActionRenamed
+	nameChanged := oldName != req.Name
+	typeChanged := !strPtrEqual(oldType, req.Type)
+	switch {
+	case nameChanged && typeChanged:
+		action = models.CompanyActionUpdated
+	case typeChanged:
+		action = models.CompanyActionRetyped
+	}
+	s.recorder.Log(ctx, nil, models.AuditEntityCompany, &companyID, action, &callerUserID, map[string]any{"name": company.Name, "type": company.Type})
 	return &company, nil
 }
 

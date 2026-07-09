@@ -6,9 +6,13 @@ import (
 )
 
 // CompanyActionType - константы action-типов истории компании.
+// renamed/retyped/updated различают, что именно изменилось при обновлении
+// (только имя / только тип / и то и другое).
 const (
 	CompanyActionCreated  = "created"
 	CompanyActionRenamed  = "renamed"
+	CompanyActionRetyped  = "retyped"
+	CompanyActionUpdated  = "updated"
 	CompanyActionArchived = "archived"
 	CompanyActionRestored = "restored"
 )

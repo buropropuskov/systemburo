@@ -207,6 +207,8 @@ import ExcelJS from 'exceljs';
 const ACTION_TEXTS = {
   created: 'Организация создана',
   renamed: 'Организация переименована',
+  retyped: 'Тип организации изменён',
+  updated: 'Организация изменена',
   archived: 'Организация архивирована',
   restored: 'Организация восстановлена из архива',
 };
@@ -214,6 +216,8 @@ const ACTION_TEXTS = {
 const ACTION_DOT_CLASS = {
   created: 'dot-create',
   renamed: 'dot-update',
+  retyped: 'dot-update',
+  updated: 'dot-update',
   archived: 'dot-deactivate',
   restored: 'dot-activate',
 };
@@ -409,21 +413,25 @@ export default {
       const d = item.details;
       if (!d || typeof d !== 'object') return '';
 
+      // Ключ type появился вместе с типом организации (#1046); у старых записей
+      // его нет - тогда тип не показываем. Явный null = «не указан».
+      const typePart = 'type' in d ? `Тип: ${d.type || ORG_TYPE_UNSPECIFIED_LABEL}` : '';
+
       switch (item.action_type) {
         case 'created':
-        case 'renamed': {
+        case 'updated': {
           const parts = [];
           if (d.name) {
-            const label = item.action_type === 'renamed' ? 'Новое наименование' : 'Наименование';
+            const label = item.action_type === 'updated' ? 'Новое наименование' : 'Наименование';
             parts.push(`${label}: ${d.name}`);
           }
-          // Ключ type появился вместе с типом организации (#1046); у старых
-          // записей его нет - тогда тип не показываем. Явный null = «не указан».
-          if ('type' in d) {
-            parts.push(`Тип: ${d.type || ORG_TYPE_UNSPECIFIED_LABEL}`);
-          }
+          if (typePart) parts.push(typePart);
           return parts.join(' · ');
         }
+        case 'renamed':
+          return d.name ? `Новое наименование: ${d.name}` : '';
+        case 'retyped':
+          return typePart;
         default:
           return '';
       }
