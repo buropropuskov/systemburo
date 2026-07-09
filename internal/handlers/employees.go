@@ -40,6 +40,29 @@ func (h *EmployeeHandler) CreateEmployee(c echo.Context) error {
 	return RespondSuccess(c, resp)
 }
 
+// CreateManualEmployees обрабатывает POST /employees/manual.
+// @Summary Ручное добавление сотрудников в таблицу без заявки (#1049)
+// @Tags employees
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param body body services.ManualEmployeeRequest true "Сотрудники, организация/компания и целевая таблица"
+// @Success 200 {object} services.ManualEmployeeResponse
+// @Failure 400 {object} models.HTTPError
+// @Failure 403 {object} models.HTTPError
+// @Router /employees/manual [post]
+func (h *EmployeeHandler) CreateManualEmployees(c echo.Context) error {
+	var req services.ManualEmployeeRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	resp, err := h.service.CreateManualEmployees(c.Request().Context(), req, GetUserID(c))
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, resp)
+}
+
 // UpdateEmployeeTerritoryStatus обрабатывает PUT /employees/:id/territory-status.
 // @Summary Обновление статуса нахождения сотрудника на территории
 // @Tags employees
