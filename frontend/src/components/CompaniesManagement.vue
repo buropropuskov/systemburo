@@ -40,11 +40,90 @@
       </div>
     </div>
 
+    <!-- Панель групповых операций (появляется при выделении строк) -->
+    <transition name="bulk-slide">
+      <div
+        v-if="selectedIds.length"
+        class="bulk-bar"
+        data-testid="companies-bulk-bar"
+      >
+        <span class="bulk-count">Выбрано: {{ selectedIds.length }}</span>
+        <div class="bulk-actions">
+          <template v-if="!showArchive">
+            <button
+              class="pill pill-ghost"
+              data-testid="companies-bulk-type"
+              @click="startBulkOperation('type')"
+            >
+              Тип
+            </button>
+            <button
+              class="pill pill-ghost"
+              data-testid="companies-bulk-unload-places"
+              @click="startBulkOperation('unload-places')"
+            >
+              Места
+            </button>
+            <button
+              class="pill pill-ghost"
+              data-testid="companies-bulk-tables"
+              @click="startBulkOperation('tables')"
+            >
+              Таблицы
+            </button>
+            <button
+              class="pill pill-ghost"
+              data-testid="companies-bulk-users"
+              @click="startBulkOperation('users')"
+            >
+              Ответственные
+            </button>
+            <button
+              class="pill pill-danger"
+              data-testid="companies-bulk-archive"
+              @click="startBulkOperation('archive')"
+            >
+              В архив
+            </button>
+          </template>
+          <button
+            v-else
+            class="pill pill-restore"
+            data-testid="companies-bulk-restore"
+            @click="startBulkOperation('restore')"
+          >
+            Восстановить
+          </button>
+          <button
+            class="pill pill-ghost bulk-clear"
+            data-testid="companies-bulk-clear"
+            @click="clearSelection"
+          >
+            Снять выбор
+          </button>
+        </div>
+      </div>
+    </transition>
+
     <div class="content-container">
       <!-- Левая часть - таблица компаний -->
       <div class="table-section">
         <div class="table-container">
           <div class="table-header">
+            <div
+              class="header-col check-col"
+              @click.stop
+            >
+              <input
+                type="checkbox"
+                class="bulk-check"
+                :checked="allSelected"
+                :indeterminate.prop="someSelected"
+                aria-label="Выбрать все"
+                data-testid="companies-select-all"
+                @change="toggleSelectAll"
+              >
+            </div>
             <div
               class="header-col id-col"
               @click="sortBy('id')"
@@ -123,6 +202,19 @@
               }"
               @click="selectCompany(comp)"
             >
+              <div
+                class="table-col check-col"
+                @click.stop
+              >
+                <input
+                  type="checkbox"
+                  class="bulk-check"
+                  :checked="isSelected(comp.id)"
+                  :aria-label="`Выбрать ${comp.name}`"
+                  data-testid="companies-row-check"
+                  @change="toggleSelect(comp.id)"
+                >
+              </div>
               <div class="table-col id-col">
                 <span class="cell-content id-value">{{ comp.id }}</span>
               </div>
@@ -524,6 +616,10 @@ export default {
       searchQuery: '',
       showArchive: false,
       typeFilter: ORG_TYPE_FILTER_ALL,
+      selectedIds: [],
+      // Сид для среза 4: выбранная групповая операция ('type'|'unload-places'|
+      // 'tables'|'users'|'archive'|'restore'). Модалку/батч-API навешивает срез 4.
+      pendingBulkOp: null,
       showAddModal: false,
       addForm: { name: '', type: null },
       addError: '',
@@ -636,6 +732,15 @@ export default {
     isDirty() {
       return this.isAddDirty || this.detailsAreaDirty;
     },
+    // Выбор всегда подмножество видимых строк (watch подрезает при фильтрации),
+    // поэтому равенство длин = выбраны все видимые.
+    allSelected() {
+      return this.sortedCompanies.length > 0
+        && this.selectedIds.length === this.sortedCompanies.length;
+    },
+    someSelected() {
+      return this.selectedIds.length > 0 && !this.allSelected;
+    },
   },
   watch: {
     showAddModal(newVal) {
@@ -644,7 +749,15 @@ export default {
           this.$refs.nameInput?.focus();
         });
       }
-    }
+    },
+    // Подрезаем выбор до видимых строк при смене фильтра/поиска/режима -
+    // счётчик «Выбрано:N» и select-all остаются честными, скрытое не участвует.
+    filteredCompanies(list) {
+      if (!this.selectedIds.length) return;
+      const visible = new Set(list.map(c => c.id));
+      const pruned = this.selectedIds.filter(id => visible.has(id));
+      if (pruned.length !== this.selectedIds.length) this.selectedIds = pruned;
+    },
   },
   created() {
     this.overlay.close = () => { this.requestCloseAdd(); };
@@ -726,6 +839,36 @@ export default {
       this.members = [];
       this.detailError = '';
       this.resetChildDirty();
+      // Наборы операций для активных и архивных разные - выбор не переносим.
+      this.selectedIds = [];
+      this.pendingBulkOp = null;
+    },
+
+    isSelected(id) {
+      return this.selectedIds.includes(id);
+    },
+
+    toggleSelect(id) {
+      const i = this.selectedIds.indexOf(id);
+      if (i === -1) this.selectedIds.push(id);
+      else this.selectedIds.splice(i, 1);
+    },
+
+    toggleSelectAll() {
+      this.selectedIds = this.allSelected
+        ? []
+        : this.sortedCompanies.map(c => c.id);
+    },
+
+    clearSelection() {
+      this.selectedIds = [];
+      this.pendingBulkOp = null;
+    },
+
+    startBulkOperation(operation) {
+      // Срез 4 навесит на этот сид модалку/подтверждение + батч-API и сброс
+      // выбора после успешной операции. Пока только фиксируем намерение.
+      this.pendingBulkOp = operation;
     },
 
     // fix 5: сбрасываем поднятые dirty-флаги детей при смене/сбросе выбора -
@@ -981,6 +1124,51 @@ export default {
   background: #3a45b2;
 }
 
+/* Панель групповых операций */
+.bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 20px;
+  border-bottom: 1px solid #e6e6e6;
+  background: #f0f2ff;
+}
+
+.bulk-count {
+  font-size: 14px;
+  font-weight: 600;
+  color: #4F5BDF;
+  white-space: nowrap;
+}
+
+.bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.bulk-clear {
+  color: #6b7280;
+  border-color: #d5d9e0;
+}
+
+.bulk-clear:hover {
+  background: #f5f5f5;
+}
+
+.bulk-slide-enter-active,
+.bulk-slide-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.bulk-slide-enter-from,
+.bulk-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
 .content-container {
   display: flex;
   height: 540px;
@@ -1052,18 +1240,40 @@ export default {
   font-weight: 600 !important;
 }
 
+.check-col {
+  width: 6%;
+  min-width: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  cursor: default;
+}
+
+.header-col.check-col:hover {
+  color: #a2a2a2;
+}
+
+.bulk-check {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  accent-color: #4F5BDF;
+  margin: 0;
+}
+
 .id-col {
-  width: 12%;
+  width: 10%;
   min-width: 36px;
 }
 
 .name-col {
-  width: 38%;
+  width: 36%;
   min-width: 140px;
 }
 
 .type-col {
-  width: 26%;
+  width: 24%;
   min-width: 90px;
 }
 
@@ -1625,11 +1835,11 @@ export default {
   }
 
   .id-col {
-    width: 14%;
+    width: 12%;
   }
 
   .name-col {
-    width: 34%;
+    width: 30%;
   }
 
   .type-col {
