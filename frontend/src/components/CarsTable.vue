@@ -324,7 +324,13 @@
                   :class="fieldColClass('application_id')"
                   :style="getColStyle('application_id')"
                 >
-                  {{ item.applicationNumber || '-' }}
+                  <span
+                    v-if="isManualItem(item)"
+                    class="manual-badge"
+                  >Добавлено вручную</span>
+                  <template v-else>
+                    {{ item.applicationNumber || '-' }}
+                  </template>
                 </div>
                 <div
                   v-if="isFieldInDom('unload_place')"
@@ -732,6 +738,11 @@ export default {
     // denied, обычный -> по эффективному гранту. Реактивно: читает стор прав.
     can(key) {
       return this.permissionsStore.hasPermission(key);
+    },
+    // Машина добавлена вручную без заявки (#1049): application_id === null (BE отдаёт
+    // NULL для вложения-сироты). Строгий null - у обычных строк applicationId - число.
+    isManualItem(item) {
+      return item.applicationId === null;
     },
     // Real-time (#840): подписка на scope конкретной таблицы, пересобирается при смене tableId.
     subscribeTableScope(tableId) {
@@ -1225,7 +1236,7 @@ export default {
         case 'car_brand': return item.car_brand || '-';
         case 'organization': return item.organization_name || '-';
         case 'company': return item.company || '-';
-        case 'application_id': return item.applicationNumber || '-';
+        case 'application_id': return this.isManualItem(item) ? 'Добавлено вручную' : (item.applicationNumber || '-');
         case 'unload_place': return this.formatUnloadPlaces(item);
         case 'valid_until': return this.formatDate(item.entry_date_to);
         case 'time_range': return this.formatTimeRange(item.entry_time_from, item.entry_time_to);
@@ -1594,6 +1605,18 @@ export default {
 .organization-col { flex: 18 0 0; }
 .company-col { flex: 10 0 0; }
 .application-col { flex: 8 0 0; }
+
+.manual-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: #4f5bdf;
+  background: rgba(79, 91, 223, 0.1);
+  white-space: nowrap;
+}
 .place-col { flex: 15 0 0; }
 .date-col { flex: 11.5 0 0; }
 .time-col { flex: 10 0 0; }

@@ -7,6 +7,7 @@
     <div class="completion__header">
       <h3>Добавление Т/С</h3>
       <button
+        v-if="allowExistingSearch"
         class="completion__button"
         @click="openExistingCarsModal"
       >
@@ -506,6 +507,12 @@ export default {
         disabled: {
             type: Boolean,
             default: false
+        },
+        // Ручное добавление (#1049): DTO ManualVehicle не имеет existing_car_id, поэтому
+        // выбор "существующей" машины создал бы дубликат - прячем поиск в этом контексте.
+        allowExistingSearch: {
+            type: Boolean,
+            default: true
         }
     },
     emits: ['edit-cancelled', 'vehicle-added', 'vehicle-updated', 'vehicles-added', 'update:unload-places'],

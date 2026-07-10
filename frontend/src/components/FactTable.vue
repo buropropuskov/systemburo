@@ -248,7 +248,13 @@
                   class="col application-col"
                   :style="getColStyle('application_id')"
                 >
-                  {{ item.applicationNumber || '-' }}
+                  <span
+                    v-if="isManualItem(item)"
+                    class="manual-badge"
+                  >Добавлено вручную</span>
+                  <template v-else>
+                    {{ item.applicationNumber || '-' }}
+                  </template>
                 </div>
                 <div
                   v-if="tableType === 'cars' && isFieldVisible('unload_place')"
@@ -586,6 +592,10 @@ export default {
     isFieldVisible(fieldName) {
       const v = this.fieldsVisibility[fieldName];
       return v === undefined ? true : v;
+    },
+    // Запись добавлена вручную без заявки (#1049): application_id === null.
+    isManualItem(item) {
+      return item.applicationId === null;
     },
 
     getColStyle(fieldName) {
@@ -1158,6 +1168,19 @@ export default {
 .organization-col { flex: 18 0 0; }
 .company-col { flex: 12 0 0; }
 .application-col { flex: 12 0 0; }
+
+.manual-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: #4f5bdf;
+  background: rgba(79, 91, 223, 0.1);
+  white-space: nowrap;
+}
+
 .place-col { flex: 15 0 0; }
 .date-col { flex: 12 0 0; }
 .time-col { flex: 10 0 0; }
