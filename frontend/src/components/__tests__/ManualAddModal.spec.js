@@ -12,11 +12,21 @@ vi.mock('@/api/cars', () => ({
 vi.mock('@/api/employees', () => ({
   createManualEmployees: vi.fn(),
 }));
+vi.mock('@/api/applications', () => ({
+  getApplications: vi.fn(),
+  getApplicationAttachments: vi.fn(),
+}));
+vi.mock('@/api/attachments', () => ({
+  attachToApplication: vi.fn(),
+}));
 
 import { getOrganizations, getCompanies } from '@/api/organizations';
 import { createManualCars } from '@/api/cars';
 import { createManualEmployees } from '@/api/employees';
+import { getApplications, getApplicationAttachments } from '@/api/applications';
+import { attachToApplication } from '@/api/attachments';
 import { useDeletionsStore } from '@/stores/deletions';
+import { usePermissionsStore } from '@/stores/permissions';
 import ManualAddModal from '../ManualAddModal.vue';
 
 const stubs = {
@@ -307,5 +317,139 @@ describe('ManualAddModal - people-режим (#1049 S9)', () => {
     wrapper.vm.removeEmployee(wrapper.vm.addedEmployees[0]);
     expect(wrapper.vm.addedEmployees).toHaveLength(1);
     expect(wrapper.vm.addedEmployees[0].lastName).toBe('Петров');
+  });
+});
+
+describe('ManualAddModal - режим-2 привязка к заявке (#1049 S10)', () => {
+  let notifySpy;
+
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    vi.clearAllMocks();
+    getOrganizations.mockResolvedValue([{ id: 7, name: 'ООО Ромашка' }]);
+    getCompanies.mockResolvedValue([{ id: 3, name: 'Компания А' }]);
+    createManualCars.mockResolvedValue({ success: true, attachment_id: 100, car_ids: [1] });
+    createManualEmployees.mockResolvedValue({ success: true, attachment_id: 200, employee_ids: [10] });
+    getApplications.mockResolvedValue([
+      { id: 5, application_number: '5/2026', organization_name: 'ООО Ромашка', confirmation: 'Согласовано', status: 'В работе' },
+      { id: 6, application_number: '6/2026', organization_name: 'ООО Прочее', confirmation: 'На согласовании', status: 'В работе' },
+    ]);
+    getApplicationAttachments.mockResolvedValue([
+      { id: 51, attachment_type: 'cars', attachment_display_name: 'Автозаявка', entry_date_from: '2026-06-01', entry_date_to: '2026-06-30' },
+      { id: 52, attachment_type: 'people', attachment_display_name: 'Люди', entry_date_from: '2026-06-01', entry_date_to: '2026-06-30' },
+    ]);
+    attachToApplication.mockResolvedValue({ success: true, application_id: 5, attachment_id: 100 });
+    notifySpy = vi.spyOn(useDeletionsStore(), 'notify').mockImplementation(() => {});
+    usePermissionsStore().mode = 'super'; // canAttach=true, переключатель виден
+    document.body.style.overflow = '';
+  });
+
+  function fillValidCar(wrapper) {
+    return wrapper.setData({
+      selectedOrgId: 7,
+      dateData: { isOneDay: true, singleDate: '10.06.2026', startTime: '09:00', endTime: '17:00' },
+      addedVehicles: [{ id: 1, plateNumber: 'А1', mark: 'X', unloadPlaces: [], passage_tables: [] }],
+    });
+  }
+
+  it('переключатель скрыт без права page.admin (normal mode)', async () => {
+    usePermissionsStore().mode = 'normal';
+    const wrapper = mountModal();
+    await flushPromises();
+    expect(wrapper.vm.canAttach).toBe(false);
+    expect(wrapper.find('[data-testid="manual-add-mode"]').exists()).toBe(false);
+  });
+
+  it('super видит переключатель; bindMode=application грузит заявки и фильтрует по Согласовано+В работе', async () => {
+    const wrapper = mountModal();
+    await flushPromises();
+    expect(wrapper.vm.canAttach).toBe(true);
+    expect(wrapper.find('[data-testid="manual-add-mode"]').exists()).toBe(true);
+    await wrapper.setData({ bindMode: 'application' });
+    await flushPromises();
+    expect(getApplications).toHaveBeenCalledTimes(1);
+    // серверный фильтр: активные согласованные
+    expect(getApplications).toHaveBeenCalledWith(expect.objectContaining({
+      confirmation: 'Согласовано',
+      status: 'В работе',
+    }));
+    expect(wrapper.vm.applicationOptions.map(o => o.id)).toEqual([5]);
+    // лейбл берёт organization_name (реальное поле ответа), а не organization
+    expect(wrapper.vm.applicationOptions[0].label).toContain('ООО Ромашка');
+  });
+
+  it('adopt (новое вложение): create -> attachToApplication {applicationId}', async () => {
+    const wrapper = mountModal();
+    await flushPromises();
+    await fillValidCar(wrapper);
+    await wrapper.setData({ bindMode: 'application' });
+    await flushPromises();
+    await wrapper.setData({ selectedApplicationId: 5 });
+
+    await wrapper.vm.submit();
+
+    expect(createManualCars).toHaveBeenCalledTimes(1);
+    expect(attachToApplication).toHaveBeenCalledWith(100, { applicationId: 5 });
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({ type: 'success' }));
+    expect(wrapper.emitted('added')).toBeTruthy();
+    expect(wrapper.emitted('close')).toBeTruthy();
+  });
+
+  it('reattach (существующее): фильтр вложений по типу cars, attach {targetAttachmentId}', async () => {
+    const wrapper = mountModal();
+    await flushPromises();
+    await fillValidCar(wrapper);
+    await wrapper.setData({ bindMode: 'application' });
+    await flushPromises();
+    wrapper.vm.onApplicationChange(5);
+    await flushPromises();
+    expect(wrapper.vm.attachmentOptions.map(o => o.id)).toEqual([51]); // только cars
+    await wrapper.setData({ attachTarget: 'existing', selectedAttachmentId: 51 });
+
+    await wrapper.vm.submit();
+
+    expect(attachToApplication).toHaveBeenCalledWith(100, { targetAttachmentId: 51 });
+  });
+
+  it('провал привязки: записи созданы (added эмитится), ошибка привязки показана', async () => {
+    attachToApplication.mockRejectedValue(new Error('Период машины вне окна вложения'));
+    const wrapper = mountModal();
+    await flushPromises();
+    await fillValidCar(wrapper);
+    await wrapper.setData({ bindMode: 'application', selectedApplicationId: 5 });
+
+    await wrapper.vm.submit();
+
+    expect(createManualCars).toHaveBeenCalledTimes(1);
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      bold: 'Период машины вне окна вложения',
+      type: 'error',
+    }));
+    expect(wrapper.emitted('added')).toBeTruthy(); // созданные записи не теряем
+  });
+
+  it('canSubmit требует заявку (и вложение при existing) в режиме привязки', async () => {
+    const wrapper = mountModal();
+    await flushPromises();
+    await fillValidCar(wrapper);
+    await wrapper.setData({ bindMode: 'application', selectedApplicationId: null });
+    expect(wrapper.vm.canSubmit).toBe(false);
+    await wrapper.setData({ selectedApplicationId: 5 });
+    expect(wrapper.vm.canSubmit).toBe(true);
+    await wrapper.setData({ attachTarget: 'existing', selectedAttachmentId: null });
+    expect(wrapper.vm.canSubmit).toBe(false);
+    await wrapper.setData({ selectedAttachmentId: 51 });
+    expect(wrapper.vm.canSubmit).toBe(true);
+  });
+
+  it('people-режим: attachmentOptions фильтрует вложения по типу people', async () => {
+    const wrapper = mount(ManualAddModal, {
+      props: { show: true, mode: 'people', tableId: 55, tableName: 'КПП людей' },
+      global: { stubs },
+    });
+    await flushPromises();
+    wrapper.vm.onApplicationChange(5);
+    await flushPromises();
+    expect(wrapper.vm.attachmentOptions.map(o => o.id)).toEqual([52]);
   });
 });
