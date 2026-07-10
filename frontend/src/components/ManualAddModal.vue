@@ -28,10 +28,108 @@
           </div>
 
           <div class="manual-modal__body">
+            <div
+              v-if="canAttach"
+              class="manual-modal__mode"
+              data-testid="manual-add-mode"
+            >
+              <FilterTabs
+                :tabs="modeTabs"
+                :model-value="bindMode"
+                @update:model-value="bindMode = $event"
+              />
+            </div>
+
             <p class="manual-modal__hint">
-              Записи попадут в таблицу «{{ tableName }}» без заявки и будут помечены
-              «Добавлено вручную».
+              <template v-if="isBinding">
+                Записи попадут в таблицу «{{ tableName }}» и будут привязаны к выбранной
+                заявке (доступно только администратору).
+              </template>
+              <template v-else>
+                Записи попадут в таблицу «{{ tableName }}» без заявки и будут помечены
+                «Добавлено вручную».
+              </template>
             </p>
+
+            <div
+              v-if="isBinding"
+              class="manual-modal__bind"
+              data-testid="manual-add-bind"
+            >
+              <div class="manual-modal__field">
+                <label class="manual-modal__label">
+                  Заявка <span class="manual-modal__req">*</span>
+                </label>
+                <BaseDropdown
+                  :model-value="selectedApplicationId"
+                  :options="applicationOptions"
+                  label-key="label"
+                  value-key="id"
+                  :searchable="true"
+                  :disabled="loadingApplications"
+                  :placeholder="loadingApplications ? 'Загрузка заявок...' : 'Выберите заявку'"
+                  data-testid="manual-add-application"
+                  @update:model-value="onApplicationChange"
+                />
+                <p
+                  v-if="!loadingApplications && !applicationOptions.length"
+                  class="manual-modal__note"
+                >
+                  Нет активных согласованных заявок для привязки.
+                </p>
+              </div>
+
+              <div
+                v-if="selectedApplicationId"
+                class="manual-modal__target"
+                role="radiogroup"
+              >
+                <label class="manual-modal__radio">
+                  <input
+                    v-model="attachTarget"
+                    type="radio"
+                    value="new"
+                    data-testid="manual-target-new"
+                  >
+                  <span>Новое вложение в заявке</span>
+                </label>
+                <label class="manual-modal__radio">
+                  <input
+                    v-model="attachTarget"
+                    type="radio"
+                    value="existing"
+                    :disabled="!attachmentOptions.length"
+                    data-testid="manual-target-existing"
+                  >
+                  <span>
+                    Существующее вложение
+                    <template v-if="!loadingAttachments && !attachmentOptions.length">
+                      (нет подходящих)
+                    </template>
+                  </span>
+                </label>
+              </div>
+
+              <div
+                v-if="selectedApplicationId && attachTarget === 'existing'"
+                class="manual-modal__field"
+              >
+                <label class="manual-modal__label">
+                  Вложение заявки <span class="manual-modal__req">*</span>
+                </label>
+                <BaseDropdown
+                  :model-value="selectedAttachmentId"
+                  :options="attachmentOptions"
+                  label-key="label"
+                  value-key="id"
+                  :searchable="true"
+                  :disabled="loadingAttachments"
+                  :placeholder="loadingAttachments ? 'Загрузка вложений...' : 'Выберите вложение'"
+                  data-testid="manual-add-attachment"
+                  @update:model-value="selectedAttachmentId = $event"
+                />
+              </div>
+            </div>
 
             <div class="manual-modal__grid">
               <div class="manual-modal__field">
@@ -205,7 +303,7 @@
               data-testid="manual-add-submit"
               @click="submit"
             >
-              {{ submitting ? 'Сохранение...' : 'Добавить в таблицу' }}
+              {{ submitLabel }}
             </button>
           </div>
         </div>
@@ -216,14 +314,24 @@
 
 <script>
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
+import FilterTabs from '@/components/ui/FilterTabs.vue';
 import DateRangeSection from '@/components/CreateApplication/DateRangeSection.vue';
 import VehicleForm from '@/components/CreateApplication/VehicleForm.vue';
 import EmployeeForm from '@/components/CreateApplication/EmployeeForm.vue';
 import { getOrganizations, getCompanies } from '@/api/organizations';
 import { createManualCars } from '@/api/cars';
 import { createManualEmployees } from '@/api/employees';
+import { getApplications, getApplicationAttachments } from '@/api/applications';
+import { attachToApplication } from '@/api/attachments';
 import { useDeletionsStore } from '@/stores/deletions';
+import { usePermissionsStore } from '@/stores/permissions';
 import { useOverlayClose } from '@/composables/useOverlayClose';
+
+// Привязка (режим-2) возможна только к активной согласованной заявке - те же
+// критерии, что валидирует бэк (loadActiveApprovedApp), иначе привязка спрячет
+// запись из таблиц проходной. Фильтруем дропдаун заявок этими значениями.
+const APP_CONFIRMATION_APPROVED = 'Согласовано';
+const APP_STATUS_IN_WORK = 'В работе';
 
 function defaultDateData() {
     return {
@@ -247,7 +355,7 @@ const PEOPLE_DATE_FIELD_CONFIG = {
 
 export default {
     name: 'ManualAddModal',
-    components: { BaseDropdown, DateRangeSection, VehicleForm, EmployeeForm },
+    components: { BaseDropdown, FilterTabs, DateRangeSection, VehicleForm, EmployeeForm },
     props: {
         show: {
             type: Boolean,
@@ -287,11 +395,59 @@ export default {
             addedEmployees: [],
             employeeIdCounter: 1,
             submitting: false,
+            // --- режим-2 (привязка к заявке) ---
+            bindMode: 'none',
+            applications: [],
+            selectedApplicationId: null,
+            appAttachments: [],
+            attachTarget: 'new',
+            selectedAttachmentId: null,
+            loadingApplications: false,
+            loadingAttachments: false,
+            attachmentsFetchSeq: 0,
         };
     },
     computed: {
         isPeople() {
             return this.mode === 'people';
+        },
+        // Зеркалит BE-гейт эндпоинта привязки (requireAdmin = page.admin): super
+        // проходит авто, admin/normal - по праву. Без него переключатель не показываем.
+        canAttach() {
+            return usePermissionsStore().hasPermission('page.admin');
+        },
+        isBinding() {
+            return this.canAttach && this.bindMode === 'application';
+        },
+        modeTabs() {
+            return [
+                { key: 'none', label: 'Без заявки' },
+                { key: 'application', label: 'Привязать к заявке' },
+            ];
+        },
+        applicationOptions() {
+            return this.applications
+                .filter(a => a.confirmation === APP_CONFIRMATION_APPROVED && a.status === APP_STATUS_IN_WORK)
+                .map(a => ({
+                    id: a.id,
+                    label: `№ ${a.application_number}${a.organization_name ? ' - ' + a.organization_name : ''}`,
+                }));
+        },
+        // Перевесить сущности можно только на вложение того же типа (cars->cars,
+        // people->people) - это же требует бэк (target.AttachmentType == orphan).
+        attachmentOptions() {
+            const type = this.isPeople ? 'people' : 'cars';
+            return this.appAttachments
+                .filter(a => a.attachment_type === type)
+                .map(a => ({ id: a.id, label: this.attachmentLabel(a) }));
+        },
+        submitLabel() {
+            if (this.submitting) return 'Сохранение...';
+            return this.isBinding ? 'Добавить и привязать' : 'Добавить в таблицу';
+        },
+        selectedApplicationNumber() {
+            const app = this.applications.find(a => a.id === this.selectedApplicationId);
+            return app ? app.application_number : '';
         },
         title() {
             return this.isPeople ? 'Добавить сотрудников вручную' : 'Добавить машины вручную';
@@ -317,7 +473,14 @@ export default {
                 : !!(d.startDate && d.endDate && d.startTime && d.endTime);
         },
         canSubmit() {
-            return !!this.selectedOrgId && this.addedCount > 0 && this.datesComplete && !this.submitting;
+            if (!this.selectedOrgId || this.addedCount === 0 || !this.datesComplete || this.submitting) {
+                return false;
+            }
+            if (this.isBinding) {
+                if (!this.selectedApplicationId) return false;
+                if (this.attachTarget === 'existing' && !this.selectedAttachmentId) return false;
+            }
+            return true;
         },
     },
     watch: {
@@ -326,6 +489,11 @@ export default {
             if (open) {
                 this.resetState();
                 this.loadDictionaries();
+            }
+        },
+        bindMode(mode) {
+            if (mode === 'application' && !this.applications.length) {
+                this.loadApplications();
             }
         },
     },
@@ -353,6 +521,56 @@ export default {
             } catch {
                 useDeletionsStore().notify({ bold: 'Не удалось загрузить справочники', type: 'error' });
             }
+        },
+        async loadApplications() {
+            this.loadingApplications = true;
+            try {
+                // Привязка возможна только к активной согласованной заявке - фильтруем
+                // на бэке (ApplicationFilter поддерживает confirmation/status), не тянем
+                // весь список; applicationOptions дублирует фильтр как страховку.
+                const list = await getApplications({
+                    archive: 'false',
+                    confirmation: APP_CONFIRMATION_APPROVED,
+                    status: APP_STATUS_IN_WORK,
+                });
+                this.applications = Array.isArray(list) ? list : [];
+            } catch {
+                useDeletionsStore().notify({ bold: 'Не удалось загрузить заявки', type: 'error' });
+            } finally {
+                this.loadingApplications = false;
+            }
+        },
+        onApplicationChange(id) {
+            this.selectedApplicationId = id;
+            this.attachTarget = 'new';
+            this.selectedAttachmentId = null;
+            this.appAttachments = [];
+            if (id) this.loadApplicationAttachments(id);
+        },
+        async loadApplicationAttachments(applicationId) {
+            // Быстрое переключение заявки в дропдропе пускает несколько загрузок; seq-токен
+            // гарантирует, что appAttachments запишет только ответ последнего выбора
+            // (иначе устаревший ответ по прошлой заявке затрёт актуальные вложения).
+            const seq = ++this.attachmentsFetchSeq;
+            this.loadingAttachments = true;
+            try {
+                const list = await getApplicationAttachments(applicationId);
+                if (seq !== this.attachmentsFetchSeq) return;
+                this.appAttachments = Array.isArray(list) ? list : [];
+            } catch {
+                if (seq !== this.attachmentsFetchSeq) return;
+                this.appAttachments = [];
+                useDeletionsStore().notify({ bold: 'Не удалось загрузить вложения заявки', type: 'error' });
+            } finally {
+                if (seq === this.attachmentsFetchSeq) this.loadingAttachments = false;
+            }
+        },
+        attachmentLabel(att) {
+            const name = att.attachment_display_name || att.attachment_name || `Вложение №${att.id}`;
+            const from = att.entry_date_from;
+            const to = att.entry_date_to;
+            if (from && to) return `${name} (${from} - ${to})`;
+            return name;
         },
         onOrgChange(id) {
             this.selectedOrgId = id;
@@ -476,36 +694,70 @@ export default {
                 useDeletionsStore().notify({ bold: 'Заполните даты и время действия', type: 'error' });
                 return;
             }
-            this.submitting = true;
-            try {
-                let resp;
-                if (this.isPeople) {
-                    resp = await createManualEmployees(this.buildEmployeePayload());
-                    const count = resp.employee_ids?.length || this.addedEmployees.length;
-                    useDeletionsStore().notify({
-                        prefix: 'Добавлено вручную: ',
-                        bold: `${count} ${this.pluralEmployees(count)}`,
-                        type: 'success',
-                    });
-                } else {
-                    resp = await createManualCars(this.buildCarPayload());
-                    const count = resp.car_ids?.length || this.addedVehicles.length;
-                    useDeletionsStore().notify({
-                        prefix: 'Добавлено вручную: ',
-                        bold: `${count} ${this.pluralCars(count)}`,
-                        type: 'success',
-                    });
+            if (this.isBinding) {
+                if (!this.selectedApplicationId) {
+                    useDeletionsStore().notify({ bold: 'Выберите заявку для привязки', type: 'error' });
+                    return;
                 }
-                this.$emit('added', resp);
-                this.$emit('close');
+                if (this.attachTarget === 'existing' && !this.selectedAttachmentId) {
+                    useDeletionsStore().notify({ bold: 'Выберите вложение заявки', type: 'error' });
+                    return;
+                }
+            }
+            this.submitting = true;
+
+            let resp;
+            try {
+                resp = this.isPeople
+                    ? await createManualEmployees(this.buildEmployeePayload())
+                    : await createManualCars(this.buildCarPayload());
             } catch (e) {
                 useDeletionsStore().notify({
                     bold: e.message || (this.isPeople ? 'Не удалось добавить сотрудников' : 'Не удалось добавить машины'),
                     type: 'error',
                 });
-            } finally {
                 this.submitting = false;
+                return;
             }
+
+            const count = this.isPeople
+                ? (resp.employee_ids?.length || this.addedEmployees.length)
+                : (resp.car_ids?.length || this.addedVehicles.length);
+            const noun = this.isPeople ? this.pluralEmployees(count) : this.pluralCars(count);
+
+            if (this.isBinding) {
+                // Записи уже созданы ручными и лежат в таблице. Привязка - отдельный шаг;
+                // её провал (даты машины вне окна вложения, гонка) НЕ теряет созданные
+                // записи - честно сообщаем "добавлено, но не привязано", запись остаётся
+                // ручной и видна в таблице.
+                const target = this.attachTarget === 'existing'
+                    ? { targetAttachmentId: this.selectedAttachmentId }
+                    : { applicationId: this.selectedApplicationId };
+                try {
+                    await attachToApplication(resp.attachment_id, target);
+                    useDeletionsStore().notify({
+                        prefix: `Добавлено ${count} ${noun}, привязано к заявке `,
+                        bold: `№ ${this.selectedApplicationNumber}`,
+                        type: 'success',
+                    });
+                } catch (e) {
+                    useDeletionsStore().notify({
+                        prefix: 'Добавлено вручную, но не привязано: ',
+                        bold: e.message || 'ошибка привязки',
+                        type: 'error',
+                    });
+                }
+            } else {
+                useDeletionsStore().notify({
+                    prefix: 'Добавлено вручную: ',
+                    bold: `${count} ${noun}`,
+                    type: 'success',
+                });
+            }
+
+            this.$emit('added', resp);
+            this.$emit('close');
+            this.submitting = false;
         },
         pluralCars(n) {
             const mod10 = n % 10;
@@ -530,6 +782,14 @@ export default {
             this.addedEmployees = [];
             this.employeeIdCounter = 1;
             this.submitting = false;
+            this.bindMode = 'none';
+            this.applications = [];
+            this.selectedApplicationId = null;
+            this.appAttachments = [];
+            this.attachTarget = 'new';
+            this.selectedAttachmentId = null;
+            this.loadingApplications = false;
+            this.loadingAttachments = false;
         },
         // Сброс формы делаем ПОСЛЕ анимации закрытия (after-leave) и при открытии,
         // а не в close() до эмита - иначе форма пустеет за кадр до угасания оверлея.
@@ -617,6 +877,49 @@ export default {
     margin: 0 0 18px;
     font-size: 13px;
     color: #666;
+}
+
+.manual-modal__mode {
+    margin-bottom: 16px;
+}
+
+.manual-modal__bind {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px;
+    margin-bottom: 18px;
+    background: #f7f7f9;
+    border-radius: var(--radius-md, 15px);
+}
+
+.manual-modal__note {
+    margin: 6px 0 0;
+    font-size: 12px;
+    color: #d14343;
+}
+
+.manual-modal__target {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+}
+
+.manual-modal__radio {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #333;
+    cursor: pointer;
+}
+
+.manual-modal__radio input[disabled] {
+    cursor: not-allowed;
+}
+
+.manual-modal__radio input[disabled] + span {
+    color: #aaa;
 }
 
 .manual-modal__grid {

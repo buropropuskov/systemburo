@@ -72,6 +72,27 @@ export async function restoreAttachment(id) {
 }
 
 /**
+ * Привязка ручного вложения-сироты к заявке (#1049 режим-2, backend #1060).
+ * Только super/admin (BE-гейт page.admin). Ровно одно из applicationId /
+ * targetAttachmentId (XOR): applicationId усыновляет сироту в заявку (создаёт
+ * в ней новое вложение), targetAttachmentId перевешивает сущности сироты на
+ * существующее вложение заявки (сирота удаляется).
+ * POST /attachments/{id}/attach-to-application -> {application_id, attachment_id}.
+ * @param {number} attachmentId экземпляр вложения-сироты (resp.attachment_id из manual-create)
+ * @param {{applicationId?: number, targetAttachmentId?: number}} target
+ */
+export async function attachToApplication(attachmentId, { applicationId = null, targetAttachmentId = null } = {}) {
+  const body = {};
+  if (applicationId != null) body.application_id = applicationId;
+  if (targetAttachmentId != null) body.target_attachment_id = targetAttachmentId;
+  const res = await apiRequest(`/attachments/${attachmentId}/attach-to-application`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  return unwrap(res, 'Не удалось привязать вложение к заявке');
+}
+
+/**
  * История действий над шаблоном вложения (#416, backend #485).
  * GET /attachments/{id}/history -> [{id, action_type, details, actor_user_id, actor_name, created_at}].
  * details: created={display_name}; updated={field:{old,new}} по
