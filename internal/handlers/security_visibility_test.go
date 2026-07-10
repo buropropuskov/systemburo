@@ -317,6 +317,31 @@ func TestGetAvailableAttachments_SuperAdminSeesAllApproved(t *testing.T) {
 	require.False(t, secContainsAttachment(rows, pendingAtt), "approved-gate applies to super-admin too")
 }
 
+// TestGetAvailableAttachments_UnrestrictedRefusedHidden — статус-гейт применяется и к unrestricted
+// (super/admin/носитель page.available, #976): именно этой веткой отказанная заявка (confirmation
+// остаётся 'Согласовано') протекала в допуск. Место не назначено - охрана бы не увидела, но
+// unrestricted снимает только place-фильтр, статус-гейт остаётся.
+func TestGetAvailableAttachments_UnrestrictedRefusedHidden(t *testing.T) {
+	w := setupSecurityWorld(t)
+	ctx := context.Background()
+
+	place := w.newUnloadPlace(t, "Склад без назначения", true)
+
+	activeApp := w.newAppWithStatus(t, models.ConfirmationApproved, models.StatusInWork)
+	activeAtt := w.newAttachment(t, activeApp, "cars")
+	w.attachPlace(t, activeAtt, place)
+
+	refusedApp := w.newAppWithStatus(t, models.ConfirmationApproved, models.StatusRefused)
+	refusedAtt := w.newAttachment(t, refusedApp, "cars")
+	w.attachPlace(t, refusedAtt, place)
+
+	rows, total, err := w.svc.GetAvailableAttachmentsForSecurity(ctx, w.guardID, true, services.AvailableAttachmentFilters{}, 1, 50)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, total)
+	require.True(t, secContainsAttachment(rows, activeAtt))
+	require.False(t, secContainsAttachment(rows, refusedAtt), "статус-гейт применяется и к unrestricted: отказанная скрыта")
+}
+
 func TestGetAvailableAttachments_NoPlacesEmpty(t *testing.T) {
 	w := setupSecurityWorld(t)
 	ctx := context.Background()

@@ -379,8 +379,9 @@ func (s *applicationService) GetAvailableAttachmentsForSecurity(ctx context.Cont
 
 // CanSecurityViewAttachment сообщает, доступно ли конкретное вложение охраннику по тем же правилам,
 // что и листинг (#706). Используется детальным эндпоинтом для 403 на чужое вложение. unrestricted
-// (super/admin/носитель page.available, #976) проходит фильтр по местам, но confirmation-гейт
-// применяется и к нему. LEFT JOIN applications (#1049): без него ручное вложение-сирота
+// (super/admin/носитель page.available, #976) проходит фильтр по местам, но гейт заявки
+// (confirmation='Согласовано' + status IN ('В работе','Завершено')) применяется и к нему. LEFT JOIN
+// applications (#1049): без него ручное вложение-сирота
 // (application_id NULL) не прошло бы EXISTS и деталь давала бы 403 при видимом в списке - тот же
 // набор ролей должен гейтить и список, и деталь.
 func (s *applicationService) CanSecurityViewAttachment(ctx context.Context, userID int, unrestricted bool, attachmentID int) (bool, error) {
