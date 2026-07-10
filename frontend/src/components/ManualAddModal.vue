@@ -869,6 +869,18 @@ export default {
     max-width: 202px;
 }
 
+/* Меню марки в заявке открывается СПРАВА от поля (left:100%) - там узкая колонка
+   формы и справа есть место. В модалке поле марки широкое, его правый край у края
+   модалки -> меню уезжало за модалку и обрезалось. Открываем меню ВНИЗ под полем,
+   по ширине поля, внутри модалки. */
+.manual-modal :deep(.mark__dropdown-menu) {
+    top: calc(100% + 6px);
+    left: 0;
+    right: auto;
+    margin-left: 0;
+    width: 100%;
+}
+
 .manual-modal__header {
     display: flex;
     align-items: center;
