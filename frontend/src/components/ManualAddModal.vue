@@ -74,6 +74,7 @@
                 :end-time="dateData.endTime"
                 :roof-access="dateData.roofAccess"
                 :free-parking="dateData.freeParking"
+                :field-config="dateFieldConfig"
                 @update:is-one-day="dateData.isOneDay = $event"
                 @update:start-date="dateData.startDate = $event"
                 @update:end-date="dateData.endDate = $event"
@@ -86,6 +87,7 @@
             </div>
 
             <VehicleForm
+              v-if="!isPeople"
               ref="vehicleForm"
               :user-organization="selectedOrgName"
               :user-organization-id="selectedOrgId"
@@ -98,9 +100,23 @@
               @vehicles-added="handleVehiclesAdded"
               @vehicle-updated="handleVehicleUpdated"
             />
+            <EmployeeForm
+              v-else
+              ref="employeeForm"
+              :user-organization="selectedOrgName"
+              :user-organization-id="selectedOrgId"
+              :user-company="selectedCompanyName"
+              :user-company-id="selectedCompanyId"
+              :existing-employees="addedEmployees"
+              :allow-existing-search="false"
+              :disabled="!selectedOrgId"
+              @employee-added="handleEmployeeAdded"
+              @employees-added="handleEmployeesAdded"
+              @employee-updated="handleEmployeeUpdated"
+            />
 
             <div
-              v-if="addedVehicles.length"
+              v-if="!isPeople && addedVehicles.length"
               class="manual-modal__added"
               data-testid="manual-add-list"
             >
@@ -128,6 +144,43 @@
                       type="button"
                       class="manual-added-btn manual-added-btn--danger"
                       @click="removeVehicle(vehicle)"
+                    >
+                      Удалить
+                    </button>
+                  </div>
+                </li>
+              </ul>
+            </div>
+
+            <div
+              v-if="isPeople && addedEmployees.length"
+              class="manual-modal__added"
+              data-testid="manual-add-list"
+            >
+              <div class="manual-modal__added-title">
+                К добавлению: {{ addedEmployees.length }}
+              </div>
+              <ul class="manual-added-list">
+                <li
+                  v-for="employee in addedEmployees"
+                  :key="employee.id"
+                  class="manual-added-item"
+                >
+                  <span class="manual-added-name">
+                    {{ employeeFullName(employee) }}
+                  </span>
+                  <div class="manual-added-actions">
+                    <button
+                      type="button"
+                      class="manual-added-btn"
+                      @click="editEmployee(employee)"
+                    >
+                      Изменить
+                    </button>
+                    <button
+                      type="button"
+                      class="manual-added-btn manual-added-btn--danger"
+                      @click="removeEmployee(employee)"
                     >
                       Удалить
                     </button>
@@ -165,8 +218,10 @@
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import DateRangeSection from '@/components/CreateApplication/DateRangeSection.vue';
 import VehicleForm from '@/components/CreateApplication/VehicleForm.vue';
+import EmployeeForm from '@/components/CreateApplication/EmployeeForm.vue';
 import { getOrganizations, getCompanies } from '@/api/organizations';
 import { createManualCars } from '@/api/cars';
+import { createManualEmployees } from '@/api/employees';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 
@@ -183,13 +238,27 @@ function defaultDateData() {
     };
 }
 
+// Крыша/парковка - атрибуты авто-вложения; DTO ManualEmployeeRequest их не несёт,
+// поэтому в people-режиме скрываем тумблеры (fieldVisible вернёт false).
+const PEOPLE_DATE_FIELD_CONFIG = {
+    roof_access: { visible: false },
+    free_parking: { visible: false },
+};
+
 export default {
     name: 'ManualAddModal',
-    components: { BaseDropdown, DateRangeSection, VehicleForm },
+    components: { BaseDropdown, DateRangeSection, VehicleForm, EmployeeForm },
     props: {
         show: {
             type: Boolean,
             default: false,
+        },
+        // 'cars' -> встраивает VehicleForm + POST /cars/manual; 'people' -> EmployeeForm
+        // + POST /employees/manual. Задаётся из TablesComponent по table_type.
+        mode: {
+            type: String,
+            default: 'cars',
+            validator: v => ['cars', 'people'].includes(v),
         },
         tableId: {
             type: Number,
@@ -215,12 +284,23 @@ export default {
             dateData: defaultDateData(),
             addedVehicles: [],
             vehicleIdCounter: 1,
+            addedEmployees: [],
+            employeeIdCounter: 1,
             submitting: false,
         };
     },
     computed: {
+        isPeople() {
+            return this.mode === 'people';
+        },
         title() {
-            return 'Добавить машины вручную';
+            return this.isPeople ? 'Добавить сотрудников вручную' : 'Добавить машины вручную';
+        },
+        dateFieldConfig() {
+            return this.isPeople ? PEOPLE_DATE_FIELD_CONFIG : {};
+        },
+        addedCount() {
+            return this.isPeople ? this.addedEmployees.length : this.addedVehicles.length;
         },
         selectedOrgName() {
             const org = this.organizations.find(o => o.id === this.selectedOrgId);
@@ -237,7 +317,7 @@ export default {
                 : !!(d.startDate && d.endDate && d.startTime && d.endTime);
         },
         canSubmit() {
-            return !!this.selectedOrgId && this.addedVehicles.length > 0 && this.datesComplete && !this.submitting;
+            return !!this.selectedOrgId && this.addedCount > 0 && this.datesComplete && !this.submitting;
         },
     },
     watch: {
@@ -280,6 +360,7 @@ export default {
         onCompanyChange(id) {
             this.selectedCompanyId = id;
         },
+        // --- cars ---
         handleVehicleAdded(vehicle) {
             this.addedVehicles.push({ ...vehicle, id: this.vehicleIdCounter++, isExisting: false });
         },
@@ -298,23 +379,55 @@ export default {
         removeVehicle(vehicle) {
             this.addedVehicles = this.addedVehicles.filter(v => v.id !== vehicle.id);
         },
+        // --- people ---
+        handleEmployeeAdded(employee) {
+            this.addedEmployees.push({ ...employee, id: this.employeeIdCounter++, isExisting: false });
+        },
+        handleEmployeesAdded(employees) {
+            employees.forEach(employee => {
+                this.addedEmployees.push({ ...employee, id: this.employeeIdCounter++, isExisting: false });
+            });
+        },
+        handleEmployeeUpdated(updated) {
+            const index = this.addedEmployees.findIndex(e => e.id === updated.id);
+            if (index !== -1) this.addedEmployees.splice(index, 1, updated);
+        },
+        editEmployee(employee) {
+            this.$refs.employeeForm?.editEmployee(employee);
+        },
+        removeEmployee(employee) {
+            this.addedEmployees = this.addedEmployees.filter(e => e.id !== employee.id);
+        },
+        employeeFullName(employee) {
+            return [employee.lastName, employee.firstName, employee.middleName]
+                .filter(Boolean)
+                .join(' ')
+                .trim() || 'ФИО не указано';
+        },
+        // --- shared ---
         formatDateForAPI(dateStr) {
             if (!dateStr) return null;
             const [day, month, year] = dateStr.split('.');
             return `${year}-${month}-${day}`;
         },
-        buildPayload() {
+        buildDateFields() {
             const d = this.dateData;
             const dateFrom = d.isOneDay ? d.singleDate : d.startDate;
             const dateTo = d.isOneDay ? d.singleDate : d.endDate;
             return {
-                organization_id: this.selectedOrgId,
-                company_id: this.selectedCompanyId || null,
-                table_id: this.tableId,
                 entry_date_from: this.formatDateForAPI(dateFrom),
                 entry_date_to: this.formatDateForAPI(dateTo),
                 entry_time_from: d.startTime ? `${d.startTime}:00` : null,
                 entry_time_to: d.endTime ? `${d.endTime}:00` : null,
+            };
+        },
+        buildCarPayload() {
+            const d = this.dateData;
+            return {
+                organization_id: this.selectedOrgId,
+                company_id: this.selectedCompanyId || null,
+                table_id: this.tableId,
+                ...this.buildDateFields(),
                 roof_access: !!d.roofAccess,
                 free_parking: !!d.freeParking,
                 vehicles: this.addedVehicles.map(v => ({
@@ -328,13 +441,35 @@ export default {
                 })),
             };
         },
+        buildEmployeePayload() {
+            return {
+                organization_id: this.selectedOrgId,
+                company_id: this.selectedCompanyId || null,
+                table_id: this.tableId,
+                ...this.buildDateFields(),
+                employees: this.addedEmployees.map(e => ({
+                    last_name: e.lastName,
+                    first_name: e.firstName,
+                    middle_name: e.middleName || null,
+                    citizenship_id: e.citizenshipId || 0,
+                    position: e.position || '',
+                    passport_series_number: e.passportSeriesNumber || '',
+                    patent_number: e.patentNumber || null,
+                    other_permission: e.otherPermission || null,
+                    target_tables: e.targetTables || [],
+                })),
+            };
+        },
         async submit() {
             if (!this.selectedOrgId) {
                 useDeletionsStore().notify({ bold: 'Выберите организацию', type: 'error' });
                 return;
             }
-            if (!this.addedVehicles.length) {
-                useDeletionsStore().notify({ bold: 'Добавьте хотя бы одну машину', type: 'error' });
+            if (this.addedCount === 0) {
+                useDeletionsStore().notify({
+                    bold: this.isPeople ? 'Добавьте хотя бы одного сотрудника' : 'Добавьте хотя бы одну машину',
+                    type: 'error',
+                });
                 return;
             }
             if (!this.datesComplete) {
@@ -343,17 +478,31 @@ export default {
             }
             this.submitting = true;
             try {
-                const resp = await createManualCars(this.buildPayload());
-                const count = resp.car_ids?.length || this.addedVehicles.length;
-                useDeletionsStore().notify({
-                    prefix: 'Добавлено вручную: ',
-                    bold: `${count} ${this.pluralCars(count)}`,
-                    type: 'success',
-                });
+                let resp;
+                if (this.isPeople) {
+                    resp = await createManualEmployees(this.buildEmployeePayload());
+                    const count = resp.employee_ids?.length || this.addedEmployees.length;
+                    useDeletionsStore().notify({
+                        prefix: 'Добавлено вручную: ',
+                        bold: `${count} ${this.pluralEmployees(count)}`,
+                        type: 'success',
+                    });
+                } else {
+                    resp = await createManualCars(this.buildCarPayload());
+                    const count = resp.car_ids?.length || this.addedVehicles.length;
+                    useDeletionsStore().notify({
+                        prefix: 'Добавлено вручную: ',
+                        bold: `${count} ${this.pluralCars(count)}`,
+                        type: 'success',
+                    });
+                }
                 this.$emit('added', resp);
                 this.$emit('close');
             } catch (e) {
-                useDeletionsStore().notify({ bold: e.message || 'Не удалось добавить машины', type: 'error' });
+                useDeletionsStore().notify({
+                    bold: e.message || (this.isPeople ? 'Не удалось добавить сотрудников' : 'Не удалось добавить машины'),
+                    type: 'error',
+                });
             } finally {
                 this.submitting = false;
             }
@@ -365,12 +514,21 @@ export default {
             if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'машины';
             return 'машин';
         },
+        pluralEmployees(n) {
+            const mod10 = n % 10;
+            const mod100 = n % 100;
+            if (mod10 === 1 && mod100 !== 11) return 'сотрудник';
+            if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'сотрудника';
+            return 'сотрудников';
+        },
         resetState() {
             this.selectedOrgId = null;
             this.selectedCompanyId = null;
             this.dateData = defaultDateData();
             this.addedVehicles = [];
             this.vehicleIdCounter = 1;
+            this.addedEmployees = [];
+            this.employeeIdCounter = 1;
             this.submitting = false;
         },
         // Сброс формы делаем ПОСЛЕ анимации закрытия (after-leave) и при открытии,
@@ -405,8 +563,8 @@ export default {
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
 }
 
-/* VehicleForm в CreateApplication - левая колонка двухколоночной раскладки
-   (width:450px + border-right под список машин справа). В модалке список
+/* VehicleForm/EmployeeForm в CreateApplication - левая колонка двухколоночной
+   раскладки (width:450px + border-right под список справа). В модалке список
    свой, поэтому растягиваем форму на всю ширину тела и убираем разделитель. */
 .manual-modal :deep(.data__completion) {
     width: 100%;

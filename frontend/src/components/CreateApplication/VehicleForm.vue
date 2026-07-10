@@ -701,17 +701,10 @@ export default {
             this.loadPassageTables()
         ]);
 
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('.format__dropdown')) {
-                this.isFormatDropdownOpen = false;
-            }
-            
-            if (!e.target.closest('.mark__dropdown')) {
-                this.isMarkDropdownOpen = false;
-            }
-        });
+        document.addEventListener('click', this.handleDocumentClick);
     },
     beforeUnmount() {
+        document.removeEventListener('click', this.handleDocumentClick);
         if (this.checkingTimeout) {
             clearTimeout(this.checkingTimeout);
         }
@@ -720,6 +713,19 @@ export default {
         }
     },
     methods: {
+        // Закрывает дропдауны формата/марки при клике вне них. Именованный метод (не
+        // анонимная стрелка в mounted) - иначе removeEventListener не снимет слушатель
+        // и он копится при частом откр/закр формы в модалке ручного добавления.
+        handleDocumentClick(e) {
+            if (!e.target.closest('.format__dropdown')) {
+                this.isFormatDropdownOpen = false;
+            }
+
+            if (!e.target.closest('.mark__dropdown')) {
+                this.isMarkDropdownOpen = false;
+            }
+        },
+
         // Новый метод для проверки активной заявки
         async checkVehicleActive() {
             // Отменяем предыдущий таймаут
