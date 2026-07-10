@@ -60,16 +60,28 @@ export async function updateFeedbackStatus(id, data) {
 }
 
 /**
- * Отметить обращение прочитанным/непрочитанным.
+ * Отметить обращение прочитанным для текущего администратора (персонально).
+ * Идемпотентно; вызывается автоматически при открытии обращения.
  * @param {number} id
- * @param {boolean} [isRead=true]
  * @returns {Promise<object>}
  */
-export async function markFeedbackAsRead(id, isRead = true) {
-  const res = await apiRequest(`/feedback/${id}/read`, {
+export async function markFeedbackAsRead(id) {
+  const res = await apiRequest(`/feedback/${id}/read`, { method: 'PUT' });
+  if (!res.ok) throw new Error('Не удалось отметить обращение прочитанным');
+  return res.json();
+}
+
+/**
+ * Установить/снять общий флажок "важное / взять в работу" на обращении.
+ * @param {number} id
+ * @param {boolean} flagged
+ * @returns {Promise<object>}
+ */
+export async function setFeedbackFlag(id, flagged) {
+  const res = await apiRequest(`/feedback/${id}/flag`, {
     method: 'PUT',
-    body: JSON.stringify({ is_read: isRead }),
+    body: JSON.stringify({ flagged }),
   });
-  if (!res.ok) throw new Error('Не удалось обновить статус прочтения');
+  if (!res.ok) throw new Error('Не удалось обновить флажок обращения');
   return res.json();
 }

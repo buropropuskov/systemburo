@@ -122,6 +122,7 @@ func AllModels() []interface{} {
 
 		// Feedback & notifications
 		&models.Feedback{},
+		&models.FeedbackRead{},
 		&models.Notification{},
 		&models.BugReport{},
 

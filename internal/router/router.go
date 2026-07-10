@@ -531,6 +531,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	fbg.GET("/my", fb.GetMy)
 	fbg.PUT("/:id/status", fb.UpdateStatus, requireFeedbackAdmin)
 	fbg.PUT("/:id/read", fb.MarkAsRead, requireFeedbackAdmin)
+	fbg.PUT("/:id/flag", fb.SetFlag, requireFeedbackAdmin)
 
 	// Заявки
 	apg := protected.Group("/applications")
