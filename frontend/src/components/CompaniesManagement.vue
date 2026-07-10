@@ -1312,6 +1312,10 @@ export default {
   padding: 0 20px;
   border-bottom: 1px solid #e6e6e6;
   background: #f0f2ff;
+  /* фиксированная высота оверлея + перенос кнопок = наезд на таблицу на узкой
+     карточке (expanded-nav ~800-965px). Держим одну строку, узко - горизонтальный скролл. */
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .bulk-count {
@@ -1325,8 +1329,13 @@ export default {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   margin-left: auto;
+}
+
+.bulk-actions .pill {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .bulk-clear {
@@ -2010,11 +2019,16 @@ export default {
   }
 
   /* на узких экранах шапка становится колонкой (height:auto) - оверлей не сработает,
-     возвращаем панель в поток (мобильный layout и так стекается) */
+     возвращаем панель в поток (мобильный layout и так стекается), кнопки могут переноситься */
   .bulk-bar {
     position: static;
     height: auto;
     padding: 12px 16px;
+    overflow-x: visible;
+  }
+
+  .bulk-actions {
+    flex-wrap: wrap;
   }
 
   .table-header,
