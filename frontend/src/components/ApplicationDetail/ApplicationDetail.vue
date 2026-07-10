@@ -810,17 +810,15 @@ export default {
                 }
 
                 if (attachmentsResponse.ok) {
-                    // Вложение открывается ТОЛЬКО по клику: при первичном открытии
-                    // ничего не выбираем автоматически. Ранее выбранное пользователем
-                    // вложение сохраняем по id при любой перезагрузке (рефетч/действие),
-                    // если оно ещё существует; на первое НЕ переключаемся.
-                    const prevSelectedId = this.selectedAttachment ? this.selectedAttachment.id : null;
+                    // При live-рефетче сохраняем выбранное вложение по id (не сбрасываем
+                    // на первое) - иначе фоновое обновление перекинет чужую вкладку.
+                    const prevSelectedId = preserveSelection && this.selectedAttachment ? this.selectedAttachment.id : null;
                     const newAttachments = await attachmentsResponse.json();
                     if (seq !== this.loadDetailSeq) return;
                     this.attachments = newAttachments;
-                    const keep = prevSelectedId ? this.attachments.find(a => a.id === prevSelectedId) : null;
-                    this.selectedAttachment = keep || null;
-                    if (this.selectedAttachment) {
+                    if (this.attachments.length > 0) {
+                        const keep = prevSelectedId ? this.attachments.find(a => a.id === prevSelectedId) : null;
+                        this.selectedAttachment = keep || this.attachments[0];
                         await this.loadAttachmentDetails(this.selectedAttachment.id);
                     }
                 }

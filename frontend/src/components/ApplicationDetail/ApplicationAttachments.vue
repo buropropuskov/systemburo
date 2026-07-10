@@ -104,6 +104,17 @@ export default {
             return Object.values(groups);
         }
     },
+    watch: {
+        attachments: {
+            immediate: true,
+            handler(newAttachments) {
+                if (newAttachments.length > 0 && !this.selectedAttachment) {
+                    this.selectedAttachment = newAttachments[0];
+                    this.$emit('attachment-selected', this.selectedAttachment);
+                }
+            }
+        }
+    },
     methods: {
         getAttachmentTypeLabel(type) {
             const types = {

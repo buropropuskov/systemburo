@@ -308,15 +308,12 @@ const emptyText = computed(() => {
   return 'Обращений пока нет';
 });
 
-// Держим выбор валидным: если текущее обращение ушло из видимого списка
-// (сменили фильтр/поиск) -- выбираем первое, иначе показываем подсказку.
+// Обращение открывается ТОЛЬКО по клику: при входе на вкладку/смене фильтра
+// ничего не открываем автоматически. Если ранее выбранное обращение ушло из
+// видимого списка, сбрасываем выделение и показываем подсказку.
 watch(filteredFeedbacks, (list) => {
-  if (!list.length) {
+  if (selectedId.value != null && !list.some((f) => f.id === selectedId.value)) {
     selectedId.value = null;
-    return;
-  }
-  if (!list.some((f) => f.id === selectedId.value)) {
-    selectedId.value = list[0].id;
   }
 });
 

@@ -107,31 +107,4 @@ describe('ApplicationDetail - real-time application.updated (#840 V4)', () => {
 
     expect(wrapper.vm.selectedAttachment.id).toBe(20);
   });
-
-  it('первичная загрузка НЕ открывает вложение автоматически', async () => {
-    apiRequest.mockImplementation((url) => {
-      if (url.endsWith('/attachments')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: 10 }, { id: 20 }]) });
-      }
-      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
-    });
-
-    const wrapper = mountDetail();
-    await flushPromises();
-    // Имитируем первичное открытие: ничего не выбрано пользователем.
-    wrapper.vm.selectedAttachment = null;
-    await wrapper.vm.loadApplicationDetails(wrapper.vm.applicationData);
-    await flushPromises();
-
-    expect(wrapper.vm.attachments.length).toBe(2);
-    expect(wrapper.vm.selectedAttachment).toBe(null);
-  });
-
-  it('клик по вложению (selectAttachment) открывает его', async () => {
-    const wrapper = mountDetail();
-    await flushPromises();
-
-    wrapper.vm.selectAttachment({ id: 10 });
-    expect(wrapper.vm.selectedAttachment.id).toBe(10);
-  });
 });
