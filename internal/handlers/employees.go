@@ -33,7 +33,7 @@ func (h *EmployeeHandler) CreateEmployee(c echo.Context) error {
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
-	resp, err := h.service.CreateEmployee(c.Request().Context(), req)
+	resp, err := h.service.CreateEmployee(c.Request().Context(), req, GetUserID(c))
 	if err != nil {
 		return err
 	}

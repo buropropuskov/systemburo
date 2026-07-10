@@ -1702,6 +1702,10 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 					// таблицах. Зеркало employee_target_tables.
 					for _, tableID := range v.TargetTables {
 						tx.Exec("INSERT INTO car_target_tables (car_id, table_id, order_index) VALUES (?, ?, 1)", carID, tableID)
+						// История «добавлен в таблицу проходной» (#1085), best-effort как соседний create-Log.
+						if err := recordAddedToTable(ctx, s.recorder, tx, models.AuditEntityCar, carID, tableID, &user.ID); err != nil {
+							slog.Error("audit: added_to_table (car) failed", "car_id", carID, "table_id", tableID, "error", err)
+						}
 					}
 				}
 				// Пишем дедупированные места в attachment_unload_places (источник для охранника).
@@ -1749,6 +1753,10 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 
 					for _, tableID := range e.TargetTables {
 						tx.Exec("INSERT INTO employee_target_tables (employee_id, table_id, order_index) VALUES (?, ?, 1)", empID, tableID)
+						// История «добавлен в таблицу проходной» (#1085), best-effort как соседний create-Log.
+						if err := recordAddedToTable(ctx, s.recorder, tx, models.AuditEntityEmployee, empID, tableID, &user.ID); err != nil {
+							slog.Error("audit: added_to_table (employee) failed", "employee_id", empID, "table_id", tableID, "error", err)
+						}
 					}
 				}
 			}

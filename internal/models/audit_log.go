@@ -50,6 +50,16 @@ const (
 	AuditEntityApplication        = "application"
 )
 
+// AuditAction* - значения AuditLog.Action, вынесенные в константы там, где значение
+// используется в нескольких местах записи/чтения (иначе дрейф литерала). Большинство
+// действий car/employee остаются строковыми литералами в своих сервисах.
+const (
+	// AuditActionAddedToTable - машина/сотрудник внесены в таблицу проходной
+	// (car_target_tables/employee_target_tables, #1036). Пишется по одной записи на
+	// таблицу, details.table_id хранит пост - reader резолвит table_name как у entry/exit.
+	AuditActionAddedToTable = "added_to_table"
+)
+
 // AuditLogItem - запись аудита для API с разрезолвленным именем актора
 // (LEFT JOIN users). Унифицирует поле актора: старые модели отдавали то actor_name,
 // то user_name - generic-ответ всегда actor_name.
