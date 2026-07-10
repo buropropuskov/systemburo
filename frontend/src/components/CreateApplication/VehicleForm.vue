@@ -584,10 +584,6 @@ export default {
             attachedPassageTables: [],
             selectedPassageTables: [],
             loadingPassageTables: false,
-            // Guard от повторного тоста «места проезда выбраны автоматически» при
-            // ремонте формы (:key). Свой ключ, не общий с EmployeeForm (иначе тост
-            // одной формы гасил бы автоуведомление другой на всю сессию).
-            autoPassageTablesNotified: sessionStorage.getItem('autoPassageTablesNotified') === 'true',
             tableTooltip: {
                 visible: false,
                 text: '',
@@ -1005,14 +1001,6 @@ export default {
                                 };
                             }
                         });
-
-                        const activeAttachedTables = this.attachedPassageTables.filter(table => table.table.status === 'active');
-                        this.selectedPassageTables = activeAttachedTables.map(table => table.table.id);
-                        if (this.selectedPassageTables.length > 0 && !this.autoPassageTablesNotified) {
-                            this.autoPassageTablesNotified = true;
-                            sessionStorage.setItem('autoPassageTablesNotified', 'true');
-                            useDeletionsStore().notify({ prefix: 'Места проезда выбраны автоматически для вашей', bold: ' организации' });
-                        }
                     }
                 }
 
@@ -1043,14 +1031,6 @@ export default {
                                 };
                             }
                         });
-
-                        const activeAttachedTables = this.attachedPassageTables.filter(table => table.table.status === 'active');
-                        this.selectedPassageTables = activeAttachedTables.map(table => table.table.id);
-                        if (this.selectedPassageTables.length > 0 && !this.autoPassageTablesNotified) {
-                            this.autoPassageTablesNotified = true;
-                            sessionStorage.setItem('autoPassageTablesNotified', 'true');
-                            useDeletionsStore().notify({ prefix: 'Места проезда выбраны автоматически для вашей', bold: ' компании' });
-                        }
                     }
                 }
 
