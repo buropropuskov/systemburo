@@ -827,7 +827,7 @@ export default {
 .manual-modal {
     background: #fff;
     border-radius: 30px;
-    width: 880px;
+    width: 840px;
     max-width: 95%;
     max-height: 90vh;
     display: flex;
@@ -837,10 +837,15 @@ export default {
 
 /* VehicleForm/EmployeeForm в CreateApplication - левая колонка двухколоночной
    раскладки (width:450px + border-right под список справа). В модалке список
-   свой, поэтому растягиваем форму на всю ширину тела и убираем разделитель. */
+   свой, поэтому растягиваем на всю ширину и оформляем блок формы отдельной
+   карточкой с рамкой (границы группируют «Добавление Т/С»). */
 .manual-modal :deep(.data__completion) {
     width: 100%;
+    box-sizing: border-box;
     border-right: none;
+    border: 1px solid #e6e6e6;
+    border-radius: var(--radius-md, 15px);
+    padding: 16px 18px;
 }
 
 /* Гриды чипов заточены под 425px-колонку заявки - снимаем кап, чтобы места
@@ -848,6 +853,16 @@ export default {
 .manual-modal :deep(.unloading__grid),
 .manual-modal :deep(.passage__grid) {
     max-width: 100%;
+}
+
+/* Шапки полей «Номер Т/С»/«Марка Т/С» в заявке - space-between под 450px-колонку;
+   в широкой модалке это уносило чекбокс «по факту» к дальнему краю колонки, далеко
+   от подписи. Прижимаем «по факту» вплотную к подписи (компактно, чекбокс явно
+   относится к своему полю). */
+.manual-modal :deep(.completion__number-header),
+.manual-modal :deep(.completion__mark-header) {
+    justify-content: flex-start;
+    gap: 10px;
 }
 
 .manual-modal__header {
