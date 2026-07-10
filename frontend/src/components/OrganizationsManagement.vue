@@ -556,6 +556,29 @@
       @cancel="archiveConfirmOrg = null"
     />
 
+    <!-- Групповые операции: type/места/таблицы/ответственные -->
+    <BulkOperationsModal
+      :show="bulkModalVisible"
+      entity-type="organization"
+      :operation="pendingBulkOp"
+      :selected-ids="selectedIds"
+      :submitting="bulkSubmitting"
+      @close="closeBulkModal"
+      @apply="applyBulk"
+    />
+
+    <!-- Групповой архив/восстановление -->
+    <ConfirmationModal
+      :show="bulkConfirmVisible"
+      :title="bulkConfirmTitle"
+      :message="bulkConfirmMessage"
+      :confirm-text="bulkConfirmText"
+      cancel-text="Отмена"
+      :confirm-button-style="bulkConfirmButtonStyle"
+      @confirm="applyBulkArchiveRestore"
+      @cancel="cancelBulkConfirm"
+    />
+
     <OrgHistoryModal
       v-if="historyOrg"
       :organization="historyOrg"
@@ -568,7 +591,15 @@
 <script>
 import { mapState, mapActions } from 'pinia';
 import { apiRequest } from '@/api/client';
-import { getOrganizationMembers } from '@/api/organizations';
+import {
+  getOrganizationMembers,
+  bulkUpdateOrganizationType,
+  bulkAssignOrganizationUnloadPlaces,
+  bulkAssignOrganizationTables,
+  bulkAssignOrganizationUsers,
+  bulkArchiveOrganizations,
+  bulkRestoreOrganizations,
+} from '@/api/organizations';
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import {
   ORG_TYPE_CREATE_OPTIONS,
@@ -580,6 +611,7 @@ import {
 } from '@/constants/orgTypes';
 import { useOrganizationsStore } from '@/stores/organizations';
 import { useDeletionsStore } from '@/stores/deletions';
+import { useUiStore } from '@/stores/ui';
 import { registerDirtyTracker, confirmIfAnyDirty } from '@/utils/dirtyTracker';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import RefreshButton from './RefreshButton.vue';
@@ -591,6 +623,7 @@ import ConfirmationModal from './ConfirmationModal.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
 import OrgHistoryModal from './OrgHistoryModal.vue';
+import BulkOperationsModal from './directories/BulkOperationsModal.vue';
 
 export default {
   name: 'OrganizationsManagement',
@@ -604,6 +637,7 @@ export default {
     BaseDropdown,
     LoaderSpinner,
     OrgHistoryModal,
+    BulkOperationsModal,
   },
   setup() {
     // Колбэк закрытия модалки присваивается в created - нужен доступ к this с проверкой dirty.
@@ -617,9 +651,13 @@ export default {
       showArchive: false,
       typeFilter: ORG_TYPE_FILTER_ALL,
       selectedIds: [],
-      // Сид для среза 4: выбранная групповая операция ('type'|'unload-places'|
-      // 'tables'|'users'|'archive'|'restore'). Модалку/батч-API навешивает срез 4.
+      // Выбранная групповая операция ('type'|'unload-places'|'tables'|'users'|
+      // 'archive'|'restore'). type/places/tables/users открывают BulkOperationsModal,
+      // archive/restore — ConfirmationModal ниже.
       pendingBulkOp: null,
+      bulkModalVisible: false,
+      bulkConfirmVisible: false,
+      bulkSubmitting: false,
       showAddModal: false,
       addForm: { name: '', type: null },
       addError: '',
@@ -740,6 +778,23 @@ export default {
     },
     someSelected() {
       return this.selectedIds.length > 0 && !this.allSelected;
+    },
+    bulkConfirmTitle() {
+      return this.pendingBulkOp === 'restore' ? 'Восстановление организаций' : 'Архивация организаций';
+    },
+    bulkConfirmMessage() {
+      const n = this.selectedIds.length;
+      return this.pendingBulkOp === 'restore'
+        ? `Восстановить выбранные организации (${n}) из архива?`
+        : `Архивировать выбранные организации (${n})? Их можно будет восстановить из архива. Организации с привязанными пользователями останутся активными.`;
+    },
+    bulkConfirmText() {
+      return this.pendingBulkOp === 'restore' ? 'Восстановить' : 'В архив';
+    },
+    bulkConfirmButtonStyle() {
+      return this.pendingBulkOp === 'restore'
+        ? { background: '#10b981', borderColor: '#10b981' }
+        : { background: '#c62828', borderColor: '#c62828' };
     },
   },
   watch: {
@@ -866,9 +921,126 @@ export default {
     },
 
     startBulkOperation(operation) {
-      // Срез 4 навесит на этот сид модалку/подтверждение + батч-API и сброс
-      // выбора после успешной операции. Пока только фиксируем намерение.
       this.pendingBulkOp = operation;
+      if (operation === 'archive' || operation === 'restore') {
+        this.bulkConfirmVisible = true;
+      } else {
+        this.bulkModalVisible = true;
+      }
+    },
+
+    closeBulkModal() {
+      if (this.bulkSubmitting) return;
+      this.bulkModalVisible = false;
+      this.pendingBulkOp = null;
+    },
+
+    cancelBulkConfirm() {
+      if (this.bulkSubmitting) return;
+      this.bulkConfirmVisible = false;
+      this.pendingBulkOp = null;
+    },
+
+    // Применение операций type/places/tables/users из BulkOperationsModal.
+    async applyBulk(payload) {
+      const ids = [...this.selectedIds];
+      const op = this.pendingBulkOp;
+      if (this.bulkSubmitting) return;
+      if (!ids.length) {
+        // выбор мог опустеть (напр. Обновить подрезал видимый список) - не молчим
+        this.closeBulkModal();
+        return;
+      }
+      this.bulkSubmitting = true;
+      let result;
+      try {
+        switch (op) {
+          case 'type':
+            result = await bulkUpdateOrganizationType(ids, payload.type);
+            break;
+          case 'unload-places':
+            result = await bulkAssignOrganizationUnloadPlaces(ids, payload.unloadPlaceIds, payload.mode);
+            break;
+          case 'tables':
+            result = await bulkAssignOrganizationTables(ids, payload.tableIds, payload.mode);
+            break;
+          case 'users':
+            result = await bulkAssignOrganizationUsers(ids, payload.usernames, payload.requiredApproval, payload.mode);
+            break;
+          default:
+            this.bulkSubmitting = false;
+            return;
+        }
+      } catch {
+        // сеть/таймаут - модалку оставляем открытой с настройками для повтора
+        useDeletionsStore().notify({ prefix: 'Не удалось выполнить групповую операцию', type: 'error' });
+        this.bulkSubmitting = false;
+        return;
+      }
+      this.bulkSubmitting = false;
+      // Закрываем модалку только когда операция реально применилась. Ошибку-envelope
+      // handleBulkResult вернёт false -> модалку держим открытой для повтора.
+      if (this.handleBulkResult(op, result, ids.length)) {
+        this.bulkModalVisible = false;
+        this.pendingBulkOp = null;
+      }
+    },
+
+    // Применение архива/восстановления из ConfirmationModal.
+    async applyBulkArchiveRestore() {
+      const ids = [...this.selectedIds];
+      const op = this.pendingBulkOp;
+      if (this.bulkSubmitting) return;
+      if (!ids.length || (op !== 'archive' && op !== 'restore')) {
+        this.bulkConfirmVisible = false;
+        this.pendingBulkOp = null;
+        return;
+      }
+      this.bulkSubmitting = true;
+      let result;
+      try {
+        result = op === 'archive'
+          ? await bulkArchiveOrganizations(ids)
+          : await bulkRestoreOrganizations(ids);
+      } catch {
+        useDeletionsStore().notify({ prefix: 'Не удалось выполнить групповую операцию', type: 'error' });
+        this.bulkSubmitting = false;
+        return;
+      }
+      this.bulkSubmitting = false;
+      if (this.handleBulkResult(op, result, ids.length)) {
+        this.bulkConfirmVisible = false;
+        this.pendingBulkOp = null;
+      }
+    },
+
+    // Разбор BulkOpResult: полный успех -> notify, частичный -> ui.warning с
+    // перечнем непрошедших. Возвращает true, если операция применилась (валидный
+    // BulkOpResult) - тогда сбрасываем выбор и обновляем список; false при
+    // ошибке-envelope (success:false -> {message}), чтобы можно было повторить.
+    handleBulkResult(op, result, total) {
+      if (!result || typeof result.success_count !== 'number') {
+        useDeletionsStore().notify({ prefix: result?.message || 'Не удалось выполнить групповую операцию', type: 'error' });
+        return false;
+      }
+      const label = {
+        type: 'Тип изменён',
+        'unload-places': 'Места разгрузки назначены',
+        tables: 'Целевые таблицы назначены',
+        users: 'Ответственные назначены',
+        archive: 'Архивировано',
+        restore: 'Восстановлено',
+      }[op] || 'Готово';
+
+      if (result.error_count > 0) {
+        const failed = (result.errors || []).map(e => e.name || `#${e.id}`).join(', ');
+        useUiStore().warning(`Выполнено ${result.success_count} из ${total}. Не удалось: ${failed}`);
+      } else {
+        useDeletionsStore().notify({ prefix: `${label}: `, bold: String(result.success_count) });
+      }
+      this.clearSelection();
+      this.refreshData();
+      return true;
     },
 
     // fix 5: сбрасываем поднятые dirty-флаги детей при смене/сбросе выбора -

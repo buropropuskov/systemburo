@@ -86,3 +86,87 @@ export async function getCompanyMembers(id) {
   const res = await apiRequest(`/companies/${id}/members`);
   return res.json();
 }
+
+// --- Групповые операции (bulk-ops, #1046) --------------------------------
+// Обёртки для организаций и компаний живут в одном файле (как весь company-API
+// выше). Все возвращают BulkOpResult { success_count, error_count, errors:[{id,
+// name, error}] }, развёрнутый из envelope: статус 207 (частичный успех) бэк
+// тоже отдаёт с success=true, поэтому wrapJsonUnwrap вернёт data, а не message.
+
+/**
+ * @typedef {Object} BulkItemError
+ * @property {number} id
+ * @property {string} name
+ * @property {string} error
+ */
+/**
+ * @typedef {Object} BulkOpResult
+ * @property {number} success_count
+ * @property {number} error_count
+ * @property {BulkItemError[]} errors
+ */
+
+/**
+ * POST /{entity}/bulk/{operation} с телом body.
+ * @param {'organizations'|'companies'} entity
+ * @param {string} operation
+ * @param {Object} body
+ * @returns {Promise<BulkOpResult>}
+ */
+async function bulkRequest(entity, operation, body) {
+  const res = await apiRequest(`/${entity}/bulk/${operation}`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  return res.json();
+}
+
+/** Групповая смена типа организаций (type=null снимает тип). */
+export function bulkUpdateOrganizationType(ids, type) {
+  return bulkRequest('organizations', 'type', { ids, type });
+}
+/** Групповое назначение мест разгрузки организациям (mode=replace|add). */
+export function bulkAssignOrganizationUnloadPlaces(ids, unloadPlaceIds, mode) {
+  return bulkRequest('organizations', 'unload-places', { ids, unload_place_ids: unloadPlaceIds, mode });
+}
+/** Групповое назначение целевых таблиц организациям (mode=replace|add). */
+export function bulkAssignOrganizationTables(ids, tableIds, mode) {
+  return bulkRequest('organizations', 'tables', { ids, table_ids: tableIds, mode });
+}
+/** Групповое назначение ответственных организациям (mode=replace|add, primary не назначается). */
+export function bulkAssignOrganizationUsers(ids, usernames, requiredApproval, mode) {
+  return bulkRequest('organizations', 'users', { ids, usernames, required_approval: requiredApproval, mode });
+}
+/** Групповое архивирование организаций. */
+export function bulkArchiveOrganizations(ids) {
+  return bulkRequest('organizations', 'archive', { ids });
+}
+/** Групповое восстановление организаций из архива. */
+export function bulkRestoreOrganizations(ids) {
+  return bulkRequest('organizations', 'restore', { ids });
+}
+
+/** Групповая смена типа компаний (type=null снимает тип). */
+export function bulkUpdateCompanyType(ids, type) {
+  return bulkRequest('companies', 'type', { ids, type });
+}
+/** Групповое назначение мест разгрузки компаниям (mode=replace|add). */
+export function bulkAssignCompanyUnloadPlaces(ids, unloadPlaceIds, mode) {
+  return bulkRequest('companies', 'unload-places', { ids, unload_place_ids: unloadPlaceIds, mode });
+}
+/** Групповое назначение целевых таблиц компаниям (mode=replace|add). */
+export function bulkAssignCompanyTables(ids, tableIds, mode) {
+  return bulkRequest('companies', 'tables', { ids, table_ids: tableIds, mode });
+}
+/** Групповое назначение ответственных компаниям (mode=replace|add, primary не назначается). */
+export function bulkAssignCompanyUsers(ids, usernames, requiredApproval, mode) {
+  return bulkRequest('companies', 'users', { ids, usernames, required_approval: requiredApproval, mode });
+}
+/** Групповое архивирование компаний. */
+export function bulkArchiveCompanies(ids) {
+  return bulkRequest('companies', 'archive', { ids });
+}
+/** Групповое восстановление компаний из архива. */
+export function bulkRestoreCompanies(ids) {
+  return bulkRequest('companies', 'restore', { ids });
+}
