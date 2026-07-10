@@ -440,6 +440,11 @@ func (s *carService) CreateManualCars(ctx context.Context, req ManualCarRequest,
 					slog.Error("не удалось привязать машину к таблице", "car_id", car.ID, "table_id", tableID, "error", err)
 					return echo.NewHTTPError(http.StatusInternalServerError, "Error linking car to table")
 				}
+				// История «добавлен в таблицу проходной» (#1085), в той же tx (как соседний create-Record).
+				if err := recordAddedToTable(ctx, s.recorder, tx, models.AuditEntityCar, car.ID, tableID, &userID); err != nil {
+					slog.Error("не удалось записать историю попадания машины в таблицу", "car_id", car.ID, "table_id", tableID, "error", err)
+					return echo.NewHTTPError(http.StatusInternalServerError, "Error adding car table history entry")
+				}
 			}
 
 			comment := fmt.Sprintf("Автомобиль %s %s добавлен вручную", v.CarNumber, v.CarBrand)

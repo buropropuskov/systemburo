@@ -68,3 +68,17 @@ func (r *auditRecorder) Log(ctx context.Context, exec *gorm.DB, entityType strin
 		slog.Error("audit: record failed", "entity_type", entityType, "entity_id", entityID, "action", action, "error", err)
 	}
 }
+
+// recordAddedToTable пишет ОДНУ запись audit_log «Добавлен в таблицу проходной» (#1085) на пару
+// (сущность, таблица): action=added_to_table, details.table_id=tableID -> reader резолвит table_name
+// и работает фильтр «Место прохода» (как у entry/exit). entityType = models.AuditEntityCar |
+// AuditEntityEmployee. exec обязан быть тем же tx, что и INSERT привязки в *_target_tables. Возвращает
+// error (семантика Record): вызывающий выбирает - пробросить (откат, как соседний create-Record) или
+// залогировать и проглотить (best-effort, как соседний create-Log в submit-complete).
+//
+// Comment намеренно не задаётся: FE рисует лейбл по action_type + отдельный блок .place-name с
+// table_name; дублировать текст в details.comment (он бы отрисовался как .action-comment) не нужно.
+func recordAddedToTable(ctx context.Context, r AuditRecorder, exec *gorm.DB, entityType string, entityID, tableID int, actorID *int) error {
+	id, tid := entityID, tableID
+	return r.Record(ctx, exec, entityType, &id, models.AuditActionAddedToTable, actorID, carAuditDetails{TableID: &tid})
+}

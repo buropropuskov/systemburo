@@ -1701,7 +1701,14 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 					// Таблицы «Проезд» (#1036): машина видна только в выбранных cars-
 					// таблицах. Зеркало employee_target_tables.
 					for _, tableID := range v.TargetTables {
-						tx.Exec("INSERT INTO car_target_tables (car_id, table_id, order_index) VALUES (?, ?, 1)", carID, tableID)
+						if res := tx.Exec("INSERT INTO car_target_tables (car_id, table_id, order_index) VALUES (?, ?, 1)", carID, tableID); res.Error != nil {
+							slog.Error("не удалось привязать машину к таблице (submit)", "car_id", carID, "table_id", tableID, "error", res.Error)
+							continue // не пишем историю о попадании, которого не было
+						}
+						// История «добавлен в таблицу проходной» (#1085), best-effort как соседний create-Log.
+						if err := recordAddedToTable(ctx, s.recorder, tx, models.AuditEntityCar, carID, tableID, &user.ID); err != nil {
+							slog.Error("audit: added_to_table (car) failed", "car_id", carID, "table_id", tableID, "error", err)
+						}
 					}
 				}
 				// Пишем дедупированные места в attachment_unload_places (источник для охранника).
@@ -1748,7 +1755,14 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 					s.recorder.Log(ctx, tx, models.AuditEntityEmployee, &empID, "create", &user.ID, carAuditDetails{Comment: &empComment})
 
 					for _, tableID := range e.TargetTables {
-						tx.Exec("INSERT INTO employee_target_tables (employee_id, table_id, order_index) VALUES (?, ?, 1)", empID, tableID)
+						if res := tx.Exec("INSERT INTO employee_target_tables (employee_id, table_id, order_index) VALUES (?, ?, 1)", empID, tableID); res.Error != nil {
+							slog.Error("не удалось привязать сотрудника к таблице (submit)", "employee_id", empID, "table_id", tableID, "error", res.Error)
+							continue // не пишем историю о попадании, которого не было
+						}
+						// История «добавлен в таблицу проходной» (#1085), best-effort как соседний create-Log.
+						if err := recordAddedToTable(ctx, s.recorder, tx, models.AuditEntityEmployee, empID, tableID, &user.ID); err != nil {
+							slog.Error("audit: added_to_table (employee) failed", "employee_id", empID, "table_id", tableID, "error", err)
+						}
 					}
 				}
 			}

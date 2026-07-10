@@ -515,7 +515,8 @@ export default {
         'blacklisted': 'dot-delete',
         'unblacklisted': 'dot-activate',
         'blacklist_override': 'dot-activate',
-        'blacklist_override_revoke': 'dot-deactivate'
+        'blacklist_override_revoke': 'dot-deactivate',
+        'added_to_table': 'dot-create'
       };
       return classes[actionType] || 'dot-default';
     },
@@ -548,9 +549,10 @@ export default {
         'blacklisted': 'Добавлен в чёрный список',
         'unblacklisted': 'Снят с чёрного списка',
         'blacklist_override': 'Пропущен несмотря на подозрение в обходе ЧС',
-        'blacklist_override_revoke': 'Отменено подтверждение пропуска (обход ЧС)'
+        'blacklist_override_revoke': 'Отменено подтверждение пропуска (обход ЧС)',
+        'added_to_table': 'Добавлен в таблицу проходной'
       };
-      
+
       let text = texts[item.action_type] || item.action_type;
       
       if (item.action_type === 'update' && item.field_name) {

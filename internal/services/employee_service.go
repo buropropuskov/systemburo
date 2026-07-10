@@ -17,7 +17,7 @@ import (
 // EmployeeService -- интерфейс бизнес-логики сотрудников в заявках.
 type EmployeeService interface {
 	// CreateEmployee создаёт сотрудника и связи с целевыми таблицами (транзакция).
-	CreateEmployee(ctx context.Context, req CreateEmployeeRequest) (*CreateEmployeeResponse, error)
+	CreateEmployee(ctx context.Context, req CreateEmployeeRequest, actorID int) (*CreateEmployeeResponse, error)
 	// CreateManualEmployees добавляет сотрудников прямо в таблицу без заявки (#1049,
 	// режим-1): создаёт вложение-сироту (application_id NULL, is_manual, org/company и
 	// время действия на вложении), сотрудников со status=1 и привязку к целевым таблицам.
@@ -162,7 +162,7 @@ func NewEmployeeService(db *gorm.DB, recorder AuditRecorder, opts ...EmployeeSer
 }
 
 // CreateEmployee создаёт сотрудника и связи с целевыми таблицами в транзакции.
-func (s *employeeService) CreateEmployee(ctx context.Context, req CreateEmployeeRequest) (*CreateEmployeeResponse, error) {
+func (s *employeeService) CreateEmployee(ctx context.Context, req CreateEmployeeRequest, actorID int) (*CreateEmployeeResponse, error) {
 	var employeeID int
 
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -194,6 +194,11 @@ func (s *employeeService) CreateEmployee(ctx context.Context, req CreateEmployee
 			if err := tx.Create(&ett).Error; err != nil {
 				slog.Error("не удалось создать связь сотрудника с таблицей", "employee_id", employeeID, "table_id", tableID, "error", err)
 				return echo.NewHTTPError(http.StatusInternalServerError, "Error creating employee target table")
+			}
+			// История «добавлен в таблицу проходной» (#1085), в той же tx.
+			if err := recordAddedToTable(ctx, s.recorder, tx, models.AuditEntityEmployee, employeeID, tableID, &actorID); err != nil {
+				slog.Error("не удалось записать историю попадания сотрудника в таблицу", "employee_id", employeeID, "table_id", tableID, "error", err)
+				return echo.NewHTTPError(http.StatusInternalServerError, "Error adding employee table history entry")
 			}
 		}
 
@@ -305,6 +310,11 @@ func (s *employeeService) CreateManualEmployees(ctx context.Context, req ManualE
 				if err := tx.Create(&ett).Error; err != nil {
 					slog.Error("не удалось привязать сотрудника к таблице", "employee_id", employee.ID, "table_id", tableID, "error", err)
 					return echo.NewHTTPError(http.StatusInternalServerError, "Error linking employee to table")
+				}
+				// История «добавлен в таблицу проходной» (#1085), в той же tx (как соседний create-Record).
+				if err := recordAddedToTable(ctx, s.recorder, tx, models.AuditEntityEmployee, employee.ID, tableID, &userID); err != nil {
+					slog.Error("не удалось записать историю попадания сотрудника в таблицу", "employee_id", employee.ID, "table_id", tableID, "error", err)
+					return echo.NewHTTPError(http.StatusInternalServerError, "Error adding employee table history entry")
 				}
 			}
 
