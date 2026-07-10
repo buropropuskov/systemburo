@@ -841,6 +841,7 @@ export default {
       this.resetChildDirty();
       // Наборы операций для активных и архивных разные - выбор не переносим.
       this.selectedIds = [];
+      this.pendingBulkOp = null;
     },
 
     isSelected(id) {
@@ -861,6 +862,7 @@ export default {
 
     clearSelection() {
       this.selectedIds = [];
+      this.pendingBulkOp = null;
     },
 
     startBulkOperation(operation) {
