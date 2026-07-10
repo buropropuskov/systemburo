@@ -183,8 +183,9 @@ export default {
       required: true,
       validator: value => ['organization', 'company'].includes(value)
     },
-    // Режим «только выбор» (групповые операции): без fetch/save сущности, без
-    // главного и per-user согласования; выбор через v-model (массив username).
+    // Режим «только выбор» (групповые операции): без fetch/save сущности и без
+    // назначения главного; обязательное согласование - per-user (тумблер на каждой
+    // карточке). Выбор через v-model = массив {username, required_approval}.
     selectionMode: {
       type: Boolean,
       default: false
