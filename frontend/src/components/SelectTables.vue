@@ -1,7 +1,13 @@
 <template>
-  <div class="select-tables-section card">
+  <div
+    class="select-tables-section"
+    :class="{ card: !selectionMode }"
+  >
     <div class="detail-group">
-      <div class="sec-title">
+      <div
+        v-if="!selectionMode"
+        class="sec-title"
+      >
         Целевые таблицы <span class="sec-note">(по умолчанию)</span>
         <span
           v-if="hasSelectedTables"
@@ -58,15 +64,25 @@ export default {
   props: {
     entity: {
       type: Object,
-      required: true
+      default: null
     },
     entityType: {
       type: String,
       required: true,
       validator: value => ['organization', 'company'].includes(value)
+    },
+    // Режим «только выбор» (групповые операции): без fetch/save сущности,
+    // выбор через v-model (массив id таблиц), без Сохранить/Отмена.
+    selectionMode: {
+      type: Boolean,
+      default: false
+    },
+    modelValue: {
+      type: Array,
+      default: () => []
     }
   },
-  emits: ['tables-updated', 'dirty-change'],
+  emits: ['tables-updated', 'dirty-change', 'update:modelValue'],
   data() {
     return {
       allTables: [],
@@ -93,6 +109,7 @@ export default {
     entity: {
       immediate: true,
       handler(newEntity) {
+        if (this.selectionMode) return;
         if (newEntity && newEntity.id) {
           this.fetchEntityTables(newEntity.id);
         }
@@ -102,14 +119,15 @@ export default {
     hasSelectedTables: {
       immediate: true,
       handler(dirty) {
+        if (this.selectionMode) return;
         this.$emit('dirty-change', dirty);
       }
     }
   },
   async mounted() {
     await this.fetchAllTables();
-    
-    if (this.entity && this.entity.id) {
+
+    if (!this.selectionMode && this.entity && this.entity.id) {
       await this.fetchEntityTables(this.entity.id);
     }
   },
@@ -249,8 +267,15 @@ export default {
 
     toggleTable(table) {
       const tableId = this.getTableId(table);
+      if (this.selectionMode) {
+        const ids = this.modelValue.includes(tableId)
+          ? this.modelValue.filter(id => id !== tableId)
+          : [...this.modelValue, tableId];
+        this.$emit('update:modelValue', ids);
+        return;
+      }
       const tableObj = this.getTableObject(table);
-      
+
       const index = this.selectedTables.findIndex(t => t.id === tableId);
       if (index > -1) {
         this.selectedTables.splice(index, 1);
@@ -260,6 +285,7 @@ export default {
     },
 
     isTableSelected(tableId) {
+      if (this.selectionMode) return this.modelValue.includes(tableId);
       return this.selectedTables.some(t => t.id === tableId);
     },
 

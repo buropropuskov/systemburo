@@ -7,7 +7,7 @@
         class="count-badge"
       >{{ selectedUsers.length }}</span>
       <span
-        v-if="hasSelectedUsers"
+        v-if="hasSelectedUsers && !selectionMode"
         class="sec-actions"
       >
         <span class="save-hint"><span class="dot" />несохранённые</span>
@@ -120,7 +120,10 @@
               class="tag tag-main"
             >главный</span>
           </div>
-          <div class="toggle-row">
+          <div
+            v-if="!selectionMode"
+            class="toggle-row"
+          >
             <label class="switch">
               <input
                 v-model="user.required_approval"
@@ -134,7 +137,7 @@
         </div>
         <div class="resp-acts">
           <button
-            v-if="!user.is_primary"
+            v-if="!selectionMode && !user.is_primary"
             class="icon-btn up"
             title="Сделать главным"
             @click="setAsPrimary(user)"
@@ -142,7 +145,7 @@
             ↑
           </button>
           <button
-            v-else
+            v-else-if="!selectionMode"
             class="icon-btn up"
             title="Убрать главного"
             @click="removePrimaryUser(user)"
@@ -176,15 +179,25 @@ export default {
   props: {
     entity: {
       type: Object,
-      required: true
+      default: null
     },
     entityType: {
       type: String,
       required: true,
       validator: value => ['organization', 'company'].includes(value)
+    },
+    // Режим «только выбор» (групповые операции): без fetch/save сущности, без
+    // главного и per-user согласования; выбор через v-model (массив username).
+    selectionMode: {
+      type: Boolean,
+      default: false
+    },
+    modelValue: {
+      type: Array,
+      default: () => []
     }
   },
-  emits: ['users-updated', 'dirty-change', 'count-change'],
+  emits: ['users-updated', 'dirty-change', 'count-change', 'update:modelValue'],
   data() {
     return {
       allUsers: [],
@@ -258,9 +271,18 @@ export default {
     entity: {
       immediate: true,
       handler(newEntity) {
+        if (this.selectionMode) return;
         if (newEntity && newEntity.id) {
           this.fetchEntityUsers(newEntity.id);
         }
+      }
+    },
+    // Синк выбора из v-model (групповой режим): сброс/смена набора снаружи.
+    modelValue: {
+      immediate: true,
+      handler(usernames) {
+        if (!this.selectionMode) return;
+        this.syncSelectedFromModel(usernames);
       }
     },
     // fix 5: поднимаем dirty-состояние в dirtyTracker родителя (предупреждение
@@ -268,6 +290,7 @@ export default {
     hasSelectedUsers: {
       immediate: true,
       handler(dirty) {
+        if (this.selectionMode) return;
         this.$emit('dirty-change', dirty);
       }
     },
@@ -282,6 +305,10 @@ export default {
   async mounted() {
     await this.fetchAllUsers();
 
+    if (this.selectionMode) {
+      this.syncSelectedFromModel(this.modelValue);
+      return;
+    }
     if (this.entity && this.entity.id) {
       await this.fetchEntityUsers(this.entity.id);
     }
@@ -426,6 +453,7 @@ export default {
           company: user.company || ''
         };
         this.selectedUsers.push(userWithDetails);
+        if (this.selectionMode) this.emitSelection();
       }
       this.userSearchQuery = '';
       this.showUserDropdown = false;
@@ -433,6 +461,23 @@ export default {
 
     removeResponsibleUser(user) {
       this.selectedUsers = this.selectedUsers.filter(u => u.username !== user.username);
+      if (this.selectionMode) this.emitSelection();
+    },
+
+    syncSelectedFromModel(usernames) {
+      const list = usernames || [];
+      const current = this.selectedUsers.map(u => u.username);
+      if (JSON.stringify(current) === JSON.stringify(list)) return;
+      this.selectedUsers = list.map(un => {
+        const full = this.allUsers.find(u => u.username === un);
+        return full
+          ? { ...full, is_primary: false, required_approval: false }
+          : { username: un, is_primary: false, required_approval: false };
+      });
+    },
+
+    emitSelection() {
+      this.$emit('update:modelValue', this.selectedUsers.map(u => u.username));
     },
 
     setAsPrimary(user) {

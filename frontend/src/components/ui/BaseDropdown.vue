@@ -40,48 +40,55 @@
       </svg>
     </button>
 
-    <transition name="dropdown">
-      <div
-        v-if="isOpen"
-        class="base-dropdown__menu"
-      >
+    <teleport
+      to="body"
+      :disabled="!teleport"
+    >
+      <transition name="dropdown">
         <div
-          v-if="searchable"
-          class="base-dropdown__search"
+          v-if="isOpen"
+          ref="menu"
+          class="base-dropdown__menu"
+          :style="teleport ? menuStyle : null"
         >
-          <input
-            ref="searchInput"
-            v-model="searchQuery"
-            type="text"
-            class="base-dropdown__search-input"
-            placeholder="Поиск..."
-            @click.stop
-          >
-        </div>
-        <div class="base-dropdown__options">
           <div
-            v-for="option in filteredOptions"
-            :key="option[valueKey]"
-            class="base-dropdown__item"
-            :class="{ 'base-dropdown__item--selected': isSelected(option) }"
-            @click="select(option)"
+            v-if="searchable"
+            class="base-dropdown__search"
           >
-            <slot
-              name="option"
-              :option="option"
+            <input
+              ref="searchInput"
+              v-model="searchQuery"
+              type="text"
+              class="base-dropdown__search-input"
+              placeholder="Поиск..."
+              @click.stop
             >
-              <span class="base-dropdown__item-text">{{ option[labelKey] }}</span>
-            </slot>
           </div>
-          <div
-            v-if="filteredOptions.length === 0"
-            class="base-dropdown__empty"
-          >
-            Ничего не найдено
+          <div class="base-dropdown__options">
+            <div
+              v-for="option in filteredOptions"
+              :key="option[valueKey]"
+              class="base-dropdown__item"
+              :class="{ 'base-dropdown__item--selected': isSelected(option) }"
+              @click="select(option)"
+            >
+              <slot
+                name="option"
+                :option="option"
+              >
+                <span class="base-dropdown__item-text">{{ option[labelKey] }}</span>
+              </slot>
+            </div>
+            <div
+              v-if="filteredOptions.length === 0"
+              class="base-dropdown__empty"
+            >
+              Ничего не найдено
+            </div>
           </div>
         </div>
-      </div>
-    </transition>
+      </transition>
+    </teleport>
   </div>
 </template>
 
@@ -117,12 +124,19 @@ export default {
       type: Boolean,
       default: false,
     },
+    // Рендерить меню в <Teleport to="body"> с position:fixed - чтобы его не
+    // обрезал overflow предка (напр. прокручиваемое тело модалки).
+    teleport: {
+      type: Boolean,
+      default: false,
+    },
   },
   emits: ['update:modelValue'],
   data() {
     return {
       isOpen: false,
       searchQuery: '',
+      menuStyle: {},
     };
   },
   computed: {
@@ -138,11 +152,23 @@ export default {
       );
     },
   },
+  watch: {
+    isOpen(open) {
+      if (!this.teleport) return;
+      if (open) {
+        this.updateMenuPosition();
+        this.addRepositionListeners();
+      } else {
+        this.removeRepositionListeners();
+      }
+    },
+  },
   mounted() {
     document.addEventListener('click', this.handleClickOutside);
   },
   beforeUnmount() {
     document.removeEventListener('click', this.handleClickOutside);
+    this.removeRepositionListeners();
   },
   methods: {
     toggle() {
@@ -166,10 +192,34 @@ export default {
       return option[this.valueKey] === this.modelValue;
     },
     handleClickOutside(e) {
-      if (this.$refs.dropdown && !this.$refs.dropdown.contains(e.target)) {
+      const inTrigger = this.$refs.dropdown && this.$refs.dropdown.contains(e.target);
+      const inMenu = this.$refs.menu && this.$refs.menu.contains(e.target);
+      if (!inTrigger && !inMenu) {
         this.isOpen = false;
         this.searchQuery = '';
       }
+    },
+    updateMenuPosition() {
+      const el = this.$refs.dropdown;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      this.menuStyle = {
+        position: 'fixed',
+        top: `${Math.round(r.bottom + 5)}px`,
+        left: `${Math.round(r.left)}px`,
+        width: `${Math.round(r.width)}px`,
+        // выше тела модалки (1000), но НИЖЕ глобальных блокирующих диалогов
+        // (ConfirmDialog 20000, SessionExpiredModal 25000) - см. [[z-index лестница]]
+        zIndex: 2000,
+      };
+    },
+    addRepositionListeners() {
+      window.addEventListener('scroll', this.updateMenuPosition, true);
+      window.addEventListener('resize', this.updateMenuPosition);
+    },
+    removeRepositionListeners() {
+      window.removeEventListener('scroll', this.updateMenuPosition, true);
+      window.removeEventListener('resize', this.updateMenuPosition);
     },
   },
 };

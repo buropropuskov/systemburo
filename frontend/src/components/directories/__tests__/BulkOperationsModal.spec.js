@@ -6,10 +6,11 @@ const apiMock = vi.hoisted(() => ({ apiRequest: vi.fn() }))
 vi.mock('@/api/client', () => apiMock)
 
 import BulkOperationsModal from '../BulkOperationsModal.vue'
-import GridSelector from '@/components/ui/GridSelector.vue'
-import SelectionModal from '@/components/ui/SelectionModal.vue'
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue'
 import BaseDropdown from '@/components/ui/BaseDropdown.vue'
+import SelectUnloadPlaces from '@/components/SelectUnloadPlaces.vue'
+import SelectTables from '@/components/SelectTables.vue'
+import ResponsibleUsersSection from '@/components/ResponsibleUsersSection.vue'
 
 const PLACES = [
   { id: 1, name: 'Склад 1', status: 'active' },
@@ -75,38 +76,45 @@ describe('BulkOperationsModal', () => {
     expect(w.emitted('apply')[0]).toEqual([{ type: null }])
   })
 
-  it('операция unload-places: грузит места, тумблер add, apply с mode', async () => {
-    const w = await mountShown('unload-places')
-    expect(apiMock.apiRequest).toHaveBeenCalledWith('/unload-places')
-    expect(w.findComponent(GridSelector).props('items')).toHaveLength(2)
+  it('type: BaseDropdown идёт с teleport (меню не режется модалкой)', async () => {
+    const w = await mountShown('type')
+    expect(w.findComponent(BaseDropdown).props('teleport')).toBe(true)
+  })
 
-    w.findComponent(GridSelector).vm.$emit('update:modelValue', [1])
+  it('операция unload-places: переиспользует SelectUnloadPlaces (selectionMode), apply с mode add', async () => {
+    const w = await mountShown('unload-places')
+    const places = w.findComponent(SelectUnloadPlaces)
+    expect(places.exists()).toBe(true)
+    expect(places.props('selectionMode')).toBe(true)
+
+    places.vm.$emit('update:modelValue', [1])
     await flushPromises()
     await w.find('[data-testid="bulk-op-mode-add"]').trigger('click')
     await applyBtn(w).trigger('click')
     expect(w.emitted('apply')[0]).toEqual([{ unloadPlaceIds: [1], mode: 'add' }])
   })
 
-  it('операция tables: исключает cars-таблицы, apply replace по умолчанию', async () => {
+  it('операция tables: переиспользует SelectTables (selectionMode), apply replace по умолчанию', async () => {
     const w = await mountShown('tables')
-    const items = w.findComponent(GridSelector).props('items')
-    expect(items).toHaveLength(1)
-    expect(items[0]).toMatchObject({ id: 10, name: 'Люди' })
+    const tables = w.findComponent(SelectTables)
+    expect(tables.exists()).toBe(true)
+    expect(tables.props('selectionMode')).toBe(true)
 
-    w.findComponent(GridSelector).vm.$emit('update:modelValue', [10])
+    tables.vm.$emit('update:modelValue', [10])
     await flushPromises()
     await applyBtn(w).trigger('click')
     expect(w.emitted('apply')[0]).toEqual([{ tableIds: [10], mode: 'replace' }])
   })
 
-  it('операция users: выбор через SelectionModal + флаг согласования', async () => {
+  it('операция users: переиспользует ResponsibleUsersSection + общий флаг согласования', async () => {
     const w = await mountShown('users')
-    expect(apiMock.apiRequest).toHaveBeenCalledWith('/users/all')
+    const resp = w.findComponent(ResponsibleUsersSection)
+    expect(resp.exists()).toBe(true)
+    expect(resp.props('selectionMode')).toBe(true)
     // ничего не выбрано -> недоступно
     expect(applyBtn(w).attributes('disabled')).toBeDefined()
 
-    await w.find('[data-testid="bulk-op-pick-users"]').trigger('click')
-    w.findComponent(SelectionModal).vm.$emit('confirm', [USERS[0]])
+    resp.vm.$emit('update:modelValue', ['ivanov'])
     await flushPromises()
     w.findComponent(ToggleSwitch).vm.$emit('update:modelValue', true)
     await flushPromises()
@@ -115,15 +123,6 @@ describe('BulkOperationsModal', () => {
     expect(w.emitted('apply')[0]).toEqual([
       { usernames: ['ivanov'], requiredApproval: true, mode: 'replace' },
     ])
-  })
-
-  it('users: повторный выбор того же пользователя не дублирует', async () => {
-    const w = await mountShown('users')
-    await w.find('[data-testid="bulk-op-pick-users"]').trigger('click')
-    w.findComponent(SelectionModal).vm.$emit('confirm', [USERS[0]])
-    w.findComponent(SelectionModal).vm.$emit('confirm', [USERS[0], USERS[1]])
-    await flushPromises()
-    expect(w.vm.selectedUsers.map(u => u.username)).toEqual(['ivanov', 'petrov'])
   })
 
   it('кнопка Отмена эмитит close', async () => {
