@@ -57,7 +57,8 @@ func (h *FeedbackHandler) Create(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /feedback/all [get]
 func (h *FeedbackHandler) GetAll(c echo.Context) error {
-	feedbacks, err := h.service.GetAll(c.Request().Context())
+	username := c.Get("username").(string)
+	feedbacks, err := h.service.GetAll(c.Request().Context(), username)
 	if err != nil {
 		return err
 	}
@@ -74,7 +75,8 @@ func (h *FeedbackHandler) GetAll(c echo.Context) error {
 // @Failure      403 {object} models.HTTPError
 // @Router       /feedback/stats [get]
 func (h *FeedbackHandler) GetStats(c echo.Context) error {
-	stats, err := h.service.GetStats(c.Request().Context())
+	username := c.Get("username").(string)
+	stats, err := h.service.GetStats(c.Request().Context(), username)
 	if err != nil {
 		return err
 	}
@@ -128,28 +130,55 @@ func (h *FeedbackHandler) UpdateStatus(c echo.Context) error {
 }
 
 // MarkAsRead godoc
-// @Summary      Отметить обращение как прочитанное/непрочитанное
+// @Summary      Отметить обращение прочитанным (персонально)
+// @Description  Фиксирует прочтение обращения текущим администратором. Идемпотентно.
 // @Tags         feedback
-// @Accept       json
 // @Produce      json
 // @Security     BearerAuth
 // @Param        id path int true "ID обращения"
-// @Param        request body models.MarkAsReadRequest true "Статус прочтения"
-// @Success      200 {string} string "Статус прочтения обновлен"
+// @Success      200 {string} string "Обращение отмечено прочитанным"
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
 // @Router       /feedback/{id}/read [put]
 func (h *FeedbackHandler) MarkAsRead(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
 	}
-	var req models.MarkAsReadRequest
+	username := c.Get("username").(string)
+	if err := h.service.MarkAsRead(c.Request().Context(), id, username); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Обращение отмечено прочитанным")
+}
+
+// SetFlag godoc
+// @Summary      Установить/снять общий флажок обращения
+// @Description  Общий флажок "важное / взять в работу", виден всем администраторам.
+// @Tags         feedback
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID обращения"
+// @Param        request body models.SetFlagRequest true "Состояние флажка"
+// @Success      200 {string} string "Флажок обращения обновлён"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Router       /feedback/{id}/flag [put]
+func (h *FeedbackHandler) SetFlag(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	var req models.SetFlagRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
-	if err := h.service.MarkAsRead(c.Request().Context(), id, req); err != nil {
+	if err := h.service.SetFlag(c.Request().Context(), id, req.Flagged); err != nil {
 		return err
 	}
-	return RespondMessage(c, "Статус прочтения обновлен")
+	return RespondMessage(c, "Флажок обращения обновлён")
 }

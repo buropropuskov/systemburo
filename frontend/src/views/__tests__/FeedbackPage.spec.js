@@ -3,13 +3,15 @@ import { mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 
 // Админ-вкладка "Обратная связь" в раскладке эталона (master-detail): список слева,
-// деталь + инлайн-ответ справа. Проверяем рендер/счётчики, авто-выбор, ответ с
-// сохранением комментария, возврат в работу, фильтр по статусу и обработку ошибок.
+// деталь + инлайн-ответ справа. Проверяем рендер/счётчики, авто-выбор, авто-отметку
+// прочтения при открытии, общий флажок, ответ с сохранением комментария, возврат в
+// работу, фильтр по статусу и обработку ошибок.
 
 vi.mock('@/api/feedback', () => ({
   getAllFeedback: vi.fn(),
   updateFeedbackStatus: vi.fn(),
   markFeedbackAsRead: vi.fn(),
+  setFeedbackFlag: vi.fn(),
 }));
 
 const notify = vi.fn();
@@ -17,9 +19,11 @@ vi.mock('@/stores/deletions', () => ({
   useDeletionsStore: () => ({ notify }),
 }));
 
+const busEmit = vi.fn();
+
 import FeedbackPage from '@/views/FeedbackPage.vue';
 import FilterTabs from '@/components/ui/FilterTabs.vue';
-import { getAllFeedback, updateFeedbackStatus, markFeedbackAsRead } from '@/api/feedback';
+import { getAllFeedback, updateFeedbackStatus, markFeedbackAsRead, setFeedbackFlag } from '@/api/feedback';
 
 const stubs = {
   AdminPageShell: { template: '<div><slot /></div>' },
@@ -53,7 +57,18 @@ const resolved = (id, comment = 'Ответ оператора') => fb(id, {
 });
 
 function mountPage() {
-  return mount(FeedbackPage, { global: { stubs } });
+  return mount(FeedbackPage, {
+    global: {
+      stubs,
+      config: { globalProperties: { $bus: { emit: busEmit, on: vi.fn(), off: vi.fn() } } },
+    },
+  });
+}
+
+// Строка списка по имени автора (авто-отметка прочтения переупорядочивает список,
+// поэтому индекс строки нестабилен - ищем по содержимому).
+function rowByAuthor(name) {
+  return wrapper.findAll('[data-testid="fb-row"]').find((r) => r.text().includes(name));
 }
 
 let wrapper;
@@ -64,6 +79,7 @@ beforeEach(() => {
   getAllFeedback.mockResolvedValue([]);
   updateFeedbackStatus.mockResolvedValue({});
   markFeedbackAsRead.mockResolvedValue({});
+  setFeedbackFlag.mockResolvedValue({});
 });
 
 afterEach(() => {
@@ -79,9 +95,11 @@ describe('FeedbackPage', () => {
     expect(wrapper.findAll('[data-testid="fb-row"]')).toHaveLength(3);
     expect(wrapper.find('.list-footer').text()).toContain('Всего: 3');
 
+    // Авто-выбор открыл первое непрочитанное (#3) -> оно авто-прочитано,
+    // поэтому "Новые" = 1 (остаётся #2). Статусные вкладки чтением не затронуты.
     expect(wrapper.findComponent(FilterTabs).props('tabs')).toEqual([
       { key: 'all', label: 'Все', count: 3 },
-      { key: 'new', label: 'Новые', count: 2 },
+      { key: 'new', label: 'Новые', count: 1 },
       { key: 'open', label: 'В работе', count: 2 },
       { key: 'resolved', label: 'Решено', count: 1 },
     ]);
@@ -102,7 +120,7 @@ describe('FeedbackPage', () => {
     wrapper = mountPage();
     await flushPromises();
 
-    await wrapper.findAll('[data-testid="fb-row"]')[1].trigger('click');
+    await rowByAuthor('Пользователь 5').trigger('click');
     expect(wrapper.find('.detail-title').text()).toContain('Обращение #5');
   });
 
@@ -151,17 +169,57 @@ describe('FeedbackPage', () => {
     expect(wrapper.find('[data-testid="fb-reply"]').exists()).toBe(true);
   });
 
-  it('"Отметить прочитанным" шлёт is_read и убирает кнопку', async () => {
+  it('открытие обращения авто-отмечает его прочитанным и гасит бейдж через $bus', async () => {
     getAllFeedback.mockResolvedValue([fb(4)]);
     wrapper = mountPage();
     await flushPromises();
 
-    expect(wrapper.find('[data-testid="fb-read"]').exists()).toBe(true);
-    await wrapper.find('[data-testid="fb-read"]').trigger('click');
+    // Авто-выбор открыл #4 -> персональная отметка прочтения (без второго аргумента).
+    expect(markFeedbackAsRead).toHaveBeenCalledWith(4);
+    expect(busEmit).toHaveBeenCalledWith('feedback-read', 4);
+    // Ручной кнопки "Отметить прочитанным" больше нет.
+    expect(wrapper.find('[data-testid="fb-read"]').exists()).toBe(false);
+  });
+
+  it('уже прочитанное обращение не отмечается повторно при открытии', async () => {
+    getAllFeedback.mockResolvedValue([resolved(8)]);
+    wrapper = mountPage();
     await flushPromises();
 
-    expect(markFeedbackAsRead).toHaveBeenCalledWith(4, true);
-    expect(wrapper.find('[data-testid="fb-read"]').exists()).toBe(false);
+    expect(markFeedbackAsRead).not.toHaveBeenCalled();
+  });
+
+  it('флажок: клик переключает общий флажок обращения', async () => {
+    getAllFeedback.mockResolvedValue([fb(4)]);
+    wrapper = mountPage();
+    await flushPromises();
+
+    const flag = wrapper.find('[data-testid="fb-flag"]');
+    expect(flag.exists()).toBe(true);
+    expect(flag.classes()).not.toContain('is-flagged');
+
+    await flag.trigger('click');
+    await flushPromises();
+
+    expect(setFeedbackFlag).toHaveBeenCalledWith(4, true);
+    expect(wrapper.find('[data-testid="fb-flag"]').classes()).toContain('is-flagged');
+  });
+
+  it('флажок: клик не открывает деталь и не отмечает прочтение', async () => {
+    // Оба обращения уже прочитаны -> авто-отметка не срабатывает и не переупорядочивает.
+    getAllFeedback.mockResolvedValue([resolved(4), resolved(6)]);
+    wrapper = mountPage();
+    await flushPromises();
+    markFeedbackAsRead.mockClear();
+
+    // Клик по флажку строки #4 не должен её открыть или прочитать.
+    await rowByAuthor('Пользователь 4').find('[data-testid="fb-flag"]').trigger('click');
+    await flushPromises();
+
+    expect(setFeedbackFlag).toHaveBeenCalledWith(4, true);
+    expect(markFeedbackAsRead).not.toHaveBeenCalled();
+    // Выбранным осталось #6 (авто-выбор), деталь не переключилась на #4.
+    expect(wrapper.find('.detail-title').text()).toContain('Обращение #6');
   });
 
   it('фильтр "Решено" оставляет только решённые обращения', async () => {

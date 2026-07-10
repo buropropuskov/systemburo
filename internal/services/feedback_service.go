@@ -20,11 +20,12 @@ import (
 // Create и GetMy доступны любому авторизованному (своя обратная связь).
 type FeedbackService interface {
 	Create(ctx context.Context, username string, req models.CreateFeedbackRequest) (int, error)
-	GetAll(ctx context.Context) ([]models.FeedbackWithUser, error)
-	GetStats(ctx context.Context) (*models.FeedbackStats, error)
+	GetAll(ctx context.Context, username string) ([]models.FeedbackWithUser, error)
+	GetStats(ctx context.Context, username string) (*models.FeedbackStats, error)
 	GetMy(ctx context.Context, username string) ([]models.MyFeedback, error)
 	UpdateStatus(ctx context.Context, id int, req models.UpdateFeedbackStatusRequest) error
-	MarkAsRead(ctx context.Context, id int, req models.MarkAsReadRequest) error
+	MarkAsRead(ctx context.Context, id int, username string) error
+	SetFlag(ctx context.Context, id int, flagged bool) error
 }
 
 type feedbackService struct {
@@ -52,7 +53,9 @@ func NewFeedbackService(db *gorm.DB, opts ...FeedbackServiceOption) FeedbackServ
 }
 
 // notifyFeedbackChanged шлёт feedback.new аудитории бейджа обратной связи -
-// активным супер-админам (FE гейтит бейдж по isSuperAdmin). Best-effort, nil-safe.
+// активным администраторам (super + admin), у которых бейдж виден по праву
+// page.admin.feedback. Явные гранты права не-админам догоняет 30с-опрос.
+// Best-effort, nil-safe.
 func (s *feedbackService) notifyFeedbackChanged(ctx context.Context) {
 	if s.realtimePublisher == nil {
 		return
@@ -60,9 +63,9 @@ func (s *feedbackService) notifyFeedbackChanged(ctx context.Context) {
 	var ids []int
 	if err := s.db.WithContext(ctx).
 		Table("users").
-		Where("is_active = ? AND is_super_admin = ?", true, true).
+		Where("is_active = ? AND (is_super_admin = ? OR is_admin = ?)", true, true, true).
 		Pluck("id", &ids).Error; err != nil {
-		slog.Warn("feedback.new: load super admins failed", "err", err)
+		slog.Warn("feedback.new: load feedback admins failed", "err", err)
 		return
 	}
 	if len(ids) == 0 {
@@ -121,14 +124,22 @@ func (s *feedbackService) Create(ctx context.Context, username string, req model
 }
 
 // GetAll возвращает все обращения обратной связи с информацией о пользователях.
-func (s *feedbackService) GetAll(ctx context.Context) ([]models.FeedbackWithUser, error) {
+// is_read вычисляется персонально для запрашивающего администратора (feedback_reads).
+func (s *feedbackService) GetAll(ctx context.Context, username string) ([]models.FeedbackWithUser, error) {
+	userID, err := s.getUserIDByUsername(ctx, username)
+	if err != nil {
+		return nil, err
+	}
+
 	results := make([]models.FeedbackWithUser, 0)
-	err := s.db.WithContext(ctx).
+	err = s.db.WithContext(ctx).
 		Table("feedback f").
 		Select(`f.id, f.user_id,
 			CONCAT(u.last_name, ' ', u.first_name) AS user_name,
-			f.message, f.status, f.is_read, f.created_at, f.updated_at,
-			f.resolution_comment, f.resolved_at`).
+			f.message, f.status,
+			EXISTS(SELECT 1 FROM feedback_reads fr WHERE fr.feedback_id = f.id AND fr.user_id = ?) AS is_read,
+			f.flagged, f.created_at, f.updated_at,
+			f.resolution_comment, f.resolved_at`, userID).
 		Joins("JOIN users u ON f.user_id = u.id").
 		Order("f.created_at DESC").
 		Scan(&results).Error
@@ -147,15 +158,24 @@ func (s *feedbackService) GetAll(ctx context.Context) ([]models.FeedbackWithUser
 }
 
 // GetStats возвращает статистику обращений обратной связи.
-func (s *feedbackService) GetStats(ctx context.Context) (*models.FeedbackStats, error) {
+// unread считается персонально для администратора: обращения без записи о его
+// прочтении в feedback_reads.
+func (s *feedbackService) GetStats(ctx context.Context, username string) (*models.FeedbackStats, error) {
+	userID, err := s.getUserIDByUsername(ctx, username)
+	if err != nil {
+		return nil, err
+	}
+
 	var stats models.FeedbackStats
-	err := s.db.WithContext(ctx).
-		Table("feedback").
+	err = s.db.WithContext(ctx).
+		Table("feedback f").
 		Select(`COUNT(*) AS total,
-			COUNT(CASE WHEN status = ? THEN 1 END) AS resolved,
-			COUNT(CASE WHEN status = ? THEN 1 END) AS unresolved,
-			COUNT(CASE WHEN is_read = false THEN 1 END) AS unread`,
-			models.FeedbackResolved, models.FeedbackOpen).
+			COUNT(CASE WHEN f.status = ? THEN 1 END) AS resolved,
+			COUNT(CASE WHEN f.status = ? THEN 1 END) AS unresolved,
+			COUNT(CASE WHEN NOT EXISTS(
+				SELECT 1 FROM feedback_reads fr WHERE fr.feedback_id = f.id AND fr.user_id = ?
+			) THEN 1 END) AS unread`,
+			models.FeedbackResolved, models.FeedbackOpen, userID).
 		Row().
 		Scan(&stats.Total, &stats.Resolved, &stats.Unresolved, &stats.Unread)
 	if err != nil {
@@ -230,15 +250,45 @@ func (s *feedbackService) UpdateStatus(ctx context.Context, id int, req models.U
 	return nil
 }
 
-// MarkAsRead отмечает обращение обратной связи как прочитанное или непрочитанное.
-func (s *feedbackService) MarkAsRead(ctx context.Context, id int, req models.MarkAsReadRequest) error {
-	// Обновляем только is_read без updated_at (как в Rust)
-	err := s.db.WithContext(ctx).
+// MarkAsRead фиксирует прочтение обращения администратором (персонально,
+// идемпотентно). Вызывается автоматически при открытии обращения в админке.
+func (s *feedbackService) MarkAsRead(ctx context.Context, id int, username string) error {
+	userID, err := s.getUserIDByUsername(ctx, username)
+	if err != nil {
+		return err
+	}
+
+	var count int64
+	if err := s.db.WithContext(ctx).Table("feedback").Where("id = ?", id).Count(&count).Error; err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error checking feedback existence")
+	}
+	if count == 0 {
+		return echo.NewHTTPError(http.StatusNotFound, "Feedback not found")
+	}
+
+	// ON CONFLICT DO NOTHING - идемпотентная вставка (эталон application_reads).
+	if err := s.db.WithContext(ctx).Exec(
+		"INSERT INTO feedback_reads (feedback_id, user_id) VALUES (?, ?) ON CONFLICT (feedback_id, user_id) DO NOTHING",
+		id, userID,
+	).Error; err != nil {
+		slog.Error("feedback read: insert failed", "err", err, "feedback_id", id, "user_id", userID)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error marking feedback as read")
+	}
+
+	return nil
+}
+
+// SetFlag устанавливает/снимает общий флажок "важное / взять в работу" на обращении.
+func (s *feedbackService) SetFlag(ctx context.Context, id int, flagged bool) error {
+	res := s.db.WithContext(ctx).
 		Table("feedback").
 		Where("id = ?", id).
-		Update("is_read", req.IsRead).Error
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Error updating feedback read status")
+		Update("flagged", flagged)
+	if res.Error != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error updating feedback flag")
+	}
+	if res.RowsAffected == 0 {
+		return echo.NewHTTPError(http.StatusNotFound, "Feedback not found")
 	}
 
 	return nil

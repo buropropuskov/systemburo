@@ -606,8 +606,10 @@ export default {
       hoverTimeout: null,
       systemTables: [],
       newApplicationsCount: 0,
-      // Непрочитанные обращения обратной связи (бейдж у Администрирования). Тянем
-      // только супер-админу - эндпоинт /feedback/stats закрыт checkAdmin (иначе 403).
+      // Непрочитанные обращения обратной связи (бейдж у Администрирования).
+      // Персонально для админа: считаем по праву page.admin.feedback (как и виден
+      // сам пункт), а не по isSuperAdmin - иначе счётчик не показывался обычным
+      // администраторам. Эндпоинт /feedback/stats открыт тем же правом.
       newFeedbackCount: 0,
       // Звук новой заявки: primed=true после ПЕРВОЙ загрузки счётчика (чтобы не играть на
       // логине при 0 -> N); lastSoundAt - метка для кулдауна (пачка заявок -> один звук).
@@ -1083,7 +1085,7 @@ export default {
     },
 
     async fetchNewFeedbackCount() {
-      if (!this.authStore.isSuperAdmin) {
+      if (!this.can('page.admin.feedback')) {
         this.newFeedbackCount = 0;
         return;
       }
@@ -1112,7 +1114,7 @@ export default {
         this.fetchNewApplicationsCount();
       });
       // Новое обращение обратной связи -> мгновенно пересчитать бейдж (#840);
-      // fetchNewFeedbackCount сам гейтит по isSuperAdmin.
+      // fetchNewFeedbackCount сам гейтит по праву page.admin.feedback.
       this.eventStreamFeedbackOff = eventStream.subscribe('feedback', () => {
         this.fetchNewFeedbackCount();
       });
@@ -1129,6 +1131,10 @@ export default {
       // (ApplicationsCenter эмитит 'application-read' после успешного POST /read).
       this.unreadReadHandler = () => this.fetchNewApplicationsCount();
       this.$bus.on('application-read', this.unreadReadHandler);
+      // Прочтение обращения в админке гасит бейдж обратной связи сразу, не дожидаясь
+      // 30с-опроса (FeedbackPage эмитит 'feedback-read' после успешного PUT /read).
+      this.feedbackReadHandler = () => this.fetchNewFeedbackCount();
+      this.$bus.on('feedback-read', this.feedbackReadHandler);
     },
 
     startTablesPolling() {
@@ -1168,6 +1174,10 @@ export default {
       if (this.unreadReadHandler) {
         this.$bus.off('application-read', this.unreadReadHandler);
         this.unreadReadHandler = null;
+      }
+      if (this.feedbackReadHandler) {
+        this.$bus.off('feedback-read', this.feedbackReadHandler);
+        this.feedbackReadHandler = null;
       }
       eventStream.disconnect();
     },

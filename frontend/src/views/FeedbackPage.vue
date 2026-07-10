@@ -53,6 +53,7 @@
             >
               Дата
             </div>
+            <div class="header-col col-flag" />
           </div>
 
           <div class="list-body">
@@ -102,6 +103,32 @@
                   </div>
                   <div class="cell col-date cell-date">
                     {{ formatShortDate(f.created_at) }}
+                  </div>
+                  <div class="cell col-flag">
+                    <button
+                      class="flag-btn"
+                      :class="{ 'is-flagged': f.flagged }"
+                      data-testid="fb-flag"
+                      :title="f.flagged ? 'Снять флажок' : 'Пометить: важное / взять в работу'"
+                      :disabled="flaggingId === f.id"
+                      @click.stop="toggleFlag(f)"
+                    >
+                      <svg
+                        viewBox="0 0 16 16"
+                        width="14"
+                        height="14"
+                        aria-hidden="true"
+                      >
+                        <path
+                          class="flag-pole"
+                          d="M4.5 1.5V14.5"
+                        />
+                        <path
+                          class="flag-banner"
+                          d="M4.5 2.5H12l-2 2.5 2 2.5H4.5z"
+                        />
+                      </svg>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -183,15 +210,6 @@
 
             <div class="detail-actions">
               <button
-                v-if="!selectedFeedback.is_read"
-                class="lk-button lk-button--ghost"
-                data-testid="fb-read"
-                :disabled="updatingId === selectedFeedback.id"
-                @click="markRead(selectedFeedback.id)"
-              >
-                Отметить прочитанным
-              </button>
-              <button
                 v-if="selectedFeedback.status !== STATUS.RESOLVED"
                 class="lk-button lk-button--primary"
                 data-testid="fb-resolve"
@@ -218,21 +236,24 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, getCurrentInstance } from 'vue';
 import AdminPageShell from '@/views/admin/AdminPageShell.vue';
 import SearchComponent from '@/components/SearchComponent.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import { FilterTabs, SkeletonTransition, SkeletonCard } from '@/components/ui';
 import { useDeletionsStore } from '@/stores/deletions';
-import { getAllFeedback, updateFeedbackStatus, markFeedbackAsRead } from '@/api/feedback';
+import { getAllFeedback, updateFeedbackStatus, markFeedbackAsRead, setFeedbackFlag } from '@/api/feedback';
 
 const STATUS = { OPEN: 'Не решено', RESOLVED: 'Решено' };
 
 const deletions = useDeletionsStore();
+// $bus регистрируется в main.js через app.config.globalProperties.$bus.
+const bus = getCurrentInstance()?.appContext?.config?.globalProperties?.$bus;
 
 const feedbacks = ref([]);
 const loading = ref(false);
 const updatingId = ref(null);
+const flaggingId = ref(null);
 const activeFilter = ref('all');
 const searchQuery = ref('');
 const searchVariants = ref([]);
@@ -299,8 +320,9 @@ watch(filteredFeedbacks, (list) => {
   }
 });
 
-watch(selectedId, () => {
+watch(selectedId, (id) => {
   replyText.value = '';
+  if (id != null) autoMarkRead(id);
 });
 
 function onSearch(variants) {
@@ -338,16 +360,34 @@ async function refresh() {
   }
 }
 
-async function markRead(id) {
-  updatingId.value = id;
+// Автоотметка прочтения при открытии обращения (персонально для админа).
+// Идемпотентна и монотонна (is_read: false -> true) - гонки при быстром
+// переключении безопасны, seq-токен не нужен.
+async function autoMarkRead(id) {
+  const f = feedbacks.value.find((x) => x.id === id);
+  if (!f || f.is_read) return;
   try {
-    await markFeedbackAsRead(id, true);
+    await markFeedbackAsRead(id);
     patchLocal(id, { is_read: true });
+    bus?.emit('feedback-read', id);
   } catch (e) {
-    console.error('Ошибка при отметке обращения прочитанным:', e);
-    deletions.notify({ prefix: 'Не удалось отметить обращение прочитанным', type: 'error' });
+    // Тихо: неудачная автоотметка не мешает просмотру, счётчик подтянет опрос.
+    console.error('Не удалось автоматически отметить обращение прочитанным:', e);
+  }
+}
+
+// Общий флажок "важное / взять в работу" - виден всем администраторам.
+async function toggleFlag(f) {
+  const next = !f.flagged;
+  flaggingId.value = f.id;
+  try {
+    await setFeedbackFlag(f.id, next);
+    patchLocal(f.id, { flagged: next });
+  } catch (e) {
+    console.error('Ошибка при переключении флажка обращения:', e);
+    deletions.notify({ prefix: 'Не удалось обновить флажок обращения', type: 'error' });
   } finally {
-    updatingId.value = null;
+    flaggingId.value = null;
   }
 }
 
@@ -358,7 +398,6 @@ async function resolve(id) {
     await updateFeedbackStatus(id, { status: STATUS.RESOLVED, ...(comment ? { comment } : {}) });
     patchLocal(id, {
       status: STATUS.RESOLVED,
-      is_read: true,
       resolution_comment: comment || null,
       resolved_at: new Date().toISOString(),
     });
@@ -492,16 +531,21 @@ onMounted(refresh);
 }
 
 .col-author {
-  width: 40%;
+  width: 36%;
 }
 
 .col-status {
-  width: 28%;
+  width: 26%;
 }
 
 .col-date {
-  width: 18%;
+  width: 16%;
   text-align: right;
+}
+
+.col-flag {
+  width: 8%;
+  text-align: center;
 }
 
 .list-body {
@@ -574,6 +618,58 @@ onMounted(refresh);
   text-align: right;
   color: #a2a2a2;
   font-size: 12px;
+}
+
+/* Флажок "важное / взять в работу" (Outlook-стиль): скрыт до наведения на строку,
+   красный и всегда виден, если установлен. */
+.cell.col-flag {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.flag-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: #b8b8b8;
+  opacity: 0;
+  border-radius: 6px;
+  transition: opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+}
+
+.ticket-row:hover .flag-btn {
+  opacity: 1;
+}
+
+.flag-btn:hover {
+  background-color: #f0f0f0;
+  color: #e53935;
+}
+
+.flag-btn.is-flagged {
+  opacity: 1;
+  color: #e53935;
+}
+
+.flag-pole,
+.flag-banner {
+  stroke: currentColor;
+  stroke-width: 1.4;
+  fill: none;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.flag-btn.is-flagged .flag-banner {
+  fill: currentColor;
 }
 
 .status-badge {
