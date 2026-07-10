@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+import { nextTick } from 'vue'
 
 vi.mock('@/api/users', () => ({ getUserAuthEvents: vi.fn() }))
 vi.mock('@/stores/deletions', () => ({ useDeletionsStore: () => ({ notify: vi.fn() }) }))
@@ -33,7 +34,7 @@ const pageOf = (items, total) => ({ items, total, page: 1, limit: 25 })
 function mountLH(props = {}) {
   return mount(UserLoginHistory, {
     props: { username: 'ivanov', currentUserName: 'Иванов И.', ...props },
-    global: { stubs: { BaseDropdown: true } },
+    global: { stubs: { BaseDropdown: true, DateFilter: true } },
   })
 }
 
@@ -131,6 +132,49 @@ describe('UserLoginHistory', () => {
     const wrapper = mountLH()
     await flushPromises()
     expect(wrapper.text()).toContain('Записей о входах нет')
+    wrapper.unmount()
+  })
+
+  it('схлопывает подряд идущие «Сессия обновлена» в раскрываемую группу', async () => {
+    const run = [
+      { id: 20, event_type: 'login_success', success: true, ip_address: '10.0.0.1', user_agent: CHROME_UA, detail: '', created_at: '2026-07-10T10:00:00Z' },
+      { id: 19, event_type: 'refresh', success: true, ip_address: '10.0.0.1', user_agent: CHROME_UA, detail: '', created_at: '2026-07-10T09:50:00Z' },
+      { id: 18, event_type: 'refresh', success: true, ip_address: '10.0.0.1', user_agent: CHROME_UA, detail: '', created_at: '2026-07-10T09:40:00Z' },
+      { id: 17, event_type: 'refresh', success: true, ip_address: '10.0.0.1', user_agent: CHROME_UA, detail: '', created_at: '2026-07-10T09:30:00Z' },
+      { id: 16, event_type: 'logout', success: true, ip_address: '10.0.0.1', user_agent: CHROME_UA, detail: '', created_at: '2026-07-10T09:00:00Z' },
+    ]
+    getUserAuthEvents.mockResolvedValue(pageOf(run, 5))
+    const wrapper = mountLH()
+    await flushPromises()
+
+    // Отображается 3 элемента: вход, группа из 3 refresh, выход.
+    expect(wrapper.vm.displayRows.map((r) => r.kind)).toEqual(['row', 'group', 'row'])
+    const group = wrapper.vm.displayRows.find((r) => r.kind === 'group')
+    expect(group.count).toBe(3)
+    expect(wrapper.text()).toContain('×3')
+
+    // Свёрнуто: подстрок нет (вход + строка группы + выход = 3 tr).
+    expect(wrapper.findAll('tbody tr')).toHaveLength(3)
+
+    // Раскрытие показывает 3 подстроки (итого 6 tr).
+    wrapper.vm.toggleGroup(group.key)
+    await nextTick()
+    expect(wrapper.findAll('tbody tr')).toHaveLength(6)
+    wrapper.unmount()
+  })
+
+  it('одиночный refresh не группируется', async () => {
+    const rows = [
+      { id: 30, event_type: 'login_success', success: true, ip_address: '10.0.0.1', user_agent: CHROME_UA, detail: '', created_at: '2026-07-10T10:00:00Z' },
+      { id: 29, event_type: 'refresh', success: true, ip_address: '10.0.0.1', user_agent: CHROME_UA, detail: '', created_at: '2026-07-10T09:50:00Z' },
+      { id: 28, event_type: 'logout', success: true, ip_address: '10.0.0.1', user_agent: CHROME_UA, detail: '', created_at: '2026-07-10T09:00:00Z' },
+    ]
+    getUserAuthEvents.mockResolvedValue(pageOf(rows, 3))
+    const wrapper = mountLH()
+    await flushPromises()
+    expect(wrapper.vm.displayRows.every((r) => r.kind === 'row')).toBe(true)
+    expect(wrapper.text()).toContain('Сессия обновлена')
+    expect(wrapper.text()).not.toContain('×')
     wrapper.unmount()
   })
 })

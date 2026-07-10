@@ -1921,6 +1921,8 @@ export default {
 
 .tab-panel {
   animation: tab-fade 0.18s ease;
+  /* Единая высота вкладок - размер окна не прыгает при переключении. */
+  min-height: 440px;
 }
 
 @keyframes tab-fade {
@@ -1977,7 +1979,7 @@ export default {
 
 /* Тело модалки редактирования */
 .modal-body-inner {
-  padding: 24px;
+  padding: 12px 24px 22px;
 }
 
 /* Тело модалки создания */
@@ -2042,7 +2044,7 @@ export default {
 
 /* Модалка создания пользователя: чуть уже (width prop 600) и скруглённее. */
 :deep(.user-create-modal) {
-  border-radius: 30px;
+  border-radius: 45px;
 }
 
 .modal-input:focus {
@@ -2196,6 +2198,6 @@ export default {
 /* Закруглённые углы модалок пользователя — локально, без изменения глобального токена */
 :deep(.user-edit-modal),
 :deep(.user-create-modal) {
-  border-radius: 30px;
+  border-radius: 45px;
 }
 </style>

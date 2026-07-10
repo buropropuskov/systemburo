@@ -23,23 +23,19 @@
         placeholder="Все события"
         @update:model-value="onCategoryChange"
       />
-      <div class="lh-dates">
-        <input
-          v-model="filters.from"
-          class="lk-input lh-date"
-          type="date"
-          aria-label="С даты"
-          @change="applyFilters"
-        >
-        <span class="lh-dates__sep">—</span>
-        <input
-          v-model="filters.to"
-          class="lk-input lh-date"
-          type="date"
-          aria-label="По дату"
-          @change="applyFilters"
-        >
-      </div>
+      <DateFilter
+        ref="dateFilter"
+        class="lh-datefilter"
+        :mode="'range'"
+        :selected-date="selectedDate"
+        :date-range-start="dateRangeStart"
+        :date-range-end="dateRangeEnd"
+        @update:selected-date="updateSelectedDate"
+        @update:date-range-start="updateDateRangeStart"
+        @update:date-range-end="updateDateRangeEnd"
+        @apply="applyDateFilters"
+        @clear="clearDateRange"
+      />
       <button
         v-if="hasActiveFilters"
         type="button"
@@ -80,42 +76,113 @@
           </tr>
         </thead>
         <tbody>
-          <tr
-            v-for="item in visibleItems"
-            :key="item.id"
+          <template
+            v-for="row in displayRows"
+            :key="row.key"
           >
-            <td class="lh-when">
-              {{ formatDateTime(item.created_at) }}
-            </td>
-            <td>
-              <span
-                class="lh-badge"
-                :class="eventBadge(item.event_type).cls"
-              >
-                {{ eventBadge(item.event_type).label }}
-              </span>
-            </td>
-            <td class="lh-ip">
-              {{ item.ip_address || '—' }}
-            </td>
-            <td class="lh-device">
-              <template v-if="parseDevice(item.user_agent).browser || parseDevice(item.user_agent).os">
-                <span class="lh-device__browser">{{ parseDevice(item.user_agent).browser || 'Браузер' }}</span>
-                <small
-                  v-if="parseDevice(item.user_agent).os"
+            <!-- Обычное событие -->
+            <tr v-if="row.kind === 'row'">
+              <td class="lh-when">
+                {{ formatDateTime(row.event.created_at) }}
+              </td>
+              <td>
+                <span
+                  class="lh-badge"
+                  :class="eventBadge(row.event.event_type).cls"
+                >
+                  {{ eventBadge(row.event.event_type).label }}
+                </span>
+              </td>
+              <td class="lh-ip">
+                {{ row.event.ip_address || '—' }}
+              </td>
+              <td class="lh-device">
+                <span
+                  v-if="deviceParts(row.event.user_agent).browser || deviceParts(row.event.user_agent).os"
+                  class="lh-device__browser"
+                >{{ deviceParts(row.event.user_agent).browser || 'Браузер' }}<small
+                  v-if="deviceParts(row.event.user_agent).os"
                   class="lh-device__os"
-                >{{ parseDevice(item.user_agent).os }}</small>
-              </template>
-              <span
-                v-else
-                class="lh-muted"
-              >—</span>
-            </td>
-            <td class="lh-detail">
-              {{ item.detail || '—' }}
-            </td>
-          </tr>
-          <tr v-if="visibleItems.length === 0">
+                >{{ deviceParts(row.event.user_agent).os }}</small></span>
+                <span
+                  v-else
+                  class="lh-muted"
+                >—</span>
+              </td>
+              <td class="lh-detail">
+                {{ row.event.detail || '—' }}
+              </td>
+            </tr>
+            <!-- Группа подряд идущих обновлений сессии -->
+            <template v-else>
+              <tr
+                class="lh-group-row"
+                :class="{ 'lh-group-row--open': isExpanded(row.key) }"
+                @click="toggleGroup(row.key)"
+              >
+                <td class="lh-when">
+                  {{ formatDateTime(row.events[0].created_at) }}
+                  <small class="lh-when__more">и ещё {{ row.count - 1 }}</small>
+                </td>
+                <td>
+                  <span class="lh-badge lh-badge--muted">Сессия обновлена</span>
+                  <span class="lh-count">×{{ row.count }}</span>
+                </td>
+                <td class="lh-ip">
+                  {{ groupCommon(row, 'ip') || '—' }}
+                </td>
+                <td class="lh-device">
+                  <span
+                    v-if="groupCommon(row, 'device')"
+                    class="lh-device__browser"
+                  >{{ groupCommon(row, 'device') }}</span>
+                  <span
+                    v-else
+                    class="lh-muted"
+                  >разные</span>
+                </td>
+                <td class="lh-detail lh-group-toggle">
+                  <span
+                    class="lh-chevron"
+                    :class="{ 'lh-chevron--open': isExpanded(row.key) }"
+                  >▸</span>
+                  {{ isExpanded(row.key) ? 'Скрыть' : 'Показать' }}
+                </td>
+              </tr>
+              <tr
+                v-for="ev in (isExpanded(row.key) ? row.events : [])"
+                :key="ev.id"
+                class="lh-subrow"
+              >
+                <td class="lh-when">
+                  {{ formatDateTime(ev.created_at) }}
+                </td>
+                <td>
+                  <span class="lh-badge lh-badge--muted">Сессия обновлена</span>
+                </td>
+                <td class="lh-ip">
+                  {{ ev.ip_address || '—' }}
+                </td>
+                <td class="lh-device">
+                  <span
+                    v-if="deviceParts(ev.user_agent).browser || deviceParts(ev.user_agent).os"
+                    class="lh-device__browser"
+                  >{{ deviceParts(ev.user_agent).browser || 'Браузер' }}<small
+                    v-if="deviceParts(ev.user_agent).os"
+                    class="lh-device__os"
+                  >{{ deviceParts(ev.user_agent).os }}</small></span>
+                  <span
+                    v-else
+                    class="lh-muted"
+                  >—</span>
+                </td>
+                <td class="lh-detail">
+                  {{ ev.detail || '—' }}
+                </td>
+              </tr>
+            </template>
+          </template>
+          <tr v-if="displayRows.length === 0">
             <td
               colspan="5"
               class="lh-empty"
@@ -135,6 +202,11 @@
         <span><i class="lh-dot lh-dot--warn" />Блокировка</span>
       </div>
       <div class="lh-pager">
+        <span
+          v-if="isLiveHead"
+          class="lh-live"
+          title="Список обновляется автоматически"
+        ><i class="lh-live__dot" />в реальном времени</span>
         <span class="lh-total">Всего: {{ total }}</span>
         <button
           type="button"
@@ -161,6 +233,7 @@
 <script>
 import ExcelJS from 'exceljs'
 import BaseDropdown from './ui/BaseDropdown.vue'
+import DateFilter from './DateFilter.vue'
 import { getUserAuthEvents } from '@/api/users'
 import { formatDateTime } from '@/utils/datetime'
 import { parseUserAgent, formatDevice } from '@/utils/userAgent'
@@ -180,10 +253,17 @@ const EVENT_BADGES = {
 
 // Экспорт тянет до этого числа последних событий по текущим фильтрам (лимит бэка).
 const EXPORT_LIMIT = 100
+// Период опроса живой ленты (первая страница без фильтров) для real-time обновления.
+const POLL_INTERVAL_MS = 15000
+
+// toYMD - дата в 'YYYY-MM-DD' для параметров запроса (как в остальных фильтрах проекта).
+function toYMD(d) {
+  return d instanceof Date ? d.toISOString().split('T')[0] : ''
+}
 
 export default {
   name: 'UserLoginHistory',
-  components: { BaseDropdown },
+  components: { BaseDropdown, DateFilter },
   props: {
     username: {
       type: String,
@@ -203,7 +283,13 @@ export default {
       loading: false,
       isExporting: false,
       search: '',
-      filters: { category: '', from: '', to: '' },
+      filters: { category: '' },
+      selectedDate: null,
+      dateRangeStart: null,
+      dateRangeEnd: null,
+      expanded: {},
+      fetchSeq: 0,
+      pollTimer: null,
       categoryOptions: [
         { value: '', label: 'Все события' },
         { value: 'login', label: 'Входы' },
@@ -218,8 +304,24 @@ export default {
     totalPages() {
       return Math.max(1, Math.ceil(this.total / this.limit))
     },
+    apiFrom() {
+      return toYMD(this.selectedDate || this.dateRangeStart)
+    },
+    apiTo() {
+      return toYMD(this.selectedDate || this.dateRangeEnd)
+    },
     hasActiveFilters() {
-      return this.filters.category !== '' || this.filters.from !== '' || this.filters.to !== '' || this.search !== ''
+      return this.filters.category !== ''
+        || !!this.selectedDate || !!this.dateRangeStart || !!this.dateRangeEnd
+        || this.search !== ''
+    },
+    // Живая лента: первая страница без фильтров - только её опрашиваем в реальном времени,
+    // чтобы не дёргать бэк и не сбивать админа, листающего/фильтрующего историю.
+    isLiveHead() {
+      return this.page === 1
+        && this.filters.category === ''
+        && !this.selectedDate && !this.dateRangeStart && !this.dateRangeEnd
+        && this.search === ''
     },
     // Поиск - клиентская дорасфильтровка загруженной страницы (по IP/устройству/деталям).
     visibleItems() {
@@ -232,46 +334,110 @@ export default {
           || (it.detail || '').toLowerCase().includes(q)
       })
     },
+    // Схлопывает подряд идущие refresh (≥2) в одну раскрываемую группу; любое иное
+    // событие обрывает группу. Одиночный refresh остаётся обычной строкой.
+    displayRows() {
+      const out = []
+      let run = []
+      const flush = () => {
+        if (run.length >= 2) {
+          out.push({ kind: 'group', key: `g:${run[0].id}:${run[run.length - 1].id}`, events: run.slice(), count: run.length })
+        } else if (run.length === 1) {
+          out.push({ kind: 'row', key: `r:${run[0].id}`, event: run[0] })
+        }
+        run = []
+      }
+      for (const ev of this.visibleItems) {
+        if (ev.event_type === 'refresh') {
+          run.push(ev)
+        } else {
+          flush()
+          out.push({ kind: 'row', key: `r:${ev.id}`, event: ev })
+        }
+      }
+      flush()
+      return out
+    },
   },
   watch: {
     // Смена пользователя (переоткрытие карточки на другом юзере) - сброс и перезагрузка.
     username() {
-      this.page = 1
-      this.search = ''
-      this.filters = { category: '', from: '', to: '' }
+      this.resetState()
       this.fetch()
     },
   },
   mounted() {
     this.fetch()
+    this.pollTimer = setInterval(this.pollTick, POLL_INTERVAL_MS)
+  },
+  beforeUnmount() {
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer)
+      this.pollTimer = null
+    }
   },
   methods: {
     formatDateTime,
-    parseDevice(ua) {
+    deviceParts(ua) {
       return parseUserAgent(ua)
     },
     eventBadge(eventType) {
       return EVENT_BADGES[eventType] || { cls: 'lh-badge--neutral', label: eventType || '—' }
     },
-    async fetch() {
-      this.loading = true
+    isExpanded(key) {
+      return !!this.expanded[key]
+    },
+    toggleGroup(key) {
+      this.expanded = { ...this.expanded, [key]: !this.expanded[key] }
+    },
+    // Общее значение поля по всей группе (IP/устройство), иначе null.
+    groupCommon(group, field) {
+      const val = (e) => (field === 'ip' ? (e.ip_address || '') : formatDevice(e.user_agent))
+      const first = val(group.events[0])
+      return group.events.every((e) => val(e) === first) ? first : null
+    },
+    resetState() {
+      this.page = 1
+      this.search = ''
+      this.filters.category = ''
+      this.selectedDate = null
+      this.dateRangeStart = null
+      this.dateRangeEnd = null
+      this.expanded = {}
+    },
+    // Тихий опрос живой ленты. Не трогает loading/тосты и не чистит данные при сбое,
+    // чтобы обновление в фоне не мигало спиннером и не гасило таблицу (см. #840).
+    pollTick() {
+      if (!this.isLiveHead || this.loading || this.isExporting) return
+      this.fetch(true)
+    },
+    async fetch(silent = false) {
+      // seq-токен: параллельные вызовы (опрос + ручной фильтр/страница) не должны
+      // затирать друг друга устаревшим ответом (last-resolve-wins), см. #632/#840.
+      const seq = ++this.fetchSeq
+      if (!silent) this.loading = true
       try {
         const data = await getUserAuthEvents(this.username, {
           page: this.page,
           limit: this.limit,
           category: this.filters.category,
-          from: this.filters.from,
-          to: this.filters.to,
+          from: this.apiFrom,
+          to: this.apiTo,
         }) || {}
+        if (seq !== this.fetchSeq) return
         this.items = Array.isArray(data.items) ? data.items : []
         this.total = typeof data.total === 'number' ? data.total : 0
       } catch (error) {
-        console.error('Ошибка загрузки истории входов:', error)
-        useDeletionsStore().notify({ prefix: 'Не удалось загрузить ', bold: 'историю входов', type: 'error' })
-        this.items = []
-        this.total = 0
+        if (seq !== this.fetchSeq) return
+        // Тихий опрос при сбое сохраняет последние данные (без мигания пустотой).
+        if (!silent) {
+          console.error('Ошибка загрузки истории входов:', error)
+          useDeletionsStore().notify({ prefix: 'Не удалось загрузить ', bold: 'историю входов', type: 'error' })
+          this.items = []
+          this.total = 0
+        }
       } finally {
-        this.loading = false
+        if (!silent && seq === this.fetchSeq) this.loading = false
       }
     },
     applyFilters() {
@@ -282,10 +448,26 @@ export default {
       this.filters.category = value
       this.applyFilters()
     },
+    updateSelectedDate(date) {
+      this.selectedDate = date
+    },
+    updateDateRangeStart(date) {
+      this.dateRangeStart = date
+    },
+    updateDateRangeEnd(date) {
+      this.dateRangeEnd = date
+    },
+    applyDateFilters() {
+      this.applyFilters()
+    },
+    clearDateRange() {
+      this.selectedDate = null
+      this.dateRangeStart = null
+      this.dateRangeEnd = null
+      this.applyFilters()
+    },
     resetFilters() {
-      this.filters = { category: '', from: '', to: '' }
-      this.search = ''
-      this.page = 1
+      this.resetState()
       this.fetch()
     },
     goToPage(next) {
@@ -301,8 +483,8 @@ export default {
           page: 1,
           limit: EXPORT_LIMIT,
           category: this.filters.category,
-          from: this.filters.from,
-          to: this.filters.to,
+          from: this.apiFrom,
+          to: this.apiTo,
         }) || {}
         const rows = Array.isArray(data.items) ? data.items : []
         if (rows.length === 0) return
@@ -431,18 +613,8 @@ function thinBorder() {
   min-width: 170px;
 }
 
-.lh-dates {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.lh-date {
-  width: 150px;
-}
-
-.lh-dates__sep {
-  color: #a2a2a2;
+.lh-datefilter {
+  min-width: 200px;
 }
 
 .lh-export {
@@ -498,6 +670,12 @@ function thinBorder() {
   color: #333;
 }
 
+.lh-when__more {
+  display: block;
+  color: #a2a2a2;
+  font-size: 11px;
+}
+
 .lh-ip {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 12px;
@@ -548,6 +726,49 @@ function thinBorder() {
 .lh-badge--warn { background: #fef3c7; color: #92400e; }
 .lh-badge--muted { background: #eef2ff; color: #6366f1; }
 
+/* Группа обновлений сессии */
+.lh-group-row {
+  cursor: pointer;
+}
+
+.lh-group-row:hover {
+  background: #f4f6ff;
+}
+
+.lh-count {
+  margin-left: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #6366f1;
+}
+
+.lh-group-toggle {
+  color: #6366f1;
+  font-weight: 600;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.lh-chevron {
+  display: inline-block;
+  margin-right: 4px;
+  transition: transform 0.15s ease;
+}
+
+.lh-chevron--open {
+  transform: rotate(90deg);
+}
+
+.lh-subrow td {
+  background: #fbfcff;
+  font-size: 12.5px;
+}
+
+.lh-subrow .lh-when {
+  padding-left: 26px;
+  color: #6b6f8a;
+}
+
 .lh-empty {
   text-align: center;
   padding: 36px 12px;
@@ -594,6 +815,33 @@ function thinBorder() {
   gap: 10px;
   font-size: 13px;
   color: #6b6f8a;
+}
+
+.lh-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: #15803d;
+}
+
+.lh-live__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #15803d;
+  animation: lh-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes lh-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lh-live__dot {
+    animation: none;
+  }
 }
 
 .lh-page-num {

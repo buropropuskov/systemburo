@@ -731,7 +731,7 @@ export default {
 
 .user-history-modal {
   background: white;
-  border-radius: 30px;
+  border-radius: 45px;
   width: 900px;
   max-width: 95%;
   max-height: 80vh;

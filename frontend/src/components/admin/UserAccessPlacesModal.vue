@@ -340,7 +340,7 @@ export default {
 
 .access-places-modal {
   background: #fff;
-  border-radius: 30px;
+  border-radius: 45px;
   width: 100%;
   max-width: 640px;
   max-height: 88vh;
