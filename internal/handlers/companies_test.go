@@ -728,7 +728,7 @@ func TestCompanies_BulkOperations(t *testing.T) {
 		testutil.RegisterUser(t, e, "bulkcresp2", "pass123", 1, td.OrgID, td.CompanyID)
 
 		// replace: resp1 обеим с required_approval=true; primary не назначается.
-		rec := testutil.POST(t, e, "/companies/bulk/users", fmt.Sprintf(`{"ids":[%d,%d],"usernames":["bulkcresp1"],"required_approval":true,"mode":"replace"}`, a, b), h)
+		rec := testutil.POST(t, e, "/companies/bulk/users", fmt.Sprintf(`{"ids":[%d,%d],"users":[{"username":"bulkcresp1","required_approval":true}],"mode":"replace"}`, a, b), h)
 		require.Equal(t, http.StatusOK, rec.Code)
 		assert.Equal(t, float64(2), testutil.ParseMap(t, rec)["success_count"])
 		usersA := testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/companies/%d/users", a), h))
@@ -738,7 +738,7 @@ func TestCompanies_BulkOperations(t *testing.T) {
 		assert.Equal(t, false, usersA[0]["is_primary"])
 
 		// add: resp2 обеим -> {resp1(required_approval сохранён true), resp2(false)}.
-		rec2 := testutil.POST(t, e, "/companies/bulk/users", fmt.Sprintf(`{"ids":[%d,%d],"usernames":["bulkcresp2"],"required_approval":false,"mode":"add"}`, a, b), h)
+		rec2 := testutil.POST(t, e, "/companies/bulk/users", fmt.Sprintf(`{"ids":[%d,%d],"users":[{"username":"bulkcresp2","required_approval":false}],"mode":"add"}`, a, b), h)
 		require.Equal(t, http.StatusOK, rec2.Code)
 		byName := map[string]map[string]interface{}{}
 		for _, u := range testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/companies/%d/users", a), h)) {
@@ -748,18 +748,19 @@ func TestCompanies_BulkOperations(t *testing.T) {
 		assert.Equal(t, true, byName["bulkcresp1"]["required_approval"], "add сохраняет флаги существующего")
 		assert.Equal(t, false, byName["bulkcresp2"]["required_approval"])
 
-		// primary сохраняется в replace: назначим resp1 primary напрямую, затем bulk-replace
-		// набором [resp1,resp2] - resp1 остаётся primary («primary в bulk не трогаем»).
+		// primary сохраняется в replace + required_approval ИНДИВИДУАЛЕН на каждого.
 		require.Equal(t, http.StatusOK, testutil.PUT(t, e, fmt.Sprintf("/companies/%d/users", a),
 			`{"users":[{"username":"bulkcresp1","is_primary":true},{"username":"bulkcresp2"}]}`, h).Code)
 		require.Equal(t, http.StatusOK, testutil.POST(t, e, "/companies/bulk/users",
-			fmt.Sprintf(`{"ids":[%d],"usernames":["bulkcresp1","bulkcresp2"],"required_approval":false,"mode":"replace"}`, a), h).Code)
+			fmt.Sprintf(`{"ids":[%d],"users":[{"username":"bulkcresp1","required_approval":true},{"username":"bulkcresp2","required_approval":false}],"mode":"replace"}`, a), h).Code)
 		byName2 := map[string]map[string]interface{}{}
 		for _, u := range testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/companies/%d/users", a), h)) {
 			byName2[u["username"].(string)] = u
 		}
 		assert.Equal(t, true, byName2["bulkcresp1"]["is_primary"], "primary оставшегося сохраняется при replace")
 		assert.Equal(t, false, byName2["bulkcresp2"]["is_primary"])
+		assert.Equal(t, true, byName2["bulkcresp1"]["required_approval"], "required_approval индивидуален: resp1=true")
+		assert.Equal(t, false, byName2["bulkcresp2"]["required_approval"], "required_approval индивидуален: resp2=false")
 	})
 
 	t.Run("archive-restore", func(t *testing.T) {
