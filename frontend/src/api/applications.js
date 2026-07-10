@@ -12,6 +12,19 @@ export async function getUserApplications(params = {}) {
   return res.json();
 }
 
+/**
+ * Активные согласованные заявки, доступные для привязки ручного вложения (#1049 режим-2).
+ * Только super/admin (BE-гейт page.admin). В отличие от getApplications НЕ скоупит по
+ * автор/ответственный/наблюдатель - админ видит все заявки для привязки.
+ * @param {{search_query?: string}} params
+ * @returns {Promise<object[]>}
+ */
+export async function getAttachableApplications(params = {}) {
+  const query = new URLSearchParams(params).toString();
+  const res = await apiRequest(`/applications/attachable${query ? '?' + query : ''}`);
+  return res.json();
+}
+
 export async function getApplicationById(id) {
   const res = await apiRequest(`/applications/${id}`);
   return res.json();

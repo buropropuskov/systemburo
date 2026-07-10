@@ -82,6 +82,33 @@ func (h *ApplicationHandler) GetApplications(c echo.Context) error {
 	})
 }
 
+// GetAttachableApplications godoc
+// @Summary      Заявки, доступные для привязки ручного вложения
+// @Description  Активные согласованные заявки для привязки (#1049 режим-2). Только super/admin
+// @Description  (гейт page.admin). В отличие от GET /applications НЕ скоупит по автор/ответственный
+// @Description  - админ видит все заявки для привязки.
+// @Tags         applications
+// @Produce      json
+// @Security     BearerAuth
+// @Param        search_query query string false "Поисковый запрос"
+// @Success      200 {array} services.ApplicationWithDetails
+// @Failure      403 {object} models.HTTPError
+// @Router       /applications/attachable [get]
+func (h *ApplicationHandler) GetAttachableApplications(c echo.Context) error {
+	username := c.Get("username").(string)
+
+	var filter services.ApplicationFilter
+	if err := c.Bind(&filter); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+
+	apps, err := h.service.GetAttachableApplications(c.Request().Context(), username, filter)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, apps)
+}
+
 // GetUserApplications godoc
 // @Summary      Заявки текущего пользователя
 // @Description  Возвращает все заявки для текущего пользователя с фильтрацией.

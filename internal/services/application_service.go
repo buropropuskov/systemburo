@@ -93,6 +93,7 @@ func forwardViewerID(user *models.User) int {
 type ApplicationService interface {
 	// GetApplications возвращает список заявок для Центра заявок с фильтрацией.
 	GetApplications(ctx context.Context, username string, filter ApplicationFilter) ([]ApplicationWithDetails, error)
+	GetAttachableApplications(ctx context.Context, username string, filter ApplicationFilter) ([]ApplicationWithDetails, error)
 
 	// GetApplicationsPaginated возвращает страницу заявок с общим количеством.
 	GetApplicationsPaginated(ctx context.Context, username string, filter ApplicationFilter, page, perPage int) ([]ApplicationWithDetails, int64, error)
@@ -723,6 +724,46 @@ func (s *applicationService) GetApplications(ctx context.Context, username strin
 	rows := make([]ApplicationWithDetails, 0)
 	if err := query.Find(&rows).Error; err != nil {
 		slog.Error("Ошибка получения заявок", "error", err)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
+	}
+
+	s.maskResponsibleNames(ctx, rows)
+	return rows, nil
+}
+
+// GetAttachableApplications возвращает активные согласованные заявки для привязки
+// ручного вложения (#1049 режим-2). В ОТЛИЧИЕ от GetApplications НЕ применяет
+// applyApplicationAccessFilter: super/admin должен видеть ВСЕ заявки для привязки,
+// не только свои (автор/ответственный/наблюдатель/принимающий). Гейт page.admin
+// стоит на роуте (requireAdmin), поэтому сюда доходит только super/admin - метод
+// сам доступ не проверяет. Видимость Центра (GetApplications) при этом не меняется.
+// Список жёстко ограничен confirmation='Согласовано' AND status='В работе' (BE-привязка
+// принимает только такие цели, loadActiveApprovedApp), фильтр статуса игнорируется.
+func (s *applicationService) GetAttachableApplications(ctx context.Context, username string, filter ApplicationFilter) ([]ApplicationWithDetails, error) {
+	user, err := s.getUserByUsername(ctx, username)
+	if err != nil {
+		return nil, err
+	}
+
+	approved := models.ConfirmationApproved
+	inWork := models.StatusInWork
+	filter.Confirmation = &approved
+	filter.Status = &inWork
+
+	query := s.db.WithContext(ctx).Table("applications a").
+		Select(applicationsListSelect, applicationsListSelectArgs(user.ID, forwardViewerID(user))...).
+		Joins("LEFT JOIN organizations o ON a.organization_id = o.id").
+		Joins("LEFT JOIN companies c ON a.company_id = c.id").
+		Joins("LEFT JOIN users u ON a.sender_user_id = u.id").
+		Joins("LEFT JOIN users ru ON a.responsible_user_id = ru.id")
+
+	// Намеренно БЕЗ applyApplicationAccessFilter - привязка это admin-операция.
+	query = applyApplicationFilters(query, filter, true)
+	query = query.Order("a.sending_datetime DESC")
+
+	rows := make([]ApplicationWithDetails, 0)
+	if err := query.Find(&rows).Error; err != nil {
+		slog.Error("Ошибка получения заявок для привязки", "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
 
