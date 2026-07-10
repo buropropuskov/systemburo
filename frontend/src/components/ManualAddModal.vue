@@ -321,7 +321,7 @@ import EmployeeForm from '@/components/CreateApplication/EmployeeForm.vue';
 import { getOrganizations, getCompanies } from '@/api/organizations';
 import { createManualCars } from '@/api/cars';
 import { createManualEmployees } from '@/api/employees';
-import { getApplications, getApplicationAttachments } from '@/api/applications';
+import { getAttachableApplications, getApplicationAttachments } from '@/api/applications';
 import { attachToApplication } from '@/api/attachments';
 import { useDeletionsStore } from '@/stores/deletions';
 import { usePermissionsStore } from '@/stores/permissions';
@@ -525,14 +525,11 @@ export default {
         async loadApplications() {
             this.loadingApplications = true;
             try {
-                // Привязка возможна только к активной согласованной заявке - фильтруем
-                // на бэке (ApplicationFilter поддерживает confirmation/status), не тянем
-                // весь список; applicationOptions дублирует фильтр как страховку.
-                const list = await getApplications({
-                    archive: 'false',
-                    confirmation: APP_CONFIRMATION_APPROVED,
-                    status: APP_STATUS_IN_WORK,
-                });
+                // Эндпоинт привязки (super/admin, гейт page.admin) отдаёт ВСЕ активные
+                // согласованные заявки без скоупа по автор/ответственный - иначе админ,
+                // не участвующий в заявке, не увидел бы её. Сервер сам форсит
+                // confirmation/status; applicationOptions дублирует фильтр как страховку.
+                const list = await getAttachableApplications();
                 this.applications = Array.isArray(list) ? list : [];
             } catch {
                 useDeletionsStore().notify({ bold: 'Не удалось загрузить заявки', type: 'error' });

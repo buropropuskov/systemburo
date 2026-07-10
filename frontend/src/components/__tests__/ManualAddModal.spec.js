@@ -13,7 +13,7 @@ vi.mock('@/api/employees', () => ({
   createManualEmployees: vi.fn(),
 }));
 vi.mock('@/api/applications', () => ({
-  getApplications: vi.fn(),
+  getAttachableApplications: vi.fn(),
   getApplicationAttachments: vi.fn(),
 }));
 vi.mock('@/api/attachments', () => ({
@@ -23,7 +23,7 @@ vi.mock('@/api/attachments', () => ({
 import { getOrganizations, getCompanies } from '@/api/organizations';
 import { createManualCars } from '@/api/cars';
 import { createManualEmployees } from '@/api/employees';
-import { getApplications, getApplicationAttachments } from '@/api/applications';
+import { getAttachableApplications, getApplicationAttachments } from '@/api/applications';
 import { attachToApplication } from '@/api/attachments';
 import { useDeletionsStore } from '@/stores/deletions';
 import { usePermissionsStore } from '@/stores/permissions';
@@ -330,7 +330,7 @@ describe('ManualAddModal - режим-2 привязка к заявке (#1049 
     getCompanies.mockResolvedValue([{ id: 3, name: 'Компания А' }]);
     createManualCars.mockResolvedValue({ success: true, attachment_id: 100, car_ids: [1] });
     createManualEmployees.mockResolvedValue({ success: true, attachment_id: 200, employee_ids: [10] });
-    getApplications.mockResolvedValue([
+    getAttachableApplications.mockResolvedValue([
       { id: 5, application_number: '5/2026', organization_name: 'ООО Ромашка', confirmation: 'Согласовано', status: 'В работе' },
       { id: 6, application_number: '6/2026', organization_name: 'ООО Прочее', confirmation: 'На согласовании', status: 'В работе' },
     ]);
@@ -360,20 +360,17 @@ describe('ManualAddModal - режим-2 привязка к заявке (#1049 
     expect(wrapper.find('[data-testid="manual-add-mode"]').exists()).toBe(false);
   });
 
-  it('super видит переключатель; bindMode=application грузит заявки и фильтрует по Согласовано+В работе', async () => {
+  it('super видит переключатель; bindMode=application грузит заявки через attachable-эндпоинт', async () => {
     const wrapper = mountModal();
     await flushPromises();
     expect(wrapper.vm.canAttach).toBe(true);
     expect(wrapper.find('[data-testid="manual-add-mode"]').exists()).toBe(true);
     await wrapper.setData({ bindMode: 'application' });
     await flushPromises();
-    expect(getApplications).toHaveBeenCalledTimes(1);
-    // серверный фильтр: активные согласованные
-    expect(getApplications).toHaveBeenCalledWith(expect.objectContaining({
-      confirmation: 'Согласовано',
-      status: 'В работе',
-    }));
-    expect(wrapper.vm.applicationOptions.map(o => o.id)).toEqual([5]);
+    // грузит через /applications/attachable (super/admin, без скоупа по участию),
+    // сервер сам форсит активные согласованные
+    expect(getAttachableApplications).toHaveBeenCalledTimes(1);
+    expect(wrapper.vm.applicationOptions.map(o => o.id)).toEqual([5]); // клиентский фильтр-страховка
     // лейбл берёт organization_name (реальное поле ответа), а не organization
     expect(wrapper.vm.applicationOptions[0].label).toContain('ООО Ромашка');
   });
