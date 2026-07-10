@@ -855,14 +855,18 @@ export default {
     max-width: 100%;
 }
 
-/* Шапки полей «Номер Т/С»/«Марка Т/С» в заявке - space-between под 450px-колонку;
-   в широкой модалке это уносило чекбокс «по факту» к дальнему краю колонки, далеко
-   от подписи. Прижимаем «по факту» вплотную к подписи (компактно, чекбокс явно
-   относится к своему полю). */
-.manual-modal :deep(.completion__number-header),
-.manual-modal :deep(.completion__mark-header) {
-    justify-content: flex-start;
-    gap: 10px;
+/* Номер/Марка: подпись слева, чекбокс «по факту» справа - по РАЗНЫМ краям инпута,
+   но в пределах его ширины (не за границу). Инпут номера фиксирован 202px, а колонка
+   тянулась на всю ширину (flex:1) -> «по факту» уезжал за правый край инпута. Сужаем
+   колонку номера до ширины инпута, тогда шапка (space-between) прижимает чекбокс ровно
+   к правому краю поля. Колонка марки тянется на остаток, её инпут = ширина колонки. */
+.manual-modal :deep(.completion__fields) {
+    gap: 12px;
+}
+
+.manual-modal :deep(.completion__number) {
+    flex: 0 0 202px;
+    max-width: 202px;
 }
 
 .manual-modal__header {
@@ -953,7 +957,7 @@ export default {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 16px;
-    margin-bottom: 18px;
+    margin-bottom: 28px;
 }
 
 .manual-modal__label {
@@ -969,7 +973,7 @@ export default {
 }
 
 .manual-modal__dates {
-    margin-bottom: 8px;
+    margin-bottom: 28px;
 }
 
 /* До выбора организации VehicleForm/EmployeeForm получают disabled -> нативный inert
