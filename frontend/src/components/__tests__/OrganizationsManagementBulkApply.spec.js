@@ -135,7 +135,7 @@ describe('OrganizationsManagement — применение групповых о
     expect(w.vm.bulkConfirmVisible).toBe(false)
   })
 
-  it('ошибка API (envelope success:false -> message) даёт error-notify', async () => {
+  it('ошибка API (envelope success:false -> message): модалка открыта, выбор цел', async () => {
     orgApi.bulkUpdateOrganizationType.mockResolvedValue({ message: 'Недостаточно прав' })
     const { w, del } = await mountCmp()
     await rowChecks(w)[0].trigger('change')
@@ -144,7 +144,22 @@ describe('OrganizationsManagement — применение групповых о
     await flushPromises()
 
     expect(del.notify).toHaveBeenCalledWith(expect.objectContaining({ prefix: 'Недостаточно прав', type: 'error' }))
-    // выбор НЕ сбрасываем при ошибке разбора результата
+    // при ошибке разбора результата выбор и модалку сохраняем для повтора
     expect(w.vm.selectedIds).toEqual([1])
+    expect(w.vm.bulkModalVisible).toBe(true)
+  })
+
+  it('сетевая ошибка (reject): error-notify, модалка открыта, выбор цел', async () => {
+    orgApi.bulkAssignOrganizationTables.mockRejectedValue(new Error('network'))
+    const { w, del } = await mountCmp()
+    await rowChecks(w)[0].trigger('change')
+    await w.find('[data-testid="orgs-bulk-tables"]').trigger('click')
+    bulkModal(w).vm.$emit('apply', { tableIds: [7], mode: 'replace' })
+    await flushPromises()
+
+    expect(del.notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }))
+    expect(w.vm.selectedIds).toEqual([1])
+    expect(w.vm.bulkModalVisible).toBe(true)
+    expect(w.vm.bulkSubmitting).toBe(false)
   })
 })

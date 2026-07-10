@@ -945,10 +945,15 @@ export default {
     async applyBulk(payload) {
       const ids = [...this.selectedIds];
       const op = this.pendingBulkOp;
-      if (!ids.length || this.bulkSubmitting) return;
+      if (this.bulkSubmitting) return;
+      if (!ids.length) {
+        // выбор мог опустеть (напр. Обновить подрезал видимый список) - не молчим
+        this.closeBulkModal();
+        return;
+      }
       this.bulkSubmitting = true;
+      let result;
       try {
-        let result;
         switch (op) {
           case 'type':
             result = await bulkUpdateOrganizationType(ids, payload.type);
@@ -963,13 +968,19 @@ export default {
             result = await bulkAssignOrganizationUsers(ids, payload.usernames, payload.requiredApproval, payload.mode);
             break;
           default:
+            this.bulkSubmitting = false;
             return;
         }
-        this.handleBulkResult(op, result, ids.length);
       } catch {
+        // сеть/таймаут - модалку оставляем открытой с настройками для повтора
         useDeletionsStore().notify({ prefix: 'Не удалось выполнить групповую операцию', type: 'error' });
-      } finally {
         this.bulkSubmitting = false;
+        return;
+      }
+      this.bulkSubmitting = false;
+      // Закрываем модалку только когда операция реально применилась. Ошибку-envelope
+      // handleBulkResult вернёт false -> модалку держим открытой для повтора.
+      if (this.handleBulkResult(op, result, ids.length)) {
         this.bulkModalVisible = false;
         this.pendingBulkOp = null;
       }
@@ -979,32 +990,38 @@ export default {
     async applyBulkArchiveRestore() {
       const ids = [...this.selectedIds];
       const op = this.pendingBulkOp;
-      if (!ids.length || (op !== 'archive' && op !== 'restore') || this.bulkSubmitting) {
+      if (this.bulkSubmitting) return;
+      if (!ids.length || (op !== 'archive' && op !== 'restore')) {
         this.bulkConfirmVisible = false;
         this.pendingBulkOp = null;
         return;
       }
       this.bulkSubmitting = true;
+      let result;
       try {
-        const result = op === 'archive'
+        result = op === 'archive'
           ? await bulkArchiveOrganizations(ids)
           : await bulkRestoreOrganizations(ids);
-        this.handleBulkResult(op, result, ids.length);
       } catch {
         useDeletionsStore().notify({ prefix: 'Не удалось выполнить групповую операцию', type: 'error' });
-      } finally {
         this.bulkSubmitting = false;
+        return;
+      }
+      this.bulkSubmitting = false;
+      if (this.handleBulkResult(op, result, ids.length)) {
         this.bulkConfirmVisible = false;
         this.pendingBulkOp = null;
       }
     },
 
     // Разбор BulkOpResult: полный успех -> notify, частичный -> ui.warning с
-    // перечнем непрошедших. При любом исходе сбрасываем выбор и обновляем список.
+    // перечнем непрошедших. Возвращает true, если операция применилась (валидный
+    // BulkOpResult) - тогда сбрасываем выбор и обновляем список; false при
+    // ошибке-envelope (success:false -> {message}), чтобы можно было повторить.
     handleBulkResult(op, result, total) {
       if (!result || typeof result.success_count !== 'number') {
         useDeletionsStore().notify({ prefix: result?.message || 'Не удалось выполнить групповую операцию', type: 'error' });
-        return;
+        return false;
       }
       const label = {
         type: 'Тип изменён',
@@ -1023,6 +1040,7 @@ export default {
       }
       this.clearSelection();
       this.refreshData();
+      return true;
     },
 
     // fix 5: сбрасываем поднятые dirty-флаги детей при смене/сбросе выбора -
