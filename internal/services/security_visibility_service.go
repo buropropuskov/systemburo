@@ -45,8 +45,9 @@ type AvailableAttachment struct {
 }
 
 // availableAttachmentFilters - опциональные пользовательские фильтры вкладки "Доступные мне"
-// (BE-S6). Сужают листинг ПОВЕРХ инварианта видимости (места ∩ + confirmation='Согласовано'), не
-// ослабляя его. Все поля опциональны: nil/пусто = фильтр не применяется, выдача как до BE-S6.
+// (BE-S6). Сужают листинг ПОВЕРХ инварианта видимости (места ∩ + confirmation='Согласовано' +
+// status IN ('В работе','Завершено')), не ослабляя его. Все поля опциональны: nil/пусто = фильтр
+// не применяется, выдача как до BE-S6.
 // query-теги повторяют стиль ApplicationFilter - биндятся echo c.Bind из query-строки.
 type AvailableAttachmentFilters struct {
 	Search         *string `query:"search"`
@@ -132,25 +133,35 @@ const availableAttachmentSelect = `
 
 // securityVisibilityWhere строит предикат доступности вложения для вкладки "Доступные мне"
 // (ссылается на алиасы a = attachments, app = applications) и его аргументы. Инвариант (#706):
-// confirmation = 'Согласовано' И пересечение мест вложения с местами охранника непусто. Места:
-// cars/items - attachment_unload_places ∩ security_user_unload_places; people - места прохода
-// сотрудников (employee_target_tables) ∩ security_user_tables. unrestricted (super/admin/носитель
-// права page.available, #976) отбрасывает предикат по местам, оставляя только confirmation-гейт. НЕ
-// смотрит is_active/status места (факт назначения = доступ; "обслуживание" места не должно молча
-// скрывать вложение). Не пересекается с forward_attachments (#680) - другой источник видимости.
+// confirmation = 'Согласовано' И status IN ('В работе','Завершено') И пересечение мест вложения с
+// местами охранника непусто. Места: cars/items - attachment_unload_places ∩
+// security_user_unload_places; people - места прохода сотрудников (employee_target_tables) ∩
+// security_user_tables. unrestricted (super/admin/носитель права page.available, #976) отбрасывает
+// предикат по местам, оставляя только гейт заявки. НЕ смотрит is_active/status места (факт
+// назначения = доступ; "обслуживание" места не должно молча скрывать вложение). Не пересекается с
+// forward_attachments (#680) - другой источник видимости.
+//
+// Статус-гейт (баг: заявка "Отказано" оставалась видна). Согласование (confirmation) и статус
+// жизненного цикла - РАЗНЫЕ поля: принимающий отказывает в заявке через reject, который ставит
+// status='Отказано', а confirmation='Согласовано' не трогает. #951 закрыл только "Отозвана", но
+// "Отказано" (и промежуточная "В обработке" после revoke_from_work) так же не должны попадать в
+// допуск охраны. Поэтому гейтим не "confirmation минус чёрный список", а белым списком активных
+// статусов: 'В работе' - реальный активный допуск (вкладка по умолчанию), 'Завершено' - для тоггла
+// "Завершённые" (availableAttachmentFilterWhere сам выбирает между ними). Всё прочее (Отказано,
+// Отозвана, В обработке, Непрочитано, ...) - вне допуска, скрыто.
 //
 // Ручные вложения (#1049 S6): у сироты (a.is_manual, application_id NULL) заявки нет, поэтому
-// confirmation-гейт к ней неприменим - её видимость несёт ТОЛЬКО пересечение мест (то же, что у
+// гейт заявки к ней неприменим - её видимость несёт ТОЛЬКО пересечение мест (то же, что у
 // заявочных: назначен охраннику target-таблица/место -> видит). Ветка a.is_manual снимает
-// confirmation-часть, но пересечение мест остаётся - ручные видны наравне с заявочными, но не
+// app-часть, но пересечение мест остаётся - ручные видны наравне с заявочными, но не
 // шире (охранник без назначения места ручное не увидит). У сироты app.* при LEFT JOIN NULL:
-// ветка a.is_manual=TRUE сама делает OR истинной, а заведомо-NULL app.confirmation-предикат
+// ветка a.is_manual=TRUE сама делает OR истинной, а заведомо-NULL app-предикат
 // сироту не отсекает (three-valued logic: TRUE OR NULL = TRUE, запрос не падает).
 func securityVisibilityWhere(userID int, unrestricted bool) (string, []interface{}) {
-	// Заявочные: confirmation='Согласовано' И не "Отозвана" (#951, IS DISTINCT FROM пропускает
-	// NULL-статус в обычную выдачу). Ручные (a.is_manual) минуют весь app-гейт - заявки нет.
-	confirm := "(a.is_manual OR (app.confirmation = ? AND app.status IS DISTINCT FROM ?))"
-	args := []interface{}{models.ConfirmationApproved, models.StatusWithdrawn}
+	// Заявочные: confirmation='Согласовано' И статус активного допуска ('В работе'/'Завершено').
+	// Ручные (a.is_manual) минуют весь app-гейт - заявки нет.
+	confirm := "(a.is_manual OR (app.confirmation = ? AND app.status IN (?, ?)))"
+	args := []interface{}{models.ConfirmationApproved, models.StatusInWork, models.StatusCompleted}
 	if unrestricted {
 		return confirm, args
 	}
@@ -172,7 +183,7 @@ func securityVisibilityWhere(userID int, unrestricted bool) (string, []interface
 
 // availableAttachmentFilterWhere добавляет к предикату видимости опциональные пользовательские
 // фильтры (BE-S6) и их аргументы. Поверх инварианта, не вместо: возвращает фрагмент с ведущим
-// " AND ", приклеиваемый к результату securityVisibilityWhere - гейт мест/confirmation остаётся.
+// " AND ", приклеиваемый к результату securityVisibilityWhere - гейт мест/статуса заявки остаётся.
 // Пустые/nil-поля игнорируются; attachment_type вне cars/people/items отбрасывается (не сужает).
 // Search ищет по номеру заявки, имени и отображаемому имени вложения, ФИО отправителя (ILIKE,
 // регистронезависимо). Требует алиасы a/app/su (есть в availableAttachmentFrom).
@@ -200,8 +211,10 @@ func availableAttachmentFilterWhere(f AvailableAttachmentFilters) (string, []int
 		clauses = append(clauses, "COALESCE(app.company_id, a.company_id) = ?")
 		args = append(args, *f.CompanyID)
 	}
-	// Дефолт вкладки - скрыть завершённые; фильтр "Завершённые" (completed=true) - только их.
-	// IS DISTINCT FROM, чтобы строки с NULL-статусом попадали в дефолтную выдачу (не исключались).
+	// Базовый гейт уже сузил статус до IN ('В работе','Завершено'); здесь выбираем между ними:
+	// дефолт вкладки - только 'В работе' (скрыть завершённые), фильтр "Завершённые" (completed=true) -
+	// только 'Завершено'. IS DISTINCT FROM сохранён для симметрии с completed-веткой (NULL-статусов в
+	// выдаче уже нет - whitelist их отсёк).
 	if !searchActive {
 		if f.Completed != nil && *f.Completed {
 			clauses = append(clauses, "app.status = ?")
@@ -366,8 +379,9 @@ func (s *applicationService) GetAvailableAttachmentsForSecurity(ctx context.Cont
 
 // CanSecurityViewAttachment сообщает, доступно ли конкретное вложение охраннику по тем же правилам,
 // что и листинг (#706). Используется детальным эндпоинтом для 403 на чужое вложение. unrestricted
-// (super/admin/носитель page.available, #976) проходит фильтр по местам, но confirmation-гейт
-// применяется и к нему. LEFT JOIN applications (#1049): без него ручное вложение-сирота
+// (super/admin/носитель page.available, #976) проходит фильтр по местам, но гейт заявки
+// (confirmation='Согласовано' + status IN ('В работе','Завершено')) применяется и к нему. LEFT JOIN
+// applications (#1049): без него ручное вложение-сирота
 // (application_id NULL) не прошло бы EXISTS и деталь давала бы 403 при видимом в списке - тот же
 // набор ролей должен гейтить и список, и деталь.
 func (s *applicationService) CanSecurityViewAttachment(ctx context.Context, userID int, unrestricted bool, attachmentID int) (bool, error) {
