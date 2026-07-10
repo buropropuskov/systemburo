@@ -13,7 +13,7 @@
  * 6. assert: 0 pageerror, 0 неотфильтрованных console.error
  *
  * Запуск:
- *   E2E_BASE_URL=https://stagingburo.washka17.site \
+ *   E2E_BASE_URL=https://stagingburo.washka17.ru \
  *   E2E_HTTP_USER=admin E2E_HTTP_PASSWORD=... \
  *   E2E_SUPERADMIN_USER=buropropuskov E2E_SUPERADMIN_PASSWORD=admin123 \
  *     npx playwright test e2e/tests/site-smoke-crawler.spec.cjs --reporter=list

@@ -10,7 +10,7 @@
 const DESTRUCTIVE_REGEX = /(удалить|сбросить|заблокировать|забанить|очистить|выйти|выход|сохранить|создать|подтвердить|применить|архивировать|разбанить|разблокировать|снять блок|delete|remove|reset|ban|logout|save|create|confirm|apply|archive)/i;
 
 // href которые ведут вовне сайта или меняют контекст
-const DANGEROUS_HREF = /^(mailto:|tel:|javascript:|https?:\/\/(?!stagingburo\.washka17\.site))/i;
+const DANGEROUS_HREF = /^(mailto:|tel:|javascript:|https?:\/\/(?!stagingburo\.washka17\.ru))/i;
 
 // Известные ложные console.error - не считаем регрессией
 const EXPECTED_ERRORS_WHITELIST = [

@@ -3,14 +3,14 @@ set -euo pipefail
 
 # Генерация .env для staging/production
 # Использование: ./scripts/init-env.sh <staging|production> <domain>
-# Пример:       ./scripts/init-env.sh staging stagingburo.washka17.site
+# Пример:       ./scripts/init-env.sh staging stagingburo.washka17.ru
 
 ENV="${1:-}"
 DOMAIN="${2:-}"
 
 if [[ -z "$ENV" || -z "$DOMAIN" ]]; then
     echo "Использование: $0 <staging|production> <domain>"
-    echo "Пример:        $0 staging stagingburo.washka17.site"
+    echo "Пример:        $0 staging stagingburo.washka17.ru"
     exit 1
 fi
 
