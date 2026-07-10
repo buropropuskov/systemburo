@@ -64,6 +64,31 @@ type OrganizationService interface {
 
 	// UpdateOrganizationUnloadPlaces заменяет привязку мест разгрузки к организации.
 	UpdateOrganizationUnloadPlaces(ctx context.Context, orgID int, req UpdateOrganizationUnloadPlacesRequest) error
+
+	// --- Групповые операции (bulk). Переиспользуют одиночные методы в цикле,
+	// частичный успех собирается в BulkOpResult. Валидация входа (тип, режим) -
+	// один раз до цикла и возвращается ошибкой на весь запрос. ---
+
+	// BulkUpdateType меняет тип у набора организаций (nil снимает тип).
+	BulkUpdateType(ctx context.Context, callerUserID int, ids []int, typ *string) (*BulkOpResult, error)
+
+	// BulkAssignUnloadPlaces назначает места разгрузки набору организаций.
+	// mode=replace затирает, mode=add объединяет с текущими.
+	BulkAssignUnloadPlaces(ctx context.Context, ids, placeIDs []int, mode string) (*BulkOpResult, error)
+
+	// BulkAssignTables назначает целевые таблицы набору организаций (replace|add).
+	BulkAssignTables(ctx context.Context, ids, tableIDs []int, mode string) (*BulkOpResult, error)
+
+	// BulkAssignUsers назначает ответственных набору организаций (replace|add).
+	// primary в группе не назначается, сохраняется у существующих.
+	BulkAssignUsers(ctx context.Context, ids []int, usernames []string, requiredApproval bool, mode string) (*BulkOpResult, error)
+
+	// BulkArchive архивирует набор организаций (частичный успех: активные с
+	// пользователями попадают в Errors).
+	BulkArchive(ctx context.Context, callerUserID int, ids []int) (*BulkOpResult, error)
+
+	// BulkRestore восстанавливает набор организаций из архива.
+	BulkRestore(ctx context.Context, callerUserID int, ids []int) (*BulkOpResult, error)
 }
 
 // --- DTO: запросы ---
@@ -630,4 +655,224 @@ func (s *organizationService) UpdateOrganizationUnloadPlaces(ctx context.Context
 		}
 		return nil
 	})
+}
+
+// --- Групповые операции ---
+
+// loadOrg загружает организацию по id для bulk-цикла. Возвращает имя (для
+// BulkItemError) и ok=false, если записи нет.
+func (s *organizationService) loadOrg(ctx context.Context, id int) (models.Organization, bool) {
+	var org models.Organization
+	if err := s.db.WithContext(ctx).First(&org, id).Error; err != nil {
+		return org, false
+	}
+	return org, true
+}
+
+// BulkUpdateType меняет тип у набора организаций через переиспользование Update
+// (имя берётся из текущей записи, чтобы не переименовать). Тип валидируется один
+// раз до цикла.
+func (s *organizationService) BulkUpdateType(ctx context.Context, callerUserID int, ids []int, typ *string) (*BulkOpResult, error) {
+	if typ != nil && !models.IsValidOrgType(*typ) {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Некорректный тип организации")
+	}
+	res := newBulkResult()
+	for _, id := range uniqueInts(ids) {
+		org, ok := s.loadOrg(ctx, id)
+		if !ok {
+			res.addError(id, "", "Организация не найдена")
+			continue
+		}
+		// Тип уже соответствует - no-op успех, без похода в Update: иначе оно
+		// (имя тоже не меняется) залогировало бы ложную «переименована» в историю
+		// (nameChanged=typeChanged=false -> дефолтный action Renamed). Для bulk
+		// это частый кейс: в наборе часть организаций уже нужного типа.
+		if strPtrEqual(org.Type, typ) {
+			res.SuccessCount++
+			continue
+		}
+		if _, err := s.Update(ctx, callerUserID, id, CreateOrganizationRequest{Name: org.Name, Type: typ}); err != nil {
+			res.addError(id, org.Name, bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
+}
+
+// BulkAssignUnloadPlaces назначает места разгрузки набору организаций. В режиме
+// add текущие связи читаются из сырой junction (без фильтра is_active), чтобы
+// объединение не отвязало неактивные-но-привязанные места. Чтение current идёт
+// вне транзакции переиспользуемого UpdateOrganizationUnloadPlaces - для
+// admin-only последовательных операций окна гонки нет; конкурентный bulk по той
+// же организации - осознанно не защищаем (принятый trade-off ради переиспользования).
+func (s *organizationService) BulkAssignUnloadPlaces(ctx context.Context, ids, placeIDs []int, mode string) (*BulkOpResult, error) {
+	if !isValidBulkMode(mode) {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Некорректный режим (replace|add)")
+	}
+	res := newBulkResult()
+	for _, id := range uniqueInts(ids) {
+		org, ok := s.loadOrg(ctx, id)
+		if !ok {
+			res.addError(id, "", "Организация не найдена")
+			continue
+		}
+		target := placeIDs
+		if mode == BulkModeAdd {
+			var current []int
+			if err := s.db.WithContext(ctx).Model(&models.OrganizationUnloadPlace{}).
+				Where("organization_id = ?", id).Pluck("unload_place_id", &current).Error; err != nil {
+				res.addError(id, org.Name, "Ошибка чтения текущих мест разгрузки")
+				continue
+			}
+			target = unionInts(current, placeIDs)
+		}
+		if err := s.UpdateOrganizationUnloadPlaces(ctx, id, UpdateOrganizationUnloadPlacesRequest{UnloadPlaceIDs: target}); err != nil {
+			res.addError(id, org.Name, bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
+}
+
+// BulkAssignTables назначает целевые таблицы набору организаций (replace|add).
+func (s *organizationService) BulkAssignTables(ctx context.Context, ids, tableIDs []int, mode string) (*BulkOpResult, error) {
+	if !isValidBulkMode(mode) {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Некорректный режим (replace|add)")
+	}
+	res := newBulkResult()
+	for _, id := range uniqueInts(ids) {
+		org, ok := s.loadOrg(ctx, id)
+		if !ok {
+			res.addError(id, "", "Организация не найдена")
+			continue
+		}
+		target := tableIDs
+		if mode == BulkModeAdd {
+			var current []int
+			if err := s.db.WithContext(ctx).Model(&models.OrganizationTable{}).
+				Where("organization_id = ?", id).Pluck("table_id", &current).Error; err != nil {
+				res.addError(id, org.Name, "Ошибка чтения текущих таблиц")
+				continue
+			}
+			target = unionInts(current, tableIDs)
+		}
+		if err := s.UpdateOrganizationTables(ctx, id, UpdateOrganizationTablesRequest{TableIDs: target}); err != nil {
+			res.addError(id, org.Name, bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
+}
+
+// BulkAssignUsers назначает ответственных набору организаций. primary в группе
+// не назначается: за существующими сохраняется их is_primary/required_approval,
+// новым выставляется is_primary=false и переданный required_approval. В режиме
+// replace итоговый набор = выбранные (у оставшегося primary сохраняется), в add
+// = текущие как есть + недостающие выбранные.
+func (s *organizationService) BulkAssignUsers(ctx context.Context, ids []int, usernames []string, requiredApproval bool, mode string) (*BulkOpResult, error) {
+	if !isValidBulkMode(mode) {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Некорректный режим (replace|add)")
+	}
+	res := newBulkResult()
+	for _, id := range uniqueInts(ids) {
+		org, ok := s.loadOrg(ctx, id)
+		if !ok {
+			res.addError(id, "", "Организация не найдена")
+			continue
+		}
+		users, err := s.buildBulkUsers(ctx, id, usernames, requiredApproval, mode)
+		if err != nil {
+			res.addError(id, org.Name, "Ошибка чтения ответственных")
+			continue
+		}
+		if err := s.UpdateOrganizationUsers(ctx, id, UpdateOrganizationUsersRequest{Users: users}); err != nil {
+			res.addError(id, org.Name, bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
+}
+
+// buildBulkUsers формирует итоговый список ответственных для одной организации,
+// сохраняя primary существующих (см. BulkAssignUsers).
+func (s *organizationService) buildBulkUsers(ctx context.Context, orgID int, usernames []string, requiredApproval bool, mode string) ([]OrganizationUserRequest, error) {
+	type curRow struct {
+		Username         string
+		IsPrimary        bool
+		RequiredApproval bool
+	}
+	var rows []curRow
+	if err := s.db.WithContext(ctx).
+		Table("organization_users ou").
+		Select("u.username, ou.is_primary, ou.required_approval").
+		Joins("JOIN users u ON u.id = ou.user_id").
+		Where("ou.organization_id = ?", orgID).Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	existing := make(map[string]curRow, len(rows))
+	for _, r := range rows {
+		existing[r.Username] = r
+	}
+
+	users := make([]OrganizationUserRequest, 0, len(rows)+len(usernames))
+	if mode == BulkModeAdd {
+		// Существующие сохраняем как есть (флаги, включая primary, не трогаем).
+		for _, r := range rows {
+			isP, ra := r.IsPrimary, r.RequiredApproval
+			users = append(users, OrganizationUserRequest{Username: r.Username, IsPrimary: &isP, RequiredApproval: &ra})
+		}
+	}
+	for _, un := range usernames {
+		if _, ok := existing[un]; ok && mode == BulkModeAdd {
+			continue // add: уже в наборе - не дублируем и не трогаем флаги
+		}
+		isP := false
+		if cur, ok := existing[un]; ok {
+			isP = cur.IsPrimary // replace: primary оставшегося сохраняется
+		}
+		ra := requiredApproval
+		users = append(users, OrganizationUserRequest{Username: un, IsPrimary: &isP, RequiredApproval: &ra})
+	}
+	return users, nil
+}
+
+// BulkArchive архивирует набор организаций через Delete. Активные организации с
+// пользователями честно попадают в Errors (частичный успех).
+func (s *organizationService) BulkArchive(ctx context.Context, callerUserID int, ids []int) (*BulkOpResult, error) {
+	res := newBulkResult()
+	for _, id := range uniqueInts(ids) {
+		org, ok := s.loadOrg(ctx, id)
+		if !ok {
+			res.addError(id, "", "Организация не найдена")
+			continue
+		}
+		if err := s.Delete(ctx, callerUserID, id); err != nil {
+			res.addError(id, org.Name, bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
+}
+
+// BulkRestore восстанавливает набор организаций через Restore.
+func (s *organizationService) BulkRestore(ctx context.Context, callerUserID int, ids []int) (*BulkOpResult, error) {
+	res := newBulkResult()
+	for _, id := range uniqueInts(ids) {
+		org, ok := s.loadOrg(ctx, id)
+		if !ok {
+			res.addError(id, "", "Организация не найдена")
+			continue
+		}
+		if err := s.Restore(ctx, callerUserID, id); err != nil {
+			res.addError(id, org.Name, bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
 }

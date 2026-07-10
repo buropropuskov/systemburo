@@ -335,6 +335,14 @@ func Setup(e *echo.Echo, d Dependencies) {
 	orgg.PUT("/:id/tables", org.UpdateOrganizationTables, requireAdmin)
 	orgg.GET("/:id/unload-places", org.GetOrganizationUnloadPlaces)
 	orgg.PUT("/:id/unload-places", org.UpdateOrganizationUnloadPlaces, requireAdmin)
+	// Групповые операции (bulk). Статический сегмент bulk имеет приоритет над
+	// param :id в Echo, поэтому /bulk/restore не конфликтует с /:id/restore.
+	orgg.POST("/bulk/type", org.BulkUpdateType, requireAdmin)
+	orgg.POST("/bulk/unload-places", org.BulkAssignUnloadPlaces, requireAdmin)
+	orgg.POST("/bulk/tables", org.BulkAssignTables, requireAdmin)
+	orgg.POST("/bulk/users", org.BulkAssignUsers, requireAdmin)
+	orgg.POST("/bulk/archive", org.BulkArchive, requireAdmin)
+	orgg.POST("/bulk/restore", org.BulkRestore, requireAdmin)
 	protected.GET("/get-organization", org.GetMyOrganization)
 
 	// Компании. Изменяющие операции и история - page.admin (Ф5, ранее service checkAdmin);

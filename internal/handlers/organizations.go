@@ -423,3 +423,186 @@ func (h *OrganizationHandler) UpdateOrganizationUnloadPlaces(c echo.Context) err
 	}
 	return RespondMessage(c, "Unload places updated successfully")
 }
+
+// respondBulk отдаёт результат групповой операции: 200 при полном успехе, 207
+// при частичном (envelope success=true, data=BulkOpResult - как batch машин).
+func respondBulk(c echo.Context, res *services.BulkOpResult) error {
+	return c.JSON(res.HTTPStatus(), Response{Success: true, Data: res})
+}
+
+// BulkUpdateType godoc
+// @Summary      Групповая смена типа организаций
+// @Description  Меняет тип у набора организаций. Требует права admin. type=null снимает тип.
+// @Tags         organizations
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body services.BulkTypeRequest true "ID организаций и новый тип"
+// @Success      200 {object} services.BulkOpResult
+// @Success      207 {object} services.BulkOpResult "Частичный успех"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /organizations/bulk/type [post]
+func (h *OrganizationHandler) BulkUpdateType(c echo.Context) error {
+	var req services.BulkTypeRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if len(req.IDs) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны организации")
+	}
+	userID, _ := c.Get("user_id").(int)
+	res, err := h.service.BulkUpdateType(c.Request().Context(), userID, req.IDs, req.Type)
+	if err != nil {
+		return err
+	}
+	return respondBulk(c, res)
+}
+
+// BulkAssignUnloadPlaces godoc
+// @Summary      Групповое назначение мест разгрузки организациям
+// @Description  Назначает места разгрузки набору организаций. mode=replace|add. Требует права admin.
+// @Tags         organizations
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body services.BulkUnloadPlacesRequest true "ID организаций, мест и режим"
+// @Success      200 {object} services.BulkOpResult
+// @Success      207 {object} services.BulkOpResult "Частичный успех"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /organizations/bulk/unload-places [post]
+func (h *OrganizationHandler) BulkAssignUnloadPlaces(c echo.Context) error {
+	var req services.BulkUnloadPlacesRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if len(req.IDs) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны организации")
+	}
+	res, err := h.service.BulkAssignUnloadPlaces(c.Request().Context(), req.IDs, req.UnloadPlaceIDs, req.Mode)
+	if err != nil {
+		return err
+	}
+	return respondBulk(c, res)
+}
+
+// BulkAssignTables godoc
+// @Summary      Групповое назначение таблиц организациям
+// @Description  Назначает целевые таблицы набору организаций. mode=replace|add. Требует права admin.
+// @Tags         organizations
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body services.BulkTablesRequest true "ID организаций, таблиц и режим"
+// @Success      200 {object} services.BulkOpResult
+// @Success      207 {object} services.BulkOpResult "Частичный успех"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /organizations/bulk/tables [post]
+func (h *OrganizationHandler) BulkAssignTables(c echo.Context) error {
+	var req services.BulkTablesRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if len(req.IDs) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны организации")
+	}
+	res, err := h.service.BulkAssignTables(c.Request().Context(), req.IDs, req.TableIDs, req.Mode)
+	if err != nil {
+		return err
+	}
+	return respondBulk(c, res)
+}
+
+// BulkAssignUsers godoc
+// @Summary      Групповое назначение ответственных организациям
+// @Description  Назначает ответственных набору организаций. mode=replace|add. primary не назначается. Требует права admin.
+// @Tags         organizations
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body services.BulkUsersRequest true "ID организаций, логины, режим"
+// @Success      200 {object} services.BulkOpResult
+// @Success      207 {object} services.BulkOpResult "Частичный успех"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /organizations/bulk/users [post]
+func (h *OrganizationHandler) BulkAssignUsers(c echo.Context) error {
+	var req services.BulkUsersRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if len(req.IDs) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны организации")
+	}
+	res, err := h.service.BulkAssignUsers(c.Request().Context(), req.IDs, req.Usernames, req.RequiredApproval, req.Mode)
+	if err != nil {
+		return err
+	}
+	return respondBulk(c, res)
+}
+
+// BulkArchive godoc
+// @Summary      Групповое архивирование организаций
+// @Description  Архивирует набор организаций. Активные с пользователями попадают в errors. Требует права admin.
+// @Tags         organizations
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body services.BulkIDsRequest true "ID организаций"
+// @Success      200 {object} services.BulkOpResult
+// @Success      207 {object} services.BulkOpResult "Частичный успех"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /organizations/bulk/archive [post]
+func (h *OrganizationHandler) BulkArchive(c echo.Context) error {
+	var req services.BulkIDsRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if len(req.IDs) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны организации")
+	}
+	userID, _ := c.Get("user_id").(int)
+	res, err := h.service.BulkArchive(c.Request().Context(), userID, req.IDs)
+	if err != nil {
+		return err
+	}
+	return respondBulk(c, res)
+}
+
+// BulkRestore godoc
+// @Summary      Групповое восстановление организаций
+// @Description  Восстанавливает набор организаций из архива. Требует права admin.
+// @Tags         organizations
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body services.BulkIDsRequest true "ID организаций"
+// @Success      200 {object} services.BulkOpResult
+// @Success      207 {object} services.BulkOpResult "Частичный успех"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /organizations/bulk/restore [post]
+func (h *OrganizationHandler) BulkRestore(c echo.Context) error {
+	var req services.BulkIDsRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if len(req.IDs) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны организации")
+	}
+	userID, _ := c.Get("user_id").(int)
+	res, err := h.service.BulkRestore(c.Request().Context(), userID, req.IDs)
+	if err != nil {
+		return err
+	}
+	return respondBulk(c, res)
+}
