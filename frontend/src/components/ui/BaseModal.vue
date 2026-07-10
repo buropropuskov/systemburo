@@ -12,7 +12,7 @@
           ref="modal"
           class="base-modal"
           :class="contentClass"
-          :style="{ maxWidth: width }"
+          :style="{ maxWidth: width, '--base-modal-radius': radius || null }"
           role="dialog"
           aria-modal="true"
           :aria-label="title"
@@ -86,6 +86,13 @@ export default {
     zIndex: {
       type: Number,
       default: 1000,
+    },
+    // Радиус скругления окна. Пусто -> дефолт var(--radius-md). Задаётся окном, т.к.
+    // content-class телепортируется в body и scoped :deep из родителя до него не
+    // достаёт - пробрасываем значение CSS-переменной инлайном.
+    radius: {
+      type: String,
+      default: '',
     },
   },
   emits: ['close'],
@@ -169,7 +176,7 @@ export default {
 
 .base-modal {
   background: #fff;
-  border-radius: var(--radius-md);
+  border-radius: var(--base-modal-radius, var(--radius-md));
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
   max-height: 92vh;
   overflow-y: auto;
