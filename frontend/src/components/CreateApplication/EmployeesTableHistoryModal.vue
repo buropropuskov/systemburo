@@ -455,7 +455,7 @@ export default {
     },
 
     getActionClass(actionType) {
-      if (actionType === 'entry' || actionType === 'restore') return 'dot-entry';
+      if (actionType === 'entry' || actionType === 'restore' || actionType === 'added_to_table') return 'dot-entry';
       return 'dot-exit';
     },
 
@@ -470,6 +470,8 @@ export default {
         return 'Восстановление в таблице';
       } else if (item.action_type === 'purge') {
         return 'Безвозвратное удаление';
+      } else if (item.action_type === 'added_to_table') {
+        return 'Добавлен в таблицу проходной';
       }
       return item.action_type;
     },

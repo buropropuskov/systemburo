@@ -96,11 +96,15 @@ func TestCreateManualEmployees_WritesAddedToTableHistory(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, "manual add: %s", rec.Body.String())
 	empID := testutil.ParseResponse[services.ManualEmployeeResponse](t, rec).EmployeeIDs[0]
 
-	var cnt int64
-	require.NoError(t, db.Model(&models.AuditLog{}).
+	// По одной записи на уникальную таблицу, автор проброшен (не «Система»).
+	var rows []models.AuditLog
+	require.NoError(t, db.
 		Where("entity_type = ? AND action = ? AND entity_id = ?", models.AuditEntityEmployee, models.AuditActionAddedToTable, empID).
-		Count(&cnt).Error)
-	assert.EqualValues(t, 2, cnt, "по одной записи на уникальную таблицу")
+		Find(&rows).Error)
+	require.Len(t, rows, 2, "по одной записи на уникальную таблицу")
+	for _, r := range rows {
+		require.NotNil(t, r.ActorUserID, "автор попадания проброшен (manual-путь)")
+	}
 
 	rec = testutil.GET(t, e, fmt.Sprintf("/employees/%d/history", empID), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
