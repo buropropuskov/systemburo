@@ -85,3 +85,21 @@ export async function setUserTables(username, tableIds) {
     body: JSON.stringify({ table_ids: tableIds }),
   });
 }
+
+// --- История входов (auth_events, #1076) ---
+
+/**
+ * Постранично читает историю входов пользователя.
+ * @param {string} username
+ * @param {{page?: number, limit?: number, category?: string, from?: string, to?: string}} [params]
+ * @returns {Promise<{items: Array, total: number, page: number, limit: number}>}
+ */
+export async function getUserAuthEvents(username, params = {}) {
+  const qs = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== '' && value !== null && value !== undefined) qs.append(key, value);
+  });
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  const res = await apiRequest(`/users/${username}/auth-events${suffix}`);
+  return res.json();
+}
