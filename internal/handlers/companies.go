@@ -401,3 +401,180 @@ func (h *CompanyHandler) UpdateTables(c echo.Context) error {
 	}
 	return RespondMessage(c, "Company tables updated successfully")
 }
+
+// BulkUpdateType godoc
+// @Summary      Групповая смена типа компаний
+// @Description  Меняет тип у набора компаний. Требует права admin. type=null снимает тип.
+// @Tags         companies
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body services.BulkTypeRequest true "ID компаний и новый тип"
+// @Success      200 {object} services.BulkOpResult
+// @Success      207 {object} services.BulkOpResult "Частичный успех"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /companies/bulk/type [post]
+func (h *CompanyHandler) BulkUpdateType(c echo.Context) error {
+	var req services.BulkTypeRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if len(req.IDs) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны компании")
+	}
+	userID, _ := c.Get("user_id").(int)
+	res, err := h.service.BulkUpdateType(c.Request().Context(), userID, req.IDs, req.Type)
+	if err != nil {
+		return err
+	}
+	return respondBulk(c, res)
+}
+
+// BulkAssignUnloadPlaces godoc
+// @Summary      Групповое назначение мест разгрузки компаниям
+// @Description  Назначает места разгрузки набору компаний. mode=replace|add. Требует права admin.
+// @Tags         companies
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body services.BulkUnloadPlacesRequest true "ID компаний, мест и режим"
+// @Success      200 {object} services.BulkOpResult
+// @Success      207 {object} services.BulkOpResult "Частичный успех"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /companies/bulk/unload-places [post]
+func (h *CompanyHandler) BulkAssignUnloadPlaces(c echo.Context) error {
+	var req services.BulkUnloadPlacesRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if len(req.IDs) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны компании")
+	}
+	res, err := h.service.BulkAssignUnloadPlaces(c.Request().Context(), req.IDs, req.UnloadPlaceIDs, req.Mode)
+	if err != nil {
+		return err
+	}
+	return respondBulk(c, res)
+}
+
+// BulkAssignTables godoc
+// @Summary      Групповое назначение таблиц компаниям
+// @Description  Назначает целевые таблицы набору компаний. mode=replace|add. Требует права admin.
+// @Tags         companies
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body services.BulkTablesRequest true "ID компаний, таблиц и режим"
+// @Success      200 {object} services.BulkOpResult
+// @Success      207 {object} services.BulkOpResult "Частичный успех"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /companies/bulk/tables [post]
+func (h *CompanyHandler) BulkAssignTables(c echo.Context) error {
+	var req services.BulkTablesRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if len(req.IDs) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны компании")
+	}
+	res, err := h.service.BulkAssignTables(c.Request().Context(), req.IDs, req.TableIDs, req.Mode)
+	if err != nil {
+		return err
+	}
+	return respondBulk(c, res)
+}
+
+// BulkAssignUsers godoc
+// @Summary      Групповое назначение ответственных компаниям
+// @Description  Назначает ответственных набору компаний. mode=replace|add. primary не назначается. Требует права admin.
+// @Tags         companies
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body services.BulkUsersRequest true "ID компаний, логины, режим"
+// @Success      200 {object} services.BulkOpResult
+// @Success      207 {object} services.BulkOpResult "Частичный успех"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /companies/bulk/users [post]
+func (h *CompanyHandler) BulkAssignUsers(c echo.Context) error {
+	var req services.BulkUsersRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if len(req.IDs) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны компании")
+	}
+	res, err := h.service.BulkAssignUsers(c.Request().Context(), req.IDs, req.Usernames, req.RequiredApproval, req.Mode)
+	if err != nil {
+		return err
+	}
+	return respondBulk(c, res)
+}
+
+// BulkArchive godoc
+// @Summary      Групповое архивирование компаний
+// @Description  Архивирует набор компаний. Активные с пользователями попадают в errors. Требует права admin.
+// @Tags         companies
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body services.BulkIDsRequest true "ID компаний"
+// @Success      200 {object} services.BulkOpResult
+// @Success      207 {object} services.BulkOpResult "Частичный успех"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /companies/bulk/archive [post]
+func (h *CompanyHandler) BulkArchive(c echo.Context) error {
+	var req services.BulkIDsRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if len(req.IDs) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны компании")
+	}
+	userID, _ := c.Get("user_id").(int)
+	res, err := h.service.BulkArchive(c.Request().Context(), userID, req.IDs)
+	if err != nil {
+		return err
+	}
+	return respondBulk(c, res)
+}
+
+// BulkRestore godoc
+// @Summary      Групповое восстановление компаний
+// @Description  Восстанавливает набор компаний из архива. Требует права admin.
+// @Tags         companies
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body services.BulkIDsRequest true "ID компаний"
+// @Success      200 {object} services.BulkOpResult
+// @Success      207 {object} services.BulkOpResult "Частичный успех"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /companies/bulk/restore [post]
+func (h *CompanyHandler) BulkRestore(c echo.Context) error {
+	var req services.BulkIDsRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if len(req.IDs) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны компании")
+	}
+	userID, _ := c.Get("user_id").(int)
+	res, err := h.service.BulkRestore(c.Request().Context(), userID, req.IDs)
+	if err != nil {
+		return err
+	}
+	return respondBulk(c, res)
+}
