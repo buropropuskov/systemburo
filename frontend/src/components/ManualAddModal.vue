@@ -1,6 +1,9 @@
 <template>
   <Teleport to="body">
-    <transition name="manual-modal-fade">
+    <transition
+      name="manual-modal-fade"
+      @after-leave="resetState"
+    >
       <div
         v-if="show"
         class="manual-modal-overlay"
@@ -89,6 +92,7 @@
               :user-company="selectedCompanyName"
               :user-company-id="selectedCompanyId"
               :existing-vehicles="addedVehicles"
+              :allow-existing-search="false"
               :disabled="!selectedOrgId"
               @vehicle-added="handleVehicleAdded"
               @vehicles-added="handleVehiclesAdded"
@@ -347,7 +351,6 @@ export default {
                     type: 'success',
                 });
                 this.$emit('added', resp);
-                this.resetState();
                 this.$emit('close');
             } catch (e) {
                 useDeletionsStore().notify({ bold: e.message || 'Не удалось добавить машины', type: 'error' });
@@ -370,8 +373,9 @@ export default {
             this.vehicleIdCounter = 1;
             this.submitting = false;
         },
+        // Сброс формы делаем ПОСЛЕ анимации закрытия (after-leave) и при открытии,
+        // а не в close() до эмита - иначе форма пустеет за кадр до угасания оверлея.
         close() {
-            this.resetState();
             this.$emit('close');
         },
     },
