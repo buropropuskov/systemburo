@@ -58,4 +58,28 @@ describe('EmployeeForm - места прохода без автовыбора (
             expect.objectContaining({ prefix: expect.stringContaining('автоматически') }),
         );
     });
+
+    it('НЕ автовыбирает места прохода по компании и НЕ показывает уведомление', async () => {
+        apiRequest.mockImplementation((url) => {
+            if (url === '/system-tables') return Promise.resolve({ ok: true, json: async () => SYSTEM_TABLES });
+            if (url === '/companies/7/tables') return Promise.resolve({
+                ok: true,
+                json: async () => [
+                    { id: 20, name: 'passage-people', display_name: 'Проход для людей', table_type: 'people', status: 'active' },
+                ],
+            });
+            return Promise.resolve({ ok: true, json: async () => [] });
+        });
+
+        const w = mount(EmployeeForm, {
+            props: { userCompanyId: 7, userCompany: 'ООО Компания' },
+            attachTo: document.body,
+        });
+        await flushPromises();
+
+        expect(w.vm.selectedPassageTables).toEqual([]);
+        expect(notifyMock).not.toHaveBeenCalledWith(
+            expect.objectContaining({ prefix: expect.stringContaining('автоматически') }),
+        );
+    });
 });

@@ -102,4 +102,28 @@ describe('VehicleForm - блок "Проезд" (#1036)', () => {
             expect.objectContaining({ prefix: expect.stringContaining('автоматически') }),
         );
     });
+
+    it('НЕ автовыбирает места проезда по компании и НЕ показывает уведомление (#1036)', async () => {
+        apiRequest.mockImplementation((url) => {
+            if (url === '/system-tables') return Promise.resolve({ ok: true, json: async () => SYSTEM_TABLES });
+            if (url === '/companies/7/tables') return Promise.resolve({
+                ok: true,
+                json: async () => [
+                    { id: 10, name: 'passage-cars', display_name: 'Проезд для машин', table_type: 'cars', status: 'active' },
+                ],
+            });
+            return Promise.resolve({ ok: true, json: async () => [] });
+        });
+
+        const w = mount(VehicleForm, {
+            props: { userCompanyId: 7, userCompany: 'ООО Компания' },
+            attachTo: document.body,
+        });
+        await flushPromises();
+
+        expect(w.vm.selectedPassageTables).toEqual([]);
+        expect(notifyMock).not.toHaveBeenCalledWith(
+            expect.objectContaining({ prefix: expect.stringContaining('автоматически') }),
+        );
+    });
 });
