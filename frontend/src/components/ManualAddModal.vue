@@ -426,11 +426,13 @@ export default {
             ];
         },
         applicationOptions() {
+            // application_number уже содержит «№» у реальных заявок (DEMO-номера - без) -
+            // показываем как есть, как в Центре, иначе выходит двойной «№ №».
             return this.applications
                 .filter(a => a.confirmation === APP_CONFIRMATION_APPROVED && a.status === APP_STATUS_IN_WORK)
                 .map(a => ({
                     id: a.id,
-                    label: `№ ${a.application_number}${a.organization_name ? ' - ' + a.organization_name : ''}`,
+                    label: `${a.application_number}${a.organization_name ? ' - ' + a.organization_name : ''}`,
                 }));
         },
         // Перевесить сущности можно только на вложение того же типа (cars->cars,
@@ -734,7 +736,7 @@ export default {
                     await attachToApplication(resp.attachment_id, target);
                     useDeletionsStore().notify({
                         prefix: `Добавлено ${count} ${noun}, привязано к заявке `,
-                        bold: `№ ${this.selectedApplicationNumber}`,
+                        bold: this.selectedApplicationNumber,
                         type: 'success',
                     });
                 } catch (e) {

@@ -331,8 +331,8 @@ describe('ManualAddModal - режим-2 привязка к заявке (#1049 
     createManualCars.mockResolvedValue({ success: true, attachment_id: 100, car_ids: [1] });
     createManualEmployees.mockResolvedValue({ success: true, attachment_id: 200, employee_ids: [10] });
     getAttachableApplications.mockResolvedValue([
-      { id: 5, application_number: '5/2026', organization_name: 'ООО Ромашка', confirmation: 'Согласовано', status: 'В работе' },
-      { id: 6, application_number: '6/2026', organization_name: 'ООО Прочее', confirmation: 'На согласовании', status: 'В работе' },
+      { id: 5, application_number: '№ 5/2026', organization_name: 'ООО Ромашка', confirmation: 'Согласовано', status: 'В работе' },
+      { id: 6, application_number: '№ 6/2026', organization_name: 'ООО Прочее', confirmation: 'На согласовании', status: 'В работе' },
     ]);
     getApplicationAttachments.mockResolvedValue([
       { id: 51, attachment_type: 'cars', attachment_display_name: 'Автозаявка', entry_date_from: '2026-06-01', entry_date_to: '2026-06-30' },
@@ -371,8 +371,10 @@ describe('ManualAddModal - режим-2 привязка к заявке (#1049 
     // сервер сам форсит активные согласованные
     expect(getAttachableApplications).toHaveBeenCalledTimes(1);
     expect(wrapper.vm.applicationOptions.map(o => o.id)).toEqual([5]); // клиентский фильтр-страховка
-    // лейбл берёт organization_name (реальное поле ответа), а не organization
-    expect(wrapper.vm.applicationOptions[0].label).toContain('ООО Ромашка');
+    // лейбл берёт organization_name (реальное поле ответа), а не organization,
+    // и показывает application_number как есть - без двойного «№» (номер уже с «№»)
+    expect(wrapper.vm.applicationOptions[0].label).toBe('№ 5/2026 - ООО Ромашка');
+    expect(wrapper.vm.applicationOptions[0].label).not.toContain('№ №');
   });
 
   it('adopt (новое вложение): create -> attachToApplication {applicationId}', async () => {
