@@ -64,14 +64,19 @@ describe('api/organizations — bulk-обёртки', () => {
     expect(bodyOf(call)).toEqual({ ids: [1, 2], table_ids: [9], mode: 'replace' })
   })
 
-  it('bulkAssignOrganizationUsers: usernames + required_approval + mode', async () => {
-    await bulkAssignOrganizationUsers([1], ['ivanov', 'petrov'], true, 'add')
+  it('bulkAssignOrganizationUsers: users с индивидуальным required_approval + mode', async () => {
+    await bulkAssignOrganizationUsers([1], [
+      { username: 'ivanov', required_approval: true },
+      { username: 'petrov', required_approval: false },
+    ], 'add')
     const call = apiRequest.mock.calls[0]
     expect(call[0]).toBe('/organizations/bulk/users')
     expect(bodyOf(call)).toEqual({
       ids: [1],
-      usernames: ['ivanov', 'petrov'],
-      required_approval: true,
+      users: [
+        { username: 'ivanov', required_approval: true },
+        { username: 'petrov', required_approval: false },
+      ],
       mode: 'add',
     })
   })
@@ -99,9 +104,9 @@ describe('api/organizations — bulk-обёртки', () => {
     expect(apiRequest.mock.calls[2][0]).toBe('/companies/bulk/tables')
     expect(bodyOf(apiRequest.mock.calls[2])).toEqual({ ids: [1], table_ids: [2], mode: 'add' })
 
-    await bulkAssignCompanyUsers([1], ['u'], false, 'replace')
+    await bulkAssignCompanyUsers([1], [{ username: 'u', required_approval: false }], 'replace')
     expect(apiRequest.mock.calls[3][0]).toBe('/companies/bulk/users')
-    expect(bodyOf(apiRequest.mock.calls[3])).toEqual({ ids: [1], usernames: ['u'], required_approval: false, mode: 'replace' })
+    expect(bodyOf(apiRequest.mock.calls[3])).toEqual({ ids: [1], users: [{ username: 'u', required_approval: false }], mode: 'replace' })
 
     await bulkArchiveCompanies([1])
     expect(apiRequest.mock.calls[4][0]).toBe('/companies/bulk/archive')

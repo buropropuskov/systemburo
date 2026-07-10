@@ -107,23 +107,14 @@
           </div>
         </div>
         <p class="bulk-op__hint">
-          {{ modeHint }} Главного ответственного групповая операция не назначает.
+          {{ modeHint }} Обязательное согласование задаётся на каждого отдельно. Главного ответственного групповая операция не назначает.
         </p>
 
         <ResponsibleUsersSection
-          v-model="usernames"
+          v-model="responsibleUsers"
           selection-mode
           :entity-type="entityType"
         />
-
-        <label class="bulk-op__toggle">
-          <ToggleSwitch
-            v-model="requiredApproval"
-            data-testid="bulk-op-required-approval"
-          >
-            Обязательное согласование для назначенных
-          </ToggleSwitch>
-        </label>
       </div>
     </div>
 
@@ -150,7 +141,6 @@
 <script>
 import BaseModal from '@/components/ui/BaseModal.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
-import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 import SelectUnloadPlaces from '@/components/SelectUnloadPlaces.vue';
 import SelectTables from '@/components/SelectTables.vue';
 import ResponsibleUsersSection from '@/components/ResponsibleUsersSection.vue';
@@ -171,7 +161,7 @@ const NONE_TYPE = '__none__';
  */
 export default {
   name: 'BulkOperationsModal',
-  components: { BaseModal, BaseDropdown, ToggleSwitch, SelectUnloadPlaces, SelectTables, ResponsibleUsersSection },
+  components: { BaseModal, BaseDropdown, SelectUnloadPlaces, SelectTables, ResponsibleUsersSection },
   props: {
     show: { type: Boolean, default: false },
     entityType: {
@@ -191,8 +181,7 @@ export default {
       mode: 'replace',
       placeIds: [],
       tableIds: [],
-      usernames: [],
-      requiredApproval: false,
+      responsibleUsers: [], // [{username, required_approval}] - согласование индивидуально
       typeOptions: [
         ...ORG_TYPE_CREATE_OPTIONS,
         { label: 'Снять тип (не указан)', value: NONE_TYPE },
@@ -230,7 +219,7 @@ export default {
         case 'tables':
           return this.tableIds.length > 0;
         case 'users':
-          return this.usernames.length > 0;
+          return this.responsibleUsers.length > 0;
         default:
           return false;
       }
@@ -250,8 +239,7 @@ export default {
       this.mode = 'replace';
       this.placeIds = [];
       this.tableIds = [];
-      this.usernames = [];
-      this.requiredApproval = false;
+      this.responsibleUsers = [];
     },
 
     onApply() {
@@ -269,8 +257,7 @@ export default {
           break;
         case 'users':
           payload = {
-            usernames: [...this.usernames],
-            requiredApproval: this.requiredApproval,
+            users: this.responsibleUsers.map(u => ({ username: u.username, required_approval: !!u.required_approval })),
             mode: this.mode,
           };
           break;
@@ -358,12 +345,6 @@ export default {
   margin: 0;
   font-size: 12px;
   color: #a2a2a2;
-}
-
-.bulk-op__toggle {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
 }
 
 /* кнопки действий (эталон SelectionModal actions) */

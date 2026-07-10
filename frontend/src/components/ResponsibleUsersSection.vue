@@ -120,10 +120,7 @@
               class="tag tag-main"
             >главный</span>
           </div>
-          <div
-            v-if="!selectionMode"
-            class="toggle-row"
-          >
+          <div class="toggle-row">
             <label class="switch">
               <input
                 v-model="user.required_approval"
@@ -186,8 +183,9 @@ export default {
       required: true,
       validator: value => ['organization', 'company'].includes(value)
     },
-    // Режим «только выбор» (групповые операции): без fetch/save сущности, без
-    // главного и per-user согласования; выбор через v-model (массив username).
+    // Режим «только выбор» (групповые операции): без fetch/save сущности и без
+    // назначения главного; обязательное согласование - per-user (тумблер на каждой
+    // карточке). Выбор через v-model = массив {username, required_approval}.
     selectionMode: {
       type: Boolean,
       default: false
@@ -464,20 +462,30 @@ export default {
       if (this.selectionMode) this.emitSelection();
     },
 
-    syncSelectedFromModel(usernames) {
-      const list = usernames || [];
-      const current = this.selectedUsers.map(u => u.username);
-      if (JSON.stringify(current) === JSON.stringify(list)) return;
-      this.selectedUsers = list.map(un => {
-        const full = this.allUsers.find(u => u.username === un);
+    syncSelectedFromModel(items) {
+      // modelValue групповой операции - массив {username, required_approval}
+      const norm = (Array.isArray(items) ? items : []).map(x => ({
+        username: x.username,
+        required_approval: !!x.required_approval,
+      }));
+      const current = this.selectedUsers.map(u => ({
+        username: u.username,
+        required_approval: !!u.required_approval,
+      }));
+      if (JSON.stringify(current) === JSON.stringify(norm)) return;
+      this.selectedUsers = norm.map(({ username, required_approval }) => {
+        const full = this.allUsers.find(u => u.username === username);
         return full
-          ? { ...full, is_primary: false, required_approval: false }
-          : { username: un, is_primary: false, required_approval: false };
+          ? { ...full, is_primary: false, required_approval }
+          : { username, is_primary: false, required_approval };
       });
     },
 
     emitSelection() {
-      this.$emit('update:modelValue', this.selectedUsers.map(u => u.username));
+      this.$emit('update:modelValue', this.selectedUsers.map(u => ({
+        username: u.username,
+        required_approval: !!u.required_approval,
+      })));
     },
 
     setAsPrimary(user) {
@@ -497,6 +505,7 @@ export default {
       if (selectedUser) {
         selectedUser.required_approval = user.required_approval;
       }
+      if (this.selectionMode) this.emitSelection();
     },
 
     handleSearchInput() {

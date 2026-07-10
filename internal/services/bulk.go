@@ -83,14 +83,20 @@ type BulkTablesRequest struct {
 	Mode     string `json:"mode"`
 }
 
+// BulkUserAssignment — назначаемый ответственный с индивидуальным флагом
+// обязательного согласования (задаётся на каждого отдельно, как в детали).
+type BulkUserAssignment struct {
+	Username         string `json:"username"`
+	RequiredApproval bool   `json:"required_approval"`
+}
+
 // BulkUsersRequest — групповое назначение ответственных с режимом. primary в
-// группе не назначается (per-entity деталь), задаётся только набор + флаг
-// required_approval, единый для всех назначаемых.
+// группе не назначается (per-entity деталь); обязательное согласование
+// индивидуально на каждого назначаемого.
 type BulkUsersRequest struct {
-	IDs              []int    `json:"ids"`
-	Usernames        []string `json:"usernames"`
-	RequiredApproval bool     `json:"required_approval"`
-	Mode             string   `json:"mode"`
+	IDs   []int                `json:"ids"`
+	Users []BulkUserAssignment `json:"users"`
+	Mode  string               `json:"mode"`
 }
 
 // --- Хелперы ---

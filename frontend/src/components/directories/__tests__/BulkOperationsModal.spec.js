@@ -6,7 +6,6 @@ const apiMock = vi.hoisted(() => ({ apiRequest: vi.fn() }))
 vi.mock('@/api/client', () => apiMock)
 
 import BulkOperationsModal from '../BulkOperationsModal.vue'
-import ToggleSwitch from '@/components/ui/ToggleSwitch.vue'
 import BaseDropdown from '@/components/ui/BaseDropdown.vue'
 import SelectUnloadPlaces from '@/components/SelectUnloadPlaces.vue'
 import SelectTables from '@/components/SelectTables.vue'
@@ -106,7 +105,7 @@ describe('BulkOperationsModal', () => {
     expect(w.emitted('apply')[0]).toEqual([{ tableIds: [10], mode: 'replace' }])
   })
 
-  it('операция users: переиспользует ResponsibleUsersSection + общий флаг согласования', async () => {
+  it('операция users: ResponsibleUsersSection, согласование ИНДИВИДУАЛЬНО на каждого', async () => {
     const w = await mountShown('users')
     const resp = w.findComponent(ResponsibleUsersSection)
     expect(resp.exists()).toBe(true)
@@ -114,14 +113,21 @@ describe('BulkOperationsModal', () => {
     // ничего не выбрано -> недоступно
     expect(applyBtn(w).attributes('disabled')).toBeDefined()
 
-    resp.vm.$emit('update:modelValue', ['ivanov'])
-    await flushPromises()
-    w.findComponent(ToggleSwitch).vm.$emit('update:modelValue', true)
+    resp.vm.$emit('update:modelValue', [
+      { username: 'ivanov', required_approval: true },
+      { username: 'petrov', required_approval: false },
+    ])
     await flushPromises()
 
     await applyBtn(w).trigger('click')
     expect(w.emitted('apply')[0]).toEqual([
-      { usernames: ['ivanov'], requiredApproval: true, mode: 'replace' },
+      {
+        users: [
+          { username: 'ivanov', required_approval: true },
+          { username: 'petrov', required_approval: false },
+        ],
+        mode: 'replace',
+      },
     ])
   })
 

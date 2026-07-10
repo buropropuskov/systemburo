@@ -512,7 +512,7 @@ func (h *CompanyHandler) BulkAssignUsers(c echo.Context) error {
 	if len(req.IDs) == 0 {
 		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны компании")
 	}
-	res, err := h.service.BulkAssignUsers(c.Request().Context(), req.IDs, req.Usernames, req.RequiredApproval, req.Mode)
+	res, err := h.service.BulkAssignUsers(c.Request().Context(), req.IDs, req.Users, req.Mode)
 	if err != nil {
 		return err
 	}

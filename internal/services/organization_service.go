@@ -81,7 +81,7 @@ type OrganizationService interface {
 
 	// BulkAssignUsers назначает ответственных набору организаций (replace|add).
 	// primary в группе не назначается, сохраняется у существующих.
-	BulkAssignUsers(ctx context.Context, ids []int, usernames []string, requiredApproval bool, mode string) (*BulkOpResult, error)
+	BulkAssignUsers(ctx context.Context, ids []int, assignments []BulkUserAssignment, mode string) (*BulkOpResult, error)
 
 	// BulkArchive архивирует набор организаций (частичный успех: активные с
 	// пользователями попадают в Errors).
@@ -772,7 +772,7 @@ func (s *organizationService) BulkAssignTables(ctx context.Context, ids, tableID
 // новым выставляется is_primary=false и переданный required_approval. В режиме
 // replace итоговый набор = выбранные (у оставшегося primary сохраняется), в add
 // = текущие как есть + недостающие выбранные.
-func (s *organizationService) BulkAssignUsers(ctx context.Context, ids []int, usernames []string, requiredApproval bool, mode string) (*BulkOpResult, error) {
+func (s *organizationService) BulkAssignUsers(ctx context.Context, ids []int, assignments []BulkUserAssignment, mode string) (*BulkOpResult, error) {
 	if !isValidBulkMode(mode) {
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Некорректный режим (replace|add)")
 	}
@@ -783,7 +783,7 @@ func (s *organizationService) BulkAssignUsers(ctx context.Context, ids []int, us
 			res.addError(id, "", "Организация не найдена")
 			continue
 		}
-		users, err := s.buildBulkUsers(ctx, id, usernames, requiredApproval, mode)
+		users, err := s.buildBulkUsers(ctx, id, assignments, mode)
 		if err != nil {
 			res.addError(id, org.Name, "Ошибка чтения ответственных")
 			continue
@@ -799,7 +799,7 @@ func (s *organizationService) BulkAssignUsers(ctx context.Context, ids []int, us
 
 // buildBulkUsers формирует итоговый список ответственных для одной организации,
 // сохраняя primary существующих (см. BulkAssignUsers).
-func (s *organizationService) buildBulkUsers(ctx context.Context, orgID int, usernames []string, requiredApproval bool, mode string) ([]OrganizationUserRequest, error) {
+func (s *organizationService) buildBulkUsers(ctx context.Context, orgID int, assignments []BulkUserAssignment, mode string) ([]OrganizationUserRequest, error) {
 	type curRow struct {
 		Username         string
 		IsPrimary        bool
@@ -818,7 +818,7 @@ func (s *organizationService) buildBulkUsers(ctx context.Context, orgID int, use
 		existing[r.Username] = r
 	}
 
-	users := make([]OrganizationUserRequest, 0, len(rows)+len(usernames))
+	users := make([]OrganizationUserRequest, 0, len(rows)+len(assignments))
 	if mode == BulkModeAdd {
 		// Существующие сохраняем как есть (флаги, включая primary, не трогаем).
 		for _, r := range rows {
@@ -826,7 +826,8 @@ func (s *organizationService) buildBulkUsers(ctx context.Context, orgID int, use
 			users = append(users, OrganizationUserRequest{Username: r.Username, IsPrimary: &isP, RequiredApproval: &ra})
 		}
 	}
-	for _, un := range usernames {
+	for _, a := range assignments {
+		un := a.Username
 		if _, ok := existing[un]; ok && mode == BulkModeAdd {
 			continue // add: уже в наборе - не дублируем и не трогаем флаги
 		}
@@ -834,7 +835,7 @@ func (s *organizationService) buildBulkUsers(ctx context.Context, orgID int, use
 		if cur, ok := existing[un]; ok {
 			isP = cur.IsPrimary // replace: primary оставшегося сохраняется
 		}
-		ra := requiredApproval
+		ra := a.RequiredApproval // индивидуальный флаг согласования
 		users = append(users, OrganizationUserRequest{Username: un, IsPrimary: &isP, RequiredApproval: &ra})
 	}
 	return users, nil

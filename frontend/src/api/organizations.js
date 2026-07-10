@@ -134,8 +134,8 @@ export function bulkAssignOrganizationTables(ids, tableIds, mode) {
   return bulkRequest('organizations', 'tables', { ids, table_ids: tableIds, mode });
 }
 /** Групповое назначение ответственных организациям (mode=replace|add, primary не назначается). */
-export function bulkAssignOrganizationUsers(ids, usernames, requiredApproval, mode) {
-  return bulkRequest('organizations', 'users', { ids, usernames, required_approval: requiredApproval, mode });
+export function bulkAssignOrganizationUsers(ids, users, mode) {
+  return bulkRequest('organizations', 'users', { ids, users, mode });
 }
 /** Групповое архивирование организаций. */
 export function bulkArchiveOrganizations(ids) {
@@ -159,8 +159,8 @@ export function bulkAssignCompanyTables(ids, tableIds, mode) {
   return bulkRequest('companies', 'tables', { ids, table_ids: tableIds, mode });
 }
 /** Групповое назначение ответственных компаниям (mode=replace|add, primary не назначается). */
-export function bulkAssignCompanyUsers(ids, usernames, requiredApproval, mode) {
-  return bulkRequest('companies', 'users', { ids, usernames, required_approval: requiredApproval, mode });
+export function bulkAssignCompanyUsers(ids, users, mode) {
+  return bulkRequest('companies', 'users', { ids, users, mode });
 }
 /** Групповое архивирование компаний. */
 export function bulkArchiveCompanies(ids) {

@@ -965,7 +965,7 @@ export default {
             result = await bulkAssignOrganizationTables(ids, payload.tableIds, payload.mode);
             break;
           case 'users':
-            result = await bulkAssignOrganizationUsers(ids, payload.usernames, payload.requiredApproval, payload.mode);
+            result = await bulkAssignOrganizationUsers(ids, payload.users, payload.mode);
             break;
           default:
             this.bulkSubmitting = false;
