@@ -184,34 +184,47 @@
               />
             </div>
 
-            <VehicleForm
-              v-if="!isPeople"
-              ref="vehicleForm"
-              :user-organization="selectedOrgName"
-              :user-organization-id="selectedOrgId"
-              :user-company="selectedCompanyName"
-              :user-company-id="selectedCompanyId"
-              :existing-vehicles="addedVehicles"
-              :allow-existing-search="false"
-              :disabled="!selectedOrgId"
-              @vehicle-added="handleVehicleAdded"
-              @vehicles-added="handleVehiclesAdded"
-              @vehicle-updated="handleVehicleUpdated"
-            />
-            <EmployeeForm
-              v-else
-              ref="employeeForm"
-              :user-organization="selectedOrgName"
-              :user-organization-id="selectedOrgId"
-              :user-company="selectedCompanyName"
-              :user-company-id="selectedCompanyId"
-              :existing-employees="addedEmployees"
-              :allow-existing-search="false"
-              :disabled="!selectedOrgId"
-              @employee-added="handleEmployeeAdded"
-              @employees-added="handleEmployeesAdded"
-              @employee-updated="handleEmployeeUpdated"
-            />
+            <div
+              class="manual-modal__form-section"
+              :class="{ 'manual-modal__form-section--locked': !selectedOrgId }"
+            >
+              <div
+                v-if="!selectedOrgId"
+                class="manual-modal__form-lock"
+                data-testid="manual-form-lock"
+              >
+                Сначала выберите организацию, чтобы {{ isPeople ? 'добавить сотрудников' : 'добавить машины' }}
+              </div>
+
+              <VehicleForm
+                v-if="!isPeople"
+                ref="vehicleForm"
+                :user-organization="selectedOrgName"
+                :user-organization-id="selectedOrgId"
+                :user-company="selectedCompanyName"
+                :user-company-id="selectedCompanyId"
+                :existing-vehicles="addedVehicles"
+                :allow-existing-search="false"
+                :disabled="!selectedOrgId"
+                @vehicle-added="handleVehicleAdded"
+                @vehicles-added="handleVehiclesAdded"
+                @vehicle-updated="handleVehicleUpdated"
+              />
+              <EmployeeForm
+                v-else
+                ref="employeeForm"
+                :user-organization="selectedOrgName"
+                :user-organization-id="selectedOrgId"
+                :user-company="selectedCompanyName"
+                :user-company-id="selectedCompanyId"
+                :existing-employees="addedEmployees"
+                :allow-existing-search="false"
+                :disabled="!selectedOrgId"
+                @employee-added="handleEmployeeAdded"
+                @employees-added="handleEmployeesAdded"
+                @employee-updated="handleEmployeeUpdated"
+              />
+            </div>
 
             <div
               v-if="!isPeople && addedVehicles.length"
@@ -942,6 +955,35 @@ export default {
 
 .manual-modal__dates {
     margin-bottom: 8px;
+}
+
+/* До выбора организации VehicleForm/EmployeeForm получают disabled -> нативный inert
+   (поля не реагируют на клики). Без визуального признака это читается как «сломанный
+   UI». Затемняем форму и показываем подсказку-пилюлю, что нужно сперва выбрать орг. */
+.manual-modal__form-section {
+    position: relative;
+}
+
+.manual-modal__form-section--locked :deep(.data__completion) {
+    opacity: 0.45;
+}
+
+.manual-modal__form-lock {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 2;
+    pointer-events: none;
+    background: var(--color-primary, #4f5bdf);
+    color: #fff;
+    padding: 9px 18px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    text-align: center;
+    max-width: calc(100% - 32px);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
 }
 
 .manual-modal__added {
