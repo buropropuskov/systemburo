@@ -189,6 +189,19 @@ describe('ManualAddModal (#1049 S8)', () => {
     expect(wrapper.emitted('added')).toBeFalsy();
   });
 
+  it('форма машины заблокирована с видимой подсказкой до выбора организации', async () => {
+    const wrapper = mountModal();
+    await flushPromises();
+    // без организации VehicleForm inert (disabled) - показываем подсказку, иначе форма
+    // выглядит активной, но не реагирует (баг «курсор не реагирует»)
+    const lock = wrapper.find('[data-testid="manual-form-lock"]');
+    expect(lock.exists()).toBe(true);
+    expect(lock.text()).toMatch(/организаци/i);
+    // после выбора организации подсказка исчезает, форма разблокирована
+    await wrapper.setData({ selectedOrgId: 7 });
+    expect(wrapper.find('[data-testid="manual-form-lock"]').exists()).toBe(false);
+  });
+
   it('vehicle-added накапливает список, удаление убирает', async () => {
     const wrapper = mountModal();
     await flushPromises();
