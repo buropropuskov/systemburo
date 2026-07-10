@@ -49,7 +49,6 @@
           v-if="isOpen"
           ref="menu"
           class="base-dropdown__menu"
-          :class="{ 'base-dropdown__menu--fixed': teleport }"
           :style="teleport ? menuStyle : null"
         >
           <div
@@ -209,7 +208,9 @@ export default {
         top: `${Math.round(r.bottom + 5)}px`,
         left: `${Math.round(r.left)}px`,
         width: `${Math.round(r.width)}px`,
-        zIndex: 30000,
+        // выше тела модалки (1000), но НИЖЕ глобальных блокирующих диалогов
+        // (ConfirmDialog 20000, SessionExpiredModal 25000) - см. [[z-index лестница]]
+        zIndex: 2000,
       };
     },
     addRepositionListeners() {
