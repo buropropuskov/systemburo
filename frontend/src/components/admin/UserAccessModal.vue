@@ -626,7 +626,7 @@ export default {
 
 .access-modal {
   background: #fff;
-  border-radius: 30px;
+  border-radius: 45px;
   width: 980px;
   max-width: 96vw;
   max-height: 92vh;

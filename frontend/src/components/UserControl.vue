@@ -206,6 +206,7 @@
       :show="showEditModal && !!selectedUser"
       width="880px"
       content-class="user-edit-modal"
+      radius="45px"
       :z-index="900"
       @close="closeEditModal"
     >
@@ -567,6 +568,7 @@
       title="Создание пользователя"
       width="600px"
       content-class="user-create-modal"
+      radius="45px"
       @close="closeCreateModal"
     >
       <div class="create-user-body">
@@ -1921,6 +1923,9 @@ export default {
 
 .tab-panel {
   animation: tab-fade 0.18s ease;
+  /* Единая высота вкладок - размер окна не прыгает при переключении. Значение
+     подобрано под самую высокую вкладку («Профиль»), короткие дотягиваются до неё. */
+  min-height: 524px;
 }
 
 @keyframes tab-fade {
@@ -1977,7 +1982,7 @@ export default {
 
 /* Тело модалки редактирования */
 .modal-body-inner {
-  padding: 24px;
+  padding: 12px 24px 22px;
 }
 
 /* Тело модалки создания */
@@ -2040,10 +2045,6 @@ export default {
   background: #fff;
 }
 
-/* Модалка создания пользователя: чуть уже (width prop 600) и скруглённее. */
-:deep(.user-create-modal) {
-  border-radius: 30px;
-}
 
 .modal-input:focus {
   border-color: #4F5BDF;
@@ -2193,9 +2194,6 @@ export default {
   }
 }
 
-/* Закруглённые углы модалок пользователя — локально, без изменения глобального токена */
-:deep(.user-edit-modal),
-:deep(.user-create-modal) {
-  border-radius: 30px;
-}
+/* Радиус окон редактирования/создания задаётся пропом radius у BaseModal
+   (content-class телепортится в body, scoped :deep до него не достаёт). */
 </style>
