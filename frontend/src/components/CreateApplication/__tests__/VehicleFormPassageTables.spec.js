@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
+import { apiRequest } from '@/api/client';
 import VehicleForm from '../VehicleForm.vue';
 
 // Блок "Проезд" в форме машины (#1036) - копия блока "Места прохода" из EmployeeForm,
@@ -10,21 +11,28 @@ const SYSTEM_TABLES = [
     { id: 11, name: 'passage-people', display_name: 'Проход для людей', table_type: 'people', status: 'active' },
 ];
 
+const { notifyMock } = vi.hoisted(() => ({ notifyMock: vi.fn() }));
+
+const defaultApiRequest = (url) => {
+    if (url === '/system-tables') {
+        return Promise.resolve({ ok: true, json: async () => SYSTEM_TABLES });
+    }
+    return Promise.resolve({ ok: true, json: async () => [] });
+};
+
 vi.mock('@/api/client', () => ({
-    apiRequest: vi.fn((url) => {
-        if (url === '/system-tables') {
-            return Promise.resolve({ ok: true, json: async () => SYSTEM_TABLES });
-        }
-        return Promise.resolve({ ok: true, json: async () => [] });
-    }),
+    apiRequest: vi.fn((url) => defaultApiRequest(url)),
 }));
 vi.mock('@/api/blacklist', () => ({ checkVehicleBlacklist: vi.fn().mockResolvedValue(null) }));
 vi.mock('@/stores/auth', () => ({ useAuthStore: vi.fn(() => ({ token: 'test-token' })) }));
-vi.mock('@/stores/deletions', () => ({ useDeletionsStore: vi.fn(() => ({ notify: vi.fn(), enqueue: vi.fn() })) }));
+vi.mock('@/stores/deletions', () => ({ useDeletionsStore: vi.fn(() => ({ notify: notifyMock, enqueue: vi.fn() })) }));
 vi.mock('@/api/marks', () => ({ listMarks: vi.fn().mockResolvedValue([]) }));
 
 describe('VehicleForm - блок "Проезд" (#1036)', () => {
-    beforeEach(() => { vi.clearAllMocks(); });
+    beforeEach(() => {
+        vi.clearAllMocks();
+        apiRequest.mockImplementation(defaultApiRequest);
+    });
 
     it('рендерит только таблицы table_type=cars, скрывая people', async () => {
         const w = mount(VehicleForm, { props: {}, attachTo: document.body });
@@ -68,5 +76,30 @@ describe('VehicleForm - блок "Проезд" (#1036)', () => {
         const emitted = w.emitted('vehicle-added');
         expect(emitted).toBeTruthy();
         expect(emitted[0][0].passage_tables).toEqual([10]);
+    });
+
+    it('НЕ автовыбирает места проезда по организации и НЕ показывает уведомление (#1036)', async () => {
+        apiRequest.mockImplementation((url) => {
+            if (url === '/system-tables') return Promise.resolve({ ok: true, json: async () => SYSTEM_TABLES });
+            if (url === '/organizations/7/tables') return Promise.resolve({
+                ok: true,
+                json: async () => [
+                    { id: 10, name: 'passage-cars', display_name: 'Проезд для машин', table_type: 'cars', status: 'active' },
+                ],
+            });
+            return Promise.resolve({ ok: true, json: async () => [] });
+        });
+
+        const w = mount(VehicleForm, {
+            props: { userOrganizationId: 7, userOrganization: 'ООО Ромашка' },
+            attachTo: document.body,
+        });
+        await flushPromises();
+
+        // Таблица привязана к организации, но НЕ выбрана автоматически - пользователь выбирает сам.
+        expect(w.vm.selectedPassageTables).toEqual([]);
+        expect(notifyMock).not.toHaveBeenCalledWith(
+            expect.objectContaining({ prefix: expect.stringContaining('автоматически') }),
+        );
     });
 });
