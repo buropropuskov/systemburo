@@ -61,6 +61,7 @@ type Dependencies struct {
 	Bureau              *handlers.BureauHandler
 	WorkModes           *handlers.WorkModesHandler
 	Audit               *handlers.AuditHandler
+	AuthEvents          *handlers.AuthEventHandler
 	Events              *handlers.EventsHandler
 
 	// Services (для middleware и audit)
@@ -124,6 +125,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	statistics := d.Statistics
 	bureau := d.Bureau
 	audit := d.Audit
+	authEvents := d.AuthEvents
 	events := d.Events
 	permResolver := d.PermResolver
 	denialLog := d.DenialLog
@@ -415,6 +417,8 @@ func Setup(e *echo.Echo, d Dependencies) {
 	protected.DELETE("/users/:username", users.Delete, requireUsers)
 	protected.POST("/users/:username/restore", users.Restore, requireUsers)
 	protected.GET("/users/:username/history", users.GetHistory, requireUsers)
+	// История входов пользователя (auth_events): вход/выход/провал/блокировка/сессия.
+	protected.GET("/users/:username/auth-events", authEvents.ListForUser, requireUsers)
 	// Привязка мест доступа к охраннику (#706)
 	protected.GET("/users/:username/unload-places", users.GetUserUnloadPlaces, requireUsers)
 	protected.PUT("/users/:username/unload-places", users.SetUserUnloadPlaces, requireUsers)

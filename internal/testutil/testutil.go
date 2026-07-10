@@ -68,7 +68,7 @@ var tables = []string{
 	"license_plate_format_cells", "license_plate_formats",
 	"citizenships",
 	"companies_users", "organization_users",
-	"refresh_tokens", "users",
+	"auth_events", "refresh_tokens", "users",
 	"roles",
 	"companies", "organizations", "user_types",
 }
@@ -207,6 +207,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	documentHandler := handlers.NewDocumentHandler(documentService, documentFileService)
 	guideHandler := handlers.NewGuideHandler(guideService, guideFileService, 10*1024*1024)
 	auditHandler := handlers.NewAuditHandler(services.NewAuditReader(db))
+	authEventHandler := handlers.NewAuthEventHandler(services.NewAuthEventReader(db))
 
 	// Setup Echo with routes (no rate limiter, no logger — clean for tests)
 	e := echo.New()
@@ -261,6 +262,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 		Documents:           documentHandler,
 		Guide:               guideHandler,
 		Audit:               auditHandler,
+		AuthEvents:          authEventHandler,
 		PermResolver:        permissionResolver,
 		DenialLog:           accessDenialService,
 		JWTSecret:           []byte(TestJWTSecret),
