@@ -284,6 +284,7 @@ func main() {
 	guideHandler := handlers.NewGuideHandler(guideService, guideFileService, cfg.UploadMaxFileSize)
 	statisticsHandler := handlers.NewStatisticsHandler(statisticsService)
 	auditHandler := handlers.NewAuditHandler(services.NewAuditReader(db))
+	authEventHandler := handlers.NewAuthEventHandler(services.NewAuthEventReader(db))
 
 	// Swagger UI: http://localhost:8090/swagger/index.html
 	if cfg.SwaggerEnabled {
@@ -353,6 +354,7 @@ func main() {
 		Statistics:          statisticsHandler,
 		Onboarding:          onboardingHandler,
 		Audit:               auditHandler,
+		AuthEvents:          authEventHandler,
 		Events:              eventsHandler,
 		PermResolver:        permissionResolver,
 		DenialLog:           accessDenialService,
