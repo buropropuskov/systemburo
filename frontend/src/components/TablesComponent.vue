@@ -124,7 +124,7 @@
       </div>
       <div class="filters__options">
         <button
-          v-if="tableType === 'cars' && can('entity.cars.manual_add')"
+          v-if="canManualAdd"
           class="options__manual-add"
           data-testid="manual-add-button"
           @click="showManualAdd = true"
@@ -268,6 +268,7 @@
 
     <ManualAddModal
       :show="showManualAdd"
+      :mode="tableType || 'cars'"
       :table-id="tableData?.table?.id"
       :table-name="tableDisplayName"
       @close="showManualAdd = false"
@@ -390,6 +391,15 @@ export default {
         showUnloadingFilter() {
             return this.tableType === 'cars';
         },
+
+        // Кнопка "Добавить вручную" (#1049): для cars - право entity.cars.manual_add,
+        // для people - entity.employees.manual_add (super/admin проходят авто). Ключ
+        // зеркалит BE-гейт роутов /cars/manual и /employees/manual (RequirePermissionV2).
+        canManualAdd() {
+            if (this.tableType === 'cars') return this.can('entity.cars.manual_add');
+            if (this.tableType === 'people') return this.can('entity.employees.manual_add');
+            return false;
+        },
         
         sanitizedHint() {
             return this.sanitizeHtml(this.tableFactHint);
@@ -459,10 +469,11 @@ export default {
             }
         },
 
-        // Ручные машины появились в текущей и fact-таблице (#1049) - перегружаем строки
+        // Ручные записи появились в текущей и fact-таблице (#1049) - перегружаем строки
         // напрямую (real-time #840 продублирует по target-таблице, здесь для мгновенного отклика).
         onManualAdded() {
             this.$refs.carsTable?.loadData?.();
+            this.$refs.peopleTable?.loadData?.();
             this.$refs.factTable?.loadData?.();
         },
         

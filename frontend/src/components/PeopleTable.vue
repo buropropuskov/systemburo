@@ -383,7 +383,13 @@
                   :class="fieldColClass('application_id')"
                   :style="getColStyle('application_id')"
                 >
-                  {{ item.applicationNumber || '-' }}
+                  <span
+                    v-if="isManualItem(item)"
+                    class="manual-badge"
+                  >Добавлено вручную</span>
+                  <template v-else>
+                    {{ item.applicationNumber || '-' }}
+                  </template>
                 </div>
                 <div
                   class="col status-col"
@@ -1111,6 +1117,12 @@ export default {
       this.selectedEmployee = null;
     },
 
+    // Сотрудник добавлен вручную без заявки (#1049): application_id === null (BE отдаёт
+    // NULL для вложения-сироты). Строгий null - у обычных строк applicationId - число.
+    isManualItem(item) {
+      return item.applicationId === null;
+    },
+
     openApplicationDetail(applicationId) {
       // Убрано закрытие модалки сотрудника
       this.$emit('open-application', applicationId);
@@ -1285,7 +1297,7 @@ export default {
         case 'company': return item.company || '-';
         case 'valid_until': return this.formatDate(item.entry_date_to);
         case 'pass_time': return item.pass_time || '-';
-        case 'application_id': return item.applicationNumber || '-';
+        case 'application_id': return this.isManualItem(item) ? 'Добавлено вручную' : (item.applicationNumber || '-');
         default: return '-';
       }
     },
@@ -1561,6 +1573,18 @@ export default {
 .application-col { flex: 11 0 0; }
 .status-col { flex: 8 0 0; }
 .actions-col { flex: 2 0 0; padding-right: 0; }
+
+.manual-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: #4f5bdf;
+  background: rgba(79, 91, 223, 0.1);
+  white-space: nowrap;
+}
 
 .header-row .col {
   font-weight: 500;

@@ -7,6 +7,7 @@
     <div class="completion__header">
       <h3>Новый сотрудник</h3>
       <button
+        v-if="allowExistingSearch"
         class="completion__button"
         @click="openExistingEmployeesModal"
       >
@@ -469,6 +470,13 @@ export default {
         disabled: {
             type: Boolean,
             default: false
+        },
+        // Ручное добавление (#1049): DTO ManualEmployee не имеет existing_employee_id,
+        // поэтому выбор "существующего" сотрудника создал бы дубликат - прячем поиск
+        // в этом контексте (зеркало VehicleForm.allowExistingSearch).
+        allowExistingSearch: {
+            type: Boolean,
+            default: true
         }
     },
     emits: ['edit-cancelled', 'employee-added', 'employee-updated', 'employees-added'],
@@ -637,22 +645,28 @@ export default {
             this.loadPassageTables()
         ]);
 
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('.citizenship__dropdown')) {
-                this.isCitizenshipDropdownOpen = false;
-            }
-            
-            if (!e.target.closest('.permission__dropdown')) {
-                this.isPermissionDropdownOpen = false;
-            }
-        });
+        document.addEventListener('click', this.handleDocumentClick);
     },
     beforeUnmount() {
+        document.removeEventListener('click', this.handleDocumentClick);
         if (this.blacklistTimeout) {
             clearTimeout(this.blacklistTimeout);
         }
     },
     methods: {
+        // Закрывает открытые дропдауны при клике вне них. Именованный метод (не
+        // анонимная стрелка в mounted) - иначе removeEventListener не снимет слушатель
+        // и он копится при частом откр/закр формы в модалке ручного добавления.
+        handleDocumentClick(e) {
+            if (!e.target.closest('.citizenship__dropdown')) {
+                this.isCitizenshipDropdownOpen = false;
+            }
+
+            if (!e.target.closest('.permission__dropdown')) {
+                this.isPermissionDropdownOpen = false;
+            }
+        },
+
         async loadCitizenships() {
             try {
                 const response = await apiRequest("/citizenships", {
@@ -689,14 +703,7 @@ export default {
 
         if (allTablesResponse.ok) {
             const tables = await allTablesResponse.json();
-            console.log('RAW DATA from /system-tables:', JSON.stringify(tables, null, 2));
-            
-            if (tables && tables.length > 0) {
-    console.log('First table structure:', tables[0]);
-    console.log('Has table field:', 'table' in tables[0]);
-    console.log('Has id field directly:', 'id' in tables[0]);
-}
-            
+
             // Нормализуем данные
             this.allPassageTables = tables.map(table => {
                 // Если данные уже в правильном формате
@@ -722,8 +729,6 @@ export default {
                     };
                 }
             });
-            
-            console.log('NORMALIZED allPassageTables:', this.allPassageTables);
         } else {
             const errorText = await allTablesResponse.text();
             console.error("Ошибка при загрузке системных таблиц:", errorText);
@@ -736,8 +741,7 @@ export default {
 
             if (orgTablesResponse.ok) {
                 const orgTables = await orgTablesResponse.json();
-                console.log('Organization tables:', orgTables);
-                
+
                 this.attachedPassageTables = orgTables.map(table => {
                     if (table.table) {
                         return table;
@@ -777,8 +781,7 @@ export default {
 
             if (companyTablesResponse.ok) {
                 const companyTables = await companyTablesResponse.json();
-                console.log('Company tables:', companyTables);
-                
+
                 this.attachedPassageTables = companyTables.map(table => {
                     if (table.table) {
                         return table;
