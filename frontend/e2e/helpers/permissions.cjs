@@ -10,7 +10,7 @@ const SUPER_ADMIN = {
 };
 
 // Прямой URL до backend API. На staging - nginx проксирует /api на бэк
-// (https://stagingburo.washka17.site/api). В CI и dev фронт на :8081
+// (https://stagingburo.washka17.ru/api). В CI и dev фронт на :8081
 // без proxy, бэк на :8080 - тогда нужен absolute URL.
 const API_BASE = process.env.E2E_API_BASE_URL || '/api';
 
