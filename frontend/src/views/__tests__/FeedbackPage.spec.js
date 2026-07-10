@@ -95,24 +95,26 @@ describe('FeedbackPage', () => {
     expect(wrapper.findAll('[data-testid="fb-row"]')).toHaveLength(3);
     expect(wrapper.find('.list-footer').text()).toContain('Всего: 3');
 
-    // Авто-выбор открыл первое непрочитанное (#3) -> оно авто-прочитано,
-    // поэтому "Новые" = 1 (остаётся #2). Статусные вкладки чтением не затронуты.
+    // При входе ничего не открывается автоматически -> ни одно обращение не
+    // прочитано, "Новые" = 2 (#2, #3). Статусные вкладки чтением не затронуты.
     expect(wrapper.findComponent(FilterTabs).props('tabs')).toEqual([
       { key: 'all', label: 'Все', count: 3 },
-      { key: 'new', label: 'Новые', count: 1 },
+      { key: 'new', label: 'Новые', count: 2 },
       { key: 'open', label: 'В работе', count: 2 },
       { key: 'resolved', label: 'Решено', count: 1 },
     ]);
   });
 
-  it('авто-выбирает первое обращение и показывает деталь', async () => {
+  it('при входе на вкладку не открывает обращение автоматически', async () => {
     getAllFeedback.mockResolvedValue([fb(5), fb(9)]);
     wrapper = mountPage();
     await flushPromises();
 
-    // сортировка по id desc -> первым идёт #9
-    expect(wrapper.find('[data-testid="fb-detail"]').exists()).toBe(true);
-    expect(wrapper.find('.detail-title').text()).toContain('Обращение #9');
+    // Список отрисован, но деталь не показана - открытие только по клику.
+    expect(wrapper.findAll('[data-testid="fb-row"]')).toHaveLength(2);
+    expect(wrapper.find('[data-testid="fb-detail"]').exists()).toBe(false);
+    expect(wrapper.find('.no-selection').exists()).toBe(true);
+    expect(markFeedbackAsRead).not.toHaveBeenCalled();
   });
 
   it('клик по строке открывает её деталь', async () => {
@@ -129,6 +131,7 @@ describe('FeedbackPage', () => {
     wrapper = mountPage();
     await flushPromises();
 
+    await rowByAuthor('Пользователь 7').trigger('click');
     await wrapper.find('[data-testid="fb-reply"]').setValue('Готово, проверьте раздел');
     await wrapper.find('[data-testid="fb-resolve"]').trigger('click');
     await flushPromises();
@@ -149,6 +152,7 @@ describe('FeedbackPage', () => {
     wrapper = mountPage();
     await flushPromises();
 
+    await rowByAuthor('Пользователь 7').trigger('click');
     await wrapper.find('[data-testid="fb-resolve"]').trigger('click');
     await flushPromises();
 
@@ -160,6 +164,7 @@ describe('FeedbackPage', () => {
     wrapper = mountPage();
     await flushPromises();
 
+    await rowByAuthor('Пользователь 7').trigger('click');
     expect(wrapper.find('[data-testid="fb-answer"]').exists()).toBe(true);
     await wrapper.find('[data-testid="fb-reopen"]').trigger('click');
     await flushPromises();
@@ -169,21 +174,30 @@ describe('FeedbackPage', () => {
     expect(wrapper.find('[data-testid="fb-reply"]').exists()).toBe(true);
   });
 
-  it('открытие обращения авто-отмечает его прочитанным и гасит бейдж через $bus', async () => {
+  it('клик по обращению авто-отмечает его прочитанным и гасит бейдж через $bus', async () => {
     getAllFeedback.mockResolvedValue([fb(4)]);
     wrapper = mountPage();
     await flushPromises();
 
-    // Авто-выбор открыл #4 -> персональная отметка прочтения (без второго аргумента).
+    // До клика ничего не открыто и не прочитано.
+    expect(markFeedbackAsRead).not.toHaveBeenCalled();
+
+    await rowByAuthor('Пользователь 4').trigger('click');
+    await flushPromises();
+
+    // Клик открыл #4 -> персональная отметка прочтения (без второго аргумента).
     expect(markFeedbackAsRead).toHaveBeenCalledWith(4);
     expect(busEmit).toHaveBeenCalledWith('feedback-read', 4);
-    // Ручной кнопки "Отметить прочитанным" больше нет.
+    // Ручной кнопки "Отметить прочитанным" нет.
     expect(wrapper.find('[data-testid="fb-read"]').exists()).toBe(false);
   });
 
   it('уже прочитанное обращение не отмечается повторно при открытии', async () => {
     getAllFeedback.mockResolvedValue([resolved(8)]);
     wrapper = mountPage();
+    await flushPromises();
+
+    await rowByAuthor('Пользователь 8').trigger('click');
     await flushPromises();
 
     expect(markFeedbackAsRead).not.toHaveBeenCalled();
@@ -206,11 +220,9 @@ describe('FeedbackPage', () => {
   });
 
   it('флажок: клик не открывает деталь и не отмечает прочтение', async () => {
-    // Оба обращения уже прочитаны -> авто-отметка не срабатывает и не переупорядочивает.
-    getAllFeedback.mockResolvedValue([resolved(4), resolved(6)]);
+    getAllFeedback.mockResolvedValue([fb(4), fb(6)]);
     wrapper = mountPage();
     await flushPromises();
-    markFeedbackAsRead.mockClear();
 
     // Клик по флажку строки #4 не должен её открыть или прочитать.
     await rowByAuthor('Пользователь 4').find('[data-testid="fb-flag"]').trigger('click');
@@ -218,8 +230,8 @@ describe('FeedbackPage', () => {
 
     expect(setFeedbackFlag).toHaveBeenCalledWith(4, true);
     expect(markFeedbackAsRead).not.toHaveBeenCalled();
-    // Выбранным осталось #6 (авто-выбор), деталь не переключилась на #4.
-    expect(wrapper.find('.detail-title').text()).toContain('Обращение #6');
+    // Ничего не открылось - деталь по-прежнему не показана.
+    expect(wrapper.find('[data-testid="fb-detail"]').exists()).toBe(false);
   });
 
   it('фильтр "Решено" оставляет только решённые обращения', async () => {
