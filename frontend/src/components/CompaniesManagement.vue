@@ -1245,6 +1245,7 @@ export default {
 
 <style scoped>
 .companies-management {
+  position: relative;
   background: #fff;
   border-radius: 16px;
   border: 1px solid #e6e6e6;
@@ -1296,14 +1297,25 @@ export default {
   background: #3a45b2;
 }
 
-/* Панель групповых операций */
+/* Панель групповых операций - оверлей поверх шапки, не двигает контент (reflow).
+   Высота = высоте .management-header (50px), карточка = position:relative. */
 .bulk-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 6;
+  height: 50px;
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 10px 20px;
+  padding: 0 20px;
   border-bottom: 1px solid #e6e6e6;
   background: #f0f2ff;
+  /* фиксированная высота оверлея + перенос кнопок = наезд на таблицу на узкой
+     карточке (expanded-nav ~800-965px). Держим одну строку, узко - горизонтальный скролл. */
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .bulk-count {
@@ -1317,8 +1329,13 @@ export default {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   margin-left: auto;
+}
+
+.bulk-actions .pill {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .bulk-clear {
@@ -1999,6 +2016,19 @@ export default {
 
   .add-header-button {
     justify-content: center;
+  }
+
+  /* на узких экранах шапка становится колонкой (height:auto) - оверлей не сработает,
+     возвращаем панель в поток (мобильный layout и так стекается), кнопки могут переноситься */
+  .bulk-bar {
+    position: static;
+    height: auto;
+    padding: 12px 16px;
+    overflow-x: visible;
+  }
+
+  .bulk-actions {
+    flex-wrap: wrap;
   }
 
   .table-header,
