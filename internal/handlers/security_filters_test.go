@@ -43,16 +43,19 @@ func (w secWorld) newSenderNamed(t *testing.T, username, last, first, middle str
 	return u.ID
 }
 
-// newAppWith создаёт согласованную заявку с заданными организацией/компанией/отправителем.
+// newAppWith создаёт согласованную заявку в активном допуске (status='В работе') с заданными
+// организацией/компанией/отправителем - видимую охране во вкладке "Доступные мне".
 func (w secWorld) newAppWith(t *testing.T, orgID int, companyID *int, senderID int) int {
 	t.Helper()
 	now := time.Now()
 	conf := models.ConfirmationApproved
+	st := models.StatusInWork
 	app := models.Application{
 		OrganizationID:  orgID,
 		CompanyID:       companyID,
 		SenderUserID:    senderID,
 		Confirmation:    &conf,
+		Status:          &st,
 		SendingDatetime: &now,
 	}
 	require.NoError(t, w.db.Create(&app).Error)

@@ -56,14 +56,18 @@ func secUserTypeIDByCode(t *testing.T, db *gorm.DB, code string) int {
 	return id
 }
 
+// newApp создаёт согласованную заявку в активном допуске (status='В работе') - именно такую видит
+// охрана во вкладке "Доступные мне" по умолчанию. Для нестандартного статуса - newAppWithStatus.
 func (w secWorld) newApp(t *testing.T, confirmation string) int {
 	t.Helper()
 	now := time.Now()
 	conf := confirmation
+	st := models.StatusInWork
 	app := models.Application{
 		OrganizationID:  w.orgID,
 		SenderUserID:    w.senderID,
 		Confirmation:    &conf,
+		Status:          &st,
 		SendingDatetime: &now,
 	}
 	require.NoError(t, w.db.Create(&app).Error)
@@ -254,6 +258,41 @@ func TestGetAvailableAttachments_WithdrawnHidden(t *testing.T) {
 	require.EqualValues(t, 1, total)
 	require.True(t, secContainsAttachment(rows, activeAtt))
 	require.False(t, secContainsAttachment(rows, withdrawnAtt), "отозванная заявка скрыта от охраны несмотря на confirmation=Согласовано")
+}
+
+// TestGetAvailableAttachments_RefusedAndProcessingHidden закрывает ту же дыру, что #951, но для
+// других не-активных статусов: принимающий отказывает в заявке (reject -> status='Отказано') либо
+// возвращает из работы (revoke_from_work -> status='В обработке'), при этом confirmation остаётся
+// 'Согласовано'. Ни то, ни другое не является активным допуском - вложение должно пропасть из
+// "Доступные мне" охраны, иначе она пропустит по отменённому пропуску.
+func TestGetAvailableAttachments_RefusedAndProcessingHidden(t *testing.T) {
+	w := setupSecurityWorld(t)
+	ctx := context.Background()
+
+	myPlace := w.newUnloadPlace(t, "Склад Г", true)
+	w.assignUnloadPlace(t, myPlace)
+
+	// Контроль: согласованная заявка в работе видна охране.
+	activeApp := w.newApp(t, models.ConfirmationApproved)
+	activeAtt := w.newAttachment(t, activeApp, "cars")
+	w.attachPlace(t, activeAtt, myPlace)
+
+	// Отказанная: confirmation='Согласовано', но статус "Отказано" - скрыта.
+	refusedApp := w.newAppWithStatus(t, models.ConfirmationApproved, models.StatusRefused)
+	refusedAtt := w.newAttachment(t, refusedApp, "cars")
+	w.attachPlace(t, refusedAtt, myPlace)
+
+	// Возвращённая из работы: confirmation='Согласовано', статус "В обработке" - не активный допуск, скрыта.
+	processingApp := w.newAppWithStatus(t, models.ConfirmationApproved, models.StatusProcessing)
+	processingAtt := w.newAttachment(t, processingApp, "cars")
+	w.attachPlace(t, processingAtt, myPlace)
+
+	rows, total, err := w.svc.GetAvailableAttachmentsForSecurity(ctx, w.guardID, false, services.AvailableAttachmentFilters{}, 1, 50)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, total)
+	require.True(t, secContainsAttachment(rows, activeAtt))
+	require.False(t, secContainsAttachment(rows, refusedAtt), "отказанная заявка скрыта от охраны несмотря на confirmation=Согласовано")
+	require.False(t, secContainsAttachment(rows, processingAtt), "заявка 'В обработке' скрыта от охраны - не активный допуск")
 }
 
 func TestGetAvailableAttachments_SuperAdminSeesAllApproved(t *testing.T) {
