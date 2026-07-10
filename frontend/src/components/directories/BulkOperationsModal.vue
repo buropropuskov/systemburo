@@ -22,6 +22,7 @@
         <label class="bulk-op__label">Новый тип</label>
         <BaseDropdown
           data-testid="bulk-op-type"
+          teleport
           :model-value="typeValue"
           :options="typeOptions"
           label-key="label"
@@ -62,14 +63,18 @@
         <p class="bulk-op__hint">
           {{ modeHint }}
         </p>
-        <GridSelector
-          :items="gridItems"
-          :model-value="gridSelectedIds"
-          item-key="id"
-          item-label="name"
-          :loading="loading"
-          :error-message="loadError"
-          @update:model-value="gridSelectedIds = $event"
+
+        <SelectUnloadPlaces
+          v-if="operation === 'unload-places'"
+          v-model="placeIds"
+          selection-mode
+          :entity-type="entityType"
+        />
+        <SelectTables
+          v-else
+          v-model="tableIds"
+          selection-mode
+          :entity-type="entityType"
         />
       </div>
 
@@ -105,41 +110,11 @@
           {{ modeHint }} Главного ответственного групповая операция не назначает.
         </p>
 
-        <button
-          type="button"
-          class="bulk-op__pick"
-          data-testid="bulk-op-pick-users"
-          @click="userPickerOpen = true"
-        >
-          ＋ Выбрать пользователей
-        </button>
-
-        <div
-          v-if="selectedUsers.length"
-          class="bulk-op__chips"
-        >
-          <span
-            v-for="u in selectedUsers"
-            :key="u.username"
-            class="bulk-op__chip"
-          >
-            {{ userLabel(u) }}
-            <button
-              type="button"
-              class="bulk-op__chip-x"
-              aria-label="Убрать"
-              @click="removeUser(u)"
-            >
-              ×
-            </button>
-          </span>
-        </div>
-        <p
-          v-else
-          class="bulk-op__empty"
-        >
-          Никто не выбран
-        </p>
+        <ResponsibleUsersSection
+          v-model="usernames"
+          selection-mode
+          :entity-type="entityType"
+        />
 
         <label class="bulk-op__toggle">
           <ToggleSwitch
@@ -170,50 +145,16 @@
       </button>
     </template>
   </BaseModal>
-
-  <SelectionModal
-    v-if="operation === 'users'"
-    :show="userPickerOpen"
-    title="Выбор ответственных"
-    search-placeholder="Поиск пользователя..."
-    :items="userPickerItems"
-    :loading="loading"
-    :disabled-ids="selectedUserIds"
-    confirm-label="Выбрать"
-    empty-text="Пользователи не найдены"
-    @close="userPickerOpen = false"
-    @confirm="onUsersConfirmed"
-    @search="onUserSearch"
-  >
-    <template #columns>
-      <div class="bulk-op__pick-col bulk-op__pick-col--name">
-        Пользователь
-      </div>
-      <div class="bulk-op__pick-col">
-        Должность
-      </div>
-    </template>
-    <template #row="{ item }">
-      <div class="bulk-op__pick-col bulk-op__pick-col--name">
-        {{ userLabel(item) }}
-        <span class="bulk-op__pick-username">@{{ item.username }}</span>
-      </div>
-      <div class="bulk-op__pick-col">
-        {{ item.position || '—' }}
-      </div>
-    </template>
-  </SelectionModal>
 </template>
 
 <script>
 import BaseModal from '@/components/ui/BaseModal.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
-import GridSelector from '@/components/ui/GridSelector.vue';
-import SelectionModal from '@/components/ui/SelectionModal.vue';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
-import { apiRequest } from '@/api/client';
+import SelectUnloadPlaces from '@/components/SelectUnloadPlaces.vue';
+import SelectTables from '@/components/SelectTables.vue';
+import ResponsibleUsersSection from '@/components/ResponsibleUsersSection.vue';
 import { ORG_TYPE_CREATE_OPTIONS } from '@/constants/orgTypes';
-import { matchesSearch } from '@/utils/searchVariants';
 
 // Сентинел «снять тип» в дропдауне: BaseDropdown с modelValue=null показывает
 // плейсхолдер, поэтому «не указан» несём отдельным значением и разворачиваем в
@@ -222,13 +163,15 @@ const NONE_TYPE = '__none__';
 
 /**
  * Модалка групповой операции над справочником (организации/компании).
- * Собирает параметры операции и эмитит `apply` с payload; сам батч-API,
- * разбор BulkOpResult и refresh выполняет родитель (*Management). Архив и
- * восстановление идут через ConfirmationModal в родителе, здесь их нет.
+ * Переиспользует эталонные секции выбора сайта (SelectUnloadPlaces/SelectTables/
+ * ResponsibleUsersSection) в режиме selectionMode - тот же вид, что в детали.
+ * Собирает параметры и эмитит `apply` с payload; батч-API, разбор BulkOpResult и
+ * refresh делает родитель (*Management). Архив/восстановление - ConfirmationModal
+ * в родителе, здесь их нет.
  */
 export default {
   name: 'BulkOperationsModal',
-  components: { BaseModal, BaseDropdown, GridSelector, SelectionModal, ToggleSwitch },
+  components: { BaseModal, BaseDropdown, ToggleSwitch, SelectUnloadPlaces, SelectTables, ResponsibleUsersSection },
   props: {
     show: { type: Boolean, default: false },
     entityType: {
@@ -246,16 +189,10 @@ export default {
     return {
       typeValue: null,
       mode: 'replace',
-      gridSelectedIds: [],
-      selectedUsers: [],
+      placeIds: [],
+      tableIds: [],
+      usernames: [],
       requiredApproval: false,
-      userPickerOpen: false,
-      userSearchVariants: [],
-      allUnloadPlaces: [],
-      allTables: [],
-      allUsers: [],
-      loading: false,
-      loadError: '',
       typeOptions: [
         ...ORG_TYPE_CREATE_OPTIONS,
         { label: 'Снять тип (не указан)', value: NONE_TYPE },
@@ -283,41 +220,17 @@ export default {
         ? 'Добавить к текущим привязкам, не снимая существующие.'
         : 'Заменить текущие привязки выбранным набором.';
     },
-    gridItems() {
-      // GridSelector гейтит клик по status==='active'; места несут реальный
-      // status, но таблицы (SystemTableWithDetails) — нет, поэтому нормализуем
-      // всё к плоскому активному элементу (как одиночные пикеры, где кликается
-      // любой элемент).
-      if (this.operation === 'unload-places') {
-        return this.allUnloadPlaces.map((p) => ({ id: p.id, name: p.name, status: 'active' }));
-      }
-      if (this.operation === 'tables') {
-        return this.allTables
-          .map((t) => (t.table ? t.table : t))
-          .filter((t) => t.table_type !== 'cars')
-          .map((t) => ({ id: t.id, name: t.display_name || t.name || 'Без названия', status: 'active' }));
-      }
-      return [];
-    },
-    selectedUserIds() {
-      return this.selectedUsers.map((u) => u.id);
-    },
-    userPickerItems() {
-      if (!this.userSearchVariants.length) return this.allUsers;
-      return this.allUsers.filter((u) =>
-        matchesSearch(`${this.userLabel(u)} ${u.username} ${u.position || ''}`, this.userSearchVariants)
-      );
-    },
     canApply() {
       if (this.submitting) return false;
       switch (this.operation) {
         case 'type':
           return this.typeValue !== null;
         case 'unload-places':
+          return this.placeIds.length > 0;
         case 'tables':
-          return this.gridSelectedIds.length > 0;
+          return this.tableIds.length > 0;
         case 'users':
-          return this.selectedUsers.length > 0;
+          return this.usernames.length > 0;
         default:
           return false;
       }
@@ -325,93 +238,20 @@ export default {
   },
   watch: {
     show(val) {
-      if (val) this.resetAndLoad();
+      if (val) this.reset();
     },
     operation() {
-      if (this.show) this.resetAndLoad();
+      if (this.show) this.reset();
     },
   },
   methods: {
-    resetAndLoad() {
+    reset() {
       this.typeValue = null;
       this.mode = 'replace';
-      this.gridSelectedIds = [];
-      this.selectedUsers = [];
+      this.placeIds = [];
+      this.tableIds = [];
+      this.usernames = [];
       this.requiredApproval = false;
-      this.userPickerOpen = false;
-      this.userSearchVariants = [];
-      this.loadError = '';
-      if (this.operation === 'unload-places') this.fetchUnloadPlaces();
-      else if (this.operation === 'tables') this.fetchTables();
-      else if (this.operation === 'users') this.fetchUsers();
-    },
-
-    async fetchUnloadPlaces() {
-      this.loading = true;
-      this.loadError = '';
-      try {
-        const res = await apiRequest('/unload-places');
-        if (!res.ok) throw new Error('bad status');
-        const data = await res.json();
-        this.allUnloadPlaces = Array.isArray(data) ? data : [];
-      } catch {
-        this.loadError = 'Не удалось загрузить места разгрузки';
-        this.allUnloadPlaces = [];
-      } finally {
-        this.loading = false;
-      }
-    },
-
-    async fetchTables() {
-      this.loading = true;
-      this.loadError = '';
-      try {
-        const res = await apiRequest('/system-tables');
-        if (!res.ok) throw new Error('bad status');
-        const data = await res.json();
-        this.allTables = Array.isArray(data) ? data : [];
-      } catch {
-        this.loadError = 'Не удалось загрузить таблицы';
-        this.allTables = [];
-      } finally {
-        this.loading = false;
-      }
-    },
-
-    async fetchUsers() {
-      this.loading = true;
-      this.loadError = '';
-      try {
-        const res = await apiRequest('/users/all');
-        if (!res.ok) throw new Error('bad status');
-        const data = await res.json();
-        this.allUsers = Array.isArray(data) ? data : [];
-      } catch {
-        this.loadError = 'Не удалось загрузить пользователей';
-        this.allUsers = [];
-      } finally {
-        this.loading = false;
-      }
-    },
-
-    userLabel(u) {
-      const parts = [u.last_name, u.first_name, u.middle_name].filter(Boolean);
-      return parts.join(' ') || u.username;
-    },
-
-    onUserSearch(variants) {
-      this.userSearchVariants = variants || [];
-    },
-
-    onUsersConfirmed(users) {
-      const existing = new Set(this.selectedUsers.map((u) => u.username));
-      users.forEach((u) => {
-        if (!existing.has(u.username)) this.selectedUsers.push(u);
-      });
-    },
-
-    removeUser(u) {
-      this.selectedUsers = this.selectedUsers.filter((x) => x.username !== u.username);
     },
 
     onApply() {
@@ -422,14 +262,14 @@ export default {
           payload = { type: this.typeValue === NONE_TYPE ? null : this.typeValue };
           break;
         case 'unload-places':
-          payload = { unloadPlaceIds: [...this.gridSelectedIds], mode: this.mode };
+          payload = { unloadPlaceIds: [...this.placeIds], mode: this.mode };
           break;
         case 'tables':
-          payload = { tableIds: [...this.gridSelectedIds], mode: this.mode };
+          payload = { tableIds: [...this.tableIds], mode: this.mode };
           break;
         case 'users':
           payload = {
-            usernames: this.selectedUsers.map((u) => u.username),
+            usernames: [...this.usernames],
             requiredApproval: this.requiredApproval,
             mode: this.mode,
           };
@@ -520,90 +360,10 @@ export default {
   color: #a2a2a2;
 }
 
-.bulk-op__pick {
-  align-self: flex-start;
-  height: 36px;
-  border: 1px dashed #d5d9e0;
-  border-radius: 12px;
-  padding: 0 16px;
-  font-size: 13px;
-  color: #4F5BDF;
-  background: #fff;
-  cursor: pointer;
-  font-family: inherit;
-  transition: border-color 0.2s;
-}
-
-.bulk-op__pick:hover {
-  border-style: solid;
-  border-color: #4F5BDF;
-}
-
-.bulk-op__chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.bulk-op__chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 28px;
-  padding: 0 6px 0 12px;
-  border-radius: 50px;
-  background: #eef0ff;
-  color: #4F5BDF;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.bulk-op__chip-x {
-  width: 18px;
-  height: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: transparent;
-  color: #4F5BDF;
-  font-size: 16px;
-  line-height: 1;
-  cursor: pointer;
-  border-radius: 50%;
-}
-
-.bulk-op__chip-x:hover {
-  background: rgba(79, 91, 223, 0.15);
-}
-
-.bulk-op__empty {
-  margin: 0;
-  font-size: 13px;
-  color: #a2a2a2;
-  font-style: italic;
-}
-
 .bulk-op__toggle {
   display: flex;
   align-items: center;
   cursor: pointer;
-}
-
-.bulk-op__pick-col {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.bulk-op__pick-col--name {
-  flex: 2;
-}
-
-.bulk-op__pick-username {
-  font-size: 11px;
-  color: #a2a2a2;
 }
 
 /* кнопки действий (эталон SelectionModal actions) */

@@ -1,7 +1,13 @@
 <template>
-  <div class="unload-places-section card">
+  <div
+    class="unload-places-section"
+    :class="{ card: !selectionMode }"
+  >
     <div class="detail-group">
-      <div class="sec-title">
+      <div
+        v-if="!selectionMode"
+        class="sec-title"
+      >
         Места разгрузки <span class="sec-note">(по умолчанию)</span>
         <span
           v-if="hasSelectedPlaces"
@@ -57,15 +63,25 @@ export default {
   props: {
     entity: {
       type: Object,
-      required: true
+      default: null
     },
     entityType: {
       type: String,
       required: true,
       validator: value => ['organization', 'company'].includes(value)
+    },
+    // Режим «только выбор» (для групповых операций): без fetch/save сущности,
+    // выбор через v-model (массив id мест), без Сохранить/Отмена.
+    selectionMode: {
+      type: Boolean,
+      default: false
+    },
+    modelValue: {
+      type: Array,
+      default: () => []
     }
   },
-  emits: ['places-updated', 'dirty-change'],
+  emits: ['places-updated', 'dirty-change', 'update:modelValue'],
   data() {
     return {
       allUnloadPlaces: [],
@@ -84,6 +100,7 @@ export default {
     entity: {
       immediate: true,
       handler(newEntity) {
+        if (this.selectionMode) return;
         if (newEntity && newEntity.id) {
           this.fetchEntityUnloadPlaces(newEntity.id);
         }
@@ -93,14 +110,15 @@ export default {
     hasSelectedPlaces: {
       immediate: true,
       handler(dirty) {
+        if (this.selectionMode) return;
         this.$emit('dirty-change', dirty);
       }
     }
   },
   async mounted() {
     await this.fetchAllUnloadPlaces();
-    
-    if (this.entity && this.entity.id) {
+
+    if (!this.selectionMode && this.entity && this.entity.id) {
       await this.fetchEntityUnloadPlaces(this.entity.id);
     }
   },
@@ -179,6 +197,13 @@ export default {
     },
 
     toggleUnloadPlace(place) {
+      if (this.selectionMode) {
+        const ids = this.modelValue.includes(place.id)
+          ? this.modelValue.filter(id => id !== place.id)
+          : [...this.modelValue, place.id];
+        this.$emit('update:modelValue', ids);
+        return;
+      }
       const index = this.selectedUnloadPlaces.findIndex(p => p.id === place.id);
       if (index > -1) {
         this.selectedUnloadPlaces.splice(index, 1);
@@ -188,6 +213,7 @@ export default {
     },
 
     isPlaceSelected(placeId) {
+      if (this.selectionMode) return this.modelValue.includes(placeId);
       return this.selectedUnloadPlaces.some(p => p.id === placeId);
     }
   },
