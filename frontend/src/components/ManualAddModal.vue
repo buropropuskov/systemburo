@@ -397,12 +397,27 @@ export default {
 .manual-modal {
     background: #fff;
     border-radius: 30px;
-    width: 760px;
+    width: 880px;
     max-width: 95%;
     max-height: 90vh;
     display: flex;
     flex-direction: column;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+/* VehicleForm в CreateApplication - левая колонка двухколоночной раскладки
+   (width:450px + border-right под список машин справа). В модалке список
+   свой, поэтому растягиваем форму на всю ширину тела и убираем разделитель. */
+.manual-modal :deep(.data__completion) {
+    width: 100%;
+    border-right: none;
+}
+
+/* Гриды чипов заточены под 425px-колонку заявки - снимаем кап, чтобы места
+   разгрузки/проезда занимали всю ширину формы (шире чипы, длинные имена влезают). */
+.manual-modal :deep(.unloading__grid),
+.manual-modal :deep(.passage__grid) {
+    max-width: 100%;
 }
 
 .manual-modal__header {
