@@ -363,6 +363,14 @@ func Setup(e *echo.Echo, d Dependencies) {
 	cg.PUT("/:id/tables", comp.UpdateTables, requireAdmin)
 	cg.GET("/:id/unload-places", comp.GetUnloadPlaces)
 	cg.PUT("/:id/unload-places", comp.UpdateUnloadPlaces, requireAdmin)
+	// Групповые операции (bulk). Статический сегмент bulk имеет приоритет над
+	// param :id в Echo, поэтому /bulk/restore не конфликтует с /:id/restore.
+	cg.POST("/bulk/type", comp.BulkUpdateType, requireAdmin)
+	cg.POST("/bulk/unload-places", comp.BulkAssignUnloadPlaces, requireAdmin)
+	cg.POST("/bulk/tables", comp.BulkAssignTables, requireAdmin)
+	cg.POST("/bulk/users", comp.BulkAssignUsers, requireAdmin)
+	cg.POST("/bulk/archive", comp.BulkArchive, requireAdmin)
+	cg.POST("/bulk/restore", comp.BulkRestore, requireAdmin)
 
 	// Места разгрузки
 	upg := protected.Group("/unload-places")

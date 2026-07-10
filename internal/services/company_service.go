@@ -61,6 +61,32 @@ type CompanyService interface {
 
 	// UpdateTables обновляет привязку таблиц к компании.
 	UpdateTables(ctx context.Context, companyID int, req UpdateCompanyTablesRequest) error
+
+	// --- Групповые операции (bulk). Переиспользуют одиночные методы в цикле,
+	// частичный успех собирается в BulkOpResult. Валидация входа (тип, режим) -
+	// один раз до цикла и возвращается ошибкой на весь запрос. Зеркало
+	// организаций (см. OrganizationService). ---
+
+	// BulkUpdateType меняет тип у набора компаний (nil снимает тип).
+	BulkUpdateType(ctx context.Context, callerUserID int, ids []int, typ *string) (*BulkOpResult, error)
+
+	// BulkAssignUnloadPlaces назначает места разгрузки набору компаний.
+	// mode=replace затирает, mode=add объединяет с текущими.
+	BulkAssignUnloadPlaces(ctx context.Context, ids, placeIDs []int, mode string) (*BulkOpResult, error)
+
+	// BulkAssignTables назначает целевые таблицы набору компаний (replace|add).
+	BulkAssignTables(ctx context.Context, ids, tableIDs []int, mode string) (*BulkOpResult, error)
+
+	// BulkAssignUsers назначает ответственных набору компаний (replace|add).
+	// primary в группе не назначается, сохраняется у существующих.
+	BulkAssignUsers(ctx context.Context, ids []int, usernames []string, requiredApproval bool, mode string) (*BulkOpResult, error)
+
+	// BulkArchive архивирует набор компаний (частичный успех: активные с
+	// пользователями попадают в Errors).
+	BulkArchive(ctx context.Context, callerUserID int, ids []int) (*BulkOpResult, error)
+
+	// BulkRestore восстанавливает набор компаний из архива.
+	BulkRestore(ctx context.Context, callerUserID int, ids []int) (*BulkOpResult, error)
 }
 
 // --- DTO: запросы ---
@@ -624,5 +650,225 @@ func (s *companyService) UpdateTables(ctx context.Context, companyID int, req Up
 		return echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
 	return nil
+}
+
+// --- Групповые операции (bulk) ---
+
+// loadCompany читает компанию по id (без ошибки-обёртки: bulk сам решает, что
+// класть в BulkItemError при отсутствии).
+func (s *companyService) loadCompany(ctx context.Context, id int) (models.Company, bool) {
+	var company models.Company
+	if err := s.db.WithContext(ctx).First(&company, id).Error; err != nil {
+		return company, false
+	}
+	return company, true
+}
+
+// BulkUpdateType меняет тип у набора компаний через переиспользование Update
+// (имя берётся из текущей записи, чтобы не переименовать). Тип валидируется один
+// раз до цикла.
+func (s *companyService) BulkUpdateType(ctx context.Context, callerUserID int, ids []int, typ *string) (*BulkOpResult, error) {
+	if typ != nil && !models.IsValidOrgType(*typ) {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Некорректный тип компании")
+	}
+	res := newBulkResult()
+	for _, id := range uniqueInts(ids) {
+		company, ok := s.loadCompany(ctx, id)
+		if !ok {
+			res.addError(id, "", "Компания не найдена")
+			continue
+		}
+		// Тип уже соответствует - no-op успех, без похода в Update: иначе оно
+		// (имя тоже не меняется) залогировало бы ложную «переименована» в историю
+		// (nameChanged=typeChanged=false -> дефолтный action Renamed). Для bulk
+		// это частый кейс: в наборе часть компаний уже нужного типа.
+		if strPtrEqual(company.Type, typ) {
+			res.SuccessCount++
+			continue
+		}
+		if _, err := s.Update(ctx, callerUserID, id, CreateCompanyRequest{Name: company.Name, Type: typ}); err != nil {
+			res.addError(id, company.Name, bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
+}
+
+// BulkAssignUnloadPlaces назначает места разгрузки набору компаний. В режиме add
+// текущие связи читаются из сырой junction (без фильтра is_active), чтобы
+// объединение не отвязало неактивные-но-привязанные места. Чтение current идёт
+// вне транзакции переиспользуемого UpdateUnloadPlaces - для admin-only
+// последовательных операций окна гонки нет; конкурентный bulk по той же компании
+// - осознанно не защищаем (принятый trade-off ради переиспользования).
+func (s *companyService) BulkAssignUnloadPlaces(ctx context.Context, ids, placeIDs []int, mode string) (*BulkOpResult, error) {
+	if !isValidBulkMode(mode) {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Некорректный режим (replace|add)")
+	}
+	res := newBulkResult()
+	for _, id := range uniqueInts(ids) {
+		company, ok := s.loadCompany(ctx, id)
+		if !ok {
+			res.addError(id, "", "Компания не найдена")
+			continue
+		}
+		target := placeIDs
+		if mode == BulkModeAdd {
+			var current []int
+			if err := s.db.WithContext(ctx).Model(&models.CompaniesUnloadPlace{}).
+				Where("company_id = ?", id).Pluck("unload_place_id", &current).Error; err != nil {
+				res.addError(id, company.Name, "Ошибка чтения текущих мест разгрузки")
+				continue
+			}
+			target = unionInts(current, placeIDs)
+		}
+		if err := s.UpdateUnloadPlaces(ctx, id, UpdateCompanyUnloadPlacesRequest{UnloadPlaceIDs: target}); err != nil {
+			res.addError(id, company.Name, bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
+}
+
+// BulkAssignTables назначает целевые таблицы набору компаний (replace|add).
+func (s *companyService) BulkAssignTables(ctx context.Context, ids, tableIDs []int, mode string) (*BulkOpResult, error) {
+	if !isValidBulkMode(mode) {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Некорректный режим (replace|add)")
+	}
+	res := newBulkResult()
+	for _, id := range uniqueInts(ids) {
+		company, ok := s.loadCompany(ctx, id)
+		if !ok {
+			res.addError(id, "", "Компания не найдена")
+			continue
+		}
+		target := tableIDs
+		if mode == BulkModeAdd {
+			var current []int
+			if err := s.db.WithContext(ctx).Model(&models.CompaniesTable{}).
+				Where("company_id = ?", id).Pluck("table_id", &current).Error; err != nil {
+				res.addError(id, company.Name, "Ошибка чтения текущих таблиц")
+				continue
+			}
+			target = unionInts(current, tableIDs)
+		}
+		if err := s.UpdateTables(ctx, id, UpdateCompanyTablesRequest{TableIDs: target}); err != nil {
+			res.addError(id, company.Name, bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
+}
+
+// BulkAssignUsers назначает ответственных набору компаний. primary в группе не
+// назначается: за существующими сохраняется их is_primary/required_approval,
+// новым выставляется is_primary=false и переданный required_approval. В режиме
+// replace итоговый набор = выбранные (у оставшегося primary сохраняется), в add
+// = текущие как есть + недостающие выбранные.
+func (s *companyService) BulkAssignUsers(ctx context.Context, ids []int, usernames []string, requiredApproval bool, mode string) (*BulkOpResult, error) {
+	if !isValidBulkMode(mode) {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Некорректный режим (replace|add)")
+	}
+	res := newBulkResult()
+	for _, id := range uniqueInts(ids) {
+		company, ok := s.loadCompany(ctx, id)
+		if !ok {
+			res.addError(id, "", "Компания не найдена")
+			continue
+		}
+		users, err := s.buildBulkUsers(ctx, id, usernames, requiredApproval, mode)
+		if err != nil {
+			res.addError(id, company.Name, "Ошибка чтения ответственных")
+			continue
+		}
+		if err := s.UpdateUsers(ctx, id, UpdateCompanyUsersRequest{Users: users}); err != nil {
+			res.addError(id, company.Name, bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
+}
+
+// buildBulkUsers формирует итоговый список ответственных для одной компании,
+// сохраняя primary существующих (см. BulkAssignUsers).
+func (s *companyService) buildBulkUsers(ctx context.Context, companyID int, usernames []string, requiredApproval bool, mode string) ([]CompanyUserRequest, error) {
+	type curRow struct {
+		Username         string
+		IsPrimary        bool
+		RequiredApproval bool
+	}
+	var rows []curRow
+	if err := s.db.WithContext(ctx).
+		Table("companies_users cu").
+		Select("u.username, cu.is_primary, cu.required_approval").
+		Joins("JOIN users u ON u.id = cu.user_id").
+		Where("cu.company_id = ?", companyID).Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	existing := make(map[string]curRow, len(rows))
+	for _, r := range rows {
+		existing[r.Username] = r
+	}
+
+	users := make([]CompanyUserRequest, 0, len(rows)+len(usernames))
+	if mode == BulkModeAdd {
+		// Существующие сохраняем как есть (флаги, включая primary, не трогаем).
+		for _, r := range rows {
+			isP, ra := r.IsPrimary, r.RequiredApproval
+			users = append(users, CompanyUserRequest{Username: r.Username, IsPrimary: &isP, RequiredApproval: &ra})
+		}
+	}
+	for _, un := range usernames {
+		if _, ok := existing[un]; ok && mode == BulkModeAdd {
+			continue // add: уже в наборе - не дублируем и не трогаем флаги
+		}
+		isP := false
+		if cur, ok := existing[un]; ok {
+			isP = cur.IsPrimary // replace: primary оставшегося сохраняется
+		}
+		ra := requiredApproval
+		users = append(users, CompanyUserRequest{Username: un, IsPrimary: &isP, RequiredApproval: &ra})
+	}
+	return users, nil
+}
+
+// BulkArchive архивирует набор компаний через Delete. Активные компании с
+// пользователями честно попадают в Errors (частичный успех).
+func (s *companyService) BulkArchive(ctx context.Context, callerUserID int, ids []int) (*BulkOpResult, error) {
+	res := newBulkResult()
+	for _, id := range uniqueInts(ids) {
+		company, ok := s.loadCompany(ctx, id)
+		if !ok {
+			res.addError(id, "", "Компания не найдена")
+			continue
+		}
+		if err := s.Delete(ctx, callerUserID, id); err != nil {
+			res.addError(id, company.Name, bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
+}
+
+// BulkRestore восстанавливает набор компаний через Restore.
+func (s *companyService) BulkRestore(ctx context.Context, callerUserID int, ids []int) (*BulkOpResult, error) {
+	res := newBulkResult()
+	for _, id := range uniqueInts(ids) {
+		company, ok := s.loadCompany(ctx, id)
+		if !ok {
+			res.addError(id, "", "Компания не найдена")
+			continue
+		}
+		if err := s.Restore(ctx, callerUserID, id); err != nil {
+			res.addError(id, company.Name, bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
 }
 

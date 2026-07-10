@@ -601,3 +601,207 @@ func TestCompanies_UpdateUnloadPlaces_Forbidden(t *testing.T) {
 
 	assert.Equal(t, http.StatusForbidden, rec.Code)
 }
+
+// TestCompanies_BulkOperations зеркалит TestOrganizations_BulkOperations: один
+// SetupTestApp/RegisterAdmin (handlers-пакет на грани CI-timeout под -race, argon2
+// в RegisterAdmin дорог - не плодим setup), подтесты изолированы созданием
+// собственных компаний. bulkIDSet определён в organizations_test.go (тот же пакет).
+func TestCompanies_BulkOperations(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	h := testutil.AuthHeader(testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID))
+
+	createCompany := func(t *testing.T, name string) int {
+		return int(testutil.ParseMap(t, testutil.POST(t, e, "/companies", fmt.Sprintf(`{"name":%q,"type":"Организация"}`, name), h))["id"].(float64))
+	}
+
+	t.Run("type", func(t *testing.T) {
+		a := createCompany(t, "Бул К А")
+		b := createCompany(t, "Бул К Б")
+
+		rec := testutil.POST(t, e, "/companies/bulk/type", fmt.Sprintf(`{"ids":[%d,%d],"type":"Подрядчик"}`, a, b), h)
+		require.Equal(t, http.StatusOK, rec.Code)
+		res := testutil.ParseMap(t, rec)
+		assert.Equal(t, float64(2), res["success_count"])
+		assert.Equal(t, float64(0), res["error_count"])
+
+		// Оба реально сменили тип.
+		types := map[int]string{}
+		for _, o := range testutil.ParseSlice(t, testutil.GET(t, e, "/companies/with-users-extended", h)) {
+			if tp, ok := o["type"].(string); ok {
+				types[int(o["id"].(float64))] = tp
+			}
+		}
+		assert.Equal(t, "Подрядчик", types[a])
+		assert.Equal(t, "Подрядчик", types[b])
+
+		// Назначение УЖЕ соответствующего типа - no-op успех БЕЗ записи в историю
+		// (иначе переиспользуемый Update при неизменных name+type залогировал бы
+		// дефолтный «renamed»).
+		noop := createCompany(t, "Бул К Ноуп") // создаётся с типом "Организация"
+		noopRes := testutil.ParseMap(t, testutil.POST(t, e, "/companies/bulk/type", fmt.Sprintf(`{"ids":[%d],"type":"Организация"}`, noop), h))
+		assert.Equal(t, float64(1), noopRes["success_count"], "no-op смена типа - успех")
+		hist := testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/companies/%d/history", noop), h))
+		require.Len(t, hist, 1, "no-op не должен добавлять запись в историю")
+		assert.Equal(t, "created", hist[0]["action_type"])
+
+		// Дубли id в наборе не раздувают success_count (dedup).
+		dupRes := testutil.ParseMap(t, testutil.POST(t, e, "/companies/bulk/type", fmt.Sprintf(`{"ids":[%d,%d],"type":"Отдел"}`, noop, noop), h))
+		assert.Equal(t, float64(1), dupRes["success_count"], "дубли id дедуплицируются")
+
+		// Частичный успех: несуществующий id -> в errors, существующий проходит, статус 207.
+		prec := testutil.POST(t, e, "/companies/bulk/type", fmt.Sprintf(`{"ids":[%d,999999],"type":"Отдел"}`, a), h)
+		require.Equal(t, http.StatusMultiStatus, prec.Code)
+		pres := testutil.ParseMap(t, prec)
+		assert.Equal(t, float64(1), pres["success_count"])
+		assert.Equal(t, float64(1), pres["error_count"])
+		errs := pres["errors"].([]interface{})
+		require.Len(t, errs, 1)
+		assert.Equal(t, float64(999999), errs[0].(map[string]interface{})["id"])
+
+		// Невалидный тип -> 400 на весь запрос (валидация до цикла).
+		assert.Equal(t, http.StatusBadRequest,
+			testutil.POST(t, e, "/companies/bulk/type", fmt.Sprintf(`{"ids":[%d],"type":"Ерунда"}`, a), h).Code)
+		// Пустой список -> 400.
+		assert.Equal(t, http.StatusBadRequest,
+			testutil.POST(t, e, "/companies/bulk/type", `{"ids":[],"type":"Отдел"}`, h).Code)
+	})
+
+	t.Run("unload-places", func(t *testing.T) {
+		a := createCompany(t, "Плейс К А")
+		b := createCompany(t, "Плейс К Б")
+		p1 := int(testutil.ParseMap(t, testutil.POST(t, e, "/unload-places", `{"name":"Место К 1","description":"d","status":"active"}`, h))["id"].(float64))
+		p2 := int(testutil.ParseMap(t, testutil.POST(t, e, "/unload-places", `{"name":"Место К 2","description":"d","status":"active"}`, h))["id"].(float64))
+
+		// replace: p1 обеим.
+		rec := testutil.POST(t, e, "/companies/bulk/unload-places", fmt.Sprintf(`{"ids":[%d,%d],"unload_place_ids":[%d],"mode":"replace"}`, a, b, p1), h)
+		require.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, float64(2), testutil.ParseMap(t, rec)["success_count"])
+		for _, id := range []int{a, b} {
+			set := bulkIDSet(testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/companies/%d/unload-places", id), h)))
+			assert.True(t, set[p1] && len(set) == 1, "после replace у компании ровно p1")
+		}
+
+		// add: p2 обеим -> union {p1,p2}.
+		rec2 := testutil.POST(t, e, "/companies/bulk/unload-places", fmt.Sprintf(`{"ids":[%d,%d],"unload_place_ids":[%d],"mode":"add"}`, a, b, p2), h)
+		require.Equal(t, http.StatusOK, rec2.Code)
+		for _, id := range []int{a, b} {
+			set := bulkIDSet(testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/companies/%d/unload-places", id), h)))
+			assert.True(t, set[p1] && set[p2] && len(set) == 2, "после add у компании p1 и p2")
+		}
+
+		// Некорректный режим -> 400.
+		assert.Equal(t, http.StatusBadRequest,
+			testutil.POST(t, e, "/companies/bulk/unload-places", fmt.Sprintf(`{"ids":[%d],"unload_place_ids":[%d],"mode":"bogus"}`, a, p1), h).Code)
+	})
+
+	t.Run("tables", func(t *testing.T) {
+		a := createCompany(t, "Табл К А")
+		b := createCompany(t, "Табл К Б")
+		t1 := int(testutil.ParseMap(t, testutil.POST(t, e, "/system-tables", `{"name":"bulk-ct1","display_name":"Bulk CT1","table_type":"cars"}`, h))["id"].(float64))
+		t2 := int(testutil.ParseMap(t, testutil.POST(t, e, "/system-tables", `{"name":"bulk-ct2","display_name":"Bulk CT2","table_type":"cars"}`, h))["id"].(float64))
+
+		// replace: t1 обеим.
+		rec := testutil.POST(t, e, "/companies/bulk/tables", fmt.Sprintf(`{"ids":[%d,%d],"table_ids":[%d],"mode":"replace"}`, a, b, t1), h)
+		require.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, float64(2), testutil.ParseMap(t, rec)["success_count"])
+		for _, id := range []int{a, b} {
+			set := bulkIDSet(testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/companies/%d/tables", id), h)))
+			assert.True(t, set[t1] && len(set) == 1)
+		}
+
+		// add: t2 обеим -> union.
+		rec2 := testutil.POST(t, e, "/companies/bulk/tables", fmt.Sprintf(`{"ids":[%d,%d],"table_ids":[%d],"mode":"add"}`, a, b, t2), h)
+		require.Equal(t, http.StatusOK, rec2.Code)
+		for _, id := range []int{a, b} {
+			set := bulkIDSet(testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/companies/%d/tables", id), h)))
+			assert.True(t, set[t1] && set[t2] && len(set) == 2)
+		}
+	})
+
+	t.Run("users", func(t *testing.T) {
+		a := createCompany(t, "Юзер К А")
+		b := createCompany(t, "Юзер К Б")
+		testutil.RegisterUser(t, e, "bulkcresp1", "pass123", 1, td.OrgID, td.CompanyID)
+		testutil.RegisterUser(t, e, "bulkcresp2", "pass123", 1, td.OrgID, td.CompanyID)
+
+		// replace: resp1 обеим с required_approval=true; primary не назначается.
+		rec := testutil.POST(t, e, "/companies/bulk/users", fmt.Sprintf(`{"ids":[%d,%d],"usernames":["bulkcresp1"],"required_approval":true,"mode":"replace"}`, a, b), h)
+		require.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, float64(2), testutil.ParseMap(t, rec)["success_count"])
+		usersA := testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/companies/%d/users", a), h))
+		require.Len(t, usersA, 1)
+		assert.Equal(t, "bulkcresp1", usersA[0]["username"])
+		assert.Equal(t, true, usersA[0]["required_approval"])
+		assert.Equal(t, false, usersA[0]["is_primary"])
+
+		// add: resp2 обеим -> {resp1(required_approval сохранён true), resp2(false)}.
+		rec2 := testutil.POST(t, e, "/companies/bulk/users", fmt.Sprintf(`{"ids":[%d,%d],"usernames":["bulkcresp2"],"required_approval":false,"mode":"add"}`, a, b), h)
+		require.Equal(t, http.StatusOK, rec2.Code)
+		byName := map[string]map[string]interface{}{}
+		for _, u := range testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/companies/%d/users", a), h)) {
+			byName[u["username"].(string)] = u
+		}
+		require.Len(t, byName, 2)
+		assert.Equal(t, true, byName["bulkcresp1"]["required_approval"], "add сохраняет флаги существующего")
+		assert.Equal(t, false, byName["bulkcresp2"]["required_approval"])
+
+		// primary сохраняется в replace: назначим resp1 primary напрямую, затем bulk-replace
+		// набором [resp1,resp2] - resp1 остаётся primary («primary в bulk не трогаем»).
+		require.Equal(t, http.StatusOK, testutil.PUT(t, e, fmt.Sprintf("/companies/%d/users", a),
+			`{"users":[{"username":"bulkcresp1","is_primary":true},{"username":"bulkcresp2"}]}`, h).Code)
+		require.Equal(t, http.StatusOK, testutil.POST(t, e, "/companies/bulk/users",
+			fmt.Sprintf(`{"ids":[%d],"usernames":["bulkcresp1","bulkcresp2"],"required_approval":false,"mode":"replace"}`, a), h).Code)
+		byName2 := map[string]map[string]interface{}{}
+		for _, u := range testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/companies/%d/users", a), h)) {
+			byName2[u["username"].(string)] = u
+		}
+		assert.Equal(t, true, byName2["bulkcresp1"]["is_primary"], "primary оставшегося сохраняется при replace")
+		assert.Equal(t, false, byName2["bulkcresp2"]["is_primary"])
+	})
+
+	t.Run("archive-restore", func(t *testing.T) {
+		// td.CompanyID активна и с пользователями (admin) -> архив заблокирован; пустая -> ок.
+		empty := int(testutil.ParseMap(t, testutil.POST(t, e, "/companies", `{"name":"Пустая К для архива","type":"Отдел"}`, h))["id"].(float64))
+
+		rec := testutil.POST(t, e, "/companies/bulk/archive", fmt.Sprintf(`{"ids":[%d,%d]}`, td.CompanyID, empty), h)
+		require.Equal(t, http.StatusMultiStatus, rec.Code)
+		res := testutil.ParseMap(t, rec)
+		assert.Equal(t, float64(1), res["success_count"])
+		assert.Equal(t, float64(1), res["error_count"])
+		errs := res["errors"].([]interface{})
+		require.Len(t, errs, 1)
+		e0 := errs[0].(map[string]interface{})
+		assert.Equal(t, float64(td.CompanyID), e0["id"])
+		assert.Equal(t, "Test Company", e0["name"])
+		assert.Contains(t, e0["error"].(string), "активными пользователями")
+
+		// empty реально в архиве.
+		archSet := bulkIDSet(testutil.ParseSlice(t, testutil.GET(t, e, "/companies/with-users?include_archived=true", h)))
+		assert.True(t, archSet[empty])
+		defSet := bulkIDSet(testutil.ParseSlice(t, testutil.GET(t, e, "/companies/with-users", h)))
+		assert.False(t, defSet[empty], "архивная не в списке по умолчанию")
+
+		// bulk restore -> снова активна.
+		rrec := testutil.POST(t, e, "/companies/bulk/restore", fmt.Sprintf(`{"ids":[%d]}`, empty), h)
+		require.Equal(t, http.StatusOK, rrec.Code)
+		assert.Equal(t, float64(1), testutil.ParseMap(t, rrec)["success_count"])
+		assert.True(t, bulkIDSet(testutil.ParseSlice(t, testutil.GET(t, e, "/companies/with-users", h)))[empty])
+	})
+}
+
+func TestCompanies_Bulk_Forbidden(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	h := testutil.AuthHeader(testutil.RegisterAndLogin(t, e, "regularuser", "pass123", 1, td.OrgID, td.CompanyID))
+
+	// Гейт requireAdmin бьёт до цикла - 403 на весь запрос.
+	assert.Equal(t, http.StatusForbidden,
+		testutil.POST(t, e, "/companies/bulk/type", fmt.Sprintf(`{"ids":[%d],"type":"Отдел"}`, td.CompanyID), h).Code)
+	assert.Equal(t, http.StatusForbidden,
+		testutil.POST(t, e, "/companies/bulk/archive", fmt.Sprintf(`{"ids":[%d]}`, td.CompanyID), h).Code)
+}
