@@ -228,7 +228,8 @@ export default {
 
 <style scoped>
 .sc {
-  min-height: calc(100vh - 80px);
+  /* zoom-safe (#1097): vh под корневым zoom меряется от НЕзумленной высоты. */
+  min-height: calc(var(--app-vh, 1vh) * 100 - 80px);
   background: #f5f6fa;
   padding: 40px 24px;
   display: flex;
