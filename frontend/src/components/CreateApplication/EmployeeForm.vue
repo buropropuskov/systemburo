@@ -1869,4 +1869,38 @@ export default {
     font-size: 12px;
     line-height: 1.5;
 }
+
+/* Форма (450px) + список сотрудников рядом не влезают на планшете - стекаем в
+   колонку (form__data в CreateApplication.vue делает то же на этом же брейкпоинте). */
+@media (max-width: 1024px) {
+    .data__completion {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid #e6e6e6;
+    }
+}
+
+@media (max-width: 768px) {
+    .completion__header {
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .tooltip-content {
+        min-width: 0;
+        max-width: calc(100vw - 40px);
+    }
+}
+
+@media (max-width: 480px) {
+    .completion__name-row {
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    .passage__grid {
+        grid-template-columns: repeat(2, 1fr);
+        max-width: 100%;
+    }
+}
 </style>

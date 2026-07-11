@@ -78,4 +78,17 @@ export default {
 .input--error {
     border-color: #ff4444;
 }
+
+/* Фикс-ширные (260px) поля в ряд не влезают на узком - стекаем в колонку. */
+@media (max-width: 768px) {
+    .custom-fields {
+        flex-direction: column;
+        gap: 16px;
+        padding: 12px;
+    }
+
+    .custom-fields__item {
+        width: 100%;
+    }
+}
 </style>

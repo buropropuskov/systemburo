@@ -2326,4 +2326,48 @@ export default {
     opacity: 0;
     transform: translateY(-10px);
 }
+
+/* Форма (450px) + список машин рядом не влезают на планшете - стекаем в колонку
+   (form__data в CreateApplication.vue делает то же на этом же брейкпоинте). */
+@media (max-width: 1024px) {
+    .data__completion {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid #e6e6e6;
+    }
+}
+
+@media (max-width: 768px) {
+    .completion__header {
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .tooltip-content {
+        min-width: 0;
+        max-width: calc(100vw - 40px);
+    }
+
+    /* Дропдаун марки раскрывался ВПРАВО от поля (left:100%) - на узком уезжает
+       за край экрана. На мобильном раскрываем вниз, как у EmployeeForm. */
+    .mark__dropdown-menu {
+        left: 0;
+        top: 100%;
+        width: 100%;
+        margin-left: 0;
+        margin-top: 5px;
+    }
+}
+
+@media (max-width: 480px) {
+    .completion__fields {
+        flex-direction: column;
+    }
+
+    .unloading__grid,
+    .passage__grid {
+        grid-template-columns: repeat(2, 1fr);
+        max-width: 100%;
+    }
+}
 </style>

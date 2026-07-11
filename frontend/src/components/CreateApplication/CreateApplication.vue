@@ -2719,6 +2719,15 @@ export default {
         position: relative;
     }
 
+    /* Форма ввода (data__completion, 450px) + список (data__list, flex:1) стоят рядом
+       и на планшете начинают давить друг друга - стекаем в колонку заранее (lg), не
+       дожидаясь мобильного. */
+    @media (max-width: 1024px) {
+        .form__data {
+            flex-direction: column;
+        }
+    }
+
     .blue {
         color: #4F5BDF;
     }
@@ -2796,6 +2805,11 @@ export default {
 
         .form__textarea {
             width: 100%;
+        }
+
+        .form__info-row {
+            padding: 12px;
+            gap: 16px;
         }
     }
 
