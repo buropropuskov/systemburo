@@ -839,9 +839,9 @@ export default {
 .options__manual-add {
     height: clamp(22px, 2.4vw, 25px);
     padding: 0 clamp(8px, 1vw, 14px);
-    background: var(--color-primary, #4F5BDF);
-    color: #fff;
-    border: none;
+    background: #fff;
+    color: #333;
+    border: 1px solid #e6e6e6;
     outline: none;
     cursor: pointer;
     display: flex;
@@ -855,7 +855,7 @@ export default {
 }
 
 .options__manual-add:hover {
-    background: var(--color-primary-hover, #3d49c7);
+    background: #f2f2f2;
 }
 
 .options__manual-add-icon {
