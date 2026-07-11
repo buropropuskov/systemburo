@@ -436,7 +436,9 @@ export default {
     box-shadow: 0px 3px 10px rgba(0, 0, 0, 0.05);
     border-radius: 30px;
     overflow: hidden;
-    min-height: 84vh;
+    /* var(--app-vh) = зумленная высота вьюпорта (viewportScale.js); чистый vh
+       под корневым zoom считается от незумленной высоты и завышает карточку. */
+    min-height: calc(var(--app-vh, 1vh) * 84);
 }
 
 .news-header {

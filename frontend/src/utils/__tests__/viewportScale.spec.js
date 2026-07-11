@@ -40,6 +40,8 @@ describe('viewportScale updateViewportZoom (DOM-эффект)', () => {
     window.innerHeight = 1440
     updateViewportZoom()
     expect(root.style.zoom).toBe('1.6') // 2560x1440 -> ограничено высотой
+    // --app-vh = зумленная высота вьюпорта / 100 = 1440/1.6/100 = 9px
+    expect(root.style.getPropertyValue('--app-vh')).toBe('9px')
 
     window.innerWidth = 1440
     window.innerHeight = 900
