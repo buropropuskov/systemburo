@@ -17,10 +17,7 @@
         v-if="showChrome"
         class="theheader"
       />
-      <router-view
-        v-slot="{ Component }"
-        class="content__container"
-      >
+      <router-view v-slot="{ Component }">
         <transition
           name="page-fade"
           mode="out-in"
@@ -28,6 +25,7 @@
           <component
             :is="Component"
             :key="$route.path"
+            class="content__container"
             @login-success="handleSuccessfulLogin"
           />
         </transition>
@@ -263,6 +261,20 @@ html, body {
 
 body:not(.auth-active) #app {
   margin-left: 0;
+}
+
+/*
+ * Потолок ширины контента на авторизованных страницах (chrome показан).
+ * Основную работу на больших мониторах делает масштаб под эталон 1440
+ * (utils/viewportScale.js); этот кап - страховка для ультрашироких/мультимонитора,
+ * где масштаб упёрся в MAX_ZOOM и контент иначе растянулся бы на всю ширину.
+ * Login/ошибки идут без auth-active и остаются full-bleed (их фон на всю ширину).
+ */
+body.auth-active .content__container {
+  max-width: var(--content-max, 1600px);
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
 }
 
 /* Блокировка body-scroll пока mobile drawer открыт */

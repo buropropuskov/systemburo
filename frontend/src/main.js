@@ -7,6 +7,7 @@ import bus from './eventBus'
 import { tryRestoreSession } from '@/api/client'
 import { useMaintenanceStore } from '@/stores/maintenance'
 import { installBeforeUnloadGuard } from '@/utils/dirtyTracker'
+import { initViewportScale } from '@/utils/viewportScale'
 import './assets/tokens.css'
 import './assets/forms.css'
 import './assets/onboarding.css'
@@ -30,3 +31,6 @@ app.use(router)
 await router.isReady()
 installBeforeUnloadGuard()
 app.mount('#app')
+// Масштаб UI под эталон 1440 на больших мониторах - после mount, чтобы корень
+// уже существовал и первый zoom применился к готовому дереву.
+initViewportScale()
