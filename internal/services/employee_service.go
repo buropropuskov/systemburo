@@ -184,6 +184,9 @@ func (s *employeeService) CreateEmployee(ctx context.Context, req CreateEmployee
 		}
 		employeeID = employee.ID
 
+		empComment := "Сотрудник создан"
+		s.recorder.Log(ctx, tx, models.AuditEntityEmployee, &employeeID, "create", &actorID, carAuditDetails{Comment: &empComment})
+
 		for _, tableID := range req.TargetTables {
 			orderIdx := 1
 			ett := models.EmployeeTargetTable{
@@ -195,11 +198,8 @@ func (s *employeeService) CreateEmployee(ctx context.Context, req CreateEmployee
 				slog.Error("не удалось создать связь сотрудника с таблицей", "employee_id", employeeID, "table_id", tableID, "error", err)
 				return echo.NewHTTPError(http.StatusInternalServerError, "Error creating employee target table")
 			}
-			// История «добавлен в таблицу проходной» (#1085), в той же tx.
-			if err := recordAddedToTable(ctx, s.recorder, tx, models.AuditEntityEmployee, employeeID, tableID, &actorID); err != nil {
-				slog.Error("не удалось записать историю попадания сотрудника в таблицу", "employee_id", employeeID, "table_id", tableID, "error", err)
-				return echo.NewHTTPError(http.StatusInternalServerError, "Error adding employee table history entry")
-			}
+			// Историю попадания в таблицу пишем при активации (status->1), а не здесь -
+			// сотрудник создаётся неактивным (status=0) и в таблице проходной не виден (#1085).
 		}
 
 		return nil

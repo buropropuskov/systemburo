@@ -113,7 +113,7 @@ func TestTablesRefresh_AcceptanceAndCarEntry(t *testing.T) {
 	require.NoError(t, err)
 
 	// Принятие: активирует машину -> сигнал cars-таблице.
-	require.NoError(t, appSvc.UpdateApplicationItemsStatus(context.Background(), created.ApplicationID))
+	require.NoError(t, appSvc.UpdateApplicationItemsStatus(context.Background(), created.ApplicationID, "trtsender"))
 	audience := findTablesRefresh(fake, scope)
 	require.NotNil(t, audience, "принятие заявки с машиной должно послать tables.refresh cars-таблице")
 	assert.Contains(t, audience, guardID, "аудитория должна включать юзера с правом table.kpp_a.view")
