@@ -37,49 +37,66 @@
     </div>
 
     <div class="header__info">
-      <button
-        v-if="can('header.report_problem')"
-        class="feedback-btn"
-        data-testid="header-button-feedback"
-        @click="openFeedbackModal"
-      >
-        Сообщить о проблеме
-      </button>
-      <button
-        v-if="activeAnnouncement"
-        class="broadcast"
-        :class="{ 'broadcast--important': activeAnnouncement.is_important }"
-        data-testid="ob-header-broadcast"
-        @click="showAnnouncement = true"
-      >
-        {{ activeAnnouncement.is_important ? 'Важное объявление' : 'Объявление' }}
-      </button>
-      <p
-        class="time"
-        data-testid="ob-header-time"
-      >
-        {{ currentDateTime }}
-      </p>
-      <div
-        class="user__notifications"
-        :class="{ 'user__notifications--active': showNotifications }"
-        data-testid="ob-header-notifications"
-        @click.stop="showNotifications = !showNotifications"
-      >
-        <img
-          src="@/assets/icons/notifications.png"
-          class="notifications__icon"
-          alt="Уведомления"
+      <div class="header__overflow-wrap">
+        <button
+          class="header__overflow-toggle"
+          type="button"
+          aria-label="Ещё"
+          aria-haspopup="true"
+          :aria-expanded="showHeaderOverflow"
+          @click.stop="showHeaderOverflow = !showHeaderOverflow"
         >
-        <span
-          v-if="unreadCount > 0"
-          class="notifications__badge"
-        >{{ unreadCount }}</span>
-        <UserNotifications
-          :show="showNotifications"
-          @update:unread-count="unreadCount = $event"
-          @close="showNotifications = false"
-        />
+          <span aria-hidden="true">⋯</span>
+        </button>
+        <div
+          class="header__overflow"
+          :class="{ 'header__overflow--open': showHeaderOverflow }"
+        >
+          <button
+            v-if="can('header.report_problem')"
+            class="feedback-btn"
+            data-testid="header-button-feedback"
+            @click="openFeedbackModal"
+          >
+            Сообщить о проблеме
+          </button>
+          <button
+            v-if="activeAnnouncement"
+            class="broadcast"
+            :class="{ 'broadcast--important': activeAnnouncement.is_important }"
+            data-testid="ob-header-broadcast"
+            @click="showAnnouncement = true"
+          >
+            {{ activeAnnouncement.is_important ? 'Важное объявление' : 'Объявление' }}
+          </button>
+          <p
+            class="time"
+            data-testid="ob-header-time"
+          >
+            {{ currentDateTime }}
+          </p>
+          <div
+            class="user__notifications"
+            :class="{ 'user__notifications--active': showNotifications }"
+            data-testid="ob-header-notifications"
+            @click.stop="showNotifications = !showNotifications"
+          >
+            <img
+              src="@/assets/icons/notifications.png"
+              class="notifications__icon"
+              alt="Уведомления"
+            >
+            <span
+              v-if="unreadCount > 0"
+              class="notifications__badge"
+            >{{ unreadCount }}</span>
+            <UserNotifications
+              :show="showNotifications"
+              @update:unread-count="unreadCount = $event"
+              @close="showNotifications = false"
+            />
+          </div>
+        </div>
       </div>
       <div
         v-if="can('header.create_application')"
@@ -90,7 +107,11 @@
           data-testid="header-button-submit-app"
           @click="navigateToSubmit"
         >
-          Подать заявку
+          <span
+            class="appl-btn__icon"
+            aria-hidden="true"
+          >+</span>
+          <span class="appl-btn__label">Подать заявку</span>
         </button>
       </div>
     </div>
@@ -149,6 +170,7 @@ export default {
       showAnnouncement: false,
       activeAnnouncement: null,
       showNotifications: false,
+      showHeaderOverflow: false,
       unreadCount: 0,
       currentHour: new Date().getHours(),
     };
@@ -184,6 +206,9 @@ export default {
     this._onDocumentClick = () => {
       if (this.showNotifications) {
         this.showNotifications = false;
+      }
+      if (this.showHeaderOverflow) {
+        this.showHeaderOverflow = false;
       }
     };
     document.addEventListener('click', this._onDocumentClick);
@@ -345,6 +370,21 @@ h3 {
   justify-content: flex-end;
 }
 
+/* На десктопе overflow-обёртка прозрачна для layout (display:contents) - её
+   дети рендерятся как обычные элементы .header__info. На мобилке (<768)
+   становится реальным блоком с выпадающим меню "⋯" (feedback/broadcast/time/bell). */
+.header__overflow-wrap {
+  display: contents;
+}
+
+.header__overflow {
+  display: contents;
+}
+
+.header__overflow-toggle {
+  display: none;
+}
+
 .feedback-btn {
   height: 35px;
   font-size: 14px;
@@ -480,6 +520,12 @@ h3 {
   background-color: #e6e6e6;
 }
 
+/* Иконка "+" - видна только на узком экране (кнопка схлопывается в иконку,
+   не переносится на новую строку - директива юзера). */
+.appl-btn__icon {
+  display: none;
+}
+
 .appl-btn--fixed {
   position: fixed;
   z-index: 1000;
@@ -508,8 +554,8 @@ h3 {
 /* Burger-кнопка - только на мобильном */
 .header__burger {
   display: none;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   border: none;
   background: transparent;
@@ -550,37 +596,109 @@ h3 {
     gap: 10px;
   }
 
+  /* Приветствие + подзаголовок "Мы рады..." скрыты на мобилке (директива юзера) */
   .header__title {
-    min-width: 0;
-    flex: 1 1 auto;
-  }
-
-  .header__title h3 {
-    font-size: 14px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .header__subtitle {
     display: none;
   }
 
-  /* Вторичная информация не помещается на мобильном - скрываем */
-  .feedback-btn,
-  .broadcast,
-  .time {
-    display: none;
+  .header__overflow-wrap {
+    display: block;
+    position: relative;
   }
 
-  .user__notifications {
+  .header__overflow-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 1px solid #e6e6e6;
+    background: #fff;
+    cursor: pointer;
+    font-size: 20px;
+    line-height: 1;
+    color: #555;
     padding: 0;
+    flex-shrink: 0;
+  }
+
+  .header__overflow-toggle:hover {
+    background: #f5f5f5;
+  }
+
+  /* Вторичные иконки (feedback/broadcast/time/bell) сворачиваются в overflow-меню */
+  .header__overflow {
+    display: none;
+  }
+
+  .header__overflow.header__overflow--open {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    min-width: 220px;
+    background: #fff;
+    border: 1px solid #e6e6e6;
+    border-radius: 15px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+    padding: 8px;
+    gap: 4px;
+    z-index: 300;
+  }
+
+  .header__overflow--open .feedback-btn,
+  .header__overflow--open .broadcast,
+  .header__overflow--open .time {
+    width: 100%;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    text-align: left;
+    white-space: normal;
+  }
+
+  .header__overflow--open .broadcast {
+    border-radius: 10px;
+    justify-content: center;
+  }
+
+  .header__overflow--open .user__notifications {
+    width: 44px;
+    height: 44px;
+    align-self: flex-start;
+  }
+
+  /* Кнопка "Подать заявку" остаётся в строке заголовка, схлопывается в иконку "+" */
+  .appl-btn__container {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .appl-btn {
-    padding: 0 14px;
-    font-size: 13px;
-    white-space: nowrap;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    font-weight: 600;
+  }
+
+  .appl-btn__icon {
+    display: inline-flex;
+  }
+
+  .appl-btn__label {
+    display: none;
   }
 
   .appl-btn--fixed {
@@ -592,11 +710,6 @@ h3 {
 @media (max-width: 480px) {
   .header {
     padding: 0 10px;
-  }
-
-  .appl-btn {
-    padding: 0 12px;
-    font-size: 12px;
   }
 }
 </style>
