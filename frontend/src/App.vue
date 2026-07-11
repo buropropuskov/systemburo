@@ -270,10 +270,10 @@ body:not(.auth-active) #app {
  * где масштаб упёрся в MAX_ZOOM и контент иначе растянулся бы на всю ширину.
  * Login/ошибки идут без auth-active и остаются full-bleed (их фон на всю ширину).
  */
+/* Контент заполняет всю доступную ширину без центрирования (по требованию:
+ * никаких боковых полей и центровки). Масштаб под большие экраны делает
+ * utils/viewportScale.js; ограничивать ширину контейнером не нужно. */
 body.auth-active .content__container {
-  max-width: var(--content-max, 1600px);
-  margin-left: auto;
-  margin-right: auto;
   width: 100%;
 }
 
