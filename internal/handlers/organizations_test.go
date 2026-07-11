@@ -743,6 +743,136 @@ func TestOrganizations_Bulk_Forbidden(t *testing.T) {
 		testutil.POST(t, e, "/organizations/bulk/archive", fmt.Sprintf(`{"ids":[%d]}`, td.OrgID), h).Code)
 }
 
+// TestOrganizations_BulkAudit проверяет, что групповые и одиночные изменения привязок
+// (места/таблицы/ответственные) пишут в audit_log запись «было -> стало» с деталями,
+// и что неизменяющая операция запись НЕ добавляет (skip на пустом diff).
+func TestOrganizations_BulkAudit(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	h := testutil.AuthHeader(testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID))
+
+	createOrg := func(name string) int {
+		return int(testutil.ParseMap(t, testutil.POST(t, e, "/organizations", fmt.Sprintf(`{"name":%q,"type":"Организация"}`, name), h))["id"].(float64))
+	}
+	history := func(id int) []map[string]interface{} {
+		return testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/organizations/%d/history", id), h))
+	}
+	findAction := func(hist []map[string]interface{}, action string) map[string]interface{} {
+		for _, it := range hist {
+			if it["action_type"] == action {
+				return it
+			}
+		}
+		return nil
+	}
+	detailsOf := func(it map[string]interface{}) map[string]interface{} {
+		d, _ := it["details"].(map[string]interface{})
+		return d
+	}
+	names := func(v interface{}) []string {
+		arr, _ := v.([]interface{})
+		out := make([]string, 0, len(arr))
+		for _, x := range arr {
+			out = append(out, x.(string))
+		}
+		return out
+	}
+
+	t.Run("unload-places added/removed - bulk и одиночный путь", func(t *testing.T) {
+		org := createOrg("Аудит Места")
+		p1 := int(testutil.ParseMap(t, testutil.POST(t, e, "/unload-places", `{"name":"Аудит Место 1","description":"d","status":"active"}`, h))["id"].(float64))
+		p2 := int(testutil.ParseMap(t, testutil.POST(t, e, "/unload-places", `{"name":"Аудит Место 2","description":"d","status":"active"}`, h))["id"].(float64))
+
+		// bulk replace: обе привязки добавлены.
+		require.Equal(t, http.StatusOK, testutil.POST(t, e, "/organizations/bulk/unload-places",
+			fmt.Sprintf(`{"ids":[%d],"unload_place_ids":[%d,%d],"mode":"replace"}`, org, p1, p2), h).Code)
+		rec := findAction(history(org), "unload_places_changed")
+		require.NotNil(t, rec, "bulk назначение мест пишет запись в историю")
+		assert.NotEmpty(t, rec["actor_name"], "актор проставлен")
+		assert.ElementsMatch(t, []string{"Аудит Место 1", "Аудит Место 2"}, names(detailsOf(rec)["added"]))
+		assert.Empty(t, names(detailsOf(rec)["removed"]))
+
+		// Одиночный путь (PUT) с тем же набором - no-op, новой записи нет.
+		before := len(history(org))
+		require.Equal(t, http.StatusOK, testutil.PUT(t, e, fmt.Sprintf("/organizations/%d/unload-places", org),
+			fmt.Sprintf(`{"unload_place_ids":[%d,%d]}`, p1, p2), h).Code)
+		assert.Len(t, history(org), before, "неизменяющее обновление не пишет историю")
+
+		// Одиночный путь снимает p2 - запись с removed.
+		require.Equal(t, http.StatusOK, testutil.PUT(t, e, fmt.Sprintf("/organizations/%d/unload-places", org),
+			fmt.Sprintf(`{"unload_place_ids":[%d]}`, p1), h).Code)
+		rec2 := findAction(history(org), "unload_places_changed")
+		require.NotNil(t, rec2)
+		assert.ElementsMatch(t, []string{"Аудит Место 2"}, names(detailsOf(rec2)["removed"]))
+		assert.Empty(t, names(detailsOf(rec2)["added"]))
+	})
+
+	t.Run("type no-op одиночный PUT не пишет историю", func(t *testing.T) {
+		org := createOrg("Аудит Тип")
+		before := len(history(org)) // created
+		// PUT с теми же name+type - ничего не меняется, ложная «переименована» не пишется.
+		require.Equal(t, http.StatusOK, testutil.PUT(t, e, fmt.Sprintf("/organizations/%d", org),
+			`{"name":"Аудит Тип","type":"Организация"}`, h).Code)
+		assert.Len(t, history(org), before, "неизменяющий PUT не добавляет запись")
+		// Реальная смена типа - запись с from.
+		require.Equal(t, http.StatusOK, testutil.PUT(t, e, fmt.Sprintf("/organizations/%d", org),
+			`{"name":"Аудит Тип","type":"Отдел"}`, h).Code)
+		rec := findAction(history(org), "retyped")
+		require.NotNil(t, rec)
+		from, _ := detailsOf(rec)["from"].(map[string]interface{})
+		require.NotNil(t, from, "запись смены типа несёт from")
+		assert.Equal(t, "Организация", from["type"])
+	})
+
+	t.Run("tables added", func(t *testing.T) {
+		org := createOrg("Аудит Таблицы")
+		t1 := int(testutil.ParseMap(t, testutil.POST(t, e, "/system-tables", `{"name":"audit-t1","display_name":"Аудит Т1","table_type":"cars"}`, h))["id"].(float64))
+		require.Equal(t, http.StatusOK, testutil.POST(t, e, "/organizations/bulk/tables",
+			fmt.Sprintf(`{"ids":[%d],"table_ids":[%d],"mode":"replace"}`, org, t1), h).Code)
+		rec := findAction(history(org), "tables_changed")
+		require.NotNil(t, rec, "bulk назначение таблиц пишет историю")
+		assert.ElementsMatch(t, []string{"Аудит Т1"}, names(detailsOf(rec)["added"]))
+	})
+
+	t.Run("responsibles added + approval_changed", func(t *testing.T) {
+		org := createOrg("Аудит Ответственные")
+		testutil.RegisterUser(t, e, "auditresp1", "pass123", 1, td.OrgID, td.CompanyID)
+
+		// Назначили resp1 с approval=false - запись responsibles_changed с added.
+		require.Equal(t, http.StatusOK, testutil.POST(t, e, "/organizations/bulk/users",
+			fmt.Sprintf(`{"ids":[%d],"users":[{"username":"auditresp1","required_approval":false}],"mode":"replace"}`, org), h).Code)
+		rec := findAction(history(org), "responsibles_changed")
+		require.NotNil(t, rec, "bulk назначение ответственных пишет историю")
+		added, _ := detailsOf(rec)["added"].([]interface{})
+		require.Len(t, added, 1)
+		a0 := added[0].(map[string]interface{})
+		assert.Equal(t, "auditresp1", a0["username"])
+		assert.Equal(t, false, a0["required_approval"])
+
+		// Тот же набор, но approval=true - запись только с approval_changed (added/removed пусты).
+		require.Equal(t, http.StatusOK, testutil.POST(t, e, "/organizations/bulk/users",
+			fmt.Sprintf(`{"ids":[%d],"users":[{"username":"auditresp1","required_approval":true}],"mode":"replace"}`, org), h).Code)
+		rec2 := findAction(history(org), "responsibles_changed")
+		require.NotNil(t, rec2)
+		ch, _ := detailsOf(rec2)["approval_changed"].([]interface{})
+		require.Len(t, ch, 1, "смена флага согласования пишется в approval_changed")
+		c0 := ch[0].(map[string]interface{})
+		assert.Equal(t, "auditresp1", c0["username"])
+		assert.Equal(t, false, c0["from"])
+		assert.Equal(t, true, c0["to"])
+		_, hasAdded := detailsOf(rec2)["added"]
+		assert.False(t, hasAdded, "при одной лишь смене согласования added отсутствует")
+
+		// Повтор того же набора без изменений - истории не прибавляется.
+		before := len(history(org))
+		require.Equal(t, http.StatusOK, testutil.POST(t, e, "/organizations/bulk/users",
+			fmt.Sprintf(`{"ids":[%d],"users":[{"username":"auditresp1","required_approval":true}],"mode":"replace"}`, org), h).Code)
+		assert.Len(t, history(org), before, "неизменяющее назначение ответственных не пишет историю")
+	})
+}
+
 func TestOrganizations_WithUsers_MultipleUsers(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()

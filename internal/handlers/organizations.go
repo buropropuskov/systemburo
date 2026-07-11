@@ -306,7 +306,8 @@ func (h *OrganizationHandler) UpdateOrganizationUsers(c echo.Context) error {
 		return err
 	}
 
-	if err := h.service.UpdateOrganizationUsers(c.Request().Context(), id, req); err != nil {
+	userID, _ := c.Get("user_id").(int)
+	if err := h.service.UpdateOrganizationUsers(c.Request().Context(), userID, id, req); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Organization users updated successfully")
@@ -362,7 +363,8 @@ func (h *OrganizationHandler) UpdateOrganizationTables(c echo.Context) error {
 		return err
 	}
 
-	if err := h.service.UpdateOrganizationTables(c.Request().Context(), id, req); err != nil {
+	userID, _ := c.Get("user_id").(int)
+	if err := h.service.UpdateOrganizationTables(c.Request().Context(), userID, id, req); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Organization tables updated successfully")
@@ -418,7 +420,8 @@ func (h *OrganizationHandler) UpdateOrganizationUnloadPlaces(c echo.Context) err
 		return err
 	}
 
-	if err := h.service.UpdateOrganizationUnloadPlaces(c.Request().Context(), id, req); err != nil {
+	userID, _ := c.Get("user_id").(int)
+	if err := h.service.UpdateOrganizationUnloadPlaces(c.Request().Context(), userID, id, req); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Unload places updated successfully")
@@ -482,7 +485,8 @@ func (h *OrganizationHandler) BulkAssignUnloadPlaces(c echo.Context) error {
 	if len(req.IDs) == 0 {
 		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны организации")
 	}
-	res, err := h.service.BulkAssignUnloadPlaces(c.Request().Context(), req.IDs, req.UnloadPlaceIDs, req.Mode)
+	userID, _ := c.Get("user_id").(int)
+	res, err := h.service.BulkAssignUnloadPlaces(c.Request().Context(), userID, req.IDs, req.UnloadPlaceIDs, req.Mode)
 	if err != nil {
 		return err
 	}
@@ -511,7 +515,8 @@ func (h *OrganizationHandler) BulkAssignTables(c echo.Context) error {
 	if len(req.IDs) == 0 {
 		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны организации")
 	}
-	res, err := h.service.BulkAssignTables(c.Request().Context(), req.IDs, req.TableIDs, req.Mode)
+	userID, _ := c.Get("user_id").(int)
+	res, err := h.service.BulkAssignTables(c.Request().Context(), userID, req.IDs, req.TableIDs, req.Mode)
 	if err != nil {
 		return err
 	}
@@ -540,7 +545,8 @@ func (h *OrganizationHandler) BulkAssignUsers(c echo.Context) error {
 	if len(req.IDs) == 0 {
 		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны организации")
 	}
-	res, err := h.service.BulkAssignUsers(c.Request().Context(), req.IDs, req.Users, req.Mode)
+	userID, _ := c.Get("user_id").(int)
+	res, err := h.service.BulkAssignUsers(c.Request().Context(), userID, req.IDs, req.Users, req.Mode)
 	if err != nil {
 		return err
 	}
