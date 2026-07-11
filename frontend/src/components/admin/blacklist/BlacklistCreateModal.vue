@@ -3,7 +3,7 @@
     :show="show"
     :title="title"
     width="520px"
-    content-class="bl-create-modal"
+    radius="30px"
     @close="close"
   >
     <div class="bl-create">
@@ -726,12 +726,13 @@ export default {
   opacity: 0;
   transform: translateY(-10px);
 }
-</style>
 
-<!-- не scoped: контент BaseModal телепортится в body с его data-v, поэтому радиус задаём
-     глобально двойным классом (бьёт scoped .base-modal). Эталон модалок - 30px. -->
-<style>
-.base-modal.bl-create-modal {
-  border-radius: 30px;
+/* Номер (202px фикс.) и марка бок о бок переполняют модалку на узких телефонах
+   (320-375px) - тот же фикс, что уже стоит в VehicleForm.vue (эталон разметки,
+   #481: этот блок - её 1:1 копия) для идентичной .completion__fields. */
+@media (max-width: 480px) {
+  .completion__fields {
+    flex-direction: column;
+  }
 }
 </style>

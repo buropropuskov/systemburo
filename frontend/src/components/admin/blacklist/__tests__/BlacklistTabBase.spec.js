@@ -109,7 +109,8 @@ describe('BlacklistTabBase', () => {
   it('кнопка "Создать запись" эмитит create', async () => {
     const wrapper = mountBase();
     await flushPromises();
-    const btn = wrapper.findAll('button').find((b) => b.text() === 'Создать запись');
+    // rt-btn-compact оборачивает текст в .rt-btn-label рядом с иконкой .rt-btn-icon (#1097 S9)
+    const btn = wrapper.findAll('button').find((b) => b.text().includes('Создать запись'));
     await btn.trigger('click');
     expect(wrapper.emitted('create')).toBeTruthy();
   });
