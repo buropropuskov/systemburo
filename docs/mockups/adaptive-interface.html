@@ -89,26 +89,42 @@ body{ background:var(--st-bg); color:var(--st-text); font-family:var(--st-font);
 .app *{ box-sizing:border-box; }
 
 /* ---- app shell: nav rail + header + content ---- */
-.app-shell{ display:grid; grid-template-columns:var(--rail-w,248px) 1fr; grid-template-rows:auto 1fr; min-height:640px; }
-.rail{ grid-row:1/3; background:#fff; border-right:1px solid var(--color-border); display:flex; flex-direction:column; overflow:hidden; }
-.rail-brand{ display:flex; align-items:center; gap:10px; padding:16px 16px 12px; font-weight:700; font-size:15px; }
-.rail-brand .logo{ width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,#4F5BDF,#7c86ff);display:grid;place-items:center;color:#fff;font-weight:800; }
-.rail-search{ margin:0 12px 8px; }
+.app-shell{ display:grid; position:relative; grid-template-columns:var(--rail-w,58px) 1fr; grid-template-rows:auto 1fr; min-height:640px; }
+/* icon-rail (реальный дефолт систембуро: 58px иконки, разворот по наведению/в drawer) */
+.rail{ grid-row:1/3; background:#fff; border-right:1px solid var(--color-border); display:flex; flex-direction:column; overflow:visible; width:100%; position:relative; z-index:20; }
+.rail-brand{ display:flex; align-items:center; gap:10px; padding:14px 0; justify-content:center; font-weight:700; font-size:15px; white-space:nowrap; }
+.rail-brand .logo{ width:32px;height:32px;flex:none;border-radius:9px;background:linear-gradient(135deg,#4F5BDF,#7c86ff);display:grid;place-items:center;color:#fff;font-weight:800; }
+.rail-brand .brand-text{ display:none; }
+.rail-brand .brand-text small{ display:block;font-weight:500;font-size:11px;color:var(--color-text-muted); }
+.rail-search{ display:none; margin:0 12px 8px; }
 .rail-search input{ width:100%; padding:8px 12px; border:1px solid var(--color-border); border-radius:var(--radius-md); font:inherit; font-size:12.5px; }
-.rail-scroll{ overflow-y:auto; padding:4px 0 14px; flex:1; }
-.rail-sec{ padding:12px 16px 4px; font-size:9.5px; font-weight:700; letter-spacing:.6px; color:var(--color-text-muted); text-transform:uppercase; }
-.rail-item{ display:flex; align-items:center; gap:11px; padding:9px 16px; margin:1px 8px; border-radius:12px; cursor:pointer; font-size:13.5px; color:#333; }
-.rail-item .ic{ width:19px;height:19px;flex:none;border-radius:6px;background:var(--color-primary-tint);display:grid;place-items:center;font-size:11px;color:var(--color-primary); }
+.rail-scroll{ overflow-y:auto; overflow-x:hidden; padding:4px 0 14px; flex:1; }
+.rail-sec{ display:none; padding:12px 16px 4px; font-size:9.5px; font-weight:700; letter-spacing:.6px; color:var(--color-text-muted); text-transform:uppercase; white-space:nowrap; }
+.rail-item{ display:flex; align-items:center; gap:12px; padding:10px; margin:3px 9px; border-radius:12px; cursor:pointer; font-size:13.5px; color:#333; justify-content:center; white-space:nowrap; position:relative; }
+.rail-item .ic{ width:22px;height:22px;flex:none;border-radius:7px;background:var(--color-primary-tint);display:grid;place-items:center;font-size:12px;color:var(--color-primary); }
+.rail-item .label{ display:none; }
 .rail-item:hover{ background:var(--color-bg); }
 .rail-item.active{ background:var(--color-primary); color:#fff; }
 .rail-item.active .ic{ background:rgba(255,255,255,.22); color:#fff; }
-.rail-item .badge-n{ margin-left:auto; background:var(--color-danger); color:#fff; font-size:10px; font-weight:700; border-radius:999px; padding:1px 6px; }
+.rail-item .badge-n{ position:absolute; top:3px; right:6px; background:var(--color-danger); color:#fff; font-size:9px; font-weight:700; border-radius:999px; padding:0 4px; }
+/* развёрнутое состояние: наведение (десктоп) или открытый drawer (мобилка) */
+.rail:hover, .app-shell.drawer-open .rail{ position:absolute; top:0; bottom:0; left:0; width:280px; box-shadow:0 12px 40px rgba(0,0,0,.16); }
+.rail:hover .rail-brand, .app-shell.drawer-open .rail-brand{ justify-content:flex-start; padding:16px; }
+.rail:hover .brand-text, .app-shell.drawer-open .brand-text{ display:block; }
+.rail:hover .rail-search, .app-shell.drawer-open .rail-search{ display:block; }
+.rail:hover .rail-sec, .app-shell.drawer-open .rail-sec{ display:block; }
+.rail:hover .rail-item, .app-shell.drawer-open .rail-item{ justify-content:flex-start; margin:2px 8px; padding:9px 14px; }
+.rail:hover .rail-item .label, .app-shell.drawer-open .rail-item .label{ display:block; }
+.rail:hover .rail-item .badge-n, .app-shell.drawer-open .rail-item .badge-n{ position:static; margin-left:auto; padding:1px 6px; font-size:10px; }
 
 .topbar{ grid-column:2; display:flex; align-items:center; gap:12px; padding:10px var(--gutter); background:#fff; border-bottom:1px solid var(--color-border); min-height:60px; }
 .burger{ display:none; width:40px;height:40px;border:1px solid var(--color-border);border-radius:12px;background:#fff;cursor:pointer; align-items:center; justify-content:center; }
 .burger span{ display:block; width:18px; height:2px; background:#333; box-shadow:0 -6px 0 #333, 0 6px 0 #333; }
-.top-hello{ font-weight:600; font-size:14px; }
+.top-hello h3{ margin:0; font-weight:600; font-size:15px; }
 .top-hello small{ display:block; font-weight:400; font-size:11.5px; color:var(--color-text-muted); }
+.feedback-btn{ border:0; background:transparent; color:var(--color-text-muted); font:inherit; font-size:13px; cursor:pointer; white-space:nowrap; }
+.feedback-btn:hover{ color:var(--color-primary); }
+.broadcast{ background:rgba(255,193,7,.16); color:#9a7d00; border-radius:999px; padding:6px 14px; font-size:12.5px; font-weight:600; white-space:nowrap; cursor:pointer; }
 .top-actions{ margin-left:auto; display:flex; align-items:center; gap:10px; }
 .top-ic{ width:38px;height:38px;border-radius:12px;border:1px solid var(--color-border);background:#fff;display:grid;place-items:center;color:#555;font-size:15px;cursor:pointer; position:relative; }
 .top-ic .dotb{ position:absolute; top:7px; right:8px; width:7px;height:7px;border-radius:50%;background:var(--color-danger); }
@@ -197,6 +213,7 @@ body{ background:var(--st-bg); color:var(--st-text); font-family:var(--st-font);
   .device[data-mode="after"] .app-shell{ grid-template-columns:1fr; }
   .device[data-mode="after"] .topbar, .device[data-mode="after"] .content{ grid-column:1; }
   .device[data-mode="after"] .burger{ display:flex; }
+  .device[data-mode="after"] .top-hello{ display:none; }   /* убираем «Добрый день…» на узком */
   .device[data-mode="after"] .drawer-scrim{ display:block; }
   /* таблицы -> карточки */
   .device[data-mode="after"] .dt-head, .device[data-mode="after"] .dt-body{ display:none; }
@@ -290,7 +307,7 @@ body{ background:var(--st-bg); color:var(--st-text); font-family:var(--st-font);
 /* ============================ ДАННЫЕ ЭКРАНОВ ============================ */
 const SCREENS = [
   {g:"A · Полноэкранные", items:[
-    {id:"login", n:"Вход", r:"login", note:"Центрированная карточка. Уже почти адаптивна — на телефоне на всю ширину, крупные поля."},
+    {id:"login", n:"Вход", r:"login", note:"Фон-изображение + слева заголовок и поля-пилюли, справа карточка «Добро пожаловать» (radius 100px). Уже адаптивна: на планшете/телефоне колонки стекаются, круги скрываются."},
     {id:"data-processing", n:"Согласие на обработку ПД", r:"doc", note:"Полноэкранный документ (inline PDF). Один столбец, читаемая ширина текста."},
     {id:"err", n:"Ошибка 500 / Техработы / 403", r:"error", note:"Editorial full-viewport (уже адаптивны)."},
   ]},
@@ -333,7 +350,7 @@ const SCREENS = [
     {id:"constructor", n:"Конструктор таблиц / текста", r:"settings", note:"Табы конфигурации + превью. Стек на узком, превью скроллом."},
   ]},
   {g:"L · Аккаунт", items:[
-    {id:"account", n:"Личный кабинет", r:"account", note:"Профиль + история входов. 2 колонки -> одна."},
+    {id:"account", n:"Личный кабинет", r:"account", note:"Реальный экран: [карточка профиля | уведомления] сверху + список «Мои заявки». Две верхние колонки -> одна; заявки -> карточки-письма."},
     {id:"feedback", n:"Обратная связь", r:"table", note:"Список обращений -> карточки."},
   ]},
 ];
@@ -344,16 +361,17 @@ const R = {};
 function shell(inner, opts={}){
   const nav = `
     <div class="rail">
-      <div class="rail-brand"><span class="logo">Б</span><span>Бюропропусков</span></div>
-      <div class="rail-search"><input placeholder="Поиск по меню…"></div>
+      <div class="rail-brand"><span class="logo">Б</span><span class="brand-text">Бюро<small>пропусков</small></span></div>
+      <div class="rail-search"><input placeholder="Поиск…"></div>
       <div class="rail-scroll">
         <div class="rail-sec">Заявки</div>
-        ${railItem("📥","Центр заявок",opts.active==="center","7")}
+        ${railItem("📥","Центр заявок",opts.active==="center","9+")}
         ${railItem("✚","Новая заявка",opts.active==="create")}
+        ${railItem("📎","Доступные мне",false)}
         <div class="rail-sec">Управление данными</div>
         ${railItem("▦","Таблицы",false)}
-        ${railItem("🚗","Автомобили",opts.active==="cars")}
         ${railItem("👥","Сотрудники",false)}
+        ${railItem("🚗","Автомобили",opts.active==="cars")}
         <div class="rail-sec">Аналитика</div>
         ${railItem("📊","Аналитика",opts.active==="analytics")}
         <div class="rail-sec">Администрирование</div>
@@ -361,28 +379,29 @@ function shell(inner, opts={}){
         <div class="rail-sec">Пользователь</div>
         ${railItem("📰","Обзор и новости",opts.active==="news")}
         ${railItem("👤","Личный кабинет",opts.active==="account")}
+        ${railItem("⤴","Выйти",false)}
       </div>
     </div>`;
   const top = `
     <div class="topbar">
       <button class="burger" onclick="this.closest('.app-shell').classList.toggle('drawer-open')"><span></span></button>
-      <div class="top-hello">Здравствуйте, Сергей<small>Бюро пропусков</small></div>
+      <div class="top-hello"><h3>Добрый день, Сергей!</h3><small>Мы рады, что вы здесь!</small></div>
       <div class="top-actions">
-        <span class="clock hide-md">10:24 · Пт, 11 июл</span>
-        <button class="top-ic hide-md" title="Сообщить о проблеме">✉</button>
+        <button class="feedback-btn hide-md">Сообщить о проблеме</button>
+        <span class="broadcast hide-md">Объявление</span>
+        <span class="clock hide-md">11.07.2026 10:24</span>
         <button class="top-ic" title="Уведомления">🔔<span class="dotb"></span></button>
-        <button class="top-ic top-more" title="Ещё">⋯</button>
         <button class="btn btn--pri btn--sm">Подать заявку</button>
       </div>
     </div>`;
-  return `<div class="app-shell" style="${opts.railW?`--rail-w:${opts.railW}`:''}">
+  return `<div class="app-shell">
       ${nav}${top}
       <div class="content"><div class="content-inner">${inner}</div></div>
       <div class="drawer-scrim" onclick="this.closest('.app-shell').classList.remove('drawer-open')"></div>
     </div>`;
 }
 function railItem(ic,label,active,badge){
-  return `<div class="rail-item ${active?'active':''}"><span class="ic">${ic}</span><span>${label}</span>${badge?`<span class="badge-n">${badge}</span>`:''}</div>`;
+  return `<div class="rail-item ${active?'active':''}" title="${label}"><span class="ic">${ic}</span><span class="label">${label}</span>${badge?`<span class="badge-n">${badge}</span>`:''}</div>`;
 }
 
 /* ---- Центр заявок (hero) ---- */
@@ -485,13 +504,33 @@ R.table = ()=> shell(`
 function hexA(hex,a){ if(hex[0]!=='#')return hex; const n=parseInt(hex.slice(1),16); return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`; }
 
 /* ---- Login ---- */
-R.login = ()=>`<div class="fullpage"><div class="login-card">
-  <div class="logo">Б</div><h2>Бюропропусков</h2><p>Система электронных пропусков</p>
-  <div class="field"><label>Логин</label><input class="inp" value="buropropuskov"></div>
-  <div class="field"><label>Пароль</label><input class="inp" type="password" value="••••••••"></div>
-  <button class="btn btn--pri" style="width:100%;margin-top:6px">Войти</button>
-  <p style="margin-top:16px;font-size:12px"><a style="color:var(--color-primary)">Забыли пароль?</a></p>
-</div></div>`;
+R.login = ()=>`
+<div class="lg">
+  <div class="lg-bg"></div>
+  <span class="lg-shape s1"></span><span class="lg-shape s2"></span><span class="lg-shape s3"></span><span class="lg-shape s4"></span>
+  <div class="lg-wrap">
+    <div class="lg-left">
+      <div class="lg-head"><h1>Войдите в аккаунт</h1><h3>для продолжения</h3></div>
+      <div class="lg-form">
+        <div class="lg-input"><span class="lg-ic">👤</span><input placeholder="Логин"></div>
+        <div class="lg-input"><span class="lg-ic">🔒</span><input type="password" placeholder="Пароль"></div>
+        <a class="lg-forgot">Забыли пароль?</a>
+        <div class="lg-footer"><button class="lg-btn">Войти <span>🔑</span></button><span class="lg-lock"></span></div>
+      </div>
+    </div>
+    <div class="lg-info">
+      <h2>Добро пожаловать!</h2>
+      <p>Для продолжения, необходимо войти в аккаунт, используя выданные данные.</p>
+      <h3>Помощь и поддержка</h3>
+      <p>Обратитесь к нам, чтобы получить учётную запись, восстановить доступ или решить другие проблемы:</p>
+      <div class="lg-contacts">
+        <div class="lg-contact"><span>✉</span> buropropuskov@dreamisland.ru</div>
+        <div class="lg-contact"><span>📞</span> +7 (910) 083 00-55</div>
+        <p class="lg-time">ПН-ПТ: <strong>08:00 - 22:00</strong> СБ-ВС и ПРАЗДНИКИ: <strong>08:00 - 20:00</strong></p>
+      </div>
+    </div>
+  </div>
+</div>`;
 
 R.doc = ()=>`<div class="fullpage" style="align-items:start;padding-top:30px"><div class="sb-card" style="max-width:760px;width:100%;padding:28px 30px">
   <h1 style="font-size:20px;margin:0 0 6px">Согласие на обработку персональных данных</h1>
@@ -508,55 +547,63 @@ R.error = ()=>`<div class="fullpage"><div style="text-align:center;max-width:440
 </div></div>`;
 
 /* ---- News (landing) ---- */
+const NEWS_ITEMS=[
+  {date:"20.06.2026 15:03", title:"Изменение работы Дебаркадера №2", text:"Важно! Уведомляем всех пользователей об изменении графика режима работы Дебаркадера №2."},
+  {date:"01.06.2026 20:18", title:"Запуск системы электронной подачи заявок", text:"Бюро пропусков «Остров мечты» объявляет о запуске современного онлайн-сервиса. С сегодняшнего дня подать заявку на въезд транспорта или проход сотрудников и гостей можно в несколько кликов."},
+];
 R.news = ()=> shell(`
-  <div class="sb-card" style="padding:22px;margin-bottom:16px;background:linear-gradient(120deg,var(--color-primary-tint),#fff)">
-    <h1 style="margin:0 0 6px;font-size:22px">Обзор и новости</h1>
-    <p style="margin:0;color:var(--color-text-muted)">Актуальная информация бюро пропусков, документы и режимы работы.</p>
-  </div>
-  <div class="section-title">Новости и объявления</div>
-  <div class="grid-cards">
-    ${[["Изменение режима работ на выходных","10 июля"],["Новый регламент оформления ТМЦ","8 июля"],["Плановые работы на территории","5 июля"],["Обновление списка мест разгрузки","2 июля"]]
-      .map(x=>`<div class="sb-card" style="padding:16px"><div class="badge b-blue" style="margin-bottom:8px">Новость</div><div style="font-weight:600;margin-bottom:6px">${x[0]}</div><div style="font-size:12.5px;color:var(--color-text-muted)">${x[1]}</div></div>`).join('')}
-  </div>
-  <div class="section-title">Документы</div>
-  <div class="grid-cards">
-    ${["Инструкция по оформлению","Правила въезда на территорию","Шаблон доверенности"].map(x=>`<div class="sb-card" style="padding:14px;display:flex;gap:10px;align-items:center"><span style="font-size:22px">📄</span><span style="font-weight:600;font-size:13px">${x}</span></div>`).join('')}
+  <div class="news-wrap">
+    <div class="news-left">
+      <div class="sb-card">
+        <div class="sb-h"><h1>Последние новости</h1><div style="display:flex;gap:8px"><button class="btn btn--sec btn--sm">📘 Обучение</button><button class="btn btn--ghost btn--sm">⟳ Обновить</button></div></div>
+        <div style="padding:4px 20px 12px">
+          ${NEWS_ITEMS.map(n=>`
+            <div class="news-item">
+              <div class="news-item-h"><time>${n.date}</time><span class="badge b-blue">Новость</span></div>
+              <h3>${n.title}</h3><p>${n.text}</p>
+              <button class="btn btn--pri btn--sm">Читать далее</button>
+            </div>`).join('')}
+        </div>
+      </div>
+    </div>
+    <div class="news-right">
+      <div class="sb-card guide-card">
+        <div class="guide-ic">📖</div>
+        <div><div class="guide-title">Руководство пользования системой <span style="color:var(--color-primary)">подачи заявок</span></div>
+          <p class="guide-desc">Узнайте, как пользоваться системой, легко и быстро подать заявку: <strong>пошаговая инструкция</strong></p></div>
+      </div>
+      <div class="sb-card" style="padding:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span class="broadcast">Объявление</span><time style="font-size:11px;color:var(--color-text-muted)">18.06 18:04</time></div>
+        <h3 style="margin:0 0 6px;font-size:15px">Изменение работы Дебаркадера №2</h3>
+        <p style="font-size:13px;color:#555;margin:0 0 10px;line-height:1.5">Внимание пользователи! С 01.08.2026 изменяется график режима работы дебаркадера №2. Новый режим:</p>
+        <button class="btn btn--pri btn--sm">Читать далее</button>
+      </div>
+      <div class="sb-card" style="padding:16px">
+        <div style="font-weight:700;margin-bottom:10px">Документы</div>
+        <div class="tabbar" style="padding:0;border:0;margin-bottom:6px"><span class="t on" style="padding:6px 10px">Все</span><span class="t" style="padding:6px 10px">Бланки заявок</span><span class="t" style="padding:6px 10px">Правила КПР</span></div>
+        ${[["Автозаявка","20.06.2026"],["Заявка на ввоз","20.06.2026"],["Заявка на вывоз","20.06.2026"]].map(d=>`
+          <div class="doc-row"><span class="doc-ic">XLSX</span><div style="flex:1"><div style="font-size:13px;font-weight:600">${d[0]}</div><div style="font-size:11px;color:var(--color-text-muted)">${d[1]}</div></div><button class="btn btn--ghost btn--sm">⬇ Скачать</button></div>`).join('')}
+      </div>
+      <button class="sb-card modes-row"><span class="modes-ic">🕐</span><div style="flex:1;text-align:left"><div style="font-weight:700">Режимы работы</div><div style="font-size:12px;color:var(--color-text-muted)">Время работы Бюро, мест разгрузки и мест прохода</div></div><span style="color:#bbb">›</span></button>
+    </div>
   </div>`, {active:"news"});
 
 /* ---- CreateApplication (форма) ---- */
 R.create = ()=> shell(`
-  <div class="sb-card" style="margin-bottom:14px"><div class="sb-h"><h1>Оформление и подача заявки</h1><span class="cnt">Черновик сохраняется автоматически</span></div></div>
-  <div style="display:grid;grid-template-columns:260px 1fr;gap:15px" class="create-grid">
-    <div class="sb-card" style="padding:14px">
-      <div style="font-weight:600;font-size:13px;margin-bottom:10px">Вложения</div>
-      ${["Автомобили","Сотрудники","ТМЦ"].map((x,i)=>`<div class="rail-item ${i===0?'active':''}" style="margin:2px 0">${x}</div>`).join('')}
-      <button class="btn btn--sec btn--sm" style="width:100%;margin-top:10px">+ Добавить</button>
+  <div class="sb-card create-head">
+    <div class="create-head-l"><h1>Оформление и подача заявки</h1>
+      <div class="create-recip">Получатели: <span class="chip">Системный А.</span><button class="btn btn--ghost btn--sm">+ получатель</button></div>
     </div>
-    <div class="sb-card" style="padding:18px">
-      <div style="display:flex;gap:16px" class="form-row-2">
-        <div><div class="section-title" style="margin-top:0">Сопроводительное письмо</div><div class="inp" style="min-height:120px;color:#aaa">Текст письма…</div></div>
-        <div style="background:var(--color-bg-secondary);border-radius:15px;padding:14px">
-          <label style="display:flex;gap:8px;font-size:12.5px;align-items:flex-start"><input type="checkbox" checked><span>Согласен на обработку ПД</span></label>
-          <button class="btn btn--pri" style="width:100%;margin-top:12px">Отправить заявку</button>
-        </div>
-      </div>
-      <div class="section-title">Реквизиты</div>
-      <div class="form-row-3">
-        <div class="field"><label>Организация</label><input class="inp" value="ООО «Балтлог»"></div>
-        <div class="field"><label>Компания</label><input class="inp" value="БалтТранс"></div>
-        <div class="field"><label>Ответственный</label><input class="inp" value="Иванов И."></div>
-      </div>
-      <div class="section-title">Период и доступ</div>
-      <div class="form-row-3">
-        <div class="field"><label>Действует с</label><input class="inp" value="11.07.2026"></div>
-        <div class="field"><label>по</label><input class="inp" value="20.07.2026"></div>
-        <div class="field"><label>Время пребывания</label><input class="inp" value="08:00–18:00"></div>
-      </div>
-      <div class="section-title">Автомобили</div>
-      <div class="form-row-2">
-        <div class="field"><label>Гос. номер</label><input class="inp" value="А123ВС78"></div>
-        <div class="field"><label>Марка</label><input class="inp" value="Volvo FH"></div>
-      </div>
+    <button class="btn btn--sec">Добавьте новое вложение</button>
+  </div>
+  <div class="create-grid">
+    <div class="sb-card blank-sel">
+      ${[["Автозаявки","0/0"],["Ввоз","0/0"],["Проведение работ","0/0"],["Разовые пропуска","0/0"]].map(s=>`
+        <div class="blank-group"><div class="blank-group-h"><span>${s[0].toUpperCase()}</span><span class="blank-count">${s[1]}</span></div><button class="btn btn--pri btn--sm blank-add">Добавить</button></div>`).join('')}
+      <div class="blank-actions"><button class="btn btn--ghost btn--sm">Удалить выбранные</button><button class="btn btn--ghost btn--sm">Удалить все</button></div>
+    </div>
+    <div class="sb-card create-empty">
+      <div class="create-empty-in"><div style="font-size:34px;opacity:.35">➕</div><div>Добавьте или выберите вложение для начала работы</div></div>
     </div>
   </div>`, {active:"create"});
 
@@ -675,28 +722,117 @@ R.blacklist = ()=> shell(`
 
 /* ---- Account ---- */
 R.account = ()=> shell(`
-  <div style="display:grid;grid-template-columns:1fr 1.4fr;gap:16px" class="acc-grid">
-    <div class="sb-card" style="padding:20px;text-align:center">
-      <div style="width:72px;height:72px;border-radius:50%;background:var(--color-primary-tint);margin:0 auto 12px;display:grid;place-items:center;font-size:28px;color:var(--color-primary)">С</div>
-      <div style="font-weight:700;font-size:16px">Сергей Иванов</div>
-      <div style="color:var(--color-text-muted);font-size:13px">Оператор бюро</div>
-      <button class="btn btn--ghost btn--sm" style="margin-top:14px">Изменить пароль</button>
+  <div class="acc-wrap">
+    <div class="acc-top">
+      <div class="sb-card acc-profile">
+        <div class="acc-name"><h2>Иванов Сергей Петрович</h2><span class="badge b-blue">Бюро пропусков</span></div>
+        <div class="acc-org">🏢 ООО «Балтийская логистика»</div>
+        <div class="acc-badges">
+          <span class="acc-badge">📋 Оператор бюро</span>
+          <span class="acc-badge">✉ s.ivanov@baltlog.ru</span>
+          <span class="acc-badge">📞 +7 (900) 000-00-00</span>
+        </div>
+      </div>
+      <div class="sb-card acc-notif">
+        <div class="sb-h" style="height:auto;padding:14px 16px"><h1 style="font-size:15px">Уведомления</h1><span class="badge b-red">3</span></div>
+        <div style="padding:2px 16px 12px">
+          ${["Заявка 20260711/014 согласована","Новый вопрос по заявке 20260711/013","Режим работы дебаркадера №2 изменён"].map(n=>`<div class="acc-notif-item"><span class="d"></span><span>${n}</span></div>`).join('')}
+        </div>
+      </div>
     </div>
-    <div class="sb-card">
-      <div class="sb-h"><h1>История входов</h1></div>
-      <div>${[["11.07 10:24","Chrome · Windows","93.115.…"],["10.07 18:02","Chrome · Windows","93.115.…"],["09.07 08:41","Safari · iPhone","178.44.…"]].map(r=>`<div class="dt-row" style="min-height:46px"><div class="c" style="flex:1">${r[0]}</div><div class="c" style="flex:2">${r[1]}</div><div class="c" style="flex:1">${r[2]}</div></div>`).join('')}</div>
+    <div class="sb-card acc-apps">
+      <div class="sb-h"><h1>Мои заявки</h1><span class="cnt">Всего: 24</span></div>
+      <div class="dt dt-scroll">
+        <div class="dt-head"><div class="c c-num">Номер</div><div class="c c-date">Дата</div><div class="c c-sender">Отправитель</div><div class="c c-conf">Подтверждение</div><div class="c c-status">Статус</div><div class="c c-tags">Теги</div></div>
+        <div class="dt-body">${CENTER_ROWS.slice(0,4).map(row=>`<div class="dt-row"><div class="c c-num" style="color:var(--color-primary);font-weight:600">${row.num}</div><div class="c c-date">${row.date}</div><div class="c c-sender">${row.sender}</div><div class="c c-conf"><span class="badge ${row.conf[1]}">${row.conf[0]}</span></div><div class="c c-status"><span class="status" style="background:${hexA(row.status[1],.12)};color:${row.status[1]}"><span class="d" style="background:${row.status[1]}"></span>${row.status[0]}</span></div><div class="c c-tags"><div class="tag-wrap">${row.tags.map(t=>`<span class="badge ${t[1]}">${t[0]}</span>`).join('')||'—'}</div></div></div>`).join('')}</div>
+        <div class="dt-cardlist">${CENTER_ROWS.slice(0,4).map(row=>`<div class="mcard"><span class="badge ${row.conf[1]} m-conf">${row.conf[0]}</span><div class="m-tags">${row.tags.map(t=>`<span class="badge ${t[1]}">${t[0]}</span>`).join('')||'<span class="badge b-grey">без тегов</span>'}</div><div class="m-org">Заявка ${row.num}</div><div class="m-meta"><span>${row.sender}</span><span>${row.date}</span></div><div class="m-foot"><span class="status" style="background:${hexA(row.status[1],.12)};color:${row.status[1]}"><span class="d" style="background:${row.status[1]}"></span>${row.status[0]}</span></div></div>`).join('')}</div>
+      </div>
+      <div class="footer-total">Всего заявок: 24</div>
     </div>
   </div>`, {active:"account"});
 
-/* дополнительные адаптивные правила для форм/детали/дашборда (container queries) */
+/* CSS пересобранных экранов (вход/новости/кабинет/создание) + адаптив */
 const extra = document.createElement('style');
 extra.textContent = `
+/* --- Вход --- */
+.lg{ position:relative; min-height:640px; background:var(--color-primary); overflow:hidden; padding:40px; display:flex; }
+.lg-bg{ position:absolute; inset:0; background:linear-gradient(135deg,#6b76ea,#3a2f8f 55%,#7a54b8); opacity:.55; }
+.lg-shape{ position:absolute; border-radius:50%; background:rgba(255,255,255,.15); box-shadow:0 3px 10px rgba(0,0,0,.1); }
+.lg .s1{ width:250px;height:250px;top:-50px;left:-50px } .lg .s2{ width:150px;height:150px;bottom:50px;right:120px }
+.lg .s3{ width:100px;height:100px;top:48%;left:64% } .lg .s4{ width:180px;height:180px;bottom:-30px;right:-30px;background:rgba(255,255,255,.06) }
+.lg-wrap{ position:relative; z-index:2; width:100%; display:flex; justify-content:space-between; gap:30px; }
+.lg-left{ max-width:480px; }
+.lg-head{ padding-bottom:38px; }
+.lg-head h1{ font-size:54px; color:#fff; font-weight:900; text-shadow:4px 4px rgba(0,0,0,.1); margin:0; line-height:1.04; }
+.lg-head h3{ font-size:20px; color:#fff; font-weight:500; margin:8px 0 0; }
+.lg-form{ display:flex; flex-direction:column; }
+.lg-input{ width:450px; max-width:100%; height:66px; border-radius:100px; background:#F7F7F7; padding:5px 26px; display:flex; align-items:center; gap:14px; margin-bottom:18px; }
+.lg-input input{ border:0; outline:0; background:transparent; font:inherit; font-size:18px; font-weight:500; width:100%; }
+.lg-ic{ font-size:17px; opacity:.55; }
+.lg-forgot{ color:#fff; font-size:16px; padding-left:26px; margin-bottom:18px; cursor:pointer; }
+.lg-footer{ display:flex; align-items:center; gap:18px; }
+.lg-btn{ width:200px; height:58px; background:#fff; border:0; border-radius:50px; color:var(--color-primary); font-weight:800; font-size:20px; display:flex; align-items:center; justify-content:center; gap:10px; cursor:pointer; }
+.lg-lock{ width:18px;height:20px;border-radius:3px;background:#fff;position:relative; }
+.lg-lock::before{ content:""; position:absolute; top:-8px; left:3px; width:12px; height:11px; border:3px solid #fff; border-bottom:0; border-radius:9px 9px 0 0; }
+.lg-info{ width:520px; max-width:100%; background:rgba(255,255,255,.92); border-radius:100px; box-shadow:0 3px 10px rgba(0,0,0,.25); padding:48px; align-self:flex-start; margin-top:36px; }
+.lg-info h2{ font-size:38px; margin:0 0 16px; }
+.lg-info>h3{ font-size:24px; margin:16px 0 10px; }
+.lg-info p{ font-size:16px; line-height:1.5; margin:0 0 14px; }
+.lg-contact{ display:flex; gap:10px; align-items:center; color:var(--color-primary); font-weight:500; font-size:16px; padding-bottom:8px; }
+.lg-time{ font-size:13px; color:#a2a2a2; }
+@container vp (max-width:1024px){ .lg-wrap{ flex-direction:column; align-items:center; } .lg-left,.lg-info{ width:100%; max-width:560px; } .lg-info{ margin-top:0; } }
+@container vp (max-width:768px){ .lg{ padding:24px 16px; } .lg-head{ padding-bottom:26px; } .lg-head h1{ font-size:36px; } .lg-head h3{ font-size:16px; }
+  .lg-input{ width:100%; height:60px; } .lg-input input{ font-size:16px; } .lg-info{ border-radius:30px; padding:26px 20px; } .lg-info h2{ font-size:26px; } .lg-info>h3{ font-size:20px; } .lg-info p{ font-size:14px; } .lg-shape{ display:none; } }
+/* --- Обзор и новости --- */
+.news-wrap{ display:grid; grid-template-columns:1fr 380px; gap:16px; align-items:start; }
+.news-item{ padding:14px 0; border-bottom:1px solid var(--color-border); }
+.news-item:last-child{ border-bottom:0; }
+.news-item-h{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px; }
+.news-item-h time{ font-size:12px; color:var(--color-text-muted); }
+.news-item h3{ margin:0 0 6px; font-size:16px; }
+.news-item p{ margin:0 0 10px; font-size:13.5px; color:#555; line-height:1.5; }
+.news-right{ display:flex; flex-direction:column; gap:16px; }
+.guide-card{ display:flex; gap:12px; padding:16px; cursor:pointer; }
+.guide-ic{ font-size:28px; line-height:1; }
+.guide-title{ font-weight:700; font-size:15px; line-height:1.3; }
+.guide-desc{ font-size:12.5px; color:var(--color-text-muted); margin:8px 0 0; line-height:1.5; }
+.doc-row{ display:flex; align-items:center; gap:10px; padding:8px 0; border-top:1px solid var(--color-border); }
+.doc-ic{ width:30px;height:30px;flex:none;border-radius:6px;background:#1e7e34;color:#fff;font-size:8px;font-weight:700;display:grid;place-items:center; }
+.modes-row{ display:flex; align-items:center; gap:12px; padding:16px; border:1px solid var(--color-border); border-radius:var(--radius-lg); background:#fff; cursor:pointer; width:100%; box-shadow:var(--shadow-sm); }
+.modes-ic{ font-size:22px; }
+@container vp (max-width:900px){ .news-wrap{ grid-template-columns:1fr; } }
+/* --- Личный кабинет --- */
+.acc-wrap{ display:flex; flex-direction:column; gap:15px; }
+.acc-top{ display:grid; grid-template-columns:1fr 38%; gap:15px; align-items:start; }
+.acc-profile{ padding:20px; }
+.acc-name{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.acc-name h2{ margin:0; font-size:20px; }
+.acc-org{ margin:12px 0 14px; font-size:15px; color:#444; }
+.acc-badges{ display:flex; gap:8px; flex-wrap:wrap; }
+.acc-badge{ display:inline-flex; align-items:center; gap:6px; background:var(--color-bg); border:1px solid var(--color-border); border-radius:999px; padding:6px 12px; font-size:12.5px; color:#444; }
+.acc-notif-item{ display:flex; gap:8px; align-items:center; padding:8px 0; border-bottom:1px solid var(--color-border); font-size:13px; }
+.acc-notif-item:last-child{ border-bottom:0; }
+.acc-notif-item .d{ width:7px;height:7px;border-radius:50%;background:var(--color-primary);flex:none; }
+@container vp (max-width:1000px){ .device[data-mode="after"] .acc-top{ grid-template-columns:1fr; } }
+/* --- Создание заявки --- */
+.create-head{ display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px 20px; margin-bottom:15px; flex-wrap:wrap; }
+.create-head h1{ margin:0; font-size:18px; }
+.create-recip{ display:flex; align-items:center; gap:8px; margin-top:8px; font-size:13px; color:var(--color-text-muted); flex-wrap:wrap; }
+.create-grid{ display:grid; grid-template-columns:260px 1fr; gap:15px; align-items:start; }
+.blank-sel{ padding:14px; }
+.blank-group{ margin-bottom:14px; }
+.blank-group-h{ display:flex; justify-content:space-between; font-size:11px; font-weight:700; letter-spacing:.5px; color:var(--color-text-muted); margin-bottom:8px; }
+.blank-add{ width:100%; }
+.blank-actions{ display:flex; flex-direction:column; gap:8px; margin-top:12px; padding-top:14px; border-top:1px solid var(--color-border); }
+.create-empty{ min-height:420px; display:grid; place-items:center; border:1px dashed var(--color-border); box-shadow:none; }
+.create-empty-in{ text-align:center; color:var(--color-text-muted); font-size:14px; }
+.create-empty-in>div+div{ margin-top:8px; }
+/* --- общие адаптивные стеки --- */
 @container vp (max-width: 900px){
   .device[data-mode="after"] .create-grid{ grid-template-columns:1fr !important; }
   .device[data-mode="after"] .detail-3col{ grid-template-columns:1fr !important; }
   .device[data-mode="after"] .detail-3col > div{ border-right:0 !important; border-bottom:1px solid var(--color-border); }
   .device[data-mode="after"] .dash-charts{ grid-template-columns:1fr !important; }
-  .device[data-mode="after"] .acc-grid{ grid-template-columns:1fr !important; }
   .device[data-mode="after"] .form-row-2,.device[data-mode="after"] .form-row-3{ grid-template-columns:1fr !important; }
 }`;
 document.head.appendChild(extra);
