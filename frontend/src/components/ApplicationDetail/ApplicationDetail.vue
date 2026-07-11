@@ -1577,7 +1577,10 @@ export default {
     border-radius: 30px;
     width: 1600px;
     max-width: 95%;
-    height: 90vh;
+    /* zoom-safe (#1097): 90vh под корневым zoom (viewportScale) считается от
+       НЕзумленной высоты -> модалка выше зумленного вьюпорта (900px при 2560),
+       верх/низ уезжают за экран + пустота снизу. --app-vh нормирован на zoom. */
+    height: calc(var(--app-vh, 1vh) * 90);
     display: flex;
     flex-direction: column;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
