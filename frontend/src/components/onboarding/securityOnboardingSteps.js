@@ -4,13 +4,15 @@
  * вложения по своим местам и отмечает въезд/выезд. Поэтому тур ведёт по разделам
  * «Доступные мне» и «Таблицы», а не по оформлению заявки.
  *
- * Структура и поля шага - те же, что у applicant-тура (см. onboardingSteps.js):
- * движок группирует подряд идущие шаги с общим `route` в сегмент driver.js, смена
- * `route` = cross-page граница. Версия тура и флаг завершения общие с основным
- * сценарием - аргументация в stores/onboarding.js, где ветвится `steps`.
- * collectSegment живёт в onboardingSteps.js и работает с любым массивом шагов.
+ * Структура и поля шага - те же, что у applicant-тура (см. onboardingSteps.js),
+ * включая `mobileReveal` (#1097 S11 - переехавшие на <=768 цели: drawer NavMenu,
+ * overflow-меню шапки). движок группирует подряд идущие шаги с общим `route` в
+ * сегмент driver.js, смена `route` = cross-page граница. Версия тура и флаг
+ * завершения общие с основным сценарием - аргументация в stores/onboarding.js,
+ * где ветвится `steps`. collectSegment живёт в onboardingSteps.js и работает с
+ * любым массивом шагов.
  *
- * @type {Array<{ id: string, route: string, element: string|null, title: string, description: string, expandRail?: boolean, optional?: boolean, side?: string, align?: string }>}
+ * @type {Array<{ id: string, route: string, element: string|null, title: string, description: string, expandRail?: boolean, optional?: boolean, side?: string, align?: string, mobileReveal?: 'nav'|'header-overflow' }>}
  */
 export const securityOnboardingSteps = [
   // ── Сегмент /news: знакомство, шапка, навигация охранника ──
@@ -29,6 +31,7 @@ export const securityOnboardingSteps = [
     element: '[data-testid="header-button-feedback"]',
     title: 'Сообщить о проблеме',
     description: 'Заметили ошибку или есть предложение - напишите нам прямо отсюда, не покидая систему.',
+    mobileReveal: 'header-overflow',
   },
   {
     id: 'sec-header-time',
@@ -37,6 +40,7 @@ export const securityOnboardingSteps = [
     element: '[data-testid="ob-header-time"]',
     title: 'Дата и время',
     description: 'Текущие дата и время системы - удобно сверяться при проверке пропусков.',
+    mobileReveal: 'header-overflow',
   },
   {
     id: 'sec-header-notifications',
@@ -45,6 +49,7 @@ export const securityOnboardingSteps = [
     element: '[data-testid="ob-header-notifications"]',
     title: 'Уведомления',
     description: 'Колокольчик показывает количество непрочитанных уведомлений системы. Нажмите, чтобы открыть список.',
+    mobileReveal: 'header-overflow',
   },
   {
     id: 'sec-nav-rail',
@@ -54,6 +59,7 @@ export const securityOnboardingSteps = [
     description:
       'Боковое меню - главный способ перемещаться по системе. Отсюда вы попадаете в нужные разделы, а внизу - кнопка «Выйти».',
     expandRail: true,
+    mobileReveal: 'nav',
   },
   {
     id: 'sec-nav-accessible',
@@ -63,6 +69,7 @@ export const securityOnboardingSteps = [
     description:
       'Раздел «Доступные мне» - согласованные вложения заявок по местам, которые вы охраняете. Здесь вы смотрите оформленные пропуска и открываете их бланки. Сейчас перейдём туда.',
     expandRail: true,
+    mobileReveal: 'nav',
   },
   {
     id: 'sec-nav-tables',
@@ -72,6 +79,7 @@ export const securityOnboardingSteps = [
     description:
       'Раздел «Таблицы» - журналы по вашим местам. Внутри открываются таблицы со списками машин и людей.',
     expandRail: true,
+    mobileReveal: 'nav',
   },
   // ── Сегмент /accessible-attachments: страница «Доступные мне» ──
   {

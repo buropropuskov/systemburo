@@ -5,6 +5,7 @@ import { useOnboardingStore } from '@/stores/onboarding';
 import { useUiStore } from '@/stores/ui';
 import { useOnboarding } from '@/composables/useOnboarding';
 import { collectSegment, indexAfterRoute } from '@/components/onboarding/onboardingSteps';
+import { applyMobileReveal, restoreMobileReveal } from '@/components/onboarding/mobileReveal';
 
 const store = useOnboardingStore();
 const ui = useUiStore();
@@ -100,6 +101,7 @@ function applyDemoAttachment(globalIndex) {
 async function prepareStep(globalIndex) {
   const step = store.steps[globalIndex];
   applyDemoAttachment(globalIndex);
+  await applyMobileReveal(store.steps, globalIndex);
   if (!step?.element) return true;
   // Опциональный шаг ждём коротко: к этому моменту форма и field-config уже
   // отрисованы на предыдущем шаге, так что отсутствие элемента (доп.полей нет)
@@ -132,6 +134,7 @@ async function startSegment() {
   // уже раскрытый рельс (актуально при «Назад» прямо на такой шаг).
   applyDemoAttachment(store.currentIndex);
   applyRail(store.currentIndex);
+  await applyMobileReveal(store.steps, store.currentIndex);
 
   // Целевой шаг: дожидаемся его элемента (устойчивого по размеру), иначе
   // деградируем в центр-модал, чтобы driver не падал на отсутствующей цели.
@@ -154,6 +157,11 @@ async function startSegment() {
       // Backstop: синхронизируем демо-вложение с подсвеченным шагом (важно для
       // навигации «Назад» - prepareStep отрабатывает только на «Далее»).
       applyDemoAttachment(globalIndex);
+      // Держит панель текущего типа открытой, пока «Назад» ходит внутри группы
+      // одинакового mobileReveal (prepareStep этот путь не покрывает - он гейтит
+      // только «Далее»). Эксклюзивность внутри applyMobileReveal закрывает
+      // чужую панель. Не await - фоновый прогрев.
+      applyMobileReveal(store.steps, globalIndex);
     },
     onBeforeStep: prepareStep,
     onBoundaryNext: handleBoundaryNext,
@@ -210,6 +218,7 @@ function handleBoundaryNext(activeGlobalIndex) {
 function advanceToSegment(targetRoute) {
   store.advanceSegment();
   restoreRail();
+  restoreMobileReveal();
   // Старый driver уничтожаем; его отложенный onDestroyed обезврежен driverGen.
   if (driverObj) {
     driverObj.destroy();
@@ -245,6 +254,7 @@ function handleBoundaryPrev(segmentStartGlobal) {
 function retreatToSegment(targetIndex, targetRoute) {
   store.retreatSegment(targetIndex);
   restoreRail();
+  restoreMobileReveal();
   // Старый driver уничтожаем; его отложенный onDestroyed обезврежен driverGen.
   if (driverObj) {
     driverObj.destroy();
@@ -268,6 +278,7 @@ function finishTour() {
     fadeAndDestroy(d);
   } else {
     restoreRail();
+    restoreMobileReveal();
     markIfAuto();
     store.stop();
   }
@@ -288,6 +299,7 @@ function handleDestroyed(gen) {
   // Переход между страницами: тур продолжается, не останавливаем и рельс не трогаем.
   if (store.pendingSegment) return;
   restoreRail();
+  restoreMobileReveal();
   markIfAuto();
   store.stop();
 }
@@ -311,6 +323,7 @@ function teardown() {
   }
   store.clearPending();
   restoreRail();
+  restoreMobileReveal();
   // Тур окончен/прерван - снять демо-вложение (BlankSelector уберёт его из формы).
   store.setDemoAttachment(null);
 }

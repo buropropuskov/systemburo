@@ -23,9 +23,18 @@ export const ONBOARDING_VERSION = 1;
  * - `cta`        текст финальной кнопки-CTA (ведёт на оформление заявки);
  * - `side`       сторона поповера от элемента (top/bottom/left/right) - чтобы
  *                карточка не наезжала на выделенный элемент;
- * - `align`      выравнивание поповера вдоль стороны (start/center/end).
+ * - `align`      выравнивание поповера вдоль стороны (start/center/end);
+ * - `mobileReveal` на <=768px цель шага переехала в свёрнутый узел интерфейса -
+ *                хост (OnboardingTour) открывает его ПЕРЕД подсветкой:
+ *                `'nav'` - бургер-drawer NavMenu (рельс+группы уезжают
+ *                transform'ом за экран, но остаются в DOM "видимыми" для
+ *                waitForElement - без открытия тур подсветил бы пустоту за
+ *                краем); `'header-overflow'` - меню "⋯" TheHeader (вторичные
+ *                иконки шапки там `display:none`, без открытия элемент вовсе
+ *                не найдётся). На >=769 (десктоп) поле не читается - там эти
+ *                узлы всегда на месте. Механика раскрытия - в mobileReveal.js.
  *
- * @type {Array<{ id: string, route: string, element: string|null, title: string, description: string, demo?: string, expandRail?: boolean, celebrate?: boolean, cta?: string, side?: string, align?: string }>}
+ * @type {Array<{ id: string, route: string, element: string|null, title: string, description: string, demo?: string, expandRail?: boolean, celebrate?: boolean, cta?: string, side?: string, align?: string, mobileReveal?: 'nav'|'header-overflow' }>}
  */
 export const onboardingSteps = [
   {
@@ -75,6 +84,7 @@ export const onboardingSteps = [
     element: '[data-testid="header-button-feedback"]',
     title: 'Сообщить о проблеме',
     description: 'Заметили ошибку или есть предложение - напишите нам прямо отсюда, не покидая систему.',
+    mobileReveal: 'header-overflow',
   },
   {
     id: 'header-time',
@@ -83,6 +93,7 @@ export const onboardingSteps = [
     element: '[data-testid="ob-header-time"]',
     title: 'Дата и время',
     description: 'Текущие дата и время системы - удобно сверяться при оформлении заявок.',
+    mobileReveal: 'header-overflow',
   },
   {
     id: 'header-notifications',
@@ -91,6 +102,7 @@ export const onboardingSteps = [
     element: '[data-testid="ob-header-notifications"]',
     title: 'Уведомления',
     description: 'Колокольчик показывает количество непрочитанных уведомлений: смена статуса заявки, ответы согласующих и другие события. Нажмите, чтобы открыть список.',
+    mobileReveal: 'header-overflow',
   },
   {
     id: 'header-submit',
@@ -107,6 +119,7 @@ export const onboardingSteps = [
     title: 'Навигация',
     description: 'Боковое меню - главный способ перемещаться по системе. Отсюда вы попадаете в любой раздел, в свой Личный кабинет, а внизу - кнопка «Выйти».',
     expandRail: true,
+    mobileReveal: 'nav',
   },
   {
     id: 'nav-group-data',
@@ -115,6 +128,7 @@ export const onboardingSteps = [
     title: 'Управление данными',
     description: 'Раздел «Управление данными»: ваши сотрудники и автомобили. Здесь вы ведёте справочники, по которым оформляются пропуска.',
     expandRail: true,
+    mobileReveal: 'nav',
   },
   {
     id: 'cabinet-profile',
