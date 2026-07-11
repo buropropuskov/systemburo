@@ -880,4 +880,28 @@ export default {
     border: 5px solid transparent;
     border-top-color: #333;
 }
+
+/* Форма (450px) + список ТМЦ рядом не влезают на планшете - стекаем в колонку
+   (form__data в CreateApplication.vue делает то же на этом же брейкпоинте). */
+@media (max-width: 1024px) {
+    .data__completion {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid #e6e6e6;
+    }
+}
+
+@media (max-width: 768px) {
+    .tooltip-content {
+        min-width: 0;
+        max-width: calc(100vw - 40px);
+    }
+}
+
+@media (max-width: 480px) {
+    .unloading__grid {
+        grid-template-columns: repeat(2, 1fr);
+        max-width: 100%;
+    }
+}
 </style>

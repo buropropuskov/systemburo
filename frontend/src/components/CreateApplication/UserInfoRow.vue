@@ -161,4 +161,17 @@ export default {
     bottom: -15px;
     left: 0;
 }
+
+/* 4 фикс-ширных (260px) поля в ряд не влезают на узком - стекаем в колонку. */
+@media (max-width: 768px) {
+    .user-info-row {
+        flex-direction: column;
+        gap: 16px;
+        padding: 12px;
+    }
+
+    .user__input {
+        width: 100%;
+    }
+}
 </style>

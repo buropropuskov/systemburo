@@ -1505,4 +1505,56 @@ export default {
 .required {
     color: #ff4444;
 }
+
+/* Дата (250px) + время + доп.опции в ряд не влезают на узком - стекаем в колонку,
+   инпуты растягиваем на всю доступную ширину. */
+@media (max-width: 768px) {
+    .date-range-section {
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .date__input {
+        width: 100%;
+    }
+
+    .date-container {
+        width: 100%;
+    }
+
+    .date,
+    .single-date {
+        width: 100%;
+    }
+
+    .datepicker-wrapper {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .input__date {
+        width: 100%;
+    }
+
+    .time-section {
+        width: 100%;
+    }
+
+    .time-wrapper {
+        width: 100%;
+    }
+
+    .time-input-group {
+        flex: 1;
+    }
+
+    .input__time {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .additional-options {
+        width: 100%;
+    }
+}
 </style>
