@@ -147,13 +147,12 @@ func (s *applicationService) updateConfirmationBasedOnApprovals(tx *gorm.DB, app
 	return nil
 }
 
-// activateApplicationItems активирует/деактивирует машины и сотрудников заявки.
-func (s *applicationService) activateApplicationItems(tx *gorm.DB, applicationID int, activate bool) error {
-	newStatus := 0
-	if activate {
-		newStatus = 1
-	}
-
+// activateApplicationItems активирует/деактивирует машины и сотрудников заявки. При активации
+// (activate=true) для каждой машины/сотрудника, РЕАЛЬНО перешедших в активный статус (0->1),
+// пишется история «Добавлен в таблицу проходной» (#1085) по их целевым таблицам - это и есть
+// момент попадания в таблицу проходной (строки становятся видны охране по status=1). actorID -
+// кто принял заявку в работу; при деактивации история не пишется (actorID игнорируется).
+func (s *applicationService) activateApplicationItems(ctx context.Context, tx *gorm.DB, applicationID int, activate bool, actorID *int) error {
 	type attachmentRow struct {
 		ID             int
 		AttachmentType string
@@ -165,21 +164,74 @@ func (s *applicationService) activateApplicationItems(tx *gorm.DB, applicationID
 	}
 
 	for _, att := range attachments {
+		if !activate {
+			var err error
+			switch att.AttachmentType {
+			case "cars":
+				err = tx.Exec("UPDATE cars SET status = 0, updated_at = CURRENT_TIMESTAMP WHERE attachment_id = ?", att.ID).Error
+			case "people":
+				err = tx.Exec("UPDATE employees SET status = 0, updated_at = CURRENT_TIMESTAMP WHERE attachment_id = ?", att.ID).Error
+			default:
+				continue
+			}
+			if err != nil {
+				slog.Error("Ошибка деактивации элементов", "attachment_type", att.AttachmentType, "attachment_id", att.ID, "error", err)
+				return echo.NewHTTPError(http.StatusInternalServerError, "Error updating items status")
+			}
+			continue
+		}
+
+		// Активация: обновляем только неактивные строки и по RETURNING id узнаём, кто РЕАЛЬНО
+		// перешёл в активный статус - им пишем историю попадания в таблицу. Уже активная строка
+		// историю не плодит; после деактивации и повторной активации пишется новое попадание.
+		// IS DISTINCT FROM 1 (а не <> 1) на случай NULL-статуса - иначе NULL молча не активируется.
+		var ids []int
 		switch att.AttachmentType {
 		case "cars":
-			if err := tx.Exec("UPDATE cars SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE attachment_id = ?", newStatus, att.ID).Error; err != nil {
-				slog.Error("Ошибка обновления статуса машин", "attachment_id", att.ID, "error", err)
+			if err := tx.Raw("UPDATE cars SET status = 1, updated_at = CURRENT_TIMESTAMP WHERE attachment_id = ? AND status IS DISTINCT FROM 1 RETURNING id", att.ID).Scan(&ids).Error; err != nil {
+				slog.Error("Ошибка активации машин", "attachment_id", att.ID, "error", err)
 				return echo.NewHTTPError(http.StatusInternalServerError, "Error updating cars status")
 			}
+			s.recordEntitiesAddedToTable(ctx, tx, models.AuditEntityCar, ids, actorID)
 		case "people":
-			if err := tx.Exec("UPDATE employees SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE attachment_id = ?", newStatus, att.ID).Error; err != nil {
-				slog.Error("Ошибка обновления статуса сотрудников", "attachment_id", att.ID, "error", err)
+			if err := tx.Raw("UPDATE employees SET status = 1, updated_at = CURRENT_TIMESTAMP WHERE attachment_id = ? AND status IS DISTINCT FROM 1 RETURNING id", att.ID).Scan(&ids).Error; err != nil {
+				slog.Error("Ошибка активации сотрудников", "attachment_id", att.ID, "error", err)
 				return echo.NewHTTPError(http.StatusInternalServerError, "Error updating employees status")
 			}
+			s.recordEntitiesAddedToTable(ctx, tx, models.AuditEntityEmployee, ids, actorID)
 		}
 	}
 
 	return nil
+}
+
+// recordEntitiesAddedToTable пишет историю «Добавлен в таблицу проходной» (#1085) для каждой пары
+// (сущность, целевая таблица) активированных машин/сотрудников. entityType выбирает таблицу
+// привязки (car_target_tables / employee_target_tables). Ошибка отдельной записи логируется и не
+// прерывает цикл, но при РЕАЛЬНОМ SQL-сбое Postgres переводит транзакцию в aborted -> tx.Commit()
+// у вызывающего вернёт ошибку и активация тоже откатится (это безопаснее «тихого» пропуска).
+func (s *applicationService) recordEntitiesAddedToTable(ctx context.Context, tx *gorm.DB, entityType string, entityIDs []int, actorID *int) {
+	for _, entityID := range entityIDs {
+		var tableIDs []int
+		var err error
+		switch entityType {
+		case models.AuditEntityCar:
+			err = tx.Raw("SELECT table_id FROM car_target_tables WHERE car_id = ?", entityID).Scan(&tableIDs).Error
+		case models.AuditEntityEmployee:
+			err = tx.Raw("SELECT table_id FROM employee_target_tables WHERE employee_id = ?", entityID).Scan(&tableIDs).Error
+		default:
+			continue
+		}
+		if err != nil {
+			slog.Error("audit: чтение целевых таблиц для истории попадания", "entity_type", entityType, "entity_id", entityID, "error", err)
+			continue
+		}
+		for _, tableID := range tableIDs {
+			if err := recordAddedToTable(ctx, s.recorder, tx, entityType, entityID, tableID, actorID); err != nil {
+				slog.Error("audit: added_to_table при активации", "entity_type", entityType, "entity_id", entityID, "table_id", tableID, "error", err)
+			}
+		}
+	}
 }
 
 // --- Основные методы ---

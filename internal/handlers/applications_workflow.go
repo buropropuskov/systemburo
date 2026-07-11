@@ -391,7 +391,7 @@ func (h *ApplicationHandler) UpdateApplicationItemsStatus(c echo.Context) error 
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
 	}
 
-	if err := h.service.UpdateApplicationItemsStatus(c.Request().Context(), id); err != nil {
+	if err := h.service.UpdateApplicationItemsStatus(c.Request().Context(), id, username); err != nil {
 		return err
 	}
 	return RespondMessage(c, "All items statuses updated successfully")

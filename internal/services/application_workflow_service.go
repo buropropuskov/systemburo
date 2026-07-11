@@ -66,7 +66,7 @@ func (s *applicationService) TakeApplicationToWork(ctx context.Context, username
 		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "take_to_work", &user.ID,
 			applicationAuditDetails{OldValue: oldStatus, NewValue: ptrString(models.StatusInWork), Comment: req.Comment})
 
-		if err := s.activateApplicationItems(tx, applicationID, true); err != nil {
+		if err := s.activateApplicationItems(ctx, tx, applicationID, true, &user.ID); err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -82,7 +82,7 @@ func (s *applicationService) TakeApplicationToWork(ctx context.Context, username
 		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "reject", &user.ID,
 			applicationAuditDetails{OldValue: oldStatus, NewValue: ptrString(models.StatusRefused), Comment: req.Comment})
 
-		if err := s.activateApplicationItems(tx, applicationID, false); err != nil {
+		if err := s.activateApplicationItems(ctx, tx, applicationID, false, nil); err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -136,7 +136,7 @@ func (s *applicationService) RevokeApplicationFromWork(ctx context.Context, user
 	s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "revoke_from_work", &user.ID,
 		applicationAuditDetails{OldValue: app.Status, NewValue: ptrString(models.StatusProcessing), Comment: req.Comment})
 
-	if err := s.activateApplicationItems(tx, applicationID, false); err != nil {
+	if err := s.activateApplicationItems(ctx, tx, applicationID, false, nil); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -189,7 +189,7 @@ func (s *applicationService) RestoreApplicationToWork(ctx context.Context, usern
 	s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "restore_to_work", &user.ID,
 		applicationAuditDetails{OldValue: app.Status, NewValue: ptrString(models.StatusProcessing), Comment: req.Comment})
 
-	if err := s.activateApplicationItems(tx, applicationID, false); err != nil {
+	if err := s.activateApplicationItems(ctx, tx, applicationID, false, nil); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -256,7 +256,7 @@ func (s *applicationService) WithdrawApplication(ctx context.Context, username s
 		applicationAuditDetails{OldValue: app.Status, NewValue: ptrString(models.StatusWithdrawn)})
 
 	// Деактивируем машины и сотрудников вложений...
-	if err := s.activateApplicationItems(tx, applicationID, false); err != nil {
+	if err := s.activateApplicationItems(ctx, tx, applicationID, false, nil); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -274,10 +274,16 @@ func (s *applicationService) WithdrawApplication(ctx context.Context, username s
 	return nil
 }
 
-// UpdateApplicationItemsStatus обновляет статусы машин и сотрудников заявки.
-func (s *applicationService) UpdateApplicationItemsStatus(ctx context.Context, applicationID int) error {
+// UpdateApplicationItemsStatus активирует машины и сотрудников заявки (status->1) и пишет историю
+// попадания в таблицу проходной по факту активации. username - кто активирует (актор истории).
+func (s *applicationService) UpdateApplicationItemsStatus(ctx context.Context, applicationID int, username string) error {
 	// Отозванную заявку нельзя реактивировать через массовое выставление статусов (#951).
 	if err := s.checkNotWithdrawn(ctx, applicationID); err != nil {
+		return err
+	}
+
+	user, err := s.getUserByUsername(ctx, username)
+	if err != nil {
 		return err
 	}
 
@@ -291,23 +297,9 @@ func (s *applicationService) UpdateApplicationItemsStatus(ctx context.Context, a
 		}
 	}()
 
-	type attachmentRow struct {
-		ID             int
-		AttachmentType string
-	}
-	var attachments []attachmentRow
-	if err := tx.Raw("SELECT id, attachment_type FROM attachments WHERE application_id = ?", applicationID).Scan(&attachments).Error; err != nil {
+	if err := s.activateApplicationItems(ctx, tx, applicationID, true, &user.ID); err != nil {
 		tx.Rollback()
-		return echo.NewHTTPError(http.StatusInternalServerError, "Error fetching attachments")
-	}
-
-	for _, att := range attachments {
-		switch att.AttachmentType {
-		case "cars":
-			tx.Exec("UPDATE cars SET status = 1, updated_at = CURRENT_TIMESTAMP WHERE attachment_id = ?", att.ID)
-		case "people":
-			tx.Exec("UPDATE employees SET status = 1, updated_at = CURRENT_TIMESTAMP WHERE attachment_id = ?", att.ID)
-		}
+		return err
 	}
 
 	if err := tx.Commit().Error; err != nil {
