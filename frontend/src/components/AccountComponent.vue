@@ -63,6 +63,7 @@
 import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import { useDeletionsStore } from '@/stores/deletions';
+import { getViewportZoom } from '@/utils/viewportScale';
 import UserApplications from './UserApplications.vue';
 import UserProfileHeader from './UserProfileHeader.vue';
 import UserNotificationsInline from './UserNotificationsInline.vue';
@@ -135,11 +136,13 @@ export default {
         this.lastDashboardHeight = -1;
         return;
       }
+      // rect.top под корневым zoom - device-px, innerHeight - НЕзумленный:
+      // делим доступную device-высоту на zoom -> CSS-высота (иначе дашборд
+      // в zoom раз выше экрана). BOTTOM_GAP уже в CSS-px, вычитаем после деления.
       const top = el.getBoundingClientRect().top;
       // 15px - отступ снизу чтобы блок заявок не прилипал к краю экрана.
-      // Padding 15px сверху уже входит в el, поэтому вычитаем только снизу.
       const BOTTOM_GAP = 15;
-      const height = Math.max(0, Math.round(window.innerHeight - top - BOTTOM_GAP));
+      const height = Math.max(0, Math.round((window.innerHeight - top) / getViewportZoom() - BOTTOM_GAP));
       // Защита от ResizeObserver-петли: пишем стиль только при реальном изменении.
       if (height === this.lastDashboardHeight) return;
       this.lastDashboardHeight = height;

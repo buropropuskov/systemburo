@@ -9,6 +9,7 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue';
+import { getViewportZoom } from '@/utils/viewportScale';
 
 /**
  * Полноширинная обёртка страниц /admin/*: растягивает вложенный компонент
@@ -24,8 +25,11 @@ let lastHeight = -1;
 function applyHeight() {
   const el = root.value;
   if (!el) return;
+  // rect.top под корневым zoom - в device-px, а innerHeight - НЕзумленный;
+  // делим доступную device-высоту на zoom, чтобы получить CSS-высоту (иначе
+  // элемент выходит в zoom раз выше экрана - пустой длинный хвост снизу).
   const top = el.getBoundingClientRect().top;
-  const height = Math.max(0, Math.round(window.innerHeight - top));
+  const height = Math.max(0, Math.round((window.innerHeight - top) / getViewportZoom()));
   // Защита от ResizeObserver-петли: пишем стиль только при реальном изменении.
   if (height === lastHeight) return;
   lastHeight = height;

@@ -57,12 +57,27 @@ export function computeZoom(width, height) {
 export function updateViewportZoom() {
   scheduled = false
   const next = computeZoom(window.innerWidth, window.innerHeight)
+  // --app-vh: 1% ЗУМЛЕННОЙ высоты вьюпорта в CSS-px (innerHeight/zoom/100).
+  // Замена для vh под zoom: сам vh считается от НЕзумленной высоты и завышает
+  // высоты в zoom раз (fixed height:100vh уезжает под экран, min-height:Nvh
+  // раздувается). В стилях использовать calc(var(--app-vh, 1vh) * N) вместо Nvh.
+  document.documentElement.style.setProperty('--app-vh', (window.innerHeight / next / 100) + 'px')
   // Порог против дребезга на субпиксельных ресайзах.
   if (Math.abs(next - appliedZoom) < 0.005) return
   appliedZoom = next
   // zoom=1 -> снимаем свойство, чтобы не оставлять артефакт в вычисленных стилях
   // (и чтобы на ширинах <=1440 корень был чист).
   document.documentElement.style.zoom = next === 1 ? '' : String(Number(next.toFixed(4)))
+}
+
+/**
+ * Текущий применённый масштаб. Нужен JS-расчётам высоты «до низа экрана»:
+ * getBoundingClientRect() под zoom возвращает device-px, а window.innerHeight -
+ * НЕзумленную высоту; чтобы получить CSS-высоту, (innerHeight - rect.top) надо
+ * делить на этот zoom (иначе элемент выходит в zoom раз выше экрана).
+ */
+export function getViewportZoom() {
+  return appliedZoom
 }
 
 function schedule() {
