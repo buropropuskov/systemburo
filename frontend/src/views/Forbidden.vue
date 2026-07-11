@@ -45,7 +45,8 @@ export default {
 
 <style scoped>
 .forbidden {
-  min-height: 100vh;
+  /* zoom-safe (#1097): vh под корневым zoom раздувается -> низ за экраном, см. Error500. */
+  min-height: calc(var(--app-vh, 1vh) * 100);
   display: flex;
   align-items: center;
   justify-content: center;
