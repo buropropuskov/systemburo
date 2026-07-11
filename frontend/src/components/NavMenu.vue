@@ -935,6 +935,10 @@ export default {
     expandMenu() {
       // При открытой Админке рельс зафиксирован в иконках - hover не разворачивает.
       if (this.adminOpen) return;
+      // Тап по бургеру на touch-устройстве синтезирует mouseenter на рельсе, как
+      // только drawer выезжает под пальцем (#1097) - без гейта рельс переключался
+      // в desktop-режим "expanded" (248px) вместо мобильных 280px/85vw.
+      if (this.mobileOpen) return;
       if (this.hoverTimeout) {
         clearTimeout(this.hoverTimeout);
         this.hoverTimeout = null;
@@ -2048,6 +2052,15 @@ export default {
     z-index: 10000;
   }
 
+  /* Drawer всегда фиксированной "мобильной" ширины - даже если применился
+     .expanded (десктопный hover-разворот 248px, напр. синтетический mouseenter
+     от тапа по бургеру или персистентный пин с десктопа): та же специфичность,
+     побеждает по порядку объявления. */
+  .nav-menu.expanded {
+    width: 280px;
+    max-width: 85vw;
+  }
+
   .nav-menu.nav-menu--mobile-open {
     transform: translateX(0);
   }
@@ -2139,6 +2152,32 @@ export default {
     justify-content: center;
   }
 
+  /* Тач-таргеты >=44px (WCAG 2.5.5): в drawer'е и колонке Админки контролы
+     рельса, поиск, пункты таблиц - под палец, не под курсор. */
+  .nav-menu .nav-ctrl {
+    width: 44px;
+    height: 44px;
+  }
+
+  .nav-menu .nav-search-row {
+    height: 44px;
+  }
+
+  .nav-menu .nav-search {
+    height: 100%;
+  }
+
+  .nav-menu .dropdown-item {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  .nav-unhide {
+    width: 44px;
+    height: 44px;
+  }
+
   /* Колонка Админки на мобильном оверлеит как самостоятельная панель поверх
      drawer'а (рельс уезжает за край), а не лепится к 50px-рельсу. */
   .admin-column {
@@ -2146,6 +2185,24 @@ export default {
     width: 280px;
     max-width: 85vw;
     z-index: 10001;
+  }
+
+  .admin-back {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  .admin-search-row {
+    height: 44px;
+  }
+
+  .admin-search {
+    height: 100%;
+  }
+
+  .admin-link {
+    min-height: 44px;
   }
 }
 
