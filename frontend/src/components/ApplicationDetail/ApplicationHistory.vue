@@ -1229,17 +1229,36 @@ export default {
         align-items: flex-start;
         gap: 10px;
     }
-    
+
     .user-filter, .sort-filter {
         width: 100%;
     }
-    
+
     .custom-select {
         width: 100%;
     }
-    
+
     .sort-btn {
         width: 100%;
+    }
+
+    /* Bottom-sheet на мобильном (зеркалит BaseModal - REUSE паттерна, эта модалка
+       кастомная, не сам BaseModal, поэтому паттерн скопирован 1:1). */
+    .history-modal-overlay {
+        padding: 0;
+        align-items: flex-end;
+    }
+
+    .history-modal {
+        width: 100%;
+        max-width: 100%;
+        max-height: 90dvh;
+        border-radius: 16px 16px 0 0;
+    }
+
+    .close-btn {
+        min-width: 44px;
+        min-height: 44px;
     }
 }
 
