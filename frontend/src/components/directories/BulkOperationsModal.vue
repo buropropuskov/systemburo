@@ -109,11 +109,19 @@
         <p class="bulk-op__hint">
           {{ modeHint }} Обязательное согласование задаётся на каждого отдельно. Главного ответственного групповая операция не назначает.
         </p>
+        <p
+          v-if="loadingPrefill"
+          class="bulk-op__loading"
+          data-testid="bulk-op-users-loading"
+        >
+          Загрузка уже назначенных ответственных...
+        </p>
 
         <ResponsibleUsersSection
           v-model="responsibleUsers"
           selection-mode
           :entity-type="entityType"
+          :coverage-total="selectedIds.length"
         />
       </div>
     </div>
@@ -144,6 +152,7 @@ import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import SelectUnloadPlaces from '@/components/SelectUnloadPlaces.vue';
 import SelectTables from '@/components/SelectTables.vue';
 import ResponsibleUsersSection from '@/components/ResponsibleUsersSection.vue';
+import { apiRequest } from '@/api/client';
 import { ORG_TYPE_CREATE_OPTIONS } from '@/constants/orgTypes';
 
 // Сентинел «снять тип» в дропдауне: BaseDropdown с modelValue=null показывает
@@ -181,7 +190,9 @@ export default {
       mode: 'replace',
       placeIds: [],
       tableIds: [],
-      responsibleUsers: [], // [{username, required_approval}] - согласование индивидуально
+      responsibleUsers: [], // [{username, required_approval, coverage, mixedApproval}]
+      loadingPrefill: false,
+      prefillSeq: 0, // защита от гонки: устаревший префилл не затирает актуальный
       typeOptions: [
         ...ORG_TYPE_CREATE_OPTIONS,
         { label: 'Снять тип (не указан)', value: NONE_TYPE },
@@ -189,6 +200,10 @@ export default {
     };
   },
   computed: {
+    // Единый ключ «модалка открыта на этой операции» - для одного watcher'а reset.
+    openKey() {
+      return this.show ? this.operation : null;
+    },
     isGridOp() {
       return this.operation === 'unload-places' || this.operation === 'tables';
     },
@@ -226,11 +241,11 @@ export default {
     },
   },
   watch: {
-    show(val) {
-      if (val) this.reset();
-    },
-    operation() {
-      if (this.show) this.reset();
+    // Один ключ вместо двух watcher'ов (show + operation): родитель ставит show и
+    // operation синхронно в одном тике, два независимых watcher'а дали бы двойной
+    // reset() -> двойной префилл (2xN фетчей). Здесь reset ровно на открытие/смену.
+    openKey(val, old) {
+      if (val && val !== old) this.reset();
     },
   },
   methods: {
@@ -240,6 +255,50 @@ export default {
       this.placeIds = [];
       this.tableIds = [];
       this.responsibleUsers = [];
+      this.loadingPrefill = false;
+      if (this.operation === 'users') this.prefillResponsibles();
+    },
+
+    // Префилл союзом уже назначенных ответственных по всем выбранным сущностям:
+    // каждый несёт coverage (в скольких из выбранных он есть) для бейджа «в N из M».
+    async prefillResponsibles() {
+      if (!this.selectedIds.length) return;
+      const seq = ++this.prefillSeq;
+      this.loadingPrefill = true;
+      const base = this.entityType === 'company' ? 'companies' : 'organizations';
+      try {
+        const lists = await Promise.all(this.selectedIds.map(async (id) => {
+          try {
+            const res = await apiRequest(`/${base}/${id}/users`);
+            if (!res.ok) return [];
+            const data = await res.json();
+            return Array.isArray(data) ? data : (data.users || []);
+          } catch {
+            return [];
+          }
+        }));
+        if (seq !== this.prefillSeq) return; // устарело - выбор/операция сменились
+        const map = new Map();
+        lists.forEach((list) => list.forEach((u) => {
+          if (!u || !u.username) return;
+          const e = map.get(u.username) || { count: 0, flags: [] };
+          e.count += 1;
+          e.flags.push(!!u.required_approval);
+          map.set(u.username, e);
+        }));
+        this.responsibleUsers = [...map.entries()].map(([username, e]) => {
+          const allTrue = e.flags.every(Boolean);
+          const allFalse = e.flags.every((f) => !f);
+          return {
+            username,
+            required_approval: allTrue ? true : allFalse ? false : true, // mixed -> строже
+            mixedApproval: !allTrue && !allFalse,
+            coverage: e.count,
+          };
+        });
+      } finally {
+        if (seq === this.prefillSeq) this.loadingPrefill = false;
+      }
     },
 
     onApply() {
@@ -345,6 +404,13 @@ export default {
   margin: 0;
   font-size: 12px;
   color: #a2a2a2;
+}
+
+.bulk-op__loading {
+  margin: 0;
+  font-size: 12px;
+  color: #4F5BDF;
+  font-weight: 600;
 }
 
 /* кнопки действий (эталон SelectionModal actions) */

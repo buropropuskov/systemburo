@@ -131,6 +131,78 @@ describe('BulkOperationsModal', () => {
     ])
   })
 
+  it('users: префилл союзом уже назначенных с охватом (coverage «в N из M»)', async () => {
+    apiMock.apiRequest.mockImplementation((path) => {
+      if (path === '/users/all') return Promise.resolve(okJson(USERS))
+      if (path === '/organizations/1/users') return Promise.resolve(okJson([
+        { username: 'ivanov', required_approval: true },
+        { username: 'petrov', required_approval: false },
+      ]))
+      if (path === '/organizations/2/users') return Promise.resolve(okJson([
+        { username: 'ivanov', required_approval: true },
+      ]))
+      return Promise.resolve(okJson([]))
+    })
+    const w = await mountShown('users', { selectedIds: [1, 2] })
+    const byName = Object.fromEntries(w.vm.responsibleUsers.map(u => [u.username, u]))
+    expect(byName.ivanov.coverage).toBe(2)      // назначен в обеих
+    expect(byName.ivanov.required_approval).toBe(true)
+    expect(byName.petrov.coverage).toBe(1)      // только в одной
+    expect(byName.petrov.required_approval).toBe(false)
+    // применяется как обычный набор (охват не идёт в payload)
+    await applyBtn(w).trigger('click')
+    expect(w.emitted('apply')[0][0].users).toEqual([
+      { username: 'ivanov', required_approval: true },
+      { username: 'petrov', required_approval: false },
+    ])
+  })
+
+  it('users: смешанное согласование у существующего -> mixedApproval, строже (true)', async () => {
+    apiMock.apiRequest.mockImplementation((path) => {
+      if (path === '/users/all') return Promise.resolve(okJson(USERS))
+      if (path === '/organizations/1/users') return Promise.resolve(okJson([{ username: 'ivanov', required_approval: true }]))
+      if (path === '/organizations/2/users') return Promise.resolve(okJson([{ username: 'ivanov', required_approval: false }]))
+      return Promise.resolve(okJson([]))
+    })
+    const w = await mountShown('users', { selectedIds: [1, 2] })
+    const iv = w.vm.responsibleUsers.find(u => u.username === 'ivanov')
+    expect(iv.mixedApproval).toBe(true)
+    expect(iv.required_approval).toBe(true)
+  })
+
+  it('users: одно открытие -> ОДИН фетч на сущность (нет двойного reset/префилла)', async () => {
+    // родитель ставит operation и show синхронно в одном тике - раньше два watcher'а
+    // (show + operation) давали двойной reset() -> 2xN фетчей
+    const w = mount(BulkOperationsModal, {
+      props: { show: false, operation: '', entityType: 'organization', selectedIds: [1, 2] },
+      global: { stubs: STUBS },
+    })
+    await flushPromises()
+    const cnt = () => apiMock.apiRequest.mock.calls.filter(c => c[0] === '/organizations/1/users').length
+    const before = cnt()
+    await w.setProps({ operation: 'users', show: true })
+    await flushPromises()
+    expect(cnt() - before).toBe(1)
+  })
+
+  it('users: бейдж охвата рендерится в DOM («в N из M» / «во всех»)', async () => {
+    apiMock.apiRequest.mockImplementation((path) => {
+      if (path === '/users/all') return Promise.resolve(okJson(USERS))
+      if (path === '/organizations/1/users') return Promise.resolve(okJson([
+        { username: 'ivanov', required_approval: true },
+        { username: 'petrov', required_approval: false },
+      ]))
+      if (path === '/organizations/2/users') return Promise.resolve(okJson([
+        { username: 'ivanov', required_approval: true },
+      ]))
+      return Promise.resolve(okJson([]))
+    })
+    const w = await mountShown('users', { selectedIds: [1, 2] })
+    const badges = w.findAll('.coverage-badge').map(b => b.text())
+    expect(badges).toContain('в 1 из 2')                       // petrov - в одной
+    expect(badges.some(t => /во всех|в 2 из 2/.test(t))).toBe(true) // ivanov - в обеих
+  })
+
   it('кнопка Отмена эмитит close', async () => {
     const w = await mountShown('type')
     await w.find('[data-testid="bulk-op-cancel"]').trigger('click')
