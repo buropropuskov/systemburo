@@ -118,4 +118,21 @@ export default {
   border-radius: var(--radius-lg, 20px);
   overflow: hidden;
 }
+
+@media (max-width: 767.98px) {
+  /* Заголовок + табы в один флекс-ряд без wrap (nowrap выше) не помещаются на узких
+     экранах (iPhone SE ~320px) - позволяем блоку в целом переноситься на вторую строку,
+     сами табы "Машины"/"Люди" остаются рядом друг с другом. */
+  .bl-head-left {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+
+  /* Пилюли FilterTabs высотой 30px ниже тач-таргета 44px (WCAG) - точечно поднимаем
+     зону нажатия только тут, не трогая общий FilterTabs.vue (другие потребители не
+     должны получить эту правку). */
+  .bl-head-left :deep(.filter-tab) {
+    min-height: 44px;
+  }
+}
 </style>

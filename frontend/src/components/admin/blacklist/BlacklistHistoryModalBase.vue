@@ -1081,6 +1081,36 @@ export default {
 }
 
 @media (max-width: 768px) {
+  /* Bottom-sheet: hand-rolled модалка (не BaseModal) - паттерн скопирован 1:1 с
+     BaseModal/App.vue/ApplicationHistory (align-items:flex-end + 90dvh + скруглённый
+     только верх), см. эталон в responsive-tables.css и уроки проекта про Teleport-модалки. */
+  .modal-overlay {
+    padding: 0;
+    align-items: flex-end;
+  }
+
+  .blacklist-history-modal {
+    width: 100vw;
+    max-width: 100vw;
+    max-height: 90dvh;
+    border-radius: 16px 16px 0 0;
+    margin: 0;
+  }
+
+  .close-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Фильтры на мобильном стекаются в колонку (4 поля вместо 1 строки) - фиксированный
+     calc(80vh - 180px) desktop-формулы modal-content больше не подходит; отдаём
+     content flex-остаток внутри max-height:90dvh колонки .blacklist-history-modal. */
+  .modal-content {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+  }
+
   .filter-row {
     flex-direction: column;
     align-items: flex-start;

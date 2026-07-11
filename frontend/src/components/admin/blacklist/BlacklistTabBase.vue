@@ -1,6 +1,6 @@
 <template>
   <div class="bl-tab">
-    <div class="bl-header">
+    <div class="bl-header rt-header-inline">
       <div class="bl-header-left">
         <slot name="header-left" />
       </div>
@@ -18,10 +18,15 @@
           :title="searchPlaceholder"
         />
         <button
-          class="lk-button lk-button--primary"
+          class="lk-button lk-button--primary rt-btn-compact"
+          aria-label="Создать запись"
           @click="$emit('create')"
         >
-          Создать запись
+          <span
+            class="rt-btn-icon"
+            aria-hidden="true"
+          >+</span>
+          <span class="rt-btn-label">Создать запись</span>
         </button>
         <button
           class="lk-button lk-button--ghost"
@@ -623,5 +628,75 @@ export default {
   justify-content: center;
   color: #a2a2a2;
   font-size: 14px;
+}
+
+/* Список записей ЧС - однострочные .bl-row (id+название), без head-row и колонок -
+   rt-table/data-label не подходят (нечего скрывать/подписывать, см. responsive-tables.css).
+   Master-detail 40/60 стекаем в колонку по образцу DocumentsManagement/CitizenshipManagement
+   (#1097 S9), .bl-row получает границу и радиус карточки. */
+@media (max-width: 767.98px) {
+  .bl-header-controls {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .bl-content {
+    flex-direction: column;
+    height: auto;
+  }
+
+  .bl-list-section,
+  .bl-details,
+  .bl-no-selection {
+    width: 100%;
+  }
+
+  .bl-list-section {
+    border-right: none;
+    border-bottom: 1px solid #e6e6e6;
+  }
+
+  .bl-list {
+    padding: 8px;
+    max-height: 300px;
+  }
+
+  .bl-row {
+    height: auto;
+    min-height: 44px;
+    border: 1px solid #e6e6e6;
+    border-radius: var(--radius-md, 15px);
+    margin-bottom: 8px;
+  }
+
+  .bl-row:last-child {
+    margin-bottom: 0;
+  }
+
+  /* Десктопный flex-shrink:0 держит заголовок+табы одной недробимой единицей (место
+     под узкую ширину раньше уступали только контролы справа) - на мобилке контролы
+     уже перенесены целиком строкой ниже (rt-header-inline), но сам bl-header-left
+     остаётся несжимаемым и вылезает за .blacklist-card{overflow:hidden} МОЛЧА (без
+     скролла document, ловится только замером самого элемента, не scrollWidth). Даём
+     ему сжиматься и растягиваться на всю строку - тогда title+FilterTabs (уже
+     flex-wrap:wrap в BlacklistView.vue) реально переносятся, а не обрезаются. */
+  .bl-header-left {
+    flex-shrink: 1;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .bl-details-header {
+    flex-wrap: wrap;
+  }
+
+  .bl-details-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .bl-status-row {
+    flex-wrap: wrap;
+  }
 }
 </style>
