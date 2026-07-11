@@ -11,10 +11,10 @@
       </div>
     </div>
     
-    <div class="card-content">
+    <div class="card-content rt-table">
       <!-- Заголовок таблицы всегда отображается -->
       <div class="cars-header">
-        <div class="header-row">
+        <div class="header-row rt-head-row">
           <div class="header-col checkbox-col">
             <!-- Пустой заголовок для чекбокса -->
           </div>
@@ -120,27 +120,42 @@
               class="car-item"
               :style="{ animationDelay: `${index * 0.1}s` }"
             >
-              <div class="car-row">
+              <div class="car-row rt-row">
                 <div class="car-col checkbox-col">
-                  <input 
-                    v-model="car.checked" 
+                  <input
+                    v-model="car.checked"
                     type="checkbox"
                     class="checkbox-input"
                   >
                 </div>
-                <div class="car-col organization-col">
+                <div
+                  class="car-col organization-col"
+                  data-label="Организация"
+                >
                   {{ car.organization }}
                 </div>
-                <div class="car-col place-col">
+                <div
+                  class="car-col place-col"
+                  data-label="Место разгрузки"
+                >
                   {{ formatUnloadPlaces(car.unload_places) }}
                 </div>
-                <div class="car-col date-col">
+                <div
+                  class="car-col date-col"
+                  data-label="Действует до"
+                >
                   {{ formatDate(car.entry_date_to) }}
                 </div>
-                <div class="car-col time-col">
+                <div
+                  class="car-col time-col"
+                  data-label="Время"
+                >
                   {{ formatTimeRange(car.entry_time_from, car.entry_time_to) }}
                 </div>
-                <div class="car-col status-col">
+                <div
+                  class="car-col status-col"
+                  data-label="Статус"
+                >
                   <span class="status-text">
                     {{ car.status }}
                   </span>
@@ -815,23 +830,12 @@ export default {
   transition: transform 0.5s ease;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .cars-fact-card {
     width: 100%;
     height: auto;
   }
-  
-  .header-row,
-  .car-row {
-    flex-wrap: wrap;
-  }
-  
-  .header-col,
-  .car-col {
-    width: 50% !important;
-    margin-bottom: 4px;
-  }
-  
+
   .card-header {
     flex-direction: column;
     align-items: flex-start;
@@ -839,10 +843,31 @@ export default {
     height: auto;
     padding: 16px;
   }
-  
+
   .card-header__settings {
     width: 100%;
     justify-content: flex-end;
+  }
+
+  /* rt-row (#1097 S8) сидит на .car-row, а не на v-for-корне .car-item -
+     сиблинг-селектор ".rt-row + .rt-row" из responsive-tables.css поэтому не
+     матчит (соседние .car-item, не .car-row), спейсинг карточек добираем тут. */
+  .car-item + .car-item {
+    margin-top: 8px;
+  }
+
+  /* Значения в карточке не обрезаем многоточием - там больше горизонтального
+     места, чем в узкой табличной колонке. */
+  .cars-fact-card .rt-row > [data-label] {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  /* Тач-таргет >=44px (WCAG) для кнопки удаления. */
+  .delete-btn {
+    width: 44px;
+    height: 44px;
   }
 }
 </style>

@@ -50,10 +50,10 @@
     <div class="card-content">
       <div class="applications-container">
         <!-- Левая часть - таблица заявок -->
-        <div class="applications-list">
+        <div class="applications-list rt-table">
           <!-- Заголовок таблицы -->
           <div class="applications-header">
-            <div class="header-row">
+            <div class="header-row rt-head-row">
               <div
                 class="header-col id-col"
                 @click="sortBy('application_number')"
@@ -166,8 +166,11 @@
                     class="application-item"
                     @click="openApplication(application)"
                   >
-                    <div class="application-row">
-                      <div class="application-col id-col">
+                    <div class="application-row rt-row">
+                      <div
+                        class="application-col id-col"
+                        data-label="Номер заявки"
+                      >
                         <span
                           class="application-id application-number--copyable"
                           tabindex="0"
@@ -176,13 +179,22 @@
                           @keydown.enter.prevent="copyApplicationNumber(application.application_number)"
                         >{{ application.application_number }}</span>
                       </div>
-                      <div class="application-col date-col">
+                      <div
+                        class="application-col date-col"
+                        data-label="Дата и время"
+                      >
                         {{ formatDateTime(application.sending_datetime) }}
                       </div>
-                      <div class="application-col sender-col">
+                      <div
+                        class="application-col sender-col"
+                        data-label="Отправитель"
+                      >
                         <span class="ellip">{{ application.sender_name || application.sender_full_name || '—' }}</span>
                       </div>
-                      <div class="application-col confirmation-col">
+                      <div
+                        class="application-col confirmation-col"
+                        data-label="Подтверждение"
+                      >
                         <span
                           class="confirmation-badge"
                           :class="getConfirmationClass(application.confirmation)"
@@ -191,7 +203,10 @@
                           {{ application.confirmation }}
                         </span>
                       </div>
-                      <div class="application-col status-col">
+                      <div
+                        class="application-col status-col"
+                        data-label="Статус"
+                      >
                         <span
                           class="status-badge"
                           :class="getStatusClass(application.status)"
@@ -200,7 +215,10 @@
                           {{ application.status }}
                         </span>
                       </div>
-                      <div class="application-col tags-col">
+                      <div
+                        class="application-col tags-col"
+                        data-label="Теги"
+                      >
                         <div
                           v-if="blacklistFlagCount(application) > 0 || application.has_roof_access || application.has_free_parking || application.has_unseen_questions"
                           class="application-tags"
@@ -1652,22 +1670,14 @@ export default {
   }
 }
 
-@media (max-width: 768px) {
-  /*
-   * Синхронный horizontal scroll: scroll на .applications-list (общий parent
-   * header+body), inner header/body имеют visible overflow чтобы наследовать
-   * scroll от parent'а. Headers и data двигаются вместе.
-   */
-  .applications-list {
-    overflow-x: auto !important;
-    overflow-y: hidden !important;
+@media (max-width: 767.98px) {
+  .applications-card {
+    height: auto;
+    max-height: none;
   }
 
-  .applications-header,
-  .applications-body,
-  .applications-list-content {
-    overflow-x: visible !important;
-    min-width: 600px;
+  .applications-list {
+    overflow: visible !important;
   }
 
   .applications-body {
@@ -1676,50 +1686,50 @@ export default {
     max-height: none !important;
   }
 
-  .header-row,
-  .application-row {
-    flex-wrap: nowrap !important;
-    min-width: 600px;
+  /* rt-row (#1097 S8) сидит на .application-row, а не на v-for-корне
+     .application-item - сиблинг-селектор ".rt-row + .rt-row" из
+     responsive-tables.css поэтому не матчит, спейсинг добираем тут. */
+  .application-item + .application-item {
+    margin-top: 8px;
+  }
+  .application-item {
+    border-bottom: none;
   }
 
-  .header-col,
-  .application-col {
-    width: auto !important;
-    min-width: 110px !important;
-    flex: 1 1 auto !important;
-    white-space: nowrap;
+  /* Значения в карточке не обрезаем многоточием - там больше горизонтального
+     места, чем в узкой табличной колонке. */
+  .applications-list .rt-row > [data-label] {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
   }
 
-  .header-col.date-col,
-  .application-col.date-col {
-    min-width: 140px !important;
-  }
-
-  .header-col p,
-  .header-col {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .header-col.actions-col,
+  /* .actions-col в десктопе - flex-basis:100px по горизонтальной оси; в
+     rt-row (flex-direction:column) basis управляет ВЫСОТОЙ - без сброса
+     колонка "Скачать" растягивалась бы на 100px пустой высоты. Кнопка снова
+     видна (в horizontal-scroll её прятали из-за нехватки места, в карточке
+     места достаточно) - тач-таргет >=44px. */
   .application-col.actions-col {
-    display: none;
+    flex: 0 0 auto;
+    width: 100% !important;
+    max-width: none !important;
+    justify-content: flex-start;
+  }
+
+  .download-btn {
+    height: 44px;
+  }
+
+  .application-number--copyable {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
   }
 }
 
 @media (max-width: 576px) {
-  /* Оставляем horizontal-scroll from 768px, просто уменьшаем min-widths для экономии места */
-  .header-col,
-  .application-col {
-    min-width: 100px !important;
+  .rt-table .rt-row > [data-label] {
     font-size: 13px;
-    padding: 0 10px !important;
-  }
-
-  .header-col.date-col,
-  .application-col.date-col {
-    min-width: 120px !important;
   }
 }
 </style>

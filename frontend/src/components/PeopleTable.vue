@@ -43,9 +43,9 @@
       </div>
     </div>
     
-    <div class="card-content">
+    <div class="card-content rt-table">
       <div class="items-header">
-        <div class="header-row">
+        <div class="header-row rt-head-row">
           <div
             class="col entry-col"
             style="order: 0;"
@@ -276,10 +276,11 @@
               :style="{ animationDelay: `${index * 0.05}s` }"
               @click="preview ? null : openEmployeeDetails(item)"
             >
-              <div class="item-data">
+              <div class="item-data rt-row">
                 <div
                   class="col entry-col"
                   style="order: 0;"
+                  data-label="Вход"
                   @click.stop
                 >
                   <button
@@ -294,6 +295,7 @@
                 <div
                   class="col exit-col"
                   style="order: 1;"
+                  data-label="Выход"
                   @click.stop
                 >
                   <button
@@ -310,6 +312,7 @@
                   class="col last-name-col"
                   :class="fieldColClass('last_name')"
                   :style="getColStyle('last_name')"
+                  data-label="Фамилия"
                 >
                   {{ item.last_name }}
                 </div>
@@ -318,6 +321,7 @@
                   class="col first-name-col"
                   :class="fieldColClass('first_name')"
                   :style="getColStyle('first_name')"
+                  data-label="Имя"
                 >
                   {{ item.first_name }}
                 </div>
@@ -326,6 +330,7 @@
                   class="col middle-name-col"
                   :class="fieldColClass('middle_name')"
                   :style="getColStyle('middle_name')"
+                  data-label="Отчество"
                 >
                   {{ item.middle_name || '-' }}
                 </div>
@@ -334,6 +339,7 @@
                   class="col position-col"
                   :class="fieldColClass('position')"
                   :style="getColStyle('position')"
+                  data-label="Должность"
                 >
                   {{ item.position || '-' }}
                 </div>
@@ -342,6 +348,7 @@
                   class="col citizenship-col"
                   :class="fieldColClass('citizenship_name')"
                   :style="getColStyle('citizenship_name')"
+                  data-label="Гражданство"
                 >
                   {{ item.citizenshipName || '-' }}
                 </div>
@@ -350,6 +357,7 @@
                   class="col organization-col"
                   :class="fieldColClass('organization')"
                   :style="getColStyle('organization')"
+                  data-label="Организация"
                 >
                   {{ item.organization_name }}
                 </div>
@@ -358,6 +366,7 @@
                   class="col company-col"
                   :class="fieldColClass('company')"
                   :style="getColStyle('company')"
+                  data-label="Компания"
                 >
                   {{ item.company || '-' }}
                 </div>
@@ -366,6 +375,7 @@
                   class="col date-col"
                   :class="fieldColClass('valid_until')"
                   :style="getColStyle('valid_until')"
+                  data-label="Действует до"
                 >
                   {{ formatDate(item.entry_date_to) }}
                 </div>
@@ -374,6 +384,7 @@
                   class="col time-col"
                   :class="fieldColClass('pass_time')"
                   :style="getColStyle('pass_time')"
+                  data-label="Время прохода"
                 >
                   {{ formatPassTime(item.pass_time) }}
                 </div>
@@ -382,6 +393,7 @@
                   class="col application-col"
                   :class="fieldColClass('application_id')"
                   :style="getColStyle('application_id')"
+                  data-label="Номер заявки"
                 >
                   <span
                     v-if="isManualItem(item)"
@@ -394,6 +406,7 @@
                 <div
                   class="col status-col"
                   style="order: 9998;"
+                  data-label="Статус"
                 >
                   <StatusBadge :status="item.status" />
                 </div>
@@ -1870,54 +1883,10 @@ export default {
   min-height: 36px;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .selected-table-card {
     max-height: none;
     height: auto;
-  }
-
-  /*
-   * Синхронный horizontal scroll: scroll на .card-content, header и body
-   * имеют overflow visible и наследуют scroll от parent'а.
-   */
-  .card-content {
-    overflow-x: auto !important;
-    overflow-y: visible !important;
-  }
-
-  .items-header,
-  .items-body {
-    overflow: visible !important;
-    min-width: 800px;
-  }
-
-  .header-row,
-  .item-data {
-    flex-wrap: nowrap !important;
-    gap: 0;
-    min-width: 800px;
-  }
-
-  .col {
-    width: auto !important;
-    min-width: 90px !important;
-    flex: 1 1 auto !important;
-    margin-bottom: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .col.last-name-col,
-  .col.first-name-col,
-  .col.organization-col {
-    min-width: 110px !important;
-  }
-
-  .entry-col, .exit-col {
-    width: auto !important;
-    min-width: 60px !important;
-    justify-content: flex-start;
   }
 
   .card-header {
@@ -1934,10 +1903,44 @@ export default {
     justify-content: flex-end;
   }
 
+  /* rt-row (#1097 S8) сидит на .item-data, а не на v-for-корне .item-row -
+     сиблинг-селектор ".rt-row + .rt-row" из responsive-tables.css поэтому не
+     матчит (соседние .item-row, не .item-data), спейсинг карточек добираем тут. */
+  .item-row + .item-row {
+    margin-top: 8px;
+  }
+
+  /* Значения в карточке не обрезаем многоточием - там больше горизонтального
+     места, чем в узкой табличной колонке. */
+  .selected-table-card .rt-row > [data-label]:not(.col--collapsed) {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  /* Приоритет-схлопнутые (col--collapsed) колонки в card-режиме прячем совсем -
+     их поля доступны в панели "Подробнее". Иначе card-override overflow:visible
+     перебивает overflow:hidden схлопывания (равная специфичность, правило ниже) и
+     колонка становится пустой раздутой строкой карточки вместо исчезновения. */
+  .selected-table-card .rt-row > .col--collapsed {
+    display: none !important;
+  }
+
+  /* Тач-таргет >=44px (WCAG) для кнопок Вход/Выход/удаления/раскрытия. */
   .action-btn {
-    width: 60px;
-    height: 28px;
-    font-size: 11px;
+    min-width: 70px;
+    height: 44px;
+    font-size: 13px;
+  }
+
+  .delete-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .expand-btn {
+    width: 44px;
+    height: 44px;
   }
 }
 
