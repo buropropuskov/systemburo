@@ -96,8 +96,8 @@
     </div>
 
     <div class="table-wrap">
-      <table class="data-table">
-        <thead>
+      <table class="data-table rt-table">
+        <thead class="rt-head-row">
           <tr>
             <th>ID</th>
             <th>Дата</th>
@@ -112,27 +112,35 @@
           <tr
             v-for="item in items"
             :key="item.id"
+            class="rt-row"
           >
-            <td>{{ item.id }}</td>
-            <td class="muted">
+            <td data-label="ID">
+              {{ item.id }}
+            </td>
+            <td
+              class="muted"
+              data-label="Дата"
+            >
               {{ formatDateTime(item.created_at) }}
             </td>
-            <td>
+            <td data-label="Пользователь">
               <span v-if="item.user_name">{{ item.user_name }}</span>
               <span
                 v-else
                 class="muted"
               >ID {{ item.user_id || '-' }}</span>
             </td>
-            <td><code>{{ item.resource }}</code></td>
-            <td>
+            <td data-label="Ресурс">
+              <code>{{ item.resource }}</code>
+            </td>
+            <td data-label="Право">
               <code v-if="item.permission_key">{{ item.permission_key }}</code>
               <span
                 v-else
                 class="muted"
               >—</span>
             </td>
-            <td>
+            <td data-label="Причина">
               <span
                 class="badge"
                 :class="reasonClass(item.reason)"
@@ -140,7 +148,10 @@
                 {{ reasonLabel(item.reason) }}
               </span>
             </td>
-            <td class="muted">
+            <td
+              class="muted"
+              data-label="IP"
+            >
               {{ item.ip_address || '—' }}
             </td>
           </tr>
@@ -376,8 +387,12 @@ export default {
   color: var(--color-text-muted);
 }
 
-.data-table tbody tr:last-child td {
-  border-bottom: none;
+/* Только десктоп: на мобилке таблица становится карточками (rt-*), и
+   card-разделители полей последней карточки не должны гаситься этим правилом. */
+@media (min-width: 768px) {
+  .data-table tbody tr:last-child td {
+    border-bottom: none;
+  }
 }
 
 .muted {
@@ -419,5 +434,84 @@ code {
   gap: 12px;
   justify-content: flex-end;
   font-size: 13px;
+}
+
+/* Журнал - не master-detail-справочник (#1097 S9c), а section+фильтры+
+   плоская <table>: rt-table/rt-head-row/rt-row (responsive-tables.css)
+   конвертируют саму <table> в карточки (thead скрывается, tr -> flex-card
+   с data-label подписями), а тулбар/фильтры/пагинация стекаются вручную -
+   под них общей инфры нет (это не .management-header с "Создать"). */
+@media (max-width: 767.98px) {
+  .denials {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .page-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* table-layout:auto (дефолт) считает ширину <table> по САМОМУ ДЛИННОМУ
+     неразрывному "слову" среди потомков - когда tr/td card-режима перестают
+     быть table-row/table-cell (rt-row/[data-label] -> flex), это правило
+     всё равно тянет ширину таблицы по контенту (путь API без пробелов),
+     и карточка растягивается шире вьюпорта вместо переноса. fixed игнорит
+     контент-ширину, держит 100% контейнера (проверено Playwright-харнессом:
+     без fixed строка 560px при вьюпорте 390px, с fixed - 386px). */
+  .data-table {
+    table-layout: fixed;
+  }
+
+  /* Длинные ресурсы/ключи прав (`/api/organizations/.../employees`,
+     `cars.manual.create`) не содержат внутри самого длинного сегмента точек
+     разрыва - overflow-wrap переносит их внутри карточки вместо горизонтального
+     оверфлоу (уходит в скрытый auto-скролл .table-wrap, невидимый без свайпа). */
+  .rt-table .rt-row > [data-label] {
+    overflow-wrap: anywhere;
+  }
+
+  .toggle-row,
+  .actions-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .toggle-row .lk-button,
+  .actions-row .lk-button {
+    min-height: 44px;
+  }
+
+  .filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filter-input {
+    max-width: 100%;
+    min-height: 44px;
+    /* при column базовый flex:1 1 160px делает flex-basis ВЫСОТОЙ - раздувает
+       каждый фильтр до 160px; сбрасываем в auto (высота по контенту + min 44px). */
+    flex: 0 0 auto;
+  }
+
+  /* min-height на обёртке .filter-input не растягивает кнопку BaseDropdown
+     (у неё свой min-height:30px) - тач-таргет даём самой кнопке. */
+  .filter-input :deep(.base-dropdown__button) {
+    min-height: 44px;
+  }
+
+  .filters > button.lk-button {
+    min-height: 44px;
+  }
+
+  .pagination {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .pagination .lk-button {
+    min-height: 44px;
+  }
 }
 </style>
