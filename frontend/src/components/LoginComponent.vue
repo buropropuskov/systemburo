@@ -556,8 +556,10 @@ export default {
     /* Ваши существующие стили остаются без изменений */
     .login {
         width: 100%;
-        height: 100vh;
-        height: 100dvh;
+        /* zoom-safe (#1097): 100vh/100dvh под корневым zoom считаются от
+           НЕзумленной высоты -> экран логина выше зумленного вьюпорта (900px при
+           2560), форма уезжает под фолд. --app-vh нормирован на zoom. */
+        height: calc(var(--app-vh, 1vh) * 100);
         background-color: var(--color-primary);
         padding: 40px;
         display: flex;
