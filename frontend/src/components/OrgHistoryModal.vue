@@ -211,6 +211,9 @@ const ACTION_TEXTS = {
   updated: 'Организация изменена',
   archived: 'Организация архивирована',
   restored: 'Организация восстановлена из архива',
+  responsibles_changed: 'Ответственные изменены',
+  unload_places_changed: 'Места разгрузки изменены',
+  tables_changed: 'Таблицы изменены',
 };
 
 const ACTION_DOT_CLASS = {
@@ -220,6 +223,9 @@ const ACTION_DOT_CLASS = {
   updated: 'dot-update',
   archived: 'dot-deactivate',
   restored: 'dot-activate',
+  responsibles_changed: 'dot-update',
+  unload_places_changed: 'dot-update',
+  tables_changed: 'dot-update',
 };
 
 export default {
@@ -413,28 +419,72 @@ export default {
       const d = item.details;
       if (!d || typeof d !== 'object') return '';
 
-      // Ключ type появился вместе с типом организации (#1046); у старых записей
-      // его нет - тогда тип не показываем. Явный null = «не указан».
-      const typePart = 'type' in d ? `Тип: ${d.type || ORG_TYPE_UNSPECIFIED_LABEL}` : '';
+      const typeLabel = (t) => t || ORG_TYPE_UNSPECIFIED_LABEL;
+      // from добавлен вместе с детальной историей - у старых записей его нет,
+      // тогда показываем только текущее значение (fallback). Ключ type появился
+      // с типом организации (#1046); явный null типа = «не указан».
+      const from = d.from && typeof d.from === 'object' ? d.from : null;
+      const typePart = 'type' in d ? `Тип: ${typeLabel(d.type)}` : '';
 
       switch (item.action_type) {
         case 'created':
         case 'updated': {
           const parts = [];
           if (d.name) {
-            const label = item.action_type === 'updated' ? 'Новое наименование' : 'Наименование';
-            parts.push(`${label}: ${d.name}`);
+            if (from && from.name && from.name !== d.name) {
+              parts.push(`Наименование: ${from.name} → ${d.name}`);
+            } else {
+              const label = item.action_type === 'updated' ? 'Новое наименование' : 'Наименование';
+              parts.push(`${label}: ${d.name}`);
+            }
           }
-          if (typePart) parts.push(typePart);
+          if ('type' in d) {
+            parts.push(from && 'type' in from ? `Тип: ${typeLabel(from.type)} → ${typeLabel(d.type)}` : typePart);
+          }
           return parts.join(' · ');
         }
         case 'renamed':
-          return d.name ? `Новое наименование: ${d.name}` : '';
+          if (!d.name) return '';
+          return from && from.name ? `Наименование: ${from.name} → ${d.name}` : `Новое наименование: ${d.name}`;
         case 'retyped':
-          return typePart;
+          if (!('type' in d)) return '';
+          return from && 'type' in from ? `Тип: ${typeLabel(from.type)} → ${typeLabel(d.type)}` : typePart;
+        case 'unload_places_changed':
+        case 'tables_changed':
+          return this.formatNameDiff(d);
+        case 'responsibles_changed':
+          return this.formatUsersDiff(d);
         default:
           return '';
       }
+    },
+
+    // formatNameDiff разворачивает details.{added,removed} (имена мест/таблиц).
+    formatNameDiff(d) {
+      const parts = [];
+      if (Array.isArray(d.added) && d.added.length) parts.push(`Добавлены: ${d.added.join(', ')}`);
+      if (Array.isArray(d.removed) && d.removed.length) parts.push(`Убраны: ${d.removed.join(', ')}`);
+      return parts.join(' · ');
+    },
+
+    // formatUsersDiff разворачивает историю ответственных: кто добавлен (с флагом
+    // согласования), кто убран, у кого сменилось обязательное согласование.
+    formatUsersDiff(d) {
+      const nameOf = (u) => u.name || u.username || '';
+      const parts = [];
+      if (Array.isArray(d.added) && d.added.length) {
+        const list = d.added.map((u) => (u.required_approval ? `${nameOf(u)} (согласование)` : nameOf(u)));
+        parts.push(`Добавлены: ${list.join(', ')}`);
+      }
+      if (Array.isArray(d.removed) && d.removed.length) {
+        parts.push(`Убраны: ${d.removed.map(nameOf).join(', ')}`);
+      }
+      if (Array.isArray(d.approval_changed) && d.approval_changed.length) {
+        const yn = (v) => (v ? 'да' : 'нет');
+        const list = d.approval_changed.map((u) => `${nameOf(u)} (согласование: ${yn(u.from)} → ${yn(u.to)})`);
+        parts.push(`Согласование изменено: ${list.join(', ')}`);
+      }
+      return parts.join(' · ');
     },
 
     formatDateTime(s) {

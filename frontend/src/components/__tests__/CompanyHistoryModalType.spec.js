@@ -82,4 +82,40 @@ describe('CompanyHistoryModal — действия и тип в истории',
     expect(commentText(wrapper)).toContain('Наименование: Альфа');
     expect(commentText(wrapper)).toContain('Тип: Организация');
   });
+
+  it('responsibles_changed: добавлены (с согласованием) / убраны / смена согласования', async () => {
+    const wrapper = await mountWith([entry({
+      action_type: 'responsibles_changed',
+      details: {
+        added: [{ username: 'ivan', name: 'Иванов И.', required_approval: true }],
+        removed: [{ username: 'petr', name: 'Петров П.' }],
+        approval_changed: [{ username: 'sid', name: 'Сидоров С.', from: false, to: true }],
+      },
+    })]);
+    expect(actionText(wrapper)).toBe('Ответственные изменены');
+    const text = commentText(wrapper);
+    expect(text).toContain('Добавлены: Иванов И. (согласование)');
+    expect(text).toContain('Убраны: Петров П.');
+    expect(text).toContain('Согласование изменено: Сидоров С. (согласование: нет → да)');
+  });
+
+  it('unload_places_changed / tables_changed: added/removed по именам', async () => {
+    const wPlaces = await mountWith([entry({ action_type: 'unload_places_changed', details: { added: ['Склад 1'], removed: ['Склад 2'] } })]);
+    expect(actionText(wPlaces)).toBe('Места разгрузки изменены');
+    expect(commentText(wPlaces)).toContain('Добавлены: Склад 1');
+    expect(commentText(wPlaces)).toContain('Убраны: Склад 2');
+
+    const wTables = await mountWith([entry({ action_type: 'tables_changed', details: { added: ['Таблица А'] } })]);
+    expect(actionText(wTables)).toBe('Таблицы изменены');
+    expect(commentText(wTables)).toContain('Добавлены: Таблица А');
+    expect(commentText(wTables)).not.toContain('Убраны');
+  });
+
+  it('retyped/updated с from: рендерит «было → стало»', async () => {
+    const wType = await mountWith([entry({ action_type: 'retyped', details: { type: 'Отдел', from: { name: 'Альфа', type: 'Организация' } } })]);
+    expect(commentText(wType)).toContain('Тип: Организация → Отдел');
+
+    const wName = await mountWith([entry({ action_type: 'updated', details: { name: 'Гамма', type: 'Отдел', from: { name: 'Бета', type: 'Отдел' } } })]);
+    expect(commentText(wName)).toContain('Наименование: Бета → Гамма');
+  });
 });
