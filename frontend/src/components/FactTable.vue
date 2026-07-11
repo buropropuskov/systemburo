@@ -21,10 +21,10 @@
       </div>
     </div>
     
-    <div class="card-content">
+    <div class="card-content rt-table">
       <!-- Заголовок таблицы -->
       <div class="fact-header">
-        <div class="header-row">
+        <div class="header-row rt-head-row">
           <!-- Служебные въезд/выезд - всегда первые (только cars) -->
           <div
             v-if="tableType === 'cars'"
@@ -180,12 +180,13 @@
               :style="{ animationDelay: `${index * 0.1}s` }"
               @click="openItemDetails(item)"
             >
-              <div class="fact-row">
+              <div class="fact-row rt-row">
                 <!-- Служебные въезд/выезд - всегда первые (только cars) -->
                 <div
                   v-if="tableType === 'cars'"
                   class="col entry-col"
                   style="order: 0;"
+                  data-label="Въезд"
                   @click.stop
                 >
                   <button
@@ -202,6 +203,7 @@
                   v-if="tableType === 'cars'"
                   class="col exit-col"
                   style="order: 1;"
+                  data-label="Выезд"
                   @click.stop
                 >
                   <button
@@ -219,6 +221,7 @@
                   v-if="tableType === 'cars' && isFieldVisible('car_number')"
                   class="col number-col"
                   :style="getColStyle('car_number')"
+                  data-label="Номер Т/С"
                 >
                   {{ item.car_number || '-' }}
                 </div>
@@ -226,6 +229,7 @@
                   v-if="tableType === 'cars' && isFieldVisible('car_brand')"
                   class="col brand-col"
                   :style="getColStyle('car_brand')"
+                  data-label="Марка"
                 >
                   {{ item.car_brand || '-' }}
                 </div>
@@ -233,6 +237,7 @@
                   v-if="isFieldVisible('organization')"
                   class="col organization-col"
                   :style="getColStyle('organization')"
+                  data-label="Организация"
                 >
                   {{ item.organization_name || '-' }}
                 </div>
@@ -240,6 +245,7 @@
                   v-if="tableType === 'cars' && isFieldVisible('company')"
                   class="col company-col"
                   :style="getColStyle('company')"
+                  data-label="Компания"
                 >
                   {{ item.company || '-' }}
                 </div>
@@ -247,6 +253,7 @@
                   v-if="isFieldVisible('application_id')"
                   class="col application-col"
                   :style="getColStyle('application_id')"
+                  data-label="Номер заявки"
                 >
                   <span
                     v-if="isManualItem(item)"
@@ -260,6 +267,7 @@
                   v-if="tableType === 'cars' && isFieldVisible('unload_place')"
                   class="col place-col"
                   :style="getColStyle('unload_place')"
+                  data-label="Место разгрузки"
                 >
                   {{ formatUnloadPlaces ? formatUnloadPlaces(item) : '-' }}
                 </div>
@@ -267,6 +275,7 @@
                   v-if="isFieldVisible('valid_until')"
                   class="col date-col"
                   :style="getColStyle('valid_until')"
+                  data-label="Действует до"
                 >
                   {{ formatDate(item.entry_date_to) }}
                 </div>
@@ -274,6 +283,7 @@
                   v-if="isFieldVisible(tableType === 'cars' ? 'time_range' : 'pass_time')"
                   class="col time-col"
                   :style="getColStyle(tableType === 'cars' ? 'time_range' : 'pass_time')"
+                  :data-label="tableType === 'cars' ? 'Время' : 'Время прохода'"
                 >
                   {{ tableType === 'cars'
                     ? formatTimeRange(item.entry_time_from, item.entry_time_to)
@@ -284,6 +294,7 @@
                   v-if="tableType === 'cars' && isFieldVisible('status')"
                   class="col status-col"
                   :style="getColStyle('status')"
+                  data-label="Статус"
                 >
                   <StatusBadge :status="item.status" />
                 </div>
@@ -292,6 +303,7 @@
                   v-if="tableType === 'people' && isFieldVisible('last_name')"
                   class="col last-name-col"
                   :style="getColStyle('last_name')"
+                  data-label="Фамилия"
                 >
                   {{ item.last_name || '-' }}
                 </div>
@@ -299,6 +311,7 @@
                   v-if="tableType === 'people' && isFieldVisible('first_name')"
                   class="col first-name-col"
                   :style="getColStyle('first_name')"
+                  data-label="Имя"
                 >
                   {{ item.first_name || '-' }}
                 </div>
@@ -306,6 +319,7 @@
                   v-if="tableType === 'people' && isFieldVisible('middle_name')"
                   class="col middle-name-col"
                   :style="getColStyle('middle_name')"
+                  data-label="Отчество"
                 >
                   {{ item.middle_name || '-' }}
                 </div>
@@ -313,6 +327,7 @@
                   v-if="tableType === 'people' && isFieldVisible('position')"
                   class="col position-col"
                   :style="getColStyle('position')"
+                  data-label="Должность"
                 >
                   {{ item.position || '-' }}
                 </div>
@@ -320,6 +335,7 @@
                   v-if="tableType === 'people' && isFieldVisible('citizenship_name')"
                   class="col citizenship-col"
                   :style="getColStyle('citizenship_name')"
+                  data-label="Гражданство"
                 >
                   {{ item.citizenshipName || item.citizenship_name || '-' }}
                 </div>
@@ -1415,24 +1431,13 @@ export default {
   transition: transform 0.5s ease;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .fact-table-card {
     width: 100%;
     height: auto;
     max-height: none;
   }
-  
-  .header-row,
-  .fact-row {
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-  
-  .col {
-    width: calc(50% - 4px) !important;
-    margin-bottom: 4px;
-  }
-  
+
   .card-header {
     flex-direction: column;
     align-items: flex-start;
@@ -1440,21 +1445,37 @@ export default {
     height: auto;
     padding: 16px;
   }
-  
+
   .card-header__settings {
     width: 100%;
     justify-content: flex-end;
   }
-  
-  .entry-col, .exit-col {
-    width: calc(50% - 4px) !important;
-    justify-content: flex-start;
+
+  /* rt-row (#1097 S8) сидит на .fact-row, а не на v-for-корне .fact-item -
+     сиблинг-селектор ".rt-row + .rt-row" из responsive-tables.css поэтому не
+     матчит (соседние .fact-item, не .fact-row), спейсинг карточек добираем тут. */
+  .fact-item + .fact-item {
+    margin-top: 8px;
   }
-  
+
+  /* Значения в карточке не обрезаем многоточием - там больше горизонтального
+     места, чем в узкой табличной колонке. */
+  .fact-table-card .rt-row > [data-label] {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  /* Тач-таргет >=44px (WCAG) для кнопок Въезд/Выезд/удаления. */
   .action-btn {
-    width: 60px;
-    height: 28px;
-    font-size: 11px;
+    min-width: 70px;
+    height: 44px;
+    font-size: 13px;
+  }
+
+  .delete-btn {
+    width: 44px;
+    height: 44px;
   }
 }
 

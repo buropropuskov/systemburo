@@ -45,9 +45,9 @@
       </div>
     </div>
     
-    <div class="card-content">
+    <div class="card-content rt-table">
       <div class="items-header">
-        <div class="header-row">
+        <div class="header-row rt-head-row">
           <!-- Въезд - отдельная колонка -->
           <div
             class="col entry-col"
@@ -255,11 +255,12 @@
               :style="{ animationDelay: `${index * 0.05}s` }"
               @click="preview ? null : openVehicleDetails(item)"
             >
-              <div class="item-data">
+              <div class="item-data rt-row">
                 <!-- Въезд - кнопка -->
                 <div
                   class="col entry-col"
                   style="order: 0;"
+                  data-label="Въезд"
                   @click.stop
                 >
                   <button
@@ -275,6 +276,7 @@
                 <div
                   class="col exit-col"
                   style="order: 1;"
+                  data-label="Выезд"
                   @click.stop
                 >
                   <button
@@ -291,6 +293,7 @@
                   class="col number-col"
                   :class="fieldColClass('car_number')"
                   :style="getColStyle('car_number')"
+                  data-label="Номер Т/С"
                 >
                   {{ item.car_number }}
                 </div>
@@ -299,6 +302,7 @@
                   class="col brand-col"
                   :class="fieldColClass('car_brand')"
                   :style="getColStyle('car_brand')"
+                  data-label="Марка"
                 >
                   {{ item.car_brand }}
                 </div>
@@ -307,6 +311,7 @@
                   class="col organization-col"
                   :class="fieldColClass('organization')"
                   :style="getColStyle('organization')"
+                  data-label="Организация"
                 >
                   {{ item.organization_name }}
                 </div>
@@ -315,6 +320,7 @@
                   class="col company-col"
                   :class="fieldColClass('company')"
                   :style="getColStyle('company')"
+                  data-label="Компания"
                 >
                   {{ item.company || '-' }}
                 </div>
@@ -323,6 +329,7 @@
                   class="col application-col"
                   :class="fieldColClass('application_id')"
                   :style="getColStyle('application_id')"
+                  data-label="Номер заявки"
                 >
                   <span
                     v-if="isManualItem(item)"
@@ -337,6 +344,7 @@
                   class="col place-col"
                   :class="fieldColClass('unload_place')"
                   :style="getColStyle('unload_place')"
+                  data-label="Место разгрузки"
                 >
                   {{ formatUnloadPlaces(item) }}
                 </div>
@@ -345,6 +353,7 @@
                   class="col date-col"
                   :class="fieldColClass('valid_until')"
                   :style="getColStyle('valid_until')"
+                  data-label="Действует до"
                 >
                   {{ formatDate(item.entry_date_to) }}
                 </div>
@@ -353,6 +362,7 @@
                   class="col time-col"
                   :class="fieldColClass('time_range')"
                   :style="getColStyle('time_range')"
+                  data-label="Время"
                 >
                   {{ formatTimeRange(item.entry_time_from, item.entry_time_to) }}
                 </div>
@@ -361,6 +371,7 @@
                   class="col status-col"
                   :class="fieldColClass('status')"
                   :style="getColStyle('status')"
+                  data-label="Статус"
                 >
                   <StatusBadge :status="item.status" />
                 </div>
@@ -1921,53 +1932,10 @@ export default {
   min-height: 36px;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .selected-table-card {
     max-height: none;
     height: auto;
-  }
-
-  /* Синхронный horizontal scroll - scroll на .card-content */
-  .card-content {
-    overflow-x: auto !important;
-    overflow-y: visible !important;
-  }
-
-  .items-header,
-  .items-body {
-    overflow: visible !important;
-    min-width: 900px;
-  }
-
-  .header-row,
-  .item-data {
-    flex-wrap: nowrap !important;
-    gap: 0;
-    min-width: 900px;
-  }
-
-  .col {
-    width: auto !important;
-    min-width: 90px !important;
-    flex: 1 1 auto !important;
-    margin-bottom: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .col.number-col,
-  .col.brand-col,
-  .col.organization-col,
-  .col.company-col,
-  .col.place-col {
-    min-width: 110px !important;
-  }
-
-  .entry-col, .exit-col {
-    width: auto !important;
-    min-width: 60px !important;
-    justify-content: flex-start;
   }
 
   .card-header {
@@ -1984,10 +1952,44 @@ export default {
     justify-content: flex-end;
   }
 
+  /* rt-row (#1097 S8) сидит на .item-data, а не на v-for-корне .item-row -
+     сиблинг-селектор ".rt-row + .rt-row" из responsive-tables.css поэтому не
+     матчит (соседние .item-row, не .item-data), спейсинг карточек добираем тут. */
+  .item-row + .item-row {
+    margin-top: 8px;
+  }
+
+  /* Значения в карточке не обрезаем многоточием - там больше горизонтального
+     места, чем в узкой табличной колонке. */
+  .selected-table-card .rt-row > [data-label]:not(.col--collapsed) {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  /* Приоритет-схлопнутые (col--collapsed) колонки в card-режиме прячем совсем -
+     их поля доступны в панели "Подробнее". Иначе card-override overflow:visible
+     перебивает overflow:hidden схлопывания (равная специфичность, правило ниже) и
+     колонка становится пустой раздутой строкой карточки вместо исчезновения. */
+  .selected-table-card .rt-row > .col--collapsed {
+    display: none !important;
+  }
+
+  /* Тач-таргет >=44px (WCAG) для кнопок Въезд/Выезд/удаления/раскрытия. */
   .action-btn {
-    width: 60px;
-    height: 28px;
-    font-size: 11px;
+    min-width: 70px;
+    height: 44px;
+    font-size: 13px;
+  }
+
+  .delete-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .expand-btn {
+    width: 44px;
+    height: 44px;
   }
 }
 
