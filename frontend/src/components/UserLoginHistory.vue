@@ -665,10 +665,10 @@ function thinBorder() {
   table-layout: fixed;
 }
 
-.lh-col-when { width: 24%; }
-.lh-col-event { width: 27%; }
-.lh-col-ip { width: 17%; }
-.lh-col-device { width: 13%; }
+.lh-col-when { width: 23%; }
+.lh-col-event { width: 25%; }
+.lh-col-ip { width: 16%; }
+.lh-col-device { width: 17%; }
 .lh-col-detail { width: 19%; }
 
 .lh-table thead th {
@@ -815,7 +815,6 @@ function thinBorder() {
 }
 
 .lh-subrow .lh-when {
-  padding-left: 26px;
   color: #6b6f8a;
 }
 
