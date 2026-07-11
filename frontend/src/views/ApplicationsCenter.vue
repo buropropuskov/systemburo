@@ -295,11 +295,11 @@
     </div>
 
     <div
-      class="applications-table"
+      class="applications-table rt-table"
       :class="{ 'with-details': selectedApplication }"
     >
       <div class="table-header">
-        <div class="header-row">
+        <div class="header-row rt-head-row">
           <div
             class="header-col confirmation-col"
             @click="sortBy('confirmation')"
@@ -438,8 +438,11 @@
               :style="isInitialLoad ? { 'animation-delay': `${index * 0.05}s` } : {}"
               @click="openApplication(application)"
             >
-              <div class="application-row">
-                <div class="application-col confirmation-col">
+              <div class="application-row rt-row">
+                <div
+                  class="application-col confirmation-col"
+                  data-label="Подтверждение"
+                >
                   <span
                     class="confirmation-badge"
                     :class="getConfirmationClass(application.confirmation)"
@@ -448,7 +451,10 @@
                     {{ application.confirmation }}
                   </span>
                 </div>
-                <div class="application-col number-col">
+                <div
+                  class="application-col number-col"
+                  data-label="Номер заявки"
+                >
                   <span
                     class="application-number application-number--copyable"
                     data-tooltip="Копировать"
@@ -458,14 +464,21 @@
                     @keydown.enter.prevent="copyApplicationNumber(application.application_number)"
                   >{{ application.application_number }}</span>
                 </div>
-                <div class="application-col date-col">
+                <div
+                  class="application-col date-col"
+                  data-label="Дата и время"
+                >
                   {{ formatDateTime(application.sending_datetime) }}
                 </div>
-                <div class="application-col organization-col">
+                <div
+                  class="application-col organization-col"
+                  data-label="Организация"
+                >
                   <span class="ellip">{{ getOrganizationName(application) }}</span>
                 </div>
                 <div
                   class="application-col sender-col"
+                  data-label="Отправитель"
                 >
                   <span
                     v-if="application.sender_name"
@@ -473,7 +486,10 @@
                     :data-tooltip="application.sender_full_name || application.sender_name"
                   ><span class="ellip">{{ application.sender_name }}</span></span>
                 </div>
-                <div class="application-col status-col">
+                <div
+                  class="application-col status-col"
+                  data-label="Статус заявки"
+                >
                   <span
                     class="status-badge"
                     :class="getStatusClass(application.status)"
@@ -482,7 +498,10 @@
                     {{ application.status }}
                   </span>
                 </div>
-                <div class="application-col tags-col">
+                <div
+                  class="application-col tags-col"
+                  data-label="Теги"
+                >
                   <div
                     v-if="blacklistFlagCount(application) > 0 || application.has_roof_access || application.has_free_parking || application.sender_is_important || application.has_unseen_questions"
                     class="application-tags"
@@ -2568,7 +2587,7 @@ export default {
     scrollbar-color: #D9E2FF transparent;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
     .center {
         padding: 12px;
     }
@@ -2600,114 +2619,115 @@ export default {
     }
 
     /*
-     * Таблица с фиксированными % колонками не помещается на мобильный экран.
-     * Native scrollbar скрываем - вместо него рендерим собственный
-     * .table-scroll-indicator под таблицей (всегда visible, не пропадает после
-     * touch-скролла на iOS/Android).
-     *
-     * display: block вместо flex-column - базовый flex-container не даёт
-     * children реально overflow'ить parent по X, scrollLeft кеппировался
-     * на ~34px вместо 388. Плюс убираем max-height - vertical scroll делается
-     * страницей body, inner overflow-y: scroll в .table-body отключён.
+     * Таблица -> карточки-письма (rt-table/rt-head-row/rt-row из responsive-tables.css,
+     * #1097 S5). rt-head-row прячет .header-row целиком - вместе с ней схлопываем и
+     * пустую .table-header (иначе остаётся полоса 45px с бордером без содержимого);
+     * оверлей обновления подстраивает top под освободившееся место.
      */
+    .table-header {
+        display: none;
+    }
+
+    .refresh-overlay {
+        top: 0;
+    }
+
+    /* Список не заперт в невысокий скролл-бокс - карточки скроллит страница целиком,
+     * как раньше был устроен горизонтальный скролл (без вложенного overflow). */
     .applications-table {
-        display: block;
-        overflow-x: scroll;
-        /* overflow-y: visible недопустим с overflow-x: scroll (CSS spec: computes to auto),
-         * поэтому hidden. Вертикальный scroll страницы остаётся. */
-        overflow-y: hidden;
         max-height: none;
         height: auto;
-        /* transition: all 0.3s и глобальный scroll-behavior: smooth анимировали
-         * scrollLeft - scroll останавливался посередине. Отключаем оба. */
-        transition: none;
-        scroll-behavior: auto;
-        /* Native scrollbar виден в начальном состоянии (Firefox thin + Chrome 10px),
-         * на touch-устройствах он скроется после инерции - это native-поведение. */
-        scrollbar-width: auto;
-        scrollbar-color: #4F5BDF #ededf5;
-    }
-
-    .applications-table::-webkit-scrollbar {
-        height: 10px;
-        -webkit-appearance: none;
-    }
-
-    .applications-table::-webkit-scrollbar-track {
-        background: #ededf5;
-        border-radius: 5px;
-    }
-
-    .applications-table::-webkit-scrollbar-thumb {
-        background: #4F5BDF;
-        border-radius: 5px;
-    }
-
-    .table-header,
-    .table-body,
-    .header-row,
-    .application-item {
-        /* actions-col скрыт на мобильном, суммарная ширина: 110+100+110+120+110+110 = 660 */
-        min-width: 660px;
-    }
-
-    /* Padding 0 16px делал scrollWidth больше реальной ширины content - scroll
-     * упирался в середину. Убираем padding, переносим в первый/последний col. */
-    .table-header,
-    .application-row {
-        padding: 0;
-    }
-
-    .header-col:first-child,
-    .application-col:first-child {
-        padding-left: 16px;
-    }
-
-    /* actions-col скрыта, последний visible - status-col */
-    .header-col.status-col,
-    .application-col.status-col {
-        padding-right: 16px;
+        overflow: visible;
     }
 
     .table-body {
         overflow-y: visible;
-        overflow-x: visible;
         flex-grow: unset;
+        padding: 12px;
     }
 
     .applications-list {
         overflow: visible;
-        -webkit-overflow-scrolling: touch;
     }
 
-    .confirmation-col { min-width: 110px; }
-    .number-col { min-width: 100px; }
-    .date-col { min-width: 110px; }
-    .organization-col { min-width: 120px; }
-    .sender-col { min-width: 110px; }
-    .status-col { min-width: 110px; }
+    .application-item + .application-item {
+        margin-top: 8px;
+    }
 
-    /* На мобильном actions-col (download button в каждой строке) скрываем -
-     * download доступен через детали заявки при клике на строку. */
-    .header-col.actions-col,
-    .application-col.actions-col {
+    /* rt-row вешаем на .application-row (реального родителя ячеек), а не на
+     * .application-item (внешняя обёртка с click/testid/анимациями) - иначе
+     * `.rt-row > [data-label]` не совпадёт (ячейки не прямые потомки .application-item).
+     * Карточка красится своим непрозрачным фоном без зазора поверх .application-item,
+     * поэтому unread-подсветку переносим на саму карточку. */
+    .application-item.unread > .application-row.rt-row {
+        background: #fff5e0;
+    }
+
+    .application-row.rt-row {
+        /* border-bottom у каждой [data-label]-ячейки уже разделяет поля - строчный gap
+         * дублировал бы разделение и распирал карточку. */
+        gap: 0;
+    }
+
+    /* Базовые *-col задают flex-grow/basis под горизонтальное распределение ширины
+     * колонок десктоп-таблицы - в rt-row (flex-direction: column) те же значения
+     * управляют уже высотой ячейки и ломают карточку (например tags-col: flex:0 0 120px
+     * стало бы фиксированной высотой). Сбрасываем на auto-высоту по контенту - ширину и
+     * выравнивание "подпись/значение" держит [data-label] из responsive-tables.css.
+     * Снимаем и обрезание текста (nowrap+ellipsis) - в карточке ширины достаточно для
+     * переноса длинных значений, лучше перенос, чем молчаливое усечение. */
+    .applications-table .application-row.rt-row > .application-col {
+        flex: none;
+        overflow: visible;
+        white-space: normal;
+        text-overflow: clip;
+    }
+
+    .applications-table .application-row.rt-row .ellip {
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+    }
+
+    /* number-col на десктопе - flex-column (номер над бейджем ЧС); в карточке нужен
+     * обычный ряд "подпись слева - значение справа", как у остальных полей. */
+    .application-col.number-col {
+        flex-direction: row;
+    }
+
+    /* Пустая ячейка (нет тегов/нет отправителя) - div без единого узла, :empty прячет
+     * её вместе с подписью, не оставляя строку "Теги:"/"Отправитель:" без значения. */
+    .applications-table .application-row.rt-row > .tags-col:empty,
+    .applications-table .application-row.rt-row > .sender-col:empty {
         display: none;
     }
 
-    /* Заголовки header-col в одну строку - без wrap, визуально выровнены */
-    .header-col p {
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+    /* Порядок карточки-письма (директива юзера, context.md эпика #1097): подтверждение
+     * всегда видно первым, дальше теги / организация / отправитель+номер / статус
+     * заявки; дата и кнопка скачивания порядком не оговорены - идут следом. */
+    .application-col.confirmation-col { order: 1; }
+    .application-col.tags-col { order: 2; }
+    .application-col.organization-col { order: 3; }
+    .application-col.sender-col { order: 4; }
+    .application-col.number-col { order: 5; }
+    .application-col.status-col { order: 6; }
+    .application-col.date-col { order: 7; }
+    .application-col.actions-col { order: 8; }
+
+    /* Тач-таргеты >= 44px. Кнопка "Скачать" в карточке идёт собственной строкой (без
+     * data-label) - можно смело увеличить саму кнопку. Копирование номера остаётся
+     * компактной надписью - расширяем зону клика невидимым псевдоэлементом, не раздувая
+     * визуально строку "Номер заявки". */
+    .download-btn {
+        min-height: 44px;
+        height: auto;
+        padding: 10px 16px;
     }
 
-    .header-col {
-        font-size: 13px;
-    }
-
-    /* На мобильном индикатор всегда видим */
-    .table-scroll-indicator {
-        display: block;
+    .application-number--copyable::before {
+        content: '';
+        position: absolute;
+        inset: -12px -8px;
     }
 }
 
