@@ -284,7 +284,8 @@ func (h *CompanyHandler) UpdateUsers(c echo.Context) error {
 		return err
 	}
 
-	if err := h.service.UpdateUsers(c.Request().Context(), id, req); err != nil {
+	userID, _ := c.Get("user_id").(int)
+	if err := h.service.UpdateUsers(c.Request().Context(), userID, id, req); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Company users updated successfully")
@@ -340,7 +341,8 @@ func (h *CompanyHandler) UpdateUnloadPlaces(c echo.Context) error {
 		return err
 	}
 
-	if err := h.service.UpdateUnloadPlaces(c.Request().Context(), id, req); err != nil {
+	userID, _ := c.Get("user_id").(int)
+	if err := h.service.UpdateUnloadPlaces(c.Request().Context(), userID, id, req); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Unload places updated successfully")
@@ -396,7 +398,8 @@ func (h *CompanyHandler) UpdateTables(c echo.Context) error {
 		return err
 	}
 
-	if err := h.service.UpdateTables(c.Request().Context(), id, req); err != nil {
+	userID, _ := c.Get("user_id").(int)
+	if err := h.service.UpdateTables(c.Request().Context(), userID, id, req); err != nil {
 		return err
 	}
 	return RespondMessage(c, "Company tables updated successfully")
@@ -454,7 +457,8 @@ func (h *CompanyHandler) BulkAssignUnloadPlaces(c echo.Context) error {
 	if len(req.IDs) == 0 {
 		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны компании")
 	}
-	res, err := h.service.BulkAssignUnloadPlaces(c.Request().Context(), req.IDs, req.UnloadPlaceIDs, req.Mode)
+	userID, _ := c.Get("user_id").(int)
+	res, err := h.service.BulkAssignUnloadPlaces(c.Request().Context(), userID, req.IDs, req.UnloadPlaceIDs, req.Mode)
 	if err != nil {
 		return err
 	}
@@ -483,7 +487,8 @@ func (h *CompanyHandler) BulkAssignTables(c echo.Context) error {
 	if len(req.IDs) == 0 {
 		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны компании")
 	}
-	res, err := h.service.BulkAssignTables(c.Request().Context(), req.IDs, req.TableIDs, req.Mode)
+	userID, _ := c.Get("user_id").(int)
+	res, err := h.service.BulkAssignTables(c.Request().Context(), userID, req.IDs, req.TableIDs, req.Mode)
 	if err != nil {
 		return err
 	}
@@ -512,7 +517,8 @@ func (h *CompanyHandler) BulkAssignUsers(c echo.Context) error {
 	if len(req.IDs) == 0 {
 		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны компании")
 	}
-	res, err := h.service.BulkAssignUsers(c.Request().Context(), req.IDs, req.Users, req.Mode)
+	userID, _ := c.Get("user_id").(int)
+	res, err := h.service.BulkAssignUsers(c.Request().Context(), userID, req.IDs, req.Users, req.Mode)
 	if err != nil {
 		return err
 	}

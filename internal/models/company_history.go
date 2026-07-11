@@ -15,6 +15,11 @@ const (
 	CompanyActionUpdated  = "updated"
 	CompanyActionArchived = "archived"
 	CompanyActionRestored = "restored"
+	// Групповые/одиночные изменения привязок пишут отдельные action с деталями
+	// «было -> стало» (added/removed, для ответственных ещё approval_changed).
+	CompanyActionResponsiblesChanged = "responsibles_changed"
+	CompanyActionUnloadPlacesChanged = "unload_places_changed"
+	CompanyActionTablesChanged       = "tables_changed"
 )
 
 // CompanyHistoryItem - запись истории с именем актора для API (LEFT JOIN users).

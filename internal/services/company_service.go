@@ -47,20 +47,21 @@ type CompanyService interface {
 	// users.company_id (участники), не ответственных из junction-таблицы.
 	GetMembers(ctx context.Context, companyID int) ([]MemberResponse, error)
 
-	// UpdateUsers обновляет ответственных пользователей компании с поддержкой обязательного согласования.
-	UpdateUsers(ctx context.Context, companyID int, req UpdateCompanyUsersRequest) error
+	// UpdateUsers обновляет ответственных пользователей компании с поддержкой
+	// обязательного согласования. callerUserID - актор для аудита «кто был -> кто стал».
+	UpdateUsers(ctx context.Context, callerUserID, companyID int, req UpdateCompanyUsersRequest) error
 
 	// GetUnloadPlaces возвращает активные места разгрузки компании.
 	GetUnloadPlaces(ctx context.Context, companyID int) ([]CompanyUnloadPlaceResponse, error)
 
-	// UpdateUnloadPlaces обновляет привязку мест разгрузки к компании.
-	UpdateUnloadPlaces(ctx context.Context, companyID int, req UpdateCompanyUnloadPlacesRequest) error
+	// UpdateUnloadPlaces обновляет привязку мест разгрузки к компании. callerUserID - актор для аудита.
+	UpdateUnloadPlaces(ctx context.Context, callerUserID, companyID int, req UpdateCompanyUnloadPlacesRequest) error
 
 	// GetTables возвращает активные таблицы компании.
 	GetTables(ctx context.Context, companyID int) ([]CompanyTableResponse, error)
 
-	// UpdateTables обновляет привязку таблиц к компании.
-	UpdateTables(ctx context.Context, companyID int, req UpdateCompanyTablesRequest) error
+	// UpdateTables обновляет привязку таблиц к компании. callerUserID - актор для аудита.
+	UpdateTables(ctx context.Context, callerUserID, companyID int, req UpdateCompanyTablesRequest) error
 
 	// --- Групповые операции (bulk). Переиспользуют одиночные методы в цикле,
 	// частичный успех собирается в BulkOpResult. Валидация входа (тип, режим) -
@@ -71,15 +72,15 @@ type CompanyService interface {
 	BulkUpdateType(ctx context.Context, callerUserID int, ids []int, typ *string) (*BulkOpResult, error)
 
 	// BulkAssignUnloadPlaces назначает места разгрузки набору компаний.
-	// mode=replace затирает, mode=add объединяет с текущими.
-	BulkAssignUnloadPlaces(ctx context.Context, ids, placeIDs []int, mode string) (*BulkOpResult, error)
+	// mode=replace затирает, mode=add объединяет с текущими. callerUserID - актор для аудита.
+	BulkAssignUnloadPlaces(ctx context.Context, callerUserID int, ids, placeIDs []int, mode string) (*BulkOpResult, error)
 
-	// BulkAssignTables назначает целевые таблицы набору компаний (replace|add).
-	BulkAssignTables(ctx context.Context, ids, tableIDs []int, mode string) (*BulkOpResult, error)
+	// BulkAssignTables назначает целевые таблицы набору компаний (replace|add). callerUserID - актор для аудита.
+	BulkAssignTables(ctx context.Context, callerUserID int, ids, tableIDs []int, mode string) (*BulkOpResult, error)
 
 	// BulkAssignUsers назначает ответственных набору компаний (replace|add).
-	// primary в группе не назначается, сохраняется у существующих.
-	BulkAssignUsers(ctx context.Context, ids []int, assignments []BulkUserAssignment, mode string) (*BulkOpResult, error)
+	// primary в группе не назначается, сохраняется у существующих. callerUserID - актор для аудита.
+	BulkAssignUsers(ctx context.Context, callerUserID int, ids []int, assignments []BulkUserAssignment, mode string) (*BulkOpResult, error)
 
 	// BulkArchive архивирует набор компаний (частичный успех: активные с
 	// пользователями попадают в Errors).
@@ -329,16 +330,25 @@ func (s *companyService) Update(ctx context.Context, callerUserID, companyID int
 	company.Name = req.Name
 	company.Type = req.Type
 	slog.Info("компания обновлена", "id", companyID, "name", company.Name)
-	action := models.CompanyActionRenamed
 	nameChanged := oldName != req.Name
 	typeChanged := !strPtrEqual(oldType, req.Type)
+	if !nameChanged && !typeChanged {
+		// Ничего не поменялось (PUT с теми же значениями) - не пишем ложную
+		// «переименована» в историю (как no-op в BulkUpdateType).
+		return &company, nil
+	}
+	action := models.CompanyActionRenamed
 	switch {
 	case nameChanged && typeChanged:
 		action = models.CompanyActionUpdated
 	case typeChanged:
 		action = models.CompanyActionRetyped
 	}
-	s.recorder.Log(ctx, nil, models.AuditEntityCompany, &companyID, action, &callerUserID, map[string]any{"name": company.Name, "type": company.Type})
+	// name/type - новые значения (обратная совместимость рендера), from - старые.
+	s.recorder.Log(ctx, nil, models.AuditEntityCompany, &companyID, action, &callerUserID, map[string]any{
+		"name": company.Name, "type": company.Type,
+		"from": map[string]any{"name": oldName, "type": oldType},
+	})
 	return &company, nil
 }
 
@@ -486,7 +496,11 @@ func (s *companyService) GetMembers(ctx context.Context, companyID int) ([]Membe
 }
 
 // UpdateUsers заменяет ответственных пользователей компании.
-func (s *companyService) UpdateUsers(ctx context.Context, companyID int, req UpdateCompanyUsersRequest) error {
+// UpdateUsers заменяет ответственных компании и пишет в audit_log «кто был -> кто
+// стал» (added/removed/approval_changed), если набор изменился. Логирование - в
+// шаренном методе, поэтому bulk (реюз в цикле) и одиночная деталь-панель пишут
+// историю консистентно и ровно один раз.
+func (s *companyService) UpdateUsers(ctx context.Context, callerUserID, companyID int, req UpdateCompanyUsersRequest) error {
 	// Проверяем что не более одного primary пользователя
 	primaryCount := 0
 	for _, u := range req.Users {
@@ -497,6 +511,8 @@ func (s *companyService) UpdateUsers(ctx context.Context, companyID int, req Upd
 	if primaryCount > 1 {
 		return echo.NewHTTPError(http.StatusBadRequest, "Только один пользователь может быть главным ответственным")
 	}
+
+	oldUsers := s.attachedUserStates(ctx, companyID)
 
 	tx := s.db.WithContext(ctx).Begin()
 	if tx.Error != nil {
@@ -511,6 +527,7 @@ func (s *companyService) UpdateUsers(ctx context.Context, companyID int, req Upd
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error updating company users")
 	}
 
+	var applied []auditUserState
 	// Добавляем новых пользователей
 	for _, userReq := range req.Users {
 		var user models.User
@@ -539,13 +556,36 @@ func (s *companyService) UpdateUsers(ctx context.Context, companyID int, req Upd
 			slog.Error("не удалось добавить пользователя компании", "error", err)
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error updating company users")
 		}
+		applied = append(applied, auditUserState{
+			Username:         user.Username,
+			Name:             fullName(user.LastName, user.FirstName, user.Username),
+			RequiredApproval: requiredApproval,
+		})
 	}
 
 	if err := tx.Commit().Error; err != nil {
 		slog.Error("не удалось закоммитить транзакцию", "error", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
+
+	if diff := diffUsers(oldUsers, applied); !diff.empty() {
+		s.recorder.Log(ctx, nil, models.AuditEntityCompany, &companyID, models.CompanyActionResponsiblesChanged, &callerUserID, diff)
+	}
 	return nil
+}
+
+// attachedUserStates - снимок текущих ответственных компании (username, ФИО,
+// флаг согласования) для diff аудита.
+func (s *companyService) attachedUserStates(ctx context.Context, companyID int) []auditUserState {
+	var rows []auditUserState
+	if err := s.db.WithContext(ctx).
+		Table("companies_users cu").
+		Select("u.username AS username, "+auditUserNameSQL+" AS name, cu.required_approval AS required_approval").
+		Joins("JOIN users u ON u.id = cu.user_id").
+		Where("cu.company_id = ?", companyID).Scan(&rows).Error; err != nil {
+		slog.Warn("audit: не удалось прочитать текущих ответственных компании", "company_id", companyID, "error", err)
+	}
+	return rows
 }
 
 // GetUnloadPlaces возвращает активные места разгрузки компании.
@@ -566,7 +606,10 @@ func (s *companyService) GetUnloadPlaces(ctx context.Context, companyID int) ([]
 }
 
 // UpdateUnloadPlaces заменяет привязку мест разгрузки к компании (admin-only).
-func (s *companyService) UpdateUnloadPlaces(ctx context.Context, companyID int, req UpdateCompanyUnloadPlacesRequest) error {
+// После применения пишет в audit_log added/removed по именам мест, если набор изменился.
+func (s *companyService) UpdateUnloadPlaces(ctx context.Context, callerUserID, companyID int, req UpdateCompanyUnloadPlacesRequest) error {
+	oldPlaces := s.attachedPlaceNames(ctx, companyID)
+
 	tx := s.db.WithContext(ctx).Begin()
 	if tx.Error != nil {
 		slog.Error("не удалось начать транзакцию", "error", tx.Error)
@@ -597,7 +640,35 @@ func (s *companyService) UpdateUnloadPlaces(ctx context.Context, companyID int, 
 		slog.Error("не удалось закоммитить транзакцию", "error", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
+
+	if diff := diffIDNames(oldPlaces, req.UnloadPlaceIDs, s.placeNamesByIDs(ctx, req.UnloadPlaceIDs)); !diff.empty() {
+		s.recorder.Log(ctx, nil, models.AuditEntityCompany, &companyID, models.CompanyActionUnloadPlacesChanged, &callerUserID, diff)
+	}
 	return nil
+}
+
+// attachedPlaceNames - id->name мест разгрузки, привязанных к компании (сырая junction).
+func (s *companyService) attachedPlaceNames(ctx context.Context, companyID int) map[int]string {
+	var rows []idName
+	if err := s.db.WithContext(ctx).Table("companies_unload_places cup").
+		Select("up.id AS id, up.name AS name").
+		Joins("JOIN unload_places up ON up.id = cup.unload_place_id").
+		Where("cup.company_id = ?", companyID).Scan(&rows).Error; err != nil {
+		slog.Warn("audit: не удалось прочитать места разгрузки компании", "company_id", companyID, "error", err)
+	}
+	return idNameMap(rows)
+}
+
+func (s *companyService) placeNamesByIDs(ctx context.Context, ids []int) map[int]string {
+	if len(ids) == 0 {
+		return map[int]string{}
+	}
+	var rows []idName
+	if err := s.db.WithContext(ctx).Table("unload_places").
+		Select("id AS id, name AS name").Where("id IN ?", ids).Scan(&rows).Error; err != nil {
+		slog.Warn("audit: не удалось прочитать имена мест разгрузки", "error", err)
+	}
+	return idNameMap(rows)
 }
 
 // GetTables возвращает активные таблицы компании.
@@ -617,8 +688,11 @@ func (s *companyService) GetTables(ctx context.Context, companyID int) ([]Compan
 	return tables, nil
 }
 
-// UpdateTables заменяет привязку таблиц к компании (admin-only).
-func (s *companyService) UpdateTables(ctx context.Context, companyID int, req UpdateCompanyTablesRequest) error {
+// UpdateTables заменяет привязку таблиц к компании (admin-only). После применения
+// пишет в audit_log added/removed по именам таблиц, если набор изменился.
+func (s *companyService) UpdateTables(ctx context.Context, callerUserID, companyID int, req UpdateCompanyTablesRequest) error {
+	oldTables := s.attachedTableNames(ctx, companyID)
+
 	tx := s.db.WithContext(ctx).Begin()
 	if tx.Error != nil {
 		slog.Error("не удалось начать транзакцию", "error", tx.Error)
@@ -649,7 +723,36 @@ func (s *companyService) UpdateTables(ctx context.Context, companyID int, req Up
 		slog.Error("не удалось закоммитить транзакцию", "error", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
+
+	if diff := diffIDNames(oldTables, req.TableIDs, s.tableNamesByIDs(ctx, req.TableIDs)); !diff.empty() {
+		s.recorder.Log(ctx, nil, models.AuditEntityCompany, &companyID, models.CompanyActionTablesChanged, &callerUserID, diff)
+	}
 	return nil
+}
+
+// attachedTableNames - id->display_name таблиц, привязанных к компании (сырая
+// junction, без is_active). display_name nullable -> COALESCE к name.
+func (s *companyService) attachedTableNames(ctx context.Context, companyID int) map[int]string {
+	var rows []idName
+	if err := s.db.WithContext(ctx).Table("companies_tables ct").
+		Select("st.id AS id, COALESCE(NULLIF(st.display_name, ''), st.name) AS name").
+		Joins("JOIN system_tables st ON st.id = ct.table_id").
+		Where("ct.company_id = ?", companyID).Scan(&rows).Error; err != nil {
+		slog.Warn("audit: не удалось прочитать таблицы компании", "company_id", companyID, "error", err)
+	}
+	return idNameMap(rows)
+}
+
+func (s *companyService) tableNamesByIDs(ctx context.Context, ids []int) map[int]string {
+	if len(ids) == 0 {
+		return map[int]string{}
+	}
+	var rows []idName
+	if err := s.db.WithContext(ctx).Table("system_tables").
+		Select("id AS id, COALESCE(NULLIF(display_name, ''), name) AS name").Where("id IN ?", ids).Scan(&rows).Error; err != nil {
+		slog.Warn("audit: не удалось прочитать имена таблиц", "error", err)
+	}
+	return idNameMap(rows)
 }
 
 // --- Групповые операции (bulk) ---
@@ -701,7 +804,7 @@ func (s *companyService) BulkUpdateType(ctx context.Context, callerUserID int, i
 // вне транзакции переиспользуемого UpdateUnloadPlaces - для admin-only
 // последовательных операций окна гонки нет; конкурентный bulk по той же компании
 // - осознанно не защищаем (принятый trade-off ради переиспользования).
-func (s *companyService) BulkAssignUnloadPlaces(ctx context.Context, ids, placeIDs []int, mode string) (*BulkOpResult, error) {
+func (s *companyService) BulkAssignUnloadPlaces(ctx context.Context, callerUserID int, ids, placeIDs []int, mode string) (*BulkOpResult, error) {
 	if !isValidBulkMode(mode) {
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Некорректный режим (replace|add)")
 	}
@@ -722,7 +825,7 @@ func (s *companyService) BulkAssignUnloadPlaces(ctx context.Context, ids, placeI
 			}
 			target = unionInts(current, placeIDs)
 		}
-		if err := s.UpdateUnloadPlaces(ctx, id, UpdateCompanyUnloadPlacesRequest{UnloadPlaceIDs: target}); err != nil {
+		if err := s.UpdateUnloadPlaces(ctx, callerUserID, id, UpdateCompanyUnloadPlacesRequest{UnloadPlaceIDs: target}); err != nil {
 			res.addError(id, company.Name, bulkErrMsg(err))
 			continue
 		}
@@ -732,7 +835,7 @@ func (s *companyService) BulkAssignUnloadPlaces(ctx context.Context, ids, placeI
 }
 
 // BulkAssignTables назначает целевые таблицы набору компаний (replace|add).
-func (s *companyService) BulkAssignTables(ctx context.Context, ids, tableIDs []int, mode string) (*BulkOpResult, error) {
+func (s *companyService) BulkAssignTables(ctx context.Context, callerUserID int, ids, tableIDs []int, mode string) (*BulkOpResult, error) {
 	if !isValidBulkMode(mode) {
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Некорректный режим (replace|add)")
 	}
@@ -753,7 +856,7 @@ func (s *companyService) BulkAssignTables(ctx context.Context, ids, tableIDs []i
 			}
 			target = unionInts(current, tableIDs)
 		}
-		if err := s.UpdateTables(ctx, id, UpdateCompanyTablesRequest{TableIDs: target}); err != nil {
+		if err := s.UpdateTables(ctx, callerUserID, id, UpdateCompanyTablesRequest{TableIDs: target}); err != nil {
 			res.addError(id, company.Name, bulkErrMsg(err))
 			continue
 		}
@@ -767,7 +870,7 @@ func (s *companyService) BulkAssignTables(ctx context.Context, ids, tableIDs []i
 // новым выставляется is_primary=false и переданный required_approval. В режиме
 // replace итоговый набор = выбранные (у оставшегося primary сохраняется), в add
 // = текущие как есть + недостающие выбранные.
-func (s *companyService) BulkAssignUsers(ctx context.Context, ids []int, assignments []BulkUserAssignment, mode string) (*BulkOpResult, error) {
+func (s *companyService) BulkAssignUsers(ctx context.Context, callerUserID int, ids []int, assignments []BulkUserAssignment, mode string) (*BulkOpResult, error) {
 	if !isValidBulkMode(mode) {
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Некорректный режим (replace|add)")
 	}
@@ -783,7 +886,7 @@ func (s *companyService) BulkAssignUsers(ctx context.Context, ids []int, assignm
 			res.addError(id, company.Name, "Ошибка чтения ответственных")
 			continue
 		}
-		if err := s.UpdateUsers(ctx, id, UpdateCompanyUsersRequest{Users: users}); err != nil {
+		if err := s.UpdateUsers(ctx, callerUserID, id, UpdateCompanyUsersRequest{Users: users}); err != nil {
 			res.addError(id, company.Name, bulkErrMsg(err))
 			continue
 		}
@@ -872,4 +975,3 @@ func (s *companyService) BulkRestore(ctx context.Context, callerUserID int, ids 
 	}
 	return res.finalize(), nil
 }
-
