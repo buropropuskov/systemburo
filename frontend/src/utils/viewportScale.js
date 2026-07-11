@@ -9,6 +9,12 @@
  * Выше MAX_ZOOM масштаб не растёт (ультраширокие/мультимонитор), там контент
  * дополнительно ограничен по ширине через --content-max.
  *
+ * Масштаб ограничен И по ширине (1440), И по высоте (REFERENCE_HEIGHT): zoom
+ * равномерный, поэтому увеличение по ширине уменьшает layout-высоту (2560x1440
+ * при zoom по ширине 1.78 даёт layout-высоту 810px - меню и контент перестают
+ * помещаться вертикально). Берём меньший из двух коэффициентов, чтобы эталонный
+ * кадр 1440x900 помещался целиком (на 2560x1440 zoom = 1.6, layout 1600x900).
+ *
  * Почему zoom, а не transform:scale - zoom корректно ведёт себя с
  * position:fixed и не требует ручной компенсации ширины/скролла. Почему не
  * rem-масштаб - в проекте размеры в px, переопределение root font-size на них
@@ -19,6 +25,9 @@
 // Держать синхронным с --bp-wide в assets/tokens.css (там документная граница
 // брейкпоинта, здесь - эталон, под который масштабируем UI).
 const REFERENCE_WIDTH = 1440
+// Эталонная высота кадра: ограничивает масштаб по вертикали, чтобы меню/контент
+// помещались на широких, но невысоких мониторах (2560x1440 -> zoom 1.6, а не 1.78).
+const REFERENCE_HEIGHT = 900
 // Эталон-look держим до ~2880px (2 x 1440), дальше не раздуваем - иначе на
 // мультимониторе/ультраширокой панели UI станет неоправданно крупным.
 const MAX_ZOOM = 2
@@ -32,9 +41,13 @@ let scheduled = false
  * clientWidth = layout-viewport, но innerWidth остаётся физическим). Поэтому
  * берём его напрямую - никакой компенсации по applied zoom не нужно, петли нет.
  */
-export function computeZoom(width) {
-  if (width <= REFERENCE_WIDTH) return 1
-  return Math.min(width / REFERENCE_WIDTH, MAX_ZOOM)
+export function computeZoom(width, height) {
+  if (width <= REFERENCE_WIDTH) return 1 // узкие - обычная адаптивная вёрстка
+  // Масштаб = меньший из коэффициентов по ширине и высоте (чтобы кадр 1440x900
+  // помещался целиком), но не меньше 1: на низких широких экранах не сжимаем UI,
+  // оставляем ширину как есть.
+  const z = Math.min(width / REFERENCE_WIDTH, height / REFERENCE_HEIGHT, MAX_ZOOM)
+  return z < 1 ? 1 : z
 }
 
 /**
@@ -43,7 +56,7 @@ export function computeZoom(width) {
  */
 export function updateViewportZoom() {
   scheduled = false
-  const next = computeZoom(window.innerWidth)
+  const next = computeZoom(window.innerWidth, window.innerHeight)
   // Порог против дребезга на субпиксельных ресайзах.
   if (Math.abs(next - appliedZoom) < 0.005) return
   appliedZoom = next
