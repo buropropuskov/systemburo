@@ -1217,7 +1217,11 @@ export default {
   left: 0;
   top: 0;
   width: 50px;
-  height: 100vh;
+  /* height:100% (не 100vh): под корневым CSS zoom единица vh считается от
+   * НЕзумленной высоты окна, и рельс становится выше видимой области - нижние
+   * разделы (Обзор/ЛК/Выйти) уезжают под экран. Для position:fixed height:100%
+   * = высота вьюпорта и корректна и с zoom, и без него. */
+  height: 100%;
   background: var(--nav-bg);
   border-right: 1px solid var(--nav-border);
   z-index: 1000;
@@ -1769,7 +1773,7 @@ export default {
   left: 50px;
   top: 0;
   width: 264px;
-  height: 100vh;
+  height: 100%; /* не 100vh: зум-безопасно, см. .nav-menu выше */
   background: var(--nav-bg);
   border-right: 1px solid var(--nav-border);
   z-index: 999;
