@@ -54,15 +54,19 @@ func (h *AuthEventHandler) ListForUser(c echo.Context) error {
 		UserID:   userID,
 		Category: c.QueryParam("category"),
 	}
+	// Границы периода считаем в МСК: выбранный на фронте день - это московские сутки,
+	// иначе UTC-полночь режет день по 03:00 МСК и события «съезжают». created_at хранится
+	// как timestamptz, поэтому сравнение с МСК-инстантом корректно.
+	loc := services.AnalyticsLocation()
 	if v := c.QueryParam("from"); v != "" {
-		t, err := time.Parse("2006-01-02", v)
+		t, err := time.ParseInLocation("2006-01-02", v, loc)
 		if err != nil {
 			return apperr.Validation("Некорректная дата from (ожидается YYYY-MM-DD)")
 		}
 		f.From = &t
 	}
 	if v := c.QueryParam("to"); v != "" {
-		t, err := time.Parse("2006-01-02", v)
+		t, err := time.ParseInLocation("2006-01-02", v, loc)
 		if err != nil {
 			return apperr.Validation("Некорректная дата to (ожидается YYYY-MM-DD)")
 		}

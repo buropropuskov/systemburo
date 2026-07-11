@@ -418,12 +418,15 @@ export default {
         },
     },
     mounted() {
-        document.addEventListener('click', this.handleClickOutside);
+        // Capture-фаза: внутри BaseModal на .base-modal висит @click.stop, из-за чего
+        // клики внутри модалки не всплывают до document и календарь не закрывался.
+        // В фазе capture слушатель срабатывает до stopPropagation.
+        document.addEventListener('click', this.handleClickOutside, true);
         // Устанавливаем режим на основе пропса
         this.selectingRange = this.mode === 'range';
     },
     beforeUnmount() {
-        document.removeEventListener('click', this.handleClickOutside);
+        document.removeEventListener('click', this.handleClickOutside, true);
         window.removeEventListener('scroll', this.updatePosition, true);
         window.removeEventListener('resize', this.updatePosition);
     },

@@ -418,6 +418,10 @@ export default {
         },
         
         async handleSubmit() {
+    // Enter в поле формы вызывает и @submit формы, и @keyup.enter инпута - без guard'а
+    // это два параллельных логина (в auth_events двоились login_failed). isLoading
+    // ставим ДО первого await, чтобы второй синхронный вызов отсёкся здесь.
+    if (this.isLoading || this.isSuccess) return;
     this.resetAnimations();
     this.errors.general = '';
 
@@ -434,9 +438,9 @@ export default {
         return;
     }
 
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
     this.isLoading = true;
+    await new Promise(resolve => setTimeout(resolve, 100));
+
     let timeoutId;
     
     try {

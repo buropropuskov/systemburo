@@ -11,7 +11,7 @@
           v-model="search"
           class="lk-input lh-search__input"
           type="text"
-          placeholder="Поиск по IP или устройству…"
+          placeholder="Поиск"
         >
       </div>
       <BaseDropdown
@@ -37,9 +37,9 @@
         @clear="clearDateRange"
       />
       <button
-        v-if="hasActiveFilters"
         type="button"
         class="lk-button lk-button--ghost lh-reset"
+        :disabled="!hasActiveFilters"
         @click="resetFilters"
       >
         Сбросить
@@ -256,9 +256,14 @@ const EXPORT_LIMIT = 100
 // Период опроса живой ленты (первая страница без фильтров) для real-time обновления.
 const POLL_INTERVAL_MS = 15000
 
-// toYMD - дата в 'YYYY-MM-DD' для параметров запроса (как в остальных фильтрах проекта).
+// toYMD - дата в 'YYYY-MM-DD' по ЛОКАЛЬНЫМ частям (не toISOString: UTC-сдвиг увёл бы
+// выбранный день на предыдущий у пользователей восточнее UTC). Бэк трактует день в МСК.
 function toYMD(d) {
-  return d instanceof Date ? d.toISOString().split('T')[0] : ''
+  if (!(d instanceof Date)) return ''
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
 }
 
 export default {
@@ -578,6 +583,9 @@ function thinBorder() {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  /* Заполняем всю высоту вкладки: таблица тянется, футер (легенда+пагинация) прижат вниз. */
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .lh-filters {
@@ -619,13 +627,23 @@ function thinBorder() {
 
 .lh-export {
   margin-left: auto;
+  /* Фиксированная ширина: "Экспорт" и "Готовим…" не должны менять размер кнопки. */
+  min-width: 108px;
+  justify-content: center;
 }
 
 .lh-table-wrap {
   border: 1px solid #e6e6e6;
   border-radius: 15px;
   overflow: auto;
-  max-height: 320px;
+  /* Тянется на доступную высоту вкладки, но с ПОТОЛКОМ: без него flex:1 1 auto при
+     большом числе строк раздувает всю модалку за 92vh и футер уезжает за экран
+     (flexbox-ловушка: overflow бесполезен, пока высота не ограничена). Потолок
+     подобран так, чтобы фильтры+таблица+футер уложились в min-height вкладки (524px),
+     дальше строки скроллятся ВНУТРИ таблицы, футер остаётся внизу окна. */
+  flex: 1 1 auto;
+  min-height: 140px;
+  max-height: 395px;
 }
 
 .lh-table {
