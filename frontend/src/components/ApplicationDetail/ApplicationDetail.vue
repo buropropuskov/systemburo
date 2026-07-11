@@ -1994,4 +1994,68 @@ export default {
     display: flex;
     justify-content: flex-end;
 }
+
+/* Адаптив (#1097 S6): 3 фикс-колонки не помещаются на планшете/мобиле - стекаем их
+   вертикально (вложения -> детали -> статус/согласование), скролл держит весь
+   .detail-content целиком вместо трёх независимых внутренних скроллов. */
+@media (max-width: 1024px) {
+    .detail-content {
+        flex-direction: column;
+        overflow-y: auto;
+        overflow-x: hidden;
+    }
+
+    .detail-left-column,
+    .detail-right-column {
+        width: 100%;
+        overflow-y: visible;
+    }
+
+    .detail-left-column {
+        border-right: none;
+        border-bottom: 1px solid #e6e6e6;
+    }
+
+    .detail-left-column.collapsed {
+        width: 100%;
+        padding: 15px;
+    }
+
+    .detail-right-column {
+        border-left: none;
+        border-top: 1px solid #e6e6e6;
+    }
+
+    .detail-main-column {
+        flex: none;
+        overflow-y: visible;
+    }
+}
+
+@media (max-width: 768px) {
+    .application-detail {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    /* Заголовок с датой/кнопкой пересылки/панелью действий на узком экране не
+       помещается в одну строку - переносим правую группу под левую. */
+    .detail-header {
+        flex-wrap: wrap;
+        row-gap: 10px;
+        padding: 12px 15px;
+    }
+
+    .detail-header-right {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        row-gap: 8px;
+    }
+
+    .detail-left-column,
+    .detail-main-column,
+    .detail-right-column {
+        padding: 12px;
+    }
+}
 </style>
