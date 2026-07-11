@@ -110,7 +110,7 @@
                 >—</span>
               </td>
               <td class="lh-detail">
-                {{ row.event.detail || '—' }}
+                {{ formatDetail(row.event.detail) }}
               </td>
             </tr>
             <!-- Группа подряд идущих обновлений сессии -->
@@ -125,8 +125,10 @@
                   <small class="lh-when__more">и ещё {{ row.count - 1 }}</small>
                 </td>
                 <td>
-                  <span class="lh-badge lh-badge--muted">Сессия обновлена</span>
-                  <span class="lh-count">×{{ row.count }}</span>
+                  <span class="lh-event-group">
+                    <span class="lh-badge lh-badge--muted">Сессия обновлена</span>
+                    <span class="lh-count">×{{ row.count }}</span>
+                  </span>
                 </td>
                 <td class="lh-ip">
                   {{ groupCommon(row, 'ip') || '—' }}
@@ -177,7 +179,7 @@
                   >—</span>
                 </td>
                 <td class="lh-detail">
-                  {{ ev.detail || '—' }}
+                  {{ formatDetail(ev.detail) }}
                 </td>
               </tr>
             </template>
@@ -237,6 +239,7 @@ import DateFilter from './DateFilter.vue'
 import { getUserAuthEvents } from '@/api/users'
 import { formatDateTime } from '@/utils/datetime'
 import { parseUserAgent, formatDevice } from '@/utils/userAgent'
+import { detailLabel } from '@/utils/authEventDetail'
 import { useDeletionsStore } from '@/stores/deletions'
 
 // Маппинг типа события в человекочитаемый бейдж. Сырые коды (login_success и т.п.)
@@ -389,6 +392,9 @@ export default {
     eventBadge(eventType) {
       return EVENT_BADGES[eventType] || { cls: 'lh-badge--neutral', label: eventType || '—' }
     },
+    formatDetail(detail) {
+      return detailLabel(detail) || '—'
+    },
     isExpanded(key) {
       return !!this.expanded[key]
     },
@@ -525,7 +531,7 @@ export default {
           item.success ? 'Успешно' : 'Отказ',
           item.ip_address || '—',
           formatDevice(item.user_agent),
-          item.detail || '—',
+          this.formatDetail(item.detail),
         ])
         row.height = 20
         const fillColor = index % 2 === 0 ? 'FFF0F5FF' : 'FFE0E9FF'
@@ -636,6 +642,9 @@ function thinBorder() {
   border: 1px solid #e6e6e6;
   border-radius: 15px;
   overflow: auto;
+  /* Резервируем место под вертикальный скроллбар всегда: иначе его появление при
+     раскрытии группы сессий сужает контент и колонки дёргаются влево. */
+  scrollbar-gutter: stable;
   /* Тянется на доступную высоту вкладки, но с ПОТОЛКОМ: без него flex:1 1 auto при
      большом числе строк раздувает всю модалку за 92vh и футер уезжает за экран
      (flexbox-ловушка: overflow бесполезен, пока высота не ограничена). Потолок
@@ -650,7 +659,17 @@ function thinBorder() {
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
+  /* Фиксированная раскладка: ширины колонок не пересчитываются от контента, поэтому
+     раскрытие группы (подстроки с отступом) НЕ двигает соседние колонки. Ширины
+     подобраны под самый широкий контент каждой колонки (see #1076). */
+  table-layout: fixed;
 }
+
+.lh-col-when { width: 24%; }
+.lh-col-event { width: 27%; }
+.lh-col-ip { width: 17%; }
+.lh-col-device { width: 13%; }
+.lh-col-detail { width: 19%; }
 
 .lh-table thead th {
   position: sticky;
@@ -684,6 +703,8 @@ function thinBorder() {
 
 .lh-when {
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-variant-numeric: tabular-nums;
   color: #333;
 }
@@ -698,6 +719,9 @@ function thinBorder() {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 12px;
   color: #6b6f8a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .lh-device__browser {
@@ -751,6 +775,14 @@ function thinBorder() {
 
 .lh-group-row:hover {
   background: #f4f6ff;
+}
+
+/* Бейдж и счётчик ×N держим одним неразрывным блоком - иначе при 2+ значном N
+   (×13) счётчик переносится под бейдж. */
+.lh-event-group {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
 }
 
 .lh-count {
