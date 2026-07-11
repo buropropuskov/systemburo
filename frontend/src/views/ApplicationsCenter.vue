@@ -1836,10 +1836,13 @@ export default {
     container-type: inline-size;
     margin-top: 20px;
     height: fit-content;
-    /* Тянем таблицу под доступную высоту экрана (var(--app-vh) = зумленная
-       высота вьюпорта из viewportScale.js), а не фикс-500px - на больших
-       мониторах помещается больше строк. fit-content не даёт перерасти контент. */
-    max-height: calc(var(--app-vh, 1vh) * 74);
+    /* Тянем таблицу под ОСТАВШУЮСЯ высоту экрана: var(--app-vh) = зумленная
+       высота вьюпорта (viewportScale.js), минус ~340px под глобальную шапку +
+       фильтры + отступы над таблицей. Раньше был фикс 74vh - на фактическом
+       отступе ~302px таблица уезжала за низ экрана (страница скроллила).
+       Вычитание px адаптируется и к низким экранам (лаптоп 768). fit-content
+       не даёт перерасти контент. */
+    max-height: calc(var(--app-vh, 1vh) * 100 - 340px);
 
     display: flex;
     flex-direction: column;
@@ -1848,7 +1851,7 @@ export default {
 }
 
 .applications-table.with-details {
-    height: calc(var(--app-vh, 1vh) * 74);
+    height: calc(var(--app-vh, 1vh) * 100 - 340px);
 }
 
 /* Overlay-лоадер при refresh - накрывает только область данных (ниже шапки
