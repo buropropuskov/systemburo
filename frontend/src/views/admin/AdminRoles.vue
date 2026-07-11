@@ -1,7 +1,7 @@
 <template>
   <AdminPageShell>
     <div class="roles-container dashboard-card">
-      <div class="management-header">
+      <div class="management-header rt-header-inline">
         <h3 class="management-title">
           Роли пользователей
         </h3>
@@ -11,11 +11,16 @@
             :title="'Поиск ролей...'"
           />
           <button
-            class="add-header-button"
+            class="add-header-button rt-btn-compact"
             data-testid="role-add-btn"
+            aria-label="Создать роль"
             @click="openCreate"
           >
-            Создать роль
+            <span
+              class="rt-btn-icon"
+              aria-hidden="true"
+            >+</span>
+            <span class="rt-btn-label">Создать роль</span>
           </button>
           <RefreshButton
             :loading="isLoading"
@@ -29,8 +34,8 @@
           class="table-section"
           :class="{ 'with-details': selectedRole }"
         >
-          <div class="table-container">
-            <div class="table-header">
+          <div class="table-container rt-table">
+            <div class="table-header rt-head-row">
               <div
                 class="header-col id-col"
                 @click="sortBy('id')"
@@ -66,15 +71,21 @@
               <div
                 v-for="role in filteredRoles"
                 :key="role.id"
-                class="table-row"
+                class="table-row rt-row"
                 data-testid="role-row"
                 :class="{ selected: selectedRole && selectedRole.id === role.id }"
                 @click="selectRole(role)"
               >
-                <div class="table-col id-col">
+                <div
+                  class="table-col id-col"
+                  data-label="ID"
+                >
                   <span class="cell-content id-value">{{ role.id }}</span>
                 </div>
-                <div class="table-col name-col">
+                <div
+                  class="table-col name-col"
+                  data-label="Наименование"
+                >
                   <span
                     class="truncate-text"
                     :title="role.name"
@@ -83,7 +94,10 @@
                     <code class="role-code">{{ role.code }}</code>
                   </span>
                 </div>
-                <div class="table-col groups-col">
+                <div
+                  class="table-col groups-col"
+                  data-label="Группы"
+                >
                   <span class="groups-count">{{ (role.default_groups || []).length }}</span>
                 </div>
               </div>
@@ -1243,17 +1257,15 @@ export default {
   transform: translateY(20px);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
+  /* Направление/высоту шапки берёт на себя глобальный .rt-header-inline
+     (responsive-tables.css, !important - перебивает scoped-специфичность). */
   .management-header {
-    flex-direction: column;
-    align-items: flex-start;
-    height: auto;
-    padding: 16px;
+    padding: 10px var(--gutter, 16px);
   }
   .header-controls {
-    width: 100%;
-    flex-direction: column;
-    align-items: stretch;
+    flex-wrap: wrap;
+    row-gap: 8px;
   }
   .content-container {
     flex-direction: column;
