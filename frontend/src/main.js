@@ -11,6 +11,7 @@ import { initViewportScale } from '@/utils/viewportScale'
 import './assets/tokens.css'
 import './assets/forms.css'
 import './assets/onboarding.css'
+import './assets/responsive-tables.css'
 
 const app = createApp(App)
 app.config.globalProperties.$bus = bus
