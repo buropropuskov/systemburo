@@ -643,7 +643,7 @@ function thinBorder() {
      дальше строки скроллятся ВНУТРИ таблицы, футер остаётся внизу окна. */
   flex: 1 1 auto;
   min-height: 140px;
-  max-height: 412px;
+  max-height: 395px;
 }
 
 .lh-table {
