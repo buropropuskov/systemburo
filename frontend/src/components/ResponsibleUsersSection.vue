@@ -98,11 +98,6 @@
           <div class="resp-name-row">
             <span class="resp-name">{{ getUserDisplayName(user) }}</span>
             <span class="resp-user">@{{ user.username }}</span>
-            <span
-              v-if="selectionMode && coverageTotal > 0"
-              class="coverage-badge"
-              :class="{ 'coverage-badge--new': !user.coverage }"
-            >{{ coverageLabel(user) }}</span>
           </div>
           <div
             v-if="user.position || user.organization || user.company || user.is_primary"
@@ -135,11 +130,6 @@
               <span class="slider" />
             </label>
             <span class="toggle-txt">Обязательное согласование</span>
-            <span
-              v-if="user.mixedApproval"
-              class="mixed-hint"
-              title="В выбранных организациях согласование было разным"
-            >было разным</span>
           </div>
         </div>
         <div class="resp-acts">
@@ -203,12 +193,6 @@ export default {
     modelValue: {
       type: Array,
       default: () => []
-    },
-    // Кол-во выбранных сущностей (групповая операция) - для бейджа охвата
-    // «в N из M» на предзаполненных существующих ответственных.
-    coverageTotal: {
-      type: Number,
-      default: 0
     }
   },
   emits: ['users-updated', 'dirty-change', 'count-change', 'update:modelValue'],
@@ -320,8 +304,7 @@ export default {
     await this.fetchAllUsers();
 
     if (this.selectionMode) {
-      // force: перестроить с загруженными allUsers (подтянуть ФИО к префиллу)
-      this.syncSelectedFromModel(this.modelValue, true);
+      this.syncSelectedFromModel(this.modelValue);
       return;
     }
     if (this.entity && this.entity.id) {
@@ -479,25 +462,22 @@ export default {
       if (this.selectionMode) this.emitSelection();
     },
 
-    // items - массив {username, required_approval, coverage?, mixedApproval?}.
-    // force=true перестраивает всегда (после fetchAllUsers - чтобы подтянуть ФИО,
-    // т.к. immediate-watcher мог отработать до загрузки allUsers на «голых» username).
-    syncSelectedFromModel(items, force = false) {
+    syncSelectedFromModel(items) {
+      // modelValue групповой операции - массив {username, required_approval}
       const norm = (Array.isArray(items) ? items : []).map(x => ({
         username: x.username,
         required_approval: !!x.required_approval,
-        coverage: x.coverage,
-        mixedApproval: !!x.mixedApproval,
       }));
-      if (!force) {
-        const cur = this.selectedUsers.map(u => ({ username: u.username, required_approval: !!u.required_approval }));
-        const inc = norm.map(u => ({ username: u.username, required_approval: u.required_approval }));
-        if (JSON.stringify(cur) === JSON.stringify(inc)) return;
-      }
-      this.selectedUsers = norm.map(({ username, required_approval, coverage, mixedApproval }) => {
+      const current = this.selectedUsers.map(u => ({
+        username: u.username,
+        required_approval: !!u.required_approval,
+      }));
+      if (JSON.stringify(current) === JSON.stringify(norm)) return;
+      this.selectedUsers = norm.map(({ username, required_approval }) => {
         const full = this.allUsers.find(u => u.username === username);
-        const base = full ? { ...full } : { username };
-        return { ...base, is_primary: false, required_approval, coverage, mixedApproval };
+        return full
+          ? { ...full, is_primary: false, required_approval }
+          : { username, is_primary: false, required_approval };
       });
     },
 
@@ -505,16 +485,7 @@ export default {
       this.$emit('update:modelValue', this.selectedUsers.map(u => ({
         username: u.username,
         required_approval: !!u.required_approval,
-        coverage: u.coverage,
-        mixedApproval: !!u.mixedApproval,
       })));
-    },
-
-    coverageLabel(user) {
-      const c = user.coverage || 0;
-      if (c <= 0) return 'новый';
-      if (c >= this.coverageTotal) return this.coverageTotal > 1 ? 'во всех' : 'назначен';
-      return `в ${c} из ${this.coverageTotal}`;
     },
 
     setAsPrimary(user) {
@@ -533,8 +504,6 @@ export default {
       const selectedUser = this.selectedUsers.find(u => u.username === user.username);
       if (selectedUser) {
         selectedUser.required_approval = user.required_approval;
-        // явный выбор снимает пометку «было разным» (конфликт разрешён)
-        selectedUser.mixedApproval = false;
       }
       if (this.selectionMode) this.emitSelection();
     },
@@ -863,31 +832,6 @@ export default {
 .resp-user {
   font-size: 11px;
   color: #a2a2a2;
-}
-
-/* бейдж охвата предзаполненных существующих ответственных (группа) */
-.coverage-badge {
-  font-size: 10px;
-  font-weight: 600;
-  border-radius: 6px;
-  padding: 2px 7px;
-  background: #eef0ff;
-  color: #4F5BDF;
-  white-space: nowrap;
-}
-
-.coverage-badge--new {
-  background: #e7f8ee;
-  color: #12854a;
-}
-
-.mixed-hint {
-  font-size: 10px;
-  color: #b26a00;
-  background: #fff4e5;
-  border-radius: 6px;
-  padding: 1px 6px;
-  font-weight: 600;
 }
 
 .resp-tags {
