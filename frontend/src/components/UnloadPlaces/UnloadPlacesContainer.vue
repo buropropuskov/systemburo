@@ -1,6 +1,6 @@
 <template>
   <div class="unload-places-container dashboard-card">
-    <div class="management-header">
+    <div class="management-header rt-header-inline">
       <h3 class="management-title">
         Управление местами разгрузки
       </h3>
@@ -18,10 +18,15 @@
           :title="'Поиск мест разгрузки...'"
         />
         <button
-          class="add-header-button"
+          class="add-header-button rt-btn-compact"
+          aria-label="Добавить"
           @click="showAddModal = true"
         >
-          Добавить
+          <span
+            class="rt-btn-icon"
+            aria-hidden="true"
+          >+</span>
+          <span class="rt-btn-label">Добавить</span>
         </button>
         <RefreshButton
           :loading="refreshing"
@@ -36,8 +41,8 @@
         class="table-section"
         :class="{'with-details': selectedPlace}"
       >
-        <div class="table-container">
-          <div class="table-header">
+        <div class="table-container rt-table">
+          <div class="table-header rt-head-row">
             <div
               class="header-col id-col"
               @click="sortBy('id')"
@@ -76,20 +81,26 @@
           </div>
 
           <div class="table-body">
-            <div 
-              v-for="place in sortedUnloadPlaces" 
-              :key="place.id" 
-              class="table-row"
+            <div
+              v-for="place in sortedUnloadPlaces"
+              :key="place.id"
+              class="table-row rt-row"
               :class="{
                 'selected': selectedPlace && selectedPlace.id === place.id,
                 'inactive': !place.is_active
               }"
               @click="selectPlace(place)"
             >
-              <div class="table-col id-col">
+              <div
+                class="table-col id-col"
+                data-label="ID"
+              >
                 <span class="cell-content id-value">{{ place.id }}</span>
               </div>
-              <div class="table-col name-col">
+              <div
+                class="table-col name-col"
+                data-label="Наименование"
+              >
                 <span
                   class="truncate-text"
                   :title="place.name"
@@ -101,7 +112,10 @@
                   >(архив)</span>
                 </span>
               </div>
-              <div class="table-col status-col">
+              <div
+                class="table-col status-col"
+                data-label="Статус"
+              >
                 <span
                   class="status-badge"
                   :class="getStatusClass(place)"
@@ -2202,40 +2216,24 @@ async uploadPhotoFiles(files) {
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
+  /* Направление/высоту шапки берёт на себя глобальный .rt-header-inline
+     (responsive-tables.css, !important - перебивает scoped-специфичность). */
   .management-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-    height: auto;
-    padding: 16px;
+    padding: 10px var(--gutter, 16px);
   }
-  
+
   .header-controls {
-    width: 100%;
-    flex-direction: column;
-    align-items: stretch;
+    flex-wrap: wrap;
+    row-gap: 8px;
   }
-  
-  .add-header-button {
-    justify-content: center;
+
+  .archive-dropdown {
+    min-width: 92px;
   }
-  
-  .table-header,
-  .table-row {
-    padding: 0 16px;
-  }
-  
-  .id-col {
-    width: 20%;
-  }
-  
-  .name-col {
-    width: 50%;
-  }
-  
-  .status-col {
-    width: 30%;
+
+  :deep(.search) {
+    width: 110px;
   }
 }
 </style>

@@ -1,6 +1,6 @@
 <template>
   <div class="marks-container dashboard-card">
-    <div class="management-header">
+    <div class="management-header rt-header-inline">
       <h3 class="management-title">
         Управление марками автомобилей
       </h3>
@@ -18,11 +18,16 @@
           :title="'Поиск марок...'"
         />
         <button
-          class="add-header-button"
+          class="add-header-button rt-btn-compact"
           data-testid="marks-add-btn"
+          aria-label="Добавить"
           @click="openAddModal"
         >
-          Добавить
+          <span
+            class="rt-btn-icon"
+            aria-hidden="true"
+          >+</span>
+          <span class="rt-btn-label">Добавить</span>
         </button>
         <RefreshButton
           :loading="isLoading"
@@ -37,8 +42,8 @@
         class="table-section"
         :class="{ 'with-details': selectedMark }"
       >
-        <div class="table-container">
-          <div class="table-header">
+        <div class="table-container rt-table">
+          <div class="table-header rt-head-row">
             <div
               class="header-col id-col"
               @click="sortBy('id')"
@@ -71,7 +76,7 @@
             <div
               v-for="m in filteredMarks"
               :key="m.id"
-              class="table-row"
+              class="table-row rt-row"
               data-testid="marks-row"
               :class="{
                 selected: selectedMark && selectedMark.id === m.id,
@@ -79,10 +84,16 @@
               }"
               @click="selectMark(m)"
             >
-              <div class="table-col id-col">
+              <div
+                class="table-col id-col"
+                data-label="ID"
+              >
                 <span class="cell-content id-value">{{ m.id }}</span>
               </div>
-              <div class="table-col name-col">
+              <div
+                class="table-col name-col"
+                data-label="Наименование"
+              >
                 <span
                   class="truncate-text"
                   :title="m.name"
@@ -1053,17 +1064,21 @@ export default {
   transform: translateY(20px);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
+  /* Направление/высоту шапки берёт на себя глобальный .rt-header-inline
+     (responsive-tables.css, !important - перебивает scoped-специфичность). */
   .management-header {
-    flex-direction: column;
-    align-items: flex-start;
-    height: auto;
-    padding: 16px;
+    padding: 10px var(--gutter, 16px);
   }
   .header-controls {
-    width: 100%;
-    flex-direction: column;
-    align-items: stretch;
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+  .archive-dropdown {
+    min-width: 92px;
+  }
+  :deep(.search) {
+    width: 110px;
   }
   .content-container {
     flex-direction: column;

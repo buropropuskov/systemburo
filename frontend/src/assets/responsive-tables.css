@@ -80,23 +80,29 @@
     overflow-x: hidden !important;
   }
 
+  /* !important обязателен на структурных card-правилах: компонент-потребитель
+     может быть lazy route-чанком (() => import), чей scoped-CSS грузится ПОЗЖЕ
+     глобального index.css - при равной специфичности (0,2,0) поздний scoped
+     .table-header/.table-row[data-v] иначе перебивает display/border, и шапка
+     таблицы висит над карточками, а строки не собираются в карточку (#1097 S9a,
+     ревью поймало production-сборкой; dev-сервер порядок чанков маскирует). */
   .rt-table .rt-head-row {
-    display: none;
+    display: none !important;
   }
 
   .rt-table .rt-row {
-    display: flex;
-    flex-direction: column;
+    display: flex !important;
+    flex-direction: column !important;
     width: 100% !important;
     height: auto !important;
     padding: 10px 14px !important;
-    border: 1px solid var(--color-border, #e6e6e6);
-    border-radius: var(--radius-md, 15px);
-    background: #fff;
+    border: 1px solid var(--color-border, #e6e6e6) !important;
+    border-radius: var(--radius-md, 15px) !important;
+    background: #fff !important;
   }
 
   .rt-table .rt-row + .rt-row {
-    margin-top: 8px;
+    margin-top: 8px !important;
   }
 
   .rt-table .rt-row > [data-label] {

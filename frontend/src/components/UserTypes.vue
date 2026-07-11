@@ -1,6 +1,6 @@
 <template>
   <div class="user-types-container dashboard-card">
-    <div class="management-header">
+    <div class="management-header rt-header-inline">
       <h3 class="management-title">
         Типы пользователей
       </h3>
@@ -10,10 +10,15 @@
           :title="'Поиск типов...'"
         />
         <button
-          class="add-header-button"
+          class="add-header-button rt-btn-compact"
+          aria-label="Создать тип"
           @click="showAddModal = true"
         >
-          Создать тип
+          <span
+            class="rt-btn-icon"
+            aria-hidden="true"
+          >+</span>
+          <span class="rt-btn-label">Создать тип</span>
         </button>
         <RefreshButton
           :loading="refreshing"
@@ -28,8 +33,8 @@
         class="types-section"
         :class="{'with-details': selectedType}"
       >
-        <div class="table-container">
-          <div class="table-header">
+        <div class="table-container rt-table">
+          <div class="table-header rt-head-row">
             <div
               class="header-col id-col"
               @click="sortBy('id')"
@@ -81,17 +86,23 @@
           </div>
 
           <div class="table-body">
-            <div 
-              v-for="type in sortedTypes" 
-              :key="type.id" 
-              class="table-row"
+            <div
+              v-for="type in sortedTypes"
+              :key="type.id"
+              class="table-row rt-row"
               :class="{'selected': selectedType && selectedType.id === type.id}"
               @click="selectType(type)"
             >
-              <div class="table-col id-col">
+              <div
+                class="table-col id-col"
+                data-label="ID"
+              >
                 <span class="cell-content id-value">{{ type.id }}</span>
               </div>
-              <div class="table-col name-col">
+              <div
+                class="table-col name-col"
+                data-label="Наименование"
+              >
                 <span
                   class="truncate-text"
                   :title="type.name"
@@ -103,7 +114,10 @@
                   >системный</span>
                 </span>
               </div>
-              <div class="table-col users-col">
+              <div
+                class="table-col users-col"
+                data-label="Пользователи"
+              >
                 <span class="users-count">{{ type.users_count }}</span>
               </div>
             </div>
@@ -1154,12 +1168,23 @@ export default {
 }
 
 /* Стили для уведомлений */
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
+  /* Направление/высоту шапки берёт на себя глобальный .rt-header-inline
+     (responsive-tables.css, !important - перебивает scoped-специфичность). */
+  .header-controls {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  :deep(.search) {
+    width: 150px;
+  }
+
   .content-container {
     flex-direction: column;
     height: auto;
   }
-  
+
   .types-section,
   .details-section,
   .no-selection-message {
