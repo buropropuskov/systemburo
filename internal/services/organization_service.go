@@ -50,20 +50,21 @@ type OrganizationService interface {
 	// users.organization_id (участники), не ответственных из junction-таблицы.
 	GetMembers(ctx context.Context, orgID int) ([]MemberResponse, error)
 
-	// UpdateOrganizationUsers обновляет ответственных пользователей организации (replace-стратегия).
-	UpdateOrganizationUsers(ctx context.Context, orgID int, req UpdateOrganizationUsersRequest) error
+	// UpdateOrganizationUsers обновляет ответственных пользователей организации
+	// (replace-стратегия). callerUserID - актор для аудита «кто был -> кто стал».
+	UpdateOrganizationUsers(ctx context.Context, callerUserID, orgID int, req UpdateOrganizationUsersRequest) error
 
 	// GetOrganizationTables возвращает таблицы, привязанные к организации.
 	GetOrganizationTables(ctx context.Context, orgID int) ([]OrganizationTableResponse, error)
 
-	// UpdateOrganizationTables заменяет привязку таблиц к организации.
-	UpdateOrganizationTables(ctx context.Context, orgID int, req UpdateOrganizationTablesRequest) error
+	// UpdateOrganizationTables заменяет привязку таблиц к организации. callerUserID - актор для аудита.
+	UpdateOrganizationTables(ctx context.Context, callerUserID, orgID int, req UpdateOrganizationTablesRequest) error
 
 	// GetOrganizationUnloadPlaces возвращает места разгрузки организации.
 	GetOrganizationUnloadPlaces(ctx context.Context, orgID int) ([]OrganizationUnloadPlaceResponse, error)
 
-	// UpdateOrganizationUnloadPlaces заменяет привязку мест разгрузки к организации.
-	UpdateOrganizationUnloadPlaces(ctx context.Context, orgID int, req UpdateOrganizationUnloadPlacesRequest) error
+	// UpdateOrganizationUnloadPlaces заменяет привязку мест разгрузки к организации. callerUserID - актор для аудита.
+	UpdateOrganizationUnloadPlaces(ctx context.Context, callerUserID, orgID int, req UpdateOrganizationUnloadPlacesRequest) error
 
 	// --- Групповые операции (bulk). Переиспользуют одиночные методы в цикле,
 	// частичный успех собирается в BulkOpResult. Валидация входа (тип, режим) -
@@ -73,15 +74,15 @@ type OrganizationService interface {
 	BulkUpdateType(ctx context.Context, callerUserID int, ids []int, typ *string) (*BulkOpResult, error)
 
 	// BulkAssignUnloadPlaces назначает места разгрузки набору организаций.
-	// mode=replace затирает, mode=add объединяет с текущими.
-	BulkAssignUnloadPlaces(ctx context.Context, ids, placeIDs []int, mode string) (*BulkOpResult, error)
+	// mode=replace затирает, mode=add объединяет с текущими. callerUserID - актор для аудита.
+	BulkAssignUnloadPlaces(ctx context.Context, callerUserID int, ids, placeIDs []int, mode string) (*BulkOpResult, error)
 
-	// BulkAssignTables назначает целевые таблицы набору организаций (replace|add).
-	BulkAssignTables(ctx context.Context, ids, tableIDs []int, mode string) (*BulkOpResult, error)
+	// BulkAssignTables назначает целевые таблицы набору организаций (replace|add). callerUserID - актор для аудита.
+	BulkAssignTables(ctx context.Context, callerUserID int, ids, tableIDs []int, mode string) (*BulkOpResult, error)
 
 	// BulkAssignUsers назначает ответственных набору организаций (replace|add).
-	// primary в группе не назначается, сохраняется у существующих.
-	BulkAssignUsers(ctx context.Context, ids []int, assignments []BulkUserAssignment, mode string) (*BulkOpResult, error)
+	// primary в группе не назначается, сохраняется у существующих. callerUserID - актор для аудита.
+	BulkAssignUsers(ctx context.Context, callerUserID int, ids []int, assignments []BulkUserAssignment, mode string) (*BulkOpResult, error)
 
 	// BulkArchive архивирует набор организаций (частичный успех: активные с
 	// пользователями попадают в Errors).
@@ -278,16 +279,26 @@ func (s *organizationService) Update(ctx context.Context, callerUserID, id int, 
 	// org.* - старые значения (map-обновление структуру не трогает), req.* - новые.
 	// Различаем, что изменилось, чтобы история не писала «переименована» при
 	// смене одного лишь типа.
-	action := models.OrganizationActionRenamed
 	nameChanged := org.Name != req.Name
 	typeChanged := !strPtrEqual(org.Type, req.Type)
+	if !nameChanged && !typeChanged {
+		// Ничего не поменялось (PUT с теми же значениями) - не пишем ложную
+		// «переименована» в историю (как no-op в BulkUpdateType).
+		return &OrganizationInfoResponse{ID: id, Name: req.Name, Type: req.Type}, nil
+	}
+	action := models.OrganizationActionRenamed
 	switch {
 	case nameChanged && typeChanged:
 		action = models.OrganizationActionUpdated
 	case typeChanged:
 		action = models.OrganizationActionRetyped
 	}
-	s.recorder.Log(ctx, nil, models.AuditEntityOrganization, &id, action, &callerUserID, map[string]any{"name": req.Name, "type": req.Type})
+	// name/type - новые значения (обратная совместимость рендера), from - старые
+	// (FE рисует «было -> стало» когда from присутствует; у старых записей его нет).
+	s.recorder.Log(ctx, nil, models.AuditEntityOrganization, &id, action, &callerUserID, map[string]any{
+		"name": req.Name, "type": req.Type,
+		"from": map[string]any{"name": org.Name, "type": org.Type},
+	})
 	return &OrganizationInfoResponse{ID: id, Name: req.Name, Type: req.Type}, nil
 }
 
@@ -524,7 +535,10 @@ func (s *organizationService) GetMembers(ctx context.Context, orgID int) ([]Memb
 }
 
 // UpdateOrganizationUsers заменяет ответственных пользователей организации.
-func (s *organizationService) UpdateOrganizationUsers(ctx context.Context, orgID int, req UpdateOrganizationUsersRequest) error {
+// После применения пишет в audit_log запись «кто был -> кто стал» (added/removed/
+// approval_changed), если набор реально изменился. Логирование - в шаренном методе,
+// поэтому bulk (реюз в цикле) и одиночная деталь-панель пишут историю консистентно.
+func (s *organizationService) UpdateOrganizationUsers(ctx context.Context, callerUserID, orgID int, req UpdateOrganizationUsersRequest) error {
 	// Проверяем, что только один пользователь назначен главным
 	primaryCount := 0
 	for _, u := range req.Users {
@@ -536,13 +550,17 @@ func (s *organizationService) UpdateOrganizationUsers(ctx context.Context, orgID
 		return echo.NewHTTPError(http.StatusBadRequest, "Только один пользователь может быть главным ответственным")
 	}
 
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	oldUsers := s.attachedUserStates(ctx, orgID)
+	var applied []auditUserState
+
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Удаляем старые связи
 		if err := tx.Where("organization_id = ?", orgID).Delete(&models.OrganizationUser{}).Error; err != nil {
 			slog.Error("Не удалось удалить старых пользователей организации", "error", err)
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error updating organization users")
 		}
 
+		applied = applied[:0]
 		// Добавляем новых пользователей
 		for _, userReq := range req.Users {
 			var user models.User
@@ -570,9 +588,35 @@ func (s *organizationService) UpdateOrganizationUsers(ctx context.Context, orgID
 				slog.Error("Не удалось добавить пользователя в организацию", "error", err)
 				return echo.NewHTTPError(http.StatusInternalServerError, "Error updating organization users")
 			}
+			applied = append(applied, auditUserState{
+				Username:         user.Username,
+				Name:             fullName(user.LastName, user.FirstName, user.Username),
+				RequiredApproval: requiredApproval,
+			})
 		}
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+
+	if diff := diffUsers(oldUsers, applied); !diff.empty() {
+		s.recorder.Log(ctx, nil, models.AuditEntityOrganization, &orgID, models.OrganizationActionResponsiblesChanged, &callerUserID, diff)
+	}
+	return nil
+}
+
+// attachedUserStates - снимок текущих ответственных организации (username, ФИО,
+// флаг согласования) для diff аудита.
+func (s *organizationService) attachedUserStates(ctx context.Context, orgID int) []auditUserState {
+	var rows []auditUserState
+	if err := s.db.WithContext(ctx).
+		Table("organization_users ou").
+		Select("u.username AS username, "+auditUserNameSQL+" AS name, ou.required_approval AS required_approval").
+		Joins("JOIN users u ON u.id = ou.user_id").
+		Where("ou.organization_id = ?", orgID).Scan(&rows).Error; err != nil {
+		slog.Warn("audit: не удалось прочитать текущих ответственных организации", "org_id", orgID, "error", err)
+	}
+	return rows
 }
 
 // GetOrganizationTables возвращает таблицы, привязанные к организации.
@@ -592,9 +636,12 @@ func (s *organizationService) GetOrganizationTables(ctx context.Context, orgID i
 	return tables, nil
 }
 
-// UpdateOrganizationTables заменяет привязку таблиц к организации.
-func (s *organizationService) UpdateOrganizationTables(ctx context.Context, orgID int, req UpdateOrganizationTablesRequest) error {
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+// UpdateOrganizationTables заменяет привязку таблиц к организации. После применения
+// пишет в audit_log added/removed по именам таблиц, если набор изменился.
+func (s *organizationService) UpdateOrganizationTables(ctx context.Context, callerUserID, orgID int, req UpdateOrganizationTablesRequest) error {
+	oldTables := s.attachedTableNames(ctx, orgID)
+
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Удаляем старые связи
 		if err := tx.Where("organization_id = ?", orgID).Delete(&models.OrganizationTable{}).Error; err != nil {
 			slog.Error("Не удалось удалить старые таблицы организации", "error", err)
@@ -613,7 +660,39 @@ func (s *organizationService) UpdateOrganizationTables(ctx context.Context, orgI
 			}
 		}
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+
+	if diff := diffIDNames(oldTables, req.TableIDs, s.tableNamesByIDs(ctx, req.TableIDs)); !diff.empty() {
+		s.recorder.Log(ctx, nil, models.AuditEntityOrganization, &orgID, models.OrganizationActionTablesChanged, &callerUserID, diff)
+	}
+	return nil
+}
+
+// attachedTableNames - id->display_name таблиц, привязанных к организации (сырая
+// junction, без is_active: replace удаляет и неактивные привязки, diff их учитывает).
+func (s *organizationService) attachedTableNames(ctx context.Context, orgID int) map[int]string {
+	var rows []idName
+	if err := s.db.WithContext(ctx).Table("organization_tables ot").
+		Select("st.id AS id, COALESCE(NULLIF(st.display_name, ''), st.name) AS name").
+		Joins("JOIN system_tables st ON st.id = ot.table_id").
+		Where("ot.organization_id = ?", orgID).Scan(&rows).Error; err != nil {
+		slog.Warn("audit: не удалось прочитать таблицы организации", "org_id", orgID, "error", err)
+	}
+	return idNameMap(rows)
+}
+
+func (s *organizationService) tableNamesByIDs(ctx context.Context, ids []int) map[int]string {
+	if len(ids) == 0 {
+		return map[int]string{}
+	}
+	var rows []idName
+	if err := s.db.WithContext(ctx).Table("system_tables").
+		Select("id AS id, COALESCE(NULLIF(display_name, ''), name) AS name").Where("id IN ?", ids).Scan(&rows).Error; err != nil {
+		slog.Warn("audit: не удалось прочитать имена таблиц", "error", err)
+	}
+	return idNameMap(rows)
 }
 
 // GetOrganizationUnloadPlaces возвращает места разгрузки организации.
@@ -634,8 +713,11 @@ func (s *organizationService) GetOrganizationUnloadPlaces(ctx context.Context, o
 }
 
 // UpdateOrganizationUnloadPlaces заменяет привязку мест разгрузки к организации.
-func (s *organizationService) UpdateOrganizationUnloadPlaces(ctx context.Context, orgID int, req UpdateOrganizationUnloadPlacesRequest) error {
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+// После применения пишет в audit_log added/removed по именам мест, если набор изменился.
+func (s *organizationService) UpdateOrganizationUnloadPlaces(ctx context.Context, callerUserID, orgID int, req UpdateOrganizationUnloadPlacesRequest) error {
+	oldPlaces := s.attachedPlaceNames(ctx, orgID)
+
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Удаляем старые связи
 		if err := tx.Where("organization_id = ?", orgID).Delete(&models.OrganizationUnloadPlace{}).Error; err != nil {
 			slog.Error("Не удалось удалить старые места разгрузки организации", "error", err)
@@ -654,7 +736,38 @@ func (s *organizationService) UpdateOrganizationUnloadPlaces(ctx context.Context
 			}
 		}
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+
+	if diff := diffIDNames(oldPlaces, req.UnloadPlaceIDs, s.placeNamesByIDs(ctx, req.UnloadPlaceIDs)); !diff.empty() {
+		s.recorder.Log(ctx, nil, models.AuditEntityOrganization, &orgID, models.OrganizationActionUnloadPlacesChanged, &callerUserID, diff)
+	}
+	return nil
+}
+
+// attachedPlaceNames - id->name мест разгрузки, привязанных к организации (сырая junction).
+func (s *organizationService) attachedPlaceNames(ctx context.Context, orgID int) map[int]string {
+	var rows []idName
+	if err := s.db.WithContext(ctx).Table("organization_unload_places oup").
+		Select("up.id AS id, up.name AS name").
+		Joins("JOIN unload_places up ON up.id = oup.unload_place_id").
+		Where("oup.organization_id = ?", orgID).Scan(&rows).Error; err != nil {
+		slog.Warn("audit: не удалось прочитать места разгрузки организации", "org_id", orgID, "error", err)
+	}
+	return idNameMap(rows)
+}
+
+func (s *organizationService) placeNamesByIDs(ctx context.Context, ids []int) map[int]string {
+	if len(ids) == 0 {
+		return map[int]string{}
+	}
+	var rows []idName
+	if err := s.db.WithContext(ctx).Table("unload_places").
+		Select("id AS id, name AS name").Where("id IN ?", ids).Scan(&rows).Error; err != nil {
+		slog.Warn("audit: не удалось прочитать имена мест разгрузки", "error", err)
+	}
+	return idNameMap(rows)
 }
 
 // --- Групповые операции ---
@@ -706,7 +819,7 @@ func (s *organizationService) BulkUpdateType(ctx context.Context, callerUserID i
 // вне транзакции переиспользуемого UpdateOrganizationUnloadPlaces - для
 // admin-only последовательных операций окна гонки нет; конкурентный bulk по той
 // же организации - осознанно не защищаем (принятый trade-off ради переиспользования).
-func (s *organizationService) BulkAssignUnloadPlaces(ctx context.Context, ids, placeIDs []int, mode string) (*BulkOpResult, error) {
+func (s *organizationService) BulkAssignUnloadPlaces(ctx context.Context, callerUserID int, ids, placeIDs []int, mode string) (*BulkOpResult, error) {
 	if !isValidBulkMode(mode) {
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Некорректный режим (replace|add)")
 	}
@@ -727,7 +840,7 @@ func (s *organizationService) BulkAssignUnloadPlaces(ctx context.Context, ids, p
 			}
 			target = unionInts(current, placeIDs)
 		}
-		if err := s.UpdateOrganizationUnloadPlaces(ctx, id, UpdateOrganizationUnloadPlacesRequest{UnloadPlaceIDs: target}); err != nil {
+		if err := s.UpdateOrganizationUnloadPlaces(ctx, callerUserID, id, UpdateOrganizationUnloadPlacesRequest{UnloadPlaceIDs: target}); err != nil {
 			res.addError(id, org.Name, bulkErrMsg(err))
 			continue
 		}
@@ -737,7 +850,7 @@ func (s *organizationService) BulkAssignUnloadPlaces(ctx context.Context, ids, p
 }
 
 // BulkAssignTables назначает целевые таблицы набору организаций (replace|add).
-func (s *organizationService) BulkAssignTables(ctx context.Context, ids, tableIDs []int, mode string) (*BulkOpResult, error) {
+func (s *organizationService) BulkAssignTables(ctx context.Context, callerUserID int, ids, tableIDs []int, mode string) (*BulkOpResult, error) {
 	if !isValidBulkMode(mode) {
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Некорректный режим (replace|add)")
 	}
@@ -758,7 +871,7 @@ func (s *organizationService) BulkAssignTables(ctx context.Context, ids, tableID
 			}
 			target = unionInts(current, tableIDs)
 		}
-		if err := s.UpdateOrganizationTables(ctx, id, UpdateOrganizationTablesRequest{TableIDs: target}); err != nil {
+		if err := s.UpdateOrganizationTables(ctx, callerUserID, id, UpdateOrganizationTablesRequest{TableIDs: target}); err != nil {
 			res.addError(id, org.Name, bulkErrMsg(err))
 			continue
 		}
@@ -772,7 +885,7 @@ func (s *organizationService) BulkAssignTables(ctx context.Context, ids, tableID
 // новым выставляется is_primary=false и переданный required_approval. В режиме
 // replace итоговый набор = выбранные (у оставшегося primary сохраняется), в add
 // = текущие как есть + недостающие выбранные.
-func (s *organizationService) BulkAssignUsers(ctx context.Context, ids []int, assignments []BulkUserAssignment, mode string) (*BulkOpResult, error) {
+func (s *organizationService) BulkAssignUsers(ctx context.Context, callerUserID int, ids []int, assignments []BulkUserAssignment, mode string) (*BulkOpResult, error) {
 	if !isValidBulkMode(mode) {
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Некорректный режим (replace|add)")
 	}
@@ -788,7 +901,7 @@ func (s *organizationService) BulkAssignUsers(ctx context.Context, ids []int, as
 			res.addError(id, org.Name, "Ошибка чтения ответственных")
 			continue
 		}
-		if err := s.UpdateOrganizationUsers(ctx, id, UpdateOrganizationUsersRequest{Users: users}); err != nil {
+		if err := s.UpdateOrganizationUsers(ctx, callerUserID, id, UpdateOrganizationUsersRequest{Users: users}); err != nil {
 			res.addError(id, org.Name, bulkErrMsg(err))
 			continue
 		}

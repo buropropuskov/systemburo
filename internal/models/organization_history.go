@@ -16,6 +16,11 @@ const (
 	OrganizationActionUpdated  = "updated"
 	OrganizationActionArchived = "archived"
 	OrganizationActionRestored = "restored"
+	// Групповые/одиночные изменения привязок пишут отдельные action с деталями
+	// «было -> стало» (added/removed, для ответственных ещё approval_changed).
+	OrganizationActionResponsiblesChanged = "responsibles_changed"
+	OrganizationActionUnloadPlacesChanged = "unload_places_changed"
+	OrganizationActionTablesChanged       = "tables_changed"
 )
 
 // OrganizationHistoryItem - запись истории с именем актора для API (LEFT JOIN users).
