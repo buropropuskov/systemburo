@@ -1,6 +1,6 @@
 <template>
   <div class="attachments-management-container dashboard-card">
-    <div class="management-header">
+    <div class="management-header rt-header-inline">
       <h3 class="management-title">
         Вложения заявок
       </h3>
@@ -18,11 +18,16 @@
           :title="'Поиск вложений...'"
         />
         <button
-          class="add-header-button"
+          class="add-header-button rt-btn-compact"
+          aria-label="Создать вложение"
           data-testid="attachment-add-btn"
           @click="openAddModal"
         >
-          Создать вложение
+          <span
+            class="rt-btn-icon"
+            aria-hidden="true"
+          >+</span>
+          <span class="rt-btn-label">Создать вложение</span>
         </button>
         <RefreshButton
           :loading="isLoading"
@@ -36,8 +41,8 @@
         class="table-section"
         :class="{ 'with-details': selectedAttachment }"
       >
-        <div class="table-container">
-          <div class="table-header">
+        <div class="table-container rt-table">
+          <div class="table-header rt-head-row">
             <div
               class="header-col id-col"
               @click="sortBy('id')"
@@ -70,7 +75,7 @@
             <div
               v-for="a in filteredAttachments"
               :key="a.id"
-              class="table-row"
+              class="table-row rt-row"
               data-testid="attachment-row"
               :class="{
                 selected: selectedAttachment && selectedAttachment.id === a.id,
@@ -78,10 +83,16 @@
               }"
               @click="selectAttachment(a)"
             >
-              <div class="table-col id-col">
+              <div
+                class="table-col id-col"
+                data-label="ID"
+              >
                 <span class="cell-content id-value">{{ a.id }}</span>
               </div>
-              <div class="table-col name-col">
+              <div
+                class="table-col name-col"
+                data-label="Наименование"
+              >
                 <span
                   class="truncate-text"
                   :title="a.display_name"
@@ -1484,17 +1495,10 @@ export default {
   transform: translateY(20px);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .management-header {
-    flex-direction: column;
-    align-items: flex-start;
     height: auto;
     padding: 16px;
-  }
-  .header-controls {
-    width: 100%;
-    flex-direction: column;
-    align-items: stretch;
   }
   .content-container {
     flex-direction: column;
@@ -1520,6 +1524,25 @@ export default {
   .details-body .lk-input,
   .type-dropdown {
     max-width: 100%;
+  }
+
+  /* Список -> карточки (rt-table): дропдаун архива и поиск ужимаем, иначе
+     строка контролов (дропдаун+поиск+компактные Создать/Обновить) не
+     помещается на 375-390px (см. TableConstructor.vue - тот же паттерн). */
+  .archive-dropdown {
+    min-width: 92px;
+  }
+
+  :deep(.search) {
+    width: 120px;
+  }
+
+  /* В карточке больше горизонтального места, чем в узкой табличной колонке -
+     наименование не обрезаем многоточием. */
+  .rt-row .truncate-text {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
   }
 }
 

@@ -1,6 +1,6 @@
 <template>
   <div class="guide-mgmt dashboard-card">
-    <div class="management-header">
+    <div class="management-header rt-header-inline">
       <h3 class="management-title">
         Управление руководством
       </h3>
@@ -18,8 +18,8 @@
         class="table-section"
         :class="{ 'with-details': selectedRole }"
       >
-        <div class="table-container">
-          <div class="table-header">
+        <div class="table-container rt-table">
+          <div class="table-header rt-head-row">
             <div class="header-col role-col">
               <p>Раздел</p>
             </div>
@@ -39,18 +39,24 @@
               <div
                 v-for="s in sections"
                 :key="s.role"
-                class="table-row"
+                class="table-row rt-row"
                 data-testid="guide-row"
                 :class="{ selected: selectedRole === s.role }"
                 @click="selectSection(s.role)"
               >
-                <div class="table-col role-col">
+                <div
+                  class="table-col role-col"
+                  data-label="Раздел"
+                >
                   <span
                     class="truncate-text"
                     :title="s.title"
                   >{{ s.title }}</span>
                 </div>
-                <div class="table-col file-col">
+                <div
+                  class="table-col file-col"
+                  data-label="Файл"
+                >
                   <span
                     v-if="s.file"
                     class="file-flag file-flag--yes"
@@ -892,13 +898,10 @@ defineExpose({ load });
   font-size: 14px;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .management-header {
-    flex-direction: column;
     height: auto;
     padding: 16px;
-    align-items: stretch;
-    gap: 12px;
   }
   .content-container {
     flex-direction: column;
@@ -916,6 +919,11 @@ defineExpose({ load });
   }
   .table-body {
     max-height: 300px;
+  }
+  .rt-row .truncate-text {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
   }
   .file-card {
     flex-wrap: wrap;

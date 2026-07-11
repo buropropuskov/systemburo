@@ -1,6 +1,6 @@
 <template>
   <div class="approvers-container dashboard-card">
-    <div class="management-header">
+    <div class="management-header rt-header-inline">
       <h3 class="management-title">
         Принимающие заявки
       </h3>
@@ -17,11 +17,16 @@
           История
         </button>
         <button
-          class="add-header-button"
+          class="add-header-button rt-btn-compact"
+          aria-label="Добавить принимающего"
           :disabled="isAdding"
           @click="openAddModal"
         >
-          Добавить принимающего
+          <span
+            class="rt-btn-icon"
+            aria-hidden="true"
+          >+</span>
+          <span class="rt-btn-label">Добавить принимающего</span>
         </button>
         <RefreshButton
           :loading="isLoading"
@@ -35,8 +40,8 @@
         class="table-section"
         :class="{ 'with-details': selectedApprover }"
       >
-        <div class="table-container">
-          <div class="table-header">
+        <div class="table-container rt-table">
+          <div class="table-header rt-head-row">
             <div
               class="header-col id-col"
               @click="sortBy('id')"
@@ -82,14 +87,20 @@
             <div
               v-for="approver in sortedApprovers"
               :key="approver.id"
-              class="table-row"
+              class="table-row rt-row"
               :class="{ selected: selectedApprover && selectedApprover.id === approver.id }"
               @click="selectApprover(approver)"
             >
-              <div class="table-col id-col">
+              <div
+                class="table-col id-col"
+                data-label="ID"
+              >
                 <span class="cell-content id-value">{{ approver.id }}</span>
               </div>
-              <div class="table-col name-col">
+              <div
+                class="table-col name-col"
+                data-label="ФИО"
+              >
                 <span
                   class="truncate-text"
                   :title="getFullName(approver)"
@@ -104,7 +115,10 @@
                   маска
                 </span>
               </div>
-              <div class="table-col date-col">
+              <div
+                class="table-col date-col"
+                data-label="Добавлен"
+              >
                 <span class="cell-content">{{ formatDate(approver.created_at) }}</span>
               </div>
             </div>
@@ -1338,17 +1352,10 @@ export default {
   border-radius: 4px;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .management-header {
-    flex-direction: column;
-    align-items: flex-start;
     height: auto;
     padding: 16px;
-  }
-  .header-controls {
-    width: 100%;
-    flex-direction: column;
-    align-items: stretch;
   }
   .content-container {
     flex-direction: column;
@@ -1366,6 +1373,18 @@ export default {
   }
   .table-body {
     max-height: 300px;
+  }
+
+  /* Список -> карточки (rt-table): поиск ужимаем, иначе строка контролов
+     (поиск+История+компактные Добавить/Обновить) не помещается на 375-390px. */
+  :deep(.search) {
+    width: 110px;
+  }
+
+  .rt-row .truncate-text {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
   }
 }
 </style>
