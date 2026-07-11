@@ -806,3 +806,120 @@ func TestCompanies_Bulk_Forbidden(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden,
 		testutil.POST(t, e, "/companies/bulk/archive", fmt.Sprintf(`{"ids":[%d]}`, td.CompanyID), h).Code)
 }
+
+// TestCompanies_BulkAudit - зеркало TestOrganizations_BulkAudit: групповые и одиночные
+// изменения привязок компании пишут в audit_log «было -> стало», no-op не пишет.
+func TestCompanies_BulkAudit(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	h := testutil.AuthHeader(testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID))
+
+	createCompany := func(name string) int {
+		return int(testutil.ParseMap(t, testutil.POST(t, e, "/companies", fmt.Sprintf(`{"name":%q,"type":"Организация"}`, name), h))["id"].(float64))
+	}
+	history := func(id int) []map[string]interface{} {
+		return testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/companies/%d/history", id), h))
+	}
+	findAction := func(hist []map[string]interface{}, action string) map[string]interface{} {
+		for _, it := range hist {
+			if it["action_type"] == action {
+				return it
+			}
+		}
+		return nil
+	}
+	detailsOf := func(it map[string]interface{}) map[string]interface{} {
+		d, _ := it["details"].(map[string]interface{})
+		return d
+	}
+	names := func(v interface{}) []string {
+		arr, _ := v.([]interface{})
+		out := make([]string, 0, len(arr))
+		for _, x := range arr {
+			out = append(out, x.(string))
+		}
+		return out
+	}
+
+	t.Run("unload-places added/removed - bulk и одиночный путь", func(t *testing.T) {
+		comp := createCompany("Аудит К Места")
+		p1 := int(testutil.ParseMap(t, testutil.POST(t, e, "/unload-places", `{"name":"Аудит К Место 1","description":"d","status":"active"}`, h))["id"].(float64))
+		p2 := int(testutil.ParseMap(t, testutil.POST(t, e, "/unload-places", `{"name":"Аудит К Место 2","description":"d","status":"active"}`, h))["id"].(float64))
+
+		require.Equal(t, http.StatusOK, testutil.POST(t, e, "/companies/bulk/unload-places",
+			fmt.Sprintf(`{"ids":[%d],"unload_place_ids":[%d,%d],"mode":"replace"}`, comp, p1, p2), h).Code)
+		rec := findAction(history(comp), "unload_places_changed")
+		require.NotNil(t, rec, "bulk назначение мест пишет запись в историю")
+		assert.NotEmpty(t, rec["actor_name"])
+		assert.ElementsMatch(t, []string{"Аудит К Место 1", "Аудит К Место 2"}, names(detailsOf(rec)["added"]))
+
+		before := len(history(comp))
+		require.Equal(t, http.StatusOK, testutil.PUT(t, e, fmt.Sprintf("/companies/%d/unload-places", comp),
+			fmt.Sprintf(`{"unload_place_ids":[%d,%d]}`, p1, p2), h).Code)
+		assert.Len(t, history(comp), before, "неизменяющее обновление не пишет историю")
+
+		require.Equal(t, http.StatusOK, testutil.PUT(t, e, fmt.Sprintf("/companies/%d/unload-places", comp),
+			fmt.Sprintf(`{"unload_place_ids":[%d]}`, p1), h).Code)
+		rec2 := findAction(history(comp), "unload_places_changed")
+		require.NotNil(t, rec2)
+		assert.ElementsMatch(t, []string{"Аудит К Место 2"}, names(detailsOf(rec2)["removed"]))
+	})
+
+	t.Run("tables added", func(t *testing.T) {
+		comp := createCompany("Аудит К Таблицы")
+		t1 := int(testutil.ParseMap(t, testutil.POST(t, e, "/system-tables", `{"name":"audit-ct1","display_name":"Аудит КТ1","table_type":"cars"}`, h))["id"].(float64))
+		require.Equal(t, http.StatusOK, testutil.POST(t, e, "/companies/bulk/tables",
+			fmt.Sprintf(`{"ids":[%d],"table_ids":[%d],"mode":"replace"}`, comp, t1), h).Code)
+		rec := findAction(history(comp), "tables_changed")
+		require.NotNil(t, rec, "bulk назначение таблиц пишет историю")
+		assert.ElementsMatch(t, []string{"Аудит КТ1"}, names(detailsOf(rec)["added"]))
+	})
+
+	t.Run("responsibles added + approval_changed", func(t *testing.T) {
+		comp := createCompany("Аудит К Ответственные")
+		testutil.RegisterUser(t, e, "auditcresp1", "pass123", 1, td.OrgID, td.CompanyID)
+
+		require.Equal(t, http.StatusOK, testutil.POST(t, e, "/companies/bulk/users",
+			fmt.Sprintf(`{"ids":[%d],"users":[{"username":"auditcresp1","required_approval":false}],"mode":"replace"}`, comp), h).Code)
+		rec := findAction(history(comp), "responsibles_changed")
+		require.NotNil(t, rec, "bulk назначение ответственных пишет историю")
+		added, _ := detailsOf(rec)["added"].([]interface{})
+		require.Len(t, added, 1)
+		a0 := added[0].(map[string]interface{})
+		assert.Equal(t, "auditcresp1", a0["username"])
+		assert.Equal(t, false, a0["required_approval"])
+
+		require.Equal(t, http.StatusOK, testutil.POST(t, e, "/companies/bulk/users",
+			fmt.Sprintf(`{"ids":[%d],"users":[{"username":"auditcresp1","required_approval":true}],"mode":"replace"}`, comp), h).Code)
+		rec2 := findAction(history(comp), "responsibles_changed")
+		require.NotNil(t, rec2)
+		ch, _ := detailsOf(rec2)["approval_changed"].([]interface{})
+		require.Len(t, ch, 1)
+		c0 := ch[0].(map[string]interface{})
+		assert.Equal(t, "auditcresp1", c0["username"])
+		assert.Equal(t, false, c0["from"])
+		assert.Equal(t, true, c0["to"])
+
+		before := len(history(comp))
+		require.Equal(t, http.StatusOK, testutil.POST(t, e, "/companies/bulk/users",
+			fmt.Sprintf(`{"ids":[%d],"users":[{"username":"auditcresp1","required_approval":true}],"mode":"replace"}`, comp), h).Code)
+		assert.Len(t, history(comp), before, "неизменяющее назначение ответственных не пишет историю")
+	})
+
+	t.Run("type no-op одиночный PUT не пишет историю", func(t *testing.T) {
+		comp := createCompany("Аудит К Тип")
+		before := len(history(comp))
+		require.Equal(t, http.StatusOK, testutil.PUT(t, e, fmt.Sprintf("/companies/%d", comp),
+			`{"name":"Аудит К Тип","type":"Организация"}`, h).Code)
+		assert.Len(t, history(comp), before, "неизменяющий PUT не добавляет запись")
+		require.Equal(t, http.StatusOK, testutil.PUT(t, e, fmt.Sprintf("/companies/%d", comp),
+			`{"name":"Аудит К Тип","type":"Отдел"}`, h).Code)
+		rec := findAction(history(comp), "retyped")
+		require.NotNil(t, rec)
+		from, _ := detailsOf(rec)["from"].(map[string]interface{})
+		require.NotNil(t, from)
+		assert.Equal(t, "Организация", from["type"])
+	})
+}
