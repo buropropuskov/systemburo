@@ -250,7 +250,10 @@ export default {
 
 <style scoped>
 .err500 {
-  min-height: 100vh;
+  /* zoom-safe (#1097): под корневым CSS zoom (viewportScale) единица vh считается
+     от НЕзумленной высоты и раздувает блок в zoom раз -> низ уезжает за экран, а
+     overflow:hidden его срезает. --app-vh уже нормирован на текущий zoom. */
+  min-height: calc(var(--app-vh, 1vh) * 100);
   background:
     radial-gradient(1200px 700px at 15% 0%, #eef0ff 0%, transparent 55%),
     radial-gradient(900px 600px at 100% 100%, #ffe4e6 0%, transparent 50%),
@@ -284,7 +287,7 @@ export default {
 .err500__bg-number span {
   font-family: 'Montserrat', sans-serif;
   font-weight: 900;
-  font-size: clamp(400px, 82vh, 900px);
+  font-size: clamp(400px, calc(var(--app-vh, 1vh) * 82), 900px);
   line-height: 0.78;
   color: #4F5BDF;
   opacity: 0.08;
