@@ -207,7 +207,7 @@
       width="880px"
       content-class="user-edit-modal"
       radius="45px"
-      :z-index="900"
+      :z-index="1000"
       @close="closeEditModal"
     >
       <template #header>
@@ -1879,6 +1879,8 @@ export default {
   display: flex;
   align-items: center;
   gap: 8px;
+  /* Прижать кнопки «История»/«Сбросить обучение» к правому краю шапки (перед крестиком). */
+  margin-left: auto;
 }
 
 /* Вкладки модалки редактирования */
@@ -1926,6 +1928,10 @@ export default {
   /* Единая высота вкладок - размер окна не прыгает при переключении. Значение
      подобрано под самую высокую вкладку («Профиль»), короткие дотягиваются до неё. */
   min-height: 524px;
+  /* flex-колонка: вкладка «История входов» тянет свою таблицу на всю высоту,
+     футер (пагинация+легенда) остаётся внизу окна. */
+  display: flex;
+  flex-direction: column;
 }
 
 @keyframes tab-fade {
@@ -2196,4 +2202,13 @@ export default {
 
 /* Радиус окон редактирования/создания задаётся пропом radius у BaseModal
    (content-class телепортится в body, scoped :deep до него не достаёт). */
+</style>
+
+<!-- Глобальный (не scoped): контент BaseModal телепортится в body, scoped-хэш до
+     него не достаёт - шапку окна редактирования целим напрямую по content-class. -->
+<style>
+.base-modal.user-edit-modal .base-modal__header {
+  padding-left: 30px;
+  padding-right: 30px;
+}
 </style>
