@@ -77,6 +77,33 @@ describe('onboardingSteps', () => {
   });
 });
 
+describe('mobileReveal (#1097 S11 - переехавшие на <768 цели)', () => {
+  it('значение только nav или header-overflow', () => {
+    for (const s of onboardingSteps) {
+      if (s.mobileReveal !== undefined) {
+        expect(['nav', 'header-overflow']).toContain(s.mobileReveal);
+      }
+    }
+  });
+
+  it('nav-rail и nav-group-data просят раскрытие drawer (nav)', () => {
+    const byId = (id) => onboardingSteps.find((s) => s.id === id);
+    expect(byId('nav-rail').mobileReveal).toBe('nav');
+    expect(byId('nav-group-data').mobileReveal).toBe('nav');
+  });
+
+  it('вторичные иконки шапки (feedback/time/notifications) просят overflow-меню', () => {
+    const byId = (id) => onboardingSteps.find((s) => s.id === id);
+    expect(byId('header-feedback').mobileReveal).toBe('header-overflow');
+    expect(byId('header-time').mobileReveal).toBe('header-overflow');
+    expect(byId('header-notifications').mobileReveal).toBe('header-overflow');
+  });
+
+  it('header-submit остаётся видимой иконкой на мобилке - без mobileReveal', () => {
+    expect(onboardingSteps.find((s) => s.id === 'header-submit').mobileReveal).toBeUndefined();
+  });
+});
+
 describe('collectSegment', () => {
   const steps = [
     { id: 'a', route: '/news' },

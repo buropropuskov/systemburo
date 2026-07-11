@@ -93,6 +93,28 @@ describe('securityOnboardingSteps - сегмент /news', () => {
   });
 });
 
+describe('mobileReveal (#1097 S11 - переехавшие на <768 цели)', () => {
+  it('значение только nav или header-overflow', () => {
+    for (const s of securityOnboardingSteps) {
+      if (s.mobileReveal !== undefined) {
+        expect(['nav', 'header-overflow']).toContain(s.mobileReveal);
+      }
+    }
+  });
+
+  it('sec-header-* просят overflow-меню шапки', () => {
+    for (const s of securityOnboardingSteps.filter((x) => x.id.startsWith('sec-header-'))) {
+      expect(s.mobileReveal).toBe('header-overflow');
+    }
+  });
+
+  it('sec-nav-* просят раскрытие drawer (nav)', () => {
+    for (const s of securityOnboardingSteps.filter((x) => x.id.startsWith('sec-nav-'))) {
+      expect(s.mobileReveal).toBe('nav');
+    }
+  });
+});
+
 describe('securityOnboardingSteps - сегмент /accessible-attachments', () => {
   it('отделён границей route и идёт после сегмента /news', () => {
     const first = securityOnboardingSteps.findIndex((s) => s.route === '/accessible-attachments');

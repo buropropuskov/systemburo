@@ -5,6 +5,21 @@ import { useOnboardingStore } from '@/stores/onboarding';
 import { getDemo } from '@/components/onboarding/onboardingDemo';
 
 /**
+ * Мобильный брейкпоинт тура (#1097 S11) - совпадает с media-запросами
+ * NavMenu/TheHeader/CreateApplication (`max-width: 768px`, ВКЛЮЧИТЕЛЬНО), на
+ * которых рельс сворачивается в drawer, вторичные иконки шапки - в overflow-меню,
+ * а форма/таблицы - в одну колонку. Порог `<= 768` (не `< 768`): на ровно 768px
+ * (iPad-портрет) CSS уже мобильный - reveal обязан срабатывать там же, иначе тур
+ * подсветит переехавшую пустоту (класс бага «768 vs 767.98» из S8/S9). Модульная
+ * функция (не часть фабрики useOnboarding) - её зовут и mobileReveal, и createDriver.
+ *
+ * @returns {boolean}
+ */
+export function isMobileViewport() {
+  return typeof window !== 'undefined' && window.innerWidth <= 768;
+}
+
+/**
  * Тонкая обёртка над driver.js: ожидание целевого элемента, сборка тела
  * поповера и конфигурация инстанса с кастомным прогресс-блоком в футере.
  */
@@ -195,8 +210,14 @@ export function useOnboarding() {
           description: buildPopoverHtml(s),
         };
         // Сторона/выравнивание поповера от шага - чтобы карточка не наезжала на
-        // выделенный элемент (напр. элементы шапки вверху -> поповер вниз).
-        if (s.side) popover.side = s.side;
+        // выделенный элемент (напр. элементы шапки вверху -> поповер вниз). На
+        // мобилке (<768) раскладка стековая (одна колонка) - side:'left'/'right'
+        // (рассчитан на десктопный split селектор/форма или карточка/детали)
+        // толкал бы поповер за край узкого экрана; принудительно кладём вниз (#1097).
+        const narrow = isMobileViewport();
+        if (s.side) {
+          popover.side = narrow && (s.side === 'left' || s.side === 'right') ? 'bottom' : s.side;
+        }
         if (s.align) popover.align = s.align;
         // Шаги с демо-скриншотом шире - чтобы реальная таблица читалась.
         if (s.demo) popover.popoverClass = 'ob-popover ob-popover--wide';
@@ -324,5 +345,6 @@ export function useOnboarding() {
     waitForElement,
     buildPopoverHtml,
     createDriver,
+    isMobileViewport,
   };
 }
