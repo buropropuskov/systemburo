@@ -237,6 +237,21 @@
             >
               Сбросить обучение
             </button>
+            <button
+              class="lk-button lk-button--secondary"
+              data-testid="user-access"
+              @click="openAccess(selectedUser)"
+            >
+              Права доступа
+            </button>
+            <button
+              v-if="selectedUserIsSecurity"
+              class="lk-button lk-button--secondary"
+              data-testid="user-access-places"
+              @click="openAccessPlaces(selectedUser)"
+            >
+              Места доступа
+            </button>
           </template>
           <template v-else>
             <span class="archive-badge">В архиве</span>
@@ -267,17 +282,6 @@
             @click="activeTab = 'profile'"
           >
             Профиль
-          </button>
-          <button
-            v-if="selectedUser.is_active !== false"
-            type="button"
-            class="modal-tab"
-            :class="{ 'modal-tab--active': activeTab === 'access' }"
-            role="tab"
-            :aria-selected="activeTab === 'access'"
-            @click="activeTab = 'access'"
-          >
-            Доступ
           </button>
           <button
             type="button"
@@ -510,41 +514,6 @@
               @click="confirmDeleteUser(selectedUser)"
             >
               Удалить учётную запись
-            </button>
-          </div>
-        </div>
-
-        <div
-          v-if="selectedUser.is_active !== false"
-          v-show="activeTab === 'access'"
-          class="tab-panel"
-        >
-          <div class="access-card">
-            <div class="access-card__body">
-              <strong>Права доступа</strong>
-              <p>Индивидуальные права, роли и группы пользователя.</p>
-            </div>
-            <button
-              class="lk-button lk-button--secondary"
-              @click="openAccess(selectedUser)"
-            >
-              Настроить
-            </button>
-          </div>
-          <div
-            v-if="selectedUserIsSecurity"
-            class="access-card"
-          >
-            <div class="access-card__body">
-              <strong>Места доступа</strong>
-              <p>Площадки и точки прохода для сотрудника охраны.</p>
-            </div>
-            <button
-              class="lk-button lk-button--secondary"
-              data-testid="user-access-places"
-              @click="openAccessPlaces(selectedUser)"
-            >
-              Настроить
             </button>
           </div>
         </div>
@@ -1943,31 +1912,6 @@ export default {
   .tab-panel {
     animation: none;
   }
-}
-
-/* Вкладка "Доступ" */
-.access-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 16px 18px;
-  border: 1px solid #e6e6e6;
-  border-radius: 15px;
-  background: #f8fafc;
-  margin-bottom: 12px;
-}
-
-.access-card__body strong {
-  font-size: 14px;
-  font-weight: 600;
-  color: #1a1a1a;
-}
-
-.access-card__body p {
-  margin: 4px 0 0;
-  font-size: 12.5px;
-  color: #a2a2a2;
 }
 
 /* Опасное действие внизу "Профиля" */
