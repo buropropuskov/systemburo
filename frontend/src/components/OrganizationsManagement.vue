@@ -1,6 +1,6 @@
 <template>
   <div class="organizations-management dashboard-card">
-    <div class="management-header">
+    <div class="management-header rt-header-inline">
       <h3 class="management-title">
         Управление организациями / отделами
       </h3>
@@ -27,11 +27,16 @@
           :title="'Поиск организаций...'"
         />
         <button
-          class="add-header-button"
+          class="add-header-button rt-btn-compact"
           data-testid="orgs-add-btn"
+          aria-label="Добавить"
           @click="openAddModal"
         >
-          Добавить
+          <span
+            class="rt-btn-icon"
+            aria-hidden="true"
+          >+</span>
+          <span class="rt-btn-label">Добавить</span>
         </button>
         <RefreshButton
           :loading="isLoading"
@@ -108,8 +113,8 @@
     <div class="content-container">
       <!-- Левая часть - таблица организаций -->
       <div class="table-section">
-        <div class="table-container">
-          <div class="table-header">
+        <div class="table-container rt-table">
+          <div class="table-header rt-head-row">
             <div
               class="header-col check-col"
               @click.stop
@@ -194,7 +199,7 @@
             <div
               v-for="org in sortedOrganizations"
               :key="org.id"
-              class="table-row"
+              class="table-row rt-row"
               data-testid="orgs-row"
               :class="{
                 'selected': selectedOrganization && selectedOrganization.id === org.id,
@@ -215,10 +220,16 @@
                   @change="toggleSelect(org.id)"
                 >
               </div>
-              <div class="table-col id-col">
+              <div
+                class="table-col id-col"
+                data-label="ID"
+              >
                 <span class="cell-content id-value">{{ org.id }}</span>
               </div>
-              <div class="table-col name-col">
+              <div
+                class="table-col name-col"
+                data-label="Наименование"
+              >
                 <span
                   class="truncate-text"
                   :title="org.name"
@@ -230,14 +241,20 @@
                   >(архив)</span>
                 </span>
               </div>
-              <div class="table-col type-col">
+              <div
+                class="table-col type-col"
+                data-label="Тип"
+              >
                 <span
                   class="truncate-text type-value"
                   :class="{ 'type-unspecified': !org.type }"
                   :title="orgTypeLabel(org.type)"
                 >{{ orgTypeLabel(org.type) }}</span>
               </div>
-              <div class="table-col users-col">
+              <div
+                class="table-col users-col"
+                data-label="Пользователи"
+              >
                 <span class="cell-content user-count">
                   <span class="count-value">{{ org.user_count }}</span>
                 </span>
@@ -1999,27 +2016,31 @@ export default {
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
+  /* Направление/высоту шапки берёт на себя глобальный .rt-header-inline
+     (responsive-tables.css, !important - перебивает scoped-специфичность).
+     Здесь только сужаем дропдауны/поиск, чтобы 5 контролов уместились в строку. */
   .management-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-    height: auto;
-    padding: 16px;
+    padding: 10px var(--gutter, 16px);
   }
 
   .header-controls {
-    width: 100%;
-    flex-direction: column;
-    align-items: stretch;
+    flex-wrap: wrap;
+    row-gap: 8px;
   }
 
-  .add-header-button {
-    justify-content: center;
+  .archive-dropdown,
+  .type-filter-dropdown {
+    min-width: 92px;
   }
 
-  /* на узких экранах шапка становится колонкой (height:auto) - оверлей не сработает,
-     возвращаем панель в поток (мобильный layout и так стекается), кнопки могут переноситься */
+  :deep(.search) {
+    width: 110px;
+  }
+
+  /* rt-header-inline может сделать шапку auto-высоты (перенос controls строкой
+     ниже) - фиксированный оверлей bulk-bar (height:50px) больше не накрывает
+     её целиком, возвращаем панель в обычный поток. */
   .bulk-bar {
     position: static;
     height: auto;
@@ -2031,25 +2052,9 @@ export default {
     flex-wrap: wrap;
   }
 
-  .table-header,
-  .table-row {
-    padding: 0 16px;
-  }
-
-  .id-col {
-    width: 12%;
-  }
-
-  .name-col {
-    width: 30%;
-  }
-
-  .type-col {
-    width: 28%;
-  }
-
-  .users-col {
-    width: 24%;
+  /* Тач-таргет чекбокса выбора строки в card-режиме. */
+  .check-col {
+    min-height: 44px;
   }
 
   .v1 {
