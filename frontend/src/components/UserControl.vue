@@ -207,7 +207,7 @@
       width="880px"
       content-class="user-edit-modal"
       radius="45px"
-      :z-index="1000"
+      :z-index="1001"
       @close="closeEditModal"
     >
       <template #header>
