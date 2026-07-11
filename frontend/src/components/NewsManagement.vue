@@ -1,11 +1,11 @@
 <template>
   <div class="news-management">
     <!-- Шапка -->
-    <div class="management-header">
+    <div class="management-header rt-header-inline">
       <h2 class="management-title">
         Новости и объявления
       </h2>
-      <div class="management-header__actions">
+      <div class="management-header__actions header-controls">
         <div class="tab-group">
           <button
             class="tab-btn"
@@ -23,10 +23,18 @@
           </button>
         </div>
         <button
-          class="lk-button lk-button--primary add-btn"
+          class="lk-button lk-button--primary add-btn rt-btn-compact"
+          :aria-label="activeTab === 'news' ? 'Добавить новость' : 'Добавить объявление'"
           @click="openCreateModal"
         >
-          + {{ activeTab === 'news' ? 'Добавить новость' : 'Добавить объявление' }}
+          <span
+            class="rt-btn-icon"
+            aria-hidden="true"
+          >+</span>
+          <!-- "+" остаётся частью rt-btn-label (не только rt-btn-icon) - на
+               десктопе rt-btn-icon скрыт по умолчанию (см. responsive-tables.css),
+               исходная кнопка всегда показывала "+ Добавить..." - не убираем. -->
+          <span class="rt-btn-label">+ {{ activeTab === 'news' ? 'Добавить новость' : 'Добавить объявление' }}</span>
         </button>
         <RefreshButton
           :loading="loading"
@@ -1137,4 +1145,41 @@ export default {
 .news-body-html :deep(.constructor-image.img-align-right) { float: right; margin: 0 0 10px 14px; }
 .news-body-html :deep(.constructor-image.img-align-center) { display: block; margin: 10px auto; float: none; }
 .news-body-html::after { content: ''; display: block; clear: both; }
+
+/* Список уже card-like (заголовок+бейджи+мета вместо колонок таблицы) -
+   rt-table/data-label тут не подходят (нет head-row), карточный вид на узком
+   экране собираем локально. Компонент раньше не имел ни одного @media -
+   .items-list была фиксирована 360px и сжимала .detail-panel вместо стека. */
+@media (max-width: 767.98px) {
+  .management-header {
+    height: auto;
+    padding: 12px 16px;
+  }
+
+  .management-body {
+    flex-direction: column;
+    height: auto;
+  }
+
+  .items-list {
+    width: 100%;
+    max-height: 320px;
+    border-right: none;
+    border-bottom: 1px solid #e6e6e6;
+  }
+
+  .detail-panel {
+    width: 100%;
+  }
+
+  .manage-item {
+    border: 1px solid var(--color-border, #e6e6e6);
+    border-radius: var(--radius-md, 15px);
+    margin: 0 10px 8px;
+  }
+
+  .manage-item:first-child {
+    margin-top: 10px;
+  }
+}
 </style>

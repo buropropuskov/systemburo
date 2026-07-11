@@ -1,7 +1,7 @@
 <template>
   <div class="documents-container dashboard-card">
     <!-- Шапка 50px -->
-    <div class="management-header">
+    <div class="management-header rt-header-inline">
       <h3 class="management-title">Документы</h3>
       <div class="header-controls">
         <BaseDropdown
@@ -19,10 +19,15 @@
           Управление группами
         </button>
         <button
-          class="lk-button lk-button--primary"
+          class="lk-button lk-button--primary rt-btn-compact"
+          aria-label="Загрузить документы"
           @click="openUploadModal"
         >
-          Загрузить документы
+          <span
+            class="rt-btn-icon"
+            aria-hidden="true"
+          >+</span>
+          <span class="rt-btn-label">Загрузить документы</span>
         </button>
         <RefreshButton
           :loading="isLoading"
@@ -1542,5 +1547,66 @@ export default {
 /* --- BaseDropdown для фильтра групп --- */
 .group-filter-dropdown {
   min-width: 140px;
+}
+
+/* Список уже card-like (иконка+название+бейджи+мета вместо колонок таблицы) -
+   rt-table/data-label тут не подходят (нет head-row, нечего скрывать/подписывать),
+   поэтому карточный вид на узком экране собираем локально: master-detail
+   стекается (компонент раньше не имел ни одного @media - на мобилке колонки
+   .table-section/.details-section просто сжимались бок о бок), .docs-row
+   получает границу и радиус карточки, шапка ужимается тем же приёмом, что и
+   в остальных 5 компонентах среза. */
+@media (max-width: 767.98px) {
+  .management-header {
+    height: auto;
+    padding: 16px;
+  }
+
+  .group-filter-dropdown {
+    min-width: 110px;
+    width: auto;
+  }
+
+  /* 4 контрола (дропдаун + 2 текстовых кнопки + Обновить) не помещаются в
+     одну строку даже на всю ширину контейнера - "Управление группами" длинный
+     текст, не компактится (не Add-кнопка). Переносим строкой ВНУТРИ
+     header-controls, а не разваливаем на вертикальный стек по одной кнопке -
+     каждый контрол остаётся пилюлей нормальной ширины. */
+  .header-controls {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .content-container {
+    flex-direction: column;
+    height: auto;
+  }
+
+  .table-section,
+  .table-section.with-details,
+  .details-section,
+  .no-selection-message {
+    width: 100%;
+  }
+
+  .table-section {
+    border-right: none;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .table-body {
+    max-height: 320px;
+    padding: 8px;
+  }
+
+  .docs-row {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md, 15px);
+    margin-bottom: 8px;
+  }
+
+  .docs-row:last-child {
+    margin-bottom: 0;
+  }
 }
 </style>

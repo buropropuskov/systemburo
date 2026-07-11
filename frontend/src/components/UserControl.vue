@@ -1,10 +1,10 @@
 <template>
   <div class="user-management dashboard-card">
-    <div class="management-header">
+    <div class="management-header rt-header-inline">
       <h3 class="management-title">
         Учётные записи пользователей
       </h3>
-      <div class="search-container">
+      <div class="search-container header-controls">
         <BaseDropdown
           class="archive-dropdown"
           :model-value="showArchive ? 'archive' : 'active'"
@@ -18,10 +18,15 @@
           :title="'Поиск пользователей...'"
         />
         <button
-          class="lk-button lk-button--primary"
+          class="lk-button lk-button--primary rt-btn-compact"
+          aria-label="Создать"
           @click="openCreateModal"
         >
-          Создать
+          <span
+            class="rt-btn-icon"
+            aria-hidden="true"
+          >+</span>
+          <span class="rt-btn-label">Создать</span>
         </button>
         <RefreshButton
           :loading="refreshing"
@@ -31,10 +36,10 @@
     </div>
 
     <div class="users-container">
-      <div class="users-list">
+      <div class="users-list rt-table">
         <!-- Заголовок таблицы -->
         <div class="users-header">
-          <div class="header-row">
+          <div class="header-row rt-head-row">
             <div
               class="header-col login-col"
               @click="sortBy('username')"
@@ -143,18 +148,27 @@
             :class="{ 'inactive': user.is_active === false }"
             @click="selectUser(user)"
           >
-            <div class="user-row">
-              <div class="user-col login-col">
+            <div class="user-row rt-row">
+              <div
+                class="user-col login-col"
+                data-label="Логин"
+              >
                 <span class="user-login">{{ user.username }}</span>
                 <span
                   v-if="user.is_active === false"
                   class="inactive-badge"
                 >(архив)</span>
               </div>
-              <div class="user-col name-col">
+              <div
+                class="user-col name-col"
+                data-label="Фамилия И.О."
+              >
                 {{ formatUserName(user) }}
               </div>
-              <div class="user-col org-col">
+              <div
+                class="user-col org-col"
+                data-label="Организация / Отдел"
+              >
                 <span
                   class="truncate-text"
                   :title="user.organization || '-'"
@@ -162,7 +176,10 @@
                   {{ user.organization || '-' }}
                 </span>
               </div>
-              <div class="user-col company-col">
+              <div
+                class="user-col company-col"
+                data-label="Компания"
+              >
                 <span
                   class="truncate-text"
                   :title="user.company || '-'"
@@ -170,7 +187,10 @@
                   {{ user.company || '-' }}
                 </span>
               </div>
-              <div class="user-col position-col">
+              <div
+                class="user-col position-col"
+                data-label="Должность"
+              >
                 <span
                   class="truncate-text"
                   :title="user.position || '-'"
@@ -178,7 +198,10 @@
                   {{ user.position || '-' }}
                 </span>
               </div>
-              <div class="user-col type-col">
+              <div
+                class="user-col type-col"
+                data-label="Тип"
+              >
                 <span
                   v-if="user.user_type"
                   class="type-badge"
@@ -2065,75 +2088,73 @@ export default {
   background: #a8a8a8;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
+  /* rt-head-row прячет внутренний .header-row, но обёртка .users-header несёт
+     свой border-bottom+padding и без этого осталась бы пустой полосой над
+     карточками (у остальных справочников rt-head-row на самом заголовке, тут
+     двухуровневая структура). */
+  .users-header {
+    display: none;
+  }
+
   .users-container {
     flex-direction: column;
     height: auto;
   }
 
-  /*
-   * Таблица - horizontal scroll вместо wrap в столбик.
-   * Scroll на .users-list - оба child'а (.users-header + .users-body) получают
-   * min-width 600px и двигаются синхронно.
-   */
-  .users-list {
-    overflow-x: auto !important;
-    overflow-y: hidden !important;
-  }
-
-  .users-header,
   .users-body {
-    min-width: 720px;
-    overflow-x: visible !important;
-    overflow-y: visible !important;
-    height: auto !important;
-    max-height: none !important;
+    height: auto;
+    max-height: 300px;
   }
 
-  .header-row,
-  .user-row {
-    flex-wrap: nowrap !important;
-    min-width: 720px;
-    width: 100%;
+  /* Спейсинг карточек: rt-row сидит на .user-row, а не на v-for-корне
+     .user-item - сиблинг-селектор .rt-row + .rt-row из responsive-tables.css
+     поэтому не матчит (соседние .user-item, не .user-row), добираем тут. */
+  .user-item + .user-item {
+    margin-top: 8px;
   }
 
-  .header-col,
-  .user-col {
-    width: auto !important;
-    min-width: 110px !important;
-    flex: 1 1 auto !important;
-    margin-bottom: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  .user-item {
+    border-bottom: none;
   }
-  
+
+  .rt-row .truncate-text {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
   .details-grid-two-columns {
     grid-template-columns: 1fr;
   }
-  
+
   .password-input-container {
     flex-direction: column;
     align-items: flex-start;
   }
-  
+
   .password-actions {
     justify-content: flex-end;
   }
-  
+
   .management-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
     height: auto;
     padding: 16px;
   }
-  
+
   .search-container {
     width: 100%;
     justify-content: flex-end;
   }
-  
+
+  .archive-dropdown {
+    min-width: 90px;
+  }
+
+  :deep(.search) {
+    width: 110px;
+  }
+
   .form-wrap {
     gap: 12px;
   }
