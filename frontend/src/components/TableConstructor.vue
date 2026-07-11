@@ -1,7 +1,7 @@
 <template>
   <AdminPageShell>
     <div class="table-constructor-container dashboard-card">
-      <div class="management-header">
+      <div class="management-header rt-header-inline">
         <h3 class="management-title">
           Таблицы системы
         </h3>
@@ -19,10 +19,15 @@
             :title="'Поиск таблиц...'"
           />
           <button
-            class="add-header-button"
+            class="add-header-button rt-btn-compact"
+            aria-label="Создать таблицу"
             @click="showAddModal = true"
           >
-            Создать таблицу
+            <span
+              class="rt-btn-icon"
+              aria-hidden="true"
+            >+</span>
+            <span class="rt-btn-label">Создать таблицу</span>
           </button>
           <RefreshButton
             :loading="refreshing"
@@ -2287,6 +2292,22 @@ export default {
     right: 20px;
     transform: translateY(-100%);
     min-width: auto;
+  }
+
+  /* Референс инлайн-кнопок шапки (responsive-tables.css .rt-header-inline)
+     сжимает Обновить/Создать до иконок, но дропдаун архива и поиск остаются
+     полноразмерными - на узких экранах сужаем и их, иначе строка контролов
+     не помещается рядом с заголовком и переносится некрасиво. */
+  .management-header {
+    padding: 10px var(--gutter, 16px);
+  }
+
+  .archive-dropdown {
+    min-width: 92px;
+  }
+
+  :deep(.search) {
+    width: 120px;
   }
 
   @keyframes slideDown {
