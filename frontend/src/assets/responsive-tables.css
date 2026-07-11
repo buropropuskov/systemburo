@@ -73,9 +73,11 @@
      data-hint -> ::after) - абсолютные псевдоэлементы, что на всю ширину
      карточки вылезают за вьюпорт и дают фантомный горизонтальный скролл (на
      мобилке ховера нет, показывать их всё равно негде). Замерено на staging:
-     без клипа docScrollWidth 443 при вьюпорте 390. */
+     без клипа docScrollWidth 443 при вьюпорте 390. !important обязателен -
+     глобальное .rt-table (0,1,0) иначе проигрывает scoped overflow-x у
+     компонента-потребителя (.applications-table[data-v] = 0,2,0). */
   .rt-table {
-    overflow-x: hidden;
+    overflow-x: hidden !important;
   }
 
   .rt-table .rt-head-row {
