@@ -533,6 +533,8 @@ export default {
       const selectedUser = this.selectedUsers.find(u => u.username === user.username);
       if (selectedUser) {
         selectedUser.required_approval = user.required_approval;
+        // явный выбор снимает пометку «было разным» (конфликт разрешён)
+        selectedUser.mixedApproval = false;
       }
       if (this.selectionMode) this.emitSelection();
     },

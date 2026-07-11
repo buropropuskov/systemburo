@@ -200,6 +200,10 @@ export default {
     };
   },
   computed: {
+    // Единый ключ «модалка открыта на этой операции» - для одного watcher'а reset.
+    openKey() {
+      return this.show ? this.operation : null;
+    },
     isGridOp() {
       return this.operation === 'unload-places' || this.operation === 'tables';
     },
@@ -237,11 +241,11 @@ export default {
     },
   },
   watch: {
-    show(val) {
-      if (val) this.reset();
-    },
-    operation() {
-      if (this.show) this.reset();
+    // Один ключ вместо двух watcher'ов (show + operation): родитель ставит show и
+    // operation синхронно в одном тике, два независимых watcher'а дали бы двойной
+    // reset() -> двойной префилл (2xN фетчей). Здесь reset ровно на открытие/смену.
+    openKey(val, old) {
+      if (val && val !== old) this.reset();
     },
   },
   methods: {
