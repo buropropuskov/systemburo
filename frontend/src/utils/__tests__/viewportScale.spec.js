@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeZoom } from '../viewportScale'
+import { computeZoom, updateViewportZoom } from '../viewportScale'
 
 describe('viewportScale computeZoom', () => {
   it('не масштабирует на эталоне и уже (обычная адаптивная вёрстка)', () => {
@@ -21,5 +21,27 @@ describe('viewportScale computeZoom', () => {
     expect(computeZoom(2880)).toBe(2) // ровно 2x1440
     expect(computeZoom(3440)).toBe(2) // ultrawide
     expect(computeZoom(5120)).toBe(2) // два монитора
+  })
+})
+
+describe('viewportScale updateViewportZoom (DOM-эффект)', () => {
+  // Один последовательный сценарий: модуль стартует с appliedZoom=1, ветки
+  // set/clear/threshold зависят от предыдущего состояния, поэтому идём по порядку.
+  it('ставит и сбрасывает style.zoom по ширине окна', () => {
+    const root = document.documentElement
+
+    window.innerWidth = 2560
+    updateViewportZoom()
+    expect(root.style.zoom).toBe('1.7778') // широкий -> масштаб как 1440
+
+    window.innerWidth = 1440
+    updateViewportZoom()
+    expect(root.style.zoom).toBe('') // вернулись к эталону -> zoom снят
+
+    window.innerWidth = 1920
+    updateViewportZoom()
+    expect(root.style.zoom).toBe('1.3333') // другой широкий -> пересчёт
+
+    root.style.zoom = ''
   })
 })

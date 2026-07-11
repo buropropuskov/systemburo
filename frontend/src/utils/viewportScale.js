@@ -16,6 +16,8 @@
  * браузерах деградирует в no-op (сохраняется текущее поведение).
  */
 
+// Держать синхронным с --bp-wide в assets/tokens.css (там документная граница
+// брейкпоинта, здесь - эталон, под который масштабируем UI).
 const REFERENCE_WIDTH = 1440
 // Эталон-look держим до ~2880px (2 x 1440), дальше не раздуваем - иначе на
 // мультимониторе/ультраширокой панели UI станет неоправданно крупным.
@@ -35,7 +37,11 @@ export function computeZoom(width) {
   return Math.min(width / REFERENCE_WIDTH, MAX_ZOOM)
 }
 
-function apply() {
+/**
+ * Пересчитывает и применяет масштаб по текущей ширине окна. Экспортирована для
+ * теста DOM-эффектов (установка/сброс zoom, порог дребезга).
+ */
+export function updateViewportZoom() {
   scheduled = false
   const next = computeZoom(window.innerWidth)
   // Порог против дребезга на субпиксельных ресайзах.
@@ -49,7 +55,7 @@ function apply() {
 function schedule() {
   if (scheduled) return
   scheduled = true
-  requestAnimationFrame(apply)
+  requestAnimationFrame(updateViewportZoom)
 }
 
 /**
@@ -59,6 +65,6 @@ function schedule() {
  */
 export function initViewportScale() {
   if (typeof window === 'undefined') return
-  apply()
+  updateViewportZoom()
   window.addEventListener('resize', schedule, { passive: true })
 }
