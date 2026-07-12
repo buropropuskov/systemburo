@@ -27,18 +27,25 @@ export default {
   name: 'ScrollTopButton',
 
   data() {
+    const ua = typeof navigator !== 'undefined' ? navigator.userAgent : ''
     return {
       visible: false,
+      // МОБИЛЬНЫЙ Яндекс-браузер сам рисует стрелку-вверх при скролле - прячем нашу, чтобы не
+      // дублировать. Только мобильный: десктопный Яндекс стрелку не рисует, а его UA тоже содержит
+      // YaBrowser - поэтому нужен ещё токен Mobile (десктоп его не имеет). У Chrome/Safari/Firefox
+      // встроенной стрелки нет - там кнопку показываем.
+      isMobileYandex: /YaBrowser/i.test(ua) && /Mobile/i.test(ua),
     }
   },
 
   mounted() {
+    if (this.isMobileYandex) return
     this._scrollHandler = this.handleScroll.bind(this)
     window.addEventListener('scroll', this._scrollHandler, { passive: true })
   },
 
   beforeUnmount() {
-    window.removeEventListener('scroll', this._scrollHandler)
+    if (this._scrollHandler) window.removeEventListener('scroll', this._scrollHandler)
   },
 
   methods: {

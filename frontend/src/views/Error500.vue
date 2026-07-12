@@ -254,6 +254,9 @@ export default {
      от НЕзумленной высоты и раздувает блок в zoom раз -> низ уезжает за экран, а
      overflow:hidden его срезает. --app-vh уже нормирован на текущий zoom. */
   min-height: calc(var(--app-vh, 1vh) * 100);
+  /* B.3 (#1097): svh стабилизирует высоту на мобилке (адрес-бар браузера), min() держит
+     zoom-корректность на десктопе; при отсутствии svh каскад откатится на calc выше. */
+  min-height: min(calc(var(--app-vh, 1vh) * 100), 100svh);
   background:
     radial-gradient(1200px 700px at 15% 0%, #eef0ff 0%, transparent 55%),
     radial-gradient(900px 600px at 100% 100%, #ffe4e6 0%, transparent 50%),

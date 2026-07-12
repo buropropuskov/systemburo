@@ -439,6 +439,9 @@ export default {
     /* var(--app-vh) = зумленная высота вьюпорта (viewportScale.js); чистый vh
        под корневым zoom считается от незумленной высоты и завышает карточку. */
     min-height: calc(var(--app-vh, 1vh) * 84);
+    /* B.3 (#1097): svh стабилизирует высоту на мобилке (ретракт адрес-бара браузера не
+       дёргает layout); min() держит zoom-корректность на десктопе; фолбэк на calc выше. */
+    min-height: min(calc(var(--app-vh, 1vh) * 84), 84svh);
 }
 
 .news-header {
