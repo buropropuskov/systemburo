@@ -607,6 +607,11 @@ import eventStream from '@/services/eventStream'
 import NavIcon from '@/components/icons/NavIcon.vue'
 import FeedbackModal from '@/components/FeedbackModal.vue'
 
+// Длительность анимации ухода drawer'а (transform 0.28s) - ждём её перед показом
+// модалки обратной связи, иначе уезжающая панель (z-index 10000) секунду рисуется
+// поверх появляющегося overlay модалки (9999) и подрезает форму.
+const DRAWER_CLOSE_MS = 300
+
 export default {
   name: 'NavMenu',
   components: { NavIcon, FeedbackModal },
@@ -836,6 +841,18 @@ export default {
 
     // Слушаем событие от burger-кнопки в TheHeader
     this.$bus.on('mobile-nav-toggle', this.toggleMobile);
+    // Переход на десктоп (>=769) закрывает мобильный drawer: иначе он завис бы
+    // панелью на широком экране, а drawer-кнопка feedback (тот же testid, что в
+    // шапке) осталась бы в DOM рядом с вернувшейся шапочной - тур нашёл бы дубль.
+    if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+      this._desktopMql = window.matchMedia('(min-width: 769px)');
+      this._onDesktopChange = (e) => { if (e.matches) this.closeMobile(); };
+      if (this._desktopMql.addEventListener) {
+        this._desktopMql.addEventListener('change', this._onDesktopChange);
+      } else if (this._desktopMql.addListener) {
+        this._desktopMql.addListener(this._onDesktopChange);
+      }
+    }
     // Esc закрывает верхний слой: сначала колонку Админки, затем мобильный drawer.
     this._escHandler = (e) => {
       if (e.key !== 'Escape') return;
@@ -865,6 +882,13 @@ export default {
     }
 
     this.$bus.off('mobile-nav-toggle', this.toggleMobile);
+    if (this._desktopMql && this._onDesktopChange) {
+      if (this._desktopMql.removeEventListener) {
+        this._desktopMql.removeEventListener('change', this._onDesktopChange);
+      } else if (this._desktopMql.removeListener) {
+        this._desktopMql.removeListener(this._onDesktopChange);
+      }
+    }
     if (this._escHandler) {
       window.removeEventListener('keydown', this._escHandler);
     }
@@ -959,11 +983,13 @@ export default {
       document.body.classList.remove('nav-drawer-open');
     },
     /**
-     * Открыть форму обратной связи из drawer'а. Сначала закрываем drawer:
-     * его z-index (10000) выше overlay модалки (9999), иначе форма ушла бы под него.
+     * Открыть форму обратной связи из drawer'а. Закрываем drawer и ЖДЁМ конца его
+     * анимации ухода перед показом модалки: drawer (z-index 10000) выше overlay
+     * модалки (9999), открытая сразу форма ~0.3с перекрывалась бы уезжающей панелью.
      */
-    openFeedbackFromDrawer() {
+    async openFeedbackFromDrawer() {
       this.closeMobile();
+      await new Promise((resolve) => setTimeout(resolve, DRAWER_CLOSE_MS));
       this.showFeedbackModal = true;
     },
     onFeedbackSubmitted() {
