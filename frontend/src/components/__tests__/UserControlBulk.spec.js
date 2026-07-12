@@ -21,6 +21,8 @@ const bulkApi = vi.hoisted(() => ({
   bulkUpdateUsersType: vi.fn(),
   bulkAssignUsersOrganization: vi.fn(),
   bulkAssignUsersCompany: vi.fn(),
+  bulkBanUsers: vi.fn(),
+  bulkUnbanUsers: vi.fn(),
 }))
 vi.mock('@/api/users', () => bulkApi)
 
@@ -236,6 +238,72 @@ describe('UserControl — групповой выбор и bulk архив/во�
     expect(notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }))
     expect(wrapper.vm.selectedUsernames).toEqual(['alpha'])
     expect(wrapper.vm.bulkModalVisible).toBe(true)
+  })
+
+  it('кнопка Заблокировать открывает ban-модалку; applyBulkBan шлёт usernames+reason', async () => {
+    bulkApi.bulkBanUsers.mockResolvedValue({ success_count: 2, error_count: 0, errors: [] })
+    wrapper = mountUserControl()
+    await flushPromises()
+    vi.spyOn(wrapper.vm, 'fetchAllUsers').mockImplementation(() => {})
+
+    await rowChecks(wrapper)[0].trigger('click')
+    await rowChecks(wrapper)[1].trigger('click')
+    await wrapper.find('[data-testid="users-bulk-ban"]').trigger('click')
+    expect(wrapper.vm.banModalVisible).toBe(true)
+
+    wrapper.vm.banReason = 'нарушение'
+    await wrapper.vm.applyBulkBan()
+    await flushPromises()
+    expect(bulkApi.bulkBanUsers).toHaveBeenCalledWith(['alpha', 'beta'], 'нарушение')
+    expect(wrapper.vm.selectedUsernames).toEqual([])
+    expect(wrapper.vm.banModalVisible).toBe(false)
+  })
+
+  it('частичный бан (супер-админ/самобан в errors) -> ui.warning, выбор сброшен', async () => {
+    bulkApi.bulkBanUsers.mockResolvedValue({ success_count: 1, error_count: 1, errors: [{ id: 0, name: 'beta', error: 'Нельзя заблокировать самого себя' }] })
+    wrapper = mountUserControl()
+    await flushPromises()
+    vi.spyOn(wrapper.vm, 'fetchAllUsers').mockImplementation(() => {})
+    const warn = vi.spyOn(useUiStore(), 'warning')
+
+    await rowChecks(wrapper)[0].trigger('click')
+    await rowChecks(wrapper)[1].trigger('click')
+    wrapper.vm.openBulkBan()
+    await wrapper.vm.applyBulkBan()
+    await flushPromises()
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('beta'))
+    expect(wrapper.vm.selectedUsernames).toEqual([])
+  })
+
+  it('Разблокировать: подтверждение -> bulkUnbanUsers(usernames), успех сбрасывает выбор', async () => {
+    bulkApi.bulkUnbanUsers.mockResolvedValue({ success_count: 1, error_count: 0, errors: [] })
+    wrapper = mountUserControl()
+    await flushPromises()
+    vi.spyOn(wrapper.vm, 'fetchAllUsers').mockImplementation(() => {})
+
+    await rowChecks(wrapper)[0].trigger('click')
+    await wrapper.find('[data-testid="users-bulk-unban"]').trigger('click')
+    expect(wrapper.vm.unbanConfirmVisible).toBe(true)
+    await wrapper.vm.applyBulkUnban()
+    await flushPromises()
+    expect(bulkApi.bulkUnbanUsers).toHaveBeenCalledWith(['alpha'])
+    expect(wrapper.vm.selectedUsernames).toEqual([])
+    expect(wrapper.vm.unbanConfirmVisible).toBe(false)
+  })
+
+  it('ban ошибка-envelope ({message}) -> error-notify, выбор НЕ сброшен, модалка держится', async () => {
+    bulkApi.bulkBanUsers.mockResolvedValue({ message: 'Не выбраны пользователи' })
+    wrapper = mountUserControl()
+    await flushPromises()
+    const notify = vi.spyOn(useDeletionsStore(), 'notify')
+
+    await rowChecks(wrapper)[0].trigger('click')
+    wrapper.vm.openBulkBan()
+    await wrapper.vm.applyBulkBan()
+    await flushPromises()
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }))
+    expect(wrapper.vm.selectedUsernames).toEqual(['alpha'])
+    expect(wrapper.vm.banModalVisible).toBe(true)
   })
 
   it('в архивном режиме кнопка Восстановить зовёт restore-API', async () => {

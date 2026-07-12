@@ -684,6 +684,8 @@ func Setup(e *echo.Echo, d Dependencies) {
 	banUser := mw.RequirePermissionV2(permResolver, denialLog, services.KeyActionBanUser)
 	protected.POST("/users/:id/ban", userBan.Ban, banUser)
 	protected.POST("/users/:id/unban", userBan.Unban, banUser)
+	protected.POST("/users/bulk/ban", userBan.BulkBan, banUser)
+	protected.POST("/users/bulk/unban", userBan.BulkUnban, banUser)
 
 	// Согласие на обработку ПД (152-ФЗ)
 	consents := protected.Group("/consents")

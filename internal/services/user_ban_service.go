@@ -115,6 +115,56 @@ func (s *UserBanService) Ban(ctx context.Context, targetUserID, actorUserID int,
 	return err
 }
 
+// targetUserID резолвит username -> id (0 если не найден). Bulk-операции ключуются
+// по username наружу, а сам бан - по user ID (зеркало userService.targetUserID).
+func (s *UserBanService) targetUserID(ctx context.Context, username string) int {
+	var id int
+	s.db.WithContext(ctx).Table("users").Select("id").Where("username = ?", username).Scan(&id)
+	return id
+}
+
+// BulkBan блокирует набор пользователей через Ban. Самобан, супер-админ и
+// несуществующие честно попадают в Errors (частичный успех, 207) - операция не
+// падает целиком. reason единый на всю пачку.
+func (s *UserBanService) BulkBan(ctx context.Context, actorUserID int, usernames []string, reason string) (*BulkOpResult, error) {
+	res := newBulkResult()
+	for _, u := range uniqueStrings(usernames) {
+		id := s.targetUserID(ctx, u)
+		if id == 0 {
+			res.addError(0, u, "Пользователь не найден")
+			continue
+		}
+		if id == actorUserID {
+			res.addError(id, u, "Нельзя заблокировать самого себя")
+			continue
+		}
+		if err := s.Ban(ctx, id, actorUserID, reason); err != nil {
+			res.addError(id, u, bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
+}
+
+// BulkUnban разблокирует набор пользователей через Unban.
+func (s *UserBanService) BulkUnban(ctx context.Context, actorUserID int, usernames []string) (*BulkOpResult, error) {
+	res := newBulkResult()
+	for _, u := range uniqueStrings(usernames) {
+		id := s.targetUserID(ctx, u)
+		if id == 0 {
+			res.addError(0, u, "Пользователь не найден")
+			continue
+		}
+		if err := s.Unban(ctx, id, actorUserID); err != nil {
+			res.addError(id, u, bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
+}
+
 // Unban разблокирует пользователя. Refresh-токены остаются revoked --
 // юзеру нужно перелогиниться (это нормально, т.к. в момент бана сессия
 // прервалась).

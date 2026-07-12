@@ -132,3 +132,13 @@ export async function bulkAssignUsersCompany(usernames, companyId) {
   const res = await apiRequest('/users/bulk/company', { method: 'POST', body: JSON.stringify({ usernames, company_id: companyId }) });
   return res.json();
 }
+
+export async function bulkBanUsers(usernames, reason) {
+  const res = await apiRequest('/users/bulk/ban', { method: 'POST', body: JSON.stringify({ usernames, reason: reason || '' }) });
+  return res.json();
+}
+
+export async function bulkUnbanUsers(usernames) {
+  const res = await apiRequest('/users/bulk/unban', { method: 'POST', body: JSON.stringify({ usernames }) });
+  return res.json();
+}
