@@ -99,6 +99,15 @@ describe('OrgHistoryModal — действия и тип в истории', () 
     expect(text).toContain('Согласование изменено: Сидоров С. (согласование: нет → да)');
   });
 
+  it('responsibles_changed: смена главного ответственного (primary_changed)', async () => {
+    const wrapper = await mountWith([entry({
+      action_type: 'responsibles_changed',
+      details: { primary_changed: { from: { username: 'ivan', name: 'Иванов И.' }, to: { username: 'petr', name: 'Петров П.' } } },
+    })])
+    expect(actionText(wrapper)).toBe('Ответственные изменены')
+    expect(commentText(wrapper)).toContain('Главный ответственный: Иванов И. → Петров П.')
+  })
+
   it('unload_places_changed / tables_changed: added/removed по именам', async () => {
     const wPlaces = await mountWith([entry({ action_type: 'unload_places_changed', details: { added: ['Склад 1'], removed: ['Склад 2'] } })]);
     expect(actionText(wPlaces)).toBe('Места разгрузки изменены');

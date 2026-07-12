@@ -484,6 +484,11 @@ export default {
         const list = d.approval_changed.map((u) => `${nameOf(u)} (согласование: ${yn(u.from)} → ${yn(u.to)})`);
         parts.push(`Согласование изменено: ${list.join(', ')}`);
       }
+      if (d.primary_changed && typeof d.primary_changed === 'object') {
+        const from = d.primary_changed.from ? nameOf(d.primary_changed.from) : 'не был назначен';
+        const to = d.primary_changed.to ? nameOf(d.primary_changed.to) : 'снят';
+        parts.push(`Главный ответственный: ${from} → ${to}`);
+      }
       return parts.join(' · ');
     },
 

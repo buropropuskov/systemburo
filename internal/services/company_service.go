@@ -560,6 +560,7 @@ func (s *companyService) UpdateUsers(ctx context.Context, callerUserID, companyI
 			Username:         user.Username,
 			Name:             fullName(user.LastName, user.FirstName, user.Username),
 			RequiredApproval: requiredApproval,
+			IsPrimary:        isPrimary,
 		})
 	}
 
@@ -580,7 +581,7 @@ func (s *companyService) attachedUserStates(ctx context.Context, companyID int) 
 	var rows []auditUserState
 	if err := s.db.WithContext(ctx).
 		Table("companies_users cu").
-		Select("u.username AS username, "+auditUserNameSQL+" AS name, cu.required_approval AS required_approval").
+		Select("u.username AS username, "+auditUserNameSQL+" AS name, cu.required_approval AS required_approval, cu.is_primary AS is_primary").
 		Joins("JOIN users u ON u.id = cu.user_id").
 		Where("cu.company_id = ?", companyID).Scan(&rows).Error; err != nil {
 		slog.Warn("audit: не удалось прочитать текущих ответственных компании", "company_id", companyID, "error", err)

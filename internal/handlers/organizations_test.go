@@ -871,6 +871,31 @@ func TestOrganizations_BulkAudit(t *testing.T) {
 			fmt.Sprintf(`{"ids":[%d],"users":[{"username":"auditresp1","required_approval":true}],"mode":"replace"}`, org), h).Code)
 		assert.Len(t, history(org), before, "неизменяющее назначение ответственных не пишет историю")
 	})
+
+	t.Run("смена главного ответственного пишет primary_changed", func(t *testing.T) {
+		org := createOrg("Аудит Главный")
+		testutil.RegisterUser(t, e, "auditprim1", "pass123", 1, td.OrgID, td.CompanyID)
+		testutil.RegisterUser(t, e, "auditprim2", "pass123", 1, td.OrgID, td.CompanyID)
+
+		// Назначили оба, главный - prim1.
+		require.Equal(t, http.StatusOK, testutil.PUT(t, e, fmt.Sprintf("/organizations/%d/users", org),
+			`{"users":[{"username":"auditprim1","is_primary":true},{"username":"auditprim2"}]}`, h).Code)
+		// Сменили главного на prim2 (набор и согласование те же).
+		require.Equal(t, http.StatusOK, testutil.PUT(t, e, fmt.Sprintf("/organizations/%d/users", org),
+			`{"users":[{"username":"auditprim1"},{"username":"auditprim2","is_primary":true}]}`, h).Code)
+
+		rec := findAction(history(org), "responsibles_changed")
+		require.NotNil(t, rec, "смена главного пишет историю")
+		pc, _ := detailsOf(rec)["primary_changed"].(map[string]interface{})
+		require.NotNil(t, pc, "смена главного пишет primary_changed")
+		from, _ := pc["from"].(map[string]interface{})
+		to, _ := pc["to"].(map[string]interface{})
+		assert.Equal(t, "auditprim1", from["username"])
+		assert.Equal(t, "auditprim2", to["username"])
+		// Набор не менялся - added/removed отсутствуют.
+		_, hasAdded := detailsOf(rec)["added"]
+		assert.False(t, hasAdded, "при одной лишь смене главного added отсутствует")
+	})
 }
 
 func TestOrganizations_WithUsers_MultipleUsers(t *testing.T) {
