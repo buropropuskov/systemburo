@@ -64,6 +64,20 @@
           >
             Компания
           </button>
+          <button
+            class="pill pill-danger"
+            data-testid="users-bulk-ban"
+            @click="openBulkBan"
+          >
+            Заблокировать
+          </button>
+          <button
+            class="pill pill-ghost"
+            data-testid="users-bulk-unban"
+            @click="openBulkUnban"
+          >
+            Разблокировать
+          </button>
         </template>
         <button
           v-if="!showArchive"
@@ -813,6 +827,61 @@
       @close="cancelBulkModal"
     />
 
+    <BaseModal
+      :show="banModalVisible"
+      title="Заблокировать пользователей"
+      width="520px"
+      @close="cancelBulkBan"
+    >
+      <div
+        class="bulk-ban-body"
+        data-testid="users-bulk-ban-modal"
+      >
+        <p class="bulk-ban-warn">
+          Заблокировать <b>{{ selectedUsernames.length }}</b> выбранных пользователей?
+          Их активные сессии будут завершены, вход станет недоступен до разблокировки.
+          Супер-администраторов и себя заблокировать нельзя - они попадут в список непрошедших.
+        </p>
+        <label class="bulk-ban-label">Причина (необязательно, покажется заблокированному)</label>
+        <textarea
+          v-model="banReason"
+          class="lk-textarea"
+          rows="3"
+          maxlength="500"
+          data-testid="users-bulk-ban-reason"
+          placeholder="Например: нарушение регламента"
+        />
+      </div>
+      <template #actions>
+        <button
+          class="pill pill-ghost"
+          data-testid="users-bulk-ban-cancel"
+          @click="cancelBulkBan"
+        >
+          Отмена
+        </button>
+        <button
+          class="pill pill-danger"
+          :disabled="bulkSubmitting"
+          data-testid="users-bulk-ban-apply"
+          @click="applyBulkBan"
+        >
+          {{ bulkSubmitting ? 'Блокировка...' : `Заблокировать (${selectedUsernames.length})` }}
+        </button>
+      </template>
+    </BaseModal>
+
+    <ConfirmationModal
+      :show="unbanConfirmVisible"
+      title="Разблокировать пользователей"
+      :message="`Разблокировать выбранных пользователей (${selectedUsernames.length})? Им нужно будет заново войти.`"
+      confirm-text="Разблокировать"
+      cancel-text="Отмена"
+      :confirm-button-style="{ background: '#10b981', borderColor: '#10b981' }"
+      @confirm="applyBulkUnban"
+      @cancel="unbanConfirmVisible = false"
+    />
+
     <ConfirmationModal
       :show="!!deleteConfirmUser"
       title="Удаление пользователя"
@@ -851,7 +920,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
-import { bulkArchiveUsers, bulkRestoreUsers, bulkUpdateUsersType, bulkAssignUsersOrganization, bulkAssignUsersCompany } from '@/api/users';
+import { bulkArchiveUsers, bulkRestoreUsers, bulkUpdateUsersType, bulkAssignUsersOrganization, bulkAssignUsersCompany, bulkBanUsers, bulkUnbanUsers } from '@/api/users';
 import { ref } from 'vue';
 import { mapState, mapActions } from 'pinia';
 import { useOrganizationsStore } from '@/stores/organizations';
@@ -926,6 +995,9 @@ export default {
       pendingBulkOp: null,
       bulkConfirmVisible: false,
       bulkModalVisible: false,
+      banModalVisible: false,
+      banReason: '',
+      unbanConfirmVisible: false,
       bulkSubmitting: false,
       showArchive: false,
       archiveOptions: [
@@ -1285,6 +1357,56 @@ export default {
         this.pendingBulkOp = null;
       }
     },
+    // --- Групповой бан/разбан (чувствительно: сессии рвутся, супер-админ и себя нельзя) ---
+    openBulkBan() {
+      this.banReason = '';
+      this.banModalVisible = true;
+    },
+    cancelBulkBan() {
+      if (this.bulkSubmitting) return;
+      this.banModalVisible = false;
+    },
+    async applyBulkBan() {
+      const names = [...this.selectedUsernames];
+      if (this.bulkSubmitting || !names.length) return;
+      this.bulkSubmitting = true;
+      let result;
+      try {
+        result = await bulkBanUsers(names, this.banReason);
+      } catch {
+        useDeletionsStore().notify({ prefix: 'Не удалось выполнить блокировку', type: 'error' });
+        this.bulkSubmitting = false;
+        return;
+      }
+      this.bulkSubmitting = false;
+      if (this.handleBulkResult('ban', result, names.length)) {
+        this.banModalVisible = false;
+        this.banReason = '';
+      }
+    },
+    openBulkUnban() {
+      this.unbanConfirmVisible = true;
+    },
+    async applyBulkUnban() {
+      const names = [...this.selectedUsernames];
+      if (this.bulkSubmitting || !names.length) {
+        this.unbanConfirmVisible = false;
+        return;
+      }
+      this.bulkSubmitting = true;
+      let result;
+      try {
+        result = await bulkUnbanUsers(names);
+      } catch {
+        useDeletionsStore().notify({ prefix: 'Не удалось выполнить разблокировку', type: 'error' });
+        this.bulkSubmitting = false;
+        return;
+      }
+      this.bulkSubmitting = false;
+      if (this.handleBulkResult('unban', result, names.length)) {
+        this.unbanConfirmVisible = false;
+      }
+    },
     // Разбор BulkOpResult: полный успех -> notify, частичный -> ui.warning с
     // перечнем непрошедших. false при ошибке-envelope (держим модалку для повтора).
     handleBulkResult(op, result, total) {
@@ -1298,6 +1420,8 @@ export default {
         type: 'Тип изменён',
         organization: 'Организация назначена',
         company: 'Компания назначена',
+        ban: 'Заблокировано',
+        unban: 'Разблокировано',
       }[op] || 'Обновлено';
       if (result.error_count > 0) {
         const failed = (result.errors || []).map(e => e.name || `#${e.id}`).join(', ');
@@ -1805,6 +1929,28 @@ export default {
   cursor: pointer;
   accent-color: #4F5BDF;
   margin: 0;
+}
+.bulk-ban-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.bulk-ban-warn {
+  margin: 0;
+  font-size: 14px;
+  color: #5a6472;
+  line-height: 1.5;
+}
+.bulk-ban-warn b {
+  color: #dc3545;
+}
+.bulk-ban-label {
+  font-size: 0.78em;
+  color: #5a6472;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 .pill {
   display: inline-flex;
