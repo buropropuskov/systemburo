@@ -14,8 +14,11 @@ import { onboardingSteps } from '../onboardingSteps';
  * Механизм раскрытия переехавших целей (#1097 S11). Ключевой инвариант (RED-фикс):
  * drawer навигации и overflow-меню шапки ВЗАИМОИСКЛЮЧАЮЩИ - их узлы физически
  * перекрывают друг друга, открыть оба = спотлайт целит в один, показывает другой.
- * Проверяем на реальной последовательности security-тура sec-header-notifications
- * (overflow) -> sec-nav-rail (nav), где шаги идут ВПЛОТНУЮ без буфера.
+ * Overflow-шаги тура - `*-header-feedback`/`*-header-time` (feedback + время всё
+ * ещё в "⋯"). Колокольчик `*-header-notifications` с #1097 W3.2 вынесен в саму
+ * шапку и reveal НЕ несёт - на его шаге обе панели ЗАКРЫТЫ (иначе рядом с
+ * подсветкой колокольчика открылось бы никак не связанное меню "⋯"). Nav-цели -
+ * в drawer.
  *
  * DOM/$bus мокаем поведением NavMenu (burger -> класс drawer) и TheHeader
  * (клик "⋯" -> класс overflow), чтобы applyMobileReveal реально управлял классами.
@@ -54,15 +57,25 @@ describe('mobileReveal', () => {
   const idxOf = (steps, id) => steps.findIndex((s) => s.id === id);
 
   describe('resolveMobileReveal (чистая логика)', () => {
-    it('cur.mobileReveal имеет приоритет: колокольчик -> overflow, рельс -> nav', () => {
-      const iN = idxOf(securityOnboardingSteps, 'sec-header-notifications');
+    it('cur.mobileReveal имеет приоритет: время -> overflow, рельс -> nav', () => {
+      const iT = idxOf(securityOnboardingSteps, 'sec-header-time');
       const iR = idxOf(securityOnboardingSteps, 'sec-nav-rail');
-      expect(resolveMobileReveal(securityOnboardingSteps, iN)).toBe('header-overflow');
+      expect(resolveMobileReveal(securityOnboardingSteps, iT)).toBe('header-overflow');
       expect(resolveMobileReveal(securityOnboardingSteps, iR)).toBe('nav');
     });
 
+    it('шаг колокольчика reveal НЕ несёт -> null (вынесен в шапку, #1097 W3.2)', () => {
+      // Между overflow-шагом (время) и разными соседями: не наследует чужой reveal.
+      const iApp = idxOf(onboardingSteps, 'header-notifications');
+      const iSec = idxOf(securityOnboardingSteps, 'sec-header-notifications');
+      expect(onboardingSteps[iApp].mobileReveal).toBeUndefined();
+      expect(securityOnboardingSteps[iSec].mobileReveal).toBeUndefined();
+      expect(resolveMobileReveal(onboardingSteps, iApp)).toBe(null);
+      expect(resolveMobileReveal(securityOnboardingSteps, iSec)).toBe(null);
+    });
+
     it('шаг без reveal между РАЗНЫМИ типами -> null (applicant header-submit)', () => {
-      // header-submit стоит между header-notifications(overflow) и nav-rail(nav):
+      // header-submit стоит между header-notifications(без reveal) и nav-rail(nav):
       // соседи разного типа -> обе панели закрыты, не наследует чужой reveal.
       const i = idxOf(onboardingSteps, 'header-submit');
       expect(onboardingSteps[i].mobileReveal).toBeUndefined();
@@ -76,17 +89,27 @@ describe('mobileReveal', () => {
   });
 
   describe('applyMobileReveal - эксклюзивность на мобилке (<=768)', () => {
-    it('sec-header-notifications: открыт ТОЛЬКО overflow, drawer ЗАКРЫТ', async () => {
+    it('sec-header-time (overflow): открыт ТОЛЬКО overflow, drawer ЗАКРЫТ', async () => {
       setViewport(390);
-      const i = idxOf(securityOnboardingSteps, 'sec-header-notifications');
+      const i = idxOf(securityOnboardingSteps, 'sec-header-time');
       await applyMobileReveal(securityOnboardingSteps, i);
       expect(isHeaderOverflowOpen()).toBe(true);
       expect(isNavDrawerOpen()).toBe(false);
     });
 
+    it('sec-header-notifications: обе панели ЗАКРЫТЫ - шаг колокольчика гасит "⋯" (RED-1)', async () => {
+      setViewport(390);
+      // предусловие: overflow открыт (как после предыдущего шага-времени)
+      document.querySelector('.header__overflow').classList.add('header__overflow--open');
+      const i = idxOf(securityOnboardingSteps, 'sec-header-notifications');
+      await applyMobileReveal(securityOnboardingSteps, i);
+      expect(isHeaderOverflowOpen()).toBe(false);
+      expect(isNavDrawerOpen()).toBe(false);
+    });
+
     it('sec-nav-rail: открыт ТОЛЬКО drawer, overflow ЗАКРЫТ', async () => {
       setViewport(390);
-      // предусловие: overflow открыт (как после предыдущего шага-колокольчика)
+      // предусловие: overflow открыт (как после overflow-шага)
       document.querySelector('.header__overflow').classList.add('header__overflow--open');
       const i = idxOf(securityOnboardingSteps, 'sec-nav-rail');
       vi.useFakeTimers();
@@ -97,13 +120,13 @@ describe('mobileReveal', () => {
       expect(isHeaderOverflowOpen()).toBe(false);
     });
 
-    it('последовательность notif -> nav-rail: панели переключаются эксклюзивно (главный RED)', async () => {
+    it('переход overflow -> nav: панели переключаются эксклюзивно (главный RED)', async () => {
       setViewport(390);
-      const iN = idxOf(securityOnboardingSteps, 'sec-header-notifications');
+      const iT = idxOf(securityOnboardingSteps, 'sec-header-time');
       const iR = idxOf(securityOnboardingSteps, 'sec-nav-rail');
 
-      // Шаг колокольчика: overflow открыт, drawer+backdrop закрыты (иначе перекрыл бы цель).
-      await applyMobileReveal(securityOnboardingSteps, iN);
+      // Overflow-шаг: overflow открыт, drawer+backdrop закрыты (иначе перекрыл бы цель).
+      await applyMobileReveal(securityOnboardingSteps, iT);
       expect(isHeaderOverflowOpen()).toBe(true);
       expect(isNavDrawerOpen()).toBe(false);
 
@@ -118,7 +141,7 @@ describe('mobileReveal', () => {
 
     it('на 768 (граница CSS max-width:768px) reveal активен', async () => {
       setViewport(768);
-      const i = idxOf(securityOnboardingSteps, 'sec-header-notifications');
+      const i = idxOf(securityOnboardingSteps, 'sec-header-time');
       await applyMobileReveal(securityOnboardingSteps, i);
       expect(isHeaderOverflowOpen()).toBe(true);
     });

@@ -92,11 +92,12 @@ describe('mobileReveal (#1097 S11 - переехавшие на <768 цели)',
     expect(byId('nav-group-data').mobileReveal).toBe('nav');
   });
 
-  it('вторичные иконки шапки (feedback/time/notifications) просят overflow-меню', () => {
+  it('вторичные иконки шапки (feedback/time) просят overflow-меню; колокольчик - в самой шапке', () => {
     const byId = (id) => onboardingSteps.find((s) => s.id === id);
     expect(byId('header-feedback').mobileReveal).toBe('header-overflow');
     expect(byId('header-time').mobileReveal).toBe('header-overflow');
-    expect(byId('header-notifications').mobileReveal).toBe('header-overflow');
+    // #1097 W3.2: колокольчик вынесен из "⋯" в саму шапку - reveal не нужен.
+    expect(byId('header-notifications').mobileReveal).toBeUndefined();
   });
 
   it('header-submit остаётся видимой иконкой на мобилке - без mobileReveal', () => {

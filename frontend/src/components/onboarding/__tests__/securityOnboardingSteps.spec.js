@@ -102,10 +102,12 @@ describe('mobileReveal (#1097 S11 - переехавшие на <768 цели)',
     }
   });
 
-  it('sec-header-* просят overflow-меню шапки', () => {
-    for (const s of securityOnboardingSteps.filter((x) => x.id.startsWith('sec-header-'))) {
-      expect(s.mobileReveal).toBe('header-overflow');
-    }
+  it('sec-header-feedback/time просят overflow-меню; колокольчик - в самой шапке (без reveal)', () => {
+    const byId = (id) => securityOnboardingSteps.find((s) => s.id === id);
+    expect(byId('sec-header-feedback').mobileReveal).toBe('header-overflow');
+    expect(byId('sec-header-time').mobileReveal).toBe('header-overflow');
+    // #1097 W3.2: колокольчик вынесен из "⋯" в саму шапку - reveal не нужен.
+    expect(byId('sec-header-notifications').mobileReveal).toBeUndefined();
   });
 
   it('sec-nav-* просят раскрытие drawer (nav)', () => {

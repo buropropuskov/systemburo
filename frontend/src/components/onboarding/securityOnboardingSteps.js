@@ -49,7 +49,6 @@ export const securityOnboardingSteps = [
     element: '[data-testid="ob-header-notifications"]',
     title: 'Уведомления',
     description: 'Колокольчик показывает количество непрочитанных уведомлений системы. Нажмите, чтобы открыть список.',
-    mobileReveal: 'header-overflow',
   },
   {
     id: 'sec-nav-rail',
