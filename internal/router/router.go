@@ -268,6 +268,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	marksGroup.PUT("/:id", marks.Update)
 	marksGroup.POST("/:id/archive", marks.Archive)
 	marksGroup.POST("/:id/restore", marks.Restore)
+	// Групповые операции (статический bulk приоритетнее param :id в Echo).
+	marksGroup.POST("/bulk/archive", marks.BulkArchive)
+	marksGroup.POST("/bulk/restore", marks.BulkRestore)
 	marksGroup.GET("/:id/history", marks.GetHistory)
 
 	// Чёрный список машин (#443). POST/DELETE/restore защищены page.admin.blacklist.

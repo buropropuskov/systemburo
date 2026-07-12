@@ -41,3 +41,14 @@ export async function getMarkHistory(id) {
   const res = await apiRequest(`/marks/${id}/history`);
   return res.json();
 }
+
+/** Групповые операции над марками (id-keyed). Возвращают BulkOpResult. */
+export async function bulkArchiveMarks(ids) {
+  const res = await apiRequest('/marks/bulk/archive', { method: 'POST', body: JSON.stringify({ ids }) });
+  return res.json();
+}
+
+export async function bulkRestoreMarks(ids) {
+  const res = await apiRequest('/marks/bulk/restore', { method: 'POST', body: JSON.stringify({ ids }) });
+  return res.json();
+}

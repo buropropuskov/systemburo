@@ -144,3 +144,57 @@ func (h *MarkHandler) GetHistory(c echo.Context) error {
 	}
 	return RespondSuccess(c, history)
 }
+
+// BulkArchive godoc
+// @Summary      Групповая архивация марок
+// @Tags         marks
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body services.BulkIDsRequest true "Список ID марок"
+// @Success      200 {object} services.BulkOpResult
+// @Success      207 {object} services.BulkOpResult "Частичный успех"
+// @Failure      400 {object} models.HTTPError
+// @Router       /marks/bulk/archive [post]
+func (h *MarkHandler) BulkArchive(c echo.Context) error {
+	var req services.BulkIDsRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if len(req.IDs) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны марки")
+	}
+	userID, _ := c.Get("user_id").(int)
+	res, err := h.service.BulkArchive(c.Request().Context(), req.IDs, userID)
+	if err != nil {
+		return err
+	}
+	return respondBulk(c, res)
+}
+
+// BulkRestore godoc
+// @Summary      Групповое восстановление марок
+// @Tags         marks
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body services.BulkIDsRequest true "Список ID марок"
+// @Success      200 {object} services.BulkOpResult
+// @Success      207 {object} services.BulkOpResult "Частичный успех"
+// @Failure      400 {object} models.HTTPError
+// @Router       /marks/bulk/restore [post]
+func (h *MarkHandler) BulkRestore(c echo.Context) error {
+	var req services.BulkIDsRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if len(req.IDs) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны марки")
+	}
+	userID, _ := c.Get("user_id").(int)
+	res, err := h.service.BulkRestore(c.Request().Context(), req.IDs, userID)
+	if err != nil {
+		return err
+	}
+	return respondBulk(c, res)
+}
