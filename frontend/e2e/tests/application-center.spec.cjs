@@ -56,6 +56,7 @@ test.describe('Applications Center', () => {
 
     const centerPage = new ApplicationCenterPage(page);
     await centerPage.goto();
+    await centerPage.openFilters();
 
     const statusButtons = page.locator('[data-testid^="center-button-status-"]');
     const count = await statusButtons.count();
@@ -92,6 +93,7 @@ test.describe('Applications Center', () => {
 
     const centerPage = new ApplicationCenterPage(page);
     await centerPage.goto();
+    await centerPage.openFilters();
 
     const statusBtn = page.locator('[data-testid^="center-button-status-"]').first();
     if (await statusBtn.isVisible()) {
