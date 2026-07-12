@@ -92,6 +92,21 @@ func TestUsers_BulkOperations(t *testing.T) {
 	})
 
 	t.Run("archive-restore", func(t *testing.T) {
+		// Супер-админ в наборе -> в errors (одиночный Delete его бережёт 403), не валит операцию.
+		testutil.RegisterUser(t, e, "bulksuper", "password123", 1, td.OrgID, td.CompanyID)
+		require.NoError(t, db.Table("users").Where("username = ?", "bulksuper").Update("is_super_admin", true).Error)
+		srec := testutil.POST(t, e, "/users/bulk/archive", `{"usernames":["bulku1","bulksuper"]}`, h)
+		require.Equal(t, http.StatusMultiStatus, srec.Code)
+		sres := testutil.ParseMap(t, srec)
+		assert.Equal(t, float64(1), sres["success_count"], "обычный юзер архивировался")
+		assert.Equal(t, float64(1), sres["error_count"], "супер-админ в errors")
+		serrs := sres["errors"].([]interface{})
+		require.Len(t, serrs, 1)
+		serr := serrs[0].(map[string]interface{})
+		assert.Equal(t, "bulksuper", serr["name"])
+		assert.Contains(t, serr["error"].(string), "супер-администратор")
+		require.Equal(t, http.StatusOK, testutil.POST(t, e, "/users/bulk/restore", `{"usernames":["bulku1"]}`, h).Code) // вернуть для следующих проверок
+
 		// Архив bulku1, bulku2 + несуществующий -> 207 (2 успех, 1 ошибка).
 		arec := testutil.POST(t, e, "/users/bulk/archive", `{"usernames":["bulku1","bulku2","nouser"]}`, h)
 		require.Equal(t, http.StatusMultiStatus, arec.Code)
