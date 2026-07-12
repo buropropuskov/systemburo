@@ -449,7 +449,7 @@
                   </div>
                   <template v-else>
                     <div class="grp-name">{{ grp.name }}</div>
-                    <div class="grp-cnt">{{ grp.doc_count ?? 0 }} документов</div>
+                    <div class="grp-cnt">{{ grp.count ?? 0 }} документов</div>
                   </template>
                 </div>
                 <div
@@ -940,7 +940,7 @@ export default {
       this.isCreatingGroup = true;
       try {
         const g = await createDocumentGroup({ name });
-        const newGroup = { ...g, doc_count: 0 };
+        const newGroup = { ...g, count: 0 };
         this.groups.push(newGroup);
         this.editableGroups.push({ ...newGroup, _editMode: false, _editName: name });
         this.newGroupName = '';
@@ -968,7 +968,7 @@ export default {
         await reorderDocumentGroups(ids);
         // Синхронизируем this.groups
         this.groups = [...this.editableGroups.map((g) => ({
-          id: g.id, name: g.name, doc_count: g.doc_count, sort_order: g.sort_order,
+          id: g.id, name: g.name, count: g.count, sort_order: g.sort_order,
         }))];
       } catch {
         // порядок групп не критичен для пользователя — ошибку не показываем
