@@ -38,6 +38,12 @@ type VehicleBlacklistService interface {
 	// Restore - повторное добавление архивной записи в список: is_active=true +
 	// повторная деактивация совпадающих активных cars.
 	Restore(ctx context.Context, id int, userID int) error
+	// BulkArchive снимает набор записей из чёрного списка через Archive (полный каскад
+	// реактивации cars для каждой). Несуществующие id -> в Errors (частичный успех
+	// 207), не валят операцию. Дубли id дедуплицируются.
+	BulkArchive(ctx context.Context, ids []int, userID int) (*BulkOpResult, error)
+	// BulkRestore возвращает набор записей в чёрный список через Restore.
+	BulkRestore(ctx context.Context, ids []int, userID int) (*BulkOpResult, error)
 	// Check - заблокирована ли машина (number+mark) активной записью.
 	Check(ctx context.Context, carNumber string, markID int) (models.VehicleBlacklistCheckResult, error)
 	// CheckByName - проверка по номеру и имени марки (для машин без mark_id, например
@@ -165,6 +171,44 @@ func (s *vehicleBlacklistService) Archive(ctx context.Context, id int, userID in
 		return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка снятия из чёрного списка")
 	}
 	return nil
+}
+
+// BulkArchive снимает набор записей чёрного списка машин через Archive (полный
+// каскад реактивации cars для каждой). Несуществующие id -> в Errors (частичный
+// успех 207), не валят операцию. Дубли id дедуплицируются.
+func (s *vehicleBlacklistService) BulkArchive(ctx context.Context, ids []int, userID int) (*BulkOpResult, error) {
+	res := newBulkResult()
+	for _, id := range uniqueInts(ids) {
+		e, err := s.GetByID(ctx, id)
+		if err != nil {
+			res.addError(id, "", "Запись чёрного списка не найдена")
+			continue
+		}
+		if err := s.Archive(ctx, id, userID); err != nil {
+			res.addError(id, vehicleBlacklistLabel(*e), bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
+}
+
+// BulkRestore возвращает набор записей в чёрный список машин через Restore.
+func (s *vehicleBlacklistService) BulkRestore(ctx context.Context, ids []int, userID int) (*BulkOpResult, error) {
+	res := newBulkResult()
+	for _, id := range uniqueInts(ids) {
+		e, err := s.GetByID(ctx, id)
+		if err != nil {
+			res.addError(id, "", "Запись чёрного списка не найдена")
+			continue
+		}
+		if err := s.Restore(ctx, id, userID); err != nil {
+			res.addError(id, vehicleBlacklistLabel(*e), bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
 }
 
 func (s *vehicleBlacklistService) Update(ctx context.Context, id int, req models.UpdateVehicleBlacklistRequest, userID int) (*models.VehicleBlacklist, error) {
@@ -525,6 +569,11 @@ func (s *vehicleBlacklistService) reactivateMatchingCars(ctx context.Context, tx
 		}
 	}
 	return len(ids), nil
+}
+
+// vehicleBlacklistLabel собирает "номер марка" для логов/сообщений bulk-ошибок.
+func vehicleBlacklistLabel(e models.VehicleBlacklist) string {
+	return strings.TrimSpace(e.CarNumber + " " + e.MarkName)
 }
 
 // isUniqueViolation распознаёт нарушение partial unique index (повторное добавление

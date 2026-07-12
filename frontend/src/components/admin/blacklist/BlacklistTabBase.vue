@@ -41,19 +41,83 @@
       </div>
     </div>
 
+    <div
+      v-if="bulkEnabled && selectedIds.length"
+      class="bl-bulk-bar"
+      :data-testid="`${testidPrefix}-bulk-bar`"
+    >
+      <span class="bl-bulk-count">Выбрано: {{ selectedIds.length }}</span>
+      <div class="bl-bulk-actions">
+        <button
+          v-if="!showArchive"
+          class="pill pill-danger"
+          :data-testid="`${testidPrefix}-bulk-archive`"
+          @click="startBulkOperation('archive')"
+        >
+          Убрать из ЧС
+        </button>
+        <button
+          v-else
+          class="pill pill-restore"
+          :data-testid="`${testidPrefix}-bulk-restore`"
+          @click="startBulkOperation('restore')"
+        >
+          Вернуть в ЧС
+        </button>
+        <button
+          class="pill pill-ghost bl-bulk-clear"
+          :data-testid="`${testidPrefix}-bulk-clear`"
+          @click="clearSelection"
+        >
+          Снять выбор
+        </button>
+      </div>
+    </div>
+
     <div class="bl-content">
       <div
         class="bl-list-section"
         :class="{ 'with-details': selected }"
       >
+        <div
+          v-if="bulkEnabled && filteredItems.length"
+          class="bl-list-toolbar"
+        >
+          <label class="bl-select-all">
+            <input
+              type="checkbox"
+              class="bulk-check"
+              :checked="allSelected"
+              :indeterminate.prop="someSelected"
+              aria-label="Выбрать все"
+              :data-testid="`${testidPrefix}-select-all`"
+              @change="toggleSelectAll"
+            >
+            Выбрать все
+          </label>
+        </div>
         <div class="bl-list">
           <div
-            v-for="item in filteredItems"
+            v-for="(item, index) in filteredItems"
             :key="item.id"
             class="bl-row"
             :class="{ selected: selected && selected.id === item.id, inactive: !item.is_active }"
             @click="selectItem(item)"
           >
+            <div
+              v-if="bulkEnabled"
+              class="bl-row-check"
+              @click.stop
+            >
+              <input
+                type="checkbox"
+                class="bulk-check"
+                :checked="isSelected(item.id)"
+                :aria-label="`Выбрать ${getPrimaryText(item)}`"
+                :data-testid="`${testidPrefix}-row-check`"
+                @click="onRowCheck(item, index, $event)"
+              >
+            </div>
             <span class="bl-row-id">{{ item.id }}</span>
             <span
               class="bl-row-title"
@@ -193,6 +257,17 @@
         <p>Выберите запись для просмотра</p>
       </div>
     </div>
+
+    <ConfirmationModal
+      :show="bulkConfirmVisible"
+      :title="bulkConfirmTitle"
+      :message="bulkConfirmMessage"
+      :confirm-text="bulkConfirmText"
+      cancel-text="Отмена"
+      :confirm-button-style="bulkConfirmButtonStyle"
+      @confirm="applyBulkArchiveRestore"
+      @cancel="cancelBulkConfirm"
+    />
   </div>
 </template>
 
@@ -201,7 +276,9 @@ import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import SearchComponent from '@/components/SearchComponent.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
+import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import { useDeletionsStore } from '@/stores/deletions';
+import { useUiStore } from '@/stores/ui';
 
 /**
  * Базовая вкладка чёрного списка (#443): шапка (архив-режим, поиск, обновление),
@@ -212,7 +289,7 @@ import { useDeletionsStore } from '@/stores/deletions';
  */
 export default {
   name: 'BlacklistTabBase',
-  components: { BaseDropdown, SearchComponent, RefreshButton, LoaderSpinner },
+  components: { BaseDropdown, SearchComponent, RefreshButton, LoaderSpinner, ConfirmationModal },
   props: {
     searchPlaceholder: { type: String, default: 'Поиск...' },
     emptyNoun: { type: String, default: 'записей' },
@@ -223,6 +300,16 @@ export default {
     // Опц. async (item) => entity|null. Если задан - в панели появляется кнопка
     // "Открыть карточку" (disabled, пока запись в реестре не найдена).
     lookupCard: { type: Function, default: null },
+    // Групповые операции (#443 bulk): (ids) => Promise<BulkOpResult>. Обе функции
+    // обязаны быть заданы вместе - без них колонка чекбоксов и bulk-bar не рендерятся.
+    bulkArchiveFn: { type: Function, default: null },
+    bulkRestoreFn: { type: Function, default: null },
+    // Префикс data-testid для bulk-элементов - обе вкладки (машины/люди) смонтированы
+    // одновременно (v-show в BlacklistView), общий "bl-" дал бы дублирующиеся testid.
+    testidPrefix: { type: String, default: 'bl' },
+    // Существительное во мн.ч. для предупреждения о каскаде в confirm-сообщениях
+    // ("сотрудники"/"машины" - кого затронет архивация/восстановление).
+    cascadeNounPlural: { type: String, default: 'записи' },
   },
   emits: ['count', 'create', 'archive', 'restore', 'history-all', 'open-card', 'edit', 'purge'],
   data() {
@@ -239,6 +326,12 @@ export default {
         { label: 'Активные', value: 'active' },
         { label: 'Архив', value: 'archive' },
       ],
+      // Групповой выбор (по id). lastSelectedId - якорь shift-диапазона.
+      selectedIds: [],
+      lastSelectedId: null,
+      pendingBulkOp: null,
+      bulkConfirmVisible: false,
+      bulkSubmitting: false,
     };
   },
   computed: {
@@ -269,6 +362,40 @@ export default {
       if (!this.cardEntity) return 'Запись в реестре не найдена';
       return 'Открыть карточку с историей';
     },
+    bulkEnabled() {
+      return !!(this.bulkArchiveFn && this.bulkRestoreFn);
+    },
+    allSelected() {
+      return this.filteredItems.length > 0 && this.selectedIds.length === this.filteredItems.length;
+    },
+    someSelected() {
+      return this.selectedIds.length > 0 && !this.allSelected;
+    },
+    bulkConfirmTitle() {
+      return this.pendingBulkOp === 'restore' ? 'Вернуть в чёрный список' : 'Убрать из чёрного списка';
+    },
+    bulkConfirmMessage() {
+      const n = this.selectedIds.length;
+      return this.pendingBulkOp === 'restore'
+        ? `Вернуть выбранные записи (${n}) в чёрный список? Совпадающие активные ${this.cascadeNounPlural} будут заблокированы.`
+        : `Убрать выбранные записи (${n}) из чёрного списка? Совпадающие ${this.cascadeNounPlural} с активной заявкой снова станут активными.`;
+    },
+    bulkConfirmText() {
+      return this.pendingBulkOp === 'restore' ? 'Вернуть' : 'Убрать';
+    },
+    bulkConfirmButtonStyle() {
+      return this.pendingBulkOp === 'restore'
+        ? { background: '#10b981', borderColor: '#10b981' }
+        : { background: '#dc3545', borderColor: '#dc3545' };
+    },
+  },
+  watch: {
+    // Пользователь мог выбрать записи, затем сузить список поиском/архивным фильтром -
+    // выбранные, ушедшие из видимого списка, убираем из selectedIds (иначе счётчик и
+    // bulk-запрос включали бы невидимые строки).
+    filteredItems() {
+      this.pruneSelection();
+    },
   },
   mounted() {
     this.fetchData();
@@ -283,6 +410,7 @@ export default {
         if (this.selected) {
           this.selected = this.items.find((i) => i.id === this.selected.id) || null;
         }
+        this.pruneSelection();
       } catch {
         useDeletionsStore().notify({ prefix: 'Не удалось загрузить ', bold: this.emptyNoun, type: 'error' });
       } finally {
@@ -295,6 +423,7 @@ export default {
       this.cardEntity = null;
       this.cardLoading = false;
       this.cardReqId++; // инвалидируем in-flight лукап
+      this.clearSelection();
     },
     selectItem(item) {
       this.selected = item;
@@ -324,12 +453,111 @@ export default {
         }
       }
     },
+
+    // --- Групповой выбор (#443 bulk) ---
+    isSelected(id) {
+      return this.selectedIds.includes(id);
+    },
+    toggleSelect(id) {
+      const i = this.selectedIds.indexOf(id);
+      if (i === -1) this.selectedIds.push(id);
+      else this.selectedIds.splice(i, 1);
+    },
+    // onRowCheck: обычный клик - toggle; shift-клик - диапазон от якоря до текущей.
+    onRowCheck(item, index, event) {
+      if (event.shiftKey && window.getSelection) window.getSelection().removeAllRanges();
+      if (event.shiftKey && this.lastSelectedId != null && this.lastSelectedId !== item.id) {
+        const list = this.filteredItems;
+        const anchor = list.findIndex((i) => i.id === this.lastSelectedId);
+        if (anchor !== -1) {
+          const [from, to] = anchor < index ? [anchor, index] : [index, anchor];
+          const target = !this.isSelected(item.id);
+          for (let i = from; i <= to; i++) {
+            const id = list[i].id;
+            const sel = this.isSelected(id);
+            if (target && !sel) this.selectedIds.push(id);
+            else if (!target && sel) this.selectedIds.splice(this.selectedIds.indexOf(id), 1);
+          }
+          this.lastSelectedId = item.id;
+          return;
+        }
+      }
+      this.toggleSelect(item.id);
+      this.lastSelectedId = item.id;
+    },
+    toggleSelectAll() {
+      this.selectedIds = this.allSelected ? [] : this.filteredItems.map((i) => i.id);
+      this.lastSelectedId = null;
+    },
+    clearSelection() {
+      this.selectedIds = [];
+      this.lastSelectedId = null;
+      this.pendingBulkOp = null;
+    },
+    pruneSelection() {
+      if (!this.selectedIds.length) return;
+      const visible = new Set(this.filteredItems.map((i) => i.id));
+      const pruned = this.selectedIds.filter((id) => visible.has(id));
+      if (pruned.length !== this.selectedIds.length) this.selectedIds = pruned;
+    },
+    startBulkOperation(operation) {
+      this.pendingBulkOp = operation;
+      this.bulkConfirmVisible = true;
+    },
+    cancelBulkConfirm() {
+      if (this.bulkSubmitting) return;
+      this.bulkConfirmVisible = false;
+      this.pendingBulkOp = null;
+    },
+    async applyBulkArchiveRestore() {
+      const ids = [...this.selectedIds];
+      const op = this.pendingBulkOp;
+      if (this.bulkSubmitting) return;
+      if (!ids.length || (op !== 'archive' && op !== 'restore')) {
+        this.bulkConfirmVisible = false;
+        this.pendingBulkOp = null;
+        return;
+      }
+      this.bulkSubmitting = true;
+      let result;
+      try {
+        result = op === 'archive' ? await this.bulkArchiveFn(ids) : await this.bulkRestoreFn(ids);
+      } catch {
+        useDeletionsStore().notify({ prefix: 'Не удалось выполнить групповую операцию', type: 'error' });
+        this.bulkSubmitting = false;
+        return;
+      }
+      this.bulkSubmitting = false;
+      if (this.handleBulkResult(op, result, ids.length)) {
+        this.bulkConfirmVisible = false;
+        this.pendingBulkOp = null;
+      }
+    },
+    // Разбор BulkOpResult: полный успех -> notify, частичный -> ui.warning с
+    // перечнем непрошедших. false при ошибке-envelope (держим модалку для повтора).
+    handleBulkResult(op, result, total) {
+      if (!result || typeof result.success_count !== 'number') {
+        useDeletionsStore().notify({ prefix: result?.message || 'Не удалось выполнить групповую операцию', type: 'error' });
+        return false;
+      }
+      const label = op === 'restore' ? 'Возвращено в чёрный список: ' : 'Убрано из чёрного списка: ';
+      if (result.error_count > 0) {
+        const failed = (result.errors || []).map((e) => e.name || `#${e.id}`).join(', ');
+        useUiStore().warning(`Выполнено ${result.success_count} из ${total}. Не удалось: ${failed}`);
+      } else {
+        useDeletionsStore().notify({ prefix: label, bold: String(result.success_count) });
+      }
+      this.clearSelection();
+      this.fetchData();
+      return true;
+    },
   },
 };
 </script>
 
 <style scoped>
 .bl-tab {
+  position: relative; /* контекст для оверлей-панели .bl-bulk-bar поверх шапки */
   display: flex;
   flex-direction: column;
 }
@@ -376,6 +604,134 @@ export default {
 .bl-header-controls :deep(.search) {
   min-width: 110px;
   flex-shrink: 1;
+}
+
+/* Панель групповых операций - оверлей поверх .bl-header (не reflow, список не
+   прыгает при выборе - урок #510). Высота = высоте шапки (50px). */
+.bl-bulk-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 50px;
+  padding: 0 20px;
+  border-bottom: 1px solid #e6e6e6;
+  background: #f0f2ff;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.bl-bulk-count {
+  font-size: 14px;
+  font-weight: 600;
+  color: #4F5BDF;
+  white-space: nowrap;
+}
+
+.bl-bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  margin-left: auto;
+}
+
+.bl-bulk-actions .pill {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 50px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.pill-ghost {
+  background: #fff;
+  color: #4F5BDF;
+  border: 1px solid #4F5BDF;
+}
+
+.pill-ghost:hover {
+  background: #eef0ff;
+}
+
+.bl-bulk-clear {
+  color: #6b7280;
+  border-color: #d5d9e0;
+}
+
+.bl-bulk-clear:hover {
+  background: #f5f5f5;
+}
+
+.pill-danger {
+  background: #fff;
+  color: #dc3545;
+  border: 1px solid #fecaca;
+}
+
+.pill-danger:hover {
+  background: #fff1f2;
+  border-color: #dc3545;
+}
+
+.pill-restore {
+  background: #10b981;
+  color: #fff;
+}
+
+.pill-restore:hover {
+  background: #0da271;
+}
+
+/* Тулбар "Выбрать все" - над списком, не скроллится вместе с ним (список - без
+   head-row, в отличие от Marks/TableConstructor - однострочные .bl-row без колонок). */
+.bl-list-toolbar {
+  display: flex;
+  align-items: center;
+  padding: 8px 20px;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fff;
+}
+
+.bl-select-all {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #6b7280;
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+}
+
+.bl-row-check {
+  display: flex;
+  align-items: center;
+  cursor: default;
+}
+
+.bulk-check {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  accent-color: #4F5BDF;
+  margin: 0;
 }
 
 .bl-content {
@@ -638,6 +994,28 @@ export default {
   .bl-header-controls {
     flex-wrap: wrap;
     justify-content: flex-end;
+  }
+
+  /* rt-header-inline может сделать шапку auto-высоты (перенос controls строкой
+     ниже) - фиксированный оверлей bl-bulk-bar (height:50px) больше не накрывает
+     её целиком, возвращаем панель в обычный поток (как в Marks/Orgs/Companies). */
+  .bl-bulk-bar {
+    position: static;
+    height: auto;
+    padding: 12px 16px;
+    overflow-x: visible;
+  }
+
+  .bl-bulk-actions {
+    flex-wrap: wrap;
+  }
+
+  .bl-row-check {
+    min-height: 44px;
+  }
+
+  .bl-select-all {
+    min-height: 44px;
   }
 
   .bl-content {

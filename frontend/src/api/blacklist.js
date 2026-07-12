@@ -50,6 +50,17 @@ export function purgeVehicleBlacklist(id) {
   return mutate(`/vehicle-blacklist/${id}/purge`, { method: 'DELETE' });
 }
 
+/** Групповые операции над ЧС машин (id-keyed). Возвращают BulkOpResult. */
+export async function bulkArchiveVehicleBlacklist(ids) {
+  const res = await apiRequest('/vehicle-blacklist/bulk/archive', { method: 'POST', body: JSON.stringify({ ids }) });
+  return res.json();
+}
+
+export async function bulkRestoreVehicleBlacklist(ids) {
+  const res = await apiRequest('/vehicle-blacklist/bulk/restore', { method: 'POST', body: JSON.stringify({ ids }) });
+  return res.json();
+}
+
 export function createPersonBlacklist({ last_name, first_name, middle_name, reason }) {
   return mutate('/person-blacklist', { body: { last_name, first_name, middle_name, reason } });
 }
@@ -68,6 +79,17 @@ export function restorePersonBlacklist(id) {
 
 export function purgePersonBlacklist(id) {
   return mutate(`/person-blacklist/${id}/purge`, { method: 'DELETE' });
+}
+
+/** Групповые операции над ЧС людей (id-keyed). Возвращают BulkOpResult. */
+export async function bulkArchivePersonBlacklist(ids) {
+  const res = await apiRequest('/person-blacklist/bulk/archive', { method: 'POST', body: JSON.stringify({ ids }) });
+  return res.json();
+}
+
+export async function bulkRestorePersonBlacklist(ids) {
+  const res = await apiRequest('/person-blacklist/bulk/restore', { method: 'POST', body: JSON.stringify({ ids }) });
+  return res.json();
 }
 
 export async function getVehicleBlacklistHistory(id) {
