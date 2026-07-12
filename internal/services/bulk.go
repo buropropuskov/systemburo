@@ -124,6 +124,13 @@ type BulkUserCompanyRequest struct {
 	CompanyID int      `json:"company_id"`
 }
 
+// BulkUserBanRequest — групповая блокировка пользователей. Reason опционален
+// (причина показывается заблокированному в ЛК), пустой -> без причины.
+type BulkUserBanRequest struct {
+	Usernames []string `json:"usernames"`
+	Reason    string   `json:"reason"`
+}
+
 // --- Хелперы ---
 
 // isValidBulkMode проверяет режим привязки.
