@@ -29,7 +29,10 @@
                     src="@/assets/icons/export.png"
                     class="export-icon"
                   >
-                  <span v-if="!isExporting">Экспорт</span>
+                  <span
+                    v-if="!isExporting"
+                    class="export-btn-text"
+                  >Экспорт</span>
                   <div
                     v-else
                     class="export-loader"
@@ -1259,6 +1262,16 @@ export default {
     .close-btn {
         min-width: 44px;
         min-height: 44px;
+    }
+
+    /* На мобилке кнопка экспорта сжимается до иконки (текст скрыт). */
+    .export-btn {
+        width: auto;
+        min-width: 40px;
+    }
+
+    .export-btn-text {
+        display: none;
     }
 }
 

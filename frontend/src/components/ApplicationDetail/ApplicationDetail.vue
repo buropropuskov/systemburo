@@ -17,7 +17,19 @@
       @send="sendForwardRequest"
     />
 
-    <div class="application-detail">
+    <div
+      class="application-detail"
+      :class="{ 'is-dragging': sheetDragging }"
+      :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
+      @touchstart="onSheetTouchStart"
+      @touchmove="onSheetTouchMove"
+      @touchend="onSheetTouchEnd"
+    >
+      <!-- Ползунок bottom-sheet (виден только на мобилке), свайп вниз закрывает -->
+      <div
+        class="sheet-handle"
+        aria-hidden="true"
+      />
       <!-- Заголовок и кнопки -->
       <div class="detail-header">
         <div class="detail-header-left">
@@ -41,7 +53,25 @@
                 v-if="updatingConfirmation || processingApplication"
                 class="button-loading"
               />
-              <span v-else>Переслать</span>
+              <template v-else>
+                <span class="forward-btn__text">Переслать</span>
+                <!-- На мобилке кнопка сжимается до иконки (текст скрыт @768) -->
+                <svg
+                  class="forward-btn__icon"
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <polyline points="15 17 20 12 15 7" />
+                  <path d="M4 18v-2a4 4 0 0 1 4-4h12" />
+                </svg>
+              </template>
             </button>
           </div>
         </div>
@@ -92,7 +122,10 @@
         </div>
       </div>
 
-      <div class="detail-content">
+      <div
+        ref="sheetScroll"
+        class="detail-content"
+      >
         <!-- Левая колонка - вложения -->
         <div
           class="detail-left-column"
@@ -443,6 +476,8 @@ import BaseDropdown from '@/components/ui/BaseDropdown.vue'
 import { sanitizeHtml } from '@/utils/sanitize'
 import ApplicationMessageModal from './ApplicationMessageModal.vue'
 import eventStream from '@/services/eventStream'
+import { ref } from 'vue'
+import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
 
 export default {
     name: 'ApplicationDetail',
@@ -481,9 +516,25 @@ export default {
         }
     },
     emits: ['close', 'confirmation-updated', 'duplicate', 'withdraw', 'application-updated', 'update-application', 'application-changed', 'questions-read'],
-    setup() {
+    setup(props, { emit }) {
         const permissionsStore = usePermissionsStore();
-        return { permissionsStore };
+        // Bottom-sheet на мобилке (#1097 W3.9): свайп вниз за ползунок закрывает деталь.
+        // sheetScroll - реальный скролл-контейнер (@1024 .detail-content), чтобы свайп
+        // внутри прокрученного контента был обычным скроллом, а не закрытием.
+        const sheetScroll = ref(null);
+        const swipe = useSwipeDismiss(() => emit('close'), {
+            getScrollTop: () => sheetScroll.value?.scrollTop ?? 0,
+            handleSelector: '.sheet-handle',
+        });
+        return {
+            permissionsStore,
+            sheetScroll,
+            sheetOffset: swipe.offset,
+            sheetDragging: swipe.isDragging,
+            onSheetTouchStart: swipe.onTouchStart,
+            onSheetTouchMove: swipe.onTouchMove,
+            onSheetTouchEnd: swipe.onTouchEnd,
+        };
     },
     data() {
         return {
@@ -1998,6 +2049,15 @@ export default {
     justify-content: flex-end;
 }
 
+/* Ползунок bottom-sheet и иконка-вариант кнопки пересылки - только на мобилке (@768). */
+.sheet-handle {
+    display: none;
+}
+
+.forward-btn__icon {
+    display: none;
+}
+
 /* Адаптив (#1097 S6): 3 фикс-колонки не помещаются на планшете/мобиле - стекаем их
    вертикально (вложения -> детали -> статус/согласование), скролл держит весь
    .detail-content целиком вместо трёх независимых внутренних скроллов. */
@@ -2036,23 +2096,75 @@ export default {
 }
 
 @media (max-width: 768px) {
+    /* Bottom-sheet: оверлей прижимает лист к низу, лист во всю ширину выезжает
+       снизу; свайп вниз за ползунок закрывает (useSwipeDismiss, #1097 W3.9). */
+    .application-detail-overlay {
+        align-items: flex-end;
+    }
+
     .application-detail {
+        position: relative;
         width: 100%;
         max-width: 100%;
+        height: 92dvh;
+        max-height: 92dvh;
+        border-radius: 24px 24px 0 0;
+        /* Выезд снизу при появлении + snap-back после свайпа. */
+        animation: detailSlideUp 0.3s ease-out;
+        transition: transform 0.3s ease;
+    }
+
+    /* Пока тянем пальцем - без анимации (лист следует за пальцем 1:1). */
+    .application-detail.is-dragging {
+        transition: none;
+    }
+
+    .sheet-handle {
+        display: block;
+        width: 40px;
+        height: 4px;
+        margin: 10px auto 2px;
+        border-radius: 2px;
+        background: #d5d5d5;
+        flex-shrink: 0;
     }
 
     /* Заголовок с датой/кнопкой пересылки/панелью действий на узком экране не
-       помещается в одну строку - переносим правую группу под левую. */
+       помещается в одну строку - переносим правую группу под левую. Верхний
+       отступ увеличен, чтобы заголовок не наезжал на ползунок/крестик. */
     .detail-header {
         flex-wrap: wrap;
         row-gap: 10px;
-        padding: 12px 15px;
+        padding: 18px 15px 12px;
+    }
+
+    /* Крестик - в правый верхний угол листа поверх шапки (не в потоке). */
+    .close-detail-btn {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        z-index: 2;
     }
 
     .detail-header-right {
         flex-wrap: wrap;
-        justify-content: flex-end;
+        justify-content: flex-start;
         row-gap: 8px;
+    }
+
+    /* Кнопка пересылки на мобилке - только иконка (текст скрыт, экономим ширину). */
+    .forward-btn {
+        min-width: 0;
+        padding: 6px 12px;
+        margin-left: 0;
+    }
+
+    .forward-btn__text {
+        display: none;
+    }
+
+    .forward-btn__icon {
+        display: inline-block;
     }
 
     .detail-left-column,
@@ -2060,5 +2172,10 @@ export default {
     .detail-right-column {
         padding: 12px;
     }
+}
+
+@keyframes detailSlideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
 }
 </style>
