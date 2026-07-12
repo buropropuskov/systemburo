@@ -52,6 +52,21 @@ type UserService interface {
 	GetUserTables(ctx context.Context, username string) ([]models.SystemTable, error)
 	// SetUserTables заменяет привязку мест прохода для охранника (delete-all-then-recreate).
 	SetUserTables(ctx context.Context, username string, req models.SetUserTablesRequest) error
+
+	// --- Групповые операции (bulk). Переиспользуют одиночные методы в цикле по
+	// username; частичный успех собирается в BulkOpResult. Цель (тип/орг/компания)
+	// валидируется один раз до цикла и возвращается ошибкой на весь запрос. ---
+
+	// BulkArchive архивирует набор пользователей (супер-админ уходит в Errors).
+	BulkArchive(ctx context.Context, callerUserID int, usernames []string) (*BulkOpResult, error)
+	// BulkRestore восстанавливает набор пользователей из архива.
+	BulkRestore(ctx context.Context, callerUserID int, usernames []string) (*BulkOpResult, error)
+	// BulkUpdateType меняет тип у набора пользователей.
+	BulkUpdateType(ctx context.Context, callerUserID int, usernames []string, typeID int) (*BulkOpResult, error)
+	// BulkAssignOrganization назначает организацию набору пользователей.
+	BulkAssignOrganization(ctx context.Context, callerUserID int, usernames []string, orgID int) (*BulkOpResult, error)
+	// BulkAssignCompany назначает компанию набору пользователей.
+	BulkAssignCompany(ctx context.Context, callerUserID int, usernames []string, companyID int) (*BulkOpResult, error)
 }
 
 // PasswordPolicyProvider отдаёт текущую политику паролей (реализуется SettingsService).
@@ -107,6 +122,109 @@ func (s *userService) targetUserID(ctx context.Context, username string) int {
 	var id int
 	s.db.WithContext(ctx).Table("users").Select("id").Where("username = ?", username).Scan(&id)
 	return id
+}
+
+// --- Групповые операции над пользователями ---
+
+// existsByID проверяет наличие строки по id в справочной таблице (константное имя
+// таблицы, admin-only) - для валидации цели bulk-назначения один раз до цикла.
+func (s *userService) existsByID(ctx context.Context, table string, id int) bool {
+	var ok bool
+	s.db.WithContext(ctx).Table(table).Select("COUNT(1) > 0").Where("id = ?", id).Row().Scan(&ok)
+	return ok
+}
+
+// BulkArchive архивирует набор пользователей через Delete. Несуществующие (404) и
+// супер-админ (403) честно попадают в Errors (частичный успех).
+func (s *userService) BulkArchive(ctx context.Context, callerUserID int, usernames []string) (*BulkOpResult, error) {
+	res := newBulkResult()
+	for _, u := range uniqueStrings(usernames) {
+		if err := s.Delete(ctx, callerUserID, u); err != nil {
+			res.addError(s.targetUserID(ctx, u), u, bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
+}
+
+// BulkRestore восстанавливает набор пользователей через Restore.
+func (s *userService) BulkRestore(ctx context.Context, callerUserID int, usernames []string) (*BulkOpResult, error) {
+	res := newBulkResult()
+	for _, u := range uniqueStrings(usernames) {
+		if err := s.Restore(ctx, callerUserID, u); err != nil {
+			res.addError(s.targetUserID(ctx, u), u, bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
+}
+
+// BulkUpdateType меняет тип у набора пользователей. Тип валидируется один раз до
+// цикла; несуществующий username - в Errors (одиночный UpdateType его не ловит:
+// UPDATE по username даёт 0 строк без ошибки).
+func (s *userService) BulkUpdateType(ctx context.Context, callerUserID int, usernames []string, typeID int) (*BulkOpResult, error) {
+	if !s.existsByID(ctx, "user_types", typeID) {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Invalid user type")
+	}
+	res := newBulkResult()
+	for _, u := range uniqueStrings(usernames) {
+		id := s.targetUserID(ctx, u)
+		if id == 0 {
+			res.addError(0, u, "Пользователь не найден")
+			continue
+		}
+		if err := s.UpdateType(ctx, callerUserID, u, models.UpdateUserTypeRequest{TypeID: typeID}); err != nil {
+			res.addError(id, u, bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
+}
+
+// BulkAssignOrganization назначает организацию набору пользователей. Организация
+// валидируется до цикла (иначе FK-нарушение дало бы 500 на каждого).
+func (s *userService) BulkAssignOrganization(ctx context.Context, callerUserID int, usernames []string, orgID int) (*BulkOpResult, error) {
+	if !s.existsByID(ctx, "organizations", orgID) {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Организация не найдена")
+	}
+	res := newBulkResult()
+	for _, u := range uniqueStrings(usernames) {
+		id := s.targetUserID(ctx, u)
+		if id == 0 {
+			res.addError(0, u, "Пользователь не найден")
+			continue
+		}
+		if err := s.UpdateOrganization(ctx, callerUserID, u, models.UpdateUserOrganizationRequest{OrganizationID: orgID}); err != nil {
+			res.addError(id, u, bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
+}
+
+// BulkAssignCompany назначает компанию набору пользователей.
+func (s *userService) BulkAssignCompany(ctx context.Context, callerUserID int, usernames []string, companyID int) (*BulkOpResult, error) {
+	if !s.existsByID(ctx, "companies", companyID) {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Компания не найдена")
+	}
+	res := newBulkResult()
+	for _, u := range uniqueStrings(usernames) {
+		id := s.targetUserID(ctx, u)
+		if id == 0 {
+			res.addError(0, u, "Пользователь не найден")
+			continue
+		}
+		if err := s.UpdateCompany(ctx, callerUserID, u, models.UpdateUserCompanyRequest{CompanyID: companyID}); err != nil {
+			res.addError(id, u, bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
 }
 
 // Create создаёт нового пользователя. Доступ - route-middleware page.admin.users.

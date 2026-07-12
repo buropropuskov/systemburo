@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"net/http"
+
 	"systemburo/internal/models"
 	"systemburo/internal/services"
 
@@ -233,6 +235,141 @@ func (h *UsersHandler) Restore(c echo.Context) error {
 		return err
 	}
 	return RespondMessage(c, "User restored successfully")
+}
+
+// BulkArchive godoc
+// @Summary      Групповое архивирование пользователей
+// @Tags         users
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body services.BulkUsernamesRequest true "Список username"
+// @Success      200 {object} services.BulkOpResult
+// @Success      207 {object} services.BulkOpResult "Частичный успех"
+// @Failure      400 {object} models.HTTPError
+// @Router       /users/bulk/archive [post]
+func (h *UsersHandler) BulkArchive(c echo.Context) error {
+	var req services.BulkUsernamesRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if len(req.Usernames) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны пользователи")
+	}
+	userID, _ := c.Get("user_id").(int)
+	res, err := h.service.BulkArchive(c.Request().Context(), userID, req.Usernames)
+	if err != nil {
+		return err
+	}
+	return respondBulk(c, res)
+}
+
+// BulkRestore godoc
+// @Summary      Групповое восстановление пользователей
+// @Tags         users
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body services.BulkUsernamesRequest true "Список username"
+// @Success      200 {object} services.BulkOpResult
+// @Success      207 {object} services.BulkOpResult "Частичный успех"
+// @Failure      400 {object} models.HTTPError
+// @Router       /users/bulk/restore [post]
+func (h *UsersHandler) BulkRestore(c echo.Context) error {
+	var req services.BulkUsernamesRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if len(req.Usernames) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны пользователи")
+	}
+	userID, _ := c.Get("user_id").(int)
+	res, err := h.service.BulkRestore(c.Request().Context(), userID, req.Usernames)
+	if err != nil {
+		return err
+	}
+	return respondBulk(c, res)
+}
+
+// BulkUpdateType godoc
+// @Summary      Групповая смена типа пользователей
+// @Tags         users
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body services.BulkUserTypeRequest true "Список username и type_id"
+// @Success      200 {object} services.BulkOpResult
+// @Success      207 {object} services.BulkOpResult "Частичный успех"
+// @Failure      400 {object} models.HTTPError
+// @Router       /users/bulk/type [post]
+func (h *UsersHandler) BulkUpdateType(c echo.Context) error {
+	var req services.BulkUserTypeRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if len(req.Usernames) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны пользователи")
+	}
+	userID, _ := c.Get("user_id").(int)
+	res, err := h.service.BulkUpdateType(c.Request().Context(), userID, req.Usernames, req.TypeID)
+	if err != nil {
+		return err
+	}
+	return respondBulk(c, res)
+}
+
+// BulkAssignOrganization godoc
+// @Summary      Групповое назначение организации пользователям
+// @Tags         users
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body services.BulkUserOrganizationRequest true "Список username и organization_id"
+// @Success      200 {object} services.BulkOpResult
+// @Success      207 {object} services.BulkOpResult "Частичный успех"
+// @Failure      400 {object} models.HTTPError
+// @Router       /users/bulk/organization [post]
+func (h *UsersHandler) BulkAssignOrganization(c echo.Context) error {
+	var req services.BulkUserOrganizationRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if len(req.Usernames) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны пользователи")
+	}
+	userID, _ := c.Get("user_id").(int)
+	res, err := h.service.BulkAssignOrganization(c.Request().Context(), userID, req.Usernames, req.OrganizationID)
+	if err != nil {
+		return err
+	}
+	return respondBulk(c, res)
+}
+
+// BulkAssignCompany godoc
+// @Summary      Групповое назначение компании пользователям
+// @Tags         users
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body services.BulkUserCompanyRequest true "Список username и company_id"
+// @Success      200 {object} services.BulkOpResult
+// @Success      207 {object} services.BulkOpResult "Частичный успех"
+// @Failure      400 {object} models.HTTPError
+// @Router       /users/bulk/company [post]
+func (h *UsersHandler) BulkAssignCompany(c echo.Context) error {
+	var req services.BulkUserCompanyRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if len(req.Usernames) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны пользователи")
+	}
+	userID, _ := c.Get("user_id").(int)
+	res, err := h.service.BulkAssignCompany(c.Request().Context(), userID, req.Usernames, req.CompanyID)
+	if err != nil {
+		return err
+	}
+	return respondBulk(c, res)
 }
 
 // GetHistory godoc

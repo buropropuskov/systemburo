@@ -99,6 +99,31 @@ type BulkUsersRequest struct {
 	Mode  string               `json:"mode"`
 }
 
+// --- DTO групповых операций над пользователями (ключ - username, не int id) ---
+
+// BulkUsernamesRequest — тело для группового архива/восстановления пользователей.
+type BulkUsernamesRequest struct {
+	Usernames []string `json:"usernames"`
+}
+
+// BulkUserTypeRequest — групповая смена типа пользователей.
+type BulkUserTypeRequest struct {
+	Usernames []string `json:"usernames"`
+	TypeID    int      `json:"type_id"`
+}
+
+// BulkUserOrganizationRequest — групповое назначение организации пользователям.
+type BulkUserOrganizationRequest struct {
+	Usernames      []string `json:"usernames"`
+	OrganizationID int      `json:"organization_id"`
+}
+
+// BulkUserCompanyRequest — групповое назначение компании пользователям.
+type BulkUserCompanyRequest struct {
+	Usernames []string `json:"usernames"`
+	CompanyID int      `json:"company_id"`
+}
+
 // --- Хелперы ---
 
 // isValidBulkMode проверяет режим привязки.
@@ -110,6 +135,21 @@ func isValidBulkMode(mode string) bool {
 // ids раздули бы SuccessCount (одна сущность посчиталась бы дважды).
 func uniqueInts(a []int) []int {
 	return unionInts(a, nil)
+}
+
+// uniqueStrings убирает дубликаты из набора username с сохранением порядка (дубли
+// раздули бы SuccessCount - один пользователь посчитался бы дважды).
+func uniqueStrings(a []string) []string {
+	seen := make(map[string]struct{}, len(a))
+	out := make([]string, 0, len(a))
+	for _, x := range a {
+		if _, ok := seen[x]; ok {
+			continue
+		}
+		seen[x] = struct{}{}
+		out = append(out, x)
+	}
+	return out
 }
 
 // unionInts объединяет два набора int с сохранением порядка (сначала a, затем
