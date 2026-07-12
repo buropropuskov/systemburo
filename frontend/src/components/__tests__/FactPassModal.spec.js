@@ -73,6 +73,14 @@ describe('FactPassModal (#1132)', () => {
     });
   });
 
+  it('при loading=true кнопка "Пропустить" заблокирована даже с валидным номером', async () => {
+    const wrapper = mountModal({ loading: true });
+    await flushPromises();
+    await fillNumber(wrapper);
+
+    expect(wrapper.get('[data-testid="fact-pass-confirm"]').attributes('disabled')).toBeDefined();
+  });
+
   it('кнопка "Отмена" эмитит close без подтверждения', async () => {
     const wrapper = mountModal();
     await flushPromises();

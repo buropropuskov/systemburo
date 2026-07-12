@@ -79,6 +79,28 @@ describe('FactTable - пропуск "по факту" (#1132)', () => {
     expect(wrapper.vm.factData[0].entry_checked).toBe(true);
   });
 
+  it('если сохранение упало — модалка остаётся, флаг въезда НЕ ставится, показан passError', async () => {
+    const wrapper = mountTable();
+    await flushPromises();
+    await wrapper.get('.entry-btn').trigger('click');
+
+    // territory-status отвечает ошибкой.
+    apiRequest.mockImplementation((url) => {
+      if (url.includes('/territory-status')) {
+        return Promise.resolve({ ok: false, text: async () => 'boom' });
+      }
+      return Promise.resolve(okResponse([]));
+    });
+
+    const pass = { number: 'А 123 ВС', format_id: 1, format_name: 'Стд', mark_id: null, mark_name: null };
+    wrapper.findComponent(FactPassModal).vm.$emit('confirm', pass);
+    await flushPromises();
+
+    expect(wrapper.vm.showPassModal).toBe(true);
+    expect(wrapper.vm.passError).toBeTruthy();
+    expect(wrapper.vm.factData[0].entry_checked).toBe(false);
+  });
+
   it('"Выезд" шлёт territory-status=2 напрямую, без модалки', async () => {
     const wrapper = mountTable();
     await flushPromises();

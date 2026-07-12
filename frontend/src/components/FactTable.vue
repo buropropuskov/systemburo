@@ -880,9 +880,17 @@ export default {
 
     async onPassConfirm(pass) {
       if (!this.passItem) return;
+      // Пока охранник вводил данные, строка могла уйти из фактовой таблицы (чужой
+      // выезд/деактивация через SSE-рефреш) или уже получить въезд - не шлём пропуск
+      // по устаревшей записи (замечание ревью: PR расширяет окно гонки).
+      const current = this.factData.find(i => i.id === this.passItem.id);
+      if (!current || current.entry_checked) {
+        this.passError = 'Запись изменилась, обновите таблицу и попробуйте снова.';
+        return;
+      }
       this.passLoading = true;
       this.passError = '';
-      const ok = await this.applyTerritoryStatus(this.passItem, 1, pass);
+      const ok = await this.applyTerritoryStatus(current, 1, pass);
       this.passLoading = false;
       if (ok) {
         this.closePassModal();
