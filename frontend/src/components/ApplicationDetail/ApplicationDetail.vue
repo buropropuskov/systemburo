@@ -157,7 +157,7 @@
                 ref="messagePreview"
                 class="message-content text-constructor-content message-preview"
                 :class="{ 'is-clamped': messageClamped }"
-                @click="showMessageModal = true"
+                @click="openMessageFromPreview"
                 v-html="sanitizedMessage"
               />
               <button
@@ -1293,6 +1293,15 @@ export default {
             this.$emit('close');
         },
 
+        /**
+         * Открыть сообщение в окне по тапу на превью. Клик по ссылке внутри сообщения
+         * не перехватываем - иначе переход по ссылке и модалка сработали бы разом.
+         */
+        openMessageFromPreview(event) {
+            if (event?.target?.closest?.('a')) return;
+            this.showMessageModal = true;
+        },
+
         async loadCommonData() {
             try {
                 const [placesRes, formatsRes, tablesRes] = await Promise.all([
@@ -2249,6 +2258,17 @@ export default {
     .detail-order-questions { order: 3; }
     .detail-order-picker { order: 4; }
     .detail-order-selected-attachment { order: 5; }
+
+    /* display:contents убирает box левой колонки (background/border/padding), поэтому
+       секция пикера вложений рендерилась бы "голой" рядом с карточными соседями -
+       возвращаем ей карточный стиль (как у .message-section и др.). */
+    .detail-order-picker {
+        background: #fff;
+        border: 1px solid #e6e6e6;
+        border-radius: 20px;
+        padding: 15px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    }
     .comment-action-section { order: 6; }
     .detail-order-confirmation { order: 6; }
     .basic-info-section { order: 7; }
