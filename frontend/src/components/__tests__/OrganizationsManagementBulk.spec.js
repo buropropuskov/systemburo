@@ -73,7 +73,7 @@ describe('OrganizationsManagement — групповой выбор и пане�
     const { w } = await mountCmp()
     expect(bulkBar(w).exists()).toBe(false)
 
-    await rowChecks(w)[0].trigger('change')
+    await rowChecks(w)[0].trigger('click')
     expect(bulkBar(w).exists()).toBe(true)
     expect(bulkBar(w).find('.bulk-count').text()).toBe('Выбрано: 1')
     expect(w.vm.selectedIds).toEqual([1])
@@ -81,10 +81,40 @@ describe('OrganizationsManagement — групповой выбор и пане�
 
   it('повторный клик по чекбоксу снимает выбор и прячет панель', async () => {
     const { w } = await mountCmp()
-    await rowChecks(w)[0].trigger('change')
-    await rowChecks(w)[0].trigger('change')
+    await rowChecks(w)[0].trigger('click')
+    await rowChecks(w)[0].trigger('click')
     expect(w.vm.selectedIds).toEqual([])
     expect(bulkBar(w).exists()).toBe(false)
+  })
+
+  it('shift-клик выделяет диапазон строк между якорем и целью', async () => {
+    const { w } = await mountCmp()
+    await rowChecks(w)[0].trigger('click') // якорь: id 1
+    await rowChecks(w)[2].trigger('click', { shiftKey: true }) // диапазон 1..3
+    expect([...w.vm.selectedIds].sort()).toEqual([1, 2, 3])
+    expect(bulkBar(w).find('.bulk-count').text()).toBe('Выбрано: 3')
+  })
+
+  it('shift-клик без якоря = обычный выбор одной строки', async () => {
+    const { w } = await mountCmp()
+    await rowChecks(w)[1].trigger('click', { shiftKey: true })
+    expect(w.vm.selectedIds).toEqual([2])
+  })
+
+  it('shift-клик с протухшим якорем (нет в списке) = обычный toggle', async () => {
+    const { w } = await mountCmp()
+    w.vm.lastSelectedId = 999 // якоря нет в sortedOrganizations -> findIndex === -1
+    await rowChecks(w)[1].trigger('click', { shiftKey: true })
+    expect(w.vm.selectedIds).toEqual([2])
+  })
+
+  it('shift-клик по выделенному диапазону снимает его; якорь следует за последним shift-кликом', async () => {
+    const { w } = await mountCmp()
+    await rowChecks(w)[0].trigger('click') // id 1, якорь=1
+    await rowChecks(w)[2].trigger('click', { shiftKey: true }) // 1..3 выбраны, якорь=3
+    expect([...w.vm.selectedIds].sort()).toEqual([1, 2, 3])
+    await rowChecks(w)[1].trigger('click', { shiftKey: true }) // диапазон 2..3 снят
+    expect(w.vm.selectedIds).toEqual([1])
   })
 
   it('клик по чекбокс-колонке не открывает детали (@click.stop)', async () => {
@@ -108,7 +138,7 @@ describe('OrganizationsManagement — групповой выбор и пане�
 
   it('панель активного режима: операции + В архив, без Восстановить', async () => {
     const { w } = await mountCmp()
-    await rowChecks(w)[0].trigger('change')
+    await rowChecks(w)[0].trigger('click')
     expect(w.find('[data-testid="orgs-bulk-type"]').exists()).toBe(true)
     expect(w.find('[data-testid="orgs-bulk-unload-places"]').exists()).toBe(true)
     expect(w.find('[data-testid="orgs-bulk-tables"]').exists()).toBe(true)
@@ -121,7 +151,7 @@ describe('OrganizationsManagement — групповой выбор и пане�
     const { w } = await mountCmp(seedWithArchived())
     await w.vm.onArchiveModeChange('archive')
     await nextTick()
-    await rowChecks(w)[0].trigger('change')
+    await rowChecks(w)[0].trigger('click')
     expect(w.find('[data-testid="orgs-bulk-restore"]').exists()).toBe(true)
     expect(w.find('[data-testid="orgs-bulk-type"]').exists()).toBe(false)
     expect(w.find('[data-testid="orgs-bulk-archive"]').exists()).toBe(false)
@@ -137,7 +167,7 @@ describe('OrganizationsManagement — групповой выбор и пане�
 
   it('кнопка операции фиксирует намерение в pendingBulkOp', async () => {
     const { w } = await mountCmp()
-    await rowChecks(w)[0].trigger('change')
+    await rowChecks(w)[0].trigger('click')
     await w.find('[data-testid="orgs-bulk-archive"]').trigger('click')
     expect(w.vm.pendingBulkOp).toBe('archive')
   })
@@ -155,7 +185,7 @@ describe('OrganizationsManagement — групповой выбор и пане�
 
   it('смена режима на архив сбрасывает выбор активных', async () => {
     const { w } = await mountCmp(seedWithArchived())
-    await rowChecks(w)[0].trigger('change')
+    await rowChecks(w)[0].trigger('click')
     expect(w.vm.selectedIds.length).toBe(1)
 
     await w.vm.onArchiveModeChange('archive')

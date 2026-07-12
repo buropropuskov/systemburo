@@ -197,7 +197,7 @@
 
           <div class="table-body">
             <div
-              v-for="comp in sortedCompanies"
+              v-for="(comp, index) in sortedCompanies"
               :key="comp.id"
               class="table-row rt-row"
               data-testid="companies-row"
@@ -217,7 +217,7 @@
                   :checked="isSelected(comp.id)"
                   :aria-label="`Выбрать ${comp.name}`"
                   data-testid="companies-row-check"
-                  @change="toggleSelect(comp.id)"
+                  @click.prevent="onRowCheck(comp, index, $event)"
                 >
               </div>
               <div
@@ -668,6 +668,8 @@ export default {
       showArchive: false,
       typeFilter: ORG_TYPE_FILTER_ALL,
       selectedIds: [],
+      // Якорь для shift-выделения диапазона строк (id последней кликнутой строки).
+      lastSelectedId: null,
       // Выбранная групповая операция ('type'|'unload-places'|'tables'|'users'|
       // 'archive'|'restore'). type/places/tables/users открывают BulkOperationsModal,
       // archive/restore — ConfirmationModal ниже.
@@ -913,6 +915,7 @@ export default {
       this.resetChildDirty();
       // Наборы операций для активных и архивных разные - выбор не переносим.
       this.selectedIds = [];
+      this.lastSelectedId = null;
       this.pendingBulkOp = null;
     },
 
@@ -926,14 +929,44 @@ export default {
       else this.selectedIds.splice(i, 1);
     },
 
+    // onRowCheck обрабатывает клик по чекбоксу строки. Обычный клик - toggle.
+    // Shift-клик - выделяет диапазон от якоря (последней кликнутой строки) до
+    // текущей включительно, приводя его к состоянию, в которое переходит
+    // shift-кликнутый чекбокс (снят -> выделить весь диапазон, и наоборот).
+    // Якорь хранится по id и переиндексируется на лету - устойчив к пересортировке.
+    onRowCheck(comp, index, event) {
+      // shift-клик не должен выделять текст (селект начинается на mousedown, .prevent его не гасит) -
+      // гасим для любого shift-клика, включая fallback без валидного якоря.
+      if (event.shiftKey && window.getSelection) window.getSelection().removeAllRanges();
+      if (event.shiftKey && this.lastSelectedId != null && this.lastSelectedId !== comp.id) {
+        const anchor = this.sortedCompanies.findIndex(c => c.id === this.lastSelectedId);
+        if (anchor !== -1) {
+          const target = !this.isSelected(comp.id);
+          const [from, to] = anchor < index ? [anchor, index] : [index, anchor];
+          for (let i = from; i <= to; i += 1) {
+            const id = this.sortedCompanies[i].id;
+            const sel = this.isSelected(id);
+            if (target && !sel) this.selectedIds.push(id);
+            else if (!target && sel) this.selectedIds.splice(this.selectedIds.indexOf(id), 1);
+          }
+          this.lastSelectedId = comp.id;
+          return;
+        }
+      }
+      this.toggleSelect(comp.id);
+      this.lastSelectedId = comp.id;
+    },
+
     toggleSelectAll() {
       this.selectedIds = this.allSelected
         ? []
         : this.sortedCompanies.map(c => c.id);
+      this.lastSelectedId = null; // "выбрать всё" не задаёт якорь для shift-диапазона
     },
 
     clearSelection() {
       this.selectedIds = [];
+      this.lastSelectedId = null;
       this.pendingBulkOp = null;
     },
 
