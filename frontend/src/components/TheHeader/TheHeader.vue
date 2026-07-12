@@ -37,6 +37,61 @@
     </div>
 
     <div class="header__info">
+      <!-- Объявление: на десктопе текстовый pill, на мобилке компактная иконка (A.3) -->
+      <button
+        v-if="activeAnnouncement"
+        class="broadcast"
+        :class="{ 'broadcast--important': activeAnnouncement.is_important }"
+        data-testid="ob-header-broadcast"
+        :aria-label="activeAnnouncement.is_important ? 'Важное объявление' : 'Объявление'"
+        @click="showAnnouncement = true"
+      >
+        <svg
+          class="broadcast__icon"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="m3 11 18-5v12L3 14v-3z" />
+          <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" />
+        </svg>
+        <span class="broadcast__label">{{ activeAnnouncement.is_important ? 'Важное объявление' : 'Объявление' }}</span>
+      </button>
+
+      <!-- Уведомления (колокольчик): всегда в самой шапке (A.2) -->
+      <div
+        class="user__notifications"
+        :class="{ 'user__notifications--active': showNotifications }"
+        data-testid="ob-header-notifications"
+        role="button"
+        tabindex="0"
+        aria-label="Уведомления"
+        :aria-expanded="showNotifications"
+        @click.stop="showNotifications = !showNotifications"
+        @keydown.enter.prevent="showNotifications = !showNotifications"
+        @keydown.space.prevent="showNotifications = !showNotifications"
+      >
+        <img
+          src="@/assets/icons/notifications.png"
+          class="notifications__icon"
+          alt="Уведомления"
+        >
+        <span
+          v-if="unreadCount > 0"
+          class="notifications__badge"
+        >{{ unreadCount }}</span>
+        <UserNotifications
+          :show="showNotifications"
+          @update:unread-count="unreadCount = $event"
+          @close="showNotifications = false"
+        />
+      </div>
+
+      <!-- Прочее (feedback + время) - на мобилке сворачивается в "⋯" -->
       <div class="header__overflow-wrap">
         <button
           class="header__overflow-toggle"
@@ -60,42 +115,12 @@
           >
             Сообщить о проблеме
           </button>
-          <button
-            v-if="activeAnnouncement"
-            class="broadcast"
-            :class="{ 'broadcast--important': activeAnnouncement.is_important }"
-            data-testid="ob-header-broadcast"
-            @click="showAnnouncement = true"
-          >
-            {{ activeAnnouncement.is_important ? 'Важное объявление' : 'Объявление' }}
-          </button>
           <p
             class="time"
             data-testid="ob-header-time"
           >
             {{ currentDateTime }}
           </p>
-          <div
-            class="user__notifications"
-            :class="{ 'user__notifications--active': showNotifications }"
-            data-testid="ob-header-notifications"
-            @click.stop="showNotifications = !showNotifications"
-          >
-            <img
-              src="@/assets/icons/notifications.png"
-              class="notifications__icon"
-              alt="Уведомления"
-            >
-            <span
-              v-if="unreadCount > 0"
-              class="notifications__badge"
-            >{{ unreadCount }}</span>
-            <UserNotifications
-              :show="showNotifications"
-              @update:unread-count="unreadCount = $event"
-              @close="showNotifications = false"
-            />
-          </div>
         </div>
       </div>
       <div
@@ -112,6 +137,7 @@
             aria-hidden="true"
           >+</span>
           <span class="appl-btn__label">Подать заявку</span>
+          <span class="appl-btn__label-short">Заявка</span>
         </button>
       </div>
     </div>
@@ -370,6 +396,16 @@ h3 {
   justify-content: flex-end;
 }
 
+/* Порядок на десктопе восстанавливаем через order: bell и broadcast лежат в DOM
+   перед overflow-wrap (чтобы на мобилке быть вне сворачиваемого "⋯"), но на
+   десктопе (overflow-wrap = display:contents) визуальный порядок оставляем
+   исходным - feedback, объявление, время, колокольчик, "Подать заявку". */
+.feedback-btn { order: 1; }
+.broadcast { order: 2; }
+.time { order: 3; }
+.user__notifications { order: 4; }
+.appl-btn__container { order: 5; }
+
 /* На десктопе overflow-обёртка прозрачна для layout (display:contents) - её
    дети рендерятся как обычные элементы .header__info. На мобилке (<768)
    становится реальным блоком с выпадающим меню "⋯" (feedback/broadcast/time/bell). */
@@ -407,6 +443,10 @@ h3 {
 }
 
 .broadcast {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   width: fit-content;
   padding: 0 15px;
   height: 35px;
@@ -420,6 +460,14 @@ h3 {
   cursor: pointer;
   white-space: nowrap;
   transition: filter 0.2s ease;
+}
+
+/* Иконка объявления - только на мобилке (десктоп показывает текст) */
+.broadcast__icon {
+  display: none;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
 }
 
 .broadcast:hover {
@@ -520,9 +568,15 @@ h3 {
   background-color: #e6e6e6;
 }
 
-/* Иконка "+" - видна только на узком экране (кнопка схлопывается в иконку,
-   не переносится на новую строку - директива юзера). */
+/* Иконка "+" и короткая подпись "Заявка" - видны только на узком экране
+   (кнопка остаётся в строке, не переносится - директива юзера). */
 .appl-btn__icon {
+  display: none;
+}
+
+/* Короткая подпись "Заявка" - отдельный класс (не модификатор общего),
+   чтобы видимость не зависела от source-order при рефакторинге media-блока. */
+.appl-btn__label-short {
   display: none;
 }
 
@@ -551,34 +605,42 @@ h3 {
   }
 }
 
-/* Burger-кнопка - только на мобильном */
+/* Burger-кнопка - только на мобильном. Оформлена как тайл свёрнутого навменю
+   (белый бордюр-тайл с радиусом 12px, как .nav-item в рельсе) - B.2. */
 .header__burger {
   display: none;
   width: 44px;
   height: 44px;
   padding: 0;
-  border: none;
-  background: transparent;
+  border: 1px solid var(--color-border);
+  background: #fff;
   cursor: pointer;
   flex-direction: column;
   gap: 4px;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  border-radius: 8px;
-  transition: background 0.2s;
+  border-radius: 12px;
+  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.05);
+  transition: background 0.2s, border-color 0.2s;
 }
 
 .header__burger:hover {
-  background: #f0f0f5;
+  background: var(--color-primary-tint);
+  border-color: var(--color-primary);
 }
 
 .header__burger span {
   display: block;
-  width: 22px;
+  width: 20px;
   height: 2px;
-  background: #333;
+  background: #555;
   border-radius: 1px;
+  transition: background 0.2s;
+}
+
+.header__burger:hover span {
+  background: var(--color-primary);
 }
 
 /* Адаптивность */
@@ -593,12 +655,41 @@ h3 {
   }
 
   .header__info {
-    gap: 10px;
+    gap: 8px;
   }
+
+  /* На мобилке порядок в строке: объявление, колокольчик, "⋯", "Подать заявку" */
+  .broadcast { order: 1; }
+  .user__notifications { order: 2; }
+  .header__overflow-wrap { order: 3; }
+  .appl-btn__container { order: 4; }
 
   /* Приветствие + подзаголовок "Мы рады..." скрыты на мобилке (директива юзера) */
   .header__title {
     display: none;
+  }
+
+  /* Объявление на мобилке - компактная круглая иконка вместо текстового pill (A.3) */
+  .broadcast {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border-radius: 50%;
+    justify-content: center;
+  }
+
+  .broadcast__icon {
+    display: block;
+  }
+
+  .broadcast__label {
+    display: none;
+  }
+
+  /* Колокольчик - в самой шапке, укрупнён под тач (A.2) */
+  .user__notifications {
+    width: 40px;
+    height: 40px;
   }
 
   .header__overflow-wrap {
@@ -606,28 +697,31 @@ h3 {
     position: relative;
   }
 
+  /* "⋯" - pill вместо круга (A.1) */
   .header__overflow-toggle {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    border: 1px solid #e6e6e6;
+    min-width: 48px;
+    height: 40px;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--color-border);
     background: #fff;
     cursor: pointer;
     font-size: 20px;
     line-height: 1;
     color: #555;
-    padding: 0;
+    padding: 0 14px;
     flex-shrink: 0;
   }
 
   .header__overflow-toggle:hover {
-    background: #f5f5f5;
+    background: var(--color-primary-tint);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
   }
 
-  /* Вторичные иконки (feedback/broadcast/time/bell) сворачиваются в overflow-меню */
+  /* Внутри "⋯" остаются только feedback + время */
   .header__overflow {
     display: none;
   }
@@ -650,7 +744,6 @@ h3 {
   }
 
   .header__overflow--open .feedback-btn,
-  .header__overflow--open .broadcast,
   .header__overflow--open .time {
     width: 100%;
     min-height: 44px;
@@ -660,45 +753,51 @@ h3 {
     white-space: normal;
   }
 
-  .header__overflow--open .broadcast {
-    border-radius: 10px;
-    justify-content: center;
-  }
-
-  .header__overflow--open .user__notifications {
-    width: 44px;
-    height: 44px;
-    align-self: flex-start;
-  }
-
-  /* Кнопка "Подать заявку" остаётся в строке заголовка, схлопывается в иконку "+" */
+  /* Кнопка "Подать заявку" - primary pill (A.1), в строке заголовка */
   .appl-btn__container {
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
+    width: auto;
+    height: auto;
+    border-radius: var(--radius-pill);
+    background: transparent;
     display: flex;
     align-items: center;
-    justify-content: center;
   }
 
   .appl-btn {
-    width: 44px;
-    height: 44px;
-    padding: 0;
-    border-radius: 50%;
-    display: flex;
+    height: 40px;
+    width: auto;
+    padding: 0 16px;
+    gap: 6px;
+    border-radius: var(--radius-pill);
+    background: var(--color-primary);
+    color: #fff;
+    border-color: var(--color-primary);
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 20px;
+    font-size: 14px;
     font-weight: 600;
+    box-shadow: 0 2px 4px rgba(79, 91, 223, 0.25);
+  }
+
+  .appl-btn:hover {
+    background: var(--color-primary-hover);
+    border-color: var(--color-primary-hover);
   }
 
   .appl-btn__icon {
     display: inline-flex;
+    font-size: 18px;
+    line-height: 1;
   }
 
+  /* На мобилке полная надпись "Подать заявку" -> короткая "Заявка" (влезает в строку) */
   .appl-btn__label {
     display: none;
+  }
+
+  .appl-btn__label-short {
+    display: inline;
   }
 
   .appl-btn--fixed {
@@ -710,6 +809,18 @@ h3 {
 @media (max-width: 480px) {
   .header {
     padding: 0 10px;
+  }
+}
+
+/* На очень узких экранах "Заявка" скрываем - остаётся "+" pill, чтобы строка
+   с объявлением+колокольчиком+"⋯" гарантированно не переносилась. */
+@media (max-width: 360px) {
+  .appl-btn__label-short {
+    display: none;
+  }
+
+  .appl-btn {
+    padding: 0 14px;
   }
 }
 </style>

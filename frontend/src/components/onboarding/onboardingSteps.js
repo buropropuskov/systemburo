@@ -102,7 +102,6 @@ export const onboardingSteps = [
     element: '[data-testid="ob-header-notifications"]',
     title: 'Уведомления',
     description: 'Колокольчик показывает количество непрочитанных уведомлений: смена статуса заявки, ответы согласующих и другие события. Нажмите, чтобы открыть список.',
-    mobileReveal: 'header-overflow',
   },
   {
     id: 'header-submit',
