@@ -217,7 +217,7 @@
                   :checked="isSelected(comp.id)"
                   :aria-label="`Выбрать ${comp.name}`"
                   data-testid="companies-row-check"
-                  @click.prevent="onRowCheck(comp, index, $event)"
+                  @click="onRowCheck(comp, index, $event)"
                 >
               </div>
               <div
