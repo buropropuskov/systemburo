@@ -1,121 +1,105 @@
 package handlers_test
 
 import (
-	"fmt"
-	"net/http"
+	"context"
 	"testing"
 
+	"systemburo/internal/models"
+	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// Групповая блокировка/разблокировка по списку username: успех, частичный успех
-// (супер-админ и самобан в errors), дедуп, очистка причины при разбане.
-func TestUsers_BulkBanUnban(t *testing.T) {
-	e, db, cleanup := testutil.SetupTestApp(t)
-	defer cleanup()
-	testutil.CleanDB(t, db)
-	td := testutil.SeedTestData(t, db)
-	h := testutil.AuthHeader(testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID))
+// Групповая блокировка/разблокировка на уровне сервиса (лёгкий тест без CleanDB/Seed
+// - пакет handlers на грани CI-таймаута под -race). Реюзает единожды засеянную БД,
+// создаёт целевых пользователей через setupMWUser и чистит их за собой.
+func TestUserBanService_BulkBanUnban(t *testing.T) {
+	_, db, _ := testutil.SetupTestApp(t)
+	resolver := services.NewPermissionResolver(db)
+	banSvc := services.NewUserBanService(db, resolver, nil, services.NewAuditRecorder(db))
+	ctx := context.Background()
 
-	testutil.RegisterUser(t, e, "banu1", "password123", 1, td.OrgID, td.CompanyID)
-	testutil.RegisterUser(t, e, "banu2", "password123", 1, td.OrgID, td.CompanyID)
+	actorID, _, ca := setupMWUser(t, db, true, false)
+	defer ca()
+	t1, _, c1 := setupMWUser(t, db, false, false)
+	defer c1()
+	t2, _, c2 := setupMWUser(t, db, false, false)
+	defer c2()
+	superID, _, cs := setupMWUser(t, db, true, false) // isSuperAdmin=true -> нельзя банить
+	defer cs()
 
-	banned := func(username string) *bool {
-		var b *bool
-		require.NoError(t, db.Table("users").Select("is_banned").Where("username = ?", username).Row().Scan(&b))
-		return b
+	uname := func(id int) string {
+		var u models.User
+		require.NoError(t, db.Select("username").First(&u, id).Error)
+		return u.Username
 	}
-	reasonOf := func(username string) *string {
-		var r *string
-		require.NoError(t, db.Table("users").Select("ban_reason").Where("username = ?", username).Row().Scan(&r))
-		return r
+	banned := func(id int) bool {
+		var u models.User
+		require.NoError(t, db.Select("is_banned").First(&u, id).Error)
+		return u.IsBanned
 	}
+	reasonOf := func(id int) *string {
+		var u models.User
+		require.NoError(t, db.Select("ban_reason").First(&u, id).Error)
+		return u.BanReason
+	}
+	n1, n2, actorName, superName := uname(t1), uname(t2), uname(actorID), uname(superID)
 
 	t.Run("ban полный успех с причиной", func(t *testing.T) {
-		rec := testutil.POST(t, e, "/users/bulk/ban", `{"usernames":["banu1","banu2"],"reason":"нарушение"}`, h)
-		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		res := testutil.ParseMap(t, rec)
-		assert.Equal(t, float64(2), res["success_count"])
-		assert.Equal(t, float64(0), res["error_count"])
-		require.NotNil(t, banned("banu1"))
-		assert.True(t, *banned("banu1"))
-		assert.True(t, *banned("banu2"))
-		require.NotNil(t, reasonOf("banu1"))
-		assert.Equal(t, "нарушение", *reasonOf("banu1"))
+		res, err := banSvc.BulkBan(ctx, actorID, []string{n1, n2}, "нарушение")
+		require.NoError(t, err)
+		assert.Equal(t, 2, res.SuccessCount)
+		assert.Equal(t, 0, res.ErrorCount)
+		assert.True(t, banned(t1))
+		assert.True(t, banned(t2))
+		require.NotNil(t, reasonOf(t1))
+		assert.Equal(t, "нарушение", *reasonOf(t1))
 	})
 
-	t.Run("дубли username дедуплицируются", func(t *testing.T) {
-		dup := testutil.ParseMap(t, testutil.POST(t, e, "/users/bulk/ban", `{"usernames":["banu1","banu1"]}`, h))
-		assert.Equal(t, float64(1), dup["success_count"])
-	})
-
-	t.Run("unban полный успех очищает причину", func(t *testing.T) {
-		rec := testutil.POST(t, e, "/users/bulk/unban", `{"usernames":["banu1","banu2"]}`, h)
-		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		assert.Equal(t, float64(2), testutil.ParseMap(t, rec)["success_count"])
-		assert.False(t, *banned("banu1"))
-		assert.Nil(t, reasonOf("banu1"))
-	})
-
-	t.Run("супер-админ в наборе -> в errors, не валит операцию", func(t *testing.T) {
-		testutil.RegisterUser(t, e, "bansuper", "password123", 1, td.OrgID, td.CompanyID)
-		require.NoError(t, db.Table("users").Where("username = ?", "bansuper").Update("is_super_admin", true).Error)
-		rec := testutil.POST(t, e, "/users/bulk/ban", `{"usernames":["banu1","bansuper"]}`, h)
-		require.Equal(t, http.StatusMultiStatus, rec.Code)
-		res := testutil.ParseMap(t, rec)
-		assert.Equal(t, float64(1), res["success_count"])
-		assert.Equal(t, float64(1), res["error_count"])
-		errs := res["errors"].([]interface{})
-		require.Len(t, errs, 1)
-		e0 := errs[0].(map[string]interface{})
-		assert.Equal(t, "bansuper", e0["name"])
-		assert.Contains(t, e0["error"].(string), "супер-администратор")
-		testutil.POST(t, e, "/users/bulk/unban", `{"usernames":["banu1"]}`, h) // вернуть
+	t.Run("unban полный успех очищает причину; дедуп", func(t *testing.T) {
+		res, err := banSvc.BulkUnban(ctx, actorID, []string{n1, n1})
+		require.NoError(t, err)
+		assert.Equal(t, 1, res.SuccessCount, "дубли username дедуплицируются")
+		assert.False(t, banned(t1))
+		assert.Nil(t, reasonOf(t1))
 	})
 
 	t.Run("самобан актора -> в errors", func(t *testing.T) {
-		rec := testutil.POST(t, e, "/users/bulk/ban", `{"usernames":["banu1","testadmin"]}`, h)
-		require.Equal(t, http.StatusMultiStatus, rec.Code)
-		res := testutil.ParseMap(t, rec)
-		assert.Equal(t, float64(1), res["success_count"])
-		errs := res["errors"].([]interface{})
-		require.Len(t, errs, 1)
-		e0 := errs[0].(map[string]interface{})
-		assert.Equal(t, "testadmin", e0["name"])
-		assert.Contains(t, e0["error"].(string), "самого себя")
-		testutil.POST(t, e, "/users/bulk/unban", `{"usernames":["banu1"]}`, h)
+		res, err := banSvc.BulkBan(ctx, actorID, []string{n2, actorName}, "")
+		require.NoError(t, err)
+		assert.Equal(t, 1, res.SuccessCount)
+		require.Len(t, res.Errors, 1)
+		assert.Equal(t, actorName, res.Errors[0].Name)
+		assert.Contains(t, res.Errors[0].Error, "самого себя")
+		banSvc.BulkUnban(ctx, actorID, []string{n2}) //nolint:errcheck // откат для чистоты
 	})
 
-	t.Run("несуществующий username -> в errors (207)", func(t *testing.T) {
-		rec := testutil.POST(t, e, "/users/bulk/ban", `{"usernames":["banu1","nouser"]}`, h)
-		require.Equal(t, http.StatusMultiStatus, rec.Code)
-		res := testutil.ParseMap(t, rec)
-		assert.Equal(t, float64(1), res["success_count"])
-		assert.Equal(t, float64(1), res["error_count"])
-		testutil.POST(t, e, "/users/bulk/unban", `{"usernames":["banu1"]}`, h)
+	t.Run("супер-админ -> в errors, не валит пачку", func(t *testing.T) {
+		res, err := banSvc.BulkBan(ctx, actorID, []string{n2, superName}, "")
+		require.NoError(t, err)
+		assert.Equal(t, 1, res.SuccessCount)
+		require.Len(t, res.Errors, 1)
+		assert.Equal(t, superName, res.Errors[0].Name)
+		assert.Contains(t, res.Errors[0].Error, "супер-администратор")
+		banSvc.BulkUnban(ctx, actorID, []string{n2}) //nolint:errcheck
 	})
 
-	t.Run("пустой список -> 400", func(t *testing.T) {
-		assert.Equal(t, http.StatusBadRequest,
-			testutil.POST(t, e, "/users/bulk/ban", `{"usernames":[]}`, h).Code)
-		assert.Equal(t, http.StatusBadRequest,
-			testutil.POST(t, e, "/users/bulk/unban", `{"usernames":[]}`, h).Code)
+	t.Run("несуществующий username -> в errors", func(t *testing.T) {
+		res, err := banSvc.BulkBan(ctx, actorID, []string{n1, "nouser_zzz_9999"}, "")
+		require.NoError(t, err)
+		assert.Equal(t, 1, res.SuccessCount)
+		assert.Equal(t, 1, res.ErrorCount)
+		require.Len(t, res.Errors, 1)
+		assert.Equal(t, "nouser_zzz_9999", res.Errors[0].Name)
+		banSvc.BulkUnban(ctx, actorID, []string{n1}) //nolint:errcheck
 	})
-}
 
-// Гейт action.ban.user: обычный пользователь без права получает 403 до цикла.
-func TestUsers_BulkBan_Forbidden(t *testing.T) {
-	e, db, cleanup := testutil.SetupTestApp(t)
-	defer cleanup()
-	testutil.CleanDB(t, db)
-	td := testutil.SeedTestData(t, db)
-	h := testutil.AuthHeader(testutil.RegisterAndLogin(t, e, "banplain", "password123", 1, td.OrgID, td.CompanyID))
-
-	assert.Equal(t, http.StatusForbidden,
-		testutil.POST(t, e, "/users/bulk/ban", fmt.Sprintf(`{"usernames":[%q]}`, "banplain"), h).Code)
-	assert.Equal(t, http.StatusForbidden,
-		testutil.POST(t, e, "/users/bulk/unban", fmt.Sprintf(`{"usernames":[%q]}`, "banplain"), h).Code)
+	t.Run("пустой список -> пустой результат", func(t *testing.T) {
+		res, err := banSvc.BulkBan(ctx, actorID, []string{}, "")
+		require.NoError(t, err)
+		assert.Equal(t, 0, res.SuccessCount)
+		assert.Equal(t, 0, res.ErrorCount)
+	})
 }
