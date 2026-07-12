@@ -107,8 +107,10 @@
           class="header__overflow"
           :class="{ 'header__overflow--open': showHeaderOverflow }"
         >
+          <!-- На мобилке (<768) кнопка переезжает в бургер-drawer NavMenu (W3.3),
+               поэтому убираем её из DOM шапки - иначе тур нашёл бы скрытый дубль. -->
           <button
-            v-if="can('header.report_problem')"
+            v-if="can('header.report_problem') && !isMobileHeader"
             class="feedback-btn"
             data-testid="header-button-feedback"
             @click="openFeedbackModal"
@@ -199,6 +201,8 @@ export default {
       showHeaderOverflow: false,
       unreadCount: 0,
       currentHour: new Date().getHours(),
+      // <768: кнопка «Сообщить о проблеме» живёт в бургер-drawer, не в шапке (W3.3).
+      isMobileHeader: false,
     };
   },
   computed: {
@@ -238,6 +242,7 @@ export default {
       }
     };
     document.addEventListener('click', this._onDocumentClick);
+    this.initMobileWatcher();
   },
   beforeUnmount() {
     if (this.timer) {
@@ -248,6 +253,13 @@ export default {
       this.observer.disconnect();
     }
     document.removeEventListener('click', this._onDocumentClick);
+    if (this._mobileMql && this._onMobileChange) {
+      if (this._mobileMql.removeEventListener) {
+        this._mobileMql.removeEventListener('change', this._onMobileChange);
+      } else if (this._mobileMql.removeListener) {
+        this._mobileMql.removeListener(this._onMobileChange);
+      }
+    }
   },
   methods: {
     // Гейтинг по правам (#187 Фаза 2). super -> всегда true, admin -> всё кроме
@@ -267,6 +279,21 @@ export default {
     },
     openFeedbackModal() {
       this.showFeedbackModal = true;
+    },
+    /**
+     * Реактивно отслеживает мобильный брейкпоинт (совпадает с CSS @media 768):
+     * на нём кнопка «Сообщить о проблеме» показывается в drawer, а не в шапке.
+     */
+    initMobileWatcher() {
+      if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+      this._mobileMql = window.matchMedia('(max-width: 768px)');
+      this.isMobileHeader = this._mobileMql.matches;
+      this._onMobileChange = (e) => { this.isMobileHeader = e.matches; };
+      if (this._mobileMql.addEventListener) {
+        this._mobileMql.addEventListener('change', this._onMobileChange);
+      } else if (this._mobileMql.addListener) {
+        this._mobileMql.addListener(this._onMobileChange);
+      }
     },
     toggleMobileNav() {
       this.$bus.emit('mobile-nav-toggle');

@@ -34,6 +34,23 @@
         ✕
       </button>
 
+      <!-- «Сообщить о проблеме» переехало из шапки в drawer на мобилке (W3.3).
+           Тот же testid, что у шапочной кнопки: на десктопе она в шапке, на
+           мобилке - здесь, в DOM всегда ровно один экземпляр (тур находит нужный). -->
+      <button
+        v-if="mobileOpen && can('header.report_problem')"
+        class="nav-menu__feedback"
+        data-testid="header-button-feedback"
+        @click="openFeedbackFromDrawer"
+      >
+        <NavIcon
+          name="feedback"
+          :size="18"
+          aria-hidden="true"
+        />
+        <span>Сообщить о проблеме</span>
+      </button>
+
       <div class="nav-content">
         <!-- Бренд + контролы (пин/скрыть). В свёрнутом виде - только лого по центру. -->
         <div class="nav-head">
@@ -425,6 +442,12 @@
       </div>
     </nav>
 
+    <!-- Обратная связь из drawer'а (W3.3). Teleport->body, поверх закрытого drawer'а. -->
+    <FeedbackModal
+      v-model:show="showFeedbackModal"
+      @submitted="onFeedbackSubmitted"
+    />
+
     <!--
       Двухколоночная Админка (#510): колонка справа от свёрнутого в иконки рельса,
       поверх готовых /admin/* роутов. Палитра наследуется от .nav-root. Без теней.
@@ -582,10 +605,11 @@ import { usePermissionsStore } from '@/stores/permissions'
 import { playPreset } from '@/utils/notificationSound'
 import eventStream from '@/services/eventStream'
 import NavIcon from '@/components/icons/NavIcon.vue'
+import FeedbackModal from '@/components/FeedbackModal.vue'
 
 export default {
   name: 'NavMenu',
-  components: { NavIcon },
+  components: { NavIcon, FeedbackModal },
   emits: ['logout'],
   setup() {
     // Сторы берём в setup для реактивности в шаблоне: authStore - гейт
@@ -628,6 +652,8 @@ export default {
       sseConnected: false,
       unreadReadHandler: null,
       mobileOpen: false,
+      // «Сообщить о проблеме» из drawer'а (W3.3): модалка та же, что в шапке.
+      showFeedbackModal: false,
       isBanned: false,
       searchQuery: '',
       adminOpen: false,
@@ -931,6 +957,19 @@ export default {
       if (!this.mobileOpen) return;
       this.mobileOpen = false;
       document.body.classList.remove('nav-drawer-open');
+    },
+    /**
+     * Открыть форму обратной связи из drawer'а. Сначала закрываем drawer:
+     * его z-index (10000) выше overlay модалки (9999), иначе форма ушла бы под него.
+     */
+    openFeedbackFromDrawer() {
+      this.closeMobile();
+      this.showFeedbackModal = true;
+    },
+    onFeedbackSubmitted() {
+      // Новое обращение -> обновляем бейдж непрочитанных у Администрирования
+      // (метод сам гейтит по праву page.admin.feedback).
+      this.fetchNewFeedbackCount();
     },
     expandMenu() {
       // При открытой Админке рельс зафиксирован в иконках - hover не разворачивает.
@@ -2034,6 +2073,11 @@ export default {
   background: var(--nav-hover);
 }
 
+/* «Сообщить о проблеме» в drawer'е (W3.3) - только на мобилке (@media768). */
+.nav-menu__feedback {
+  display: none;
+}
+
 .nav-backdrop-enter-active,
 .nav-backdrop-leave-active {
   transition: opacity 0.25s ease;
@@ -2078,7 +2122,6 @@ export default {
   /* В drawer'е всё всегда развёрнуто - hover/collapse не работают на touch.
      Перебиваем свёрнутые desktop-оверрайды. */
   .nav-menu .nav-brand__name,
-  .nav-menu .nav-controls,
   .nav-menu .nav-search,
   .nav-menu .nav-text,
   .nav-menu .section-title,
@@ -2087,6 +2130,11 @@ export default {
     opacity: 1 !important;
     transform: none !important;
     pointer-events: auto;
+  }
+
+  /* Пин/сворачивание рельса бессмысленны в тач-drawer'е (B.1, W3.3) - убираем. */
+  .nav-menu .nav-controls {
+    display: none !important;
   }
 
   .nav-menu .nav-item,
@@ -2155,6 +2203,35 @@ export default {
     display: flex;
     align-items: center;
     justify-content: center;
+  }
+
+  /* «Сообщить о проблеме» в верхней полосе drawer'а, слева от крестика (W3.3).
+     nav-content уже держит padding-top:48px, поэтому не наезжает на бренд. */
+  .nav-menu__feedback {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    right: 64px;
+    height: 44px;
+    padding: 0 12px;
+    border: none;
+    background: transparent;
+    color: var(--nav-text);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    z-index: 2;
+  }
+
+  .nav-menu__feedback:hover {
+    background: var(--nav-hover);
   }
 
   /* Тач-таргеты >=44px (WCAG 2.5.5): в drawer'е и колонке Админки контролы

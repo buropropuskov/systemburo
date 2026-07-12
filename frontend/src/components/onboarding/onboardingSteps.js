@@ -84,7 +84,8 @@ export const onboardingSteps = [
     element: '[data-testid="header-button-feedback"]',
     title: 'Сообщить о проблеме',
     description: 'Заметили ошибку или есть предложение - напишите нам прямо отсюда, не покидая систему.',
-    mobileReveal: 'header-overflow',
+    // На мобилке кнопка переехала из "⋯" в бургер-drawer (W3.3) - раскрываем drawer.
+    mobileReveal: 'nav',
   },
   {
     id: 'header-time',

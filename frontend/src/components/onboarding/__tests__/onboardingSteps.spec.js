@@ -92,9 +92,10 @@ describe('mobileReveal (#1097 S11 - переехавшие на <768 цели)',
     expect(byId('nav-group-data').mobileReveal).toBe('nav');
   });
 
-  it('вторичные иконки шапки (feedback/time) просят overflow-меню; колокольчик - в самой шапке', () => {
+  it('feedback переехал в drawer (nav), время в overflow; колокольчик - в самой шапке', () => {
     const byId = (id) => onboardingSteps.find((s) => s.id === id);
-    expect(byId('header-feedback').mobileReveal).toBe('header-overflow');
+    // #1097 W3.3: «Сообщить о проблеме» вынесено из "⋯" в бургер-drawer.
+    expect(byId('header-feedback').mobileReveal).toBe('nav');
     expect(byId('header-time').mobileReveal).toBe('header-overflow');
     // #1097 W3.2: колокольчик вынесен из "⋯" в саму шапку - reveal не нужен.
     expect(byId('header-notifications').mobileReveal).toBeUndefined();
