@@ -751,14 +751,67 @@ export default {
 }
 
 @media (max-width: 560px) {
+  /* На телефоне модалка почти во всю ширину и не такая высокая; боковые отступы
+     ужаты. Высота по dvh (адрес-бар мобильного браузера учтён). */
+  .modes-overlay {
+    padding: 10px;
+  }
+  .modes {
+    width: 100%;
+    height: min(600px, 82dvh);
+    border-radius: 24px;
+  }
+  .modes__header {
+    padding: 16px 16px 14px;
+  }
+  .modes__title {
+    font-size: 17px;
+  }
+  .modes__state {
+    padding: 24px 16px;
+  }
   .cats {
     flex-wrap: wrap;
+    padding: 0 16px 4px;
   }
   .cat-pill {
     flex: 1 1 auto;
   }
+  .modes__body {
+    padding: 16px 16px 8px;
+  }
+  /* Бейдж статуса («Открыто сейчас») съедал ширину названия - переносим его под
+     название второй строкой (grid: строка1 иконка/название/шеврон, строка2 статус). */
+  .obj__head {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas:
+      "icon main chev"
+      ".    status  .";
+    align-items: center;
+    column-gap: 12px;
+    row-gap: 6px;
+  }
+  .obj__icon {
+    grid-area: icon;
+  }
+  .obj__main {
+    grid-area: main;
+  }
+  .obj__chev {
+    grid-area: chev;
+  }
+  .status {
+    grid-area: status;
+    justify-self: start;
+  }
   .modes__legend {
     display: none;
+  }
+  /* Легенда скрыта - без space-between кнопка «Готово» уезжала бы влево, держим справа. */
+  .modes__footer {
+    justify-content: flex-end;
+    padding: 14px 16px 18px;
   }
 }
 
