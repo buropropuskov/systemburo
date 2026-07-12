@@ -14,17 +14,24 @@ import { ref } from 'vue';
  *   :class="{ 'is-dragging': isDragging }"   // is-dragging { transition: none } - 1:1 за пальцем
  *
  * @param {() => void} onDismiss вызывается когда лист протянут дальше порога
- * @param {{ threshold?: number, getScrollTop?: () => number, handleSelector?: string }} [options]
+ * @param {{ threshold?: number, slop?: number, getScrollTop?: () => number, handleSelector?: string }} [options]
  * @returns {{ offset: import('vue').Ref<number>, isDragging: import('vue').Ref<boolean>,
  *            onTouchStart: (e: TouchEvent) => void, onTouchMove: (e: TouchEvent) => void,
  *            onTouchEnd: () => void }}
  */
 export function useSwipeDismiss(onDismiss, options = {}) {
-  const { threshold = 90, getScrollTop = () => 0, handleSelector = null } = options;
+  const { threshold = 90, slop = 8, getScrollTop = () => 0, handleSelector = null } = options;
   const offset = ref(0);
   const isDragging = ref(false);
   let startY = 0;
   let active = false;
+  let engaged = false;
+
+  function reset() {
+    offset.value = 0;
+    isDragging.value = false;
+    engaged = false;
+  }
 
   function onTouchStart(e) {
     if (!e.touches || e.touches.length !== 1) return;
@@ -32,17 +39,29 @@ export function useSwipeDismiss(onDismiss, options = {}) {
     const fromHandle = !!(handleSelector && e.target?.closest?.(handleSelector));
     // Свайп-закрытие только с ползунка или когда контент прокручен вверх.
     active = fromHandle || getScrollTop() <= 0;
-    offset.value = 0;
-    isDragging.value = false;
+    reset();
   }
 
   function onTouchMove(e) {
-    if (!active || !e.touches || e.touches.length !== 1) return;
+    if (!active) return;
+    if (!e.touches || e.touches.length !== 1) {
+      // Второй палец (pinch/zoom) - отменяем жест закрытия, не мешаем масштабированию.
+      active = false;
+      reset();
+      return;
+    }
     const dy = e.touches[0].clientY - startY;
+    if (!engaged) {
+      // Мёртвая зона: пока палец не ушёл вниз дальше slop, НЕ перехватываем событие
+      // (иначе preventDefault на дребезге глотает click по кнопкам/ссылкам внутри листа).
+      if (dy <= slop) {
+        reset();
+        return;
+      }
+      engaged = true;
+    }
     if (dy <= 0) {
-      // Вверх не тянем - отдаём жест скроллу.
-      offset.value = 0;
-      isDragging.value = false;
+      reset();
       return;
     }
     isDragging.value = true;
@@ -54,9 +73,8 @@ export function useSwipeDismiss(onDismiss, options = {}) {
   function onTouchEnd() {
     if (!active) return;
     const dismissed = offset.value > threshold;
-    offset.value = 0;
-    isDragging.value = false;
     active = false;
+    reset();
     if (dismissed) onDismiss();
   }
 
