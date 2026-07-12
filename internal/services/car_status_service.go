@@ -2,9 +2,11 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"systemburo/internal/models"
@@ -59,7 +61,7 @@ func (s *carService) GetCarsCurrentStatus(ctx context.Context) ([]CarCurrentStat
 }
 
 // UpdateCarTerritoryStatus обновляет территориальный статус автомобиля (въезд/выезд).
-func (s *carService) UpdateCarTerritoryStatus(ctx context.Context, carID int, req UpdateTerritoryStatusRequest) error {
+func (s *carService) UpdateCarTerritoryStatus(ctx context.Context, carID int, req UpdateCarTerritoryStatusRequest) error {
 	now := time.Now().UTC()
 	actionType := "unknown"
 	if req.TerritoryStatus == 1 {
@@ -101,7 +103,19 @@ func (s *carService) UpdateCarTerritoryStatus(ctx context.Context, carID int, re
 			comment = fmt.Sprintf("Автомобиль %s выехал с территории", carNumber)
 		}
 
-		if err := s.recorder.Record(ctx, tx, models.AuditEntityCar, &carID, actionType, req.UserID, carAuditDetails{Comment: &comment, TableID: req.TableID}); err != nil {
+		details := carAuditDetails{Comment: &comment, TableID: req.TableID}
+		// Данные пропуска "по факту" (#1132): при въезде и наличии введённого номера
+		// кладём снимок в details.metadata записи entry -> он доедет до карточки через
+		// carsHistoryUnion (details->'metadata'). Выезд/пустой номер снимок не пишут.
+		if req.TerritoryStatus == 1 && req.Pass != nil && strings.TrimSpace(req.Pass.Number) != "" {
+			if raw, err := json.Marshal(req.Pass); err == nil {
+				details.Metadata = raw
+			} else {
+				slog.Error("не удалось сериализовать данные пропуска по факту", "car_id", carID, "error", err)
+			}
+		}
+
+		if err := s.recorder.Record(ctx, tx, models.AuditEntityCar, &carID, actionType, req.UserID, details); err != nil {
 			slog.Error("не удалось добавить запись в историю автомобиля", "car_id", carID, "action_type", actionType, "error", err)
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error adding car history entry")
 		}

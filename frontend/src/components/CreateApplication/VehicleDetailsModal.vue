@@ -371,7 +371,29 @@
                           <div class="action-text">
                             {{ getActionText(item) }}
                           </div>
-                                                
+
+                          <!-- Данные, введённые охранником при пропуске "по факту" (#1132) -->
+                          <div
+                            v-if="passInfo(item)"
+                            class="pass-data"
+                          >
+                            <div class="pass-data__row">
+                              <span class="pass-data__key">Номер:</span> {{ passInfo(item).number }}
+                            </div>
+                            <div
+                              v-if="passInfo(item).mark_name"
+                              class="pass-data__row"
+                            >
+                              <span class="pass-data__key">Марка:</span> {{ passInfo(item).mark_name }}
+                            </div>
+                            <div
+                              v-if="passInfo(item).format_name"
+                              class="pass-data__row"
+                            >
+                              <span class="pass-data__key">Формат:</span> {{ passInfo(item).format_name }}
+                            </div>
+                          </div>
+
                           <div class="action-comment">
                             {{ getActionComment(item) }}
                           </div>
@@ -968,11 +990,30 @@ export default {
             return item.comment || '';
         },
 
+        // Данные пропуска "по факту" (#1132): охранник вводит их при въезде, бэкенд
+        // кладёт в details.metadata записи entry. Возвращаем объект {number, mark_name,
+        // format_name} или null, если это обычная запись без данных пропуска.
+        passInfo(item) {
+            const m = item && item.metadata;
+            if (m && typeof m === 'object' && m.number) return m;
+            return null;
+        },
+
         async loadCarHistory() {
             if (!this.vehicle?.id || !this.showCarFeatures) return;
             
             this.loadingHistory = true;
             try {
+                // Фактовая таблица (#1132): у машин "по факту" car_number - плейсхолдер,
+                // и unified (по номеру+марке) склеил бы истории всех таких машин. Берём
+                // историю ОДНОЙ машины, чтобы данные пропуска (metadata) относились к ней.
+                if (this.source === 'facttable') {
+                    const response = await apiRequest(`/cars/${this.vehicle.id}/history`, {});
+                    if (response.ok) {
+                        this.history = await response.json();
+                    }
+                    return;
+                }
                 // Используем unified endpoint, как в CarHistoryModal.
                 // Собираем query-строку руками — apiRequest ожидает строку-путь,
                 // а не URL object (после /api префикса URL object ломается при конкатенации).
@@ -1762,6 +1803,27 @@ export default {
   margin-top: 2px;
   padding-left: 6px;
   border-left: 2px solid #e6e6e6;
+}
+
+/* Данные пропуска "по факту" (#1132) под записью въезда */
+.pass-data {
+  margin-top: 4px;
+  padding: 6px 8px;
+  background: #f5f7fa;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pass-data__row {
+  font-size: 11px;
+  color: #333;
+}
+
+.pass-data__key {
+  font-weight: 600;
+  color: #555;
 }
 
 .loading-container {

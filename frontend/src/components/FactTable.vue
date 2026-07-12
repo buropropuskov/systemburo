@@ -383,6 +383,16 @@
       @close="closeDetailsModal"
       @open-application="$emit('open-application', $event)"
     />
+
+    <!-- Модалка ввода данных при пропуске "по факту" (#1132) -->
+    <FactPassModal
+      :show="showPassModal"
+      :formats="licensePlateFormats"
+      :loading="passLoading"
+      :error="passError"
+      @close="closePassModal"
+      @confirm="onPassConfirm"
+    />
   </div>
 </template>
 
@@ -394,6 +404,7 @@ import RefreshButton from './RefreshButton.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import VehicleDetailsModal from './CreateApplication/VehicleDetailsModal.vue';
+import FactPassModal from './FactPassModal.vue';
 import ExcelJS from 'exceljs';
 
 export default {
@@ -402,7 +413,8 @@ export default {
     RefreshButton,
     LoaderSpinner,
     StatusBadge,
-    VehicleDetailsModal
+    VehicleDetailsModal,
+    FactPassModal
   },
   props: {
     tableType: { type: String, default: 'cars', validator: (v) => ['cars', 'people'].includes(v) },
@@ -431,6 +443,11 @@ export default {
       licensePlateFormats: [],
       showDetailsModal: false,
       selectedVehicle: null,
+      // Пропуск "по факту" (#1132): модалка ввода формата/номера/марки при въезде.
+      showPassModal: false,
+      passItem: null,
+      passLoading: false,
+      passError: '',
       pollingInterval: null,
       // Real-time (#840): подписка на tables:<tableId>, статус SSE-соединения и seq-токен
       // против гонки конкурентных silentRefresh (таймер + SSE-сигнал, урок #632/#840).
@@ -850,31 +867,62 @@ export default {
     
     async handleEntryExit(item, type) {
       if (!this.currentUserId) return;
+      // Въезд "по факту" (#1132): сначала модалка ввода данных, статус ставим только
+      // после успешного сохранения (onPassConfirm). Выезд - как прежде, сразу.
+      if (type === 'entry') {
+        this.passItem = item;
+        this.passError = '';
+        this.showPassModal = true;
+        return;
+      }
+      await this.applyTerritoryStatus(item, 2, null);
+    },
+
+    async onPassConfirm(pass) {
+      if (!this.passItem) return;
+      this.passLoading = true;
+      this.passError = '';
+      const ok = await this.applyTerritoryStatus(this.passItem, 1, pass);
+      this.passLoading = false;
+      if (ok) {
+        this.closePassModal();
+      } else {
+        this.passError = 'Не удалось сохранить пропуск. Попробуйте ещё раз.';
+      }
+    },
+
+    closePassModal() {
+      this.showPassModal = false;
+      this.passItem = null;
+      this.passError = '';
+    },
+
+    // Отправляет смену территориального статуса и при успехе флипает флаги строки.
+    // pass != null (только при въезде) добавляет данные пропуска "по факту" (#1132).
+    async applyTerritoryStatus(item, territory_status, pass) {
       try {
-        let territory_status = type === 'entry' ? 1 : 2;
+        const body = { territory_status, user_id: this.currentUserId, table_id: this.tableId };
+        if (pass) body.pass = pass;
         const response = await apiRequest(`/cars/${item.id}/territory-status`, {
           method: "PUT",
-          body: JSON.stringify({ territory_status, user_id: this.currentUserId, table_id: this.tableId })
+          body: JSON.stringify(body)
         });
-        if (response.ok) {
-          const index = this.factData.findIndex(i => i.id === item.id);
-          if (index !== -1) {
-            const updatedItem = { ...this.factData[index] };
-            if (type === 'entry') {
-              updatedItem.entry_checked = true;
-              updatedItem.exit_checked = false;
-            } else {
-              updatedItem.entry_checked = false;
-              updatedItem.exit_checked = true;
-            }
-            this.factData.splice(index, 1, updatedItem);
-          }
-        } else {
+        if (!response.ok) {
           const errorText = await response.text();
           console.error('Ошибка при обновлении статуса:', errorText);
+          return false;
         }
+        const index = this.factData.findIndex(i => i.id === item.id);
+        if (index !== -1) {
+          const updatedItem = { ...this.factData[index] };
+          updatedItem.entry_checked = territory_status === 1;
+          updatedItem.exit_checked = territory_status === 2;
+          this.factData.splice(index, 1, updatedItem);
+        }
+        return true;
       } catch (error) {
         console.error('Ошибка сети:', error);
+        return false;
       }
     },
 
