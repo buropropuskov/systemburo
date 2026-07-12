@@ -592,6 +592,7 @@ func (s *organizationService) UpdateOrganizationUsers(ctx context.Context, calle
 				Username:         user.Username,
 				Name:             fullName(user.LastName, user.FirstName, user.Username),
 				RequiredApproval: requiredApproval,
+				IsPrimary:        isPrimary,
 			})
 		}
 		return nil
@@ -611,7 +612,7 @@ func (s *organizationService) attachedUserStates(ctx context.Context, orgID int)
 	var rows []auditUserState
 	if err := s.db.WithContext(ctx).
 		Table("organization_users ou").
-		Select("u.username AS username, "+auditUserNameSQL+" AS name, ou.required_approval AS required_approval").
+		Select("u.username AS username, "+auditUserNameSQL+" AS name, ou.required_approval AS required_approval, ou.is_primary AS is_primary").
 		Joins("JOIN users u ON u.id = ou.user_id").
 		Where("ou.organization_id = ?", orgID).Scan(&rows).Error; err != nil {
 		slog.Warn("audit: не удалось прочитать текущих ответственных организации", "org_id", orgID, "error", err)

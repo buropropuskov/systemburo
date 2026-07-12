@@ -77,6 +77,13 @@ type auditUserState struct {
 	Username         string `gorm:"column:username"`
 	Name             string `gorm:"column:name"`
 	RequiredApproval bool   `gorm:"column:required_approval"`
+	IsPrimary        bool   `gorm:"column:is_primary"`
+}
+
+// auditPrimaryChange - смена главного ответственного (from/to nil = не было / снят).
+type auditPrimaryChange struct {
+	From *auditUserRef `json:"from,omitempty"`
+	To   *auditUserRef `json:"to,omitempty"`
 }
 
 type auditUserAdded struct {
@@ -103,10 +110,28 @@ type auditUsersDiff struct {
 	Added           []auditUserAdded      `json:"added,omitempty"`
 	Removed         []auditUserRef        `json:"removed,omitempty"`
 	ApprovalChanged []auditApprovalChange `json:"approval_changed,omitempty"`
+	PrimaryChanged  *auditPrimaryChange   `json:"primary_changed,omitempty"`
 }
 
 func (d auditUsersDiff) empty() bool {
-	return len(d.Added) == 0 && len(d.Removed) == 0 && len(d.ApprovalChanged) == 0
+	return len(d.Added) == 0 && len(d.Removed) == 0 && len(d.ApprovalChanged) == 0 && d.PrimaryChanged == nil
+}
+
+// primaryRef возвращает ссылку на главного ответственного в наборе (или nil).
+func primaryRef(users []auditUserState) *auditUserRef {
+	for _, u := range users {
+		if u.IsPrimary {
+			return &auditUserRef{Username: u.Username, Name: u.Name}
+		}
+	}
+	return nil
+}
+
+func samePrimary(a, b *auditUserRef) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.Username == b.Username
 }
 
 // diffUsers сравнивает старый и применённый наборы ответственных. Сортировка по
@@ -143,6 +168,10 @@ func diffUsers(old, applied []auditUserState) auditUsersDiff {
 		if _, ok := appliedByUser[o.Username]; !ok {
 			d.Removed = append(d.Removed, auditUserRef{Username: o.Username, Name: o.Name})
 		}
+	}
+	// Смена главного ответственного (по одному primary на организацию/компанию).
+	if op, np := primaryRef(old), primaryRef(applied); !samePrimary(op, np) {
+		d.PrimaryChanged = &auditPrimaryChange{From: op, To: np}
 	}
 	return d
 }
