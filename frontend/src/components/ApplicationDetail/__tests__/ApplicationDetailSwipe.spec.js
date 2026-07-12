@@ -12,6 +12,7 @@ vi.mock('@/api/applications', () => ({
   markAsRead: vi.fn().mockResolvedValue(undefined),
 }));
 
+import { usePermissionsStore } from '@/stores/permissions';
 import ApplicationDetail from '../ApplicationDetail.vue';
 
 function mountDetail(appOverrides = {}, mode = 'center') {
@@ -99,6 +100,17 @@ describe('ApplicationDetail - кнопка "Скачать" в детали (#10
 
   it('нет без has_blank_template', () => {
     const wrapper = mountDetail({ has_blank_template: false }, 'user');
+    expect(btn(wrapper).exists()).toBe(false);
+  });
+
+  it('в mode=center нужен action.export.applications: с правом - есть', () => {
+    usePermissionsStore().effective = { 'action.export.applications': { value: 'allow', source: 'role' } };
+    const wrapper = mountDetail({ has_blank_template: true }, 'center');
+    expect(btn(wrapper).exists()).toBe(true);
+  });
+
+  it('в mode=center без action.export.applications - кнопки нет (как в строке Центра)', () => {
+    const wrapper = mountDetail({ has_blank_template: true }, 'center');
     expect(btn(wrapper).exists()).toBe(false);
   });
 });

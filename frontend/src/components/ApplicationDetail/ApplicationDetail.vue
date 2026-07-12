@@ -2271,27 +2271,6 @@ export default {
         display: inline-block;
     }
 
-    /* Кнопка "Скачать бланк" в шапке детали (W3.8) - иконка + текст, вторичный стиль. */
-    .detail-download-btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        margin-left: 10px;
-        min-height: 36px;
-        padding: 6px 14px;
-        border: 1px solid #e6e6e6;
-        border-radius: 50px;
-        background: #fff;
-        color: #4F5BDF;
-        font-size: 14px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: background 0.2s ease, color 0.2s ease;
-    }
-
-    .detail-download-btn:hover {
-        background: #eef0ff;
-    }
 
     /* W3.10: кросс-колоночный порядок секций детали на мобилке.
        Колонки промоутим через display:contents - их box исчезает (padding/border/gap
@@ -2353,5 +2332,31 @@ export default {
 @keyframes detailSlideUp {
     from { transform: translateY(100%); }
     to { transform: translateY(0); }
+}
+
+/* Кнопка "Скачать бланк" в шапке детали (W3.8) - иконка + текст, вторичный стиль.
+   Брейкпоинт 767.98 (не 768) совпадает со скрытием кнопки в строке списка - иначе
+   ровно на 768px "Скачать" была бы видна и в строке, и в детали одновременно. */
+@media (max-width: 767.98px) {
+    .detail-download-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-left: 10px;
+        min-height: 36px;
+        padding: 6px 14px;
+        border: 1px solid #e6e6e6;
+        border-radius: 50px;
+        background: #fff;
+        color: #4F5BDF;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s ease, color 0.2s ease;
+    }
+
+    .detail-download-btn:hover {
+        background: #eef0ff;
+    }
 }
 </style>
