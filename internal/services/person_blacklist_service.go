@@ -27,6 +27,12 @@ type PersonBlacklistService interface {
 	Create(ctx context.Context, req models.CreatePersonBlacklistRequest, userID int) (*models.PersonBlacklist, error)
 	Archive(ctx context.Context, id int, userID int) error
 	Restore(ctx context.Context, id int, userID int) error
+	// BulkArchive снимает набор записей из чёрного списка через Archive (полный каскад
+	// реактивации employees для каждой). Несуществующие id -> в Errors (частичный успех
+	// 207), не валят операцию. Дубли id дедуплицируются.
+	BulkArchive(ctx context.Context, ids []int, userID int) (*BulkOpResult, error)
+	// BulkRestore возвращает набор записей в чёрный список через Restore.
+	BulkRestore(ctx context.Context, ids []int, userID int) (*BulkOpResult, error)
 	Check(ctx context.Context, lastName, firstName, middleName string) (models.PersonBlacklistCheckResult, error)
 	// FindSimilar - активные записи ЧС, чьё нормализованное ФИО БЛИЗКО (но не обязательно
 	// равно) нормализованному ФИО заявки: триграммная similarity + word_similarity (учёт
@@ -173,6 +179,44 @@ func (s *personBlacklistService) Restore(ctx context.Context, id int, userID int
 		return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка возврата в чёрный список")
 	}
 	return nil
+}
+
+// BulkArchive снимает набор записей чёрного списка людей через Archive (полный
+// каскад реактивации employees для каждой). Несуществующие id -> в Errors
+// (частичный успех 207), не валят операцию. Дубли id дедуплицируются.
+func (s *personBlacklistService) BulkArchive(ctx context.Context, ids []int, userID int) (*BulkOpResult, error) {
+	res := newBulkResult()
+	for _, id := range uniqueInts(ids) {
+		e, err := s.GetByID(ctx, id)
+		if err != nil {
+			res.addError(id, "", "Запись чёрного списка не найдена")
+			continue
+		}
+		if err := s.Archive(ctx, id, userID); err != nil {
+			res.addError(id, personFullName(*e), bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
+}
+
+// BulkRestore возвращает набор записей в чёрный список людей через Restore.
+func (s *personBlacklistService) BulkRestore(ctx context.Context, ids []int, userID int) (*BulkOpResult, error) {
+	res := newBulkResult()
+	for _, id := range uniqueInts(ids) {
+		e, err := s.GetByID(ctx, id)
+		if err != nil {
+			res.addError(id, "", "Запись чёрного списка не найдена")
+			continue
+		}
+		if err := s.Restore(ctx, id, userID); err != nil {
+			res.addError(id, personFullName(*e), bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
 }
 
 func (s *personBlacklistService) Check(ctx context.Context, lastName, firstName, middleName string) (models.PersonBlacklistCheckResult, error) {

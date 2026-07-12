@@ -8,6 +8,10 @@
       :get-primary-text="primaryText"
       :get-detail-rows="detailRows"
       :lookup-card="lookupPerson"
+      :bulk-archive-fn="bulkArchivePersonBlacklist"
+      :bulk-restore-fn="bulkRestorePersonBlacklist"
+      testid-prefix="person-bl"
+      cascade-noun-plural="сотрудники"
       @count="$emit('count', $event)"
       @create="showCreate = true"
       @archive="askArchive"
@@ -90,6 +94,8 @@ import {
   archivePersonBlacklist,
   restorePersonBlacklist,
   purgePersonBlacklist,
+  bulkArchivePersonBlacklist,
+  bulkRestorePersonBlacklist,
 } from '@/api/blacklist';
 import { lookupUniqueEmployee } from '@/api/employees';
 import { formatDateTime } from '@/utils/datetime';
@@ -128,6 +134,8 @@ export default {
   methods: {
     listPersonBlacklist,
     createPersonBlacklist,
+    bulkArchivePersonBlacklist,
+    bulkRestorePersonBlacklist,
     primaryText(item) {
       return [item.last_name, item.first_name, item.middle_name].filter(Boolean).join(' ');
     },

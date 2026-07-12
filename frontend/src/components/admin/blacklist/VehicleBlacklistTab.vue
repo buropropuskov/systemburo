@@ -8,6 +8,10 @@
       :get-primary-text="primaryText"
       :get-detail-rows="detailRows"
       :lookup-card="lookupCar"
+      :bulk-archive-fn="bulkArchiveVehicleBlacklist"
+      :bulk-restore-fn="bulkRestoreVehicleBlacklist"
+      testid-prefix="vehicle-bl"
+      cascade-noun-plural="машины"
       @count="$emit('count', $event)"
       @create="showCreate = true"
       @archive="askArchive"
@@ -91,6 +95,8 @@ import {
   archiveVehicleBlacklist,
   restoreVehicleBlacklist,
   purgeVehicleBlacklist,
+  bulkArchiveVehicleBlacklist,
+  bulkRestoreVehicleBlacklist,
 } from '@/api/blacklist';
 import { lookupUniqueCar } from '@/api/cars';
 import { formatDateTime } from '@/utils/datetime';
@@ -129,6 +135,8 @@ export default {
   methods: {
     listVehicleBlacklist,
     createVehicleBlacklist,
+    bulkArchiveVehicleBlacklist,
+    bulkRestoreVehicleBlacklist,
     primaryText(item) {
       return [item.car_number, item.mark_name].filter(Boolean).join(' ');
     },
