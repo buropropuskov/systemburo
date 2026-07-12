@@ -20,6 +20,8 @@ type MarkService interface {
 	Update(ctx context.Context, id int, req models.UpdateMarkRequest, userID int) error
 	Archive(ctx context.Context, id int, userID int) error
 	Restore(ctx context.Context, id int, userID int) error
+	BulkArchive(ctx context.Context, ids []int, userID int) (*BulkOpResult, error)
+	BulkRestore(ctx context.Context, ids []int, userID int) (*BulkOpResult, error)
 	GetHistory(ctx context.Context, id int) ([]models.MarkHistoryItem, error)
 }
 
@@ -107,6 +109,43 @@ func (s *markService) Archive(ctx context.Context, id int, userID int) error {
 
 func (s *markService) Restore(ctx context.Context, id int, userID int) error {
 	return s.setActive(ctx, id, true, userID, models.MarkActionRestored)
+}
+
+// BulkArchive архивирует набор марок через Archive. Несуществующие -> в Errors
+// (частичный успех 207), не валят операцию. Дубли id дедуплицируются.
+func (s *markService) BulkArchive(ctx context.Context, ids []int, userID int) (*BulkOpResult, error) {
+	res := newBulkResult()
+	for _, id := range uniqueInts(ids) {
+		m, err := s.GetByID(ctx, id)
+		if err != nil {
+			res.addError(id, "", "Марка не найдена")
+			continue
+		}
+		if err := s.Archive(ctx, id, userID); err != nil {
+			res.addError(id, m.Name, bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
+}
+
+// BulkRestore восстанавливает набор марок через Restore.
+func (s *markService) BulkRestore(ctx context.Context, ids []int, userID int) (*BulkOpResult, error) {
+	res := newBulkResult()
+	for _, id := range uniqueInts(ids) {
+		m, err := s.GetByID(ctx, id)
+		if err != nil {
+			res.addError(id, "", "Марка не найдена")
+			continue
+		}
+		if err := s.Restore(ctx, id, userID); err != nil {
+			res.addError(id, m.Name, bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
 }
 
 func (s *markService) setActive(ctx context.Context, id int, active bool, userID int, action string) error {
