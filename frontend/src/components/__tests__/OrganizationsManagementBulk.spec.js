@@ -101,6 +101,13 @@ describe('OrganizationsManagement — групповой выбор и пане�
     expect(w.vm.selectedIds).toEqual([2])
   })
 
+  it('shift-клик с протухшим якорем (нет в списке) = обычный toggle', async () => {
+    const { w } = await mountCmp()
+    w.vm.lastSelectedId = 999 // якоря нет в sortedOrganizations -> findIndex === -1
+    await rowChecks(w)[1].trigger('click', { shiftKey: true })
+    expect(w.vm.selectedIds).toEqual([2])
+  })
+
   it('shift-клик по выделенному диапазону снимает его; якорь следует за последним shift-кликом', async () => {
     const { w } = await mountCmp()
     await rowChecks(w)[0].trigger('click') // id 1, якорь=1

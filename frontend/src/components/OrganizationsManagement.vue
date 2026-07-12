@@ -935,10 +935,12 @@ export default {
     // shift-кликнутый чекбокс (снят -> выделить весь диапазон, и наоборот).
     // Якорь хранится по id и переиндексируется на лету - устойчив к пересортировке.
     onRowCheck(org, index, event) {
+      // shift-клик не должен выделять текст (селект начинается на mousedown, .prevent его не гасит) -
+      // гасим для любого shift-клика, включая fallback без валидного якоря.
+      if (event.shiftKey && window.getSelection) window.getSelection().removeAllRanges();
       if (event.shiftKey && this.lastSelectedId != null && this.lastSelectedId !== org.id) {
         const anchor = this.sortedOrganizations.findIndex(o => o.id === this.lastSelectedId);
         if (anchor !== -1) {
-          if (window.getSelection) window.getSelection().removeAllRanges(); // shift-клик не выделяет текст
           const target = !this.isSelected(org.id);
           const [from, to] = anchor < index ? [anchor, index] : [index, anchor];
           for (let i = from; i <= to; i += 1) {
@@ -959,6 +961,7 @@ export default {
       this.selectedIds = this.allSelected
         ? []
         : this.sortedOrganizations.map(o => o.id);
+      this.lastSelectedId = null; // "выбрать всё" не задаёт якорь для shift-диапазона
     },
 
     clearSelection() {
