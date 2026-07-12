@@ -60,3 +60,23 @@ describe('ApplicationDetail - свайп-вниз-закрытие (bottom-sheet
     expect(wrapper.vm.sheetDragging).toBe(false);
   });
 });
+
+// #1097 W3.10: кнопку «Открыть в окне» убрали - сообщение открывается тапом по превью.
+describe('ApplicationDetail - открытие сообщения тапом по превью (#1097 W3.10)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
+
+  it('тап по превью открывает модалку сообщения', () => {
+    const wrapper = mountDetail();
+    expect(wrapper.vm.showMessageModal).toBe(false);
+    wrapper.vm.openMessageFromPreview({ target: { closest: () => null } });
+    expect(wrapper.vm.showMessageModal).toBe(true);
+  });
+
+  it('клик по ссылке внутри сообщения НЕ открывает модалку (даём перейти по ссылке)', () => {
+    const wrapper = mountDetail();
+    wrapper.vm.openMessageFromPreview({ target: { closest: (sel) => (sel === 'a' ? { tagName: 'A' } : null) } });
+    expect(wrapper.vm.showMessageModal).toBe(false);
+  });
+});
