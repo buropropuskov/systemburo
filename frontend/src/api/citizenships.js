@@ -57,3 +57,19 @@ export async function getCitizenshipHistory(id) {
   const res = await apiRequest(`/citizenships/${id}/history`);
   return unwrap(res, 'Не удалось загрузить историю гражданства');
 }
+
+/**
+ * Групповые операции над гражданствами (id-keyed). Возвращают BulkOpResult
+ * НЕ через unwrap (не бросают на !ok) - частичный успех (207) тоже res.ok,
+ * а полный провал (400 "Не выбраны гражданства") компонент разбирает сам по
+ * форме {message} в handleBulkResult, не через try/catch.
+ */
+export async function bulkArchiveCitizenships(ids) {
+  const res = await apiRequest('/citizenships/bulk/archive', { method: 'POST', body: JSON.stringify({ ids }) });
+  return res.json();
+}
+
+export async function bulkRestoreCitizenships(ids) {
+  const res = await apiRequest('/citizenships/bulk/restore', { method: 'POST', body: JSON.stringify({ ids }) });
+  return res.json();
+}

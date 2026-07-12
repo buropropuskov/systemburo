@@ -249,6 +249,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	csg.PUT("/:id", cs.Update, requireAdmin)
 	csg.DELETE("/:id", cs.Delete, requireAdmin)
 	csg.POST("/:id/restore", cs.Restore, requireAdmin)
+	// Групповые операции (статический bulk приоритетнее param :id в Echo).
+	csg.POST("/bulk/archive", cs.BulkArchive, requireAdmin)
+	csg.POST("/bulk/restore", cs.BulkRestore, requireAdmin)
 	csg.GET("/:id/history", cs.GetHistory)
 	csg.POST("/clear-default", cs.ClearDefaults, requireAdmin)
 
