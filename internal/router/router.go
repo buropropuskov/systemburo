@@ -417,6 +417,13 @@ func Setup(e *echo.Echo, d Dependencies) {
 	protected.DELETE("/users/:username", users.Delete, requireUsers)
 	protected.POST("/users/:username/restore", users.Restore, requireUsers)
 	protected.GET("/users/:username/history", users.GetHistory, requireUsers)
+	// Групповые операции над пользователями (username-keyed). Статические сегменты
+	// bulk/* приоритетнее /users/:username в роутинге Echo.
+	protected.POST("/users/bulk/archive", users.BulkArchive, requireUsers)
+	protected.POST("/users/bulk/restore", users.BulkRestore, requireUsers)
+	protected.POST("/users/bulk/type", users.BulkUpdateType, requireUsers)
+	protected.POST("/users/bulk/organization", users.BulkAssignOrganization, requireUsers)
+	protected.POST("/users/bulk/company", users.BulkAssignCompany, requireUsers)
 	// История входов пользователя (auth_events): вход/выход/провал/блокировка/сессия.
 	protected.GET("/users/:username/auth-events", authEvents.ListForUser, requireUsers)
 	// Привязка мест доступа к охраннику (#706)
