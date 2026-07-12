@@ -36,11 +36,58 @@
       </div>
     </div>
 
+    <div
+      v-if="selectedIds.length"
+      class="bulk-bar"
+      data-testid="numberformat-bulk-bar"
+    >
+      <span class="bulk-count">Выбрано: {{ selectedIds.length }}</span>
+      <div class="bulk-actions">
+        <button
+          v-if="!showArchive"
+          class="pill pill-danger"
+          data-testid="numberformat-bulk-archive"
+          @click="startBulkOperation('archive')"
+        >
+          В архив
+        </button>
+        <button
+          v-else
+          class="pill pill-restore"
+          data-testid="numberformat-bulk-restore"
+          @click="startBulkOperation('restore')"
+        >
+          Восстановить
+        </button>
+        <button
+          class="pill pill-ghost bulk-clear"
+          data-testid="numberformat-bulk-clear"
+          @click="clearSelection"
+        >
+          Снять выбор
+        </button>
+      </div>
+    </div>
+
     <div class="content-container">
       <!-- Левая часть - список форматов -->
       <div class="table-section">
         <div class="table-container rt-table">
           <div class="table-header rt-head-row">
+            <div
+              class="header-col check-col"
+              @click.stop
+            >
+              <input
+                type="checkbox"
+                class="bulk-check"
+                :checked="allSelected"
+                :indeterminate.prop="someSelected"
+                aria-label="Выбрать все"
+                data-testid="numberformat-select-all"
+                @change="toggleSelectAll"
+              >
+            </div>
             <div
               class="header-col id-col"
               @click="sortBy('id')"
@@ -71,7 +118,7 @@
 
           <div class="table-body">
             <div
-              v-for="item in filteredFormats"
+              v-for="(item, index) in filteredFormats"
               :key="item.format.id"
               class="table-row rt-row"
               data-testid="nf-row"
@@ -81,6 +128,19 @@
               }"
               @click="selectFormat(item)"
             >
+              <div
+                class="table-col check-col"
+                @click.stop
+              >
+                <input
+                  type="checkbox"
+                  class="bulk-check"
+                  :checked="isSelected(item.format.id)"
+                  :aria-label="`Выбрать ${item.format.name}`"
+                  data-testid="numberformat-row-check"
+                  @click="onRowCheck(item.format, index, $event)"
+                >
+              </div>
               <div
                 class="table-col id-col"
                 data-label="ID"
@@ -668,6 +728,17 @@
       @cancel="archiveConfirmFormat = null"
     />
 
+    <ConfirmationModal
+      :show="bulkConfirmVisible"
+      :title="bulkConfirmTitle"
+      :message="bulkConfirmMessage"
+      :confirm-text="bulkConfirmText"
+      cancel-text="Отмена"
+      :confirm-button-style="bulkConfirmButtonStyle"
+      @confirm="applyBulkArchiveRestore"
+      @cancel="cancelBulkConfirm"
+    />
+
     <LicensePlateFormatHistoryModal
       v-if="historyForFormat"
       :format="historyForFormat"
@@ -686,9 +757,11 @@ import BaseDropdown from './ui/BaseDropdown.vue';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
 import LicensePlateFormatHistoryModal from './LicensePlateFormatHistoryModal.vue';
 import { useDeletionsStore } from '@/stores/deletions';
+import { useUiStore } from '@/stores/ui';
 import { registerDirtyTracker, confirmIfAnyDirty } from '@/utils/dirtyTracker';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import { apiRequest } from '@/api/client';
+import { bulkArchiveLicenseFormats, bulkRestoreLicenseFormats } from '@/api/licenseFormats';
 
 function defaultCell() {
   return {
@@ -753,6 +826,12 @@ export default {
         { label: 'Активные', value: 'active' },
         { label: 'Архив', value: 'archive' },
       ],
+      // Групповой выбор (по id). lastSelectedId - якорь shift-диапазона.
+      selectedIds: [],
+      lastSelectedId: null,
+      pendingBulkOp: null,
+      bulkConfirmVisible: false,
+      bulkSubmitting: false,
     };
   },
   computed: {
@@ -782,6 +861,36 @@ export default {
     },
     isDirty() {
       return this.isAddDirty || this.isDetailsDirty;
+    },
+    allSelected() {
+      return this.filteredFormats.length > 0 && this.selectedIds.length === this.filteredFormats.length;
+    },
+    someSelected() {
+      return this.selectedIds.length > 0 && !this.allSelected;
+    },
+    bulkConfirmTitle() {
+      return this.pendingBulkOp === 'restore' ? 'Восстановление форматов' : 'Архивация форматов';
+    },
+    bulkConfirmMessage() {
+      const n = this.selectedIds.length;
+      return this.pendingBulkOp === 'restore'
+        ? `Восстановить выбранные форматы (${n})?`
+        : `Архивировать выбранные форматы (${n})? Их можно будет восстановить из архива.`;
+    },
+    bulkConfirmText() {
+      return this.pendingBulkOp === 'restore' ? 'Восстановить' : 'В архив';
+    },
+    bulkConfirmButtonStyle() {
+      return this.pendingBulkOp === 'restore'
+        ? { background: '#10b981', borderColor: '#10b981' }
+        : { background: '#c62828', borderColor: '#c62828' };
+    },
+  },
+  watch: {
+    // Смена фильтра/поиска/режима меняет видимый список - убираем из выбора
+    // строки, которых больше не видно (реактивно, не только после refresh).
+    filteredFormats() {
+      this.pruneSelection();
     },
   },
   created() {
@@ -903,6 +1012,7 @@ export default {
             this.selectedFormat = null;
           }
         }
+        this.pruneSelection();
       } catch {
         useDeletionsStore().notify({ prefix: 'Не удалось загрузить ', bold: 'форматы номеров', type: 'error' });
       } finally {
@@ -919,6 +1029,7 @@ export default {
       this.showArchive = value === 'archive';
       this.selectedFormat = null;
       this.detailError = '';
+      this.clearSelection();
     },
     async selectFormat(item) {
       if (this.selectedFormat && this.selectedFormat.format.id === item.format.id) return;
@@ -1115,16 +1226,212 @@ export default {
       if (!letters) return '';
       return letters.length > maxLength ? `${letters.substring(0, maxLength)}...` : letters;
     },
+
+    // --- Групповой выбор ---
+    isSelected(id) {
+      return this.selectedIds.includes(id);
+    },
+    toggleSelect(id) {
+      const i = this.selectedIds.indexOf(id);
+      if (i === -1) this.selectedIds.push(id);
+      else this.selectedIds.splice(i, 1);
+    },
+    // onRowCheck: обычный клик - toggle; shift-клик - диапазон от якоря до текущей.
+    onRowCheck(format, index, event) {
+      if (event.shiftKey && window.getSelection) window.getSelection().removeAllRanges();
+      if (event.shiftKey && this.lastSelectedId != null && this.lastSelectedId !== format.id) {
+        const list = this.filteredFormats.map(item => item.format);
+        const anchor = list.findIndex(f => f.id === this.lastSelectedId);
+        if (anchor !== -1) {
+          const [from, to] = anchor < index ? [anchor, index] : [index, anchor];
+          const target = !this.isSelected(format.id);
+          for (let i = from; i <= to; i++) {
+            const id = list[i].id;
+            const sel = this.isSelected(id);
+            if (target && !sel) this.selectedIds.push(id);
+            else if (!target && sel) this.selectedIds.splice(this.selectedIds.indexOf(id), 1);
+          }
+          this.lastSelectedId = format.id;
+          return;
+        }
+      }
+      this.toggleSelect(format.id);
+      this.lastSelectedId = format.id;
+    },
+    toggleSelectAll() {
+      this.selectedIds = this.allSelected ? [] : this.filteredFormats.map(item => item.format.id);
+      this.lastSelectedId = null;
+    },
+    clearSelection() {
+      this.selectedIds = [];
+      this.lastSelectedId = null;
+      this.pendingBulkOp = null;
+    },
+    pruneSelection() {
+      if (!this.selectedIds.length) return;
+      const visible = new Set(this.filteredFormats.map(item => item.format.id));
+      const pruned = this.selectedIds.filter(id => visible.has(id));
+      if (pruned.length !== this.selectedIds.length) this.selectedIds = pruned;
+    },
+    startBulkOperation(operation) {
+      this.pendingBulkOp = operation;
+      this.bulkConfirmVisible = true;
+    },
+    cancelBulkConfirm() {
+      if (this.bulkSubmitting) return;
+      this.bulkConfirmVisible = false;
+      this.pendingBulkOp = null;
+    },
+    async applyBulkArchiveRestore() {
+      const ids = [...this.selectedIds];
+      const op = this.pendingBulkOp;
+      if (this.bulkSubmitting) return;
+      if (!ids.length || (op !== 'archive' && op !== 'restore')) {
+        this.bulkConfirmVisible = false;
+        this.pendingBulkOp = null;
+        return;
+      }
+      this.bulkSubmitting = true;
+      let result;
+      try {
+        result = op === 'archive' ? await bulkArchiveLicenseFormats(ids) : await bulkRestoreLicenseFormats(ids);
+      } catch {
+        useDeletionsStore().notify({ prefix: 'Не удалось выполнить групповую операцию', type: 'error' });
+        this.bulkSubmitting = false;
+        return;
+      }
+      this.bulkSubmitting = false;
+      if (this.handleBulkResult(op, result, ids.length)) {
+        this.bulkConfirmVisible = false;
+        this.pendingBulkOp = null;
+      }
+    },
+    // Разбор BulkOpResult: полный успех -> notify, частичный -> ui.warning с
+    // перечнем непрошедших. false при ошибке-envelope (держим модалку для повтора).
+    handleBulkResult(op, result, total) {
+      if (!result || typeof result.success_count !== 'number') {
+        useDeletionsStore().notify({ prefix: result?.message || 'Не удалось выполнить групповую операцию', type: 'error' });
+        return false;
+      }
+      const label = op === 'restore' ? 'Восстановлено' : 'Архивировано';
+      if (result.error_count > 0) {
+        const failed = (result.errors || []).map(e => e.name || `#${e.id}`).join(', ');
+        useUiStore().warning(`Выполнено ${result.success_count} из ${total}. Не удалось: ${failed}`);
+      } else {
+        useDeletionsStore().notify({ prefix: `${label}: `, bold: String(result.success_count) });
+      }
+      this.clearSelection();
+      this.refresh();
+      return true;
+    },
   },
 };
 </script>
 
 <style scoped>
 .number-format-container {
+  position: relative; /* контекст для оверлей-панели .bulk-bar поверх шапки */
   background: #fff;
   border-radius: 16px;
   border: 1px solid #e6e6e6;
   overflow: hidden;
+}
+
+/* Панель групповых операций - оверлей поверх .management-header (не reflow,
+   список не прыгает при выборе - урок #510). Высота = высоте шапки (50px). */
+.bulk-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 50px;
+  padding: 0 20px;
+  border-bottom: 1px solid #e6e6e6;
+  background: #f0f2ff;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.bulk-count {
+  font-size: 14px;
+  font-weight: 600;
+  color: #4F5BDF;
+  white-space: nowrap;
+}
+.bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  margin-left: auto;
+}
+.bulk-actions .pill {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 50px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: background 0.2s, border-color 0.2s;
+}
+.pill-ghost {
+  background: #fff;
+  color: #4F5BDF;
+  border: 1px solid #4F5BDF;
+}
+.pill-ghost:hover {
+  background: #eef0ff;
+}
+.bulk-clear {
+  color: #6b7280;
+  border-color: #d5d9e0;
+}
+.bulk-clear:hover {
+  background: #f5f5f5;
+}
+.pill-danger {
+  background: #fff;
+  color: #dc3545;
+  border: 1px solid #fecaca;
+}
+.pill-danger:hover {
+  background: #fff1f2;
+  border-color: #dc3545;
+}
+.pill-restore {
+  background: #10b981;
+  color: #fff;
+}
+.pill-restore:hover {
+  background: #0da271;
+}
+.check-col {
+  width: 8%;
+  min-width: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  cursor: default;
+}
+.bulk-check {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  accent-color: #4F5BDF;
+  margin: 0;
 }
 
 .management-header {
@@ -1249,13 +1556,13 @@ export default {
 }
 
 .id-col {
-  width: 25%;
-  min-width: 60px;
+  width: 22%;
+  min-width: 56px;
 }
 
 .name-col {
-  width: 75%;
-  min-width: 160px;
+  width: 70%;
+  min-width: 150px;
 }
 
 .table-body {
@@ -1921,6 +2228,18 @@ export default {
   }
   :deep(.search) {
     width: 110px;
+  }
+  .bulk-bar {
+    position: static;
+    height: auto;
+    padding: 12px 16px;
+    overflow-x: visible;
+  }
+  .bulk-actions {
+    flex-wrap: wrap;
+  }
+  .check-col {
+    min-height: 44px;
   }
   .content-container {
     flex-direction: column;
