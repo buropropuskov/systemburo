@@ -1730,15 +1730,15 @@ export default {
   }
 
   /* Ячейки в столбик, без бордюров/бокового padding, авто-высота, влево.
-     align-self:stretch - т.к. .rt-row (flex-column) центрирует по align-items:center,
-     а колонки без data-label (organization/message) иначе сжимаются по контенту и
-     "уезжают" в центр вместо левого края. */
+     width:100% !important - иначе легаси-правило @media(max-width:992px)
+     .application-col{width:33.33% !important} держит колонки БЕЗ data-label
+     (organization/message) на 1/3 ширины (у data-label-колонок width:100% приходит
+     из responsive-tables). !important нужен, чтобы перебить чужой !important. */
   .applications-list .application-row.rt-row > .application-col {
     flex: none;
-    align-self: stretch;
     display: block;
-    width: 100%;
-    max-width: 100%;
+    width: 100% !important;
+    max-width: 100% !important;
     padding: 0;
     border: none;
     height: auto;
@@ -1747,10 +1747,12 @@ export default {
     text-align: left;
   }
 
-  /* Длинные значения (организация/отправитель/сообщение) - одна строка с обрезкой "..". */
-  .application-col.organization-col,
-  .application-col.sender-col,
-  .application-col.message-col {
+  /* Длинные значения (организация/отправитель/сообщение) - одна строка с обрезкой "..".
+     Специфичность (0,5,0) выше общего блочного правила выше (0,4,0), иначе его
+     white-space:normal/overflow:visible победил бы и сообщение переносилось бы. */
+  .applications-list .application-row.rt-row > .application-col.organization-col,
+  .applications-list .application-row.rt-row > .application-col.sender-col,
+  .applications-list .application-row.rt-row > .application-col.message-col {
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
@@ -1762,9 +1764,8 @@ export default {
     display: none;
   }
 
-  /* Пустой отправитель/теги - скрыть строку. */
-  .applications-list .application-row.rt-row > .tags-col:empty,
-  .applications-list .application-row.rt-row > .sender-col:empty {
+  /* Пустой блок тегов - скрыть строку (у sender всегда есть фолбэк "—", :empty там мёртв). */
+  .applications-list .application-row.rt-row > .tags-col:empty {
     display: none;
   }
 
