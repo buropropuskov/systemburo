@@ -9,7 +9,8 @@
         >
           <div class="news-header">
             <h2 class="news-title">
-              Последние новости
+              <span class="news-title__full">Последние новости</span>
+              <span class="news-title__short">Новости</span>
             </h2>
             <div class="header-actions">
               <OnboardingButton />
@@ -193,8 +194,23 @@
           class="modal-overlay"
           @click.self="closeNewsDetailsModal"
         >
-          <div class="modal-content">
-            <div class="modal-body">
+          <div
+            class="modal-content"
+            :class="{ 'is-dragging': sheetDragging }"
+            :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
+            @touchstart="onSheetTouchStart"
+            @touchmove="onSheetTouchMove"
+            @touchend="onSheetTouchEnd"
+          >
+            <!-- Ползунок bottom-sheet (виден только на мобилке), свайп вниз закрывает -->
+            <div
+              class="sheet-handle"
+              aria-hidden="true"
+            />
+            <div
+              ref="sheetBody"
+              class="modal-body"
+            >
               <div class="modal-info">
                 <time class="modal-date">{{ formatDate(selectedNews?.created_at) }}</time><span class="modal-type">Новость</span>
               </div>
@@ -257,6 +273,8 @@ import { sanitizeHtml } from '@/utils/sanitize.js'
 import DocumentsBlock from '../components/news/DocumentsBlock.vue'
 import WorkModesModal from '../components/news/WorkModesModal.vue'
 import OnboardingButton from '../components/onboarding/OnboardingButton.vue'
+import { ref } from 'vue'
+import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
 
 export default {
   name: 'LatestNews',
@@ -269,14 +287,43 @@ export default {
     WorkModesModal,
     OnboardingButton,
   },
+  setup() {
+    // Читалка новости на мобилке - bottom-sheet со свайп-вниз-закрытием (W3.4).
+    // Состояние держим в setup, чтобы onDismiss свайпа мог закрыть модалку.
+    const showNewsDetailsModal = ref(false)
+    const selectedNews = ref(null)
+    const sheetBody = ref(null)
+    const openNewsModal = (item) => {
+      selectedNews.value = item
+      showNewsDetailsModal.value = true
+    }
+    const closeNewsDetailsModal = () => {
+      showNewsDetailsModal.value = false
+      selectedNews.value = null
+    }
+    const swipe = useSwipeDismiss(closeNewsDetailsModal, {
+      getScrollTop: () => sheetBody.value?.scrollTop ?? 0,
+      handleSelector: '.sheet-handle',
+    })
+    return {
+      showNewsDetailsModal,
+      selectedNews,
+      sheetBody,
+      openNewsModal,
+      closeNewsDetailsModal,
+      sheetOffset: swipe.offset,
+      sheetDragging: swipe.isDragging,
+      onSheetTouchStart: swipe.onTouchStart,
+      onSheetTouchMove: swipe.onTouchMove,
+      onSheetTouchEnd: swipe.onTouchEnd,
+    }
+  },
   data() {
     return {
       loadingNews: false,
-      showNewsDetailsModal: false,
       showViewAnnouncementModal: false,
       showGuide: false,
       showModes: false,
-      selectedNews: null,
       viewingAnnouncement: null,
       newsItems: [],
       activeAnnouncement: null,
@@ -361,8 +408,6 @@ export default {
       }
     },
 
-    openNewsModal(item) { this.selectedNews = item; this.showNewsDetailsModal = true },
-    closeNewsDetailsModal() { this.showNewsDetailsModal = false; this.selectedNews = null },
     openAnnouncementModal(announcement) {
       this.viewingAnnouncement = announcement;
       this.showViewAnnouncementModal = true;
@@ -936,6 +981,15 @@ export default {
     background: #3a45c0;
 }
 
+/* Ползунок bottom-sheet и короткий заголовок - только на мобилке (@media768). */
+.sheet-handle {
+    display: none;
+}
+
+.news-title__short {
+    display: none;
+}
+
 @media (max-width: 820px) {
     .content-wrapper {
         flex-direction: column;
@@ -956,22 +1010,76 @@ export default {
 }
 
 @media (max-width: 768px) {
+    /* C.1: боковой отступ страницы великоват - ужимаем. */
+    .news {
+        padding: 15px;
+    }
+
+    /* C.3: заголовок в строку с кнопками (короткий текст «Новости» помещается
+       рядом с «Обучение» и «Обновить»). */
     .news-header {
-        flex-direction: column;
-        align-items: stretch;
+        flex-direction: row;
+        align-items: center;
         height: auto;
-        gap: 10px;
+        gap: 8px;
         padding: 12px 14px;
     }
 
     .news-title {
         font-size: 16px;
+        white-space: nowrap;
+    }
+
+    .news-title__full {
+        display: none;
+    }
+
+    .news-title__short {
+        display: inline;
     }
 
     .header-actions {
+        width: auto;
+        margin-left: auto;
+        justify-content: flex-end;
+        flex-wrap: nowrap;
+        gap: 6px;
+    }
+
+    /* C.2: читалка новости - bottom-sheet. Оверлей прижимает лист к низу,
+       лист во всю ширину выезжает снизу; свайп вниз за ползунок закрывает. */
+    .modal-overlay {
+        align-items: flex-end;
+    }
+
+    .modal-content {
         width: 100%;
-        justify-content: flex-start;
-        flex-wrap: wrap;
+        max-width: 100%;
+        max-height: 88vh;
+        border-radius: 24px 24px 0 0;
+        transition: transform 0.3s ease;
+    }
+
+    /* Пока тянем пальцем - без анимации (лист следует за пальцем 1:1). */
+    .modal-content.is-dragging {
+        transition: none;
+    }
+
+    .sheet-handle {
+        display: block;
+        width: 40px;
+        height: 4px;
+        margin: 10px auto 2px;
+        border-radius: 2px;
+        background: #d5d5d5;
+        flex-shrink: 0;
+    }
+
+    /* Вход/выход - выезд снизу вместо десктопного scale (переопределяем .modal-fade). */
+    .modal-fade-enter-from .modal-content,
+    .modal-fade-leave-to .modal-content {
+        opacity: 1;
+        transform: translateY(100%);
     }
 }
 
