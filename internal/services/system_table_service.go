@@ -24,6 +24,9 @@ type SystemTableService interface {
 	Update(ctx context.Context, id int, req models.UpdateSystemTableRequest) error
 	Delete(ctx context.Context, id int) error
 	Restore(ctx context.Context, id int) error
+	// Групповая архивация/восстановление (по образцу марок/мест разгрузки).
+	BulkArchive(ctx context.Context, ids []int) (*BulkOpResult, error)
+	BulkRestore(ctx context.Context, ids []int) (*BulkOpResult, error)
 
 	// Временные слоты
 	GetTimeSlots(ctx context.Context, tableID int) ([]models.SystemTableTimeSlot, error)
@@ -685,6 +688,53 @@ func (s *systemTableService) Restore(ctx context.Context, id int) error {
 	slog.Info("системная таблица восстановлена из архива", "id", id)
 	s.notifyTablesChanged(ctx)
 	return nil
+}
+
+// findTableName достаёт человекочитаемое имя таблицы по id для BulkItemError,
+// НЕ фильтруя по is_active. GetByID для этого не годится: он матчит только
+// активные таблицы (Where("is_active = true")), а BulkRestore как раз работает
+// над архивными - через GetByID имя архивной таблицы никогда бы не нашлось, и
+// частичный успех восстановления сообщал бы "не найдена" по каждой строке.
+// Пустая строка (таблица не существует вовсе) - FE отображает id-фолбэком.
+func (s *systemTableService) findTableName(ctx context.Context, id int) string {
+	var t models.SystemTable
+	if err := s.db.WithContext(ctx).Select("display_name", "name").Where("id = ?", id).First(&t).Error; err != nil {
+		return ""
+	}
+	if t.DisplayName != nil && *t.DisplayName != "" {
+		return *t.DisplayName
+	}
+	return t.Name
+}
+
+// BulkArchive архивирует набор системных таблиц через Delete (мягкое удаление).
+// Несуществующие/непривязываемые (org/company) -> в Errors (частичный успех 207),
+// не валят операцию. Дубли id дедуплицируются.
+func (s *systemTableService) BulkArchive(ctx context.Context, ids []int) (*BulkOpResult, error) {
+	res := newBulkResult()
+	for _, id := range uniqueInts(ids) {
+		name := s.findTableName(ctx, id)
+		if err := s.Delete(ctx, id); err != nil {
+			res.addError(id, name, bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
+}
+
+// BulkRestore восстанавливает набор системных таблиц через Restore.
+func (s *systemTableService) BulkRestore(ctx context.Context, ids []int) (*BulkOpResult, error) {
+	res := newBulkResult()
+	for _, id := range uniqueInts(ids) {
+		name := s.findTableName(ctx, id)
+		if err := s.Restore(ctx, id); err != nil {
+			res.addError(id, name, bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
 }
 
 // UpdateFields bulk-обновляет видимость и (опционально) порядок столбцов таблицы.

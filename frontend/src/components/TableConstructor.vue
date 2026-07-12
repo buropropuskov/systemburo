@@ -36,6 +36,39 @@
         </div>
       </div>
 
+      <div
+        v-if="selectedIds.length"
+        class="bulk-bar"
+        data-testid="systemtables-bulk-bar"
+      >
+        <span class="bulk-count">Выбрано: {{ selectedIds.length }}</span>
+        <div class="bulk-actions">
+          <button
+            v-if="!showArchive"
+            class="pill pill-danger"
+            data-testid="systemtables-bulk-archive"
+            @click="startBulkOperation('archive')"
+          >
+            В архив
+          </button>
+          <button
+            v-else
+            class="pill pill-restore"
+            data-testid="systemtables-bulk-restore"
+            @click="startBulkOperation('restore')"
+          >
+            Восстановить
+          </button>
+          <button
+            class="pill pill-ghost bulk-clear"
+            data-testid="systemtables-bulk-clear"
+            @click="clearSelection"
+          >
+            Снять выбор
+          </button>
+        </div>
+      </div>
+
       <div class="content-container">
         <!-- Левая часть - список таблиц -->
         <div
@@ -44,6 +77,20 @@
         >
           <div class="table-container">
             <div class="table-header">
+              <div
+                class="header-col check-col"
+                @click.stop
+              >
+                <input
+                  type="checkbox"
+                  class="bulk-check"
+                  :checked="allSelected"
+                  :indeterminate.prop="someSelected"
+                  aria-label="Выбрать все"
+                  data-testid="systemtables-select-all"
+                  @change="toggleSelectAll"
+                >
+              </div>
               <div
                 class="header-col id-col"
                 @click="sortBy('id')"
@@ -99,7 +146,7 @@
 
             <div class="table-body">
               <div
-                v-for="table in sortedTables"
+                v-for="(table, index) in sortedTables"
                 :key="table.table.id"
                 class="table-row"
                 :class="{
@@ -108,6 +155,19 @@
                 }"
                 @click="selectTable(table)"
               >
+                <div
+                  class="table-col check-col"
+                  @click.stop
+                >
+                  <input
+                    type="checkbox"
+                    class="bulk-check"
+                    :checked="isSelected(table.table.id)"
+                    :aria-label="`Выбрать ${table.table.display_name}`"
+                    data-testid="systemtables-row-check"
+                    @click="onRowCheck(table.table, index, $event)"
+                  >
+                </div>
                 <div class="table-col id-col">
                   <span class="cell-content id-value">{{ table.table.id }}</span>
                 </div>
@@ -637,15 +697,29 @@
         @confirm="performDeleteTable"
         @cancel="deleteConfirmTable = null"
       />
+
+      <!-- Подтверждение групповой архивации/восстановления -->
+      <ConfirmationModal
+        :show="bulkConfirmVisible"
+        :title="bulkConfirmTitle"
+        :message="bulkConfirmMessage"
+        :confirm-text="bulkConfirmText"
+        cancel-text="Отмена"
+        :confirm-button-style="bulkConfirmButtonStyle"
+        @confirm="applyBulkArchiveRestore"
+        @cancel="cancelBulkConfirm"
+      />
     </div>
   </AdminPageShell>
 </template>
 
 <script>
 import { apiRequest } from '@/api/client'
+import { bulkArchiveSystemTables, bulkRestoreSystemTables } from '@/api/system-tables'
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import { confirmIfAnyDirty } from '@/utils/dirtyTracker';
 import { useDeletionsStore } from '@/stores/deletions';
+import { useUiStore } from '@/stores/ui';
 import { usePermissionsStore } from '@/stores/permissions';
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
@@ -700,6 +774,12 @@ export default {
         { label: 'Активные', value: 'active' },
         { label: 'Архив', value: 'archive' },
       ],
+      // Групповой выбор (по id). lastSelectedId - якорь shift-диапазона.
+      selectedIds: [],
+      lastSelectedId: null,
+      pendingBulkOp: null,
+      bulkConfirmVisible: false,
+      bulkSubmitting: false,
     };
   },
   computed: {
@@ -756,7 +836,30 @@ export default {
     },
     instructionHasChanges() {
       return this.selectedTable && this.selectedTable.table.instruction !== this.originalInstruction;
-    }
+    },
+    allSelected() {
+      return this.sortedTables.length > 0 && this.selectedIds.length === this.sortedTables.length;
+    },
+    someSelected() {
+      return this.selectedIds.length > 0 && !this.allSelected;
+    },
+    bulkConfirmTitle() {
+      return this.pendingBulkOp === 'restore' ? 'Восстановление таблиц' : 'Архивация таблиц';
+    },
+    bulkConfirmMessage() {
+      const n = this.selectedIds.length;
+      return this.pendingBulkOp === 'restore'
+        ? `Восстановить выбранные таблицы (${n})?`
+        : `Архивировать выбранные таблицы (${n})? Их можно будет восстановить из архива.`;
+    },
+    bulkConfirmText() {
+      return this.pendingBulkOp === 'restore' ? 'Восстановить' : 'В архив';
+    },
+    bulkConfirmButtonStyle() {
+      return this.pendingBulkOp === 'restore'
+        ? { background: '#10b981', borderColor: '#10b981' }
+        : { background: '#c62828', borderColor: '#c62828' };
+    },
   },
   watch: {
     // Если активна вкладка фактовой таблицы, а пользователь снял галочку
@@ -774,6 +877,11 @@ export default {
           this.activeTab = 'main';
         }
       }
+    },
+    // Смена фильтра/поиска/режима меняет видимый список - убираем из выбора
+    // строки, которых больше не видно (реактивно, не только после refresh).
+    sortedTables() {
+      this.pruneSelection();
     },
   },
   async mounted() {
@@ -840,6 +948,7 @@ export default {
       this.showArchive = wantArchive;
       this.selectedTable = null;
       this.activeTab = 'main';
+      this.clearSelection();
       await this.refreshData();
     },
 
@@ -1180,6 +1289,114 @@ export default {
         this.updateTable('table_type');
       }
     },
+
+    // --- Групповой выбор ---
+    isSelected(id) {
+      return this.selectedIds.includes(id);
+    },
+    toggleSelect(id) {
+      const i = this.selectedIds.indexOf(id);
+      if (i === -1) this.selectedIds.push(id);
+      else this.selectedIds.splice(i, 1);
+    },
+    // onRowCheck: обычный клик - toggle; shift-клик - диапазон от якоря до текущей.
+    onRowCheck(table, index, event) {
+      if (event.shiftKey && window.getSelection) window.getSelection().removeAllRanges();
+      if (event.shiftKey && this.lastSelectedId != null && this.lastSelectedId !== table.id) {
+        const list = this.sortedTables.map(item => item.table);
+        const anchor = list.findIndex(t => t.id === this.lastSelectedId);
+        if (anchor !== -1) {
+          const [from, to] = anchor < index ? [anchor, index] : [index, anchor];
+          const target = !this.isSelected(table.id);
+          for (let i = from; i <= to; i++) {
+            const id = list[i].id;
+            const sel = this.isSelected(id);
+            if (target && !sel) this.selectedIds.push(id);
+            else if (!target && sel) this.selectedIds.splice(this.selectedIds.indexOf(id), 1);
+          }
+          this.lastSelectedId = table.id;
+          return;
+        }
+      }
+      this.toggleSelect(table.id);
+      this.lastSelectedId = table.id;
+    },
+    toggleSelectAll() {
+      this.selectedIds = this.allSelected ? [] : this.sortedTables.map(item => item.table.id);
+      this.lastSelectedId = null;
+    },
+    clearSelection() {
+      this.selectedIds = [];
+      this.lastSelectedId = null;
+      this.pendingBulkOp = null;
+    },
+    pruneSelection() {
+      if (!this.selectedIds.length) return;
+      const visible = new Set(this.sortedTables.map(item => item.table.id));
+      const pruned = this.selectedIds.filter(id => visible.has(id));
+      if (pruned.length !== this.selectedIds.length) this.selectedIds = pruned;
+    },
+    startBulkOperation(operation) {
+      this.pendingBulkOp = operation;
+      this.bulkConfirmVisible = true;
+    },
+    cancelBulkConfirm() {
+      if (this.bulkSubmitting) return;
+      this.bulkConfirmVisible = false;
+      this.pendingBulkOp = null;
+    },
+    async applyBulkArchiveRestore() {
+      const ids = [...this.selectedIds];
+      const op = this.pendingBulkOp;
+      if (this.bulkSubmitting) return;
+      if (!ids.length || (op !== 'archive' && op !== 'restore')) {
+        this.bulkConfirmVisible = false;
+        this.pendingBulkOp = null;
+        return;
+      }
+      this.bulkSubmitting = true;
+      let result;
+      try {
+        result = op === 'archive' ? await bulkArchiveSystemTables(ids) : await bulkRestoreSystemTables(ids);
+      } catch {
+        useDeletionsStore().notify({ prefix: 'Не удалось выполнить групповую операцию', type: 'error' });
+        this.bulkSubmitting = false;
+        return;
+      }
+      this.bulkSubmitting = false;
+      if (this.handleBulkResult(op, result, ids)) {
+        this.bulkConfirmVisible = false;
+        this.pendingBulkOp = null;
+      }
+    },
+    // Разбор BulkOpResult: полный успех -> notify, частичный -> ui.warning с
+    // перечнем непрошедших. false при ошибке-envelope (держим модалку для повтора).
+    handleBulkResult(op, result, ids) {
+      if (!result || typeof result.success_count !== 'number') {
+        useDeletionsStore().notify({ prefix: result?.message || 'Не удалось выполнить групповую операцию', type: 'error' });
+        return false;
+      }
+      const label = op === 'restore' ? 'Восстановлено' : 'Архивировано';
+      if (result.error_count > 0) {
+        const failed = (result.errors || []).map(e => e.name || `#${e.id}`).join(', ');
+        useUiStore().warning(`Выполнено ${result.success_count} из ${ids.length}. Не удалось: ${failed}`);
+      } else {
+        useDeletionsStore().notify({ prefix: `${label}: `, bold: String(result.success_count) });
+      }
+      // Успешно обработанная строка уходит из текущего вида (архив <-> активные) -
+      // как и в одиночном performDeleteTable/restoreTable, сбрасываем открытую
+      // деталь, если она была среди реально обработанных (не среди failed).
+      if (this.selectedTable) {
+        const failedIds = new Set((result.errors || []).map(e => e.id));
+        if (ids.includes(this.selectedTable.table.id) && !failedIds.has(this.selectedTable.table.id)) {
+          this.selectedTable = null;
+          this.activeTab = 'main';
+        }
+      }
+      this.clearSelection();
+      this.refreshData();
+      return true;
+    },
   },
 }
 </script>
@@ -1238,6 +1455,100 @@ export default {
 
 .archive-dropdown {
   min-width: 130px;
+}
+
+/* Панель групповых операций - оверлей поверх .management-header (не reflow,
+   список не прыгает при выборе - урок #510). Высота = высоте шапки (50px).
+   .table-constructor-container - контекст позиционирования (position:relative). */
+.bulk-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 50px;
+  padding: 0 20px;
+  border-bottom: 1px solid #e6e6e6;
+  background: #f0f2ff;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.bulk-count {
+  font-size: 14px;
+  font-weight: 600;
+  color: #4F5BDF;
+  white-space: nowrap;
+}
+
+.bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  margin-left: auto;
+}
+
+.bulk-actions .pill {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 50px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.pill-ghost {
+  background: #fff;
+  color: #4F5BDF;
+  border: 1px solid #4F5BDF;
+}
+
+.pill-ghost:hover {
+  background: #eef0ff;
+}
+
+.bulk-clear {
+  color: #6b7280;
+  border-color: #d5d9e0;
+}
+
+.bulk-clear:hover {
+  background: #f5f5f5;
+}
+
+.pill-danger {
+  background: #fff;
+  color: #dc3545;
+  border: 1px solid #fecaca;
+}
+
+.pill-danger:hover {
+  background: #fff1f2;
+  border-color: #dc3545;
+}
+
+.pill-restore {
+  background: #10b981;
+  color: #fff;
+}
+
+.pill-restore:hover {
+  background: #0da271;
 }
 
 .table-row.inactive {
@@ -1383,27 +1694,47 @@ export default {
   font-weight: 600 !important;
 }
 
+/* Групповой выбор (#345-bulk): чекбокс-колонка отъедает 8% у остальных
+   (пропорционально урезаны ниже), их сумма с check-col снова даёт 100%. */
+.check-col {
+  width: 8%;
+  min-width: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  cursor: default;
+}
+
+.bulk-check {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  accent-color: #4F5BDF;
+  margin: 0;
+}
+
 .id-col {
-  width: 12%;
+  width: 11%;
   min-width: 50px;
 }
 
 /* Наименование сжимается первым (текст обрезается через .truncate-text),
    отдавая место колонкам Тип/Статус с бейджами фиксированной ширины. */
 .name-col {
-  width: 32%;
+  width: 29%;
   min-width: 84px;
 }
 
 .type-col {
-  width: 26%;
+  width: 24%;
   min-width: 76px;
 }
 
 /* Под самый широкий бейдж статуса ("На обслуживании", nowrap ~108px), иначе
    он вылезает за колонку и прижимается к правому краю секции. */
 .status-col {
-  width: 30%;
+  width: 28%;
   min-width: 108px;
 }
 
@@ -2308,6 +2639,26 @@ export default {
 
   :deep(.search) {
     width: 120px;
+  }
+
+  /* .rt-header-inline форсирует height:auto!important и перенос controls на
+     мобилке (responsive-tables.css) - фиксированная высота шапки (50px), под
+     которую подогнан .bulk-bar{position:absolute}, здесь уже не гарантирована.
+     Возвращаем панель в поток (урок NumberFormat/#345-bulk), иначе оверлей
+     перекрывает перенесённые controls или обрезается. */
+  .bulk-bar {
+    position: static;
+    height: auto;
+    padding: 12px var(--gutter, 16px);
+    overflow-x: visible;
+  }
+
+  .bulk-actions {
+    flex-wrap: wrap;
+  }
+
+  .check-col {
+    min-height: 44px;
   }
 
   @keyframes slideDown {
