@@ -47,6 +47,8 @@ export default {
 .forbidden {
   /* zoom-safe (#1097): vh под корневым zoom раздувается -> низ за экраном, см. Error500. */
   min-height: calc(var(--app-vh, 1vh) * 100);
+  /* B.3 (#1097): svh стабилизирует высоту на мобилке, min() держит zoom-корректность, см. Error500. */
+  min-height: min(calc(var(--app-vh, 1vh) * 100), 100svh);
   display: flex;
   align-items: center;
   justify-content: center;

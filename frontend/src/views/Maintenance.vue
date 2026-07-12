@@ -270,6 +270,8 @@ export default {
 .mt {
   /* zoom-safe (#1097): vh под корневым zoom раздувается -> низ за экраном, см. Error500. */
   min-height: calc(var(--app-vh, 1vh) * 100);
+  /* B.3 (#1097): svh стабилизирует высоту на мобилке, min() держит zoom-корректность, см. Error500. */
+  min-height: min(calc(var(--app-vh, 1vh) * 100), 100svh);
   background:
     radial-gradient(1200px 700px at 15% 0%, #eef0ff 0%, transparent 55%),
     radial-gradient(900px 600px at 100% 100%, #ccfbf1 0%, transparent 50%),

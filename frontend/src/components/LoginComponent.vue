@@ -560,6 +560,10 @@ export default {
            НЕзумленной высоты -> экран логина выше зумленного вьюпорта (900px при
            2560), форма уезжает под фолд. --app-vh нормирован на zoom. */
         height: calc(var(--app-vh, 1vh) * 100);
+        /* B.3 (#1097): svh стабилизирует высоту на мобилке (ретракт адрес-бара Яндекса
+           не дёргает layout); min() держит zoom-корректность на десктопе (app-vh < svh
+           под zoom). Отдельное объявление - при отсутствии svh каскад откатится на calc. */
+        height: min(calc(var(--app-vh, 1vh) * 100), 100svh);
         background-color: var(--color-primary);
         padding: 40px;
         display: flex;
