@@ -3,6 +3,10 @@ class ApplicationCenterPage {
     this.page = page;
     this.root = page.locator('.center');
     this.searchInput = page.getByTestId('center-input-search');
+    // Вторичные фильтры (сегодня/подтверждение/статус/теги/сброс) живут в модалке,
+    // открываемой кнопкой «Фильтр» (#1097 W3.6) - к ним обращаться после openFilters().
+    this.filterButton = page.getByTestId('center-button-filter');
+    this.filterModal = page.locator('.filter-modal');
     this.resetFiltersButton = page.getByTestId('center-button-reset-filters');
     this.unreadBadge = page.getByTestId('center-badge-unread');
   }
@@ -13,6 +17,11 @@ class ApplicationCenterPage {
 
   async search(query) {
     await this.searchInput.fill(query);
+  }
+
+  async openFilters() {
+    await this.filterButton.click();
+    await this.filterModal.waitFor({ state: 'visible' });
   }
 
   async resetFilters() {

@@ -1,19 +1,10 @@
 <template>
   <section class="center">
     <header class="center__header">
-      <div class="header-top">
+      <div class="header-row1">
         <h2 class="center__title">
           Центр заявок
         </h2>
-        <div
-          v-if="canViewArchive"
-          class="center__tabs"
-        >
-          <FilterTabs
-            v-model="archiveMode"
-            :tabs="archiveTabs"
-          />
-        </div>
         <div
           v-if="unreadCount > 0"
           class="unread-badge"
@@ -128,171 +119,100 @@
             </div>
           </Transition>
         </div>
+
+        <div class="field search">
+          <input
+            v-model="searchQuery"
+            placeholder="Поиск заявок..."
+            type="text"
+            class="field__input search"
+            data-testid="center-input-search"
+            @input="onSearchInput"
+          >
+          <img
+            src="@/assets/icons/search.png"
+            class="center__icon"
+          >
+        </div>
+      </div>
+
+      <div class="header-row2">
+        <OrganizationFilter
+          ref="organizationFilter"
+          v-model="selectedOrganizationId"
+          :organizations="organizations"
+          @change="handleOrganizationChange"
+        />
+
+        <button
+          type="button"
+          class="filter-btn"
+          :class="{ 'filter-btn--active': hasModalFilters }"
+          data-testid="center-button-filter"
+          @click="showFilterModal = true"
+        >
+          <svg
+            class="filter-btn__icon"
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
+          </svg>
+          Фильтр
+          <span
+            v-if="hasModalFilters"
+            class="filter-btn__dot"
+            aria-hidden="true"
+          />
+        </button>
+
+        <div
+          v-if="canViewArchive"
+          class="center__tabs"
+        >
+          <FilterTabs
+            v-model="archiveMode"
+            :tabs="archiveTabs"
+          />
+        </div>
       </div>
     </header>
 
-    <div class="center__filters">
-      <div class="filters__main">
-        <div class="filters-row">
-          <div class="field search">
-            <input
-              v-model="searchQuery"
-              placeholder="Поиск заявок..."
-              type="text"
-              class="field__input search"
-              data-testid="center-input-search"
-              @input="onSearchInput"
-            >
-            <img
-              src="@/assets/icons/search.png"
-              class="center__icon"
-            >
-          </div>
-                    
-          <OrganizationFilter
-            ref="organizationFilter"
-            v-model="selectedOrganizationId"
-            :organizations="organizations"
-            @change="handleOrganizationChange"
-          />
-
-          <!-- Новый DateFilter -->
-          <DateFilter
-            ref="dateFilter"
-            :mode="'range'"
-            :selected-date="selectedDate"
-            :date-range-start="dateRangeStart"
-            :date-range-end="dateRangeEnd"
-            @update:selected-date="updateSelectedDate"
-            @update:date-range-start="updateDateRangeStart"
-            @update:date-range-end="updateDateRangeEnd"
-            @apply="applyDateFilters"
-            @clear="clearDateRange"
-          />
-
-          <button 
-            class="reset-sort-btn"
-            :disabled="!sortField"
-            @click="resetSort"
-          >
-            Сбросить сортировку
-          </button>
-
-          <button
-            class="reset-filters-btn"
-            data-testid="center-button-reset-filters"
-            :disabled="!hasActiveFilters"
-            @click="resetFilters"
-          >
-            Сбросить фильтры
-          </button>
-        </div>
-
-        <div class="filters-row filters-row--secondary">
-          <div class="filter-section">
-            <div class="filter-section__header">
-              <span class="filter-label">Заявки</span>
-            </div>
-            <div class="status-buttons">
-              <button
-                class="status-btn"
-                :class="{ 'status-btn--active': activeToday }"
-                data-testid="center-button-today"
-                @click="toggleActiveToday"
-              >
-                Заявки на сегодня
-              </button>
-            </div>
-          </div>
-          <div class="filter-section">
-            <div class="filter-section__header">
-              <span class="filter-label">Подтверждение</span>
-            </div>
-            <div class="status-buttons">
-              <button
-                v-for="confirmation in confirmations"
-                :key="confirmation.value"
-                class="status-btn"
-                :class="{ 'status-btn--active': selectedConfirmations.includes(confirmation.value) }"
-                :data-testid="`center-button-confirmation-${confirmation.value}`"
-                @click="toggleConfirmation(confirmation.value)"
-              >
-                {{ confirmation.label }}
-              </button>
-            </div>
-          </div>
-
-          <div class="filter-section">
-            <div class="filter-section__header">
-              <span class="filter-label">Статус заявки</span>
-            </div>
-            <div class="status-buttons">
-              <button
-                v-for="status in applicationStatuses"
-                :key="status.value"
-                class="status-btn"
-                :class="{ 'status-btn--active': selectedApplicationStatuses.includes(status.value) }"
-                :data-testid="`center-button-status-${status.value}`"
-                @click="toggleApplicationStatus(status.value)"
-              >
-                {{ status.label }}
-              </button>
-            </div>
-          </div>
-
-          <div class="filter-section">
-            <div class="filter-section__header">
-              <span class="filter-label">Теги</span>
-            </div>
-            <div class="tags-dropdown">
-              <button
-                class="tags-dropdown__btn"
-                :class="{ 'tags-dropdown__btn--active': selectedTags.length > 0 }"
-                @click="tagsDropdownOpen = !tagsDropdownOpen"
-              >
-                {{ selectedTags.length ? `Выбрано: ${selectedTags.length}` : 'Все теги' }}
-                <svg
-                  class="tags-dropdown__arrow"
-                  :class="{ 'tags-dropdown__arrow--open': tagsDropdownOpen }"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    d="M6 9L12 15L18 9"
-                    stroke="currentColor"
-                    stroke-width="2.5"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  />
-                </svg>
-              </button>
-              <div
-                v-if="tagsDropdownOpen"
-                class="tags-dropdown__backdrop"
-                @click="tagsDropdownOpen = false"
-              />
-              <transition name="tags-dd">
-                <div
-                  v-if="tagsDropdownOpen"
-                  class="tags-dropdown__panel"
-                >
-                  <button
-                    v-for="tag in tags"
-                    :key="tag.value"
-                    class="status-btn tags-dropdown__item"
-                    :class="{ 'status-btn--active': selectedTags.includes(tag.value) }"
-                    @click="toggleTag(tag.value)"
-                  >
-                    {{ tag.label }}
-                  </button>
-                </div>
-              </transition>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <ApplicationsFilterModal
+      ref="filterModal"
+      :show="showFilterModal"
+      :selected-date="selectedDate"
+      :date-range-start="dateRangeStart"
+      :date-range-end="dateRangeEnd"
+      :active-today="activeToday"
+      :confirmations="confirmations"
+      :selected-confirmations="selectedConfirmations"
+      :application-statuses="applicationStatuses"
+      :selected-application-statuses="selectedApplicationStatuses"
+      :tags="tags"
+      :selected-tags="selectedTags"
+      :sort-field="sortField"
+      :has-active-filters="hasActiveFilters"
+      @close="showFilterModal = false"
+      @update:selected-date="updateSelectedDate"
+      @update:date-range-start="updateDateRangeStart"
+      @update:date-range-end="updateDateRangeEnd"
+      @apply-date="applyDateFilters"
+      @clear-date="clearDateRange"
+      @toggle-today="toggleActiveToday"
+      @toggle-confirmation="toggleConfirmation"
+      @toggle-status="toggleApplicationStatus"
+      @toggle-tag="toggleTag"
+      @reset-sort="resetSort"
+      @reset-filters="resetFilters"
+    />
 
     <div
       class="applications-table rt-table"
@@ -667,7 +587,7 @@ import { playPreset, SOUND_PRESETS } from '@/utils/notificationSound'
 import OrganizationFilter from '@/components/OrganizationFilter.vue';
 import RefreshButton from '../components/RefreshButton.vue';
 import ApplicationDetail from '../components/ApplicationDetail/ApplicationDetail.vue';
-import DateFilter from '../components/DateFilter.vue';
+import ApplicationsFilterModal from '@/components/ApplicationsFilterModal.vue';
 import FilterTabs from '@/components/ui/FilterTabs.vue';
 import SkeletonTransition from '@/components/ui/SkeletonTransition.vue';
 import SkeletonTable from '@/components/ui/SkeletonTable.vue';
@@ -684,7 +604,7 @@ export default {
         OrganizationFilter,
         RefreshButton,
         ApplicationDetail,
-        DateFilter,
+        ApplicationsFilterModal,
         FilterTabs,
         SkeletonTransition,
         SkeletonTable,
@@ -702,6 +622,7 @@ export default {
     data() {
         return {
             showDownloadModal: false,
+            showFilterModal: false,
             showSoundPopover: false,
             soundPresets: SOUND_PRESETS,
             downloadAppId: 0,
@@ -713,7 +634,6 @@ export default {
             selectedConfirmations: [],
             selectedApplicationStatuses: [],
             selectedTags: [],
-            tagsDropdownOpen: false,
             organizations: [],
             sortField: null,
             sortDirection: 'desc',
@@ -909,11 +829,18 @@ export default {
         hasActiveFilters() {
             return !!this.searchQuery.trim() ||
                    !!this.selectedOrganizationId ||
-                   this.selectedConfirmations.length > 0 ||
+                   this.hasModalFilters;
+        },
+
+        // Только фильтры ВНУТРИ модалки «Фильтр» - для точки-индикатора на кнопке.
+        // Поиск и организация видимы в шапке отдельно, их в счёт индикатора не берём,
+        // иначе точка загоралась бы при пустой модалке (ввёл текст в поиск - точка есть).
+        hasModalFilters() {
+            return this.selectedConfirmations.length > 0 ||
                    this.selectedApplicationStatuses.length > 0 ||
                    this.selectedTags.length > 0 ||
                    !!this.selectedDate ||
-                   (this.dateRangeStart && this.dateRangeEnd) ||
+                   !!(this.dateRangeStart && this.dateRangeEnd) ||
                    this.activeToday;
         },
 
@@ -1160,8 +1087,10 @@ export default {
                 this.$refs.organizationFilter.reset();
             }
 
-            if (this.$refs.dateFilter && this.$refs.dateFilter.clearSelection) {
-                this.$refs.dateFilter.clearSelection();
+            // DateFilter теперь внутри ApplicationsFilterModal - сброс date-пропсов уже гасит
+            // отображение через его watcher'ы, а clearDateFilter добивает activeQuickDate-подсветку.
+            if (this.$refs.filterModal && this.$refs.filterModal.clearDateFilter) {
+                this.$refs.filterModal.clearDateFilter();
             }
 
             this.isInitialLoad = false;
@@ -1604,13 +1533,78 @@ export default {
 
 .center__header {
     padding-bottom: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
 }
 
-.header-top {
+.header-row1,
+.header-row2 {
     display: flex;
     align-items: center;
     gap: 12px;
-    margin-bottom: 8px;
+    flex-wrap: wrap;
+}
+
+.header-row2 {
+    gap: 10px;
+}
+
+/* Переключатель Активные/Архив прижат к правому краю второго ряда. */
+.header-row2 .center__tabs {
+    margin-left: auto;
+}
+
+/* Поиск живёт в первом ряду шапки: держит комфортную ширину на десктопе,
+   сжимается на узких экранах, переносится при нехватке места (flex-wrap). */
+.header-row1 .field.search {
+    flex: 0 1 260px;
+    min-width: 150px;
+    width: auto;
+    margin: 0;
+}
+
+/* Кнопка «Фильтр» открывает модалку вторичных фильтров. Точка-индикатор -
+   когда есть активные фильтры. Pill-стиль под высоту OrganizationFilter. */
+.filter-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 36px;
+    padding: 0 16px;
+    border: 1px solid var(--color-border);
+    background: #fff;
+    border-radius: var(--radius-pill);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text);
+    white-space: nowrap;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.filter-btn:hover {
+    background: var(--color-bg);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+.filter-btn--active {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+.filter-btn__icon {
+    flex-shrink: 0;
+}
+
+.filter-btn__dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    flex-shrink: 0;
 }
 
 .center__title {
@@ -1640,40 +1634,8 @@ export default {
     20%, 40%, 60%, 80% { transform: translateX(3px); }
 }
 
-.center__filters {
-    padding: 14px 16px;
-    background: #fff;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-sm);
-    margin-bottom: 16px;
-}
-
 .center__tabs {
     display: flex;
-}
-
-.filters-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 12px;
-    flex-wrap: wrap;
-}
-
-.filters-row--secondary {
-    gap: 20px;
-    margin-bottom: 0;
-    padding-top: 12px;
-    border-top: 1px dashed var(--color-border);
-    align-items: flex-end;
-}
-
-.filter-section {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    justify-content: flex-end;
 }
 
 .table-toolbar {
@@ -1682,18 +1644,6 @@ export default {
     padding: 8px 0;
     border-bottom: 1px solid var(--color-border);
     background: #fafafa;
-}
-
-.filter-section__header {
-    display: flex;
-    align-items: center;
-}
-
-.filter-label {
-    font-size: 12px;
-    color: #666;
-    font-weight: 500;
-    white-space: nowrap;
 }
 
 .field {
@@ -1763,70 +1713,6 @@ export default {
     transform: rotate(-90deg);
 }
 
-.status-buttons {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-}
-
-.status-btn,
-.reset-sort-btn,
-.reset-filters-btn,
-.today-filter-btn {
-    padding: 7px 14px;
-    border: 1px solid var(--color-border);
-    background: white;
-    border-radius: var(--radius-pill);
-    cursor: pointer;
-    font-size: 12px;
-    font-weight: 500;
-    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
-    height: 32px;
-    color: var(--color-text);
-    white-space: nowrap;
-    display: inline-flex;
-    align-items: center;
-}
-
-.status-btn:hover:not(.status-btn--active),
-.reset-sort-btn:hover:not(:disabled),
-.today-filter-btn:hover:not(.today-filter-btn--active) {
-    background: var(--color-bg);
-    border-color: var(--color-primary);
-    color: var(--color-primary);
-}
-
-.status-btn--active,
-.today-filter-btn--active {
-    background: var(--color-primary);
-    color: white;
-    border-color: var(--color-primary);
-}
-
-.status-btn--active:hover,
-.today-filter-btn--active:hover {
-    background: var(--color-primary-hover);
-    border-color: var(--color-primary-hover);
-}
-
-.reset-sort-btn:disabled,
-.reset-filters-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-.reset-filters-btn {
-    background: #fff;
-    border-color: #fecaca;
-    color: var(--color-danger);
-}
-
-.reset-filters-btn:hover:not(:disabled) {
-    background: var(--color-danger);
-    border-color: var(--color-danger);
-    color: #fff;
-}
-
 .applications-table {
     min-width: 300px;
     background-color: #fff;
@@ -1837,12 +1723,12 @@ export default {
     margin-top: 20px;
     height: fit-content;
     /* Тянем таблицу под ОСТАВШУЮСЯ высоту экрана: var(--app-vh) = зумленная
-       высота вьюпорта (viewportScale.js), минус ~340px под глобальную шапку +
-       фильтры + отступы над таблицей. Раньше был фикс 74vh - на фактическом
-       отступе ~302px таблица уезжала за низ экрана (страница скроллила).
-       Вычитание px адаптируется и к низким экранам (лаптоп 768). fit-content
-       не даёт перерасти контент. */
-    max-height: calc(var(--app-vh, 1vh) * 100 - 340px);
+       высота вьюпорта (viewportScale.js), минус высота над таблицей (глобальная
+       шапка + двухрядная шапка Центра + отступы ~210px, замерено на десктопе;
+       фильтры уехали в модалку #1097 W3.6, поэтому меньше прежних 340). На мобилке
+       (@media 767) это правило переопределяется на height:auto. fit-content не даёт
+       перерасти контент. */
+    max-height: calc(var(--app-vh, 1vh) * 100 - 210px);
 
     display: flex;
     flex-direction: column;
@@ -1851,7 +1737,7 @@ export default {
 }
 
 .applications-table.with-details {
-    height: calc(var(--app-vh, 1vh) * 100 - 340px);
+    height: calc(var(--app-vh, 1vh) * 100 - 210px);
 }
 
 /* Overlay-лоадер при refresh - накрывает только область данных (ниже шапки
@@ -2504,70 +2390,6 @@ export default {
     overflow: visible;
 }
 
-/* Фильтр по тегам - компактный дропдаун, чтобы фильтры держались в строке. */
-.tags-dropdown {
-    position: relative;
-}
-.tags-dropdown__btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 12px;
-    border: 1px solid #e0e0e0;
-    border-radius: 12px;
-    background: #fff;
-    cursor: pointer;
-    font-size: 13px;
-    white-space: nowrap;
-}
-.tags-dropdown__btn--active {
-    border-color: var(--color-primary, #4F5BDF);
-    color: var(--color-primary, #4F5BDF);
-}
-.tags-dropdown__arrow {
-    width: 9px;
-    height: 9px;
-    flex-shrink: 0;
-    color: #555;
-    transition: transform 0.2s;
-}
-.tags-dropdown__arrow--open {
-    transform: rotate(180deg);
-}
-.tags-dropdown__backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 40;
-}
-/* Плавное появление панели (как BaseDropdown). */
-.tags-dd-enter-active {
-    transition: opacity 0.2s ease, transform 0.2s ease;
-}
-.tags-dd-leave-active {
-    transition: opacity 0.15s ease, transform 0.15s ease;
-}
-.tags-dd-enter-from,
-.tags-dd-leave-to {
-    opacity: 0;
-    transform: translateY(-4px);
-}
-.tags-dropdown__panel {
-    transform-origin: top left;
-    position: absolute;
-    top: calc(100% + 6px);
-    left: 0;
-    z-index: 50;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    min-width: 170px;
-    padding: 10px;
-    background: #fff;
-    border: 1px solid #e0e0e0;
-    border-radius: 12px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-}
-
 .applications-list::-webkit-scrollbar {
     width: 6px;
 }
@@ -2595,14 +2417,10 @@ export default {
         padding: 12px;
     }
 
-    .filters-row {
-        flex-wrap: wrap;
-        gap: 8px;
-    }
-
-    .filters-row--secondary {
-        flex-wrap: wrap;
-        gap: 12px;
+    /* Поиск занимает всю ширину первого ряда на телефоне. */
+    .header-row1 .field.search {
+        flex: 1 1 100%;
+        min-width: 0;
     }
 
     .table-toolbar {
@@ -2614,10 +2432,6 @@ export default {
     }
 
     .field__input {
-        width: 100%;
-    }
-
-    .status-buttons {
         width: 100%;
     }
 
