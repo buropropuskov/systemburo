@@ -42,6 +42,29 @@
     >
       <span class="bulk-count">Выбрано: {{ selectedUsernames.length }}</span>
       <div class="bulk-actions">
+        <template v-if="!showArchive">
+          <button
+            class="pill pill-ghost"
+            data-testid="users-bulk-type"
+            @click="startBulkOperation('type')"
+          >
+            Тип
+          </button>
+          <button
+            class="pill pill-ghost"
+            data-testid="users-bulk-organization"
+            @click="startBulkOperation('organization')"
+          >
+            Организация
+          </button>
+          <button
+            class="pill pill-ghost"
+            data-testid="users-bulk-company"
+            @click="startBulkOperation('company')"
+          >
+            Компания
+          </button>
+        </template>
         <button
           v-if="!showArchive"
           class="pill pill-danger"
@@ -778,6 +801,18 @@
       @cancel="cancelBulkConfirm"
     />
 
+    <UserBulkOperationsModal
+      :show="bulkModalVisible"
+      :operation="pendingBulkOp"
+      :selected-count="selectedUsernames.length"
+      :user-types="userTypes"
+      :organizations="organizations"
+      :companies="companies"
+      :submitting="bulkSubmitting"
+      @apply="applyBulk"
+      @close="cancelBulkModal"
+    />
+
     <ConfirmationModal
       :show="!!deleteConfirmUser"
       title="Удаление пользователя"
@@ -816,7 +851,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
-import { bulkArchiveUsers, bulkRestoreUsers } from '@/api/users';
+import { bulkArchiveUsers, bulkRestoreUsers, bulkUpdateUsersType, bulkAssignUsersOrganization, bulkAssignUsersCompany } from '@/api/users';
 import { ref } from 'vue';
 import { mapState, mapActions } from 'pinia';
 import { useOrganizationsStore } from '@/stores/organizations';
@@ -837,6 +872,7 @@ import UserHistoryModal from './UserHistoryModal.vue';
 import UserLoginHistory from './UserLoginHistory.vue';
 import UserAccessModal from './admin/UserAccessModal.vue';
 import UserAccessPlacesModal from './admin/UserAccessPlacesModal.vue';
+import UserBulkOperationsModal from './UserBulkOperationsModal.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
 import { resetOnboardingForUser } from '@/api/onboarding';
@@ -853,7 +889,8 @@ export default {
     UserHistoryModal,
     UserLoginHistory,
     UserAccessModal,
-    UserAccessPlacesModal
+    UserAccessPlacesModal,
+    UserBulkOperationsModal
   },
   props: {
     allUsers: {
@@ -888,6 +925,7 @@ export default {
       lastSelectedUsername: null,
       pendingBulkOp: null,
       bulkConfirmVisible: false,
+      bulkModalVisible: false,
       bulkSubmitting: false,
       showArchive: false,
       archiveOptions: [
@@ -1169,15 +1207,59 @@ export default {
       this.pendingBulkOp = null;
     },
 
-    // --- Групповые операции: архив/восстановление ---
+    // --- Групповые операции ---
+    // архив/восстановление - через ConfirmationModal; тип/организация/компания -
+    // через UserBulkOperationsModal (нужен выбор значения).
     startBulkOperation(operation) {
       this.pendingBulkOp = operation;
-      this.bulkConfirmVisible = true;
+      if (operation === 'archive' || operation === 'restore') {
+        this.bulkConfirmVisible = true;
+      } else {
+        this.bulkModalVisible = true;
+      }
     },
     cancelBulkConfirm() {
       if (this.bulkSubmitting) return;
       this.bulkConfirmVisible = false;
       this.pendingBulkOp = null;
+    },
+    cancelBulkModal() {
+      if (this.bulkSubmitting) return;
+      this.bulkModalVisible = false;
+      this.pendingBulkOp = null;
+    },
+    // Применение операции с выбором значения (тип/организация/компания).
+    async applyBulk(value) {
+      const names = [...this.selectedUsernames];
+      const op = this.pendingBulkOp;
+      if (this.bulkSubmitting) return;
+      if (!names.length || value === null || value === undefined) {
+        this.bulkModalVisible = false;
+        this.pendingBulkOp = null;
+        return;
+      }
+      this.bulkSubmitting = true;
+      let result;
+      try {
+        if (op === 'type') result = await bulkUpdateUsersType(names, value);
+        else if (op === 'organization') result = await bulkAssignUsersOrganization(names, value);
+        else if (op === 'company') result = await bulkAssignUsersCompany(names, value);
+        else {
+          this.bulkSubmitting = false;
+          this.bulkModalVisible = false;
+          this.pendingBulkOp = null;
+          return;
+        }
+      } catch {
+        useDeletionsStore().notify({ prefix: 'Не удалось выполнить групповую операцию', type: 'error' });
+        this.bulkSubmitting = false;
+        return;
+      }
+      this.bulkSubmitting = false;
+      if (this.handleBulkResult(op, result, names.length)) {
+        this.bulkModalVisible = false;
+        this.pendingBulkOp = null;
+      }
     },
     async applyBulkArchiveRestore() {
       const names = [...this.selectedUsernames];
@@ -1210,7 +1292,13 @@ export default {
         useDeletionsStore().notify({ prefix: result?.message || 'Не удалось выполнить групповую операцию', type: 'error' });
         return false;
       }
-      const label = op === 'restore' ? 'Восстановлено' : 'Архивировано';
+      const label = {
+        restore: 'Восстановлено',
+        archive: 'Архивировано',
+        type: 'Тип изменён',
+        organization: 'Организация назначена',
+        company: 'Компания назначена',
+      }[op] || 'Обновлено';
       if (result.error_count > 0) {
         const failed = (result.errors || []).map(e => e.name || `#${e.id}`).join(', ');
         useUiStore().warning(`Выполнено ${result.success_count} из ${total}. Не удалось: ${failed}`);
