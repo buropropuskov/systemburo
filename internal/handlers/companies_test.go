@@ -908,6 +908,28 @@ func TestCompanies_BulkAudit(t *testing.T) {
 		assert.Len(t, history(comp), before, "неизменяющее назначение ответственных не пишет историю")
 	})
 
+	t.Run("смена главного ответственного пишет primary_changed", func(t *testing.T) {
+		comp := createCompany("Аудит К Главный")
+		testutil.RegisterUser(t, e, "auditcprim1", "pass123", 1, td.OrgID, td.CompanyID)
+		testutil.RegisterUser(t, e, "auditcprim2", "pass123", 1, td.OrgID, td.CompanyID)
+
+		require.Equal(t, http.StatusOK, testutil.PUT(t, e, fmt.Sprintf("/companies/%d/users", comp),
+			`{"users":[{"username":"auditcprim1","is_primary":true},{"username":"auditcprim2"}]}`, h).Code)
+		require.Equal(t, http.StatusOK, testutil.PUT(t, e, fmt.Sprintf("/companies/%d/users", comp),
+			`{"users":[{"username":"auditcprim1"},{"username":"auditcprim2","is_primary":true}]}`, h).Code)
+
+		rec := findAction(history(comp), "responsibles_changed")
+		require.NotNil(t, rec, "смена главного пишет историю")
+		pc, _ := detailsOf(rec)["primary_changed"].(map[string]interface{})
+		require.NotNil(t, pc, "смена главного пишет primary_changed")
+		from, _ := pc["from"].(map[string]interface{})
+		to, _ := pc["to"].(map[string]interface{})
+		assert.Equal(t, "auditcprim1", from["username"])
+		assert.Equal(t, "auditcprim2", to["username"])
+		_, hasAdded := detailsOf(rec)["added"]
+		assert.False(t, hasAdded, "при одной лишь смене главного added отсутствует")
+	})
+
 	t.Run("type no-op одиночный PUT не пишет историю", func(t *testing.T) {
 		comp := createCompany("Аудит К Тип")
 		before := len(history(comp))
