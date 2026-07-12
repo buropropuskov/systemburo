@@ -12,14 +12,15 @@ vi.mock('@/api/applications', () => ({
   markAsRead: vi.fn().mockResolvedValue(undefined),
 }));
 
+import { usePermissionsStore } from '@/stores/permissions';
 import ApplicationDetail from '../ApplicationDetail.vue';
 
-function mountDetail() {
+function mountDetail(appOverrides = {}, mode = 'center') {
   return shallowMount(ApplicationDetail, {
     props: {
-      application: { id: 7, application_number: 'A-7', status: 'Непрочитано' },
+      application: { id: 7, application_number: 'A-7', status: 'Непрочитано', ...appOverrides },
       currentUserId: 1,
-      mode: 'center',
+      mode,
     },
   });
 }
@@ -78,5 +79,38 @@ describe('ApplicationDetail - открытие сообщения тапом п�
     const wrapper = mountDetail();
     wrapper.vm.openMessageFromPreview({ target: { closest: (sel) => (sel === 'a' ? { tagName: 'A' } : null) } });
     expect(wrapper.vm.showMessageModal).toBe(false);
+  });
+});
+
+// #1097 W3.8: кнопку "Скачать" убрали из строки списка на мобилке, перенесли в деталь.
+describe('ApplicationDetail - кнопка "Скачать" в детали (#1097 W3.8)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
+
+  const btn = (w) => w.find('[data-testid="app-detail-button-download"]');
+
+  it('есть при has_blank_template (mode=user - без права экспорта) и эмитит download с заявкой', async () => {
+    const wrapper = mountDetail({ has_blank_template: true }, 'user');
+    expect(btn(wrapper).exists()).toBe(true);
+    await btn(wrapper).trigger('click');
+    expect(wrapper.emitted('download')).toBeTruthy();
+    expect(wrapper.emitted('download')[0][0].id).toBe(7);
+  });
+
+  it('нет без has_blank_template', () => {
+    const wrapper = mountDetail({ has_blank_template: false }, 'user');
+    expect(btn(wrapper).exists()).toBe(false);
+  });
+
+  it('в mode=center нужен action.export.applications: с правом - есть', () => {
+    usePermissionsStore().effective = { 'action.export.applications': { value: 'allow', source: 'role' } };
+    const wrapper = mountDetail({ has_blank_template: true }, 'center');
+    expect(btn(wrapper).exists()).toBe(true);
+  });
+
+  it('в mode=center без action.export.applications - кнопки нет (как в строке Центра)', () => {
+    const wrapper = mountDetail({ has_blank_template: true }, 'center');
+    expect(btn(wrapper).exists()).toBe(false);
   });
 });

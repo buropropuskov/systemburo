@@ -362,6 +362,7 @@
         @duplicate="handleDuplicate"
         @withdraw="handleWithdraw"
         @questions-read="onQuestionsRead"
+        @download="downloadApplication"
       />
     </teleport>
     <DownloadBlanksModal
@@ -1776,7 +1777,9 @@ export default {
   .application-col.sender-col { order: 4; }
   .application-col.message-col { order: 5; }
   .application-col.tags-col { order: 6; margin-top: 6px; }
-  .application-col.actions-col { order: 7; margin-top: 8px; }
+  /* Скачивание на мобилке перенесено в открытую заявку (W3.8) - в строке прячем.
+     Полный префикс - иначе общее `...> .application-col{display:block}` перебивает по специфичности. */
+  .applications-list .application-row.rt-row > .application-col.actions-col { display: none; }
 
   /* Типографика строк карточки. */
   .application-col.id-col .application-id {
@@ -1798,13 +1801,6 @@ export default {
     color: #7a7a8c;
   }
 
-  /* Кнопка "Скачать" собственной строкой, тач-таргет >=44px. */
-  .application-col.actions-col {
-    flex: 0 0 auto;
-    width: 100% !important;
-    max-width: none !important;
-    justify-content: flex-start;
-  }
 
   .download-btn {
     height: 44px;
