@@ -147,7 +147,7 @@
         <button
           type="button"
           class="filter-btn"
-          :class="{ 'filter-btn--active': hasActiveFilters }"
+          :class="{ 'filter-btn--active': hasModalFilters }"
           data-testid="center-button-filter"
           @click="showFilterModal = true"
         >
@@ -167,7 +167,7 @@
           </svg>
           Фильтр
           <span
-            v-if="hasActiveFilters"
+            v-if="hasModalFilters"
             class="filter-btn__dot"
             aria-hidden="true"
           />
@@ -829,11 +829,18 @@ export default {
         hasActiveFilters() {
             return !!this.searchQuery.trim() ||
                    !!this.selectedOrganizationId ||
-                   this.selectedConfirmations.length > 0 ||
+                   this.hasModalFilters;
+        },
+
+        // Только фильтры ВНУТРИ модалки «Фильтр» - для точки-индикатора на кнопке.
+        // Поиск и организация видимы в шапке отдельно, их в счёт индикатора не берём,
+        // иначе точка загоралась бы при пустой модалке (ввёл текст в поиск - точка есть).
+        hasModalFilters() {
+            return this.selectedConfirmations.length > 0 ||
                    this.selectedApplicationStatuses.length > 0 ||
                    this.selectedTags.length > 0 ||
                    !!this.selectedDate ||
-                   (this.dateRangeStart && this.dateRangeEnd) ||
+                   !!(this.dateRangeStart && this.dateRangeEnd) ||
                    this.activeToday;
         },
 
@@ -1631,31 +1638,12 @@ export default {
     display: flex;
 }
 
-.filter-section {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    justify-content: flex-end;
-}
-
 .table-toolbar {
     display: flex;
     justify-content: flex-end;
     padding: 8px 0;
     border-bottom: 1px solid var(--color-border);
     background: #fafafa;
-}
-
-.filter-section__header {
-    display: flex;
-    align-items: center;
-}
-
-.filter-label {
-    font-size: 12px;
-    color: #666;
-    font-weight: 500;
-    white-space: nowrap;
 }
 
 .field {
@@ -1725,70 +1713,6 @@ export default {
     transform: rotate(-90deg);
 }
 
-.status-buttons {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-}
-
-.status-btn,
-.reset-sort-btn,
-.reset-filters-btn,
-.today-filter-btn {
-    padding: 7px 14px;
-    border: 1px solid var(--color-border);
-    background: white;
-    border-radius: var(--radius-pill);
-    cursor: pointer;
-    font-size: 12px;
-    font-weight: 500;
-    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
-    height: 32px;
-    color: var(--color-text);
-    white-space: nowrap;
-    display: inline-flex;
-    align-items: center;
-}
-
-.status-btn:hover:not(.status-btn--active),
-.reset-sort-btn:hover:not(:disabled),
-.today-filter-btn:hover:not(.today-filter-btn--active) {
-    background: var(--color-bg);
-    border-color: var(--color-primary);
-    color: var(--color-primary);
-}
-
-.status-btn--active,
-.today-filter-btn--active {
-    background: var(--color-primary);
-    color: white;
-    border-color: var(--color-primary);
-}
-
-.status-btn--active:hover,
-.today-filter-btn--active:hover {
-    background: var(--color-primary-hover);
-    border-color: var(--color-primary-hover);
-}
-
-.reset-sort-btn:disabled,
-.reset-filters-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-.reset-filters-btn {
-    background: #fff;
-    border-color: #fecaca;
-    color: var(--color-danger);
-}
-
-.reset-filters-btn:hover:not(:disabled) {
-    background: var(--color-danger);
-    border-color: var(--color-danger);
-    color: #fff;
-}
-
 .applications-table {
     min-width: 300px;
     background-color: #fff;
@@ -1799,12 +1723,12 @@ export default {
     margin-top: 20px;
     height: fit-content;
     /* Тянем таблицу под ОСТАВШУЮСЯ высоту экрана: var(--app-vh) = зумленная
-       высота вьюпорта (viewportScale.js), минус ~340px под глобальную шапку +
-       фильтры + отступы над таблицей. Раньше был фикс 74vh - на фактическом
-       отступе ~302px таблица уезжала за низ экрана (страница скроллила).
-       Вычитание px адаптируется и к низким экранам (лаптоп 768). fit-content
-       не даёт перерасти контент. */
-    max-height: calc(var(--app-vh, 1vh) * 100 - 340px);
+       высота вьюпорта (viewportScale.js), минус высота над таблицей (глобальная
+       шапка + двухрядная шапка Центра + отступы ~210px, замерено на десктопе;
+       фильтры уехали в модалку #1097 W3.6, поэтому меньше прежних 340). На мобилке
+       (@media 767) это правило переопределяется на height:auto. fit-content не даёт
+       перерасти контент. */
+    max-height: calc(var(--app-vh, 1vh) * 100 - 210px);
 
     display: flex;
     flex-direction: column;
@@ -1813,7 +1737,7 @@ export default {
 }
 
 .applications-table.with-details {
-    height: calc(var(--app-vh, 1vh) * 100 - 340px);
+    height: calc(var(--app-vh, 1vh) * 100 - 210px);
 }
 
 /* Overlay-лоадер при refresh - накрывает только область данных (ниже шапки
@@ -2508,10 +2432,6 @@ export default {
     }
 
     .field__input {
-        width: 100%;
-    }
-
-    .status-buttons {
         width: 100%;
     }
 
