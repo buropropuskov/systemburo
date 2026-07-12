@@ -406,6 +406,14 @@
                     :data-tooltip="application.sender_full_name || application.sender_name"
                   ><span class="ellip">{{ application.sender_name }}</span></span>
                 </div>
+                <!-- Сопроводительное сообщение - только в компактной карточке на мобилке
+                     (W3.7). На десктопе колонка display:none, отдельной колонки таблицы нет. -->
+                <div
+                  v-if="application.message"
+                  class="application-col message-col"
+                >
+                  {{ application.message }}
+                </div>
                 <div
                   class="application-col status-col"
                   data-label="Статус заявки"
@@ -596,7 +604,7 @@ import DownloadBlanksModal from '@/components/applications/DownloadBlanksModal.v
 import Badge from '@/components/ui/Badge.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import { blacklistFlagCount, blacklistFlagLabel, BLACKLIST_FLAG_TITLE } from '@/utils/blacklistBadge';
-import { useToast } from '@/composables/useToast';
+import { useDeletionsStore } from '@/stores/deletions';
 
 export default {
     name: 'ApplicationsCenter',
@@ -970,9 +978,9 @@ export default {
                     document.execCommand('copy');
                     document.body.removeChild(textarea);
                 }
-                useToast().success(`Номер ${number} скопирован`);
+                useDeletionsStore().notify({ prefix: 'Номер ', bold: String(number), suffix: ' скопирован' });
             } catch {
-                useToast().error('Не удалось скопировать номер');
+                useDeletionsStore().notify({ prefix: 'Не удалось скопировать номер', type: 'error' });
             }
         },
 
@@ -2412,6 +2420,12 @@ export default {
     scrollbar-color: #D9E2FF transparent;
 }
 
+/* Сообщение показываем ТОЛЬКО в компактной карточке на мобилке (W3.7); в десктоп-
+   таблице отдельной колонки нет - иначе сломался бы ряд из 8 колонок. */
+.message-col {
+    display: none;
+}
+
 @media (max-width: 767.98px) {
     .center {
         padding: 12px;
@@ -2480,56 +2494,89 @@ export default {
         background: #fff5e0;
     }
 
+    /* Компактная карточка-письмо БЕЗ подписей (W3.7): бейдж согласования сверху,
+       затем номер (мелко) / организация (жирным) / отправитель / сообщение, теги внизу.
+       Дата и статус скрыты, боковой padding у элементов убран - падинг у карточки. */
     .application-row.rt-row {
-        /* border-bottom у каждой [data-label]-ячейки уже разделяет поля - строчный gap
-         * дублировал бы разделение и распирал карточку. */
-        gap: 0;
+        gap: 3px;
+        padding: 14px 16px;
     }
 
-    /* Базовые *-col задают flex-grow/basis под горизонтальное распределение ширины
-     * колонок десктоп-таблицы - в rt-row (flex-direction: column) те же значения
-     * управляют уже высотой ячейки и ломают карточку (например tags-col: flex:0 0 120px
-     * стало бы фиксированной высотой). Сбрасываем на auto-высоту по контенту - ширину и
-     * выравнивание "подпись/значение" держит [data-label] из responsive-tables.css.
-     * Снимаем и обрезание текста (nowrap+ellipsis) - в карточке ширины достаточно для
-     * переноса длинных значений, лучше перенос, чем молчаливое усечение. */
+    /* Прячем подписи полей (data-label ::before из responsive-tables.css). */
+    .applications-table .application-row.rt-row > .application-col::before {
+        display: none !important;
+    }
+
+    /* Ячейки в столбик, без бордюр-разделителей и бокового padding, авто-высота.
+       text-align:left перебивает text-align:right из responsive-tables.css (там
+       значение выравнивалось вправо от подписи - без подписей нам нужно влево). */
     .applications-table .application-row.rt-row > .application-col {
         flex: none;
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        padding: 0;
+        border: none;
         overflow: visible;
         white-space: normal;
-        text-overflow: clip;
+        text-align: left;
     }
 
-    .applications-table .application-row.rt-row .ellip {
-        white-space: normal;
-        overflow: visible;
-        text-overflow: clip;
+    /* Длинные значения (организация/отправитель/сообщение) - одна строка с обрезкой "..". */
+    .application-col.organization-col,
+    .application-col.sender-col,
+    .application-col.message-col {
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
     }
 
-    /* number-col на десктопе - flex-column (номер над бейджем ЧС); в карточке нужен
-     * обычный ряд "подпись слева - значение справа", как у остальных полей. */
+    /* number-col: обычный ряд (сброс десктопного flex-column номер-над-ЧС). */
     .application-col.number-col {
         flex-direction: row;
     }
 
-    /* Пустая ячейка (нет тегов/нет отправителя) - div без единого узла, :empty прячет
-     * её вместе с подписью, не оставляя строку "Теги:"/"Отправитель:" без значения. */
+    /* Скрываем дату и статус заявки (директива W3.7). Специфичность >= правила
+       `.applications-table .application-row.rt-row > .application-col{display:block}`. */
+    .applications-table .application-row.rt-row > .application-col.date-col,
+    .applications-table .application-row.rt-row > .application-col.status-col {
+        display: none;
+    }
+
+    /* Пустой отправитель/теги - скрыть строку. */
     .applications-table .application-row.rt-row > .tags-col:empty,
     .applications-table .application-row.rt-row > .sender-col:empty {
         display: none;
     }
 
-    /* Порядок карточки-письма (директива юзера, context.md эпика #1097): подтверждение
-     * всегда видно первым, дальше теги / организация / отправитель+номер / статус
-     * заявки; дата и кнопка скачивания порядком не оговорены - идут следом. */
-    .application-col.confirmation-col { order: 1; }
-    .application-col.tags-col { order: 2; }
+    /* Порядок карточки: согласование / номер / организация / отправитель / сообщение / теги. */
+    .application-col.confirmation-col { order: 1; margin-bottom: 4px; }
+    .application-col.number-col { order: 2; }
     .application-col.organization-col { order: 3; }
     .application-col.sender-col { order: 4; }
-    .application-col.number-col { order: 5; }
-    .application-col.status-col { order: 6; }
-    .application-col.date-col { order: 7; }
-    .application-col.actions-col { order: 8; }
+    .application-col.message-col { order: 5; display: block; }
+    .application-col.tags-col { order: 6; margin-top: 6px; }
+    .application-col.actions-col { order: 7; margin-top: 8px; }
+
+    /* Типографика строк карточки. */
+    .application-col.number-col .application-number {
+        font-size: 12px;
+        color: #9a9aae;
+        font-weight: 500;
+    }
+    .application-col.organization-col {
+        font-size: 15px;
+        font-weight: 700;
+        color: #1a1a2e;
+    }
+    .application-col.sender-col {
+        font-size: 13px;
+        color: #555;
+    }
+    .application-col.message-col {
+        font-size: 13px;
+        color: #7a7a8c;
+    }
 
     /* Тач-таргеты >= 44px. Кнопка "Скачать" в карточке идёт собственной строкой (без
      * data-label) - можно смело увеличить саму кнопку. Копирование номера остаётся
