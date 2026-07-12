@@ -203,11 +203,26 @@ export default {
       const el = this.$refs.dropdown;
       if (!el) return;
       const r = el.getBoundingClientRect();
+      const vh = window.innerHeight;
+      const gap = 5;
+      const margin = 8; // не впритык к краю экрана
+      const spaceBelow = vh - r.bottom - gap - margin;
+      const spaceAbove = r.top - gap - margin;
+      // По умолчанию вниз; если снизу мало места, а сверху больше - открываем ВВЕРХ
+      // (иначе высокое меню на низком вьюпорте/мобильном bottom-sheet уезжает за экран).
+      const openUp = spaceBelow < 200 && spaceAbove > spaceBelow;
+      const avail = Math.max(120, Math.floor(openUp ? spaceAbove : spaceBelow));
       this.menuStyle = {
         position: 'fixed',
-        top: `${Math.round(r.bottom + 5)}px`,
         left: `${Math.round(r.left)}px`,
         width: `${Math.round(r.width)}px`,
+        // клампим по доступному пространству выбранной стороны, чтобы меню не выходило за экран
+        maxHeight: `${Math.min(320, avail)}px`,
+        // top:'auto' в ветке флипа обязателен - иначе базовый CSS
+        // .base-dropdown__menu{top:calc(100%+5px)} не сбрасывается и конфликтует с bottom.
+        ...(openUp
+          ? { bottom: `${Math.round(vh - r.top + gap)}px`, top: 'auto' }
+          : { top: `${Math.round(r.bottom + gap)}px`, bottom: 'auto' }),
         // выше тела модалки (1000), но НИЖЕ глобальных блокирующих диалогов
         // (ConfirmDialog 20000, SessionExpiredModal 25000) - см. [[z-index лестница]]
         zIndex: 2000,
@@ -293,6 +308,10 @@ export default {
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
   z-index: 1000;
   overflow: hidden;
+  /* flex-column, чтобы inline maxHeight (teleport-режим) ужимал прокручиваемый
+     список опций, а не обрезал его через overflow:hidden. */
+  display: flex;
+  flex-direction: column;
 }
 
 .base-dropdown__search {
@@ -318,6 +337,8 @@ export default {
 .base-dropdown__options {
   max-height: 250px;
   overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .base-dropdown__item {
