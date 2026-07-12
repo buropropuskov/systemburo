@@ -78,8 +78,8 @@ describe('OrganizationsManagement — применение групповых о
   it('type: открывает модалку, зовёт API, notify и сброс выбора при полном успехе', async () => {
     orgApi.bulkUpdateOrganizationType.mockResolvedValue({ success_count: 2, error_count: 0, errors: [] })
     const { w, store, del } = await mountCmp()
-    await rowChecks(w)[0].trigger('change')
-    await rowChecks(w)[1].trigger('change')
+    await rowChecks(w)[0].trigger('click')
+    await rowChecks(w)[1].trigger('click')
     expect(w.vm.selectedIds).toEqual([1, 2])
 
     await w.find('[data-testid="orgs-bulk-type"]').trigger('click')
@@ -118,8 +118,8 @@ describe('OrganizationsManagement — применение групповых о
   it('архив: открывает ConfirmationModal и зовёт bulkArchive по подтверждению', async () => {
     orgApi.bulkArchiveOrganizations.mockResolvedValue({ success_count: 2, error_count: 0, errors: [] })
     const { w } = await mountCmp()
-    await rowChecks(w)[0].trigger('change')
-    await rowChecks(w)[1].trigger('change')
+    await rowChecks(w)[0].trigger('click')
+    await rowChecks(w)[1].trigger('click')
 
     await w.find('[data-testid="orgs-bulk-archive"]').trigger('click')
     expect(w.vm.bulkConfirmVisible).toBe(true)
@@ -138,7 +138,7 @@ describe('OrganizationsManagement — применение групповых о
   it('ошибка API (envelope success:false -> message): модалка открыта, выбор цел', async () => {
     orgApi.bulkUpdateOrganizationType.mockResolvedValue({ message: 'Недостаточно прав' })
     const { w, del } = await mountCmp()
-    await rowChecks(w)[0].trigger('change')
+    await rowChecks(w)[0].trigger('click')
     await w.find('[data-testid="orgs-bulk-type"]').trigger('click')
     bulkModal(w).vm.$emit('apply', { type: 'Отдел' })
     await flushPromises()
@@ -152,7 +152,7 @@ describe('OrganizationsManagement — применение групповых о
   it('сетевая ошибка (reject): error-notify, модалка открыта, выбор цел', async () => {
     orgApi.bulkAssignOrganizationTables.mockRejectedValue(new Error('network'))
     const { w, del } = await mountCmp()
-    await rowChecks(w)[0].trigger('change')
+    await rowChecks(w)[0].trigger('click')
     await w.find('[data-testid="orgs-bulk-tables"]').trigger('click')
     bulkModal(w).vm.$emit('apply', { tableIds: [7], mode: 'replace' })
     await flushPromises()
