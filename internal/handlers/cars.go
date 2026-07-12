@@ -247,7 +247,7 @@ func (h *CarHandler) GetCarsCurrentStatus(c echo.Context) error {
 // @Accept json
 // @Produce json
 // @Param id path int true "ID автомобиля"
-// @Param body body services.UpdateTerritoryStatusRequest true "Новый территориальный статус"
+// @Param body body services.UpdateCarTerritoryStatusRequest true "Новый территориальный статус (+ опц. данные пропуска по факту)"
 // @Success 200 {object} map[string]interface{}
 // @Router /cars/{id}/territory-status [put]
 func (h *CarHandler) UpdateCarTerritoryStatus(c echo.Context) error {
@@ -255,7 +255,7 @@ func (h *CarHandler) UpdateCarTerritoryStatus(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid car ID")
 	}
-	var req services.UpdateTerritoryStatusRequest
+	var req services.UpdateCarTerritoryStatusRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}

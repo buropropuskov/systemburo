@@ -128,10 +128,12 @@ func TestTablesRefresh_AcceptanceAndCarEntry(t *testing.T) {
 
 	fake.reset()
 	entry := 1
-	require.NoError(t, carSvc.UpdateCarTerritoryStatus(context.Background(), carID, services.UpdateTerritoryStatusRequest{
-		TerritoryStatus: entry,
-		UserID:          &guardID,
-		TableID:         &carsTable.ID,
+	require.NoError(t, carSvc.UpdateCarTerritoryStatus(context.Background(), carID, services.UpdateCarTerritoryStatusRequest{
+		UpdateTerritoryStatusRequest: services.UpdateTerritoryStatusRequest{
+			TerritoryStatus: entry,
+			UserID:          &guardID,
+			TableID:         &carsTable.ID,
+		},
 	}))
 	audience = findTablesRefresh(fake, scope)
 	require.NotNil(t, audience, "въезд машины должен послать tables.refresh cars-таблице")

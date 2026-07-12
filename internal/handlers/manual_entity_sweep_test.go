@@ -118,9 +118,11 @@ func TestCarHistory_Manual_ResolvesOrg(t *testing.T) {
 	recorder := services.NewAuditRecorder(db)
 	carSvc := services.NewCarService(db, recorder)
 	entry := 1
-	require.NoError(t, carSvc.UpdateCarTerritoryStatus(context.Background(), carID, services.UpdateTerritoryStatusRequest{
-		TerritoryStatus: entry,
-		TableID:         &tableID,
+	require.NoError(t, carSvc.UpdateCarTerritoryStatus(context.Background(), carID, services.UpdateCarTerritoryStatusRequest{
+		UpdateTerritoryStatusRequest: services.UpdateTerritoryStatusRequest{
+			TerritoryStatus: entry,
+			TableID:         &tableID,
+		},
 	}))
 
 	rec = testutil.GET(t, e, "/cars/history/all", testutil.AuthHeader(token))

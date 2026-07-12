@@ -96,6 +96,90 @@ func TestCarTerritoryStatus_RecordsTableInHistory(t *testing.T) {
 	assert.Equal(t, "Test Table", entry["table_name"], "entry record should resolve table_name from system_tables")
 }
 
+// TestCarTerritoryStatus_EntryWithFactPassData фиксирует #1132: при въезде с данными
+// пропуска "по факту" снимок (номер/марка/формат) сохраняется в metadata записи entry
+// и доступен через историю машины, а исходный car_number строки НЕ перезаписывается.
+func TestCarTerritoryStatus_EntryWithFactPassData(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "carfact1", "pass123", 1, td.OrgID, td.CompanyID)
+	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
+	activateCarViaApp(t, e, db, appID, td)
+
+	var carBefore models.Car
+	require.NoError(t, db.First(&carBefore, carID).Error)
+	origNumber := ""
+	if carBefore.CarNumber != nil {
+		origNumber = *carBefore.CarNumber
+	}
+
+	body := `{"territory_status":1,"pass":{"number":"А 123 ВС 77","format_name":"Стандартный","mark_name":"BMW"}}`
+	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/territory-status", carID), body, testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// Исходный номер строки НЕ меняется при пропуске "по факту" (#1132).
+	var carAfter models.Car
+	require.NoError(t, db.First(&carAfter, carID).Error)
+	gotNumber := ""
+	if carAfter.CarNumber != nil {
+		gotNumber = *carAfter.CarNumber
+	}
+	assert.Equal(t, origNumber, gotNumber, "car_number строки не должен меняться при пропуске по факту")
+
+	// Снимок пропуска доступен в metadata записи entry.
+	rec = testutil.GET(t, e, fmt.Sprintf("/cars/%d/history", carID), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code)
+	history := testutil.ParseSlice(t, rec)
+
+	var entry map[string]interface{}
+	for _, h := range history {
+		if h["action_type"] == "entry" {
+			entry = h
+			break
+		}
+	}
+	require.NotNil(t, entry, "history should contain entry record")
+	require.NotNil(t, entry["metadata"], "entry record should carry pass metadata")
+	meta, ok := entry["metadata"].(map[string]interface{})
+	require.True(t, ok, "metadata should be an object")
+	assert.Equal(t, "А 123 ВС 77", meta["number"])
+	assert.Equal(t, "BMW", meta["mark_name"])
+	assert.Equal(t, "Стандартный", meta["format_name"])
+}
+
+// TestCarTerritoryStatus_ExitWithoutPassNoMetadata фиксирует #1132: выезд (и въезд без
+// данных) не пишет metadata пропуска - обратная совместимость прежнего поведения.
+func TestCarTerritoryStatus_ExitWithoutPassNoMetadata(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "carfact2", "pass123", 1, td.OrgID, td.CompanyID)
+	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
+	activateCarViaApp(t, e, db, appID, td)
+
+	// Въезд без данных пропуска, затем выезд.
+	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/territory-status", carID),
+		`{"territory_status":1}`, testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code)
+	rec = testutil.PUT(t, e, fmt.Sprintf("/cars/%d/territory-status", carID),
+		`{"territory_status":2}`, testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	rec = testutil.GET(t, e, fmt.Sprintf("/cars/%d/history", carID), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code)
+	history := testutil.ParseSlice(t, rec)
+	for _, h := range history {
+		if h["action_type"] == "entry" || h["action_type"] == "exit" {
+			assert.Nil(t, h["metadata"], "запись без данных пропуска не должна нести metadata")
+		}
+	}
+}
+
 func TestCarTerritoryStatus_DeactivateSetsDateRemoved(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()

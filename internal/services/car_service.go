@@ -46,7 +46,7 @@ type CarService interface {
 	// GetCarsCurrentStatus возвращает текущий территориальный статус активных машин.
 	GetCarsCurrentStatus(ctx context.Context) ([]CarCurrentStatus, error)
 	// UpdateCarTerritoryStatus обновляет статус нахождения на территории (въезд/выезд).
-	UpdateCarTerritoryStatus(ctx context.Context, carID int, req UpdateTerritoryStatusRequest) error
+	UpdateCarTerritoryStatus(ctx context.Context, carID int, req UpdateCarTerritoryStatusRequest) error
 	// DeactivateCar деактивирует автомобиль (мягкое удаление).
 	DeactivateCar(ctx context.Context, carID int, req DeactivateCarRequest) error
 	// ActivateCar вводит автомобиль в работу.
@@ -155,6 +155,28 @@ type UpdateTerritoryStatusRequest struct {
 	// TableID -- таблица (КПП), из которой отмечен въезд/выезд; пишется в историю,
 	// чтобы в карточке истории было видно, где произошло событие.
 	TableID *int `json:"table_id"`
+}
+
+// FactPassData -- данные, введённые охранником при пропуске машины "по факту" (#1132):
+// снимок реального номера/марки/формата, снятый на КПП при въезде. Пишется в
+// details.metadata записи entry истории машины; cars.car_number/mark НЕ меняет
+// (исходный плейсхолдер "по факту" в строке таблицы сохраняется).
+type FactPassData struct {
+	Number     string  `json:"number"`
+	FormatID   *int    `json:"format_id,omitempty"`
+	FormatName *string `json:"format_name,omitempty"`
+	MarkID     *int    `json:"mark_id,omitempty"`
+	MarkName   *string `json:"mark_name,omitempty"`
+}
+
+// UpdateCarTerritoryStatusRequest -- тело PUT /cars/:id/territory-status. Встраивает
+// общий UpdateTerritoryStatusRequest (territory_status/user_id/table_id) и добавляет
+// опциональный Pass -- данные пропуска "по факту" (#1132), которые охранник вводит в
+// модалке при въезде. Учитывается только при въезде (territory_status=1); при выезде
+// и при отсутствии данных поведение прежнее.
+type UpdateCarTerritoryStatusRequest struct {
+	UpdateTerritoryStatusRequest
+	Pass *FactPassData `json:"pass,omitempty"`
 }
 
 // DeactivateCarRequest -- тело запроса деактивации автомобиля.
