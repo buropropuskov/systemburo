@@ -2498,8 +2498,9 @@ export default {
        затем номер (мелко) / организация (жирным) / отправитель / сообщение, теги внизу.
        Дата и статус скрыты, боковой padding у элементов убран - падинг у карточки. */
     .application-row.rt-row {
+        /* padding карточки задаёт глобальный responsive-tables.css (10px 14px !important) -
+           своё значение тут не переопределить без !important, а 10px 14px устраивает. */
         gap: 3px;
-        padding: 14px 16px;
     }
 
     /* Прячем подписи полей (data-label ::before из responsive-tables.css). */
