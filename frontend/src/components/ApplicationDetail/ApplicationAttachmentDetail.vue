@@ -712,4 +712,12 @@ export default {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
 }
+
+/* На мобилке блок вложения - по контенту: фикс min-height:300px оставлял много
+   пустого белого снизу при коротких данных. Десктоп-стабильность не трогаем (W3.10). */
+@media (max-width: 768px) {
+    .attachment-data-section {
+        min-height: 0;
+    }
+}
 </style>

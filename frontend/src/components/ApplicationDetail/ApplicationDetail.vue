@@ -131,13 +131,16 @@
           class="detail-left-column"
           :class="{ collapsed: isLeftColumnCollapsed }"
         >
-          <ApplicationAttachments 
-            :application-id="applicationData.id"
-            :attachments="attachments"
-            :collapsed="isLeftColumnCollapsed"
-            @attachment-selected="selectAttachment"
-            @toggle-collapse="toggleLeftColumn"
-          />
+          <!-- Обёртка-якорь для кросс-колоночного order на мобилке (@768). -->
+          <div class="detail-order-picker">
+            <ApplicationAttachments
+              :application-id="applicationData.id"
+              :attachments="attachments"
+              :collapsed="isLeftColumnCollapsed"
+              @attachment-selected="selectAttachment"
+              @toggle-collapse="toggleLeftColumn"
+            />
+          </div>
         </div>
 
         <!-- Центральная колонка - детали -->
@@ -146,22 +149,51 @@
           <div class="message-section">
             <div class="message-section-header">
               <h4>Сообщение к заявке {{ applicationData.application_number }}</h4>
+            </div>
+            <template v-if="hasMessage">
+              <!-- Тап по превью открывает полное сообщение в окне (кнопка "Открыть в
+                   окне" убрана, W3.10); аффорданс - хинт-строка под превью. -->
+              <div
+                ref="messagePreview"
+                class="message-content text-constructor-content message-preview"
+                :class="{ 'is-clamped': messageClamped }"
+                @click="showMessageModal = true"
+                v-html="sanitizedMessage"
+              />
               <button
-                v-if="hasMessage"
                 type="button"
-                class="lk-button lk-button--secondary message-open-btn"
+                class="message-open-hint"
                 @click="showMessageModal = true"
               >
-                Открыть в окне
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <polyline points="15 3 21 3 21 9" />
+                  <polyline points="9 21 3 21 3 15" />
+                  <line
+                    x1="21"
+                    y1="3"
+                    x2="14"
+                    y2="10"
+                  />
+                  <line
+                    x1="3"
+                    y1="21"
+                    x2="10"
+                    y2="14"
+                  />
+                </svg>
+                Нажмите, чтобы открыть полностью
               </button>
-            </div>
-            <div
-              v-if="hasMessage"
-              ref="messagePreview"
-              class="message-content text-constructor-content message-preview"
-              :class="{ 'is-clamped': messageClamped }"
-              v-html="sanitizedMessage"
-            />
+            </template>
             <div
               v-else
               class="message-content message-empty"
@@ -178,36 +210,44 @@
           />
 
           <!-- Сообщения при пересылке (#967), видны всем получателям -->
-          <ForwardMessages
-            ref="forwardMessagesComponent"
-            :application-id="applicationData.id"
-          />
+          <div class="detail-order-forward">
+            <ForwardMessages
+              ref="forwardMessagesComponent"
+              :application-id="applicationData.id"
+            />
+          </div>
 
           <!-- Вопросы к заявке (#973): вопрос-топик + тред ответов -->
-          <ApplicationQuestions
-            ref="questionsComponent"
-            :application-id="applicationData.id"
-            :attachments="attachments"
-            :current-user-id="currentUserId"
-            :current-user-name="currentUserName"
-            :initiator-user-id="applicationData.sender_user_id"
-            :can-ask="canAskQuestion"
-            @all-questions-read="$emit('questions-read', $event)"
-          />
+          <div class="detail-order-questions">
+            <ApplicationQuestions
+              ref="questionsComponent"
+              :application-id="applicationData.id"
+              :attachments="attachments"
+              :current-user-id="currentUserId"
+              :current-user-name="currentUserName"
+              :initiator-user-id="applicationData.sender_user_id"
+              :can-ask="canAskQuestion"
+              @all-questions-read="$emit('questions-read', $event)"
+            />
+          </div>
 
           <!-- Детали выбранного вложения -->
-          <ApplicationAttachmentDetail
+          <div
             v-if="selectedAttachment"
-            :attachment="selectedAttachment"
-            :cars="attachmentCars"
-            :employees="attachmentEmployees"
-            :items="attachmentItems"
-            :loading="loadingAttachmentDetails"
-            :can-override="isResponsibleUser"
-            @open-vehicle="openVehicleModal"
-            @open-employee="openEmployeeModal"
-            @override-element="openOverrideModal"
-          />
+            class="detail-order-selected-attachment"
+          >
+            <ApplicationAttachmentDetail
+              :attachment="selectedAttachment"
+              :cars="attachmentCars"
+              :employees="attachmentEmployees"
+              :items="attachmentItems"
+              :loading="loadingAttachmentDetails"
+              :can-override="isResponsibleUser"
+              @open-vehicle="openVehicleModal"
+              @open-employee="openEmployeeModal"
+              @override-element="openOverrideModal"
+            />
+          </div>
         </div>
 
         <!-- Правая колонка - информация о заявке и согласовании -->
@@ -385,14 +425,17 @@
             />
           </div>
 
-          <!-- Компонент согласования (без информации о принявшем) -->
-          <ApplicationConfirmation 
-            ref="confirmationComponent"
-            :application="applicationData"
-            :responsible-users="responsibleUsers"
-            :current-user-id="currentUserId"
-            :updating-confirmation="updatingConfirmation"
-          />
+          <!-- Компонент согласования (без информации о принявшем). Обёртка нужна
+               для order на мобилке: держим согласование в блоке "комментарий/действие". -->
+          <div class="detail-order-confirmation">
+            <ApplicationConfirmation
+              ref="confirmationComponent"
+              :application="applicationData"
+              :responsible-users="responsibleUsers"
+              :current-user-id="currentUserId"
+              :updating-confirmation="updatingConfirmation"
+            />
+          </div>
 
           <div
             v-if="can('center.application_history')"
@@ -1819,9 +1862,23 @@ export default {
     font-weight: 400;
 }
 
-.message-open-btn {
-    flex-shrink: 0;
-    padding: 4px 18px;
+/* Хинт-аффорданс: по тапу на превью открывается полное сообщение в окне (W3.10). */
+.message-open-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    padding: 0;
+    border: none;
+    background: none;
+    color: #a2a2a2;
+    font-size: 13px;
+    cursor: pointer;
+    transition: color 0.15s ease;
+}
+
+.message-open-hint:hover {
+    color: #4F5BDF;
 }
 
 .message-content {
@@ -1840,6 +1897,7 @@ export default {
     max-height: 150px;
     overflow: hidden;
     word-break: break-word;
+    cursor: pointer;
 }
 
 .message-preview.is-clamped::after {
@@ -2167,10 +2225,49 @@ export default {
         display: inline-block;
     }
 
+    /* W3.10: кросс-колоночный порядок секций детали на мобилке.
+       Колонки промоутим через display:contents - их box исчезает (padding/border/gap
+       уходят с колонок), а дочерние секции становятся flex-элементами общего
+       .detail-content, где order работает КРОСС-колоночно. sheetScroll (свайп W3.9)
+       остаётся на .detail-content: contents только на КОЛОНКАХ, не на самом контейнере.
+       Порядок: сообщение(1) -> форвард(2) -> вопросы(3) -> пикер вложений(4) ->
+       выбранное вложение(5) -> комментарий+согласование(6) -> инфо(7) -> статус(8) ->
+       история(9). */
+    .detail-content {
+        gap: 10px;
+        padding: 12px;
+    }
+
     .detail-left-column,
     .detail-main-column,
     .detail-right-column {
-        padding: 12px;
+        display: contents;
+    }
+
+    .message-section { order: 1; }
+    .detail-order-forward { order: 2; }
+    .detail-order-questions { order: 3; }
+    .detail-order-picker { order: 4; }
+    .detail-order-selected-attachment { order: 5; }
+    .comment-action-section { order: 6; }
+    .detail-order-confirmation { order: 6; }
+    .basic-info-section { order: 7; }
+    .application-status-section { order: 8; }
+    .history-button-section { order: 9; }
+
+    /* Промоутнутые секции не сжимаем - иначе flex-column режет высокий контент
+       (пикер/вложение) вместо скролла .detail-content (ср. .detail-main-column > *). */
+    .detail-order-picker,
+    .detail-order-forward,
+    .detail-order-questions,
+    .detail-order-selected-attachment,
+    .detail-order-confirmation,
+    .message-section,
+    .basic-info-section,
+    .application-status-section,
+    .comment-action-section,
+    .history-button-section {
+        flex-shrink: 0;
     }
 }
 
