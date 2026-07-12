@@ -23,6 +23,8 @@ type LicensePlateFormatService interface {
 	Update(ctx context.Context, callerUserID, id int, req models.UpdateLicensePlateFormatRequest) error
 	Delete(ctx context.Context, callerUserID, id int) error
 	Restore(ctx context.Context, callerUserID, id int) error
+	BulkArchive(ctx context.Context, callerUserID int, ids []int) (*BulkOpResult, error)
+	BulkRestore(ctx context.Context, callerUserID int, ids []int) (*BulkOpResult, error)
 	GetHistory(ctx context.Context, id int) ([]models.LicensePlateFormatHistoryItem, error)
 }
 
@@ -248,6 +250,43 @@ func (s *licensePlateFormatService) Restore(ctx context.Context, callerUserID, i
 	slog.Info("формат номеров восстановлен", "id", id)
 	s.recorder.Log(ctx, nil, models.AuditEntityLicensePlateFormat, &id, models.LicensePlateFormatActionRestored, &callerUserID, nil)
 	return nil
+}
+
+// BulkArchive архивирует набор форматов номеров через Delete (soft-delete). Несуществующие
+// -> в Errors (частичный успех 207), не валят операцию. Дубли id дедуплицируются.
+func (s *licensePlateFormatService) BulkArchive(ctx context.Context, callerUserID int, ids []int) (*BulkOpResult, error) {
+	res := newBulkResult()
+	for _, id := range uniqueInts(ids) {
+		var format models.LicensePlateFormat
+		if err := s.db.WithContext(ctx).First(&format, id).Error; err != nil {
+			res.addError(id, "", "Формат не найден")
+			continue
+		}
+		if err := s.Delete(ctx, callerUserID, id); err != nil {
+			res.addError(id, format.Name, bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
+}
+
+// BulkRestore восстанавливает набор форматов номеров через Restore.
+func (s *licensePlateFormatService) BulkRestore(ctx context.Context, callerUserID int, ids []int) (*BulkOpResult, error) {
+	res := newBulkResult()
+	for _, id := range uniqueInts(ids) {
+		var format models.LicensePlateFormat
+		if err := s.db.WithContext(ctx).First(&format, id).Error; err != nil {
+			res.addError(id, "", "Формат не найден")
+			continue
+		}
+		if err := s.Restore(ctx, callerUserID, id); err != nil {
+			res.addError(id, format.Name, bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
 }
 
 // GetHistory возвращает историю изменений формата номеров (новые сверху).
