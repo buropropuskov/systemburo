@@ -191,6 +191,20 @@
                       >
                         <span class="ellip">{{ application.sender_name || application.sender_full_name || '—' }}</span>
                       </div>
+                      <!-- Организация и сообщение - только в компактной карточке на мобилке
+                           (W3.11); в десктоп-таблице отдельных колонок нет (base display:none). -->
+                      <div
+                        v-if="application.organization_name"
+                        class="application-col organization-col"
+                      >
+                        <span class="ellip">{{ application.organization_name }}</span>
+                      </div>
+                      <div
+                        v-if="application.message"
+                        class="application-col message-col"
+                      >
+                        {{ application.message }}
+                      </div>
                       <div
                         class="application-col confirmation-col"
                         data-label="Подтверждение"
@@ -1346,6 +1360,13 @@ export default {
   height: 100%;
 }
 
+/* Организация и сообщение показываем только в компактной карточке на мобилке
+   (W3.11); в десктоп-таблице отдельных колонок под них нет. */
+.organization-col,
+.message-col {
+  display: none;
+}
+
 .application-id {
   color: #4F5BDF;
   font-weight: 600;
@@ -1696,19 +1717,88 @@ export default {
     border-bottom: none;
   }
 
-  /* Значения в карточке не обрезаем многоточием - там больше горизонтального
-     места, чем в узкой табличной колонке. */
-  .applications-list .rt-row > [data-label] {
-    white-space: normal;
-    overflow: visible;
-    text-overflow: clip;
+  /* Компактная карточка-письмо БЕЗ подписей (W3.11, зеркало Центра W3.7):
+     согласование / номер (мелко) / организация (жирным) / отправитель / сообщение;
+     дата и статус скрыты, всё влево, боковой padding у полей убран. */
+  .application-row.rt-row {
+    gap: 3px;
   }
 
-  /* .actions-col в десктопе - flex-basis:100px по горизонтальной оси; в
-     rt-row (flex-direction:column) basis управляет ВЫСОТОЙ - без сброса
-     колонка "Скачать" растягивалась бы на 100px пустой высоты. Кнопка снова
-     видна (в horizontal-scroll её прятали из-за нехватки места, в карточке
-     места достаточно) - тач-таргет >=44px. */
+  /* Прячем подписи полей (data-label ::before из responsive-tables.css). */
+  .applications-list .application-row.rt-row > .application-col::before {
+    display: none !important;
+  }
+
+  /* Ячейки в столбик, без бордюров/бокового padding, авто-высота, влево.
+     width:100% !important - иначе легаси-правило @media(max-width:992px)
+     .application-col{width:33.33% !important} держит колонки БЕЗ data-label
+     (organization/message) на 1/3 ширины (у data-label-колонок width:100% приходит
+     из responsive-tables). !important нужен, чтобы перебить чужой !important. */
+  .applications-list .application-row.rt-row > .application-col {
+    flex: none;
+    display: block;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0;
+    border: none;
+    height: auto;
+    overflow: visible;
+    white-space: normal;
+    text-align: left;
+  }
+
+  /* Длинные значения (организация/отправитель/сообщение) - одна строка с обрезкой "..".
+     Специфичность (0,5,0) выше общего блочного правила выше (0,4,0), иначе его
+     white-space:normal/overflow:visible победил бы и сообщение переносилось бы. */
+  .applications-list .application-row.rt-row > .application-col.organization-col,
+  .applications-list .application-row.rt-row > .application-col.sender-col,
+  .applications-list .application-row.rt-row > .application-col.message-col {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  /* Скрываем дату и статус заявки (директива W3.11). */
+  .applications-list .application-row.rt-row > .application-col.date-col,
+  .applications-list .application-row.rt-row > .application-col.status-col {
+    display: none;
+  }
+
+  /* Пустой блок тегов - скрыть строку (у sender всегда есть фолбэк "—", :empty там мёртв). */
+  .applications-list .application-row.rt-row > .tags-col:empty {
+    display: none;
+  }
+
+  /* Порядок: согласование / номер / организация / отправитель / сообщение / теги / скачать. */
+  .application-col.confirmation-col { order: 1; margin-bottom: 4px; }
+  .application-col.id-col { order: 2; }
+  .application-col.organization-col { order: 3; }
+  .application-col.sender-col { order: 4; }
+  .application-col.message-col { order: 5; }
+  .application-col.tags-col { order: 6; margin-top: 6px; }
+  .application-col.actions-col { order: 7; margin-top: 8px; }
+
+  /* Типографика строк карточки. */
+  .application-col.id-col .application-id {
+    font-size: 12px;
+    color: #9a9aae;
+    font-weight: 500;
+  }
+  .application-col.organization-col {
+    font-size: 15px;
+    font-weight: 700;
+    color: #1a1a2e;
+  }
+  .application-col.sender-col {
+    font-size: 13px;
+    color: #555;
+  }
+  .application-col.message-col {
+    font-size: 13px;
+    color: #7a7a8c;
+  }
+
+  /* Кнопка "Скачать" собственной строкой, тач-таргет >=44px. */
   .application-col.actions-col {
     flex: 0 0 auto;
     width: 100% !important;
