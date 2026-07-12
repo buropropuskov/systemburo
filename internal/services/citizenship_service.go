@@ -22,6 +22,8 @@ type CitizenshipService interface {
 	Update(ctx context.Context, userID, id int, req models.UpdateCitizenshipRequest) error
 	Delete(ctx context.Context, userID, id int) error
 	Restore(ctx context.Context, userID, id int) error
+	BulkArchive(ctx context.Context, ids []int, userID int) (*BulkOpResult, error)
+	BulkRestore(ctx context.Context, ids []int, userID int) (*BulkOpResult, error)
 	GetHistory(ctx context.Context, id int) ([]models.CitizenshipHistoryItem, error)
 	ClearDefaults(ctx context.Context) error
 }
@@ -189,6 +191,53 @@ func (s *citizenshipService) Restore(ctx context.Context, userID, id int) error 
 	slog.Info("гражданство восстановлено", "id", id)
 	s.recorder.Log(ctx, nil, models.AuditEntityCitizenship, &id, models.CitizenshipActionRestored, &userID, nil)
 	return nil
+}
+
+// loadCitizenship — вспомогательная выборка гражданства для bulk-операций (нужно
+// имя для BulkItemError). ok=false, если гражданство не найдено.
+func (s *citizenshipService) loadCitizenship(ctx context.Context, id int) (models.Citizenship, bool) {
+	var citizenship models.Citizenship
+	if err := s.db.WithContext(ctx).First(&citizenship, id).Error; err != nil {
+		return citizenship, false
+	}
+	return citizenship, true
+}
+
+// BulkArchive архивирует набор гражданств через Delete. Несуществующие -> в Errors
+// (частичный успех 207), не валят операцию. Дубли id дедуплицируются.
+func (s *citizenshipService) BulkArchive(ctx context.Context, ids []int, userID int) (*BulkOpResult, error) {
+	res := newBulkResult()
+	for _, id := range uniqueInts(ids) {
+		c, ok := s.loadCitizenship(ctx, id)
+		if !ok {
+			res.addError(id, "", "Гражданство не найдено")
+			continue
+		}
+		if err := s.Delete(ctx, userID, id); err != nil {
+			res.addError(id, c.Name, bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
+}
+
+// BulkRestore восстанавливает набор гражданств через Restore.
+func (s *citizenshipService) BulkRestore(ctx context.Context, ids []int, userID int) (*BulkOpResult, error) {
+	res := newBulkResult()
+	for _, id := range uniqueInts(ids) {
+		c, ok := s.loadCitizenship(ctx, id)
+		if !ok {
+			res.addError(id, "", "Гражданство не найдено")
+			continue
+		}
+		if err := s.Restore(ctx, userID, id); err != nil {
+			res.addError(id, c.Name, bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
 }
 
 // GetHistory возвращает историю изменений гражданства (новые сверху).
