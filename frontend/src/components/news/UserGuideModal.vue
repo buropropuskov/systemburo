@@ -575,11 +575,43 @@ export default {
 }
 
 @media (max-width: 560px) {
+  /* На телефоне модалка почти во всю ширину, боковые отступы ужаты - иначе
+     заголовок и текст не помещались. Высота по dvh (учитывает адрес-бар). */
+  .guide-overlay {
+    padding: 10px;
+  }
+  .guide {
+    width: 100%;
+    height: min(560px, 90dvh);
+    border-radius: 24px;
+  }
+  .guide__header {
+    padding: 16px 16px 12px;
+  }
+  .guide__title {
+    font-size: 17px;
+  }
+  .guide__state {
+    padding: 24px 16px;
+  }
   .guide__roles {
     flex-wrap: wrap;
+    padding: 0 16px 4px;
   }
   .role-pill {
     flex: 1 1 auto;
+  }
+  .guide__body {
+    padding: 16px 16px 8px;
+  }
+  .descr {
+    padding: 0 16px;
+  }
+  .guide__footer {
+    padding: 14px 16px 18px;
+  }
+  .guide__done {
+    padding: 0 20px;
   }
   .file-card {
     flex-wrap: wrap;
