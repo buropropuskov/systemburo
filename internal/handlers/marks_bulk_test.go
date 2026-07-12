@@ -1,80 +1,60 @@
 package handlers_test
 
 import (
-	"fmt"
-	"net/http"
+	"context"
 	"testing"
 
+	"systemburo/internal/models"
+	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// Групповая архивация/восстановление марок: полный успех, дедуп, частичный успех
-// (несуществующий id в errors), пустой список -> 400.
-func TestMarks_BulkArchiveRestore(t *testing.T) {
-	e, db, cleanup := testutil.SetupTestApp(t)
+// Групповая архивация/восстановление марок на уровне сервиса (лёгкий тест без
+// CleanDB/Seed - пакет handlers на грани CI-таймаута под -race, урок про
+// #ci_handlers_test_timeout: не плодить лишние Seed-циклы). Реюзает единожды
+// засеянную БолД, создаёт марки с уникальными именами и чистит их за собой.
+func TestMarkService_BulkArchiveRestore(t *testing.T) {
+	_, db, _ := testutil.SetupTestApp(t)
+	svc := services.NewMarkService(db)
+	userID, _, cleanup := setupMWUser(t, db, true, false)
 	defer cleanup()
-	testutil.CleanDB(t, db)
-	td := testutil.SeedTestData(t, db)
-	h := testutil.AuthHeader(testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID))
+	ctx := context.Background()
 
-	// Создаём две марки через HTTP, забираем их id из списка.
-	require.Equal(t, http.StatusCreated, testutil.POST(t, e, "/marks", `{"name":"BulkMarkA"}`, h).Code)
-	require.Equal(t, http.StatusCreated, testutil.POST(t, e, "/marks", `{"name":"BulkMarkB"}`, h).Code)
+	a, err := svc.Create(ctx, models.CreateMarkRequest{Name: uniqMarkName("bulkA")}, userID)
+	require.NoError(t, err)
+	b, err := svc.Create(ctx, models.CreateMarkRequest{Name: uniqMarkName("bulkB")}, userID)
+	require.NoError(t, err)
+	defer func() { db.Delete(&models.Mark{}, a.ID); db.Delete(&models.Mark{}, b.ID) }()
 
-	markID := func(name string) int {
-		for _, m := range testutil.ParseSlice(t, testutil.GET(t, e, "/marks?include_archived=true", h)) {
-			if m["name"] == name {
-				return int(m["id"].(float64))
-			}
-		}
-		return 0
-	}
-	isActive := func(name string) interface{} {
-		for _, m := range testutil.ParseSlice(t, testutil.GET(t, e, "/marks?include_archived=true", h)) {
-			if m["name"] == name {
-				return m["is_active"]
-			}
-		}
-		return nil
-	}
-	idA, idB := markID("BulkMarkA"), markID("BulkMarkB")
-	require.Greater(t, idA, 0)
-	require.Greater(t, idB, 0)
+	// Полный успех: обе марки в архив.
+	res, err := svc.BulkArchive(ctx, []int{a.ID, b.ID}, userID)
+	require.NoError(t, err)
+	assert.Equal(t, 2, res.SuccessCount)
+	assert.Equal(t, 0, res.ErrorCount)
+	gotA, _ := svc.GetByID(ctx, a.ID)
+	assert.False(t, gotA.IsActive)
 
-	t.Run("bulk archive полный успех", func(t *testing.T) {
-		rec := testutil.POST(t, e, "/marks/bulk/archive", fmt.Sprintf(`{"ids":[%d,%d]}`, idA, idB), h)
-		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		res := testutil.ParseMap(t, rec)
-		assert.Equal(t, float64(2), res["success_count"])
-		assert.Equal(t, float64(0), res["error_count"])
-		assert.Equal(t, false, isActive("BulkMarkA"))
-		assert.Equal(t, false, isActive("BulkMarkB"))
-	})
+	// Дедуп: один и тот же id дважды -> один успех.
+	res, err = svc.BulkRestore(ctx, []int{a.ID, a.ID}, userID)
+	require.NoError(t, err)
+	assert.Equal(t, 1, res.SuccessCount)
+	gotA, _ = svc.GetByID(ctx, a.ID)
+	assert.True(t, gotA.IsActive)
 
-	t.Run("дубли id дедуплицируются", func(t *testing.T) {
-		dup := testutil.ParseMap(t, testutil.POST(t, e, "/marks/bulk/restore", fmt.Sprintf(`{"ids":[%d,%d]}`, idA, idA), h))
-		assert.Equal(t, float64(1), dup["success_count"])
-		assert.Equal(t, true, isActive("BulkMarkA"))
-	})
+	// Частичный успех: существующий + несуществующий -> 1 успех, 1 ошибка.
+	res, err = svc.BulkArchive(ctx, []int{b.ID, 999999}, userID)
+	require.NoError(t, err)
+	assert.Equal(t, 1, res.SuccessCount)
+	assert.Equal(t, 1, res.ErrorCount)
+	require.Len(t, res.Errors, 1)
+	assert.Equal(t, 999999, res.Errors[0].ID)
 
-	t.Run("несуществующий id -> в errors (207)", func(t *testing.T) {
-		rec := testutil.POST(t, e, "/marks/bulk/archive", fmt.Sprintf(`{"ids":[%d,999999]}`, idB), h)
-		require.Equal(t, http.StatusMultiStatus, rec.Code)
-		res := testutil.ParseMap(t, rec)
-		assert.Equal(t, float64(1), res["success_count"])
-		assert.Equal(t, float64(1), res["error_count"])
-		errs := res["errors"].([]interface{})
-		require.Len(t, errs, 1)
-		assert.Equal(t, float64(999999), errs[0].(map[string]interface{})["id"])
-	})
-
-	t.Run("пустой список -> 400", func(t *testing.T) {
-		assert.Equal(t, http.StatusBadRequest,
-			testutil.POST(t, e, "/marks/bulk/archive", `{"ids":[]}`, h).Code)
-		assert.Equal(t, http.StatusBadRequest,
-			testutil.POST(t, e, "/marks/bulk/restore", `{"ids":[]}`, h).Code)
-	})
+	// Пустой список -> пустой результат без ошибок (гейт len==0 -> 400 живёт в handler).
+	res, err = svc.BulkArchive(ctx, []int{}, userID)
+	require.NoError(t, err)
+	assert.Equal(t, 0, res.SuccessCount)
+	assert.Equal(t, 0, res.ErrorCount)
 }

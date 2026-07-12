@@ -487,6 +487,14 @@ export default {
         : { background: '#c62828', borderColor: '#c62828' };
     },
   },
+  watch: {
+    // Пользователь мог выбрать марки, затем сузить список поиском/фильтром -
+    // выбранные, ушедшие из видимого списка, убираем из selectedIds (иначе
+    // счётчик и bulk-запрос включали бы невидимые строки).
+    filteredMarks() {
+      this.pruneSelection();
+    },
+  },
   created() {
     this.overlay.close = () => { this.requestCloseAdd(); };
   },
@@ -1374,6 +1382,21 @@ export default {
   .header-controls {
     flex-wrap: wrap;
     row-gap: 8px;
+  }
+  /* rt-header-inline может сделать шапку auto-высоты (перенос controls строкой
+     ниже) - фиксированный оверлей bulk-bar (height:50px) больше не накрывает
+     её целиком, возвращаем панель в обычный поток (как в Orgs/Companies). */
+  .bulk-bar {
+    position: static;
+    height: auto;
+    padding: 12px 16px;
+    overflow-x: visible;
+  }
+  .bulk-actions {
+    flex-wrap: wrap;
+  }
+  .check-col {
+    min-height: 44px;
   }
   .archive-dropdown {
     min-width: 92px;
