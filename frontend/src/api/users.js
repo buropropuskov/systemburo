@@ -103,3 +103,32 @@ export async function getUserAuthEvents(username, params = {}) {
   const res = await apiRequest(`/users/${username}/auth-events${suffix}`);
   return res.json();
 }
+
+/**
+ * Групповые операции над пользователями (username-keyed). Возвращают BulkOpResult
+ * ({ success_count, error_count, errors }) при 200/207 либо { message } при 4xx.
+ */
+export async function bulkArchiveUsers(usernames) {
+  const res = await apiRequest('/users/bulk/archive', { method: 'POST', body: JSON.stringify({ usernames }) });
+  return res.json();
+}
+
+export async function bulkRestoreUsers(usernames) {
+  const res = await apiRequest('/users/bulk/restore', { method: 'POST', body: JSON.stringify({ usernames }) });
+  return res.json();
+}
+
+export async function bulkUpdateUsersType(usernames, typeId) {
+  const res = await apiRequest('/users/bulk/type', { method: 'POST', body: JSON.stringify({ usernames, type_id: typeId }) });
+  return res.json();
+}
+
+export async function bulkAssignUsersOrganization(usernames, organizationId) {
+  const res = await apiRequest('/users/bulk/organization', { method: 'POST', body: JSON.stringify({ usernames, organization_id: organizationId }) });
+  return res.json();
+}
+
+export async function bulkAssignUsersCompany(usernames, companyId) {
+  const res = await apiRequest('/users/bulk/company', { method: 'POST', body: JSON.stringify({ usernames, company_id: companyId }) });
+  return res.json();
+}

@@ -35,11 +35,58 @@
       </div>
     </div>
 
+    <div
+      v-if="selectedUsernames.length"
+      class="bulk-bar"
+      data-testid="users-bulk-bar"
+    >
+      <span class="bulk-count">Выбрано: {{ selectedUsernames.length }}</span>
+      <div class="bulk-actions">
+        <button
+          v-if="!showArchive"
+          class="pill pill-danger"
+          data-testid="users-bulk-archive"
+          @click="startBulkOperation('archive')"
+        >
+          В архив
+        </button>
+        <button
+          v-else
+          class="pill pill-restore"
+          data-testid="users-bulk-restore"
+          @click="startBulkOperation('restore')"
+        >
+          Восстановить
+        </button>
+        <button
+          class="pill pill-ghost bulk-clear"
+          data-testid="users-bulk-clear"
+          @click="clearSelection"
+        >
+          Снять выбор
+        </button>
+      </div>
+    </div>
+
     <div class="users-container">
       <div class="users-list rt-table">
         <!-- Заголовок таблицы -->
         <div class="users-header">
           <div class="header-row rt-head-row">
+            <div
+              class="header-col check-col"
+              @click.stop
+            >
+              <input
+                type="checkbox"
+                class="bulk-check"
+                :checked="allSelected"
+                :indeterminate.prop="someSelected"
+                aria-label="Выбрать все"
+                data-testid="users-select-all"
+                @change="toggleSelectAll"
+              >
+            </div>
             <div
               class="header-col login-col"
               @click="sortBy('username')"
@@ -142,13 +189,26 @@
         <!-- Тело таблицы -->
         <div class="users-body">
           <div
-            v-for="user in sortedUsers"
+            v-for="(user, index) in sortedUsers"
             :key="user.username"
             class="user-item"
             :class="{ 'inactive': user.is_active === false }"
             @click="selectUser(user)"
           >
             <div class="user-row rt-row">
+              <div
+                class="user-col check-col"
+                @click.stop
+              >
+                <input
+                  type="checkbox"
+                  class="bulk-check"
+                  :checked="isSelected(user.username)"
+                  :aria-label="`Выбрать ${user.username}`"
+                  data-testid="users-row-check"
+                  @click="onRowCheck(user, index, $event)"
+                >
+              </div>
               <div
                 class="user-col login-col"
                 data-label="Логин"
@@ -709,6 +769,16 @@
     </BaseModal>
 
     <ConfirmationModal
+      :show="bulkConfirmVisible"
+      :title="bulkConfirmTitle"
+      :message="bulkConfirmMessage"
+      :confirm-text="bulkConfirmText"
+      :confirm-button-style="bulkConfirmButtonStyle"
+      @confirm="applyBulkArchiveRestore"
+      @cancel="cancelBulkConfirm"
+    />
+
+    <ConfirmationModal
       :show="!!deleteConfirmUser"
       title="Удаление пользователя"
       :message="deleteConfirmUser ? `Удалить учётную запись «${deleteConfirmUser.username}»? Действие необратимо.` : ''"
@@ -746,6 +816,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { bulkArchiveUsers, bulkRestoreUsers } from '@/api/users';
 import { ref } from 'vue';
 import { mapState, mapActions } from 'pinia';
 import { useOrganizationsStore } from '@/stores/organizations';
@@ -812,6 +883,12 @@ export default {
       accessPlacesUser: null,
       currentUserName: '',
       deleteConfirmUser: null,
+      // Групповой выбор (по username). lastSelectedUsername - якорь shift-диапазона.
+      selectedUsernames: [],
+      lastSelectedUsername: null,
+      pendingBulkOp: null,
+      bulkConfirmVisible: false,
+      bulkSubmitting: false,
       showArchive: false,
       archiveOptions: [
         { value: 'active', label: 'Активные' },
@@ -855,6 +932,29 @@ export default {
       if (!this.selectedUser) return false;
       const type = this.userTypes.find(t => t.id === this.selectedUser.type_id);
       return type?.code === 'security';
+    },
+    allSelected() {
+      return this.sortedUsers.length > 0 && this.selectedUsernames.length === this.sortedUsers.length;
+    },
+    someSelected() {
+      return this.selectedUsernames.length > 0 && !this.allSelected;
+    },
+    bulkConfirmTitle() {
+      return this.pendingBulkOp === 'restore' ? 'Восстановление пользователей' : 'Архивация пользователей';
+    },
+    bulkConfirmMessage() {
+      const n = this.selectedUsernames.length;
+      return this.pendingBulkOp === 'restore'
+        ? `Восстановить выбранных пользователей (${n})?`
+        : `Архивировать выбранных пользователей (${n})? Активные сессии будут завершены.`;
+    },
+    bulkConfirmText() {
+      return this.pendingBulkOp === 'restore' ? 'Восстановить' : 'В архив';
+    },
+    bulkConfirmButtonStyle() {
+      return this.pendingBulkOp === 'restore'
+        ? { background: '#10b981', borderColor: '#10b981' }
+        : { background: '#c62828', borderColor: '#c62828' };
     },
     filteredUsers() {
       const variants = buildSearchVariants(this.userSearch);
@@ -959,6 +1059,13 @@ export default {
       const fresh = list.find((u) => u.username === this.selectedUser.username);
       if (fresh) this.selectedUser = { ...fresh, newPassword: this.selectedUser.newPassword || '' };
     },
+    // Подрезаем выбор до видимых строк (поиск/смена архив-режима могли скрыть часть).
+    sortedUsers(list) {
+      if (!this.selectedUsernames.length) return;
+      const visible = new Set(list.map(u => u.username));
+      const pruned = this.selectedUsernames.filter(n => visible.has(n));
+      if (pruned.length !== this.selectedUsernames.length) this.selectedUsernames = pruned;
+    },
   },
   async created() {
     // Подтягиваем актуальные справочники из stores. Дальнейшая синхронизация
@@ -1015,6 +1122,104 @@ export default {
     onArchiveModeChange(value) {
       this.showArchive = value === 'archive';
       this.selectedUser = null;
+      // Наборы операций активных и архивных разные - выбор не переносим.
+      this.clearSelection();
+    },
+
+    // --- Групповой выбор (по username) ---
+    isSelected(username) {
+      return this.selectedUsernames.includes(username);
+    },
+    toggleSelect(username) {
+      const i = this.selectedUsernames.indexOf(username);
+      if (i === -1) this.selectedUsernames.push(username);
+      else this.selectedUsernames.splice(i, 1);
+    },
+    // onRowCheck: обычный клик - toggle; shift-клик - диапазон от якоря до текущей
+    // строки включительно (см. OrganizationsManagement). Якорь по username,
+    // переиндексируется через findIndex - устойчив к пересортировке. @click без
+    // .prevent: нативный тоггл синхронизирует :checked кликнутого чекбокса.
+    onRowCheck(user, index, event) {
+      if (event.shiftKey && window.getSelection) window.getSelection().removeAllRanges();
+      if (event.shiftKey && this.lastSelectedUsername != null && this.lastSelectedUsername !== user.username) {
+        const anchor = this.sortedUsers.findIndex(u => u.username === this.lastSelectedUsername);
+        if (anchor !== -1) {
+          const target = !this.isSelected(user.username);
+          const [from, to] = anchor < index ? [anchor, index] : [index, anchor];
+          for (let i = from; i <= to; i += 1) {
+            const name = this.sortedUsers[i].username;
+            const sel = this.isSelected(name);
+            if (target && !sel) this.selectedUsernames.push(name);
+            else if (!target && sel) this.selectedUsernames.splice(this.selectedUsernames.indexOf(name), 1);
+          }
+          this.lastSelectedUsername = user.username;
+          return;
+        }
+      }
+      this.toggleSelect(user.username);
+      this.lastSelectedUsername = user.username;
+    },
+    toggleSelectAll() {
+      this.selectedUsernames = this.allSelected ? [] : this.sortedUsers.map(u => u.username);
+      this.lastSelectedUsername = null;
+    },
+    clearSelection() {
+      this.selectedUsernames = [];
+      this.lastSelectedUsername = null;
+      this.pendingBulkOp = null;
+    },
+
+    // --- Групповые операции: архив/восстановление ---
+    startBulkOperation(operation) {
+      this.pendingBulkOp = operation;
+      this.bulkConfirmVisible = true;
+    },
+    cancelBulkConfirm() {
+      if (this.bulkSubmitting) return;
+      this.bulkConfirmVisible = false;
+      this.pendingBulkOp = null;
+    },
+    async applyBulkArchiveRestore() {
+      const names = [...this.selectedUsernames];
+      const op = this.pendingBulkOp;
+      if (this.bulkSubmitting) return;
+      if (!names.length || (op !== 'archive' && op !== 'restore')) {
+        this.bulkConfirmVisible = false;
+        this.pendingBulkOp = null;
+        return;
+      }
+      this.bulkSubmitting = true;
+      let result;
+      try {
+        result = op === 'archive' ? await bulkArchiveUsers(names) : await bulkRestoreUsers(names);
+      } catch {
+        useDeletionsStore().notify({ prefix: 'Не удалось выполнить групповую операцию', type: 'error' });
+        this.bulkSubmitting = false;
+        return;
+      }
+      this.bulkSubmitting = false;
+      if (this.handleBulkResult(op, result, names.length)) {
+        this.bulkConfirmVisible = false;
+        this.pendingBulkOp = null;
+      }
+    },
+    // Разбор BulkOpResult: полный успех -> notify, частичный -> ui.warning с
+    // перечнем непрошедших. false при ошибке-envelope (держим модалку для повтора).
+    handleBulkResult(op, result, total) {
+      if (!result || typeof result.success_count !== 'number') {
+        useDeletionsStore().notify({ prefix: result?.message || 'Не удалось выполнить групповую операцию', type: 'error' });
+        return false;
+      }
+      const label = op === 'restore' ? 'Восстановлено' : 'Архивировано';
+      if (result.error_count > 0) {
+        const failed = (result.errors || []).map(e => e.name || `#${e.id}`).join(', ');
+        useUiStore().warning(`Выполнено ${result.success_count} из ${total}. Не удалось: ${failed}`);
+      } else {
+        useDeletionsStore().notify({ prefix: `${label}: `, bold: String(result.success_count) });
+      }
+      this.clearSelection();
+      this.fetchAllUsers();
+      return true;
     },
 
     async restoreUser(user) {
@@ -1454,7 +1659,106 @@ export default {
 </script>
 
 <style scoped>
+/* --- Групповой выбор: панель, чекбоксы, pill-кнопки (эталон OrganizationsManagement) --- */
+.bulk-bar {
+  /* Оверлей поверх .management-header (не reflow - список не прыгает при выборе,
+     урок #510). Высота = высоте шапки (50px), карточка - position:relative. */
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 50px;
+  padding: 0 20px;
+  border-bottom: 1px solid #e6e6e6;
+  background: #f0f2ff;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.bulk-count {
+  font-size: 14px;
+  font-weight: 600;
+  color: #4F5BDF;
+  white-space: nowrap;
+}
+.bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  margin-left: auto;
+}
+.bulk-actions .pill {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.bulk-clear {
+  color: #6b7280;
+  border-color: #d5d9e0;
+}
+.bulk-clear:hover {
+  background: #f5f5f5;
+}
+.check-col {
+  width: 6%;
+  min-width: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  cursor: default;
+}
+.bulk-check {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  accent-color: #4F5BDF;
+  margin: 0;
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 50px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: background 0.2s, border-color 0.2s;
+}
+.pill-ghost {
+  background: #fff;
+  color: #4F5BDF;
+  border: 1px solid #4F5BDF;
+}
+.pill-ghost:hover {
+  background: #eef0ff;
+}
+.pill-danger {
+  background: #fff;
+  color: #dc3545;
+  border: 1px solid #fecaca;
+}
+.pill-danger:hover {
+  background: #fff1f2;
+  border-color: #dc3545;
+}
+.pill-restore {
+  background: #10b981;
+  color: #fff;
+}
+.pill-restore:hover {
+  background: #0da271;
+}
+
 .user-management {
+  position: relative; /* контекст для оверлей-панели .bulk-bar (top:0 поверх шапки) */
   background-color: #fff;
   border-radius: 30px;
   border: 1px solid #e6e6e6;
@@ -1601,11 +1905,12 @@ export default {
 }
 
 /* Колонки с фиксированной шириной */
-.login-col { width: 15%; min-width: 110px; }
-.name-col { width: 17%; min-width: 110px; }
-.org-col { width: 20%; min-width: 110px; }
-.company-col { width: 16%; min-width: 110px; }
-.position-col { width: 17%; min-width: 110px; }
+/* check-col 6% забюджетирован в сумму 100% (14+16+18+15+16+15+6). */
+.login-col { width: 14%; min-width: 110px; }
+.name-col { width: 16%; min-width: 110px; }
+.org-col { width: 18%; min-width: 110px; }
+.company-col { width: 15%; min-width: 110px; }
+.position-col { width: 16%; min-width: 110px; }
 .type-col { width: 15%; min-width: 90px; }
 
 /* Тело таблицы */
@@ -2089,6 +2394,10 @@ export default {
 }
 
 @media (max-width: 767.98px) {
+  /* Построчный чекбокс в карточке - увеличенный тач-таргет. */
+  .check-col {
+    min-height: 44px;
+  }
   /* rt-head-row прячет внутренний .header-row, но обёртка .users-header несёт
      свой border-bottom+padding и без этого осталась бы пустой полосой над
      карточками (у остальных справочников rt-head-row на самом заголовке, тут
