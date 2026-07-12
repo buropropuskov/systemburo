@@ -73,6 +73,37 @@
                 </svg>
               </template>
             </button>
+            <!-- Скачать бланк: на мобилке кнопку убрали из строки списка (W3.8),
+                 отсюда родитель (Центр/Кабинет) открывает выбор бланков. Только @768. -->
+            <button
+              v-if="applicationData.has_blank_template && (mode !== 'center' || can('action.export.applications'))"
+              class="detail-download-btn"
+              data-testid="app-detail-button-download"
+              title="Скачать бланк"
+              @click="$emit('download', applicationData)"
+            >
+              <svg
+                width="17"
+                height="17"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line
+                  x1="12"
+                  y1="15"
+                  x2="12"
+                  y2="3"
+                />
+              </svg>
+              <span class="detail-download-btn__text">Скачать</span>
+            </button>
           </div>
         </div>
         <div class="detail-header-right">
@@ -558,7 +589,7 @@ export default {
             default: 'center'
         }
     },
-    emits: ['close', 'confirmation-updated', 'duplicate', 'withdraw', 'application-updated', 'update-application', 'application-changed', 'questions-read'],
+    emits: ['close', 'confirmation-updated', 'duplicate', 'withdraw', 'application-updated', 'update-application', 'application-changed', 'questions-read', 'download'],
     setup(props, { emit }) {
         const permissionsStore = usePermissionsStore();
         // Bottom-sheet на мобилке (#1097 W3.9): свайп вниз за ползунок закрывает деталь.
@@ -2125,6 +2156,12 @@ export default {
     display: none;
 }
 
+/* Кнопка "Скачать" в детали - только на мобилке (@768); на десктопе бланк качают
+   из строки списка (W3.8), там кнопка остаётся. */
+.detail-download-btn {
+    display: none;
+}
+
 /* Адаптив (#1097 S6): 3 фикс-колонки не помещаются на планшете/мобиле - стекаем их
    вертикально (вложения -> детали -> статус/согласование), скролл держит весь
    .detail-content целиком вместо трёх независимых внутренних скроллов. */
@@ -2232,6 +2269,28 @@ export default {
 
     .forward-btn__icon {
         display: inline-block;
+    }
+
+    /* Кнопка "Скачать бланк" в шапке детали (W3.8) - иконка + текст, вторичный стиль. */
+    .detail-download-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-left: 10px;
+        min-height: 36px;
+        padding: 6px 14px;
+        border: 1px solid #e6e6e6;
+        border-radius: 50px;
+        background: #fff;
+        color: #4F5BDF;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s ease, color 0.2s ease;
+    }
+
+    .detail-download-btn:hover {
+        background: #eef0ff;
     }
 
     /* W3.10: кросс-колоночный порядок секций детали на мобилке.

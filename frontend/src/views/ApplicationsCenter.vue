@@ -575,6 +575,7 @@
       @duplicate="handleDuplicate"
       @application-changed="handleApplicationChanged"
       @questions-read="onQuestionsRead"
+      @download="downloadApplication"
     />
     <DownloadBlanksModal
       :show="!!(showDownloadModal && downloadAppId)"
@@ -2557,7 +2558,9 @@ export default {
     .application-col.sender-col { order: 4; }
     .application-col.message-col { order: 5; display: block; }
     .application-col.tags-col { order: 6; margin-top: 6px; }
-    .application-col.actions-col { order: 7; margin-top: 8px; }
+    /* Скачивание на мобилке перенесено в открытую заявку (W3.8) - в строке прячем.
+       Полный префикс - иначе общее `...> .application-col{display:block}` перебивает по специфичности. */
+    .applications-table .application-row.rt-row > .application-col.actions-col { display: none; }
 
     /* Типографика строк карточки. */
     .application-col.number-col .application-number {
