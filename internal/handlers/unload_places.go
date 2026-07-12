@@ -188,6 +188,61 @@ func (h *UnloadPlaceHandler) Restore(c echo.Context) error {
 	return RespondMessage(c, "Место разгрузки восстановлено")
 }
 
+// BulkArchive godoc
+// @Summary      Групповая архивация мест разгрузки
+// @Description  Архивирует набор мест разгрузки. Привязанные к организациям/компаниям попадают в Errors (частичный успех)
+// @Tags         unload-places
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body services.BulkIDsRequest true "Список ID мест разгрузки"
+// @Success      200 {object} services.BulkOpResult
+// @Success      207 {object} services.BulkOpResult "Частичный успех"
+// @Failure      400 {object} models.HTTPError
+// @Router       /unload-places/bulk/archive [post]
+func (h *UnloadPlaceHandler) BulkArchive(c echo.Context) error {
+	var req services.BulkIDsRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if len(req.IDs) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны места разгрузки")
+	}
+	userID, _ := c.Get("user_id").(int)
+	res, err := h.service.BulkArchive(c.Request().Context(), userID, req.IDs)
+	if err != nil {
+		return err
+	}
+	return respondBulk(c, res)
+}
+
+// BulkRestore godoc
+// @Summary      Групповое восстановление мест разгрузки
+// @Tags         unload-places
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body services.BulkIDsRequest true "Список ID мест разгрузки"
+// @Success      200 {object} services.BulkOpResult
+// @Success      207 {object} services.BulkOpResult "Частичный успех"
+// @Failure      400 {object} models.HTTPError
+// @Router       /unload-places/bulk/restore [post]
+func (h *UnloadPlaceHandler) BulkRestore(c echo.Context) error {
+	var req services.BulkIDsRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if len(req.IDs) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны места разгрузки")
+	}
+	userID, _ := c.Get("user_id").(int)
+	res, err := h.service.BulkRestore(c.Request().Context(), userID, req.IDs)
+	if err != nil {
+		return err
+	}
+	return respondBulk(c, res)
+}
+
 // GetHistory возвращает историю изменений места разгрузки. Без отдельного
 // admin-гейта - намеренно, как и весь CRUD мест разгрузки (в отличие от
 // org/company, где история под buropropuskov): доступ управляется группой protected.

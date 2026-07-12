@@ -75,6 +75,8 @@ type UnloadPlaceService interface {
 	Update(ctx context.Context, callerUserID, id int, req UpdateUnloadPlaceRequest) error
 	Delete(ctx context.Context, callerUserID, id int) error
 	Restore(ctx context.Context, callerUserID, id int) error
+	BulkArchive(ctx context.Context, callerUserID int, ids []int) (*BulkOpResult, error)
+	BulkRestore(ctx context.Context, callerUserID int, ids []int) (*BulkOpResult, error)
 
 	// GetHistory возвращает историю изменений места разгрузки (новые сверху).
 	GetHistory(ctx context.Context, id int) ([]models.UnloadPlaceHistoryItem, error)
@@ -360,6 +362,54 @@ func (s *unloadPlaceService) Restore(ctx context.Context, callerUserID, id int) 
 	slog.Info("место разгрузки восстановлено", "id", id)
 	s.recorder.Log(ctx, nil, models.AuditEntityUnloadPlace, &id, models.UnloadPlaceActionRestored, &callerUserID, nil)
 	return nil
+}
+
+// loadUnloadPlace подгружает место разгрузки без сборки полного набора
+// деталей (слоты/фото) - для bulk-операций нужно только имя в BulkItemError,
+// тяжёлый buildDetails тут ни к чему.
+func (s *unloadPlaceService) loadUnloadPlace(ctx context.Context, id int) (models.UnloadPlace, bool) {
+	var place models.UnloadPlace
+	if err := s.db.WithContext(ctx).First(&place, id).Error; err != nil {
+		return place, false
+	}
+	return place, true
+}
+
+// BulkArchive архивирует набор мест разгрузки через Delete. Места, привязанные
+// к организациям/компаниям, честно попадают в Errors (частичный успех).
+func (s *unloadPlaceService) BulkArchive(ctx context.Context, callerUserID int, ids []int) (*BulkOpResult, error) {
+	res := newBulkResult()
+	for _, id := range uniqueInts(ids) {
+		place, ok := s.loadUnloadPlace(ctx, id)
+		if !ok {
+			res.addError(id, "", "Место разгрузки не найдено")
+			continue
+		}
+		if err := s.Delete(ctx, callerUserID, id); err != nil {
+			res.addError(id, place.Name, bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
+}
+
+// BulkRestore восстанавливает набор мест разгрузки через Restore.
+func (s *unloadPlaceService) BulkRestore(ctx context.Context, callerUserID int, ids []int) (*BulkOpResult, error) {
+	res := newBulkResult()
+	for _, id := range uniqueInts(ids) {
+		place, ok := s.loadUnloadPlace(ctx, id)
+		if !ok {
+			res.addError(id, "", "Место разгрузки не найдено")
+			continue
+		}
+		if err := s.Restore(ctx, callerUserID, id); err != nil {
+			res.addError(id, place.Name, bulkErrMsg(err))
+			continue
+		}
+		res.SuccessCount++
+	}
+	return res.finalize(), nil
 }
 
 // GetHistory возвращает историю изменений места разгрузки (новые сверху).

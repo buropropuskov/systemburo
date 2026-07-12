@@ -35,6 +35,39 @@
       </div>
     </div>
 
+    <div
+      v-if="selectedIds.length"
+      class="bulk-bar"
+      data-testid="unloadplaces-bulk-bar"
+    >
+      <span class="bulk-count">Выбрано: {{ selectedIds.length }}</span>
+      <div class="bulk-actions">
+        <button
+          v-if="!showArchive"
+          class="pill pill-danger"
+          data-testid="unloadplaces-bulk-archive"
+          @click="startBulkOperation('archive')"
+        >
+          В архив
+        </button>
+        <button
+          v-else
+          class="pill pill-restore"
+          data-testid="unloadplaces-bulk-restore"
+          @click="startBulkOperation('restore')"
+        >
+          Восстановить
+        </button>
+        <button
+          class="pill pill-ghost bulk-clear"
+          data-testid="unloadplaces-bulk-clear"
+          @click="clearSelection"
+        >
+          Снять выбор
+        </button>
+      </div>
+    </div>
+
     <div class="content-container">
       <!-- Левая часть - таблица мест разгрузки -->
       <div
@@ -43,6 +76,20 @@
       >
         <div class="table-container rt-table">
           <div class="table-header rt-head-row">
+            <div
+              class="header-col check-col"
+              @click.stop
+            >
+              <input
+                type="checkbox"
+                class="bulk-check"
+                :checked="allSelected"
+                :indeterminate.prop="someSelected"
+                aria-label="Выбрать все"
+                data-testid="unloadplaces-select-all"
+                @change="toggleSelectAll"
+              >
+            </div>
             <div
               class="header-col id-col"
               @click="sortBy('id')"
@@ -82,7 +129,7 @@
 
           <div class="table-body">
             <div
-              v-for="place in sortedUnloadPlaces"
+              v-for="(place, index) in sortedUnloadPlaces"
               :key="place.id"
               class="table-row rt-row"
               :class="{
@@ -91,6 +138,19 @@
               }"
               @click="selectPlace(place)"
             >
+              <div
+                class="table-col check-col"
+                @click.stop
+              >
+                <input
+                  type="checkbox"
+                  class="bulk-check"
+                  :checked="isSelected(place.id)"
+                  :aria-label="`Выбрать ${place.name}`"
+                  data-testid="unloadplaces-row-check"
+                  @click="onRowCheck(place, index, $event)"
+                >
+              </div>
               <div
                 class="table-col id-col"
                 data-label="ID"
@@ -604,6 +664,17 @@
       @cancel="deleteConfirmPhoto = null"
     />
 
+    <ConfirmationModal
+      :show="bulkConfirmVisible"
+      :title="bulkConfirmTitle"
+      :message="bulkConfirmMessage"
+      :confirm-text="bulkConfirmText"
+      cancel-text="Отмена"
+      :confirm-button-style="bulkConfirmButtonStyle"
+      @confirm="applyBulkArchiveRestore"
+      @cancel="cancelBulkConfirm"
+    />
+
     <UnloadPlaceHistoryModal
       v-if="historyPlace"
       :unload-place="historyPlace"
@@ -617,6 +688,7 @@
 import { apiRequest } from '@/api/client'
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import { useDeletionsStore } from '@/stores/deletions';
+import { useUiStore } from '@/stores/ui';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import RefreshButton from '../RefreshButton.vue';
 import SearchComponent from '../SearchComponent.vue';
@@ -624,6 +696,7 @@ import ConfirmationModal from '../ConfirmationModal.vue';
 import BaseDropdown from '../ui/BaseDropdown.vue';
 import WorkScheduleTab from '../WorkScheduleTab.vue';
 import UnloadPlaceHistoryModal from './UnloadPlaceHistoryModal.vue';
+import { bulkArchiveUnloadPlaces, bulkRestoreUnloadPlaces } from '@/api/unload-places';
 
 export default {
   components: {
@@ -672,12 +745,41 @@ export default {
       deleteConfirmPlace: null,
       deleteConfirmPhoto: null,
       historyPlace: null,
-      currentUserName: ''
+      currentUserName: '',
+      // Групповой выбор (по id). lastSelectedId - якорь shift-диапазона.
+      selectedIds: [],
+      lastSelectedId: null,
+      pendingBulkOp: null,
+      bulkConfirmVisible: false,
+      bulkSubmitting: false,
     };
   },
   computed: {
     isArchivedView() {
       return !!this.selectedPlace && !this.selectedPlace.is_active;
+    },
+    allSelected() {
+      return this.sortedUnloadPlaces.length > 0 && this.selectedIds.length === this.sortedUnloadPlaces.length;
+    },
+    someSelected() {
+      return this.selectedIds.length > 0 && !this.allSelected;
+    },
+    bulkConfirmTitle() {
+      return this.pendingBulkOp === 'restore' ? 'Восстановление мест разгрузки' : 'Архивация мест разгрузки';
+    },
+    bulkConfirmMessage() {
+      const n = this.selectedIds.length;
+      return this.pendingBulkOp === 'restore'
+        ? `Восстановить выбранные места разгрузки (${n})?`
+        : `Архивировать выбранные места разгрузки (${n})? Их можно будет восстановить из архива.`;
+    },
+    bulkConfirmText() {
+      return this.pendingBulkOp === 'restore' ? 'Восстановить' : 'В архив';
+    },
+    bulkConfirmButtonStyle() {
+      return this.pendingBulkOp === 'restore'
+        ? { background: '#10b981', borderColor: '#10b981' }
+        : { background: '#c62828', borderColor: '#c62828' };
     },
     emptyText() {
       if (this.searchQuery) return 'Ничего не найдено по фильтру';
@@ -736,6 +838,10 @@ export default {
     },
     showPhotoModal() {
       this.syncBodyScroll();
+    },
+    // Список фильтруется по режиму архив/поиск - выпавшие из вида id снимаем.
+    sortedUnloadPlaces() {
+      this.pruneSelection();
     }
   },
   created() {
@@ -790,6 +896,7 @@ export default {
             originalStatus: place.status,
             originalStatusComment: place.status_comment
           }));
+          this.pruneSelection();
         }
       } catch (error) {
         console.error("Error fetching unload places:", error);
@@ -977,6 +1084,7 @@ export default {
       this.showArchive = value === 'archive';
       this.selectedPlace = null;
       this.activeTab = 'main';
+      this.clearSelection();
     },
 
     async onRestore(place) {
@@ -1167,7 +1275,104 @@ async uploadPhotoFiles(files) {
       }
       return place.current_status === 'open' ? 'Открыто сейчас' : 'Закрыто сейчас';
     },
-    
+
+    // --- Групповой выбор ---
+    isSelected(id) {
+      return this.selectedIds.includes(id);
+    },
+    toggleSelect(id) {
+      const i = this.selectedIds.indexOf(id);
+      if (i === -1) this.selectedIds.push(id);
+      else this.selectedIds.splice(i, 1);
+    },
+    // onRowCheck: обычный клик - toggle; shift-клик - диапазон от якоря до текущей.
+    onRowCheck(place, index, event) {
+      if (event.shiftKey && window.getSelection) window.getSelection().removeAllRanges();
+      if (event.shiftKey && this.lastSelectedId != null && this.lastSelectedId !== place.id) {
+        const list = this.sortedUnloadPlaces;
+        const anchor = list.findIndex(p => p.id === this.lastSelectedId);
+        if (anchor !== -1) {
+          const [from, to] = anchor < index ? [anchor, index] : [index, anchor];
+          const target = !this.isSelected(place.id);
+          for (let i = from; i <= to; i++) {
+            const id = list[i].id;
+            const sel = this.isSelected(id);
+            if (target && !sel) this.selectedIds.push(id);
+            else if (!target && sel) this.selectedIds.splice(this.selectedIds.indexOf(id), 1);
+          }
+          this.lastSelectedId = place.id;
+          return;
+        }
+      }
+      this.toggleSelect(place.id);
+      this.lastSelectedId = place.id;
+    },
+    toggleSelectAll() {
+      this.selectedIds = this.allSelected ? [] : this.sortedUnloadPlaces.map(p => p.id);
+      this.lastSelectedId = null;
+    },
+    clearSelection() {
+      this.selectedIds = [];
+      this.lastSelectedId = null;
+      this.pendingBulkOp = null;
+    },
+    pruneSelection() {
+      if (!this.selectedIds.length) return;
+      const visible = new Set(this.sortedUnloadPlaces.map(p => p.id));
+      const pruned = this.selectedIds.filter(id => visible.has(id));
+      if (pruned.length !== this.selectedIds.length) this.selectedIds = pruned;
+    },
+    startBulkOperation(operation) {
+      this.pendingBulkOp = operation;
+      this.bulkConfirmVisible = true;
+    },
+    cancelBulkConfirm() {
+      if (this.bulkSubmitting) return;
+      this.bulkConfirmVisible = false;
+      this.pendingBulkOp = null;
+    },
+    async applyBulkArchiveRestore() {
+      const ids = [...this.selectedIds];
+      const op = this.pendingBulkOp;
+      if (this.bulkSubmitting) return;
+      if (!ids.length || (op !== 'archive' && op !== 'restore')) {
+        this.bulkConfirmVisible = false;
+        this.pendingBulkOp = null;
+        return;
+      }
+      this.bulkSubmitting = true;
+      let result;
+      try {
+        result = op === 'archive' ? await bulkArchiveUnloadPlaces(ids) : await bulkRestoreUnloadPlaces(ids);
+      } catch {
+        useDeletionsStore().notify({ prefix: 'Не удалось выполнить групповую операцию', type: 'error' });
+        this.bulkSubmitting = false;
+        return;
+      }
+      this.bulkSubmitting = false;
+      if (this.handleBulkResult(op, result, ids.length)) {
+        this.bulkConfirmVisible = false;
+        this.pendingBulkOp = null;
+      }
+    },
+    // Разбор BulkOpResult: полный успех -> notify, частичный -> ui.warning с
+    // перечнем непрошедших. false при ошибке-envelope (держим модалку для повтора).
+    handleBulkResult(op, result, total) {
+      if (!result || typeof result.success_count !== 'number') {
+        useDeletionsStore().notify({ prefix: result?.message || 'Не удалось выполнить групповую операцию', type: 'error' });
+        return false;
+      }
+      const label = op === 'restore' ? 'Восстановлено' : 'Архивировано';
+      if (result.error_count > 0) {
+        const failed = (result.errors || []).map(e => e.name || `#${e.id}`).join(', ');
+        useUiStore().warning(`Выполнено ${result.success_count} из ${total}. Не удалось: ${failed}`);
+      } else {
+        useDeletionsStore().notify({ prefix: `${label}: `, bold: String(result.success_count) });
+      }
+      this.clearSelection();
+      this.refreshData();
+      return true;
+    },
   }
 };
 </script>
@@ -1180,7 +1385,104 @@ async uploadPhotoFiles(files) {
   overflow: hidden;
   width: 100%;
   height: 550px;
-  position: relative;
+  position: relative; /* контекст для оверлей-панели .bulk-bar поверх шапки */
+}
+
+/* Панель групповых операций - оверлей поверх .management-header (не reflow,
+   список не прыгает при выборе - урок #510). Высота = высоте шапки (50px). */
+.bulk-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 50px;
+  padding: 0 20px;
+  border-bottom: 1px solid #e6e6e6;
+  background: #f0f2ff;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.bulk-count {
+  font-size: 14px;
+  font-weight: 600;
+  color: #4F5BDF;
+  white-space: nowrap;
+}
+.bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  margin-left: auto;
+}
+.bulk-actions .pill {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 50px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: background 0.2s, border-color 0.2s;
+}
+.pill-ghost {
+  background: #fff;
+  color: #4F5BDF;
+  border: 1px solid #4F5BDF;
+}
+.pill-ghost:hover {
+  background: #eef0ff;
+}
+.bulk-clear {
+  color: #6b7280;
+  border-color: #d5d9e0;
+}
+.bulk-clear:hover {
+  background: #f5f5f5;
+}
+.pill-danger {
+  background: #fff;
+  color: #dc3545;
+  border: 1px solid #fecaca;
+}
+.pill-danger:hover {
+  background: #fff1f2;
+  border-color: #dc3545;
+}
+.pill-restore {
+  background: #10b981;
+  color: #fff;
+}
+.pill-restore:hover {
+  background: #0da271;
+}
+.check-col {
+  width: 8%;
+  min-width: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  cursor: default;
+}
+.bulk-check {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  accent-color: #4F5BDF;
+  margin: 0;
 }
 
 .management-header {
@@ -1306,18 +1608,18 @@ async uploadPhotoFiles(files) {
 }
 
 .id-col {
-  width: 20%;
-  min-width: 60px;
+  width: 18%;
+  min-width: 54px;
 }
 
 .name-col {
-  width: 55%;
-  min-width: 150px;
+  width: 51%;
+  min-width: 140px;
 }
 
 .status-col {
-  width: 25%;
-  min-width: 80px;
+  width: 23%;
+  min-width: 74px;
 }
 
 .table-body {
@@ -2234,6 +2536,23 @@ async uploadPhotoFiles(files) {
 
   :deep(.search) {
     width: 110px;
+  }
+
+  /* Bulk-панель на мобилке - в потоке (не оверлей поверх шапки), кнопки
+     переносятся, чекбокс-колонка держит тач-таргет 44px. */
+  .bulk-bar {
+    position: static;
+    height: auto;
+    padding: 12px 16px;
+    overflow-x: visible;
+  }
+
+  .bulk-actions {
+    flex-wrap: wrap;
+  }
+
+  .check-col {
+    min-height: 44px;
   }
 }
 </style>
