@@ -1,0 +1,62 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { shallowMount } from '@vue/test-utils';
+import { createPinia, setActivePinia } from 'pinia';
+
+// #1097 W3.9: на мобилке ApplicationDetail - bottom-sheet со свайп-вниз-закрытием
+// (переиспользует useSwipeDismiss). Протягивание за порог должно эмитить close.
+
+vi.mock('@/api/client', () => ({
+  apiRequest: vi.fn().mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue([]) }),
+}));
+vi.mock('@/api/applications', () => ({
+  markAsRead: vi.fn().mockResolvedValue(undefined),
+}));
+
+import ApplicationDetail from '../ApplicationDetail.vue';
+
+function mountDetail() {
+  return shallowMount(ApplicationDetail, {
+    props: {
+      application: { id: 7, application_number: 'A-7', status: 'Непрочитано' },
+      currentUserId: 1,
+      mode: 'center',
+    },
+  });
+}
+
+/** Жест: старт -> протяжка на dy пикселей вниз -> отпускание. */
+function swipe(vm, dy) {
+  vm.onSheetTouchStart({ touches: [{ clientY: 100 }], target: { closest: () => null } });
+  vm.onSheetTouchMove({ touches: [{ clientY: 100 + dy }], cancelable: false, preventDefault: () => {} });
+  vm.onSheetTouchEnd();
+}
+
+describe('ApplicationDetail - свайп-вниз-закрытие (bottom-sheet, #1097 W3.9)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
+
+  it('протягивание за порог -> emit("close")', () => {
+    const wrapper = mountDetail();
+    // getScrollTop у sheetScroll в jsdom = 0 -> жест активен даже без ползунка.
+    swipe(wrapper.vm, 200);
+    expect(wrapper.emitted('close')).toBeTruthy();
+  });
+
+  it('протягивание НЕ за порог -> close не эмитится', () => {
+    const wrapper = mountDetail();
+    swipe(wrapper.vm, 30);
+    expect(wrapper.emitted('close')).toBeFalsy();
+  });
+
+  it('в процессе протягивания лист сдвинут (sheetOffset), отпускание сбрасывает', () => {
+    const wrapper = mountDetail();
+    wrapper.vm.onSheetTouchStart({ touches: [{ clientY: 100 }], target: { closest: () => null } });
+    wrapper.vm.onSheetTouchMove({ touches: [{ clientY: 150 }], cancelable: false, preventDefault: () => {} });
+    expect(wrapper.vm.sheetOffset).toBe(50);
+    expect(wrapper.vm.sheetDragging).toBe(true);
+    wrapper.vm.onSheetTouchEnd();
+    expect(wrapper.vm.sheetOffset).toBe(0);
+    expect(wrapper.vm.sheetDragging).toBe(false);
+  });
+});
