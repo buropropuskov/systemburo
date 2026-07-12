@@ -3,6 +3,8 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import UserControl from '@/components/UserControl.vue'
+import { useUiStore } from '@/stores/ui'
+import { useDeletionsStore } from '@/stores/deletions'
 
 vi.mock('@/api/settings', () => ({
   getPasswordPolicy: vi.fn().mockResolvedValue({ min_length: 8, require_letter: true, require_digit: true }),
@@ -96,6 +98,56 @@ describe('UserControl — групповой выбор и bulk архив/во�
     expect(bulkApi.bulkArchiveUsers).toHaveBeenCalledWith(['alpha', 'beta'])
     expect(wrapper.vm.selectedUsernames).toEqual([]) // сброшен после успеха
     expect(wrapper.vm.bulkConfirmVisible).toBe(false)
+  })
+
+  it('частичный успех -> ui.warning с непрошедшими, выбор сброшен', async () => {
+    bulkApi.bulkArchiveUsers.mockResolvedValue({ success_count: 1, error_count: 1, errors: [{ id: 2, name: 'beta', error: 'Пользователь не найден' }] })
+    wrapper = mountUserControl()
+    await flushPromises()
+    vi.spyOn(wrapper.vm, 'fetchAllUsers').mockImplementation(() => {})
+    const warn = vi.spyOn(useUiStore(), 'warning')
+
+    await rowChecks(wrapper)[0].trigger('click')
+    await rowChecks(wrapper)[1].trigger('click')
+    await wrapper.vm.startBulkOperation('archive')
+    await wrapper.vm.applyBulkArchiveRestore()
+    await flushPromises()
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('beta'))
+    expect(wrapper.vm.selectedUsernames).toEqual([])
+    expect(wrapper.vm.bulkConfirmVisible).toBe(false)
+  })
+
+  it('ошибка-envelope ({message}) -> error-notify, выбор НЕ сброшен, модалка держится', async () => {
+    bulkApi.bulkArchiveUsers.mockResolvedValue({ message: 'Не выбраны пользователи' })
+    wrapper = mountUserControl()
+    await flushPromises()
+    const notify = vi.spyOn(useDeletionsStore(), 'notify')
+
+    await rowChecks(wrapper)[0].trigger('click')
+    await wrapper.vm.startBulkOperation('archive')
+    await wrapper.vm.applyBulkArchiveRestore()
+    await flushPromises()
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }))
+    expect(wrapper.vm.selectedUsernames).toEqual(['alpha']) // не сброшен - можно повторить
+    expect(wrapper.vm.bulkConfirmVisible).toBe(true) // модалка открыта
+  })
+
+  it('отмена подтверждения и смена архив-режима сбрасывают выбор/операцию', async () => {
+    wrapper = mountUserControl()
+    await flushPromises()
+    await rowChecks(wrapper)[0].trigger('click')
+    await wrapper.vm.startBulkOperation('archive')
+    expect(wrapper.vm.bulkConfirmVisible).toBe(true)
+    wrapper.vm.cancelBulkConfirm()
+    expect(wrapper.vm.bulkConfirmVisible).toBe(false)
+    expect(wrapper.vm.pendingBulkOp).toBe(null)
+    // Отмена НЕ теряет выбор (можно повторить операцию).
+    expect(wrapper.vm.selectedUsernames).toEqual(['alpha'])
+
+    await rowChecks(wrapper)[1].trigger('click')
+    expect([...wrapper.vm.selectedUsernames].sort()).toEqual(['alpha', 'beta'])
+    wrapper.vm.onArchiveModeChange('archive')
+    expect(wrapper.vm.selectedUsernames).toEqual([]) // выбор не переносим между режимами
   })
 
   it('в архивном режиме кнопка Восстановить зовёт restore-API', async () => {

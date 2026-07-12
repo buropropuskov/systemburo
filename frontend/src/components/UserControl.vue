@@ -953,7 +953,7 @@ export default {
     },
     bulkConfirmButtonStyle() {
       return this.pendingBulkOp === 'restore'
-        ? {}
+        ? { background: '#10b981', borderColor: '#10b981' }
         : { background: '#c62828', borderColor: '#c62828' };
     },
     filteredUsers() {
@@ -1661,11 +1661,17 @@ export default {
 <style scoped>
 /* --- Групповой выбор: панель, чекбоксы, pill-кнопки (эталон OrganizationsManagement) --- */
 .bulk-bar {
+  /* Оверлей поверх .management-header (не reflow - список не прыгает при выборе,
+     урок #510). Высота = высоте шапки (50px), карточка - position:relative. */
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 6;
   display: flex;
   align-items: center;
   gap: 14px;
   height: 50px;
-  flex-shrink: 0; /* .user-management - flex-column; без этого бар сжимается в 5px */
   padding: 0 20px;
   border-bottom: 1px solid #e6e6e6;
   background: #f0f2ff;
@@ -1752,6 +1758,7 @@ export default {
 }
 
 .user-management {
+  position: relative; /* контекст для оверлей-панели .bulk-bar (top:0 поверх шапки) */
   background-color: #fff;
   border-radius: 30px;
   border: 1px solid #e6e6e6;
@@ -1898,11 +1905,12 @@ export default {
 }
 
 /* Колонки с фиксированной шириной */
-.login-col { width: 15%; min-width: 110px; }
-.name-col { width: 17%; min-width: 110px; }
-.org-col { width: 20%; min-width: 110px; }
-.company-col { width: 16%; min-width: 110px; }
-.position-col { width: 17%; min-width: 110px; }
+/* check-col 6% забюджетирован в сумму 100% (14+16+18+15+16+15+6). */
+.login-col { width: 14%; min-width: 110px; }
+.name-col { width: 16%; min-width: 110px; }
+.org-col { width: 18%; min-width: 110px; }
+.company-col { width: 15%; min-width: 110px; }
+.position-col { width: 16%; min-width: 110px; }
 .type-col { width: 15%; min-width: 90px; }
 
 /* Тело таблицы */
@@ -2386,6 +2394,10 @@ export default {
 }
 
 @media (max-width: 767.98px) {
+  /* Построчный чекбокс в карточке - увеличенный тач-таргет. */
+  .check-col {
+    min-height: 44px;
+  }
   /* rt-head-row прячет внутренний .header-row, но обёртка .users-header несёт
      свой border-bottom+padding и без этого осталась бы пустой полосой над
      карточками (у остальных справочников rt-head-row на самом заголовке, тут
