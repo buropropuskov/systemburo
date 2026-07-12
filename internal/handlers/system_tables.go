@@ -275,6 +275,86 @@ func (h *SystemTableHandler) Restore(c echo.Context) error {
 	return RespondMessage(c, "Системная таблица восстановлена")
 }
 
+// logBulkResult пишет запись аудита для каждого id из запроса, для которого
+// групповая операция реально прошла успешно (нет в res.Errors). Аудит для
+// системных таблиц живёт в handler-слое (см. logAction), а не в сервисе (как
+// у марок) - BulkOpResult сервиса не возвращает список успешных id, поэтому
+// дедуп запроса и вычитание провалившихся делаем здесь же.
+func (h *SystemTableHandler) logBulkResult(c echo.Context, ids []int, res *services.BulkOpResult, actionType string) {
+	if h.recorder == nil {
+		return
+	}
+	failed := make(map[int]struct{}, len(res.Errors))
+	for _, e := range res.Errors {
+		failed[e.ID] = struct{}{}
+	}
+	logged := make(map[int]struct{}, len(ids))
+	for _, id := range ids {
+		if _, ok := logged[id]; ok {
+			continue
+		}
+		logged[id] = struct{}{}
+		if _, bad := failed[id]; bad {
+			continue
+		}
+		h.logAction(c.Request().Context(), c, id, actionType, nil)
+	}
+}
+
+// BulkArchive godoc
+// @Summary      Групповая архивация системных таблиц
+// @Tags         system-tables
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body services.BulkIDsRequest true "Список ID таблиц"
+// @Success      200 {object} services.BulkOpResult
+// @Success      207 {object} services.BulkOpResult "Частичный успех"
+// @Failure      400 {object} models.HTTPError
+// @Router       /system-tables/bulk/archive [post]
+func (h *SystemTableHandler) BulkArchive(c echo.Context) error {
+	var req services.BulkIDsRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if len(req.IDs) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны таблицы")
+	}
+	res, err := h.service.BulkArchive(c.Request().Context(), req.IDs)
+	if err != nil {
+		return err
+	}
+	h.logBulkResult(c, req.IDs, res, models.SystemTableActionArchived)
+	return respondBulk(c, res)
+}
+
+// BulkRestore godoc
+// @Summary      Групповое восстановление системных таблиц
+// @Tags         system-tables
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body services.BulkIDsRequest true "Список ID таблиц"
+// @Success      200 {object} services.BulkOpResult
+// @Success      207 {object} services.BulkOpResult "Частичный успех"
+// @Failure      400 {object} models.HTTPError
+// @Router       /system-tables/bulk/restore [post]
+func (h *SystemTableHandler) BulkRestore(c echo.Context) error {
+	var req services.BulkIDsRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if len(req.IDs) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны таблицы")
+	}
+	res, err := h.service.BulkRestore(c.Request().Context(), req.IDs)
+	if err != nil {
+		return err
+	}
+	h.logBulkResult(c, req.IDs, res, models.SystemTableActionRestored)
+	return respondBulk(c, res)
+}
+
 // GetHistory godoc
 // @Summary      История изменений системной таблицы
 // @Description  Возвращает все CRUD-действия над таблицей (created/updated/archived/restored/columns/appearance)

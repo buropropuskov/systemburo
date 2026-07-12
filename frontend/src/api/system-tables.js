@@ -33,6 +33,17 @@ export async function deleteSystemTable(id) {
   });
 }
 
+/** Групповые операции над системными таблицами (id-keyed). Возвращают BulkOpResult. */
+export async function bulkArchiveSystemTables(ids) {
+  const res = await apiRequest('/system-tables/bulk/archive', { method: 'POST', body: JSON.stringify({ ids }) });
+  return res.json();
+}
+
+export async function bulkRestoreSystemTables(ids) {
+  const res = await apiRequest('/system-tables/bulk/restore', { method: 'POST', body: JSON.stringify({ ids }) });
+  return res.json();
+}
+
 export async function uploadTablePhotos(tableId, formData) {
   const res = await apiRequest(`/system-tables/${tableId}/photos`, {
     method: 'POST',
