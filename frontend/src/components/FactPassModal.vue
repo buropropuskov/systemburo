@@ -33,16 +33,15 @@
         </label>
         <div
           v-if="selectedFormat"
-          class="fact-pass__cells"
+          class="fpm-number"
         >
           <input
             v-for="(cell, index) in selectedFormat.cells"
             :key="index"
             v-model="numberParts[index]"
-            class="lk-input fact-pass__cell"
+            class="fpm-cell"
             :placeholder="getPlaceholder(cell)"
             :maxlength="cell.max_length"
-            :style="{ width: getInputWidth(cell) }"
             data-testid="fact-pass-number-cell"
             @input="validatePart(index, $event, cell)"
             @blur="formatPart(index, cell)"
@@ -170,10 +169,6 @@ function getPlaceholder(cell) {
   return (cell.cell_type === 'numbers' ? '0' : 'A').repeat(cell.max_length);
 }
 
-function getInputWidth(cell) {
-  return `${Math.max(50, cell.max_length * 25)}px`;
-}
-
 async function loadMarks() {
   if (marksLoaded.value) return;
   try {
@@ -230,6 +225,7 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 18px;
+  padding: 20px;
 }
 
 .fact-pass__subtitle {
@@ -255,15 +251,42 @@ watch(
   color: var(--color-danger, #d73a4a);
 }
 
-.fact-pass__cells {
+/* Ввод номера 1:1 как в VehicleForm: один bordered-контейнер (radius 15) с
+   ячейками-инпутами внутри, разделёнными border-right (не отдельные боксы). */
+.fpm-number {
+  max-width: 202px;
+  min-width: 202px;
+  height: 40px;
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  border: 1px solid #e6e6e6;
+  border-radius: 15px;
+  overflow: hidden;
+  background: #fff;
 }
 
-.fact-pass__cell {
+.fpm-cell {
+  border: none;
+  height: 100%;
+  outline: none;
   text-align: center;
+  font-size: 14px;
+  background: transparent;
+  flex: 1;
+  min-width: 0;
   text-transform: uppercase;
+}
+
+.fpm-cell:not(:last-child) {
+  border-right: 1px solid #e6e6e6;
+}
+
+.fpm-cell::placeholder {
+  color: #a2a2a2;
+  font-size: 12px;
+}
+
+.fpm-cell:focus {
+  background-color: #f8f8f8;
 }
 
 .fact-pass__hint {

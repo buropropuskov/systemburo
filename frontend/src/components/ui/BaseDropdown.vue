@@ -164,10 +164,14 @@ export default {
     },
   },
   mounted() {
-    document.addEventListener('click', this.handleClickOutside);
+    // Capture-фаза (#1132): внутри BaseModal на `.base-modal` висит @click.stop,
+    // и bubble-листнер document не срабатывает -> дропдаун не закрывался по клику
+    // вне себя, и открытие одного не гасило другой (два меню разом). Capture идёт
+    // до stopPropagation. Логика containment та же -> вне модалки поведение не меняется.
+    document.addEventListener('click', this.handleClickOutside, true);
   },
   beforeUnmount() {
-    document.removeEventListener('click', this.handleClickOutside);
+    document.removeEventListener('click', this.handleClickOutside, true);
     this.removeRepositionListeners();
   },
   methods: {
