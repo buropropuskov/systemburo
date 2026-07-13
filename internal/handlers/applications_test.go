@@ -349,6 +349,160 @@ func TestGetUserApplications_ReturnsOwnApplications(t *testing.T) {
 	assert.GreaterOrEqual(t, len(apps), 1)
 }
 
+// TestGetUserApplications_AccessScoped (#1158 срез 4): GetUserApplications раньше
+// возвращал ВООБЩЕ ВСЕ заявки системы без фильтрации по пользователю - клиент лишь
+// отображал подмножество через currentFilter (my/organization), не ограничивая
+// реальный доступ к данным. Заявка чужой организации, отправленная чужим
+// пользователем, не должна попадать ни в legacy-список, ни в пагинированный.
+func TestGetUserApplications_AccessScoped(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	otherOrg := models.Organization{Name: "Other Organization"}
+	require.NoError(t, db.Create(&otherOrg).Error)
+
+	ownToken := testutil.RegisterAndLogin(t, e, "scoped_owner", "pass123", 1, td.OrgID, td.CompanyID)
+	otherToken := testutil.RegisterAndLogin(t, e, "scoped_stranger", "pass123", 1, otherOrg.ID, td.CompanyID)
+
+	ownAppID := createSimpleApplication(t, e, ownToken, td.OrgID)
+	strangerAppID := createSimpleApplication(t, e, otherToken, otherOrg.ID)
+
+	containsID := func(apps []map[string]interface{}, id int) bool {
+		for _, a := range apps {
+			if v, ok := a["id"].(float64); ok && int(v) == id {
+				return true
+			}
+		}
+		return false
+	}
+
+	// legacy (без per_page)
+	rec := testutil.GET(t, e, "/applications/user", testutil.AuthHeader(ownToken))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	legacyApps := testutil.ParseResponse[[]map[string]interface{}](t, rec)
+	assert.True(t, containsID(legacyApps, ownAppID), "своя заявка должна быть видна (legacy)")
+	assert.False(t, containsID(legacyApps, strangerAppID), "чужая заявка чужой организации не должна быть видна (legacy)")
+
+	// paginated (с per_page)
+	rec = testutil.GET(t, e, "/applications/user?per_page=50&page=1", testutil.AuthHeader(ownToken))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var env struct {
+		Data []map[string]interface{} `json:"data"`
+		Meta map[string]interface{}   `json:"meta"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &env))
+	assert.True(t, containsID(env.Data, ownAppID), "своя заявка должна быть видна (paginated)")
+	assert.False(t, containsID(env.Data, strangerAppID), "чужая заявка чужой организации не должна быть видна (paginated)")
+	// total считает только доступные пользователю заявки, не всю систему.
+	assert.Equal(t, float64(1), env.Meta["total"], "total должен учитывать только доступные ЛК заявки")
+}
+
+func TestGetUserApplicationsPaginated_MetaTotal(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "userpage1", "pass123", 1, td.OrgID, td.CompanyID)
+	for i := 0; i < 3; i++ {
+		createSimpleApplication(t, e, token, td.OrgID)
+	}
+
+	rec := testutil.GET(t, e, "/applications/user?per_page=2&page=1", testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	var env struct {
+		Success bool                     `json:"success"`
+		Data    []map[string]interface{} `json:"data"`
+		Meta    map[string]interface{}   `json:"meta"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &env))
+	assert.True(t, env.Success)
+	require.NotNil(t, env.Meta)
+	assert.Equal(t, float64(1), env.Meta["page"])
+	assert.Equal(t, float64(2), env.Meta["per_page"])
+	total, ok := env.Meta["total"].(float64)
+	require.True(t, ok, "meta.total field must be present")
+	assert.GreaterOrEqual(t, total, float64(3))
+	assert.Len(t, env.Data, 2)
+}
+
+func TestGetUserApplicationsPaginated_SearchWorks(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "userpagesearch", "pass123", 1, td.OrgID, td.CompanyID)
+	appID := createSimpleApplication(t, e, token, td.OrgID)
+	require.NoError(t, db.Exec(
+		`UPDATE applications SET message = ? WHERE id = ?`, "Уникальное сообщение zzqxsearch", appID).Error)
+
+	rec := testutil.GET(t, e,
+		"/applications/user?search_query="+url.QueryEscape("zzqxsearch")+"&per_page=10&page=1",
+		testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	var env struct {
+		Data []map[string]interface{} `json:"data"`
+		Meta map[string]interface{}   `json:"meta"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &env))
+	found := false
+	for _, a := range env.Data {
+		if id, ok := a["id"].(float64); ok && int(id) == appID {
+			found = true
+		}
+	}
+	assert.True(t, found, "заявка должна находиться поиском в пагинированном пути")
+	assert.Equal(t, float64(1), env.Meta["total"])
+}
+
+// TestGetUserApplicationsPaginated_SenderFilter (#1158 срез 4): вкладка "Мои заявки"
+// в ЛК сужает базовый доступ (свои + заявки организации) до заявок, отправленных
+// именно этим пользователем - коллега по той же организации виден в базовом доступе,
+// но не должен попадать в выдачу с sender_user_id фильтром.
+func TestGetUserApplicationsPaginated_SenderFilter(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	ownToken := testutil.RegisterAndLogin(t, e, "sender_own", "pass123", 1, td.OrgID, td.CompanyID)
+	colleagueToken := testutil.RegisterAndLogin(t, e, "sender_colleague", "pass123", 1, td.OrgID, td.CompanyID)
+
+	ownUserID := getUserID(t, db, "sender_own")
+	ownAppID := createSimpleApplication(t, e, ownToken, td.OrgID)
+	colleagueAppID := createSimpleApplication(t, e, colleagueToken, td.OrgID)
+
+	rec := testutil.GET(t, e,
+		fmt.Sprintf("/applications/user?sender_user_id=%d&per_page=50&page=1", ownUserID),
+		testutil.AuthHeader(ownToken))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	var env struct {
+		Data []map[string]interface{} `json:"data"`
+		Meta map[string]interface{}   `json:"meta"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &env))
+
+	found, foundColleague := false, false
+	for _, a := range env.Data {
+		id, _ := a["id"].(float64)
+		if int(id) == ownAppID {
+			found = true
+		}
+		if int(id) == colleagueAppID {
+			foundColleague = true
+		}
+	}
+	assert.True(t, found, "своя заявка должна быть видна при sender_user_id фильтре")
+	assert.False(t, foundColleague, "заявка коллеги по организации не должна попадать в 'Мои заявки'")
+	assert.Equal(t, float64(1), env.Meta["total"])
+}
+
 // --- POST /applications (simple create) ---
 
 func TestCreateApplication_Success(t *testing.T) {

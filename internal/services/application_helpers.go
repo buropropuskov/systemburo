@@ -507,6 +507,9 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 	if filter.CompanyID != nil {
 		query = query.Where("a.company_id = ?", *filter.CompanyID)
 	}
+	if filter.SenderUserID != nil {
+		query = query.Where("a.sender_user_id = ?", *filter.SenderUserID)
+	}
 	if filter.Confirmation != nil {
 		query = query.Where("a.confirmation = ?", *filter.Confirmation)
 	}

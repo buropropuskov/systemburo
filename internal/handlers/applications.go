@@ -111,7 +111,9 @@ func (h *ApplicationHandler) GetAttachableApplications(c echo.Context) error {
 
 // GetUserApplications godoc
 // @Summary      Заявки текущего пользователя
-// @Description  Возвращает все заявки для текущего пользователя с фильтрацией.
+// @Description  Возвращает заявки текущего пользователя (отправленные им или его организацией)
+// @Description  с фильтрацией. Без per_page - полный список (legacy). С per_page - страница
+// @Description  через GetUserApplicationsPaginated, meta.total в envelope (#1158).
 // @Tags         applications
 // @Accept       json
 // @Produce      json
@@ -121,6 +123,8 @@ func (h *ApplicationHandler) GetAttachableApplications(c echo.Context) error {
 // @Param        status       query string false "Статус заявки"
 // @Param        date_from    query string false "Дата от (YYYY-MM-DD)"
 // @Param        date_to      query string false "Дата до (YYYY-MM-DD)"
+// @Param        page         query int    false "Номер страницы"
+// @Param        per_page     query int    false "Размер страницы (включает пагинацию)"
 // @Success      200 {array}  services.ApplicationWithDetails
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
@@ -133,11 +137,30 @@ func (h *ApplicationHandler) GetUserApplications(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
 	}
 
-	apps, err := h.service.GetUserApplications(c.Request().Context(), username, filter)
+	// Legacy mode: per_page не задан - полный список (обратная совместимость).
+	if c.QueryParam("per_page") == "" {
+		apps, err := h.service.GetUserApplications(c.Request().Context(), username, filter)
+		if err != nil {
+			return err
+		}
+		return RespondSuccess(c, apps)
+	}
+
+	var params models.PaginationParams
+	if err := c.Bind(&params); err != nil {
+		params = models.PaginationParams{}
+	}
+	params.Normalize()
+
+	data, total, err := h.service.GetUserApplicationsPaginated(
+		c.Request().Context(), username, filter, params.Page, params.PerPage,
+	)
 	if err != nil {
 		return err
 	}
-	return RespondSuccess(c, apps)
+	return RespondPaginated(c, data, models.PaginationMeta{
+		Total: total, Page: params.Page, PerPage: params.PerPage,
+	})
 }
 
 // GetApplicationByID godoc

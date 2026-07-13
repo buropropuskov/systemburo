@@ -142,14 +142,17 @@
           </div>
           
           <!-- Тело таблицы -->
-          <div class="applications-body">
+          <div
+            ref="applicationsBody"
+            class="applications-body"
+          >
             <div
               v-if="isLoading"
               class="loading-message"
             >
               <LoaderSpinner label="Загрузка заявок…" />
             </div>
-            
+
             <template v-else>
               <div
                 v-if="filteredApplications.length > 0"
@@ -346,6 +349,29 @@
                 </p>
               </div>
             </template>
+
+            <!-- Бесшовная подгрузка (#1158 срез 4): sentinel внизу скроллируемого
+                 applications-body - IntersectionObserver триггерит loadMore без кнопки.
+                 root - сам applications-body (свой overflow-y:auto, не документ). -->
+            <div
+              v-if="hasMoreApplications"
+              :ref="setSentinelRef"
+              class="user-applications-sentinel"
+              data-testid="user-applications-sentinel"
+            >
+              <LoaderSpinner
+                v-if="listLoading"
+                label="Загрузка…"
+              />
+            </div>
+          </div>
+
+          <div
+            v-if="!isLoading && sortedApplications.length"
+            class="user-applications-footer"
+            data-testid="user-applications-footer"
+          >
+            {{ footerText }}
           </div>
         </div>
       </div>
@@ -376,9 +402,10 @@
 
 <script>
 import { apiRequest } from '@/api/client'
-import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
+import { getUserApplicationsPaginated, getApplicationById } from '@/api/applications'
 import { useAuthStore } from '@/stores/auth'
 import { useDeletionsStore } from '@/stores/deletions'
+import { useInfiniteList } from '@/composables/useInfiniteList'
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import DateFilter from './DateFilter.vue';
@@ -388,6 +415,9 @@ import LoaderSpinner from './ui/LoaderSpinner.vue';
 import Badge from './ui/Badge.vue';
 import { blacklistFlagCount, blacklistFlagLabel, BLACKLIST_FLAG_TITLE } from '@/utils/blacklistBadge';
 import { stripHtml } from '@/utils/sanitize';
+
+// Размер порции бесшовной подгрузки ЛК (#1158 срез 4) - как в Центре заявок.
+const USER_APPLICATIONS_PER_PAGE = 30;
 
 export default {
   components: {
@@ -413,13 +443,32 @@ export default {
       default: ""
     }
   },
+  setup() {
+    // Бесшовная подгрузка ЛК порциями (#1158 срез 4): composable инкапсулирует
+    // page/per_page/аккумуляцию/hasMore/seq-guard. fetchPage строится в methods
+    // (нужен доступ к this для фильтров) и передаётся при каждом вызове - setup()
+    // не имеет доступа к this. applications - алиас infiniteList.items: существующий
+    // deep-link спек читает/пишет wrapper.vm.applications напрямую (зеркало Центра #1163).
+    const infiniteList = useInfiniteList({ perPage: USER_APPLICATIONS_PER_PAGE });
+    return {
+      applications: infiniteList.items,
+      total: infiniteList.total,
+      applicationsPage: infiniteList.page,
+      hasMoreApplications: infiniteList.hasMore,
+      listLoading: infiniteList.loading,
+      loadApplicationsList: infiniteList.load,
+      loadMoreApplicationsList: infiniteList.loadMore,
+      observeApplicationsSentinel: infiniteList.observeSentinel,
+      disconnectApplicationsSentinel: infiniteList.disconnectObserver,
+    };
+  },
   data() {
     return {
-      applications: [],
       selectedApplication: null,
       showDetailModal: false,
       responsibleUsers: [],
       searchQuery: '',
+      searchDebounceTimer: null,
       sortField: null,
       sortDirection: 'desc',
       isLoading: false,
@@ -431,34 +480,22 @@ export default {
       downloadAppInfo: null,
       selectedDate: null,
       dateRangeStart: null,
-      dateRangeEnd: null
+      dateRangeEnd: null,
+      // seq-токен (#632/#840): fetchUserApplications дёргается фильтрами/поиском/сменой
+      // вкладки/сортировкой - управляет isLoading, отдельно от собственного seq-guard
+      // items/total внутри useInfiniteList.
+      fetchSeq: 0
     };
   },
   computed: {
+    // Поиск теперь СЕРВЕРНЫЙ (search_query уходит в buildUserApplicationsPage) - здесь
+    // его больше не дублируем (#1158 срез 4): клиентский matchesSearch резал бы уже
+    // подгруженную порцию по неточному совпадению с серверным fuzzy-поиском (та же
+    // проблема, что чинили в Центре до #1163). Дата остаётся как редундантный клиентский
+    // мирроринг серверного date_from/date_to (безопасен - точное совпадение, не сужает
+    // относительно уже отфильтрованного сервером набора).
     filteredApplications() {
       let filtered = this.applications;
-
-      const variants = buildSearchVariants(this.searchQuery);
-      if (variants.length) {
-        filtered = filtered.filter(application => matchesSearch(
-          [
-            application.application_number,
-            application.organization_name,
-            application.sender_name,
-            application.sender_full_name,
-            application.confirmation,
-            application.status,
-            application.message,
-            application.responsible_name,
-            application.responsible_full_name,
-            application.responsible_comment,
-            application.has_roof_access ? 'Крыша' : null,
-            application.has_free_parking ? 'Парковка' : null,
-            blacklistFlagCount(application) > 0 ? 'ЧС' : null,
-          ].filter(Boolean).join(' '),
-          variants,
-        ));
-      }
 
       if (this.selectedDate) {
         filtered = filtered.filter(app => {
@@ -481,16 +518,34 @@ export default {
 
       return filtered;
     },
-    
+
     hasActiveFilters() {
       return !!this.searchQuery ||
              !!this.selectedDate ||
              (this.dateRangeStart && this.dateRangeEnd);
     },
 
+    // Сортировка по колонке - клиентская, поэтому должна идти по ВСЕМУ набору, не по
+    // одной подгруженной порции (зеркало Центра #1158): при активном sortField
+    // fetchUserApplications догружает остаток через loadAllRemaining.
+    isFullLoad() {
+      return !!this.sortField;
+    },
+
+    // Футер "Показано X из Y": X - реально видимое число строк (после клиентского
+    // date-мирроринга), total - серверный счётчик по текущим фильтрам.
+    showTotalInFooter() {
+      return this.sortedApplications.length === this.applications.length;
+    },
+
+    footerText() {
+      const shown = this.sortedApplications.length;
+      return this.showTotalInFooter ? `Показано ${shown} из ${this.total}` : `Показано ${shown}`;
+    },
+
     sortedApplications() {
       const applications = [...this.filteredApplications];
-      
+
       if (!this.sortField) {
         return applications.sort((a, b) => {
           const dateA = new Date(a.sending_datetime);
@@ -498,7 +553,7 @@ export default {
           return dateB - dateA;
         });
       }
-      
+
       return applications.sort((a, b) => {
         let valueA, valueB;
         
@@ -544,11 +599,18 @@ export default {
   },
   watch: {
     searchQuery() {
-      this.fetchUserApplications();
+      // Дебаунс (#1158 срез 4, зеркало Центра): поиск теперь бьёт по бэку на каждое
+      // изменение - без дебаунса быстрый ввод плодит запрос на каждую букву.
+      clearTimeout(this.searchDebounceTimer);
+      this.searchDebounceTimer = setTimeout(() => {
+        this.fetchUserApplications();
+      }, 300);
     },
     userId() {
       // После разрешения userId список перезагружается - тогда же пробуем открыть
       // заявку из deep-link (на холодной навигации mounted-попытка была с пустым списком).
+      // userId участвует в buildUserApplicationsPage (вкладка "Мои заявки") - без
+      // перезапроса вкладка "Мои" осталась бы без sender_user_id до случайного refresh.
       this.fetchUserApplications().then(() => this.openFromDeepLink());
     },
     // Переход из уведомления в кабинет: /personal-cabinet?open=<id> (#973).
@@ -561,69 +623,102 @@ export default {
     this.getCurrentUser();
   },
   beforeUnmount() {
+    this.disconnectApplicationsSentinel();
+    clearTimeout(this.searchDebounceTimer);
     // Восстанавливаем скролл при размонтировании компонента
     document.body.style.overflow = '';
   },
   methods: {
+    /**
+     * fetchPage для useInfiniteList (#1158 срез 4): строит query-параметры фильтра
+     * (поиск, вкладка "Мои"/"Организация", дата) плюс page/per_page - бэк переключается
+     * на GetUserApplicationsPaginated, как только видит per_page (см.
+     * internal/handlers/applications.go GetUserApplications). currentFilter теперь
+     * СЕРВЕРНЫЙ (sender_user_id/organization_id), а не клиентский .filter() по всему
+     * массиву - раньше GetUserApplications вообще не ограничивал доступ по пользователю,
+     * клиент лишь ОТОБРАЖАЛ подмножество (см. фикс applyUserApplicationsAccessFilter).
+     */
+    async buildUserApplicationsPage(page, perPage) {
+      const params = {};
+
+      if (this.searchQuery) {
+        params.search_query = this.searchQuery;
+      }
+
+      if (this.currentFilter === 'my' && this.userId) {
+        params.sender_user_id = this.userId;
+      } else if (this.currentFilter === 'organization' && this.userOrganizationId) {
+        params.organization_id = this.userOrganizationId;
+      }
+
+      // Дата - ЛОКАЛЬНЫМИ частями (не toISOString: UTC-сдвиг увёл бы выбранный день
+      // назад у пользователей восточнее UTC, #1076/#1158).
+      if (this.selectedDate) {
+        const day = this.toLocalYMD(this.selectedDate);
+        params.date_from = day;
+        params.date_to = day;
+      } else if (this.dateRangeStart && this.dateRangeEnd) {
+        params.date_from = this.toLocalYMD(this.dateRangeStart);
+        params.date_to = this.toLocalYMD(this.dateRangeEnd);
+      }
+
+      params.page = page;
+      params.per_page = perPage;
+
+      const { items, meta } = await getUserApplicationsPaginated(params);
+      return { items, total: (meta && meta.total) || 0 };
+    },
+
+    // Date -> YYYY-MM-DD по локальным частям (см. комментарий в buildUserApplicationsPage).
+    toLocalYMD(date) {
+      const d = date instanceof Date ? date : new Date(date);
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    },
+
     async fetchUserApplications() {
+      const authStore = useAuthStore();
+      if (!authStore.token) {
+        console.error("Пользователь не авторизован.");
+        return;
+      }
+
+      // seq-токен управляет isLoading, отдельно от собственного seq-guard items/total
+      // внутри useInfiniteList (#632/#840): пачка вызовов (поиск/фильтр/сортировка)
+      // не должна оставить isLoading залипшим на устаревшем запросе.
+      const seq = ++this.fetchSeq;
+      this.isLoading = true;
       try {
-        this.isLoading = true;
-        const authStore = useAuthStore();
-        if (!authStore.token) {
-          console.error("Пользователь не авторизован.");
-          this.isLoading = false;
-          return;
-        }
+        await this.loadApplicationsList(this.buildUserApplicationsPage, { reset: true });
+        if (seq !== this.fetchSeq) return; // устарел - актуальный запрос уже идёт
 
-        let url = "/applications/user";
-        const params = new URLSearchParams();
-
-        if (this.searchQuery) {
-          params.append('search_query', this.searchQuery);
-        }
-
-        if (this.selectedDate) {
-          params.append('date_from', this.selectedDate.toISOString().split('T')[0]);
-          params.append('date_to', this.selectedDate.toISOString().split('T')[0]);
-        } else if (this.dateRangeStart && this.dateRangeEnd) {
-          params.append('date_from', this.dateRangeStart.toISOString().split('T')[0]);
-          params.append('date_to', this.dateRangeEnd.toISOString().split('T')[0]);
-        }
-
-        const queryString = params.toString();
-        if (queryString) {
-          url += '?' + queryString;
-        }
-
-        const response = await apiRequest(url, {
-          method: "GET",
-          headers: {
-            "Accept": "application/json"
-          },
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          
-          this.applications = data.filter(app => {
-            switch (this.currentFilter) {
-              case 'my':
-                return app.sender_user_id === this.userId;
-              case 'organization':
-                return app.organization_id === this.userOrganizationId;
-              default:
-                return true;
-            }
-          });
-        } else {
-          const errorText = await response.text();
-          console.error("Ошибка при загрузке заявок:", response.status, errorText);
+        // Сортировка по колонке - клиентская, должна идти по всему набору: догружаем
+        // оставшиеся порции (зеркало Центра #1158).
+        if (this.isFullLoad) {
+          await this.loadAllRemaining(seq);
+          if (seq !== this.fetchSeq) return;
         }
       } catch (error) {
         console.error("Ошибка сети при загрузке заявок:", error);
       } finally {
-        this.isLoading = false;
+        if (seq === this.fetchSeq) this.isLoading = false;
       }
+    },
+
+    // Догрузка всех оставшихся порций (full-load режим: сортировка по всему набору).
+    // seq-guard - устаревший проход прекращается при старте нового fetchUserApplications.
+    async loadAllRemaining(seq) {
+      let guard = 0;
+      while (this.hasMoreApplications && seq === this.fetchSeq) {
+        await this.loadMoreApplicationsList(this.buildUserApplicationsPage);
+        if (++guard > 200) break;
+      }
+    },
+
+    // Автодогрузка следующей порции по пересечению sentinel с applications-body (#1158).
+    // el=null при v-if="hasMoreApplications"===false просто отключает observer.
+    setSentinelRef(el) {
+      this.observeApplicationsSentinel(el, this.buildUserApplicationsPage, { root: this.$refs.applicationsBody || null });
     },
 
     async fetchResponsibleUsers(applicationId) {
@@ -730,10 +825,23 @@ export default {
     // ТОЛЬКО когда заявка реально найдена и открыта: на холодной навигации список
     // грузится после разрешения userId (AccountComponent), поэтому первый вызов может
     // прийти с пустым списком - тогда откроем после fetch по вотчеру userId.
-    openFromDeepLink() {
+    // Заявка может быть вне загруженных порций (страница 2+, другая вкладка/дата) -
+    // при пагинации (#1158 срез 4) полагаться на присутствие в списке нельзя: если её
+    // нет в накопленном - точечно догружаем по id (зеркало Центра #1163).
+    async openFromDeepLink() {
       const openId = Number(this.$route.query.open);
       if (!openId) return;
-      const app = this.applications.find(a => a.id === openId);
+      let app = this.applications.find(a => a.id === openId);
+      if (!app) {
+        try {
+          const fetched = await getApplicationById(openId);
+          // apiRequest на !success отдаёт {message}, без id - значит нет доступа/не
+          // найдена: оставляем ?open, откроется при следующей попытке.
+          if (fetched && fetched.id) app = fetched;
+        } catch (e) {
+          console.error('Не удалось загрузить заявку из deep-link:', e);
+        }
+      }
       if (!app) return;
       this.openApplication(app);
       const query = { ...this.$route.query };
@@ -773,6 +881,11 @@ export default {
       } else {
         this.sortField = field;
         this.sortDirection = 'desc';
+      }
+      // Сортировка клиентская - должна идти по всему набору (#1158). При входе в
+      // full-load, если ещё не всё загружено, догружаем остаток.
+      if (this.isFullLoad && this.hasMoreApplications) {
+        this.fetchUserApplications();
       }
     },
 
@@ -1266,6 +1379,26 @@ export default {
   flex: 1;
   /* Скролл только на .applications-body - не создаём вложенный скролл здесь */
   position: relative;
+}
+
+/* Sentinel бесшовной подгрузки (#1158 срез 4) - невидимая полоса внизу списка,
+   пересечение которой в applications-body триггерит loadMore. min-height даёт
+   IntersectionObserver что засечь даже без спиннера (listLoading=false). */
+.user-applications-sentinel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 10px 0;
+  flex-shrink: 0;
+}
+
+.user-applications-footer {
+  flex-shrink: 0;
+  padding: 10px 20px;
+  border-top: 1px solid #e6e6e6;
+  font-size: 13px;
+  color: #8a8a8a;
 }
 
 .applications-transition-group {
