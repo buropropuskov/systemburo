@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"testing"
 
+	"systemburo/internal/models"
 	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
@@ -403,4 +404,56 @@ func TestUniqueCars_Lookup(t *testing.T) {
 		rec := testutil.GET(t, e, "/unique-cars/lookup?mark=Lada", h)
 		assert.Equal(t, http.StatusBadRequest, rec.Code)
 	})
+}
+
+// TestUniqueCars_SearchQuery_NoCrossOwnerLeak - регресс-замок против будущего
+// рефакторинга поиска (#1158), зеркало TestUniqueEmployees_SearchQuery_NoCrossOwnerLeak.
+// Изоляция видимости при поиске держится ИСКЛЮЧИТЕЛЬНО на том, что owner-фильтр
+// (uc.user_id = ...) и поисковый OR-блок (ILIKE по uc.number/uc.mark/lpf.name/o.name/c.name
+// + REPLACE(...)ILIKE для номера без пробелов) - два ОТДЕЛЬНЫХ .Where() в buildCarsQuery,
+// а GORM оборачивает каждый в скобки: (owner) AND (search). Если кто-то сольёт их в одну
+// строку `.Where(owner+" AND "+search)`, приоритет AND над OR даст
+// `(owner AND number_ilike) OR mark_ilike OR ...` - и все ветки поиска кроме первой
+// перестанут быть ограничены владельцем -> утечка чужих машин через поиск, тихо и без падения.
+// Тест: владелец A под filter_type=user (видит только своих) ищет номер/марку машины
+// владельца B -> ожидаем 0 (не находит чужую). Контроль: свою находит.
+func TestUniqueCars_SearchQuery_NoCrossOwnerLeak(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	// Владелец A (админ, организация из seed).
+	tokenA := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	hA := testutil.AuthHeader(tokenA)
+
+	// Владелец B - отдельный пользователь ДРУГОЙ организации (иной user_id).
+	orgB := models.Organization{Name: "Isolation Org B Cars"}
+	require.NoError(t, db.Create(&orgB).Error, "seed org B")
+	tokenB := testutil.RegisterManager(t, e, "ownerb_iso_cars", orgB.ID, 0)
+	hB := testutil.AuthHeader(tokenB)
+
+	// Каждый заводит свою машину с УНИКАЛЬНЫМ номером/маркой.
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-cars", `{"number":"А111АА11","mark":"IsolationMarkA"}`, hA).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-cars", `{"number":"В222ВВ22","mark":"IsolationMarkB"}`, hB).Code)
+
+	// A под filter_type=user ищет номер B -> НЕ находит (owner-scope не течёт через OR).
+	rec := testutil.GET(t, e, "/unique-cars?filter_type=user&per_page=50&search_query=В222ВВ22", hA)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rows := testutil.ParseResponse[[]services.UniqueCarWithRelations](t, rec)
+	assert.Empty(t, rows, "владелец A не должен находить машину владельца B через поиск по номеру")
+
+	// A под filter_type=user ищет марку B -> тоже НЕ находит.
+	rec = testutil.GET(t, e, "/unique-cars?filter_type=user&per_page=50&search_query=IsolationMarkB", hA)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rows = testutil.ParseResponse[[]services.UniqueCarWithRelations](t, rec)
+	assert.Empty(t, rows, "владелец A не должен находить машину владельца B через поиск по марке")
+
+	// Контроль: A ищет СВОЙ номер -> находит свою запись (поиск работает, режется только чужое).
+	rec = testutil.GET(t, e, "/unique-cars?filter_type=user&per_page=50&search_query=А111АА11", hA)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rows = testutil.ParseResponse[[]services.UniqueCarWithRelations](t, rec)
+	require.Len(t, rows, 1, "владелец A находит свою запись по своему номеру")
+	require.NotNil(t, rows[0].Number)
+	assert.Equal(t, "А111АА11", *rows[0].Number)
 }
