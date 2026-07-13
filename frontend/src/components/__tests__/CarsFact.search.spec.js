@@ -37,6 +37,8 @@ describe('CarsFact - поиск через общий util searchVariants (#1157
     // "hjvfirf" на EN-раскладке физически совпадает с "ромашка" на RU.
     await wrapper.setProps({ searchQuery: 'hjvfirf' });
     expect(wrapper.vm.filteredCars.map((c) => c.organization)).toEqual(['Ромашка']);
+
+    wrapper.unmount();
   });
 
   it('пустой поисковый запрос снова показывает все строки', async () => {
@@ -50,5 +52,7 @@ describe('CarsFact - поиск через общий util searchVariants (#1157
 
     await wrapper.setProps({ searchQuery: '' });
     expect(wrapper.vm.filteredCars).toHaveLength(2);
+
+    wrapper.unmount();
   });
 });
