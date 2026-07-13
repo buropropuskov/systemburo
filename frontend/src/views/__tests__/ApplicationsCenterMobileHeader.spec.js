@@ -134,6 +134,29 @@ describe('ApplicationsCenter: мобильная шапка vs десктоп-и
     expect(w.vm.hasModalFilters).toBe(true);
   });
 
+  it('индикатор «Фильтр» загорается и на выбранной компании; фильтр по компании клиентский', async () => {
+    mockMatchMedia(true);
+    const w = mountCenter();
+    await nextTick();
+    expect(w.vm.hasModalFilters).toBe(false);
+    w.vm.handleCompanyChange({ id: 5, name: 'ООО Ромашка' });
+    expect(w.vm.selectedCompanyId).toBe(5);
+    expect(w.vm.hasModalFilters).toBe(true);
+    expect(w.vm.hasActiveFilters).toBe(true);
+  });
+
+  it('buildApplicationsPage передаёт company_id при выбранной компании', async () => {
+    mockMatchMedia(true);
+    const w = mountCenter();
+    await nextTick();
+    getApplicationsPaginated.mockClear();
+    getApplicationsPaginated.mockResolvedValue({ items: [], meta: { total: 0, page: 1, per_page: 30 } });
+    w.vm.selectedCompanyId = 5;
+    await w.vm.buildApplicationsPage(1, 30);
+    expect(getApplicationsPaginated).toHaveBeenCalled();
+    expect(getApplicationsPaginated.mock.calls[0][0].company_id).toBe(5);
+  });
+
   it('messagePreview снимает HTML-теги rich-сообщения до плоского текста', async () => {
     mockMatchMedia(true);
     const w = mountCenter();
