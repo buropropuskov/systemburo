@@ -28,7 +28,11 @@ import { getAllFeedback, updateFeedbackStatus, markFeedbackAsRead, setFeedbackFl
 const stubs = {
   AdminPageShell: { template: '<div><slot /></div>' },
   RefreshButton: { template: '<button class="refresh-stub" @click="$emit(\'refresh\')" />' },
-  SearchComponent: { props: ['modelValue', 'title'], template: '<input class="search-stub" />' },
+  SearchComponent: {
+    props: ['modelValue', 'title'],
+    emits: ['update:modelValue'],
+    template: '<input class="search-stub" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
+  },
   SkeletonTransition: { props: ['loading'], template: '<div><slot /></div>' },
   SkeletonCard: { template: '<div class="skeleton-stub" />' },
 };
@@ -232,6 +236,23 @@ describe('FeedbackPage', () => {
     expect(markFeedbackAsRead).not.toHaveBeenCalled();
     // Ничего не открылось - деталь по-прежнему не показана.
     expect(wrapper.find('[data-testid="fb-detail"]').exists()).toBe(false);
+  });
+
+  it('поиск находит по вводу в EN-раскладке (общий util вместо вариантов из SearchComponent)', async () => {
+    getAllFeedback.mockResolvedValue([
+      fb(1, { user_name: 'Иванов', message: 'Пропала карта' }),
+      fb(2, { user_name: 'Петров', message: 'Не работает вход' }),
+    ]);
+    wrapper = mountPage();
+    await flushPromises();
+
+    // "bdfyjd" на физических клавишах = "иванов".
+    await wrapper.find('.search-stub').setValue('bdfyjd');
+    await flushPromises();
+
+    const rows = wrapper.findAll('[data-testid="fb-row"]');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].text()).toContain('Иванов');
   });
 
   it('фильтр "Решено" оставляет только решённые обращения', async () => {

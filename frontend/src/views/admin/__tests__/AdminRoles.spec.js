@@ -221,6 +221,17 @@ describe('AdminRoles master-detail', () => {
     expect(wrapper.vm.showMetaModal).toBe(true); // не закрылась
   });
 
+  it('поиск роли находит по вводу в EN-раскладке (common util вместо плоского includes)', async () => {
+    const wrapper = await mountReady();
+    // "fhtylfnjh" на физических клавишах = "арендатор" (роль "Арендатор").
+    wrapper.vm.searchQuery = 'fhtylfnjh';
+    await flushPromises();
+
+    const rows = wrapper.findAll('[data-testid="role-row"]');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].text()).toContain('Арендатор');
+  });
+
   it('performDelete удаляет роль и уведомляет', async () => {
     const wrapper = await mountReady();
     await wrapper.vm.selectRole(ROLES[0]);

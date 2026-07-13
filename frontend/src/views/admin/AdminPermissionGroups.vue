@@ -365,6 +365,7 @@ import GroupPermissionsModal from '@/components/admin/GroupPermissionsModal.vue'
 import { useDeletionsStore } from '@/stores/deletions';
 import { registerDirtyTracker, confirmIfAnyDirty } from '@/utils/dirtyTracker';
 import { useOverlayClose } from '@/composables/useOverlayClose';
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import {
   listPermissionGroups,
   getPermissionGroup,
@@ -410,14 +411,10 @@ export default {
   },
   computed: {
     filteredGroups() {
-      const q = this.searchQuery.trim().toLowerCase();
+      const variants = buildSearchVariants(this.searchQuery);
       let list = this.groups;
-      if (q) {
-        list = list.filter(
-          g => g.name.toLowerCase().includes(q)
-            || (g.description || '').toLowerCase().includes(q)
-            || String(g.id).includes(q),
-        );
+      if (variants.length) {
+        list = list.filter(g => matchesSearch(`${g.name} ${g.description || ''} ${g.id}`, variants));
       }
       return this.sortList(list);
     },

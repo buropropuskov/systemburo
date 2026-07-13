@@ -378,6 +378,7 @@ import RolePermissionsModal from '@/components/admin/RolePermissionsModal.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { registerDirtyTracker, confirmIfAnyDirty } from '@/utils/dirtyTracker';
 import { useOverlayClose } from '@/composables/useOverlayClose';
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import {
   listRoles,
   createRole,
@@ -427,14 +428,10 @@ export default {
   },
   computed: {
     filteredRoles() {
-      const q = this.searchQuery.trim().toLowerCase();
+      const variants = buildSearchVariants(this.searchQuery);
       let list = this.roles;
-      if (q) {
-        list = list.filter(
-          r => r.name.toLowerCase().includes(q)
-            || (r.code || '').toLowerCase().includes(q)
-            || String(r.id).includes(q),
-        );
+      if (variants.length) {
+        list = list.filter(r => matchesSearch(`${r.name} ${r.code || ''} ${r.id}`, variants));
       }
       return this.sortList(list);
     },
