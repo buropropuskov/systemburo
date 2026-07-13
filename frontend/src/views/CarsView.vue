@@ -393,13 +393,6 @@
             <div class="modal-header">
               <div class="modal-header__top">
                 <h3>{{ editingCar ? 'Редактирование' : 'Добавление Т/С' }}</h3>
-                <div
-                  v-if="notification.show"
-                  class="notification-badge"
-                  :class="notification.type"
-                >
-                  {{ notification.message }}
-                </div>
               </div>
               <button
                 class="modal-close"
@@ -687,13 +680,6 @@ export default {
             // Привязка
             bindToOrganization: false,
             bindToCompany: false,
-            
-            // Уведомления
-            notification: {
-                show: false,
-                message: '',
-                type: 'success' // 'success' или 'error'
-            },
             
             // Редактирование
             editingCar: null,
@@ -1152,7 +1138,6 @@ export default {
             this.bindToCompany = !!car.company_id;
             
             this.showModal = true;
-            this.hideNotification();
         },
 
         // Проверка наличия изменений
@@ -1214,7 +1199,6 @@ export default {
             this.editingCar = null;
             this.showModal = true;
             this.filteredMarks = this.marks;
-            this.hideNotification();
             this.resetNewCar();
         },
 
@@ -1222,7 +1206,6 @@ export default {
             this.showModal = false;
             this.editingCar = null;
             this.resetNewCar();
-            this.hideNotification();
         },
 
         resetNewCar() {
@@ -1248,24 +1231,6 @@ export default {
                 this.bindToCompany = false;
             }
             // При редактировании поля НЕ очищаются - остаются текущие значения машины
-        },
-
-        // Уведомления
-        showNotification(message, type = 'success') {
-            this.notification = {
-                show: true,
-                message: message,
-                type: type
-            };
-            
-            // Автоматически скрываем уведомление через 3 секунды
-            setTimeout(() => {
-                this.hideNotification();
-            }, 3000);
-        },
-
-        hideNotification() {
-            this.notification.show = false;
         },
 
         // Формат номера методы
@@ -1439,13 +1404,13 @@ export default {
 
         async saveCar() {
             if (!this.canSaveCar) {
-                this.showNotification('Заполните все обязательные поля правильно', 'error');
+                useDeletionsStore().notify({ bold: 'Заполните обязательные поля', type: 'error' });
                 return;
             }
 
             // Проверяем изменения для редактирования
             if (this.editingCar && !this.hasChanges()) {
-                this.showNotification('Изменений не обнаружено', 'info');
+                useDeletionsStore().notify({ bold: 'Изменений не обнаружено', type: 'info' });
                 return;
             }
 
@@ -1479,8 +1444,8 @@ export default {
                 }
 
                 if (response.ok) {
-                    const action = this.editingCar ? 'обновлен' : 'добавлен';
-                    this.showNotification(`Автомобиль успешно ${action}!`, 'success');
+                    const action = this.editingCar ? 'обновлён' : 'добавлен';
+                    useDeletionsStore().notify({ prefix: 'Автомобиль ', bold: action, type: 'success' });
                     
                     // Обновляем список машин
                     this.fetchCars();
@@ -1504,14 +1469,14 @@ export default {
                     
                     // Специальные сообщения для дубликатов
                     if (errorMessage.includes("уже существует") || errorMessage.includes("already exists")) {
-                        this.showNotification("Автомобиль уже привязан к вашему аккаунту", 'error');
+                        useDeletionsStore().notify({ bold: 'Автомобиль уже привязан к вашему аккаунту', type: 'error' });
                     } else {
-                        this.showNotification(errorMessage, 'error');
+                        useDeletionsStore().notify({ bold: errorMessage, type: 'error' });
                     }
                 }
             } catch (error) {
                 console.error("Ошибка при сохранении автомобиля:", error);
-                this.showNotification("Ошибка при сохранении автомобиля", 'error');
+                useDeletionsStore().notify({ prefix: 'Не удалось сохранить ', bold: 'автомобиль', type: 'error' });
             }
         }
     }
@@ -2040,46 +2005,6 @@ export default {
     padding: 20px;
     max-height: 70vh;
     overflow-y: auto;
-}
-
-/* Бейдж уведомления */
-.notification-badge {
-    padding: 6px 12px;
-    border-radius: 12px;
-    font-size: 11px;
-    font-weight: 500;
-    display: inline-block;
-    max-width: fit-content;
-    animation: slideIn 0.3s ease-out;
-}
-
-.notification-badge.success {
-    background-color: #f0f9ff;
-    color: #0369a1;
-    border: 1px solid #bae6fd;
-}
-
-.notification-badge.info {
-    background-color: #fffbeb;
-    color: #b45309;
-    border: 1px solid #fcd34d;
-}
-
-.notification-badge.error {
-    background-color: #fef2f2;
-    color: #991b1b;
-    border: 1px solid #fecaca;
-}
-
-@keyframes slideIn {
-    from {
-        opacity: 0;
-        transform: translateY(-10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
 }
 
 /* Стили формы добавления машины */

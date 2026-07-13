@@ -55,7 +55,7 @@ export const useDeletionsStore = defineStore('deletions', () => {
     durationsLoaded = true;
   }
 
-  const DEFAULT_TITLES = { success: 'Успешно', error: 'Ошибка' };
+  const DEFAULT_TITLES = { success: 'Успешно', error: 'Ошибка', warning: 'Внимание', info: 'Уведомление' };
 
   function enqueue({ prefix = '', bold = '', suffix = '', onConfirm, onUndo, showUndo = true, duration, type = 'success', title }) {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -70,8 +70,9 @@ export const useDeletionsStore = defineStore('deletions', () => {
   }
 
   // Информационное уведомление в том же стиле (без отмены), напр. о восстановлении.
-  // type: 'success' (по умолчанию, зелёный -> красный прогресс) или 'error'.
-  // title: явный заголовок ("Успешно"/"Ошибка" по дефолту от type, пустая строка = без заголовка).
+  // type: 'success' (по умолчанию, зелёный -> красный прогресс), 'error' (красный),
+  // 'warning' (янтарный, для частичных/bulk-итогов) или 'info' (синий, нейтральный).
+  // title: явный заголовок (дефолт от type из DEFAULT_TITLES, пустая строка = без заголовка).
   function notify({ prefix = '', bold = '', suffix = '', duration, type = 'success', title }) {
     return enqueue({ prefix, bold, suffix, showUndo: false, duration: duration || restoreDuration.value, type, title });
   }

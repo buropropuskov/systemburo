@@ -16,7 +16,6 @@ const systemTablesApi = vi.hoisted(() => ({
 }));
 vi.mock('@/api/system-tables', () => systemTablesApi);
 
-import { useUiStore } from '@/stores/ui';
 import { useDeletionsStore } from '@/stores/deletions';
 import { usePermissionsStore } from '@/stores/permissions';
 import TableConstructor from '../TableConstructor.vue';
@@ -120,14 +119,14 @@ describe('TableConstructor — групповой выбор и bulk архив/
     });
     wrapper = mountTables();
     await flushPromises();
-    const warn = vi.spyOn(useUiStore(), 'warning');
+    const notify = vi.spyOn(useDeletionsStore(), 'notify');
 
     await rowChecks(wrapper)[0].trigger('click');
     await rowChecks(wrapper)[1].trigger('click');
     wrapper.vm.startBulkOperation('archive');
     await wrapper.vm.applyBulkArchiveRestore();
     await flushPromises();
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('Beta'));
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'warning', suffix: expect.stringContaining('Beta') }));
     expect(wrapper.vm.selectedIds).toEqual([]);
   });
 

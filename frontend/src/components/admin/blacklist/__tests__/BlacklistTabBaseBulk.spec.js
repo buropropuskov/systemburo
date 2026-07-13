@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import BlacklistTabBase from '../BlacklistTabBase.vue';
-import { useUiStore } from '@/stores/ui';
 import { useDeletionsStore } from '@/stores/deletions';
 
 function seedItems() {
@@ -101,14 +100,14 @@ describe('BlacklistTabBase - групповой выбор и bulk архив/в
     });
     wrapper = mountBase({ bulkArchiveFn });
     await flushPromises();
-    const warn = vi.spyOn(useUiStore(), 'warning');
+    const notify = vi.spyOn(useDeletionsStore(), 'notify');
 
     await rowChecks(wrapper)[0].trigger('click');
     await rowChecks(wrapper)[1].trigger('click');
     wrapper.vm.startBulkOperation('archive');
     await wrapper.vm.applyBulkArchiveRestore();
     await flushPromises();
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('Запись 2'));
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'warning', suffix: expect.stringContaining('Запись 2') }));
     expect(wrapper.vm.selectedIds).toEqual([]);
   });
 

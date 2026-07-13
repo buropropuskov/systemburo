@@ -719,7 +719,6 @@ import { bulkArchiveSystemTables, bulkRestoreSystemTables } from '@/api/system-t
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import { confirmIfAnyDirty } from '@/utils/dirtyTracker';
 import { useDeletionsStore } from '@/stores/deletions';
-import { useUiStore } from '@/stores/ui';
 import { usePermissionsStore } from '@/stores/permissions';
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
@@ -1379,7 +1378,7 @@ export default {
       const label = op === 'restore' ? 'Восстановлено' : 'Архивировано';
       if (result.error_count > 0) {
         const failed = (result.errors || []).map(e => e.name || `#${e.id}`).join(', ');
-        useUiStore().warning(`Выполнено ${result.success_count} из ${ids.length}. Не удалось: ${failed}`);
+        useDeletionsStore().notify({ prefix: 'Выполнено ', bold: `${result.success_count} из ${ids.length}`, suffix: `. Не удалось: ${failed}`, type: 'warning' });
       } else {
         useDeletionsStore().notify({ prefix: `${label}: `, bold: String(result.success_count) });
       }

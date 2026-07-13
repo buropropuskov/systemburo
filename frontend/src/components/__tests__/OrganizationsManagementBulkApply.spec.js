@@ -27,7 +27,6 @@ import BulkOperationsModal from '../directories/BulkOperationsModal.vue'
 import ConfirmationModal from '../ConfirmationModal.vue'
 import { useOrganizationsStore } from '@/stores/organizations'
 import { useDeletionsStore } from '@/stores/deletions'
-import { useUiStore } from '@/stores/ui'
 
 function seedOrgs() {
   return [
@@ -57,12 +56,10 @@ async function mountCmp() {
   vi.spyOn(store, 'fetchOrganizationsWithUsers').mockResolvedValue()
   const del = useDeletionsStore()
   vi.spyOn(del, 'notify').mockImplementation(() => {})
-  const ui = useUiStore()
-  vi.spyOn(ui, 'warning').mockImplementation(() => {})
 
   const w = mount(OrganizationsManagement, { global: { stubs: STUBS } })
   await flushPromises()
-  return { w, store, del, ui }
+  return { w, store, del }
 }
 
 const bulkModal = w => w.findComponent(BulkOperationsModal)
@@ -101,7 +98,7 @@ describe('OrganizationsManagement — применение групповых о
       error_count: 1,
       errors: [{ id: 2, name: 'Бета', error: 'нет прав' }],
     })
-    const { w, del, ui } = await mountCmp()
+    const { w, del } = await mountCmp()
     await w.find('[data-testid="orgs-select-all"]').trigger('change')
     expect(w.vm.selectedIds).toEqual([1, 2, 3])
 
@@ -110,8 +107,7 @@ describe('OrganizationsManagement — применение групповых о
     await flushPromises()
 
     expect(orgApi.bulkAssignOrganizationUnloadPlaces).toHaveBeenCalledWith([1, 2, 3], [5], 'add')
-    expect(ui.warning).toHaveBeenCalledWith('Выполнено 1 из 3. Не удалось: Бета')
-    expect(del.notify).not.toHaveBeenCalled()
+    expect(del.notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'warning', bold: '1 из 3', suffix: '. Не удалось: Бета' }))
     expect(w.vm.selectedIds).toEqual([])
   })
 

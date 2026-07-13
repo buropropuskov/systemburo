@@ -696,6 +696,7 @@
 
 <script>
 import { apiRequest, apiRequestRaw } from '@/api/client'
+import { useDeletionsStore } from '@/stores/deletions'
 import SearchComponent from '@/components/SearchComponent.vue'
 import RealTimeChart from '@/components/RealTimeChart.vue'
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
@@ -820,7 +821,7 @@ export default {
         }
       } catch (error) {
         console.error('Error fetching history:', error)
-        this.showNotification('Не удалось загрузить аналитику', 'error')
+        useDeletionsStore().notify({ prefix: 'Не удалось загрузить ', bold: 'аналитику', type: 'error' })
       } finally {
         this.isLoading = false
       }
@@ -867,7 +868,7 @@ export default {
         }
       } catch (error) {
         console.error('Error fetching logs:', error);
-        this.showNotification('Ошибка при загрузке логов', 'error');
+        useDeletionsStore().notify({ prefix: 'Не удалось загрузить ', bold: 'логи', type: 'error' });
       } finally {
         this.isLoading = false;
       }
@@ -954,13 +955,13 @@ export default {
           a.click();
           document.body.removeChild(a);
           URL.revokeObjectURL(url);
-          this.showNotification('Экспорт завершён', 'success');
+          useDeletionsStore().notify({ bold: 'Экспорт завершён', type: 'success' });
         } else {
-          this.showNotification('Ошибка экспорта', 'error');
+          useDeletionsStore().notify({ prefix: 'Не удалось выполнить ', bold: 'экспорт', type: 'error' });
         }
       } catch (error) {
         console.error('Error exporting logs:', error);
-        this.showNotification('Ошибка экспорта', 'error');
+        useDeletionsStore().notify({ prefix: 'Не удалось выполнить ', bold: 'экспорт', type: 'error' });
       } finally {
         this.isExporting = false;
       }
@@ -1099,32 +1100,6 @@ export default {
       }
     },
 
-    showNotification(message, type = 'info') {
-      const notification = document.createElement('div');
-      notification.className = `notification ${type}`;
-      notification.textContent = message;
-      notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 12px 20px;
-        border-radius: 8px;
-        color: white;
-        font-weight: 500;
-        z-index: 1000;
-      `;
-
-      if (type === 'success') notification.style.backgroundColor = '#10b981';
-      if (type === 'error') notification.style.backgroundColor = '#ef4444';
-      if (type === 'warning') notification.style.backgroundColor = '#f59e0b';
-      if (type === 'info') notification.style.backgroundColor = '#3b82f6';
-
-      document.body.appendChild(notification);
-
-      setTimeout(() => {
-        notification.remove();
-      }, 3000);
-    }
   }
 };
 </script>

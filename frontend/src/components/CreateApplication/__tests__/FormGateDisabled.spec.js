@@ -23,9 +23,6 @@ vi.mock('@/api/marks', () => ({
 vi.mock('@/stores/auth', () => ({
   useAuthStore: vi.fn().mockReturnValue({ token: 'test-token' }),
 }));
-vi.mock('@/composables/useToast', () => ({
-  useToast: vi.fn().mockReturnValue({ success: vi.fn(), error: vi.fn() }),
-}));
 vi.mock('@/components/CreateApplication/ExistingCarsModal.vue', () => ({
   default: { name: 'ExistingCarsModal', template: '<div />' },
 }));

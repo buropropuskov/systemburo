@@ -3,7 +3,6 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import UserControl from '@/components/UserControl.vue'
-import { useUiStore } from '@/stores/ui'
 import { useDeletionsStore } from '@/stores/deletions'
 
 vi.mock('@/api/settings', () => ({
@@ -110,14 +109,14 @@ describe('UserControl — групповой выбор и bulk архив/во�
     wrapper = mountUserControl()
     await flushPromises()
     vi.spyOn(wrapper.vm, 'fetchAllUsers').mockImplementation(() => {})
-    const warn = vi.spyOn(useUiStore(), 'warning')
+    const notify = vi.spyOn(useDeletionsStore(), 'notify')
 
     await rowChecks(wrapper)[0].trigger('click')
     await rowChecks(wrapper)[1].trigger('click')
     await wrapper.vm.startBulkOperation('archive')
     await wrapper.vm.applyBulkArchiveRestore()
     await flushPromises()
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('beta'))
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'warning', suffix: expect.stringContaining('beta') }))
     expect(wrapper.vm.selectedUsernames).toEqual([])
     expect(wrapper.vm.bulkConfirmVisible).toBe(false)
   })
@@ -214,14 +213,14 @@ describe('UserControl — групповой выбор и bulk архив/во�
     wrapper = mountUserControl()
     await flushPromises()
     vi.spyOn(wrapper.vm, 'fetchAllUsers').mockImplementation(() => {})
-    const warn = vi.spyOn(useUiStore(), 'warning')
+    const notify = vi.spyOn(useDeletionsStore(), 'notify')
 
     await rowChecks(wrapper)[0].trigger('click')
     await rowChecks(wrapper)[1].trigger('click')
     wrapper.vm.startBulkOperation('type')
     await wrapper.vm.applyBulk(7)
     await flushPromises()
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('beta'))
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'warning', suffix: expect.stringContaining('beta') }))
     expect(wrapper.vm.selectedUsernames).toEqual([])
   })
 
@@ -264,14 +263,14 @@ describe('UserControl — групповой выбор и bulk архив/во�
     wrapper = mountUserControl()
     await flushPromises()
     vi.spyOn(wrapper.vm, 'fetchAllUsers').mockImplementation(() => {})
-    const warn = vi.spyOn(useUiStore(), 'warning')
+    const notify = vi.spyOn(useDeletionsStore(), 'notify')
 
     await rowChecks(wrapper)[0].trigger('click')
     await rowChecks(wrapper)[1].trigger('click')
     wrapper.vm.openBulkBan()
     await wrapper.vm.applyBulkBan()
     await flushPromises()
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('beta'))
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'warning', suffix: expect.stringContaining('beta') }))
     expect(wrapper.vm.selectedUsernames).toEqual([])
   })
 

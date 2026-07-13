@@ -17,9 +17,6 @@ vi.mock('@/api/blacklist', () => ({
 vi.mock('@/stores/auth', () => ({
   useAuthStore: vi.fn().mockReturnValue({ token: 'test-token' })
 }));
-vi.mock('@/composables/useToast', () => ({
-  useToast: vi.fn().mockReturnValue({ success: vi.fn(), error: vi.fn() })
-}));
 vi.mock('@/components/CreateApplication/ExistingEmployeesModal.vue', () => ({
   default: { name: 'ExistingEmployeesModal', template: '<div />' }
 }));

@@ -278,7 +278,6 @@ import RefreshButton from '@/components/RefreshButton.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import { useDeletionsStore } from '@/stores/deletions';
-import { useUiStore } from '@/stores/ui';
 
 /**
  * Базовая вкладка чёрного списка (#443): шапка (архив-режим, поиск, обновление),
@@ -543,7 +542,7 @@ export default {
       const label = op === 'restore' ? 'Возвращено в чёрный список: ' : 'Убрано из чёрного списка: ';
       if (result.error_count > 0) {
         const failed = (result.errors || []).map((e) => e.name || `#${e.id}`).join(', ');
-        useUiStore().warning(`Выполнено ${result.success_count} из ${total}. Не удалось: ${failed}`);
+        useDeletionsStore().notify({ prefix: 'Выполнено ', bold: `${result.success_count} из ${total}`, suffix: `. Не удалось: ${failed}`, type: 'warning' });
       } else {
         useDeletionsStore().notify({ prefix: label, bold: String(result.success_count) });
       }

@@ -12,9 +12,6 @@ vi.mock('@/api/client', () => ({
 vi.mock('@/stores/auth', () => ({
   useAuthStore: vi.fn().mockReturnValue({ token: 'test-token' }),
 }));
-vi.mock('@/composables/useToast', () => ({
-  useToast: vi.fn().mockReturnValue({ success: vi.fn(), error: vi.fn() }),
-}));
 
 const EXISTING = {
   message: 'мой черновик',
