@@ -209,6 +209,17 @@ describe('AdminPermissionGroups master-detail', () => {
     expect(wrapper.vm.showMetaModal).toBe(true); // не закрылась
   });
 
+  it('поиск группы находит по вводу в EN-раскладке (common util вместо плоского includes)', async () => {
+    const wrapper = await mountReady();
+    // "dct" на физических клавишах = "все" (группа "Все таблицы").
+    wrapper.vm.searchQuery = 'dct';
+    await flushPromises();
+
+    const rows = wrapper.findAll('[data-testid="group-row"]');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].text()).toContain('Все таблицы');
+  });
+
   it('performDelete удаляет группу и уведомляет', async () => {
     const wrapper = await mountReady();
     await wrapper.vm.selectGroup(GROUPS[0]);

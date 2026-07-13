@@ -9,7 +9,6 @@
           <SearchComponent
             v-model="searchQuery"
             :title="'Поиск по автору или тексту...'"
-            @search="onSearch"
           />
           <RefreshButton
             :loading="loading"
@@ -243,6 +242,7 @@ import RefreshButton from '@/components/RefreshButton.vue';
 import { FilterTabs, SkeletonTransition, SkeletonCard } from '@/components/ui';
 import { useDeletionsStore } from '@/stores/deletions';
 import { getAllFeedback, updateFeedbackStatus, markFeedbackAsRead, setFeedbackFlag } from '@/api/feedback';
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 
 const STATUS = { OPEN: 'Не решено', RESOLVED: 'Решено' };
 
@@ -256,7 +256,7 @@ const updatingId = ref(null);
 const flaggingId = ref(null);
 const activeFilter = ref('all');
 const searchQuery = ref('');
-const searchVariants = ref([]);
+const searchVariants = computed(() => buildSearchVariants(searchQuery.value));
 const sortKey = ref('id');
 const sortDir = ref('desc');
 const selectedId = ref(null);
@@ -280,12 +280,9 @@ const filteredFeedbacks = computed(() => {
   else if (activeFilter.value === 'open') list = list.filter((f) => f.status === STATUS.OPEN);
   else if (activeFilter.value === 'resolved') list = list.filter((f) => f.status === STATUS.RESOLVED);
 
-  const variants = searchVariants.value.filter(Boolean);
+  const variants = searchVariants.value;
   if (variants.length) {
-    list = list.filter((f) => {
-      const hay = `${f.user_name || ''} ${f.message || ''}`.toLowerCase();
-      return variants.some((v) => hay.includes(v));
-    });
+    list = list.filter((f) => matchesSearch(`${f.user_name || ''} ${f.message || ''}`, variants));
   }
 
   const dir = sortDir.value === 'asc' ? 1 : -1;
@@ -301,7 +298,7 @@ const filteredFeedbacks = computed(() => {
 const selectedFeedback = computed(() => feedbacks.value.find((f) => f.id === selectedId.value) || null);
 
 const emptyText = computed(() => {
-  if (searchVariants.value.filter(Boolean).length) return 'Ничего не найдено по запросу';
+  if (searchVariants.value.length) return 'Ничего не найдено по запросу';
   if (activeFilter.value === 'new') return 'Новых обращений нет';
   if (activeFilter.value === 'open') return 'Обращений в работе нет';
   if (activeFilter.value === 'resolved') return 'Решённых обращений нет';
@@ -321,10 +318,6 @@ watch(selectedId, (id) => {
   replyText.value = '';
   if (id != null) autoMarkRead(id);
 });
-
-function onSearch(variants) {
-  searchVariants.value = variants;
-}
 
 function selectRow(id) {
   selectedId.value = id;

@@ -71,4 +71,11 @@ describe('matchesSearch', () => {
     it('не матчит несвязанное', () => {
         expect(matchesSearch('Петров Сидор', variants)).toBe(false);
     });
+
+    it('матчит конкатенацию полей (имя код id), как в справочниках/admin-разделах', () => {
+        // "fhtylfnjh" на физических клавишах = "арендатор" - роль ищется даже
+        // если пользователь не переключил раскладку клавиатуры.
+        const haystack = 'Арендатор tenant 1';
+        expect(matchesSearch(haystack, buildSearchVariants('fhtylfnjh'))).toBe(true);
+    });
 });
