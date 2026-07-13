@@ -107,23 +107,12 @@
     </transition>
   </teleport>
 
-  <teleport to="body">
-    <transition name="notification">
-      <div
-        v-if="notification.show"
-        class="notification"
-        :class="notification.type"
-        @click="hideNotification"
-      >
-        {{ notification.message }}
-      </div>
-    </transition>
-  </teleport>
 </template>
 
 <script>
 import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
+import { useDeletionsStore } from '@/stores/deletions'
 export default {
   name: 'FeedbackModal',
   
@@ -156,13 +145,7 @@ export default {
       escListener: null,
       savedMessage: '',
       shouldSaveOnClose: true,
-      overlayMousedown: false,
-      notification: {
-        show: false,
-        message: '',
-        type: 'success'
-      },
-      notificationTimer: null
+      overlayMousedown: false
     };
   },
   
@@ -241,30 +224,9 @@ export default {
   beforeUnmount() {
     this.removeEscListener();
     document.body.style.overflow = '';
-    if (this.notificationTimer) clearTimeout(this.notificationTimer);
   },
   
   methods: {
-    showNotification(message, type = 'success', duration = 5000) {
-      this.notification.message = message;
-      this.notification.type = type;
-      this.notification.show = true;
-
-      if (this.notificationTimer) clearTimeout(this.notificationTimer);
-      this.notificationTimer = setTimeout(() => {
-        this.notification.show = false;
-        this.notificationTimer = null;
-      }, duration);
-    },
-
-    hideNotification() {
-      if (this.notificationTimer) {
-        clearTimeout(this.notificationTimer);
-        this.notificationTimer = null;
-      }
-      this.notification.show = false;
-    },
-
     resetErrors() {
       this.error = '';
       this.isSubmitting = false;
@@ -366,11 +328,7 @@ export default {
           const data = await response.json();
           const feedbackId = data.id;
 
-          this.showNotification(
-            `Обращение #${feedbackId} отправлено! Мы рассмотрим вашу проблему в ближайшее время.`,
-            'success',
-            5000
-          );
+          useDeletionsStore().notify({ prefix: 'Обращение ', bold: `#${feedbackId}`, suffix: ' отправлено', type: 'success' });
 
           this.shouldSaveOnClose = false;
 
@@ -390,14 +348,14 @@ export default {
           }
           
           this.error = errorMessage;
-          this.showNotification(errorMessage, 'error', 5000);
+          useDeletionsStore().notify({ bold: errorMessage, type: 'error' });
           this.isSubmitting = false;
         }
       } catch (error) {
         console.error("Ошибка при отправке обратной связи:", error);
         const errorMsg = "Ошибка сети. Пожалуйста, проверьте подключение к интернету и попробуйте позже.";
         this.error = errorMsg;
-        this.showNotification(errorMsg, 'error', 5000);
+        useDeletionsStore().notify({ prefix: 'Не удалось отправить: ', bold: 'ошибка сети', type: 'error' });
         this.isSubmitting = false;
       }
     },
@@ -784,67 +742,6 @@ export default {
   }
 }
 
-.notification-enter-active,
-.notification-leave-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-
-.notification-enter-from {
-  opacity: 0;
-  transform: translate(-50%, -100%);
-}
-
-.notification-enter-to {
-  opacity: 1;
-  transform: translate(-50%, 0);
-}
-
-.notification-leave-from {
-  opacity: 1;
-  transform: translate(-50%, 0);
-}
-
-.notification-leave-to {
-  opacity: 0;
-  transform: translate(-50%, -100%);
-}
-
-.notification {
-  position: fixed;
-  top: 25px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 6px 24px;
-  border-radius: 50px;
-  z-index: 29000;
-  min-width: 300px;
-  max-width: 550px;
-  width: auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 15px;
-  font-weight: 500;
-  line-height: 1.4;
-  text-align: center;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  white-space: normal;
-  word-wrap: break-word;
-  cursor: pointer;
-}
-
-.notification.success {
-  background: #4CAF50;
-  color: white;
-  border: 1px solid #45a049;
-}
-
-.notification.error {
-  background: #f44336;
-  color: white;
-  border: 1px solid #d32f2f;
-}
-
 @media (max-width: 768px) {
   .modal {
     max-width: 100%;
@@ -895,14 +792,6 @@ export default {
     bottom: 6px;
     right: 10px;
     font-size: 11px;
-  }
-
-  .notification {
-    top: 20px;
-    min-width: 280px;
-    max-width: 90%;
-    padding: 10px 16px;
-    font-size: 14px;
   }
 }
 

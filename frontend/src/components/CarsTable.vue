@@ -1031,15 +1031,15 @@ export default {
             }
             this.itemsData.splice(index, 1, updatedItem);
           }
-          this.showNotification(`Машина ${item.car_number} ${type === 'entry' ? 'отмечена о прибытии' : 'уехала'}`, 'success');
+          useDeletionsStore().notify({ prefix: 'Машина ', bold: item.car_number, suffix: type === 'entry' ? ' отмечена о прибытии' : ' уехала', type: 'success' });
         } else {
-          const errorText = await response.text();
-          console.error('Ошибка при обновлении статуса:', errorText);
-          this.showNotification(`Ошибка: ${errorText}`, 'error');
+          const err = await response.json();
+          console.error('Ошибка при обновлении статуса:', err);
+          useDeletionsStore().notify({ prefix: 'Не удалось отметить машину: ', bold: err.message || 'ошибка сервера', type: 'error' });
         }
       } catch (error) {
         console.error('Ошибка сети:', error);
-        this.showNotification('Ошибка сети', 'error');
+        useDeletionsStore().notify({ prefix: 'Не удалось отметить машину: ', bold: 'ошибка сети', type: 'error' });
       }
     },
 
@@ -1112,10 +1112,6 @@ export default {
 
     openCarsTableHistory() {
       this.showCarsTableHistory = true;
-    },
-
-    showNotification(message, type = 'success') {
-      console.log(`[${type}] ${message}`);
     },
 
     startPolling() {

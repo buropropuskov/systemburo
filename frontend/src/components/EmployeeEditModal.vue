@@ -13,13 +13,6 @@
           <div class="modal-header">
             <div class="modal-header__top">
               <h3>{{ editingEmployee ? 'Редактирование' : 'Добавление сотрудника' }}</h3>
-              <div
-                v-if="notification.show"
-                class="notification-badge"
-                :class="notification.type"
-              >
-                {{ notification.message }}
-              </div>
             </div>
             <button
               class="modal-close"
@@ -287,6 +280,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { useDeletionsStore } from '@/stores/deletions'
 
 export default {
     props: {
@@ -340,13 +334,6 @@ export default {
             // Привязка
             bindToOrganization: false,
             bindToCompany: false,
-
-            // Уведомления
-            notification: {
-                show: false,
-                message: '',
-                type: 'success'
-            },
 
             // Для проверки изменений при редактировании
             originalEmployeeData: null
@@ -425,7 +412,6 @@ export default {
     },
     methods: {
         initForm() {
-            this.hideNotification();
             if (this.editingEmployee) {
                 this.originalEmployeeData = {
                     last_name: this.editingEmployee.last_name,
@@ -524,15 +510,6 @@ export default {
             return false;
         },
 
-        showNotification(message, type = 'success') {
-            this.notification = { show: true, message, type };
-            setTimeout(() => { this.hideNotification(); }, 3000);
-        },
-
-        hideNotification() {
-            this.notification.show = false;
-        },
-
         truncateText(text, maxLength) {
             if (!text) return '';
             if (text.length <= maxLength) return text;
@@ -612,12 +589,12 @@ export default {
 
         async saveEmployee() {
             if (!this.canSaveEmployee) {
-                this.showNotification('Заполните все обязательные поля правильно', 'error');
+                useDeletionsStore().notify({ bold: 'Заполните обязательные поля', type: 'error' });
                 return;
             }
 
             if (this.editingEmployee && !this.hasChanges()) {
-                this.showNotification('Изменений не обнаружено', 'info');
+                useDeletionsStore().notify({ bold: 'Изменений не обнаружено', type: 'info' });
                 return;
             }
 
@@ -651,8 +628,8 @@ export default {
 
                 if (response.ok) {
                     const savedEmployee = await response.json();
-                    const action = this.editingEmployee ? 'обновлен' : 'добавлен';
-                    this.showNotification(`Сотрудник успешно ${action}!`, 'success');
+                    const action = this.editingEmployee ? 'обновлён' : 'добавлен';
+                    useDeletionsStore().notify({ prefix: 'Сотрудник ', bold: `${this.lastName} ${this.firstName}`.trim() || 'запись', suffix: ` ${action}`, type: 'success' });
 
                     if (this.uploadedFiles.length > 0 && savedEmployee.id) {
                         await this.uploadEmployeeFiles(savedEmployee.id);
@@ -681,14 +658,14 @@ export default {
                     const errorMessage = errorData.message || 'Ошибка при сохранении сотрудника';
 
                     if (errorMessage.includes('уже существует') || errorMessage.includes('already exists')) {
-                        this.showNotification('Сотрудник уже привязан к вашему аккаунту', 'error');
+                        useDeletionsStore().notify({ bold: 'Сотрудник уже привязан к вашему аккаунту', type: 'error' });
                     } else {
-                        this.showNotification(errorMessage, 'error');
+                        useDeletionsStore().notify({ bold: errorMessage, type: 'error' });
                     }
                 }
             } catch (error) {
                 console.error('Ошибка при сохранении сотрудника:', error);
-                this.showNotification('Ошибка при сохранении сотрудника', 'error');
+                useDeletionsStore().notify({ prefix: 'Не удалось сохранить ', bold: 'сотрудника', type: 'error' });
             }
         },
 
@@ -787,46 +764,6 @@ export default {
     padding: 20px;
     max-height: 70vh;
     overflow-y: auto;
-}
-
-/* Бейдж уведомления */
-.notification-badge {
-    padding: 6px 12px;
-    border-radius: 12px;
-    font-size: 11px;
-    font-weight: 500;
-    display: inline-block;
-    max-width: fit-content;
-    animation: slideIn 0.3s ease-out;
-}
-
-.notification-badge.success {
-    background-color: #f0f9ff;
-    color: #0369a1;
-    border: 1px solid #bae6fd;
-}
-
-.notification-badge.info {
-    background-color: #fffbeb;
-    color: #b45309;
-    border: 1px solid #fcd34d;
-}
-
-.notification-badge.error {
-    background-color: #fef2f2;
-    color: #991b1b;
-    border: 1px solid #fecaca;
-}
-
-@keyframes slideIn {
-    from {
-        opacity: 0;
-        transform: translateY(-10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
 }
 
 /* Стили формы */

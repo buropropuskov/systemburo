@@ -558,32 +558,6 @@ export default {
   mounted() {
     this.fetchUserApplications().then(() => this.openFromDeepLink());
     this.getCurrentUser();
-    
-    // Добавляем стили для анимации уведомлений
-    const style = document.createElement('style');
-    style.textContent = `
-      @keyframes slideDown {
-        from {
-          transform: translate(-50%, -100%);
-          opacity: 0;
-        }
-        to {
-          transform: translate(-50%, 0);
-          opacity: 1;
-        }
-      }
-      @keyframes slideUp {
-        from {
-          transform: translate(-50%, 0);
-          opacity: 1;
-        }
-        to {
-          transform: translate(-50%, -100%);
-          opacity: 0;
-        }
-      }
-    `;
-    document.head.appendChild(style);
   },
   beforeUnmount() {
     // Восстанавливаем скролл при размонтировании компонента
@@ -873,41 +847,6 @@ export default {
       } catch {
         useDeletionsStore().notify({ prefix: 'Не удалось ', bold: 'скопировать номер', type: 'error' });
       }
-    },
-
-    showNotification(message, type = 'success') {
-      // Создаем временное уведомление
-      const notification = document.createElement('div');
-      notification.className = `temp-notification ${type}`;
-      notification.textContent = message;
-      notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        padding: 12px 24px;
-        border-radius: 8px;
-        z-index: 99999;
-        font-weight: 500;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        animation: slideDown 0.3s ease-out, slideUp 0.3s ease-out 2.7s forwards;
-      `;
-      
-      if (type === 'success') {
-        notification.style.background = '#4CAF50';
-        notification.style.color = 'white';
-      } else {
-        notification.style.background = '#f44336';
-        notification.style.color = 'white';
-      }
-      
-      document.body.appendChild(notification);
-      
-      setTimeout(() => {
-        if (notification.parentNode) {
-          notification.parentNode.removeChild(notification);
-        }
-      }, 3000);
     }
   }
 };
