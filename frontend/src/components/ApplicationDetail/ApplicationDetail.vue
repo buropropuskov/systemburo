@@ -2240,6 +2240,16 @@ export default {
         flex-wrap: wrap;
         row-gap: 10px;
         padding: 18px 15px 12px;
+        /* На мобилке колонки промоутнуты (display:contents) и теряют серый фон,
+           а шапка оставалась #fafafa - единственный серый блок на белом листе.
+           Приводим к белому, чтобы лист был однотонным. */
+        background: #fff;
+    }
+
+    /* Тайтл, дата и кнопки-иконки в одну компактную строку (было 20px - слишком
+       разрежено на узком экране). */
+    .detail-title-row {
+        gap: 8px;
     }
 
     /* Крестик - в правый верхний угол листа поверх шапки (не в потоке). */
@@ -2256,11 +2266,25 @@ export default {
         row-gap: 8px;
     }
 
-    /* Кнопка пересылки на мобилке - только иконка (текст скрыт, экономим ширину). */
+    /* Кнопки пересылки и скачивания на мобилке - единый outline-стиль: белый круг,
+       синий border, синяя иконка, одинаковый размер (Скачать/Переслать/Экспорт). */
     .forward-btn {
-        min-width: 0;
-        padding: 6px 12px;
+        width: 44px;
+        height: 44px;
+        min-width: 44px;
+        padding: 0;
         margin-left: 0;
+        border-radius: 50%;
+        border: 1px solid #4F5BDF;
+        background: #fff;
+        color: #4F5BDF;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .forward-btn:hover:not(:disabled) {
+        background: #eef0ff;
     }
 
     .forward-btn__text {
@@ -2307,7 +2331,10 @@ export default {
         padding: 15px;
         box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
     }
-    .comment-action-section { order: 6; }
+    /* Комментарий - к кнопкам действия (Принять/Отказать в шапке): поднимаем его
+       в самый верх контента, сразу под шапку, чтобы поле не было оторвано от
+       действия внизу списка. Показывается только когда есть что комментировать. */
+    .comment-action-section { order: 0; }
     .detail-order-confirmation { order: 6; }
     .basic-info-section { order: 7; }
     .application-status-section { order: 8; }
@@ -2338,21 +2365,28 @@ export default {
    Брейкпоинт 767.98 (не 768) совпадает со скрытием кнопки в строке списка - иначе
    ровно на 768px "Скачать" была бы видна и в строке, и в детали одновременно. */
 @media (max-width: 767.98px) {
+    /* Скачать - только иконка в таком же outline-круге, что и Переслать (единый
+       стиль кнопок-иконок в шапке детали). Текст скрыт. */
     .detail-download-btn {
         display: inline-flex;
         align-items: center;
-        gap: 6px;
-        margin-left: 10px;
-        min-height: 36px;
-        padding: 6px 14px;
-        border: 1px solid #e6e6e6;
-        border-radius: 50px;
+        justify-content: center;
+        gap: 0;
+        margin-left: 0;
+        width: 44px;
+        height: 44px;
+        min-width: 44px;
+        padding: 0;
+        border: 1px solid #4F5BDF;
+        border-radius: 50%;
         background: #fff;
         color: #4F5BDF;
-        font-size: 14px;
-        font-weight: 600;
         cursor: pointer;
         transition: background 0.2s ease, color 0.2s ease;
+    }
+
+    .detail-download-btn__text {
+        display: none;
     }
 
     .detail-download-btn:hover {

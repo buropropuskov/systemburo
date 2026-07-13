@@ -15,7 +15,19 @@
           class="history-modal-overlay"
           @click.self="closeModal"
         >
-          <div class="history-modal">
+          <div
+            class="history-modal"
+            :class="{ 'is-dragging': sheetDragging }"
+            :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
+            @touchstart="onSheetTouchStart"
+            @touchmove="onSheetTouchMove"
+            @touchend="onSheetTouchEnd"
+          >
+            <!-- Ползунок bottom-sheet (виден только на мобилке), свайп вниз закрывает -->
+            <div
+              class="sheet-handle"
+              aria-hidden="true"
+            />
             <div class="modal-header">
               <h3>История заявки {{ applicationNumber }}</h3>
               <div class="header-actions">
@@ -228,6 +240,8 @@ import { apiRequest } from '@/api/client'
 import { useDeletionsStore } from '@/stores/deletions';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import ExcelJS from 'exceljs';
+import { ref } from 'vue';
+import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 
 export default {
     name: 'ApplicationHistory',
@@ -253,6 +267,25 @@ export default {
             type: String,
             default: ''
         }
+    },
+    setup() {
+        // Bottom-sheet на мобилке: свайп вниз за ползунок (или с прокрученного вверх
+        // контента) закрывает окно истории (useSwipeDismiss, как в ApplicationDetail).
+        const scrollContainer = ref(null);
+        const requestClose = ref(null);
+        const swipe = useSwipeDismiss(() => { if (requestClose.value) requestClose.value(); }, {
+            getScrollTop: () => scrollContainer.value?.scrollTop ?? 0,
+            handleSelector: '.sheet-handle',
+        });
+        return {
+            scrollContainer,
+            requestClose,
+            sheetOffset: swipe.offset,
+            sheetDragging: swipe.isDragging,
+            onSheetTouchStart: swipe.onTouchStart,
+            onSheetTouchMove: swipe.onTouchMove,
+            onSheetTouchEnd: swipe.onTouchEnd,
+        };
     },
     data() {
         return {
@@ -394,6 +427,8 @@ export default {
     },
     mounted() {
         document.addEventListener('click', this.handleClickOutside);
+        // Свайп-закрытие зовёт closeModal (метод недоступен из setup напрямую).
+        this.requestClose = () => this.closeModal();
     },
     beforeUnmount() {
         document.removeEventListener('click', this.handleClickOutside);
@@ -791,6 +826,11 @@ export default {
     flex-direction: column;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
     animation: slideUp 0.2s ease-out;
+}
+
+/* Ползунок bottom-sheet - только на мобилке (@768). */
+.sheet-handle {
+    display: none;
 }
 
 @keyframes slideUp {
@@ -1257,6 +1297,24 @@ export default {
         max-width: 100%;
         max-height: 90dvh;
         border-radius: 16px 16px 0 0;
+        /* Выезд снизу при появлении + snap-back после свайпа (как ApplicationDetail). */
+        animation: historySlideUp 0.3s ease-out;
+        transition: transform 0.3s ease;
+    }
+
+    /* Пока тянем пальцем - без анимации (лист следует за пальцем 1:1). */
+    .history-modal.is-dragging {
+        transition: none;
+    }
+
+    .sheet-handle {
+        display: block;
+        width: 40px;
+        height: 4px;
+        margin: 10px auto 2px;
+        border-radius: 2px;
+        background: #d5d5d5;
+        flex-shrink: 0;
     }
 
     .close-btn {
@@ -1264,15 +1322,31 @@ export default {
         min-height: 44px;
     }
 
-    /* На мобилке кнопка экспорта сжимается до иконки (текст скрыт). */
+    /* На мобилке кнопка экспорта - иконка в outline-круге (единый стиль с
+       Скачать/Переслать в шапке детали). Текст скрыт. */
     .export-btn {
-        width: auto;
-        min-width: 40px;
+        width: 44px;
+        height: 44px;
+        min-width: 44px;
+        padding: 0;
+        gap: 0;
+        border-radius: 50%;
+        border: 1px solid #4F5BDF;
+        background: #fff;
+    }
+
+    .export-btn:hover:not(:disabled) {
+        background: #eef0ff;
     }
 
     .export-btn-text {
         display: none;
     }
+}
+
+@keyframes historySlideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
 }
 
 .modal-fade-enter-active,
