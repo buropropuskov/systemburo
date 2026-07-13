@@ -43,11 +43,6 @@
         data-testid="header-button-feedback"
         @click="openFeedbackFromDrawer"
       >
-        <NavIcon
-          name="feedback"
-          :size="18"
-          aria-hidden="true"
-        />
         <span>Сообщить о проблеме</span>
       </button>
 
@@ -2236,14 +2231,13 @@ export default {
   .nav-menu__feedback {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
     position: absolute;
     top: 12px;
     left: 12px;
     right: 64px;
     height: 44px;
-    padding: 0 12px;
-    border: none;
+    padding: 0 14px;
+    border: 1px solid var(--nav-border);
     background: transparent;
     color: var(--nav-text);
     font-size: 14px;

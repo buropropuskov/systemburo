@@ -23,3 +23,20 @@ export function sanitizeHtml(dirty) {
     FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'onfocus']
   })
 }
+
+/**
+ * Извлечь ПЛОСКИЙ текст из HTML - для однострочного превью с обрезкой "..".
+ * Сообщение заявки хранится как rich-HTML из TextConstructor (`<h1><strong>..`);
+ * в компактной карточке показываем только текст без тегов. DOMParser('text/html')
+ * инертен (не исполняет скрипты и не грузит ресурсы, в отличие от innerHTML),
+ * textContent декодирует HTML-сущности. Пробелы/переносы схлопываются в один пробел,
+ * чтобы многострочный текст лёг в одну строку под ellipsis.
+ *
+ * @param {string} html - исходный HTML
+ * @returns {string} - плоский текст
+ */
+export function stripHtml(html) {
+  if (!html) return ''
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  return (doc.body.textContent || '').replace(/\s+/g, ' ').trim()
+}

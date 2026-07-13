@@ -70,9 +70,8 @@ describe('securityOnboardingSteps - сегмент /news', () => {
     const seg = collectSegment(securityOnboardingSteps, 0, '/news');
     expect(seg.map((s) => s.id)).toEqual([
       'sec-start',
-      'sec-header-feedback',
-      'sec-header-time',
       'sec-header-notifications',
+      'sec-header-feedback',
       'sec-nav-rail',
       'sec-nav-accessible',
       'sec-nav-tables',
@@ -94,19 +93,18 @@ describe('securityOnboardingSteps - сегмент /news', () => {
 });
 
 describe('mobileReveal (#1097 S11 - переехавшие на <768 цели)', () => {
-  it('значение только nav или header-overflow', () => {
+  it('значение только nav', () => {
     for (const s of securityOnboardingSteps) {
       if (s.mobileReveal !== undefined) {
-        expect(['nav', 'header-overflow']).toContain(s.mobileReveal);
+        expect(s.mobileReveal).toBe('nav');
       }
     }
   });
 
-  it('sec-header-feedback переехал в drawer (nav), время в overflow; колокольчик - в шапке (без reveal)', () => {
+  it('sec-header-feedback переехал в drawer (nav); колокольчик - в шапке (без reveal)', () => {
     const byId = (id) => securityOnboardingSteps.find((s) => s.id === id);
     // #1097 W3.3: «Сообщить о проблеме» вынесено из "⋯" в бургер-drawer.
     expect(byId('sec-header-feedback').mobileReveal).toBe('nav');
-    expect(byId('sec-header-time').mobileReveal).toBe('header-overflow');
     // #1097 W3.2: колокольчик вынесен из "⋯" в саму шапку - reveal не нужен.
     expect(byId('sec-header-notifications').mobileReveal).toBeUndefined();
   });

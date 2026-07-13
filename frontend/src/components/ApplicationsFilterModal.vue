@@ -8,6 +8,17 @@
     @close="$emit('close')"
   >
     <div class="filter-modal__body">
+      <div class="filter-section">
+        <div class="filter-section__header">
+          <span class="filter-label">Организация</span>
+        </div>
+        <OrganizationFilter
+          :value="selectedOrganizationId"
+          :organizations="organizations"
+          @change="$emit('organization-change', $event)"
+        />
+      </div>
+
       <div class="filter-section filter-section--date">
         <div class="filter-section__header">
           <span class="filter-label">Дата</span>
@@ -120,6 +131,7 @@
 <script>
 import BaseModal from '@/components/ui/BaseModal.vue';
 import DateFilter from '@/components/DateFilter.vue';
+import OrganizationFilter from '@/components/OrganizationFilter.vue';
 
 /**
  * Вторичные фильтры Центра заявок, вынесенные из шапки в модалку (#1097 W3.6).
@@ -128,11 +140,19 @@ import DateFilter from '@/components/DateFilter.vue';
  */
 export default {
   name: 'ApplicationsFilterModal',
-  components: { BaseModal, DateFilter },
+  components: { BaseModal, DateFilter, OrganizationFilter },
   props: {
     show: {
       type: Boolean,
       default: false,
+    },
+    organizations: {
+      type: Array,
+      default: () => [],
+    },
+    selectedOrganizationId: {
+      type: [Number, String],
+      default: null,
     },
     selectedDate: {
       type: Date,
@@ -185,6 +205,7 @@ export default {
   },
   emits: [
     'close',
+    'organization-change',
     'update:selected-date',
     'update:date-range-start',
     'update:date-range-end',

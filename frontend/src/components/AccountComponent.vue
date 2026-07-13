@@ -282,4 +282,19 @@ export default {
     max-width: 100%;
   }
 }
+
+/* Мобилка: блок заявок идёт от края до края (карточки-письма edge-to-edge, зеркало
+   Центра). Гасим боковой padding дашборда, возвращая отступ только шапке кабинета
+   (профиль/уведомления), чтобы full-bleed получил лишь список заявок. */
+@media (max-width: 767.98px) {
+  .account-dashboard {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .first-row {
+    padding-left: 15px;
+    padding-right: 15px;
+  }
+}
 </style>

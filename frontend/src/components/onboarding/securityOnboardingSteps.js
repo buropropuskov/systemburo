@@ -5,14 +5,14 @@
  * «Доступные мне» и «Таблицы», а не по оформлению заявки.
  *
  * Структура и поля шага - те же, что у applicant-тура (см. onboardingSteps.js),
- * включая `mobileReveal` (#1097 S11 - переехавшие на <=768 цели: drawer NavMenu,
- * overflow-меню шапки). движок группирует подряд идущие шаги с общим `route` в
+ * включая `mobileReveal` (#1097 S11 - переехавшие на <=768 цели: drawer NavMenu).
+ * движок группирует подряд идущие шаги с общим `route` в
  * сегмент driver.js, смена `route` = cross-page граница. Версия тура и флаг
  * завершения общие с основным сценарием - аргументация в stores/onboarding.js,
  * где ветвится `steps`. collectSegment живёт в onboardingSteps.js и работает с
  * любым массивом шагов.
  *
- * @type {Array<{ id: string, route: string, element: string|null, title: string, description: string, expandRail?: boolean, optional?: boolean, side?: string, align?: string, mobileReveal?: 'nav'|'header-overflow' }>}
+ * @type {Array<{ id: string, route: string, element: string|null, title: string, description: string, expandRail?: boolean, optional?: boolean, side?: string, align?: string, mobileReveal?: 'nav' }>}
  */
 export const securityOnboardingSteps = [
   // ── Сегмент /news: знакомство, шапка, навигация охранника ──
@@ -25,6 +25,18 @@ export const securityOnboardingSteps = [
       'Коротко покажем, что доступно вам как сотруднику охраны. Это займёт минуту. Двигайтесь кнопкой «Далее» или стрелками, выйти можно в любой момент клавишей Esc.',
   },
   {
+    // Колокольчик - в самой шапке (не в drawer), поэтому идёт ПЕРЕД feedback:
+    // так его шаг держит drawer закрытым, а два drawer-шага (feedback + nav-rail)
+    // остаются смежными nav-группой. Иначе колокольчик, зажатый между двумя nav,
+    // унаследовал бы 'nav' через lookahead-hold и drawer открылся бы поверх шапки.
+    id: 'sec-header-notifications',
+    side: 'bottom',
+    route: '/news',
+    element: '[data-testid="ob-header-notifications"]',
+    title: 'Уведомления',
+    description: 'Колокольчик показывает количество непрочитанных уведомлений системы. Нажмите, чтобы открыть список.',
+  },
+  {
     id: 'sec-header-feedback',
     side: 'bottom',
     route: '/news',
@@ -33,23 +45,6 @@ export const securityOnboardingSteps = [
     description: 'Заметили ошибку или есть предложение - напишите нам прямо отсюда, не покидая систему.',
     // На мобилке кнопка переехала из "⋯" в бургер-drawer (W3.3) - раскрываем drawer.
     mobileReveal: 'nav',
-  },
-  {
-    id: 'sec-header-time',
-    side: 'bottom',
-    route: '/news',
-    element: '[data-testid="ob-header-time"]',
-    title: 'Дата и время',
-    description: 'Текущие дата и время системы - удобно сверяться при проверке пропусков.',
-    mobileReveal: 'header-overflow',
-  },
-  {
-    id: 'sec-header-notifications',
-    side: 'bottom',
-    route: '/news',
-    element: '[data-testid="ob-header-notifications"]',
-    title: 'Уведомления',
-    description: 'Колокольчик показывает количество непрочитанных уведомлений системы. Нажмите, чтобы открыть список.',
   },
   {
     id: 'sec-nav-rail',
