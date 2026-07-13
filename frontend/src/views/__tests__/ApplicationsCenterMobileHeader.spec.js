@@ -134,7 +134,7 @@ describe('ApplicationsCenter: мобильная шапка vs десктоп-и
     expect(w.vm.hasModalFilters).toBe(true);
   });
 
-  it('индикатор «Фильтр» загорается и на выбранной компании; фильтр по компании клиентский', async () => {
+  it('индикатор «Фильтр» и hasActiveFilters загораются на выбранной компании', async () => {
     mockMatchMedia(true);
     const w = mountCenter();
     await nextTick();

@@ -76,4 +76,36 @@ describe('BaseModal', () => {
     const wrapper = mountModal({ closable: false, title: 'Test' });
     expect(wrapper.find('.base-modal__close').exists()).toBe(false);
   });
+
+  // Опт-ин bottom-sheet со свайпом (#1097 W3.4): без флага - ползунка нет и жест не действует.
+  it('sheetSwipe=false (дефолт): ползунок не рендерится, свайп-вниз не эмитит close', async () => {
+    const wrapper = mountModal();
+    expect(wrapper.find('.sheet-handle').exists()).toBe(false);
+    const modal = wrapper.find('.base-modal');
+    await modal.trigger('touchstart', { touches: [{ clientY: 100 }] });
+    await modal.trigger('touchmove', { touches: [{ clientY: 300 }] });
+    await modal.trigger('touchend');
+    expect(wrapper.emitted('close')).toBeUndefined();
+  });
+
+  it('sheetSwipe=true: ползунок рендерится, протяжка вниз за порог эмитит close', async () => {
+    const wrapper = mountModal({ sheetSwipe: true });
+    expect(wrapper.find('.sheet-handle').exists()).toBe(true);
+    const modal = wrapper.find('.base-modal');
+    // dy = 300-100 = 200 > threshold 90 (useSwipeDismiss)
+    await modal.trigger('touchstart', { touches: [{ clientY: 100 }] });
+    await modal.trigger('touchmove', { touches: [{ clientY: 300 }] });
+    await modal.trigger('touchend');
+    expect(wrapper.emitted('close')).toHaveLength(1);
+  });
+
+  it('sheetSwipe=true: короткая протяжка ниже порога НЕ эмитит close', async () => {
+    const wrapper = mountModal({ sheetSwipe: true });
+    const modal = wrapper.find('.base-modal');
+    // dy = 40 < threshold 90 - лист вернётся на место, без закрытия
+    await modal.trigger('touchstart', { touches: [{ clientY: 100 }] });
+    await modal.trigger('touchmove', { touches: [{ clientY: 140 }] });
+    await modal.trigger('touchend');
+    expect(wrapper.emitted('close')).toBeUndefined();
+  });
 });
