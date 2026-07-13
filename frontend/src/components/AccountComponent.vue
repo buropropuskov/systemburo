@@ -287,9 +287,18 @@ export default {
    Центра). Гасим боковой padding дашборда, возвращая отступ только шапке кабинета
    (профиль/уведомления), чтобы full-bleed получил лишь список заявок. */
 @media (max-width: 767.98px) {
+  /* overflow:visible - на мобилке высота дашборда естественная (applyDashboardHeight
+     не действует), клипать нечего, а sticky-шапка списка заявок должна прилипать к
+     вьюпорту: любой overflow:hidden предок сделал бы её containing block и sticky
+     не сработал бы против страницы. */
   .account-dashboard {
     padding-left: 0;
     padding-right: 0;
+    overflow: visible;
+  }
+
+  .dashboard-row {
+    overflow: visible;
   }
 
   .first-row {
