@@ -171,6 +171,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { useDeletionsStore } from '@/stores/deletions'
 export default {
   name: 'ResponsibleUsersSection',
   props: {
@@ -322,7 +323,7 @@ export default {
         }
       } catch (error) {
         console.error("Error fetching users:", error);
-        this.showNotification("Ошибка при загрузке пользователей", "error");
+        useDeletionsStore().notify({ prefix: 'Не удалось загрузить ', bold: 'список пользователей', type: 'error' });
       }
     },
 
@@ -410,25 +411,16 @@ export default {
 
         if (response.ok) {
           this.originalSelectedUsers = JSON.parse(JSON.stringify(this.selectedUsers));
-          this.showNotification("Ответственные лица успешно обновлены", "success");
+          useDeletionsStore().notify({ prefix: 'Ответственные сохранены для ', bold: this.entity.name, type: 'success' });
           this.$emit('users-updated');
         } else {
-          const errorText = await response.text();
-          let errorMessage = "Ошибка при обновлении ответственных лиц";
-
-          try {
-            const errorJson = JSON.parse(errorText);
-            errorMessage = errorJson.message || errorMessage;
-          } catch {
-            errorMessage = errorText || errorMessage;
-          }
-
-          this.showNotification(errorMessage, "error");
+          const error = await response.json();
+          useDeletionsStore().notify({ prefix: 'Не удалось сохранить ответственных: ', bold: error.message || 'ошибка сервера', type: 'error' });
           await this.fetchEntityUsers(this.entity.id);
         }
       } catch (error) {
         console.error("Error updating responsible users:", error);
-        this.showNotification("Ошибка сети", "error");
+        useDeletionsStore().notify({ prefix: 'Не удалось сохранить ответственных: ', bold: 'ошибка сети', type: 'error' });
         await this.fetchEntityUsers(this.entity.id);
       } finally {
         this.isSavingUsers = false;
@@ -533,33 +525,6 @@ export default {
       const a = first.charAt(0);
       const b = (second || '').charAt(0);
       return (a + b).toUpperCase() || '?';
-    },
-
-    showNotification(message, type = 'info') {
-      const notification = document.createElement('div');
-      notification.className = `notification ${type}`;
-      notification.textContent = message;
-      notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 12px 20px;
-        border-radius: 8px;
-        color: white;
-        font-weight: 500;
-        z-index: 1000;
-      `;
-
-      if (type === 'success') notification.style.backgroundColor = '#10b981';
-      if (type === 'error') notification.style.backgroundColor = '#ef4444';
-      if (type === 'warning') notification.style.backgroundColor = '#f59e0b';
-      if (type === 'info') notification.style.backgroundColor = '#3b82f6';
-
-      document.body.appendChild(notification);
-
-      setTimeout(() => {
-        notification.remove();
-      }, 3000);
     }
   },
 };

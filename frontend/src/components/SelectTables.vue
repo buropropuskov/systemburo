@@ -59,6 +59,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { useDeletionsStore } from '@/stores/deletions'
 export default {
   name: 'SelectTables',
   props: {
@@ -176,13 +177,11 @@ export default {
         });
         if (response.ok) {
           const data = await response.json();
-          console.log('Fetched all tables:', data);
-          console.log('Filtered tables (excluding cars):', data.filter(t => this.getTableType(t) !== 'cars'));
           this.allTables = data;
         }
       } catch (error) {
         console.error("Error fetching tables:", error);
-        this.showNotification("Ошибка при загрузке таблиц", "error");
+        useDeletionsStore().notify({ prefix: 'Не удалось загрузить ', bold: 'таблицы', type: 'error' });
       }
     },
 
@@ -196,8 +195,7 @@ export default {
         });
         if (response.ok) {
           const tables = await response.json();
-          console.log(`Fetched ${this.entityType} tables:`, tables);
-          
+
           this.selectedTables = tables.map(table => {
             if (table.table) {
               return {
@@ -245,16 +243,16 @@ export default {
         
         if (response.ok) {
           this.originalSelectedTables = JSON.parse(JSON.stringify(this.selectedTables));
-          this.showNotification("Таблицы по умолчанию успешно обновлены", "success");
+          useDeletionsStore().notify({ prefix: 'Таблицы сохранены для ', bold: this.entity.name, type: 'success' });
           this.$emit('tables-updated');
         } else {
           const error = await response.json();
-          this.showNotification(error.message || "Ошибка при обновлении таблиц", "error");
+          useDeletionsStore().notify({ prefix: 'Не удалось сохранить таблицы: ', bold: error.message || 'ошибка сервера', type: 'error' });
           await this.fetchEntityTables(this.entity.id);
         }
       } catch (error) {
         console.error("Error updating organization tables:", error);
-        this.showNotification("Ошибка сети", "error");
+        useDeletionsStore().notify({ prefix: 'Не удалось сохранить таблицы: ', bold: 'ошибка сети', type: 'error' });
         await this.fetchEntityTables(this.entity.id);
       } finally {
         this.isSaving = false;
@@ -287,33 +285,6 @@ export default {
     isTableSelected(tableId) {
       if (this.selectionMode) return this.modelValue.includes(tableId);
       return this.selectedTables.some(t => t.id === tableId);
-    },
-
-    showNotification(message, type = 'info') {
-      const notification = document.createElement('div');
-      notification.className = `notification ${type}`;
-      notification.textContent = message;
-      notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 12px 20px;
-        border-radius: 8px;
-        color: white;
-        font-weight: 500;
-        z-index: 1000;
-      `;
-      
-      if (type === 'success') notification.style.backgroundColor = '#10b981';
-      if (type === 'error') notification.style.backgroundColor = '#ef4444';
-      if (type === 'warning') notification.style.backgroundColor = '#f59e0b';
-      if (type === 'info') notification.style.backgroundColor = '#3b82f6';
-      
-      document.body.appendChild(notification);
-      
-      setTimeout(() => {
-        notification.remove();
-      }, 3000);
     }
   },
 };
