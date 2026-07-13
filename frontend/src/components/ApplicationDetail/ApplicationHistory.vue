@@ -1325,9 +1325,9 @@ export default {
     /* На мобилке кнопка экспорта - иконка в outline-круге (единый стиль с
        Скачать/Переслать в шапке детали). Текст скрыт. */
     .export-btn {
-        width: 40px;
-        height: 40px;
-        min-width: 40px;
+        width: 44px;
+        height: 44px;
+        min-width: 44px;
         padding: 0;
         gap: 0;
         border-radius: 50%;
