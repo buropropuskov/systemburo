@@ -212,6 +212,14 @@
               @change="handleOrganizationChange"
             />
 
+            <OrganizationFilter
+              :value="selectedCompanyId"
+              :organizations="companies"
+              all-label="Все компании"
+              placeholder-text="Компания"
+              @change="handleCompanyChange"
+            />
+
             <DateFilter
               ref="dateFilter"
               mode="range"
@@ -407,6 +415,8 @@
       :show="showFilterModal"
       :organizations="organizations"
       :selected-organization-id="selectedOrganizationId"
+      :companies="companies"
+      :selected-company-id="selectedCompanyId"
       :selected-date="selectedDate"
       :date-range-start="dateRangeStart"
       :date-range-end="dateRangeEnd"
@@ -418,9 +428,11 @@
       :tags="tags"
       :selected-tags="selectedTags"
       :sort-field="sortField"
+      :sort-direction="sortDirection"
       :has-active-filters="hasActiveFilters"
       @close="showFilterModal = false"
       @organization-change="handleOrganizationChange"
+      @company-change="handleCompanyChange"
       @update:selected-date="updateSelectedDate"
       @update:date-range-start="updateDateRangeStart"
       @update:date-range-end="updateDateRangeEnd"
@@ -430,6 +442,7 @@
       @toggle-confirmation="toggleConfirmation"
       @toggle-status="toggleApplicationStatus"
       @toggle-tag="toggleTag"
+      @sort-by="sortBy"
       @reset-sort="resetSort"
       @reset-filters="resetFilters"
     />
@@ -918,10 +931,13 @@ export default {
             searchDebounceTimer: null,
             selectedOrganizationId: null,
             selectedOrganizationName: '',
+            selectedCompanyId: null,
+            selectedCompanyName: '',
             selectedConfirmations: [],
             selectedApplicationStatuses: [],
             selectedTags: [],
             organizations: [],
+            companies: [],
             sortField: null,
             sortDirection: 'desc',
             shouldShake: false,
@@ -995,8 +1011,15 @@ export default {
 
             // Фильтр по организации
             if (this.selectedOrganizationId) {
-                filtered = filtered.filter(app => 
+                filtered = filtered.filter(app =>
                     app.organization_id === this.selectedOrganizationId
+                );
+            }
+
+            // Фильтр по компании
+            if (this.selectedCompanyId) {
+                filtered = filtered.filter(app =>
+                    app.company_id === this.selectedCompanyId
                 );
             }
 
@@ -1116,6 +1139,7 @@ export default {
         hasActiveFilters() {
             return !!this.searchQuery.trim() ||
                    !!this.selectedOrganizationId ||
+                   !!this.selectedCompanyId ||
                    this.hasModalFilters;
         },
 
@@ -1130,7 +1154,8 @@ export default {
                    !!this.selectedDate ||
                    !!(this.dateRangeStart && this.dateRangeEnd) ||
                    this.activeToday ||
-                   !!this.selectedOrganizationId;
+                   !!this.selectedOrganizationId ||
+                   !!this.selectedCompanyId;
         },
 
         // Известное ограничение (#1158 срез 1): applications - только загруженные
@@ -1195,6 +1220,7 @@ export default {
         }
 
         this.fetchOrganizations();
+        this.fetchCompanies();
         this.fetchApplications().then(() => this.openFromDeepLink());
         this.getCurrentUser();
 
@@ -1358,7 +1384,15 @@ export default {
             this.selectedOrganizationName = name;
             this.applyFilters();
         },
-        
+
+        // Компания фильтруется зеркально организации: server-параметр в buildApplicationsPage
+        // + клиентский предикат в filteredApplications, applyFilters перезапрашивает список.
+        handleCompanyChange({ id, name }) {
+            this.selectedCompanyId = id;
+            this.selectedCompanyName = name;
+            this.applyFilters();
+        },
+
         // Поиск
         normalizeSearch(text) {
             if (!text) return '';
@@ -1439,6 +1473,8 @@ export default {
             clearTimeout(this.searchDebounceTimer);
             this.selectedOrganizationId = null;
             this.selectedOrganizationName = '';
+            this.selectedCompanyId = null;
+            this.selectedCompanyName = '';
             this.selectedConfirmations = [];
             this.selectedApplicationStatuses = [];
             this.selectedTags = [];
@@ -1678,6 +1714,7 @@ export default {
                 const hasFilters = !!(
                     this.searchQuery ||
                     this.selectedOrganizationId ||
+                    this.selectedCompanyId ||
                     this.selectedConfirmations.length ||
                     this.selectedApplicationStatuses.length ||
                     this.selectedTags.length ||
@@ -1726,6 +1763,9 @@ export default {
             }
             if (this.selectedOrganizationId) {
                 params.organization_id = this.selectedOrganizationId;
+            }
+            if (this.selectedCompanyId) {
+                params.company_id = this.selectedCompanyId;
             }
             if (this.selectedConfirmations.length > 0) {
                 params.confirmation = this.selectedConfirmations[0];
@@ -1845,6 +1885,23 @@ export default {
                 }
             } catch (error) {
                 console.error("Ошибка сети при загрузке организаций:", error);
+            }
+        },
+
+        async fetchCompanies() {
+            try {
+                const response = await apiRequest("/companies", {
+                    method: "GET",
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    this.companies = Array.isArray(data) ? data : [];
+                } else {
+                    console.error("Ошибка при загрузке компаний");
+                }
+            } catch (error) {
+                console.error("Ошибка сети при загрузке компаний:", error);
             }
         },
 

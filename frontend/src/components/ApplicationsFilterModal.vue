@@ -5,6 +5,7 @@
     width="600px"
     radius="30px"
     content-class="filter-modal"
+    sheet-swipe
     @close="$emit('close')"
   >
     <div class="filter-modal__body">
@@ -16,6 +17,19 @@
           :value="selectedOrganizationId"
           :organizations="organizations"
           @change="$emit('organization-change', $event)"
+        />
+      </div>
+
+      <div class="filter-section">
+        <div class="filter-section__header">
+          <span class="filter-label">Компания</span>
+        </div>
+        <OrganizationFilter
+          :value="selectedCompanyId"
+          :organizations="companies"
+          all-label="Все компании"
+          placeholder-text="Компания"
+          @change="$emit('company-change', $event)"
         />
       </div>
 
@@ -106,6 +120,32 @@
           </button>
         </div>
       </div>
+
+      <!-- Сортировка: на мобилке шапка-таблицы скрыта (rt-head-row display:none),
+           поэтому выбор поля/направления вынесен сюда. Клик по активному полю
+           переключает направление (та же логика, что sortBy по клику колонки). -->
+      <div class="filter-section">
+        <div class="filter-section__header">
+          <span class="filter-label">Сортировка</span>
+        </div>
+        <div class="status-buttons">
+          <button
+            v-for="option in sortOptions"
+            :key="option.value"
+            class="status-btn sort-btn"
+            :class="{ 'status-btn--active': sortField === option.value }"
+            :data-testid="`center-button-sort-${option.value}`"
+            @click="$emit('sort-by', option.value)"
+          >
+            {{ option.label }}
+            <span
+              v-if="sortField === option.value"
+              class="sort-btn__dir"
+              aria-hidden="true"
+            >{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
+          </button>
+        </div>
+      </div>
     </div>
 
     <template #actions>
@@ -154,6 +194,14 @@ export default {
       type: [Number, String],
       default: null,
     },
+    companies: {
+      type: Array,
+      default: () => [],
+    },
+    selectedCompanyId: {
+      type: [Number, String],
+      default: null,
+    },
     selectedDate: {
       type: Date,
       default: null,
@@ -198,6 +246,10 @@ export default {
       type: String,
       default: null,
     },
+    sortDirection: {
+      type: String,
+      default: 'desc',
+    },
     hasActiveFilters: {
       type: Boolean,
       default: false,
@@ -206,6 +258,7 @@ export default {
   emits: [
     'close',
     'organization-change',
+    'company-change',
     'update:selected-date',
     'update:date-range-start',
     'update:date-range-end',
@@ -215,9 +268,23 @@ export default {
     'toggle-confirmation',
     'toggle-status',
     'toggle-tag',
+    'sort-by',
     'reset-sort',
     'reset-filters',
   ],
+  data() {
+    return {
+      // Поля сортировки = кликабельные колонки таблицы Центра (десктоп), скрытой на мобилке.
+      sortOptions: [
+        { value: 'date', label: 'Дата' },
+        { value: 'number', label: 'Номер' },
+        { value: 'organization', label: 'Организация' },
+        { value: 'sender', label: 'Отправитель' },
+        { value: 'status', label: 'Статус' },
+        { value: 'confirmation', label: 'Подтверждение' },
+      ],
+    };
+  },
   methods: {
     /**
      * Полный сброс внутреннего состояния DateFilter (в т.ч. подсветки быстрых периодов).
@@ -250,6 +317,35 @@ export default {
 .filter-section__header {
   display: flex;
   align-items: center;
+}
+
+/* Box для OrganizationFilter (Организация/Компания): рамка/паддинг/высота обычно
+   приходят из scoped .field родителя-Центра, но в модалке (другой компонент) их нет -
+   поле «слетало» в голый текст + стрелку. Восстанавливаем box здесь (корень фильтра
+   получает scope-id модалки). DateFilter самодостаточен (свой .date-field). */
+.filter-modal__body .field {
+  width: 100%;
+  height: 40px;
+  background-color: #fff;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  position: relative;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.filter-modal__body .field:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-focus);
+}
+
+.sort-btn__dir {
+  margin-left: 4px;
+  font-weight: 700;
 }
 
 .filter-label {

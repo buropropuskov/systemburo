@@ -7,7 +7,7 @@ import ApplicationsFilterModal from '@/components/ApplicationsFilterModal.vue';
 
 const BaseModalStub = {
   name: 'BaseModal',
-  props: ['show', 'title', 'width', 'radius', 'contentClass', 'closable', 'closeOnOverlay', 'zIndex'],
+  props: ['show', 'title', 'width', 'radius', 'contentClass', 'closable', 'closeOnOverlay', 'zIndex', 'sheetSwipe'],
   template: '<div v-if="show" class="base-modal-stub"><slot /><div class="actions"><slot name="actions" /></div></div>',
 };
 
@@ -18,11 +18,12 @@ const DateFilterStub = {
   template: '<div class="date-filter-stub" />',
 };
 
+// Один стаб на оба фильтра (Организация/Компания) - различаем по all-label.
 const OrganizationFilterStub = {
   name: 'OrganizationFilter',
-  props: ['value', 'organizations'],
+  props: ['value', 'organizations', 'allLabel', 'placeholderText'],
   emits: ['change'],
-  template: '<button class="org-filter-stub" @click="$emit(\'change\', 7)" />',
+  template: '<button class="org-filter-stub" :data-all-label="allLabel" @click="$emit(\'change\', 7)" />',
 };
 
 function mountModal(props = {}) {
@@ -31,6 +32,8 @@ function mountModal(props = {}) {
       show: true,
       organizations: [{ id: 7, name: 'Орг' }],
       selectedOrganizationId: null,
+      companies: [{ id: 5, name: 'Компания' }],
+      selectedCompanyId: null,
       confirmations: [{ value: 'approved', label: 'Согласовано' }],
       selectedConfirmations: [],
       applicationStatuses: [{ value: 'inwork', label: 'В работе' }],
@@ -39,6 +42,7 @@ function mountModal(props = {}) {
       selectedTags: [],
       activeToday: false,
       sortField: null,
+      sortDirection: 'desc',
       hasActiveFilters: false,
       ...props,
     },
@@ -53,9 +57,34 @@ const td = (w, id) => w.find(`[data-testid="${id}"]`);
 describe('ApplicationsFilterModal', () => {
   it('рендерит секцию организации и пробрасывает change как organization-change', async () => {
     const w = mountModal();
-    expect(w.find('.org-filter-stub').exists()).toBe(true);
-    await w.find('.org-filter-stub').trigger('click');
+    // Первый фильтр без all-label «Все компании» = организация.
+    const org = w.findAll('.org-filter-stub').find((el) => el.attributes('data-all-label') !== 'Все компании');
+    expect(org.exists()).toBe(true);
+    await org.trigger('click');
     expect(w.emitted('organization-change')[0]).toEqual([7]);
+  });
+
+  it('рендерит секцию компании и пробрасывает change как company-change', async () => {
+    const w = mountModal();
+    const company = w.find('[data-all-label="Все компании"]');
+    expect(company.exists()).toBe(true);
+    await company.trigger('click');
+    expect(w.emitted('company-change')[0]).toEqual([7]);
+  });
+
+  it('секция сортировки: клик по полю эмитит sort-by, активное поле показывает направление', async () => {
+    const w = mountModal({ sortField: 'date', sortDirection: 'asc' });
+    const dateBtn = td(w, 'center-button-sort-date');
+    const numberBtn = td(w, 'center-button-sort-number');
+    expect(dateBtn.exists()).toBe(true);
+    // активное поле date -> подсветка + стрелка вверх (asc)
+    expect(dateBtn.classes()).toContain('status-btn--active');
+    expect(dateBtn.find('.sort-btn__dir').text()).toBe('↑');
+    // неактивное поле - без подсветки и без стрелки
+    expect(numberBtn.classes()).not.toContain('status-btn--active');
+    expect(numberBtn.find('.sort-btn__dir').exists()).toBe(false);
+    await numberBtn.trigger('click');
+    expect(w.emitted('sort-by')[0]).toEqual(['number']);
   });
 
   it('рендерит секции фильтров по пропсам', () => {

@@ -11,14 +11,22 @@
         <div
           ref="modal"
           class="base-modal"
-          :class="contentClass"
-          :style="{ maxWidth: width, '--base-modal-radius': radius || null }"
+          :class="[contentClass, { 'base-modal--sheet': sheetSwipe, 'is-dragging': sheetDragging }]"
+          :style="{ maxWidth: width, '--base-modal-radius': radius || null, ...(sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : {}) }"
           role="dialog"
           aria-modal="true"
           :aria-label="title"
           @click.stop
           @mousedown.stop
+          @touchstart="onSheetTouchStart"
+          @touchmove="onSheetTouchMove"
+          @touchend="onSheetTouchEnd"
         >
+          <div
+            v-if="sheetSwipe"
+            class="sheet-handle"
+            aria-hidden="true"
+          />
           <div
             v-if="title || $slots.header || closable"
             class="base-modal__header"
@@ -54,6 +62,9 @@
 </template>
 
 <script>
+import { ref } from 'vue';
+import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
+
 export default {
   name: 'BaseModal',
   props: {
@@ -94,8 +105,34 @@ export default {
       type: String,
       default: '',
     },
+    // Опт-ин bottom-sheet со свайпом-вниз на мобилке (#1097 W3.4). По умолчанию off -
+    // прочие модалки не меняются (ползунок/слайд/жест включаются только этим флагом).
+    sheetSwipe: {
+      type: Boolean,
+      default: false,
+    },
   },
   emits: ['close'],
+  setup(props, { emit }) {
+    // modal - template-ref окна (setup-ref, чтобы читать scrollTop для свайпа и в trapFocus).
+    const modal = ref(null);
+    const swipe = useSwipeDismiss(() => emit('close'), {
+      getScrollTop: () => modal.value?.scrollTop ?? 0,
+      handleSelector: '.sheet-handle',
+    });
+    // Свайп активен только при sheetSwipe - иначе жест на любой модалке не трогаем.
+    const guard = (fn) => (e) => {
+      if (props.sheetSwipe) fn(e);
+    };
+    return {
+      modal,
+      sheetOffset: swipe.offset,
+      sheetDragging: swipe.isDragging,
+      onSheetTouchStart: guard(swipe.onTouchStart),
+      onSheetTouchMove: guard(swipe.onTouchMove),
+      onSheetTouchEnd: guard(swipe.onTouchEnd),
+    };
+  },
   data() {
     return {
       overlayMousedown: false,
@@ -136,7 +173,7 @@ export default {
       }
     },
     trapFocus(e) {
-      const container = this.$refs.modal;
+      const container = this.modal;
       if (!container) return;
       const focusable = container.querySelectorAll(
         'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
@@ -182,6 +219,17 @@ export default {
   overflow-y: auto;
   width: 100%;
   margin: 0 20px;
+}
+
+/* Ползунок bottom-sheet - виден только на мобилке (тянуть для закрытия), см. sheetSwipe. */
+.sheet-handle {
+  display: none;
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: #d5d5db;
+  margin: 10px auto 0;
+  flex-shrink: 0;
 }
 
 .base-modal__header {
@@ -275,6 +323,25 @@ export default {
   }
 }
 
+/* Слайд bottom-sheet (мобилка): въезд снизу вверх и обратно. */
+@keyframes base-sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes base-sheet-down {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
+
 /* Bottom-sheet на мобильном */
 @media (max-width: 768px) {
   .base-modal-overlay {
@@ -290,6 +357,27 @@ export default {
     border-radius: 16px 16px 0 0;
     margin: 0;
     overflow-y: auto;
+  }
+
+  /* Sheet-вариант: выезжает снизу, тянется за пальцем 1:1 во время свайпа. */
+  .base-modal--sheet {
+    transition: transform 0.3s ease;
+  }
+
+  .base-modal--sheet.is-dragging {
+    transition: none;
+  }
+
+  .base-modal--sheet .sheet-handle {
+    display: block;
+  }
+
+  .modal-fade-enter-active .base-modal--sheet {
+    animation: base-sheet-up 0.3s ease;
+  }
+
+  .modal-fade-leave-active .base-modal--sheet {
+    animation: base-sheet-down 0.2s ease;
   }
 
   .base-modal__close {
