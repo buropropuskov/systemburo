@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"systemburo/internal/crypto"
@@ -151,6 +152,9 @@ type UniqueEmployeeHistoryItem struct {
 type UniqueEmployeeService interface {
 	GetOwnerInfo(ctx context.Context, username string) (*EmployeeOwnerInfo, error)
 	GetAll(ctx context.Context, username string, filterType string) ([]UniqueEmployeeWithRelations, error)
+	// GetAllPaginated возвращает страницу реестра с серверным поиском (#1158, срез 3):
+	// используется EmployeeView вместо GetAll, как только запрос несёт per_page.
+	GetAllPaginated(ctx context.Context, username, filterType, searchQuery string, page, perPage int) ([]UniqueEmployeeWithRelations, int64, error)
 	// LookupByFIO ищет сотрудника по ФИО (LOWER(TRIM), как ЧС) для открытия карточки со
 	// страницы чёрного списка. Возвращает nil, nil если совпадения нет.
 	LookupByFIO(ctx context.Context, lastName, firstName, middleName string) (*UniqueEmployeeWithRelations, error)
@@ -243,85 +247,85 @@ func (s *uniqueEmployeeService) LookupByFIO(ctx context.Context, lastName, first
 	return &rows[0], nil
 }
 
-// GetAll возвращает список уникальных сотрудников с фильтрацией по типу владельца.
-func (s *uniqueEmployeeService) GetAll(ctx context.Context, username string, filterType string) ([]UniqueEmployeeWithRelations, error) {
-	ownerInfo, err := s.getEmployeeOwnerInfo(ctx, username)
-	if err != nil {
-		return nil, err
-	}
+// employeesListSelect -- список колонок для реестра сотрудников (GetAll/GetAllPaginated).
+// Вынесен в константу, т.к. переиспользуется обоими методами (#1158, срез 3) - раньше
+// был только внутри GetAll. Активная заявка ищется по passport_series_number_hmac (тот
+// же ключ, что связывает реестр с заявочными employees), как исторически было.
+const employeesListSelect = `ue.id, ue.last_name, ue.first_name, ue.middle_name,
+	ue.organization_id, ue.company_id, ue.citizenship_id, ue.user_id,
+	ue."position", ue.passport_series_number, ue.patent_number,
+	ue.other_permission, ue.created_at,
+	o.name as organization_name, c.name as company_name,
+	cit.name as citizenship_name,
+	COALESCE((
+		SELECT true FROM employees e
+		JOIN attachments a ON e.attachment_id = a.id
+		JOIN applications app ON a.application_id = app.id
+		WHERE e.passport_series_number_hmac = ue.passport_series_number_hmac
+		AND e.status = 1
+		AND app.status IN ('В работе', 'Завершено')
+		AND CURRENT_DATE <= a.entry_date_to::date
+		LIMIT 1
+	), false) as status,
+	(SELECT a.entry_date_to FROM employees e
+		JOIN attachments a ON e.attachment_id = a.id
+		JOIN applications app ON a.application_id = app.id
+		WHERE e.passport_series_number_hmac = ue.passport_series_number_hmac
+		AND e.status = 1 AND app.status IN ('В работе', 'Завершено')
+		AND CURRENT_DATE <= a.entry_date_to::date
+		ORDER BY a.entry_date_to DESC LIMIT 1
+	) as active_entry_date_to,
+	(SELECT CONCAT(a.entry_time_from, ' - ', a.entry_time_to) FROM employees e
+		JOIN attachments a ON e.attachment_id = a.id
+		JOIN applications app ON a.application_id = app.id
+		WHERE e.passport_series_number_hmac = ue.passport_series_number_hmac
+		AND e.status = 1 AND app.status IN ('В работе', 'Завершено')
+		AND CURRENT_DATE <= a.entry_date_to::date
+		ORDER BY a.entry_date_to DESC LIMIT 1
+	) as active_pass_time,
+	(SELECT ao.name FROM employees e
+		JOIN attachments a ON e.attachment_id = a.id
+		JOIN applications app ON a.application_id = app.id
+		LEFT JOIN organizations ao ON app.organization_id = ao.id
+		WHERE e.passport_series_number_hmac = ue.passport_series_number_hmac
+		AND e.status = 1 AND app.status IN ('В работе', 'Завершено')
+		AND CURRENT_DATE <= a.entry_date_to::date
+		ORDER BY a.entry_date_to DESC LIMIT 1
+	) as active_app_org_name,
+	(SELECT ac.name FROM employees e
+		JOIN attachments a ON e.attachment_id = a.id
+		JOIN applications app ON a.application_id = app.id
+		LEFT JOIN companies ac ON app.company_id = ac.id
+		WHERE e.passport_series_number_hmac = ue.passport_series_number_hmac
+		AND e.status = 1 AND app.status IN ('В работе', 'Завершено')
+		AND CURRENT_DATE <= a.entry_date_to::date
+		ORDER BY a.entry_date_to DESC LIMIT 1
+	) as active_app_company_name,
+	(SELECT e.id FROM employees e
+		JOIN attachments a ON e.attachment_id = a.id
+		JOIN applications app ON a.application_id = app.id
+		WHERE e.passport_series_number_hmac = ue.passport_series_number_hmac
+		AND e.status = 1 AND app.status IN ('В работе', 'Завершено')
+		AND CURRENT_DATE <= a.entry_date_to::date
+		ORDER BY a.entry_date_to DESC LIMIT 1
+	) as active_employee_id,
+	(SELECT app.id FROM employees e
+		JOIN attachments a ON e.attachment_id = a.id
+		JOIN applications app ON a.application_id = app.id
+		WHERE e.passport_series_number_hmac = ue.passport_series_number_hmac
+		AND e.status = 1 AND app.status IN ('В работе', 'Завершено')
+		AND CURRENT_DATE <= a.entry_date_to::date
+		ORDER BY a.entry_date_to DESC LIMIT 1
+	) as active_application_id`
 
-	if filterType == "all_system" && !userCanSeeAllSystem(ctx, s.db, ownerInfo.UserID) {
-		return nil, echo.NewHTTPError(http.StatusForbidden, "Недостаточно прав для просмотра всех записей системы")
-	}
-
+// buildEmployeesQuery строит базовый запрос реестра (джойны + фильтр владельца + поиск)
+// БЕЗ Select/Order - переиспользуется отдельно для Count и для выборки данных (тот же
+// паттерн, что buildCarsQuery в unique_car_service.go), чтобы Count считал по
+// фильтрованному набору, не гоняя тяжёлые коррелированные подзапросы employeesListSelect
+// дважды.
+func (s *uniqueEmployeeService) buildEmployeesQuery(ctx context.Context, ownerInfo *EmployeeOwnerInfo, filterType, searchQuery string) *gorm.DB {
 	query := s.db.WithContext(ctx).
 		Table("unique_employees ue").
-		Select(`ue.id, ue.last_name, ue.first_name, ue.middle_name,
-			ue.organization_id, ue.company_id, ue.citizenship_id, ue.user_id,
-			ue."position", ue.passport_series_number, ue.patent_number,
-			ue.other_permission, ue.created_at,
-			o.name as organization_name, c.name as company_name,
-			cit.name as citizenship_name,
-			COALESCE((
-				SELECT true FROM employees e
-				JOIN attachments a ON e.attachment_id = a.id
-				JOIN applications app ON a.application_id = app.id
-				WHERE e.passport_series_number_hmac = ue.passport_series_number_hmac
-				AND e.status = 1
-				AND app.status IN ('В работе', 'Завершено')
-				AND CURRENT_DATE <= a.entry_date_to::date
-				LIMIT 1
-			), false) as status,
-			(SELECT a.entry_date_to FROM employees e
-				JOIN attachments a ON e.attachment_id = a.id
-				JOIN applications app ON a.application_id = app.id
-				WHERE e.passport_series_number_hmac = ue.passport_series_number_hmac
-				AND e.status = 1 AND app.status IN ('В работе', 'Завершено')
-				AND CURRENT_DATE <= a.entry_date_to::date
-				ORDER BY a.entry_date_to DESC LIMIT 1
-			) as active_entry_date_to,
-			(SELECT CONCAT(a.entry_time_from, ' - ', a.entry_time_to) FROM employees e
-				JOIN attachments a ON e.attachment_id = a.id
-				JOIN applications app ON a.application_id = app.id
-				WHERE e.passport_series_number_hmac = ue.passport_series_number_hmac
-				AND e.status = 1 AND app.status IN ('В работе', 'Завершено')
-				AND CURRENT_DATE <= a.entry_date_to::date
-				ORDER BY a.entry_date_to DESC LIMIT 1
-			) as active_pass_time,
-			(SELECT ao.name FROM employees e
-				JOIN attachments a ON e.attachment_id = a.id
-				JOIN applications app ON a.application_id = app.id
-				LEFT JOIN organizations ao ON app.organization_id = ao.id
-				WHERE e.passport_series_number_hmac = ue.passport_series_number_hmac
-				AND e.status = 1 AND app.status IN ('В работе', 'Завершено')
-				AND CURRENT_DATE <= a.entry_date_to::date
-				ORDER BY a.entry_date_to DESC LIMIT 1
-			) as active_app_org_name,
-			(SELECT ac.name FROM employees e
-				JOIN attachments a ON e.attachment_id = a.id
-				JOIN applications app ON a.application_id = app.id
-				LEFT JOIN companies ac ON app.company_id = ac.id
-				WHERE e.passport_series_number_hmac = ue.passport_series_number_hmac
-				AND e.status = 1 AND app.status IN ('В работе', 'Завершено')
-				AND CURRENT_DATE <= a.entry_date_to::date
-				ORDER BY a.entry_date_to DESC LIMIT 1
-			) as active_app_company_name,
-			(SELECT e.id FROM employees e
-				JOIN attachments a ON e.attachment_id = a.id
-				JOIN applications app ON a.application_id = app.id
-				WHERE e.passport_series_number_hmac = ue.passport_series_number_hmac
-				AND e.status = 1 AND app.status IN ('В работе', 'Завершено')
-				AND CURRENT_DATE <= a.entry_date_to::date
-				ORDER BY a.entry_date_to DESC LIMIT 1
-			) as active_employee_id,
-			(SELECT app.id FROM employees e
-				JOIN attachments a ON e.attachment_id = a.id
-				JOIN applications app ON a.application_id = app.id
-				WHERE e.passport_series_number_hmac = ue.passport_series_number_hmac
-				AND e.status = 1 AND app.status IN ('В работе', 'Завершено')
-				AND CURRENT_DATE <= a.entry_date_to::date
-				ORDER BY a.entry_date_to DESC LIMIT 1
-			) as active_application_id`).
 		Joins("LEFT JOIN organizations o ON ue.organization_id = o.id").
 		Joins("LEFT JOIN companies c ON ue.company_id = c.id").
 		Joins("LEFT JOIN citizenships cit ON ue.citizenship_id = cit.id")
@@ -364,18 +368,92 @@ func (s *uniqueEmployeeService) GetAll(ctx context.Context, username string, fil
 		query = query.Where("ue.user_id = ?", ownerInfo.UserID)
 	}
 
-	query = query.Order("ue.last_name, ue.first_name, ue.middle_name")
+	if raw := strings.TrimSpace(searchQuery); raw != "" {
+		// Паспорт/патент (passport_series_number/patent_number) зашифрованы (#1049 HMAC-
+		// уроки) - ILIKE по ним не сработает (в БД шифротекст), поэтому ищем ТОЛЬКО по
+		// незашифрованным полям: ФИО/должность + имена связанных организации/компании/
+		// гражданства (через LEFT JOIN o/c/cit выше). ФИО дополнительно ищем через
+		// strict_word_similarity - тот же приём, что Центр заявок использует для поиска
+		// сотрудников в application_helpers.go (strict_, не word_, иначе порог 0.3 ловит
+		// общие триграммы и даёт ложные совпадения).
+		variants := buildSearchVariants(raw)
+		cols := []string{"ue.last_name", "ue.first_name", "ue.middle_name", "ue.\"position\"", "o.name", "c.name", "cit.name"}
+		cond, args := ilikePatternsArgs(cols, variants)
+		cond += " OR strict_word_similarity(?, concat_ws(' ', ue.last_name, ue.first_name, ue.middle_name)) > 0.3"
+		args = append(args, raw)
+		query = query.Where(cond, args...)
+	}
+
+	return query
+}
+
+// GetAll возвращает список уникальных сотрудников с фильтрацией по типу владельца.
+func (s *uniqueEmployeeService) GetAll(ctx context.Context, username string, filterType string) ([]UniqueEmployeeWithRelations, error) {
+	ownerInfo, err := s.getEmployeeOwnerInfo(ctx, username)
+	if err != nil {
+		return nil, err
+	}
+
+	if filterType == "all_system" && !userCanSeeAllSystem(ctx, s.db, ownerInfo.UserID) {
+		return nil, echo.NewHTTPError(http.StatusForbidden, "Недостаточно прав для просмотра всех записей системы")
+	}
+
+	query := s.buildEmployeesQuery(ctx, ownerInfo, filterType, "").
+		Select(employeesListSelect).
+		// ue.id третий/четвёртый ключ - ФИО не уникально (нет unique-индекса), без
+		// tie-breaker две равные строки могут переупорядочиться между offset-страницами
+		// -> пропуск/дубль при бесшовной подгрузке (#1158).
+		Order("ue.last_name, ue.first_name, ue.middle_name, ue.id")
 
 	employees := make([]UniqueEmployeeWithRelations, 0)
 	if err := query.Scan(&employees).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching employees")
 	}
+	decryptEmployees(employees)
+
+	return employees, nil
+}
+
+// GetAllPaginated возвращает страницу реестра с серверным поиском (#1158, срез 3).
+func (s *uniqueEmployeeService) GetAllPaginated(ctx context.Context, username, filterType, searchQuery string, page, perPage int) ([]UniqueEmployeeWithRelations, int64, error) {
+	ownerInfo, err := s.getEmployeeOwnerInfo(ctx, username)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if filterType == "all_system" && !userCanSeeAllSystem(ctx, s.db, ownerInfo.UserID) {
+		return nil, 0, echo.NewHTTPError(http.StatusForbidden, "Недостаточно прав для просмотра всех записей системы")
+	}
+
+	var total int64
+	countQuery := s.buildEmployeesQuery(ctx, ownerInfo, filterType, searchQuery)
+	if err := countQuery.Count(&total).Error; err != nil {
+		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Error counting employees")
+	}
+
+	offset := (page - 1) * perPage
+	dataQuery := s.buildEmployeesQuery(ctx, ownerInfo, filterType, searchQuery).
+		Select(employeesListSelect).
+		Order("ue.last_name, ue.first_name, ue.middle_name, ue.id").
+		Offset(offset).
+		Limit(perPage)
+
+	employees := make([]UniqueEmployeeWithRelations, 0)
+	if err := dataQuery.Scan(&employees).Error; err != nil {
+		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching employees")
+	}
+	decryptEmployees(employees)
+
+	return employees, total, nil
+}
+
+// decryptEmployees расшифровывает паспорт/патент строк реестра на месте (общий шаг
+// GetAll/GetAllPaginated).
+func decryptEmployees(employees []UniqueEmployeeWithRelations) {
 	for i := range employees {
 		employees[i].PassportSeriesNumber = crypto.DecryptOptional(employees[i].PassportSeriesNumber)
 		employees[i].PatentNumber = crypto.DecryptOptional(employees[i].PatentNumber)
 	}
-
-	return employees, nil
 }
 
 // employeeToResponse конвертирует модель UniqueEmployee в UniqueEmployeeResponse.
