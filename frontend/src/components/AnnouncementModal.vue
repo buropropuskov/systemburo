@@ -6,8 +6,22 @@
         class="modal-overlay"
         @click.self="close"
       >
-        <div class="modal-content announcement-modal">
-          <div class="modal-body">
+        <div
+          class="modal-content announcement-modal"
+          :class="{ 'is-dragging': sheetDragging }"
+          :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
+          @touchstart="onSheetTouchStart"
+          @touchmove="onSheetTouchMove"
+          @touchend="onSheetTouchEnd"
+        >
+          <div
+            class="sheet-handle"
+            aria-hidden="true"
+          />
+          <div
+            ref="sheetScroll"
+            class="modal-body"
+          >
             <!-- Заголовок перед описанием -->
             
             
@@ -47,7 +61,9 @@
 </template>
 
 <script>
+import { ref } from 'vue'
 import { sanitizeHtml } from '@/utils/sanitize.js'
+import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
 
 export default {
   name: 'AnnouncementModal',
@@ -62,6 +78,26 @@ export default {
     }
   },
   emits: ['update:show', 'close'],
+  setup(props, { emit }) {
+    const sheetScroll = ref(null);
+    const close = () => {
+      emit('update:show', false);
+      emit('close');
+    };
+    const swipe = useSwipeDismiss(close, {
+      getScrollTop: () => sheetScroll.value?.scrollTop ?? 0,
+      handleSelector: '.sheet-handle',
+    });
+    return {
+      sheetScroll,
+      close,
+      sheetOffset: swipe.offset,
+      sheetDragging: swipe.isDragging,
+      onSheetTouchStart: swipe.onTouchStart,
+      onSheetTouchMove: swipe.onTouchMove,
+      onSheetTouchEnd: swipe.onTouchEnd,
+    };
+  },
   methods: {
     sanitizeHtml,
     formatDate(dateString) {
@@ -74,10 +110,6 @@ export default {
         hour: '2-digit',
         minute: '2-digit'
       }).replace(',', '');
-    },
-    close() {
-      this.$emit('update:show', false);
-      this.$emit('close');
     }
   },
   mounted() {
@@ -138,6 +170,17 @@ export default {
 
 .announcement-modal .modal-content {
   width: 540px;
+}
+
+/* Ползунок bottom-sheet - виден только на мобилке (тянуть за него для закрытия). */
+.sheet-handle {
+  display: none;
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: #d5d5db;
+  margin: 10px auto 2px;
+  flex-shrink: 0;
 }
 
 .modal-header {
@@ -261,8 +304,27 @@ export default {
 }
 
 @media (max-width: 768px) {
+  /* Прилипание к низу/ширина/радиус bottom-sheet задаёт глобальный паттерн App.vue
+     (.modal-overlay>.modal-content, !important). Здесь добавляем только выезд снизу
+     вверх, свайп-закрытие и ползунок. transition для снап-назад после свайпа. */
   .modal-content {
-    width: 95vw;
+    transition: transform 0.3s ease;
+  }
+
+  /* Во время свайпа лист следует за пальцем 1:1 (без сглаживания). */
+  .modal-content.is-dragging {
+    transition: none;
+  }
+
+  .sheet-handle {
+    display: block;
+  }
+
+  /* Слайд снизу вверх на открытие/закрытие вместо scale (десктоп-анимации). */
+  .modal-fade-enter-from .modal-content,
+  .modal-fade-leave-to .modal-content {
+    transform: translateY(100%);
+    opacity: 1;
   }
 
   .modal-header {
@@ -270,7 +332,7 @@ export default {
   }
 
   .modal-body {
-    padding: 16px 20px;
+    padding: 8px 20px 16px;
   }
 
   .modal-footer {
