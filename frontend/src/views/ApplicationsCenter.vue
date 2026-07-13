@@ -3234,7 +3234,9 @@ export default {
 
     /* Шапка Центра закреплена под app bar (TheHeader min-height 60px, sticky top:0),
        список заявок скроллит страница под ней. Full-bleed белый фон (margin -12px гасит
-       боковой padding .center) - edge-to-edge карточки уходят под шапку без просвета. */
+       боковой padding .center) - edge-to-edge карточки уходят под шапку без просвета.
+       Нижняя граница - разделитель между шапкой и списком (гасит «белую пустоту» перед
+       первой карточкой), держится закреплённой при скролле. */
     .center__header {
         position: sticky;
         top: 60px;
@@ -3243,6 +3245,7 @@ export default {
         background: #fff;
         margin: 0 -12px;
         padding: 8px 12px 12px;
+        border-bottom: 1px solid var(--color-border);
     }
 
     /* Дропдаун Активные/Архив и кнопка Фильтр - одной высоты (34px). */
@@ -3288,8 +3291,9 @@ export default {
         overflow: visible;
         /* Карточки на всю ширину экрана: гасим боковой padding .center (12px)
            отрицательным margin, убираем рамку/скругление таблицы - список идёт от
-           края до края (боковой отступ экрана у заявок = 0). */
-        margin: 12px -12px 0;
+           края до края (боковой отступ экрана у заявок = 0). Верхний отступ убран -
+           список примыкает к разделителю шапки, между ними только padding table-body. */
+        margin: 0 -12px;
         border: none;
         border-radius: 0;
     }
@@ -3310,17 +3314,28 @@ export default {
         margin-top: 0;
     }
 
-    /* Непрочитанность - цветом ТЕКСТА (дата синим, номер жёлтым), без жёлтой заливки
-       и скруглённых углов у карточки (правка волны 3). Специфичность 0,4,0 - бьёт
-       базовые цвета даты (0,2,0 ниже) и номера (0,3,0 на .number-col .application-number),
-       не полагаясь на порядок источника. */
+    /* Непрочитанность (правка среза 5) - дата синим bold + красная точка слева от неё,
+       без жёлтой заливки/скруглённых углов и БЕЗ подсветки номера: номер остаётся
+       обычным серым как у прочитанных. Специфичность 0,4,0 бьёт базовый цвет даты
+       (0,2,0 ниже), не полагаясь на порядок источника. */
     .application-item.unread .application-col.date-col {
         color: var(--color-primary);
         font-weight: 600;
     }
-    .application-item.unread .application-col.number-col .application-number {
-        color: #c98a00;
-        font-weight: 700;
+    /* Красная точка перед датой в углу карточки - маркер непрочитанной заявки. Инлайн
+       ::before в right-aligned nowrap date-col садится слева от текста даты. Полный
+       префикс .applications-table + display:!important перебивают скрывающее подписи
+       `.rt-row > .application-col::before{display:none!important}` (равная специфичность
+       0,4,1, но то правило ниже по источнику - без префикса выиграло бы тай-брейк). */
+    .applications-table .application-item.unread .application-col.date-col::before {
+        content: '';
+        display: inline-block !important;
+        width: 7px;
+        height: 7px;
+        margin-right: 6px;
+        border-radius: 50%;
+        background: var(--color-danger);
+        vertical-align: middle;
     }
 
     /* Компактная карточка-письмо БЕЗ подписей (W3.7): бейдж согласования + дата в углу
@@ -3394,9 +3409,13 @@ export default {
         top: 10px;
         right: 14px;
         width: auto;
-        max-width: 45%;
+        max-width: 55%;
+        /* height:auto сбрасывает базовое .application-col{height:100%} - иначе absolute-блок
+           даты растягивается на всю высоту карточки невидимым оверлеем и перехватывает hover
+           тегов/организации под ним (расширенный max-width усилил бы это). */
+        height: auto;
         padding: 0;
-        font-size: 12px;
+        font-size: 14px;
         white-space: nowrap;
         text-align: right;
     }
