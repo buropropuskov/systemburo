@@ -17,6 +17,12 @@
               <RefreshButton @refresh="fetchAllData" />
             </div>
           </div>
+          <div class="news-search-row">
+            <SearchComponent
+              v-model="searchQuery"
+              title="Поиск по новостям..."
+            />
+          </div>
           <div class="divider" />
           <div class="news-list">
             <!-- Лоадер -->
@@ -28,11 +34,11 @@
             </div>
             <!-- Новости -->
             <div
-              v-else-if="newsItems.length > 0"
+              v-else-if="filteredNewsItems.length > 0"
               class="news-items"
             >
               <article
-                v-for="(item, index) in newsItems"
+                v-for="(item, index) in filteredNewsItems"
                 :key="item.id"
                 class="news-item"
                 :style="{ animationDelay: `${index * 0.1}s` }"
@@ -59,7 +65,7 @@
               v-else
               class="empty-state"
             >
-              <p>Нет новостей</p>
+              <p>{{ newsEmptyText }}</p>
             </div>
           </div>
         </div>
@@ -105,27 +111,27 @@
           </div>
         </div>
         <div
-          v-if="activeAnnouncement"
+          v-if="filteredAnnouncement"
           class="news-card announcement-card"
-          :class="{ 'important-announcement': activeAnnouncement.is_important }"
+          :class="{ 'important-announcement': filteredAnnouncement.is_important }"
           :style="{ animationDelay: '0.1s' }"
           data-testid="ob-announcement"
-          @click="openAnnouncementModal(activeAnnouncement)"
+          @click="openAnnouncementModal(filteredAnnouncement)"
         >
           <div class="card-header">
             <span
               class="card-type"
-              :class="{ important: activeAnnouncement.is_important }"
+              :class="{ important: filteredAnnouncement.is_important }"
             >
-              {{ activeAnnouncement.is_important ? 'Важное объявление' : 'Объявление' }}
+              {{ filteredAnnouncement.is_important ? 'Важное объявление' : 'Объявление' }}
             </span>
-            <time class="card-date">{{ formatDate(activeAnnouncement.created_at) }}</time>
+            <time class="card-date">{{ formatDate(filteredAnnouncement.created_at) }}</time>
           </div>
           <h3 class="card-title">
-            {{ activeAnnouncement.title }}
+            {{ filteredAnnouncement.title }}
           </h3>
           <p class="card-description">
-            {{ activeAnnouncement.description }}
+            {{ filteredAnnouncement.description }}
           </p>
           <button class="card-button">
             Читать далее
@@ -273,6 +279,8 @@ import { sanitizeHtml } from '@/utils/sanitize.js'
 import DocumentsBlock from '../components/news/DocumentsBlock.vue'
 import WorkModesModal from '../components/news/WorkModesModal.vue'
 import OnboardingButton from '../components/onboarding/OnboardingButton.vue'
+import SearchComponent from '../components/SearchComponent.vue'
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import { ref } from 'vue'
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
 
@@ -286,6 +294,7 @@ export default {
     DocumentsBlock,
     WorkModesModal,
     OnboardingButton,
+    SearchComponent,
   },
   setup() {
     // Читалка новости на мобилке - bottom-sheet со свайп-вниз-закрытием (W3.4).
@@ -331,7 +340,31 @@ export default {
       guideLoading: false,
       guideLoaded: false,
       eventStreamOff: null,
+      searchQuery: '',
     }
+  },
+  computed: {
+    // Поиск (#1157) - клиентский, по заголовку+тексту. Пустой запрос
+    // показывает всё (общий util buildSearchVariants/matchesSearch, как в
+    // остальных справочниках/списках проекта).
+    filteredNewsItems() {
+      const variants = buildSearchVariants(this.searchQuery)
+      if (!variants.length) return this.newsItems
+      return this.newsItems.filter(item => matchesSearch(`${item.title} ${item.description || ''}`, variants))
+    },
+    // Активное объявление - единственная запись (не список), но тот же
+    // поиск применяется и к ней: не совпало с запросом - карточка скрывается.
+    filteredAnnouncement() {
+      if (!this.activeAnnouncement) return null
+      const variants = buildSearchVariants(this.searchQuery)
+      if (!variants.length) return this.activeAnnouncement
+      return matchesSearch(`${this.activeAnnouncement.title} ${this.activeAnnouncement.description || ''}`, variants)
+        ? this.activeAnnouncement
+        : null
+    },
+    newsEmptyText() {
+      return this.searchQuery.trim() ? 'Ничего не найдено по запросу' : 'Нет новостей'
+    },
   },
   mounted() {
     this.fetchAllData()
@@ -508,6 +541,10 @@ export default {
 .header-actions {
     display: flex;
     gap: 8px;
+}
+
+.news-search-row {
+    padding: 0 20px 14px;
 }
 
 .divider {
@@ -1046,6 +1083,10 @@ export default {
         justify-content: flex-end;
         flex-wrap: nowrap;
         gap: 6px;
+    }
+
+    .news-search-row {
+        padding: 0 14px 10px;
     }
 
     /* Читалка новости - bottom-sheet: оверлей прижимает лист к низу,

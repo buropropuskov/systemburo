@@ -22,6 +22,10 @@
             Объявления
           </button>
         </div>
+        <SearchComponent
+          v-model="searchQuery"
+          :title="activeTab === 'news' ? 'Поиск новостей...' : 'Поиск объявлений...'"
+        />
         <button
           class="lk-button lk-button--primary add-btn rt-btn-compact"
           :aria-label="activeTab === 'news' ? 'Добавить новость' : 'Добавить объявление'"
@@ -62,13 +66,13 @@
             Загрузка…
           </div>
           <div
-            v-else-if="newsItems.length === 0"
+            v-else-if="filteredNewsItems.length === 0"
             class="empty-state"
           >
-            Нет новостей
+            {{ newsEmptyText }}
           </div>
           <div
-            v-for="item in newsItems"
+            v-for="item in filteredNewsItems"
             v-else
             :key="item.id"
             class="manage-item"
@@ -94,7 +98,7 @@
             </div>
           </div>
           <div class="items-footer">
-            Всего: {{ newsItems.length }}
+            Всего: {{ filteredNewsItems.length }}
           </div>
         </div>
 
@@ -114,13 +118,13 @@
             Загрузка…
           </div>
           <div
-            v-else-if="announcementsItems.length === 0"
+            v-else-if="filteredAnnouncementsItems.length === 0"
             class="empty-state"
           >
-            Нет объявлений
+            {{ announcementsEmptyText }}
           </div>
           <div
-            v-for="item in announcementsItems"
+            v-for="item in filteredAnnouncementsItems"
             v-else
             :key="item.id"
             class="manage-item"
@@ -147,7 +151,7 @@
             </div>
           </div>
           <div class="items-footer">
-            Всего: {{ announcementsItems.length }}
+            Всего: {{ filteredAnnouncementsItems.length }}
           </div>
         </div>
       </transition>
@@ -384,13 +388,15 @@
 import { apiRequest } from '@/api/client';
 import RefreshButton from '@/components/RefreshButton.vue';
 import TextConstructor from '@/components/TextConstructor.vue';
+import SearchComponent from '@/components/SearchComponent.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
 import { sanitizeHtml } from '@/utils/sanitize.js';
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 
 export default {
   name: 'NewsManagement',
-  components: { RefreshButton, TextConstructor },
+  components: { RefreshButton, TextConstructor, SearchComponent },
   data() {
     return {
       loading: false,
@@ -403,7 +409,28 @@ export default {
       editingItem: null,
       newsForm: { title: '', description: '', fullText: '' },
       announcementForm: { title: '', description: '', fullText: '', isImportant: false },
+      searchQuery: '',
     };
+  },
+  computed: {
+    // Поиск (#1157) - клиентский, по заголовку+описанию, отдельно для
+    // каждой вкладки (общий util как в остальных справочниках проекта).
+    filteredNewsItems() {
+      const variants = buildSearchVariants(this.searchQuery);
+      if (!variants.length) return this.newsItems;
+      return this.newsItems.filter((item) => matchesSearch(`${item.title} ${item.description || ''}`, variants));
+    },
+    filteredAnnouncementsItems() {
+      const variants = buildSearchVariants(this.searchQuery);
+      if (!variants.length) return this.announcementsItems;
+      return this.announcementsItems.filter((item) => matchesSearch(`${item.title} ${item.description || ''}`, variants));
+    },
+    newsEmptyText() {
+      return this.searchQuery.trim() ? 'Ничего не найдено по запросу' : 'Нет новостей';
+    },
+    announcementsEmptyText() {
+      return this.searchQuery.trim() ? 'Ничего не найдено по запросу' : 'Нет объявлений';
+    },
   },
   mounted() {
     this.fetchAll();
@@ -1154,6 +1181,14 @@ export default {
   .management-header {
     height: auto;
     padding: 12px 16px;
+  }
+
+  /* Направление строки берёт на себя глобальный .rt-header-inline
+     (responsive-tables.css, !important); здесь только разрешаем перенос
+     контролов (таб-группа+поиск+кнопки) на вторую строку, если не влезают. */
+  .header-controls {
+    flex-wrap: wrap;
+    row-gap: 8px;
   }
 
   .management-body {
