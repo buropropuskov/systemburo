@@ -228,7 +228,8 @@ export default {
       sortField: null,
       sortDirection: 'desc',
       carsData: [],
-      unloadingPlacesMap: new Map()
+      unloadingPlacesMap: new Map(),
+      pendingAnimationTimeouts: []
     };
   },
   computed: {
@@ -340,11 +341,15 @@ export default {
       this.fetchCars();
     });
     
-    setTimeout(() => {
+    this.pendingAnimationTimeouts.push(setTimeout(() => {
       document.querySelectorAll('.car-item').forEach(item => {
         item.classList.add('animate-in');
       });
-    }, 100);
+    }, 100));
+  },
+  beforeUnmount() {
+    this.pendingAnimationTimeouts.forEach(id => clearTimeout(id));
+    this.pendingAnimationTimeouts = [];
   },
   methods: {
     async fetchUnloadingPlaces() {
@@ -416,11 +421,11 @@ export default {
         this.carsData = Array.from(uniqueOrganizations.values());
 
         this.$nextTick(() => {
-          setTimeout(() => {
+          this.pendingAnimationTimeouts.push(setTimeout(() => {
             document.querySelectorAll('.car-item').forEach(item => {
               item.classList.add('animate-in');
             });
-          }, 100);
+          }, 100));
         });
       } catch (error) {
         console.error("Ошибка при загрузке автомобилей по факту:", error);
