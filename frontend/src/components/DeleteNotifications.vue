@@ -5,13 +5,13 @@
         v-for="item in store.items"
         :key="item.id"
         class="del-card"
-        :class="{ 'del-card--error': item.type === 'error' }"
+        :class="'del-card--' + item.type"
         @click="store.dismiss(item.id)"
       >
         <div
           v-if="item.title"
           class="del-title"
-          :class="{ 'del-title--error': item.type === 'error' }"
+          :class="'del-title--' + item.type"
         >
           {{ item.title }}
         </div>
@@ -56,9 +56,11 @@ onMounted(() => {
 });
 
 // Цвет прогресс-бара: 100% (только удалили) - зелёный, 0% (вот-вот исчезнет) - красный.
-// Для type=error всегда красный - нет семантики "истекает".
+// Для error/warning/info бар статичного цвета - нет семантики "истекает".
 function barColorFor(item) {
   if (item.type === 'error') return 'rgb(255, 102, 104)';
+  if (item.type === 'warning') return 'rgb(245, 158, 11)';
+  if (item.type === 'info') return 'rgb(59, 130, 246)';
   const t = Math.min(1, Math.max(0, (100 - item.progress) / 100));
   const green = [52, 199, 89];
   const red = [255, 102, 104];
@@ -103,6 +105,14 @@ function barColorFor(item) {
 
 .del-title--error {
   color: #b91c1c;
+}
+
+.del-title--warning {
+  color: #b45309;
+}
+
+.del-title--info {
+  color: #1d4ed8;
 }
 
 .del-row {
