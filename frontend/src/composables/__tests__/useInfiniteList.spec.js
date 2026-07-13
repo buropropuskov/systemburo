@@ -72,6 +72,36 @@ describe('useInfiniteList', () => {
       expect(list.hasMore.value).toBe(false);
     });
 
+    it('дедуп по id при append: пересекающиеся страницы не создают дублей, hasMore корректен', async () => {
+      // Offset-пагинация поверх живых данных: вставка новой заявки сдвигает границы
+      // страниц, и последняя строка page1 (id:2) повторяется в page2. Без дедупа был бы
+      // дубль (Vue key-warning на :key) и завышенный items.length -> врущий hasMore (#1158).
+      const list = useInfiniteList({ perPage: 2 });
+      const fetchPage = vi.fn()
+        .mockResolvedValueOnce({ items: [{ id: 1 }, { id: 2 }], total: 3 })
+        .mockResolvedValueOnce({ items: [{ id: 2 }, { id: 3 }], total: 3 });
+
+      await list.load(fetchPage);
+      await list.loadMore(fetchPage);
+
+      // id:2 не задублировался, набор из 3 уникальных.
+      expect(list.items.value).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }]);
+      // hasMore по числу УНИКАЛЬНЫХ (3) против total (3) - false, а не завышенный 4<3.
+      expect(list.hasMore.value).toBe(false);
+    });
+
+    it('кастомный keyFn дедупит по своему ключу', async () => {
+      const list = useInfiniteList({ perPage: 2, keyFn: (i) => i.uid });
+      const fetchPage = vi.fn()
+        .mockResolvedValueOnce({ items: [{ uid: 'a' }], total: 2 })
+        .mockResolvedValueOnce({ items: [{ uid: 'a' }, { uid: 'b' }], total: 2 });
+
+      await list.load(fetchPage);
+      await list.loadMore(fetchPage);
+
+      expect(list.items.value).toEqual([{ uid: 'a' }, { uid: 'b' }]);
+    });
+
     it('не запускает новый запрос, если hasMore=false', async () => {
       const list = useInfiniteList({ perPage: 2 });
       const fetchPage = vi.fn().mockResolvedValue({ items: [{ id: 1 }], total: 1 });

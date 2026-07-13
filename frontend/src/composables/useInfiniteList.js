@@ -10,9 +10,9 @@ import { ref, computed } from 'vue';
  * (setup() не имеет доступа к this, а fetchPage обычно строится из полей формы/
  * фильтров компонента, доступных только в methods).
  *
- * @param {{perPage?: number}} [options]
+ * @param {{perPage?: number, keyFn?: (item: object) => (string|number)}} [options]
  */
-export function useInfiniteList({ perPage = 30 } = {}) {
+export function useInfiniteList({ perPage = 30, keyFn = (item) => item.id } = {}) {
   const items = ref([]);
   const total = ref(0);
   const page = ref(1);
@@ -25,6 +25,10 @@ export function useInfiniteList({ perPage = 30 } = {}) {
   let observer = null;
   let sentinelFetchPage = null;
 
+  // hasMore считаем по числу УНИКАЛЬНЫХ элементов (items уже дедуплицированы при
+  // append) - offset-пагинация поверх живых данных может отдать пересекающиеся id
+  // между страницами (вставка новой заявки сдвигает границы страниц), и без дедупа
+  // items.length завышался бы, а hasMore врал (#1158).
   const hasMore = computed(() => items.value.length < total.value);
 
   /**
@@ -40,7 +44,15 @@ export function useInfiniteList({ perPage = 30 } = {}) {
       const result = await fetchPage(page.value, perPage);
       if (mySeq !== seq) return; // устарел - актуальный запрос уже идёт
       const data = (result && result.items) || [];
-      items.value = reset ? data : [...items.value, ...data];
+      if (reset) {
+        items.value = data;
+      } else {
+        // Append с дедупом по ключу: пропускаем элементы, чьи id уже накоплены,
+        // иначе дубль -> Vue key-warning на :key и завышенный hasMore (#1158).
+        const known = new Set(items.value.map(keyFn));
+        const fresh = data.filter((item) => !known.has(keyFn(item)));
+        items.value = [...items.value, ...fresh];
+      }
       total.value = (result && result.total) || 0;
     } catch (err) {
       if (mySeq !== seq) return;
