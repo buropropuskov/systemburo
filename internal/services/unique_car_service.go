@@ -409,7 +409,7 @@ func (s *uniqueCarService) GetAll(ctx context.Context, username string, filterTy
 
 	query := s.buildCarsQuery(ctx, ownerInfo, filterType, "").
 		Select(carsListSelect).
-		Order("uc.number, uc.mark")
+		Order("uc.number, uc.mark, uc.id")
 
 	cars := make([]UniqueCarWithRelations, 0)
 	if err := query.Scan(&cars).Error; err != nil {
@@ -439,7 +439,10 @@ func (s *uniqueCarService) GetAllPaginated(ctx context.Context, username, filter
 	offset := (page - 1) * perPage
 	dataQuery := s.buildCarsQuery(ctx, ownerInfo, filterType, searchQuery).
 		Select(carsListSelect).
-		Order("uc.number, uc.mark").
+		// uc.id третий ключ - number/mark не уникальны (нет unique-индекса), без
+		// tie-breaker две равные строки могут переупорядочиться между offset-страницами
+		// -> пропуск/дубль при бесшовной подгрузке (dedup прячет дубль, не пропуск).
+		Order("uc.number, uc.mark, uc.id").
 		Offset(offset).
 		Limit(perPage)
 

@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils';
 import { setActivePinia, createPinia } from 'pinia';
 
 import CarsView from '../CarsView.vue';
+import { apiRequest } from '@/api/client';
 
 // Реестр машин переведён на серверный поиск/пагинацию (#1158, срез 2): проверяем,
 // что search_query/page/per_page реально уходят на бэк (getUniqueCarsPaginated),
@@ -120,6 +121,38 @@ describe('CarsView - серверный поиск и пагинация (#1158,
 
     expect(wrapper.vm.carsData).toHaveLength(1);
     expect(wrapper.vm.carsData[0].id).toBe(9);
+  });
+
+  it('поиск НЕ дёргает эндпоинты мест разгрузки (они не зависят от search_query)', async () => {
+    vi.useFakeTimers();
+    wrapper = mountView();
+    await flushPromises();
+    // На mount места разгрузки грузятся (withPlaces=true) - это ожидаемо.
+    apiRequest.mockClear();
+
+    wrapper.vm.searchQuery = 'BMW';
+    await wrapper.vm.$nextTick();
+    vi.advanceTimersByTime(300);
+    await flushPromises();
+
+    const placeCalls = apiRequest.mock.calls.filter(
+      ([path]) => path === '/unload-places' || path === '/cars/unload-places',
+    );
+    expect(placeCalls).toHaveLength(0);
+  });
+
+  it('смена filter_type ГРУЗИТ места разгрузки (active_car_id/набор мест могли смениться)', async () => {
+    wrapper = mountView();
+    await flushPromises();
+    apiRequest.mockClear();
+
+    wrapper.vm.switchFilter('organization');
+    await flushPromises();
+
+    const placeCalls = apiRequest.mock.calls.filter(
+      ([path]) => path === '/unload-places' || path === '/cars/unload-places',
+    );
+    expect(placeCalls.length).toBeGreaterThan(0);
   });
 
   it('счётчик футера использует серверный meta.total, а не размер загруженной порции', async () => {

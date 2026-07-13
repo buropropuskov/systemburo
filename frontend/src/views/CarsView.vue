@@ -873,11 +873,12 @@ export default {
     },
     watch: {
         // Поиск - на сервере (#1158, срез 2): дебаунс 300мс перед fetchCars (reset на
-        // стр.1 + очистка аккумулятора уже даёт loadCarsList({reset:true})).
+        // стр.1 + очистка аккумулятора уже даёт loadCarsList({reset:true})). withPlaces:false
+        // - места разгрузки от search_query не зависят, тянуть их на каждый ввод не нужно.
         searchQuery() {
             clearTimeout(this.searchTimeout);
             this.searchTimeout = setTimeout(() => {
-                this.fetchCars();
+                this.fetchCars({ withPlaces: false });
             }, 300);
         },
 
@@ -1041,9 +1042,18 @@ export default {
             return this.blacklistKeys.has(this.blacklistKey(car.number, car.mark));
         },
 
-        async fetchCars() {
-            // seq-токен: fetchCars дёргается сменой фильтра/поиска - при пачке вызовов
-            // (быстрый ввод) продолжать loadAllRemainingCars должен только последний (#632).
+        /**
+         * @param {{withPlaces?: boolean}} [opts] withPlaces=false пропускает две
+         *   тяжёлые полные выборки мест разгрузки (/unload-places + /cars/unload-places),
+         *   которые не зависят от search_query - при поиске (дебаунс на каждый ввод) их
+         *   дёргать не нужно. Дефолт true (mount/смена filter_type/refresh/удаление/
+         *   application-changed) - там active_car_id и набор мест могли измениться.
+         *   Событийные вызовы из шаблона (@refresh/@application-changed) передают event
+         *   первым аргументом, а не { withPlaces: false } -> `!== false` даёт true, места
+         *   грузятся. seq-токен защищает от продолжения устаревшего прохода (#632).
+         */
+        async fetchCars(opts = {}) {
+            const withPlaces = opts.withPlaces !== false;
             const seq = ++this.fetchSeq;
             this.loading = true;
             try {
@@ -1057,9 +1067,12 @@ export default {
                     if (seq !== this.fetchSeq) return;
                 }
 
-                // Места разгрузки тоже перезагружаем: при смене активной заявки у машины
-                // меняется active_car_id и набор мест, иначе карта устаревает после рефреша.
-                await Promise.all([this.fetchUnloadingPlaces(), this.fetchCarUnloadPlaces()]);
+                // Места разгрузки: при смене активной заявки у машины меняется
+                // active_car_id и набор мест, иначе карта устаревает после рефреша.
+                // При поиске (withPlaces=false) не трогаем - от search_query не зависят.
+                if (withPlaces) {
+                    await Promise.all([this.fetchUnloadingPlaces(), this.fetchCarUnloadPlaces()]);
+                }
             } catch (error) {
                 console.error("Ошибка при загрузке машин:", error);
             } finally {
