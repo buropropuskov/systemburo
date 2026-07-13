@@ -250,6 +250,7 @@
 <script>
 import BaseModal from '@/components/ui/BaseModal.vue'
 import FormField from '@/components/ui/FormField.vue'
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 
 export default {
     name: 'ForwardModal',
@@ -338,18 +339,17 @@ export default {
             );
 
             // Если есть поисковый запрос, фильтруем по нему
-            if (this.searchQuery.trim()) {
-                const query = this.searchQuery.toLowerCase();
+            const variants = buildSearchVariants(this.searchQuery);
+            if (variants.length) {
                 availableUsers = availableUsers.filter(user => {
-                    const fullName = this.getUserDisplayName(user).toLowerCase();
-                    const username = user.username.toLowerCase();
-                    const position = (user.position || '').toLowerCase();
-                    const organization = (user.organization || '').toLowerCase();
+                    const haystack = [
+                        this.getUserDisplayName(user),
+                        user.username,
+                        user.position || '',
+                        user.organization || '',
+                    ].join(' ');
 
-                    return fullName.includes(query) ||
-                           username.includes(query) ||
-                           position.includes(query) ||
-                           organization.includes(query);
+                    return matchesSearch(haystack, variants);
                 });
             }
 

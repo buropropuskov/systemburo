@@ -59,6 +59,28 @@ describe('BlacklistTabBase', () => {
     expect(wrapper.text()).toContain('Запись 2');
   });
 
+  it('поиск матчит по варианту раскладки - EN-ввод находит кириллицу (#1157)', async () => {
+    // "ghbxbyf2" на EN-раскладке физически совпадает с "причина2" на RU.
+    const wrapper = mountBase();
+    await flushPromises();
+    wrapper.vm.searchQuery = 'ghbxbyf2';
+    await flushPromises();
+    expect(wrapper.findAll('.bl-row')).toHaveLength(1);
+    expect(wrapper.text()).toContain('Запись 2');
+  });
+
+  it('пустой поисковый запрос снова показывает все активные записи (#1157)', async () => {
+    const wrapper = mountBase();
+    await flushPromises();
+    wrapper.vm.searchQuery = 'причина2';
+    await flushPromises();
+    expect(wrapper.findAll('.bl-row')).toHaveLength(1);
+
+    wrapper.vm.searchQuery = '';
+    await flushPromises();
+    expect(wrapper.findAll('.bl-row')).toHaveLength(2);
+  });
+
   it('клик по строке открывает панель деталей', async () => {
     const wrapper = mountBase();
     await flushPromises();

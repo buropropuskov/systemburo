@@ -80,6 +80,8 @@
 </template>
 
 <script>
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
+
 export default {
     name: 'OrganizationFilter',
     props: {
@@ -120,12 +122,11 @@ export default {
         },
         
         filteredOrganizations() {
-            if (!this.searchQuery) return this.organizations;
-            
-            const searchTerm = this.searchQuery.toLowerCase().trim();
+            const variants = buildSearchVariants(this.searchQuery);
+            if (!variants.length) return this.organizations;
+
             return this.organizations.filter(org => {
-                const name = org.name.toLowerCase();
-                return name.includes(searchTerm);
+                return matchesSearch(org.name, variants);
             });
         }
     },

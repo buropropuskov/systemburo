@@ -190,6 +190,7 @@
 <script>
 import { apiRequest } from '@/api/client'
 import RefreshButton from './RefreshButton.vue';
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 
 export default {
   components: {
@@ -235,15 +236,18 @@ export default {
       let filtered = [...this.carsData];
 
       // Поиск по всем полям
-      if (this.searchQuery) {
-        const query = this.searchQuery.toLowerCase();
-        filtered = filtered.filter(car => 
-          car.organization.toLowerCase().includes(query) ||
-          this.formatUnloadPlaces(car.unload_places).toLowerCase().includes(query) ||
-          car.status.toLowerCase().includes(query) ||
-          this.formatTimeRange(car.entry_time_from, car.entry_time_to).toLowerCase().includes(query) ||
-          this.formatDate(car.entry_date_to).toLowerCase().includes(query)
-        );
+      const variants = buildSearchVariants(this.searchQuery);
+      if (variants.length) {
+        filtered = filtered.filter(car => {
+          const haystack = [
+            car.organization,
+            this.formatUnloadPlaces(car.unload_places),
+            car.status,
+            this.formatTimeRange(car.entry_time_from, car.entry_time_to),
+            this.formatDate(car.entry_date_to),
+          ].join(' ');
+          return matchesSearch(haystack, variants);
+        });
       }
 
       // Фильтр по организации

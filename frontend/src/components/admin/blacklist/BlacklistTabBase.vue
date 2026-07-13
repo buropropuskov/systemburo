@@ -278,6 +278,7 @@ import RefreshButton from '@/components/RefreshButton.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import { useDeletionsStore } from '@/stores/deletions';
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 
 /**
  * Базовая вкладка чёрного списка (#443): шапка (архив-режим, поиск, обновление),
@@ -335,12 +336,12 @@ export default {
   },
   computed: {
     filteredItems() {
-      const q = this.searchQuery.trim().toLowerCase();
+      const variants = buildSearchVariants(this.searchQuery);
       return this.items.filter((item) => {
         if (this.showArchive ? item.is_active : !item.is_active) return false;
-        if (!q) return true;
-        const haystack = `${this.getPrimaryText(item)} ${item.reason || ''}`.toLowerCase();
-        return haystack.includes(q);
+        if (!variants.length) return true;
+        const haystack = `${this.getPrimaryText(item)} ${item.reason || ''}`;
+        return matchesSearch(haystack, variants);
       });
     },
     emptyText() {
