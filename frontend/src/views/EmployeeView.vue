@@ -230,7 +230,8 @@
                 <LoaderSpinner label="Загрузка сотрудников…" />
               </div>
               <div
-                v-else-if="filteredEmployees.length > 0"
+                v-else-if="sortedEmployees.length > 0"
+                ref="employeesBody"
                 class="employees-body"
               >
                 <div
@@ -317,6 +318,21 @@
                     </div>
                   </div>
                 </div>
+
+                <!-- Бесшовная подгрузка (#1158): sentinel внизу СКРОЛЛИРУЕМОГО
+                     employees-body - IntersectionObserver триггерит loadMore без
+                     кнопки "Показать ещё". -->
+                <div
+                  v-if="hasMoreEmployees"
+                  :ref="setEmployeesSentinelRef"
+                  class="scroll-sentinel"
+                  data-testid="employees-scroll-sentinel"
+                >
+                  <LoaderSpinner
+                    v-if="listLoading"
+                    label="Загрузка…"
+                  />
+                </div>
               </div>
               <p
                 v-else
@@ -324,6 +340,13 @@
               >
                 {{ hasActiveFilters ? 'Нет данных по выбранным фильтрам' : 'Сотрудников нет' }}
               </p>
+            </div>
+            <div
+              v-if="!loading && sortedEmployees.length"
+              class="table-footer"
+              data-testid="employees-table-footer"
+            >
+              {{ footerText }}
             </div>
           </div>
         </div>
@@ -398,7 +421,8 @@
 
 <script>
 import { apiRequest } from '@/api/client'
-import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
+import { getUniqueEmployeesPaginated } from '@/api/employees'
+import { useInfiniteList } from '@/composables/useInfiniteList'
 import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
 import { usePermissionsStore } from '@/stores/permissions';
@@ -411,6 +435,10 @@ import EmployeeDetailsModal from '@/components/CreateApplication/EmployeeDetails
 import ApplicationDetail from '@/components/ApplicationDetail/ApplicationDetail.vue';
 import { listPersonBlacklist } from '@/api/blacklist';
 
+// Размер порции бесшовной подгрузки реестра сотрудников (#1158, срез 3) - аналог
+// CARS_PER_PAGE в CarsView.
+const EMPLOYEES_PER_PAGE = 30;
+
 export default {
     components: {
         SearchComponent,
@@ -421,15 +449,39 @@ export default {
         EmployeeDetailsModal,
         ApplicationDetail
     },
+    setup() {
+        // Бесшовная подгрузка реестра сотрудников порциями (#1158, срез 3): composable
+        // инкапсулирует page/per_page/аккумуляцию/hasMore/seq-guard, тот же паттерн,
+        // что useInfiniteList в CarsView. employeesData - алиас infiniteList.items:
+        // pre-existing спека (EmployeeViewPermissionGating) пишет wrapper.vm.employeesData
+        // напрямую, переименование сломало бы её без пользы.
+        const infiniteList = useInfiniteList({ perPage: EMPLOYEES_PER_PAGE });
+        return {
+            employeesData: infiniteList.items,
+            employeesTotal: infiniteList.total,
+            employeesPage: infiniteList.page,
+            hasMoreEmployees: infiniteList.hasMore,
+            listLoading: infiniteList.loading,
+            loadEmployeesList: infiniteList.load,
+            loadMoreEmployeesList: infiniteList.loadMore,
+            observeEmployeesSentinel: infiniteList.observeSentinel,
+            disconnectEmployeesSentinel: infiniteList.disconnectObserver,
+        };
+    },
     data() {
         return {
             loading: true,
             searchQuery: '',
             sortField: null,
             sortDirection: 'desc',
-            employeesData: [],
+            // employeesData/employeesTotal/hasMoreEmployees/listLoading выставлены из
+            // useInfiniteList в setup() (#1158, срез 3).
             blacklistKeys: new Set(),
             searchTimeout: null,
+            // seq-guard (#632/#1158): смена фильтра/поиска до резолва предыдущего
+            // fetchEmployees не должна запускать/продолжать устаревший
+            // loadAllRemainingEmployees.
+            fetchSeq: 0,
             currentFilter: 'user',
             ownershipInfo: null,
             showModal: false,
@@ -466,21 +518,11 @@ export default {
         canDeleteEmployees() {
             return usePermissionsStore().hasPermission('entity.employees.delete');
         },
-        filteredEmployees() {
-            const variants = buildSearchVariants(this.searchQuery);
-            if (!variants.length) {
-                return this.employeesData;
-            }
-            return this.employeesData.filter(employee => matchesSearch(
-                `${this.formatFullName(employee)} ${employee.position || ''} `
-                + (employee.status ? 'активен' : 'неактивен'),
-                variants,
-            ));
-        },
-
+        // Поиск по тексту выполняется на бэке через search_query (#1158, срез 3) -
+        // здесь не дублируем, employeesData уже отфильтрован сервером.
         sortedEmployees() {
-            const employees = [...this.filteredEmployees];
-            
+            const employees = [...this.employeesData];
+
             if (!this.sortField) {
                 return employees;
             }
@@ -535,14 +577,32 @@ export default {
 
         hasActiveFilters() {
             return !!this.searchQuery.trim();
+        },
+
+        // Сортировка по колонкам - клиентская и должна идти по ВСЕМУ набору (как на
+        // dev до пагинации), а не по одной загруженной порции: при активной сортировке
+        // догружаем остаток (см. loadAllRemainingEmployees, #1158). Других клиентских
+        // фильтров не осталось (поиск и filter_type - серверные), поэтому isFullLoad
+        // зависит только от sortField.
+        isFullLoad() {
+            return !!this.sortField;
+        },
+
+        // Футер "Показано X из Y": клиентских фильтров, урезающих employeesData, не
+        // осталось (сортировка не убирает строки), поэтому shown всегда равен total
+        // загруженных, а "из employeesTotal" - серверному счётчику всех совпадений.
+        footerText() {
+            return `Показано ${this.sortedEmployees.length} из ${this.employeesTotal}`;
         }
     },
     watch: {
+        // Поиск - на сервере (#1158, срез 3): дебаунс 300мс перед fetchEmployees
+        // (reset на стр.1 + очистка аккумулятора уже даёт loadEmployeesList({reset:true})).
         searchQuery() {
             clearTimeout(this.searchTimeout);
             this.searchTimeout = setTimeout(() => {
-                this.$forceUpdate();
-            }, 50);
+                this.fetchEmployees();
+            }, 300);
         }
     },
     async mounted() {
@@ -562,6 +622,10 @@ export default {
         }
     },
     beforeUnmount() {
+        this.disconnectEmployeesSentinel();
+        if (this.searchTimeout) {
+            clearTimeout(this.searchTimeout);
+        }
         window.removeEventListener('resize', this._applyHeight);
         if (this._headerObs) {
             this._headerObs.disconnect();
@@ -639,23 +703,56 @@ export default {
         },
 
         async fetchEmployees() {
+            const seq = ++this.fetchSeq;
             this.loading = true;
             try {
-                const response = await apiRequest(`/unique-employees?filter_type=${this.currentFilter}`, {
-                    method: "GET"});
+                await this.loadEmployeesList(this.buildEmployeesPage, { reset: true });
+                if (seq !== this.fetchSeq) return; // устарел - актуальный запрос уже идёт
 
-                if (response.ok) {
-                    this.employeesData = await response.json();
-                } else {
-                    console.error("Ошибка при загрузке сотрудников");
-                    this.employeesData = [];
+                // Клиентская сортировка требует ВЕСЬ набор (как на dev до пагинации):
+                // догружаем оставшиеся порции, чтобы сортировка шла по полному списку (#1158).
+                if (this.isFullLoad) {
+                    await this.loadAllRemainingEmployees(seq);
                 }
             } catch (error) {
                 console.error("Ошибка при загрузке сотрудников:", error);
-                this.employeesData = [];
             } finally {
-                this.loading = false;
+                if (seq === this.fetchSeq) this.loading = false;
             }
+        },
+
+        // Догрузка всех оставшихся порций (full-load режим: активная клиентская
+        // сортировка, #1158). seq-guard прерывает устаревший проход, если пользователь
+        // сменил фильтр/поиск и стартовал новый fetchEmployees; guard - от бесконечного
+        // цикла, если total/hasMore разъедутся.
+        async loadAllRemainingEmployees(seq) {
+            let guard = 0;
+            while (this.hasMoreEmployees && seq === this.fetchSeq) {
+                await this.loadMoreEmployeesList(this.buildEmployeesPage);
+                if (++guard > 200) break;
+            }
+        },
+
+        /**
+         * fetchPage для useInfiniteList (#1158): строит параметры текущего
+         * фильтра/поиска плюс page/per_page - бэк переключается на GetAllPaginated,
+         * как только видит per_page (internal/handlers/unique_employees.go).
+         */
+        async buildEmployeesPage(page, perPage) {
+            const params = { filter_type: this.currentFilter, page, per_page: perPage };
+            if (this.searchQuery.trim()) {
+                params.search_query = this.searchQuery.trim();
+            }
+            const { items, meta } = await getUniqueEmployeesPaginated(params);
+            return { items, total: (meta && meta.total) || 0 };
+        },
+
+        // Автодогрузка следующей порции по пересечению sentinel с employees-body (#1158).
+        // root - сам .employees-body: у него свой overflow-y:auto, не документ,
+        // дефолтный root (viewport) пересечение бы не заметил. el=null (v-if=
+        // "hasMoreEmployees"===false) просто отключает observer.
+        setEmployeesSentinelRef(el) {
+            this.observeEmployeesSentinel(el, this.buildEmployeesPage, { root: this.$refs.employeesBody || null });
         },
 
         async fetchOwnershipInfo() {
@@ -732,6 +829,11 @@ export default {
             } else {
                 this.sortField = field;
                 this.sortDirection = 'desc';
+            }
+            // Сортировка клиентская - должна идти по всему набору. Если ещё не всё
+            // загружено, догружаем остаток (тот же паттерн, что в CarsView, #1158).
+            if (this.isFullLoad && this.hasMoreEmployees) {
+                this.fetchEmployees();
             }
         },
 
@@ -1227,6 +1329,23 @@ export default {
     flex-direction: column;
     flex: 1;
     min-height: 0;
+}
+
+/* Бесшовная подгрузка (#1158): sentinel внизу .employees-body, футер под таблицей. */
+.scroll-sentinel {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 24px;
+    padding: 10px 0;
+}
+
+.table-footer {
+    flex-shrink: 0;
+    padding: 10px 20px;
+    border-top: 1px solid #e6e6e6;
+    font-size: 13px;
+    color: #8a8a8a;
 }
 
 .loading-message {

@@ -1,4 +1,4 @@
-import { apiRequest } from './client';
+import { apiRequest, apiRequestRaw } from './client';
 
 export async function createEmployee(data) {
   const res = await apiRequest('/employees', {
@@ -42,4 +42,26 @@ export async function lookupUniqueEmployee({ last_name, first_name, middle_name 
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`Ошибка поиска сотрудника (${res.status})`);
   return res.json();
+}
+
+/**
+ * Реестр сотрудников порциями (#1158, срез 3): передавая page/per_page, включает
+ * серверную пагинацию (GetAllPaginated) и поиск search_query вместо legacy полного
+ * списка. Пагинация лежит в envelope.meta рядом с data, а apiRequest снимает только
+ * data и meta теряется - поэтому читаем сырой ответ через apiRequestRaw (см.
+ * getUniqueCarsPaginated в api/cars.js).
+ * @param {{filter_type?: string, search_query?: string, page?: number, per_page?: number}} params
+ * @returns {Promise<{items: object[], meta: {total: number, page: number, per_page: number}}>}
+ */
+export async function getUniqueEmployeesPaginated(params = {}) {
+  const query = new URLSearchParams(params).toString();
+  const res = await apiRequestRaw(`/unique-employees${query ? '?' + query : ''}`);
+  const body = await res.json();
+  if (!res.ok || !body || !body.success) {
+    throw new Error(body?.error || 'Не удалось загрузить сотрудников');
+  }
+  return {
+    items: body.data || [],
+    meta: body.meta || { total: 0, page: 1, per_page: 30 },
+  };
 }

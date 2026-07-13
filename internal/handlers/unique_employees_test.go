@@ -1,10 +1,12 @@
 package handlers_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
 
+	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
@@ -262,4 +264,119 @@ func TestUniqueEmployees_Lookup(t *testing.T) {
 		rec := testutil.GET(t, e, "/unique-employees/lookup?first_name=Семён", h)
 		assert.Equal(t, http.StatusBadRequest, rec.Code)
 	})
+}
+
+// TestUniqueEmployees_Paginated проверяет серверную пагинацию реестра (#1158, срез 3):
+// per_page переключает GetAll на GetAllPaginated, meta.total считает все совпадения,
+// не размер страницы (secMetaEnvelope переиспользован из security_attachments_test.go,
+// тот же пакет handlers_test).
+func TestUniqueEmployees_Paginated(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	for i, ln := range []string{"Pgn1", "Pgn2", "Pgn3"} {
+		body := fmt.Sprintf(`{"last_name":"%s","first_name":"F%d"}`, ln, i)
+		require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", body, h).Code)
+	}
+
+	rec := testutil.GET(t, e, "/unique-employees?filter_type=all_system&per_page=1&page=1", h)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rows := testutil.ParseResponse[[]services.UniqueEmployeeWithRelations](t, rec)
+	require.Len(t, rows, 1, "страница ограничена per_page")
+
+	var env secMetaEnvelope
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &env), rec.Body.String())
+	assert.GreaterOrEqual(t, env.Meta.Total, int64(3), "total считает все совпадения, не размер страницы")
+	assert.Equal(t, 1, env.Meta.Page)
+	assert.Equal(t, 1, env.Meta.PerPage)
+}
+
+// TestUniqueEmployees_SearchQuery_ExactMatch проверяет серверный поиск по фамилии:
+// точное совпадение находит нужного сотрудника среди прочих (не просто 200 - #46).
+func TestUniqueEmployees_SearchQuery_ExactMatch(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", `{"last_name":"Срхтестовый","first_name":"Иван"}`, h).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", `{"last_name":"Другойчел","first_name":"Пётр"}`, h).Code)
+
+	rec := testutil.GET(t, e, "/unique-employees?filter_type=all_system&per_page=20&search_query=Срхтестовый", h)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rows := testutil.ParseResponse[[]services.UniqueEmployeeWithRelations](t, rec)
+	require.Len(t, rows, 1, "поиск должен вернуть только совпавшего сотрудника")
+	require.NotNil(t, rows[0].LastName)
+	assert.Equal(t, "Срхтестовый", *rows[0].LastName)
+}
+
+// TestUniqueEmployees_SearchQuery_TypoVariant проверяет нечёткий поиск ФИО через
+// strict_word_similarity (тот же приём, что использует Центр заявок для поиска
+// сотрудников по опечаткам в фамилии) - опечатка в одну букву всё равно находит запись.
+func TestUniqueEmployees_SearchQuery_TypoVariant(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", `{"last_name":"Карбышев","first_name":"Дмитрий"}`, h).Code)
+
+	rec := testutil.GET(t, e, "/unique-employees?filter_type=all_system&per_page=20&search_query=Карбышоф", h)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rows := testutil.ParseResponse[[]services.UniqueEmployeeWithRelations](t, rec)
+	require.Len(t, rows, 1, "опечатка в фамилии должна находить сотрудника через strict_word_similarity")
+	require.NotNil(t, rows[0].LastName)
+	assert.Equal(t, "Карбышев", *rows[0].LastName)
+}
+
+// TestUniqueEmployees_SearchQuery_NoMatch проверяет, что несуществующий запрос честно
+// отдаёт пустой список, а не 500 (ловит несуществующие колонки/синтаксис - #46).
+func TestUniqueEmployees_SearchQuery_NoMatch(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", `{"last_name":"Уникум","first_name":"Иван"}`, h).Code)
+
+	rec := testutil.GET(t, e, "/unique-employees?filter_type=all_system&per_page=20&search_query=совершенно-другой-запрос-zzz", h)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rows := testutil.ParseResponse[[]services.UniqueEmployeeWithRelations](t, rec)
+	assert.Empty(t, rows)
+}
+
+// TestUniqueEmployees_SearchQuery_PassportNotSearchable документирует известное
+// ограничение (#1158, срез 3): паспорт/патент зашифрованы (HMAC), ILIKE по ним не
+// работает - поиск по номеру паспорта не находит сотрудника ни по какому полю, кроме
+// точного совпадения полей, входящих в поиск (ФИО/должность/организация/компания/
+// гражданство). Тест фиксирует текущее поведение, а не 500.
+func TestUniqueEmployees_SearchQuery_PassportNotSearchable(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", `{"last_name":"Паспортов","first_name":"Олег","passport_series_number":"7777 654321"}`, h).Code)
+
+	rec := testutil.GET(t, e, "/unique-employees?filter_type=all_system&per_page=20&search_query=7777654321", h)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rows := testutil.ParseResponse[[]services.UniqueEmployeeWithRelations](t, rec)
+	assert.Empty(t, rows, "поиск по номеру паспорта не находит сотрудника - паспорт зашифрован")
 }
