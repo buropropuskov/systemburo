@@ -111,27 +111,27 @@
           </div>
         </div>
         <div
-          v-if="filteredAnnouncement"
+          v-if="activeAnnouncement"
           class="news-card announcement-card"
-          :class="{ 'important-announcement': filteredAnnouncement.is_important }"
+          :class="{ 'important-announcement': activeAnnouncement.is_important }"
           :style="{ animationDelay: '0.1s' }"
           data-testid="ob-announcement"
-          @click="openAnnouncementModal(filteredAnnouncement)"
+          @click="openAnnouncementModal(activeAnnouncement)"
         >
           <div class="card-header">
             <span
               class="card-type"
-              :class="{ important: filteredAnnouncement.is_important }"
+              :class="{ important: activeAnnouncement.is_important }"
             >
-              {{ filteredAnnouncement.is_important ? 'Важное объявление' : 'Объявление' }}
+              {{ activeAnnouncement.is_important ? 'Важное объявление' : 'Объявление' }}
             </span>
-            <time class="card-date">{{ formatDate(filteredAnnouncement.created_at) }}</time>
+            <time class="card-date">{{ formatDate(activeAnnouncement.created_at) }}</time>
           </div>
           <h3 class="card-title">
-            {{ filteredAnnouncement.title }}
+            {{ activeAnnouncement.title }}
           </h3>
           <p class="card-description">
-            {{ filteredAnnouncement.description }}
+            {{ activeAnnouncement.description }}
           </p>
           <button class="card-button">
             Читать далее
@@ -344,23 +344,14 @@ export default {
     }
   },
   computed: {
-    // Поиск (#1157) - клиентский, по заголовку+тексту. Пустой запрос
-    // показывает всё (общий util buildSearchVariants/matchesSearch, как в
-    // остальных справочниках/списках проекта).
+    // Поиск (#1157) - клиентский, по заголовку+тексту, ТОЛЬКО по списку
+    // новостей слева. Активное объявление справа поиском не трогаем: поле
+    // обещает фильтр новостей, а не скрытие важного объявления. Пустой запрос
+    // показывает всё (общий util buildSearchVariants/matchesSearch).
     filteredNewsItems() {
       const variants = buildSearchVariants(this.searchQuery)
       if (!variants.length) return this.newsItems
       return this.newsItems.filter(item => matchesSearch(`${item.title} ${item.description || ''}`, variants))
-    },
-    // Активное объявление - единственная запись (не список), но тот же
-    // поиск применяется и к ней: не совпало с запросом - карточка скрывается.
-    filteredAnnouncement() {
-      if (!this.activeAnnouncement) return null
-      const variants = buildSearchVariants(this.searchQuery)
-      if (!variants.length) return this.activeAnnouncement
-      return matchesSearch(`${this.activeAnnouncement.title} ${this.activeAnnouncement.description || ''}`, variants)
-        ? this.activeAnnouncement
-        : null
     },
     newsEmptyText() {
       return this.searchQuery.trim() ? 'Ничего не найдено по запросу' : 'Нет новостей'

@@ -86,19 +86,23 @@ describe('NewsAndReview - поиск по новостям и объявлени
     expect(items[0].text()).toContain('Регламент вывоза мусора');
   });
 
-  it('запрос, не совпадающий с активным объявлением, скрывает его карточку', async () => {
+  it('поиск фильтрует только список новостей, активное объявление остаётся видимым', async () => {
     const wrapper = await mountView();
 
+    // Запрос не совпадает с объявлением, но поле обещает фильтр новостей -
+    // важное объявление справа поиском НЕ скрывается.
     wrapper.vm.searchQuery = 'Плановые';
     await flushPromises();
 
-    expect(wrapper.find('[data-testid="ob-announcement"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="ob-announcement"]').exists()).toBe(true);
+    // При этом список новостей отфильтрован до одной подходящей записи.
+    expect(wrapper.findAll('.news-item')).toHaveLength(1);
   });
 
-  it('запрос, совпадающий с объявлением, оставляет его видимым', async () => {
+  it('объявление остаётся видимым даже при запросе без совпадений в новостях', async () => {
     const wrapper = await mountView();
 
-    wrapper.vm.searchQuery = 'пропускного режима';
+    wrapper.vm.searchQuery = 'несуществующий текст запроса';
     await flushPromises();
 
     expect(wrapper.find('[data-testid="ob-announcement"]').exists()).toBe(true);

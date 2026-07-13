@@ -123,4 +123,45 @@ describe('NewsManagement - поиск по новостям и объявлен�
     expect(wrapper.findAll('.manage-item')).toHaveLength(2);
     expect(wrapper.find('.items-footer').text()).toBe('Всего: 2');
   });
+
+  it('переключение вкладки сбрасывает поисковый запрос', async () => {
+    const wrapper = await mountView();
+
+    wrapper.vm.searchQuery = 'Плановые';
+    await flushPromises();
+    expect(wrapper.findAll('.manage-item')).toHaveLength(1);
+
+    wrapper.vm.switchTab('announcements');
+    await flushPromises();
+
+    // Запрос сброшен - вторая вкладка не наследует фильтр прошлой.
+    expect(wrapper.vm.searchQuery).toBe('');
+    expect(wrapper.findAll('.manage-item')).toHaveLength(2);
+  });
+
+  it('запрос, отфильтровавший выбранный элемент, сбрасывает деталь-панель', async () => {
+    const wrapper = await mountView();
+
+    wrapper.vm.selectItem(NEWS[1]); // "Плановые работы"
+    await flushPromises();
+    expect(wrapper.vm.selectedItem).not.toBeNull();
+
+    // Запрос совпадает только с другой новостью - выбранная уходит из списка.
+    wrapper.vm.searchQuery = 'Регламент';
+    await flushPromises();
+
+    expect(wrapper.vm.selectedItem).toBeNull();
+  });
+
+  it('запрос, оставляющий выбранный элемент в списке, деталь-панель не гасит', async () => {
+    const wrapper = await mountView();
+
+    wrapper.vm.selectItem(NEWS[1]); // "Плановые работы"
+    await flushPromises();
+
+    wrapper.vm.searchQuery = 'Плановые';
+    await flushPromises();
+
+    expect(wrapper.vm.selectedItem).toEqual(NEWS[1]);
+  });
 });

@@ -432,6 +432,17 @@ export default {
       return this.searchQuery.trim() ? 'Ничего не найдено по запросу' : 'Нет объявлений';
     },
   },
+  watch: {
+    // Запрос отфильтровал выбранный элемент из видимого списка - гасим
+    // деталь-панель, чтобы она не показывала запись, которой нет в списке.
+    searchQuery() {
+      if (!this.selectedItem) return;
+      const list = this.activeTab === 'news' ? this.filteredNewsItems : this.filteredAnnouncementsItems;
+      if (!list.some((item) => item.id === this.selectedItem.id)) {
+        this.selectedItem = null;
+      }
+    },
+  },
   mounted() {
     this.fetchAll();
   },
@@ -453,6 +464,9 @@ export default {
     switchTab(tab) {
       this.activeTab = tab;
       this.selectedItem = null;
+      // Сбрасываем поиск: старый запрос с прошлой вкладки молча отфильтровал
+      // бы другой список (поле показывает текст, а список внезапно пуст).
+      this.searchQuery = '';
     },
 
     async fetchAll() {
