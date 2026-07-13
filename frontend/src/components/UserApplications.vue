@@ -39,11 +39,61 @@
           @apply="applyDateFilters"
           @clear="clearDateRange"
         />
+        <!-- Десктоп: всегда-видимый инпут поиска. На мобилке он сплющивается -
+             там его заменяет иконка-тоггл ниже (зеркало Центра, срез 3). -->
         <SearchComponent
+          v-if="!isMobileHeader"
           v-model="searchQuery"
           :title="'Поиск заявок..'"
         />
         <RefreshButton @refresh="fetchUserApplications" />
+
+        <!-- Мобилка: иконка-тоггл раскрывает поле поиска оверлеем влево (не всегда-видимый инпут). -->
+        <button
+          v-if="isMobileHeader"
+          type="button"
+          class="search-icon-btn"
+          :class="{ 'search-icon-btn--active': showMobileSearch || !!searchQuery.trim() }"
+          aria-label="Поиск заявок"
+          data-testid="cabinet-search-icon"
+          @click="toggleMobileSearch"
+        >
+          <img
+            src="@/assets/icons/search.png"
+            class="search-icon-btn__img"
+            alt=""
+          >
+        </button>
+
+        <!-- Мобилка: поле поиска раскрывается ВЛЕВО оверлеем поверх ряда настроек
+             (дата/обновить), не отдельным рядом. Иконка справа - тоггл, крестик
+             внутри - очистить и закрыть. -->
+        <Transition name="cabinet-search">
+          <div
+            v-if="isMobileHeader && showMobileSearch"
+            class="cabinet__search-overlay"
+          >
+            <div class="field search">
+              <input
+                ref="mobileSearchInput"
+                v-model="searchQuery"
+                placeholder="Поиск заявок.."
+                type="text"
+                class="cabinet__search-input"
+                data-testid="cabinet-input-search"
+              >
+              <button
+                v-if="searchQuery.trim()"
+                type="button"
+                class="cabinet__search-clear"
+                aria-label="Очистить поиск"
+                @click="clearMobileSearch"
+              >
+                &times;
+              </button>
+            </div>
+          </div>
+        </Transition>
       </div>
     </div>
     
@@ -481,6 +531,10 @@ export default {
       selectedDate: null,
       dateRangeStart: null,
       dateRangeEnd: null,
+      // Мобильная шапка (зеркало Центра, срез 3): на <=768 поиск раскрывается по иконке
+      // оверлеем, а не всегда-видимым инпутом (он там сплющивается).
+      isMobileHeader: false,
+      showMobileSearch: false,
       // seq-токен (#632/#840): fetchUserApplications дёргается фильтрами/поиском/сменой
       // вкладки/сортировкой - управляет isLoading, отдельно от собственного seq-guard
       // items/total внутри useInfiniteList.
@@ -621,14 +675,55 @@ export default {
   mounted() {
     this.fetchUserApplications().then(() => this.openFromDeepLink());
     this.getCurrentUser();
+    this.initMobileWatcher();
   },
   beforeUnmount() {
     this.disconnectApplicationsSentinel();
     clearTimeout(this.searchDebounceTimer);
+    if (this._mobileMql) {
+      if (this._mobileMql.removeEventListener) {
+        this._mobileMql.removeEventListener('change', this._onMobileChange);
+      } else if (this._mobileMql.removeListener) {
+        this._mobileMql.removeListener(this._onMobileChange);
+      }
+    }
     // Восстанавливаем скролл при размонтировании компонента
     document.body.style.overflow = '';
   },
   methods: {
+    /**
+     * Реактивно отслеживает мобильный брейкпоинт (тот же 767.98, что у card-правил
+     * responsive-tables.css): на нём поиск раскрывается по иконке. Порог держим
+     * равным CSS @media, иначе на ровно 768px (iPad-портрет) иконка появилась бы
+     * без своих стилей оверлея (урок S8 про рассинхрон 768/767.98).
+     */
+    initMobileWatcher() {
+      if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+      this._mobileMql = window.matchMedia('(max-width: 767.98px)');
+      this.isMobileHeader = this._mobileMql.matches;
+      this._onMobileChange = (e) => {
+        this.isMobileHeader = e.matches;
+        // Возврат на десктоп - гасим мобильное раскрытие поиска.
+        if (!e.matches) this.showMobileSearch = false;
+      };
+      if (this._mobileMql.addEventListener) {
+        this._mobileMql.addEventListener('change', this._onMobileChange);
+      } else if (this._mobileMql.addListener) {
+        this._mobileMql.addListener(this._onMobileChange);
+      }
+    },
+    toggleMobileSearch() {
+      this.showMobileSearch = !this.showMobileSearch;
+      if (this.showMobileSearch) {
+        this.$nextTick(() => {
+          if (this.$refs.mobileSearchInput) this.$refs.mobileSearchInput.focus();
+        });
+      }
+    },
+    clearMobileSearch() {
+      this.searchQuery = '';
+      this.showMobileSearch = false;
+    },
     /**
      * fetchPage для useInfiniteList (#1158 срез 4): строит query-параметры фильтра
      * (поиск, вкладка "Мои"/"Организация", дата) плюс page/per_page - бэк переключается
@@ -1773,13 +1868,135 @@ export default {
 
 @media (max-width: 767.98px) {
   /* Панель заявок edge-to-edge: без боковой рамки и скругления, чтобы список писем
-     шёл от края до края экрана (боковой padding дашборда гасит AccountComponent). */
+     шёл от края до края экрана (боковой padding дашборда гасит AccountComponent).
+     overflow:visible - чтобы sticky-шапка ниже прилипала к вьюпорту, а не клипалась
+     внутри карточки (базовый overflow:hidden клипал бы sticky). */
   .applications-card {
     height: auto;
     max-height: none;
     border-left: none;
     border-right: none;
     border-radius: 0;
+    overflow: visible;
+  }
+
+  /* Шапка кабинета закреплена под app bar (TheHeader min-height 60px, sticky top:0),
+     список заявок скроллит страница под ней (зеркало Центра, срез 3). Нижняя граница
+     (уже есть из базового .card-header) - разделитель между шапкой и списком. */
+  .card-header {
+    position: sticky;
+    top: 60px;
+    z-index: 20;
+    background: #fff;
+  }
+
+  /* Оверлей поиска (мобилка): поверх ряда настроек, растёт справа налево (clip-path).
+     right:48px оставляет справа иконку-тоггл (40px) открытой. */
+  .card-header__settings {
+    position: relative;
+  }
+
+  .cabinet__search-overlay {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 48px;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    background: #fff;
+  }
+
+  .cabinet__search-overlay .field.search {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    height: 40px;
+    border: 1px solid #e6e6e6;
+    border-radius: 15px;
+    padding: 0 12px;
+    box-sizing: border-box;
+  }
+
+  .cabinet__search-input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 14px;
+    color: #333;
+  }
+
+  /* Крестик очистки внутри поля (появляется при вводе): сбрасывает и закрывает поиск. */
+  .cabinet__search-clear {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: #888;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .cabinet__search-clear:hover {
+    color: #4F5BDF;
+  }
+
+  /* Раскрытие влево - clip-path (композитится, не двигает ряд). */
+  .cabinet-search-enter-active,
+  .cabinet-search-leave-active {
+    transition: clip-path 0.25s ease;
+  }
+
+  .cabinet-search-enter-from,
+  .cabinet-search-leave-to {
+    clip-path: inset(0 0 0 100%);
+  }
+
+  .cabinet-search-enter-to,
+  .cabinet-search-leave-from {
+    clip-path: inset(0 0 0 0);
+  }
+
+  /* Иконка-кнопка поиска (мобилка): тоггл оверлея поиска (раскрывается влево поверх ряда). */
+  .search-icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border: 1px solid #e6e6e6;
+    border-radius: 50%;
+    background: #fff;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+
+  .search-icon-btn:hover,
+  .search-icon-btn--active {
+    background: #f5f5f7;
+    border-color: #4F5BDF;
+  }
+
+  .search-icon-btn__img {
+    width: 16px;
+    height: 16px;
+  }
+
+  /* Пустая полоса шапки колонок: .rt-head-row скрыт (responsive-tables.css), но
+     обёртка .applications-header со своим border/padding/height:44px остаётся
+     видимой полосой перед первой карточкой - схлопываем её целиком (урок S9a). */
+  .applications-header {
+    display: none;
   }
 
   .applications-list {
@@ -1864,9 +2081,9 @@ export default {
     top: 10px;
     right: 14px;
     width: auto !important;
-    max-width: 45% !important;
+    max-width: 55% !important;
     padding: 0;
-    font-size: 12px;
+    font-size: 14px;
     color: #9a9aae;
     white-space: nowrap;
     text-align: right;
@@ -1875,7 +2092,7 @@ export default {
   /* Резерв справа у бейджа согласования, чтобы дата в углу не наезжала. Полный
      префикс (0,5,0) - иначе общий `...> .application-col{padding:0}` перебивает. */
   .applications-list .application-row.rt-row > .application-col.confirmation-col {
-    padding-right: 118px;
+    padding-right: 140px;
   }
 
   /* Пустой блок тегов - скрыть строку (у sender всегда есть фолбэк "—", :empty там мёртв). */
