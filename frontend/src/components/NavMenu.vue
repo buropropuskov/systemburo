@@ -440,6 +440,7 @@
     <!-- Обратная связь из drawer'а (W3.3). Teleport->body, поверх закрытого drawer'а. -->
     <FeedbackModal
       v-model:show="showFeedbackModal"
+      :auto-focus="false"
       @submitted="onFeedbackSubmitted"
     />
 
@@ -892,6 +893,7 @@ export default {
     }
     // Обязательно снимаем body lock если компонент unmount'нулся в открытом состоянии
     document.body.classList.remove('nav-drawer-open');
+    this.detachDrawerVv();
   },
   methods: {
     // Гейтинг по правам (#187 Фаза 2). super -> всегда true, admin -> всё кроме
@@ -971,11 +973,37 @@ export default {
       this.mobileOpen = !this.mobileOpen;
       // Блокируем scroll body когда drawer открыт
       document.body.classList.toggle('nav-drawer-open', this.mobileOpen);
+      if (this.mobileOpen) this.attachDrawerVv();
+      else this.detachDrawerVv();
     },
     closeMobile() {
       if (!this.mobileOpen) return;
       this.mobileOpen = false;
       document.body.classList.remove('nav-drawer-open');
+      this.detachDrawerVv();
+    },
+    /**
+     * Высота drawer'а = точная видимая высота (visualViewport.height). CSS dvh в
+     * Яндекс-браузере лагает при выезде футера и drawer «перестраивается» рывками -
+     * JS-переменная --nav-drawer-h убирает джанк. Вешаем слушатели только пока
+     * drawer открыт; фолбэк на 100dvh в CSS, если visualViewport недоступен.
+     */
+    syncDrawerHeight() {
+      const vv = window.visualViewport;
+      const h = vv ? vv.height : window.innerHeight;
+      document.documentElement.style.setProperty('--nav-drawer-h', `${Math.round(h)}px`);
+    },
+    attachDrawerVv() {
+      if (!window.visualViewport) return;
+      this.syncDrawerHeight();
+      window.visualViewport.addEventListener('resize', this.syncDrawerHeight);
+      window.visualViewport.addEventListener('scroll', this.syncDrawerHeight);
+    },
+    detachDrawerVv() {
+      if (!window.visualViewport) return;
+      window.visualViewport.removeEventListener('resize', this.syncDrawerHeight);
+      window.visualViewport.removeEventListener('scroll', this.syncDrawerHeight);
+      document.documentElement.style.removeProperty('--nav-drawer-h');
     },
     /**
      * Открыть форму обратной связи из drawer'а. Закрываем drawer и ЖДЁМ конца его
@@ -2115,11 +2143,10 @@ export default {
     transform: translateX(-100%);
     transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
     z-index: 10000;
-    /* B.3 (#1097): dvh трекает динамический вьюпорт мобильного браузера (адрес-бар
-       Яндекса ретрактится при скролле). height:100% брал бы больший (lvh) вьюпорт -
-       низ drawer'а (Обзор/ЛК/Выйти) уезжал под нижний бар браузера и обрезался.
-       На мобилке zoom=1, поэтому dvh безопасен; фолбэк на базовый height:100%. */
-    height: 100dvh;
+    /* Высота = visualViewport.height (JS var --nav-drawer-h): в Яндекс-браузере CSS dvh
+       лагает/прыгает при выезде футера, из-за чего drawer «перестраивался». JS отдаёт
+       точную видимую высоту без джанка; фолбэк 100dvh для браузеров без visualViewport. */
+    height: var(--nav-drawer-h, 100dvh);
   }
 
   /* Drawer всегда фиксированной "мобильной" ширины - даже если применился
@@ -2135,9 +2162,11 @@ export default {
     transform: translateX(0);
   }
 
+  /* padding-top держит запас под pill «Сообщить о проблеме» (top:12 + height:34 = 46)
+     + отступ вниз, чтобы бренд/пункты не липли к кнопке. */
   .nav-menu .nav-content {
     width: 100%;
-    padding-top: 48px;
+    padding-top: 66px;
   }
 
   /* В drawer'е всё всегда развёрнуто - hover/collapse не работают на touch.
@@ -2226,24 +2255,27 @@ export default {
     justify-content: center;
   }
 
-  /* «Сообщить о проблеме» в верхней полосе drawer'а, слева от крестика (W3.3).
-     nav-content уже держит padding-top:48px, поэтому не наезжает на бренд. */
+  /* «Сообщить о проблеме» - компактный pill в верхней полосе drawer'а, слева от
+     крестика (W3.3). fit-content вместо растяжки, круглая, меньше padding; nav-content
+     держит padding-top под неё с запасом (отступ вниз). */
   .nav-menu__feedback {
     display: inline-flex;
     align-items: center;
     position: absolute;
     top: 12px;
     left: 12px;
-    right: 64px;
-    height: 44px;
-    padding: 0 14px;
+    right: auto;
+    width: fit-content;
+    max-width: calc(100% - 76px);
+    height: 34px;
+    padding: 0 16px;
     border: 1px solid var(--nav-border);
     background: transparent;
     color: var(--nav-text);
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 500;
     cursor: pointer;
-    border-radius: 12px;
+    border-radius: var(--radius-pill);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -2287,8 +2319,8 @@ export default {
     width: 280px;
     max-width: 85vw;
     z-index: 10001;
-    /* B.3 (#1097): dvh, как у .nav-menu - панель Админки не обрезается нижним баром браузера. */
-    height: 100dvh;
+    /* visualViewport-высота, как у .nav-menu - не обрезается/не прыгает под баром браузера. */
+    height: var(--nav-drawer-h, 100dvh);
   }
 
   .admin-back {

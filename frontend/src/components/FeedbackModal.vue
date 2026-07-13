@@ -17,8 +17,17 @@
           <div
             v-if="showContent"
             class="modal"
+            :class="{ 'is-dragging': sheetDragging }"
+            :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
             @mousedown.stop
+            @touchstart="onSheetTouchStart"
+            @touchmove="onSheetTouchMove"
+            @touchend="onSheetTouchEnd"
           >
+            <div
+              class="sheet-handle"
+              aria-hidden="true"
+            />
             <div class="modal__header">
               <h3 class="modal__title">
                 Сообщить о проблеме
@@ -31,7 +40,10 @@
                 <span class="close-icon">&times;</span>
               </button>
             </div>
-            <div class="modal__body">
+            <div
+              ref="modalScroll"
+              class="modal__body"
+            >
               <div class="modal__content">
                 <label
                   for="feedback-textarea"
@@ -110,18 +122,22 @@
 </template>
 
 <script>
+import { ref, getCurrentInstance } from 'vue'
 import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import { useDeletionsStore } from '@/stores/deletions'
+import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
 export default {
   name: 'FeedbackModal',
-  
+
   props: {
     show: {
       type: Boolean,
       required: true
     },
     autoFocus: {
+      // Десктоп фокусирует textarea сразу (default true). Мобильный вызов из drawer'а
+      // передаёт false: на bottom-sheet автофокус поднимает клавиатуру поверх листа.
       type: Boolean,
       default: true
     },
@@ -132,7 +148,25 @@ export default {
   },
   
   emits: ['close', 'submitted', 'update:show'],
-  
+
+  setup() {
+    const inst = getCurrentInstance();
+    const modalScroll = ref(null);
+    // Свайп-вниз закрывает так же, как крестик/overlay - с сохранением текста.
+    const swipe = useSwipeDismiss(() => inst.proxy.handleCloseClick(), {
+      getScrollTop: () => modalScroll.value?.scrollTop ?? 0,
+      handleSelector: '.sheet-handle',
+    });
+    return {
+      modalScroll,
+      sheetOffset: swipe.offset,
+      sheetDragging: swipe.isDragging,
+      onSheetTouchStart: swipe.onTouchStart,
+      onSheetTouchMove: swipe.onTouchMove,
+      onSheetTouchEnd: swipe.onTouchEnd,
+    };
+  },
+
   data() {
     return {
       message: '',
@@ -463,6 +497,17 @@ export default {
   flex-direction: column;
 }
 
+/* Ползунок bottom-sheet - виден только на мобилке (тянуть для закрытия). */
+.sheet-handle {
+  display: none;
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: #d5d5db;
+  margin: 10px auto 0;
+  flex-shrink: 0;
+}
+
 .modal__header {
   display: flex;
   justify-content: space-between;
@@ -748,8 +793,21 @@ export default {
     border-radius: 16px 16px 0 0;
     margin-top: auto;
     margin-bottom: 0;
+    /* Выше (директива юзера): лист занимает заметную часть экрана, а не жмётся. */
+    min-height: 62dvh;
+    max-height: 92dvh;
+    transition: transform 0.3s ease;
   }
-  
+
+  /* Во время свайпа лист следует за пальцем 1:1. */
+  .modal.is-dragging {
+    transition: none;
+  }
+
+  .sheet-handle {
+    display: block;
+  }
+
   .modal-overlay {
     align-items: flex-end;
     padding: 0;
