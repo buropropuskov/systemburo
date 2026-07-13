@@ -134,7 +134,7 @@
           </Transition>
         </div>
 
-          <!-- Мобилка: иконка поиска раскрывает поле ниже (не всегда-видимый инпут) -->
+          <!-- Мобилка: иконка-тоггл раскрывает поле поиска оверлеем влево (не всегда-видимый инпут) -->
           <button
             v-if="isMobileHeader"
             type="button"
@@ -150,29 +150,37 @@
             >
           </button>
         </div>
-      </div>
 
-      <!-- Мобилка: раскрывающееся поле поиска под первым рядом -->
-      <div
-        v-if="isMobileHeader && showMobileSearch"
-        class="header-search-row"
-      >
-        <div class="field search">
-          <input
-            ref="mobileSearchInput"
-            v-model="searchQuery"
-            placeholder="Поиск заявок..."
-            type="text"
-            class="field__input search"
-            data-testid="center-input-search"
-            @input="onSearchInput"
+        <!-- Мобилка: поле поиска раскрывается ВЛЕВО оверлеем поверх первого ряда
+             (заголовок/бейдж/звук), не отдельным рядом ниже. Иконка справа - тоггл,
+             крестик внутри - очистить и закрыть. -->
+        <Transition name="center-search">
+          <div
+            v-if="isMobileHeader && showMobileSearch"
+            class="center__search-overlay"
           >
-          <img
-            src="@/assets/icons/search.png"
-            class="center__icon"
-            alt=""
-          >
-        </div>
+            <div class="field search">
+              <input
+                ref="mobileSearchInput"
+                v-model="searchQuery"
+                placeholder="Поиск заявок..."
+                type="text"
+                class="field__input search"
+                data-testid="center-input-search"
+                @input="onSearchInput"
+              >
+              <button
+                v-if="searchQuery.trim()"
+                type="button"
+                class="center__search-clear"
+                aria-label="Очистить поиск"
+                @click="clearMobileSearch"
+              >
+                &times;
+              </button>
+            </div>
+          </div>
+        </Transition>
       </div>
 
       <!-- Десктоп: инлайн-фильтры Центра (как до волны 3). На мобилке - в модалке. -->
@@ -1216,6 +1224,11 @@ export default {
                 });
             }
         },
+        clearMobileSearch() {
+            this.searchQuery = '';
+            this.showMobileSearch = false;
+            this.onSearchInput();
+        },
         toggleSoundPopover() {
             this.showSoundPopover = !this.showSoundPopover;
         },
@@ -1820,6 +1833,7 @@ export default {
 /* Первый ряд шапки: заголовок + переключатель/бейдж слева, действия (звук,
    на мобилке - иконка поиска) справа. Действия прижаты вправо margin-left:auto. */
 .header-top {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 12px;
@@ -1849,13 +1863,63 @@ export default {
     min-width: 150px;
 }
 
-/* Раскрывающееся поле поиска на мобилке - на всю ширину. */
-.header-search-row .field.search {
+/* Мобилка: оверлей поиска - поверх первого ряда, растёт справа налево (clip-path в
+   Transition, без reflow). right:44px оставляет справа иконку-тоггл открытой. */
+.center__search-overlay {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 44px;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    background: #fff;
+}
+
+.center__search-overlay .field.search {
     width: 100%;
     margin: 0;
 }
 
-/* Иконка-кнопка поиска (мобилка): раскрывает поле поиска ниже. */
+/* Крестик очистки внутри поля (появляется при вводе): сбрасывает и закрывает поиск. */
+.center__search-clear {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: #888;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.center__search-clear:hover {
+    color: var(--color-primary);
+}
+
+/* Раскрытие влево - clip-path (композитится, не двигает ряд). */
+.center-search-enter-active,
+.center-search-leave-active {
+    transition: clip-path 0.25s ease;
+}
+
+.center-search-enter-from,
+.center-search-leave-to {
+    clip-path: inset(0 0 0 100%);
+}
+
+.center-search-enter-to,
+.center-search-leave-from {
+    clip-path: inset(0 0 0 0);
+}
+
+/* Иконка-кнопка поиска (мобилка): тоггл оверлея поиска (раскрывается влево поверх ряда). */
 .search-icon-btn {
     display: flex;
     align-items: center;
@@ -2908,10 +2972,26 @@ export default {
         padding: 12px;
     }
 
-    /* Раскрывающееся поле поиска - на всю ширину под первым рядом. */
-    .header-search-row .field.search {
-        flex: 1 1 100%;
-        min-width: 0;
+    /* Шапка Центра закреплена под app bar (TheHeader min-height 60px, sticky top:0),
+       список заявок скроллит страница под ней. Full-bleed белый фон (margin -12px гасит
+       боковой padding .center) - edge-to-edge карточки уходят под шапку без просвета. */
+    .center__header {
+        position: sticky;
+        top: 60px;
+        z-index: 20;
+        gap: 8px;
+        background: #fff;
+        margin: 0 -12px;
+        padding: 8px 12px 12px;
+    }
+
+    /* Дропдаун Активные/Архив и кнопка Фильтр - одной высоты (34px). */
+    .header-row2 .filter-btn {
+        height: 34px;
+    }
+
+    .center__tabs--mobile :deep(.base-dropdown__button) {
+        min-height: 34px;
     }
 
     .table-toolbar {

@@ -99,6 +99,27 @@ describe('ApplicationsCenter: мобильная шапка vs десктоп-и
     expect(w.find('[data-testid="center-input-search"]').exists()).toBe(true);
   });
 
+  it('крестик очистки: рендерится по вводу, кликом очищает запрос и сворачивает оверлей', async () => {
+    mockMatchMedia(true);
+    const w = mountCenter();
+    await nextTick();
+    w.vm.toggleMobileSearch();
+    await nextTick();
+    // пусто -> крестика нет
+    expect(w.find('.center__search-clear').exists()).toBe(false);
+    // ввод -> крестик появляется
+    w.vm.searchQuery = 'бмв';
+    await nextTick();
+    const clear = w.find('.center__search-clear');
+    expect(clear.exists()).toBe(true);
+    // клик по DOM-кнопке (проверяет проводку @click) -> очистка + закрытие
+    await clear.trigger('click');
+    await nextTick();
+    expect(w.vm.searchQuery).toBe('');
+    expect(w.vm.showMobileSearch).toBe(false);
+    expect(w.find('.center__search-clear').exists()).toBe(false);
+  });
+
   it('индикатор «Фильтр» (hasModalFilters) загорается на выбранной организации', async () => {
     mockMatchMedia(true);
     const w = mountCenter();
