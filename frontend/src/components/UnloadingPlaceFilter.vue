@@ -81,6 +81,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 export default {
     name: 'UnloadingPlaceFilter',
     props: {
@@ -108,13 +109,12 @@ export default {
         },
         
         filteredPlaces() {
-            if (!this.searchQuery) return this.unloadingPlaces;
-            
-            const searchTerm = this.searchQuery.toLowerCase().trim();
+            const variants = buildSearchVariants(this.searchQuery);
+            if (!variants.length) return this.unloadingPlaces;
+
             return this.unloadingPlaces.filter(place => {
-                const name = place.name.toLowerCase();
-                const description = place.description ? place.description.toLowerCase() : '';
-                return name.includes(searchTerm) || description.includes(searchTerm);
+                const haystack = `${place.name} ${place.description || ''}`;
+                return matchesSearch(haystack, variants);
             });
         }
     },

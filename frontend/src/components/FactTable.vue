@@ -406,6 +406,7 @@ import StatusBadge from '@/components/ui/StatusBadge.vue';
 import VehicleDetailsModal from './CreateApplication/VehicleDetailsModal.vue';
 import FactPassModal from './FactPassModal.vue';
 import ExcelJS from 'exceljs';
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 
 export default {
   name: 'FactTable',
@@ -466,20 +467,21 @@ export default {
   computed: {
     filteredData() {
       let filtered = [...this.factData];
-      if (this.searchQuery) {
-        const query = this.searchQuery.toLowerCase();
-        filtered = filtered.filter(item => 
-          item.organization_name.toLowerCase().includes(query) ||
-          (this.tableType === 'cars' && item.car_brand?.toLowerCase().includes(query)) ||
-          (this.tableType === 'cars' && (item.company || '').toLowerCase().includes(query)) ||
-          // (this.tableType === 'cars' && this.formatUnloadPlaces(item).toLowerCase().includes(query)) || // Место разгрузки закомментировано
-          item.status.toLowerCase().includes(query) ||
-          (this.tableType === 'cars' 
-            ? this.formatTimeRange(item.entry_time_from, item.entry_time_to).toLowerCase().includes(query)
-            : this.formatPassTime(item.pass_time).toLowerCase().includes(query)
-          ) ||
-          this.formatDate(item.entry_date_to).toLowerCase().includes(query)
-        );
+      const variants = buildSearchVariants(this.searchQuery);
+      if (variants.length) {
+        filtered = filtered.filter(item => {
+          const haystack = [
+            item.organization_name,
+            this.tableType === 'cars' ? item.car_brand : '',
+            this.tableType === 'cars' ? (item.company || '') : '',
+            item.status,
+            this.tableType === 'cars'
+              ? this.formatTimeRange(item.entry_time_from, item.entry_time_to)
+              : this.formatPassTime(item.pass_time),
+            this.formatDate(item.entry_date_to),
+          ].join(' ');
+          return matchesSearch(haystack, variants);
+        });
       }
       if (this.selectedOrganizationId) {
         filtered = filtered.filter(item => item.organization_id == this.selectedOrganizationId);

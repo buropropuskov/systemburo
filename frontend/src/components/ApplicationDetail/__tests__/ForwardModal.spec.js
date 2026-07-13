@@ -117,6 +117,39 @@ describe('ForwardModal — выбор вложений (#680, срез fe-select
   });
 });
 
+describe('ForwardModal — поиск пользователей (#1157)', () => {
+  it('без запроса показывает всех доступных пользователей', async () => {
+    const wrapper = await mountOpened();
+    expect(wrapper.vm.filteredUsers.map(u => u.id)).toEqual([USER.id]);
+  });
+
+  it('поиск матчит по варианту раскладки - EN-ввод находит кириллицу ФИО', async () => {
+    // "bdfyjd" на EN-раскладке физически совпадает с "иванов" на RU.
+    const wrapper = await mountOpened();
+    wrapper.vm.searchQuery = 'bdfyjd';
+    await wrapper.vm.$nextTick();
+    expect(wrapper.vm.filteredUsers.map(u => u.id)).toEqual([USER.id]);
+  });
+
+  it('пустой поисковый запрос снова показывает всех пользователей', async () => {
+    const wrapper = await mountOpened();
+    wrapper.vm.searchQuery = 'bdfyjd';
+    await wrapper.vm.$nextTick();
+    expect(wrapper.vm.filteredUsers).toHaveLength(1);
+
+    wrapper.vm.searchQuery = '';
+    await wrapper.vm.$nextTick();
+    expect(wrapper.vm.filteredUsers.map(u => u.id)).toEqual([USER.id]);
+  });
+
+  it('нерелевантный запрос не находит пользователя', async () => {
+    const wrapper = await mountOpened();
+    wrapper.vm.searchQuery = 'zzz-no-match';
+    await wrapper.vm.$nextTick();
+    expect(wrapper.vm.filteredUsers).toHaveLength(0);
+  });
+});
+
 describe('ForwardModal — сопроводительное сообщение (#967)', () => {
   it('send эмитит введённое сообщение (обрезанное по краям)', async () => {
     const wrapper = await mountOpened({ attachments: [] });
