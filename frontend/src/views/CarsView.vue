@@ -246,7 +246,8 @@
                 <LoaderSpinner label="Загрузка машин…" />
               </div>
               <div
-                v-else-if="filteredCars.length > 0"
+                v-else-if="sortedCars.length > 0"
+                ref="carsBody"
                 class="cars-body"
               >
                 <div
@@ -330,6 +331,20 @@
                     </div>
                   </div>
                 </div>
+
+                <!-- Бесшовная подгрузка (#1158): sentinel внизу СКРОЛЛИРУЕМОГО cars-body -
+                     IntersectionObserver триггерит loadMore без кнопки "Показать ещё". -->
+                <div
+                  v-if="hasMoreCars"
+                  :ref="setCarsSentinelRef"
+                  class="scroll-sentinel"
+                  data-testid="cars-scroll-sentinel"
+                >
+                  <LoaderSpinner
+                    v-if="listLoading"
+                    label="Загрузка…"
+                  />
+                </div>
               </div>
               <p
                 v-else
@@ -337,6 +352,13 @@
               >
                 {{ hasActiveFilters ? 'Нет данных по выбранным фильтрам' : 'Автомобилей нет' }}
               </p>
+            </div>
+            <div
+              v-if="!loading && sortedCars.length"
+              class="table-footer"
+              data-testid="cars-table-footer"
+            >
+              {{ footerText }}
             </div>
           </div>
         </div>
@@ -618,7 +640,8 @@
 
 <script>
 import { apiRequest } from '@/api/client'
-import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
+import { getUniqueCarsPaginated } from '@/api/cars'
+import { useInfiniteList } from '@/composables/useInfiniteList'
 import { useDeletionsStore } from '@/stores/deletions';
 import { usePermissionsStore } from '@/stores/permissions';
 import SearchComponent from '@/components/SearchComponent.vue';
@@ -630,6 +653,10 @@ import VehicleDetailsModal from '@/components/CreateApplication/VehicleDetailsMo
 import ApplicationDetail from '@/components/ApplicationDetail/ApplicationDetail.vue';
 import { listVehicleBlacklist } from '@/api/blacklist';
 
+// Размер порции бесшовной подгрузки реестра машин (#1158, срез 2) - аналог
+// APPLICATIONS_PER_PAGE в ApplicationsCenter.
+const CARS_PER_PAGE = 30;
+
 export default {
     components: {
         SearchComponent,
@@ -640,15 +667,38 @@ export default {
         VehicleDetailsModal,
         ApplicationDetail
     },
+    setup() {
+        // Бесшовная подгрузка реестра машин порциями (#1158, срез 2): composable
+        // инкапсулирует page/per_page/аккумуляцию/hasMore/seq-guard, тот же паттерн,
+        // что useInfiniteList в ApplicationsCenter. carsData - алиас infiniteList.items:
+        // pre-existing спека (CarsViewPermissionGating) пишет wrapper.vm.carsData
+        // напрямую, переименование сломало бы её без пользы.
+        const infiniteList = useInfiniteList({ perPage: CARS_PER_PAGE });
+        return {
+            carsData: infiniteList.items,
+            carsTotal: infiniteList.total,
+            carsPage: infiniteList.page,
+            hasMoreCars: infiniteList.hasMore,
+            listLoading: infiniteList.loading,
+            loadCarsList: infiniteList.load,
+            loadMoreCarsList: infiniteList.loadMore,
+            observeCarsSentinel: infiniteList.observeSentinel,
+            disconnectCarsSentinel: infiniteList.disconnectObserver,
+        };
+    },
     data() {
         return {
             loading: true,
             searchQuery: '',
             sortField: null,
             sortDirection: 'desc',
-            carsData: [],
+            // carsData/carsTotal/hasMoreCars/listLoading выставлены из useInfiniteList
+            // в setup() (#1158, срез 2).
             blacklistKeys: new Set(),
             searchTimeout: null,
+            // seq-guard (#632/#1158): смена фильтра/поиска до резолва предыдущего
+            // fetchCars не должна запускать/продолжать устаревший loadAllRemainingCars.
+            fetchSeq: 0,
             currentFilter: 'user',
             ownershipInfo: null,
             showModal: false,
@@ -711,20 +761,10 @@ export default {
         canDeleteCars() {
             return usePermissionsStore().hasPermission('entity.cars.delete');
         },
-        filteredCars() {
-            const variants = buildSearchVariants(this.searchQuery);
-            if (!variants.length) {
-                return this.carsData;
-            }
-            return this.carsData.filter(car => matchesSearch(
-                `${car.number} ${car.mark} ${car.format_name || ''} `
-                + (car.status ? 'активна' : 'неактивна'),
-                variants,
-            ));
-        },
-
+        // Поиск по тексту выполняется на бэке через search_query (#1158, срез 2) -
+        // здесь не дублируем, carsData уже отфильтрован сервером.
         sortedCars() {
-            const cars = [...this.filteredCars];
+            const cars = [...this.carsData];
             
             if (!this.sortField) {
                 return cars;
@@ -787,6 +827,22 @@ export default {
             return !!this.searchQuery.trim();
         },
 
+        // Сортировка по колонкам - клиентская и должна идти по ВСЕМУ набору (как на
+        // dev до пагинации), а не по одной загруженной порции: при активной сортировке
+        // догружаем остаток (см. loadAllRemainingCars, #1158). Других клиентских
+        // фильтров не осталось (поиск и filter_type - серверные), поэтому unlike
+        // ApplicationsCenter здесь isFullLoad зависит только от sortField.
+        isFullLoad() {
+            return !!this.sortField;
+        },
+
+        // Футер "Показано X из Y": клиентских фильтров, урезающих carsData, не
+        // осталось (сортировка не убирает строки), поэтому shown всегда равен total
+        // загруженных, а "из carsTotal" - серверному счётчику всех совпадений.
+        footerText() {
+            return `Показано ${this.sortedCars.length} из ${this.carsTotal}`;
+        },
+
         selectedFormatText() {
             return this.selectedFormat ? this.selectedFormat.format.name : 'Выберите формат';
         },
@@ -816,13 +872,16 @@ export default {
         }
     },
     watch: {
+        // Поиск - на сервере (#1158, срез 2): дебаунс 300мс перед fetchCars (reset на
+        // стр.1 + очистка аккумулятора уже даёт loadCarsList({reset:true})). withPlaces:false
+        // - места разгрузки от search_query не зависят, тянуть их на каждый ввод не нужно.
         searchQuery() {
             clearTimeout(this.searchTimeout);
             this.searchTimeout = setTimeout(() => {
-                this.$forceUpdate();
-            }, 50);
+                this.fetchCars({ withPlaces: false });
+            }, 300);
         },
-        
+
         bindToOrganization(newVal) {
             if (newVal) {
                 this.bindToCompany = false;
@@ -866,6 +925,10 @@ export default {
         }
     },
     beforeUnmount() {
+        this.disconnectCarsSentinel();
+        if (this.searchTimeout) {
+            clearTimeout(this.searchTimeout);
+        }
         window.removeEventListener('resize', this._applyHeight);
         if (this._headerObs) {
             this._headerObs.disconnect();
@@ -979,27 +1042,76 @@ export default {
             return this.blacklistKeys.has(this.blacklistKey(car.number, car.mark));
         },
 
-        async fetchCars() {
+        /**
+         * @param {{withPlaces?: boolean}} [opts] withPlaces=false пропускает две
+         *   тяжёлые полные выборки мест разгрузки (/unload-places + /cars/unload-places),
+         *   которые не зависят от search_query - при поиске (дебаунс на каждый ввод) их
+         *   дёргать не нужно. Дефолт true (mount/смена filter_type/refresh/удаление/
+         *   application-changed) - там active_car_id и набор мест могли измениться.
+         *   Событийные вызовы из шаблона (@refresh/@application-changed) передают event
+         *   первым аргументом, а не { withPlaces: false } -> `!== false` даёт true, места
+         *   грузятся. seq-токен защищает от продолжения устаревшего прохода (#632).
+         */
+        async fetchCars(opts = {}) {
+            const withPlaces = opts.withPlaces !== false;
+            const seq = ++this.fetchSeq;
             this.loading = true;
             try {
-                const response = await apiRequest(`/unique-cars?filter_type=${this.currentFilter}`, {
-                    method: "GET"});
+                await this.loadCarsList(this.buildCarsPage, { reset: true });
+                if (seq !== this.fetchSeq) return; // устарел - актуальный запрос уже идёт
 
-                if (response.ok) {
-                    this.carsData = await response.json();
-                    // Места разгрузки тоже перезагружаем: при смене активной заявки у машины
-                    // меняется active_car_id и набор мест, иначе карта устаревает после рефреша.
+                // Клиентская сортировка требует ВЕСЬ набор (как на dev до пагинации):
+                // догружаем оставшиеся порции, чтобы сортировка шла по полному списку (#1158).
+                if (this.isFullLoad) {
+                    await this.loadAllRemainingCars(seq);
+                    if (seq !== this.fetchSeq) return;
+                }
+
+                // Места разгрузки: при смене активной заявки у машины меняется
+                // active_car_id и набор мест, иначе карта устаревает после рефреша.
+                // При поиске (withPlaces=false) не трогаем - от search_query не зависят.
+                if (withPlaces) {
                     await Promise.all([this.fetchUnloadingPlaces(), this.fetchCarUnloadPlaces()]);
-                } else {
-                    console.error("Ошибка при загрузке машин");
-                    this.carsData = [];
                 }
             } catch (error) {
                 console.error("Ошибка при загрузке машин:", error);
-                this.carsData = [];
             } finally {
-                this.loading = false;
+                if (seq === this.fetchSeq) this.loading = false;
             }
+        },
+
+        // Догрузка всех оставшихся порций (full-load режим: активная клиентская
+        // сортировка, #1158). seq-guard прерывает устаревший проход, если пользователь
+        // сменил фильтр/поиск и стартовал новый fetchCars; guard - от бесконечного
+        // цикла, если total/hasMore разъедутся.
+        async loadAllRemainingCars(seq) {
+            let guard = 0;
+            while (this.hasMoreCars && seq === this.fetchSeq) {
+                await this.loadMoreCarsList(this.buildCarsPage);
+                if (++guard > 200) break;
+            }
+        },
+
+        /**
+         * fetchPage для useInfiniteList (#1158): строит параметры текущего
+         * фильтра/поиска плюс page/per_page - бэк переключается на GetAllPaginated,
+         * как только видит per_page (internal/handlers/unique_cars.go).
+         */
+        async buildCarsPage(page, perPage) {
+            const params = { filter_type: this.currentFilter, page, per_page: perPage };
+            if (this.searchQuery.trim()) {
+                params.search_query = this.searchQuery.trim();
+            }
+            const { items, meta } = await getUniqueCarsPaginated(params);
+            return { items, total: (meta && meta.total) || 0 };
+        },
+
+        // Автодогрузка следующей порции по пересечению sentinel с cars-body (#1158).
+        // root - сам .cars-body: у него свой overflow-y:auto, не документ, дефолтный
+        // root (viewport) пересечение бы не заметил. el=null (v-if="hasMoreCars"===false)
+        // просто отключает observer.
+        setCarsSentinelRef(el) {
+            this.observeCarsSentinel(el, this.buildCarsPage, { root: this.$refs.carsBody || null });
         },
 
         async fetchOwnershipInfo() {
@@ -1183,6 +1295,11 @@ export default {
             } else {
                 this.sortField = field;
                 this.sortDirection = 'desc';
+            }
+            // Сортировка клиентская - должна идти по всему набору. Если ещё не всё
+            // загружено, догружаем остаток (тот же паттерн, что в Центре заявок, #1158).
+            if (this.isFullLoad && this.hasMoreCars) {
+                this.fetchCars();
             }
         },
 
@@ -1896,6 +2013,23 @@ export default {
     flex-direction: column;
     flex: 1;
     min-height: 0;
+}
+
+/* Бесшовная подгрузка (#1158): sentinel внизу .cars-body, футер под таблицей. */
+.scroll-sentinel {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 24px;
+    padding: 10px 0;
+}
+
+.table-footer {
+    flex-shrink: 0;
+    padding: 10px 20px;
+    border-top: 1px solid #e6e6e6;
+    font-size: 13px;
+    color: #8a8a8a;
 }
 
 .loading-message {
