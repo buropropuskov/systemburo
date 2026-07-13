@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"testing"
 
+	"systemburo/internal/models"
 	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
@@ -379,4 +380,49 @@ func TestUniqueEmployees_SearchQuery_PassportNotSearchable(t *testing.T) {
 
 	rows := testutil.ParseResponse[[]services.UniqueEmployeeWithRelations](t, rec)
 	assert.Empty(t, rows, "поиск по номеру паспорта не находит сотрудника - паспорт зашифрован")
+}
+
+// TestUniqueEmployees_SearchQuery_NoCrossOwnerLeak - регресс-замок против будущего
+// рефакторинга поиска (#1158, срез 3). Изоляция видимости при поиске держится
+// ИСКЛЮЧИТЕЛЬНО на том, что owner-фильтр (ue.user_id = ...) и поисковый OR-блок
+// (ILIKE ... OR strict_word_similarity ...) - два ОТДЕЛЬНЫХ .Where() в
+// buildEmployeesQuery, а GORM оборачивает каждый в скобки: (owner) AND (search).
+// Если кто-то сольёт их в одну строку `.Where(owner+" AND "+search)`, приоритет
+// AND над OR даст `(owner AND ilike) OR strict_sim` - и strict_sim-ветка перестанет
+// быть ограничена владельцем -> утечка чужих записей через поиск, тихо и без падения.
+// Тест: владелец A под filter_type=user (видит только своих) ищет фамилию сотрудника
+// владельца B -> ожидаем 0 (не находит чужого). Контроль: свою фамилию находит.
+func TestUniqueEmployees_SearchQuery_NoCrossOwnerLeak(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	// Владелец A (админ, организация из seed).
+	tokenA := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	hA := testutil.AuthHeader(tokenA)
+
+	// Владелец B - отдельный пользователь ДРУГОЙ организации (иной user_id).
+	orgB := models.Organization{Name: "Isolation Org B"}
+	require.NoError(t, db.Create(&orgB).Error, "seed org B")
+	tokenB := testutil.RegisterManager(t, e, "ownerb_iso", orgB.ID, 0)
+	hB := testutil.AuthHeader(tokenB)
+
+	// Каждый заводит своего сотрудника с УНИКАЛЬНОЙ фамилией.
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", `{"last_name":"Иванцевич","first_name":"А"}`, hA).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-employees", `{"last_name":"Богуславский","first_name":"Б"}`, hB).Code)
+
+	// A под filter_type=user ищет фамилию B -> НЕ находит (owner-scope не течёт через OR).
+	rec := testutil.GET(t, e, "/unique-employees?filter_type=user&per_page=50&search_query=Богуславский", hA)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rows := testutil.ParseResponse[[]services.UniqueEmployeeWithRelations](t, rec)
+	assert.Empty(t, rows, "владелец A не должен находить сотрудника владельца B через поиск")
+
+	// Контроль: A ищет СВОЮ фамилию -> находит свою запись (поиск работает, режется только чужое).
+	rec = testutil.GET(t, e, "/unique-employees?filter_type=user&per_page=50&search_query=Иванцевич", hA)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rows = testutil.ParseResponse[[]services.UniqueEmployeeWithRelations](t, rec)
+	require.Len(t, rows, 1, "владелец A находит свою запись по своей фамилии")
+	require.NotNil(t, rows[0].LastName)
+	assert.Equal(t, "Иванцевич", *rows[0].LastName)
 }
