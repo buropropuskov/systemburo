@@ -99,6 +99,20 @@ describe('ApplicationsCenter: мобильная шапка vs десктоп-и
     expect(w.find('[data-testid="center-input-search"]').exists()).toBe(true);
   });
 
+  it('clearMobileSearch очищает запрос и сворачивает оверлей поиска', async () => {
+    mockMatchMedia(true);
+    const w = mountCenter();
+    await nextTick();
+    w.vm.toggleMobileSearch();
+    w.vm.searchQuery = 'бмв';
+    await nextTick();
+    expect(w.vm.showMobileSearch).toBe(true);
+    w.vm.clearMobileSearch();
+    await nextTick();
+    expect(w.vm.searchQuery).toBe('');
+    expect(w.vm.showMobileSearch).toBe(false);
+  });
+
   it('индикатор «Фильтр» (hasModalFilters) загорается на выбранной организации', async () => {
     mockMatchMedia(true);
     const w = mountCenter();
