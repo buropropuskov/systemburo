@@ -6,6 +6,7 @@ import ApplicationsCenter from '../ApplicationsCenter.vue';
 import { apiRequest } from '@/api/client';
 import { getApplicationsPaginated, getApplicationById } from '@/api/applications';
 import eventStream from '@/services/eventStream';
+import { playPreset } from '@/utils/notificationSound';
 import { useAuthStore } from '@/stores/auth';
 
 // Бесшовная подгрузка Центра порциями (#1158, срез 1): fetchApplications шлёт
@@ -69,6 +70,7 @@ describe('ApplicationsCenter — бесшовная подгрузка порц�
     apiRequest.mockResolvedValue({ ok: false, text: async () => '', json: async () => [] });
     getApplicationsPaginated.mockReset();
     getApplicationById.mockReset();
+    playPreset.mockClear();
     eventStream.subscribe.mockClear();
     useAuthStore().token = 'test-token';
   });
@@ -367,6 +369,68 @@ describe('ApplicationsCenter — бесшовная подгрузка порц�
     await wrapper.vm._pollApplicationsIncremental();
     expect(wrapper.vm.applications.map((a) => a.id)).toEqual([3, 1, 2]);
     expect(wrapper.vm.total).toBe(3);
+  });
+
+  // БЛОКЕР (#1158): снимок _pollKnownIds инвалидируется при смене «вселенной» (archiveMode),
+  // иначе недогруженные страницы нового набора считаются "новыми" -> bulk-prepend + ложный звук.
+  it('смена archiveMode инвалидирует снимок: нет bulk-prepend архива, total стабилен, звук молчит', async () => {
+    getApplicationsPaginated.mockResolvedValue({ items: [makeApp(101)], meta: { total: 1, page: 1, per_page: 30 } });
+    const replace = vi.fn(() => Promise.resolve());
+    wrapper = mount(ApplicationsCenter, {
+      global: { stubs, mocks: { $route: { query: {}, path: '/center' }, $router: { push: vi.fn(), replace } } },
+    });
+    await flushPromises();
+    wrapper.vm.soundStore.setEnabled(true);
+    wrapper.vm.pollPrimed = true;
+
+    // Опрос активных строит снимок _pollKnownIds по активным id.
+    apiRequest.mockResolvedValue({ ok: true, json: async () => [makeApp(101)] });
+    await wrapper.vm._pollApplicationsIncremental();
+    expect(wrapper.vm._pollKnownIds).toBeTruthy();
+
+    // Переключение на Архив - другое пространство id.
+    getApplicationsPaginated.mockResolvedValue({ items: [makeApp(5)], meta: { total: 20, page: 1, per_page: 30 } });
+    wrapper.vm.archiveMode = 'archive';
+    await flushPromises();
+    expect(wrapper.vm._pollKnownIds).toBeNull(); // снимок инвалидирован
+
+    // Скролл за page1 в архиве.
+    getApplicationsPaginated.mockResolvedValueOnce({ items: [makeApp(4)], meta: { total: 20, page: 2, per_page: 30 } });
+    await wrapper.vm.loadMoreApplicationsList(wrapper.vm.buildApplicationsPage);
+    await flushPromises();
+    wrapper.vm.pollPrimed = true; // после refetch pollPrimed=true, звук был бы возможен
+    const lenBefore = wrapper.vm.applications.length;
+    const totalBefore = wrapper.vm.total;
+
+    // Полный архивный снимок опросом: недогруженные архивные id (3,2,1) НЕ считаются
+    // "новыми" - снимок пуст после смены вселенной, поэтому НЕ bulk-prepend.
+    playPreset.mockClear();
+    apiRequest.mockResolvedValue({
+      ok: true,
+      json: async () => [makeApp(5), makeApp(4), makeApp(3), makeApp(2), makeApp(1)],
+    });
+    await wrapper.vm._pollApplicationsIncremental();
+    await flushPromises();
+
+    expect(wrapper.vm.applications).toHaveLength(lenBefore);
+    expect(wrapper.vm.total).toBe(totalBefore);
+    expect(playPreset).not.toHaveBeenCalled();
+  });
+
+  // YELLOW (#1158): deep-link на заявку без доступа (403) - getApplicationById отдаёт
+  // {message} без id, openFromDeepLink не открывает и не чистит query, без исключения.
+  it('deep-link ?open= с отказом доступа не открывает деталь и не чистит query', async () => {
+    getApplicationsPaginated.mockResolvedValue({ items: [makeApp(1)], meta: { total: 5, page: 1, per_page: 30 } });
+    getApplicationById.mockResolvedValue({ message: 'Недостаточно прав' }); // envelope !success -> без id
+    const replace = vi.fn(() => Promise.resolve());
+    wrapper = mount(ApplicationsCenter, {
+      global: { stubs, mocks: { $route: { query: { open: '77' }, path: '/center' }, $router: { push: vi.fn(), replace } } },
+    });
+    await flushPromises();
+
+    expect(getApplicationById).toHaveBeenCalledWith(77);
+    expect(wrapper.vm.selectedApplication).toBeNull(); // деталь не открылась
+    expect(replace).not.toHaveBeenCalled(); // ?open оставлен до след. попытки
   });
 
   it('выбор сортировки по колонке догружает весь набор (клиентская сортировка по dev-семантике)', async () => {

@@ -1160,6 +1160,14 @@ export default {
     },
     watch: {
         archiveMode() {
+            // Смена «вселенной» данных: Активные и Архив - непересекающиеся пространства
+            // id. Снимок известных id (_pollKnownIds) от прошлого набора здесь стал бы
+            // стейл - инкрементальный опрос принял бы ВСЕ недогруженные страницы нового
+            // набора за «новые» (bulk-prepend + рассинхрон total + ложный звук, класс
+            // #632/#840). Инвалидируем снимок и снимаем prime, чтобы первый снимок нового
+            // набора не сыграл звук, ДО refetch (#1158).
+            this._pollKnownIds = null;
+            this.pollPrimed = false;
             this.fetchApplications();
         },
         '$route.query.archive'(val) {
@@ -1191,7 +1199,10 @@ export default {
         this.applicationsPollInterval = setInterval(() => {
             if (this.isInitialLoad) return;
             if (this.applicationsPage > 1) {
-                this._pollApplicationsIncremental();
+                // Инкрементальный синк нужен только без real-time: при активном SSE
+                // новые/изменения прилетают сигналом (refreshFromRealtime). Гейт
+                // симметричен ветке page===1 ниже (#1158 yellow).
+                if (!this.sseConnected) this._pollApplicationsIncremental();
                 return;
             }
             _fullReloadCounter++;
