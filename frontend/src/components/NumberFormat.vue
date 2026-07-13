@@ -757,7 +757,6 @@ import BaseDropdown from './ui/BaseDropdown.vue';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
 import LicensePlateFormatHistoryModal from './LicensePlateFormatHistoryModal.vue';
 import { useDeletionsStore } from '@/stores/deletions';
-import { useUiStore } from '@/stores/ui';
 import { registerDirtyTracker, confirmIfAnyDirty } from '@/utils/dirtyTracker';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import { apiRequest } from '@/api/client';
@@ -1316,7 +1315,7 @@ export default {
       const label = op === 'restore' ? 'Восстановлено' : 'Архивировано';
       if (result.error_count > 0) {
         const failed = (result.errors || []).map(e => e.name || `#${e.id}`).join(', ');
-        useUiStore().warning(`Выполнено ${result.success_count} из ${total}. Не удалось: ${failed}`);
+        useDeletionsStore().notify({ prefix: 'Выполнено ', bold: `${result.success_count} из ${total}`, suffix: `. Не удалось: ${failed}`, type: 'warning' });
       } else {
         useDeletionsStore().notify({ prefix: `${label}: `, bold: String(result.success_count) });
       }

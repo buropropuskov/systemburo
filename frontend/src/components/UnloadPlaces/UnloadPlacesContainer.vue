@@ -688,7 +688,6 @@
 import { apiRequest } from '@/api/client'
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import { useDeletionsStore } from '@/stores/deletions';
-import { useUiStore } from '@/stores/ui';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import RefreshButton from '../RefreshButton.vue';
 import SearchComponent from '../SearchComponent.vue';
@@ -1365,7 +1364,7 @@ async uploadPhotoFiles(files) {
       const label = op === 'restore' ? 'Восстановлено' : 'Архивировано';
       if (result.error_count > 0) {
         const failed = (result.errors || []).map(e => e.name || `#${e.id}`).join(', ');
-        useUiStore().warning(`Выполнено ${result.success_count} из ${total}. Не удалось: ${failed}`);
+        useDeletionsStore().notify({ prefix: 'Выполнено ', bold: `${result.success_count} из ${total}`, suffix: `. Не удалось: ${failed}`, type: 'warning' });
       } else {
         useDeletionsStore().notify({ prefix: `${label}: `, bold: String(result.success_count) });
       }

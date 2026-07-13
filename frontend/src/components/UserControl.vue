@@ -1425,7 +1425,7 @@ export default {
       }[op] || 'Обновлено';
       if (result.error_count > 0) {
         const failed = (result.errors || []).map(e => e.name || `#${e.id}`).join(', ');
-        useUiStore().warning(`Выполнено ${result.success_count} из ${total}. Не удалось: ${failed}`);
+        useDeletionsStore().notify({ prefix: 'Выполнено ', bold: `${result.success_count} из ${total}`, suffix: `. Не удалось: ${failed}`, type: 'warning' });
       } else {
         useDeletionsStore().notify({ prefix: `${label}: `, bold: String(result.success_count) });
       }

@@ -27,7 +27,6 @@ import BulkOperationsModal from '../directories/BulkOperationsModal.vue'
 import ConfirmationModal from '../ConfirmationModal.vue'
 import { useCompaniesStore } from '@/stores/companies'
 import { useDeletionsStore } from '@/stores/deletions'
-import { useUiStore } from '@/stores/ui'
 
 function seedComps() {
   return [
@@ -56,12 +55,10 @@ async function mountCmp() {
   vi.spyOn(store, 'fetchCompaniesWithUsers').mockResolvedValue()
   const del = useDeletionsStore()
   vi.spyOn(del, 'notify').mockImplementation(() => {})
-  const ui = useUiStore()
-  vi.spyOn(ui, 'warning').mockImplementation(() => {})
 
   const w = mount(CompaniesManagement, { global: { stubs: STUBS } })
   await flushPromises()
-  return { w, store, del, ui }
+  return { w, store, del }
 }
 
 const bulkModal = w => w.findComponent(BulkOperationsModal)
@@ -96,14 +93,14 @@ describe('CompaniesManagement — применение групповых опе
       error_count: 1,
       errors: [{ id: 2, name: 'Бета', error: 'ошибка' }],
     })
-    const { w, ui } = await mountCmp()
+    const { w, del } = await mountCmp()
     await w.find('[data-testid="companies-select-all"]').trigger('change')
     await w.find('[data-testid="companies-bulk-tables"]').trigger('click')
     bulkModal(w).vm.$emit('apply', { tableIds: [7], mode: 'replace' })
     await flushPromises()
 
     expect(compApi.bulkAssignCompanyTables).toHaveBeenCalledWith([1, 2], [7], 'replace')
-    expect(ui.warning).toHaveBeenCalledWith('Выполнено 1 из 2. Не удалось: Бета')
+    expect(del.notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'warning', bold: '1 из 2', suffix: '. Не удалось: Бета' }))
   })
 
   it('архив: подтверждение зовёт bulkArchiveCompanies', async () => {

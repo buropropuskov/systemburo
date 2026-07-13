@@ -32,7 +32,6 @@
       </router-view>
       <ScrollTopButton v-if="showChrome" />
     </div>
-    <ToastContainer />
     <ConfirmDialog />
     <DirtyConfirmModal />
     <DeleteNotifications />
@@ -50,7 +49,6 @@ import eventStream from '@/services/eventStream'
 import NavMenu from './components/NavMenu.vue';
 import TheHeader from './components/TheHeader/TheHeader.vue';
 import ScrollTopButton from './components/ScrollTopButton.vue';
-import ToastContainer from './components/ToastContainer.vue';
 import ConfirmDialog from './components/ConfirmDialog.vue';
 import DirtyConfirmModal from './components/DirtyConfirmModal.vue';
 import DeleteNotifications from './components/DeleteNotifications.vue';
@@ -63,7 +61,6 @@ export default {
     NavMenu,
     TheHeader,
     ScrollTopButton,
-    ToastContainer,
     ConfirmDialog,
     DirtyConfirmModal,
     DeleteNotifications,

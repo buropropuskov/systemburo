@@ -184,7 +184,7 @@
 </template>
 
 <script>
-import { useToast } from '@/composables/useToast';
+import { useDeletionsStore } from '@/stores/deletions';
 
 export default {
     name: 'ApplicationSuccessModal',
@@ -225,9 +225,9 @@ export default {
                     document.execCommand('copy');
                     document.body.removeChild(ta);
                 }
-                useToast().success(`Номер ${number} скопирован`);
+                useDeletionsStore().notify({ prefix: 'Номер ', bold: String(number), suffix: ' скопирован', type: 'success' });
             } catch {
-                useToast().error('Не удалось скопировать номер');
+                useDeletionsStore().notify({ prefix: 'Не удалось ', bold: 'скопировать номер', type: 'error' });
             }
         }
     }

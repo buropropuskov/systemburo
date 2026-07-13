@@ -12,8 +12,6 @@ function loadNavPrefs() {
 }
 
 export const useUiStore = defineStore('ui', () => {
-  const toasts = ref([])
-
   // Состояния рельса навигации (#510), персист в localStorage:
   // sidebarExpanded = пин (рельс закреплён раскрытым), sidebarHidden = full-hide.
   const navPrefs = loadNavPrefs()
@@ -42,19 +40,6 @@ export const useUiStore = defineStore('ui', () => {
   function showSidebar() {
     sidebarHidden.value = false
   }
-
-  function showToast(message, type = 'info', duration = 3000) {
-    const id = Date.now()
-    toasts.value.push({ id, message, type })
-    setTimeout(() => {
-      toasts.value = toasts.value.filter(t => t.id !== id)
-    }, duration)
-  }
-
-  function success(message) { showToast(message, 'success') }
-  function error(message) { showToast(message, 'error', 5000) }
-  function warning(message) { showToast(message, 'warning') }
-  function info(message) { showToast(message, 'info') }
 
   // Глобальная модалка подтверждения. Возвращает Promise<boolean>.
   // Использование: const ok = await ui.confirm({ message: '...' })
@@ -87,18 +72,12 @@ export const useUiStore = defineStore('ui', () => {
   }
 
   return {
-    toasts,
     sidebarExpanded,
     sidebarHidden,
     tourForceExpand,
     toggleSidebarPinned,
     hideSidebar,
     showSidebar,
-    showToast,
-    success,
-    error,
-    warning,
-    info,
     confirmState,
     confirm,
     resolveConfirm,
