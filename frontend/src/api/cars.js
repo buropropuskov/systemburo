@@ -1,4 +1,4 @@
-import { apiRequest } from './client';
+import { apiRequest, apiRequestRaw } from './client';
 
 export async function getActiveCarsForTables() {
   const res = await apiRequest('/cars/active-for-tables');
@@ -85,4 +85,26 @@ export async function lookupUniqueCar({ number, mark }) {
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`Ошибка поиска машины (${res.status})`);
   return res.json();
+}
+
+/**
+ * Реестр машин порциями (#1158, срез 2): передавая page/per_page, включает
+ * серверную пагинацию (GetAllPaginated) и поиск search_query вместо legacy
+ * полного списка. Пагинация лежит в envelope.meta рядом с data, а apiRequest
+ * снимает только data и meta теряется - поэтому читаем сырой ответ через
+ * apiRequestRaw (см. getApplicationsPaginated в api/applications.js).
+ * @param {{filter_type?: string, search_query?: string, page?: number, per_page?: number}} params
+ * @returns {Promise<{items: object[], meta: {total: number, page: number, per_page: number}}>}
+ */
+export async function getUniqueCarsPaginated(params = {}) {
+  const query = new URLSearchParams(params).toString();
+  const res = await apiRequestRaw(`/unique-cars${query ? '?' + query : ''}`);
+  const body = await res.json();
+  if (!res.ok || !body || !body.success) {
+    throw new Error(body?.error || 'Не удалось загрузить машины');
+  }
+  return {
+    items: body.data || [],
+    meta: body.meta || { total: 0, page: 1, per_page: 30 },
+  };
 }

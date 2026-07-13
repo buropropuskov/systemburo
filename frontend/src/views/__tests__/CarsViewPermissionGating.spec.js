@@ -9,6 +9,10 @@ import { usePermissionsStore } from '@/stores/permissions';
 // гейтинг вкладок реестра (section.registry.*) и кнопок изменения (entity.cars.write).
 vi.mock('@/api/client', () => ({
   apiRequest: vi.fn().mockResolvedValue({ ok: false, json: vi.fn().mockResolvedValue([]) }),
+  apiRequestRaw: vi.fn().mockResolvedValue({
+    ok: false,
+    json: vi.fn().mockResolvedValue({ success: false, error: 'x' }),
+  }),
 }));
 vi.mock('@/api/blacklist', () => ({ listVehicleBlacklist: vi.fn().mockResolvedValue([]) }));
 

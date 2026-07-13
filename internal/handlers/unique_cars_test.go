@@ -1,10 +1,12 @@
 package handlers_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
 
+	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
@@ -277,6 +279,99 @@ func TestUniqueCars_FilterTypes(t *testing.T) {
 		rec = testutil.GET(t, e, "/unique-cars?filter_type="+f, h)
 		assert.Equal(t, http.StatusOK, rec.Code, "filter_type=%s should return 200", f)
 	}
+}
+
+// TestUniqueCars_Paginated проверяет серверную пагинацию реестра (#1158, срез 2):
+// per_page переключает GetAll на GetAllPaginated, meta.total считает все совпадения,
+// не размер страницы (secMetaEnvelope переиспользован из security_attachments_test.go,
+// тот же пакет handlers_test).
+func TestUniqueCars_Paginated(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	for i, num := range []string{"PGN001", "PGN002", "PGN003"} {
+		body := fmt.Sprintf(`{"number":"%s","mark":"PgMark%d"}`, num, i)
+		require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-cars", body, h).Code)
+	}
+
+	rec := testutil.GET(t, e, "/unique-cars?filter_type=all_system&per_page=1&page=1", h)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rows := testutil.ParseResponse[[]services.UniqueCarWithRelations](t, rec)
+	require.Len(t, rows, 1, "страница ограничена per_page")
+
+	var env secMetaEnvelope
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &env), rec.Body.String())
+	assert.GreaterOrEqual(t, env.Meta.Total, int64(3), "total считает все совпадения, не размер страницы")
+	assert.Equal(t, 1, env.Meta.Page)
+	assert.Equal(t, 1, env.Meta.PerPage)
+}
+
+// TestUniqueCars_SearchQuery_ExactMatch проверяет серверный поиск по номеру: точное
+// совпадение находит нужную машину среди прочих (не просто 200, реально фильтрует - #46).
+func TestUniqueCars_SearchQuery_ExactMatch(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-cars", `{"number":"SRCH777AA","mark":"Kamaz"}`, h).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-cars", `{"number":"OTHER888BB","mark":"Volvo"}`, h).Code)
+
+	rec := testutil.GET(t, e, "/unique-cars?filter_type=all_system&per_page=20&search_query=SRCH777AA", h)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rows := testutil.ParseResponse[[]services.UniqueCarWithRelations](t, rec)
+	require.Len(t, rows, 1, "поиск должен вернуть только совпавшую машину")
+	require.NotNil(t, rows[0].Number)
+	assert.Equal(t, "SRCH777AA", *rows[0].Number)
+}
+
+// TestUniqueCars_SearchQuery_SpaceVariant проверяет вариант поиска номера без пробелов
+// (REPLACE убирает пробелы из номера перед ILIKE, тот же приём, что применяется в
+// поиске заявок application_helpers.go) - номер хранится с пробелом, ищем слитно.
+func TestUniqueCars_SearchQuery_SpaceVariant(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-cars", `{"number":"У 777 УУ 799","mark":"Lada"}`, h).Code)
+
+	rec := testutil.GET(t, e, "/unique-cars?filter_type=all_system&per_page=20&search_query=У777УУ799", h)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rows := testutil.ParseResponse[[]services.UniqueCarWithRelations](t, rec)
+	require.Len(t, rows, 1, "поиск слитным номером должен находить машину с пробелами в номере")
+	require.NotNil(t, rows[0].Number)
+	assert.Equal(t, "У 777 УУ 799", *rows[0].Number)
+}
+
+// TestUniqueCars_SearchQuery_NoMatch проверяет, что несуществующий запрос честно
+// отдаёт пустой список, а не 500 (ловит несуществующие колонки/синтаксис - #46).
+func TestUniqueCars_SearchQuery_NoMatch(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, "/unique-cars", `{"number":"NOMATCH001","mark":"Kia"}`, h).Code)
+
+	rec := testutil.GET(t, e, "/unique-cars?filter_type=all_system&per_page=20&search_query=совершенно-другой-запрос-zzz", h)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rows := testutil.ParseResponse[[]services.UniqueCarWithRelations](t, rec)
+	assert.Empty(t, rows)
 }
 
 func TestUniqueCars_Lookup(t *testing.T) {

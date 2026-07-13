@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"systemburo/internal/models"
+	"systemburo/internal/normalize"
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
@@ -134,6 +136,9 @@ type UniqueCarHistoryItem struct {
 type UniqueCarService interface {
 	GetOwnerInfo(ctx context.Context, username string) (*CarOwnerInfo, error)
 	GetAll(ctx context.Context, username string, filterType string) ([]UniqueCarWithRelations, error)
+	// GetAllPaginated возвращает страницу реестра с серверным поиском (#1158, срез 2):
+	// используется CarsView вместо GetAll, как только запрос несёт per_page.
+	GetAllPaginated(ctx context.Context, username, filterType, searchQuery string, page, perPage int) ([]UniqueCarWithRelations, int64, error)
 	// LookupByNumberMark ищет машину по номеру и марке (LOWER(TRIM), как ЧС) для открытия
 	// карточки со страницы чёрного списка. Возвращает nil, nil если совпадения нет.
 	LookupByNumberMark(ctx context.Context, number, mark string) (*UniqueCarWithRelations, error)
@@ -241,90 +246,92 @@ func userCanSeeAllSystem(ctx context.Context, db *gorm.DB, userID int) bool {
 	return u.IsSuperAdmin || u.IsAdmin
 }
 
-func (s *uniqueCarService) GetAll(ctx context.Context, username string, filterType string) ([]UniqueCarWithRelations, error) {
-	ownerInfo, err := s.getCarOwnerInfo(ctx, username)
-	if err != nil {
-		return nil, err
-	}
+// carsListSelect -- список колонок для реестра машин (GetAll/GetAllPaginated).
+// Вынесен в константу, т.к. переиспользуется обоими методами (#1158, срез 2) -
+// раньше был только внутри GetAll. Активная заявка ищется по LOWER(TRIM(uc.number))
+// без учёта марки (как исторически было) - при полном совпадении номера у разных
+// машин с разными марками возможна редкая коллизия, вне объёма этого среза.
+const carsListSelect = `uc.id, uc.number, uc.mark, uc.organization_id, uc.company_id,
+	uc.format_id, uc.user_id, uc.created_at,
+	o.name as organization_name, c.name as company_name,
+	lpf.name as format_name, u.username as user_name,
+	COALESCE((
+		SELECT true FROM cars cr
+		JOIN attachments a ON cr.attachment_id = a.id
+		JOIN applications app ON a.application_id = app.id
+		WHERE LOWER(TRIM(cr.car_number)) = LOWER(TRIM(uc.number))
+		AND cr.status = 1
+		AND app.status IN ('В работе', 'Завершено')
+		AND CURRENT_DATE <= a.entry_date_to::date
+		LIMIT 1
+	), false) as status,
+	(SELECT a.entry_date_to FROM cars cr
+		JOIN attachments a ON cr.attachment_id = a.id
+		JOIN applications app ON a.application_id = app.id
+		WHERE LOWER(TRIM(cr.car_number)) = LOWER(TRIM(uc.number))
+		AND cr.status = 1 AND app.status IN ('В работе', 'Завершено')
+		AND CURRENT_DATE <= a.entry_date_to::date
+		ORDER BY a.entry_date_to DESC LIMIT 1
+	) as active_entry_date_to,
+	(SELECT a.entry_time_from FROM cars cr
+		JOIN attachments a ON cr.attachment_id = a.id
+		JOIN applications app ON a.application_id = app.id
+		WHERE LOWER(TRIM(cr.car_number)) = LOWER(TRIM(uc.number))
+		AND cr.status = 1 AND app.status IN ('В работе', 'Завершено')
+		AND CURRENT_DATE <= a.entry_date_to::date
+		ORDER BY a.entry_date_to DESC LIMIT 1
+	) as active_entry_time_from,
+	(SELECT a.entry_time_to FROM cars cr
+		JOIN attachments a ON cr.attachment_id = a.id
+		JOIN applications app ON a.application_id = app.id
+		WHERE LOWER(TRIM(cr.car_number)) = LOWER(TRIM(uc.number))
+		AND cr.status = 1 AND app.status IN ('В работе', 'Завершено')
+		AND CURRENT_DATE <= a.entry_date_to::date
+		ORDER BY a.entry_date_to DESC LIMIT 1
+	) as active_entry_time_to,
+	(SELECT ao.name FROM cars cr
+		JOIN attachments a ON cr.attachment_id = a.id
+		JOIN applications app ON a.application_id = app.id
+		LEFT JOIN organizations ao ON app.organization_id = ao.id
+		WHERE LOWER(TRIM(cr.car_number)) = LOWER(TRIM(uc.number))
+		AND cr.status = 1 AND app.status IN ('В работе', 'Завершено')
+		AND CURRENT_DATE <= a.entry_date_to::date
+		ORDER BY a.entry_date_to DESC LIMIT 1
+	) as active_app_org_name,
+	(SELECT ac.name FROM cars cr
+		JOIN attachments a ON cr.attachment_id = a.id
+		JOIN applications app ON a.application_id = app.id
+		LEFT JOIN companies ac ON app.company_id = ac.id
+		WHERE LOWER(TRIM(cr.car_number)) = LOWER(TRIM(uc.number))
+		AND cr.status = 1 AND app.status IN ('В работе', 'Завершено')
+		AND CURRENT_DATE <= a.entry_date_to::date
+		ORDER BY a.entry_date_to DESC LIMIT 1
+	) as active_app_company_name,
+	(SELECT cr.id FROM cars cr
+		JOIN attachments a ON cr.attachment_id = a.id
+		JOIN applications app ON a.application_id = app.id
+		WHERE LOWER(TRIM(cr.car_number)) = LOWER(TRIM(uc.number))
+		AND cr.status = 1 AND app.status IN ('В работе', 'Завершено')
+		AND CURRENT_DATE <= a.entry_date_to::date
+		ORDER BY a.entry_date_to DESC LIMIT 1
+	) as active_car_id,
+	(SELECT app.id FROM cars cr
+		JOIN attachments a ON cr.attachment_id = a.id
+		JOIN applications app ON a.application_id = app.id
+		WHERE LOWER(TRIM(cr.car_number)) = LOWER(TRIM(uc.number))
+		AND cr.status = 1 AND app.status IN ('В работе', 'Завершено')
+		AND CURRENT_DATE <= a.entry_date_to::date
+		ORDER BY a.entry_date_to DESC LIMIT 1
+	) as active_application_id`
 
-	if filterType == "all_system" && !userCanSeeAllSystem(ctx, s.db, ownerInfo.UserID) {
-		return nil, echo.NewHTTPError(http.StatusForbidden, "Недостаточно прав для просмотра всех записей системы")
-	}
-
+// buildCarsQuery строит базовый запрос реестра (джойны + фильтр владельца + поиск)
+// БЕЗ Select/Order - переиспользуется отдельно для Count и для выборки данных
+// (тот же паттерн, что buildApplicationsBaseQuery в application_service.go), чтобы
+// Count считал по фильтрованному набору, не гоняя тяжёлые коррелированные
+// подзапросы carsListSelect дважды.
+func (s *uniqueCarService) buildCarsQuery(ctx context.Context, ownerInfo *CarOwnerInfo, filterType, searchQuery string) *gorm.DB {
 	query := s.db.WithContext(ctx).
 		Table("unique_cars uc").
-		Select(`uc.id, uc.number, uc.mark, uc.organization_id, uc.company_id,
-			uc.format_id, uc.user_id, uc.created_at,
-			o.name as organization_name, c.name as company_name,
-			lpf.name as format_name, u.username as user_name,
-			COALESCE((
-				SELECT true FROM cars cr
-				JOIN attachments a ON cr.attachment_id = a.id
-				JOIN applications app ON a.application_id = app.id
-				WHERE LOWER(TRIM(cr.car_number)) = LOWER(TRIM(uc.number))
-				AND cr.status = 1
-				AND app.status IN ('В работе', 'Завершено')
-				AND CURRENT_DATE <= a.entry_date_to::date
-				LIMIT 1
-			), false) as status,
-			(SELECT a.entry_date_to FROM cars cr
-				JOIN attachments a ON cr.attachment_id = a.id
-				JOIN applications app ON a.application_id = app.id
-				WHERE LOWER(TRIM(cr.car_number)) = LOWER(TRIM(uc.number))
-				AND cr.status = 1 AND app.status IN ('В работе', 'Завершено')
-				AND CURRENT_DATE <= a.entry_date_to::date
-				ORDER BY a.entry_date_to DESC LIMIT 1
-			) as active_entry_date_to,
-			(SELECT a.entry_time_from FROM cars cr
-				JOIN attachments a ON cr.attachment_id = a.id
-				JOIN applications app ON a.application_id = app.id
-				WHERE LOWER(TRIM(cr.car_number)) = LOWER(TRIM(uc.number))
-				AND cr.status = 1 AND app.status IN ('В работе', 'Завершено')
-				AND CURRENT_DATE <= a.entry_date_to::date
-				ORDER BY a.entry_date_to DESC LIMIT 1
-			) as active_entry_time_from,
-			(SELECT a.entry_time_to FROM cars cr
-				JOIN attachments a ON cr.attachment_id = a.id
-				JOIN applications app ON a.application_id = app.id
-				WHERE LOWER(TRIM(cr.car_number)) = LOWER(TRIM(uc.number))
-				AND cr.status = 1 AND app.status IN ('В работе', 'Завершено')
-				AND CURRENT_DATE <= a.entry_date_to::date
-				ORDER BY a.entry_date_to DESC LIMIT 1
-			) as active_entry_time_to,
-			(SELECT ao.name FROM cars cr
-				JOIN attachments a ON cr.attachment_id = a.id
-				JOIN applications app ON a.application_id = app.id
-				LEFT JOIN organizations ao ON app.organization_id = ao.id
-				WHERE LOWER(TRIM(cr.car_number)) = LOWER(TRIM(uc.number))
-				AND cr.status = 1 AND app.status IN ('В работе', 'Завершено')
-				AND CURRENT_DATE <= a.entry_date_to::date
-				ORDER BY a.entry_date_to DESC LIMIT 1
-			) as active_app_org_name,
-			(SELECT ac.name FROM cars cr
-				JOIN attachments a ON cr.attachment_id = a.id
-				JOIN applications app ON a.application_id = app.id
-				LEFT JOIN companies ac ON app.company_id = ac.id
-				WHERE LOWER(TRIM(cr.car_number)) = LOWER(TRIM(uc.number))
-				AND cr.status = 1 AND app.status IN ('В работе', 'Завершено')
-				AND CURRENT_DATE <= a.entry_date_to::date
-				ORDER BY a.entry_date_to DESC LIMIT 1
-			) as active_app_company_name,
-			(SELECT cr.id FROM cars cr
-				JOIN attachments a ON cr.attachment_id = a.id
-				JOIN applications app ON a.application_id = app.id
-				WHERE LOWER(TRIM(cr.car_number)) = LOWER(TRIM(uc.number))
-				AND cr.status = 1 AND app.status IN ('В работе', 'Завершено')
-				AND CURRENT_DATE <= a.entry_date_to::date
-				ORDER BY a.entry_date_to DESC LIMIT 1
-			) as active_car_id,
-			(SELECT app.id FROM cars cr
-				JOIN attachments a ON cr.attachment_id = a.id
-				JOIN applications app ON a.application_id = app.id
-				WHERE LOWER(TRIM(cr.car_number)) = LOWER(TRIM(uc.number))
-				AND cr.status = 1 AND app.status IN ('В работе', 'Завершено')
-				AND CURRENT_DATE <= a.entry_date_to::date
-				ORDER BY a.entry_date_to DESC LIMIT 1
-			) as active_application_id`).
 		Joins("LEFT JOIN organizations o ON uc.organization_id = o.id").
 		Joins("LEFT JOIN companies c ON uc.company_id = c.id").
 		Joins("LEFT JOIN license_plate_formats lpf ON uc.format_id = lpf.id").
@@ -368,7 +375,41 @@ func (s *uniqueCarService) GetAll(ctx context.Context, username string, filterTy
 		query = query.Where("uc.user_id = ?", ownerInfo.UserID)
 	}
 
-	query = query.Order("uc.number, uc.mark")
+	if raw := strings.TrimSpace(searchQuery); raw != "" {
+		// Поиск по номеру/марке/формату/организации/компании (реальные колонки uc.number,
+		// uc.mark, lpf.name, o.name, c.name). Переиспользуем buildSearchVariants/
+		// ilikePatternsArgs из application_helpers.go (тот же пакет services) - раскладка
+		// и омоглифы номера уже покрыты. "Статус" НЕ ищем: показанное поле status в
+		// carsListSelect - это коррелированный подзапрос (активная заявка на текущий
+		// момент), а не колонка uc.status (та почти всегда false и в списке не
+		// показывается) - фильтровать по тексту "активна/неактивна" пришлось бы тем же
+		// дорогим подзапросом в WHERE; решили не дублировать ради второстепенного поля.
+		variants := buildSearchVariants(raw)
+		cols := []string{"uc.number", "uc.mark", "lpf.name", "o.name", "c.name"}
+		cond, args := ilikePatternsArgs(cols, variants)
+		if strings.ContainsAny(raw, "0123456789") {
+			cond += " OR REPLACE(uc.number, ' ', '') ILIKE ?"
+			args = append(args, "%"+normalize.Plate(raw)+"%")
+		}
+		query = query.Where(cond, args...)
+	}
+
+	return query
+}
+
+func (s *uniqueCarService) GetAll(ctx context.Context, username string, filterType string) ([]UniqueCarWithRelations, error) {
+	ownerInfo, err := s.getCarOwnerInfo(ctx, username)
+	if err != nil {
+		return nil, err
+	}
+
+	if filterType == "all_system" && !userCanSeeAllSystem(ctx, s.db, ownerInfo.UserID) {
+		return nil, echo.NewHTTPError(http.StatusForbidden, "Недостаточно прав для просмотра всех записей системы")
+	}
+
+	query := s.buildCarsQuery(ctx, ownerInfo, filterType, "").
+		Select(carsListSelect).
+		Order("uc.number, uc.mark")
 
 	cars := make([]UniqueCarWithRelations, 0)
 	if err := query.Scan(&cars).Error; err != nil {
@@ -376,6 +417,38 @@ func (s *uniqueCarService) GetAll(ctx context.Context, username string, filterTy
 	}
 
 	return cars, nil
+}
+
+// GetAllPaginated возвращает страницу реестра с серверным поиском (#1158, срез 2).
+func (s *uniqueCarService) GetAllPaginated(ctx context.Context, username, filterType, searchQuery string, page, perPage int) ([]UniqueCarWithRelations, int64, error) {
+	ownerInfo, err := s.getCarOwnerInfo(ctx, username)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if filterType == "all_system" && !userCanSeeAllSystem(ctx, s.db, ownerInfo.UserID) {
+		return nil, 0, echo.NewHTTPError(http.StatusForbidden, "Недостаточно прав для просмотра всех записей системы")
+	}
+
+	var total int64
+	countQuery := s.buildCarsQuery(ctx, ownerInfo, filterType, searchQuery)
+	if err := countQuery.Count(&total).Error; err != nil {
+		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Error counting cars")
+	}
+
+	offset := (page - 1) * perPage
+	dataQuery := s.buildCarsQuery(ctx, ownerInfo, filterType, searchQuery).
+		Select(carsListSelect).
+		Order("uc.number, uc.mark").
+		Offset(offset).
+		Limit(perPage)
+
+	cars := make([]UniqueCarWithRelations, 0)
+	if err := dataQuery.Scan(&cars).Error; err != nil {
+		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching cars")
+	}
+
+	return cars, total, nil
 }
 
 // carToResponse конвертирует модель UniqueCar в UniqueCarResponse.
