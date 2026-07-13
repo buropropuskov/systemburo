@@ -1,13 +1,17 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { mount, flushPromises } from '@vue/test-utils';
 import { setActivePinia, createPinia } from 'pinia';
 import { nextTick } from 'vue';
 
 import ApplicationsCenter from '../ApplicationsCenter.vue';
 import { apiRequest } from '@/api/client';
+import { getApplicationsPaginated } from '@/api/applications';
 import { useAuthStore } from '@/stores/auth';
 
 vi.mock('@/api/client', () => ({ apiRequest: vi.fn() }));
+// fetchApplications (список Центра, #1158) идёт через getApplicationsPaginated,
+// не через apiRequest напрямую - мокаем отдельно, чтобы контролировать момент резолва.
+vi.mock('@/api/applications', () => ({ getApplicationsPaginated: vi.fn() }));
 vi.mock('@/utils/notificationSound', () => ({ playPreset: vi.fn(), SOUND_PRESETS: [] }));
 // eventStream мокаем, чтобы его connect не дёргал apiRequest и не путал порядок промисов.
 vi.mock('@/services/eventStream', () => ({
@@ -40,17 +44,21 @@ function mountCenter() {
   });
 }
 
-const resp = () => ({ ok: false, text: async () => '', json: async () => [] });
+const page = (items = []) => ({ items, meta: { total: items.length, page: 1, per_page: 30 } });
 
 describe('ApplicationsCenter: оверлей refreshing и silent-режим', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     apiRequest.mockReset();
+    // fetchOrganizations/getCurrentUser (тоже дёргаются в mounted) остаются на apiRequest -
+    // этот тест их не проверяет, просто резолвим сразу, чтобы не шуметь неотловленными промисами.
+    apiRequest.mockResolvedValue({ ok: false, text: async () => '', json: async () => [] });
+    getApplicationsPaginated.mockReset();
   });
 
   it('silent-обновление (SSE) не показывает оверлей refreshing', async () => {
     const resolvers = [];
-    apiRequest.mockImplementation(() => new Promise((r) => resolvers.push(r)));
+    getApplicationsPaginated.mockImplementation(() => new Promise((r) => resolvers.push(r)));
     useAuthStore().token = 'test-token';
     const w = mountCenter();
     await nextTick();
@@ -60,13 +68,13 @@ describe('ApplicationsCenter: оверлей refreshing и silent-режим', (
     resolvers.length = 0;
 
     w.vm.fetchApplications(true); // silent
-    await nextTick();
+    await flushPromises();
     expect(w.vm.refreshing).toBe(false);
   });
 
   it('не залипает при гонке silent(SSE) + non-silent(фильтр)', async () => {
     const resolvers = [];
-    apiRequest.mockImplementation(() => new Promise((r) => resolvers.push(r)));
+    getApplicationsPaginated.mockImplementation(() => new Promise((r) => resolvers.push(r)));
     useAuthStore().token = 'test-token';
     const w = mountCenter();
     await nextTick();
@@ -80,14 +88,12 @@ describe('ApplicationsCenter: оверлей refreshing и silent-режим', (
     expect(w.vm.refreshing).toBe(true);
 
     // silent резолвится ПЕРВЫМ - его seq актуален, но silent не трогает refreshing
-    resolvers[1](resp());
-    await nextTick();
-    await nextTick();
+    resolvers[1](page());
+    await flushPromises();
     // non-silent резолвится позже: его seq устарел (N != N+1), но refreshing развязан
     // от seq (RED-фикс) - счётчик non-silent доходит до 0 и гасит оверлей.
-    resolvers[0](resp());
-    await nextTick();
-    await nextTick();
+    resolvers[0](page());
+    await flushPromises();
 
     expect(w.vm.refreshing).toBe(false); // не залип
     expect(w.vm.pendingRefreshCount).toBe(0);

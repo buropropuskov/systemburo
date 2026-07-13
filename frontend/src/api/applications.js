@@ -6,6 +6,27 @@ export async function getApplications(params = {}) {
   return res.json();
 }
 
+/**
+ * Список заявок Центра порциями (#1158): передавая page/per_page, включает
+ * серверную пагинацию (GetApplicationsPaginated) вместо legacy полного списка.
+ * Пагинация лежит в envelope.meta рядом с data, а apiRequest снимает только data
+ * и meta теряется - поэтому читаем сырой ответ через apiRequestRaw (см. getAccessibleAttachments).
+ * @param {{page: number, per_page: number, [key: string]: string|number}} params
+ * @returns {Promise<{items: object[], meta: {total: number, page: number, per_page: number}}>}
+ */
+export async function getApplicationsPaginated(params = {}) {
+  const query = new URLSearchParams(params).toString();
+  const res = await apiRequestRaw(`/applications${query ? '?' + query : ''}`);
+  const body = await res.json();
+  if (!res.ok || !body || !body.success) {
+    throw new Error(body?.error || 'Не удалось загрузить заявки');
+  }
+  return {
+    items: body.data || [],
+    meta: body.meta || { total: 0, page: 1, per_page: 30 },
+  };
+}
+
 export async function getUserApplications(params = {}) {
   const query = new URLSearchParams(params).toString();
   const res = await apiRequest(`/applications/user${query ? '?' + query : ''}`);

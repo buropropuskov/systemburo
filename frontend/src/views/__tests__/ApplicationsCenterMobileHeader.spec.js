@@ -5,9 +5,12 @@ import { nextTick } from 'vue';
 
 import ApplicationsCenter from '../ApplicationsCenter.vue';
 import { apiRequest } from '@/api/client';
+import { getApplicationsPaginated } from '@/api/applications';
 import { useAuthStore } from '@/stores/auth';
 
 vi.mock('@/api/client', () => ({ apiRequest: vi.fn() }));
+// Список Центра (#1158) идёт через getApplicationsPaginated, не apiRequest напрямую.
+vi.mock('@/api/applications', () => ({ getApplicationsPaginated: vi.fn() }));
 vi.mock('@/utils/notificationSound', () => ({ playPreset: vi.fn(), SOUND_PRESETS: [] }));
 vi.mock('@/services/eventStream', () => ({
   default: {
@@ -58,6 +61,8 @@ describe('ApplicationsCenter: мобильная шапка vs десктоп-и
     setActivePinia(createPinia());
     apiRequest.mockReset();
     apiRequest.mockResolvedValue({ ok: false, text: async () => '', json: async () => [] });
+    getApplicationsPaginated.mockReset();
+    getApplicationsPaginated.mockResolvedValue({ items: [], meta: { total: 0, page: 1, per_page: 30 } });
     useAuthStore().token = 'test-token';
     origMatchMedia = window.matchMedia;
   });

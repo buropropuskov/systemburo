@@ -541,6 +541,7 @@
       </div>
             
       <div
+        ref="tableBody"
         class="table-body"
         :class="{ 'table-body--single-row': filteredApplications.length === 1 }"
       >
@@ -763,6 +764,30 @@
             {{ searchQuery.trim() ? 'Ничего не найдено' : hasActiveFilters ? 'Нет данных по выбранным фильтрам' : 'Заявок нет' }}
           </p>
         </SkeletonTransition>
+
+        <!-- Бесшовная подгрузка (#1158): sentinel внизу СКРОЛЛИРУЕМОГО table-body -
+             IntersectionObserver триггерит loadMore без кнопки "Показать ещё".
+             root - сам table-body: у него свой overflow-y:scroll, не документ,
+             дефолтный root (viewport) пересечение бы не заметил. -->
+        <div
+          v-if="hasMoreApplications"
+          :ref="setSentinelRef"
+          class="scroll-sentinel"
+          data-testid="center-scroll-sentinel"
+        >
+          <LoaderSpinner
+            v-if="listLoading && !refreshing"
+            label="Загрузка…"
+          />
+        </div>
+      </div>
+
+      <div
+        v-if="!loading && applications.length"
+        class="table-footer"
+        data-testid="center-table-footer"
+      >
+        Показано {{ applications.length }} из {{ total }}
       </div>
 
       <!-- При первой загрузке работает скелетон (loading), поэтому оверлей только на refreshing. -->
@@ -800,10 +825,12 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { getApplicationsPaginated } from '@/api/applications'
 import eventStream from '@/services/eventStream'
 import { useAuthStore } from '@/stores/auth'
 import { useSoundStore } from '@/stores/sound'
 import { usePermissionsStore } from '@/stores/permissions'
+import { useInfiniteList } from '@/composables/useInfiniteList'
 import { playPreset, SOUND_PRESETS } from '@/utils/notificationSound'
 import OrganizationFilter from '@/components/OrganizationFilter.vue';
 import DateFilter from '@/components/DateFilter.vue';
@@ -820,6 +847,10 @@ import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import { blacklistFlagCount, blacklistFlagLabel, BLACKLIST_FLAG_TITLE } from '@/utils/blacklistBadge';
 import { stripHtml } from '@/utils/sanitize';
 import { useDeletionsStore } from '@/stores/deletions';
+
+// Размер порции бесшовной подгрузки Центра (#1158, срез 1) - аналог PER_PAGE
+// в AccessibleAttachmentsView/TableVersionsView.
+const APPLICATIONS_PER_PAGE = 30;
 
 export default {
     name: 'ApplicationsCenter',
@@ -841,7 +872,25 @@ export default {
     setup() {
         const soundStore = useSoundStore()
         const permissionsStore = usePermissionsStore()
-        return { soundStore, permissionsStore }
+        // Бесшовная подгрузка Центра порциями (#1158, срез 1): composable инкапсулирует
+        // page/per_page/аккумуляцию/hasMore/seq-guard. fetchPage строится в methods
+        // (нужен доступ к this для фильтров) и передаётся при каждом вызове -
+        // setup() не имеет доступа к this, поэтому composable не хранит fetchPage сам.
+        // applications - алиас infiniteList.items: pre-existing спеки читают/пишут
+        // wrapper.vm.applications напрямую, переименование сломало бы их без пользы.
+        const infiniteList = useInfiniteList({ perPage: APPLICATIONS_PER_PAGE })
+        return {
+            soundStore,
+            permissionsStore,
+            applications: infiniteList.items,
+            total: infiniteList.total,
+            hasMoreApplications: infiniteList.hasMore,
+            listLoading: infiniteList.loading,
+            loadApplicationsList: infiniteList.load,
+            loadMoreApplicationsList: infiniteList.loadMore,
+            observeApplicationsSentinel: infiniteList.observeSentinel,
+            disconnectApplicationsSentinel: infiniteList.disconnectObserver,
+        }
     },
     data() {
         return {
@@ -917,9 +966,9 @@ export default {
             loading: true,
             refreshing: false,
 
-            // Данные заявок
-            applications: [],
-            
+            // Данные заявок: applications/total/hasMoreApplications/listLoading
+            // выставлены из useInfiniteList в setup() (#1158).
+
             // Детали заявки
             selectedApplication: null,
             currentUserId: null,
@@ -1075,6 +1124,12 @@ export default {
                    !!this.selectedOrganizationId;
         },
 
+        // Известное ограничение (#1158 срез 1): applications - только загруженные
+        // порции, не весь набор по текущим фильтрам, значит счётчик может занижать
+        // реальное число непрочитанных, если их больше, чем в загруженных порциях.
+        // На практике непрочитанные - обычно самые свежие (sending_datetime DESC),
+        // поэтому почти всегда попадают в первую порцию; точный счётчик независимо
+        // от пагинации - отдельный срез (напр. через getUnreadCount с текущими фильтрами).
         unreadCount() {
             return this.applications.filter(app => !app.is_read).length;
         }
@@ -1162,6 +1217,7 @@ export default {
         this.initMobileWatcher();
     },
     beforeUnmount() {
+        this.disconnectApplicationsSentinel();
         if (this.shakeInterval) {
             clearInterval(this.shakeInterval);
         }
@@ -1373,8 +1429,16 @@ export default {
             this.fetchApplications();
         },
         
+        // Организация/подтверждение/статус/дата - все читаются бэком в buildApplicationsPage
+        // (#1158): без refetch applications остался бы первой уже ЗАГРУЖЕННОЙ порцией,
+        // а не полным набором по новому фильтру (до пагинации applications держал весь
+        // список, и клиентский фильтр этого не требовал). Теги (ЧС/крыша/парковка/важный)
+        // бэком не поддерживаются - для них refetch не меняет ответ, но всё равно
+        // возвращает на страницу 1, не запирая пользователя в маленьком уже загруженном
+        // подмножестве без шанса догрузить больше подходящих через скролл.
         applyFilters() {
             this.isInitialLoad = false;
+            this.fetchApplications();
         },
         
         // Сортировка
@@ -1527,8 +1591,12 @@ export default {
                 const fresh = await response.json();
                 if (!Array.isArray(fresh)) return;
 
-                const knownIds = new Set(this.applications.map(a => a.id));
-                const newApps = fresh.filter(a => !knownIds.has(a.id));
+                // this.applications теперь может быть лишь ПЕРВЫМИ порциями (#1158) -
+                // "id отсутствует в загруженном" больше не значит "новая заявка", это может
+                // быть просто ещё не подгруженная старая страница. Свежие отличаем по id
+                // больше самого большого уже загруженного (id растёт вместе с датой подачи).
+                const maxKnownId = this.applications.reduce((max, a) => Math.max(max, a.id), 0);
+                const newApps = fresh.filter(a => a.id > maxKnownId);
 
                 if (newApps.length > 0) {
                     // Prepend: новые заявки в начало (у них id больше — они свежее)
@@ -1561,9 +1629,56 @@ export default {
             }
         },
 
+        /**
+         * fetchPage для useInfiniteList (#1158): строит те же query-параметры фильтра,
+         * что и раньше, плюс page/per_page - бэк переключается на GetApplicationsPaginated,
+         * как только видит per_page (см. internal/handlers/applications.go). Идёт через
+         * getApplicationsPaginated (api/applications.js), которая читает envelope.meta
+         * через apiRequestRaw - apiRequest снимает его вместе с data (см. getAccessibleAttachments).
+         */
+        async buildApplicationsPage(page, perPage) {
+            const params = {};
+
+            if (this.searchQuery) {
+                params.search_query = this.searchQuery;
+            }
+            if (this.selectedOrganizationId) {
+                params.organization_id = this.selectedOrganizationId;
+            }
+            if (this.selectedConfirmations.length > 0) {
+                params.confirmation = this.selectedConfirmations[0];
+            }
+            if (this.selectedApplicationStatuses.length > 0) {
+                params.status = this.selectedApplicationStatuses[0];
+            }
+
+            // Добавляем параметр архива
+            params.archive = this.archiveMode === 'archive' ? 'true' : 'false';
+
+            if (this.activeToday) {
+                params.active_today = 'true';
+            }
+
+            // Добавляем параметры даты в запрос к API
+            if (this.selectedDate) {
+                params.date = this.selectedDate.toISOString().split('T')[0];
+            } else if (this.dateRangeStart && this.dateRangeEnd) {
+                params.date_from = this.dateRangeStart.toISOString().split('T')[0];
+                params.date_to = this.dateRangeEnd.toISOString().split('T')[0];
+            }
+
+            params.page = page;
+            params.per_page = perPage;
+
+            const { items, meta } = await getApplicationsPaginated(params);
+            return { items, total: (meta && meta.total) || 0 };
+        },
+
         async fetchApplications(silent = false) {
             // seq-токен: fetchApplications дёргается фильтрами, поллингом, ручным refresh
             // и SSE-сигналом (#840) - при пачке вызовов пишем только ответ последнего (#632).
+            // Собственный seq-guard записи items/total уже даёт useInfiniteList - этот
+            // токен управляет loading/refreshing/pendingRefreshCount (другой side-effect).
             // silent (real-time push): без оверлея refreshing - список обновляется тихо,
             // а TransitionGroup анимирует только дельту (новые заявки въезжают, соседи едут).
             const seq = ++this.fetchSeq;
@@ -1578,56 +1693,14 @@ export default {
                     return;
                 }
 
-                let url = "/applications";
-                const params = new URLSearchParams();
-                
-                if (this.searchQuery) {
-                    params.append('search_query', this.searchQuery);
-                }
-                if (this.selectedOrganizationId) {
-                    params.append('organization_id', this.selectedOrganizationId);
-                }
-                if (this.selectedConfirmations.length > 0) {
-                    params.append('confirmation', this.selectedConfirmations[0]);
-                }
-                if (this.selectedApplicationStatuses.length > 0) {
-                    params.append('status', this.selectedApplicationStatuses[0]);
-                }
-                
-                // Добавляем параметр архива
-                params.append('archive', this.archiveMode === 'archive' ? 'true' : 'false');
-
-                if (this.activeToday) {
-                    params.append('active_today', 'true');
-                }
-
-                // Добавляем параметры даты в запрос к API
-                if (this.selectedDate) {
-                    const dateStr = this.selectedDate.toISOString().split('T')[0];
-                    params.append('date', dateStr);
-                } else if (this.dateRangeStart && this.dateRangeEnd) {
-                    params.append('date_from', this.dateRangeStart.toISOString().split('T')[0]);
-                    params.append('date_to', this.dateRangeEnd.toISOString().split('T')[0]);
-                }
-
-                const queryString = params.toString();
-                if (queryString) {
-                    url += '?' + queryString;
-                }
-
-                const response = await apiRequest(url, {
-                    method: "GET",
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    if (seq !== this.fetchSeq) return; // устарел - актуальный запрос уже идёт
-                    this.applications = data;
-                    // После первого полного fetch включаем инкрементальный polling со звуком.
-                    this.pollPrimed = true;
-                } else {
-                    console.error("Ошибка при загрузке заявок:", await response.text());
-                }
+                // reset: смена фильтра/поиска/архива/сортировки-по-серверу должна начинать
+                // с первой страницы и затирать накопленное - fetchApplications уже вызывается
+                // из applyFilters/resetFilters/тоглов и т.п., поэтому reset здесь всегда true;
+                // догрузка следующих порций идёт через loadMoreApplications (сентинел).
+                await this.loadApplicationsList(this.buildApplicationsPage, { reset: true });
+                if (seq !== this.fetchSeq) return; // устарел - актуальный запрос уже идёт
+                // После первого полного fetch включаем инкрементальный polling со звуком.
+                this.pollPrimed = true;
             } catch (error) {
                 console.error("Ошибка сети при загрузке заявок:", error);
             } finally {
@@ -1645,6 +1718,12 @@ export default {
                     }
                 }
             }
+        },
+
+        // Автодогрузка следующей порции по пересечению sentinel с table-body (#1158).
+        // el=null при v-if="hasMoreApplications"===false просто отключает observer.
+        setSentinelRef(el) {
+            this.observeApplicationsSentinel(el, this.buildApplicationsPage, { root: this.$refs.tableBody || null });
         },
 
         async fetchOrganizations() {
@@ -1707,6 +1786,12 @@ export default {
         openFromDeepLink() {
             const openId = Number(this.$route.query.open);
             if (!openId) return;
+            // TODO(#1158 следующий срез): applications теперь только ПЕРВЫЕ загруженные
+            // порции, а не весь список - заявка вне первой порции (страница 2+, старая
+            // дата) сейчас просто не найдётся и ?open останется в query до ручной
+            // подгрузки/скролла. Полное решение (дозапрос конкретной заявки по id или
+            // серверный "найди страницу с этим id") - отдельный срез, здесь не ломаем
+            // существующее поведение первой страницы.
             const app = this.applications.find(a => a.id === openId);
             // Query чистим только когда заявка найдена и открыта: если список ещё не
             // подъехал (или заявка под фильтром/архивом), оставляем ?open до след. попытки.
@@ -2574,6 +2659,25 @@ export default {
 .table-body {
     flex-grow: 1;
     overflow-y: scroll;
+}
+
+/* Sentinel бесшовной подгрузки (#1158) - невидимая полоса внизу списка,
+   пересечение которой в table-body триггерит loadMore. min-height даёт
+   IntersectionObserver что засечь даже без спиннера (loading=false). */
+.scroll-sentinel {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 24px;
+    padding: 10px 0;
+}
+
+.table-footer {
+    flex-shrink: 0;
+    padding: 10px 20px;
+    border-top: 1px solid var(--color-border);
+    font-size: 13px;
+    color: #8a8a8a;
 }
 
 .applications-list {

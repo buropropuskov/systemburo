@@ -8,6 +8,10 @@ import { usePermissionsStore } from '@/stores/permissions';
 // Центр на mounted дёргает fetch/polling - глушим API; нас интересует гейтинг
 // раздела «Архив» (center.archive) и кнопки «Скачать» (action.export.applications).
 vi.mock('@/api/client', () => ({ apiRequest: vi.fn().mockResolvedValue({ ok: false, json: vi.fn().mockResolvedValue([]) }) }));
+// Список Центра (#1158) идёт через getApplicationsPaginated, не apiRequest напрямую.
+vi.mock('@/api/applications', () => ({
+  getApplicationsPaginated: vi.fn().mockResolvedValue({ items: [], meta: { total: 0, page: 1, per_page: 30 } }),
+}));
 vi.mock('@/utils/notificationSound', () => ({ playPreset: vi.fn(), SOUND_PRESETS: [] }));
 
 const stubs = {
