@@ -101,6 +101,9 @@ type ApplicationService interface {
 	// GetUserApplications возвращает заявки текущего пользователя с фильтрацией.
 	GetUserApplications(ctx context.Context, username string, filter ApplicationFilter) ([]ApplicationWithDetails, error)
 
+	// GetUserApplicationsPaginated возвращает страницу заявок ЛК с общим количеством (#1158).
+	GetUserApplicationsPaginated(ctx context.Context, username string, filter ApplicationFilter, page, perPage int) ([]ApplicationWithDetails, int64, error)
+
 	// GetApplicationByID возвращает заявку по ID с обновлением статуса при первом прочтении.
 	GetApplicationByID(ctx context.Context, username string, applicationID int) (map[string]interface{}, error)
 
@@ -257,6 +260,10 @@ type ApplicationFilter struct {
 	DateTo         *string `query:"date_to"`
 	Archive        *bool   `query:"archive"`
 	ActiveToday    *bool   `query:"active_today"`
+	// SenderUserID сужает список до заявок, отправленных конкретным пользователем (#1158,
+	// вкладка "Мои заявки" в ЛК). Опциональное AND-условие поверх access-фильтра - не
+	// расширяет видимость (Центр это поле не использует, для него нейтрально).
+	SenderUserID *int `query:"sender_user_id"`
 }
 
 // ApplicationCreateRequest тело запроса на создание простой заявки.
@@ -821,22 +828,46 @@ func (s *applicationService) GetApplicationsPaginated(ctx context.Context, usern
 	return rows, total, nil
 }
 
-// GetUserApplications возвращает заявки текущего пользователя с фильтрацией.
+// applyUserApplicationsAccessFilter ограничивает видимость ЛК: заявки, отправленные
+// самим пользователем, ИЛИ заявки его организации (виден "Заявки организации (отдела)").
+// Без этого фильтра GetUserApplications отдавал вообще ВСЕ заявки системы (пользователь
+// без organization_id видел бы и чужие) - клиент лишь ОТОБРАЖАЛ подмножество через
+// currentFilter (my/organization), не ограничивая реальный доступ к данным (IDOR).
+// organizationID берётся из БД (user.OrganizationID), не из query - клиент повлиять
+// не может. nil organizationID (пользователь без организации) сужает до sender-only.
+func applyUserApplicationsAccessFilter(query *gorm.DB, userID int, organizationID *int) *gorm.DB {
+	if organizationID != nil {
+		return query.Where("a.sender_user_id = ? OR a.organization_id = ?", userID, *organizationID)
+	}
+	return query.Where("a.sender_user_id = ?", userID)
+}
+
+// buildUserApplicationsBaseQuery строит базовый запрос ЛК с джойнами, access-фильтром
+// и фильтрами без Select/Order - зеркало buildApplicationsBaseQuery (Центр), но с
+// applyUserApplicationsAccessFilter вместо applyApplicationAccessFilter (#1158).
+func (s *applicationService) buildUserApplicationsBaseQuery(ctx context.Context, user *models.User, filter ApplicationFilter) *gorm.DB {
+	query := s.db.WithContext(ctx).Table("applications a").
+		Joins("LEFT JOIN organizations o ON a.organization_id = o.id").
+		Joins("LEFT JOIN companies c ON a.company_id = c.id").
+		Joins("LEFT JOIN users u ON a.sender_user_id = u.id").
+		Joins("LEFT JOIN users ru ON a.responsible_user_id = ru.id")
+
+	query = applyUserApplicationsAccessFilter(query, user.ID, user.OrganizationID)
+
+	return applyApplicationFilters(query, filter, true)
+}
+
+// GetUserApplications возвращает заявки текущего пользователя с фильтрацией (legacy,
+// полный список без пагинации - обратная совместимость для вызовов без per_page).
 func (s *applicationService) GetUserApplications(ctx context.Context, username string, filter ApplicationFilter) ([]ApplicationWithDetails, error) {
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
 		return nil, err
 	}
 
-	query := s.db.WithContext(ctx).Table("applications a").
+	query := s.buildUserApplicationsBaseQuery(ctx, user, filter).
 		Select(applicationsListSelect, applicationsListSelectArgs(user.ID, forwardViewerID(user))...).
-		Joins("LEFT JOIN organizations o ON a.organization_id = o.id").
-		Joins("LEFT JOIN companies c ON a.company_id = c.id").
-		Joins("LEFT JOIN users u ON a.sender_user_id = u.id").
-		Joins("LEFT JOIN users ru ON a.responsible_user_id = ru.id")
-
-	query = applyApplicationFilters(query, filter, true)
-	query = query.Order("a.sending_datetime DESC")
+		Order("a.sending_datetime DESC, a.id DESC")
 
 	rows := make([]ApplicationWithDetails, 0)
 	if err := query.Find(&rows).Error; err != nil {
@@ -846,6 +877,40 @@ func (s *applicationService) GetUserApplications(ctx context.Context, username s
 
 	s.maskResponsibleNames(ctx, rows)
 	return rows, nil
+}
+
+// GetUserApplicationsPaginated возвращает страницу заявок ЛК с общим количеством
+// (#1158 срез 4, бесшовная подгрузка). a.id DESC - вторичный ключ сортировки: без
+// него офсет-пагинация по неуникальному sending_datetime (несколько заявок в одну
+// секунду) могла бы дублировать/пропускать строки между страницами.
+func (s *applicationService) GetUserApplicationsPaginated(ctx context.Context, username string, filter ApplicationFilter, page, perPage int) ([]ApplicationWithDetails, int64, error) {
+	user, err := s.getUserByUsername(ctx, username)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var total int64
+	countQuery := s.buildUserApplicationsBaseQuery(ctx, user, filter)
+	if err := countQuery.Count(&total).Error; err != nil {
+		slog.Error("Ошибка подсчёта пользовательских заявок", "error", err)
+		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
+	}
+
+	offset := (page - 1) * perPage
+	dataQuery := s.buildUserApplicationsBaseQuery(ctx, user, filter).
+		Select(applicationsListSelect, applicationsListSelectArgs(user.ID, forwardViewerID(user))...).
+		Order("a.sending_datetime DESC, a.id DESC").
+		Offset(offset).
+		Limit(perPage)
+
+	rows := make([]ApplicationWithDetails, 0)
+	if err := dataQuery.Find(&rows).Error; err != nil {
+		slog.Error("Ошибка получения пользовательских заявок (paginated)", "error", err)
+		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
+	}
+
+	s.maskResponsibleNames(ctx, rows)
+	return rows, total, nil
 }
 
 // GetApplicationByID возвращает заявку по ID с обновлением статуса при первом прочтении.

@@ -34,6 +34,27 @@ export async function getUserApplications(params = {}) {
 }
 
 /**
+ * Список заявок ЛК порциями (#1158 срез 4): передавая page/per_page, включает
+ * серверную пагинацию (GetUserApplicationsPaginated) вместо legacy полного списка.
+ * Пагинация лежит в envelope.meta рядом с data, а apiRequest снимает только data
+ * и meta теряется - поэтому читаем сырой ответ через apiRequestRaw (см. getApplicationsPaginated).
+ * @param {{page: number, per_page: number, [key: string]: string|number}} params
+ * @returns {Promise<{items: object[], meta: {total: number, page: number, per_page: number}}>}
+ */
+export async function getUserApplicationsPaginated(params = {}) {
+  const query = new URLSearchParams(params).toString();
+  const res = await apiRequestRaw(`/applications/user${query ? '?' + query : ''}`);
+  const body = await res.json();
+  if (!res.ok || !body || !body.success) {
+    throw new Error(body?.error || 'Не удалось загрузить заявки');
+  }
+  return {
+    items: body.data || [],
+    meta: body.meta || { total: 0, page: 1, per_page: 30 },
+  };
+}
+
+/**
  * Активные согласованные заявки, доступные для привязки ручного вложения (#1049 режим-2).
  * Только super/admin (BE-гейт page.admin). В отличие от getApplications НЕ скоупит по
  * автор/ответственный/наблюдатель - админ видит все заявки для привязки.
