@@ -98,10 +98,6 @@
           data-testid="header-button-submit-app"
           @click="navigateToSubmit"
         >
-          <span
-            class="appl-btn__icon"
-            aria-hidden="true"
-          >+</span>
           <span class="appl-btn__label">Подать заявку</span>
           <span class="appl-btn__label-short">Заявка</span>
         </button>
@@ -513,12 +509,6 @@ h3 {
   background-color: #e6e6e6;
 }
 
-/* Иконка "+" и короткая подпись "Заявка" - видны только на узком экране
-   (кнопка остаётся в строке, не переносится - директива юзера). */
-.appl-btn__icon {
-  display: none;
-}
-
 /* Короткая подпись "Заявка" - отдельный класс (не модификатор общего),
    чтобы видимость не зависела от source-order при рефакторинге media-блока. */
 .appl-btn__label-short {
@@ -590,7 +580,12 @@ h3 {
 
 /* Адаптивность */
 @media (max-width: 768px) {
+  /* Шапка закреплена сверху при скролле - "Подать заявку" и колокольчик всегда доступны.
+     Непрозрачный фон обязателен: контент уезжает под шапку. */
   .header {
+    position: sticky;
+    top: 0;
+    background: #fff;
     padding: 0 12px;
     gap: 8px;
   }
@@ -626,11 +621,12 @@ h3 {
     height: 40px;
   }
 
-  /* Кнопка "Подать заявку" - primary pill (A.1), в строке заголовка */
+  /* Кнопка "Подать заявку" на мобилке - outline: белый фон, синий border+текст,
+     radius 15px (не pill, менее круглая - директива юзера), без "+" иконки. */
   .appl-btn__container {
     width: auto;
     height: auto;
-    border-radius: var(--radius-pill);
+    border-radius: var(--radius-md);
     background: transparent;
     display: flex;
     align-items: center;
@@ -640,28 +636,20 @@ h3 {
     height: 40px;
     width: auto;
     padding: 0 16px;
-    gap: 6px;
-    border-radius: var(--radius-pill);
-    background: var(--color-primary);
-    color: #fff;
-    border-color: var(--color-primary);
+    border-radius: var(--radius-md);
+    background: #fff;
+    color: var(--color-primary);
+    border: 1px solid var(--color-primary);
     display: inline-flex;
     align-items: center;
     justify-content: center;
     font-size: 14px;
     font-weight: 600;
-    box-shadow: 0 2px 4px rgba(79, 91, 223, 0.25);
+    box-shadow: none;
   }
 
   .appl-btn:hover {
-    background: var(--color-primary-hover);
-    border-color: var(--color-primary-hover);
-  }
-
-  .appl-btn__icon {
-    display: inline-flex;
-    font-size: 18px;
-    line-height: 1;
+    background: var(--color-primary-tint);
   }
 
   /* На мобилке полная надпись "Подать заявку" -> короткая "Заявка" (влезает в строку) */
@@ -672,11 +660,6 @@ h3 {
   .appl-btn__label-short {
     display: inline;
   }
-
-  .appl-btn--fixed {
-    right: 10px;
-    top: 10px;
-  }
 }
 
 @media (max-width: 480px) {
@@ -685,15 +668,11 @@ h3 {
   }
 }
 
-/* На очень узких экранах "Заявка" скрываем - остаётся "+" pill, чтобы строка
-   с объявлением+колокольчиком+"⋯" гарантированно не переносилась. */
+/* На очень узких экранах компактнее padding; "Заявка" оставляем видимой
+   (без "+" иконки скрывать текст нельзя - кнопка стала бы пустой). */
 @media (max-width: 360px) {
-  .appl-btn__label-short {
-    display: none;
-  }
-
   .appl-btn {
-    padding: 0 14px;
+    padding: 0 12px;
   }
 }
 </style>

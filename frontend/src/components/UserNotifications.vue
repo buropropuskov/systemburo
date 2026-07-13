@@ -1,90 +1,122 @@
 <template>
-  <transition name="panel-slide">
-    <div
-      v-if="show"
-      class="notifications"
-      @click.stop
-    >
-      <header class="notifications__header">
-        <h3 class="notifications__title">
-          Уведомления
-          <span
-            v-if="unreadCount > 0"
-            class="notifications__unread-count"
-          >({{ unreadCount }})</span>
-        </h3>
-        <button
-          v-if="notifications.length > 0"
-          class="notifications__clear-btn"
-          @click="clearAll"
-        >
-          Очистить
-        </button>
-      </header>
-
+  <!-- Мобилка: затемняющая подложка bottom-sheet (клик = закрыть). Отдельный teleport,
+       чтобы панель ниже осталась прямым корнем своей transition (десктоп-дропдаун 1:1). -->
+  <teleport
+    to="body"
+    :disabled="!isSheet"
+  >
+    <transition name="notif-backdrop">
       <div
-        v-if="loading && notifications.length === 0"
-        class="notifications__loading"
-      >
-        <div class="notifications__spinner" />
-      </div>
-
+        v-if="show && isSheet"
+        class="notifications-backdrop"
+        @click="$emit('close')"
+      />
+    </transition>
+  </teleport>
+  <teleport
+    to="body"
+    :disabled="!isSheet"
+  >
+    <transition :name="isSheet ? 'notif-sheet' : 'panel-slide'">
       <div
-        v-else-if="notifications.length === 0"
-        class="notifications__empty"
+        v-if="show"
+        class="notifications"
+        :class="{ 'notifications--sheet': isSheet, 'is-dragging': sheetDragging }"
+        :style="isSheet && sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
+        @click.stop
+        @touchstart="onSheetTouchStart"
+        @touchmove="onSheetTouchMove"
+        @touchend="onSheetTouchEnd"
       >
-        <p class="notifications__empty-text">
-          Нет уведомлений
-        </p>
-      </div>
-
-      <ul
-        v-else
-        class="notifications__list"
-        role="list"
-      >
-        <li
-          v-for="item in notifications"
-          :key="item.id"
-          class="notification-item"
-          :class="{ 'notification-item--unread': !item.is_read }"
-          role="listitem"
-          @click="markAsRead(item)"
-        >
-          <div class="notification-item__content">
-            <div class="notification-item__top">
-              <p
-                v-if="item.title"
-                class="notification-item__title"
-              >
-                {{ item.title }}
-              </p>
-              <time class="notification-item__time">{{ timeAgo(item.created_at) }}</time>
-            </div>
-            <p
-              v-if="item.message"
-              class="notification-item__message"
-            >
-              {{ item.message }}
-            </p>
-          </div>
+        <div
+          v-if="isSheet"
+          class="sheet-handle"
+          aria-hidden="true"
+        />
+        <header class="notifications__header">
+          <h3 class="notifications__title">
+            Уведомления
+            <span
+              v-if="unreadCount > 0"
+              class="notifications__unread-count"
+            >({{ unreadCount }})</span>
+          </h3>
           <button
-            class="notification-item__delete"
-            aria-label="Удалить уведомление"
-            @click.stop="deleteNotification(item.id)"
+            v-if="notifications.length > 0"
+            class="notifications__clear-btn"
+            @click="clearAll"
           >
-            &times;
+            Очистить
           </button>
-        </li>
-      </ul>
-    </div>
-  </transition>
+        </header>
+
+        <div
+          v-if="loading && notifications.length === 0"
+          class="notifications__loading"
+        >
+          <div class="notifications__spinner" />
+        </div>
+
+        <div
+          v-else-if="notifications.length === 0"
+          class="notifications__empty"
+        >
+          <p class="notifications__empty-text">
+            Нет уведомлений
+          </p>
+        </div>
+
+        <ul
+          v-else
+          ref="sheetScroll"
+          class="notifications__list"
+          role="list"
+        >
+          <li
+            v-for="item in notifications"
+            :key="item.id"
+            class="notification-item"
+            :class="{ 'notification-item--unread': !item.is_read }"
+            role="listitem"
+            @click="markAsRead(item)"
+          >
+            <div class="notification-item__content">
+              <div class="notification-item__top">
+                <p
+                  v-if="item.title"
+                  class="notification-item__title"
+                >
+                  {{ item.title }}
+                </p>
+                <time class="notification-item__time">{{ timeAgo(item.created_at) }}</time>
+              </div>
+              <p
+                v-if="item.message"
+                class="notification-item__message"
+              >
+                {{ item.message }}
+              </p>
+            </div>
+            <button
+              class="notification-item__delete"
+              aria-label="Удалить уведомление"
+              @click.stop="deleteNotification(item.id)"
+            >
+              &times;
+            </button>
+          </li>
+        </ul>
+      </div>
+    </transition>
+  </teleport>
 </template>
 
 <script>
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { apiRequest } from '@/api/client'
 import { usePermissionsStore } from '@/stores/permissions'
 import eventStream from '@/services/eventStream'
+import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
 
 export default {
   name: 'UserNotifications',
@@ -95,6 +127,37 @@ export default {
     },
   },
   emits: ['update:unread-count', 'close'],
+  setup(props, { emit }) {
+    const sheetScroll = ref(null);
+    const isSheet = ref(false);
+    let mql = null;
+    const onChange = (e) => { isSheet.value = e.matches; };
+    onMounted(() => {
+      if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+      mql = window.matchMedia('(max-width: 768px)');
+      isSheet.value = mql.matches;
+      if (mql.addEventListener) mql.addEventListener('change', onChange);
+      else if (mql.addListener) mql.addListener(onChange);
+    });
+    onBeforeUnmount(() => {
+      if (!mql) return;
+      if (mql.removeEventListener) mql.removeEventListener('change', onChange);
+      else if (mql.removeListener) mql.removeListener(onChange);
+    });
+    const swipe = useSwipeDismiss(() => emit('close'), {
+      getScrollTop: () => sheetScroll.value?.scrollTop ?? 0,
+      handleSelector: '.sheet-handle',
+    });
+    return {
+      sheetScroll,
+      isSheet,
+      sheetOffset: swipe.offset,
+      sheetDragging: swipe.isDragging,
+      onSheetTouchStart: swipe.onTouchStart,
+      onSheetTouchMove: swipe.onTouchMove,
+      onSheetTouchEnd: swipe.onTouchEnd,
+    };
+  },
   data() {
     return {
       notifications: [],
@@ -136,8 +199,15 @@ export default {
     this.eventStreamStatusOff = eventStream.onStatus((status) => {
       this.sseConnected = status === 'connected'
     })
+
+    // Escape закрывает панель (в т.ч. мобильный bottom-sheet - конвенция ui-modals).
+    this.escHandler = (e) => {
+      if (e.key === 'Escape' && this.show) this.$emit('close')
+    }
+    document.addEventListener('keydown', this.escHandler)
   },
   beforeUnmount() {
+    if (this.escHandler) document.removeEventListener('keydown', this.escHandler)
     this.stopPolling()
     if (this.eventStreamOff) {
       this.eventStreamOff()
@@ -475,11 +545,70 @@ export default {
   transform: translateY(-8px);
 }
 
-/* Responsive */
-@media (max-width: 576px) {
-  .notifications {
-    width: calc(100vw - 20px);
-    right: -10px;
-  }
+/* ── Мобилка: bottom-sheet (выезжает снизу вверх, свайп-закрытие). isSheet<=768 ── */
+/* z-index 10000/10001: инвариант - оба оверлея (этот и .modal-overlay Объявления)
+   перехватывают клики на весь экран, поэтому два bottom-sheet'а шапки одновременно
+   через UI не открыть; держим ниже глобальных диалогов (ConfirmDialog 20000). */
+.notifications-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 10000;
+}
+
+.notif-backdrop-enter-active,
+.notif-backdrop-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.notif-backdrop-enter-from,
+.notif-backdrop-leave-to {
+  opacity: 0;
+}
+
+.notifications--sheet {
+  position: fixed;
+  top: auto;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  max-width: 100vw;
+  max-height: 90dvh;
+  border: none;
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.15);
+  z-index: 10001;
+  transition: transform 0.3s ease;
+}
+
+/* Во время свайпа лист следует за пальцем 1:1. */
+.notifications--sheet.is-dragging {
+  transition: none;
+}
+
+.notifications--sheet .sheet-handle {
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: #d5d5db;
+  margin: 10px auto 4px;
+  flex-shrink: 0;
+}
+
+/* На листе-шите список тянется на всю доступную высоту (десктопный max-height снят). */
+.notifications--sheet .notifications__list {
+  max-height: none;
+  flex: 1;
+}
+
+.notif-sheet-enter-active,
+.notif-sheet-leave-active {
+  transition: transform 0.3s ease;
+}
+
+.notif-sheet-enter-from,
+.notif-sheet-leave-to {
+  transform: translateY(100%);
 }
 </style>
