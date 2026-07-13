@@ -29,12 +29,10 @@ export const ONBOARDING_VERSION = 1;
  *                `'nav'` - бургер-drawer NavMenu (рельс+группы уезжают
  *                transform'ом за экран, но остаются в DOM "видимыми" для
  *                waitForElement - без открытия тур подсветил бы пустоту за
- *                краем); `'header-overflow'` - меню "⋯" TheHeader (вторичные
- *                иконки шапки там `display:none`, без открытия элемент вовсе
- *                не найдётся). На >=769 (десктоп) поле не читается - там эти
- *                узлы всегда на месте. Механика раскрытия - в mobileReveal.js.
+ *                краем). На >=769 (десктоп) поле не читается - там эти узлы
+ *                всегда на месте. Механика раскрытия - в mobileReveal.js.
  *
- * @type {Array<{ id: string, route: string, element: string|null, title: string, description: string, demo?: string, expandRail?: boolean, celebrate?: boolean, cta?: string, side?: string, align?: string, mobileReveal?: 'nav'|'header-overflow' }>}
+ * @type {Array<{ id: string, route: string, element: string|null, title: string, description: string, demo?: string, expandRail?: boolean, celebrate?: boolean, cta?: string, side?: string, align?: string, mobileReveal?: 'nav' }>}
  */
 export const onboardingSteps = [
   {
@@ -86,15 +84,6 @@ export const onboardingSteps = [
     description: 'Заметили ошибку или есть предложение - напишите нам прямо отсюда, не покидая систему.',
     // На мобилке кнопка переехала из "⋯" в бургер-drawer (W3.3) - раскрываем drawer.
     mobileReveal: 'nav',
-  },
-  {
-    id: 'header-time',
-    side: 'bottom',
-    route: '/news',
-    element: '[data-testid="ob-header-time"]',
-    title: 'Дата и время',
-    description: 'Текущие дата и время системы - удобно сверяться при оформлении заявок.',
-    mobileReveal: 'header-overflow',
   },
   {
     id: 'header-notifications',

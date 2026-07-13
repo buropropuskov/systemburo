@@ -1,10 +1,23 @@
 <template>
   <section class="center">
     <header class="center__header">
-      <div class="header-row1">
+      <div class="header-top">
         <h2 class="center__title">
           Центр заявок
         </h2>
+
+        <!-- Десктоп: переключатель Активные/Архив в шапке (как до волны 3).
+             На мобилке переключатель - дропдаун во втором ряду. -->
+        <div
+          v-if="canViewArchive && !isMobileHeader"
+          class="center__tabs"
+        >
+          <FilterTabs
+            v-model="archiveMode"
+            :tabs="archiveTabs"
+          />
+        </div>
+
         <div
           v-if="unreadCount > 0"
           class="unread-badge"
@@ -14,7 +27,8 @@
           Новые: {{ unreadCount }}
         </div>
 
-        <!-- Настройки звука -->
+        <div class="header-top__actions">
+          <!-- Настройки звука -->
         <div
           ref="soundPopoverRef"
           class="sound-btn-wrap"
@@ -120,8 +134,32 @@
           </Transition>
         </div>
 
+          <!-- Мобилка: иконка поиска раскрывает поле ниже (не всегда-видимый инпут) -->
+          <button
+            v-if="isMobileHeader"
+            type="button"
+            class="search-icon-btn"
+            :class="{ 'search-icon-btn--active': showMobileSearch || !!searchQuery.trim() }"
+            aria-label="Поиск заявок"
+            @click="toggleMobileSearch"
+          >
+            <img
+              src="@/assets/icons/search.png"
+              class="search-icon-btn__img"
+              alt=""
+            >
+          </button>
+        </div>
+      </div>
+
+      <!-- Мобилка: раскрывающееся поле поиска под первым рядом -->
+      <div
+        v-if="isMobileHeader && showMobileSearch"
+        class="header-search-row"
+      >
         <div class="field search">
           <input
+            ref="mobileSearchInput"
             v-model="searchQuery"
             placeholder="Поиск заявок..."
             type="text"
@@ -132,17 +170,195 @@
           <img
             src="@/assets/icons/search.png"
             class="center__icon"
+            alt=""
           >
         </div>
       </div>
 
-      <div class="header-row2">
-        <OrganizationFilter
-          ref="organizationFilter"
-          v-model="selectedOrganizationId"
-          :organizations="organizations"
-          @change="handleOrganizationChange"
-        />
+      <!-- Десктоп: инлайн-фильтры Центра (как до волны 3). На мобилке - в модалке. -->
+      <div
+        v-if="!isMobileHeader"
+        class="center__filters"
+      >
+        <div class="filters__main">
+          <div class="filters-row">
+            <div class="field search">
+              <input
+                v-model="searchQuery"
+                placeholder="Поиск заявок..."
+                type="text"
+                class="field__input search"
+                data-testid="center-input-search"
+                @input="onSearchInput"
+              >
+              <img
+                src="@/assets/icons/search.png"
+                class="center__icon"
+                alt=""
+              >
+            </div>
+
+            <OrganizationFilter
+              :value="selectedOrganizationId"
+              :organizations="organizations"
+              @change="handleOrganizationChange"
+            />
+
+            <DateFilter
+              ref="dateFilter"
+              mode="range"
+              :selected-date="selectedDate"
+              :date-range-start="dateRangeStart"
+              :date-range-end="dateRangeEnd"
+              @update:selected-date="updateSelectedDate"
+              @update:date-range-start="updateDateRangeStart"
+              @update:date-range-end="updateDateRangeEnd"
+              @apply="applyDateFilters"
+              @clear="clearDateRange"
+            />
+
+            <button
+              class="reset-sort-btn"
+              :disabled="!sortField"
+              @click="resetSort"
+            >
+              Сбросить сортировку
+            </button>
+
+            <button
+              class="reset-filters-btn"
+              data-testid="center-button-reset-filters"
+              :disabled="!hasActiveFilters"
+              @click="resetFilters"
+            >
+              Сбросить фильтры
+            </button>
+          </div>
+
+          <div class="filters-row filters-row--secondary">
+            <div class="filter-section">
+              <div class="filter-section__header">
+                <span class="filter-label">Заявки</span>
+              </div>
+              <div class="status-buttons">
+                <button
+                  class="status-btn"
+                  :class="{ 'status-btn--active': activeToday }"
+                  data-testid="center-button-today"
+                  @click="toggleActiveToday"
+                >
+                  Заявки на сегодня
+                </button>
+              </div>
+            </div>
+
+            <div class="filter-section">
+              <div class="filter-section__header">
+                <span class="filter-label">Подтверждение</span>
+              </div>
+              <div class="status-buttons">
+                <button
+                  v-for="confirmation in confirmations"
+                  :key="confirmation.value"
+                  class="status-btn"
+                  :class="{ 'status-btn--active': selectedConfirmations.includes(confirmation.value) }"
+                  :data-testid="`center-button-confirmation-${confirmation.value}`"
+                  @click="toggleConfirmation(confirmation.value)"
+                >
+                  {{ confirmation.label }}
+                </button>
+              </div>
+            </div>
+
+            <div class="filter-section">
+              <div class="filter-section__header">
+                <span class="filter-label">Статус заявки</span>
+              </div>
+              <div class="status-buttons">
+                <button
+                  v-for="status in applicationStatuses"
+                  :key="status.value"
+                  class="status-btn"
+                  :class="{ 'status-btn--active': selectedApplicationStatuses.includes(status.value) }"
+                  :data-testid="`center-button-status-${status.value}`"
+                  @click="toggleApplicationStatus(status.value)"
+                >
+                  {{ status.label }}
+                </button>
+              </div>
+            </div>
+
+            <div class="filter-section">
+              <div class="filter-section__header">
+                <span class="filter-label">Теги</span>
+              </div>
+              <div class="tags-dropdown">
+                <button
+                  class="tags-dropdown__btn"
+                  :class="{ 'tags-dropdown__btn--active': selectedTags.length > 0 }"
+                  @click="tagsDropdownOpen = !tagsDropdownOpen"
+                >
+                  {{ selectedTags.length ? `Выбрано: ${selectedTags.length}` : 'Все теги' }}
+                  <svg
+                    class="tags-dropdown__arrow"
+                    :class="{ 'tags-dropdown__arrow--open': tagsDropdownOpen }"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M6 9L12 15L18 9"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </button>
+                <div
+                  v-if="tagsDropdownOpen"
+                  class="tags-dropdown__backdrop"
+                  @click="tagsDropdownOpen = false"
+                />
+                <transition name="tags-dd">
+                  <div
+                    v-if="tagsDropdownOpen"
+                    class="tags-dropdown__panel"
+                  >
+                    <button
+                      v-for="tag in tags"
+                      :key="tag.value"
+                      class="status-btn tags-dropdown__item"
+                      :class="{ 'status-btn--active': selectedTags.includes(tag.value) }"
+                      @click="toggleTag(tag.value)"
+                    >
+                      {{ tag.label }}
+                    </button>
+                  </div>
+                </transition>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Мобилка: второй ряд - переключатель Активные/Архив (дропдаун) + кнопка Фильтр -->
+      <div
+        v-if="isMobileHeader"
+        class="header-row2"
+      >
+        <div
+          v-if="canViewArchive"
+          class="center__tabs center__tabs--mobile"
+        >
+          <BaseDropdown
+            :model-value="archiveMode"
+            :options="archiveTabs"
+            value-key="key"
+            label-key="label"
+            @update:model-value="archiveMode = $event"
+          />
+        </div>
 
         <button
           type="button"
@@ -172,22 +388,17 @@
             aria-hidden="true"
           />
         </button>
-
-        <div
-          v-if="canViewArchive"
-          class="center__tabs"
-        >
-          <FilterTabs
-            v-model="archiveMode"
-            :tabs="archiveTabs"
-          />
-        </div>
       </div>
     </header>
 
+    <!-- Модалка вторичных фильтров - только на мобилке (десктоп фильтрует инлайн).
+         Организация тоже внутри модалки на мобилке (в шапке её нет). -->
     <ApplicationsFilterModal
+      v-if="isMobileHeader"
       ref="filterModal"
       :show="showFilterModal"
+      :organizations="organizations"
+      :selected-organization-id="selectedOrganizationId"
       :selected-date="selectedDate"
       :date-range-start="dateRangeStart"
       :date-range-end="dateRangeEnd"
@@ -201,6 +412,7 @@
       :sort-field="sortField"
       :has-active-filters="hasActiveFilters"
       @close="showFilterModal = false"
+      @organization-change="handleOrganizationChange"
       @update:selected-date="updateSelectedDate"
       @update:date-range-start="updateDateRangeStart"
       @update:date-range-end="updateDateRangeEnd"
@@ -412,7 +624,7 @@
                   v-if="application.message"
                   class="application-col message-col"
                 >
-                  {{ application.message }}
+                  {{ messagePreview(application.message) }}
                 </div>
                 <div
                   class="application-col status-col"
@@ -594,6 +806,7 @@ import { useSoundStore } from '@/stores/sound'
 import { usePermissionsStore } from '@/stores/permissions'
 import { playPreset, SOUND_PRESETS } from '@/utils/notificationSound'
 import OrganizationFilter from '@/components/OrganizationFilter.vue';
+import DateFilter from '@/components/DateFilter.vue';
 import RefreshButton from '../components/RefreshButton.vue';
 import ApplicationDetail from '../components/ApplicationDetail/ApplicationDetail.vue';
 import ApplicationsFilterModal from '@/components/ApplicationsFilterModal.vue';
@@ -605,12 +818,14 @@ import DownloadBlanksModal from '@/components/applications/DownloadBlanksModal.v
 import Badge from '@/components/ui/Badge.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import { blacklistFlagCount, blacklistFlagLabel, BLACKLIST_FLAG_TITLE } from '@/utils/blacklistBadge';
+import { stripHtml } from '@/utils/sanitize';
 import { useDeletionsStore } from '@/stores/deletions';
 
 export default {
     name: 'ApplicationsCenter',
     components: {
         OrganizationFilter,
+        DateFilter,
         RefreshButton,
         ApplicationDetail,
         ApplicationsFilterModal,
@@ -633,6 +848,11 @@ export default {
             showDownloadModal: false,
             showFilterModal: false,
             showSoundPopover: false,
+            // Мобильная шапка (<=768): двухрядная раскладка, фильтры в модалке,
+            // поиск раскрывается по иконке. Десктоп - инлайн-фильтры (как до волны 3).
+            isMobileHeader: false,
+            showMobileSearch: false,
+            tagsDropdownOpen: false,
             soundPresets: SOUND_PRESETS,
             downloadAppId: 0,
             downloadAppInfo: null,
@@ -841,16 +1061,18 @@ export default {
                    this.hasModalFilters;
         },
 
-        // Только фильтры ВНУТРИ модалки «Фильтр» - для точки-индикатора на кнопке.
-        // Поиск и организация видимы в шапке отдельно, их в счёт индикатора не берём,
-        // иначе точка загоралась бы при пустой модалке (ввёл текст в поиск - точка есть).
+        // Только фильтры ВНУТРИ модалки «Фильтр» - для точки-индикатора на кнопке
+        // (кнопка мобильная, поэтому набор = что в модалке на мобилке). Организация тоже
+        // в модалке на мобилке -> входит в индикатор. Поиск НЕ входит: он в шапке отдельно
+        // (иконка -> раскрывающееся поле), иначе точка горела бы при пустой модалке.
         hasModalFilters() {
             return this.selectedConfirmations.length > 0 ||
                    this.selectedApplicationStatuses.length > 0 ||
                    this.selectedTags.length > 0 ||
                    !!this.selectedDate ||
                    !!(this.dateRangeStart && this.dateRangeEnd) ||
-                   this.activeToday;
+                   this.activeToday ||
+                   !!this.selectedOrganizationId;
         },
 
         unreadCount() {
@@ -936,6 +1158,8 @@ export default {
         };
         document.addEventListener('keydown', this._soundEscapeHandler);
         document.addEventListener('mousedown', this._soundClickOutsideHandler);
+
+        this.initMobileWatcher();
     },
     beforeUnmount() {
         if (this.shakeInterval) {
@@ -952,10 +1176,45 @@ export default {
         }
         document.removeEventListener('keydown', this._soundEscapeHandler);
         document.removeEventListener('mousedown', this._soundClickOutsideHandler);
+        if (this._mobileMql && this._onMobileChange) {
+            if (this._mobileMql.removeEventListener) {
+                this._mobileMql.removeEventListener('change', this._onMobileChange);
+            } else if (this._mobileMql.removeListener) {
+                this._mobileMql.removeListener(this._onMobileChange);
+            }
+        }
     },
     methods: {
         can(key) {
             return this.permissionsStore.hasPermission(key);
+        },
+        /**
+         * Реактивно отслеживает мобильный брейкпоинт (совпадает с CSS @media 768,
+         * тот же порог, что в TheHeader): на нём шапка Центра двухрядная, фильтры в
+         * модалке, поиск раскрывается по иконке. На десктопе - инлайн-фильтры.
+         */
+        initMobileWatcher() {
+            if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+            this._mobileMql = window.matchMedia('(max-width: 768px)');
+            this.isMobileHeader = this._mobileMql.matches;
+            this._onMobileChange = (e) => {
+                this.isMobileHeader = e.matches;
+                // Возврат на десктоп - гасим мобильное раскрытие поиска.
+                if (!e.matches) this.showMobileSearch = false;
+            };
+            if (this._mobileMql.addEventListener) {
+                this._mobileMql.addEventListener('change', this._onMobileChange);
+            } else if (this._mobileMql.addListener) {
+                this._mobileMql.addListener(this._onMobileChange);
+            }
+        },
+        toggleMobileSearch() {
+            this.showMobileSearch = !this.showMobileSearch;
+            if (this.showMobileSearch) {
+                this.$nextTick(() => {
+                    if (this.$refs.mobileSearchInput) this.$refs.mobileSearchInput.focus();
+                });
+            }
         },
         toggleSoundPopover() {
             this.showSoundPopover = !this.showSoundPopover;
@@ -1091,13 +1350,18 @@ export default {
             this.activeToday = false;
 
             this.resetSort();
+            this.tagsDropdownOpen = false;
 
-            if (this.$refs.organizationFilter && this.$refs.organizationFilter.reset) {
-                this.$refs.organizationFilter.reset();
+            // Организация: OrganizationFilter привязан через :value к selectedOrganizationId
+            // (и в шапке десктопа, и в модалке), поэтому обнуление выше уже гасит её отображение
+            // через immediate-watcher компонента - ref.reset() не нужен.
+
+            // DateFilter: сброс date-пропсов в null гасит отображение через его watcher'ы,
+            // а clearDateFilter/clearSelection добивают activeQuickDate-подсветку. На десктопе
+            // DateFilter инлайн (ref dateFilter), на мобилке - внутри модалки (ref filterModal).
+            if (this.$refs.dateFilter && this.$refs.dateFilter.clearSelection) {
+                this.$refs.dateFilter.clearSelection();
             }
-
-            // DateFilter теперь внутри ApplicationsFilterModal - сброс date-пропсов уже гасит
-            // отображение через его watcher'ы, а clearDateFilter добивает activeQuickDate-подсветку.
             if (this.$refs.filterModal && this.$refs.filterModal.clearDateFilter) {
                 this.$refs.filterModal.clearDateFilter();
             }
@@ -1140,6 +1404,12 @@ export default {
                 hour: '2-digit',
                 minute: '2-digit'
             });
+        },
+
+        // Сообщение заявки - rich-HTML из TextConstructor. В компактной карточке
+        // показываем плоский текст одной строкой с обрезкой (без тегов).
+        messagePreview(html) {
+            return stripHtml(html);
         },
         
         updateSelectedDate(date) {
@@ -1547,34 +1817,240 @@ export default {
     gap: 12px;
 }
 
-.header-row1,
-.header-row2 {
+/* Первый ряд шапки: заголовок + переключатель/бейдж слева, действия (звук,
+   на мобилке - иконка поиска) справа. Действия прижаты вправо margin-left:auto. */
+.header-top {
     display: flex;
     align-items: center;
     gap: 12px;
     flex-wrap: wrap;
 }
 
+.header-top__actions {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+/* Мобильный второй ряд: переключатель Активные/Архив слева, Фильтр справа. */
 .header-row2 {
+    display: flex;
+    align-items: center;
     gap: 10px;
 }
 
-/* Переключатель Активные/Архив прижат к правому краю второго ряда. */
-.header-row2 .center__tabs {
+.header-row2 .filter-btn {
     margin-left: auto;
 }
 
-/* Поиск живёт в первом ряду шапки: держит комфортную ширину на десктопе,
-   сжимается на узких экранах, переносится при нехватке места (flex-wrap). */
-.header-row1 .field.search {
-    flex: 0 1 260px;
+.center__tabs--mobile {
     min-width: 150px;
-    width: auto;
+}
+
+/* Раскрывающееся поле поиска на мобилке - на всю ширину. */
+.header-search-row .field.search {
+    width: 100%;
     margin: 0;
 }
 
-/* Кнопка «Фильтр» открывает модалку вторичных фильтров. Точка-индикатор -
-   когда есть активные фильтры. Pill-стиль под высоту OrganizationFilter. */
+/* Иконка-кнопка поиска (мобилка): раскрывает поле поиска ниже. */
+.search-icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--color-border);
+    border-radius: 50%;
+    background: #fff;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.search-icon-btn:hover,
+.search-icon-btn--active {
+    background: var(--color-bg);
+    border-color: var(--color-primary);
+}
+
+.search-icon-btn__img {
+    width: 16px;
+    height: 16px;
+}
+
+/* ── Десктоп: инлайн-фильтры Центра (как до волны 3) ── */
+.center__filters {
+    padding: 14px 16px;
+    background: #fff;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+}
+
+.filters-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+
+.filters-row--secondary {
+    gap: 20px;
+    margin-bottom: 0;
+    padding-top: 12px;
+    border-top: 1px dashed var(--color-border);
+    align-items: flex-end;
+    flex-wrap: wrap;
+}
+
+.filter-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.filter-section__header {
+    display: flex;
+    align-items: center;
+}
+
+.filter-label {
+    font-size: 12px;
+    color: #666;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.status-buttons {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.status-btn,
+.reset-sort-btn,
+.reset-filters-btn {
+    padding: 7px 14px;
+    border: 1px solid var(--color-border);
+    background: white;
+    border-radius: var(--radius-pill);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    height: 32px;
+    color: var(--color-text);
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+}
+
+.status-btn:hover:not(.status-btn--active),
+.reset-sort-btn:hover:not(:disabled) {
+    background: var(--color-bg);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+.status-btn--active {
+    background: var(--color-primary);
+    color: white;
+    border-color: var(--color-primary);
+}
+
+.status-btn--active:hover {
+    background: var(--color-primary-hover);
+    border-color: var(--color-primary-hover);
+}
+
+.reset-sort-btn:disabled,
+.reset-filters-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.reset-filters-btn {
+    background: #fff;
+    border-color: #fecaca;
+    color: var(--color-danger);
+}
+
+.reset-filters-btn:hover:not(:disabled) {
+    background: var(--color-danger);
+    border-color: var(--color-danger);
+    color: #fff;
+}
+
+/* Дропдаун тегов (десктоп) */
+.tags-dropdown {
+    position: relative;
+}
+.tags-dropdown__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border: 1px solid #e0e0e0;
+    border-radius: 12px;
+    background: #fff;
+    cursor: pointer;
+    font-size: 13px;
+    white-space: nowrap;
+}
+.tags-dropdown__btn--active {
+    border-color: var(--color-primary, #4F5BDF);
+    color: var(--color-primary, #4F5BDF);
+}
+.tags-dropdown__arrow {
+    width: 9px;
+    height: 9px;
+    flex-shrink: 0;
+    color: #555;
+    transition: transform 0.2s;
+}
+.tags-dropdown__arrow--open {
+    transform: rotate(180deg);
+}
+.tags-dropdown__backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+}
+.tags-dd-enter-active {
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.tags-dd-leave-active {
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.tags-dd-enter-from,
+.tags-dd-leave-to {
+    opacity: 0;
+    transform: translateY(-4px);
+}
+.tags-dropdown__panel {
+    transform-origin: top left;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 50;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-width: 170px;
+    padding: 10px;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+/* Кнопка «Фильтр» (мобилка) открывает модалку вторичных фильтров. Точка-индикатор -
+   когда есть активные фильтры. Pill-стиль под высоту переключателя. */
 .filter-btn {
     position: relative;
     display: inline-flex;
@@ -1733,11 +2209,11 @@ export default {
     height: fit-content;
     /* Тянем таблицу под ОСТАВШУЮСЯ высоту экрана: var(--app-vh) = зумленная
        высота вьюпорта (viewportScale.js), минус высота над таблицей (глобальная
-       шапка + двухрядная шапка Центра + отступы ~210px, замерено на десктопе;
-       фильтры уехали в модалку #1097 W3.6, поэтому меньше прежних 340). На мобилке
-       (@media 767) это правило переопределяется на height:auto. fit-content не даёт
-       перерасти контент. */
-    max-height: calc(var(--app-vh, 1vh) * 100 - 210px);
+       шапка + шапка Центра с инлайн-фильтрами + отступы ~340px, замерено на десктопе).
+       Инлайн-фильтры вернули на десктоп (правка волны 3), поэтому снова 340. На
+       мобилке (@media 767) это правило переопределяется на height:auto. fit-content
+       не даёт перерасти контент. */
+    max-height: calc(var(--app-vh, 1vh) * 100 - 340px);
 
     display: flex;
     flex-direction: column;
@@ -1746,7 +2222,7 @@ export default {
 }
 
 .applications-table.with-details {
-    height: calc(var(--app-vh, 1vh) * 100 - 210px);
+    height: calc(var(--app-vh, 1vh) * 100 - 340px);
 }
 
 /* Overlay-лоадер при refresh - накрывает только область данных (ниже шапки
@@ -2432,8 +2908,8 @@ export default {
         padding: 12px;
     }
 
-    /* Поиск занимает всю ширину первого ряда на телефоне. */
-    .header-row1 .field.search {
+    /* Раскрывающееся поле поиска - на всю ширину под первым рядом. */
+    .header-search-row .field.search {
         flex: 1 1 100%;
         min-width: 0;
     }
@@ -2470,38 +2946,62 @@ export default {
         max-height: none;
         height: auto;
         overflow: visible;
+        /* Карточки на всю ширину экрана: гасим боковой padding .center (12px)
+           отрицательным margin, убираем рамку/скругление таблицы - список идёт от
+           края до края (боковой отступ экрана у заявок = 0). */
+        margin: 12px -12px 0;
+        border: none;
+        border-radius: 0;
     }
 
     .table-body {
         overflow-y: visible;
         flex-grow: unset;
-        padding: 12px;
+        /* Только вертикальный отступ - по бокам карточки прилегают к краю экрана. */
+        padding: 8px 0;
     }
 
     .applications-list {
         overflow: visible;
     }
 
+    /* Карточки вплотную - разделены нижней границей (см. ниже), без зазора-«плитки». */
     .application-item + .application-item {
-        margin-top: 8px;
+        margin-top: 0;
     }
 
-    /* rt-row вешаем на .application-row (реального родителя ячеек), а не на
-     * .application-item (внешняя обёртка с click/testid/анимациями) - иначе
-     * `.rt-row > [data-label]` не совпадёт (ячейки не прямые потомки .application-item).
-     * Карточка красится своим непрозрачным фоном без зазора поверх .application-item,
-     * поэтому unread-подсветку переносим на саму карточку. */
-    .application-item.unread > .application-row.rt-row {
-        background: #fff5e0;
+    /* Непрочитанность - цветом ТЕКСТА (дата синим, номер жёлтым), без жёлтой заливки
+       и скруглённых углов у карточки (правка волны 3). Специфичность 0,4,0 - бьёт
+       базовые цвета даты (0,2,0 ниже) и номера (0,3,0 на .number-col .application-number),
+       не полагаясь на порядок источника. */
+    .application-item.unread .application-col.date-col {
+        color: var(--color-primary);
+        font-weight: 600;
+    }
+    .application-item.unread .application-col.number-col .application-number {
+        color: #c98a00;
+        font-weight: 700;
     }
 
-    /* Компактная карточка-письмо БЕЗ подписей (W3.7): бейдж согласования сверху,
-       затем номер (мелко) / организация (жирным) / отправитель / сообщение, теги внизу.
-       Дата и статус скрыты, боковой padding у элементов убран - падинг у карточки. */
+    /* Компактная карточка-письмо БЕЗ подписей (W3.7): бейдж согласования + дата в углу
+       сверху, затем номер (мелко) / организация (жирным) / отправитель / сообщение, теги
+       внизу. Статус скрыт, боковой padding у полей убран - падинг у карточки. */
     .application-row.rt-row {
-        /* padding карточки задаёт глобальный responsive-tables.css (10px 14px !important) -
-           своё значение тут не переопределить без !important, а 10px 14px устраивает. */
+        /* position:relative - якорь для даты в правом верхнем углу.
+           padding карточки задаёт глобальный responsive-tables.css (10px 14px !important). */
+        position: relative;
         gap: 3px;
+    }
+
+    /* Edge-to-edge список: гасим боковые/верхнюю границу и скругление (иначе скруглённый
+       угол карточки торчит у самого края full-bleed экрана - те самые «уголки»), карточки
+       разделяем только нижней границей как строки. Полный префикс + !important перебивают
+       глобальное `.rt-table .rt-row{border;border-radius}!important` (responsive-tables.css). */
+    .applications-table .application-row.rt-row {
+        border-top: none !important;
+        border-left: none !important;
+        border-right: none !important;
+        border-radius: 0 !important;
     }
 
     /* Прячем подписи полей (data-label ::before из responsive-tables.css). */
@@ -2524,10 +3024,12 @@ export default {
         text-align: left;
     }
 
-    /* Длинные значения (организация/отправитель/сообщение) - одна строка с обрезкой "..". */
-    .application-col.organization-col,
-    .application-col.sender-col,
-    .application-col.message-col {
+    /* Длинные значения (организация/отправитель/сообщение) - одна строка с обрезкой "..".
+       Полный префикс (0,5,0) выше общего блочного `...> .application-col{white-space:normal}`
+       (0,4,0) - иначе normal побеждает и сообщение переносится на несколько строк. */
+    .applications-table .application-row.rt-row > .application-col.organization-col,
+    .applications-table .application-row.rt-row > .application-col.sender-col,
+    .applications-table .application-row.rt-row > .application-col.message-col {
         overflow: hidden;
         white-space: nowrap;
         text-overflow: ellipsis;
@@ -2538,11 +3040,36 @@ export default {
         flex-direction: row;
     }
 
-    /* Скрываем дату и статус заявки (директива W3.7). Специфичность >= правила
-       `.applications-table .application-row.rt-row > .application-col{display:block}`. */
-    .applications-table .application-row.rt-row > .application-col.date-col,
+    /* Статус заявки скрыт в компактной карточке (W3.11). Полный префикс - иначе общее
+       `...> .application-col{display:block}` перебивает по специфичности. */
     .applications-table .application-row.rt-row > .application-col.status-col {
         display: none;
+    }
+
+    /* Дата+время прихода - в правом верхнем углу карточки (W3.11). Полный префикс (0,5,0)
+       перебивает `...> .application-col{display:block; width:100%}`. Цвет НЕ задаём здесь -
+       иначе он побьёт unread-цвет (базовый серый и синий unread идут ниже). */
+    .applications-table .application-row.rt-row > .application-col.date-col {
+        position: absolute;
+        top: 10px;
+        right: 14px;
+        width: auto;
+        max-width: 45%;
+        padding: 0;
+        font-size: 12px;
+        white-space: nowrap;
+        text-align: right;
+    }
+
+    /* Базовый (прочитанный) цвет даты - приглушённый серый; unread перекрывает синим выше. */
+    .application-col.date-col {
+        color: #9a9aae;
+    }
+
+    /* Резерв справа у бейджа согласования, чтобы дата в углу не наезжала на него.
+       Полный префикс (0,5,0) - иначе общий `...> .application-col{padding:0}` перебивает. */
+    .applications-table .application-row.rt-row > .application-col.confirmation-col {
+        padding-right: 118px;
     }
 
     /* Пустой отправитель/теги - скрыть строку. */
@@ -2582,6 +3109,33 @@ export default {
         color: #7a7a8c;
     }
 
+    /* Теги в компактной карточке НЕ сворачиваем в иконки (W3.11) - показываем полным
+       текстом с переносом на новую строку. Нейтрализуем свёртку tagsAreCompact: те же
+       селекторы (0,3,0) идут ниже в источнике -> перебивают базовую свёртку. */
+    .application-tags {
+        flex-wrap: wrap;
+    }
+    .application-tags--compact .rt-tag--roof .rt-tag__text,
+    .application-tags--compact .rt-tag--parking .rt-tag__text,
+    .application-tags--compact .rt-tag--important .rt-tag__text,
+    .application-tags--compact .rt-tag--questions .rt-tag__text {
+        max-width: 150px;
+        opacity: 1;
+    }
+    .application-tags--compact .rt-tag--roof .rt-tag__icon,
+    .application-tags--compact .rt-tag--parking .rt-tag__icon,
+    .application-tags--compact .rt-tag--important .rt-tag__icon,
+    .application-tags--compact .rt-tag--questions .rt-tag__icon {
+        width: 0;
+        opacity: 0;
+    }
+    .application-tags--compact .rt-tag--roof.badge--sm,
+    .application-tags--compact .rt-tag--parking.badge--sm,
+    .application-tags--compact .rt-tag--important.badge--sm,
+    .application-tags--compact .rt-tag--questions.badge--sm {
+        padding: 3px 8px;
+    }
+
     /* Тач-таргеты >= 44px. Кнопка "Скачать" в карточке идёт собственной строкой (без
      * data-label) - можно смело увеличить саму кнопку. Копирование номера остаётся
      * компактной надписью - расширяем зону клика невидимым псевдоэлементом, не раздувая
@@ -2604,15 +3158,23 @@ export default {
         padding: 10px;
     }
 
+    /* Full-bleed margin таблицы = padding .center (тут 10px, не 12px как в 767.98),
+       иначе margin -12 overshoot'ит на 2px -> горизонтальный скролл документа. */
+    .applications-table {
+        margin-left: -10px;
+        margin-right: -10px;
+    }
+
     .center__tabs {
         gap: 6px;
     }
 }
 
-/* Кнопка звука в шапке */
+/* Кнопка звука в шапке. Выравнивание вправо задаёт контейнер .header-top__actions
+   (margin-left:auto), поэтому здесь margin-left не нужен - иначе он разрывал бы
+   группу [звук][поиск] внутри actions. */
 .sound-btn-wrap {
     position: relative;
-    margin-left: auto;
     flex-shrink: 0;
 }
 

@@ -203,7 +203,7 @@
                         v-if="application.message"
                         class="application-col message-col"
                       >
-                        {{ application.message }}
+                        {{ messagePreview(application.message) }}
                       </div>
                       <div
                         class="application-col confirmation-col"
@@ -387,6 +387,7 @@ import DownloadBlanksModal from './applications/DownloadBlanksModal.vue';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
 import Badge from './ui/Badge.vue';
 import { blacklistFlagCount, blacklistFlagLabel, BLACKLIST_FLAG_TITLE } from '@/utils/blacklistBadge';
+import { stripHtml } from '@/utils/sanitize';
 
 export default {
   components: {
@@ -685,6 +686,12 @@ export default {
         hour: '2-digit',
         minute: '2-digit'
       });
+    },
+
+    // Сообщение заявки - rich-HTML из TextConstructor. В компактной карточке (мобилка)
+    // показываем плоский текст одной строкой с обрезкой (без тегов).
+    messagePreview(html) {
+      return stripHtml(html);
     },
 
     getConfirmationClass(confirmation) {
@@ -1693,9 +1700,14 @@ export default {
 }
 
 @media (max-width: 767.98px) {
+  /* Панель заявок edge-to-edge: без боковой рамки и скругления, чтобы список писем
+     шёл от края до края экрана (боковой padding дашборда гасит AccountComponent). */
   .applications-card {
     height: auto;
     max-height: none;
+    border-left: none;
+    border-right: none;
+    border-radius: 0;
   }
 
   .applications-list {
@@ -1708,21 +1720,30 @@ export default {
     max-height: none !important;
   }
 
-  /* rt-row (#1097 S8) сидит на .application-row, а не на v-for-корне
-     .application-item - сиблинг-селектор ".rt-row + .rt-row" из
-     responsive-tables.css поэтому не матчит, спейсинг добираем тут. */
+  /* Карточки вплотную - разделены нижней границей (см. ниже), без зазора-«плитки». */
   .application-item + .application-item {
-    margin-top: 8px;
+    margin-top: 0;
   }
   .application-item {
     border-bottom: none;
   }
 
-  /* Компактная карточка-письмо БЕЗ подписей (W3.11, зеркало Центра W3.7):
+  /* Компактная карточка-письмо БЕЗ подписей (W3.11, зеркало Центра):
      согласование / номер (мелко) / организация (жирным) / отправитель / сообщение;
-     дата и статус скрыты, всё влево, боковой padding у полей убран. */
+     статус скрыт, дата в углу, всё влево, боковой padding у полей убран. */
   .application-row.rt-row {
+    position: relative;
     gap: 3px;
+  }
+
+  /* Edge-to-edge список: гасим боковые/верхнюю границу и скругление (иначе скруглённый
+     угол торчит у края), карточки разделяем только нижней границей как строки. Полный
+     префикс + !important перебивают `.rt-table .rt-row{border;border-radius}!important`. */
+  .applications-list .application-row.rt-row {
+    border-top: none !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-radius: 0 !important;
   }
 
   /* Прячем подписи полей (data-label ::before из responsive-tables.css). */
@@ -1759,10 +1780,30 @@ export default {
     text-overflow: ellipsis;
   }
 
-  /* Скрываем дату и статус заявки (директива W3.11). */
-  .applications-list .application-row.rt-row > .application-col.date-col,
+  /* Статус заявки скрыт в компактной карточке (W3.11). */
   .applications-list .application-row.rt-row > .application-col.status-col {
     display: none;
+  }
+
+  /* Дата+время прихода - в правом верхнем углу карточки (W3.11, зеркало Центра).
+     Полный префикс (0,5,0) перебивает `...> .application-col{display:block; width:100%}`. */
+  .applications-list .application-row.rt-row > .application-col.date-col {
+    position: absolute;
+    top: 10px;
+    right: 14px;
+    width: auto !important;
+    max-width: 45% !important;
+    padding: 0;
+    font-size: 12px;
+    color: #9a9aae;
+    white-space: nowrap;
+    text-align: right;
+  }
+
+  /* Резерв справа у бейджа согласования, чтобы дата в углу не наезжала. Полный
+     префикс (0,5,0) - иначе общий `...> .application-col{padding:0}` перебивает. */
+  .applications-list .application-row.rt-row > .application-col.confirmation-col {
+    padding-right: 118px;
   }
 
   /* Пустой блок тегов - скрыть строку (у sender всегда есть фолбэк "—", :empty там мёртв). */

@@ -18,10 +18,19 @@ const DateFilterStub = {
   template: '<div class="date-filter-stub" />',
 };
 
+const OrganizationFilterStub = {
+  name: 'OrganizationFilter',
+  props: ['value', 'organizations'],
+  emits: ['change'],
+  template: '<button class="org-filter-stub" @click="$emit(\'change\', 7)" />',
+};
+
 function mountModal(props = {}) {
   return mount(ApplicationsFilterModal, {
     props: {
       show: true,
+      organizations: [{ id: 7, name: 'Орг' }],
+      selectedOrganizationId: null,
       confirmations: [{ value: 'approved', label: 'Согласовано' }],
       selectedConfirmations: [],
       applicationStatuses: [{ value: 'inwork', label: 'В работе' }],
@@ -33,13 +42,22 @@ function mountModal(props = {}) {
       hasActiveFilters: false,
       ...props,
     },
-    global: { stubs: { BaseModal: BaseModalStub, DateFilter: DateFilterStub } },
+    global: {
+      stubs: { BaseModal: BaseModalStub, DateFilter: DateFilterStub, OrganizationFilter: OrganizationFilterStub },
+    },
   });
 }
 
 const td = (w, id) => w.find(`[data-testid="${id}"]`);
 
 describe('ApplicationsFilterModal', () => {
+  it('рендерит секцию организации и пробрасывает change как organization-change', async () => {
+    const w = mountModal();
+    expect(w.find('.org-filter-stub').exists()).toBe(true);
+    await w.find('.org-filter-stub').trigger('click');
+    expect(w.emitted('organization-change')[0]).toEqual([7]);
+  });
+
   it('рендерит секции фильтров по пропсам', () => {
     const w = mountModal();
     expect(td(w, 'center-button-today').exists()).toBe(true);

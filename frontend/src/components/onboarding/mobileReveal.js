@@ -4,21 +4,16 @@ import { isMobileViewport } from '@/composables/useOnboarding';
 /**
  * Раскрытие переехавших на мобилке (<=768px) целей тура ПЕРЕД подсветкой (#1097 S11).
  *
- * На узком экране рельс навигации сворачивается в бургер-drawer (NavMenu:
- * transform уводит его за экран - элемент остаётся "видимым" для waitForElement,
- * тур подсветил бы пустоту за краем), а вторичные иконки шапки - в overflow-меню
- * "⋯" (TheHeader: там они `display:none` - без открытия элемент вовсе не найдётся).
+ * На узком экране рельс навигации сворачивается в бургер-drawer (NavMenu: transform
+ * уводит его за экран - элемент остаётся "видимым" для waitForElement, тур подсветил
+ * бы пустоту за краем). Такие шаги несут `mobileReveal: 'nav'` - хост открывает drawer
+ * перед подсветкой и держит закрытым на остальных.
  *
- * КЛЮЧЕВОЕ (RED-фикс): reveal ЭКСКЛЮЗИВЕН - drawer и overflow ВЗАИМОИСКЛЮЧАЮЩИ.
- * Их узлы физически перекрывают друг друга (drawer z-index 10000 + полноэкранный
- * `.nav-menu__backdrop` 9999 накрывают overflow-панель z-index 300): открыть оба
- * = спотлайт целит в один элемент, а показывает другой. Поэтому открываем ТОЛЬКО
- * панель, нужную ТЕКУЩЕМУ шагу, и явно ДЕРЖИМ ЗАКРЫТОЙ другую: overflow-шаг
- * `*-header-time` держит drawer закрытым, а nav-группа (`*-nav-*` + переехавший в
- * drawer `*-header-feedback`, #1097 W3.3) - overflow. Шаг «Уведомления»
- * (`*-header-notifications`) reveal НЕ несёт: колокольчик с #1097 W3.2 вынесен в
- * саму шапку (вне "⋯") - на нём обе панели закрыты, иначе рядом с подсветкой
- * колокольчика открылось бы меню "⋯".
+ * Меню "⋯" (overflow) шапки убрано совсем (правка волны 3): часы удалены, а
+ * «Сообщить о проблеме» переехало в drawer (reveal 'nav', #1097 W3.3). Поэтому
+ * reveal теперь один - 'nav'; overflow-механики больше нет. Колокольчик
+ * (`*-header-notifications`, #1097 W3.2) reveal НЕ несёт - он в самой шапке, на его
+ * шаге drawer закрыт.
  *
  * Состояние читаем из DOM (класс), не храним локальный флаг: NavMenu сама
  * закрывает drawer на смене route (свой watch route), дублировать было бы рассинхроном.
@@ -26,14 +21,10 @@ import { isMobileViewport } from '@/composables/useOnboarding';
 
 const NAV_SELECTOR = '[data-testid="ob-nav-rail"]';
 const NAV_OPEN_CLASS = 'nav-menu--mobile-open';
-const OVERFLOW_SELECTOR = '.header__overflow';
-const OVERFLOW_OPEN_CLASS = 'header__overflow--open';
-const OVERFLOW_TOGGLE_SELECTOR = '.header__overflow-toggle';
 
 // Drawer уезжает transform'ом (NavMenu: 0.28s) - его ширина/высота при этом НЕ
 // меняются, поэтому waitForElement (мерит только высоту) резолвит СРАЗУ, до конца
 // анимации, и driver измерил бы цель ещё офскрин. Даём анимации доехать.
-// Overflow-меню шапки открывается мгновенно (display, без transition) - паузы не требует.
 const NAV_DRAWER_TRANSITION_MS = 300;
 
 /** @returns {boolean} открыт ли бургер-drawer навигации сейчас. */
@@ -54,37 +45,17 @@ export function setNavDrawerOpen(shouldOpen) {
   return true;
 }
 
-/** @returns {boolean} открыто ли overflow-меню "⋯" шапки сейчас. */
-export function isHeaderOverflowOpen() {
-  const el = document.querySelector(OVERFLOW_SELECTOR);
-  return !!el && el.classList.contains(OVERFLOW_OPEN_CLASS);
-}
-
 /**
- * Привести overflow-меню шапки к желаемому состоянию кликом по "⋯".
- *
- * @param {boolean} shouldOpen
- * @returns {boolean} true, если реально переключили состояние
- */
-export function setHeaderOverflowOpen(shouldOpen) {
-  const toggle = document.querySelector(OVERFLOW_TOGGLE_SELECTOR);
-  if (!toggle || isHeaderOverflowOpen() === shouldOpen) return false;
-  toggle.click();
-  return true;
-}
-
-/**
- * Какая панель нужна на данном шаге. ЭКСКЛЮЗИВНО по ТЕКУЩЕМУ шагу
- * (`cur.mobileReveal`) с приоритетом. Lookahead prev/next НЕ открывает панель
- * РАДИ будущего шага (иначе на шаге-колокольчике перед nav-шагом открылся бы и
- * drawer). Он лишь УДЕРЖИВАЕТ панель того же типа, когда сам шаг БЕЗ mobileReveal
- * стоит ВНУТРИ группы одинакового типа (оба соседа той же страницы и того же
- * reveal) - чтобы backward-nav внутри группы не мигал закрытием/открытием.
- * Разные соседи / другой тип / другой route -> обе панели закрыты.
+ * Нужен ли drawer на данном шаге. По ТЕКУЩЕМУ шагу (`cur.mobileReveal`) с приоритетом.
+ * Lookahead prev/next НЕ открывает drawer РАДИ будущего шага (иначе на шаге-колокольчике
+ * перед nav-шагом drawer открылся бы). Он лишь УДЕРЖИВАЕТ drawer, когда сам шаг БЕЗ
+ * mobileReveal стоит ВНУТРИ nav-группы (оба соседа той же страницы и тоже 'nav') - чтобы
+ * backward-nav внутри группы не мигал закрытием/открытием. Разные соседи / другой route
+ * -> drawer закрыт.
  *
  * @param {Array<{route: string, mobileReveal?: string}>} steps
  * @param {number} index
- * @returns {'nav'|'header-overflow'|null}
+ * @returns {'nav'|null}
  */
 export function resolveMobileReveal(steps, index) {
   const cur = steps?.[index];
@@ -103,10 +74,9 @@ export function resolveMobileReveal(steps, index) {
 }
 
 /**
- * Открыть панель, нужную ТЕКУЩЕМУ шагу, и явно ЗАКРЫТЬ другую (эксклюзивно).
+ * Открыть drawer, если он нужен ТЕКУЩЕМУ шагу, иначе закрыть.
  * На >=769px (десктоп) ничего не делает - переехавшие узлы там всегда на месте.
- * Await'им анимацию drawer'а только если реально его открыли (закрытие и
- * overflow-меню мгновенны).
+ * Await'им анимацию drawer'а только если реально его открыли (закрытие мгновенно).
  *
  * @param {Array<object>} steps
  * @param {number} index
@@ -114,17 +84,14 @@ export function resolveMobileReveal(steps, index) {
  */
 export async function applyMobileReveal(steps, index) {
   if (!isMobileViewport()) return;
-  const kind = resolveMobileReveal(steps, index);
-  const wantNav = kind === 'nav';
+  const wantNav = resolveMobileReveal(steps, index) === 'nav';
   const drawerToggled = setNavDrawerOpen(wantNav);
-  setHeaderOverflowOpen(kind === 'header-overflow');
   if (wantNav && drawerToggled) {
     await new Promise((resolve) => setTimeout(resolve, NAV_DRAWER_TRANSITION_MS));
   }
 }
 
-/** Закрыть обе панели - симметрично restoreRail, зовётся на границах сегмента и teardown. */
+/** Закрыть drawer - симметрично restoreRail, зовётся на границах сегмента и teardown. */
 export function restoreMobileReveal() {
   setNavDrawerOpen(false);
-  setHeaderOverflowOpen(false);
 }

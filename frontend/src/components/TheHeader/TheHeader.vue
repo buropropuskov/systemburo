@@ -37,7 +37,7 @@
     </div>
 
     <div class="header__info">
-      <!-- Объявление: на десктопе текстовый pill, на мобилке компактная иконка (A.3) -->
+      <!-- Объявление: текстовый pill на всех ширинах, включая мобилку (правка волны 3) -->
       <button
         v-if="activeAnnouncement"
         class="broadcast"
@@ -46,19 +46,6 @@
         :aria-label="activeAnnouncement.is_important ? 'Важное объявление' : 'Объявление'"
         @click="showAnnouncement = true"
       >
-        <svg
-          class="broadcast__icon"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
-        >
-          <path d="m3 11 18-5v12L3 14v-3z" />
-          <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" />
-        </svg>
         <span class="broadcast__label">{{ activeAnnouncement.is_important ? 'Важное объявление' : 'Объявление' }}</span>
       </button>
 
@@ -91,40 +78,17 @@
         />
       </div>
 
-      <!-- Прочее (feedback + время) - на мобилке сворачивается в "⋯" -->
-      <div class="header__overflow-wrap">
-        <button
-          class="header__overflow-toggle"
-          type="button"
-          aria-label="Ещё"
-          aria-haspopup="true"
-          :aria-expanded="showHeaderOverflow"
-          @click.stop="showHeaderOverflow = !showHeaderOverflow"
-        >
-          <span aria-hidden="true">⋯</span>
-        </button>
-        <div
-          class="header__overflow"
-          :class="{ 'header__overflow--open': showHeaderOverflow }"
-        >
-          <!-- На мобилке (<768) кнопка переезжает в бургер-drawer NavMenu (W3.3),
-               поэтому убираем её из DOM шапки - иначе тур нашёл бы скрытый дубль. -->
-          <button
-            v-if="can('header.report_problem') && !isMobileHeader"
-            class="feedback-btn"
-            data-testid="header-button-feedback"
-            @click="openFeedbackModal"
-          >
-            Сообщить о проблеме
-          </button>
-          <p
-            class="time"
-            data-testid="ob-header-time"
-          >
-            {{ currentDateTime }}
-          </p>
-        </div>
-      </div>
+      <!-- «Сообщить о проблеме»: на десктопе в шапке, на мобилке (<768) переезжает в
+           бургер-drawer NavMenu (W3.3), поэтому из DOM шапки убрана - иначе тур нашёл бы
+           скрытый дубль. Меню "⋯" и часы убраны совсем (правка волны 3). -->
+      <button
+        v-if="can('header.report_problem') && !isMobileHeader"
+        class="feedback-btn"
+        data-testid="header-button-feedback"
+        @click="openFeedbackModal"
+      >
+        Сообщить о проблеме
+      </button>
       <div
         v-if="can('header.create_application')"
         class="appl-btn__container"
@@ -190,7 +154,6 @@ export default {
       loading: true,
       userFirstName: '',
       userLastName: '',
-      currentDateTime: '',
       timer: null,
       isHeaderHidden: false,
       observer: null,
@@ -198,7 +161,6 @@ export default {
       showAnnouncement: false,
       activeAnnouncement: null,
       showNotifications: false,
-      showHeaderOverflow: false,
       unreadCount: 0,
       currentHour: new Date().getHours(),
       // <768: кнопка «Сообщить о проблеме» живёт в бургер-drawer, не в шапке (W3.3).
@@ -236,9 +198,6 @@ export default {
     this._onDocumentClick = () => {
       if (this.showNotifications) {
         this.showNotifications = false;
-      }
-      if (this.showHeaderOverflow) {
-        this.showHeaderOverflow = false;
       }
     };
     document.addEventListener('click', this._onDocumentClick);
@@ -333,25 +292,19 @@ export default {
         this.loading = false;
       }
     },
-    updateDateTime() {
-      const now = new Date();
-      const day = String(now.getDate()).padStart(2, '0');
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const year = now.getFullYear();
-      const hours = String(now.getHours()).padStart(2, '0');
-      const minutes = String(now.getMinutes()).padStart(2, '0');
-      const seconds = String(now.getSeconds()).padStart(2, '0');
-      this.currentDateTime = `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
-      const h = now.getHours();
+    // Часы из шапки убраны (правка волны 3), но текущий час нужен приветствию
+    // («Доброе утро/день/вечер») - отслеживаем его лёгким минутным таймером.
+    updateHour() {
+      const h = new Date().getHours();
       if (h !== this.currentHour) {
         this.currentHour = h;
       }
     },
     startDateTimeTimer() {
-      this.updateDateTime();
+      this.updateHour();
       this.timer = setInterval(() => {
-        this.updateDateTime();
-      }, 1000);
+        this.updateHour();
+      }, 60000);
     },
     initIntersectionObserver() {
       this.observer = new IntersectionObserver(
@@ -423,30 +376,11 @@ h3 {
   justify-content: flex-end;
 }
 
-/* Порядок на десктопе восстанавливаем через order: bell и broadcast лежат в DOM
-   перед overflow-wrap (чтобы на мобилке быть вне сворачиваемого "⋯"), но на
-   десктопе (overflow-wrap = display:contents) визуальный порядок оставляем
-   исходным - feedback, объявление, время, колокольчик, "Подать заявку". */
+/* Порядок на десктопе: «Сообщить о проблеме», объявление, колокольчик, «Подать заявку». */
 .feedback-btn { order: 1; }
 .broadcast { order: 2; }
-.time { order: 3; }
 .user__notifications { order: 4; }
 .appl-btn__container { order: 5; }
-
-/* На десктопе overflow-обёртка прозрачна для layout (display:contents) - её
-   дети рендерятся как обычные элементы .header__info. На мобилке (<768)
-   становится реальным блоком с выпадающим меню "⋯" (feedback/broadcast/time/bell). */
-.header__overflow-wrap {
-  display: contents;
-}
-
-.header__overflow {
-  display: contents;
-}
-
-.header__overflow-toggle {
-  display: none;
-}
 
 .feedback-btn {
   height: 35px;
@@ -489,14 +423,6 @@ h3 {
   transition: filter 0.2s ease;
 }
 
-/* Иконка объявления - только на мобилке (десктоп показывает текст) */
-.broadcast__icon {
-  display: none;
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
-}
-
 .broadcast:hover {
   filter: brightness(0.96);
 }
@@ -509,14 +435,6 @@ h3 {
 
 .broadcast--important:hover {
   filter: brightness(0.96);
-}
-
-.time {
-  font-size: 16px;
-  color: #a2a2a2;
-  min-width: 160px;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
 }
 
 .user__notifications {
@@ -685,99 +603,27 @@ h3 {
     gap: 8px;
   }
 
-  /* На мобилке порядок в строке: объявление, колокольчик, "⋯", "Подать заявку" */
+  /* На мобилке порядок в строке: объявление, колокольчик, "Подать заявку" */
   .broadcast { order: 1; }
   .user__notifications { order: 2; }
-  .header__overflow-wrap { order: 3; }
-  .appl-btn__container { order: 4; }
+  .appl-btn__container { order: 3; }
 
   /* Приветствие + подзаголовок "Мы рады..." скрыты на мобилке (директива юзера) */
   .header__title {
     display: none;
   }
 
-  /* Объявление на мобилке - компактная круглая иконка вместо текстового pill (A.3) */
+  /* Объявление на мобилке - текстовый pill (правка волны 3), просто компактнее */
   .broadcast {
-    width: 40px;
     height: 40px;
-    padding: 0;
-    border-radius: 50%;
-    justify-content: center;
-  }
-
-  .broadcast__icon {
-    display: block;
-  }
-
-  .broadcast__label {
-    display: none;
+    font-size: 13px;
+    padding: 0 14px;
   }
 
   /* Колокольчик - в самой шапке, укрупнён под тач (A.2) */
   .user__notifications {
     width: 40px;
     height: 40px;
-  }
-
-  .header__overflow-wrap {
-    display: block;
-    position: relative;
-  }
-
-  /* "⋯" - pill вместо круга (A.1) */
-  .header__overflow-toggle {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 48px;
-    height: 40px;
-    border-radius: var(--radius-pill);
-    border: 1px solid var(--color-border);
-    background: #fff;
-    cursor: pointer;
-    font-size: 20px;
-    line-height: 1;
-    color: #555;
-    padding: 0 14px;
-    flex-shrink: 0;
-  }
-
-  .header__overflow-toggle:hover {
-    background: var(--color-primary-tint);
-    border-color: var(--color-primary);
-    color: var(--color-primary);
-  }
-
-  /* Внутри "⋯" остаются только feedback + время */
-  .header__overflow {
-    display: none;
-  }
-
-  .header__overflow.header__overflow--open {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    position: absolute;
-    top: calc(100% + 8px);
-    right: 0;
-    min-width: 220px;
-    background: #fff;
-    border: 1px solid #e6e6e6;
-    border-radius: 15px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
-    padding: 8px;
-    gap: 4px;
-    z-index: 300;
-  }
-
-  .header__overflow--open .feedback-btn,
-  .header__overflow--open .time {
-    width: 100%;
-    min-height: 44px;
-    display: flex;
-    align-items: center;
-    text-align: left;
-    white-space: normal;
   }
 
   /* Кнопка "Подать заявку" - primary pill (A.1), в строке заголовка */

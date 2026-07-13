@@ -53,7 +53,7 @@ describe('onboardingSteps', () => {
 
   it('есть шаги шапки и навигации с целевыми селекторами', () => {
     const ids = onboardingSteps.map((s) => s.id);
-    for (const id of ['header-feedback', 'header-time', 'header-notifications', 'header-submit', 'nav-rail', 'nav-group-data']) {
+    for (const id of ['header-feedback', 'header-notifications', 'header-submit', 'nav-rail', 'nav-group-data']) {
       expect(ids).toContain(id);
     }
     // у каждого шага шапки/навигации - строковый селектор цели (не центр-модал)
@@ -69,19 +69,19 @@ describe('onboardingSteps', () => {
     expect(ids).not.toContain('header-broadcast');
   });
 
-  it('шаги шапки идут слева направо: feedback -> time -> notifications -> submit', () => {
+  it('шаги шапки идут слева направо: feedback -> notifications -> submit', () => {
     const ids = onboardingSteps.map((s) => s.id);
-    const order = ['header-feedback', 'header-time', 'header-notifications', 'header-submit'].map((id) => ids.indexOf(id));
+    const order = ['header-feedback', 'header-notifications', 'header-submit'].map((id) => ids.indexOf(id));
     const sorted = [...order].sort((a, b) => a - b);
     expect(order).toEqual(sorted);
   });
 });
 
 describe('mobileReveal (#1097 S11 - переехавшие на <768 цели)', () => {
-  it('значение только nav или header-overflow', () => {
+  it('значение только nav (header-overflow вымер вместе с меню "..." в W3)', () => {
     for (const s of onboardingSteps) {
       if (s.mobileReveal !== undefined) {
-        expect(['nav', 'header-overflow']).toContain(s.mobileReveal);
+        expect(s.mobileReveal).toBe('nav');
       }
     }
   });
@@ -92,11 +92,10 @@ describe('mobileReveal (#1097 S11 - переехавшие на <768 цели)',
     expect(byId('nav-group-data').mobileReveal).toBe('nav');
   });
 
-  it('feedback переехал в drawer (nav), время в overflow; колокольчик - в самой шапке', () => {
+  it('feedback переехал в drawer (nav); колокольчик - в самой шапке', () => {
     const byId = (id) => onboardingSteps.find((s) => s.id === id);
     // #1097 W3.3: «Сообщить о проблеме» вынесено из "⋯" в бургер-drawer.
     expect(byId('header-feedback').mobileReveal).toBe('nav');
-    expect(byId('header-time').mobileReveal).toBe('header-overflow');
     // #1097 W3.2: колокольчик вынесен из "⋯" в саму шапку - reveal не нужен.
     expect(byId('header-notifications').mobileReveal).toBeUndefined();
   });

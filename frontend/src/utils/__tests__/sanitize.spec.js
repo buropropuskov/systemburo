@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sanitizeHtml } from '../sanitize';
+import { sanitizeHtml, stripHtml } from '../sanitize';
 
 describe('sanitizeHtml', () => {
   it('пустой/falsy вход даёт пустую строку', () => {
@@ -54,5 +54,34 @@ describe('sanitizeHtml', () => {
   it('вырезает скрипты и обработчики событий', () => {
     expect(sanitizeHtml('<script>alert(1)</script><p>ok</p>')).not.toContain('<script');
     expect(sanitizeHtml('<img src="x" onerror="alert(1)">')).not.toContain('onerror');
+  });
+});
+
+describe('stripHtml', () => {
+  it('пустой/falsy вход даёт пустую строку', () => {
+    expect(stripHtml('')).toBe('');
+    expect(stripHtml(null)).toBe('');
+    expect(stripHtml(undefined)).toBe('');
+  });
+
+  it('вырезает теги rich-HTML из TextConstructor, оставляя только текст', () => {
+    const html = '<h1 class="heading-h1"><strong>Проведение работ</strong></h1>';
+    expect(stripHtml(html)).toBe('Проведение работ');
+  });
+
+  it('схлопывает переносы и лишние пробелы в один пробел (одна строка под ellipsis)', () => {
+    const html = '<p>Первая строка</p>\n<p>вторая   строка</p>';
+    expect(stripHtml(html)).toBe('Первая строка вторая строка');
+  });
+
+  it('декодирует HTML-сущности', () => {
+    expect(stripHtml('<p>Иванов &amp; Партнёры &lt;груз&gt;</p>')).toBe('Иванов & Партнёры <груз>');
+  });
+
+  it('не исполняет скрипты и не тянет ресурсы (инертный DOMParser)', () => {
+    // textContent <script> возвращает его тело как текст, но НЕ исполняет.
+    const out = stripHtml('<div>ok</div><script>window.__pwned = 1</script>');
+    expect(out).toContain('ok');
+    expect(typeof window.__pwned).toBe('undefined');
   });
 });
