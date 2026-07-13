@@ -345,6 +345,30 @@ describe('ApplicationsCenter — бесшовная подгрузка порц�
     expect(wrapper.vm.sortedApplications.map((a) => a.id)).toEqual([1]);
   });
 
+  // YELLOW (#1158): инкрементальный поллинг детектит появление membership-снимком
+  // (не id-порогом, ломавшим архив) и синкает total, иначе hasMore/футер врут.
+  it('инкрементальный опрос prepend\'ит новую заявку и синкает total, без дублей', async () => {
+    getApplicationsPaginated.mockResolvedValue({
+      items: [makeApp(1), makeApp(2)], meta: { total: 2, page: 1, per_page: 30 },
+    });
+    wrapper = mountCenter();
+    await flushPromises();
+    expect(wrapper.vm.applications.map((a) => a.id)).toEqual([1, 2]);
+    expect(wrapper.vm.total).toBe(2);
+
+    // Первый опрос лишь инициализирует снимок серверных id - ничего не prepend'ит.
+    apiRequest.mockResolvedValue({ ok: true, json: async () => [makeApp(1), makeApp(2)] });
+    await wrapper.vm._pollApplicationsIncremental();
+    expect(wrapper.vm.applications.map((a) => a.id)).toEqual([1, 2]);
+    expect(wrapper.vm.total).toBe(2);
+
+    // Второй опрос: появилась заявка 3 - prepend сверху, total синкнут (2 -> 3), без дублей.
+    apiRequest.mockResolvedValue({ ok: true, json: async () => [makeApp(3), makeApp(1), makeApp(2)] });
+    await wrapper.vm._pollApplicationsIncremental();
+    expect(wrapper.vm.applications.map((a) => a.id)).toEqual([3, 1, 2]);
+    expect(wrapper.vm.total).toBe(3);
+  });
+
   it('выбор сортировки по колонке догружает весь набор (клиентская сортировка по dev-семантике)', async () => {
     getApplicationsPaginated.mockResolvedValueOnce({
       items: [makeApp(1)], meta: { total: 2, page: 1, per_page: 30 },
