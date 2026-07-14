@@ -12,8 +12,17 @@
       >
         <div
           class="car-history-modal"
+          :class="{ 'is-dragging': sheetDragging }"
+          :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
           @mousedown.stop
+          @touchstart="onSheetTouchStart"
+          @touchmove="onSheetTouchMove"
+          @touchend="onSheetTouchEnd"
         >
+          <div
+            class="sheet-handle"
+            aria-hidden="true"
+          />
           <div class="modal-header">
             <h3>История автомобиля {{ carNumber }}</h3>
             <div class="header-actions">
@@ -237,6 +246,7 @@
 import { ref } from 'vue';
 import { apiRequest } from '@/api/client'
 import { useOverlayClose } from '@/composables/useOverlayClose';
+import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import { useDeletionsStore } from '@/stores/deletions';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
 import ExcelJS from 'exceljs';
@@ -291,7 +301,22 @@ export default {
     const requestClose = () => { visible.value = false; };
     const onAfterLeave = () => emit('close');
     const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(requestClose);
-    return { visible, requestClose, onAfterLeave, onOverlayMousedown, onOverlayMouseup };
+    // Bottom-sheet на мобилке: свайп вниз за ползунок/с прокрученного вверх контента
+    // закрывает окно (useSwipeDismiss, как в ApplicationHistory).
+    const scrollContainer = ref(null);
+    const swipe = useSwipeDismiss(requestClose, {
+      getScrollTop: () => scrollContainer.value?.scrollTop ?? 0,
+      handleSelector: '.sheet-handle',
+    });
+    return {
+      visible, requestClose, onAfterLeave, onOverlayMousedown, onOverlayMouseup,
+      scrollContainer,
+      sheetOffset: swipe.offset,
+      sheetDragging: swipe.isDragging,
+      onSheetTouchStart: swipe.onTouchStart,
+      onSheetTouchMove: swipe.onTouchMove,
+      onSheetTouchEnd: swipe.onTouchEnd,
+    };
   },
   data() {
     return {
@@ -877,6 +902,22 @@ export default {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
 }
 
+/* Ползунок bottom-sheet - виден только на мобилке (тянуть вниз для закрытия). */
+.sheet-handle {
+  display: none;
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: #d5d5d5;
+  margin: 10px auto 2px;
+  flex-shrink: 0;
+}
+
+@keyframes carHistorySlideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
 .modal-header {
   display: flex;
   justify-content: space-between;
@@ -1299,6 +1340,65 @@ export default {
 }
 
 @media (max-width: 768px) {
+  /* Bottom-sheet: окно выезжает снизу во всю ширину, свайп вниз за ползунок закрывает
+     (как ApplicationHistory/детали Т/С, #1097 R4-9). */
+  .modal-overlay {
+    padding: 0;
+    align-items: flex-end;
+    top: var(--app-vvt, 0);
+    height: var(--app-vvh, 100%);
+    bottom: auto;
+  }
+
+  .car-history-modal {
+    width: 100%;
+    max-width: 100%;
+    max-height: 90dvh;
+    border-radius: 16px 16px 0 0;
+    transition: transform 0.3s ease;
+  }
+
+  .car-history-modal.is-dragging {
+    transition: none;
+  }
+
+  .sheet-handle {
+    display: block;
+  }
+
+  /* Компактная шапка на узком экране. */
+  .modal-header {
+    padding: 6px 16px;
+  }
+
+  .modal-header h3 {
+    font-size: 16px;
+  }
+
+  .close-btn {
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  /* Выезд снизу (гасим desktop-scale), закрытие крестиком/overlay - слайд вниз; при
+     свайпе inline transform=offset перебивает leave-to (второго слайда нет). */
+  .modal-fade-enter-active .car-history-modal {
+    animation: carHistorySlideUp 0.3s ease-out;
+  }
+
+  .modal-fade-leave-active .car-history-modal {
+    animation: none;
+    transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  .modal-fade-leave-to .car-history-modal {
+    transform: translateY(100%);
+  }
+
+  .modal-fade-leave-active {
+    transition: opacity 0.3s ease;
+  }
+
   .filter-row {
     flex-direction: column;
     align-items: flex-start;
