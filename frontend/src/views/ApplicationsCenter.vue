@@ -579,19 +579,30 @@
             name="app-row"
             class="applications-list"
           >
-            <div
-              v-for="(application, index) in sortedApplications"
-              :key="application.id"
-              class="application-item"
-              :class="{
-                'unread': !application.is_read,
-                'initial-load': isInitialLoad,
-                'filtered': !isInitialLoad
-              }"
-              :data-testid="`center-row-${application.id}`"
-              :style="isInitialLoad ? { 'animation-delay': `${index * 0.05}s` } : {}"
-              @click="openApplication(application)"
+            <template
+              v-for="group in applicationGroups"
+              :key="group.key"
             >
+              <!-- Разделитель периода (серая линия + подпись), без дат (#1097 r2). -->
+              <div
+                v-if="group.label"
+                :key="`${group.key}-sep`"
+                class="applications-day-separator"
+              >
+                <span class="applications-day-label">{{ group.label }}</span>
+              </div>
+              <div
+                v-for="application in group.apps"
+                :key="application.id"
+                class="application-item"
+                :class="{
+                  'unread': !application.is_read,
+                  'initial-load': isInitialLoad,
+                  'filtered': !isInitialLoad
+                }"
+                :data-testid="`center-row-${application.id}`"
+                @click="openApplication(application)"
+              >
               <div class="application-row rt-row">
                 <div
                   class="application-col confirmation-col"
@@ -777,6 +788,7 @@
                 </div>
               </div>
             </div>
+            </template>
           </TransitionGroup>
           <!-- In-flight retry / первичная догрузка при пустом списке (#1173): пока
                listLoading, показываем спиннер, а не проваливаемся в error/"Заявок нет".
@@ -1138,9 +1150,31 @@ export default {
             return filtered;
         },
         
+        // Группировка по периодам для визуальных разделителей (#1097 r2). Возвращает
+        // массив групп {label,key,apps[]}; при сортировке НЕ по дате - одна группа без
+        // подписи (порядок не по времени, разделители не рисуем). Разделитель ставится,
+        // когда бакет периода меняется в уже отсортированном списке -> учитывает сортировку.
+        applicationGroups() {
+            const apps = this.sortedApplications;
+            if (this.sortField && this.sortField !== 'date') {
+                return [{ label: null, key: 'all', apps }];
+            }
+            const now = new Date();
+            const groups = [];
+            let current = null;
+            for (const application of apps) {
+                const label = this.applicationPeriodLabel(application.sending_datetime, now);
+                if (!current || current.label !== label) {
+                    current = { label, key: `grp-${label}`, apps: [] };
+                    groups.push(current);
+                }
+                current.apps.push(application);
+            }
+            return groups;
+        },
         sortedApplications() {
             const applications = [...this.filteredApplications];
-            
+
             if (!this.sortField) {
                 return applications.sort((a, b) => {
                     const dateA = new Date(a.sending_datetime);
@@ -1361,6 +1395,31 @@ export default {
     methods: {
         can(key) {
             return this.permissionsStore.hasPermission(key);
+        },
+        // Период заявки относительно сегодня для группировки списка (#1097 r2).
+        // Бакеты по убыванию свежести; неделя считается от понедельника.
+        applicationPeriodLabel(dateStr, now) {
+            const startOfDay = (d) => {
+                const x = new Date(d);
+                x.setHours(0, 0, 0, 0);
+                return x;
+            };
+            const d = startOfDay(new Date(dateStr));
+            const today = startOfDay(now || new Date());
+            const MS = 86400000;
+            const yesterday = new Date(today.getTime() - MS);
+            const dow = (today.getDay() + 6) % 7; // 0 = понедельник
+            const thisWeekStart = new Date(today.getTime() - dow * MS);
+            const lastWeekStart = new Date(thisWeekStart.getTime() - 7 * MS);
+            const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+            const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+            if (d.getTime() >= today.getTime()) return 'Сегодня';
+            if (d.getTime() === yesterday.getTime()) return 'Вчера';
+            if (d >= thisWeekStart) return 'На этой неделе';
+            if (d >= lastWeekStart) return 'На прошлой неделе';
+            if (d >= thisMonthStart) return 'В этом месяце';
+            if (d >= lastMonthStart) return 'В прошлом месяце';
+            return 'Ранее';
         },
         /**
          * Реактивно отслеживает мобильный брейкпоинт (совпадает с CSS @media 768,
@@ -3031,6 +3090,23 @@ export default {
     overflow: hidden;
 }
 
+/* Разделитель периода (#1097 r2): серая линия сверху, под ней подпись периода (без дат).
+   Десктоп и мобилка. Первый разделитель без верхней линии (граница шапки уже есть). */
+.applications-day-separator {
+    padding: 15px 16px 6px;
+    border-top: 1px solid #e2e2e6;
+    background: transparent;
+}
+.applications-list .applications-day-separator:first-child {
+    border-top: none;
+    padding-top: 8px;
+}
+.applications-day-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #9a9aae;
+}
+
 .application-item {
     transition: background-color 0.2s ease;
     cursor: pointer;
@@ -3102,7 +3178,7 @@ export default {
     padding: 6px 16px;
     align-items: center;
     gap: 14px;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid #f5f5f5;
     min-height: 40px;
 }
 
@@ -3447,6 +3523,7 @@ export default {
     .application-item.unread .application-col.date-col {
         color: var(--color-primary);
         font-weight: 600;
+        font-size: 13px;
     }
     /* Красная точка перед датой в углу карточки - маркер непрочитанной заявки. Инлайн
        ::before в right-aligned nowrap date-col садится слева от текста даты. Полный
@@ -3456,9 +3533,9 @@ export default {
     .applications-table .application-item.unread .application-col.date-col::before {
         content: '';
         display: inline-block !important;
-        width: 7px;
-        height: 7px;
-        margin-right: 6px;
+        width: 5px;
+        height: 5px;
+        margin-right: 5px;
         border-radius: 50%;
         background: var(--color-danger);
         vertical-align: middle;
@@ -3490,6 +3567,9 @@ export default {
         border-left: none !important;
         border-right: none !important;
         border-radius: 0 !important;
+        /* Разделитель МЕЖДУ заявками бледнее (#f0f0f0), чтобы отличался от более
+           тёмной линии разделителя периода (#e2e2e6) (#1097 r2). */
+        border-bottom-color: #f0f0f0 !important;
     }
 
     /* Прячем подписи полей (data-label ::before из responsive-tables.css). */
