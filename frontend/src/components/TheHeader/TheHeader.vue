@@ -493,10 +493,8 @@ h3 {
 }
 
 .appl-btn__container {
-  width: 155px;
+  width: fit-content;
   height: 26px;
-  border-radius: 50px;
-  background-color: #f2f2f2;
 }
 
 .appl-btn {
