@@ -7,7 +7,8 @@ import { useSwipeDismiss } from '../useSwipeDismiss';
 const touch = (y) => ({ touches: [{ clientY: y }], cancelable: true, preventDefault: vi.fn(), target: null });
 
 describe('useSwipeDismiss', () => {
-  it('свайп вниз дальше порога вызывает onDismiss', () => {
+  it('свайп вниз дальше порога уводит лист вниз и закрывает после слайда', () => {
+    vi.useFakeTimers();
     const onDismiss = vi.fn();
     const s = useSwipeDismiss(onDismiss, { threshold: 90 });
     s.onTouchStart(touch(100));
@@ -15,9 +16,14 @@ describe('useSwipeDismiss', () => {
     expect(s.isDragging.value).toBe(true);
     expect(s.offset.value).toBe(150);
     s.onTouchEnd();
+    // Лист доезжает вниз (offset > свайпа), закрытие отложено до конца слайда.
+    expect(s.isDragging.value).toBe(false);
+    expect(s.offset.value).toBeGreaterThan(150);
+    expect(onDismiss).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(300);
     expect(onDismiss).toHaveBeenCalledTimes(1);
     expect(s.offset.value).toBe(0);
-    expect(s.isDragging.value).toBe(false);
+    vi.useRealTimers();
   });
 
   it('свайп вниз не дальше порога возвращает лист, не закрывает', () => {
@@ -53,6 +59,7 @@ describe('useSwipeDismiss', () => {
   });
 
   it('жест с ползунка закрывает даже при прокрученном контенте', () => {
+    vi.useFakeTimers();
     const onDismiss = vi.fn();
     const s = useSwipeDismiss(onDismiss, { threshold: 90, getScrollTop: () => 40, handleSelector: '.sheet-handle' });
     const handleEl = { closest: (sel) => (sel === '.sheet-handle' ? {} : null) };
@@ -60,7 +67,9 @@ describe('useSwipeDismiss', () => {
     s.onTouchMove({ touches: [{ clientY: 250 }], cancelable: true, preventDefault: vi.fn() });
     expect(s.offset.value).toBe(150);
     s.onTouchEnd();
+    vi.advanceTimersByTime(300);
     expect(onDismiss).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
   });
 
   it('дребезг в мёртвой зоне (< slop) не перехватывает событие - не глотает тап/клик', () => {

@@ -381,8 +381,11 @@ body.nav-drawer-open {
     margin: 0 !important;
     overflow-y: auto !important;
     /* Плавный выезд снизу-вверх для всех модалок с базовым паттерном .modal-content.
-       Специфичность (0,1,0) - модалки с собственной scoped-анимацией сохраняют свою. */
-    animation: app-sheet-up 0.34s cubic-bezier(0.32, 0.72, 0, 1) both;
+       Специфичность (0,1,0) - модалки с собственной scoped-анимацией сохраняют свою.
+       fill-mode: backwards (НЕ both) - иначе финальный translateY(0) анимации залипает
+       и перебивает inline-transform свайпа (лист не тянется за пальцем). backwards даёт
+       кадр 'from' до старта (без мигания) и отпускает transform после - свайп работает. */
+    animation: app-sheet-up 0.34s cubic-bezier(0.32, 0.72, 0, 1) backwards;
   }
 
   /* Для inputs и textarea внутри модалок - font-size 16px предотвращает

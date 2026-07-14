@@ -72,10 +72,22 @@ export function useSwipeDismiss(onDismiss, options = {}) {
 
   function onTouchEnd() {
     if (!active) return;
-    const dismissed = offset.value > threshold;
     active = false;
-    reset();
-    if (dismissed) onDismiss();
+    if (offset.value > threshold) {
+      // Протянут за порог: плавно доводим лист ВНИЗ до конца (не резкое исчезновение),
+      // затем закрываем. isDragging=false включает transition листа, offset до высоты
+      // экрана уводит лист за нижнюю кромку; onDismiss (unmount) после длительности слайда.
+      isDragging.value = false;
+      engaged = false;
+      offset.value = typeof window !== 'undefined' ? window.innerHeight : 1000;
+      setTimeout(() => {
+        onDismiss();
+        reset();
+      }, 260);
+    } else {
+      // Не дотянул до порога - лист пружинит на место (transition через is-dragging=false).
+      reset();
+    }
   }
 
   return { offset, isDragging, onTouchStart, onTouchMove, onTouchEnd };

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import BaseModal from '../BaseModal.vue';
 
@@ -95,6 +95,7 @@ describe('BaseModal', () => {
   });
 
   it('sheetSwipe=true: ползунок рендерится, протяжка вниз за порог эмитит close', async () => {
+    vi.useFakeTimers();
     const wrapper = mountModal({ sheetSwipe: true });
     expect(wrapper.find('.sheet-handle').exists()).toBe(true);
     const modal = wrapper.find('.base-modal');
@@ -102,7 +103,10 @@ describe('BaseModal', () => {
     await modal.trigger('touchstart', { touches: [{ clientY: 100 }] });
     await modal.trigger('touchmove', { touches: [{ clientY: 300 }] });
     await modal.trigger('touchend');
+    // Закрытие после слайда-вниз (setTimeout ~260мс в useSwipeDismiss).
+    vi.advanceTimersByTime(300);
     expect(wrapper.emitted('close')).toHaveLength(1);
+    vi.useRealTimers();
   });
 
   it('sheetSwipe=true: короткая протяжка ниже порога НЕ эмитит close', async () => {
