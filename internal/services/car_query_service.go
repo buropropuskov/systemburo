@@ -157,6 +157,11 @@ func (s *carService) enrichTableCars(ctx context.Context, rows []tableCarRow) ([
 		placesByCarID[p.CarID] = append(placesByCarID[p.CarID], p.Name)
 	}
 
+	targetTablesCount, err := s.targetTablesCountByCarID(ctx, carIDs)
+	if err != nil {
+		return nil, err
+	}
+
 	cars := make([]TableCarResponse, 0, len(rows))
 	for _, row := range rows {
 		status := 0
@@ -189,9 +194,37 @@ func (s *carService) enrichTableCars(ctx context.Context, rows []tableCarRow) ([
 			ApplicationNumber:  row.ApplicationNumber,
 			TerritoryStatus:    row.TerritoryStatus,
 			TerritoryEntryTime: territoryEntryTimeStr,
+			TargetTablesCount:  targetTablesCount[row.ID],
 		})
 	}
 	return cars, nil
+}
+
+// targetTablesCountByCarID считает число привязок car_target_tables на каждую
+// машину из carIDs (#1194) - FE решает по нему, показывать ли per-row подменю
+// «Убрать из этой/из всех» (>1) или сразу деактивировать (единственная).
+func (s *carService) targetTablesCountByCarID(ctx context.Context, carIDs []int) (map[int]int, error) {
+	counts := make(map[int]int, len(carIDs))
+	if len(carIDs) == 0 {
+		return counts, nil
+	}
+	type countRow struct {
+		CarID int
+		Cnt   int
+	}
+	var rows []countRow
+	if err := s.db.WithContext(ctx).
+		Table("car_target_tables").
+		Select("car_id, COUNT(*) AS cnt").
+		Where("car_id IN ?", carIDs).
+		Group("car_id").
+		Scan(&rows).Error; err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error counting target tables")
+	}
+	for _, r := range rows {
+		counts[r.CarID] = r.Cnt
+	}
+	return counts, nil
 }
 
 // GetCarUnloadPlaces возвращает связи активных автомобилей с местами разгрузки.

@@ -55,6 +55,18 @@ type CarService interface {
 	RestoreCar(ctx context.Context, carID int, req RestoreCarRequest) error
 	// GetUnifiedCarHistory возвращает объединённую историю для всех машин с одинаковыми параметрами.
 	GetUnifiedCarHistory(ctx context.Context, req UnifiedCarHistoryQuery) ([]CarHistoryItemResponse, error)
+	// BulkMoveTable переносит набор машин из одной таблицы «Проезд» в другие (#1194,
+	// групповая операция): FromTableID снимается, ToTableIDs добавляются (объединение
+	// с уже существующими у машины привязками, кроме FromTableID). Пустой итоговый
+	// набор целевых таблиц -> машина деактивируется (как единичный DeactivateCar).
+	BulkMoveTable(ctx context.Context, req BulkMoveCarsTableRequest, actorID int) (*BulkOpResult, error)
+	// BulkAddTable добавляет набор машин в дополнительные таблицы «Проезд» (#1194):
+	// объединение с текущими привязками, существующие не снимаются.
+	BulkAddTable(ctx context.Context, req BulkAddCarsTableRequest, actorID int) (*BulkOpResult, error)
+	// BulkUnbindTable снимает привязку набора машин к одной таблице «Проезд» (#1194).
+	// Пустой итоговый набор целевых таблиц -> машина деактивируется (как единичный
+	// DeactivateCar).
+	BulkUnbindTable(ctx context.Context, req BulkUnbindCarsTableRequest, actorID int) (*BulkOpResult, error)
 }
 
 // --- DTO запросов ---
@@ -225,6 +237,10 @@ type TableCarResponse struct {
 	ApplicationNumber  *string  `json:"application_number"`
 	TerritoryStatus    *int     `json:"territory_status"`
 	TerritoryEntryTime *string  `json:"territory_entry_time"`
+	// TargetTablesCount - число таблиц «Проезд», к которым привязана машина (#1194):
+	// FE показывает per-row «Убрать» без подменю при 1 (снятие с единственной =
+	// деактивация) и с подменю «из этой/из всех» при >1.
+	TargetTablesCount int `json:"target_tables_count"`
 }
 
 // CarUnloadPlaceInfo -- связь автомобиля с местом разгрузки.

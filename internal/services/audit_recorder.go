@@ -82,3 +82,12 @@ func recordAddedToTable(ctx context.Context, r AuditRecorder, exec *gorm.DB, ent
 	id, tid := entityID, tableID
 	return r.Record(ctx, exec, entityType, &id, models.AuditActionAddedToTable, actorID, carAuditDetails{TableID: &tid})
 }
+
+// recordUnboundFromTable пишет ОДНУ запись audit_log «Снят с таблицы проходной»
+// (#1194) на пару (сущность, таблица): action=unbound_from_table, details.table_id=
+// tableID - зеркало recordAddedToTable для противоположного события групповой
+// операции «Убрать». exec обязан быть тем же tx, что и DELETE привязки.
+func recordUnboundFromTable(ctx context.Context, r AuditRecorder, exec *gorm.DB, entityType string, entityID, tableID int, actorID *int) error {
+	id, tid := entityID, tableID
+	return r.Record(ctx, exec, entityType, &id, models.AuditActionUnboundFromTable, actorID, carAuditDetails{TableID: &tid})
+}

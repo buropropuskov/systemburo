@@ -476,6 +476,11 @@ func Setup(e *echo.Echo, d Dependencies) {
 	carsGroup.PUT("/:id/activate", cars.ActivateCar)
 	carsGroup.GET("/history/unified", cars.GetUnifiedCarHistory)
 	carsGroup.PUT("/:id/restore", cars.RestoreCar)
+	// Групповые операции над строками таблицы проходной (#1194): перенос/добавление/
+	// снятие набора машин с таблиц «Проезд». Права admin - как остальные bulk-операции.
+	carsGroup.POST("/bulk/move-table", cars.BulkMoveTable, requireAdmin)
+	carsGroup.POST("/bulk/add-table", cars.BulkAddTable, requireAdmin)
+	carsGroup.POST("/bulk/unbind-table", cars.BulkUnbindTable, requireAdmin)
 
 	// Сотрудники (в заявках)
 	empGroup := protected.Group("/employees")
