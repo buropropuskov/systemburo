@@ -3239,7 +3239,9 @@ export default {
 
 @media (max-width: 767.98px) {
     .center {
-        padding: 12px;
+        /* Верхний отступ убран - шапка Центра примыкает к app bar без «странного»
+           просвета сверху (#1097 p2). Боковой/нижний padding сохранён. */
+        padding: 0 12px 12px;
     }
 
     /* Шапка Центра закреплена под app bar (TheHeader min-height 60px, sticky top:0),
@@ -3252,7 +3254,7 @@ export default {
         top: 60px;
         z-index: 20;
         gap: 8px;
-        background: #fff;
+        background: #FAFAFA;
         margin: 0 -12px;
         padding: 8px 12px 12px;
         border-bottom: 1px solid var(--color-border);
@@ -3346,6 +3348,13 @@ export default {
         border-radius: 50%;
         background: var(--color-danger);
         vertical-align: middle;
+    }
+
+    /* Непрочитанная заявка на мобилке - бледно-жёлтый фон карточки как на десктопе
+       (доп. просьба). Полный префикс + !important бьют `.rt-table .rt-row{background:
+       #fff !important}` (responsive-tables.css). Синяя дата + красная точка остаются. */
+    .applications-table .application-item.unread .application-row.rt-row {
+        background-color: #fff5e0 !important;
     }
 
     /* Компактная карточка-письмо БЕЗ подписей (W3.7): бейдж согласования + дата в углу
@@ -3524,7 +3533,9 @@ export default {
 
 @media (max-width: 480px) {
     .center {
-        padding: 10px;
+        /* Верхний отступ убран (#1097 p2), боковой/нижний 10px сохранён - от него
+           зависит full-bleed margin таблицы ниже. */
+        padding: 0 10px 10px;
     }
 
     /* Full-bleed margin таблицы = padding .center (тут 10px, не 12px как в 767.98),
