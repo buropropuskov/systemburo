@@ -31,12 +31,17 @@ describe('ApplicationHistory - свайп-вниз-закрытие (bottom-shee
   });
 
   it('свайп за порог -> окно истории закрывается (showModal=false)', async () => {
+    vi.useFakeTimers();
     const wrapper = mountHistory();
     wrapper.vm.openModal();
     await flushPromises();
     expect(wrapper.vm.showModal).toBe(true);
     swipe(wrapper.vm, 200);
+    // Закрытие после слайда-вниз (setTimeout ~260мс в useSwipeDismiss).
+    vi.advanceTimersByTime(300);
+    await flushPromises();
     expect(wrapper.vm.showModal).toBe(false);
+    vi.useRealTimers();
   });
 
   it('свайп НЕ за порог -> окно остаётся открытым', async () => {

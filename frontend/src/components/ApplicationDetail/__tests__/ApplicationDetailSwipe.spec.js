@@ -38,10 +38,14 @@ describe('ApplicationDetail - свайп-вниз-закрытие (bottom-sheet
   });
 
   it('протягивание за порог -> emit("close")', () => {
+    vi.useFakeTimers();
     const wrapper = mountDetail();
     // getScrollTop у sheetScroll в jsdom = 0 -> жест активен даже без ползунка.
     swipe(wrapper.vm, 200);
+    // Закрытие после слайда-вниз (setTimeout ~260мс в useSwipeDismiss).
+    vi.advanceTimersByTime(300);
     expect(wrapper.emitted('close')).toBeTruthy();
+    vi.useRealTimers();
   });
 
   it('протягивание НЕ за порог -> close не эмитится', () => {
