@@ -17,12 +17,6 @@
               <RefreshButton @refresh="fetchAllData" />
             </div>
           </div>
-          <div class="news-search-row">
-            <SearchComponent
-              v-model="searchQuery"
-              title="Поиск по новостям..."
-            />
-          </div>
           <div class="divider" />
           <div class="news-list">
             <!-- Лоадер -->
@@ -34,11 +28,11 @@
             </div>
             <!-- Новости -->
             <div
-              v-else-if="filteredNewsItems.length > 0"
+              v-else-if="newsItems.length > 0"
               class="news-items"
             >
               <article
-                v-for="(item, index) in filteredNewsItems"
+                v-for="(item, index) in newsItems"
                 :key="item.id"
                 class="news-item"
                 :style="{ animationDelay: `${index * 0.1}s` }"
@@ -65,7 +59,7 @@
               v-else
               class="empty-state"
             >
-              <p>{{ newsEmptyText }}</p>
+              <p>Нет новостей</p>
             </div>
           </div>
         </div>
@@ -279,8 +273,6 @@ import { sanitizeHtml } from '@/utils/sanitize.js'
 import DocumentsBlock from '../components/news/DocumentsBlock.vue'
 import WorkModesModal from '../components/news/WorkModesModal.vue'
 import OnboardingButton from '../components/onboarding/OnboardingButton.vue'
-import SearchComponent from '../components/SearchComponent.vue'
-import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import { ref } from 'vue'
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
 
@@ -294,7 +286,6 @@ export default {
     DocumentsBlock,
     WorkModesModal,
     OnboardingButton,
-    SearchComponent,
   },
   setup() {
     // Читалка новости на мобилке - bottom-sheet со свайп-вниз-закрытием (W3.4).
@@ -340,22 +331,7 @@ export default {
       guideLoading: false,
       guideLoaded: false,
       eventStreamOff: null,
-      searchQuery: '',
     }
-  },
-  computed: {
-    // Поиск (#1157) - клиентский, по заголовку+тексту, ТОЛЬКО по списку
-    // новостей слева. Активное объявление справа поиском не трогаем: поле
-    // обещает фильтр новостей, а не скрытие важного объявления. Пустой запрос
-    // показывает всё (общий util buildSearchVariants/matchesSearch).
-    filteredNewsItems() {
-      const variants = buildSearchVariants(this.searchQuery)
-      if (!variants.length) return this.newsItems
-      return this.newsItems.filter(item => matchesSearch(`${item.title} ${item.description || ''}`, variants))
-    },
-    newsEmptyText() {
-      return this.searchQuery.trim() ? 'Ничего не найдено по запросу' : 'Нет новостей'
-    },
   },
   mounted() {
     this.fetchAllData()
@@ -532,10 +508,6 @@ export default {
 .header-actions {
     display: flex;
     gap: 8px;
-}
-
-.news-search-row {
-    padding: 0 20px 14px;
 }
 
 .divider {
@@ -1074,10 +1046,6 @@ export default {
         justify-content: flex-end;
         flex-wrap: nowrap;
         gap: 6px;
-    }
-
-    .news-search-row {
-        padding: 0 14px 10px;
     }
 
     /* Читалка новости - bottom-sheet: оверлей прижимает лист к низу,
