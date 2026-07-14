@@ -1859,6 +1859,9 @@ export default {
   justify-content: center;
   padding: 20px;
   gap: 10px;
+  /* Резерв под контент истории: без него spinner крошечный, а при загрузке списка
+     секция резко растёт - модалка прыгает (#1097 R3-6). Держим высоту стабильной. */
+  min-height: 120px;
 }
 
 .loader {
@@ -1876,11 +1879,16 @@ export default {
 }
 
 .no-history {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   text-align: center;
   color: #a2a2a2;
   padding: 20px;
   font-size: 13px;
   font-style: italic;
+  /* Та же высота, что у загрузки/короткого списка - пустое состояние не прыгает. */
+  min-height: 120px;
 }
 
 .modal-fade-enter-active,
