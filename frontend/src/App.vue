@@ -141,8 +141,12 @@ export default {
     // watch(banScopeUserId) на смену токена.
     this.reconcileBanSubscription()
   },
+  mounted() {
+    this.setupViewportVars()
+  },
   beforeUnmount() {
     this.teardownBanSubscription()
+    this.teardownViewportVars()
   },
   methods: {
     /**
@@ -201,6 +205,54 @@ export default {
         if (this.$route.path !== '/') {
           this.$router.push("/");
         }
+      }
+    },
+    /**
+     * Держим CSS-переменные --app-vvh / --app-vvt синхронными с visualViewport -
+     * реально видимой областью экрана. Bottom-sheet модалки (.modal-overlay,
+     * .base-modal-overlay) на мобилке используют их вместо layout-viewport, иначе
+     * при выезде/уходе футера Яндекс-браузера лист «прыгает» и переприкрепляется
+     * к новому низу. Фолбэк на innerHeight / 100dvh, если visualViewport недоступен.
+     */
+    syncViewportVars() {
+      const vv = window.visualViewport
+      const h = vv ? vv.height : window.innerHeight
+      const top = vv ? vv.offsetTop : 0
+      const el = document.documentElement
+      el.style.setProperty('--app-vvh', `${Math.round(h)}px`)
+      el.style.setProperty('--app-vvt', `${Math.round(top)}px`)
+    },
+    scheduleViewportSync() {
+      if (this._vvRaf) return
+      this._vvRaf = requestAnimationFrame(() => {
+        this._vvRaf = null
+        this.syncViewportVars()
+      })
+    },
+    setupViewportVars() {
+      this.syncViewportVars()
+      this._vvHandler = () => this.scheduleViewportSync()
+      const vv = window.visualViewport
+      if (vv) {
+        vv.addEventListener('resize', this._vvHandler)
+        vv.addEventListener('scroll', this._vvHandler)
+      }
+      window.addEventListener('resize', this._vvHandler)
+      window.addEventListener('orientationchange', this._vvHandler)
+    },
+    teardownViewportVars() {
+      const vv = window.visualViewport
+      if (vv && this._vvHandler) {
+        vv.removeEventListener('resize', this._vvHandler)
+        vv.removeEventListener('scroll', this._vvHandler)
+      }
+      if (this._vvHandler) {
+        window.removeEventListener('resize', this._vvHandler)
+        window.removeEventListener('orientationchange', this._vvHandler)
+      }
+      if (this._vvRaf) {
+        cancelAnimationFrame(this._vvRaf)
+        this._vvRaf = null
       }
     },
   },
@@ -313,16 +365,24 @@ body.nav-drawer-open {
   .modal-overlay {
     padding: 0 !important;
     align-items: flex-end !important;
+    /* Клеим лист к реально видимой области (visualViewport), не к layout-viewport:
+       при выезде/уходе футера Яндекс-браузера лист не прыгает (#1097 p2). */
+    top: var(--app-vvt, 0) !important;
+    height: var(--app-vvh, 100dvh) !important;
+    bottom: auto !important;
   }
 
   .modal-content {
     width: 100vw !important;
     max-width: 100vw !important;
     min-width: 100vw !important;
-    max-height: 90dvh !important;
+    max-height: min(90dvh, var(--app-vvh, 90dvh)) !important;
     border-radius: 16px 16px 0 0 !important;
     margin: 0 !important;
     overflow-y: auto !important;
+    /* Плавный выезд снизу-вверх для всех модалок с базовым паттерном .modal-content.
+       Специфичность (0,1,0) - модалки с собственной scoped-анимацией сохраняют свою. */
+    animation: app-sheet-up 0.34s cubic-bezier(0.32, 0.72, 0, 1) both;
   }
 
   /* Для inputs и textarea внутри модалок - font-size 16px предотвращает
@@ -336,6 +396,15 @@ body.nav-drawer-open {
   .modal-content textarea,
   .modal-content select {
     font-size: 16px !important;
+  }
+}
+
+@keyframes app-sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
   }
 }
 .page-fade-enter-from,

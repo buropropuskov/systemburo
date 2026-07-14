@@ -46,7 +46,10 @@
               &times;
             </button>
           </div>
-          <div class="base-modal__body">
+          <div
+            ref="body"
+            class="base-modal__body"
+          >
             <slot />
           </div>
           <div
@@ -105,19 +108,25 @@ export default {
       type: String,
       default: '',
     },
-    // Опт-ин bottom-sheet со свайпом-вниз на мобилке (#1097 W3.4). По умолчанию off -
-    // прочие модалки не меняются (ползунок/слайд/жест включаются только этим флагом).
+    // Bottom-sheet со свайпом-вниз на мобилке (#1097). По умолчанию ВКЛючён - все
+    // модалки на BaseModal выезжают снизу с ползунком/слайдом/свайп-закрытием
+    // (единое мобильное поведение). Отключить точечно: :sheet-swipe="false".
     sheetSwipe: {
       type: Boolean,
-      default: false,
+      default: true,
     },
   },
   emits: ['close'],
   setup(props, { emit }) {
-    // modal - template-ref окна (setup-ref, чтобы читать scrollTop для свайпа и в trapFocus).
+    // modal - template-ref окна, body - тело. Скроллер зависит от вьюпорта: на
+    // мобилке (<=768) скроллится body (окно overflow:hidden), на десктоп/планшет
+    // (>768) - само окно (body без overflow). Берём max: у неактивного скроллера
+    // scrollTop == 0, у активного - реальный, - иначе свайп внутри прокрученного
+    // контента ошибочно трактуется как закрытие (getScrollTop всегда 0).
     const modal = ref(null);
+    const body = ref(null);
     const swipe = useSwipeDismiss(() => emit('close'), {
-      getScrollTop: () => modal.value?.scrollTop ?? 0,
+      getScrollTop: () => Math.max(body.value?.scrollTop ?? 0, modal.value?.scrollTop ?? 0),
       handleSelector: '.sheet-handle',
     });
     // Свайп активен только при sheetSwipe - иначе жест на любой модалке не трогаем.
@@ -126,6 +135,7 @@ export default {
     };
     return {
       modal,
+      body,
       sheetOffset: swipe.offset,
       sheetDragging: swipe.isDragging,
       onSheetTouchStart: guard(swipe.onTouchStart),
@@ -206,9 +216,9 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  /* z-index задаётся через prop zIndex (:style), дефолт 1000 - базовый слой модалок. */
-  backdrop-filter: blur(0.1px);
-  -webkit-backdrop-filter: blur(0.1px);
+  /* z-index задаётся через prop zIndex (:style), дефолт 1000 - базовый слой модалок.
+     backdrop-filter НЕ используем: даже blur(0.1px) форсит compositing-слой и
+     репэйнты, роняющие кадры при слайде листа на 120Hz (#1097 p2). */
 }
 
 .base-modal {
@@ -347,21 +357,43 @@ export default {
   .base-modal-overlay {
     padding: 0;
     align-items: flex-end;
+    /* Footer-фикс: лист клеится к видимой области (visualViewport, App.vue). */
+    top: var(--app-vvt, 0);
+    height: var(--app-vvh, 100%);
+    bottom: auto;
   }
 
   .base-modal {
     width: 100vw !important;
     max-width: 100vw !important;
     min-width: 100vw !important;
-    max-height: 90dvh;
+    max-height: min(90dvh, var(--app-vvh, 90dvh));
     border-radius: 16px 16px 0 0;
     margin: 0;
+    /* Тело скроллится, ползунок/шапка/actions зафиксированы (общий баг 4). */
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .base-modal .sheet-handle,
+  .base-modal__header,
+  .base-modal__actions {
+    flex-shrink: 0;
+  }
+
+  .base-modal__body {
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
   }
 
   /* Sheet-вариант: выезжает снизу, тянется за пальцем 1:1 во время свайпа. */
   .base-modal--sheet {
-    transition: transform 0.3s ease;
+    transition: transform 0.34s cubic-bezier(0.32, 0.72, 0, 1);
+    will-change: transform;
   }
 
   .base-modal--sheet.is-dragging {
@@ -373,11 +405,11 @@ export default {
   }
 
   .modal-fade-enter-active .base-modal--sheet {
-    animation: base-sheet-up 0.3s ease;
+    animation: base-sheet-up 0.34s cubic-bezier(0.32, 0.72, 0, 1);
   }
 
   .modal-fade-leave-active .base-modal--sheet {
-    animation: base-sheet-down 0.2s ease;
+    animation: base-sheet-down 0.24s cubic-bezier(0.32, 0.72, 0, 1);
   }
 
   .base-modal__close {

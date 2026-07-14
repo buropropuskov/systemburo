@@ -77,9 +77,15 @@ describe('BaseModal', () => {
     expect(wrapper.find('.base-modal__close').exists()).toBe(false);
   });
 
-  // Опт-ин bottom-sheet со свайпом (#1097 W3.4): без флага - ползунка нет и жест не действует.
-  it('sheetSwipe=false (дефолт): ползунок не рендерится, свайп-вниз не эмитит close', async () => {
+  // Bottom-sheet теперь дефолт на мобилке (#1097 p2): без флага ползунок ЕСТЬ.
+  it('sheetSwipe по умолчанию включён: ползунок рендерится без флага', () => {
     const wrapper = mountModal();
+    expect(wrapper.find('.sheet-handle').exists()).toBe(true);
+  });
+
+  // Отключение через :sheet-swipe="false" - ползунка нет и жест не действует.
+  it('sheetSwipe=false (opt-out): ползунок не рендерится, свайп-вниз не эмитит close', async () => {
+    const wrapper = mountModal({ sheetSwipe: false });
     expect(wrapper.find('.sheet-handle').exists()).toBe(false);
     const modal = wrapper.find('.base-modal');
     await modal.trigger('touchstart', { touches: [{ clientY: 100 }] });
@@ -105,6 +111,22 @@ describe('BaseModal', () => {
     // dy = 40 < threshold 90 - лист вернётся на место, без закрытия
     await modal.trigger('touchstart', { touches: [{ clientY: 100 }] });
     await modal.trigger('touchmove', { touches: [{ clientY: 140 }] });
+    await modal.trigger('touchend');
+    expect(wrapper.emitted('close')).toBeUndefined();
+  });
+
+  // Регресс (#1097 p2): контент реально прокручен (активный скроллер scrollTop>0) ->
+  // свайп вниз = обычная прокрутка, НЕ закрытие. На >768px скроллер - само окно
+  // (body.scrollTop всегда 0), поэтому getScrollTop должен брать max, не body ??.
+  it('sheetSwipe: свайп при прокрученном окне (modal.scrollTop>0) НЕ эмитит close', async () => {
+    const wrapper = mountModal();
+    const modalEl = wrapper.find('.base-modal').element;
+    const bodyEl = wrapper.find('.base-modal__body').element;
+    Object.defineProperty(bodyEl, 'scrollTop', { value: 0, configurable: true });
+    Object.defineProperty(modalEl, 'scrollTop', { value: 120, configurable: true });
+    const modal = wrapper.find('.base-modal');
+    await modal.trigger('touchstart', { touches: [{ clientY: 100 }] });
+    await modal.trigger('touchmove', { touches: [{ clientY: 300 }] });
     await modal.trigger('touchend');
     expect(wrapper.emitted('close')).toBeUndefined();
   });
