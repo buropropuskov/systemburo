@@ -939,3 +939,28 @@ func TestSystemTables_WarningWindows_TableNotFound(t *testing.T) {
 		`{"message":"текст"}`, h)
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 }
+
+// Окно можно добавить только к активной таблице (checkParent требует is_active=true,
+// в отличие от мест разгрузки). Архивированная таблица -> 404.
+func TestSystemTables_WarningWindows_ArchivedTable(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	rec := testutil.POST(t, e, "/system-tables",
+		`{"name":"warn_win_archived","display_name":"Warn Archived","table_type":"cars"}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	tableID := int(testutil.ParseMap(t, rec)["id"].(float64))
+
+	// Архивируем таблицу (soft delete -> is_active=false)
+	rec = testutil.DELETE(t, e, fmt.Sprintf("/system-tables/%d", tableID), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// Добавление окна к архивной таблице отбивается 404
+	rec = testutil.POST(t, e, fmt.Sprintf("/system-tables/%d/warning-windows", tableID),
+		`{"message":"текст"}`, h)
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+}

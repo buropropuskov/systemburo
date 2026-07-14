@@ -14,8 +14,7 @@ import (
 )
 
 // warningWindowModel -- контракт модели окна-предупреждения: общий стор читает ID
-// после создания. Пока единственный потребитель -- UnloadPlaceWarningWindow;
-// аналог для системных таблиц (зеркало SystemTableTimeSlot) добавит след. срез.
+// после создания. Реализуют UnloadPlaceWarningWindow и SystemTableWarningWindow.
 type warningWindowModel interface {
 	GetID() int
 }
@@ -27,8 +26,8 @@ type warningWindowModel interface {
 // сущности (FK-колонка, проверка родителя, конструктор окна) задаётся полями.
 type warningWindowStore[T warningWindowModel] struct {
 	db          *gorm.DB
-	entity      string                                                // для логов: "unload_place" (аналог "system_table" -- в след. срезе)
-	fkColumn    string                                                // "unload_place_id" (аналог "table_id" -- в след. срезе)
+	entity      string                                                // для логов: "unload_place" / "system_table"
+	fkColumn    string                                                // "unload_place_id" / "table_id"
 	checkParent func(ctx context.Context, parentID int) error         // существование родителя + текст 404
 	newWindow   func(parentID int, req models.WarningWindowRequest) T // конструктор окна с FK и полями
 }
