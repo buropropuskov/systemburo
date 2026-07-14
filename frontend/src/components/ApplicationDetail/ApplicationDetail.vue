@@ -2214,7 +2214,7 @@ export default {
         max-width: 100%;
         height: 92dvh;
         max-height: 92dvh;
-        border-radius: 24px 24px 0 0;
+        border-radius: 16px 16px 0 0;
         /* Выезд снизу при появлении + snap-back после свайпа. */
         animation: detailSlideUp 0.3s ease-out;
         transition: transform 0.3s ease;
