@@ -12,9 +12,17 @@
           <!-- Основное модальное окно с деталями ТС -->
           <div
             class="modal-content compact-modal main-modal"
-            :class="{ 'shifted': isMainShifted }"
+            :class="{ 'shifted': isMainShifted, 'is-dragging': sheetDragging }"
+            :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
             @mousedown.stop
+            @touchstart="onSheetTouchStart"
+            @touchmove="onSheetTouchMove"
+            @touchend="onSheetTouchEnd"
           >
+            <div
+              class="sheet-handle"
+              aria-hidden="true"
+            />
             <div class="modal-header">
               <h3 class="modal-title">
                 {{ modalTitle }}
@@ -65,7 +73,10 @@
               </button>
             </div>
                     
-            <div class="modal-body">
+            <div
+              ref="sheetBody"
+              class="modal-body"
+            >
               <!-- Секция статуса ЧС -->
               <div
                 v-if="isBlacklisted"
@@ -478,6 +489,7 @@
 </template>
 
 <script>
+import { ref } from 'vue';
 import { apiRequest } from '@/api/client'
 import UnloadPlaceModal from './UnloadPlaceModal.vue';
 import TableInfoModal from './TableInfoModal.vue';
@@ -486,6 +498,7 @@ import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import AddToBlacklistModal from '@/components/admin/blacklist/AddToBlacklistModal.vue';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import { useEscapeClose } from '@/composables/useEscapeClose';
+import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import { usePermissionsStore } from '@/stores/permissions';
 import { getModalActionPermission } from '@/constants/detailModalActions';
 import { useDeletionsStore } from '@/stores/deletions';
@@ -563,7 +576,22 @@ export default {
     setup(props, { emit }) {
         const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => emit('close'));
         useEscapeClose(() => emit('close'), () => props.show);
-        return { onOverlayMousedown, onOverlayMouseup };
+        // Bottom-sheet свайп-вниз-закрытие на мобилке (#1097 r2). getScrollTop от тела:
+        // свайп из контента закрывает, только когда прокручено вверх; с ползунка - всегда.
+        const sheetBody = ref(null);
+        const swipe = useSwipeDismiss(() => emit('close'), {
+            getScrollTop: () => sheetBody.value?.scrollTop ?? 0,
+            handleSelector: '.sheet-handle',
+        });
+        return {
+            onOverlayMousedown, onOverlayMouseup,
+            sheetBody,
+            sheetOffset: swipe.offset,
+            sheetDragging: swipe.isDragging,
+            onSheetTouchStart: swipe.onTouchStart,
+            onSheetTouchMove: swipe.onTouchMove,
+            onSheetTouchEnd: swipe.onTouchEnd,
+        };
     },
     data() {
         return {
@@ -1908,19 +1936,49 @@ export default {
   opacity: 0;
 }
 
+/* Ползунок скрыт по умолчанию (десктоп), показывается только в bottom-sheet @768. */
+.sheet-handle {
+  display: none;
+}
+
 @media (max-width: 768px) {
   /* Bottom-sheet: wrapper центрировал контент (align-items:center + height:100%) и
      побеждал flex-end оверлея из App.vue - выравниваем к низу, модалка выезжает
-     снизу (detail 4). Ширина/скругление/слайд приходят из App.vue (.modal-content). */
+     снизу (detail 4). Ширина/скругление приходят из App.vue (.modal-content). */
   .modal-wrapper {
     align-items: flex-end;
   }
   .modal-content {
     width: 90%;
     left: 0 !important;
-    transform: none !important;
     height: auto;
     max-height: 80vh;
+    /* transition для свайп-спринга и слайда; НЕ transform:none!important - иначе
+       блокировался бы inline-transform свайпа (#1097 r2). */
+    transition: transform 0.3s ease;
+  }
+
+  .modal-content.is-dragging {
+    transition: none;
+  }
+
+  /* Ползунок bottom-sheet (тянуть вниз для закрытия). */
+  .sheet-handle {
+    display: block;
+    width: 40px;
+    height: 4px;
+    border-radius: 2px;
+    background: #d5d5db;
+    margin: 8px auto 0;
+    flex-shrink: 0;
+  }
+
+  /* Enter/leave = слайд снизу (перебивает базовый scale(.9)translateY(-20px) -
+     раньше модалка "спавнилась" поп-ом из центра, а не выезжала снизу). */
+  .modal-fade-enter-from .modal-content,
+  .modal-fade-leave-to .modal-content {
+    transform: translateY(100%);
+    opacity: 1;
   }
   
   .modal-content .modal-body {
