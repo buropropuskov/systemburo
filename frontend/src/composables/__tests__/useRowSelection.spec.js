@@ -93,6 +93,101 @@ describe('useRowSelection', () => {
     });
   });
 
+  describe('drag-select (startDrag/dragOver/endDrag)', () => {
+    it('startDrag с ctrl вооружает drag (true), но НЕ выделяет строку и не поднимает isDragging до движения', () => {
+      const handled = selection.startDrag(2, clickEvent({ ctrlKey: true }));
+      expect(handled).toBe(true);
+      expect(selection.isSelected(2)).toBe(false);
+      expect(selection.isDragging.value).toBe(false);
+    });
+
+    it('startDrag без модификатора не вооружает drag и ничего не выбирает', () => {
+      const handled = selection.startDrag(2, clickEvent());
+      expect(handled).toBe(false);
+      expect(selection.isDragging.value).toBe(false);
+      expect(selection.selectedIds.value).toHaveLength(0);
+    });
+
+    it('регресс #1194: ctrl+клик без движения остаётся обычным toggle (mousedown не крадёт выделение)', () => {
+      // gesture: mousedown(startDrag) -> mouseup(endDrag) -> click(handleRowClick)
+      selection.startDrag(2, clickEvent({ ctrlKey: true }));
+      selection.endDrag();
+      const handled = selection.handleRowClick(clickEvent({ ctrlKey: true }), 2, orderedIds);
+      expect(handled).toBe(true);
+      expect(selection.isSelected(2)).toBe(true); // ВЫБРАНА, а не снята
+    });
+
+    it('первое движение (dragOver другой строки) активирует drag: добавляет строку старта и пройденную', () => {
+      selection.startDrag(2, clickEvent({ ctrlKey: true }));
+      selection.dragOver(3);
+      expect(selection.isDragging.value).toBe(true);
+      expect(selection.selectedIds.value.sort()).toEqual([2, 3]);
+    });
+
+    it('drag ДОБАВЛЯЕТ пройденные строки, не сбрасывая прежнее выделение', () => {
+      selection.toggle(1); // прежнее выделение до drag
+      selection.startDrag(2, clickEvent({ ctrlKey: true }));
+      selection.dragOver(3);
+      selection.dragOver(4);
+      expect(selection.selectedIds.value.sort()).toEqual([1, 2, 3, 4]);
+    });
+
+    it('drag с metaKey (Mac Cmd) работает так же', () => {
+      selection.startDrag(2, clickEvent({ metaKey: true }));
+      selection.dragOver(3);
+      expect(selection.selectedIds.value.sort()).toEqual([2, 3]);
+    });
+
+    it('drag не снимает уже выбранную строку при повторном проходе', () => {
+      selection.startDrag(2, clickEvent({ ctrlKey: true }));
+      selection.dragOver(3);
+      selection.dragOver(3);
+      expect(selection.selectedIds.value.sort()).toEqual([2, 3]);
+    });
+
+    it('dragOver до startDrag ничего не добавляет', () => {
+      selection.dragOver(5);
+      expect(selection.selectedIds.value).toHaveLength(0);
+    });
+
+    it('endDrag останавливает drag - последующий dragOver не добавляет', () => {
+      selection.startDrag(2, clickEvent({ ctrlKey: true }));
+      selection.dragOver(3);
+      selection.endDrag();
+      selection.dragOver(5);
+      expect(selection.selectedIds.value.sort()).toEqual([2, 3]);
+      expect(selection.isDragging.value).toBe(false);
+    });
+
+    it('хвостовой click после реального drag подавляется (не снимает добавленную строку старта)', () => {
+      selection.startDrag(2, clickEvent({ ctrlKey: true }));
+      selection.dragOver(3); // было движение -> dragMoved
+      selection.endDrag();
+      const handled = selection.handleRowClick(clickEvent({ ctrlKey: true }), 2, orderedIds);
+      expect(handled).toBe(true); // клик потреблён
+      expect(selection.isSelected(2)).toBe(true); // строка старта осталась выбранной
+    });
+
+    it('гард хвостового клика живёт один жест - следующий mousedown его сбрасывает', () => {
+      selection.startDrag(2, clickEvent({ ctrlKey: true }));
+      selection.dragOver(3);
+      selection.endDrag();
+      // новый жест: mousedown сбрасывает гард -> обычный ctrl-клик снова тоггл
+      selection.startDrag(5, clickEvent({ ctrlKey: true }));
+      selection.endDrag();
+      const handled = selection.handleRowClick(clickEvent({ ctrlKey: true }), 5, orderedIds);
+      expect(handled).toBe(true);
+      expect(selection.isSelected(5)).toBe(true);
+    });
+
+    it('регресс: обычный ctrl-тоггл и shift-диапазон работают рядом с drag-API', () => {
+      selection.toggle(1);
+      selection.selectRange(3, orderedIds);
+      expect(selection.selectedIds.value.sort()).toEqual([1, 2, 3]);
+      expect(selection.isDragging.value).toBe(false);
+    });
+  });
+
   describe('clearSelection', () => {
     it('сбрасывает выделение и якорь', () => {
       selection.toggle(1);

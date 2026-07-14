@@ -319,6 +319,7 @@
         <div
           v-if="!isLoading && displayItems.length > 0"
           class="items-body"
+          :class="{ 'is-drag-selecting': isDragging }"
         >
           <transition-group
             name="fade-list"
@@ -331,6 +332,8 @@
               :class="{ 'item-row--expanded': expandedRows[item.id], 'item-row--selected': isSelected(item.id) }"
               :style="{ animationDelay: `${index * 0.05}s` }"
               @click="preview ? null : onRowClick($event, item)"
+              @mousedown="preview ? null : onRowMouseDown($event, item)"
+              @mouseenter="preview ? null : dragOver(item.id)"
             >
               <div class="item-data rt-row">
                 <div
@@ -900,9 +903,18 @@ export default {
     this.eventStreamStatusOff = eventStream.onStatus((status) => {
       this.sseConnected = status === 'connected';
     });
+
+    // Drag-select (#1227 P4): mouseup может произойти вне строки (курсор ушёл
+    // за пределы таблицы) - слушаем на window, иначе drag "залипнет".
+    this.onGlobalMouseUp = () => this.endDrag();
+    window.addEventListener('mouseup', this.onGlobalMouseUp);
   },
   beforeUnmount() {
     this.stopPolling();
+    if (this.onGlobalMouseUp) {
+      window.removeEventListener('mouseup', this.onGlobalMouseUp);
+      this.onGlobalMouseUp = null;
+    }
     if (this.preview) return; // preview никогда не подключался - нечего отключать
     if (this.eventStreamOff) {
       this.eventStreamOff();
@@ -1260,6 +1272,14 @@ export default {
       const orderedIds = this.displayItems.map(i => i.id);
       if (this.handleRowClick(event, item.id, orderedIds)) return;
       this.openEmployeeDetails(item);
+    },
+
+    // Ctrl(Cmd)+зажать курсор и вести (#1227 P4) - строки под курсором ДОБАВЛЯЮТСЯ
+    // к выделению (dragOver на @mouseenter соседних строк, endDrag по глобальному
+    // mouseup в mounted). preventDefault только когда drag реально стартовал -
+    // иначе обычный клик/выделение текста браузером не ломаются.
+    onRowMouseDown(event, item) {
+      if (this.startDrag(item.id, event)) event.preventDefault();
     },
 
     // Групповые операции над выделенными строками (#1194 S4): 'move' - перенести
@@ -1968,6 +1988,13 @@ export default {
   padding-right: 4px;
   margin-right: 4px;
   min-height: 80px;
+}
+
+/* Drag-select (#1227 P4): пока ведём курсор с зажатым Ctrl - не даём браузеру
+   выделить текст строк под курсором. */
+.items-body.is-drag-selecting,
+.items-body.is-drag-selecting * {
+  user-select: none;
 }
 
 .item-row {
