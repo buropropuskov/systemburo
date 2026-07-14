@@ -29,14 +29,16 @@
               <button
                 class="export-btn"
                 :disabled="filteredHistory.length === 0 || isExporting"
+                title="Экспорт в Excel"
+                aria-label="Экспорт в Excel"
                 @click="exportToExcel"
               >
                 <img
                   v-if="!isExporting"
                   src="@/assets/icons/export.png"
                   class="export-icon"
+                  alt=""
                 >
-                <span v-if="!isExporting">Экспорт</span>
                 <div
                   v-else
                   class="export-loader"
@@ -147,19 +149,17 @@
           
               <div class="date-filter">
                 <span class="filter-label">Период:</span>
-                <input 
-                  v-model="dateFrom" 
-                  type="date" 
-                  class="date-input"
-                  @change="applyFilters"
-                >
-                <span class="date-separator">—</span>
-                <input 
-                  v-model="dateTo" 
-                  type="date" 
-                  class="date-input"
-                  @change="applyFilters"
-                >
+                <DateFilter
+                  mode="range"
+                  :selected-date="filterSelectedDate"
+                  :date-range-start="filterRangeStart"
+                  :date-range-end="filterRangeEnd"
+                  @update:selected-date="filterSelectedDate = $event"
+                  @update:date-range-start="filterRangeStart = $event"
+                  @update:date-range-end="filterRangeEnd = $event"
+                  @apply="applyFilters"
+                  @clear="applyFilters"
+                />
               </div>
           
               <div class="sort-filter">
@@ -288,10 +288,12 @@ import { apiRequest } from '@/api/client';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import { useDeletionsStore } from '@/stores/deletions';
+import DateFilter from '../DateFilter.vue';
 import ExcelJS from 'exceljs';
 
 export default {
   name: 'EmployeeHistoryModal',
+  components: { DateFilter },
   props: {
     lastName: {
       type: String,
@@ -347,8 +349,9 @@ export default {
       searchQuery: '',
       selectedUserId: null,
       selectedPlaceId: null,
-      dateFrom: '',
-      dateTo: '',
+      filterSelectedDate: null,
+      filterRangeStart: null,
+      filterRangeEnd: null,
       userDropdownOpen: false,
       placeDropdownOpen: false,
       isExporting: false
@@ -418,14 +421,17 @@ export default {
         filtered = filtered.filter(item => item.table_id === this.selectedPlaceId);
       }
       
-      if (this.dateFrom) {
-        const fromDate = new Date(this.dateFrom);
+      // DateFilter в режиме range: одиночный день эмитит selectedDate, период - start/end.
+      const fromSource = this.filterSelectedDate || this.filterRangeStart;
+      if (fromSource) {
+        const fromDate = new Date(fromSource);
         fromDate.setHours(0, 0, 0, 0);
         filtered = filtered.filter(item => new Date(item.created_at) >= fromDate);
       }
-      
-      if (this.dateTo) {
-        const toDate = new Date(this.dateTo);
+
+      const toSource = this.filterSelectedDate || this.filterRangeEnd;
+      if (toSource) {
+        const toDate = new Date(toSource);
         toDate.setHours(23, 59, 59, 999);
         filtered = filtered.filter(item => new Date(item.created_at) <= toDate);
       }
@@ -943,16 +949,15 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 6px 16px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
   background: white;
   border: 1px solid #e6e6e6;
-  border-radius: 20px;
-  font-size: 13px;
+  border-radius: 50%;
   color: #000;
   cursor: pointer;
   transition: all 0.2s ease;
-  height: 32px;
 }
 
 .export-btn:hover:not(:disabled) {
@@ -966,8 +971,8 @@ export default {
 }
 
 .export-icon {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
 }
 
 .export-loader {
@@ -1135,19 +1140,6 @@ export default {
   font-weight: 500;
 }
 
-.date-input {
-  padding: 6px 8px;
-  border: 1px solid #e6e6e6;
-  border-radius: 15px;
-  font-size: 12px;
-  width: 120px;
-  height: 32px;
-}
-
-.date-separator {
-  color: #a2a2a2;
-  font-size: 12px;
-}
 
 .sort-btn {
   display: flex;
@@ -1418,13 +1410,8 @@ export default {
   
   .custom-select,
   .search-input,
-  .date-input,
   .sort-btn {
     width: 100%;
-  }
-  
-  .date-input {
-    width: calc(50% - 20px);
   }
 }
 </style>
