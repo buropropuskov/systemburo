@@ -79,6 +79,22 @@ describe('useSwipeDismiss', () => {
     vi.useRealTimers();
   });
 
+  it('тач по полю ввода (textarea/input) НЕ активирует свайп - ввод/каретка не глотаются (#1097 R4-5)', () => {
+    const onDismiss = vi.fn();
+    const s = useSwipeDismiss(onDismiss, { threshold: 90 });
+    // target внутри textarea: closest() матчит поле ввода.
+    const fieldEl = { closest: (sel) => (sel.includes('textarea') ? {} : null) };
+    const pd = vi.fn();
+    s.onTouchStart({ touches: [{ clientY: 100 }], target: fieldEl, cancelable: true, preventDefault: vi.fn() });
+    s.onTouchMove({ touches: [{ clientY: 250 }], cancelable: true, preventDefault: pd });
+    // Лист не тянется, preventDefault не вызван (жест каретки/выделения не перехвачен).
+    expect(s.offset.value).toBe(0);
+    expect(s.isDragging.value).toBe(false);
+    expect(pd).not.toHaveBeenCalled();
+    s.onTouchEnd();
+    expect(onDismiss).not.toHaveBeenCalled();
+  });
+
   it('дребезг в мёртвой зоне (< slop) не перехватывает событие - не глотает тап/клик', () => {
     const onDismiss = vi.fn();
     const s = useSwipeDismiss(onDismiss, { threshold: 90, slop: 8 });

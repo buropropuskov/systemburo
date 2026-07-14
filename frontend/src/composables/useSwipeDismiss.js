@@ -51,8 +51,13 @@ export function useSwipeDismiss(onDismiss, options = {}) {
     clearTimers();
     startY = e.touches[0].clientY;
     const fromHandle = !!(handleSelector && e.target?.closest?.(handleSelector));
-    // Свайп-закрытие только с ползунка или когда контент прокручен вверх.
-    active = fromHandle || getScrollTop() <= 0;
+    // Тач, начатый в поле ввода (textarea/input/select/contenteditable), НЕ трактуем как
+    // свайп-закрытие: жест каретки/выделения/скролла внутри поля не должен таскать и
+    // закрывать лист - иначе на мобилке preventDefault глотает фокус/ввод, и текст не
+    // набрать (#1097 R4-5). Свайп с ползунка/пустых зон работает как прежде.
+    const onFormField = !!e.target?.closest?.('textarea, input, select, [contenteditable="true"]');
+    // Свайп-закрытие только с ползунка или когда контент прокручен вверх, и не с поля ввода.
+    active = !onFormField && (fromHandle || getScrollTop() <= 0);
     reset();
   }
 
