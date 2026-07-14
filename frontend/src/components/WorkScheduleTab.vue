@@ -4,14 +4,26 @@
       <h4 class="schedule-tab__header-title">
         Режим работы
       </h4>
-      <button
+      <div
         v-if="!readonly"
-        class="add-btn"
-        :disabled="isLoading"
-        @click="openAddModal"
+        class="schedule-tab__header-actions"
       >
-        + Добавить окно
-      </button>
+        <button
+          class="copy-btn"
+          data-testid="copy-schedule-btn"
+          :disabled="isLoading"
+          @click="openCopyModal"
+        >
+          Скопировать расписание
+        </button>
+        <button
+          class="add-btn"
+          :disabled="isLoading"
+          @click="openAddModal"
+        >
+          + Добавить окно
+        </button>
+      </div>
     </div>
     <p class="schedule-tab__hint">
       Дни без активных окон считаются нерабочими. Круглосуточный режим заменяет
@@ -229,6 +241,161 @@
       </transition>
     </Teleport>
 
+    <!-- Модалка копирования расписания -->
+    <Teleport to="body">
+      <transition name="modal-fade">
+        <div
+          v-if="copyModalOpen"
+          class="modal-overlay"
+          @click.self="closeCopyModal"
+        >
+          <div class="modal-content">
+            <div class="modal-header">
+              <h3 class="modal-title">
+                Скопировать расписание
+              </h3>
+              <button
+                class="modal-close"
+                @click="closeCopyModal"
+              >
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 14 14"
+                >
+                  <path
+                    d="M13 1L1 13M1 1L13 13"
+                    stroke="#666"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <div class="modal-body copy-modal-body">
+              <!-- День-источник -->
+              <div class="field">
+                <label class="field-label">Скопировать с дня *</label>
+                <div
+                  ref="copySelectRef"
+                  class="custom-select"
+                  @click="toggleCopyDayDropdown"
+                >
+                  <div class="select-trigger">
+                    <span>{{ getFullDayName(copySourceDay) }}</span>
+                    <img
+                      src="@/assets/icons/arrow.png"
+                      class="select-arrow"
+                      :class="{ open: copyDayDropdownOpen }"
+                      width="9"
+                      height="9"
+                    >
+                  </div>
+                  <transition name="dropdown">
+                    <div
+                      v-if="copyDayDropdownOpen"
+                      class="select-dropdown"
+                    >
+                      <div
+                        v-for="(dayName, idx) in fullDayNames"
+                        :key="idx"
+                        class="select-option"
+                        :class="{ selected: copySourceDay === idx }"
+                        @click.stop="selectCopySourceDay(idx)"
+                      >
+                        {{ dayName }}
+                      </div>
+                    </div>
+                  </transition>
+                </div>
+              </div>
+
+              <!-- Превью окон источника -->
+              <div class="copy-preview">
+                <span class="copy-preview__label">Что скопируется:</span>
+                <div
+                  v-if="copySourceIsRound"
+                  class="copy-preview__value copy-preview__value--round"
+                >
+                  круглосуточно
+                </div>
+                <template v-else-if="copySourceSlots.length">
+                  <div
+                    v-for="slot in copySourceSlots"
+                    :key="slot.id"
+                    class="copy-preview__value"
+                  >
+                    {{ formatTime(slot.open_time) }} – {{ formatTime(slot.close_time) }}
+                    <span
+                      v-if="slot.is_next_day"
+                      class="copy-preview__nextday"
+                    >след. день</span>
+                  </div>
+                </template>
+                <div
+                  v-else
+                  class="copy-preview__value copy-preview__value--empty"
+                >
+                  нерабочий день (окна будут очищены)
+                </div>
+              </div>
+
+              <!-- Дни-цели -->
+              <div class="field">
+                <label class="field-label">На какие дни *</label>
+                <div class="copy-targets">
+                  <label
+                    v-for="(dayName, idx) in fullDayNames"
+                    :key="idx"
+                    class="copy-target"
+                    :class="{
+                      'copy-target--source': idx === copySourceDay,
+                      'copy-target--checked': copyTargetDays.includes(idx),
+                    }"
+                  >
+                    <input
+                      type="checkbox"
+                      :data-testid="`copy-target-${idx}`"
+                      :checked="copyTargetDays.includes(idx)"
+                      :disabled="idx === copySourceDay"
+                      @change="toggleCopyTargetDay(idx)"
+                    >
+                    <span class="copy-target__name">{{ dayName }}</span>
+                    <span
+                      v-if="idx === copySourceDay"
+                      class="copy-target__badge"
+                    >источник</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="copy-warning">
+                Существующие окна выбранных дней будут заменены.
+              </div>
+            </div>
+
+            <div class="modal-footer">
+              <button
+                class="modal-btn cancel"
+                @click="closeCopyModal"
+              >
+                Отмена
+              </button>
+              <button
+                class="modal-btn confirm"
+                data-testid="copy-confirm-btn"
+                :disabled="!copyTargetDays.length || isLoading"
+                @click="performCopySchedule"
+              >
+                Скопировать
+              </button>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </Teleport>
+
     <ConfirmationModal
       :show="!!deleteConfirmSlot"
       title="Удаление временного окна"
@@ -268,6 +435,10 @@ export default {
       dayDropdownOpen: false,
       timeConflictError: '',
       deleteConfirmSlot: null,
+      copyModalOpen: false,
+      copySourceDay: 0,
+      copyTargetDays: [],
+      copyDayDropdownOpen: false,
       fullDayNames: ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'],
     };
   },
@@ -276,6 +447,18 @@ export default {
     modalNextDay() {
       if (!this.modalOpenTime || !this.modalCloseTime) return false;
       return this.modalCloseTime < this.modalOpenTime;
+    },
+
+    // Активные окна дня-источника для превью копирования (включая круглосуточное)
+    copySourceSlots() {
+      return this.timeSlots
+        .filter(s => s.day_of_week === this.copySourceDay && s.is_active)
+        .slice()
+        .sort((a, b) => this.formatTime(a.open_time).localeCompare(this.formatTime(b.open_time)));
+    },
+
+    copySourceIsRound() {
+      return this.hasActiveRoundTheClock(this.copySourceDay);
     },
   },
   watch: {
@@ -301,6 +484,9 @@ export default {
     handleClickOutside(event) {
       if (this.dayDropdownOpen && this.$refs.selectRef && !this.$refs.selectRef.contains(event.target)) {
         this.dayDropdownOpen = false;
+      }
+      if (this.copyDayDropdownOpen && this.$refs.copySelectRef && !this.$refs.copySelectRef.contains(event.target)) {
+        this.copyDayDropdownOpen = false;
       }
     },
 
@@ -465,12 +651,14 @@ export default {
             await this.updateSlotActivity(slot.id, true);
           }
         }
-
-        this.$emit('update');
       } catch (e) {
         console.error(e);
         useDeletionsStore().notify({ prefix: 'Не удалось изменить ', bold: 'режим работы', type: 'error' });
       } finally {
+        // Перечитываем состояние всегда: при частичном сбое день остаётся в
+        // промежуточном виде, а чекбокс 24/7 залипает в кликнутом состоянии -
+        // refetch родителя синхронизирует UI с реальным состоянием сервера.
+        this.$emit('update');
         this.isLoading = false;
       }
     },
@@ -618,6 +806,89 @@ export default {
         throw new Error('Ошибка при создании');
       }
     },
+
+    openCopyModal() {
+      this.copySourceDay = 0;
+      this.copyTargetDays = [];
+      this.copyDayDropdownOpen = false;
+      this.copyModalOpen = true;
+    },
+
+    closeCopyModal() {
+      this.copyModalOpen = false;
+      this.copyDayDropdownOpen = false;
+    },
+
+    toggleCopyDayDropdown() {
+      this.copyDayDropdownOpen = !this.copyDayDropdownOpen;
+    },
+
+    selectCopySourceDay(idx) {
+      this.copySourceDay = idx;
+      this.copyDayDropdownOpen = false;
+      // Источник не может быть целью — снимаем его из выбранных дней
+      this.copyTargetDays = this.copyTargetDays.filter(d => d !== idx);
+    },
+
+    toggleCopyTargetDay(idx) {
+      if (idx === this.copySourceDay) return;
+      const pos = this.copyTargetDays.indexOf(idx);
+      if (pos === -1) this.copyTargetDays.push(idx);
+      else this.copyTargetDays.splice(pos, 1);
+    },
+
+    async performCopySchedule() {
+      if (!this.copyTargetDays.length || this.isLoading) return;
+
+      const targets = [...this.copyTargetDays];
+      // Снимок активных окон источника ДО мутаций (open/close в формате ЧЧ:ММ)
+      const sourceSlots = this.timeSlots
+        .filter(s => s.day_of_week === this.copySourceDay && s.is_active)
+        .map(s => ({
+          open: this.formatTime(s.open_time),
+          close: this.formatTime(s.close_time),
+          isNextDay: s.is_next_day,
+        }));
+
+      this.isLoading = true;
+      // Отслеживаем, была ли реальная мутация на сервере: даже при частичном
+      // сбое UI обязан перечитать состояние (иначе покажет старое расписание,
+      // рассинхрон с сервером, а повторный клик ударит по устаревшим id).
+      let mutated = false;
+      try {
+        for (const target of targets) {
+          // Снимок старых окон дня-цели ДО создания копий.
+          const existing = this.getAllSlotsForDay(target);
+          // Полная замена по схеме create-then-delete: сначала создаём копии
+          // активных окон источника, затем удаляем старые окна цели. Бэк не
+          // валидирует пересечения окон (timeslot_store), поэтому временное
+          // сосуществование старых и новых безвредно; при сбое между шагами
+          // худший случай - дубли окон (вход остаётся доступным), а не пустой
+          // день (вход закрыт), чего атомарности с фронта не гарантировать.
+          for (const s of sourceSlots) {
+            await this.createSlot(target, s.open, s.close, s.isNextDay);
+            mutated = true;
+          }
+          for (const slot of existing) {
+            await this.deleteTimeSlot(slot.id);
+            mutated = true;
+          }
+        }
+
+        this.closeCopyModal();
+        useDeletionsStore().notify({
+          prefix: 'Расписание скопировано на ',
+          bold: targets.map(d => this.getFullDayName(d)).join(', '),
+          type: 'success',
+        });
+      } catch (e) {
+        console.error(e);
+        useDeletionsStore().notify({ prefix: 'Не удалось скопировать ', bold: 'расписание', type: 'error' });
+      } finally {
+        if (mutated) this.$emit('update');
+        this.isLoading = false;
+      }
+    },
   },
 };
 </script>
@@ -648,6 +919,119 @@ export default {
 .add-btn:disabled {
   background: #ccc;
   cursor: not-allowed;
+}
+
+.schedule-tab__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.copy-btn {
+  padding: 6px 14px;
+  background: #fff;
+  color: #4F5BDF;
+  border: 1px solid #4F5BDF;
+  border-radius: 20px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+.copy-btn:hover:not(:disabled) {
+  background: #f0f3ff;
+}
+.copy-btn:disabled {
+  border-color: #ccc;
+  color: #aaa;
+  cursor: not-allowed;
+}
+
+/* Превью окон источника в модалке копирования */
+.copy-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  background: #f8f9fa;
+  border: 1px solid #e6e6e6;
+  border-radius: 15px;
+  margin-bottom: 18px;
+}
+.copy-preview__label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #6b7280;
+}
+.copy-preview__value {
+  font-size: 13px;
+  font-weight: 500;
+  color: #333;
+}
+.copy-preview__value--round {
+  color: #4F5BDF;
+}
+.copy-preview__value--empty {
+  color: #aaa;
+  font-style: italic;
+  font-weight: 400;
+}
+.copy-preview__nextday {
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 500;
+  color: #6b7280;
+}
+
+/* Дни-цели в модалке копирования */
+.copy-targets {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+.copy-target {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+.copy-target:hover {
+  border-color: #4F5BDF;
+}
+.copy-target--checked {
+  border-color: #4F5BDF;
+  background: #f0f3ff;
+}
+.copy-target--source {
+  cursor: not-allowed;
+  background: #f5f5f5;
+  border-color: #e6e6e6;
+}
+.copy-target input {
+  accent-color: #4F5BDF;
+  cursor: inherit;
+}
+.copy-target__name {
+  font-size: 13px;
+  color: #333;
+}
+.copy-target__badge {
+  margin-left: auto;
+  font-size: 10px;
+  color: #aaa;
+}
+
+.copy-warning {
+  font-size: 12px;
+  color: #f39c12;
+  background: #fff8e7;
+  padding: 8px 12px;
+  border-radius: 15px;
+  margin-top: 4px;
 }
 
 .schedule-tab__header-top {
@@ -919,6 +1303,14 @@ input:checked + .switch-slider:before {
   padding: 22px;
   height: 250px;
   overflow-y: auto;
+}
+
+/* Модалка копирования расписания несёт больше контента (селект + превью +
+   сетка из 7 дней + предупреждение) - тело растёт по контенту, скролл
+   включается только когда не влезает в экран (маленькая высота вьюпорта). */
+.copy-modal-body {
+  height: auto;
+  max-height: 65vh;
 }
 
 .modal-footer {
