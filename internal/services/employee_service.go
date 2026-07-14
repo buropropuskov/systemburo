@@ -789,7 +789,6 @@ func (s *employeeService) BulkMoveTable(ctx context.Context, req EmployeeBulkMov
 	fromTableID := req.FromTableID
 
 	res := newBulkResult()
-	changedIDs := make([]int, 0, len(req.IDs))
 	for _, id := range uniqueInts(req.IDs) {
 		employee, ok := s.loadEmployeeBasic(ctx, id)
 		if !ok {
@@ -824,10 +823,13 @@ func (s *employeeService) BulkMoveTable(ctx context.Context, req EmployeeBulkMov
 			res.addError(id, fullName, bulkErrMsg(err))
 			continue
 		}
-		changedIDs = append(changedIDs, id)
 		res.SuccessCount++
 	}
-	s.tablesProducer.NotifyEmployeesChangedBatch(ctx, changedIDs)
+	// Явные id (не пост-состояние employee_target_tables, #1194 S6): после переноса
+	// исходная таблица уже не содержит сотрудника, NotifyEmployeesChangedBatch её
+	// аудиторию не увидела бы (см. TablesRefreshPublisher.NotifyTables) - её зрителям
+	// нужен сигнал, чтобы строка live исчезла. Зеркало carService.BulkMoveTable.
+	s.tablesProducer.NotifyTables(ctx, append([]int{fromTableID}, toIDs...))
 	return res.finalize(), nil
 }
 
@@ -892,7 +894,6 @@ func (s *employeeService) BulkUnbindTable(ctx context.Context, req EmployeeBulkU
 	tableID := req.TableID
 
 	res := newBulkResult()
-	changedIDs := make([]int, 0, len(req.IDs))
 	for _, id := range uniqueInts(req.IDs) {
 		employee, ok := s.loadEmployeeBasic(ctx, id)
 		if !ok {
@@ -942,9 +943,12 @@ func (s *employeeService) BulkUnbindTable(ctx context.Context, req EmployeeBulkU
 			res.addError(id, fullName, bulkErrMsg(err))
 			continue
 		}
-		changedIDs = append(changedIDs, id)
 		res.SuccessCount++
 	}
-	s.tablesProducer.NotifyEmployeesChangedBatch(ctx, changedIDs)
+	// Явный id (не пост-состояние employee_target_tables, #1194 S6): после снятия
+	// привязки таблица уже не содержит сотрудника, NotifyEmployeesChangedBatch её
+	// аудиторию не увидела бы (см. TablesRefreshPublisher.NotifyTables) - её зрителям
+	// нужен сигнал, чтобы строка live исчезла. Зеркало carService.BulkUnbindTable.
+	s.tablesProducer.NotifyTables(ctx, []int{tableID})
 	return res.finalize(), nil
 }

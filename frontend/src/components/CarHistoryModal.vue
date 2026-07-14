@@ -482,7 +482,10 @@ export default {
         'unblacklisted': 'dot-activate',
         'blacklist_override': 'dot-activate',
         'blacklist_override_revoke': 'dot-deactivate',
-        'added_to_table': 'dot-create'
+        'added_to_table': 'dot-create',
+        // Групповые операции над таблицами проходной (#1194 S1/S6).
+        'moved_between_tables': 'dot-update',
+        'unbound_from_table': 'dot-deactivate'
       };
       return classes[actionType] || 'dot-default';
     },
@@ -516,7 +519,9 @@ export default {
         'unblacklisted': 'Снят с чёрного списка',
         'blacklist_override': 'Пропущен несмотря на подозрение в обходе ЧС',
         'blacklist_override_revoke': 'Отменено подтверждение пропуска (обход ЧС)',
-        'added_to_table': 'Добавлен в таблицу проходной'
+        'added_to_table': 'Добавлен в таблицу проходной',
+        'moved_between_tables': 'Перенесён между таблицами',
+        'unbound_from_table': 'Снят с таблицы'
       };
 
       let text = texts[item.action_type] || item.action_type;
