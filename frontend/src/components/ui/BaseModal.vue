@@ -394,6 +394,21 @@ export default {
     overscroll-behavior: contain;
   }
 
+  /* Компактная шапка на мобилке: близко посаженный заголовок + меньший ползунок и
+     тач-таргет крестика (40px хватает, лист ещё закрывается свайпом/оверлеем) - высокая
+     шапка (69px из-за 44px крестика + padding 12) съедала место под контент (#1097 R4-6/8). */
+  .base-modal .sheet-handle {
+    margin: 6px auto 0;
+  }
+
+  .base-modal__header {
+    padding: 6px 16px;
+  }
+
+  .base-modal__title {
+    font-size: 16px;
+  }
+
   /* Sheet-вариант: выезжает снизу, тянется за пальцем 1:1 во время свайпа. */
   .base-modal--sheet {
     transition: transform 0.34s cubic-bezier(0.32, 0.72, 0, 1);
@@ -424,8 +439,8 @@ export default {
   }
 
   .base-modal__close {
-    min-width: 44px;
-    min-height: 44px;
+    min-width: 40px;
+    min-height: 40px;
   }
 
   .base-modal__body input[type="text"],
