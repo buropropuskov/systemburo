@@ -65,3 +65,35 @@ export async function getUniqueEmployeesPaginated(params = {}) {
     meta: body.meta || { total: 0, page: 1, per_page: 30 },
   };
 }
+
+/**
+ * Групповой перенос сотрудников между таблицами «Проход» (#1194): снимает
+ * привязку к fromTableId и привязывает к каждой из toTableIds. Возвращает
+ * BulkOpResult ({success_count, error_count, errors:[{id, name, error}]}),
+ * развёрнутый из envelope - на 200/207 (успех/частичный успех) это data, на
+ * структурную ошибку (400/403) - {message} (см. bulkRequest в api/organizations.js).
+ * @param {number[]} ids
+ * @param {number} fromTableId
+ * @param {number[]} toTableIds
+ */
+export async function bulkMoveEmployeesTable(ids, fromTableId, toTableIds) {
+  const res = await apiRequest('/employees/bulk/move-table', {
+    method: 'POST',
+    body: JSON.stringify({ ids, from_table_id: fromTableId, to_table_ids: toTableIds }),
+  });
+  return res.json();
+}
+
+/**
+ * Групповое добавление сотрудников в таблицы «Проход» (#1194), не снимая
+ * текущие привязки. Возвращает BulkOpResult, см. bulkMoveEmployeesTable.
+ * @param {number[]} ids
+ * @param {number[]} tableIds
+ */
+export async function bulkAddEmployeesTable(ids, tableIds) {
+  const res = await apiRequest('/employees/bulk/add-table', {
+    method: 'POST',
+    body: JSON.stringify({ ids, table_ids: tableIds }),
+  });
+  return res.json();
+}

@@ -363,26 +363,12 @@
         v-if="fieldRequired('target_tables')"
         class="required"
       >*</span></label>
-      <div
+      <TargetTablesGrid
         v-if="!loadingPassageTables && filteredPassageTables.length > 0"
-        class="passage__grid"
-      >
-        <div 
-          v-for="table in filteredPassageTables" 
-          :key="table.table.id"
-          class="passage__item"
-          :class="{ 
-            'passage__item--active': selectedPassageTables.includes(table.table.id) && table.table.status === 'active',
-            'passage__item--attached': attachedTablesIds.includes(table.table.id),
-            'passage__item--inactive': table.table.status !== 'active'
-          }"
-          @click="togglePassageTable(table)"
-          @mouseenter="showTableTooltip(table, $event)"
-          @mouseleave="hideTableTooltip"
-        >
-          {{ table.table.display_name }}
-        </div>
-      </div>
+        v-model="selectedPassageTables"
+        :tables="filteredPassageTables"
+        :attached-ids="attachedTablesIds"
+      />
       <div
         v-else-if="loadingPassageTables"
         class="loading-message"
@@ -403,16 +389,6 @@
       </div>
     </div>
 
-    <div
-      v-if="tableTooltip.visible" 
-      class="inactive-tooltip"
-      :style="{ top: tableTooltip.y + 'px', left: tableTooltip.x + 'px' }"
-    >
-      <div class="inactive-tooltip-content">
-        {{ tableTooltip.text }}
-      </div>
-    </div>
-
     <ExistingEmployeesModal
       :visible="showExistingEmployeesModal"
       :already-added-employees="existingEmployees"
@@ -430,6 +406,7 @@ import { checkPersonBlacklist } from '@/api/blacklist'
 import { useAuthStore } from '@/stores/auth'
 import { useDeletionsStore } from '@/stores/deletions'
 import ExistingEmployeesModal from '@/components/CreateApplication/ExistingEmployeesModal.vue'
+import TargetTablesGrid from '@/components/CreateApplication/TargetTablesGrid.vue'
 import { useFormValidation } from '@/composables/useFormValidation'
 import { useFieldConfig } from '@/composables/useFieldConfig'
 import { getCurrentInstance } from 'vue'
@@ -437,7 +414,8 @@ import { getCurrentInstance } from 'vue'
 export default {
     name: 'EmployeeForm',
     components: {
-        ExistingEmployeesModal
+        ExistingEmployeesModal,
+        TargetTablesGrid
     },
     props: {
         userOrganization: {
@@ -579,12 +557,6 @@ export default {
 
             editingEmployee: null,
 
-            tableTooltip: {
-                visible: false,
-                text: '',
-                x: 0,
-                y: 0
-            },
             // Проверка ЧС (#443): null или { is_blacklisted, reason }
             blacklistInfo: null,
             blacklistTimeout: null
@@ -818,27 +790,6 @@ export default {
             return '';
         },
 
-        showTableTooltip(table, event) {
-            if (table.table.status !== 'active') {
-                const tooltipText = table.table.status_comment 
-                    ? `Недоступно: ${table.table.status_comment}`
-                    : 'Недоступно';
-                
-                this.tableTooltip.text = tooltipText;
-                this.tableTooltip.visible = true;
-                
-                this.$nextTick(() => {
-                    const rect = event.target.getBoundingClientRect();
-                    this.tableTooltip.x = rect.left + rect.width / 2;
-                    this.tableTooltip.y = rect.top - 10;
-                });
-            }
-        },
-
-        hideTableTooltip() {
-            this.tableTooltip.visible = false;
-        },
-
         formatNameField(fieldName) {
             if (this[fieldName]) {
                 this[fieldName] = this.formatName(this[fieldName]);
@@ -880,19 +831,6 @@ export default {
             }, 500);
         },
 
-        togglePassageTable(table) {
-            if (table.table.status !== 'active') {
-                return;
-            }
-            
-            const index = this.selectedPassageTables.indexOf(table.table.id);
-            if (index > -1) {
-                this.selectedPassageTables.splice(index, 1);
-            } else {
-                this.selectedPassageTables.push(table.table.id);
-            }
-        },
-        
         validatePassageTables() {
             this.errors.passageTables = this.selectedPassageTables.length === 0 ? '' : '';
         },
@@ -1653,58 +1591,6 @@ export default {
     margin-top: 15px;
 }
 
-.passage__grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-    row-gap: 5px;
-    max-width: 425px;
-    margin-top: 5px;
-}
-
-.passage__item {
-    height: 30px;
-    background: #F2F2F2;
-    color: #a2a2a2;
-    border-radius: 50px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-    padding: 0 10px;
-    text-align: center;
-    border: 1px solid transparent;
-    position: relative;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.passage__item:hover:not(.passage__item--active):not(.passage__item--inactive) {
-    background: #e8e8e8;
-}
-
-.passage__item--active {
-    background: #4F5BDF;
-    color: #fff;
-    border-color: #4F5BDF;
-}
-
-.passage__item--inactive {
-    background: #ffe6e6;
-    color: #ff6b6b;
-    border-color: #ffcccc;
-    cursor: not-allowed;
-    opacity: 0.7;
-}
-
-.passage__item--attached {
-    border-left: 3px solid #4F5BDF;
-}
-
 .error-message {
     font-size: 11px;
     color: #ff4444;
@@ -1806,35 +1692,6 @@ export default {
     opacity: 0.6;
 }
 
-/* Tooltip для неактивных таблиц */
-.inactive-tooltip {
-    position: fixed;
-    transform: translateX(-50%) translateY(-100%);
-    z-index: 10000;
-    pointer-events: none;
-}
-
-.inactive-tooltip-content {
-    background: #333;
-    color: white;
-    padding: 8px 12px;
-    border-radius: 8px;
-    font-size: 12px;
-    max-width: 300px;
-
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-}
-
-.inactive-tooltip-content::before {
-    content: '';
-    position: absolute;
-    top: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    border: 5px solid transparent;
-    border-top-color: #333;
-}
-
 
 .dropdown-enter-active,
 .dropdown-leave-active {
@@ -1896,11 +1753,6 @@ export default {
     .completion__name-row {
         flex-direction: column;
         gap: 15px;
-    }
-
-    .passage__grid {
-        grid-template-columns: repeat(2, 1fr);
-        max-width: 100%;
     }
 }
 </style>
