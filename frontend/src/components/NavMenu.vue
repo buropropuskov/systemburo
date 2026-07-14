@@ -893,7 +893,6 @@ export default {
     }
     // Обязательно снимаем body lock если компонент unmount'нулся в открытом состоянии
     document.body.classList.remove('nav-drawer-open');
-    this.detachDrawerVv();
   },
   methods: {
     // Гейтинг по правам (#187 Фаза 2). super -> всегда true, admin -> всё кроме
@@ -973,45 +972,11 @@ export default {
       this.mobileOpen = !this.mobileOpen;
       // Блокируем scroll body когда drawer открыт
       document.body.classList.toggle('nav-drawer-open', this.mobileOpen);
-      if (this.mobileOpen) this.attachDrawerVv();
-      else this.detachDrawerVv();
     },
     closeMobile() {
       if (!this.mobileOpen) return;
       this.mobileOpen = false;
       document.body.classList.remove('nav-drawer-open');
-      this.detachDrawerVv();
-    },
-    /**
-     * Высота drawer'а = точная видимая высота (visualViewport.height). CSS dvh в
-     * Яндекс-браузере лагает при выезде футера и drawer «перестраивается» рывками -
-     * JS-переменная --nav-drawer-h убирает джанк. Вешаем слушатели только пока
-     * drawer открыт; фолбэк на 100dvh в CSS, если visualViewport недоступен.
-     */
-    syncDrawerHeight() {
-      // Клавиатура открыта (фокус в поле внутри drawer'а) сжимает visualViewport - НЕ
-      // уменьшаем высоту панели под клавиатуру, иначе drawer прыгает (навпанель 3).
-      // Держим последнюю высоту; вернём при закрытии клавиатуры (blur -> resize).
-      const ae = document.activeElement;
-      const navEl = document.querySelector('.nav-menu');
-      if (ae && navEl && navEl.contains(ae) && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) {
-        return;
-      }
-      const vv = window.visualViewport;
-      const h = vv ? vv.height : window.innerHeight;
-      document.documentElement.style.setProperty('--nav-drawer-h', `${Math.round(h)}px`);
-    },
-    attachDrawerVv() {
-      if (!window.visualViewport) return;
-      this.syncDrawerHeight();
-      window.visualViewport.addEventListener('resize', this.syncDrawerHeight);
-      window.visualViewport.addEventListener('scroll', this.syncDrawerHeight);
-    },
-    detachDrawerVv() {
-      if (!window.visualViewport) return;
-      window.visualViewport.removeEventListener('resize', this.syncDrawerHeight);
-      window.visualViewport.removeEventListener('scroll', this.syncDrawerHeight);
-      document.documentElement.style.removeProperty('--nav-drawer-h');
     },
     /**
      * Открыть форму обратной связи из drawer'а. Закрываем drawer и ЖДЁМ конца его
@@ -2151,10 +2116,10 @@ export default {
     transform: translateX(-100%);
     transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
     z-index: 10000;
-    /* Высота = visualViewport.height (JS var --nav-drawer-h): в Яндекс-браузере CSS dvh
-       лагает/прыгает при выезде футера, из-за чего drawer «перестраивался». JS отдаёт
-       точную видимую высоту без джанка; фолбэк 100dvh для браузеров без visualViewport. */
-    height: var(--nav-drawer-h, 100dvh);
+    /* Нативный dvh: композитор держит высоту по видимой области без reflow-лага.
+       Под дефолтным meta viewport dvh не реагирует на клавиатуру - drawer остаётся
+       на всю высоту, без прыжков под баром браузера (#1097 R5-S3). */
+    height: 100dvh;
   }
 
   /* Drawer всегда фиксированной "мобильной" ширины - даже если применился
@@ -2329,8 +2294,8 @@ export default {
     width: 280px;
     max-width: 85vw;
     z-index: 10001;
-    /* visualViewport-высота, как у .nav-menu - не обрезается/не прыгает под баром браузера. */
-    height: var(--nav-drawer-h, 100dvh);
+    /* Нативный dvh, как у .nav-menu - не обрезается/не прыгает под баром браузера. */
+    height: 100dvh;
   }
 
   .admin-back {
