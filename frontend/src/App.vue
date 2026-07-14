@@ -326,6 +326,16 @@ body.auth-active .content__container {
   width: 100%;
 }
 
+/* На мобилке шапка (TheHeader) - position:fixed (следует за видимой областью через
+   --app-vvt, чинит 5px-дёрганье при сворачивании адресной строки Яндекса, #1097 R4-2).
+   fixed убирает шапку из потока - резервируем её высоту (60px = min-height .header),
+   иначе контент уезжает под шапку. Только auth-active: на логине/ошибках шапки нет. */
+@media (max-width: 768px) {
+  body.auth-active #main-content {
+    padding-top: 60px;
+  }
+}
+
 /* Блокировка body-scroll пока mobile drawer открыт */
 body.nav-drawer-open {
   overflow: hidden;
