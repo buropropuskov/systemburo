@@ -285,8 +285,6 @@ export default {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(0.1px);
-  -webkit-backdrop-filter: blur(0.1px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -577,13 +575,22 @@ export default {
 @media (max-width: 560px) {
   /* На телефоне модалка почти во всю ширину, боковые отступы ужаты - иначе
      заголовок и текст не помещались. Высота по dvh (учитывает адрес-бар). */
+  /* Bottom-sheet на телефоне: выезжает снизу, клеится к видимой области
+     (visualViewport из App.vue), скруглён только сверху (обзор 3). */
   .guide-overlay {
-    padding: 10px;
+    padding: 0;
+    align-items: flex-end;
+    top: var(--app-vvt, 0);
+    height: var(--app-vvh, 100dvh);
+    bottom: auto;
   }
   .guide {
-    width: 100%;
-    height: min(560px, 90dvh);
-    border-radius: 24px;
+    width: 100vw;
+    max-width: 100vw;
+    height: min(560px, var(--app-vvh, 90dvh));
+    max-height: min(90dvh, var(--app-vvh, 90dvh));
+    border-radius: 16px 16px 0 0;
+    animation: app-sheet-up 0.32s cubic-bezier(0.32, 0.72, 0, 1) both;
   }
   .guide__header {
     padding: 16px 16px 12px;

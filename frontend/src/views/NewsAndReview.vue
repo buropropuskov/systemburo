@@ -1048,6 +1048,32 @@ export default {
         gap: 6px;
     }
 
+    /* "Обновить" на мобилке - только иконка (кружок), текст убран (обзор 1). */
+    .header-actions :deep(.refresh-btn) {
+        width: 40px;
+        height: 40px;
+        padding: 0;
+        justify-content: center;
+        border-radius: 50%;
+    }
+    .header-actions :deep(.refresh-btn__text) {
+        display: none;
+    }
+
+    /* Блок "Руководство" (обзор 2): фикс width:450px/height:130px и description
+       width:320px ломали карточку на узком экране (текст вылезал за блок). Высота
+       по контенту, описание на всю ширину, иконку в строке заголовка убираем -
+       заголовок больше не "кривой". */
+    .guide-card {
+        height: auto;
+    }
+    .guide-icon {
+        display: none;
+    }
+    .guide-description {
+        width: 100%;
+    }
+
     /* Читалка новости - bottom-sheet: оверлей прижимает лист к низу,
        лист во всю ширину выезжает снизу; свайп вниз за ползунок закрывает. */
     .modal-overlay {
