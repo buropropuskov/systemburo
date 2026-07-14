@@ -155,11 +155,10 @@ export default {
     },
     watch: {
         show(visible) {
+            // Без автофокуса: на мобилке фокус в поле сразу поднимал клавиатуру при
+            // открытии и дёргал высоту листа - пусть юзер тапает поле сам (#1097 R3-9).
             if (visible) {
                 this.reset();
-                this.$nextTick(() => {
-                    this.$refs.subjectInput?.focus();
-                });
             }
         }
     },
@@ -318,5 +317,14 @@ export default {
 <style>
 .base-modal.ask-question-modal {
     border-radius: 30px;
+}
+
+/* Мобилка: bottom-sheet - только верхнее скругление (низ прижат к кромке экрана).
+   Глобальный двойной класс (0,2,0) иначе перебивает мобильный 16px 16px 0 0
+   BaseModal (0,1,0) и рисует скругление снизу (#1097 R3-9). */
+@media (max-width: 768px) {
+    .base-modal.ask-question-modal {
+        border-radius: 16px 16px 0 0;
+    }
 }
 </style>
