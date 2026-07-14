@@ -167,17 +167,39 @@ describe('WorkScheduleTab — копирование расписания', () =
     expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({ type: 'success' }));
   });
 
-  it('при ошибке показывает error-уведомление и не эмитит update', async () => {
+  it('сбой на первом же create (ничего не замутировано) не эмитит update', async () => {
     const w = mountTab([slot(1, 0, '09:00', '18:00')]);
     const notifySpy = vi.spyOn(useDeletionsStore(), 'notify');
     apiClientMock.apiRequest.mockResolvedValue({ ok: false, json: async () => ({}), text: async () => 'err' });
     w.vm.openCopyModal();
-    w.vm.toggleCopyTargetDay(1); // Вт пуст -> сразу POST -> ok:false -> throw
+    w.vm.toggleCopyTargetDay(1); // Вт пуст -> первый шаг POST -> ok:false -> throw до мутации
     await w.vm.performCopySchedule();
     await flushPromises();
 
     expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }));
     expect(w.emitted('update')).toBeFalsy();
+  });
+
+  it('частичный сбой (create прошёл, delete упал) ЭМИТИТ update, чтобы UI перечитал реальность', async () => {
+    // Пн-источник, Ср-цель со старым окном: POST копии проходит, DELETE старого падает.
+    const w = mountTab([slot(1, 0, '09:00', '18:00'), slot(2, 2, '10:00', '12:00')]);
+    const notifySpy = vi.spyOn(useDeletionsStore(), 'notify');
+    apiClientMock.apiRequest.mockImplementation(async (url, opts) => {
+      if (opts?.method === 'DELETE') return { ok: false, json: async () => ({}), text: async () => 'err' };
+      return { ok: true, json: async () => ({}) };
+    });
+    w.vm.openCopyModal();
+    w.vm.copySourceDay = 0;
+    w.vm.toggleCopyTargetDay(2);
+    await w.vm.performCopySchedule();
+    await flushPromises();
+
+    const c = calls();
+    // копия источника создана ДО падения на удалении старого окна
+    expect(c.some((x) => x.method === 'POST' && x.body.day_of_week === 2)).toBe(true);
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }));
+    // update эмитится, несмотря на ошибку - на сервере уже есть изменения
+    expect(w.emitted('update')).toBeTruthy();
   });
 
   it('не выполняет копирование без выбранных дней-целей', async () => {

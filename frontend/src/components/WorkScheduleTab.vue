@@ -273,7 +273,7 @@
               </button>
             </div>
 
-            <div class="modal-body">
+            <div class="modal-body copy-modal-body">
               <!-- День-источник -->
               <div class="field">
                 <label class="field-label">Скопировать с дня *</label>
@@ -651,12 +651,14 @@ export default {
             await this.updateSlotActivity(slot.id, true);
           }
         }
-
-        this.$emit('update');
       } catch (e) {
         console.error(e);
         useDeletionsStore().notify({ prefix: 'Не удалось изменить ', bold: 'режим работы', type: 'error' });
       } finally {
+        // Перечитываем состояние всегда: при частичном сбое день остаётся в
+        // промежуточном виде, а чекбокс 24/7 залипает в кликнутом состоянии -
+        // refetch родителя синхронизирует UI с реальным состоянием сервера.
+        this.$emit('update');
         this.isLoading = false;
       }
     },
@@ -849,21 +851,31 @@ export default {
         }));
 
       this.isLoading = true;
+      // Отслеживаем, была ли реальная мутация на сервере: даже при частичном
+      // сбое UI обязан перечитать состояние (иначе покажет старое расписание,
+      // рассинхрон с сервером, а повторный клик ударит по устаревшим id).
+      let mutated = false;
       try {
         for (const target of targets) {
-          // Полная замена: удаляем все окна дня-цели (включая неактивные),
-          // затем создаём копии активных окон источника.
+          // Снимок старых окон дня-цели ДО создания копий.
           const existing = this.getAllSlotsForDay(target);
-          for (const slot of existing) {
-            await this.deleteTimeSlot(slot.id);
-          }
+          // Полная замена по схеме create-then-delete: сначала создаём копии
+          // активных окон источника, затем удаляем старые окна цели. Бэк не
+          // валидирует пересечения окон (timeslot_store), поэтому временное
+          // сосуществование старых и новых безвредно; при сбое между шагами
+          // худший случай - дубли окон (вход остаётся доступным), а не пустой
+          // день (вход закрыт), чего атомарности с фронта не гарантировать.
           for (const s of sourceSlots) {
             await this.createSlot(target, s.open, s.close, s.isNextDay);
+            mutated = true;
+          }
+          for (const slot of existing) {
+            await this.deleteTimeSlot(slot.id);
+            mutated = true;
           }
         }
 
         this.closeCopyModal();
-        this.$emit('update');
         useDeletionsStore().notify({
           prefix: 'Расписание скопировано на ',
           bold: targets.map(d => this.getFullDayName(d)).join(', '),
@@ -873,6 +885,7 @@ export default {
         console.error(e);
         useDeletionsStore().notify({ prefix: 'Не удалось скопировать ', bold: 'расписание', type: 'error' });
       } finally {
+        if (mutated) this.$emit('update');
         this.isLoading = false;
       }
     },
@@ -1290,6 +1303,14 @@ input:checked + .switch-slider:before {
   padding: 22px;
   height: 250px;
   overflow-y: auto;
+}
+
+/* Модалка копирования расписания несёт больше контента (селект + превью +
+   сетка из 7 дней + предупреждение) - тело растёт по контенту, скролл
+   включается только когда не влезает в экран (маленькая высота вьюпорта). */
+.copy-modal-body {
+  height: auto;
+  max-height: 65vh;
 }
 
 .modal-footer {
