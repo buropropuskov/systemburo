@@ -286,17 +286,29 @@
                   </div>
                   <div class="section-body">
                     <div class="places-list">
-                      <div 
-                        v-for="tableId in employee.target_tables" 
-                        :key="tableId"
+                      <div
+                        v-for="t in passageActiveTables"
+                        :key="t.id"
                         class="place-item"
-                        :class="{ 'active': showPlaceModal && selectedTable && selectedTable.id === tableId }"
-                        @click="showTableDetails(tableId)"
+                        :class="{ 'active': showPlaceModal && selectedTable && selectedTable.id === t.id }"
+                        @click="showTableDetails(t.id)"
                       >
-                        {{ getTableName(tableId) }}
+                        {{ t.name }}
+                        <Badge
+                          :label="t.source === 'manual' ? 'добавлено' : 'из заявки'"
+                          :variant="t.source === 'manual' ? 'neutral' : 'primary'"
+                          size="sm"
+                        />
                       </div>
                       <div
-                        v-if="!employee.target_tables || employee.target_tables.length === 0"
+                        v-for="t in passageRemovedTables"
+                        :key="'removed-' + t.id"
+                        class="place-item place-item--removed"
+                      >
+                        {{ t.name }}
+                      </div>
+                      <div
+                        v-if="passageActiveTables.length === 0 && passageRemovedTables.length === 0"
                         class="no-places"
                       >
                         Места прохода не указаны
@@ -463,6 +475,7 @@ import { apiRequest } from '@/api/client';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import TableInfoModal from './TableInfoModal.vue';
 import EmployeeHistoryModal from './EmployeeHistoryModal.vue';
+import Badge from '@/components/ui/Badge.vue';
 import AddToBlacklistModal from '@/components/admin/blacklist/AddToBlacklistModal.vue';
 import { usePermissionsStore } from '@/stores/permissions';
 import { useDeletionsStore } from '@/stores/deletions';
@@ -475,6 +488,7 @@ export default {
     components: {
         TableInfoModal,
         EmployeeHistoryModal,
+        Badge,
         AddToBlacklistModal
     },
     props: {
@@ -586,6 +600,33 @@ export default {
         },
         entryExitHistory() {
             return this.history.filter(item => item.action_type === 'entry' || item.action_type === 'exit');
+        },
+        // Активные привязки «Места прохода» (#1227 P3) - зеркало VehicleDetailsModal.
+        // Нормализует ОБЕ формы target_tables: контекст заявки отдаёт плоский массив ID
+        // (число), контекст проходной - объекты {id,name,source} (P1/P2).
+        passageActiveTables() {
+            const raw = this.employee?.target_tables || [];
+            return raw.map(t => (typeof t === 'number'
+                ? { id: t, name: this.getTableName(t), source: 'application' }
+                : { id: t.id, name: t.name || this.getTableName(t.id), source: t.source || 'application' }));
+        },
+        // Снятые/перенесённые таблицы (unbound_from_table/moved_between_tables из истории) -
+        // зачёркнутыми, кроме тех, что сейчас снова активны. Дедуп по table_id.
+        passageRemovedTables() {
+            const activeIds = new Set(this.passageActiveTables.map(t => t.id));
+            const seen = new Set();
+            const removed = [];
+            // history не гейтится правом (в отличие от entryExitHistory) - рендерится
+            // всегда, поэтому защищаемся от неожиданной формы ответа (не массив).
+            const items = Array.isArray(this.history) ? this.history : [];
+            items.forEach(item => {
+                if (item.action_type !== 'unbound_from_table' && item.action_type !== 'moved_between_tables') return;
+                const tableId = item.table_id;
+                if (tableId == null || activeIds.has(tableId) || seen.has(tableId)) return;
+                seen.add(tableId);
+                removed.push({ id: tableId, name: item.table_name || this.getTableName(tableId) });
+            });
+            return removed;
         },
         getStatusClass() {
             const status = this.territoryStatus;
@@ -1439,7 +1480,9 @@ export default {
     font-size: 12px;
     color: #333;
     transition: all 0.2s ease;
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     cursor: pointer;
 }
 
@@ -1452,6 +1495,20 @@ export default {
     background: #4F5BDF;
     color: white;
     border-color: #4F5BDF;
+}
+
+/* Снятая/перенесённая таблица (#1227 P3): не кликабельна, зачёркнута как .old-status
+   в ApplicationHistory.vue - "проход был, но сейчас не действует". */
+.place-item--removed {
+    cursor: default;
+    color: #dc2626;
+    text-decoration: line-through;
+    border-style: dashed;
+}
+
+.place-item--removed:hover {
+    background: transparent;
+    border-color: #e6e6e6;
 }
 
 .no-places {
