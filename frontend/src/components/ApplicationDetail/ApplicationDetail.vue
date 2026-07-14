@@ -2269,9 +2269,9 @@ export default {
     /* Кнопки пересылки и скачивания на мобилке - единый outline-стиль: белый круг,
        синий border, синяя иконка, одинаковый размер (Скачать/Переслать/Экспорт). */
     .forward-btn {
-        width: 44px;
-        height: 44px;
-        min-width: 44px;
+        width: 30px;
+        height: 30px;
+        min-width: 30px;
         padding: 0;
         margin-left: 0;
         border-radius: 50%;
@@ -2373,9 +2373,9 @@ export default {
         justify-content: center;
         gap: 0;
         margin-left: 0;
-        width: 44px;
-        height: 44px;
-        min-width: 44px;
+        width: 30px;
+        height: 30px;
+        min-width: 30px;
         padding: 0;
         border: 1px solid #4F5BDF;
         border-radius: 50%;
