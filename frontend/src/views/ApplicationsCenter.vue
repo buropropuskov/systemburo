@@ -2249,6 +2249,9 @@ export default {
     display: flex;
     align-items: center;
     background: #fff;
+    /* Скруглить фон под скруглённое поле (15px) - иначе белые квадратные углы
+       оверлея торчат за pill-полем рядом с круглой иконкой поиска (#1097 R3-3). */
+    border-radius: var(--radius-md);
 }
 
 .center__search-overlay .field.search {
