@@ -73,16 +73,18 @@ function intervalsForWeekday(slots, weekday) {
   return res;
 }
 
-/** Человекочитаемый режим работы дня: "10:00–12:00, 17:00–18:00" / "круглосуточно" / "не работает". */
-function hoursLabel(slots, weekday) {
+/**
+ * Интервалы работы дня как массив строк (панель рендерит по строке на интервал):
+ * ["10:00—12:00", "17:00—18:00"] / ["круглосуточно"] / ["не работает"].
+ */
+function dayHours(slots, weekday) {
   const active = slots.filter((s) => s.is_active !== false && s.day_of_week === weekday);
-  if (!active.length) return 'не работает';
-  if (active.some(isRoundTheClock)) return 'круглосуточно';
+  if (!active.length) return ['не работает'];
+  if (active.some(isRoundTheClock)) return ['круглосуточно'];
   return active
     .slice()
     .sort((a, b) => toMinutes(a.open_time) - toMinutes(b.open_time))
-    .map((s) => `${hhmm(s.open_time)}–${hhmm(s.close_time)}${s.is_next_day ? ' (+1д)' : ''}`)
-    .join(', ');
+    .map((s) => `${hhmm(s.open_time)}—${hhmm(s.close_time)}`);
 }
 
 /** Пересекается ли хотя бы одна пара [рабочий интервал] x [интервал пребывания]. */
@@ -97,7 +99,7 @@ function overlapsAny(workIntervals, presenceIntervals) {
  * @param {Array} slots расписание места (`time_slots`)
  * @param {?{date_from:?string, date_to:?string, time_from:?string, time_to:?string}} period
  *   срок: даты "YYYY-MM-DD", время пребывания "ЧЧ:ММ".
- * @returns {?{presence:string, days:{weekday:number,label:string,hours:string,open:boolean}[], anyClosed:boolean}}
+ * @returns {?{presence:string, days:{weekday:number,label:string,hours:string[],open:boolean}[], anyClosed:boolean}}
  *   null, если у места нет расписания или срок неполный (проверять нечего).
  */
 export function buildScheduleReport(slots, period) {
@@ -136,13 +138,13 @@ export function buildScheduleReport(slots, period) {
       label: singleDay
         ? `${WEEKDAY_SHORT[weekday]} ${pad2(cursor.getDate())}.${pad2(cursor.getMonth() + 1)}`
         : WEEKDAY_SHORT[weekday],
-      hours: hoursLabel(slots, weekday),
+      hours: dayHours(slots, weekday),
       open: overlapsAny(intervals, presence),
     });
   }
 
   return {
-    presence: `${hhmm(period.time_from)}–${hhmm(period.time_to)}${overnight ? ' (+1д)' : ''}`,
+    presence: `${hhmm(period.time_from)}—${hhmm(period.time_to)}`,
     days,
     anyClosed: days.some((d) => !d.open),
   };

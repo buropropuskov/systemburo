@@ -10,8 +10,8 @@ const scheduleGroup = (over = {}) => ({
   free: null,
   windows: [],
   schedule: {
-    presence: '13:00–14:00',
-    days: [{ label: 'Пн 13.07', hours: '10:00–12:00', open: false }],
+    presence: '13:00—14:00',
+    days: [{ label: 'Пн 13.07', hours: ['10:00—12:00'], open: false }],
     anyClosed: true,
   },
   ...over,
@@ -39,10 +39,12 @@ describe('SchedulePlaceWarningPanel', () => {
     mountPanel([scheduleGroup()]);
     const el = panel();
     expect(el).not.toBeNull();
+    expect(el.textContent).toContain('Предупреждение');
     expect(el.textContent).toContain('Ворота Маугли');
-    expect(el.textContent).toContain('13:00–14:00');
+    expect(el.textContent).toContain('Вы указали');
+    expect(el.textContent).toContain('13:00—14:00');
     expect(el.textContent).toContain('Пн 13.07');
-    expect(el.textContent).toContain('10:00–12:00');
+    expect(el.textContent).toContain('10:00—12:00');
     expect(el.textContent).toContain('вне графика');
   });
 
@@ -59,6 +61,15 @@ describe('SchedulePlaceWarningPanel', () => {
     await document.querySelector('[data-testid="schedule-warning-close"]').click();
     await w.vm.$nextTick();
     expect(panel()).toBeNull();
+  });
+
+  it('два места с одинаковым именем, но разным id -> обе группы рендерятся (уникальный ключ transition-group)', () => {
+    mountPanel([
+      scheduleGroup({ id: 'place-1', name: 'Склад' }),
+      scheduleGroup({ id: 'table-1', name: 'Склад' }),
+    ]);
+    expect(panel()).not.toBeNull();
+    expect(document.querySelectorAll('[data-testid="schedule-warning-panel"] .warn-group')).toHaveLength(2);
   });
 
   it('после скрытия новый состав предупреждений возвращает панель', async () => {

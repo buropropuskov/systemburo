@@ -62,8 +62,8 @@ describe('VehicleForm - авто-проверка расписания прот�
     expect(groups).toHaveLength(1);
     expect(groups[0].name).toBe('Ворота Маугли');
     expect(groups[0].schedule.anyClosed).toBe(true);
-    expect(groups[0].schedule.presence).toBe('13:00–16:00');
-    expect(groups[0].schedule.days[0].hours).toBe('10:00–12:00');
+    expect(groups[0].schedule.presence).toBe('13:00—16:00');
+    expect(groups[0].schedule.days[0].hours).toEqual(['10:00—12:00']);
     expect(groups[0].schedule.days[0].open).toBe(false);
   });
 

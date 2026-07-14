@@ -666,7 +666,7 @@ export default {
                 const { free, windows } = collectActiveWarnings(place, at);
                 const schedule = buildScheduleReport(place.time_slots, this.entryPeriod);
                 if (free || windows.length || (schedule && schedule.anyClosed)) {
-                    groups.push({ name: place.name, free, windows, schedule });
+                    groups.push({ id: `place-${place.id}`, name: place.name, free, windows, schedule });
                 }
             });
 
@@ -679,7 +679,7 @@ export default {
                 );
                 const schedule = buildScheduleReport(item.time_slots, this.entryPeriod);
                 if (free || windows.length || (schedule && schedule.anyClosed)) {
-                    groups.push({ name: item.table.display_name || item.table.name, free, windows, schedule });
+                    groups.push({ id: `table-${item.table.id}`, name: item.table.display_name || item.table.name, free, windows, schedule });
                 }
             });
 
