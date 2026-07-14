@@ -41,38 +41,40 @@
               {{ formatDateTime(applicationData.sending_datetime) }}
               <span class="weekday">{{ getWeekday(applicationData.sending_datetime) }}</span>
             </div>
-            <!-- Кнопка пересылки (рядом с датой) -->
-            <button
-              v-if="mode === 'center' && canForwardApplication && can('action.forward.application')"
-              class="forward-btn"
-              data-testid="app-detail-button-forward"
-              :disabled="updatingConfirmation || processingApplication"
-              @click="forwardApplication"
-            >
-              <span
-                v-if="updatingConfirmation || processingApplication"
-                class="button-loading"
-              />
-              <template v-else>
-                <span class="forward-btn__text">Переслать</span>
-                <!-- На мобилке кнопка сжимается до иконки (текст скрыт @768) -->
-                <svg
-                  class="forward-btn__icon"
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
-                >
-                  <polyline points="15 17 20 12 15 7" />
-                  <path d="M4 18v-2a4 4 0 0 1 4-4h12" />
-                </svg>
-              </template>
-            </button>
+            <!-- Кнопка пересылки (рядом с датой): fade при появлении/скрытии -->
+            <transition name="fade">
+              <button
+                v-if="mode === 'center' && canForwardApplication && can('action.forward.application')"
+                class="forward-btn"
+                data-testid="app-detail-button-forward"
+                :disabled="updatingConfirmation || processingApplication"
+                @click="forwardApplication"
+              >
+                <span
+                  v-if="updatingConfirmation || processingApplication"
+                  class="button-loading"
+                />
+                <template v-else>
+                  <span class="forward-btn__text">Переслать</span>
+                  <!-- На мобилке кнопка сжимается до иконки (текст скрыт @768) -->
+                  <svg
+                    class="forward-btn__icon"
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <polyline points="15 17 20 12 15 7" />
+                    <path d="M4 18v-2a4 4 0 0 1 4-4h12" />
+                  </svg>
+                </template>
+              </button>
+            </transition>
             <!-- Скачать бланк: на мобилке кнопку убрали из строки списка (W3.8),
                  отсюда родитель (Центр/Кабинет) открывает выбор бланков. Только @768. -->
             <button
@@ -134,13 +136,15 @@
                 placeholder="Продублировать"
                 @update:model-value="handleDuplicatePreset"
               />
-              <button
-                v-if="canWithdraw"
-                class="withdraw-btn"
-                @click="withdrawApplication"
-              >
-                Отозвать
-              </button>
+              <transition name="fade">
+                <button
+                  v-if="canWithdraw"
+                  class="withdraw-btn"
+                  @click="withdrawApplication"
+                >
+                  Отозвать
+                </button>
+              </transition>
             </template>
           </ApplicationActionBar>
 
@@ -326,135 +330,153 @@
           </div>
 
           <!-- Блок статуса заявки (для принятых/отказанных/завершенных/отозванных).
-               Отозвана держим здесь же: после отзыва инфо о принятии не должно пропадать. -->
-          <div
-            v-if="['В работе', 'Отказано', 'Завершено', 'Отозвана'].includes(applicationData.status)"
-            class="application-status-section"
-          >
-            <div class="status-header">
-              <h4>Статус заявки</h4>
-              <span
-                class="status-mini-badge"
-                :class="getStatusBadgeClass(applicationData.status)"
-              >
-                {{ applicationData.status }}
-              </span>
-            </div>
-                        
-            <!-- Для статусов В работе и Отказано -->
+               Отозвана держим здесь же: после отзыва инфо о принятии не должно пропадать.
+               fade при появлении секции (смена статуса). Карточка с box-shadow, поэтому
+               НЕ grid-collapse (overflow-контейнер обрезал бы тень) - opacity/translateY. -->
+          <transition name="fade">
             <div
-              v-if="applicationData.status === 'В работе' || applicationData.status === 'Отказано'"
-              class="status-info"
+              v-if="hasStatusSection"
+              class="application-status-section"
             >
-              <div
-                v-if="applicationData.responsible_user_id"
-                class="status-info-row"
-              >
-                <span class="status-info-label">{{ applicationData.status === 'В работе' ? 'Принял(-а):' : 'Отказал(а):' }}</span>
-                <span class="status-info-value">{{ applicationData.responsible_name || 'Не указан' }}</span>
+              <div class="status-header">
+                <h4>Статус заявки</h4>
+                <span
+                  class="status-mini-badge"
+                  :class="getStatusBadgeClass(applicationData.status)"
+                >
+                  {{ applicationData.status }}
+                </span>
               </div>
-              <div
-                v-if="applicationData.confirmation_datetime"
-                class="status-info-row"
-              >
-                <span class="status-info-label">Время:</span>
-                <span class="status-info-value">{{ formatDateTime(applicationData.confirmation_datetime) }}</span>
-              </div>
-              <div class="status-info-row comment-row">
-                <span class="status-info-label">Комментарий:</span>
-                <div class="status-info-value comment-text">
-                  {{ applicationData.responsible_comment || 'Комментария нет' }}
-                </div>
-              </div>
-            </div>
 
-            <!-- Для статуса Завершено (показываем и принятие, и завершение) -->
-            <div
-              v-else-if="applicationData.status === 'Завершено'"
-              class="status-info"
-            >
-              <!-- Информация о принятии -->
-              <div
-                v-if="applicationData.responsible_name"
-                class="status-info-row"
+              <!-- Инфо о статусе: cross-fade при смене статуса (out-in по :key=status) -->
+              <transition
+                name="fade"
+                mode="out-in"
               >
-                <span class="status-info-label">Принял(-а):</span>
-                <span class="status-info-value">{{ applicationData.responsible_name }}</span>
-              </div>
-              <div
-                v-if="applicationData.confirmation_datetime"
-                class="status-info-row"
-              >
-                <span class="status-info-label">Время принятия:</span>
-                <span class="status-info-value">{{ formatDateTime(applicationData.confirmation_datetime) }}</span>
-              </div>
-              <!-- Информация о завершении -->
-              <div
-                v-if="applicationData.completed_by_name"
-                class="status-info-row"
-              >
-                <span class="status-info-label">Завершил(-а):</span>
-                <span class="status-info-value">{{ applicationData.completed_by_name }}</span>
-              </div>
-              <div
-                v-if="applicationData.completed_at"
-                class="status-info-row"
-              >
-                <span class="status-info-label">Время завершения:</span>
-                <span class="status-info-value">{{ formatDateTime(applicationData.completed_at) }}</span>
-              </div>
-              <!-- Комментарий к завершению (или общий) -->
-              <div class="status-info-row comment-row">
-                <span class="status-info-label">Комментарий:</span>
-                <div class="status-info-value comment-text">
-                  {{ applicationData.completion_comment || 'Комментария нет' }}
-                </div>
-              </div>
-            </div>
+                <div
+                  :key="applicationData.status"
+                  class="status-info-swap"
+                >
+                  <!-- Для статусов В работе и Отказано -->
+                  <div
+                    v-if="applicationData.status === 'В работе' || applicationData.status === 'Отказано'"
+                    class="status-info"
+                  >
+                    <div
+                      v-if="applicationData.responsible_user_id"
+                      class="status-info-row"
+                    >
+                      <span class="status-info-label">{{ applicationData.status === 'В работе' ? 'Принял(-а):' : 'Отказал(а):' }}</span>
+                      <span class="status-info-value">{{ applicationData.responsible_name || 'Не указан' }}</span>
+                    </div>
+                    <div
+                      v-if="applicationData.confirmation_datetime"
+                      class="status-info-row"
+                    >
+                      <span class="status-info-label">Время:</span>
+                      <span class="status-info-value">{{ formatDateTime(applicationData.confirmation_datetime) }}</span>
+                    </div>
+                    <div class="status-info-row comment-row">
+                      <span class="status-info-label">Комментарий:</span>
+                      <div class="status-info-value comment-text">
+                        {{ applicationData.responsible_comment || 'Комментария нет' }}
+                      </div>
+                    </div>
+                  </div>
 
-            <!-- Для статуса Отозвана: если заявку успели принять до отзыва - показываем,
+                  <!-- Для статуса Завершено (показываем и принятие, и завершение) -->
+                  <div
+                    v-else-if="applicationData.status === 'Завершено'"
+                    class="status-info"
+                  >
+                    <!-- Информация о принятии -->
+                    <div
+                      v-if="applicationData.responsible_name"
+                      class="status-info-row"
+                    >
+                      <span class="status-info-label">Принял(-а):</span>
+                      <span class="status-info-value">{{ applicationData.responsible_name }}</span>
+                    </div>
+                    <div
+                      v-if="applicationData.confirmation_datetime"
+                      class="status-info-row"
+                    >
+                      <span class="status-info-label">Время принятия:</span>
+                      <span class="status-info-value">{{ formatDateTime(applicationData.confirmation_datetime) }}</span>
+                    </div>
+                    <!-- Информация о завершении -->
+                    <div
+                      v-if="applicationData.completed_by_name"
+                      class="status-info-row"
+                    >
+                      <span class="status-info-label">Завершил(-а):</span>
+                      <span class="status-info-value">{{ applicationData.completed_by_name }}</span>
+                    </div>
+                    <div
+                      v-if="applicationData.completed_at"
+                      class="status-info-row"
+                    >
+                      <span class="status-info-label">Время завершения:</span>
+                      <span class="status-info-value">{{ formatDateTime(applicationData.completed_at) }}</span>
+                    </div>
+                    <!-- Комментарий к завершению (или общий) -->
+                    <div class="status-info-row comment-row">
+                      <span class="status-info-label">Комментарий:</span>
+                      <div class="status-info-value comment-text">
+                        {{ applicationData.completion_comment || 'Комментария нет' }}
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Для статуса Отозвана: если заявку успели принять до отзыва - показываем,
                  кто принял, чтобы информация не пропадала после отзыва. -->
-            <div
-              v-else-if="applicationData.status === 'Отозвана' && applicationData.responsible_user_id"
-              class="status-info"
-            >
-              <div class="status-info-row">
-                <span class="status-info-label">Принял(-а):</span>
-                <span class="status-info-value">{{ applicationData.responsible_name || 'Не указан' }}</span>
-              </div>
-              <div
-                v-if="applicationData.confirmation_datetime"
-                class="status-info-row"
-              >
-                <span class="status-info-label">Время принятия:</span>
-                <span class="status-info-value">{{ formatDateTime(applicationData.confirmation_datetime) }}</span>
-              </div>
-              <div
-                v-if="applicationData.responsible_comment"
-                class="status-info-row comment-row"
-              >
-                <span class="status-info-label">Комментарий:</span>
-                <div class="status-info-value comment-text">
-                  {{ applicationData.responsible_comment }}
+                  <div
+                    v-else-if="applicationData.status === 'Отозвана' && applicationData.responsible_user_id"
+                    class="status-info"
+                  >
+                    <div class="status-info-row">
+                      <span class="status-info-label">Принял(-а):</span>
+                      <span class="status-info-value">{{ applicationData.responsible_name || 'Не указан' }}</span>
+                    </div>
+                    <div
+                      v-if="applicationData.confirmation_datetime"
+                      class="status-info-row"
+                    >
+                      <span class="status-info-label">Время принятия:</span>
+                      <span class="status-info-value">{{ formatDateTime(applicationData.confirmation_datetime) }}</span>
+                    </div>
+                    <div
+                      v-if="applicationData.responsible_comment"
+                      class="status-info-row comment-row"
+                    >
+                      <span class="status-info-label">Комментарий:</span>
+                      <div class="status-info-value comment-text">
+                        {{ applicationData.responsible_comment }}
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              </transition>
             </div>
-          </div>
+          </transition>
 
-          <!-- Поле для комментария (только для пользователей, которые еще не выполнили действие) -->
-          <div
-            v-if="canLeaveComment && !hasUserVoted && !isApproverActionDone && (mode !== 'center' || can('action.approve.application'))"
-            class="comment-action-section"
-          >
-            <h4>Комментарий</h4>
-            <textarea
-              v-model="actionComment"
-              class="comment-action-textarea"
-              placeholder="Вы можете написать здесь комментарий (необязательно)"
-              rows="3"
-              @input="saveCommentToLocalStorage"
-            />
-          </div>
+          <!-- Поле для комментария: fade + показ по showCommentSection. Карточка с
+               box-shadow, поэтому opacity/translateY-переход, без overflow-контейнера. -->
+          <transition name="fade">
+            <div
+              v-if="showCommentSection"
+              class="comment-action-section"
+            >
+              <h4>Комментарий</h4>
+              <textarea
+                v-model="actionComment"
+                class="comment-action-textarea"
+                placeholder="Вы можете написать здесь комментарий (необязательно)"
+                rows="3"
+                @input="saveCommentToLocalStorage"
+              />
+            </div>
+          </transition>
 
           <!-- Компонент согласования (без информации о принявшем). Обёртка нужна
                для order на мобилке: держим согласование в блоке "комментарий/действие". -->
@@ -762,6 +784,17 @@ export default {
             }
             
             return false;
+        },
+
+        hasStatusSection() {
+            return ['В работе', 'Отказано', 'Завершено', 'Отозвана'].includes(this.applicationData.status);
+        },
+
+        // Условие показа секции комментария (зеркалит v-if шаблона) - вынесено в computed,
+        // чтобы обёртка-<transition> и сама секция гейтились одним источником правды.
+        showCommentSection() {
+            return this.canLeaveComment && !this.hasUserVoted && !this.isApproverActionDone &&
+                (this.mode !== 'center' || this.can('action.approve.application'));
         },
 
     },
@@ -1715,6 +1748,19 @@ export default {
 @keyframes fadeIn {
     from { opacity: 0; }
     to { opacity: 1; }
+}
+
+/* Плавные переходы блоков детали при смене статуса (эталон ApplicationHistory.vue).
+   opacity+translateY, чтобы не резать box-shadow карточек overflow-контейнером. */
+.fade-enter-active,
+.fade-leave-active {
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+    opacity: 0;
+    transform: translateY(-10px);
 }
 
 .application-detail {
