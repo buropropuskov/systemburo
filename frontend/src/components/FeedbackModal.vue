@@ -219,13 +219,20 @@ export default {
     show(newVal) {
       if (newVal) {
         this.resetErrors();
-        this.showContent = true;
         this.shouldSaveOnClose = true;
         this.setupEscListener();
+        // showContent на nextTick: overlay (v-if=show) монтируется первым, и только затем
+        // внутренняя <transition name="modal"> играет РЕАЛЬНЫЙ enter (слайд снизу). Если
+        // ставить showContent синхронно с show, модалка появляется внутри только что
+        // вставленного родителя - Vue считает это "appear" и без appear-пропа НЕ анимирует
+        // (окно просто возникало, не выезжало снизу, #1097 R4-4).
         this.$nextTick(() => {
-          if (this.autoFocus) {
-            this.$refs.textareaRef?.focus();
-          }
+          this.showContent = true;
+          this.$nextTick(() => {
+            if (this.autoFocus) {
+              this.$refs.textareaRef?.focus();
+            }
+          });
         });
       } else {
         this.showContent = false;
