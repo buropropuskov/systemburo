@@ -93,21 +93,24 @@
               </BaseDropdown>
             </div>
 
+            <!-- Поиск ВНЕ скролл-контейнера .modes__body - закреплён над списком, не
+                 уезжает при прокрутке (#1097 R4-3). -->
+            <div
+              v-if="activeCat !== 'bureau'"
+              class="modes__search"
+            >
+              <input
+                v-model="searchQuery"
+                type="text"
+                class="lk-input"
+                placeholder="Поиск по названию..."
+              >
+            </div>
+
             <div
               ref="sheetBody"
               class="modes__body"
             >
-              <div
-                v-if="activeCat !== 'bureau'"
-                class="modes__search"
-              >
-                <input
-                  v-model="searchQuery"
-                  type="text"
-                  class="lk-input"
-                  placeholder="Поиск по названию..."
-                >
-              </div>
               <div
                 v-if="!visibleItems.length"
                 class="modes__empty"
@@ -501,6 +504,9 @@ export default {
   gap: 8px;
   font-size: 13.5px;
   font-weight: 600;
+  /* line-height:1 тайтит бокс текста к глифу - иконка (20px) центрируется ровно по
+     тексту, без просвета от межстрочного интервала (#1097 R4-3). */
+  line-height: 1;
 }
 
 .cat-opt__icon {
@@ -523,14 +529,17 @@ export default {
 }
 
 .modes__body {
-  padding: 16px 26px 8px;
+  /* pt уменьшен (16 -> 6): поиск вынесен из скролла, разрыв дропдаун<->список меньше. */
+  padding: 6px 26px 8px;
   overflow-y: auto;
   flex: 1 1 auto;
   min-height: 0;
 }
 
+/* Поиск закреплён над списком (вне скролла .modes__body); боковые отступы 26px как у
+   тела, малый зазор до дропдауна (~4px = .cats padding-bottom) и до списка (#1097 R4-3). */
 .modes__search {
-  margin-bottom: 12px;
+  margin: 0 26px 4px;
 }
 
 .modes__search .lk-input {
@@ -818,8 +827,11 @@ export default {
   .cats {
     padding: 0 16px 4px;
   }
+  .modes__search {
+    margin: 0 16px 4px;
+  }
   .modes__body {
-    padding: 16px 16px 8px;
+    padding: 6px 16px 8px;
   }
   /* Бейдж статуса («Открыто сейчас») съедал ширину названия - переносим его под
      название второй строкой (grid: строка1 иконка/название/шеврон, строка2 статус). */
