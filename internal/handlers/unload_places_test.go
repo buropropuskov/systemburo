@@ -248,6 +248,111 @@ func TestUnloadPlaces_TimeSlots_PlaceNotFound(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 }
 
+func TestUnloadPlaces_WarningWindows_CRUD(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	// Create a place first
+	rec := testutil.POST(t, e, "/unload-places", `{"name":"Warning Window Place"}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	placeID := int(testutil.ParseMap(t, rec)["id"].(float64))
+
+	// Add a windowed warning (Пн 12:00-13:00 малогабарит)
+	body := `{"day_of_week":1,"time_from":"12:00","time_to":"13:00","message":"Только малогабарит"}`
+	rec = testutil.POST(t, e, fmt.Sprintf("/unload-places/%d/warning-windows", placeID), body, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	windowID := int(testutil.ParseMap(t, rec)["id"].(float64))
+	assert.Greater(t, windowID, 0)
+
+	// Get warning windows
+	rec = testutil.GET(t, e, fmt.Sprintf("/unload-places/%d/warning-windows", placeID), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	windows := testutil.ParseSlice(t, rec)
+	require.Len(t, windows, 1)
+	assert.Equal(t, float64(1), windows[0]["day_of_week"])
+	assert.Equal(t, "12:00", windows[0]["time_from"])
+	assert.Equal(t, "13:00", windows[0]["time_to"])
+	assert.Equal(t, "Только малогабарит", windows[0]["message"])
+	assert.Equal(t, true, windows[0]["is_active"])
+
+	// Warning windows are embedded in the place detail DTO
+	rec = testutil.GET(t, e, fmt.Sprintf("/unload-places/%d", placeID), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	detail := testutil.ParseMap(t, rec)
+	embedded, ok := detail["warning_windows"].([]interface{})
+	require.True(t, ok, "warning_windows должно присутствовать в DTO места")
+	assert.Len(t, embedded, 1)
+
+	// Update to a general warning (каждый день / весь день) -- nullable поля -> NULL
+	updateBody := `{"day_of_week":null,"time_from":null,"time_to":null,"message":"Пропуск оформляется заранее"}`
+	rec = testutil.PUT(t, e, fmt.Sprintf("/unload-places/%d/warning-windows/%d", placeID, windowID), updateBody, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// Verify NULL round-trip: сброс дня/времени в NULL реально доезжает до БД
+	rec = testutil.GET(t, e, fmt.Sprintf("/unload-places/%d/warning-windows", placeID), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	windows = testutil.ParseSlice(t, rec)
+	require.Len(t, windows, 1)
+	assert.Nil(t, windows[0]["day_of_week"], "day_of_week должен сброситься в NULL (каждый день)")
+	assert.Nil(t, windows[0]["time_from"], "time_from должен сброситься в NULL (весь день)")
+	assert.Nil(t, windows[0]["time_to"])
+	assert.Equal(t, "Пропуск оформляется заранее", windows[0]["message"])
+
+	// Delete
+	rec = testutil.DELETE(t, e, fmt.Sprintf("/unload-places/%d/warning-windows/%d", placeID, windowID), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	rec = testutil.GET(t, e, fmt.Sprintf("/unload-places/%d/warning-windows", placeID), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	windows = testutil.ParseSlice(t, rec)
+	assert.Len(t, windows, 0)
+}
+
+func TestUnloadPlaces_WarningWindows_Validation(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	rec := testutil.POST(t, e, "/unload-places", `{"name":"Warning Validation Place"}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	placeID := int(testutil.ParseMap(t, rec)["id"].(float64))
+
+	// Пустой message -> 400
+	rec = testutil.POST(t, e, fmt.Sprintf("/unload-places/%d/warning-windows", placeID),
+		`{"message":""}`, h)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+	// Неверный формат времени -> 400
+	rec = testutil.POST(t, e, fmt.Sprintf("/unload-places/%d/warning-windows", placeID),
+		`{"time_from":"invalid","message":"текст"}`, h)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+	// Неверный день недели -> 400
+	rec = testutil.POST(t, e, fmt.Sprintf("/unload-places/%d/warning-windows", placeID),
+		`{"day_of_week":7,"message":"текст"}`, h)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestUnloadPlaces_WarningWindows_PlaceNotFound(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	rec := testutil.POST(t, e, "/unload-places/99999/warning-windows",
+		`{"message":"текст"}`, h)
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+}
+
 func TestUnloadPlaces_ResponseStructure(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()

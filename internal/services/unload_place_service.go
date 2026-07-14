@@ -64,9 +64,12 @@ type UnloadPlaceWithDetails struct {
 	IsActive      bool                         `json:"is_active"`
 	CurrentStatus string                       `json:"current_status"`
 	TimeSlots     []models.UnloadPlaceTimeSlot `json:"time_slots"`
-	Photos        []models.UnloadPlacePhoto    `json:"photos"`
-	CreatedAt     time.Time                    `json:"created_at"`
-	UpdatedAt     time.Time                    `json:"updated_at"`
+	// WarningWindows -- предупреждения по временным окнам (#1183), показываются
+	// заявителю, когда срок заявки пересекается с окном.
+	WarningWindows []models.UnloadPlaceWarningWindow `json:"warning_windows"`
+	Photos         []models.UnloadPlacePhoto         `json:"photos"`
+	CreatedAt      time.Time                         `json:"created_at"`
+	UpdatedAt      time.Time                         `json:"updated_at"`
 }
 
 // UnloadPlaceService -- интерфейс бизнес-логики мест разгрузки.
@@ -89,6 +92,12 @@ type UnloadPlaceService interface {
 	AddTimeSlot(ctx context.Context, placeID int, req CreateTimeSlotRequest) (int, error)
 	UpdateTimeSlot(ctx context.Context, placeID, slotID int, req UpdateTimeSlotRequest) error
 	DeleteTimeSlot(ctx context.Context, placeID, slotID int) error
+
+	// Предупреждения по временным окнам (#1183)
+	GetWarningWindows(ctx context.Context, placeID int) ([]models.UnloadPlaceWarningWindow, error)
+	AddWarningWindow(ctx context.Context, placeID int, req models.WarningWindowRequest) (int, error)
+	UpdateWarningWindow(ctx context.Context, placeID, windowID int, req models.WarningWindowRequest) error
+	DeleteWarningWindow(ctx context.Context, placeID, windowID int) error
 
 	// Фотографии
 	UploadPhoto(ctx context.Context, placeID int, username string, photoURL, fileName, mimeType string, fileSize int64) (int, error)
@@ -160,6 +169,12 @@ func (s *unloadPlaceService) buildDetails(ctx context.Context, place models.Unlo
 		Order("day_of_week, open_time").
 		Find(&slots)
 
+	windows := make([]models.UnloadPlaceWarningWindow, 0)
+	s.db.WithContext(ctx).
+		Where("unload_place_id = ?", place.ID).
+		Order("day_of_week NULLS FIRST, time_from NULLS FIRST").
+		Find(&windows)
+
 	photos := make([]models.UnloadPlacePhoto, 0)
 	s.db.WithContext(ctx).
 		Where("unload_place_id = ?", place.ID).
@@ -172,19 +187,20 @@ func (s *unloadPlaceService) buildDetails(ctx context.Context, place models.Unlo
 	}
 
 	return UnloadPlaceWithDetails{
-		ID:            place.ID,
-		Name:          place.Name,
-		Description:   place.Description,
-		Warning:       place.Warning,
-		MapLink:       place.MapLink,
-		Status:        status,
-		StatusComment: place.StatusComment,
-		IsActive:      place.IsActive,
-		CurrentStatus: computeUnloadPlaceStatus(status, slots),
-		TimeSlots:     slots,
-		Photos:        photos,
-		CreatedAt:     place.CreatedAt,
-		UpdatedAt:     place.UpdatedAt,
+		ID:             place.ID,
+		Name:           place.Name,
+		Description:    place.Description,
+		Warning:        place.Warning,
+		MapLink:        place.MapLink,
+		Status:         status,
+		StatusComment:  place.StatusComment,
+		IsActive:       place.IsActive,
+		CurrentStatus:  computeUnloadPlaceStatus(status, slots),
+		TimeSlots:      slots,
+		WarningWindows: windows,
+		Photos:         photos,
+		CreatedAt:      place.CreatedAt,
+		UpdatedAt:      place.UpdatedAt,
 	}
 }
 
