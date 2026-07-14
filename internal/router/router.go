@@ -494,6 +494,11 @@ func Setup(e *echo.Echo, d Dependencies) {
 	empGroup.PUT("/:id/deactivate", employees.DeactivateEmployee)
 	empGroup.PUT("/:id/activate", employees.ActivateEmployee)
 	empGroup.PUT("/:id/restore", employees.RestoreEmployee)
+	// Групповые операции над строками таблицы проходной (#1194): статические
+	// сегменты bulk/* приоритетнее /:id в роутинге Echo.
+	empGroup.POST("/bulk/move-table", employees.BulkMoveTable, requireAdmin)
+	empGroup.POST("/bulk/add-table", employees.BulkAddTable, requireAdmin)
+	empGroup.POST("/bulk/unbind-table", employees.BulkUnbindTable, requireAdmin)
 	empGroup.GET("/:id/history", employeesHistory.GetByEmployee)
 	empGroup.GET("/history/unified", employeesHistory.GetUnified)
 	empGroup.GET("/history/all", employeesHistory.GetAll)
