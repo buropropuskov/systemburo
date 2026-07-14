@@ -989,6 +989,14 @@ export default {
      * drawer открыт; фолбэк на 100dvh в CSS, если visualViewport недоступен.
      */
     syncDrawerHeight() {
+      // Клавиатура открыта (фокус в поле внутри drawer'а) сжимает visualViewport - НЕ
+      // уменьшаем высоту панели под клавиатуру, иначе drawer прыгает (навпанель 3).
+      // Держим последнюю высоту; вернём при закрытии клавиатуры (blur -> resize).
+      const ae = document.activeElement;
+      const navEl = document.querySelector('.nav-menu');
+      if (ae && navEl && navEl.contains(ae) && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) {
+        return;
+      }
       const vv = window.visualViewport;
       const h = vv ? vv.height : window.innerHeight;
       document.documentElement.style.setProperty('--nav-drawer-h', `${Math.round(h)}px`);
@@ -2262,7 +2270,9 @@ export default {
     display: inline-flex;
     align-items: center;
     position: absolute;
-    top: 12px;
+    /* top 17 (не 12) центрирует 34px-пилюлю по вертикали с 44px-крестиком справа
+       (их центры совпадают на одной линии) - навпанель 1. */
+    top: 17px;
     left: 12px;
     right: auto;
     width: fit-content;
