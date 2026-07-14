@@ -3444,7 +3444,9 @@ export default {
        первой карточкой), держится закреплённой при скролле. */
     .center__header {
         position: sticky;
-        top: 60px;
+        /* Липнет ровно под fixed-шапкой (TheHeader 60px), отслеживая видимую область
+           тем же --app-vvt - обе шапки двигаются вместе, без рассинхрона (#1097 R4-2). */
+        top: calc(var(--app-vvt, 0px) + 60px);
         z-index: 20;
         gap: 8px;
         background: #FAFAFA;
