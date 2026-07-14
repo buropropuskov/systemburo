@@ -54,6 +54,17 @@
     >
       <span class="bulk-count">Выбрано: {{ selectedCount }}</span>
       <div class="bulk-actions">
+        <!-- Экспорт выбранных (#1194 S6) - клиентский ExcelJS по уже загруженным
+             строкам, read-only. Гейт - то же право, что у полного экспорта
+             (table.<name>.export), НЕ page.admin: доступно любому, кто видит таблицу. -->
+        <button
+          v-if="can(`table.${tableName}.export`)"
+          class="lk-button lk-button--secondary lk-button--sm"
+          data-testid="cars-bulk-export"
+          @click="exportSelectedToExcel"
+        >
+          Экспорт выбранных
+        </button>
         <!-- Перенос/добавление - BE гейтит requireAdmin (page.admin), FE-кнопки
              тем же правом (см. api/system-tables.js cleanupTableSnapshots), иначе
              "видно, но 403" при клике не-админом. -->
@@ -1596,7 +1607,21 @@ export default {
     },
 
     async exportToExcel() {
-      const rows = this.displayItems;
+      await this.buildCarsExcel(this.displayItems, 'Avtomobili');
+    },
+
+    // Экспорт только выделенных строк (#1194 S6) - reuse форматирования полного
+    // экспорта (buildCarsExcel), фильтр по selectedIds (useRowSelection).
+    async exportSelectedToExcel() {
+      const rows = this.displayItems.filter(item => this.selectedIds.includes(item.id));
+      if (!rows.length) return;
+      await this.buildCarsExcel(rows, 'Avtomobili_vybrannye');
+      useDeletionsStore().notify({ prefix: 'Выгружено строк: ', bold: String(rows.length) });
+    },
+
+    // Общий билдер книги cars-таблицы: набор строк и префикс имени файла -
+    // единственное, что различается между полным экспортом и экспортом выбранных.
+    async buildCarsExcel(rows, filenamePrefix) {
       if (!rows.length) return;
 
       const workbook = new ExcelJS.Workbook();
@@ -1697,7 +1722,7 @@ export default {
       const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.download = `Avtomobili_${dateStr.replace(/[.:,\s]/g, '-')}.xlsx`;
+      a.download = `${filenamePrefix}_${dateStr.replace(/[.:,\s]/g, '-')}.xlsx`;
       a.href = url;
       a.click();
       window.URL.revokeObjectURL(url);

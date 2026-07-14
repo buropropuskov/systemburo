@@ -455,7 +455,10 @@ export default {
     },
 
     getActionClass(actionType) {
-      if (actionType === 'entry' || actionType === 'restore' || actionType === 'added_to_table') return 'dot-entry';
+      // Групповые операции над таблицами проходной (#1194 S2/S6): added/moved -
+      // зелёная точка (сотрудник появляется здесь), unbound падает в exit-ветку
+      // по умолчанию (сотрудник покидает эту таблицу), как delete/purge.
+      if (actionType === 'entry' || actionType === 'restore' || actionType === 'added_to_table' || actionType === 'moved_between_tables') return 'dot-entry';
       return 'dot-exit';
     },
 
@@ -472,6 +475,10 @@ export default {
         return 'Безвозвратное удаление';
       } else if (item.action_type === 'added_to_table') {
         return 'Добавлен в таблицу проходной';
+      } else if (item.action_type === 'moved_between_tables') {
+        return 'Перенесён между таблицами';
+      } else if (item.action_type === 'unbound_from_table') {
+        return 'Снят с таблицы';
       }
       return item.action_type;
     },
