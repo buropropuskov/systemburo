@@ -395,8 +395,13 @@ h3 {
   text-underline-position: under;
 }
 
-.feedback-btn:hover {
-  text-decoration-color: #6E4A3A;
+/* Hover-эффекты - только для устройств с реальным ховером (мышь). На тач :hover
+   «залипает» после тапа (иконка/кнопка остаётся в hover-состоянии) - гейтим их
+   через @media (hover: hover), чтобы тап на мобилке не оставлял хвост (#1097 p2). */
+@media (hover: hover) {
+  .feedback-btn:hover {
+    text-decoration-color: #6E4A3A;
+  }
 }
 
 .broadcast {
@@ -419,8 +424,10 @@ h3 {
   transition: filter 0.2s ease;
 }
 
-.broadcast:hover {
-  filter: brightness(0.96);
+@media (hover: hover) {
+  .broadcast:hover {
+    filter: brightness(0.96);
+  }
 }
 
 .broadcast--important {
@@ -429,8 +436,10 @@ h3 {
   border-color: #ffb3b3;
 }
 
-.broadcast--important:hover {
-  filter: brightness(0.96);
+@media (hover: hover) {
+  .broadcast--important:hover {
+    filter: brightness(0.96);
+  }
 }
 
 .user__notifications {
@@ -477,8 +486,10 @@ h3 {
   cursor: pointer;
 }
 
-.notifications__icon:hover {
-  filter: contrast(0.01);
+@media (hover: hover) {
+  .notifications__icon:hover {
+    filter: contrast(0.01);
+  }
 }
 
 .appl-btn__container {
@@ -505,8 +516,10 @@ h3 {
   box-shadow: 0 2px 2px rgba(0,0,0,0.05);
 }
 
-.appl-btn:hover {
-  background-color: #e6e6e6;
+@media (hover: hover) {
+  .appl-btn:hover {
+    background-color: #e6e6e6;
+  }
 }
 
 /* Короткая подпись "Заявка" - отдельный класс (не модификатор общего),
@@ -560,9 +573,11 @@ h3 {
   transition: background 0.2s, border-color 0.2s;
 }
 
-.header__burger:hover {
-  background: var(--color-primary-tint);
-  border-color: var(--color-primary);
+@media (hover: hover) {
+  .header__burger:hover {
+    background: var(--color-primary-tint);
+    border-color: var(--color-primary);
+  }
 }
 
 .header__burger span {
@@ -574,8 +589,10 @@ h3 {
   transition: background 0.2s;
 }
 
-.header__burger:hover span {
-  background: var(--color-primary);
+@media (hover: hover) {
+  .header__burger:hover span {
+    background: var(--color-primary);
+  }
 }
 
 /* Адаптивность */
@@ -648,8 +665,10 @@ h3 {
     box-shadow: none;
   }
 
-  .appl-btn:hover {
-    background: var(--color-primary-tint);
+  @media (hover: hover) {
+    .appl-btn:hover {
+      background: var(--color-primary-tint);
+    }
   }
 
   /* На мобилке полная надпись "Подать заявку" -> короткая "Заявка" (влезает в строку) */
