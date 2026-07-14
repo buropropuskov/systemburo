@@ -221,6 +221,15 @@ describe('CarsTable - per-row корзина "из этой/из всех" (#119
     expect(wrapper.find('[data-testid="row-remove-all"]').exists()).toBe(true);
   });
 
+  it('не-админ + count > 1 - подменю "из этой/из всех" скрыто (unbind гейтится page.admin)', async () => {
+    usePermissionsStore().mode = 'normal';
+    const wrapper = await mountWithItem({ target_tables_count: 2 });
+
+    // главное: не-админ не получает опцию "из этой таблицы" -> нет пути к 403 на unbind
+    expect(wrapper.find('[data-testid="row-remove-trigger"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="row-remove-current"]').exists()).toBe(false);
+  });
+
   it('"Убрать из этой таблицы" -> commit зовёт bulkUnbindCarsTable([id], tableId)', async () => {
     carsBulkApi.bulkUnbindCarsTable.mockResolvedValue({ success_count: 1, error_count: 0, errors: [] });
     const wrapper = await mountWithItem({ id: 5, car_number: 'В5', target_tables_count: 2 });

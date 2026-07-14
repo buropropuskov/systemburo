@@ -458,9 +458,11 @@
                 >
                   <!-- Машина привязана к нескольким таблицам (#1194 S5) - выбор
                        между "убрать только отсюда" и глобальной деактивацией.
-                       Единственная привязка - корзина работает как раньше. -->
+                       Единственная привязка ИЛИ не-админ - корзина работает как
+                       раньше (unbind-table гейтится page.admin на бэке, иначе
+                       "видно, но 403"). -->
                   <TableRowRemoveMenu
-                    v-if="(item.target_tables_count || 0) > 1"
+                    v-if="(item.target_tables_count || 0) > 1 && can('page.admin')"
                     :disabled="preview || isLoading"
                     @remove-current="removeFromCurrentTableWithNotification(item)"
                     @remove-all="removeItemWithNotification(item)"
