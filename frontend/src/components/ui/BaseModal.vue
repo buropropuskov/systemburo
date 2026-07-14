@@ -11,7 +11,7 @@
         <div
           ref="modal"
           class="base-modal"
-          :class="[contentClass, { 'base-modal--sheet': sheetSwipe, 'is-dragging': sheetDragging }]"
+          :class="[contentClass, { 'base-modal--sheet': sheetSwipe, 'is-dragging': sheetDragging, 'is-closing': sheetClosing }]"
           :style="{ maxWidth: width, '--base-modal-radius': radius || null, ...(sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : {}) }"
           role="dialog"
           aria-modal="true"
@@ -138,6 +138,8 @@ export default {
       body,
       sheetOffset: swipe.offset,
       sheetDragging: swipe.isDragging,
+      sheetClosing: swipe.closing,
+      resetSwipe: swipe.reset,
       onSheetTouchStart: guard(swipe.onTouchStart),
       onSheetTouchMove: guard(swipe.onTouchMove),
       onSheetTouchEnd: guard(swipe.onTouchEnd),
@@ -151,6 +153,8 @@ export default {
   watch: {
     show(val) {
       document.body.style.overflow = val ? 'hidden' : '';
+      // Переоткрытие: сбросить застрявший после свайп-закрытия offset/closing (лист снизу).
+      if (val) this.resetSwipe();
     },
   },
   mounted() {
@@ -410,6 +414,13 @@ export default {
 
   .modal-fade-leave-active .base-modal--sheet {
     animation: base-sheet-down 0.24s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  /* Закрытие свайпом: лист уже уехал вниз по offset (transition transform), поэтому
+     @keyframes base-sheet-down (0 -> 100%) дал бы ВТОРОЙ слайд с рывком наверх. Гасим -
+     остаётся только inline transform (лист за кромкой) + fade оверлея (#1097 R3-1). */
+  .modal-fade-leave-active .base-modal--sheet.is-closing {
+    animation: none;
   }
 
   .base-modal__close {

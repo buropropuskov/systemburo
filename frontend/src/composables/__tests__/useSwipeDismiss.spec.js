@@ -18,11 +18,18 @@ describe('useSwipeDismiss', () => {
     s.onTouchEnd();
     // Лист доезжает вниз (offset > свайпа), закрытие отложено до конца слайда.
     expect(s.isDragging.value).toBe(false);
+    expect(s.closing.value).toBe(true);
     expect(s.offset.value).toBeGreaterThan(150);
     expect(onDismiss).not.toHaveBeenCalled();
     vi.advanceTimersByTime(300);
     expect(onDismiss).toHaveBeenCalledTimes(1);
+    // Антирегресс R3-1: во время leave offset ДЕРЖИТ лист внизу (не рывок в 0),
+    // иначе второй слайд. Полный reset - отложенно, после того как leave отыграл.
+    expect(s.offset.value).toBeGreaterThan(150);
+    expect(s.closing.value).toBe(true);
+    vi.advanceTimersByTime(400);
     expect(s.offset.value).toBe(0);
+    expect(s.closing.value).toBe(false);
     vi.useRealTimers();
   });
 
