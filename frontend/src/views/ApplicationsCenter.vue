@@ -2907,6 +2907,16 @@ export default {
     position: relative;
 }
 
+/* Скрытый hover-тултип отправителя последней строки (::after, position:absolute,
+   bottom:-33px) торчал ниже контента и раздувал scrollHeight table-body на ~22px -
+   между последней заявкой и футером висела пустая полоса. Клипаем список по его же
+   границе (совпадает с окном скролла table-body, тултипы видимых строк не страдают).
+   Одностраничный режим исключаем - там table-body overflow:visible показывает
+   тултип единственной строки, которую скрывать нечем. */
+.table-body:not(.table-body--single-row) .applications-list {
+    overflow: hidden;
+}
+
 .application-item {
     transition: background-color 0.2s ease;
     cursor: pointer;
