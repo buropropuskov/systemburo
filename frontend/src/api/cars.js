@@ -140,3 +140,21 @@ export async function bulkAddCarsTable(ids, tableIds) {
   });
   return res.json();
 }
+
+/**
+ * Групповое снятие машин с ОДНОЙ таблицы «Проезд» (#1194, срез S5): используется
+ * и для bulk-«Убрать» (bulk-bar, ids - все выделенные), и для per-row пункта
+ * «Убрать из этой таблицы» (ids с одним элементом, TableRowRemoveMenu). Если
+ * привязка к tableId была последней у машины - BE сам деактивирует её (status=0),
+ * фронту не нужен отдельный вызов деактивации. Возвращает BulkOpResult, см.
+ * bulkMoveCarsTable.
+ * @param {number[]} ids
+ * @param {number} tableId
+ */
+export async function bulkUnbindCarsTable(ids, tableId) {
+  const res = await apiRequest('/cars/bulk/unbind-table', {
+    method: 'POST',
+    body: JSON.stringify({ ids, table_id: tableId }),
+  });
+  return res.json();
+}

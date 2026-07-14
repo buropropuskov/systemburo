@@ -97,3 +97,21 @@ export async function bulkAddEmployeesTable(ids, tableIds) {
   });
   return res.json();
 }
+
+/**
+ * Групповое снятие сотрудников с ОДНОЙ таблицы «Проход» (#1194, срез S5):
+ * используется и для bulk-«Убрать» (bulk-bar, ids - все выделенные), и для
+ * per-row пункта «Убрать из этой таблицы» (ids с одним элементом,
+ * TableRowRemoveMenu). Если привязка к tableId была последней у сотрудника -
+ * BE сам деактивирует его (status=0), фронту не нужен отдельный вызов
+ * деактивации. Возвращает BulkOpResult, см. bulkMoveEmployeesTable.
+ * @param {number[]} ids
+ * @param {number} tableId
+ */
+export async function bulkUnbindEmployeesTable(ids, tableId) {
+  const res = await apiRequest('/employees/bulk/unbind-table', {
+    method: 'POST',
+    body: JSON.stringify({ ids, table_id: tableId }),
+  });
+  return res.json();
+}

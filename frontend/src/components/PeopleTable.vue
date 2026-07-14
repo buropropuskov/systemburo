@@ -70,6 +70,13 @@
           >
             Добавить в таблицу
           </button>
+          <button
+            class="lk-button lk-button--danger lk-button--sm"
+            data-testid="people-bulk-remove"
+            @click="openBulkRemoveConfirm"
+          >
+            Убрать
+          </button>
         </template>
         <button
           class="lk-button lk-button--ghost lk-button--sm bulk-clear"
@@ -484,7 +491,17 @@
                   style="order: 9999;"
                   @click.stop
                 >
+                  <!-- Сотрудник привязан к нескольким таблицам (#1194 S5) -
+                       выбор между "убрать только отсюда" и глобальной
+                       деактивацией. Единственная привязка - как раньше. -->
+                  <TableRowRemoveMenu
+                    v-if="(item.target_tables_count || 0) > 1"
+                    :disabled="preview || isLoading"
+                    @remove-current="removeFromCurrentTableWithNotification(item)"
+                    @remove-all="removeItemWithNotification(item)"
+                  />
                   <button
+                    v-else
                     class="delete-btn"
                     :disabled="preview || isLoading"
                     @click="preview ? null : removeItemWithNotification(item)"
@@ -557,6 +574,20 @@
       @close="closeBulkModal"
       @apply="applyBulkTableOp"
     />
+
+    <!-- Групповое "Убрать" (#1194 S5): снимает привязку к текущей таблице у
+         выделенных строк; последняя привязка -> BE деактивирует сотрудника сам. -->
+    <ConfirmationModal
+      v-if="!preview"
+      :show="bulkRemoveConfirmVisible"
+      title="Убрать из таблицы"
+      :message="`Убрать выбранных сотрудников (${selectedCount}) из этой таблицы? Если это последняя таблица сотрудника, он будет деактивирован.`"
+      confirm-text="Убрать"
+      cancel-text="Отмена"
+      :confirm-button-style="{ background: '#c62828', borderColor: '#c62828' }"
+      @confirm="confirmBulkRemove"
+      @cancel="cancelBulkRemove"
+    />
   </div>
 </template>
 
@@ -572,11 +603,13 @@ import RefreshButton from './RefreshButton.vue';
 import EmployeeDetailsModal from './CreateApplication/EmployeeDetailsModal.vue';
 import EmployeesTableHistoryModal from './CreateApplication/EmployeesTableHistoryModal.vue';
 import TableBulkTargetModal from './TableBulkTargetModal.vue';
+import TableRowRemoveMenu from './TableRowRemoveMenu.vue';
+import ConfirmationModal from './ConfirmationModal.vue';
 import StatusBadge from './ui/StatusBadge.vue';
 import EnlargedToggle from './ui/EnlargedToggle.vue';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
 import ExcelJS from 'exceljs';
-import { bulkMoveEmployeesTable, bulkAddEmployeesTable } from '@/api/employees';
+import { bulkMoveEmployeesTable, bulkAddEmployeesTable, bulkUnbindEmployeesTable } from '@/api/employees';
 
 const ENLARGED_KEY_PREFIX = 'enlarged-mode:people:';
 
@@ -587,6 +620,8 @@ export default {
     EmployeeDetailsModal,
     EmployeesTableHistoryModal,
     TableBulkTargetModal,
+    TableRowRemoveMenu,
+    ConfirmationModal,
     StatusBadge,
     EnlargedToggle,
     LoaderSpinner
@@ -684,6 +719,9 @@ export default {
       bulkModalVisible: false,
       bulkModalMode: 'move',
       bulkSubmitting: false,
+      // Групповое "Убрать" (#1194 S5).
+      bulkRemoveConfirmVisible: false,
+      bulkRemoveSubmitting: false,
     };
   },
   computed: {
@@ -1022,7 +1060,10 @@ export default {
             company_id: emp.company_id,
             entry_checked: false,
             exit_checked: false,
-            territory_status: 0
+            territory_status: 0,
+            // Число таблиц «Проход», к которым привязан сотрудник (#1194 S5) -
+            // >1 включает per-row подменю «Убрать из этой/из всех».
+            target_tables_count: emp.target_tables_count || 0
           };
         });
         if (seq !== undefined && seq !== this.refreshSeq) return; // устарел - новее уже в работе/загружен
@@ -1166,6 +1207,41 @@ export default {
       }
     },
 
+    // Убрать ТОЛЬКО из текущей таблицы (#1194 S5) - альтернатива глобальной
+    // деактивации, доступная per-row через TableRowRemoveMenu, когда сотрудник
+    // привязан к нескольким таблицам. Тот же enqueue/undo UX, что и обычное
+    // удаление, коммит идёт через bulkUnbindEmployeesTable ([id], tableId).
+    removeFromCurrentTableWithNotification(item) {
+      if (this.isLoading) return;
+      if (this.pendingDeleteIds.includes(item.id)) return;
+      const empId = item.id;
+      const tableId = this.currentTableId;
+      const fullName = [item.last_name, item.first_name, item.middle_name].filter(Boolean).join(' ') || String(item.last_name || '');
+      this.pendingDeleteIds.push(empId);
+      useDeletionsStore().enqueue({
+        prefix: 'Сотрудник ',
+        bold: fullName,
+        suffix: ' убран из таблицы',
+        onConfirm: () => this.commitUnbindFromCurrentTable(empId, tableId),
+        onUndo: () => this.unhidePending(empId),
+      });
+    },
+
+    async commitUnbindFromCurrentTable(empId, tableId) {
+      try {
+        const result = await bulkUnbindEmployeesTable([empId], tableId);
+        if (!result || typeof result.success_count !== 'number' || result.error_count > 0) {
+          const message = result?.errors?.[0]?.error || result?.message || 'ошибка сервера';
+          useDeletionsStore().notify({ prefix: 'Не удалось убрать сотрудника: ', bold: message, type: 'error' });
+        }
+      } catch {
+        useDeletionsStore().notify({ prefix: 'Не удалось убрать сотрудника: ', bold: 'ошибка сети', type: 'error' });
+      } finally {
+        await this._loadData(true);
+        this.unhidePending(empId);
+      }
+    },
+
     // Ctrl/Shift-клик по строке (#1194) - групповое выделение вместо открытия
     // детали; обычный клик поведение не меняет (handleRowClick вернёт false).
     onRowClick(event, item) {
@@ -1219,6 +1295,51 @@ export default {
         useDeletionsStore().notify({ prefix: 'Выполнено ', bold: `${result.success_count} из ${total}`, suffix: `. Не удалось: ${failed}`, type: 'warning' });
       } else {
         useDeletionsStore().notify({ prefix: label, bold: String(result.success_count) });
+      }
+      this.clearSelection();
+      this._loadData(true);
+      return true;
+    },
+
+    // Групповое "Убрать" (#1194 S5): снимает привязку выделенных сотрудников к
+    // ТЕКУЩЕЙ таблице (bulkUnbindEmployeesTable). Последняя привязка -> BE сам
+    // деактивирует сотрудника (status=0) - фронту достаточно показать результат.
+    openBulkRemoveConfirm() {
+      this.bulkRemoveConfirmVisible = true;
+    },
+    cancelBulkRemove() {
+      if (this.bulkRemoveSubmitting) return;
+      this.bulkRemoveConfirmVisible = false;
+    },
+    async confirmBulkRemove() {
+      const ids = [...this.selectedIds];
+      if (!ids.length || this.bulkRemoveSubmitting) return;
+      this.bulkRemoveSubmitting = true;
+      let result;
+      try {
+        result = await bulkUnbindEmployeesTable(ids, this.currentTableId);
+      } catch {
+        useDeletionsStore().notify({ prefix: 'Не удалось выполнить групповую операцию', type: 'error' });
+        this.bulkRemoveSubmitting = false;
+        return;
+      }
+      this.bulkRemoveSubmitting = false;
+      if (this.handleBulkRemoveResult(result, ids.length)) {
+        this.bulkRemoveConfirmVisible = false;
+      }
+    },
+    // Разбор BulkOpResult для "Убрать" - тот же формат, что move/add (см.
+    // handleBulkTableOpResult), отдельный метод из-за другой метки успеха.
+    handleBulkRemoveResult(result, total) {
+      if (!result || typeof result.success_count !== 'number') {
+        useDeletionsStore().notify({ prefix: result?.message || 'Не удалось выполнить групповую операцию', type: 'error' });
+        return false;
+      }
+      if (result.error_count > 0) {
+        const failed = (result.errors || []).map(e => e.name || `#${e.id}`).join(', ');
+        useDeletionsStore().notify({ prefix: 'Убрано ', bold: `${result.success_count} из ${total}`, suffix: `. Не удалось: ${failed}`, type: 'warning' });
+      } else {
+        useDeletionsStore().notify({ prefix: 'Убрано сотрудников: ', bold: String(result.success_count) });
       }
       this.clearSelection();
       this._loadData(true);

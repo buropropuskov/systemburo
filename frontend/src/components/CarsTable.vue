@@ -72,6 +72,13 @@
           >
             Добавить в таблицу
           </button>
+          <button
+            class="lk-button lk-button--danger lk-button--sm"
+            data-testid="cars-bulk-remove"
+            @click="openBulkRemoveConfirm"
+          >
+            Убрать
+          </button>
         </template>
         <button
           class="lk-button lk-button--ghost lk-button--sm bulk-clear"
@@ -449,7 +456,17 @@
                   style="order: 9999;"
                   @click.stop
                 >
+                  <!-- Машина привязана к нескольким таблицам (#1194 S5) - выбор
+                       между "убрать только отсюда" и глобальной деактивацией.
+                       Единственная привязка - корзина работает как раньше. -->
+                  <TableRowRemoveMenu
+                    v-if="(item.target_tables_count || 0) > 1"
+                    :disabled="preview || isLoading"
+                    @remove-current="removeFromCurrentTableWithNotification(item)"
+                    @remove-all="removeItemWithNotification(item)"
+                  />
                   <button
+                    v-else
                     class="delete-btn"
                     :disabled="preview || isLoading"
                     @click="preview ? null : removeItemWithNotification(item)"
@@ -531,6 +548,20 @@
       @close="closeBulkModal"
       @apply="applyBulkTableOp"
     />
+
+    <!-- Групповое "Убрать" (#1194 S5): снимает привязку к текущей таблице у
+         выделенных строк; последняя привязка -> BE деактивирует машину сам. -->
+    <ConfirmationModal
+      v-if="!preview"
+      :show="bulkRemoveConfirmVisible"
+      title="Убрать из таблицы"
+      :message="`Убрать выбранные машины (${selectedCount}) из этой таблицы? Если это последняя таблица машины, она будет деактивирована.`"
+      confirm-text="Убрать"
+      cancel-text="Отмена"
+      :confirm-button-style="{ background: '#c62828', borderColor: '#c62828' }"
+      @confirm="confirmBulkRemove"
+      @cancel="cancelBulkRemove"
+    />
   </div>
 </template>
 
@@ -546,11 +577,13 @@ import RefreshButton from './RefreshButton.vue';
 import VehicleDetailsModal from './CreateApplication/VehicleDetailsModal.vue';
 import CarsTableHistoryModal from './CarsTableHistoryModal.vue';
 import TableBulkTargetModal from './TableBulkTargetModal.vue';
+import TableRowRemoveMenu from './TableRowRemoveMenu.vue';
+import ConfirmationModal from './ConfirmationModal.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import EnlargedToggle from '@/components/ui/EnlargedToggle.vue';
 import ExcelJS from 'exceljs';
-import { bulkMoveCarsTable, bulkAddCarsTable } from '@/api/cars';
+import { bulkMoveCarsTable, bulkAddCarsTable, bulkUnbindCarsTable } from '@/api/cars';
 
 const ENLARGED_KEY_PREFIX = 'enlarged-mode:cars:';
 
@@ -561,6 +594,8 @@ export default {
     VehicleDetailsModal,
     CarsTableHistoryModal,
     TableBulkTargetModal,
+    TableRowRemoveMenu,
+    ConfirmationModal,
     LoaderSpinner,
     StatusBadge,
     EnlargedToggle
@@ -630,6 +665,9 @@ export default {
       bulkModalVisible: false,
       bulkModalMode: 'move',
       bulkSubmitting: false,
+      // Групповое "Убрать" (#1194 S5).
+      bulkRemoveConfirmVisible: false,
+      bulkRemoveSubmitting: false,
     };
   },
   computed: {
@@ -934,7 +972,10 @@ export default {
             plateNumber: car.car_number,
             mark: car.car_brand,
             formatId: null,
-            unloadPlaces: car.unload_place_ids || []
+            unloadPlaces: car.unload_place_ids || [],
+            // Число таблиц «Проезд», к которым привязана машина (#1194 S5) -
+            // >1 включает per-row подменю «Убрать из этой/из всех».
+            target_tables_count: car.target_tables_count || 0
           };
         });
         if (seq !== undefined && seq !== this.refreshSeq) return; // устарел - новее уже в работе/загружен
@@ -1148,6 +1189,40 @@ export default {
       }
     },
 
+    // Убрать ТОЛЬКО из текущей таблицы (#1194 S5) - альтернатива глобальной
+    // деактивации, доступная per-row через TableRowRemoveMenu, когда машина
+    // привязана к нескольким таблицам. Тот же enqueue/undo UX, что и обычное
+    // удаление, коммит идёт через bulkUnbindCarsTable ([id], tableId).
+    removeFromCurrentTableWithNotification(item) {
+      if (this.isLoading) return;
+      if (this.pendingDeleteIds.includes(item.id)) return;
+      const carId = item.id;
+      const tableId = this.tableId;
+      this.pendingDeleteIds.push(carId);
+      useDeletionsStore().enqueue({
+        prefix: 'Машина ',
+        bold: item.car_number,
+        suffix: ' убрана из таблицы',
+        onConfirm: () => this.commitUnbindFromCurrentTable(carId, tableId),
+        onUndo: () => this.unhidePending(carId),
+      });
+    },
+
+    async commitUnbindFromCurrentTable(carId, tableId) {
+      try {
+        const result = await bulkUnbindCarsTable([carId], tableId);
+        if (!result || typeof result.success_count !== 'number' || result.error_count > 0) {
+          const message = result?.errors?.[0]?.error || result?.message || 'ошибка сервера';
+          useDeletionsStore().notify({ prefix: 'Не удалось убрать машину: ', bold: message, type: 'error' });
+        }
+      } catch {
+        useDeletionsStore().notify({ prefix: 'Не удалось убрать машину: ', bold: 'ошибка сети', type: 'error' });
+      } finally {
+        await this._loadData(true);
+        this.unhidePending(carId);
+      }
+    },
+
     // Ctrl/Shift-клик по строке (#1194) - групповое выделение вместо открытия
     // детали; обычный клик поведение не меняет (handleRowClick вернёт false).
     onRowClick(event, item) {
@@ -1201,6 +1276,52 @@ export default {
         useDeletionsStore().notify({ prefix: 'Выполнено ', bold: `${result.success_count} из ${total}`, suffix: `. Не удалось: ${failed}`, type: 'warning' });
       } else {
         useDeletionsStore().notify({ prefix: label, bold: String(result.success_count) });
+      }
+      this.clearSelection();
+      this._loadData(true);
+      return true;
+    },
+
+    // Групповое "Убрать" (#1194 S5): снимает привязку выделенных машин к ТЕКУЩЕЙ
+    // таблице (bulkUnbindCarsTable). Последняя привязка -> BE сам деактивирует
+    // машину (status=0) - фронту достаточно показать результат, без отдельного
+    // deactivate-вызова.
+    openBulkRemoveConfirm() {
+      this.bulkRemoveConfirmVisible = true;
+    },
+    cancelBulkRemove() {
+      if (this.bulkRemoveSubmitting) return;
+      this.bulkRemoveConfirmVisible = false;
+    },
+    async confirmBulkRemove() {
+      const ids = [...this.selectedIds];
+      if (!ids.length || this.bulkRemoveSubmitting) return;
+      this.bulkRemoveSubmitting = true;
+      let result;
+      try {
+        result = await bulkUnbindCarsTable(ids, this.tableId);
+      } catch {
+        useDeletionsStore().notify({ prefix: 'Не удалось выполнить групповую операцию', type: 'error' });
+        this.bulkRemoveSubmitting = false;
+        return;
+      }
+      this.bulkRemoveSubmitting = false;
+      if (this.handleBulkRemoveResult(result, ids.length)) {
+        this.bulkRemoveConfirmVisible = false;
+      }
+    },
+    // Разбор BulkOpResult для "Убрать" - тот же формат, что move/add (см.
+    // handleBulkTableOpResult), отдельный метод из-за другой метки успеха.
+    handleBulkRemoveResult(result, total) {
+      if (!result || typeof result.success_count !== 'number') {
+        useDeletionsStore().notify({ prefix: result?.message || 'Не удалось выполнить групповую операцию', type: 'error' });
+        return false;
+      }
+      if (result.error_count > 0) {
+        const failed = (result.errors || []).map(e => e.name || `#${e.id}`).join(', ');
+        useDeletionsStore().notify({ prefix: 'Убрано ', bold: `${result.success_count} из ${total}`, suffix: `. Не удалось: ${failed}`, type: 'warning' });
+      } else {
+        useDeletionsStore().notify({ prefix: 'Убрано машин: ', bold: String(result.success_count) });
       }
       this.clearSelection();
       this._loadData(true);
