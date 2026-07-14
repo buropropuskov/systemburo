@@ -59,31 +59,38 @@
           </div>
 
           <template v-else>
-            <div
-              class="cats"
-              role="tablist"
-              aria-label="Категории объектов"
-            >
-              <button
-                v-for="cat in categories"
-                :key="cat.key"
-                type="button"
-                role="tab"
-                class="cat-pill"
-                :class="{ 'cat-pill--active': cat.key === activeCat }"
-                :aria-selected="cat.key === activeCat"
-                :data-testid="`work-modes-cat-${cat.key}`"
-                @click="activeCat = cat.key"
+            <div class="cats">
+              <BaseDropdown
+                v-model="activeCat"
+                :options="categories"
+                label-key="label"
+                value-key="key"
+                teleport
+                :menu-z-index="10001"
+                class="cats__select"
+                data-testid="work-modes-cat-select"
               >
-                <span class="cat-pill__icon">
-                  <component :is="iconFor(cat.key)" />
-                </span>
-                {{ cat.label }}
-                <span
-                  v-if="cat.showCount"
-                  class="cat-pill__cnt"
-                >{{ cat.items.length }}</span>
-              </button>
+                <template #selected="{ option }">
+                  <span class="cat-opt">
+                    <span class="cat-opt__icon"><component :is="iconFor(option.key)" /></span>
+                    {{ option.label }}
+                    <span
+                      v-if="option.showCount"
+                      class="cat-opt__cnt"
+                    >{{ option.items.length }}</span>
+                  </span>
+                </template>
+                <template #option="{ option }">
+                  <span class="cat-opt">
+                    <span class="cat-opt__icon"><component :is="iconFor(option.key)" /></span>
+                    {{ option.label }}
+                    <span
+                      v-if="option.showCount"
+                      class="cat-opt__cnt"
+                    >{{ option.items.length }}</span>
+                  </span>
+                </template>
+              </BaseDropdown>
             </div>
 
             <div
@@ -199,6 +206,7 @@
 import { h, ref, getCurrentInstance } from 'vue';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
+import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import { getWorkModes } from '@/api/work-modes';
 
 let uid = 0;
@@ -233,7 +241,7 @@ const CheckpointIcon = {
 
 export default {
   name: 'WorkModesModal',
-  components: { LoaderSpinner },
+  components: { LoaderSpinner, BaseDropdown },
   props: {
     show: { type: Boolean, default: false },
   },
@@ -481,47 +489,26 @@ export default {
   flex: 1 1 auto;
 }
 
+/* Категории вынесены из ряда pill-табов в выпадающий список (#1097 R3-8):
+   три категории в узкой sheet-модалке жались, дропдаун компактнее. */
 .cats {
-  display: flex;
-  gap: 8px;
   padding: 0 26px 4px;
 }
 
-.cat-pill {
-  flex: 1;
-  display: flex;
+.cat-opt {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
   gap: 8px;
-  height: 42px;
-  border: 1px solid var(--color-border);
-  background: #fff;
-  border-radius: var(--radius-pill);
-  font-family: inherit;
   font-size: 13.5px;
   font-weight: 600;
-  color: #6a6a7d;
-  cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
-.cat-pill:hover:not(.cat-pill--active) {
-  border-color: #cfd4ff;
-  color: var(--color-primary);
-}
-
-.cat-pill--active {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  color: #fff;
-}
-
-.cat-pill__icon {
+.cat-opt__icon {
   display: inline-flex;
   flex-shrink: 0;
 }
 
-.cat-pill__cnt {
+.cat-opt__cnt {
   min-width: 20px;
   height: 20px;
   padding: 0 6px;
@@ -533,11 +520,6 @@ export default {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-}
-
-.cat-pill--active .cat-pill__cnt {
-  background: rgba(255, 255, 255, 0.25);
-  color: #fff;
 }
 
 .modes__body {
@@ -834,11 +816,7 @@ export default {
     padding: 24px 16px;
   }
   .cats {
-    flex-wrap: wrap;
     padding: 0 16px 4px;
-  }
-  .cat-pill {
-    flex: 1 1 auto;
   }
   .modes__body {
     padding: 16px 16px 8px;
