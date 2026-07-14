@@ -170,6 +170,20 @@ type TableEmployeeResponse struct {
 	// (employee_target_tables). Используется FE (#1194) для решения, показывать ли
 	// per-row выбор «из этой/из всех» при отвязке (>1) или сразу деактивировать (=1).
 	TargetTablesCount int `json:"target_tables_count"`
+	// TargetTables - список привязок сотрудника к таблицам проходной с источником
+	// (#1227): application/manual. Карточка сотрудника из контекста проходной раньше
+	// видела только count - теперь получает и сам список для секции «Проезд».
+	TargetTables []EmployeePassageTableRef `json:"target_tables"`
+}
+
+// EmployeeEmployeePassageTableRef -- ссылка на таблицу проходной с источником привязки
+// (#1227): application - привязана при подаче заявки, manual - добавлена вручную/
+// переносом. Локальный тип (не расширяет общий TableInfoRef из application_service.go,
+// у которого нет понятия source). Зеркало у машин - CarEmployeePassageTableRef (car_service.go).
+type EmployeePassageTableRef struct {
+	ID     int    `json:"id"`
+	Name   string `json:"name"`
+	Source string `json:"source"`
 }
 
 // --- Реализация ---
@@ -230,6 +244,7 @@ func (s *employeeService) CreateEmployee(ctx context.Context, req CreateEmployee
 				EmployeeID: employeeID,
 				TableID:    tableID,
 				OrderIndex: &orderIdx,
+				Source:     "manual",
 			}
 			if err := tx.Create(&ett).Error; err != nil {
 				slog.Error("не удалось создать связь сотрудника с таблицей", "employee_id", employeeID, "table_id", tableID, "error", err)
@@ -343,7 +358,7 @@ func (s *employeeService) CreateManualEmployees(ctx context.Context, req ManualE
 			}
 			for tableID := range targetTables {
 				orderIdx := 1
-				ett := models.EmployeeTargetTable{EmployeeID: employee.ID, TableID: tableID, OrderIndex: &orderIdx}
+				ett := models.EmployeeTargetTable{EmployeeID: employee.ID, TableID: tableID, OrderIndex: &orderIdx, Source: "manual"}
 				if err := tx.Create(&ett).Error; err != nil {
 					slog.Error("не удалось привязать сотрудника к таблице", "employee_id", employee.ID, "table_id", tableID, "error", err)
 					return echo.NewHTTPError(http.StatusInternalServerError, "Error linking employee to table")
@@ -485,6 +500,15 @@ func (s *employeeService) GetActiveEmployeesForTable(ctx context.Context, tableI
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching active employees")
 	}
 
+	employeeIDs := make([]int, 0, len(rows))
+	for _, r := range rows {
+		employeeIDs = append(employeeIDs, r.ID)
+	}
+	targetTablesMap, err := s.loadEmployeeTargetTables(ctx, employeeIDs)
+	if err != nil {
+		return nil, err
+	}
+
 	employees := make([]TableEmployeeResponse, 0, len(rows))
 	for _, r := range rows {
 		status := 0
@@ -507,9 +531,41 @@ func (s *employeeService) GetActiveEmployeesForTable(ctx context.Context, tableI
 			ApplicationID:     r.ApplicationID,
 			ApplicationNumber: r.ApplicationNumber,
 			TargetTablesCount: r.TargetTablesCount,
+			TargetTables:      targetTablesMap[r.ID],
 		})
 	}
 	return employees, nil
+}
+
+// loadEmployeeTargetTables резолвит для набора сотрудников их привязки к таблицам
+// проходной вместе с источником (#1227), одним батч-запросом (не N+1 на сотрудника).
+func (s *employeeService) loadEmployeeTargetTables(ctx context.Context, employeeIDs []int) (map[int][]EmployeePassageTableRef, error) {
+	result := make(map[int][]EmployeePassageTableRef, len(employeeIDs))
+	if len(employeeIDs) == 0 {
+		return result, nil
+	}
+
+	type targetTableRow struct {
+		EmployeeID int
+		ID         int
+		Name       string
+		Source     string
+	}
+	var rows []targetTableRow
+	if err := s.db.WithContext(ctx).
+		Table("employee_target_tables ett").
+		Select("ett.employee_id AS employee_id, st.id AS id, COALESCE(NULLIF(st.display_name, ''), st.name) AS name, ett.source AS source").
+		Joins("JOIN system_tables st ON st.id = ett.table_id").
+		Where("ett.employee_id IN ?", employeeIDs).
+		Order("ett.employee_id, ett.order_index, ett.table_id").
+		Scan(&rows).Error; err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching employee target tables")
+	}
+
+	for _, r := range rows {
+		result[r.EmployeeID] = append(result[r.EmployeeID], EmployeePassageTableRef{ID: r.ID, Name: r.Name, Source: r.Source})
+	}
+	return result, nil
 }
 
 // UpdateEmployeeTerritoryStatus обновляет территориальный статус сотрудника
@@ -751,7 +807,7 @@ func (s *employeeService) bindEmployeeToTableIfMissing(ctx context.Context, tx *
 		return nil
 	}
 	orderIdx := 1
-	ett := models.EmployeeTargetTable{EmployeeID: employeeID, TableID: tableID, OrderIndex: &orderIdx}
+	ett := models.EmployeeTargetTable{EmployeeID: employeeID, TableID: tableID, OrderIndex: &orderIdx, Source: "manual"}
 	if err := tx.Create(&ett).Error; err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка привязки к таблице")
 	}
