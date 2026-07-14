@@ -1086,7 +1086,7 @@ export default {
         width: 100%;
         max-width: 100%;
         max-height: 88vh;
-        border-radius: 24px 24px 0 0;
+        border-radius: 16px 16px 0 0;
         transition: transform 0.3s ease;
     }
 
