@@ -592,13 +592,15 @@ export default {
     emits: ['close', 'confirmation-updated', 'duplicate', 'withdraw', 'application-updated', 'update-application', 'application-changed', 'questions-read', 'download'],
     setup(props, { emit }) {
         const permissionsStore = usePermissionsStore();
-        // Bottom-sheet на мобилке (#1097 W3.9): свайп вниз за ползунок закрывает деталь.
+        // Bottom-sheet на мобилке (#1097 W3.9): свайп вниз за ползунок/шапку закрывает.
         // sheetScroll - реальный скролл-контейнер (@1024 .detail-content), чтобы свайп
         // внутри прокрученного контента был обычным скроллом, а не закрытием.
+        // handleSelector включает .detail-header (фиксированную шапку) - свайп из неё
+        // закрывает ДАЖЕ при прокрученном контенте, не заставляя листать наверх (#1097 r2).
         const sheetScroll = ref(null);
         const swipe = useSwipeDismiss(() => emit('close'), {
             getScrollTop: () => sheetScroll.value?.scrollTop ?? 0,
-            handleSelector: '.sheet-handle',
+            handleSelector: '.sheet-handle, .detail-header',
         });
         return {
             permissionsStore,
