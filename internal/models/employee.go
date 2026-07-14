@@ -167,9 +167,14 @@ type EmployeeFile struct {
 	UploadedAt time.Time `json:"uploaded_at"`
 }
 
+// EmployeeTargetTable -- привязка сотрудника к таблице проходной. Source различает
+// откуда взялась привязка (#1227): application - из поданной заявки (submit пишет
+// строку сырым SQL, дефолт колонки application подставится автоматически), manual -
+// ручное добавление/перенос/групповая операция. Зеркало CarTargetTable.
 type EmployeeTargetTable struct {
-	ID         int  `json:"id"`
-	EmployeeID int  `gorm:"index" json:"employee_id"`
-	TableID    int  `gorm:"index" json:"table_id"`
-	OrderIndex *int `json:"order_index"`
+	ID         int    `json:"id"`
+	EmployeeID int    `gorm:"index" json:"employee_id"`
+	TableID    int    `gorm:"index" json:"table_id"`
+	OrderIndex *int   `json:"order_index"`
+	Source     string `gorm:"type:varchar(20);not null;default:application" json:"source"`
 }
