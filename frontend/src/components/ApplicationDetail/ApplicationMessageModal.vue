@@ -7,6 +7,15 @@
     radius="30px"
     @close="$emit('close')"
   >
+    <template #header>
+      <div class="msg-modal-title">
+        <span class="msg-modal-title__main">Сообщение к заявке</span>
+        <span
+          v-if="applicationNumber"
+          class="msg-modal-title__num"
+        >{{ applicationNumber }}</span>
+      </div>
+    </template>
     <div
       class="text-constructor-content"
       v-html="sanitizedMessage"
@@ -31,6 +40,29 @@ const sanitizedMessage = computed(() => sanitizeHtml(props.message));
 </script>
 
 <style scoped>
+/* Заголовок в две строки: название сверху, номер заявки ниже серым/мельче
+   (на узком экране "Сообщение к заявке 20260712/001" не помещалось в строку, #1097 R3-10). */
+.msg-modal-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.msg-modal-title__main {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--color-text, #1a1a1a);
+}
+
+.msg-modal-title__num {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: #888;
+}
+
 /* Безопасный рендер форматированного сообщения (render-safety) */
 .text-constructor-content {
   padding: 25px;
