@@ -638,7 +638,7 @@ export default {
                 );
                 const schedule = buildScheduleReport(item.time_slots, this.entryPeriod);
                 if (free || windows.length || (schedule && schedule.anyClosed)) {
-                    groups.push({ name: item.table.display_name || item.table.name, free, windows, schedule });
+                    groups.push({ id: `table-${item.table.id}`, name: item.table.display_name || item.table.name, free, windows, schedule });
                 }
             });
             return groups;

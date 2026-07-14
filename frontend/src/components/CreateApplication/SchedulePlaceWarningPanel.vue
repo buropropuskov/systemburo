@@ -33,7 +33,7 @@ const dismissed = ref(false);
 /** Сигнатура состава - для решения "показать снова, если добавились новые". */
 const signature = computed(() =>
   visibleGroups.value
-    .map((g) => `${g.name}|${g.free || ''}|${(g.windows || []).join('~')}|${g.schedule ? g.schedule.presence + g.schedule.days.map((d) => d.label + d.hours + d.open).join('') : ''}`)
+    .map((g) => `${g.name}|${g.free || ''}|${(g.windows || []).join('~')}|${g.schedule ? g.schedule.presence + g.schedule.days.map((d) => d.label + (d.hours || []).join(',') + d.open).join('') : ''}`)
     .join('§'),
 );
 
@@ -57,35 +57,7 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
       >
         <header class="warn-panel__head">
           <span class="warn-panel__title">
-            <svg
-              class="warn-panel__icon"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              aria-hidden="true"
-            >
-              <path
-                d="M12 3.5 1.8 20.5h20.4L12 3.5Z"
-                stroke="currentColor"
-                stroke-width="1.8"
-                stroke-linejoin="round"
-              />
-              <path
-                d="M12 9.8v4.4"
-                stroke="currentColor"
-                stroke-width="1.8"
-                stroke-linecap="round"
-              />
-              <circle
-                cx="12"
-                cy="17.2"
-                r="0.5"
-                fill="currentColor"
-                stroke="currentColor"
-              />
-            </svg>
-            Предупреждения по местам
+            Предупреждение
           </span>
           <button
             type="button"
@@ -111,10 +83,14 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
           </button>
         </header>
 
-        <div class="warn-panel__body">
+        <transition-group
+          tag="div"
+          name="warn-group"
+          class="warn-panel__body"
+        >
           <section
             v-for="group in visibleGroups"
-            :key="group.name"
+            :key="group.id || group.name"
             class="warn-group"
           >
             <p class="warn-group__name">
@@ -127,7 +103,7 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
               class="warn-schedule"
             >
               <p class="warn-schedule__lead">
-                Режим работы · пребывание <b>{{ group.schedule.presence }}</b>
+                Режим работы · Вы указали <b>{{ group.schedule.presence }}</b>
               </p>
               <ul class="warn-schedule__days">
                 <li
@@ -137,7 +113,13 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
                   :class="{ 'warn-day--closed': !day.open }"
                 >
                   <span class="warn-day__name">{{ day.label }}</span>
-                  <span class="warn-day__hours">{{ day.hours }}</span>
+                  <span class="warn-day__hours">
+                    <span
+                      v-for="(hour, hi) in day.hours"
+                      :key="hi"
+                      class="warn-day__hour"
+                    >{{ hour }}</span>
+                  </span>
                   <span
                     v-if="!day.open"
                     class="warn-day__badge"
@@ -146,27 +128,24 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
               </ul>
             </div>
 
-            <!-- Свободный текст (S1) + активные окна (S4) -->
-            <ul
-              v-if="group.free || (group.windows && group.windows.length)"
-              class="warn-notes"
-            >
-              <li
+            <!-- Свободный текст (S1) + активные окна (S4) - обычным текстом -->
+            <template v-if="group.free || (group.windows && group.windows.length)">
+              <p
                 v-if="group.free"
                 class="warn-note"
               >
                 {{ group.free }}
-              </li>
-              <li
+              </p>
+              <p
                 v-for="(win, wi) in group.windows"
                 :key="'w' + wi"
                 class="warn-note"
               >
                 {{ win }}
-              </li>
-            </ul>
+              </p>
+            </template>
           </section>
-        </div>
+        </transition-group>
       </aside>
     </transition>
   </Teleport>
@@ -202,17 +181,9 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
 }
 
 .warn-panel__title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
   font-size: 14px;
   font-weight: 600;
   color: #8a5a10;
-}
-
-.warn-panel__icon {
-  color: #f39c12;
-  flex-shrink: 0;
 }
 
 .warn-panel__close {
@@ -235,6 +206,7 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
 }
 
 .warn-panel__body {
+  position: relative;
   padding: 8px 16px 14px;
   overflow-y: auto;
   scrollbar-width: thin;
@@ -293,7 +265,14 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
 
 .warn-day__hours {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   color: #555;
+}
+
+.warn-day__hour {
+  display: block;
 }
 
 .warn-day--closed .warn-day__hours {
@@ -310,15 +289,8 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
   font-weight: 600;
 }
 
-.warn-notes {
-  margin: 8px 0 0;
-  padding-left: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
 .warn-note {
+  margin: 8px 0 0;
   font-size: 12px;
   color: #555;
   line-height: 1.4;
@@ -333,6 +305,25 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
 .warn-panel-leave-to {
   transform: translateY(12px);
   opacity: 0;
+}
+
+/* Появление/исчезновение каждого места по отдельности, соседи плавно смещаются. */
+.warn-group-enter-active,
+.warn-group-move {
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.warn-group-leave-active {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.warn-group-enter-from,
+.warn-group-leave-to {
+  opacity: 0;
+  transform: translateX(14px);
 }
 
 @media (max-width: 640px) {

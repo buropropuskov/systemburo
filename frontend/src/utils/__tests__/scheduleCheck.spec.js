@@ -48,8 +48,8 @@ describe('buildScheduleReport - пересечение окна пребыван
     expect(r.anyClosed).toBe(true);
     expect(r.days).toHaveLength(1);
     expect(r.days[0].open).toBe(false);
-    expect(r.days[0].hours).toBe('10:00–12:00');
-    expect(r.presence).toBe('13:00–14:00');
+    expect(r.days[0].hours).toEqual(['10:00—12:00']);
+    expect(r.presence).toBe('13:00—14:00');
     expect(r.days[0].label).toContain('Пн');
   });
 
@@ -73,7 +73,7 @@ describe('buildScheduleReport - пересечение окна пребыван
     // срок на вторник (14.07), а слот только на понедельник
     const r = buildScheduleReport([slot()], period({ date_from: '2026-07-14', date_to: '2026-07-14', time_from: '10:30', time_to: '11:30' }));
     expect(r.anyClosed).toBe(true);
-    expect(r.days[0].hours).toBe('не работает');
+    expect(r.days[0].hours).toEqual(['не работает']);
     expect(r.days[0].open).toBe(false);
   });
 
@@ -81,7 +81,7 @@ describe('buildScheduleReport - пересечение окна пребыван
     const rtc = slot({ open_time: '00:00', close_time: '23:59' });
     const r = buildScheduleReport([rtc], period({ time_from: '03:00', time_to: '05:00' }));
     expect(r.anyClosed).toBe(false);
-    expect(r.days[0].hours).toBe('круглосуточно');
+    expect(r.days[0].hours).toEqual(['круглосуточно']);
   });
 
   it('is_next_day слот покрывает вечер и утро того же дня', () => {
@@ -94,13 +94,13 @@ describe('buildScheduleReport - пересечение окна пребыван
   it('несколько слотов в день -> режим перечисляет их, пересечение с любым = открыто', () => {
     const slots = [slot({ open_time: '10:00', close_time: '12:00' }), slot({ open_time: '17:00', close_time: '18:00' })];
     const r = buildScheduleReport(slots, period({ time_from: '17:30', time_to: '17:45' }));
-    expect(r.days[0].hours).toBe('10:00–12:00, 17:00–18:00');
+    expect(r.days[0].hours).toEqual(['10:00—12:00', '17:00—18:00']);
     expect(r.anyClosed).toBe(false);
   });
 
   it('неактивный слот не учитывается', () => {
     const r = buildScheduleReport([slot({ is_active: false })], period({ time_from: '10:30', time_to: '11:30' }));
-    expect(r.days[0].hours).toBe('не работает');
+    expect(r.days[0].hours).toEqual(['не работает']);
     expect(r.anyClosed).toBe(true);
   });
 });
@@ -116,7 +116,7 @@ describe('buildScheduleReport - многодневный период', () => {
     const tue = r.days.find((d) => d.weekday === 1);
     expect(mon.open).toBe(true);
     expect(tue.open).toBe(false);
-    expect(tue.hours).toBe('не работает');
+    expect(tue.hours).toEqual(['не работает']);
     expect(r.anyClosed).toBe(true);
     // многодневный -> метка = день недели без даты
     expect(mon.label).toBe('Пн');
@@ -146,7 +146,7 @@ describe('buildScheduleReport - ночное окно пребывания (time
       date_from: '2026-07-13', date_to: '2026-07-13', time_from: '20:00', time_to: '06:00',
     });
     expect(r).not.toBeNull();
-    expect(r.presence).toBe('20:00–06:00 (+1д)');
+    expect(r.presence).toBe('20:00—06:00');
     expect(r.days[0].open).toBe(true);
   });
 
