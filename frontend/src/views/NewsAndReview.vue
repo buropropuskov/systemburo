@@ -1048,13 +1048,15 @@ export default {
         gap: 6px;
     }
 
-    /* "Обновить" на мобилке - только иконка (кружок), текст убран (обзор 1). */
+    /* "Обновить" на мобилке - только иконка; высота как у кнопки "Обучение" (25px),
+       ширина с запасом под 3 точки перезарядки (обзор 1 r2). */
     .header-actions :deep(.refresh-btn) {
-        width: 40px;
-        height: 40px;
-        padding: 0;
+        height: 25px;
+        min-width: 40px;
+        width: auto;
+        padding: 0 8px;
         justify-content: center;
-        border-radius: 50%;
+        border-radius: 50px;
     }
     .header-actions :deep(.refresh-btn__text) {
         display: none;

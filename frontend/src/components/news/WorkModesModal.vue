@@ -10,7 +10,18 @@
         data-testid="work-modes-modal"
         @click.self="close"
       >
-        <div class="modes">
+        <div
+          class="modes"
+          :class="{ 'is-dragging': sheetDragging }"
+          :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
+          @touchstart="onSheetTouchStart"
+          @touchmove="onSheetTouchMove"
+          @touchend="onSheetTouchEnd"
+        >
+          <div
+            class="sheet-handle"
+            aria-hidden="true"
+          />
           <header class="modes__header">
             <div>
               <h2
@@ -75,7 +86,10 @@
               </button>
             </div>
 
-            <div class="modes__body">
+            <div
+              ref="sheetBody"
+              class="modes__body"
+            >
               <div
                 v-if="activeCat !== 'bureau'"
                 class="modes__search"
@@ -182,7 +196,8 @@
 </template>
 
 <script>
-import { h } from 'vue';
+import { h, ref, getCurrentInstance } from 'vue';
+import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import { getWorkModes } from '@/api/work-modes';
 
@@ -223,6 +238,23 @@ export default {
     show: { type: Boolean, default: false },
   },
   emits: ['close'],
+  setup() {
+    // Bottom-sheet свайп-вниз-закрытие (#1097 r2). onDismiss через proxy.close().
+    const inst = getCurrentInstance();
+    const sheetBody = ref(null);
+    const swipe = useSwipeDismiss(() => inst?.proxy?.close?.(), {
+      getScrollTop: () => sheetBody.value?.scrollTop ?? 0,
+      handleSelector: '.sheet-handle',
+    });
+    return {
+      sheetBody,
+      sheetOffset: swipe.offset,
+      sheetDragging: swipe.isDragging,
+      onSheetTouchStart: swipe.onTouchStart,
+      onSheetTouchMove: swipe.onTouchMove,
+      onSheetTouchEnd: swipe.onTouchEnd,
+    };
+  },
   data() {
     uid += 1;
     return {
@@ -748,6 +780,11 @@ export default {
   color: #1a1a1a;
 }
 
+/* Ползунок скрыт на десктопе, показывается только в bottom-sheet @560. */
+.modes .sheet-handle {
+  display: none;
+}
+
 @media (max-width: 560px) {
   /* На телефоне модалка почти во всю ширину и не такая высокая; боковые отступы
      ужаты. Высота по dvh (адрес-бар мобильного браузера учтён). */
@@ -766,7 +803,26 @@ export default {
     height: min(600px, var(--app-vvh, 82dvh));
     max-height: min(90dvh, var(--app-vvh, 90dvh));
     border-radius: 16px 16px 0 0;
-    animation: app-sheet-up 0.32s cubic-bezier(0.32, 0.72, 0, 1) both;
+    /* backwards (не both): после enter-слайда transform отпускается свайпу (#1097 r2). */
+    animation: app-sheet-up 0.32s cubic-bezier(0.32, 0.72, 0, 1) backwards;
+    transition: transform 0.3s ease;
+  }
+  .modes.is-dragging {
+    transition: none;
+  }
+  /* Ползунок bottom-sheet (свайп вниз закрывает). */
+  .modes .sheet-handle {
+    display: block;
+    width: 40px;
+    height: 4px;
+    border-radius: 2px;
+    background: #d5d5db;
+    margin: 8px auto 0;
+    flex-shrink: 0;
+  }
+  /* Закрытие (X/оверлей) = слайд вниз. */
+  .modal-fade-leave-to .modes {
+    transform: translateY(100%);
   }
   .modes__header {
     padding: 16px 16px 14px;
