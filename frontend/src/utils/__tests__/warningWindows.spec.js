@@ -48,6 +48,14 @@ describe('isWindowActiveAt', () => {
     expect(isWindowActiveAt(w, new Date(2026, 6, 13, 12, 0))).toBe(false);
   });
 
+  it('next-day окно на КОНКРЕТНый день активно только в этот день (как слоты бэка)', () => {
+    // Пт 22:00-06:00 (projectDay 4). Оценивается только в пятницу, на субботу не переносится.
+    const w = win({ day_of_week: 4, time_from: '22:00', time_to: '06:00', is_next_day: true });
+    expect(isWindowActiveAt(w, new Date(2026, 6, 17, 23, 0))).toBe(true); // Пт вечер
+    expect(isWindowActiveAt(w, new Date(2026, 6, 17, 3, 0))).toBe(true); // Пт раннее утро (тот же день)
+    expect(isWindowActiveAt(w, new Date(2026, 6, 18, 3, 0))).toBe(false); // Сб утро - не переносится
+  });
+
   it('круглосуточное 00:00-23:59 активно в любой момент дня', () => {
     const w = win({ day_of_week: null, time_from: '00:00', time_to: '23:59' });
     expect(isWindowActiveAt(w, MON_1030)).toBe(true);

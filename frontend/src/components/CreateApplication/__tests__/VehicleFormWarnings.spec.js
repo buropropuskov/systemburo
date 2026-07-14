@@ -107,6 +107,52 @@ describe('VehicleForm - предупреждения мест при добав�
     expect(warnCalls()).toHaveLength(0);
   });
 
+  it('buildPlaceWarnings фильтрует окно по ПЕРЕДАННОМУ моменту (основа свежего тоста)', async () => {
+    const timed = [{
+      id: 1, name: 'Пост №72', status: 'active', warning: null,
+      warning_windows: [{ id: 1, day_of_week: 0, time_from: '09:00', time_to: '10:00', is_next_day: false, message: 'Окно 9-10', is_active: true }],
+    }];
+    apiRequest.mockImplementation((url) =>
+      url === '/unload-places'
+        ? Promise.resolve({ ok: true, json: async () => timed })
+        : Promise.resolve({ ok: true, json: async () => [] }));
+
+    const w = mount(VehicleForm, { props: { fieldConfig: FIELD_CFG }, attachTo: document.body });
+    await flushPromises();
+    w.vm.selectedUnloadingPlaces = [1];
+
+    // notify зовёт buildPlaceWarnings(new Date()) - момент считается заново на клике,
+    // а не берётся из кэша computed (мог устареть, пока заполняли форму).
+    const active = w.vm.buildPlaceWarnings(new Date(2026, 6, 13, 9, 30)); // Пн в окне
+    expect(active).toHaveLength(1);
+    expect(active[0].lines).toContain('Окно 9-10');
+
+    const expired = w.vm.buildPlaceWarnings(new Date(2026, 6, 13, 11, 0)); // Пн вне окна
+    expect(expired).toHaveLength(0);
+  });
+
+  it('баннер следует за warningNow: окно исчезает, когда тикающий момент выходит за интервал', async () => {
+    const timed = [{
+      id: 1, name: 'Пост №72', status: 'active', warning: null,
+      warning_windows: [{ id: 1, day_of_week: 0, time_from: '09:00', time_to: '10:00', is_next_day: false, message: 'Окно 9-10', is_active: true }],
+    }];
+    apiRequest.mockImplementation((url) =>
+      url === '/unload-places'
+        ? Promise.resolve({ ok: true, json: async () => timed })
+        : Promise.resolve({ ok: true, json: async () => [] }));
+
+    const w = mount(VehicleForm, { props: { fieldConfig: FIELD_CFG }, attachTo: document.body });
+    await flushPromises();
+    w.vm.selectedUnloadingPlaces = [1];
+    w.vm.warningNow = new Date(2026, 6, 13, 9, 30); // в окне
+    await flushPromises();
+    expect(w.find('[data-testid="vehicle-place-warnings"]').text()).toContain('Окно 9-10');
+
+    w.vm.warningNow = new Date(2026, 6, 13, 11, 0); // тик вывел момент за окно
+    await flushPromises();
+    expect(w.find('[data-testid="vehicle-place-warnings"]').exists()).toBe(false);
+  });
+
   it('warning таблицы проезда берётся из table.warning (обёрнутый DTO)', async () => {
     const w = mount(VehicleForm, { props: { fieldConfig: FIELD_CFG }, attachTo: document.body });
     await flushPromises();

@@ -25,6 +25,14 @@ function toMinutes(timeStr) {
 
 /**
  * Действует ли окно-предупреждение в момент `at`.
+ *
+ * Для конкретного `day_of_week` окно оценивается только в ЭТОТ день недели -
+ * как слоты расписания на бэке (`computeUnloadPlaceStatusAt`, `computeWorkModeStatus`):
+ * `is_next_day`-интервал активен в [time_from,24:00) и [00:00,time_to] того же дня,
+ * а НЕ переносится на следующий календарный день. Для `day_of_week=null` (каждый
+ * день) это ограничение не проявляется. Конвенция намеренно зеркалит бэк, чтобы
+ * FE-показ и BE-статус не разъезжались.
+ *
  * @param {{day_of_week: (number|null), time_from: (string|null), time_to: (string|null), is_next_day: boolean, is_active: boolean}} win
  * @param {Date} [at] момент проверки (по умолчанию — текущий)
  * @returns {boolean}

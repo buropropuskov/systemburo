@@ -579,7 +579,11 @@ export default {
 
             // Проверка ЧС (#443): null или { is_blacklisted, reason }
             blacklistInfo: null,
-            blacklistTimeout: null
+            blacklistTimeout: null,
+            // Опорный момент для предупреждений окон (#1183 S4): тикает раз в минуту,
+            // чтобы баннер релевантных окон не залипал по времени.
+            warningNow: new Date(),
+            warningTimer: null
         }
     },
     computed: {
@@ -625,23 +629,11 @@ export default {
             });
         },
         // Предупреждения выбранных таблиц прохода, релевантные сейчас (#1183 S4):
-        // свободный текст + активные окна. Группа на таблицу.
+        // свободный текст + активные окна. Зависит от warningNow (тикает раз в
+        // минуту), чтобы баннер не залипал по времени - computed не пересчитывается
+        // от голого new Date() в теле.
         selectedPlaceWarnings() {
-            const at = new Date();
-            const groups = [];
-
-            this.selectedPassageTables.forEach(tableId => {
-                const item = this.allPassageTables.find(t => t.table && t.table.id === tableId);
-                if (!item) return;
-                const { free, windows } = collectActiveWarnings(
-                    { warning: item.table.warning, warning_windows: item.warning_windows },
-                    at
-                );
-                const lines = [free, ...windows].filter(Boolean);
-                if (lines.length) groups.push({ name: item.table.display_name || item.table.name, lines });
-            });
-
-            return groups;
+            return this.buildPlaceWarnings(this.warningNow);
         }
     },
     watch: {
@@ -656,11 +648,15 @@ export default {
         ]);
 
         document.addEventListener('click', this.handleDocumentClick);
+        this.warningTimer = setInterval(() => { this.warningNow = new Date(); }, 60000);
     },
     beforeUnmount() {
         document.removeEventListener('click', this.handleDocumentClick);
         if (this.blacklistTimeout) {
             clearTimeout(this.blacklistTimeout);
+        }
+        if (this.warningTimer) {
+            clearInterval(this.warningTimer);
         }
     },
     methods: {
@@ -926,10 +922,32 @@ export default {
             }
         },
 
-        // Тост-предупреждения по местам прохода добавляемого сотрудника (#1183 S4), неблокирующе.
+        // Собирает предупреждения выбранных таблиц прохода на момент at (#1183 S4).
+        // Явный at, а не new Date() в теле computed: notifyPlaceWarnings пересчитывает
+        // на свежий момент клика, баннер - на тикающий warningNow.
+        buildPlaceWarnings(at) {
+            const groups = [];
+
+            this.selectedPassageTables.forEach(tableId => {
+                const item = this.allPassageTables.find(t => t.table && t.table.id === tableId);
+                if (!item) return;
+                const { free, windows } = collectActiveWarnings(
+                    { warning: item.table.warning, warning_windows: item.warning_windows },
+                    at
+                );
+                const lines = [free, ...windows].filter(Boolean);
+                if (lines.length) groups.push({ name: item.table.display_name || item.table.name, lines });
+            });
+
+            return groups;
+        },
+
+        // Тост-предупреждения по местам прохода добавляемого сотрудника (#1183 S4),
+        // неблокирующе. Свежий new Date() в момент клика - кэш computed мог устареть,
+        // пока заполнялись остальные поля формы.
         notifyPlaceWarnings() {
             const store = useDeletionsStore();
-            this.selectedPlaceWarnings.forEach(group => {
+            this.buildPlaceWarnings(new Date()).forEach(group => {
                 store.notify({ prefix: `${group.name}: `, bold: group.lines.join(' '), type: 'warning' });
             });
         },
