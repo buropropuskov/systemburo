@@ -141,12 +141,8 @@ export default {
     // watch(banScopeUserId) на смену токена.
     this.reconcileBanSubscription()
   },
-  mounted() {
-    this.setupViewportVars()
-  },
   beforeUnmount() {
     this.teardownBanSubscription()
-    this.teardownViewportVars()
   },
   methods: {
     /**
@@ -205,54 +201,6 @@ export default {
         if (this.$route.path !== '/') {
           this.$router.push("/");
         }
-      }
-    },
-    /**
-     * Держим CSS-переменные --app-vvh / --app-vvt синхронными с visualViewport -
-     * реально видимой областью экрана. Bottom-sheet модалки (.modal-overlay,
-     * .base-modal-overlay) на мобилке используют их вместо layout-viewport, иначе
-     * при выезде/уходе футера Яндекс-браузера лист «прыгает» и переприкрепляется
-     * к новому низу. Фолбэк на innerHeight / 100dvh, если visualViewport недоступен.
-     */
-    syncViewportVars() {
-      const vv = window.visualViewport
-      const h = vv ? vv.height : window.innerHeight
-      const top = vv ? vv.offsetTop : 0
-      const el = document.documentElement
-      el.style.setProperty('--app-vvh', `${Math.round(h)}px`)
-      el.style.setProperty('--app-vvt', `${Math.round(top)}px`)
-    },
-    scheduleViewportSync() {
-      if (this._vvRaf) return
-      this._vvRaf = requestAnimationFrame(() => {
-        this._vvRaf = null
-        this.syncViewportVars()
-      })
-    },
-    setupViewportVars() {
-      this.syncViewportVars()
-      this._vvHandler = () => this.scheduleViewportSync()
-      const vv = window.visualViewport
-      if (vv) {
-        vv.addEventListener('resize', this._vvHandler)
-        vv.addEventListener('scroll', this._vvHandler)
-      }
-      window.addEventListener('resize', this._vvHandler)
-      window.addEventListener('orientationchange', this._vvHandler)
-    },
-    teardownViewportVars() {
-      const vv = window.visualViewport
-      if (vv && this._vvHandler) {
-        vv.removeEventListener('resize', this._vvHandler)
-        vv.removeEventListener('scroll', this._vvHandler)
-      }
-      if (this._vvHandler) {
-        window.removeEventListener('resize', this._vvHandler)
-        window.removeEventListener('orientationchange', this._vvHandler)
-      }
-      if (this._vvRaf) {
-        cancelAnimationFrame(this._vvRaf)
-        this._vvRaf = null
       }
     },
   },
@@ -326,10 +274,10 @@ body.auth-active .content__container {
   width: 100%;
 }
 
-/* На мобилке шапка (TheHeader) - position:fixed (следует за видимой областью через
-   --app-vvt, чинит 5px-дёрганье при сворачивании адресной строки Яндекса, #1097 R4-2).
-   fixed убирает шапку из потока - резервируем её высоту (60px = min-height .header),
-   иначе контент уезжает под шапку. Только auth-active: на логине/ошибках шапки нет. */
+/* На мобилке шапка (TheHeader) - position:fixed;top:0 (нативно прибита композитором
+   к видимой области, без JS-переменной вьюпорта, #1097 R5-S1). fixed убирает шапку из
+   потока - резервируем её высоту (60px = min-height .header), иначе контент уезжает под
+   шапку. Только auth-active: на логине/ошибках шапки нет. */
 @media (max-width: 768px) {
   body.auth-active #main-content {
     padding-top: 60px;
@@ -376,7 +324,7 @@ body.nav-drawer-open {
     padding: 0 !important;
     align-items: flex-end !important;
     /* Нативный dvh: композитор прибивает высоту к видимой области без reflow-лага,
-       поэтому JS-переменные --app-vvt/--app-vvh больше не нужны (#1097 R5-S2). */
+       JS-синхронизация вьюпорта не нужна (#1097 R5-S2/S3). */
     top: 0 !important;
     height: 100dvh !important;
     bottom: auto !important;
