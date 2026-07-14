@@ -1246,8 +1246,6 @@ export default {
   align-items: center;
   justify-content: center;
   z-index: 10001;
-  backdrop-filter: blur(0.1px);
-  -webkit-backdrop-filter: blur(0.1px);
   animation: overlayAppear 0.4s ease-out;
 }
 
@@ -1911,9 +1909,15 @@ export default {
 }
 
 @media (max-width: 768px) {
+  /* Bottom-sheet: wrapper центрировал контент (align-items:center + height:100%) и
+     побеждал flex-end оверлея из App.vue - выравниваем к низу, модалка выезжает
+     снизу (detail 4). Ширина/скругление/слайд приходят из App.vue (.modal-content). */
+  .modal-wrapper {
+    align-items: flex-end;
+  }
   .modal-content {
     width: 90%;
-    left: 5% !important;
+    left: 0 !important;
     transform: none !important;
     height: auto;
     max-height: 80vh;

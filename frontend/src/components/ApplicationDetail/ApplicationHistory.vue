@@ -1325,13 +1325,13 @@ export default {
     /* На мобилке кнопка экспорта - иконка в outline-круге (единый стиль с
        Скачать/Переслать в шапке детали). Текст скрыт. */
     .export-btn {
-        width: 44px;
-        height: 44px;
-        min-width: 44px;
+        width: 30px;
+        height: 30px;
+        min-width: 30px;
         padding: 0;
         gap: 0;
         border-radius: 50%;
-        border: 1px solid #4F5BDF;
+        border: 1px solid #000;
         background: #fff;
     }
 

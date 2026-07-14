@@ -708,6 +708,22 @@ export default {
     gap: 10px;
 }
 
+/* Мобилка: кнопки/статусы согласования в ОДНУ строку, не переносить (detail 2).
+   nowrap + компактный padding, чтобы Согласовать+Отказать влезали в шапку детали. */
+@media (max-width: 768px) {
+    .action-buttons-wrapper,
+    .action-buttons,
+    .view-buttons {
+        flex-wrap: nowrap;
+    }
+    .confirm-btn,
+    .reject-btn,
+    .accept-btn {
+        padding: 8px 14px;
+        white-space: nowrap;
+    }
+}
+
 .confirm-btn, .reject-btn, .accept-btn {
     padding: 6px 24px;
     border: none;
