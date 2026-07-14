@@ -361,9 +361,9 @@ export default {
   .base-modal-overlay {
     padding: 0;
     align-items: flex-end;
-    /* Footer-фикс: лист клеится к видимой области (visualViewport, App.vue). */
-    top: var(--app-vvt, 0);
-    height: var(--app-vvh, 100%);
+    /* Нативный dvh: композитор держит высоту у видимой области без reflow-лага. */
+    top: 0;
+    height: 100dvh;
     bottom: auto;
   }
 
@@ -371,7 +371,7 @@ export default {
     width: 100vw !important;
     max-width: 100vw !important;
     min-width: 100vw !important;
-    max-height: min(90dvh, var(--app-vvh, 90dvh));
+    max-height: 90dvh;
     border-radius: 16px 16px 0 0;
     margin: 0;
     /* Тело скроллится, ползунок/шапка/actions зафиксированы (общий баг 4). */
