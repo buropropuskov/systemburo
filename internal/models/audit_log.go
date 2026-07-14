@@ -58,6 +58,16 @@ const (
 	// (car_target_tables/employee_target_tables, #1036). Пишется по одной записи на
 	// таблицу, details.table_id хранит пост - reader резолвит table_name как у entry/exit.
 	AuditActionAddedToTable = "added_to_table"
+	// AuditActionUnboundFromTable - машина/сотрудник сняты с таблицы проходной групповой
+	// операцией «Убрать» (#1194), но у сущности осталась хотя бы одна другая привязка
+	// (иначе см. deactivate/#951). details.table_id - снятая таблица.
+	AuditActionUnboundFromTable = "unbound_from_table"
+	// AuditActionMovedBetweenTables - машина/сотрудник перенесены групповой операцией
+	// «Перенести» (#1194) из одной таблицы проходной в другую(ие) одним действием.
+	// details.table_id - таблица-источник (там же появляется событие для фильтра
+	// «Место прохода»); таблицы назначения - только в человекочитаемом comment
+	// (их может быть несколько, details.table_id - одно поле).
+	AuditActionMovedBetweenTables = "moved_between_tables"
 )
 
 // AuditLogItem - запись аудита для API с разрезолвленным именем актора

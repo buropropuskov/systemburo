@@ -135,42 +135,51 @@ func (s *carService) UpdateCarTerritoryStatus(ctx context.Context, carID int, re
 // DeactivateCar деактивирует автомобиль и записывает удаление в историю.
 func (s *carService) DeactivateCar(ctx context.Context, carID int, req DeactivateCarRequest) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var car models.Car
-		if err := tx.Select("id", "car_number", "car_brand").
-			First(&car, carID).Error; err != nil {
-			if err == gorm.ErrRecordNotFound {
-				return echo.NewHTTPError(http.StatusNotFound, "Car not found")
-			}
-			return echo.NewHTTPError(http.StatusInternalServerError, "Database error")
-		}
-
-		now := time.Now().UTC()
-		if err := tx.Model(&models.Car{}).Where("id = ?", carID).Updates(map[string]interface{}{
-			"status":       req.Status,
-			"date_removed": now,
-			"updated_at":   now,
-		}).Error; err != nil {
-			slog.Error("не удалось деактивировать автомобиль", "car_id", carID, "error", err)
-			return echo.NewHTTPError(http.StatusInternalServerError, "Error deactivating car")
-		}
-
-		carNumber := ""
-		carBrand := ""
-		if car.CarNumber != nil {
-			carNumber = *car.CarNumber
-		}
-		if car.CarBrand != nil {
-			carBrand = *car.CarBrand
-		}
-		comment := fmt.Sprintf("Автомобиль %s %s удалён пользователем", carNumber, carBrand)
-		actionType := "delete"
-		if err := s.recorder.Record(ctx, tx, models.AuditEntityCar, &carID, actionType, req.UserID, carAuditDetails{Comment: &comment, TableID: req.TableID}); err != nil {
-			slog.Error("не удалось добавить запись в историю автомобиля", "car_id", carID, "action_type", actionType, "error", err)
-			return echo.NewHTTPError(http.StatusInternalServerError, "Error adding car history entry")
-		}
-		slog.Info("автомобиль деактивирован", "car_id", carID)
-		return nil
+		return s.deactivateCarTx(ctx, tx, carID, req)
 	})
+}
+
+// deactivateCarTx выполняет саму деактивацию машины внутри уже открытой транзакции.
+// Вынесено из DeactivateCar для переиспользования bulk-операциями (#1194): когда
+// снятие/перенос последней привязки к таблице «Проезд» оставляет машину без единой
+// таблицы, она деактивируется тем же путём, что и единичный DeactivateCar, но в той
+// же tx, что и сама привязка (без вложенной транзакции).
+func (s *carService) deactivateCarTx(ctx context.Context, tx *gorm.DB, carID int, req DeactivateCarRequest) error {
+	var car models.Car
+	if err := tx.Select("id", "car_number", "car_brand").
+		First(&car, carID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return echo.NewHTTPError(http.StatusNotFound, "Car not found")
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "Database error")
+	}
+
+	now := time.Now().UTC()
+	if err := tx.Model(&models.Car{}).Where("id = ?", carID).Updates(map[string]interface{}{
+		"status":       req.Status,
+		"date_removed": now,
+		"updated_at":   now,
+	}).Error; err != nil {
+		slog.Error("не удалось деактивировать автомобиль", "car_id", carID, "error", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error deactivating car")
+	}
+
+	carNumber := ""
+	carBrand := ""
+	if car.CarNumber != nil {
+		carNumber = *car.CarNumber
+	}
+	if car.CarBrand != nil {
+		carBrand = *car.CarBrand
+	}
+	comment := fmt.Sprintf("Автомобиль %s %s удалён пользователем", carNumber, carBrand)
+	actionType := "delete"
+	if err := s.recorder.Record(ctx, tx, models.AuditEntityCar, &carID, actionType, req.UserID, carAuditDetails{Comment: &comment, TableID: req.TableID}); err != nil {
+		slog.Error("не удалось добавить запись в историю автомобиля", "car_id", carID, "action_type", actionType, "error", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Error adding car history entry")
+	}
+	slog.Info("автомобиль деактивирован", "car_id", carID)
+	return nil
 }
 
 // ActivateCar вводит автомобиль в работу и записывает активацию в историю.

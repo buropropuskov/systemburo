@@ -340,6 +340,87 @@ func (h *CarHandler) RestoreCar(c echo.Context) error {
 	return RespondMessage(c, "Car restored successfully")
 }
 
+// BulkMoveTable обрабатывает POST /cars/bulk/move-table.
+// @Summary Групповой перенос машин между таблицами «Проезд» (#1194)
+// @Tags cars
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param body body services.BulkMoveCarsTableRequest true "ID машин, исходная и целевые таблицы"
+// @Success 200 {object} services.BulkOpResult
+// @Success 207 {object} services.BulkOpResult "Частичный успех"
+// @Failure 400 {object} models.HTTPError
+// @Failure 403 {object} models.HTTPError
+// @Router /cars/bulk/move-table [post]
+func (h *CarHandler) BulkMoveTable(c echo.Context) error {
+	var req services.BulkMoveCarsTableRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if len(req.IDs) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны машины")
+	}
+	res, err := h.service.BulkMoveTable(c.Request().Context(), req, GetUserID(c))
+	if err != nil {
+		return err
+	}
+	return respondBulk(c, res)
+}
+
+// BulkAddTable обрабатывает POST /cars/bulk/add-table.
+// @Summary Групповое добавление машин в таблицы «Проезд» (#1194)
+// @Tags cars
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param body body services.BulkAddCarsTableRequest true "ID машин и целевые таблицы"
+// @Success 200 {object} services.BulkOpResult
+// @Success 207 {object} services.BulkOpResult "Частичный успех"
+// @Failure 400 {object} models.HTTPError
+// @Failure 403 {object} models.HTTPError
+// @Router /cars/bulk/add-table [post]
+func (h *CarHandler) BulkAddTable(c echo.Context) error {
+	var req services.BulkAddCarsTableRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if len(req.IDs) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны машины")
+	}
+	res, err := h.service.BulkAddTable(c.Request().Context(), req, GetUserID(c))
+	if err != nil {
+		return err
+	}
+	return respondBulk(c, res)
+}
+
+// BulkUnbindTable обрабатывает POST /cars/bulk/unbind-table.
+// @Summary Групповое снятие машин с таблицы «Проезд» (#1194)
+// @Tags cars
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param body body services.BulkUnbindCarsTableRequest true "ID машин и таблица"
+// @Success 200 {object} services.BulkOpResult
+// @Success 207 {object} services.BulkOpResult "Частичный успех"
+// @Failure 400 {object} models.HTTPError
+// @Failure 403 {object} models.HTTPError
+// @Router /cars/bulk/unbind-table [post]
+func (h *CarHandler) BulkUnbindTable(c echo.Context) error {
+	var req services.BulkUnbindCarsTableRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if len(req.IDs) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не выбраны машины")
+	}
+	res, err := h.service.BulkUnbindTable(c.Request().Context(), req, GetUserID(c))
+	if err != nil {
+		return err
+	}
+	return respondBulk(c, res)
+}
+
 // GetUnifiedCarHistory обрабатывает GET /cars/history/unified.
 // @Summary Получение объединённой истории для всех машин с одинаковыми параметрами
 // @Tags cars

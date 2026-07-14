@@ -97,6 +97,19 @@ func (p *TablesRefreshPublisher) NotifyEmployeesChangedBatch(ctx context.Context
 	p.publishTables(ctx, ids)
 }
 
+// NotifyTables публикует tables.refresh явному набору таблиц вместо вычисления
+// аудитории из текущего членства car_target_tables/employee_target_tables (#1194).
+// Нужен операциям, которые МЕНЯЮТ сами эти привязки (bulk перенос/добавление/снятие):
+// после коммита таблица-источник (from/unbind) уже не содержит сущность, поэтому
+// NotifyCarsChangedBatch её бы не увидел, а её зрителям как раз нужно обновиться,
+// чтобы строка live исчезла.
+func (p *TablesRefreshPublisher) NotifyTables(ctx context.Context, tableIDs []int) {
+	if p == nil || p.publisher == nil || len(tableIDs) == 0 {
+		return
+	}
+	p.publishTables(ctx, tableIDs)
+}
+
 // NotifyApplicationActivated публикует обновление таблицам, затронутым принятием
 // заявки: активированным машинам и сотрудникам - их целевым таблицам («Проезд» /
 // «Места прохода»). Один момент принятия рождает сигналы всем местам, где новые
