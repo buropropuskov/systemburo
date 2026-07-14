@@ -798,3 +798,37 @@ func TestSystemTables_FactTableHint_LongFormattedHTML(t *testing.T) {
 	table := testutil.ParseMap(t, rec)["table"].(map[string]interface{})
 	assert.Equal(t, hint, table["fact_table_hint"], "подсказка round-trip без обрезки")
 }
+
+// TestSystemTables_Warning_RoundTrip проверяет, что свободное предупреждение
+// (#1183) сохраняется при создании и обновлении, возвращается в DTO таблицы
+// и попадает в history-детали (buildUpdateDetails).
+func TestSystemTables_Warning_RoundTrip(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	// Create с warning
+	rec := testutil.POST(t, e, "/system-tables",
+		`{"name":"warn_table","display_name":"Warn Table","table_type":"cars","warning":"Проезд закрыт 12:00-13:00"}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	tableID := int(testutil.ParseMap(t, rec)["id"].(float64))
+
+	// GET отдаёт warning
+	table := testutil.ParseMap(t, testutil.GET(t, e, fmt.Sprintf("/system-tables/%d", tableID), h))["table"].(map[string]interface{})
+	assert.Equal(t, "Проезд закрыт 12:00-13:00", table["warning"])
+
+	// Update меняет warning
+	rec = testutil.PUT(t, e, fmt.Sprintf("/system-tables/%d", tableID), `{"warning":"Новое предупреждение"}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	table = testutil.ParseMap(t, testutil.GET(t, e, fmt.Sprintf("/system-tables/%d", tableID), h))["table"].(map[string]interface{})
+	assert.Equal(t, "Новое предупреждение", table["warning"])
+
+	// warning из update попал в history-детали (buildUpdateDetails)
+	items := testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/history", tableID), h))
+	require.GreaterOrEqual(t, len(items), 1)
+	assert.Equal(t, "updated", items[0]["action_type"])
+	assert.Equal(t, "Новое предупреждение", items[0]["details"].(map[string]interface{})["warning"])
+}

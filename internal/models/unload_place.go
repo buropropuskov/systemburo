@@ -3,9 +3,12 @@ package models
 import "time"
 
 type UnloadPlace struct {
-	ID            int       `json:"id"`
-	Name          string    `gorm:"size:200" json:"name"`
-	Description   *string   `gorm:"type:text" json:"description"`
+	ID          int     `json:"id"`
+	Name        string  `gorm:"size:200" json:"name"`
+	Description *string `gorm:"type:text" json:"description"`
+	// Warning - свободное предупреждение, показывается заявителю всегда при
+	// добавлении машины/человека с этим местом (#1183).
+	Warning       *string   `gorm:"type:text" json:"warning"`
 	IsActive      bool      `gorm:"default:true;index" json:"is_active"`
 	CreatedAt     time.Time `json:"created_at"`
 	MapLink       *string   `gorm:"size:500" json:"map_link"`
