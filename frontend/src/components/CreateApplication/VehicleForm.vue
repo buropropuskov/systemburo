@@ -379,26 +379,12 @@
         v-if="fieldRequired('passage_tables')"
         class="required"
       >*</span></label>
-      <div
+      <TargetTablesGrid
         v-if="!loadingPassageTables && filteredPassageTables.length > 0"
-        class="passage__grid"
-      >
-        <div
-          v-for="table in filteredPassageTables"
-          :key="table.table.id"
-          class="passage__item"
-          :class="{
-            'passage__item--active': selectedPassageTables.includes(table.table.id) && table.table.status === 'active',
-            'passage__item--attached': attachedTablesIds.includes(table.table.id),
-            'passage__item--inactive': table.table.status !== 'active'
-          }"
-          @click="togglePassageTable(table)"
-          @mouseenter="showTableTooltip(table, $event)"
-          @mouseleave="hideTableTooltip"
-        >
-          {{ table.table.display_name }}
-        </div>
-      </div>
+        v-model="selectedPassageTables"
+        :tables="filteredPassageTables"
+        :attached-ids="attachedTablesIds"
+      />
       <div
         v-else-if="loadingPassageTables"
         class="loading-message"
@@ -430,17 +416,6 @@
       </div>
     </div>
 
-    <!-- Tooltip для неактивных таблиц проезда -->
-    <div
-      v-if="tableTooltip.visible"
-      class="inactive-tooltip"
-      :style="{ top: tableTooltip.y + 'px', left: tableTooltip.x + 'px' }"
-    >
-      <div class="inactive-tooltip-content">
-        {{ tableTooltip.text }}
-      </div>
-    </div>
-
     <!-- Модальное окно выбора существующих машин -->
     <ExistingCarsModal
       :visible="showExistingCarsModal"
@@ -464,11 +439,13 @@ import { validatePartValue, formatPartValue, initializeNumberParts } from '@/com
 import { useFieldConfig } from '@/composables/useFieldConfig'
 import { getCurrentInstance } from 'vue'
 import ExistingCarsModal from '@/components/CreateApplication/ExistingCarsModal.vue'
+import TargetTablesGrid from '@/components/CreateApplication/TargetTablesGrid.vue'
 
 export default {
     name: 'VehicleForm',
     components: {
-        ExistingCarsModal
+        ExistingCarsModal,
+        TargetTablesGrid
     },
     props: {
         userOrganization: {
@@ -584,12 +561,6 @@ export default {
             attachedPassageTables: [],
             selectedPassageTables: [],
             loadingPassageTables: false,
-            tableTooltip: {
-                visible: false,
-                text: '',
-                x: 0,
-                y: 0
-            },
             errors: { unloadingPlaces: '', passageTables: '' },
             allowedCyrillicLetters: ['А', 'В', 'Е', 'К', 'М', 'Н', 'О', 'Р', 'С', 'Т', 'У', 'Х'],
             allowedLatinLetters: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'],
@@ -1077,27 +1048,6 @@ export default {
             this.inactiveTooltip.visible = false;
         },
 
-        showTableTooltip(table, event) {
-            if (table.table.status !== 'active') {
-                const tooltipText = table.table.status_comment
-                    ? `Недоступно: ${table.table.status_comment}`
-                    : 'Недоступно';
-
-                this.tableTooltip.text = tooltipText;
-                this.tableTooltip.visible = true;
-
-                this.$nextTick(() => {
-                    const rect = event.target.getBoundingClientRect();
-                    this.tableTooltip.x = rect.left + rect.width / 2;
-                    this.tableTooltip.y = rect.top - 10;
-                });
-            }
-        },
-
-        hideTableTooltip() {
-            this.tableTooltip.visible = false;
-        },
-
         initializeNumberParts() {
             this.numberParts = initializeNumberParts(this.selectedFormat);
         },
@@ -1168,19 +1118,6 @@ export default {
         
         validateUnloadingPlaces() {
             this.errors.unloadingPlaces = this.selectedUnloadingPlaces.length === 0 ? '' : '';
-        },
-
-        togglePassageTable(table) {
-            if (table.table.status !== 'active') {
-                return;
-            }
-
-            const index = this.selectedPassageTables.indexOf(table.table.id);
-            if (index > -1) {
-                this.selectedPassageTables.splice(index, 1);
-            } else {
-                this.selectedPassageTables.push(table.table.id);
-            }
         },
 
         validatePassageTables() {
@@ -2116,58 +2053,6 @@ export default {
     margin-top: 15px;
 }
 
-.passage__grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-    row-gap: 5px;
-    max-width: 425px;
-    margin-top: 5px;
-}
-
-.passage__item {
-    height: 30px;
-    background: #F2F2F2;
-    color: #a2a2a2;
-    border-radius: 50px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-    padding: 0 10px;
-    text-align: center;
-    border: 1px solid transparent;
-    position: relative;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.passage__item:hover:not(.passage__item--active):not(.passage__item--inactive) {
-    background: #e8e8e8;
-}
-
-.passage__item--active {
-    background: #4F5BDF;
-    color: #fff;
-    border-color: #4F5BDF;
-}
-
-.passage__item--inactive {
-    background: #ffe6e6;
-    color: #ff6b6b;
-    border-color: #ffcccc;
-    cursor: not-allowed;
-    opacity: 0.7;
-}
-
-.passage__item--attached {
-    border-left: 3px solid #4F5BDF;
-}
-
 .no-tables-message {
     font-size: 12px;
     color: #ff6b6b;
@@ -2364,8 +2249,7 @@ export default {
         flex-direction: column;
     }
 
-    .unloading__grid,
-    .passage__grid {
+    .unloading__grid {
         grid-template-columns: repeat(2, 1fr);
         max-width: 100%;
     }

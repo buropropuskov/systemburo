@@ -108,3 +108,35 @@ export async function getUniqueCarsPaginated(params = {}) {
     meta: body.meta || { total: 0, page: 1, per_page: 30 },
   };
 }
+
+/**
+ * Групповой перенос машин между таблицами «Проезд» (#1194): снимает привязку к
+ * fromTableId и привязывает к каждой из toTableIds. Возвращает BulkOpResult
+ * ({success_count, error_count, errors:[{id, name, error}]}), развёрнутый из
+ * envelope - на 200/207 (успех/частичный успех) это data, на структурную
+ * ошибку (400/403) - {message} (см. bulkRequest в api/organizations.js).
+ * @param {number[]} ids
+ * @param {number} fromTableId
+ * @param {number[]} toTableIds
+ */
+export async function bulkMoveCarsTable(ids, fromTableId, toTableIds) {
+  const res = await apiRequest('/cars/bulk/move-table', {
+    method: 'POST',
+    body: JSON.stringify({ ids, from_table_id: fromTableId, to_table_ids: toTableIds }),
+  });
+  return res.json();
+}
+
+/**
+ * Групповое добавление машин в таблицы «Проезд» (#1194), не снимая текущие
+ * привязки. Возвращает BulkOpResult, см. bulkMoveCarsTable.
+ * @param {number[]} ids
+ * @param {number[]} tableIds
+ */
+export async function bulkAddCarsTable(ids, tableIds) {
+  const res = await apiRequest('/cars/bulk/add-table', {
+    method: 'POST',
+    body: JSON.stringify({ ids, table_ids: tableIds }),
+  });
+  return res.json();
+}

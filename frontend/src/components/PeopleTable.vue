@@ -52,6 +52,25 @@
     >
       <span class="bulk-count">Выбрано: {{ selectedCount }}</span>
       <div class="bulk-actions">
+        <!-- Перенос/добавление - BE гейтит requireAdmin (page.admin), FE-кнопки
+             тем же правом (см. api/system-tables.js cleanupTableSnapshots), иначе
+             "видно, но 403" при клике не-админом. -->
+        <template v-if="can('page.admin')">
+          <button
+            class="lk-button lk-button--secondary lk-button--sm"
+            data-testid="people-bulk-move"
+            @click="openBulkModal('move')"
+          >
+            Перенести
+          </button>
+          <button
+            class="lk-button lk-button--secondary lk-button--sm"
+            data-testid="people-bulk-add"
+            @click="openBulkModal('add')"
+          >
+            Добавить в таблицу
+          </button>
+        </template>
         <button
           class="lk-button lk-button--ghost lk-button--sm bulk-clear"
           data-testid="people-bulk-clear"
@@ -525,6 +544,19 @@
       :current-user-name="currentUserName"
       @close="showEmployeesHistory = false"
     />
+
+    <!-- Групповые операции "Перенести"/"Добавить в таблицу" (#1194) -->
+    <TableBulkTargetModal
+      v-if="!preview"
+      :show="bulkModalVisible"
+      :mode="bulkModalMode"
+      entity-type="people"
+      :exclude-table-id="currentTableId"
+      :selected-count="selectedCount"
+      :submitting="bulkSubmitting"
+      @close="closeBulkModal"
+      @apply="applyBulkTableOp"
+    />
   </div>
 </template>
 
@@ -539,10 +571,12 @@ import eventStream from '@/services/eventStream';
 import RefreshButton from './RefreshButton.vue';
 import EmployeeDetailsModal from './CreateApplication/EmployeeDetailsModal.vue';
 import EmployeesTableHistoryModal from './CreateApplication/EmployeesTableHistoryModal.vue';
+import TableBulkTargetModal from './TableBulkTargetModal.vue';
 import StatusBadge from './ui/StatusBadge.vue';
 import EnlargedToggle from './ui/EnlargedToggle.vue';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
 import ExcelJS from 'exceljs';
+import { bulkMoveEmployeesTable, bulkAddEmployeesTable } from '@/api/employees';
 
 const ENLARGED_KEY_PREFIX = 'enlarged-mode:people:';
 
@@ -552,6 +586,7 @@ export default {
     RefreshButton,
     EmployeeDetailsModal,
     EmployeesTableHistoryModal,
+    TableBulkTargetModal,
     StatusBadge,
     EnlargedToggle,
     LoaderSpinner
@@ -645,6 +680,10 @@ export default {
       // false до первой загрузки конфига - класс config-not-ready на корне
       // подавляет transitions, чтобы шапка/столбцы не "ездили" при init.
       configReady: false,
+      // Групповые операции "Перенести"/"Добавить в таблицу" (#1194 S4).
+      bulkModalVisible: false,
+      bulkModalMode: 'move',
+      bulkSubmitting: false,
     };
   },
   computed: {
@@ -1133,6 +1172,57 @@ export default {
       const orderedIds = this.displayItems.map(i => i.id);
       if (this.handleRowClick(event, item.id, orderedIds)) return;
       this.openEmployeeDetails(item);
+    },
+
+    // Групповые операции над выделенными строками (#1194 S4): 'move' - перенести
+    // (снять с текущей таблицы, привязать к выбранным), 'add' - добавить в выбранные,
+    // не снимая с текущей.
+    openBulkModal(mode) {
+      this.bulkModalMode = mode;
+      this.bulkModalVisible = true;
+    },
+    closeBulkModal() {
+      if (this.bulkSubmitting) return;
+      this.bulkModalVisible = false;
+    },
+    async applyBulkTableOp(toTableIds) {
+      const ids = [...this.selectedIds];
+      const mode = this.bulkModalMode;
+      if (!ids.length || !toTableIds.length) return;
+      this.bulkSubmitting = true;
+      let result;
+      try {
+        result = mode === 'move'
+          ? await bulkMoveEmployeesTable(ids, this.currentTableId, toTableIds)
+          : await bulkAddEmployeesTable(ids, toTableIds);
+      } catch {
+        useDeletionsStore().notify({ prefix: 'Не удалось выполнить групповую операцию', type: 'error' });
+        this.bulkSubmitting = false;
+        return;
+      }
+      this.bulkSubmitting = false;
+      if (this.handleBulkTableOpResult(mode, result, ids.length)) {
+        this.bulkModalVisible = false;
+      }
+    },
+    // Разбор BulkOpResult: полный успех -> notify success, частичный -> notify
+    // warning с перечнем непрошедших имён (образец MarksManagement.handleBulkResult).
+    // false при структурной ошибке-envelope (модалка остаётся открытой для повтора).
+    handleBulkTableOpResult(mode, result, total) {
+      if (!result || typeof result.success_count !== 'number') {
+        useDeletionsStore().notify({ prefix: result?.message || 'Не удалось выполнить групповую операцию', type: 'error' });
+        return false;
+      }
+      const label = mode === 'move' ? 'Перенесено сотрудников: ' : 'Добавлено сотрудников: ';
+      if (result.error_count > 0) {
+        const failed = (result.errors || []).map(e => e.name || `#${e.id}`).join(', ');
+        useDeletionsStore().notify({ prefix: 'Выполнено ', bold: `${result.success_count} из ${total}`, suffix: `. Не удалось: ${failed}`, type: 'warning' });
+      } else {
+        useDeletionsStore().notify({ prefix: label, bold: String(result.success_count) });
+      }
+      this.clearSelection();
+      this._loadData(true);
+      return true;
     },
 
     openEmployeeDetails(item) {
@@ -1980,6 +2070,15 @@ export default {
     position: static;
     height: auto;
     padding: 12px 16px;
+    flex-wrap: wrap;
+  }
+
+  /* Три кнопки операций + "Снять выбор" не помещаются в строку на узком экране -
+     переносим, чтобы не утекали в горизонтальный скролл (#1097 S8/#1114). */
+  .bulk-actions {
+    flex-wrap: wrap;
+    margin-left: 0;
+    width: 100%;
   }
 
   .card-header__settings,
