@@ -6,24 +6,15 @@
           Список заявок
         </h3>
         
-        <!-- Кнопки фильтров в шапке -->
-        <div class="filter-tabs">
-          <button 
-            class="filter-tab"
-            :class="{ 'filter-tab--active': currentFilter === 'my' }"
-            @click="setFilter('my')"
-          >
-            Мои заявки
-          </button>
-          <button 
-            v-if="userOrganizationId"
-            class="filter-tab"
-            :class="{ 'filter-tab--active': currentFilter === 'organization' }"
-            @click="setFilter('organization')"
-          >
-            Заявки организации (отдела)
-          </button>
-        </div>
+        <!-- Фильтр Мои/Организации - один выпадающий список (было 2 таба - каша). -->
+        <BaseDropdown
+          class="cabinet__filter-dropdown"
+          :model-value="currentFilter"
+          :options="filterOptions"
+          value-key="key"
+          label-key="label"
+          @update:model-value="setFilter"
+        />
       </div>
       
       <div class="card-header__settings">
@@ -507,6 +498,7 @@ import ApplicationDetail from './ApplicationDetail/ApplicationDetail.vue';
 import DownloadBlanksModal from './applications/DownloadBlanksModal.vue';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
 import Badge from './ui/Badge.vue';
+import BaseDropdown from './ui/BaseDropdown.vue';
 import { blacklistFlagCount, blacklistFlagLabel, BLACKLIST_FLAG_TITLE } from '@/utils/blacklistBadge';
 import { stripHtml } from '@/utils/sanitize';
 
@@ -521,7 +513,8 @@ export default {
     ApplicationDetail,
     DownloadBlanksModal,
     LoaderSpinner,
-    Badge
+    Badge,
+    BaseDropdown
   },
   props: {
     userOrganizationId: {
@@ -593,6 +586,14 @@ export default {
     };
   },
   computed: {
+    // Опции фильтра Мои/Организации для BaseDropdown (заменил 2 таба одним списком).
+    filterOptions() {
+      const opts = [{ key: 'my', label: 'Мои заявки' }];
+      if (this.userOrganizationId) {
+        opts.push({ key: 'organization', label: 'Заявки организации (отдела)' });
+      }
+      return opts;
+    },
     // Поиск теперь СЕРВЕРНЫЙ (search_query уходит в buildUserApplicationsPage) - здесь
     // его больше не дублируем (#1158 срез 4): клиентский matchesSearch резал бы уже
     // подгруженную порцию по неточному совпадению с серверным fuzzy-поиском (та же
@@ -1913,22 +1914,46 @@ export default {
   
   .card-header__title {
     width: 100%;
-    /* Заголовок и фильтр-табы - в столбик (табы шириной 100% в РЯД душили заголовок
-       "Список заявок", он переносился на 2 строки - "каша"). Теперь: заголовок /
-       табы / настройки, каждый на своей строке (#1097 p2). */
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
+    /* Заголовок + выпадающий фильтр Мои/Организации в один ряд (#1097 p2 r2:
+       раньше 2 таба, теперь один список - без каши). */
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+  }
+
+  /* Выпадающий фильтр забирает остаток ширины, длинный лейбл обрезается. */
+  .cabinet__filter-dropdown {
+    flex: 1;
+    min-width: 0;
   }
 
   .card-header__settings {
     width: 100%;
-    justify-content: flex-end;
-  }
-  
-  .filter-tabs {
-    width: 100%;
+    /* Следующая строка: дата (меньше) + Обновить-иконка + поиск. */
     justify-content: flex-start;
+    gap: 8px;
+  }
+
+  /* Обновить - только иконка (кружок) на мобилке, текст скрыт (как в Обзоре). */
+  .card-header__settings :deep(.refresh-btn) {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    justify-content: center;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .card-header__settings :deep(.refresh-btn__text) {
+    display: none;
+  }
+
+  /* Дата (DateFilter) компактнее на мобилке - меньше шрифт и высота. */
+  .card-header__settings :deep(.date-field) {
+    font-size: 13px;
+    min-height: 40px;
+  }
+  .card-header__settings :deep(.date-field .field-input) {
+    font-size: 13px;
   }
   
   .applications-container {
