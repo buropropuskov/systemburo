@@ -832,3 +832,110 @@ func TestSystemTables_Warning_RoundTrip(t *testing.T) {
 	assert.Equal(t, "updated", items[0]["action_type"])
 	assert.Equal(t, "Новое предупреждение", items[0]["details"].(map[string]interface{})["warning"])
 }
+
+func TestSystemTables_WarningWindows_CRUD(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	// Create table first
+	rec := testutil.POST(t, e, "/system-tables",
+		`{"name":"warn_win_table","display_name":"Warn Win","table_type":"cars"}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	tableID := int(testutil.ParseMap(t, rec)["id"].(float64))
+
+	// Add a windowed warning (Пн 12:00-13:00 малогабарит)
+	body := `{"day_of_week":1,"time_from":"12:00","time_to":"13:00","message":"Только малогабарит"}`
+	rec = testutil.POST(t, e, fmt.Sprintf("/system-tables/%d/warning-windows", tableID), body, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	windowID := int(testutil.ParseMap(t, rec)["id"].(float64))
+	assert.Greater(t, windowID, 0)
+
+	// Get warning windows
+	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/warning-windows", tableID), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	windows := testutil.ParseSlice(t, rec)
+	require.Len(t, windows, 1)
+	assert.Equal(t, float64(1), windows[0]["day_of_week"])
+	assert.Equal(t, "12:00", windows[0]["time_from"])
+	assert.Equal(t, "13:00", windows[0]["time_to"])
+	assert.Equal(t, "Только малогабарит", windows[0]["message"])
+	assert.Equal(t, true, windows[0]["is_active"])
+
+	// Warning windows are embedded in the table detail DTO
+	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d", tableID), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	detail := testutil.ParseMap(t, rec)
+	embedded, ok := detail["warning_windows"].([]interface{})
+	require.True(t, ok, "warning_windows должно присутствовать в DTO таблицы")
+	assert.Len(t, embedded, 1)
+
+	// Update to a general warning (каждый день / весь день) -- nullable поля -> NULL
+	updateBody := `{"day_of_week":null,"time_from":null,"time_to":null,"message":"Пропуск оформляется заранее"}`
+	rec = testutil.PUT(t, e, fmt.Sprintf("/system-tables/%d/warning-windows/%d", tableID, windowID), updateBody, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// Verify NULL round-trip: сброс дня/времени в NULL реально доезжает до БД
+	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/warning-windows", tableID), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	windows = testutil.ParseSlice(t, rec)
+	require.Len(t, windows, 1)
+	assert.Nil(t, windows[0]["day_of_week"], "day_of_week должен сброситься в NULL (каждый день)")
+	assert.Nil(t, windows[0]["time_from"], "time_from должен сброситься в NULL (весь день)")
+	assert.Nil(t, windows[0]["time_to"])
+	assert.Equal(t, "Пропуск оформляется заранее", windows[0]["message"])
+
+	// Delete
+	rec = testutil.DELETE(t, e, fmt.Sprintf("/system-tables/%d/warning-windows/%d", tableID, windowID), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/warning-windows", tableID), h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	windows = testutil.ParseSlice(t, rec)
+	assert.Len(t, windows, 0)
+}
+
+func TestSystemTables_WarningWindows_Validation(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	rec := testutil.POST(t, e, "/system-tables",
+		`{"name":"warn_win_valid","display_name":"Warn Valid","table_type":"cars"}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	tableID := int(testutil.ParseMap(t, rec)["id"].(float64))
+
+	// Пустой message -> 400
+	rec = testutil.POST(t, e, fmt.Sprintf("/system-tables/%d/warning-windows", tableID),
+		`{"message":""}`, h)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+	// Неверный формат времени -> 400
+	rec = testutil.POST(t, e, fmt.Sprintf("/system-tables/%d/warning-windows", tableID),
+		`{"time_from":"invalid","message":"текст"}`, h)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+	// Неверный день недели -> 400
+	rec = testutil.POST(t, e, fmt.Sprintf("/system-tables/%d/warning-windows", tableID),
+		`{"day_of_week":7,"message":"текст"}`, h)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestSystemTables_WarningWindows_TableNotFound(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	rec := testutil.POST(t, e, "/system-tables/99999/warning-windows",
+		`{"message":"текст"}`, h)
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+}

@@ -569,6 +569,127 @@ func (h *SystemTableHandler) DeleteTimeSlot(c echo.Context) error {
 	return RespondMessage(c, "Временной слот успешно удален")
 }
 
+// --- Предупреждения по временным окнам (#1183) ---
+
+// GetWarningWindows godoc
+// @Summary      Получение предупреждений по окнам таблицы
+// @Description  Возвращает все предупреждения по временным окнам для системной таблицы
+// @Tags         system-tables
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID таблицы"
+// @Success      200 {array} models.SystemTableWarningWindow
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /system-tables/{id}/warning-windows [get]
+func (h *SystemTableHandler) GetWarningWindows(c echo.Context) error {
+	tableID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	windows, err := h.service.GetWarningWindows(c.Request().Context(), tableID)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, windows)
+}
+
+// AddWarningWindow godoc
+// @Summary      Добавление предупреждения по окну
+// @Description  Создаёт новое предупреждение по временному окну для системной таблицы
+// @Tags         system-tables
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID таблицы"
+// @Param        request body models.WarningWindowRequest true "Данные предупреждения"
+// @Success      200 {object} map[string]interface{} "id, message"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Router       /system-tables/{id}/warning-windows [post]
+func (h *SystemTableHandler) AddWarningWindow(c echo.Context) error {
+	tableID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	var req models.WarningWindowRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	id, err := h.service.AddWarningWindow(c.Request().Context(), tableID, req)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, map[string]interface{}{
+		"id":      id,
+		"message": "Предупреждение по окну успешно добавлено",
+	})
+}
+
+// UpdateWarningWindow godoc
+// @Summary      Обновление предупреждения по окну
+// @Description  Перезаписывает предупреждение по временному окну целиком
+// @Tags         system-tables
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        table_id path int true "ID таблицы"
+// @Param        window_id path int true "ID предупреждения по окну"
+// @Param        request body models.WarningWindowRequest true "Данные предупреждения"
+// @Success      200 {string} string "Предупреждение по окну успешно обновлено"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Router       /system-tables/{table_id}/warning-windows/{window_id} [put]
+func (h *SystemTableHandler) UpdateWarningWindow(c echo.Context) error {
+	tableID, err := strconv.Atoi(c.Param("table_id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid table_id")
+	}
+	windowID, err := strconv.Atoi(c.Param("window_id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid window_id")
+	}
+	var req models.WarningWindowRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	if err := h.service.UpdateWarningWindow(c.Request().Context(), tableID, windowID, req); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Предупреждение по окну успешно обновлено")
+}
+
+// DeleteWarningWindow godoc
+// @Summary      Удаление предупреждения по окну
+// @Description  Удаляет предупреждение по временному окну из системной таблицы
+// @Tags         system-tables
+// @Produce      json
+// @Security     BearerAuth
+// @Param        table_id path int true "ID таблицы"
+// @Param        window_id path int true "ID предупреждения по окну"
+// @Success      200 {string} string "Предупреждение по окну успешно удалено"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Router       /system-tables/{table_id}/warning-windows/{window_id} [delete]
+func (h *SystemTableHandler) DeleteWarningWindow(c echo.Context) error {
+	tableID, err := strconv.Atoi(c.Param("table_id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid table_id")
+	}
+	windowID, err := strconv.Atoi(c.Param("window_id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid window_id")
+	}
+	if err := h.service.DeleteWarningWindow(c.Request().Context(), tableID, windowID); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Предупреждение по окну успешно удалено")
+}
+
 // --- Фотографии ---
 
 // UploadPhoto godoc
