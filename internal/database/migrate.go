@@ -44,6 +44,7 @@ func AllModels() []interface{} {
 		// System tables relations
 		&models.SystemTablePhoto{},
 		&models.SystemTableTimeSlot{},
+		&models.SystemTableWarningWindow{},
 		&models.OrganizationTable{},
 		&models.CompaniesTable{},
 		&models.TableField{},

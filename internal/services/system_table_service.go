@@ -34,6 +34,12 @@ type SystemTableService interface {
 	UpdateTimeSlot(ctx context.Context, tableID, slotID int, req models.UpdateTimeSlotRequest) error
 	DeleteTimeSlot(ctx context.Context, tableID, slotID int) error
 
+	// Предупреждения по временным окнам (#1183)
+	GetWarningWindows(ctx context.Context, tableID int) ([]models.SystemTableWarningWindow, error)
+	AddWarningWindow(ctx context.Context, tableID int, req models.WarningWindowRequest) (int, error)
+	UpdateWarningWindow(ctx context.Context, tableID, windowID int, req models.WarningWindowRequest) error
+	DeleteWarningWindow(ctx context.Context, tableID, windowID int) error
+
 	// Фотографии
 	UploadPhoto(ctx context.Context, tableID int, username string, photoURL, fileName, mimeType string, fileSize int64) (int, error)
 	DeletePhoto(ctx context.Context, tableID, photoID int) error
@@ -162,6 +168,9 @@ func (s *systemTableService) loadTableWithPreload(_ context.Context, query *gorm
 		Preload("TimeSlots", func(db *gorm.DB) *gorm.DB {
 			return db.Order("day_of_week, open_time")
 		}).
+		Preload("WarningWindows", func(db *gorm.DB) *gorm.DB {
+			return db.Order("day_of_week NULLS FIRST, time_from NULLS FIRST")
+		}).
 		Preload("Photos", func(db *gorm.DB) *gorm.DB {
 			return db.Order("is_main DESC, uploaded_at DESC")
 		}).
@@ -179,6 +188,9 @@ func (s *systemTableService) loadTableWithPreload(_ context.Context, query *gorm
 	if table.TimeSlots == nil {
 		table.TimeSlots = []models.SystemTableTimeSlot{}
 	}
+	if table.WarningWindows == nil {
+		table.WarningWindows = []models.SystemTableWarningWindow{}
+	}
 	if table.Photos == nil {
 		table.Photos = []models.SystemTablePhoto{}
 	}
@@ -189,12 +201,13 @@ func (s *systemTableService) loadTableWithPreload(_ context.Context, query *gorm
 	}
 
 	return &models.SystemTableWithDetails{
-		Table:         table,
-		Fields:        table.Fields,
-		FactFields:    table.FactFields,
-		TimeSlots:     table.TimeSlots,
-		Photos:        table.Photos,
-		CurrentStatus: computeCurrentStatus(status, table.TimeSlots),
+		Table:          table,
+		Fields:         table.Fields,
+		FactFields:     table.FactFields,
+		TimeSlots:      table.TimeSlots,
+		WarningWindows: table.WarningWindows,
+		Photos:         table.Photos,
+		CurrentStatus:  computeCurrentStatus(status, table.TimeSlots),
 	}, nil
 }
 
@@ -211,6 +224,9 @@ func (s *systemTableService) GetAll(ctx context.Context, includeArchived bool) (
 		}).
 		Preload("TimeSlots", func(db *gorm.DB) *gorm.DB {
 			return db.Order("day_of_week, open_time")
+		}).
+		Preload("WarningWindows", func(db *gorm.DB) *gorm.DB {
+			return db.Order("day_of_week NULLS FIRST, time_from NULLS FIRST")
 		}).
 		Preload("Photos", func(db *gorm.DB) *gorm.DB {
 			return db.Order("is_main DESC, uploaded_at DESC")
@@ -239,6 +255,10 @@ func (s *systemTableService) GetAll(ctx context.Context, includeArchived bool) (
 		if slots == nil {
 			slots = []models.SystemTableTimeSlot{}
 		}
+		windows := t.WarningWindows
+		if windows == nil {
+			windows = []models.SystemTableWarningWindow{}
+		}
 		photos := t.Photos
 		if photos == nil {
 			photos = []models.SystemTablePhoto{}
@@ -250,12 +270,13 @@ func (s *systemTableService) GetAll(ctx context.Context, includeArchived bool) (
 		}
 
 		result = append(result, models.SystemTableWithDetails{
-			Table:         t,
-			Fields:        fields,
-			FactFields:    factFields,
-			TimeSlots:     slots,
-			Photos:        photos,
-			CurrentStatus: computeCurrentStatus(status, slots),
+			Table:          t,
+			Fields:         fields,
+			FactFields:     factFields,
+			TimeSlots:      slots,
+			WarningWindows: windows,
+			Photos:         photos,
+			CurrentStatus:  computeCurrentStatus(status, slots),
 		})
 	}
 
