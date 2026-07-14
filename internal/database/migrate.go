@@ -52,6 +52,7 @@ func AllModels() []interface{} {
 		// Unload places relations
 		&models.UnloadPlacePhoto{},
 		&models.UnloadPlaceTimeSlot{},
+		&models.UnloadPlaceWarningWindow{},
 		&models.OrganizationUnloadPlace{},
 		&models.CompaniesUnloadPlace{},
 

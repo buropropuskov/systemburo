@@ -46,6 +46,27 @@ type UnloadPlaceTimeSlot struct {
 // GetID возвращает идентификатор слота (контракт timeSlotModel для общего стора).
 func (s UnloadPlaceTimeSlot) GetID() int { return s.ID }
 
+// UnloadPlaceWarningWindow -- предупреждение по временному окну у места разгрузки.
+// Зеркало UnloadPlaceTimeSlot с текстом: показывается заявителю, когда срок заявки
+// пересекается с окном (кейс "с 12:00 до 13:00 только малогабарит", #1183).
+// DayOfWeek nil = окно на каждый день; TimeFrom/TimeTo nil = весь день.
+type UnloadPlaceWarningWindow struct {
+	ID            int         `json:"id"`
+	UnloadPlaceID int         `gorm:"index" json:"unload_place_id"`
+	UnloadPlace   UnloadPlace `gorm:"constraint:OnDelete:CASCADE" json:"-"`
+	DayOfWeek     *int        `json:"day_of_week"`              // nil = каждый день, иначе 0-6
+	TimeFrom      *string     `gorm:"size:10" json:"time_from"` // nil = весь день
+	TimeTo        *string     `gorm:"size:10" json:"time_to"`
+	IsNextDay     bool        `gorm:"default:false" json:"is_next_day"`
+	Message       string      `gorm:"type:text" json:"message"`
+	IsActive      bool        `gorm:"default:true" json:"is_active"`
+	CreatedAt     time.Time   `json:"created_at"`
+	UpdatedAt     time.Time   `json:"updated_at"`
+}
+
+// GetID возвращает идентификатор окна (контракт warningWindowModel для общего стора).
+func (w UnloadPlaceWarningWindow) GetID() int { return w.ID }
+
 type OrganizationUnloadPlace struct {
 	ID             int          `json:"id"`
 	OrganizationID int          `gorm:"index" json:"organization_id"`

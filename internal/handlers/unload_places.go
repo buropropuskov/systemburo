@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strconv"
 
+	"systemburo/internal/models"
 	"systemburo/internal/services"
 	"systemburo/internal/upload"
 
@@ -388,6 +389,128 @@ func (h *UnloadPlaceHandler) DeleteTimeSlot(c echo.Context) error {
 		return err
 	}
 	return RespondMessage(c, "Временной слот успешно удален")
+}
+
+// --- Предупреждения по временным окнам (#1183) ---
+
+// GetWarningWindows возвращает предупреждения по временным окнам места разгрузки.
+// @Summary      Получение предупреждений по окнам
+// @Description  Возвращает все предупреждения по временным окнам для места разгрузки
+// @Tags         unload-places
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID места разгрузки"
+// @Success      200 {array} models.UnloadPlaceWarningWindow
+// @Failure      401 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /unload-places/{id}/warning-windows [get]
+func (h *UnloadPlaceHandler) GetWarningWindows(c echo.Context) error {
+	placeID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	windows, err := h.service.GetWarningWindows(c.Request().Context(), placeID)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, windows)
+}
+
+// AddWarningWindow добавляет предупреждение по временному окну к месту разгрузки.
+// @Summary      Добавление предупреждения по окну
+// @Description  Создаёт новое предупреждение по временному окну для места разгрузки
+// @Tags         unload-places
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID места разгрузки"
+// @Param        request body models.WarningWindowRequest true "Данные предупреждения"
+// @Success      200 {object} map[string]interface{} "id и message"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /unload-places/{id}/warning-windows [post]
+func (h *UnloadPlaceHandler) AddWarningWindow(c echo.Context) error {
+	placeID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	var req models.WarningWindowRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	id, err := h.service.AddWarningWindow(c.Request().Context(), placeID, req)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, map[string]interface{}{
+		"id":      id,
+		"message": "Предупреждение по окну успешно добавлено",
+	})
+}
+
+// UpdateWarningWindow обновляет предупреждение по временному окну.
+// @Summary      Обновление предупреждения по окну
+// @Description  Перезаписывает предупреждение по временному окну целиком
+// @Tags         unload-places
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        place_id path int true "ID места разгрузки"
+// @Param        window_id path int true "ID предупреждения по окну"
+// @Param        request body models.WarningWindowRequest true "Данные предупреждения"
+// @Success      200 {string} string "Предупреждение по окну успешно обновлено"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /unload-places/{place_id}/warning-windows/{window_id} [put]
+func (h *UnloadPlaceHandler) UpdateWarningWindow(c echo.Context) error {
+	placeID, err := strconv.Atoi(c.Param("place_id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid place_id")
+	}
+	windowID, err := strconv.Atoi(c.Param("window_id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid window_id")
+	}
+	var req models.WarningWindowRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	if err := h.service.UpdateWarningWindow(c.Request().Context(), placeID, windowID, req); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Предупреждение по окну успешно обновлено")
+}
+
+// DeleteWarningWindow удаляет предупреждение по временному окну.
+// @Summary      Удаление предупреждения по окну
+// @Description  Удаляет предупреждение по временному окну из места разгрузки
+// @Tags         unload-places
+// @Produce      json
+// @Security     BearerAuth
+// @Param        place_id path int true "ID места разгрузки"
+// @Param        window_id path int true "ID предупреждения по окну"
+// @Success      200 {string} string "Предупреждение по окну успешно удалено"
+// @Failure      401 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /unload-places/{place_id}/warning-windows/{window_id} [delete]
+func (h *UnloadPlaceHandler) DeleteWarningWindow(c echo.Context) error {
+	placeID, err := strconv.Atoi(c.Param("place_id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid place_id")
+	}
+	windowID, err := strconv.Atoi(c.Param("window_id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid window_id")
+	}
+	if err := h.service.DeleteWarningWindow(c.Request().Context(), placeID, windowID); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Предупреждение по окну успешно удалено")
 }
 
 // --- Фотографии ---
