@@ -3098,7 +3098,9 @@ export default {
 .applications-day-separator {
     padding: 15px 16px 6px;
     border-top: 1px solid #e2e2e6;
-    background: transparent;
+    /* Серая полоса-разделитель периодов на десктопе (полоса на всю ширину .applications-list).
+       На мобилке (карточки) возвращаем transparent - см. @media ниже. */
+    background: #FAFAFA;
 }
 .applications-list .applications-day-separator:first-child {
     border-top: none;
@@ -3108,6 +3110,12 @@ export default {
     font-size: 12px;
     font-weight: 600;
     color: #9a9aae;
+}
+/* На мобилке список - карточки на белом, серая полоса разделителя лишняя. */
+@media (max-width: 767.98px) {
+    .applications-day-separator {
+        background: transparent;
+    }
 }
 
 .application-item {
