@@ -1,5 +1,9 @@
 <template>
   <div class="modal-content-inner">
+    <div
+      class="sheet-handle"
+      aria-hidden="true"
+    />
     <div class="modal-header">
       <div class="header-with-status">
         <h3 class="modal-title">
@@ -577,6 +581,17 @@ export default {
     box-shadow: var(--shadow-md);
 }
 
+/* Ползунок bottom-sheet - виден только на мобилке. */
+.sheet-handle {
+    display: none;
+    width: 40px;
+    height: 4px;
+    border-radius: 2px;
+    background: #d5d5d5;
+    margin: 10px auto 2px;
+    flex-shrink: 0;
+}
+
 .modal-header {
     display: flex;
     justify-content: space-between;
@@ -940,8 +955,19 @@ export default {
 }
 
 @media (max-width: 768px) {
+    /* Bottom-sheet: во всю ширину снизу, скруглены только верхние углы (#1097 R4-10). */
+    .modal-content-inner {
+        height: auto;
+        max-height: 90dvh;
+        border-radius: 16px 16px 0 0;
+    }
+
+    .sheet-handle {
+        display: block;
+    }
+
     .modal-header {
-        padding: 16px 20px;
+        padding: 6px 16px;
     }
     
     .modal-body {
