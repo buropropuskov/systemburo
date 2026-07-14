@@ -499,7 +499,12 @@ export default {
 }
 
 .cat-opt {
-  display: inline-flex;
+  /* flex (не inline-flex) + justify-center: содержимое (иконка+текст+бейдж) по центру
+     и в выбранном значении, и в опциях меню. Опции телепортируются в body, но .cat-opt -
+     slot-контент WorkModesModal, несёт его scope-хэш, поэтому прямой scoped-селектор
+     достаёт (в отличие от :deep через .cats__select, который до body не дотянется). */
+  display: flex;
+  justify-content: center;
   align-items: center;
   gap: 8px;
   font-size: 13.5px;
@@ -507,6 +512,14 @@ export default {
   /* line-height:1 тайтит бокс текста к глифу - иконка (20px) центрируется ровно по
      тексту, без просвета от межстрочного интервала (#1097 R4-3). */
   line-height: 1;
+}
+
+/* Выбранное значение занимает всю ширину кнопки (стрелка справа), чтобы центровка
+   .cat-opt была видна. .base-dropdown__text - элемент BaseDropdown внутри .cats__select
+   (в кнопке, НЕ телепортируется), поэтому достаётся через :deep. */
+.cats__select :deep(.base-dropdown__text) {
+  flex: 1 1 auto;
+  text-align: center;
 }
 
 .cat-opt__icon {
