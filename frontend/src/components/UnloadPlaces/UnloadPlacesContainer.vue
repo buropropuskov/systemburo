@@ -221,6 +221,13 @@
             </button>
             <button
               class="tab-btn"
+              :class="{ 'active': activeTab === 'warnings' }"
+              @click="activeTab = 'warnings'"
+            >
+              Предупреждения
+            </button>
+            <button
+              class="tab-btn"
               :class="{ 'active': activeTab === 'route' }"
               @click="activeTab = 'route'"
             >
@@ -351,6 +358,39 @@
             :readonly="isArchivedView"
             @update="refreshSelectedPlace"
           />
+        </div>
+
+        <!-- Вкладка Предупреждения -->
+        <div
+          v-if="activeTab === 'warnings'"
+          class="tab-content"
+        >
+          <div class="warnings-section">
+            <h4 class="section-title">
+              Свободное предупреждение
+            </h4>
+            <p class="field-hint">
+              Показывается заявителю всегда при добавлении машины/человека с этим
+              местом.
+            </p>
+            <textarea
+              v-model="selectedPlace.warning"
+              class="form-textarea"
+              placeholder="Например: въезд только по предварительной записи"
+              rows="2"
+              :disabled="isArchivedView"
+              @change="updatePlace(selectedPlace)"
+            />
+          </div>
+
+          <div class="warnings-section">
+            <WarningWindowsEditor
+              :resource-url="'/unload-places/' + selectedPlace.id"
+              :windows="selectedPlace.warning_windows || []"
+              :readonly="isArchivedView"
+              @update="refreshSelectedPlace"
+            />
+          </div>
         </div>
 
         <!-- Вкладка Маршрут -->
@@ -572,6 +612,16 @@
                   rows="3"
                 />
               </div>
+
+              <div class="input-group">
+                <label class="input-label">Предупреждение</label>
+                <textarea
+                  v-model="newPlaceWarning"
+                  placeholder="Показывается заявителю всегда (необязательно)"
+                  class="modal-textarea"
+                  rows="2"
+                />
+              </div>
             </div>
           
             <div class="modal-footer">
@@ -694,6 +744,7 @@ import SearchComponent from '../SearchComponent.vue';
 import ConfirmationModal from '../ConfirmationModal.vue';
 import BaseDropdown from '../ui/BaseDropdown.vue';
 import WorkScheduleTab from '../WorkScheduleTab.vue';
+import WarningWindowsEditor from '../WarningWindowsEditor.vue';
 import UnloadPlaceHistoryModal from './UnloadPlaceHistoryModal.vue';
 import { bulkArchiveUnloadPlaces, bulkRestoreUnloadPlaces } from '@/api/unload-places';
 
@@ -704,6 +755,7 @@ export default {
     ConfirmationModal,
     BaseDropdown,
     WorkScheduleTab,
+    WarningWindowsEditor,
     UnloadPlaceHistoryModal
   },
   setup() {
@@ -731,6 +783,7 @@ export default {
       ],
       newPlaceName: '',
       newPlaceDescription: '',
+      newPlaceWarning: '',
       unloadPlaces: [],
       showAddModal: false,
       showPhotoModal: false,
@@ -891,6 +944,7 @@ export default {
             ...place,
             originalName: place.name,
             originalDescription: place.description,
+            originalWarning: place.warning,
             originalMapLink: place.map_link,
             originalStatus: place.status,
             originalStatusComment: place.status_comment
@@ -924,6 +978,7 @@ export default {
         ...data,
         originalName: data.name,
         originalDescription: data.description,
+        originalWarning: data.warning,
         originalMapLink: data.map_link,
         originalStatus: data.status,
         originalStatusComment: data.status_comment
@@ -954,15 +1009,17 @@ export default {
           body: JSON.stringify({
             name: this.newPlaceName,
             description: this.newPlaceDescription || null,
+            warning: this.newPlaceWarning || null,
             status: 'active',
             status_comment: null
           }),
         });
-        
+
         if (response.ok) {
           const result = await response.json();
           this.newPlaceName = '';
           this.newPlaceDescription = '';
+          this.newPlaceWarning = '';
           this.showAddModal = false;
           await this.refreshData();
           
@@ -990,27 +1047,30 @@ export default {
       const hasChanges =
         place.name !== place.originalName ||
         place.description !== place.originalDescription ||
+        place.warning !== place.originalWarning ||
         place.map_link !== place.originalMapLink ||
         place.status !== place.originalStatus ||
         place.status_comment !== place.originalStatusComment;
 
       if (!hasChanges) return;
-      
+
       try {
         const response = await apiRequest(`/unload-places/${place.id}`, {
           method: "PUT",
           body: JSON.stringify({
             name: place.name,
             description: place.description,
+            warning: place.warning,
             map_link: place.map_link,
             status: place.status,
             status_comment: place.status_comment
           }),
         });
-        
+
         if (response.ok) {
           place.originalName = place.name;
           place.originalDescription = place.description;
+          place.originalWarning = place.warning;
           place.originalMapLink = place.map_link;
           place.originalStatus = place.status;
           place.originalStatusComment = place.status_comment;
@@ -1036,6 +1096,7 @@ export default {
     revertPlaceChanges(place) {
       place.name = place.originalName;
       place.description = place.originalDescription;
+      place.warning = place.originalWarning;
       place.map_link = place.originalMapLink;
       place.status = place.originalStatus;
       place.status_comment = place.originalStatusComment;
@@ -1142,6 +1203,7 @@ export default {
       this.showAddModal = false;
       this.newPlaceName = '';
       this.newPlaceDescription = '';
+      this.newPlaceWarning = '';
     },
     
     // В методе uploadPhotos, после успешной загрузки, нужно обработать photo_url
@@ -1983,6 +2045,10 @@ async uploadPhotoFiles(files) {
 
 /* Стили для маршрута */
 .route-section {
+  margin-bottom: 24px;
+}
+
+.warnings-section {
   margin-bottom: 24px;
 }
 
