@@ -6,7 +6,7 @@
       class="action-buttons"
     >
       <!-- Для пользователей, которые одновременно являются принимающими и ответственными -->
-      <template v-if="ready && isApproverUser && isResponsibleUser && application.status !== 'Отозвана'">
+      <template v-if="!busy && isApproverUser && isResponsibleUser && application.status !== 'Отозвана'">
         <!-- Если пользователь еще не голосовал -->
         <template v-if="!hasUserVoted">
           <!-- Показываем кнопки согласования, если заявка не отклонена окончательно и не завершена -->
@@ -134,7 +134,7 @@
       </template>
 
       <!-- Для принимающих заявки (не ответственных) -->
-      <template v-else-if="ready && isApproverUser && application.status !== 'Отозвана'">
+      <template v-else-if="!busy && isApproverUser && application.status !== 'Отозвана'">
         <!-- Если заявка в работе - показываем статус и кнопку отзыва -->
         <template v-if="application.status === 'В работе'">
           <button
@@ -212,7 +212,7 @@
       </template>
 
       <!-- Для ответственных за согласование (не принимающих) -->
-      <template v-else-if="ready && isResponsibleUser && application.status !== 'Отозвана'">
+      <template v-else-if="!busy && isResponsibleUser && application.status !== 'Отозвана'">
         <!-- Если пользователь еще не голосовал -->
         <template v-if="!hasUserVoted">
           <!-- Показываем кнопки согласования, когда заявка не отклонена и не завершена -->
@@ -299,8 +299,9 @@
         </template>
       </template>
 
-      <!-- П.46: роли/голоса ещё грузятся - показываем лоадер, не мигаем кнопками -->
-      <template v-else-if="!ready">
+      <!-- Действие/рефетч (busy): единый лоадер в зарезервированной высоте вместо старых
+           кнопок - не мигаем и не скачем высотой до приезда нового статуса (#1097 R4-7). -->
+      <template v-else-if="busy">
         <span class="button-loading actions-ready-loader" />
       </template>
 
@@ -415,6 +416,14 @@ export default {
     },
     emits: ['action-completed', 'processing-change', 'updating-confirmation-change', 'comment-clear'],
     computed: {
+        // Идёт действие (accept/reject/take-to-work), смена согласования ИЛИ рефетч после
+        // действия (ready=false). Всё это время держим единый лоадер вместо кнопок в
+        // зарезервированной высоте (.action-buttons min-height), чтобы старые кнопки не
+        // висели до приезда нового статуса и высота не скакала (#1097 R4-7). На ошибке
+        // reload не идёт, флаги спадают -> busy=false -> кнопки возвращаются для повтора.
+        busy() {
+            return this.processing || this.updatingConfirmation || !this.ready;
+        },
         isResponsibleUser() {
             if (!this.currentUserId || !this.responsibleUsers.length) return false;
             return this.responsibleUsers.some(user => user.id === this.currentUserId);
@@ -701,6 +710,10 @@ export default {
     gap: 5px;
     align-items: center;
     flex-wrap: wrap;
+    /* Резерв высоты ряда кнопок: лоадер (16px) и бейджи занимают ту же высоту, что и
+       кнопки (~35px), поэтому при переходе кнопки -> лоадер -> новый статус высота не
+       скачет (#1097 R4-7). Лоадер центрируется по align-items. */
+    min-height: 36px;
 }
 
 .view-buttons {

@@ -74,3 +74,32 @@ describe('ApplicationActionBar - отозванная заявка (#951)', () =
     expect(wrapper.text()).toContain('Отозвана инициатором');
   });
 });
+
+describe('ApplicationActionBar - busy-лоадер вместо старых кнопок (#1097 R4-7)', () => {
+  const LOADER = '.actions-ready-loader';
+
+  it('пока идёт действие (processing) - показываем лоадер, кнопки скрыты', () => {
+    const wrapper = mountBar({ processing: true });
+    expect(wrapper.find(LOADER).exists()).toBe(true);
+    expect(wrapper.find(APPROVE).exists()).toBe(false);
+    expect(wrapper.find(REJECT).exists()).toBe(false);
+  });
+
+  it('пока идёт смена согласования (updatingConfirmation) - лоадер, кнопки скрыты', () => {
+    const wrapper = mountBar({ updatingConfirmation: true });
+    expect(wrapper.find(LOADER).exists()).toBe(true);
+    expect(wrapper.find(APPROVE).exists()).toBe(false);
+  });
+
+  it('пока идёт рефетч после действия (ready=false) - лоадер, кнопки скрыты', () => {
+    const wrapper = mountBar({ ready: false });
+    expect(wrapper.find(LOADER).exists()).toBe(true);
+    expect(wrapper.find(APPROVE).exists()).toBe(false);
+  });
+
+  it('в спокойном состоянии (не busy) - кнопки есть, лоадера нет', () => {
+    const wrapper = mountBar();
+    expect(wrapper.find(LOADER).exists()).toBe(false);
+    expect(wrapper.find(APPROVE).exists()).toBe(true);
+  });
+});
