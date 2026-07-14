@@ -611,20 +611,20 @@ export default {
 @media (max-width: 560px) {
   /* На телефоне модалка почти во всю ширину, боковые отступы ужаты - иначе
      заголовок и текст не помещались. Высота по dvh (учитывает адрес-бар). */
-  /* Bottom-sheet на телефоне: выезжает снизу, клеится к видимой области
-     (visualViewport из App.vue), скруглён только сверху (обзор 3). */
+  /* Bottom-sheet на телефоне: выезжает снизу, высота по нативному dvh
+     (композитор прибивает без reflow-лага), скруглён только сверху (обзор 3). */
   .guide-overlay {
     padding: 0;
     align-items: flex-end;
-    top: var(--app-vvt, 0);
-    height: var(--app-vvh, 100dvh);
+    top: 0;
+    height: 100dvh;
     bottom: auto;
   }
   .guide {
     width: 100vw;
     max-width: 100vw;
-    height: min(560px, var(--app-vvh, 90dvh));
-    max-height: min(90dvh, var(--app-vvh, 90dvh));
+    height: min(560px, 90dvh);
+    max-height: 90dvh;
     border-radius: 16px 16px 0 0;
     /* backwards (не both): после enter-слайда transform отпускается свайпу (#1097 r2). */
     animation: app-sheet-up 0.32s cubic-bezier(0.32, 0.72, 0, 1) backwards;

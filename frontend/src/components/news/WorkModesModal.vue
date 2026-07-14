@@ -779,20 +779,20 @@ export default {
 @media (max-width: 560px) {
   /* На телефоне модалка почти во всю ширину и не такая высокая; боковые отступы
      ужаты. Высота по dvh (адрес-бар мобильного браузера учтён). */
-  /* Bottom-sheet на телефоне: выезжает снизу, клеится к видимой области
-     (visualViewport из App.vue), скруглён только сверху (обзор 4). */
+  /* Bottom-sheet на телефоне: выезжает снизу, высота по нативному dvh
+     (композитор прибивает без reflow-лага), скруглён только сверху (обзор 4). */
   .modes-overlay {
     padding: 0;
     align-items: flex-end;
-    top: var(--app-vvt, 0);
-    height: var(--app-vvh, 100dvh);
+    top: 0;
+    height: 100dvh;
     bottom: auto;
   }
   .modes {
     width: 100vw;
     max-width: 100vw;
-    height: min(600px, var(--app-vvh, 82dvh));
-    max-height: min(90dvh, var(--app-vvh, 90dvh));
+    height: min(600px, 82dvh);
+    max-height: 90dvh;
     border-radius: 16px 16px 0 0;
     /* backwards (не both): после enter-слайда transform отпускается свайпу (#1097 r2). */
     animation: app-sheet-up 0.32s cubic-bezier(0.32, 0.72, 0, 1) backwards;

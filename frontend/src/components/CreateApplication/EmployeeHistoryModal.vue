@@ -1352,8 +1352,8 @@ export default {
   .modal-overlay {
     padding: 0;
     align-items: flex-end;
-    top: var(--app-vvt, 0);
-    height: var(--app-vvh, 100%);
+    top: 0;
+    height: 100dvh;
     bottom: auto;
   }
 

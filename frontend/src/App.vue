@@ -375,10 +375,10 @@ body.nav-drawer-open {
   .modal-overlay {
     padding: 0 !important;
     align-items: flex-end !important;
-    /* Клеим лист к реально видимой области (visualViewport), не к layout-viewport:
-       при выезде/уходе футера Яндекс-браузера лист не прыгает (#1097 p2). */
-    top: var(--app-vvt, 0) !important;
-    height: var(--app-vvh, 100dvh) !important;
+    /* Нативный dvh: композитор прибивает высоту к видимой области без reflow-лага,
+       поэтому JS-переменные --app-vvt/--app-vvh больше не нужны (#1097 R5-S2). */
+    top: 0 !important;
+    height: 100dvh !important;
     bottom: auto !important;
   }
 
@@ -386,7 +386,7 @@ body.nav-drawer-open {
     width: 100vw !important;
     max-width: 100vw !important;
     min-width: 100vw !important;
-    max-height: min(90dvh, var(--app-vvh, 90dvh)) !important;
+    max-height: 90dvh !important;
     border-radius: 16px 16px 0 0 !important;
     margin: 0 !important;
     overflow-y: auto !important;
