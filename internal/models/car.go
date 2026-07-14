@@ -23,12 +23,12 @@ type Car struct {
 	DateRemoved        *time.Time `json:"date_removed"`
 	// IsPurged - финальное удаление из корзины (#186). Запись остаётся в БД для
 	// аудита, но скрывается даже из корзины. Восстановление невозможно.
-	IsPurged           bool       `gorm:"default:false;index" json:"is_purged"`
-	PurgedAt           *time.Time `json:"purged_at,omitempty"`
-	PurgedByUserID     *int       `json:"purged_by_user_id,omitempty"`
-	CreatedAt          time.Time  `json:"created_at"`
-	UpdatedAt          time.Time  `json:"updated_at"`
-	TerritoryExitTime  *time.Time `json:"territory_exit_time"`
+	IsPurged          bool       `gorm:"default:false;index" json:"is_purged"`
+	PurgedAt          *time.Time `json:"purged_at,omitempty"`
+	PurgedByUserID    *int       `json:"purged_by_user_id,omitempty"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
+	TerritoryExitTime *time.Time `json:"territory_exit_time"`
 }
 
 type UniqueCar struct {
@@ -64,4 +64,8 @@ type CarTargetTable struct {
 	CarID      int  `gorm:"index" json:"car_id"`
 	TableID    int  `gorm:"index" json:"table_id"`
 	OrderIndex *int `json:"order_index"`
+	// Source - источник привязки (#1227): "application" (из заявки, дефолт колонки -
+	// бэкфиллит existing строки и покрывает сырой submit-INSERT без явного source) или
+	// "manual" (bulk-добавление/перенос/ручное добавление - проставляется явно в Create).
+	Source string `gorm:"type:varchar(20);not null;default:application" json:"source"`
 }
