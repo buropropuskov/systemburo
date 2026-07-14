@@ -332,7 +332,51 @@
                     v-if="listLoading"
                     label="Загрузка…"
                   />
+                  <!-- Ошибка догрузки следующей порции (#1173): список уже частично
+                       загружен, автодогрузка остановлена circuit-breaker'ом. -->
+                  <div
+                    v-else-if="listError"
+                    class="sentinel-error"
+                    data-testid="employees-scroll-sentinel-error"
+                  >
+                    <span>Не удалось загрузить ещё</span>
+                    <button
+                      type="button"
+                      class="lk-button lk-button--secondary lk-button--sm"
+                      :disabled="listLoading"
+                      @click="retryEmployees"
+                    >
+                      {{ listLoading ? 'Повтор…' : 'Повторить' }}
+                    </button>
+                  </div>
                 </div>
+              </div>
+              <!-- In-flight retry при пустом списке (#1173): пока listLoading -
+                   спиннер, не проваливаемся в error/"Сотрудников нет". listLoading
+                   выставляет composable из retry() (this.loading он не трогает). -->
+              <div
+                v-else-if="listLoading"
+                class="loading-message"
+                data-testid="employees-list-loading"
+              >
+                <LoaderSpinner label="Загрузка…" />
+              </div>
+              <!-- Первичная загрузка упала (#1173): список пуст из-за ошибки бэка, а
+                   не потому что сотрудников реально нет. -->
+              <div
+                v-else-if="listError"
+                class="list-error-state"
+                data-testid="employees-list-error"
+              >
+                <p>Не удалось загрузить сотрудников. Проверьте соединение.</p>
+                <button
+                  type="button"
+                  class="lk-button lk-button--secondary"
+                  :disabled="listLoading"
+                  @click="retryEmployees"
+                >
+                  {{ listLoading ? 'Повтор…' : 'Повторить' }}
+                </button>
               </div>
               <p
                 v-else
@@ -461,9 +505,16 @@ export default {
             employeesTotal: infiniteList.total,
             employeesPage: infiniteList.page,
             hasMoreEmployees: infiniteList.hasMore,
+            // canLoadMoreEmployees/listError/retryEmployeesList (#1173) - устойчивость
+            // бесшовной подгрузки к ошибкам бэка (5xx/сеть): canLoadMore гейтит АВТОдогрузку
+            // (observer + loadAllRemaining), hasMoreEmployees по-прежнему гейтит видимость
+            // sentinel-контейнера (внутри него рисуется error+retry).
+            canLoadMoreEmployees: infiniteList.canLoadMore,
             listLoading: infiniteList.loading,
+            listError: infiniteList.error,
             loadEmployeesList: infiniteList.load,
             loadMoreEmployeesList: infiniteList.loadMore,
+            retryEmployeesList: infiniteList.retry,
             observeEmployeesSentinel: infiniteList.observeSentinel,
             disconnectEmployeesSentinel: infiniteList.disconnectObserver,
         };
@@ -727,7 +778,10 @@ export default {
         // цикла, если total/hasMore разъедутся.
         async loadAllRemainingEmployees(seq) {
             let guard = 0;
-            while (this.hasMoreEmployees && seq === this.fetchSeq) {
+            // canLoadMoreEmployees (не hasMoreEmployees, #1173): при ошибке бэка на
+            // промежуточной странице circuit-breaker останавливает цикл сразу, не дожидаясь
+            // guard>200.
+            while (this.canLoadMoreEmployees && seq === this.fetchSeq) {
                 await this.loadMoreEmployeesList(this.buildEmployeesPage);
                 if (++guard > 200) break;
             }
@@ -753,6 +807,22 @@ export default {
         // "hasMoreEmployees"===false) просто отключает observer.
         setEmployeesSentinelRef(el) {
             this.observeEmployeesSentinel(el, this.buildEmployeesPage, { root: this.$refs.employeesBody || null });
+        },
+
+        // Ручной повтор упавшей страницы (первичной или догрузки, #1173) - composable
+        // сам помнит, какой fetchPage/режим (reset/append) последним завершился ошибкой.
+        async retryEmployees() {
+            try {
+                await this.retryEmployeesList();
+                // full-load (клиентская сортировка): retry вернул только упавшую
+                // страницу, но сортировка идёт по ВСЕМУ набору - дозагружаем остаток,
+                // иначе результат по НЕПОЛНОМУ списку до ручного доскролла (#1173).
+                if (this.isFullLoad) {
+                    await this.loadAllRemainingEmployees(this.fetchSeq);
+                }
+            } catch (error) {
+                console.error("Ошибка сети при повторной попытке загрузки сотрудников:", error);
+            }
         },
 
         async fetchOwnershipInfo() {
@@ -1338,6 +1408,35 @@ export default {
     justify-content: center;
     min-height: 24px;
     padding: 10px 0;
+}
+
+/* Устойчивость к ошибкам бэка (#1173): первичная загрузка упала - список пуст,
+   вместо "Сотрудников нет" показываем причину + retry. */
+.list-error-state {
+    text-align: center;
+    color: var(--color-danger);
+    padding: 40px 20px;
+    margin: 0;
+    font-size: 14px;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+}
+
+.list-error-state p {
+    margin: 0;
+}
+
+/* Ошибка догрузки следующей порции (#1173) - компактный вариант рядом с sentinel. */
+.sentinel-error {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--color-danger);
+    font-size: 13px;
 }
 
 .table-footer {

@@ -386,6 +386,33 @@
                 </transition-group>
               </div>
               
+              <!-- In-flight retry при пустом списке (#1173): пока listLoading -
+                   спиннер, не проваливаемся в error/"Заявок нет". listLoading выставляет
+                   composable из retry() (this.isLoading он не трогает). -->
+              <div
+                v-else-if="listLoading"
+                class="loading-message"
+                data-testid="user-applications-list-loading"
+              >
+                <LoaderSpinner label="Загрузка…" />
+              </div>
+              <!-- Первичная загрузка упала (#1173): список пуст из-за ошибки бэка, а
+                   не потому что заявок реально нет. -->
+              <div
+                v-else-if="listError"
+                class="list-error-state"
+                data-testid="user-applications-list-error"
+              >
+                <p>Не удалось загрузить заявки. Проверьте соединение.</p>
+                <button
+                  type="button"
+                  class="lk-button lk-button--secondary"
+                  :disabled="listLoading"
+                  @click="retryApplications"
+                >
+                  {{ listLoading ? 'Повтор…' : 'Повторить' }}
+                </button>
+              </div>
               <div
                 v-else
                 class="no-data-message"
@@ -413,6 +440,23 @@
                 v-if="listLoading"
                 label="Загрузка…"
               />
+              <!-- Ошибка догрузки следующей порции (#1173): список уже частично
+                   загружен, автодогрузка остановлена circuit-breaker'ом. -->
+              <div
+                v-else-if="listError"
+                class="sentinel-error"
+                data-testid="user-applications-sentinel-error"
+              >
+                <span>Не удалось загрузить ещё</span>
+                <button
+                  type="button"
+                  class="lk-button lk-button--secondary lk-button--sm"
+                  :disabled="listLoading"
+                  @click="retryApplications"
+                >
+                  {{ listLoading ? 'Повтор…' : 'Повторить' }}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -505,9 +549,16 @@ export default {
       total: infiniteList.total,
       applicationsPage: infiniteList.page,
       hasMoreApplications: infiniteList.hasMore,
+      // canLoadMoreApplications/listError/retryApplicationsList (#1173) - устойчивость
+      // бесшовной подгрузки к ошибкам бэка (5xx/сеть): canLoadMore гейтит АВТОдогрузку
+      // (observer + loadAllRemaining), hasMoreApplications по-прежнему гейтит видимость
+      // sentinel-контейнера (внутри него рисуется error+retry).
+      canLoadMoreApplications: infiniteList.canLoadMore,
       listLoading: infiniteList.loading,
+      listError: infiniteList.error,
       loadApplicationsList: infiniteList.load,
       loadMoreApplicationsList: infiniteList.loadMore,
+      retryApplicationsList: infiniteList.retry,
       observeApplicationsSentinel: infiniteList.observeSentinel,
       disconnectApplicationsSentinel: infiniteList.disconnectObserver,
     };
@@ -804,7 +855,10 @@ export default {
     // seq-guard - устаревший проход прекращается при старте нового fetchUserApplications.
     async loadAllRemaining(seq) {
       let guard = 0;
-      while (this.hasMoreApplications && seq === this.fetchSeq) {
+      // canLoadMoreApplications (не hasMoreApplications, #1173): при ошибке бэка на
+      // промежуточной странице circuit-breaker останавливает цикл сразу, не дожидаясь
+      // guard>200.
+      while (this.canLoadMoreApplications && seq === this.fetchSeq) {
         await this.loadMoreApplicationsList(this.buildUserApplicationsPage);
         if (++guard > 200) break;
       }
@@ -814,6 +868,22 @@ export default {
     // el=null при v-if="hasMoreApplications"===false просто отключает observer.
     setSentinelRef(el) {
       this.observeApplicationsSentinel(el, this.buildUserApplicationsPage, { root: this.$refs.applicationsBody || null });
+    },
+
+    // Ручной повтор упавшей страницы (первичной или догрузки, #1173) - composable
+    // сам помнит, какой fetchPage/режим (reset/append) последним завершился ошибкой.
+    async retryApplications() {
+      try {
+        await this.retryApplicationsList();
+        // full-load (клиентская сортировка): retry вернул только упавшую страницу,
+        // но сортировка идёт по ВСЕМУ набору - дозагружаем остаток, иначе результат
+        // по НЕПОЛНОМУ списку до ручного доскролла (#1173).
+        if (this.isFullLoad) {
+          await this.loadAllRemaining(this.fetchSeq);
+        }
+      } catch (error) {
+        console.error("Ошибка сети при повторной попытке загрузки заявок:", error);
+      }
     },
 
     async fetchResponsibleUsers(applicationId) {
@@ -1486,6 +1556,36 @@ export default {
   min-height: 24px;
   padding: 10px 0;
   flex-shrink: 0;
+}
+
+/* Устойчивость к ошибкам бэка (#1173): первичная загрузка упала - список пуст,
+   вместо "Заявок нет" показываем причину + retry. */
+.list-error-state {
+  text-align: center;
+  color: var(--color-danger);
+  padding: 40px 20px;
+  margin: 0;
+  font-size: 14px;
+  width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.list-error-state p {
+  margin: 0;
+}
+
+/* Ошибка догрузки следующей порции (#1173) - компактный вариант рядом с sentinel. */
+.sentinel-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-danger);
+  font-size: 13px;
 }
 
 .user-applications-footer {

@@ -344,7 +344,51 @@
                     v-if="listLoading"
                     label="Загрузка…"
                   />
+                  <!-- Ошибка догрузки следующей порции (#1173): список уже частично
+                       загружен, автодогрузка остановлена circuit-breaker'ом. -->
+                  <div
+                    v-else-if="listError"
+                    class="sentinel-error"
+                    data-testid="cars-scroll-sentinel-error"
+                  >
+                    <span>Не удалось загрузить ещё</span>
+                    <button
+                      type="button"
+                      class="lk-button lk-button--secondary lk-button--sm"
+                      :disabled="listLoading"
+                      @click="retryCars"
+                    >
+                      {{ listLoading ? 'Повтор…' : 'Повторить' }}
+                    </button>
+                  </div>
                 </div>
+              </div>
+              <!-- In-flight retry при пустом списке (#1173): пока listLoading -
+                   спиннер, не проваливаемся в error/"Автомобилей нет". listLoading
+                   выставляет composable из retry() (this.loading он не трогает). -->
+              <div
+                v-else-if="listLoading"
+                class="loading-message"
+                data-testid="cars-list-loading"
+              >
+                <LoaderSpinner label="Загрузка…" />
+              </div>
+              <!-- Первичная загрузка упала (#1173): список пуст из-за ошибки бэка, а
+                   не потому что машин реально нет. -->
+              <div
+                v-else-if="listError"
+                class="list-error-state"
+                data-testid="cars-list-error"
+              >
+                <p>Не удалось загрузить автомобили. Проверьте соединение.</p>
+                <button
+                  type="button"
+                  class="lk-button lk-button--secondary"
+                  :disabled="listLoading"
+                  @click="retryCars"
+                >
+                  {{ listLoading ? 'Повтор…' : 'Повторить' }}
+                </button>
               </div>
               <p
                 v-else
@@ -679,9 +723,16 @@ export default {
             carsTotal: infiniteList.total,
             carsPage: infiniteList.page,
             hasMoreCars: infiniteList.hasMore,
+            // canLoadMoreCars/listError/retryCarsList (#1173) - устойчивость бесшовной
+            // подгрузки к ошибкам бэка (5xx/сеть): canLoadMore гейтит АВТОдогрузку
+            // (observer + loadAllRemaining), hasMoreCars по-прежнему гейтит видимость
+            // sentinel-контейнера (внутри него рисуется error+retry).
+            canLoadMoreCars: infiniteList.canLoadMore,
             listLoading: infiniteList.loading,
+            listError: infiniteList.error,
             loadCarsList: infiniteList.load,
             loadMoreCarsList: infiniteList.loadMore,
+            retryCarsList: infiniteList.retry,
             observeCarsSentinel: infiniteList.observeSentinel,
             disconnectCarsSentinel: infiniteList.disconnectObserver,
         };
@@ -1086,7 +1137,9 @@ export default {
         // цикла, если total/hasMore разъедутся.
         async loadAllRemainingCars(seq) {
             let guard = 0;
-            while (this.hasMoreCars && seq === this.fetchSeq) {
+            // canLoadMoreCars (не hasMoreCars, #1173): при ошибке бэка на промежуточной
+            // странице circuit-breaker останавливает цикл сразу, не дожидаясь guard>200.
+            while (this.canLoadMoreCars && seq === this.fetchSeq) {
                 await this.loadMoreCarsList(this.buildCarsPage);
                 if (++guard > 200) break;
             }
@@ -1112,6 +1165,22 @@ export default {
         // просто отключает observer.
         setCarsSentinelRef(el) {
             this.observeCarsSentinel(el, this.buildCarsPage, { root: this.$refs.carsBody || null });
+        },
+
+        // Ручной повтор упавшей страницы (первичной или догрузки, #1173) - composable
+        // сам помнит, какой fetchPage/режим (reset/append) последним завершился ошибкой.
+        async retryCars() {
+            try {
+                await this.retryCarsList();
+                // full-load (клиентская сортировка): retry вернул только упавшую
+                // страницу, но сортировка идёт по ВСЕМУ набору - дозагружаем остаток,
+                // иначе результат по НЕПОЛНОМУ списку до ручного доскролла (#1173).
+                if (this.isFullLoad) {
+                    await this.loadAllRemainingCars(this.fetchSeq);
+                }
+            } catch (error) {
+                console.error("Ошибка сети при повторной попытке загрузки машин:", error);
+            }
         },
 
         async fetchOwnershipInfo() {
@@ -2022,6 +2091,35 @@ export default {
     justify-content: center;
     min-height: 24px;
     padding: 10px 0;
+}
+
+/* Устойчивость к ошибкам бэка (#1173): первичная загрузка упала - список пуст,
+   вместо "Автомобилей нет" показываем причину + retry. */
+.list-error-state {
+    text-align: center;
+    color: var(--color-danger);
+    padding: 40px 20px;
+    margin: 0;
+    font-size: 14px;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+}
+
+.list-error-state p {
+    margin: 0;
+}
+
+/* Ошибка догрузки следующей порции (#1173) - компактный вариант рядом с sentinel. */
+.sentinel-error {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--color-danger);
+    font-size: 13px;
 }
 
 .table-footer {

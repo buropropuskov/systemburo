@@ -266,5 +266,166 @@ describe('useInfiniteList', () => {
         global.IntersectionObserver = originalIO;
       }
     });
+
+    it('circuit-breaker (#1173): повторное пересечение зависшего sentinel после ошибки не шлёт новый запрос', async () => {
+      // Воспроизводит наблюдавшийся баг: sentinel остаётся видим после упавшего
+      // fetchPage (5xx/сеть), и IntersectionObserver продолжает пересекаться -
+      // без circuit-breaker'а loadMore звался бы на каждое пересечение.
+      originalIO = global.IntersectionObserver;
+      const instances = stubIntersectionObserver();
+      try {
+        const list = useInfiniteList({ perPage: 2 });
+        const fetchPage = vi.fn()
+          .mockResolvedValueOnce({ items: [{ id: 1 }, { id: 2 }], total: 6 })
+          .mockRejectedValueOnce(new Error('502'));
+
+        await list.load(fetchPage);
+        const el = {};
+        list.observeSentinel(el, fetchPage);
+
+        instances[0].trigger(true);
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(list.error.value).toBe(true);
+        expect(fetchPage).toHaveBeenCalledTimes(2);
+
+        // Повторные пересечения (типичная картина зависшего скролла) не добавляют
+        // третий вызов, пока ошибка активна.
+        instances[0].trigger(true);
+        instances[0].trigger(true);
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(fetchPage).toHaveBeenCalledTimes(2);
+        expect(list.page.value).toBe(1);
+      } finally {
+        global.IntersectionObserver = originalIO;
+      }
+    });
+  });
+
+  describe('устойчивость к ошибкам бэка (#1173)', () => {
+    it('ошибка loadMore не наращивает page, ставит error и включает circuit-breaker', async () => {
+      const list = useInfiniteList({ perPage: 2 });
+      const fetchPage = vi.fn()
+        .mockResolvedValueOnce({ items: [{ id: 1 }, { id: 2 }], total: 6 })
+        .mockRejectedValueOnce(new Error('502'));
+
+      await list.load(fetchPage);
+      expect(list.page.value).toBe(1);
+
+      await expect(list.loadMore(fetchPage)).rejects.toThrow('502');
+
+      // page НЕ выросла до 2, несмотря на попытку - неудачная страница не коммитится.
+      expect(list.page.value).toBe(1);
+      expect(list.items.value).toEqual([{ id: 1 }, { id: 2 }]); // прежние данные не тронуты
+      expect(list.error.value).toBe(true);
+      expect(list.loading.value).toBe(false);
+      // hasMore по-прежнему true (сервер отдавал total=6) - сентинел остаётся видим,
+      // но canLoadMore (circuit-breaker) гасит автодогрузку.
+      expect(list.hasMore.value).toBe(true);
+      expect(list.canLoadMore.value).toBe(false);
+    });
+
+    it('повторный автовызов loadMore после ошибки не шлёт новый запрос', async () => {
+      const list = useInfiniteList({ perPage: 2 });
+      const fetchPage = vi.fn()
+        .mockResolvedValueOnce({ items: [{ id: 1 }, { id: 2 }], total: 6 })
+        .mockRejectedValueOnce(new Error('502'));
+
+      await list.load(fetchPage);
+      await list.loadMore(fetchPage).catch(() => {});
+      expect(fetchPage).toHaveBeenCalledTimes(2);
+
+      await list.loadMore(fetchPage);
+      await list.loadMore(fetchPage);
+
+      expect(fetchPage).toHaveBeenCalledTimes(2);
+      expect(list.page.value).toBe(1);
+    });
+
+    it('при ошибке на reset очищает items И total, page возвращается на 1', async () => {
+      // total тоже обязан сброситься - иначе hasMore врёт "есть ещё" по СТАРОМУ
+      // значению, sentinel остаётся видим на пустом списке, и автодогрузка лавиной
+      // долбит бэк (корень наблюдавшегося "page 1->36", #1173).
+      const list = useInfiniteList({ perPage: 2 });
+      const fetchPage = vi.fn()
+        .mockResolvedValueOnce({ items: [{ id: 1 }, { id: 2 }], total: 4 })
+        .mockResolvedValueOnce({ items: [{ id: 3 }, { id: 4 }], total: 4 })
+        .mockRejectedValueOnce(new Error('network'));
+
+      await list.load(fetchPage);
+      await list.loadMore(fetchPage);
+      expect(list.page.value).toBe(2);
+
+      await expect(list.reset(fetchPage)).rejects.toThrow('network');
+
+      expect(list.items.value).toEqual([]);
+      expect(list.total.value).toBe(0);
+      expect(list.page.value).toBe(1);
+      expect(list.error.value).toBe(true);
+      expect(list.hasMore.value).toBe(false); // 0 < 0 - не "протухший" total=4
+      expect(list.canLoadMore.value).toBe(false);
+    });
+
+    it('retry() сбрасывает error и повторяет ИМЕННО упавшую страницу, накопление продолжается', async () => {
+      const list = useInfiniteList({ perPage: 2 });
+      const fetchPage = vi.fn()
+        .mockResolvedValueOnce({ items: [{ id: 1 }, { id: 2 }], total: 6 })
+        .mockRejectedValueOnce(new Error('502'))
+        .mockResolvedValueOnce({ items: [{ id: 3 }, { id: 4 }], total: 6 });
+
+      await list.load(fetchPage);
+      await list.loadMore(fetchPage).catch(() => {});
+      expect(list.error.value).toBe(true);
+
+      await list.retry();
+
+      expect(fetchPage).toHaveBeenLastCalledWith(2, 2); // та же страница, что упала
+      expect(list.error.value).toBe(false);
+      expect(list.items.value).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }]);
+      expect(list.page.value).toBe(2);
+      expect(list.canLoadMore.value).toBe(true); // автодогрузка возобновилась
+    });
+
+    it('retry() после ошибки первичной загрузки повторяет reset этой же страницы', async () => {
+      const list = useInfiniteList({ perPage: 2 });
+      const fetchPage = vi.fn()
+        .mockRejectedValueOnce(new Error('network'))
+        .mockResolvedValueOnce({ items: [{ id: 1 }], total: 1 });
+
+      await expect(list.load(fetchPage)).rejects.toThrow('network');
+      expect(list.error.value).toBe(true);
+      expect(list.items.value).toEqual([]);
+
+      await list.retry();
+
+      expect(fetchPage).toHaveBeenLastCalledWith(1, 2);
+      expect(list.error.value).toBe(false);
+      expect(list.items.value).toEqual([{ id: 1 }]);
+      expect(list.page.value).toBe(1);
+    });
+
+    it('seq-guard: устаревший error не выставляется, если свежий запрос уже успешен (регресс на #1173)', async () => {
+      const list = useInfiniteList({ perPage: 2 });
+      const stale = deferred();
+      const fetchPage = vi.fn()
+        .mockReturnValueOnce(stale.promise)
+        .mockResolvedValueOnce({ items: [{ id: 1 }], total: 1 });
+
+      const staleLoad = list.load(fetchPage).catch(() => {});
+      const freshLoad = list.load(fetchPage);
+
+      stale.reject(new Error('устаревшая ошибка'));
+
+      await staleLoad;
+      await freshLoad;
+
+      expect(list.error.value).toBe(false);
+      expect(list.canLoadMore.value).toBe(false); // hasMore=false (1<1), не из-за error
+      expect(list.items.value).toEqual([{ id: 1 }]);
+    });
   });
 });
