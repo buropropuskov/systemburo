@@ -1973,6 +1973,15 @@ export default {
     padding: 16px;
   }
 
+  /* Шапка стала колоночной auto-высоты - фиксированный оверлей .bulk-bar (50px)
+     накрыл бы только верх, хвост торчал бы под ним. Возвращаем панель в поток
+     (образец CompaniesManagement, #1194). */
+  .bulk-bar {
+    position: static;
+    height: auto;
+    padding: 12px 16px;
+  }
+
   .card-header__settings,
   .card-header__actions {
     width: 100%;
