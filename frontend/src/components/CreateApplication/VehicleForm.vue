@@ -405,6 +405,25 @@
       </div>
     </div>
 
+    <!-- Предупреждения выбранных мест: свободный текст + активные окна (#1183 S4) -->
+    <div
+      v-if="selectedPlaceWarnings.length > 0"
+      class="place-warning"
+      data-testid="vehicle-place-warnings"
+    >
+      <p class="place-warning__title">
+        Обратите внимание
+      </p>
+      <ul class="place-warning__list">
+        <li
+          v-for="(group, gi) in selectedPlaceWarnings"
+          :key="gi"
+        >
+          <strong>{{ group.name }}:</strong> {{ group.lines.join(' ') }}
+        </li>
+      </ul>
+    </div>
+
     <!-- Tooltip для неактивных мест -->
     <div
       v-if="inactiveTooltip.visible"
@@ -437,6 +456,7 @@ import { useDeletionsStore } from '@/stores/deletions'
 import { useFormValidation } from '@/composables/useFormValidation'
 import { validatePartValue, formatPartValue, initializeNumberParts } from '@/composables/useNumberFormat'
 import { useFieldConfig } from '@/composables/useFieldConfig'
+import { collectActiveWarnings } from '@/utils/warningWindows'
 import { getCurrentInstance } from 'vue'
 import ExistingCarsModal from '@/components/CreateApplication/ExistingCarsModal.vue'
 import TargetTablesGrid from '@/components/CreateApplication/TargetTablesGrid.vue'
@@ -631,6 +651,33 @@ export default {
                     return { table: item };
                 }
             });
+        },
+        // Предупреждения выбранных мест разгрузки и таблиц проезда, релевантные
+        // сейчас (#1183 S4): свободный текст + активные окна. Группа на место.
+        selectedPlaceWarnings() {
+            const at = new Date();
+            const groups = [];
+
+            this.selectedUnloadingPlaces.forEach(placeId => {
+                const place = this.allUnloadingPlaces.find(p => p.id === placeId);
+                if (!place) return;
+                const { free, windows } = collectActiveWarnings(place, at);
+                const lines = [free, ...windows].filter(Boolean);
+                if (lines.length) groups.push({ name: place.name, lines });
+            });
+
+            this.selectedPassageTables.forEach(tableId => {
+                const item = this.allPassageTables.find(t => t.table && t.table.id === tableId);
+                if (!item) return;
+                const { free, windows } = collectActiveWarnings(
+                    { warning: item.table.warning, warning_windows: item.warning_windows },
+                    at
+                );
+                const lines = [free, ...windows].filter(Boolean);
+                if (lines.length) groups.push({ name: item.table.display_name || item.table.name, lines });
+            });
+
+            return groups;
         }
     },
     watch: {
@@ -1184,6 +1231,8 @@ export default {
                 isExisting: false
             };
             
+            this.notifyPlaceWarnings();
+
             if (this.editingVehicle) {
                 newVehicle.id = this.editingVehicle.id;
                 this.$emit('vehicle-updated', newVehicle);
@@ -1193,7 +1242,15 @@ export default {
                 this.clearVehicleFormPartial();
             }
         },
-        
+
+        // Тост-предупреждения по местам добавляемой машины (#1183 S4), неблокирующе.
+        notifyPlaceWarnings() {
+            const store = useDeletionsStore();
+            this.selectedPlaceWarnings.forEach(group => {
+                store.notify({ prefix: `${group.name}: `, bold: group.lines.join(' '), type: 'warning' });
+            });
+        },
+
         clearVehicleFormPartial() {
             this.initializeNumberParts();
             this.selectedMark = '';
@@ -1266,6 +1323,7 @@ export default {
                 existingCarId: car.id
             }));
             
+            this.notifyPlaceWarnings();
             this.$emit('vehicles-added', vehicles);
             this.clearExistingCarsSelection();
         },
@@ -1586,6 +1644,38 @@ export default {
 .blacklist-warning .warning-title,
 .blacklist-warning .warning-details {
     color: #b02a37;
+}
+
+.place-warning {
+    width: 100%;
+    margin-top: 10px;
+    padding: 12px;
+    background: #fff3cd;
+    border: 1px solid #ffeeba;
+    border-radius: 10px;
+}
+
+.place-warning__title {
+    font-weight: 600;
+    color: #856404;
+    margin: 0 0 5px 0;
+    font-size: 14px;
+}
+
+.place-warning__list {
+    margin: 0;
+    padding-left: 18px;
+    color: #856404;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.place-warning__list li {
+    margin-bottom: 3px;
+}
+
+.place-warning__list li:last-child {
+    margin-bottom: 0;
 }
 
 .format__dropdown {
