@@ -372,8 +372,6 @@ export default {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(0.1px);
-  -webkit-backdrop-filter: blur(0.1px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -753,13 +751,22 @@ export default {
 @media (max-width: 560px) {
   /* На телефоне модалка почти во всю ширину и не такая высокая; боковые отступы
      ужаты. Высота по dvh (адрес-бар мобильного браузера учтён). */
+  /* Bottom-sheet на телефоне: выезжает снизу, клеится к видимой области
+     (visualViewport из App.vue), скруглён только сверху (обзор 4). */
   .modes-overlay {
-    padding: 10px;
+    padding: 0;
+    align-items: flex-end;
+    top: var(--app-vvt, 0);
+    height: var(--app-vvh, 100dvh);
+    bottom: auto;
   }
   .modes {
-    width: 100%;
-    height: min(600px, 82dvh);
-    border-radius: 24px;
+    width: 100vw;
+    max-width: 100vw;
+    height: min(600px, var(--app-vvh, 82dvh));
+    max-height: min(90dvh, var(--app-vvh, 90dvh));
+    border-radius: 16px 16px 0 0;
+    animation: app-sheet-up 0.32s cubic-bezier(0.32, 0.72, 0, 1) both;
   }
   .modes__header {
     padding: 16px 16px 14px;
