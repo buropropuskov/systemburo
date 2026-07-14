@@ -146,6 +146,20 @@
                     rows="4"
                   />
                 </div>
+
+                <div class="setting-item">
+                  <label class="form-label-compact">Предупреждение</label>
+                  <textarea
+                    v-model="newTable.warning"
+                    class="warning-textarea"
+                    placeholder="Показывается заявителю всегда (необязательно)"
+                    rows="2"
+                  />
+                  <p class="field-hint">
+                    Свободное предупреждение при добавлении машины/человека
+                    с этой таблицей. Окна по времени задаются после создания.
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -206,6 +220,7 @@ export default {
         status: 'active',
         status_comment: '',
         location_description: '',
+        warning: '',
         is_active: true
       },
       nameError: '',
@@ -315,6 +330,7 @@ export default {
         status: 'active',
         status_comment: '',
         location_description: '',
+        warning: '',
         is_active: true
       }
       this.nameError = ''
@@ -456,6 +472,23 @@ export default {
 }
 
 .input-compact:focus {
+  border-color: #4F5BDF;
+  outline: none;
+}
+
+.warning-textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #e6e6e6;
+  border-radius: 15px;
+  font-size: 13px;
+  font-family: inherit;
+  background: #fff;
+  transition: border-color 0.2s;
+  resize: vertical;
+  box-sizing: border-box;
+}
+.warning-textarea:focus {
   border-color: #4F5BDF;
   outline: none;
 }

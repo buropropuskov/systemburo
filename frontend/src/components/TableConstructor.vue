@@ -242,6 +242,13 @@
               </button>
               <button
                 class="tab-btn"
+                :class="{ 'active': activeTab === 'warnings' }"
+                @click="switchTab('warnings')"
+              >
+                Предупреждения
+              </button>
+              <button
+                class="tab-btn"
                 :class="{ 'active': activeTab === 'location' }"
                 @click="switchTab('location')"
               >
@@ -558,6 +565,37 @@
             />
           </div>
 
+          <!-- Вкладка Предупреждения -->
+          <div
+            v-if="activeTab === 'warnings'"
+            class="tab-content"
+          >
+            <div class="warnings-section">
+              <h4 class="section-title">
+                Свободное предупреждение
+              </h4>
+              <p class="field-hint">
+                Показывается заявителю всегда при добавлении машины/человека
+                в эту таблицу проходной.
+              </p>
+              <textarea
+                v-model="selectedTable.table.warning"
+                class="form-textarea"
+                placeholder="Например: проход только по предварительной записи"
+                rows="2"
+                @change="updateTableField('warning')"
+              />
+            </div>
+
+            <div class="warnings-section">
+              <WarningWindowsEditor
+                :resource-url="'/system-tables/' + selectedTable.table.id"
+                :windows="selectedTable.warning_windows || []"
+                @update="refreshSelectedTable"
+              />
+            </div>
+          </div>
+
           <!-- Вкладка Местоположение -->
           <div
             v-if="activeTab === 'location'"
@@ -724,6 +762,7 @@ import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import TextConstructor from './TextConstructor.vue';
 import WorkScheduleTab from './WorkScheduleTab.vue';
+import WarningWindowsEditor from './WarningWindowsEditor.vue';
 import SystemTableColumnsTab from './SystemTableColumnsTab.vue';
 import SystemTableAppearanceTab from './SystemTableAppearanceTab.vue';
 import TableConstructorCreateModal from './TableConstructorCreateModal.vue';
@@ -740,6 +779,7 @@ export default {
     RefreshButton,
     TextConstructor,
     WorkScheduleTab,
+    WarningWindowsEditor,
     SystemTableColumnsTab,
     SystemTableAppearanceTab,
     TableConstructorCreateModal,
@@ -1072,6 +1112,9 @@ export default {
         case 'location_description':
           updateData.location_description = this.selectedTable.table.location_description;
           break;
+        case 'warning':
+          updateData.warning = this.selectedTable.table.warning;
+          break;
       }
       
       try {
@@ -1096,6 +1139,7 @@ export default {
             status: { bold: 'Статус', suffix: ' изменён' },
             status_comment: { bold: 'Комментарий статуса', suffix: ' изменён' },
             location_description: { bold: 'Описание местоположения', suffix: ' изменено' },
+            warning: { bold: 'Предупреждение', suffix: ' изменено' },
           };
           const phrase = fieldPhrases[field] || { bold: 'Изменения', suffix: ' сохранены' };
           useDeletionsStore().notify(phrase);
@@ -2347,6 +2391,10 @@ export default {
 }
 
 .location-section {
+  margin-bottom: 24px;
+}
+
+.warnings-section {
   margin-bottom: 24px;
 }
 
