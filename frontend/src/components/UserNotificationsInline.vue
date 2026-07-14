@@ -316,7 +316,10 @@ export default {
   border-bottom: 1px solid #f0f0f0;
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  /* flex-start, а не center: на узком экране фильтры (Все/Непрочитанные) переносятся
+     на вторую строку внутри header-left, и по центру "Очистить" оказывалась между
+     строками. Прижимаем к верху - "Очистить" в одну линию с заголовком "Уведомления". */
+  align-items: flex-start;
   padding: 10px 20px;
   flex-shrink: 0;
   background: #fff;
