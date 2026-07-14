@@ -7,21 +7,11 @@
  * полночь), `message`, `is_active`.
  *
  * В S4 «релевантным» считается окно, действующее в переданный момент `at`
- * (по умолчанию — сейчас). S5 обобщит: вместо одного момента подставит границы
- * срока действия заявки, поэтому момент здесь — явный аргумент.
+ * (по умолчанию — сейчас). S5 обобщил на границы срока заявки для расписания
+ * (`scheduleCheck.js`); момент здесь — явный аргумент по той же причине.
  */
 
-/** JS `Date.getDay()` (0=Вс..6=Сб) -> проектная конвенция (0=Пн..6=Вс). */
-function projectDayOfWeek(date) {
-  const jsDay = date.getDay();
-  return jsDay === 0 ? 6 : jsDay - 1;
-}
-
-/** "ЧЧ:ММ[:СС]" -> минуты от начала суток. */
-function toMinutes(timeStr) {
-  const [hours, minutes] = timeStr.split(':').map(Number);
-  return hours * 60 + minutes;
-}
+import { projectDayOfWeek, toMinutes } from '@/utils/timeSlots';
 
 /**
  * Действует ли окно-предупреждение в момент `at`.

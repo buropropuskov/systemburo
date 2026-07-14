@@ -429,6 +429,7 @@ import TargetTablesGrid from '@/components/CreateApplication/TargetTablesGrid.vu
 import { useFormValidation } from '@/composables/useFormValidation'
 import { useFieldConfig } from '@/composables/useFieldConfig'
 import { collectActiveWarnings } from '@/utils/warningWindows'
+import { collectScheduleWarnings } from '@/utils/scheduleCheck'
 import { getCurrentInstance } from 'vue'
 
 export default {
@@ -475,6 +476,13 @@ export default {
         allowExistingSearch: {
             type: Boolean,
             default: true
+        },
+        // Срок заявки текущего вложения (#1183 S5): { date_from, date_to, time_from,
+        // time_to } в API-формате. Против него сверяется расписание (time_slots) таблиц
+        // прохода - предупреждаем, если проход закрыт на границе срока (зеркало VehicleForm).
+        entryPeriod: {
+            type: Object,
+            default: null
         }
     },
     emits: ['edit-cancelled', 'employee-added', 'employee-updated', 'employees-added'],
@@ -935,7 +943,8 @@ export default {
                     { warning: item.table.warning, warning_windows: item.warning_windows },
                     at
                 );
-                const lines = [free, ...windows].filter(Boolean);
+                const schedule = collectScheduleWarnings(item.time_slots, this.entryPeriod);
+                const lines = [free, ...windows, ...schedule].filter(Boolean);
                 if (lines.length) groups.push({ name: item.table.display_name || item.table.name, lines });
             });
 

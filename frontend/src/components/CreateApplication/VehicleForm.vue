@@ -457,6 +457,7 @@ import { useFormValidation } from '@/composables/useFormValidation'
 import { validatePartValue, formatPartValue, initializeNumberParts } from '@/composables/useNumberFormat'
 import { useFieldConfig } from '@/composables/useFieldConfig'
 import { collectActiveWarnings } from '@/utils/warningWindows'
+import { collectScheduleWarnings } from '@/utils/scheduleCheck'
 import { getCurrentInstance } from 'vue'
 import ExistingCarsModal from '@/components/CreateApplication/ExistingCarsModal.vue'
 import TargetTablesGrid from '@/components/CreateApplication/TargetTablesGrid.vue'
@@ -510,6 +511,13 @@ export default {
         allowExistingSearch: {
             type: Boolean,
             default: true
+        },
+        // Срок заявки текущего вложения (#1183 S5): { date_from, date_to, time_from,
+        // time_to } в API-формате (YYYY-MM-DD + ЧЧ:ММ). Против него сверяется расписание
+        // (time_slots) выбранных мест - предупреждаем, если место закрыто на границе срока.
+        entryPeriod: {
+            type: Object,
+            default: null
         }
     },
     emits: ['edit-cancelled', 'vehicle-added', 'vehicle-updated', 'vehicles-added', 'update:unload-places'],
@@ -1241,7 +1249,8 @@ export default {
                 const place = this.allUnloadingPlaces.find(p => p.id === placeId);
                 if (!place) return;
                 const { free, windows } = collectActiveWarnings(place, at);
-                const lines = [free, ...windows].filter(Boolean);
+                const schedule = collectScheduleWarnings(place.time_slots, this.entryPeriod);
+                const lines = [free, ...windows, ...schedule].filter(Boolean);
                 if (lines.length) groups.push({ name: place.name, lines });
             });
 
@@ -1252,7 +1261,8 @@ export default {
                     { warning: item.table.warning, warning_windows: item.warning_windows },
                     at
                 );
-                const lines = [free, ...windows].filter(Boolean);
+                const schedule = collectScheduleWarnings(item.time_slots, this.entryPeriod);
+                const lines = [free, ...windows, ...schedule].filter(Boolean);
                 if (lines.length) groups.push({ name: item.table.display_name || item.table.name, lines });
             });
 

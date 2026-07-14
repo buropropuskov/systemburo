@@ -208,6 +208,7 @@
               :user-company-id="companyId"
               :existing-vehicles="vehicles"
               :application-unload-places="applicationUnloadPlaces"
+              :entry-period="currentEntryPeriod"
               @vehicle-added="handleVehicleAdded"
               @vehicles-added="handleVehiclesAdded"
               @vehicle-updated="handleVehicleUpdated"
@@ -238,6 +239,7 @@
               :user-company="company"
               :user-company-id="companyId"
               :existing-employees="employees"
+              :entry-period="currentEntryPeriod"
               @employee-added="handleEmployeeAdded"
               @employees-added="handleEmployeesAdded"
               @employee-updated="handleEmployeeUpdated"
@@ -527,6 +529,19 @@ export default {
                 entryDateTo: this.formatDateForAPI(d.isOneDay ? d.singleDate : d.endDate),
                 timeFrom: d.startTime || '',
                 timeTo: d.endTime || ''
+            };
+        },
+
+        // Срок текущего вложения в API-формате для авто-проверки расписания мест
+        // (#1183 S5): формы сверяют его с time_slots выбранных мест. Даты -> YYYY-MM-DD,
+        // время остаётся ЧЧ:ММ; пустые границы -> null (проверка их пропускает).
+        currentEntryPeriod() {
+            const d = this.currentAttachmentData;
+            return {
+                date_from: this.formatDateForAPI(d.isOneDay ? d.singleDate : d.startDate),
+                date_to: this.formatDateForAPI(d.isOneDay ? d.singleDate : d.endDate),
+                time_from: d.startTime || null,
+                time_to: d.endTime || null
             };
         },
 
