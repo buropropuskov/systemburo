@@ -480,8 +480,8 @@ export default {
   justify-content: center;
   z-index: 9999;
   padding: 20px;
-  backdrop-filter: blur(0.1px);
-  -webkit-backdrop-filter: blur(0.1px);
+  /* backdrop-filter НЕ используем: даже blur(0.1px) форсит compositing-слой и
+     репэйнты, роняющие кадры при слайде листа на 120Hz (#1097 R3-4, как BaseModal). */
 }
 
 .modal {
@@ -797,6 +797,7 @@ export default {
     min-height: 62dvh;
     max-height: 92dvh;
     transition: transform 0.3s ease;
+    will-change: transform;
   }
 
   /* Во время свайпа лист следует за пальцем 1:1. */
@@ -811,7 +812,8 @@ export default {
   .modal-overlay {
     align-items: flex-end;
     padding: 0;
-    backdrop-filter: blur(2px);
+    /* backdrop-filter НЕ используем на мобилке: blur над оверлеем роняет кадры при
+       слайде листа на 120Hz (#1097 R3-4). */
   }
   
   .modal__header {

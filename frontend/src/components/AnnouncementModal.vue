@@ -136,8 +136,8 @@ export default {
   align-items: center;
   justify-content: center;
   z-index: 10000;
-  backdrop-filter: blur(0.1px);
-  -webkit-backdrop-filter: blur(0.1px);
+  /* backdrop-filter НЕ используем: даже blur(0.1px) форсит compositing-слой и
+     репэйнты, роняющие кадры при слайде листа на 120Hz (#1097 R3-4, как BaseModal). */
 }
 
 .modal-fade-enter-active,
@@ -309,6 +309,7 @@ export default {
      вверх, свайп-закрытие и ползунок. transition для снап-назад после свайпа. */
   .modal-content {
     transition: transform 0.3s ease;
+    will-change: transform;
   }
 
   /* Во время свайпа лист следует за пальцем 1:1 (без сглаживания). */
