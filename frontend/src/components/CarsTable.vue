@@ -44,7 +44,26 @@
         />
       </div>
     </div>
-    
+
+    <!-- Панель групповых операций (#1194) - оверлей поверх .card-header (не
+         reflow, урок #510), появляется при ctrl/shift-выделении строк. -->
+    <div
+      v-if="!preview && selectedCount > 0"
+      class="bulk-bar"
+      data-testid="cars-bulk-bar"
+    >
+      <span class="bulk-count">Выбрано: {{ selectedCount }}</span>
+      <div class="bulk-actions">
+        <button
+          class="lk-button lk-button--ghost lk-button--sm bulk-clear"
+          data-testid="cars-bulk-clear"
+          @click="clearSelection"
+        >
+          Снять выбор
+        </button>
+      </div>
+    </div>
+
     <div class="card-content rt-table">
       <div class="items-header">
         <div class="header-row rt-head-row">
@@ -251,9 +270,9 @@
               v-for="(item, index) in displayItems"
               :key="item.id"
               class="item-row"
-              :class="{ 'item-row--expanded': expandedRows[item.id] }"
+              :class="{ 'item-row--expanded': expandedRows[item.id], 'item-row--selected': isSelected(item.id) }"
               :style="{ animationDelay: `${index * 0.05}s` }"
-              @click="preview ? null : openVehicleDetails(item)"
+              @click="preview ? null : onRowClick($event, item)"
             >
               <div class="item-data rt-row">
                 <!-- Въезд - кнопка -->
@@ -490,6 +509,7 @@ import { useDeletionsStore } from '@/stores/deletions';
 import { usePermissionsStore } from '@/stores/permissions';
 import eventStream from '@/services/eventStream';
 import { useOrientation } from '@/composables/useOrientation';
+import { useRowSelection } from '@/composables/useRowSelection';
 import RefreshButton from './RefreshButton.vue';
 import VehicleDetailsModal from './CreateApplication/VehicleDetailsModal.vue';
 import CarsTableHistoryModal from './CarsTableHistoryModal.vue';
@@ -513,7 +533,8 @@ export default {
   setup() {
     const { isPortrait, isCompact } = useOrientation();
     const permissionsStore = usePermissionsStore();
-    return { isPortrait, isCompact, permissionsStore };
+    const rowSelection = useRowSelection();
+    return { isPortrait, isCompact, permissionsStore, ...rowSelection };
   },
   props: {
     tableName: { type: String, default: '' },
@@ -685,6 +706,11 @@ export default {
     enlarged(value) {
       if (this.preview) return;
       this.saveEnlargedToStorage(value);
+    },
+    // Строки, ушедшие из видимого списка (фильтр/поиск/удаление/поллинг),
+    // убираем из выделения - счётчик "Выбрано: N" не должен врать (#1194).
+    displayItems(items) {
+      this.pruneSelection(items.map(i => i.id));
     },
     previewItems: {
       immediate: true,
@@ -1083,6 +1109,14 @@ export default {
       }
     },
 
+    // Ctrl/Shift-клик по строке (#1194) - групповое выделение вместо открытия
+    // детали; обычный клик поведение не меняет (handleRowClick вернёт false).
+    onRowClick(event, item) {
+      const orderedIds = this.displayItems.map(i => i.id);
+      if (this.handleRowClick(event, item.id, orderedIds)) return;
+      this.openVehicleDetails(item);
+    },
+
     openVehicleDetails(item) {
       this.selectedVehicle = {
         ...item,
@@ -1462,6 +1496,7 @@ export default {
 <style scoped>
 /* Стили остаются без изменений (как в оригинале) */
 .selected-table-card {
+  position: relative; /* контекст для оверлей-панели .bulk-bar поверх .card-header (#1194) */
   background-color: #fff;
   border-radius: 30px;
   border: 1px solid #e6e6e6;
@@ -1482,6 +1517,37 @@ export default {
   min-height: 50px;
   flex-shrink: 0;
   flex-wrap: wrap;
+}
+
+/* Панель групповых операций (#1194) - оверлей поверх .card-header (не
+   reflow, урок #510). Высота = высоте шапки (50px). */
+.bulk-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 50px;
+  padding: 0 20px;
+  border-bottom: 1px solid #e6e6e6;
+  background: #f0f2ff;
+}
+
+.bulk-count {
+  font-size: 14px;
+  font-weight: 600;
+  color: #4F5BDF;
+  white-space: nowrap;
+}
+
+.bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
 }
 
 .card-header__title {
@@ -1707,6 +1773,16 @@ export default {
 
 .item-row:hover {
   background-color: #f5f5f5;
+}
+
+/* Подсветка ctrl/shift-выделенной строки (#1194) - тот же тон, что фон
+   .bulk-bar, чтобы связь выбора с панелью читалась визуально. */
+.item-row--selected {
+  background-color: #eef0ff;
+}
+
+.item-row--selected:hover {
+  background-color: #e4e7fd;
 }
 
 @keyframes fadeInUp {
