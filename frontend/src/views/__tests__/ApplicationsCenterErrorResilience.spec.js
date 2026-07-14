@@ -181,4 +181,70 @@ describe('ApplicationsCenter — устойчивость к ошибкам бэ
     expect(wrapper.vm.applications.map((a) => a.id)).toEqual([1]);
     expect(wrapper.find('[data-testid="center-list-error"]').exists()).toBe(false);
   });
+
+  // БЛОКЕР ревью: во время in-flight retry (primary error) НЕ должно мигать "Заявок нет".
+  // retry() выставляет composable listLoading, но не верхнеуровневый this.loading -
+  // без ветки v-else-if="listLoading" каскад проваливался в v-else ("Заявок нет").
+  it('во время in-flight retry рендерится спиннер, НЕ "Заявок нет"', async () => {
+    getApplicationsPaginated.mockRejectedValueOnce(new Error('502'));
+    wrapper = mountCenter();
+    await flushPromises();
+    expect(wrapper.vm.listError).toBe(true);
+
+    // Deferred: retry подвисает - ловим ПРОМЕЖУТОЧНОЕ состояние (не синхронный резолв).
+    let resolveRetry;
+    getApplicationsPaginated.mockImplementationOnce(
+      () => new Promise((r) => { resolveRetry = r; }),
+    );
+    await wrapper.find('[data-testid="center-list-error"] button').trigger('click');
+    await wrapper.vm.$nextTick();
+
+    // Пока retry летит: listLoading=true -> спиннер, ни error, ни "Заявок нет".
+    expect(wrapper.vm.listLoading).toBe(true);
+    expect(wrapper.find('[data-testid="center-list-loading"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="center-list-error"]').exists()).toBe(false);
+    expect(wrapper.find('.no-data-message').exists()).toBe(false);
+
+    resolveRetry({ items: [makeApp(1)], meta: { total: 1, page: 1, per_page: 30 } });
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.vm.applications.map((a) => a.id)).toEqual([1]);
+    expect(wrapper.find('[data-testid="center-list-loading"]').exists()).toBe(false);
+  });
+
+  // 🟡3 ревью: retry в режиме full-load (клиентская сортировка) обязан ДОЗАГРУЗИТЬ весь
+  // набор, иначе сортировка молча по неполному списку до ручного доскролла.
+  it('retry в full-load дозагружает ВЕСЬ набор после ошибки на промежуточной странице', async () => {
+    let failPage2 = true;
+    getApplicationsPaginated.mockImplementation((params) => {
+      if (params.page === 1) {
+        return Promise.resolve({ items: [makeApp(1)], meta: { total: 3, page: 1, per_page: 30 } });
+      }
+      if (params.page === 2) {
+        if (failPage2) { failPage2 = false; return Promise.reject(new Error('502')); }
+        return Promise.resolve({ items: [makeApp(2)], meta: { total: 3, page: 2, per_page: 30 } });
+      }
+      return Promise.resolve({ items: [makeApp(3)], meta: { total: 3, page: 3, per_page: 30 } });
+    });
+    wrapper = mountCenter();
+    await flushPromises();
+    expect(wrapper.vm.applications.map((a) => a.id)).toEqual([1]);
+
+    // Клиентская сортировка включает full-load: page1 (reset) + догрузка остатка.
+    // page2 падает в середине цикла -> error, набор неполный ([1]).
+    wrapper.vm.sortBy('number');
+    await flushPromises();
+    expect(wrapper.vm.isFullLoad).toBe(true);
+    expect(wrapper.vm.listError).toBe(true);
+    expect(wrapper.vm.applications.map((a) => a.id)).toEqual([1]);
+
+    // retry дописывает page2 И возобновляет loadAllRemaining -> все 3 страницы.
+    await wrapper.vm.retryApplications();
+    await flushPromises();
+
+    expect(wrapper.vm.listError).toBe(false);
+    expect([...wrapper.vm.applications.map((a) => a.id)].sort()).toEqual([1, 2, 3]);
+    expect(wrapper.vm.hasMoreApplications).toBe(false);
+  });
 });

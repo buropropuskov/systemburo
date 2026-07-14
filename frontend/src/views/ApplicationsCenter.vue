@@ -778,6 +778,18 @@
               </div>
             </div>
           </TransitionGroup>
+          <!-- In-flight retry / первичная догрузка при пустом списке (#1173): пока
+               listLoading, показываем спиннер, а не проваливаемся в error/"Заявок нет".
+               listLoading выставляет composable из retry() (верхнеуровневый loading он
+               не трогает), поэтому без этой ветки клик "Повторить" на долю секунды
+               рисует "Заявок нет". -->
+          <div
+            v-else-if="listLoading"
+            class="list-loading-state"
+            data-testid="center-list-loading"
+          >
+            <LoaderSpinner label="Загрузка…" />
+          </div>
           <!-- Первичная загрузка упала (#1173): список пуст из-за ошибки бэка, а не
                потому что заявок реально нет - показываем error+retry вместо "Заявок нет". -->
           <div
@@ -829,9 +841,10 @@
             <button
               type="button"
               class="lk-button lk-button--secondary lk-button--sm"
+              :disabled="listLoading"
               @click="retryApplications"
             >
-              Повторить
+              {{ listLoading ? 'Повтор…' : 'Повторить' }}
             </button>
           </div>
         </div>
@@ -1918,10 +1931,18 @@ export default {
 
         // Ручной повтор упавшей страницы (первичной или догрузки, #1173) - composable
         // сам помнит, какой fetchPage/режим (reset/append) последним завершился ошибкой.
-        retryApplications() {
-            this.retryApplicationsList().catch((error) => {
+        async retryApplications() {
+            try {
+                await this.retryApplicationsList();
+                // full-load (клиентские теги/сортировка): retry вернул только упавшую
+                // страницу, но сортировка/фильтр идут по ВСЕМУ набору - дозагружаем
+                // остаток, иначе результат по НЕПОЛНОМУ списку до ручного доскролла (#1173).
+                if (this.isFullLoad) {
+                    await this.loadAllRemaining(this.fetchSeq);
+                }
+            } catch (error) {
                 console.error("Ошибка сети при повторной попытке загрузки заявок:", error);
-            });
+            }
         },
 
         async fetchOrganizations() {
@@ -2943,6 +2964,16 @@ export default {
     justify-content: center;
     min-height: 24px;
     padding: 10px 0;
+}
+
+/* In-flight состояние подгрузки при пустом списке (#1173): спиннер по центру,
+   чтобы клик retry не мигал "Заявок нет" на время round-trip. */
+.list-loading-state {
+    flex-grow: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
 }
 
 /* Устойчивость к ошибкам бэка (#1173): первичная загрузка упала - список пуст,

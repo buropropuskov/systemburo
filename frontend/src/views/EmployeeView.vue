@@ -343,12 +343,23 @@
                     <button
                       type="button"
                       class="lk-button lk-button--secondary lk-button--sm"
+                      :disabled="listLoading"
                       @click="retryEmployees"
                     >
-                      Повторить
+                      {{ listLoading ? 'Повтор…' : 'Повторить' }}
                     </button>
                   </div>
                 </div>
+              </div>
+              <!-- In-flight retry при пустом списке (#1173): пока listLoading -
+                   спиннер, не проваливаемся в error/"Сотрудников нет". listLoading
+                   выставляет composable из retry() (this.loading он не трогает). -->
+              <div
+                v-else-if="listLoading"
+                class="loading-message"
+                data-testid="employees-list-loading"
+              >
+                <LoaderSpinner label="Загрузка…" />
               </div>
               <!-- Первичная загрузка упала (#1173): список пуст из-за ошибки бэка, а
                    не потому что сотрудников реально нет. -->
@@ -800,10 +811,18 @@ export default {
 
         // Ручной повтор упавшей страницы (первичной или догрузки, #1173) - composable
         // сам помнит, какой fetchPage/режим (reset/append) последним завершился ошибкой.
-        retryEmployees() {
-            this.retryEmployeesList().catch((error) => {
+        async retryEmployees() {
+            try {
+                await this.retryEmployeesList();
+                // full-load (клиентская сортировка): retry вернул только упавшую
+                // страницу, но сортировка идёт по ВСЕМУ набору - дозагружаем остаток,
+                // иначе результат по НЕПОЛНОМУ списку до ручного доскролла (#1173).
+                if (this.isFullLoad) {
+                    await this.loadAllRemainingEmployees(this.fetchSeq);
+                }
+            } catch (error) {
                 console.error("Ошибка сети при повторной попытке загрузки сотрудников:", error);
-            });
+            }
         },
 
         async fetchOwnershipInfo() {

@@ -386,6 +386,16 @@
                 </transition-group>
               </div>
               
+              <!-- In-flight retry при пустом списке (#1173): пока listLoading -
+                   спиннер, не проваливаемся в error/"Заявок нет". listLoading выставляет
+                   composable из retry() (this.isLoading он не трогает). -->
+              <div
+                v-else-if="listLoading"
+                class="loading-message"
+                data-testid="user-applications-list-loading"
+              >
+                <LoaderSpinner label="Загрузка…" />
+              </div>
               <!-- Первичная загрузка упала (#1173): список пуст из-за ошибки бэка, а
                    не потому что заявок реально нет. -->
               <div
@@ -441,9 +451,10 @@
                 <button
                   type="button"
                   class="lk-button lk-button--secondary lk-button--sm"
+                  :disabled="listLoading"
                   @click="retryApplications"
                 >
-                  Повторить
+                  {{ listLoading ? 'Повтор…' : 'Повторить' }}
                 </button>
               </div>
             </div>
@@ -861,10 +872,18 @@ export default {
 
     // Ручной повтор упавшей страницы (первичной или догрузки, #1173) - composable
     // сам помнит, какой fetchPage/режим (reset/append) последним завершился ошибкой.
-    retryApplications() {
-      this.retryApplicationsList().catch((error) => {
+    async retryApplications() {
+      try {
+        await this.retryApplicationsList();
+        // full-load (клиентская сортировка): retry вернул только упавшую страницу,
+        // но сортировка идёт по ВСЕМУ набору - дозагружаем остаток, иначе результат
+        // по НЕПОЛНОМУ списку до ручного доскролла (#1173).
+        if (this.isFullLoad) {
+          await this.loadAllRemaining(this.fetchSeq);
+        }
+      } catch (error) {
         console.error("Ошибка сети при повторной попытке загрузки заявок:", error);
-      });
+      }
     },
 
     async fetchResponsibleUsers(applicationId) {

@@ -408,42 +408,6 @@ describe('useInfiniteList', () => {
       expect(list.page.value).toBe(1);
     });
 
-    it('errorCount растёт с каждой подряд-ошибкой и обнуляется успехом', async () => {
-      const list = useInfiniteList({ perPage: 2 });
-      const fetchPage = vi.fn()
-        .mockRejectedValueOnce(new Error('502'))
-        .mockRejectedValueOnce(new Error('502'))
-        .mockResolvedValueOnce({ items: [{ id: 1 }], total: 1 });
-
-      await list.load(fetchPage).catch(() => {});
-      expect(list.errorCount.value).toBe(1);
-
-      await list.retry().catch(() => {});
-      expect(list.errorCount.value).toBe(2);
-
-      await list.retry();
-      expect(list.errorCount.value).toBe(0);
-      expect(list.error.value).toBe(false);
-    });
-
-    it('isEmpty взаимоисключающе с loading/error: true только после успешной загрузки без данных', async () => {
-      const list = useInfiniteList({ perPage: 2 });
-      expect(list.isEmpty.value).toBe(false); // до первого запроса
-
-      const fetchPage = vi.fn()
-        .mockRejectedValueOnce(new Error('502'))
-        .mockResolvedValueOnce({ items: [], total: 0 });
-
-      await list.load(fetchPage).catch(() => {});
-      expect(list.isEmpty.value).toBe(false); // ошибка - не "пусто"
-      expect(list.error.value).toBe(true);
-
-      await list.retry();
-      expect(list.error.value).toBe(false);
-      expect(list.isEmpty.value).toBe(true);
-      expect(list.loading.value).toBe(false);
-    });
-
     it('seq-guard: устаревший error не выставляется, если свежий запрос уже успешен (регресс на #1173)', async () => {
       const list = useInfiniteList({ perPage: 2 });
       const stale = deferred();

@@ -23,13 +23,6 @@ export function useInfiniteList({ perPage = 30, keyFn = (item) => item.id } = {}
   const page = ref(1);
   const loading = ref(false);
   const error = ref(false);
-  // Счётчик подряд-ошибок (#1173) - обнуляется любым успешным запросом. Сам по себе
-  // ничего не гейтит (одной ошибки уже достаточно для circuit-breaker'а через error),
-  // но полезен потребителю для сообщения вида "N попыток не удалось".
-  const errorCount = ref(0);
-  // Первый запрос (успешный или нет) уже завершился - без этого isEmpty был бы
-  // true до самого первого fetch (items изначально [] и error изначально false).
-  const hasLoadedOnce = ref(false);
 
   // seq-guard (#632): смена фильтра/поиска до резолва предыдущего запроса не должна
   // затереть актуальные данные устаревшим ответом.
@@ -55,12 +48,6 @@ export function useInfiniteList({ perPage = 30, keyFn = (item) => item.id } = {}
   // без этого зависший sentinel мог бы лавиной долбить упавший бэк (page 1->36).
   // Возобновляется, как только error гасится успешным load()/retry().
   const canLoadMore = computed(() => hasMore.value && !error.value);
-
-  // Взаимоисключающие состояния для UI потребителя (#1173): loading - идёт запрос,
-  // error - последний запрос упал, isEmpty - успешно загружено и пусто.
-  const isEmpty = computed(() => (
-    hasLoadedOnce.value && !loading.value && !error.value && items.value.length === 0
-  ));
 
   /**
    * @param {(page: number, perPage: number) => Promise<{items: object[], total: number}>} fetchPage
@@ -91,11 +78,9 @@ export function useInfiniteList({ perPage = 30, keyFn = (item) => item.id } = {}
       }
       total.value = (result && result.total) || 0;
       page.value = requestedPage;
-      errorCount.value = 0;
     } catch (err) {
       if (mySeq !== seq) return;
       error.value = true;
-      errorCount.value += 1;
       if (reset) {
         items.value = [];
         page.value = 1;
@@ -110,10 +95,7 @@ export function useInfiniteList({ perPage = 30, keyFn = (item) => item.id } = {}
       // и retry() бил бы по несуществующей странице (#1173).
       throw err;
     } finally {
-      if (mySeq === seq) {
-        loading.value = false;
-        hasLoadedOnce.value = true;
-      }
+      if (mySeq === seq) loading.value = false;
     }
   }
 
@@ -181,10 +163,8 @@ export function useInfiniteList({ perPage = 30, keyFn = (item) => item.id } = {}
     page,
     loading,
     error,
-    errorCount,
     hasMore,
     canLoadMore,
-    isEmpty,
     load,
     reset,
     loadMore,

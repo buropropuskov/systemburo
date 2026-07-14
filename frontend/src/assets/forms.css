@@ -114,6 +114,13 @@
   color: #fff;
 }
 
+/* Компактный модификатор для inline-контекстов (retry у sentinel подгрузки #1173,
+   кнопка вопроса #345). Компоненты с собственным scoped-размером (0,2,0) переопределяют. */
+.lk-button--sm {
+  padding: 4px 12px;
+  font-size: 12px;
+}
+
 .lk-card {
   background: #fff;
   border: 1px solid var(--color-border);
