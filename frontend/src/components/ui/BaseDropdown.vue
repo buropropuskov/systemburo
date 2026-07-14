@@ -130,6 +130,13 @@ export default {
       type: Boolean,
       default: false,
     },
+    // z-index телепортнутого меню. Дефолт 2000 - выше тела обычных модалок (~1000),
+    // ниже глобальных диалогов (20000+). Поднять, если родитель-модалка имеет высокий
+    // overlay z-index (напр. WorkModesModal 10000), иначе меню уходит ЗА неё.
+    menuZIndex: {
+      type: Number,
+      default: 2000,
+    },
   },
   emits: ['update:modelValue'],
   data() {
@@ -227,9 +234,10 @@ export default {
         ...(openUp
           ? { bottom: `${Math.round(vh - r.top + gap)}px`, top: 'auto' }
           : { top: `${Math.round(r.bottom + gap)}px`, bottom: 'auto' }),
-        // выше тела модалки (1000), но НИЖЕ глобальных блокирующих диалогов
-        // (ConfirmDialog 20000, SessionExpiredModal 25000) - см. [[z-index лестница]]
-        zIndex: 2000,
+        // выше тела модалки, но НИЖЕ глобальных блокирующих диалогов
+        // (ConfirmDialog 20000, SessionExpiredModal 25000) - см. [[z-index лестница]].
+        // Настраивается пропом menuZIndex для модалок с высоким overlay z-index.
+        zIndex: this.menuZIndex,
       };
     },
     addRepositionListeners() {

@@ -76,6 +76,15 @@ async function openModal(resolved = MODES) {
   return wrapper;
 }
 
+// Категории теперь в BaseDropdown (#1097 R3-8): открыть меню и кликнуть опцию.
+async function selectCategory(wrapper, key) {
+  const idx = { bureau: 0, unload: 1, pass: 2 }[key];
+  await wrapper.find('.base-dropdown__button').trigger('click');
+  const items = wrapper.findAll('.base-dropdown__item');
+  await items[idx].trigger('click');
+  await wrapper.vm.$nextTick();
+}
+
 describe('WorkModesModal', () => {
   beforeEach(() => {
     getWorkModes.mockReset();
@@ -84,15 +93,16 @@ describe('WorkModesModal', () => {
   it('грузит режимы при открытии и рисует 3 категории со счётчиками', async () => {
     const wrapper = await openModal();
     expect(getWorkModes).toHaveBeenCalledTimes(1);
-    const pills = wrapper.findAll('.cat-pill');
-    expect(pills).toHaveLength(3);
-    expect(pills[0].text()).toContain('Бюро');
-    expect(pills[1].text()).toContain('Места разгрузки');
-    expect(pills[1].text()).toContain('2');
-    expect(pills[2].text()).toContain('Места прохода');
-    expect(pills[2].text()).toContain('2');
+    await wrapper.find('.base-dropdown__button').trigger('click');
+    const items = wrapper.findAll('.base-dropdown__item');
+    expect(items).toHaveLength(3);
+    expect(items[0].text()).toContain('Бюро');
+    expect(items[1].text()).toContain('Места разгрузки');
+    expect(items[1].text()).toContain('2');
+    expect(items[2].text()).toContain('Места прохода');
+    expect(items[2].text()).toContain('2');
     // У Бюро счётчик не рисуется
-    expect(pills[0].find('.cat-pill__cnt').exists()).toBe(false);
+    expect(items[0].find('.cat-opt__cnt').exists()).toBe(false);
   });
 
   it('по умолчанию активна вкладка Бюро, карточка развёрнута, статус «Открыто сейчас»', async () => {
@@ -107,7 +117,7 @@ describe('WorkModesModal', () => {
 
   it('недельная сетка: 7 дней, Пн объединяет окна через запятую, ровно один «сегодня»', async () => {
     const wrapper = await openModal();
-    await wrapper.find('[data-testid="work-modes-cat-unload"]').trigger('click');
+    await selectCategory(wrapper, 'unload');
     const sklad = wrapper.findAll('[data-testid="work-modes-card"]')[0];
     const rows = sklad.findAll('.week__row');
     expect(rows).toHaveLength(7);
@@ -122,14 +132,14 @@ describe('WorkModesModal', () => {
   it('статусы: maintenance -> «На обслуживании», inactive -> «Неактивно», closed -> «Закрыто сейчас»', async () => {
     const wrapper = await openModal();
 
-    await wrapper.find('[data-testid="work-modes-cat-unload"]').trigger('click');
+    await selectCategory(wrapper, 'unload');
     const unload = wrapper.findAll('[data-testid="work-modes-status"]');
     expect(unload[0].text()).toBe('Закрыто сейчас'); // active + closed
     expect(unload[0].classes()).toContain('status--closed');
     expect(unload[1].text()).toBe('На обслуживании'); // maintenance
     expect(unload[1].classes()).toContain('status--inactive');
 
-    await wrapper.find('[data-testid="work-modes-cat-pass"]').trigger('click');
+    await selectCategory(wrapper, 'pass');
     const pass = wrapper.findAll('[data-testid="work-modes-status"]');
     expect(pass[1].text()).toBe('Неактивно'); // inactive
     expect(pass[1].classes()).toContain('status--inactive');
@@ -137,7 +147,7 @@ describe('WorkModesModal', () => {
 
   it('круглосуточный слот (00:00-23:59) рисуется как «круглосуточно» зелёным', async () => {
     const wrapper = await openModal();
-    await wrapper.find('[data-testid="work-modes-cat-pass"]').trigger('click');
+    await selectCategory(wrapper, 'pass');
     const kpp = wrapper.findAll('[data-testid="work-modes-card"]')[0]; // КПП-1
     await kpp.find('.obj__head').trigger('click'); // в категории 2 поста -> разворачиваем вручную
     expect(kpp.classes()).toContain('obj--open');
@@ -168,10 +178,10 @@ describe('WorkModesModal', () => {
     await wrapper.setProps({ show: true });
     await wrapper.vm.$nextTick();
     expect(wrapper.find('.modes__state').exists()).toBe(true);
-    expect(wrapper.find('.cat-pill').exists()).toBe(false);
+    expect(wrapper.find('.cats__select').exists()).toBe(false);
     resolveFn(MODES);
     await flushPromises();
-    expect(wrapper.findAll('.cat-pill')).toHaveLength(3);
+    expect(wrapper.find('.cats__select').exists()).toBe(true);
 
     // error: запрос упал
     getWorkModes.mockRejectedValueOnce(new Error('boom'));
