@@ -1,138 +1,165 @@
 import { describe, it, expect } from 'vitest';
-import {
-  isSlotOpenAt,
-  schedulePlaceStatusAt,
-  collectScheduleWarnings,
-} from '@/utils/scheduleCheck';
+import { buildScheduleReport } from '@/utils/scheduleCheck';
 
-// #1183 S5: авто-проверка расписания (time_slots) против срока заявки.
-// 2026-07-13 = понедельник = проектный day_of_week 0 (см. VehicleFormWarnings.spec).
-const MON_09_30 = new Date(2026, 6, 13, 9, 30);
-const MON_20_00 = new Date(2026, 6, 13, 20, 0);
-const TUE_09_30 = new Date(2026, 6, 14, 9, 30);
+// #1183 polish: расписание сверяется по ПЕРЕСЕЧЕНИЮ окна пребывания [time_from,time_to]
+// с рабочими интервалами дня, а не по точечным границам въезда/выезда.
+// 2026-07-13 = понедельник (day_of_week 0), 14.07 = вторник (1), 15.07 = среда (2).
 
 const slot = (over = {}) => ({
   day_of_week: 0,
-  open_time: '09:00',
-  close_time: '18:00',
+  open_time: '10:00',
+  close_time: '12:00',
   is_next_day: false,
   is_active: true,
   ...over,
 });
 
-describe('isSlotOpenAt', () => {
-  it('открыт внутри интервала того же дня недели', () => {
-    expect(isSlotOpenAt(slot(), MON_09_30)).toBe(true);
+const period = (over = {}) => ({
+  date_from: '2026-07-13',
+  date_to: '2026-07-13',
+  time_from: '13:00',
+  time_to: '14:00',
+  ...over,
+});
+
+describe('buildScheduleReport - предусловия', () => {
+  it('нет расписания -> null', () => {
+    expect(buildScheduleReport([], period())).toBeNull();
+    expect(buildScheduleReport(undefined, period())).toBeNull();
   });
 
-  it('закрыт вне интервала', () => {
-    expect(isSlotOpenAt(slot(), MON_20_00)).toBe(false);
+  it('нет срока -> null', () => {
+    expect(buildScheduleReport([slot()], null)).toBeNull();
   });
 
-  it('закрыт в другой день недели', () => {
-    expect(isSlotOpenAt(slot(), TUE_09_30)).toBe(false);
+  it('дата есть, время пребывания не задано -> null (нет ложных срабатываний)', () => {
+    expect(buildScheduleReport([slot()], period({ time_from: null, time_to: null }))).toBeNull();
+    expect(buildScheduleReport([slot()], period({ time_from: '', time_to: '' }))).toBeNull();
   });
 
-  it('неактивный слот всегда закрыт', () => {
-    expect(isSlotOpenAt(slot({ is_active: false }), MON_09_30)).toBe(false);
+  it('to < from -> null', () => {
+    expect(buildScheduleReport([slot()], period({ date_from: '2026-07-14', date_to: '2026-07-13' }))).toBeNull();
+  });
+});
+
+describe('buildScheduleReport - пересечение окна пребывания с графиком', () => {
+  it('пребывание ВНЕ графика (10-12 работа, 13-14 пребывание) -> закрыто', () => {
+    const r = buildScheduleReport([slot()], period({ time_from: '13:00', time_to: '14:00' }));
+    expect(r.anyClosed).toBe(true);
+    expect(r.days).toHaveLength(1);
+    expect(r.days[0].open).toBe(false);
+    expect(r.days[0].hours).toBe('10:00–12:00');
+    expect(r.presence).toBe('13:00–14:00');
+    expect(r.days[0].label).toContain('Пн');
   });
 
-  it('круглосуточный слот открыт в любой момент своего дня', () => {
+  it('пребывание пересекает график (10-12 работа, 11-13 пребывание) -> открыто', () => {
+    const r = buildScheduleReport([slot()], period({ time_from: '11:00', time_to: '13:00' }));
+    expect(r.anyClosed).toBe(false);
+    expect(r.days[0].open).toBe(true);
+  });
+
+  it('пребывание внутри графика -> открыто', () => {
+    const r = buildScheduleReport([slot()], period({ time_from: '10:30', time_to: '11:30' }));
+    expect(r.anyClosed).toBe(false);
+  });
+
+  it('касание по границе (пребывание с 12:00, закрытие 12:00) -> не пересечение, закрыто', () => {
+    const r = buildScheduleReport([slot()], period({ time_from: '12:00', time_to: '13:00' }));
+    expect(r.anyClosed).toBe(true);
+  });
+
+  it('день без слотов -> "не работает", закрыто', () => {
+    // срок на вторник (14.07), а слот только на понедельник
+    const r = buildScheduleReport([slot()], period({ date_from: '2026-07-14', date_to: '2026-07-14', time_from: '10:30', time_to: '11:30' }));
+    expect(r.anyClosed).toBe(true);
+    expect(r.days[0].hours).toBe('не работает');
+    expect(r.days[0].open).toBe(false);
+  });
+
+  it('круглосуточно -> открыто в любое окно', () => {
     const rtc = slot({ open_time: '00:00', close_time: '23:59' });
-    expect(isSlotOpenAt(rtc, MON_09_30)).toBe(true);
-    expect(isSlotOpenAt(rtc, MON_20_00)).toBe(true);
+    const r = buildScheduleReport([rtc], period({ time_from: '03:00', time_to: '05:00' }));
+    expect(r.anyClosed).toBe(false);
+    expect(r.days[0].hours).toBe('круглосуточно');
   });
 
-  it('is_next_day: открыт после open ИЛИ до close того же дня', () => {
+  it('is_next_day слот покрывает вечер и утро того же дня', () => {
     const nd = slot({ open_time: '22:00', close_time: '06:00', is_next_day: true });
-    expect(isSlotOpenAt(nd, MON_20_00)).toBe(false); // 20:00 < 22:00 и > 06:00
-    expect(isSlotOpenAt(nd, new Date(2026, 6, 13, 23, 0))).toBe(true); // >= 22:00
-    expect(isSlotOpenAt(nd, new Date(2026, 6, 13, 5, 0))).toBe(true); // <= 06:00
+    expect(buildScheduleReport([nd], period({ time_from: '23:00', time_to: '23:30' })).anyClosed).toBe(false); // в [22:00,24:00)
+    expect(buildScheduleReport([nd], period({ time_from: '05:00', time_to: '05:30' })).anyClosed).toBe(false); // в [00:00,06:00]
+    expect(buildScheduleReport([nd], period({ time_from: '12:00', time_to: '13:00' })).anyClosed).toBe(true); // днём закрыто
   });
 
-  it('игнорирует секунды в open/close_time', () => {
-    expect(isSlotOpenAt(slot({ open_time: '09:00:00', close_time: '18:00:00' }), MON_09_30)).toBe(true);
-  });
-});
-
-describe('schedulePlaceStatusAt', () => {
-  it('нет слотов -> no-schedule', () => {
-    expect(schedulePlaceStatusAt([], MON_09_30)).toBe('no-schedule');
-    expect(schedulePlaceStatusAt(undefined, MON_09_30)).toBe('no-schedule');
+  it('несколько слотов в день -> режим перечисляет их, пересечение с любым = открыто', () => {
+    const slots = [slot({ open_time: '10:00', close_time: '12:00' }), slot({ open_time: '17:00', close_time: '18:00' })];
+    const r = buildScheduleReport(slots, period({ time_from: '17:30', time_to: '17:45' }));
+    expect(r.days[0].hours).toBe('10:00–12:00, 17:00–18:00');
+    expect(r.anyClosed).toBe(false);
   });
 
-  it('есть открытый слот -> open', () => {
-    expect(schedulePlaceStatusAt([slot()], MON_09_30)).toBe('open');
-  });
-
-  it('слоты есть, но ни один не открыт в момент -> closed', () => {
-    expect(schedulePlaceStatusAt([slot()], MON_20_00)).toBe('closed');
-    expect(schedulePlaceStatusAt([slot()], TUE_09_30)).toBe('closed');
+  it('неактивный слот не учитывается', () => {
+    const r = buildScheduleReport([slot({ is_active: false })], period({ time_from: '10:30', time_to: '11:30' }));
+    expect(r.days[0].hours).toBe('не работает');
+    expect(r.anyClosed).toBe(true);
   });
 });
 
-describe('collectScheduleWarnings', () => {
-  const openSlots = [slot()]; // Пн 09:00-18:00
-
-  it('нет срока -> нет предупреждений', () => {
-    expect(collectScheduleWarnings(openSlots, null)).toEqual([]);
+describe('buildScheduleReport - многодневный период', () => {
+  it('период пн-вт: закрытый вторник ловится, метки по дням недели', () => {
+    // слот только пн 10-12; пребывание 10:30-11:30 (в графике по пн, но вт не работает)
+    const r = buildScheduleReport([slot()], {
+      date_from: '2026-07-13', date_to: '2026-07-14', time_from: '10:30', time_to: '11:30',
+    });
+    expect(r.days).toHaveLength(2);
+    const mon = r.days.find((d) => d.weekday === 0);
+    const tue = r.days.find((d) => d.weekday === 1);
+    expect(mon.open).toBe(true);
+    expect(tue.open).toBe(false);
+    expect(tue.hours).toBe('не работает');
+    expect(r.anyClosed).toBe(true);
+    // многодневный -> метка = день недели без даты
+    expect(mon.label).toBe('Пн');
   });
 
-  it('нет расписания -> нет предупреждений даже вне рабочего времени', () => {
-    const period = { date_from: '2026-07-13', date_to: '2026-07-13', time_from: '20:00', time_to: '21:00' };
-    expect(collectScheduleWarnings([], period)).toEqual([]);
+  it('дни недели не дублируются на длинном периоде', () => {
+    const r = buildScheduleReport([slot()], {
+      date_from: '2026-07-13', date_to: '2026-07-27', time_from: '10:30', time_to: '11:30',
+    });
+    expect(r.days).toHaveLength(7); // максимум 7 уникальных дней недели
   });
 
-  it('срок в рабочем окне -> нет предупреждений', () => {
-    const period = { date_from: '2026-07-13', date_to: '2026-07-13', time_from: '09:30', time_to: '17:00' };
-    expect(collectScheduleWarnings(openSlots, period)).toEqual([]);
+  it('дни идут в хронологии периода, а не по номеру дня недели', () => {
+    // Сб(18.07)->Вт(21.07): порядок должен быть Сб,Вс,Пн,Вт
+    const r = buildScheduleReport([slot()], {
+      date_from: '2026-07-18', date_to: '2026-07-21', time_from: '10:30', time_to: '11:30',
+    });
+    expect(r.days.map((d) => d.weekday)).toEqual([5, 6, 0, 1]);
+  });
+});
+
+describe('buildScheduleReport - ночное окно пребывания (time_from > time_to)', () => {
+  it('окно через полночь раскрывается и пересекается с круглосуточным слотом', () => {
+    // круглосуточный слот пн - однодневный срок пн, пребывание 20:00-06:00 пересекается
+    const rtc = slot({ open_time: '00:00', close_time: '23:59' });
+    const r = buildScheduleReport([rtc], {
+      date_from: '2026-07-13', date_to: '2026-07-13', time_from: '20:00', time_to: '06:00',
+    });
+    expect(r).not.toBeNull();
+    expect(r.presence).toBe('20:00–06:00 (+1д)');
+    expect(r.days[0].open).toBe(true);
   });
 
-  it('закрыто на момент въезда -> одно предупреждение о въезде', () => {
-    const period = { date_from: '2026-07-13', date_to: '2026-07-13', time_from: '08:00', time_to: '17:00' };
-    const msgs = collectScheduleWarnings(openSlots, period);
-    expect(msgs).toHaveLength(1);
-    expect(msgs[0]).toContain('въезда');
-    expect(msgs[0]).toContain('13.07.2026 08:00');
+  it('ночное окно вне дневного графика -> закрыто (раньше молча пропускалось)', () => {
+    // место работает пн 10:00-12:00, пребывание 20:00-06:00 не пересекает
+    const r = buildScheduleReport([slot()], {
+      date_from: '2026-07-13', date_to: '2026-07-14', time_from: '20:00', time_to: '06:00',
+    });
+    expect(r).not.toBeNull();
+    expect(r.anyClosed).toBe(true);
   });
 
-  it('закрыто на момент выезда -> одно предупреждение о выезде', () => {
-    const period = { date_from: '2026-07-13', date_to: '2026-07-13', time_from: '10:00', time_to: '20:00' };
-    const msgs = collectScheduleWarnings(openSlots, period);
-    expect(msgs).toHaveLength(1);
-    expect(msgs[0]).toContain('выезда');
-    expect(msgs[0]).toContain('13.07.2026 20:00');
-  });
-
-  it('закрыто на обеих границах -> два предупреждения', () => {
-    const period = { date_from: '2026-07-13', date_to: '2026-07-14', time_from: '08:00', time_to: '09:30' };
-    const msgs = collectScheduleWarnings(openSlots, period);
-    expect(msgs).toHaveLength(2); // Пн 08:00 закрыто + Вт вообще нет слотов
-  });
-
-  it('совпадающий момент въезда/выезда не дублирует предупреждение', () => {
-    const period = { date_from: '2026-07-13', date_to: '2026-07-13', time_from: '20:00', time_to: '20:00' };
-    const msgs = collectScheduleWarnings(openSlots, period);
-    expect(msgs).toHaveLength(1);
-    expect(msgs[0]).toContain('въезда');
-  });
-
-  it('без даты границы -> эта граница пропускается', () => {
-    const period = { date_from: '', date_to: '2026-07-13', time_from: '', time_to: '20:00' };
-    const msgs = collectScheduleWarnings(openSlots, period);
-    expect(msgs).toHaveLength(1);
-    expect(msgs[0]).toContain('выезда');
-  });
-
-  it('дата есть, время НЕ введено -> граница не проверяется (нет ложного 00:00)', () => {
-    // DateRangeSection: дата и время - независимые поля; пока время пусто, срок
-    // не готов и не должен давать "закрыто в 00:00".
-    const bothNoTime = { date_from: '2026-07-13', date_to: '2026-07-13', time_from: null, time_to: null };
-    expect(collectScheduleWarnings(openSlots, bothNoTime)).toEqual([]);
-
-    const startNoTime = { date_from: '2026-07-13', date_to: '2026-07-13', time_from: '', time_to: '20:00' };
-    const msgs = collectScheduleWarnings(openSlots, startNoTime);
-    expect(msgs).toHaveLength(1); // только выезд 20:00 (закрыт), въезд без времени - пропуск
-    expect(msgs[0]).toContain('выезда');
+  it('вырожденное окно from==to -> null', () => {
+    expect(buildScheduleReport([slot()], period({ time_from: '10:00', time_to: '10:00' }))).toBeNull();
   });
 });

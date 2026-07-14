@@ -1,0 +1,348 @@
+<script setup>
+/**
+ * Плавающая панель предупреждений по выбранным местам (#1183 polish).
+ *
+ * Одна панель справа-снизу агрегирует предупреждения всех выбранных мест/таблиц:
+ * режим работы против окна пребывания срока (S5), свободный текст (S1), активные
+ * окна (S4). Скрывается крестиком; при появлении НОВЫХ предупреждений (изменился
+ * состав) показывается снова. Живо реагирует на быструю смену мест и времени -
+ * данные приходят готовым реактивным `groups` из формы.
+ */
+import { computed, ref, watch } from 'vue';
+
+const props = defineProps({
+  /**
+   * Группы предупреждений. Каждая:
+   * { name, free: string|null, windows: string[], schedule: {presence, days:[{label,hours,open}], anyClosed}|null }
+   */
+  groups: {
+    type: Array,
+    default: () => [],
+  },
+});
+
+/** Показываем только группы, где реально есть что сказать. */
+const visibleGroups = computed(() =>
+  (props.groups || []).filter(
+    (g) => g && (g.free || (g.windows && g.windows.length) || (g.schedule && g.schedule.anyClosed)),
+  ),
+);
+
+const dismissed = ref(false);
+
+/** Сигнатура состава - для решения "показать снова, если добавились новые". */
+const signature = computed(() =>
+  visibleGroups.value
+    .map((g) => `${g.name}|${g.free || ''}|${(g.windows || []).join('~')}|${g.schedule ? g.schedule.presence + g.schedule.days.map((d) => d.label + d.hours + d.open).join('') : ''}`)
+    .join('§'),
+);
+
+// Новый состав предупреждений возвращает панель, даже если её скрыли раньше.
+watch(signature, (next, prev) => {
+  if (next && next !== prev) dismissed.value = false;
+});
+
+const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value);
+</script>
+
+<template>
+  <Teleport to="body">
+    <transition name="warn-panel">
+      <aside
+        v-if="shown"
+        class="warn-panel"
+        data-testid="schedule-warning-panel"
+        role="status"
+        aria-live="polite"
+      >
+        <header class="warn-panel__head">
+          <span class="warn-panel__title">
+            <svg
+              class="warn-panel__icon"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              aria-hidden="true"
+            >
+              <path
+                d="M12 3.5 1.8 20.5h20.4L12 3.5Z"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linejoin="round"
+              />
+              <path
+                d="M12 9.8v4.4"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              />
+              <circle
+                cx="12"
+                cy="17.2"
+                r="0.5"
+                fill="currentColor"
+                stroke="currentColor"
+              />
+            </svg>
+            Предупреждения по местам
+          </span>
+          <button
+            type="button"
+            class="warn-panel__close"
+            aria-label="Скрыть предупреждения"
+            data-testid="schedule-warning-close"
+            @click="dismissed = true"
+          >
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 14 14"
+              fill="none"
+              aria-hidden="true"
+            >
+              <path
+                d="M13 1 1 13M1 1l12 12"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+              />
+            </svg>
+          </button>
+        </header>
+
+        <div class="warn-panel__body">
+          <section
+            v-for="group in visibleGroups"
+            :key="group.name"
+            class="warn-group"
+          >
+            <p class="warn-group__name">
+              {{ group.name }}
+            </p>
+
+            <!-- Режим работы против окна пребывания (S5) -->
+            <div
+              v-if="group.schedule && group.schedule.anyClosed"
+              class="warn-schedule"
+            >
+              <p class="warn-schedule__lead">
+                Режим работы · пребывание <b>{{ group.schedule.presence }}</b>
+              </p>
+              <ul class="warn-schedule__days">
+                <li
+                  v-for="day in group.schedule.days"
+                  :key="day.label"
+                  class="warn-day"
+                  :class="{ 'warn-day--closed': !day.open }"
+                >
+                  <span class="warn-day__name">{{ day.label }}</span>
+                  <span class="warn-day__hours">{{ day.hours }}</span>
+                  <span
+                    v-if="!day.open"
+                    class="warn-day__badge"
+                  >вне графика</span>
+                </li>
+              </ul>
+            </div>
+
+            <!-- Свободный текст (S1) + активные окна (S4) -->
+            <ul
+              v-if="group.free || (group.windows && group.windows.length)"
+              class="warn-notes"
+            >
+              <li
+                v-if="group.free"
+                class="warn-note"
+              >
+                {{ group.free }}
+              </li>
+              <li
+                v-for="(win, wi) in group.windows"
+                :key="'w' + wi"
+                class="warn-note"
+              >
+                {{ win }}
+              </li>
+            </ul>
+          </section>
+        </div>
+      </aside>
+    </transition>
+  </Teleport>
+</template>
+
+<style scoped>
+.warn-panel {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 1200;
+  width: 360px;
+  max-width: calc(100vw - 32px);
+  max-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid var(--color-border, #e6e6e6);
+  border-radius: var(--radius-lg, 20px);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
+  overflow: hidden;
+  font-family: inherit;
+}
+
+.warn-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #fff8ee;
+  border-bottom: 1px solid #f4e3c8;
+}
+
+.warn-panel__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #8a5a10;
+}
+
+.warn-panel__icon {
+  color: #f39c12;
+  flex-shrink: 0;
+}
+
+.warn-panel__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-pill, 999px);
+  background: transparent;
+  color: #a06a17;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.warn-panel__close:hover {
+  background: rgba(243, 156, 18, 0.14);
+}
+
+.warn-panel__body {
+  padding: 8px 16px 14px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.warn-group {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--color-border, #e6e6e6);
+}
+
+.warn-group:last-child {
+  border-bottom: none;
+}
+
+.warn-group__name {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text, #333);
+}
+
+.warn-schedule {
+  padding: 8px 10px;
+  background: #fff3e0;
+  border-left: 3px solid #f39c12;
+  border-radius: var(--radius-sm, 8px);
+}
+
+.warn-schedule__lead {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: #8a5a10;
+}
+
+.warn-schedule__days {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.warn-day {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--color-text, #333);
+}
+
+.warn-day__name {
+  min-width: 54px;
+  font-weight: 600;
+}
+
+.warn-day__hours {
+  flex: 1;
+  color: #555;
+}
+
+.warn-day--closed .warn-day__hours {
+  color: #a94100;
+}
+
+.warn-day__badge {
+  flex-shrink: 0;
+  padding: 1px 8px;
+  border-radius: var(--radius-pill, 999px);
+  background: #ffe0d3;
+  color: #c0392b;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.warn-notes {
+  margin: 8px 0 0;
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.warn-note {
+  font-size: 12px;
+  color: #555;
+  line-height: 1.4;
+}
+
+.warn-panel-enter-active,
+.warn-panel-leave-active {
+  transition: transform 0.22s ease, opacity 0.22s ease;
+}
+
+.warn-panel-enter-from,
+.warn-panel-leave-to {
+  transform: translateY(12px);
+  opacity: 0;
+}
+
+@media (max-width: 640px) {
+  .warn-panel {
+    right: 12px;
+    left: 12px;
+    bottom: 12px;
+    width: auto;
+    max-width: none;
+    max-height: 52vh;
+  }
+}
+</style>

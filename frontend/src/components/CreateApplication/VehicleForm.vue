@@ -405,24 +405,8 @@
       </div>
     </div>
 
-    <!-- Предупреждения выбранных мест: свободный текст + активные окна (#1183 S4) -->
-    <div
-      v-if="selectedPlaceWarnings.length > 0"
-      class="place-warning"
-      data-testid="vehicle-place-warnings"
-    >
-      <p class="place-warning__title">
-        Обратите внимание
-      </p>
-      <ul class="place-warning__list">
-        <li
-          v-for="(group, gi) in selectedPlaceWarnings"
-          :key="gi"
-        >
-          <strong>{{ group.name }}:</strong> {{ group.lines.join(' ') }}
-        </li>
-      </ul>
-    </div>
+    <!-- Предупреждения выбранных мест (#1183): режим работы против срока + текст/окна -
+         рендерятся единой плавающей панелью в CreateApplication (@notices-change). -->
 
     <!-- Tooltip для неактивных мест -->
     <div
@@ -457,7 +441,7 @@ import { useFormValidation } from '@/composables/useFormValidation'
 import { validatePartValue, formatPartValue, initializeNumberParts } from '@/composables/useNumberFormat'
 import { useFieldConfig } from '@/composables/useFieldConfig'
 import { collectActiveWarnings } from '@/utils/warningWindows'
-import { collectScheduleWarnings } from '@/utils/scheduleCheck'
+import { buildScheduleReport } from '@/utils/scheduleCheck'
 import { getCurrentInstance } from 'vue'
 import ExistingCarsModal from '@/components/CreateApplication/ExistingCarsModal.vue'
 import TargetTablesGrid from '@/components/CreateApplication/TargetTablesGrid.vue'
@@ -520,7 +504,7 @@ export default {
             default: null
         }
     },
-    emits: ['edit-cancelled', 'vehicle-added', 'vehicle-updated', 'vehicles-added', 'update:unload-places'],
+    emits: ['edit-cancelled', 'vehicle-added', 'vehicle-updated', 'vehicles-added', 'update:unload-places', 'notices-change'],
     setup(props) {
         const instance = getCurrentInstance()
         // Геттер сохраняет реактивность пропса fieldConfig (#529).
@@ -612,7 +596,10 @@ export default {
             // Опорный момент для предупреждений окон (#1183 S4): тикает раз в минуту,
             // чтобы баннер релевантных окон не залипал по времени.
             warningNow: new Date(),
-            warningTimer: null
+            warningTimer: null,
+            // Дебаунс эмита предупреждений наверх (#1183 polish): быстрая смена мест/
+            // времени коалесцируется, панель не дёргается.
+            noticesTimer: null
         }
     },
     computed: {
@@ -664,12 +651,39 @@ export default {
                 }
             });
         },
-        // Предупреждения выбранных мест разгрузки и таблиц проезда, релевантные
-        // сейчас (#1183 S4): свободный текст + активные окна. Группа на место.
-        // Зависит от warningNow (тикает раз в минуту), чтобы баннер не залипал по
-        // времени - computed не пересчитывается от голого new Date() в теле.
-        selectedPlaceWarnings() {
-            return this.buildPlaceWarnings(this.warningNow);
+        // Предупреждения выбранных мест разгрузки и таблиц проезда (#1183): группа на
+        // место со свободным текстом (S1), активными сейчас окнами (S4) и отчётом
+        // "режим работы против окна пребывания срока" (S5). Окна зависят от warningNow
+        // (тикает раз в минуту), расписание - от entryPeriod; всё реактивно, панель
+        // в CreateApplication обновляется на лету при смене мест/времени.
+        noticeGroups() {
+            const at = this.warningNow;
+            const groups = [];
+
+            this.selectedUnloadingPlaces.forEach(placeId => {
+                const place = this.allUnloadingPlaces.find(p => p.id === placeId);
+                if (!place) return;
+                const { free, windows } = collectActiveWarnings(place, at);
+                const schedule = buildScheduleReport(place.time_slots, this.entryPeriod);
+                if (free || windows.length || (schedule && schedule.anyClosed)) {
+                    groups.push({ name: place.name, free, windows, schedule });
+                }
+            });
+
+            this.selectedPassageTables.forEach(tableId => {
+                const item = this.allPassageTables.find(t => t.table && t.table.id === tableId);
+                if (!item) return;
+                const { free, windows } = collectActiveWarnings(
+                    { warning: item.table.warning, warning_windows: item.warning_windows },
+                    at
+                );
+                const schedule = buildScheduleReport(item.time_slots, this.entryPeriod);
+                if (free || windows.length || (schedule && schedule.anyClosed)) {
+                    groups.push({ name: item.table.display_name || item.table.name, free, windows, schedule });
+                }
+            });
+
+            return groups;
         }
     },
     watch: {
@@ -697,6 +711,18 @@ export default {
                 this.applicationUnloadPlaces.length === 0) {
                 this.autoSelectPlaces();
             }
+        },
+        // Предупреждения наверх в единую панель, дебаунс - гасит дёрганье при
+        // быстрой смене мест/времени.
+        noticeGroups: {
+            handler(groups) {
+                if (this.noticesTimer) clearTimeout(this.noticesTimer);
+                this.noticesTimer = setTimeout(() => {
+                    this.$emit('notices-change', groups);
+                }, 150);
+            },
+            deep: true,
+            immediate: true
         }
     },
     async mounted() {
@@ -721,6 +747,11 @@ export default {
         if (this.warningTimer) {
             clearInterval(this.warningTimer);
         }
+        if (this.noticesTimer) {
+            clearTimeout(this.noticesTimer);
+        }
+        // Форма уходит (смена типа вложения) - гасим панель, чтобы не висели стейл-группы.
+        this.$emit('notices-change', []);
     },
     methods: {
         // Закрывает дропдауны формата/марки при клике вне них. Именованный метод (не
@@ -1226,8 +1257,6 @@ export default {
                 formatId: this.selectedFormat ? this.selectedFormat.format.id : null,
                 isExisting: false
             };
-            
-            this.notifyPlaceWarnings();
 
             if (this.editingVehicle) {
                 newVehicle.id = this.editingVehicle.id;
@@ -1237,46 +1266,6 @@ export default {
                 this.$emit('vehicle-added', newVehicle);
                 this.clearVehicleFormPartial();
             }
-        },
-
-        // Собирает предупреждения выбранных мест/таблиц на момент at (#1183 S4).
-        // Явный at, а не new Date() в теле computed: notifyPlaceWarnings пересчитывает
-        // на свежий момент клика, баннер - на тикающий warningNow.
-        buildPlaceWarnings(at) {
-            const groups = [];
-
-            this.selectedUnloadingPlaces.forEach(placeId => {
-                const place = this.allUnloadingPlaces.find(p => p.id === placeId);
-                if (!place) return;
-                const { free, windows } = collectActiveWarnings(place, at);
-                const schedule = collectScheduleWarnings(place.time_slots, this.entryPeriod);
-                const lines = [free, ...windows, ...schedule].filter(Boolean);
-                if (lines.length) groups.push({ name: place.name, lines });
-            });
-
-            this.selectedPassageTables.forEach(tableId => {
-                const item = this.allPassageTables.find(t => t.table && t.table.id === tableId);
-                if (!item) return;
-                const { free, windows } = collectActiveWarnings(
-                    { warning: item.table.warning, warning_windows: item.warning_windows },
-                    at
-                );
-                const schedule = collectScheduleWarnings(item.time_slots, this.entryPeriod);
-                const lines = [free, ...windows, ...schedule].filter(Boolean);
-                if (lines.length) groups.push({ name: item.table.display_name || item.table.name, lines });
-            });
-
-            return groups;
-        },
-
-        // Тост-предупреждения по местам добавляемой машины (#1183 S4), неблокирующе.
-        // Свежий new Date() в момент клика - кэш computed мог устареть, пока
-        // заполнялись остальные поля формы.
-        notifyPlaceWarnings() {
-            const store = useDeletionsStore();
-            this.buildPlaceWarnings(new Date()).forEach(group => {
-                store.notify({ prefix: `${group.name}: `, bold: group.lines.join(' '), type: 'warning' });
-            });
         },
 
         clearVehicleFormPartial() {
@@ -1350,8 +1339,7 @@ export default {
                 isExisting: true,
                 existingCarId: car.id
             }));
-            
-            this.notifyPlaceWarnings();
+
             this.$emit('vehicles-added', vehicles);
             this.clearExistingCarsSelection();
         },
@@ -1672,38 +1660,6 @@ export default {
 .blacklist-warning .warning-title,
 .blacklist-warning .warning-details {
     color: #b02a37;
-}
-
-.place-warning {
-    width: 100%;
-    margin-top: 10px;
-    padding: 12px;
-    background: #fff3cd;
-    border: 1px solid #ffeeba;
-    border-radius: 10px;
-}
-
-.place-warning__title {
-    font-weight: 600;
-    color: #856404;
-    margin: 0 0 5px 0;
-    font-size: 14px;
-}
-
-.place-warning__list {
-    margin: 0;
-    padding-left: 18px;
-    color: #856404;
-    font-size: 12px;
-    line-height: 1.5;
-}
-
-.place-warning__list li {
-    margin-bottom: 3px;
-}
-
-.place-warning__list li:last-child {
-    margin-bottom: 0;
 }
 
 .format__dropdown {
