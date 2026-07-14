@@ -34,6 +34,39 @@ type EmployeeService interface {
 	ActivateEmployee(ctx context.Context, employeeID int, req ActivateEmployeeRequest) error
 	// RestoreEmployee восстанавливает удалённого сотрудника и пишет в историю.
 	RestoreEmployee(ctx context.Context, employeeID int, req RestoreEmployeeRequest) error
+	// BulkMoveTable переносит набор сотрудников из FromTableID в каждую из ToTableIDs
+	// (#1194): снимает привязку к исходной таблице, добавляет к целевым (дедуп).
+	BulkMoveTable(ctx context.Context, req EmployeeBulkMoveTableRequest, actorID int) (*BulkOpResult, error)
+	// BulkAddTable добавляет набор сотрудников в дополнительные таблицы (#1194),
+	// не трогая уже существующие привязки.
+	BulkAddTable(ctx context.Context, req EmployeeBulkAddTableRequest, actorID int) (*BulkOpResult, error)
+	// BulkUnbindTable снимает у набора сотрудников привязку к одной таблице (#1194).
+	// Если это была последняя привязка - сотрудник деактивируется (как одиночный delete).
+	BulkUnbindTable(ctx context.Context, req EmployeeBulkUnbindTableRequest, actorID int) (*BulkOpResult, error)
+}
+
+// EmployeeBulkMoveTableRequest -- тело POST /employees/bulk/move-table: снимает у
+// набора сотрудников привязку к FromTableID и привязывает к каждой из ToTableIDs
+// (дедуп с уже существующими связями, прочие таблицы прохода не трогаются).
+type EmployeeBulkMoveTableRequest struct {
+	IDs         []int `json:"ids"`
+	FromTableID int   `json:"from_table_id"`
+	ToTableIDs  []int `json:"to_table_ids"`
+}
+
+// EmployeeBulkAddTableRequest -- тело POST /employees/bulk/add-table: добавляет
+// набору сотрудников привязку к TableIDs, не отвязывая существующие таблицы.
+type EmployeeBulkAddTableRequest struct {
+	IDs      []int `json:"ids"`
+	TableIDs []int `json:"table_ids"`
+}
+
+// EmployeeBulkUnbindTableRequest -- тело POST /employees/bulk/unbind-table: снимает
+// у набора сотрудников привязку к одной TableID. Если привязка была последней -
+// сотрудник деактивируется (зеркало одиночного DeactivateEmployee, status=0).
+type EmployeeBulkUnbindTableRequest struct {
+	IDs     []int `json:"ids"`
+	TableID int   `json:"table_id"`
 }
 
 // DeactivateEmployeeRequest -- тело запроса деактивации сотрудника.
@@ -133,6 +166,10 @@ type TableEmployeeResponse struct {
 	Status            int     `json:"status"`
 	ApplicationID     *int    `json:"application_id"`
 	ApplicationNumber *string `json:"application_number"`
+	// TargetTablesCount - число таблиц проходной, к которым привязан сотрудник
+	// (employee_target_tables). Используется FE (#1194) для решения, показывать ли
+	// per-row выбор «из этой/из всех» при отвязке (>1) или сразу деактивировать (=1).
+	TargetTablesCount int `json:"target_tables_count"`
 }
 
 // --- Реализация ---
@@ -363,6 +400,7 @@ func (s *employeeService) GetActiveEmployeesForTable(ctx context.Context, tableI
 		Status            *int
 		ApplicationID     *int
 		ApplicationNumber *string
+		TargetTablesCount int
 	}
 
 	rows := make([]employeeRow, 0)
@@ -384,7 +422,8 @@ func (s *employeeService) GetActiveEmployeesForTable(ctx context.Context, tableI
 			pass_time,
 			status,
 			application_id,
-			application_number
+			application_number,
+			target_tables_count
 		FROM (
 			SELECT
 				e.id,
@@ -406,6 +445,10 @@ func (s *employeeService) GetActiveEmployeesForTable(ctx context.Context, tableI
 				e.status,
 				app.id AS application_id,
 				app.application_number AS application_number,
+				(
+					SELECT COUNT(*) FROM employee_target_tables ett3
+					WHERE ett3.employee_id = e.id
+				) AS target_tables_count,
 				e.passport_series_number_hmac,
 				ROW_NUMBER() OVER (
 					PARTITION BY e.passport_series_number_hmac
@@ -463,6 +506,7 @@ func (s *employeeService) GetActiveEmployeesForTable(ctx context.Context, tableI
 			Status:            status,
 			ApplicationID:     r.ApplicationID,
 			ApplicationNumber: r.ApplicationNumber,
+			TargetTablesCount: r.TargetTablesCount,
 		})
 	}
 	return employees, nil
@@ -637,4 +681,270 @@ func (s *employeeService) RestoreEmployee(ctx context.Context, employeeID int, r
 		slog.Info("сотрудник восстановлен", "employee_id", employeeID)
 		return nil
 	})
+}
+
+// --- Групповые операции над привязкой к таблицам проходной (#1194) ---
+
+// loadEmployeeBasic загружает сотрудника по id для bulk-цикла (ФИО - для BulkItemError
+// и текста истории). Возвращает ok=false, если записи нет.
+func (s *employeeService) loadEmployeeBasic(ctx context.Context, id int) (models.Employee, bool) {
+	var employee models.Employee
+	if err := s.db.WithContext(ctx).Select("id", "last_name", "first_name", "middle_name", "status").
+		First(&employee, id).Error; err != nil {
+		return employee, false
+	}
+	return employee, true
+}
+
+// validatePeopleTables проверяет, что каждая из tableIDs существует и относится к
+// таблицам людей (table_type=people) - иначе групповая операция сотрудников молча
+// привяжет их к cars-таблице (тип-матч, зеркало car-стороны #1194).
+func (s *employeeService) validatePeopleTables(ctx context.Context, tableIDs []int) error {
+	unique := uniqueInts(tableIDs)
+	if len(unique) == 0 {
+		return nil
+	}
+	var count int64
+	if err := s.db.WithContext(ctx).Model(&models.SystemTable{}).
+		Where("id IN ? AND table_type = ?", unique, models.TableTypePeople).
+		Count(&count).Error; err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка проверки таблиц")
+	}
+	if int(count) != len(unique) {
+		return echo.NewHTTPError(http.StatusBadRequest, "Таблица не найдена или не относится к таблицам людей")
+	}
+	return nil
+}
+
+// loadTableNames резолвит отображаемые имена таблиц для текста истории (комментарии
+// переноса/отвязки).
+func (s *employeeService) loadTableNames(ctx context.Context, tableIDs []int) (map[int]string, error) {
+	type tableRow struct {
+		ID   int
+		Name string
+	}
+	var rows []tableRow
+	if err := s.db.WithContext(ctx).Model(&models.SystemTable{}).
+		Select("id, COALESCE(display_name, name) AS name").
+		Where("id IN ?", uniqueInts(tableIDs)).Scan(&rows).Error; err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка чтения таблиц")
+	}
+	out := make(map[int]string, len(rows))
+	for _, r := range rows {
+		out[r.ID] = r.Name
+	}
+	return out, nil
+}
+
+// bindEmployeeToTableIfMissing привязывает сотрудника к таблице, если связи ещё нет
+// (дедуп). recordAdd управляет записью истории «добавлен в таблицу»: при добавлении
+// (BulkAddTable) она нужна, при переносе (BulkMoveTable) - нет, там пишется одна
+// сводная запись moved_between_tables (зеркало car-стороны, чтобы перенос не порождал
+// лишних added_to_table на каждую целевую таблицу).
+func (s *employeeService) bindEmployeeToTableIfMissing(ctx context.Context, tx *gorm.DB, employeeID, tableID int, actorID int, recordAdd bool) error {
+	var exists int64
+	if err := tx.Model(&models.EmployeeTargetTable{}).
+		Where("employee_id = ? AND table_id = ?", employeeID, tableID).Count(&exists).Error; err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка проверки привязки")
+	}
+	if exists > 0 {
+		return nil
+	}
+	orderIdx := 1
+	ett := models.EmployeeTargetTable{EmployeeID: employeeID, TableID: tableID, OrderIndex: &orderIdx}
+	if err := tx.Create(&ett).Error; err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка привязки к таблице")
+	}
+	if recordAdd {
+		if err := recordAddedToTable(ctx, s.recorder, tx, models.AuditEntityEmployee, employeeID, tableID, &actorID); err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка записи истории")
+		}
+	}
+	return nil
+}
+
+// BulkMoveTable переносит набор сотрудников из FromTableID в каждую из ToTableIDs
+// (#1194): в транзакции на сотрудника снимает привязку к исходной таблице и
+// добавляет (дедуп) к целевым, затем пишет одну запись moved_between_tables.
+// Частичный успех: провал одного сотрудника не откатывает остальных.
+func (s *employeeService) BulkMoveTable(ctx context.Context, req EmployeeBulkMoveTableRequest, actorID int) (*BulkOpResult, error) {
+	if req.FromTableID <= 0 {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Не указана исходная таблица")
+	}
+	toIDs := uniqueInts(req.ToTableIDs)
+	if len(toIDs) == 0 {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Не выбраны целевые таблицы")
+	}
+	if err := s.validatePeopleTables(ctx, append([]int{req.FromTableID}, toIDs...)); err != nil {
+		return nil, err
+	}
+	names, err := s.loadTableNames(ctx, append([]int{req.FromTableID}, toIDs...))
+	if err != nil {
+		return nil, err
+	}
+	toNames := make([]string, 0, len(toIDs))
+	for _, tableID := range toIDs {
+		toNames = append(toNames, names[tableID])
+	}
+	fromTableID := req.FromTableID
+
+	res := newBulkResult()
+	changedIDs := make([]int, 0, len(req.IDs))
+	for _, id := range uniqueInts(req.IDs) {
+		employee, ok := s.loadEmployeeBasic(ctx, id)
+		if !ok {
+			res.addError(id, "", "Сотрудник не найден")
+			continue
+		}
+		fullName := formatFullName(employee.LastName, employee.FirstName, employee.MiddleName)
+		if employee.Status == nil || *employee.Status != 1 {
+			res.addError(id, fullName, "Сотрудник не активен")
+			continue
+		}
+		err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			del := tx.Where("employee_id = ? AND table_id = ?", id, fromTableID).Delete(&models.EmployeeTargetTable{})
+			if del.Error != nil {
+				return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка отвязки от исходной таблицы")
+			}
+			if del.RowsAffected == 0 {
+				return echo.NewHTTPError(http.StatusBadRequest, "Сотрудник не привязан к исходной таблице")
+			}
+			for _, tableID := range toIDs {
+				if err := s.bindEmployeeToTableIfMissing(ctx, tx, id, tableID, actorID, false); err != nil {
+					return err
+				}
+			}
+			comment := fmt.Sprintf("Сотрудник %s перенесён из таблицы «%s» в «%s»", fullName, names[fromTableID], strings.Join(toNames, ", "))
+			if err := s.recorder.Record(ctx, tx, models.AuditEntityEmployee, &id, models.AuditActionMovedBetweenTables, &actorID, carAuditDetails{Comment: &comment, TableID: &fromTableID}); err != nil {
+				return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка записи истории переноса")
+			}
+			return nil
+		})
+		if err != nil {
+			res.addError(id, fullName, bulkErrMsg(err))
+			continue
+		}
+		changedIDs = append(changedIDs, id)
+		res.SuccessCount++
+	}
+	s.tablesProducer.NotifyEmployeesChangedBatch(ctx, changedIDs)
+	return res.finalize(), nil
+}
+
+// BulkAddTable добавляет набору сотрудников привязку к TableIDs (#1194), не трогая
+// уже существующие связи. Дедуп: повторная привязка - no-op успех.
+func (s *employeeService) BulkAddTable(ctx context.Context, req EmployeeBulkAddTableRequest, actorID int) (*BulkOpResult, error) {
+	tableIDs := uniqueInts(req.TableIDs)
+	if len(tableIDs) == 0 {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Не выбраны таблицы")
+	}
+	if err := s.validatePeopleTables(ctx, tableIDs); err != nil {
+		return nil, err
+	}
+
+	res := newBulkResult()
+	changedIDs := make([]int, 0, len(req.IDs))
+	for _, id := range uniqueInts(req.IDs) {
+		employee, ok := s.loadEmployeeBasic(ctx, id)
+		if !ok {
+			res.addError(id, "", "Сотрудник не найден")
+			continue
+		}
+		fullName := formatFullName(employee.LastName, employee.FirstName, employee.MiddleName)
+		if employee.Status == nil || *employee.Status != 1 {
+			res.addError(id, fullName, "Сотрудник не активен")
+			continue
+		}
+		err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			for _, tableID := range tableIDs {
+				if err := s.bindEmployeeToTableIfMissing(ctx, tx, id, tableID, actorID, true); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			res.addError(id, fullName, bulkErrMsg(err))
+			continue
+		}
+		changedIDs = append(changedIDs, id)
+		res.SuccessCount++
+	}
+	s.tablesProducer.NotifyEmployeesChangedBatch(ctx, changedIDs)
+	return res.finalize(), nil
+}
+
+// BulkUnbindTable снимает у набора сотрудников привязку к одной TableID (#1194).
+// Если это была последняя привязка сотрудника - он деактивируется (status=0, зеркало
+// одиночного commitDelete из PeopleTable.vue), с отдельной записью "delete" в истории.
+func (s *employeeService) BulkUnbindTable(ctx context.Context, req EmployeeBulkUnbindTableRequest, actorID int) (*BulkOpResult, error) {
+	if req.TableID <= 0 {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Не указана таблица")
+	}
+	if err := s.validatePeopleTables(ctx, []int{req.TableID}); err != nil {
+		return nil, err
+	}
+	names, err := s.loadTableNames(ctx, []int{req.TableID})
+	if err != nil {
+		return nil, err
+	}
+	tableName := names[req.TableID]
+	tableID := req.TableID
+
+	res := newBulkResult()
+	changedIDs := make([]int, 0, len(req.IDs))
+	for _, id := range uniqueInts(req.IDs) {
+		employee, ok := s.loadEmployeeBasic(ctx, id)
+		if !ok {
+			res.addError(id, "", "Сотрудник не найден")
+			continue
+		}
+		fullName := formatFullName(employee.LastName, employee.FirstName, employee.MiddleName)
+		if employee.Status == nil || *employee.Status != 1 {
+			res.addError(id, fullName, "Сотрудник не активен")
+			continue
+		}
+		err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			del := tx.Where("employee_id = ? AND table_id = ?", id, tableID).Delete(&models.EmployeeTargetTable{})
+			if del.Error != nil {
+				return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка отвязки от таблицы")
+			}
+			if del.RowsAffected == 0 {
+				return echo.NewHTTPError(http.StatusBadRequest, "Сотрудник не привязан к этой таблице")
+			}
+
+			comment := fmt.Sprintf("Сотрудник %s отвязан от таблицы «%s»", fullName, tableName)
+			if err := s.recorder.Record(ctx, tx, models.AuditEntityEmployee, &id, models.AuditActionUnboundFromTable, &actorID, carAuditDetails{Comment: &comment, TableID: &tableID}); err != nil {
+				return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка записи истории")
+			}
+
+			var remaining int64
+			if err := tx.Model(&models.EmployeeTargetTable{}).Where("employee_id = ?", id).Count(&remaining).Error; err != nil {
+				return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка проверки оставшихся таблиц")
+			}
+			if remaining == 0 {
+				now := time.Now().UTC()
+				if err := tx.Model(&models.Employee{}).Where("id = ?", id).Updates(map[string]interface{}{
+					"status":       0,
+					"date_deleted": now,
+					"updated_at":   now,
+				}).Error; err != nil {
+					return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка деактивации сотрудника")
+				}
+				deactComment := fmt.Sprintf("Сотрудник %s удалён (снята последняя привязка к таблице)", fullName)
+				if err := s.recorder.Record(ctx, tx, models.AuditEntityEmployee, &id, "delete", &actorID, carAuditDetails{Comment: &deactComment, TableID: &tableID}); err != nil {
+					return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка записи истории деактивации")
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			res.addError(id, fullName, bulkErrMsg(err))
+			continue
+		}
+		changedIDs = append(changedIDs, id)
+		res.SuccessCount++
+	}
+	s.tablesProducer.NotifyEmployeesChangedBatch(ctx, changedIDs)
+	return res.finalize(), nil
 }
