@@ -689,7 +689,7 @@ func (s *employeeService) RestoreEmployee(ctx context.Context, employeeID int, r
 // и текста истории). Возвращает ok=false, если записи нет.
 func (s *employeeService) loadEmployeeBasic(ctx context.Context, id int) (models.Employee, bool) {
 	var employee models.Employee
-	if err := s.db.WithContext(ctx).Select("id", "last_name", "first_name", "middle_name").
+	if err := s.db.WithContext(ctx).Select("id", "last_name", "first_name", "middle_name", "status").
 		First(&employee, id).Error; err != nil {
 		return employee, false
 	}
@@ -737,8 +737,11 @@ func (s *employeeService) loadTableNames(ctx context.Context, tableIDs []int) (m
 }
 
 // bindEmployeeToTableIfMissing привязывает сотрудника к таблице, если связи ещё нет
-// (дедуп), и пишет запись «добавлен в таблицу» в том же tx.
-func (s *employeeService) bindEmployeeToTableIfMissing(ctx context.Context, tx *gorm.DB, employeeID, tableID int, actorID int) error {
+// (дедуп). recordAdd управляет записью истории «добавлен в таблицу»: при добавлении
+// (BulkAddTable) она нужна, при переносе (BulkMoveTable) - нет, там пишется одна
+// сводная запись moved_between_tables (зеркало car-стороны, чтобы перенос не порождал
+// лишних added_to_table на каждую целевую таблицу).
+func (s *employeeService) bindEmployeeToTableIfMissing(ctx context.Context, tx *gorm.DB, employeeID, tableID int, actorID int, recordAdd bool) error {
 	var exists int64
 	if err := tx.Model(&models.EmployeeTargetTable{}).
 		Where("employee_id = ? AND table_id = ?", employeeID, tableID).Count(&exists).Error; err != nil {
@@ -752,8 +755,10 @@ func (s *employeeService) bindEmployeeToTableIfMissing(ctx context.Context, tx *
 	if err := tx.Create(&ett).Error; err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка привязки к таблице")
 	}
-	if err := recordAddedToTable(ctx, s.recorder, tx, models.AuditEntityEmployee, employeeID, tableID, &actorID); err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка записи истории")
+	if recordAdd {
+		if err := recordAddedToTable(ctx, s.recorder, tx, models.AuditEntityEmployee, employeeID, tableID, &actorID); err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка записи истории")
+		}
 	}
 	return nil
 }
@@ -792,13 +797,20 @@ func (s *employeeService) BulkMoveTable(ctx context.Context, req EmployeeBulkMov
 			continue
 		}
 		fullName := formatFullName(employee.LastName, employee.FirstName, employee.MiddleName)
+		if employee.Status == nil || *employee.Status != 1 {
+			res.addError(id, fullName, "Сотрудник не активен")
+			continue
+		}
 		err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			if err := tx.Where("employee_id = ? AND table_id = ?", id, fromTableID).
-				Delete(&models.EmployeeTargetTable{}).Error; err != nil {
+			del := tx.Where("employee_id = ? AND table_id = ?", id, fromTableID).Delete(&models.EmployeeTargetTable{})
+			if del.Error != nil {
 				return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка отвязки от исходной таблицы")
 			}
+			if del.RowsAffected == 0 {
+				return echo.NewHTTPError(http.StatusBadRequest, "Сотрудник не привязан к исходной таблице")
+			}
 			for _, tableID := range toIDs {
-				if err := s.bindEmployeeToTableIfMissing(ctx, tx, id, tableID, actorID); err != nil {
+				if err := s.bindEmployeeToTableIfMissing(ctx, tx, id, tableID, actorID, false); err != nil {
 					return err
 				}
 			}
@@ -839,9 +851,13 @@ func (s *employeeService) BulkAddTable(ctx context.Context, req EmployeeBulkAddT
 			continue
 		}
 		fullName := formatFullName(employee.LastName, employee.FirstName, employee.MiddleName)
+		if employee.Status == nil || *employee.Status != 1 {
+			res.addError(id, fullName, "Сотрудник не активен")
+			continue
+		}
 		err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 			for _, tableID := range tableIDs {
-				if err := s.bindEmployeeToTableIfMissing(ctx, tx, id, tableID, actorID); err != nil {
+				if err := s.bindEmployeeToTableIfMissing(ctx, tx, id, tableID, actorID, true); err != nil {
 					return err
 				}
 			}
@@ -884,6 +900,10 @@ func (s *employeeService) BulkUnbindTable(ctx context.Context, req EmployeeBulkU
 			continue
 		}
 		fullName := formatFullName(employee.LastName, employee.FirstName, employee.MiddleName)
+		if employee.Status == nil || *employee.Status != 1 {
+			res.addError(id, fullName, "Сотрудник не активен")
+			continue
+		}
 		err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 			del := tx.Where("employee_id = ? AND table_id = ?", id, tableID).Delete(&models.EmployeeTargetTable{})
 			if del.Error != nil {

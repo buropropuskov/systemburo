@@ -87,8 +87,8 @@ func TestEmployeeService_BulkMoveTable_MovesLinksAndAudits(t *testing.T) {
 	assert.EqualValues(t, 1, countEmployeeTableLinks(t, db, empID, toTableA), "привязан к первой целевой таблице")
 	assert.EqualValues(t, 1, countEmployeeTableLinks(t, db, empID, toTableB), "привязан ко второй целевой таблице")
 
-	assert.EqualValues(t, 1, countAuditActions(t, db, empID, models.AuditActionMovedBetweenTables), "запись переноса в истории")
-	assert.EqualValues(t, 2, countAuditActions(t, db, empID, models.AuditActionAddedToTable), "по записи added_to_table на каждую целевую таблицу")
+	assert.EqualValues(t, 1, countAuditActions(t, db, empID, models.AuditActionMovedBetweenTables), "одна сводная запись переноса")
+	assert.EqualValues(t, 0, countAuditActions(t, db, empID, models.AuditActionAddedToTable), "перенос НЕ пишет added_to_table на каждую целевую (зеркало cars)")
 }
 
 // Тип-матч: попытка перенести в cars-таблицу (не people) отклоняется целиком, без
@@ -265,4 +265,66 @@ func TestEmployeesBulkAddTable_HTTPWiringAndAdminGate(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, "admin: %s", rec.Body.String())
 	resp := testutil.ParseResponse[services.BulkOpResult](t, rec)
 	assert.Equal(t, 1, resp.SuccessCount)
+}
+
+// Перенос сотрудника, НЕ привязанного к исходной таблице, не должен молча "переносить"
+// и писать ложную запись истории (ревью S2, зеркало car-стороны del.RowsAffected==0->400).
+func TestEmployeeService_BulkMoveTable_RejectsNotBoundToSource(t *testing.T) {
+	_, db, _ := testutil.SetupTestApp(t)
+	svc := services.NewEmployeeService(db, services.NewAuditRecorder(db))
+	ctx := context.Background()
+
+	fromTable := seedPeopleTable(t, db, uniq("bulk_emp_nb_from"), "NB From")
+	toTable := seedPeopleTable(t, db, uniq("bulk_emp_nb_to"), "NB To")
+	empID := createTestEmployeeForBulk(t, db, uniq("NotBoundEmp"))
+	// намеренно НЕ привязываем к fromTable
+	defer func() {
+		db.Exec("DELETE FROM employee_target_tables WHERE employee_id = ?", empID)
+		db.Exec("DELETE FROM audit_log WHERE entity_type = ? AND entity_id = ?", models.AuditEntityEmployee, empID)
+		db.Exec("DELETE FROM employees WHERE id = ?", empID)
+		db.Exec("DELETE FROM system_tables WHERE id IN (?, ?)", fromTable, toTable)
+	}()
+
+	res, err := svc.BulkMoveTable(ctx, services.EmployeeBulkMoveTableRequest{
+		IDs:         []int{empID},
+		FromTableID: fromTable,
+		ToTableIDs:  []int{toTable},
+	}, 1)
+	require.NoError(t, err)
+	assert.Equal(t, 0, res.SuccessCount)
+	assert.Equal(t, 1, res.ErrorCount, "не привязан к исходной -> ошибка, а не молчаливый перенос")
+	assert.EqualValues(t, 0, countEmployeeTableLinks(t, db, empID, toTable), "в целевую не добавлен")
+	assert.EqualValues(t, 0, countAuditActions(t, db, empID, models.AuditActionMovedBetweenTables), "ложной записи переноса нет")
+}
+
+// Деактивированного сотрудника (status=0) групповая операция не трогает: привязки могли
+// остаться от прежней жизни, повторная деактивация/аудит недопустимы (ревью S2, зеркало
+// loadActiveCarForBulk).
+func TestEmployeeService_BulkAddTable_SkipsInactiveEmployee(t *testing.T) {
+	_, db, _ := testutil.SetupTestApp(t)
+	svc := services.NewEmployeeService(db, services.NewAuditRecorder(db))
+	ctx := context.Background()
+
+	toTable := seedPeopleTable(t, db, uniq("bulk_emp_inactive_to"), "Inactive To")
+	lastName := uniq("InactiveEmp")
+	firstName := "Иван"
+	status := 0
+	employee := models.Employee{LastName: &lastName, FirstName: &firstName, Status: &status}
+	require.NoError(t, db.Create(&employee).Error)
+	empID := employee.ID
+	defer func() {
+		db.Exec("DELETE FROM employee_target_tables WHERE employee_id = ?", empID)
+		db.Exec("DELETE FROM audit_log WHERE entity_type = ? AND entity_id = ?", models.AuditEntityEmployee, empID)
+		db.Exec("DELETE FROM employees WHERE id = ?", empID)
+		db.Exec("DELETE FROM system_tables WHERE id = ?", toTable)
+	}()
+
+	res, err := svc.BulkAddTable(ctx, services.EmployeeBulkAddTableRequest{
+		IDs:      []int{empID},
+		TableIDs: []int{toTable},
+	}, 1)
+	require.NoError(t, err)
+	assert.Equal(t, 0, res.SuccessCount)
+	assert.Equal(t, 1, res.ErrorCount, "неактивный сотрудник пропущен с ошибкой")
+	assert.EqualValues(t, 0, countEmployeeTableLinks(t, db, empID, toTable), "привязка не создана")
 }
