@@ -23,6 +23,9 @@ type SystemTable struct {
 	Status              string    `gorm:"size:20;default:'active'" json:"status"` // active, inactive, maintenance
 	StatusComment       *string   `gorm:"type:text" json:"status_comment"`
 	LocationDescription *string   `gorm:"type:text" json:"location_description"`
+	// Warning - свободное предупреждение, показывается заявителю всегда при
+	// добавлении машины/человека с этим местом (#1183).
+	Warning *string `gorm:"type:text" json:"warning"`
 
 	// Оформление таблицы (#345). FontSize - размер шрифта строк (px, 10-24).
 	// RowDensity - плотность строк: compact|normal|spacious.
@@ -147,6 +150,7 @@ type CreateSystemTableRequest struct {
 	Status              *string `json:"status"`
 	StatusComment       *string `json:"status_comment"`
 	LocationDescription *string `json:"location_description"`
+	Warning             *string `json:"warning"`
 }
 
 // UpdateSystemTableRequest -- запрос на обновление системной таблицы (все поля опциональные).
@@ -160,6 +164,7 @@ type UpdateSystemTableRequest struct {
 	Status              *string `json:"status"`
 	StatusComment       *string `json:"status_comment"`
 	LocationDescription *string `json:"location_description"`
+	Warning             *string `json:"warning"`
 	// Оформление таблицы (#345). Валидируется в сервисе: FontSize 10-24,
 	// RowDensity in {compact, normal, spacious}.
 	FontSize       *int    `json:"font_size"`

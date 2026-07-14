@@ -212,6 +212,9 @@ func buildUpdateDetails(req models.UpdateSystemTableRequest) map[string]interfac
 	if req.LocationDescription != nil {
 		out["location_description"] = *req.LocationDescription
 	}
+	if req.Warning != nil {
+		out["warning"] = *req.Warning
+	}
 	if req.FontSize != nil {
 		out["font_size"] = *req.FontSize
 	}

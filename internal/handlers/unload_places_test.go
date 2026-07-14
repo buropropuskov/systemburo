@@ -277,3 +277,31 @@ func TestUnloadPlaces_ResponseStructure(t *testing.T) {
 	assert.Contains(t, details, "created_at")
 	assert.Contains(t, details, "updated_at")
 }
+
+// TestUnloadPlaces_Warning_RoundTrip проверяет, что свободное предупреждение
+// (#1183) сохраняется при создании и обновлении и возвращается в DTO места.
+func TestUnloadPlaces_Warning_RoundTrip(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	// Create с warning
+	rec := testutil.POST(t, e, "/unload-places",
+		`{"name":"Warn Place","warning":"Пост 72: только малогабарит"}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	placeID := int(testutil.ParseMap(t, rec)["id"].(float64))
+
+	// GET отдаёт warning
+	getResp := testutil.ParseMap(t, testutil.GET(t, e, fmt.Sprintf("/unload-places/%d", placeID), h))
+	assert.Equal(t, "Пост 72: только малогабарит", getResp["warning"])
+
+	// Update меняет warning
+	rec = testutil.PUT(t, e, fmt.Sprintf("/unload-places/%d", placeID),
+		`{"warning":"Изменённое предупреждение"}`, h)
+	require.Equal(t, http.StatusOK, rec.Code)
+	getResp = testutil.ParseMap(t, testutil.GET(t, e, fmt.Sprintf("/unload-places/%d", placeID), h))
+	assert.Equal(t, "Изменённое предупреждение", getResp["warning"])
+}

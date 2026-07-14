@@ -424,6 +424,7 @@ func (s *systemTableService) Create(ctx context.Context, req models.CreateSystem
 		Status:              status,
 		StatusComment:       req.StatusComment,
 		LocationDescription: req.LocationDescription,
+		Warning:             req.Warning,
 		IsActive:            true,
 	}
 
@@ -550,6 +551,9 @@ func (s *systemTableService) Update(ctx context.Context, id int, req models.Upda
 	}
 	if req.LocationDescription != nil {
 		updates["location_description"] = *req.LocationDescription
+	}
+	if req.Warning != nil {
+		updates["warning"] = *req.Warning
 	}
 	if req.FontSize != nil {
 		if *req.FontSize < 10 || *req.FontSize > 24 {

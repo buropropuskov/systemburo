@@ -18,6 +18,7 @@ import (
 type CreateUnloadPlaceRequest struct {
 	Name          string  `json:"name" validate:"required,min=1,max=200"`
 	Description   *string `json:"description"`
+	Warning       *string `json:"warning"`
 	MapLink       *string `json:"map_link"`
 	Status        *string `json:"status"`
 	StatusComment *string `json:"status_comment"`
@@ -27,6 +28,7 @@ type CreateUnloadPlaceRequest struct {
 type UpdateUnloadPlaceRequest struct {
 	Name          *string `json:"name"`
 	Description   *string `json:"description"`
+	Warning       *string `json:"warning"`
 	MapLink       *string `json:"map_link"`
 	Status        *string `json:"status"`
 	StatusComment *string `json:"status_comment"`
@@ -55,6 +57,7 @@ type UnloadPlaceWithDetails struct {
 	ID            int                          `json:"id"`
 	Name          string                       `json:"name"`
 	Description   *string                      `json:"description"`
+	Warning       *string                      `json:"warning"`
 	MapLink       *string                      `json:"map_link"`
 	Status        string                       `json:"status"`
 	StatusComment *string                      `json:"status_comment"`
@@ -172,6 +175,7 @@ func (s *unloadPlaceService) buildDetails(ctx context.Context, place models.Unlo
 		ID:            place.ID,
 		Name:          place.Name,
 		Description:   place.Description,
+		Warning:       place.Warning,
 		MapLink:       place.MapLink,
 		Status:        status,
 		StatusComment: place.StatusComment,
@@ -226,6 +230,7 @@ func (s *unloadPlaceService) Create(ctx context.Context, callerUserID int, req C
 	place := models.UnloadPlace{
 		Name:          req.Name,
 		Description:   req.Description,
+		Warning:       req.Warning,
 		MapLink:       req.MapLink,
 		Status:        status,
 		StatusComment: req.StatusComment,
@@ -261,6 +266,9 @@ func (s *unloadPlaceService) Update(ctx context.Context, callerUserID, id int, r
 	}
 	if req.Description != nil {
 		updates["description"] = *req.Description
+	}
+	if req.Warning != nil {
+		updates["warning"] = *req.Warning
 	}
 	if req.MapLink != nil {
 		updates["map_link"] = *req.MapLink
