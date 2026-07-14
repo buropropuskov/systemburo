@@ -113,20 +113,21 @@ export default {
       const verb = this.mode === 'move' ? 'Перенести' : 'Добавить';
       return `${verb} (${this.selectedCount})`;
     },
-    // /system-tables отдаёт таблицы плоским списком (id, display_name, table_type,
-    // status, status_comment) - мапим в формат { table: {...} }, ожидаемый
-    // TargetTablesGrid (тот же формат, что filteredPassageTables в VehicleForm/EmployeeForm).
+    // /system-tables (GetAll) отдаёт SystemTableWithDetails с double-wrap { table: {...},
+    // fields, ... } - разворачиваем t.table (как VehicleForm/SelectTables), иначе t.table_type
+    // undefined и фильтр всегда пуст ("Нет доступных таблиц"). TargetTablesGrid ждёт { table: {...} }.
     availableTables() {
       return this.allTables
-        .filter((t) => t.table_type === this.entityType && t.id !== this.excludeTableId)
-        .map((t) => ({
+        .map((t) => t.table || t)
+        .filter((tbl) => tbl.table_type === this.entityType && tbl.id !== this.excludeTableId)
+        .map((tbl) => ({
           table: {
-            id: t.id,
-            name: t.name,
-            display_name: t.display_name,
-            table_type: t.table_type,
-            status: t.status || 'active',
-            status_comment: t.status_comment,
+            id: tbl.id,
+            name: tbl.name,
+            display_name: tbl.display_name,
+            table_type: tbl.table_type,
+            status: tbl.status || 'active',
+            status_comment: tbl.status_comment,
           },
         }));
     },

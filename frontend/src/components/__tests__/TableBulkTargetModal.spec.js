@@ -12,10 +12,12 @@ function okResponse(data) {
   return { ok: true, json: async () => data };
 }
 
+// Реальная форма /system-tables (GetAll -> SystemTableWithDetails): double-wrap { table: {...} }.
+// Плоская фикстура маскировала баг (availableTables читал t.table_type = undefined).
 const SYSTEM_TABLES = [
-  { id: 1, name: 'kpp-1', display_name: 'КПП 1', table_type: 'cars', status: 'active' },
-  { id: 2, name: 'kpp-2', display_name: 'КПП 2', table_type: 'cars', status: 'active' },
-  { id: 3, name: 'people-1', display_name: 'Проход 1', table_type: 'people', status: 'active' },
+  { table: { id: 1, name: 'kpp-1', display_name: 'КПП 1', table_type: 'cars', status: 'active' } },
+  { table: { id: 2, name: 'kpp-2', display_name: 'КПП 2', table_type: 'cars', status: 'active' } },
+  { table: { id: 3, name: 'people-1', display_name: 'Проход 1', table_type: 'people', status: 'active' } },
 ];
 
 // BaseModal не рендерит контент при show=false; watch(show) срабатывает на false->true
