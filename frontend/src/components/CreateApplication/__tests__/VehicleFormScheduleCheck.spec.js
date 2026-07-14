@@ -3,16 +3,15 @@ import { mount, flushPromises } from '@vue/test-utils';
 import { apiRequest } from '@/api/client';
 import VehicleForm from '../VehicleForm.vue';
 
-// #1183 S5: при добавлении машины сверяем расписание (time_slots) выбранных мест с
-// сроком заявки (prop entryPeriod) и предупреждаем неблокирующе, если место закрыто
-// на границе срока. 2026-07-13 = понедельник = day_of_week 0.
+// #1183 polish: форма собирает noticeGroups (место -> {free, windows, schedule}) и
+// эмитит notices-change наверх в единую панель. Расписание сверяется по ПЕРЕСЕЧЕНИЮ
+// окна пребывания срока с графиком. 2026-07-13 = понедельник (day_of_week 0).
 
-// Место с расписанием Пн 09:00-18:00 (плоский DTO /unload-places -> time_slots в корне).
 const PLACES = [
   {
-    id: 1, name: 'Пост №72', status: 'active', warning: null, warning_windows: [],
+    id: 1, name: 'Ворота Маугли', status: 'active', warning: null, warning_windows: [],
     time_slots: [
-      { id: 1, day_of_week: 0, open_time: '09:00', close_time: '18:00', is_next_day: false, is_active: true },
+      { id: 1, day_of_week: 0, open_time: '10:00', close_time: '12:00', is_next_day: false, is_active: true },
     ],
   },
 ];
@@ -37,42 +36,43 @@ const FIELD_CFG = {
   passage_tables: { visible: true, required: false },
 };
 
-const warnCalls = () => notifyMock.mock.calls.map((c) => c[0]).filter((a) => a && a.type === 'warning');
+// Пн 13:00-16:00: пребывание ПОСЛЕ закрытия (12:00) -> вне графика.
+const OUTSIDE = { date_from: '2026-07-13', date_to: '2026-07-13', time_from: '13:00', time_to: '16:00' };
+// Пн 10:30-11:30: внутри графика.
+const INSIDE = { date_from: '2026-07-13', date_to: '2026-07-13', time_from: '10:30', time_to: '11:30' };
 
-// Пн 08:00-20:00: въезд ДО открытия, выезд ПОСЛЕ закрытия -> обе границы вне графика.
-const OUTSIDE = { date_from: '2026-07-13', date_to: '2026-07-13', time_from: '08:00', time_to: '20:00' };
-// Пн 10:00-17:00: полностью в графике.
-const INSIDE = { date_from: '2026-07-13', date_to: '2026-07-13', time_from: '10:00', time_to: '17:00' };
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const mountForm = (entryPeriod) =>
   mount(VehicleForm, { props: { fieldConfig: FIELD_CFG, entryPeriod }, attachTo: document.body });
 
-describe('VehicleForm - авто-проверка расписания против срока (#1183 S5)', () => {
+describe('VehicleForm - авто-проверка расписания против окна пребывания (#1183 polish)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     apiRequest.mockImplementation(api);
   });
 
-  it('баннер предупреждает, если срок выходит за график работы места', async () => {
+  it('окно пребывания вне графика -> группа с schedule.anyClosed и режимом дня', async () => {
     const w = mountForm(OUTSIDE);
     await flushPromises();
     w.vm.selectedUnloadingPlaces = [1];
     await flushPromises();
 
-    const banner = w.find('[data-testid="vehicle-place-warnings"]');
-    expect(banner.exists()).toBe(true);
-    expect(banner.text()).toContain('Пост №72');
-    expect(banner.text()).toContain('въезда');
-    expect(banner.text()).toContain('выезда');
+    const groups = w.vm.noticeGroups;
+    expect(groups).toHaveLength(1);
+    expect(groups[0].name).toBe('Ворота Маугли');
+    expect(groups[0].schedule.anyClosed).toBe(true);
+    expect(groups[0].schedule.presence).toBe('13:00–16:00');
+    expect(groups[0].schedule.days[0].hours).toBe('10:00–12:00');
+    expect(groups[0].schedule.days[0].open).toBe(false);
   });
 
-  it('срок внутри графика -> баннера нет', async () => {
+  it('окно пребывания внутри графика -> предупреждения нет', async () => {
     const w = mountForm(INSIDE);
     await flushPromises();
     w.vm.selectedUnloadingPlaces = [1];
     await flushPromises();
-
-    expect(w.find('[data-testid="vehicle-place-warnings"]').exists()).toBe(false);
+    expect(w.vm.noticeGroups).toHaveLength(0);
   });
 
   it('без срока (entryPeriod=null) расписание не проверяется', async () => {
@@ -80,23 +80,18 @@ describe('VehicleForm - авто-проверка расписания прот�
     await flushPromises();
     w.vm.selectedUnloadingPlaces = [1];
     await flushPromises();
-
-    expect(w.find('[data-testid="vehicle-place-warnings"]').exists()).toBe(false);
+    expect(w.vm.noticeGroups).toHaveLength(0);
   });
 
-  it('addVehicle шлёт notify type=warning с предупреждением расписания', async () => {
+  it('эмитит notices-change наверх (после дебаунса)', async () => {
     const w = mountForm(OUTSIDE);
     await flushPromises();
     w.vm.selectedUnloadingPlaces = [1];
     await flushPromises();
-
-    w.vm.addVehicle();
-    await flushPromises();
-
-    expect(w.emitted('vehicle-added')).toBeTruthy();
-    const warns = warnCalls();
-    expect(warns).toHaveLength(1);
-    expect(warns[0].prefix).toContain('Пост №72');
-    expect(warns[0].bold).toContain('графику работы');
+    await wait(200);
+    const emitted = w.emitted('notices-change');
+    expect(emitted).toBeTruthy();
+    const last = emitted[emitted.length - 1][0];
+    expect(last.some((g) => g.schedule && g.schedule.anyClosed)).toBe(true);
   });
 });

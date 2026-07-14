@@ -389,24 +389,8 @@
       </div>
     </div>
 
-    <!-- Предупреждения выбранных мест прохода: свободный текст + активные окна (#1183 S4) -->
-    <div
-      v-if="selectedPlaceWarnings.length > 0"
-      class="place-warning"
-      data-testid="person-place-warnings"
-    >
-      <p class="place-warning__title">
-        Обратите внимание
-      </p>
-      <ul class="place-warning__list">
-        <li
-          v-for="(group, gi) in selectedPlaceWarnings"
-          :key="gi"
-        >
-          <strong>{{ group.name }}:</strong> {{ group.lines.join(' ') }}
-        </li>
-      </ul>
-    </div>
+    <!-- Предупреждения выбранных таблиц прохода (#1183): единая плавающая панель
+         рендерится в CreateApplication (@notices-change). -->
 
     <ExistingEmployeesModal
       :visible="showExistingEmployeesModal"
@@ -429,7 +413,7 @@ import TargetTablesGrid from '@/components/CreateApplication/TargetTablesGrid.vu
 import { useFormValidation } from '@/composables/useFormValidation'
 import { useFieldConfig } from '@/composables/useFieldConfig'
 import { collectActiveWarnings } from '@/utils/warningWindows'
-import { collectScheduleWarnings } from '@/utils/scheduleCheck'
+import { buildScheduleReport } from '@/utils/scheduleCheck'
 import { getCurrentInstance } from 'vue'
 
 export default {
@@ -485,7 +469,7 @@ export default {
             default: null
         }
     },
-    emits: ['edit-cancelled', 'employee-added', 'employee-updated', 'employees-added'],
+    emits: ['edit-cancelled', 'employee-added', 'employee-updated', 'employees-added', 'notices-change'],
     setup(props) {
         const instance = getCurrentInstance()
         const { fieldVisible, fieldRequired } = useFieldConfig(() => props.fieldConfig)
@@ -591,7 +575,9 @@ export default {
             // Опорный момент для предупреждений окон (#1183 S4): тикает раз в минуту,
             // чтобы баннер релевантных окон не залипал по времени.
             warningNow: new Date(),
-            warningTimer: null
+            warningTimer: null,
+            // Дебаунс эмита предупреждений наверх (#1183 polish).
+            noticesTimer: null
         }
     },
     computed: {
@@ -636,18 +622,44 @@ export default {
                 }
             });
         },
-        // Предупреждения выбранных таблиц прохода, релевантные сейчас (#1183 S4):
-        // свободный текст + активные окна. Зависит от warningNow (тикает раз в
-        // минуту), чтобы баннер не залипал по времени - computed не пересчитывается
-        // от голого new Date() в теле.
-        selectedPlaceWarnings() {
-            return this.buildPlaceWarnings(this.warningNow);
+        // Предупреждения выбранных таблиц прохода (#1183): группа на таблицу со
+        // свободным текстом (S1), активными окнами (S4) и отчётом "режим работы против
+        // окна пребывания срока" (S5). Реактивно к warningNow/entryPeriod; единая
+        // панель в CreateApplication обновляется на лету.
+        noticeGroups() {
+            const at = this.warningNow;
+            const groups = [];
+            this.selectedPassageTables.forEach(tableId => {
+                const item = this.allPassageTables.find(t => t.table && t.table.id === tableId);
+                if (!item) return;
+                const { free, windows } = collectActiveWarnings(
+                    { warning: item.table.warning, warning_windows: item.warning_windows },
+                    at
+                );
+                const schedule = buildScheduleReport(item.time_slots, this.entryPeriod);
+                if (free || windows.length || (schedule && schedule.anyClosed)) {
+                    groups.push({ name: item.table.display_name || item.table.name, free, windows, schedule });
+                }
+            });
+            return groups;
         }
     },
     watch: {
         lastName() { this.checkBlacklist(); },
         firstName() { this.checkBlacklist(); },
-        middleName() { this.checkBlacklist(); }
+        middleName() { this.checkBlacklist(); },
+        // Предупреждения наверх в единую панель, дебаунс - гасит дёрганье при быстрой
+        // смене таблиц/времени.
+        noticeGroups: {
+            handler(groups) {
+                if (this.noticesTimer) clearTimeout(this.noticesTimer);
+                this.noticesTimer = setTimeout(() => {
+                    this.$emit('notices-change', groups);
+                }, 150);
+            },
+            deep: true,
+            immediate: true
+        }
     },
     async mounted() {
         await Promise.all([
@@ -666,6 +678,10 @@ export default {
         if (this.warningTimer) {
             clearInterval(this.warningTimer);
         }
+        if (this.noticesTimer) {
+            clearTimeout(this.noticesTimer);
+        }
+        this.$emit('notices-change', []);
     },
     methods: {
         // Закрывает открытые дропдауны при клике вне них. Именованный метод (не
@@ -917,8 +933,6 @@ export default {
                 targetTables: [...this.selectedPassageTables],
                 isExisting: false
             };
-            
-            this.notifyPlaceWarnings();
 
             if (this.editingEmployee) {
                 newEmployee.id = this.editingEmployee.id;
@@ -928,37 +942,6 @@ export default {
                 this.$emit('employee-added', newEmployee);
                 this.clearEmployeeFormPartial();
             }
-        },
-
-        // Собирает предупреждения выбранных таблиц прохода на момент at (#1183 S4).
-        // Явный at, а не new Date() в теле computed: notifyPlaceWarnings пересчитывает
-        // на свежий момент клика, баннер - на тикающий warningNow.
-        buildPlaceWarnings(at) {
-            const groups = [];
-
-            this.selectedPassageTables.forEach(tableId => {
-                const item = this.allPassageTables.find(t => t.table && t.table.id === tableId);
-                if (!item) return;
-                const { free, windows } = collectActiveWarnings(
-                    { warning: item.table.warning, warning_windows: item.warning_windows },
-                    at
-                );
-                const schedule = collectScheduleWarnings(item.time_slots, this.entryPeriod);
-                const lines = [free, ...windows, ...schedule].filter(Boolean);
-                if (lines.length) groups.push({ name: item.table.display_name || item.table.name, lines });
-            });
-
-            return groups;
-        },
-
-        // Тост-предупреждения по местам прохода добавляемого сотрудника (#1183 S4),
-        // неблокирующе. Свежий new Date() в момент клика - кэш computed мог устареть,
-        // пока заполнялись остальные поля формы.
-        notifyPlaceWarnings() {
-            const store = useDeletionsStore();
-            this.buildPlaceWarnings(new Date()).forEach(group => {
-                store.notify({ prefix: `${group.name}: `, bold: group.lines.join(' '), type: 'warning' });
-            });
         },
 
         clearEmployeeFormPartial() {
@@ -1027,8 +1010,7 @@ export default {
                 isExisting: true,
                 existingEmployeeId: employee.id
             }));
-            
-            this.notifyPlaceWarnings();
+
             this.$emit('employees-added', employees);
             this.clearExistingEmployeesSelection();
         },
@@ -1802,38 +1784,6 @@ export default {
     margin: 0;
     font-size: 12px;
     line-height: 1.5;
-}
-
-.place-warning {
-    width: 100%;
-    margin-top: 12px;
-    padding: 12px;
-    background: #fff3cd;
-    border: 1px solid #ffeeba;
-    border-radius: 10px;
-}
-
-.place-warning__title {
-    font-weight: 600;
-    color: #856404;
-    margin: 0 0 5px 0;
-    font-size: 14px;
-}
-
-.place-warning__list {
-    margin: 0;
-    padding-left: 18px;
-    color: #856404;
-    font-size: 12px;
-    line-height: 1.5;
-}
-
-.place-warning__list li {
-    margin-bottom: 3px;
-}
-
-.place-warning__list li:last-child {
-    margin-bottom: 0;
 }
 
 /* Форма (450px) + список сотрудников рядом не влезают на планшете - стекаем в

@@ -3,11 +3,10 @@ import { mount, flushPromises } from '@vue/test-utils';
 import { apiRequest } from '@/api/client';
 import VehicleForm from '../VehicleForm.vue';
 
-// #1183 S4: при добавлении машины показываем предупреждения выбранных мест -
-// свободный текст (warning) + окна, активные сейчас (warning_windows, is_active).
-// Окна в фикстурах "каждый день / весь день" -> активны в любой момент (детерминизм).
+// #1183: форма собирает noticeGroups (место -> {free, windows, schedule}) для единой
+// панели. Свободный текст (S1) + окна, активные сейчас (S4, is_active). Окна в фикстурах
+// "каждый день / весь день" -> активны в любой момент (детерминизм).
 
-// /unload-places отдаёт плоский объект, форма присваивает as-is -> warning-поля на верхнем уровне.
 const PLACES = [
   {
     id: 1, name: 'Пост №72', status: 'active',
@@ -49,65 +48,41 @@ const FIELD_CFG = {
   passage_tables: { visible: true, required: false },
 };
 
-const warnCalls = () => notifyMock.mock.calls.map((c) => c[0]).filter((a) => a && a.type === 'warning');
-
-describe('VehicleForm - предупреждения мест при добавлении (#1183 S4)', () => {
+describe('VehicleForm - предупреждения мест (свободный текст + окна) в noticeGroups (#1183)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     apiRequest.mockImplementation(api);
   });
 
-  it('баннера нет, пока не выбрано место с предупреждением', async () => {
+  it('нет выбранных мест -> noticeGroups пуст', async () => {
     const w = mount(VehicleForm, { props: { fieldConfig: FIELD_CFG }, attachTo: document.body });
     await flushPromises();
-    expect(w.find('[data-testid="vehicle-place-warnings"]').exists()).toBe(false);
+    expect(w.vm.noticeGroups).toHaveLength(0);
   });
 
-  it('баннер показывает свободный warning и активное окно, скрывает отключённое', async () => {
-    const w = mount(VehicleForm, { props: { fieldConfig: FIELD_CFG }, attachTo: document.body });
-    await flushPromises();
-
-    w.vm.selectedUnloadingPlaces = [1];
-    await flushPromises();
-
-    const banner = w.find('[data-testid="vehicle-place-warnings"]');
-    expect(banner.exists()).toBe(true);
-    expect(banner.text()).toContain('Пост №72');
-    expect(banner.text()).toContain('Только малогабарит');
-    expect(banner.text()).toContain('Активное окно');
-    expect(banner.text()).not.toContain('Отключённое окно');
-  });
-
-  it('addVehicle шлёт notify type=warning по местам с предупреждением', async () => {
+  it('группа несёт свободный warning и активное окно, скрывает отключённое', async () => {
     const w = mount(VehicleForm, { props: { fieldConfig: FIELD_CFG }, attachTo: document.body });
     await flushPromises();
     w.vm.selectedUnloadingPlaces = [1];
     await flushPromises();
 
-    w.vm.addVehicle();
-    await flushPromises();
-
-    expect(w.emitted('vehicle-added')).toBeTruthy();
-    const warns = warnCalls();
-    expect(warns).toHaveLength(1);
-    expect(warns[0].prefix).toContain('Пост №72');
-    expect(warns[0].bold).toContain('Только малогабарит');
-    expect(warns[0].bold).toContain('Активное окно');
+    const groups = w.vm.noticeGroups;
+    expect(groups).toHaveLength(1);
+    expect(groups[0].name).toBe('Пост №72');
+    expect(groups[0].free).toBe('Только малогабарит');
+    expect(groups[0].windows).toContain('Активное окно');
+    expect(groups[0].windows).not.toContain('Отключённое окно');
   });
 
-  it('место без предупреждений - баннера нет и notify type=warning не шлётся', async () => {
+  it('место без предупреждений - не попадает в noticeGroups', async () => {
     const w = mount(VehicleForm, { props: { fieldConfig: FIELD_CFG }, attachTo: document.body });
     await flushPromises();
     w.vm.selectedUnloadingPlaces = [2];
     await flushPromises();
-
-    expect(w.find('[data-testid="vehicle-place-warnings"]').exists()).toBe(false);
-    w.vm.addVehicle();
-    await flushPromises();
-    expect(warnCalls()).toHaveLength(0);
+    expect(w.vm.noticeGroups).toHaveLength(0);
   });
 
-  it('buildPlaceWarnings фильтрует окно по ПЕРЕДАННОМУ моменту (основа свежего тоста)', async () => {
+  it('окно фильтруется по warningNow (тикающий момент)', async () => {
     const timed = [{
       id: 1, name: 'Пост №72', status: 'active', warning: null,
       warning_windows: [{ id: 1, day_of_week: 0, time_from: '09:00', time_to: '10:00', is_next_day: false, message: 'Окно 9-10', is_active: true }],
@@ -121,36 +96,13 @@ describe('VehicleForm - предупреждения мест при добав�
     await flushPromises();
     w.vm.selectedUnloadingPlaces = [1];
 
-    // notify зовёт buildPlaceWarnings(new Date()) - момент считается заново на клике,
-    // а не берётся из кэша computed (мог устареть, пока заполняли форму).
-    const active = w.vm.buildPlaceWarnings(new Date(2026, 6, 13, 9, 30)); // Пн в окне
-    expect(active).toHaveLength(1);
-    expect(active[0].lines).toContain('Окно 9-10');
-
-    const expired = w.vm.buildPlaceWarnings(new Date(2026, 6, 13, 11, 0)); // Пн вне окна
-    expect(expired).toHaveLength(0);
-  });
-
-  it('баннер следует за warningNow: окно исчезает, когда тикающий момент выходит за интервал', async () => {
-    const timed = [{
-      id: 1, name: 'Пост №72', status: 'active', warning: null,
-      warning_windows: [{ id: 1, day_of_week: 0, time_from: '09:00', time_to: '10:00', is_next_day: false, message: 'Окно 9-10', is_active: true }],
-    }];
-    apiRequest.mockImplementation((url) =>
-      url === '/unload-places'
-        ? Promise.resolve({ ok: true, json: async () => timed })
-        : Promise.resolve({ ok: true, json: async () => [] }));
-
-    const w = mount(VehicleForm, { props: { fieldConfig: FIELD_CFG }, attachTo: document.body });
+    w.vm.warningNow = new Date(2026, 6, 13, 9, 30); // Пн в окне
     await flushPromises();
-    w.vm.selectedUnloadingPlaces = [1];
-    w.vm.warningNow = new Date(2026, 6, 13, 9, 30); // в окне
-    await flushPromises();
-    expect(w.find('[data-testid="vehicle-place-warnings"]').text()).toContain('Окно 9-10');
+    expect(w.vm.noticeGroups[0].windows).toContain('Окно 9-10');
 
-    w.vm.warningNow = new Date(2026, 6, 13, 11, 0); // тик вывел момент за окно
+    w.vm.warningNow = new Date(2026, 6, 13, 11, 0); // Пн вне окна
     await flushPromises();
-    expect(w.find('[data-testid="vehicle-place-warnings"]').exists()).toBe(false);
+    expect(w.vm.noticeGroups).toHaveLength(0);
   });
 
   it('warning таблицы проезда берётся из table.warning (обёрнутый DTO)', async () => {
@@ -159,9 +111,9 @@ describe('VehicleForm - предупреждения мест при добав�
     w.vm.selectedPassageTables = [10];
     await flushPromises();
 
-    const banner = w.find('[data-testid="vehicle-place-warnings"]');
-    expect(banner.exists()).toBe(true);
-    expect(banner.text()).toContain('Проезд Ворота-1');
-    expect(banner.text()).toContain('Высота до 3 м');
+    const groups = w.vm.noticeGroups;
+    expect(groups).toHaveLength(1);
+    expect(groups[0].name).toBe('Проезд Ворота-1');
+    expect(groups[0].free).toBe('Высота до 3 м');
   });
 });

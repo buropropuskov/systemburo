@@ -4,11 +4,10 @@ import { createPinia, setActivePinia } from 'pinia';
 import { apiRequest } from '@/api/client';
 import EmployeeForm from '../EmployeeForm.vue';
 
-// #1183 S4: при добавлении сотрудника показываем предупреждения выбранных таблиц
-// прохода - свободный текст (table.warning) + окна, активные сейчас. У сотрудников
-// нет мест разгрузки, только таблицы прохода. Окна "каждый день / весь день" -> детерминизм.
+// #1183: форма собирает noticeGroups (таблица прохода -> {free, windows, schedule}) для
+// единой панели. У сотрудников нет мест разгрузки, только таблицы прохода. Окна
+// "каждый день / весь день" -> активны в любой момент (детерминизм).
 
-// Реальный /system-tables отдаёт обёрнутый SystemTableWithDetails: warning в table.warning.
 const TABLES = [
   {
     table: { id: 20, name: 't-people', display_name: 'Проход КПП-2', table_type: 'people', status: 'active', warning: 'Только по паспорту' },
@@ -39,7 +38,6 @@ vi.mock('@/components/CreateApplication/ExistingEmployeesModal.vue', () => ({
   default: { name: 'ExistingEmployeesModal', template: '<div />' },
 }));
 
-// Поля необязательны (иначе canAddEmployee false), patent скрыт.
 const FIELD_CFG = {
   last_name: { visible: true, required: false },
   first_name: { visible: true, required: false },
@@ -50,59 +48,34 @@ const FIELD_CFG = {
   target_tables: { visible: true, required: false },
 };
 
-const warnCalls = () => notifyMock.mock.calls.map((c) => c[0]).filter((a) => a && a.type === 'warning');
-
-describe('EmployeeForm - предупреждения мест прохода при добавлении (#1183 S4)', () => {
+describe('EmployeeForm - предупреждения таблиц прохода в noticeGroups (#1183)', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
     apiRequest.mockImplementation(api);
   });
 
-  it('баннер показывает warning таблицы и активное окно, скрывает отключённое', async () => {
+  it('группа несёт warning таблицы и активное окно, скрывает отключённое', async () => {
     const w = mount(EmployeeForm, { props: { fieldConfig: FIELD_CFG }, attachTo: document.body });
     await flushPromises();
-    expect(w.find('[data-testid="person-place-warnings"]').exists()).toBe(false);
+    expect(w.vm.noticeGroups).toHaveLength(0);
 
     w.vm.selectedPassageTables = [20];
     await flushPromises();
 
-    const banner = w.find('[data-testid="person-place-warnings"]');
-    expect(banner.exists()).toBe(true);
-    expect(banner.text()).toContain('Проход КПП-2');
-    expect(banner.text()).toContain('Только по паспорту');
-    expect(banner.text()).toContain('Активное окно');
-    expect(banner.text()).not.toContain('Отключённое окно');
+    const groups = w.vm.noticeGroups;
+    expect(groups).toHaveLength(1);
+    expect(groups[0].name).toBe('Проход КПП-2');
+    expect(groups[0].free).toBe('Только по паспорту');
+    expect(groups[0].windows).toContain('Активное окно');
+    expect(groups[0].windows).not.toContain('Отключённое окно');
   });
 
-  it('addEmployee шлёт notify type=warning по таблицам с предупреждением', async () => {
+  it('таблица без предупреждений - не попадает в noticeGroups', async () => {
     const w = mount(EmployeeForm, { props: { fieldConfig: FIELD_CFG }, attachTo: document.body });
     await flushPromises();
-    w.vm.selectedCitizenship = { id: 1, name: 'РФ' };
-    w.vm.selectedPassageTables = [20];
-    await flushPromises();
-
-    w.vm.addEmployee();
-    await flushPromises();
-
-    expect(w.emitted('employee-added')).toBeTruthy();
-    const warns = warnCalls();
-    expect(warns).toHaveLength(1);
-    expect(warns[0].prefix).toContain('Проход КПП-2');
-    expect(warns[0].bold).toContain('Только по паспорту');
-    expect(warns[0].bold).toContain('Активное окно');
-  });
-
-  it('таблица без предупреждений - баннера нет и notify type=warning не шлётся', async () => {
-    const w = mount(EmployeeForm, { props: { fieldConfig: FIELD_CFG }, attachTo: document.body });
-    await flushPromises();
-    w.vm.selectedCitizenship = { id: 1, name: 'РФ' };
     w.vm.selectedPassageTables = [21];
     await flushPromises();
-
-    expect(w.find('[data-testid="person-place-warnings"]').exists()).toBe(false);
-    w.vm.addEmployee();
-    await flushPromises();
-    expect(warnCalls()).toHaveLength(0);
+    expect(w.vm.noticeGroups).toHaveLength(0);
   });
 });

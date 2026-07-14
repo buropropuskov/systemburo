@@ -209,6 +209,7 @@
               :existing-vehicles="vehicles"
               :application-unload-places="applicationUnloadPlaces"
               :entry-period="currentEntryPeriod"
+              @notices-change="placeNotices = $event"
               @vehicle-added="handleVehicleAdded"
               @vehicles-added="handleVehiclesAdded"
               @vehicle-updated="handleVehicleUpdated"
@@ -240,6 +241,7 @@
               :user-company-id="companyId"
               :existing-employees="employees"
               :entry-period="currentEntryPeriod"
+              @notices-change="placeNotices = $event"
               @employee-added="handleEmployeeAdded"
               @employees-added="handleEmployeesAdded"
               @employee-updated="handleEmployeeUpdated"
@@ -324,6 +326,9 @@
       @merge="onDuplicateConflictMerge"
       @cancel="onDuplicateConflictCancel"
     />
+
+    <!-- #1183: единая плавающая панель предупреждений выбранных мест (режим/текст/окна). -->
+    <SchedulePlaceWarningPanel :groups="placeNotices" />
   </div>
 </template>
 
@@ -347,11 +352,13 @@ import CustomFieldsSection from './CustomFieldsSection.vue';
 import TextConstructor from '@/components/TextConstructor.vue';
 import ApplicationRecipientsRow from './ApplicationRecipientsRow.vue';
 import DuplicateConflictModal from './DuplicateConflictModal.vue';
+import SchedulePlaceWarningPanel from './SchedulePlaceWarningPanel.vue';
 
 export default {
     name: 'CreateApplication',
     components: {
         BlankSelector,
+        SchedulePlaceWarningPanel,
         UserInfoRow,
         DateRangeSection,
         VehicleForm,
@@ -399,6 +406,9 @@ export default {
 
             selectedAttachment: null,
             attachments: [],
+
+            // #1183: предупреждения выбранных мест текущей формы для плавающей панели.
+            placeNotices: [],
 
             licensePlateFormats: [],
 
@@ -1165,6 +1175,11 @@ export default {
         },
 
         handleAttachmentSelected(attachment) {
+            // Смена вложения - гасим панель предупреждений; новая форма пришлёт свои
+            // группы через @notices-change (иначе стейл-группы прошлого вложения
+            // мелькнут до пересчёта). Это реальный путь переключения между вложениями.
+            this.placeNotices = [];
+
             if (!attachment) {
                 this.selectedAttachment = null;
                 this.clearFormData();

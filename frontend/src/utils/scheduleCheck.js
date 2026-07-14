@@ -5,18 +5,22 @@
  * ("ЧЧ:ММ[:СС]"), `is_next_day` (интервал переходит через полночь), `is_active`.
  * Круглосуточный слот - `00:00`-`23:59` без `is_next_day`.
  *
- * Ядро `isSlotOpenAt`/`schedulePlaceStatusAt` - обобщение `isActiveSlot`
- * (UnloadPlaceModal.vue) и BE `computeUnloadPlaceStatusAt`: вместо `new Date()`
- * момент проверки инъектируется, поэтому расписание можно сверять не только с
- * «сейчас», а с границами срока заявки (въезд/выезд).
+ * СЕМАНТИКА (важно): "Время пребывания (проезда) с-по" в заявке - это НЕ два момента
+ * въезда/выезда, а ОКНО пребывания, применяемое к каждому дню срока. Предупреждение
+ * нужно, когда окно пребывания [time_from, time_to] НЕ ПЕРЕСЕКАЕТСЯ с графиком работы
+ * места в этот день (пример: место работает 10:00-12:00, пребывание 13:00-14:00 -
+ * пересечения нет -> закрыто). Отчёт содержит режим работы по каждому дню периода,
+ * чтобы показать его пользователю.
  *
- * Время считается по частям браузерной локали (`getDay`/`getHours`), как в S4
- * (`warningWindows.js`) и `isActiveSlot` - слоты заданы в московском дне, а
- * пользователи бюро работают в МСК, поэтому явной конверсии зоны нет (единая
- * конвенция с уже задеплоенным FE-показом расписания).
+ * Время считается по частям браузерной локали, как в S4 (`warningWindows.js`) и
+ * `isActiveSlot` - слоты заданы в московском дне, пользователи бюро в МСК, явной
+ * конверсии зоны нет (единая конвенция с задеплоенным FE-показом расписания).
  */
 
 import { projectDayOfWeek, toMinutes } from '@/utils/timeSlots';
+
+const WEEKDAY_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+const DAY_MINUTES = 24 * 60;
 
 /** Круглосуточный слот: 00:00-23:59 без перехода через полночь. */
 function isRoundTheClock(slot) {
@@ -28,104 +32,118 @@ function isRoundTheClock(slot) {
   );
 }
 
-/**
- * Открыт ли слот расписания в момент `at` (день недели + время суток).
- * Зеркалит `isActiveSlot` (UnloadPlaceModal) - тот же разбор `is_next_day`
- * (активен в [open,24:00) и [00:00,close] ТОГО ЖЕ дня), но момент явный.
- *
- * @param {{day_of_week:number, open_time:string, close_time:string, is_next_day:boolean, is_active:boolean}} slot
- * @param {Date} at
- * @returns {boolean}
- */
-export function isSlotOpenAt(slot, at) {
-  if (!slot || slot.is_active === false) return false;
-  if (slot.day_of_week !== projectDayOfWeek(at)) return false;
-  if (isRoundTheClock(slot)) return true;
-  if (!slot.open_time || !slot.close_time) return false;
-
-  const cur = at.getHours() * 60 + at.getMinutes();
-  const open = toMinutes(slot.open_time);
-  const close = toMinutes(slot.close_time);
-
-  if (slot.is_next_day) {
-    return cur >= open || cur <= close;
-  }
-  return cur >= open && cur <= close;
-}
-
-/**
- * Статус места по расписанию в момент `at`.
- * `no-schedule` - слоты не заданы (режим работы не указан -> предупреждать не о чём).
- * @param {Array} slots
- * @param {Date} at
- * @returns {'open'|'closed'|'no-schedule'}
- */
-export function schedulePlaceStatusAt(slots, at) {
-  if (!Array.isArray(slots) || slots.length === 0) return 'no-schedule';
-  return slots.some((slot) => isSlotOpenAt(slot, at)) ? 'open' : 'closed';
-}
-
 function pad2(n) {
   return String(n).padStart(2, '0');
 }
 
-/** Date -> "дд.мм.гггг чч:мм" (локальные части). */
-function formatMoment(dt) {
-  return `${pad2(dt.getDate())}.${pad2(dt.getMonth() + 1)}.${dt.getFullYear()} ${pad2(dt.getHours())}:${pad2(dt.getMinutes())}`;
+/** "ЧЧ:ММ[:СС]" -> "ЧЧ:ММ". */
+function hhmm(t) {
+  return (t || '').slice(0, 5);
 }
 
-/**
- * Границу срока ("YYYY-MM-DD" + "ЧЧ:ММ[:СС]") -> Date по локальным частям.
- *
- * Дата и время в форме (`DateRangeSection`) - независимые поля, заполняются по
- * отдельности. Пока время не введено, граница НЕЗАВЕРШЕНА - возвращаем null
- * (проверка её пропускает), а НЕ дефолтим на полночь: иначе "дата есть, время нет"
- * дало бы ложное "закрыто в 00:00", пока пользователь ещё заполняет форму.
- *
- * @param {?string} dateStr
- * @param {?string} timeStr
- * @returns {?Date}
- */
-function parseBoundary(dateStr, timeStr) {
-  if (!dateStr || !timeStr) return null;
+/** "YYYY-MM-DD" -> Date (локальная полночь) или null. */
+function parseDate(dateStr) {
+  if (!dateStr) return null;
   const [year, month, day] = dateStr.split('-').map(Number);
   if (!year || !month || !day) return null;
-  const [h, m] = timeStr.split(':').map(Number);
-  const hours = Number.isFinite(h) ? h : 0;
-  const minutes = Number.isFinite(m) ? m : 0;
-  const dt = new Date(year, month - 1, day, hours, minutes, 0, 0);
+  const dt = new Date(year, month - 1, day, 0, 0, 0, 0);
   return Number.isNaN(dt.getTime()) ? null : dt;
 }
 
 /**
- * Предупреждения расписания места против срока заявки (#1183 S5), неблокирующе.
- *
- * Проверяются ГРАНИЦЫ срока - момент въезда (`date_from`+`time_from`) и выезда
- * (`date_to`+`time_to`). Если место по расписанию закрыто на границе -> строка
- * предупреждения. Промежуточные дни срока НЕ проверяются (граничная эвристика:
- * закрытый день ПОСЕРЕДИНЕ многодневного срока не ловится - это осознанное
- * упрощение для информационного hint, не блокирующая валидация).
+ * Рабочие интервалы места (минуты от начала суток) для конкретного дня недели.
+ * `is_next_day`-слот раскрывается в [open, 24:00) и [00:00, close] ТОГО ЖЕ дня
+ * (конвенция FE `isActiveSlot`). Круглосуточный - весь день.
+ */
+function intervalsForWeekday(slots, weekday) {
+  const res = [];
+  for (const s of slots) {
+    if (s.is_active === false || s.day_of_week !== weekday) continue;
+    if (isRoundTheClock(s)) { res.push([0, DAY_MINUTES]); continue; }
+    if (!s.open_time || !s.close_time) continue;
+    const open = toMinutes(s.open_time);
+    const close = toMinutes(s.close_time);
+    if (s.is_next_day) {
+      res.push([open, DAY_MINUTES]);
+      res.push([0, close]);
+    } else {
+      res.push([open, close]);
+    }
+  }
+  return res;
+}
+
+/** Человекочитаемый режим работы дня: "10:00–12:00, 17:00–18:00" / "круглосуточно" / "не работает". */
+function hoursLabel(slots, weekday) {
+  const active = slots.filter((s) => s.is_active !== false && s.day_of_week === weekday);
+  if (!active.length) return 'не работает';
+  if (active.some(isRoundTheClock)) return 'круглосуточно';
+  return active
+    .slice()
+    .sort((a, b) => toMinutes(a.open_time) - toMinutes(b.open_time))
+    .map((s) => `${hhmm(s.open_time)}–${hhmm(s.close_time)}${s.is_next_day ? ' (+1д)' : ''}`)
+    .join(', ');
+}
+
+/** Пересекается ли хотя бы одна пара [рабочий интервал] x [интервал пребывания]. */
+function overlapsAny(workIntervals, presenceIntervals) {
+  return workIntervals.some(([wf, wt]) =>
+    presenceIntervals.some(([pf, pt]) => pf < wt && pt > wf));
+}
+
+/**
+ * Отчёт о совпадении окна пребывания срока с графиком места по дням периода.
  *
  * @param {Array} slots расписание места (`time_slots`)
- * @param {?{date_from:?string, date_to:?string, time_from:?string, time_to:?string}} period срок заявки (даты "YYYY-MM-DD", время "ЧЧ:ММ")
- * @returns {string[]}
+ * @param {?{date_from:?string, date_to:?string, time_from:?string, time_to:?string}} period
+ *   срок: даты "YYYY-MM-DD", время пребывания "ЧЧ:ММ".
+ * @returns {?{presence:string, days:{weekday:number,label:string,hours:string,open:boolean}[], anyClosed:boolean}}
+ *   null, если у места нет расписания или срок неполный (проверять нечего).
  */
-export function collectScheduleWarnings(slots, period) {
-  if (!period) return [];
+export function buildScheduleReport(slots, period) {
+  if (!Array.isArray(slots) || slots.length === 0) return null; // режим работы не указан
+  if (!period) return null;
 
-  const start = parseBoundary(period.date_from, period.time_from);
-  const end = parseBoundary(period.date_to, period.time_to);
+  const from = parseDate(period.date_from);
+  const to = parseDate(period.date_to);
+  if (!from || !to || to.getTime() < from.getTime()) return null;
+  if (!period.time_from || !period.time_to) return null; // окно пребывания ещё не задано
 
-  const startClosed = start ? schedulePlaceStatusAt(slots, start) === 'closed' : false;
-  const sameMoment = start && end && start.getTime() === end.getTime();
-  const endClosed = end && !sameMoment ? schedulePlaceStatusAt(slots, end) === 'closed' : false;
+  const pf = toMinutes(period.time_from);
+  const pt = toMinutes(period.time_to);
+  if (!Number.isFinite(pf) || !Number.isFinite(pt) || pt === pf) return null;
 
-  const messages = [];
-  if (startClosed) {
-    messages.push(`По графику работы закрыто в момент въезда (${formatMoment(start)}).`);
+  // Окно пребывания в минутах суток. pt < pf -> переходит через полночь (ночные
+  // многодневные работы: заезд вечером, выезд утром) - раскрываем в [pf,24:00)+[00:00,pt],
+  // как is_next_day-слоты, иначе такое окно молча не проверялось бы.
+  const overnight = pt < pf;
+  const presence = overnight ? [[pf, DAY_MINUTES], [0, pt]] : [[pf, pt]];
+
+  const singleDay = from.getTime() === to.getTime();
+  const seen = new Set();
+  const days = [];
+  // Идём по календарным дням периода в хронологическом порядке, по одному
+  // представителю на день недели (без пересортировки - порядок как в заявке).
+  for (let cursor = new Date(from), guard = 0;
+    cursor.getTime() <= to.getTime() && guard < 370;
+    cursor = new Date(cursor.getTime() + 86400000), guard++) {
+    const weekday = projectDayOfWeek(cursor);
+    if (seen.has(weekday)) continue;
+    seen.add(weekday);
+    const intervals = intervalsForWeekday(slots, weekday);
+    days.push({
+      weekday,
+      label: singleDay
+        ? `${WEEKDAY_SHORT[weekday]} ${pad2(cursor.getDate())}.${pad2(cursor.getMonth() + 1)}`
+        : WEEKDAY_SHORT[weekday],
+      hours: hoursLabel(slots, weekday),
+      open: overlapsAny(intervals, presence),
+    });
   }
-  if (endClosed) {
-    messages.push(`По графику работы закрыто в момент выезда (${formatMoment(end)}).`);
-  }
-  return messages;
+
+  return {
+    presence: `${hhmm(period.time_from)}–${hhmm(period.time_to)}${overnight ? ' (+1д)' : ''}`,
+    days,
+    anyClosed: days.some((d) => !d.open),
+  };
 }
