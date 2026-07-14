@@ -1000,7 +1000,10 @@ export default {
             unloadPlaces: car.unload_place_ids || [],
             // Число таблиц «Проезд», к которым привязана машина (#1194 S5) -
             // >1 включает per-row подменю «Убрать из этой/из всех».
-            target_tables_count: car.target_tables_count || 0
+            target_tables_count: car.target_tables_count || 0,
+            // Список привязок {id,name,source} (#1227 P1) - карточка машины показывает
+            // бейдж источника («из заявки»/«добавлено») в секции «Проезд».
+            target_tables: car.target_tables || []
           };
         });
         if (seq !== undefined && seq !== this.refreshSeq) return; // устарел - новее уже в работе/загружен
