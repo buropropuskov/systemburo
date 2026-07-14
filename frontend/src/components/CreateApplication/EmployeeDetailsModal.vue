@@ -9,10 +9,18 @@
       >
         <div class="modal-wrapper">
           <!-- Основное модальное окно с деталями сотрудника -->
-          <div 
+          <div
             class="modal-content compact-modal main-modal"
-            :class="{ 'shifted': isMainShifted }"
+            :class="{ 'shifted': isMainShifted, 'is-dragging': sheetDragging }"
+            :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
+            @touchstart="onSheetTouchStart"
+            @touchmove="onSheetTouchMove"
+            @touchend="onSheetTouchEnd"
           >
+            <div
+              class="sheet-handle"
+              aria-hidden="true"
+            />
             <div class="modal-header">
               <h3 class="modal-title">
                 {{ modalTitle }}
@@ -60,7 +68,10 @@
               </button>
             </div>
                     
-            <div class="modal-body">
+            <div
+              ref="sheetBody"
+              class="modal-body"
+            >
               <!-- Секция статуса ЧС -->
               <div
                 v-if="isBlacklisted"
@@ -447,7 +458,9 @@
 </template>
 
 <script>
+import { ref, getCurrentInstance } from 'vue';
 import { apiRequest } from '@/api/client';
+import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import TableInfoModal from './TableInfoModal.vue';
 import EmployeeHistoryModal from './EmployeeHistoryModal.vue';
 import AddToBlacklistModal from '@/components/admin/blacklist/AddToBlacklistModal.vue';
@@ -506,6 +519,24 @@ export default {
         }
     },
     emits: ['close', 'open-application', 'override', 'cancel-override'],
+    setup() {
+        // Bottom-sheet свайп-вниз-закрытие на мобилке (#1097 r2). onDismiss зовёт метод
+        // close() компонента (полная очистка таймеров/подмодалок) через proxy, не голый emit.
+        const inst = getCurrentInstance();
+        const sheetBody = ref(null);
+        const swipe = useSwipeDismiss(() => inst?.proxy?.close?.(), {
+            getScrollTop: () => sheetBody.value?.scrollTop ?? 0,
+            handleSelector: '.sheet-handle',
+        });
+        return {
+            sheetBody,
+            sheetOffset: swipe.offset,
+            sheetDragging: swipe.isDragging,
+            onSheetTouchStart: swipe.onTouchStart,
+            onSheetTouchMove: swipe.onTouchMove,
+            onSheetTouchEnd: swipe.onTouchEnd,
+        };
+    },
     data() {
         return {
             selectedTable: null,
@@ -1657,19 +1688,47 @@ export default {
     opacity: 0;
 }
 
+/* Ползунок скрыт по умолчанию (десктоп), показывается только в bottom-sheet @768. */
+.sheet-handle {
+    display: none;
+}
+
 @media (max-width: 768px) {
     /* Bottom-sheet: wrapper центрировал контент (align-items:center + height:100%) и
        побеждал flex-end оверлея из App.vue - выравниваем к низу, модалка выезжает
-       снизу (detail 4). Ширина/скругление/слайд приходят из App.vue (.modal-content). */
+       снизу (detail 4). Ширина/скругление приходят из App.vue (.modal-content). */
     .modal-wrapper {
         align-items: flex-end;
     }
     .modal-content {
         width: 90%;
         left: 0 !important;
-        transform: none !important;
         height: auto;
         max-height: 80vh;
+        /* transition для свайп-спринга/слайда; НЕ transform:none!important - блокировал бы
+           inline-transform свайпа (#1097 r2). */
+        transition: transform 0.3s ease;
+    }
+
+    .modal-content.is-dragging {
+        transition: none;
+    }
+
+    .sheet-handle {
+        display: block;
+        width: 40px;
+        height: 4px;
+        border-radius: 2px;
+        background: #d5d5db;
+        margin: 8px auto 0;
+        flex-shrink: 0;
+    }
+
+    /* Enter/leave = слайд снизу (перебивает базовый scale-поп). */
+    .modal-fade-enter-from .modal-content,
+    .modal-fade-leave-to .modal-content {
+        transform: translateY(100%);
+        opacity: 1;
     }
     
     .modal-content .modal-body {
