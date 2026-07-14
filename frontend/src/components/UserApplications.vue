@@ -1813,8 +1813,14 @@ export default {
   
   .card-header__title {
     width: 100%;
+    /* Заголовок и фильтр-табы - в столбик (табы шириной 100% в РЯД душили заголовок
+       "Список заявок", он переносился на 2 строки - "каша"). Теперь: заголовок /
+       табы / настройки, каждый на своей строке (#1097 p2). */
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
   }
-  
+
   .card-header__settings {
     width: 100%;
     justify-content: flex-end;
@@ -1887,7 +1893,11 @@ export default {
     position: sticky;
     top: 60px;
     z-index: 20;
-    background: #fff;
+    /* Компактнее и фон #FAFAFA - как шапка Центра (зеркалим правки Центра). Гасит
+       щедрый padding:16px/gap:12px из блока 992px -> шапка ниже и опрятнее. */
+    background: #FAFAFA;
+    padding: 8px 12px 12px;
+    gap: 8px;
   }
 
   /* Оверлей поиска (мобилка): поверх ряда настроек, растёт справа налево (clip-path).
@@ -2136,10 +2146,13 @@ export default {
     height: 44px;
   }
 
+  /* Номер заявки компактный (как в Центре): min-height:44px делал строку номера
+     44px и текст "№..." висел по центру с огромными вертикальными отступами -
+     карточка раздувалась до ~150px. Копирование по тапу остаётся (клик на текст). */
   .application-number--copyable {
     display: inline-flex;
     align-items: center;
-    min-height: 44px;
+    min-height: 0;
   }
 }
 
