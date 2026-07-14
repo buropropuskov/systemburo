@@ -178,7 +178,7 @@ func (s *carService) addCarTables(ctx context.Context, carID int, tableIDs []int
 			if _, ok := currentSet[tableID]; ok {
 				continue
 			}
-			if err := tx.Create(&models.CarTargetTable{CarID: carID, TableID: tableID}).Error; err != nil {
+			if err := tx.Create(&models.CarTargetTable{CarID: carID, TableID: tableID, Source: "manual"}).Error; err != nil {
 				return echo.NewHTTPError(http.StatusInternalServerError, "Error binding car table")
 			}
 			currentSet[tableID] = struct{}{}
@@ -250,7 +250,9 @@ func currentCarTableIDs(tx *gorm.DB, carID int) ([]int, error) {
 
 // bindCarTables добавляет машине недостающие привязки к tableIDs (дедуп с уже
 // существующими) и возвращает итоговый набор id таблиц машины после операции -
-// пустой означает, что вызывающий должен деактивировать машину.
+// пустой означает, что вызывающий должен деактивировать машину. Используется
+// moveCarTable ("Перенести") - целевая привязка source=manual (перенос - ручное
+// действие, #1227), исходная application-привязка при этом снимается отдельно.
 func bindCarTables(tx *gorm.DB, carID int, tableIDs []int) (map[int]struct{}, error) {
 	current, err := currentCarTableIDs(tx, carID)
 	if err != nil {
@@ -264,7 +266,7 @@ func bindCarTables(tx *gorm.DB, carID int, tableIDs []int) (map[int]struct{}, er
 		if _, ok := set[tableID]; ok {
 			continue
 		}
-		if err := tx.Create(&models.CarTargetTable{CarID: carID, TableID: tableID}).Error; err != nil {
+		if err := tx.Create(&models.CarTargetTable{CarID: carID, TableID: tableID, Source: "manual"}).Error; err != nil {
 			return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error binding car table")
 		}
 		set[tableID] = struct{}{}

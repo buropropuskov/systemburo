@@ -162,6 +162,11 @@ func (s *carService) enrichTableCars(ctx context.Context, rows []tableCarRow) ([
 		return nil, err
 	}
 
+	targetTables, err := s.targetTablesByCarID(ctx, carIDs)
+	if err != nil {
+		return nil, err
+	}
+
 	cars := make([]TableCarResponse, 0, len(rows))
 	for _, row := range rows {
 		status := 0
@@ -174,6 +179,11 @@ func (s *carService) enrichTableCars(ctx context.Context, rows []tableCarRow) ([
 		places := placesByCarID[row.ID]
 		if places == nil {
 			places = []string{}
+		}
+
+		tables := targetTables[row.ID]
+		if tables == nil {
+			tables = []CarPassageTableRef{}
 		}
 
 		cars = append(cars, TableCarResponse{
@@ -195,6 +205,7 @@ func (s *carService) enrichTableCars(ctx context.Context, rows []tableCarRow) ([
 			TerritoryStatus:    row.TerritoryStatus,
 			TerritoryEntryTime: territoryEntryTimeStr,
 			TargetTablesCount:  targetTablesCount[row.ID],
+			TargetTables:       tables,
 		})
 	}
 	return cars, nil
@@ -225,6 +236,36 @@ func (s *carService) targetTablesCountByCarID(ctx context.Context, carIDs []int)
 		counts[r.CarID] = r.Cnt
 	}
 	return counts, nil
+}
+
+// targetTablesByCarID возвращает список привязок «Проезд» {id,name,source} на
+// каждую машину из carIDs (#1227) - карточка машины из контекста проходной
+// показывает бейдж источника вместо голого счётчика.
+func (s *carService) targetTablesByCarID(ctx context.Context, carIDs []int) (map[int][]CarPassageTableRef, error) {
+	result := make(map[int][]CarPassageTableRef, len(carIDs))
+	if len(carIDs) == 0 {
+		return result, nil
+	}
+	type tableRow struct {
+		CarID  int
+		ID     int
+		Name   string
+		Source string
+	}
+	var rows []tableRow
+	if err := s.db.WithContext(ctx).
+		Table("car_target_tables ctt").
+		Select("ctt.car_id AS car_id, st.id AS id, COALESCE(NULLIF(st.display_name, ''), st.name) AS name, ctt.source AS source").
+		Joins("JOIN system_tables st ON st.id = ctt.table_id").
+		Where("ctt.car_id IN ?", carIDs).
+		Order("ctt.car_id, ctt.order_index, ctt.table_id").
+		Scan(&rows).Error; err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching target tables")
+	}
+	for _, r := range rows {
+		result[r.CarID] = append(result[r.CarID], CarPassageTableRef{ID: r.ID, Name: r.Name, Source: r.Source})
+	}
+	return result, nil
 }
 
 // GetCarUnloadPlaces возвращает связи активных автомобилей с местами разгрузки.

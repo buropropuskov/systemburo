@@ -241,6 +241,19 @@ type TableCarResponse struct {
 	// FE показывает per-row «Убрать» без подменю при 1 (снятие с единственной =
 	// деактивация) и с подменю «из этой/из всех» при >1.
 	TargetTablesCount int `json:"target_tables_count"`
+	// TargetTables - сами привязки «Проезд» с источником (#1227): карточка машины из
+	// контекста проходной различает «из заявки» (application) и «добавлено» (manual).
+	TargetTables []CarPassageTableRef `json:"target_tables"`
+}
+
+// CarPassageTableRef -- привязка машины к таблице «Проезд» с источником добавления
+// (#1227). Локальный тип detail-пути проходной - НЕ путать с общим TableInfoRef
+// (application_service.go), у которого нет source. Зеркало у сотрудников -
+// EmployeePassageTableRef (employee_service.go).
+type CarPassageTableRef struct {
+	ID     int    `json:"id"`
+	Name   string `json:"name"`
+	Source string `json:"source"`
 }
 
 // CarUnloadPlaceInfo -- связь автомобиля с местом разгрузки.
@@ -473,7 +486,7 @@ func (s *carService) CreateManualCars(ctx context.Context, req ManualCarRequest,
 				}
 			}
 			for tableID := range targetTables {
-				ctt := models.CarTargetTable{CarID: car.ID, TableID: tableID}
+				ctt := models.CarTargetTable{CarID: car.ID, TableID: tableID, Source: "manual"}
 				if err := tx.Create(&ctt).Error; err != nil {
 					slog.Error("не удалось привязать машину к таблице", "car_id", car.ID, "table_id", tableID, "error", err)
 					return echo.NewHTTPError(http.StatusInternalServerError, "Error linking car to table")
