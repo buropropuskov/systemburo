@@ -84,32 +84,45 @@ export function useSwipeDismiss(onDismiss, options = {}) {
     if (e.cancelable) e.preventDefault();
   }
 
+  // Плавно доводим лист ВНИЗ до конца (не резкое исчезновение), затем закрываем.
+  // isDragging=false включает transition листа, offset до высоты экрана уводит лист за
+  // нижнюю кромку; onDismiss (unmount) после длительности слайда. closing=true - маркер
+  // закрытия-слайдом (BaseModal гасит по нему @keyframes-leave). offset ДЕРЖИМ на
+  // innerHeight во время leave: inline-transform перебивает leave-slide потребителя
+  // (translateY(100%) в leave-to), поэтому второго движения нет. Полный reset откладываем
+  // на 320ms после onDismiss - к этому моменту leave уже отыграл и модалка скрыта, так что
+  // offset->0 не даёт рывка наверх (регресс R2-1 -> R3-1).
+  function slideOutAndDismiss() {
+    clearTimers();
+    active = false;
+    isDragging.value = false;
+    engaged = false;
+    closing.value = true;
+    offset.value = typeof window !== 'undefined' ? window.innerHeight : 1000;
+    closeTimer = setTimeout(() => {
+      closeTimer = null;
+      onDismiss();
+      resetTimer = setTimeout(() => { resetTimer = null; reset(); }, 320);
+    }, 260);
+  }
+
   function onTouchEnd() {
     if (!active) return;
     active = false;
     if (offset.value > threshold) {
-      // Протянут за порог: плавно доводим лист ВНИЗ до конца (не резкое исчезновение),
-      // затем закрываем. isDragging=false включает transition листа, offset до высоты
-      // экрана уводит лист за нижнюю кромку; onDismiss (unmount) после длительности слайда.
-      // closing=true - маркер закрытия-свайпом (BaseModal гасит по нему @keyframes-leave).
-      // offset ДЕРЖИМ на innerHeight во время leave: inline-transform перебивает leave-slide
-      // потребителя (translateY(100%) в leave-to), поэтому второго движения нет. Полный
-      // reset откладываем на 320ms после onDismiss - к этому моменту leave уже отыграл и
-      // модалка скрыта, так что offset->0 не даёт рывка наверх (регресс R2-1 -> R3-1).
-      isDragging.value = false;
-      engaged = false;
-      closing.value = true;
-      offset.value = typeof window !== 'undefined' ? window.innerHeight : 1000;
-      closeTimer = setTimeout(() => {
-        closeTimer = null;
-        onDismiss();
-        resetTimer = setTimeout(() => { resetTimer = null; reset(); }, 320);
-      }, 260);
+      // Протянут за порог - доводим лист вниз и закрываем.
+      slideOutAndDismiss();
     } else {
       // Не дотянул до порога - лист пружинит на место (transition через is-dragging=false).
       reset();
     }
   }
 
-  return { offset, isDragging, closing, onTouchStart, onTouchMove, onTouchEnd, reset };
+  // Программное закрытие тем же слайдом-вниз, что и свайп (крестик/overlay на bottom-sheet
+  // без Vue-<transition>, напр. ApplicationDetail): лист уезжает вниз, затем onDismiss.
+  function dismiss() {
+    slideOutAndDismiss();
+  }
+
+  return { offset, isDragging, closing, onTouchStart, onTouchMove, onTouchEnd, reset, dismiss };
 }

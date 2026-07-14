@@ -610,6 +610,7 @@ export default {
             onSheetTouchStart: swipe.onTouchStart,
             onSheetTouchMove: swipe.onTouchMove,
             onSheetTouchEnd: swipe.onTouchEnd,
+            dismissSheet: swipe.dismiss,
         };
     },
     data() {
@@ -1323,7 +1324,15 @@ export default {
         },
 
         close() {
-            this.$emit('close');
+            // На мобилке (bottom-sheet) закрытие крестиком/overlay должно уезжать вниз, как
+            // свайп. У детали нет Vue-<transition> (родитель монтирует по v-if - мгновенный
+            // unmount без leave-слайда), поэтому доводим лист вниз программно тем же путём,
+            // что и свайп (dismissSheet), затем эмитим close. На десктопе закрываем сразу.
+            if (typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches) {
+                this.dismissSheet();
+            } else {
+                this.$emit('close');
+            }
         },
 
         /**

@@ -1307,6 +1307,21 @@ export default {
         transition: none;
     }
 
+    /* Крестик/overlay: лист уезжает ВНИЗ (как свайп), а не просто фейдится. При
+       свайп-закрытии inline transform=offset (innerHeight) перебивает это правило -
+       второго слайда нет (тот же приём, что VehicleDetailsModal). */
+    .modal-fade-leave-active .history-modal {
+        transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+    }
+    .modal-fade-leave-to .history-modal {
+        transform: translateY(100%);
+    }
+    /* Держим оверлей видимым весь слайд листа (0.3s) - иначе Vue снимет узел на базовых
+       0.25s и слайд обрежется. Повышенная специфичность бьёт базовое правило. */
+    .history-modal-overlay.modal-fade-leave-active {
+        transition: opacity 0.3s ease;
+    }
+
     .sheet-handle {
         display: block;
         width: 40px;
