@@ -103,3 +103,29 @@ describe('ApplicationActionBar - busy-лоадер вместо старых к�
     expect(wrapper.find(APPROVE).exists()).toBe(true);
   });
 });
+
+describe('ApplicationActionBar - инвариант barKey для cross-fade (#1097 R5-S4)', () => {
+  it('ключ меняется при смене статуса (набор кнопок пересобирается -> cross-fade)', async () => {
+    const wrapper = mountBar({
+      application: { id: 1, confirmation: 'Согласовано', status: 'В работе' },
+      responsibleUsers: [{ id: 1, approval_status: 'approved' }],
+    });
+    const before = wrapper.vm.barKey;
+    await wrapper.setProps({ application: { id: 1, confirmation: 'Согласовано', status: 'Завершено' } });
+    expect(wrapper.vm.barKey).not.toBe(before);
+  });
+
+  it('busy -> ключ "busy" (кнопки свапаются на лоадер)', async () => {
+    const wrapper = mountBar();
+    expect(wrapper.vm.barKey).not.toBe('busy');
+    await wrapper.setProps({ processing: true });
+    expect(wrapper.vm.barKey).toBe('busy');
+  });
+
+  it('флаг ЧС ключ НЕ меняет - остаёмся в той же ветке (без лишнего cross-fade)', async () => {
+    const wrapper = mountBar({ hasUnoverriddenBlacklistFlags: false });
+    const before = wrapper.vm.barKey;
+    await wrapper.setProps({ hasUnoverriddenBlacklistFlags: true });
+    expect(wrapper.vm.barKey).toBe(before);
+  });
+});
