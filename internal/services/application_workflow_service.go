@@ -412,11 +412,14 @@ func (s *applicationService) CheckExpiredAttachments(ctx context.Context) error 
 		var snapshot struct{ Status *string }
 		tx.Raw("SELECT status FROM applications WHERE id = ?", id).Scan(&snapshot)
 
-		// Гард по статусу: завершаем (и пишем completed_at + аудит) только тем, кто реально
-		// перешёл в "Завершено". Повторный прогон крона по уже завершённой заявке иначе
-		// сдвигал бы момент завершения и плодил дубли событий в истории.
-		res := tx.Exec("UPDATE applications SET status = ?, completed_at = NOW() WHERE id = ? AND status IS DISTINCT FROM ?",
-			models.StatusCompleted, id, models.StatusCompleted)
+		// Завершаем только заявки, которые ещё живы: у закрытых (отказ, отзыв, уже
+		// завершённые) решение принято, и срок вложений его не отменяет. Белый список, а не
+		// "всё кроме Завершено": иначе отказ молча превращается в завершение с фальшивым
+		// completed_at и событием в истории. Отзыв сюда не доходит - withdraw гасит
+		// вложения сам, а вот reject их активными и оставляет. COALESCE - NULL-safe:
+		// заявка без статуса завершается как и раньше.
+		res := tx.Exec("UPDATE applications SET status = ?, completed_at = NOW() WHERE id = ? AND COALESCE(status, '') NOT IN (?)",
+			models.StatusCompleted, id, models.ArchivableStatuses)
 		if res.Error != nil {
 			tx.Rollback()
 			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to complete application")

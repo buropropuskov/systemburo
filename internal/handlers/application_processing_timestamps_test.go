@@ -159,6 +159,45 @@ func TestApplicationCompletedAt_ExpiryWritesSystemAudit(t *testing.T) {
 	assert.Equal(t, int64(1), completedEvents, "событие завершения пишется один раз")
 }
 
+// TestApplicationCompletedAt_RefusedApplicationNotCompleted: у отказа решение принято
+// человеком, и истёкший срок вложений его не отменяет. Ловушка: reject гасит только
+// машины/людей, а attachments остаются активными (в отличие от withdraw, который гасит их
+// сам) - значит крон до отказанной заявки доходит и без белого списка статусов переписал
+// бы "Отказано" на "Завершено" с фальшивым completed_at и событием в истории.
+func TestApplicationCompletedAt_RefusedApplicationNotCompleted(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	senderToken := testutil.RegisterAndLogin(t, e, "apasender4", "pass123", 1, td.OrgID, td.CompanyID)
+	approverToken := testutil.RegisterAndLogin(t, e, "apaapprover4", "pass123", 1, td.OrgID, td.CompanyID)
+	makeApprover(t, db, "apaapprover4")
+	approverID := getUserID(t, db, "apaapprover4")
+	uaID := seedUniqueAttachment(t, db, "cars", "cars_apa4", "Cars APA4")
+	appID := submitCompleteApplication(t, e, senderToken, "Test Organization", uaID)
+
+	rejectBody := fmt.Sprintf(`{"user_id": %d, "action": "reject", "comment": "не пропускаем"}`, approverID)
+	recReject := testutil.POST(t, e, fmt.Sprintf("/applications/%d/take-to-work", appID), rejectBody, testutil.AuthHeader(approverToken))
+	require.Equal(t, http.StatusOK, recReject.Code, recReject.Body.String())
+
+	var activeAttachments int64
+	require.NoError(t, db.Raw("SELECT COUNT(*) FROM attachments WHERE application_id = ? AND status = 1", appID).Scan(&activeAttachments).Error)
+	require.Equal(t, int64(1), activeAttachments, "предпосылка теста: reject оставляет вложения активными")
+
+	require.NoError(t, db.Exec("UPDATE attachments SET entry_date_to = '2020-01-01' WHERE application_id = ?", appID).Error)
+	require.NoError(t, newWorkflowService(db).CheckExpiredAttachments(context.Background()))
+
+	_, completed, status := readApplicationTimestamps(t, db, appID)
+	assert.Equal(t, models.StatusRefused, status, "отказ не должен превращаться в завершение по сроку")
+	assert.Nil(t, completed, "у отказанной заявки нет момента завершения")
+
+	var completedEvents int64
+	require.NoError(t, db.Raw("SELECT COUNT(*) FROM audit_log WHERE entity_type = ? AND entity_id = ? AND action = 'completed'",
+		models.AuditEntityApplication, appID).Scan(&completedEvents).Error)
+	assert.Equal(t, int64(0), completedEvents, "фальшивое событие завершения поверх отказа не пишется")
+}
+
 // TestBackfillApplicationAcceptedAt_FromAuditLog: заявкам, принятым до появления колонки,
 // accepted_at восстанавливается из первой записи take_to_work в audit_log.
 func TestBackfillApplicationAcceptedAt_FromAuditLog(t *testing.T) {
