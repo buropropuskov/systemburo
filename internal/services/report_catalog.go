@@ -39,9 +39,14 @@ const (
 	metricGroupApplications = "Заявки"
 	metricGroupCars         = "Машины"
 	metricGroupPeople       = "Люди"
-	// metricGroupProcessing - длительности этапов обработки заявки (#1240,
-	// report_duration_metrics.go регистрирует их в реестры через init).
+	// metricGroupProcessing - длительности этапов обработки заявки и качество её
+	// исхода (#1240; report_duration_metrics.go и report_quality_metrics.go
+	// регистрируют их в реестры через init).
 	metricGroupProcessing = "Обработка заявок"
+	// metricGroupApprovers - метрики самих согласующих: время реакции и нагрузка
+	// (#1240, report_approver_metrics.go). Отдельная группа, т.к. считаются не по
+	// заявкам, а по голосам согласующих.
+	metricGroupApprovers = "Согласующие"
 )
 
 // dimensionDef — разрез группировки. Конкретное GROUP BY-выражение и join-путь
@@ -137,6 +142,12 @@ var reportMetricRegistry = map[string]metricDef{
 // разрез, чтобы гид показал его опцией; UI задействует его в срезе GR2/GR3.
 const dimNone = "none"
 
+// dimByApprover — разрез по согласующему (#1240, B3). Применим ТОЛЬКО к метрикам
+// с базой application_responsible_users (report_approver_metrics.go): там строка
+// это голос, и разрез ничего не размножает. Метрикам заявки он не даётся — 1
+// заявка : N согласующих размножили бы её по числу голосов.
+const dimByApprover = "by_approver"
+
 var reportDimensionOrder = []string{
 	dimNone,
 	"status",
@@ -144,6 +155,7 @@ var reportDimensionOrder = []string{
 	"company",
 	"attachment_type",
 	"unload_place",
+	dimByApprover,
 	"period",
 	"hour_of_day",
 }
@@ -155,6 +167,7 @@ var reportDimensionRegistry = map[string]dimensionDef{
 	"company":         {label: "Компания"},
 	"attachment_type": {label: "Тип вложения"},
 	"unload_place":    {label: "Место разгрузки"},
+	dimByApprover:     {label: "Согласующий"},
 	"period":          {label: "Период (дата)"},
 	"hour_of_day":     {label: "Час суток"},
 }

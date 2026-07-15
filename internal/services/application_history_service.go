@@ -143,7 +143,7 @@ func (s *applicationService) GetForwardMessages(ctx context.Context, application
 			a.created_at
 		FROM audit_log a
 		JOIN users u ON a.actor_user_id = u.id
-		WHERE a.entity_type = ? AND a.entity_id = ? AND a.action = 'forwarded'
+		WHERE a.entity_type = ? AND a.entity_id = ? AND a.action = '` + models.AuditActionForwarded + `'
 		ORDER BY a.created_at ASC, a.id ASC
 	`
 

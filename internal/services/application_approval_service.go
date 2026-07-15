@@ -242,7 +242,7 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 		if msg := strings.TrimSpace(req.Message); msg != "" {
 			details.Comment = &msg
 		}
-		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "forwarded", &user.ID, details)
+		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, models.AuditActionForwarded, &user.ID, details)
 	}
 
 	// Обновляем confirmation если были добавлены ответственные

@@ -68,6 +68,10 @@ const (
 	// «Место прохода»); таблицы назначения - только в человекочитаемом comment
 	// (их может быть несколько, details.table_id - одно поле).
 	AuditActionMovedBetweenTables = "moved_between_tables"
+	// AuditActionForwarded - сводная запись о пересылке заявки: ОДНА на действие
+	// (не на получателя, тех пишут assigned_responsible/assigned_viewer). Читают
+	// ветка пересылок в истории заявки (#680) и метрика avg_forwards (#1240).
+	AuditActionForwarded = "forwarded"
 )
 
 // AuditLogItem - запись аудита для API с разрезолвленным именем актора
