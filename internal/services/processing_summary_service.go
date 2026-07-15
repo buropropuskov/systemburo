@@ -280,6 +280,10 @@ func (s *statisticsService) runSlowApprovers(ctx context.Context, from, to strin
 		Metrics:   []string{"avg_approver_response_time", "approver_votes_count"},
 		Dimension: dimByApprover,
 		Filters:   []models.ReportFilterValue{{Key: "date_range", From: from, To: to}},
+		// Забираем строки широко и отбираем топ сами: свой лимит движок применил бы
+		// ПОСЛЕ упорядочивания по сумме метрик, и самый медленный согласующий мог бы
+		// не дожить до нашей сортировки, не попав в первую сотню строк.
+		Limit: maxReportLimit,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("statistics: processing slow approvers: %w", err)
@@ -309,6 +313,7 @@ func (s *statisticsService) runProcessingByOrganization(ctx context.Context, fro
 		Metrics:   []string{"avg_processing_time", "applications_count"},
 		Dimension: "organization",
 		Filters:   []models.ReportFilterValue{{Key: "date_range", From: from, To: to}},
+		Limit:     maxReportLimit, // как и у согласующих: топ отбираем сами, см. runSlowApprovers
 	})
 	if err != nil {
 		return nil, fmt.Errorf("statistics: processing by organization: %w", err)
