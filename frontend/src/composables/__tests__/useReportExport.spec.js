@@ -75,6 +75,29 @@ describe('reportToTable', () => {
     expect(t.totalsRow).toEqual(['Итого', 10, 2.5, 6]);
   });
 
+  it('длительность выгружается читаемой, непройденный этап — пустой ячейкой (#1240)', () => {
+    const t = reportToTable({
+      mode: 'aggregate',
+      dimension: 'organization',
+      columns: [
+        { key: 'avg_approval_time', label: 'Время согласования', type: 'duration' },
+        { key: 'avg_completion_time', label: 'Время до завершения', type: 'duration' },
+        { key: 'applications_count', label: 'Заявки', unit: 'шт' },
+      ],
+      metric_rows: [
+        { label: 'ООО А', values: { avg_approval_time: 8100, avg_completion_time: 259200, applications_count: 10 } },
+        // Этап завершения не пройден: движок ключ не выставляет, `?? 0` дал бы «0 мин».
+        { label: 'ООО Б', values: { avg_approval_time: 0, applications_count: 4 } },
+      ],
+      totals: { avg_approval_time: 5400, applications_count: 14 },
+    });
+    expect(t.rows).toEqual([
+      ['ООО А', '2 ч 15 мин', '3 сут', 10],
+      ['ООО Б', '0 мин', '', 4],
+    ]);
+    expect(t.totalsRow).toEqual(['Итого', '1 ч 30 мин', '', 14]);
+  });
+
   it('list: заголовки и строки по колонкам сущности, без итогов', () => {
     const t = reportToTable({
       mode: 'list',

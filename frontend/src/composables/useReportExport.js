@@ -3,8 +3,14 @@ import { formatDateRu, formatReportCell } from '@/utils/datetime';
 
 // Значение колонки строки/итогов: дробные метрики (float) лежат в float_values/
 // float_totals, целочисленные (счётчики, суммы, pivot cross-tab) — в values/totals.
+// Длительность (type='duration', секунды) выгружаем в том же читаемом виде, что и на
+// экране («2 ч 15 мин»), иначе в выгрузке остались бы сырые секунды. Отсутствие ключа
+// у производной метрики (длительность, доля) — «нет данных», а не 0: движок такому
+// бину ноль не дорисовывает (metricOmitsFakeZero, #1240) -> пустая ячейка.
 function colValue(bucket, floatBucket, col) {
-  return col.float ? Number(floatBucket?.[col.key] ?? 0) : Number(bucket?.[col.key] ?? 0);
+  const raw = col.float ? floatBucket?.[col.key] : bucket?.[col.key];
+  if (raw == null) return col.type === 'duration' || col.float ? '' : 0;
+  return col.type === 'duration' ? formatReportCell(raw, 'duration') : Number(raw);
 }
 
 /**

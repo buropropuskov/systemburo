@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { formatDateRu, formatTimeAgo, formatReportCell } from '../datetime';
+import { formatDateRu, formatTimeAgo, formatReportCell, formatDuration } from '../datetime';
 
 describe('formatDateRu', () => {
   it('YYYY-MM-DD -> дд.мм.гггг', () => {
@@ -49,6 +49,67 @@ describe('formatReportCell', () => {
     expect(formatReportCell('', 'date')).toBe('');
     expect(formatReportCell(null, 'date')).toBe('');
     expect(formatReportCell(undefined, 'date')).toBe('');
+  });
+
+  it('type=duration: секунды -> человекочитаемая длительность', () => {
+    expect(formatReportCell(8100, 'duration')).toBe('2 ч 15 мин');
+    expect(formatReportCell('8100', 'duration')).toBe('2 ч 15 мин');
+  });
+
+  it('секунды без типа колонки не трогаем — это обычное число', () => {
+    expect(formatReportCell(8100, undefined)).toBe('8100');
+    expect(formatReportCell(8100, 'text')).toBe('8100');
+  });
+});
+
+describe('formatDuration', () => {
+  const MIN = 60;
+  const HOUR = 60 * MIN;
+  const DAY = 24 * HOUR;
+
+  it('ноль осмыслен: пустое окно движка -> «0 мин», а не «нет данных»', () => {
+    expect(formatDuration(0)).toBe('0 мин');
+  });
+
+  it('меньше минуты -> «<1 мин»', () => {
+    expect(formatDuration(1)).toBe('<1 мин');
+    expect(formatDuration(59)).toBe('<1 мин');
+  });
+
+  it('минуты', () => {
+    expect(formatDuration(MIN)).toBe('1 мин');
+    expect(formatDuration(45 * MIN)).toBe('45 мин');
+    expect(formatDuration(59 * MIN + 59)).toBe('59 мин');
+  });
+
+  it('часы: остаток минут показываем, ровный час — без «0 мин»', () => {
+    expect(formatDuration(2 * HOUR + 15 * MIN)).toBe('2 ч 15 мин');
+    expect(formatDuration(HOUR)).toBe('1 ч');
+    expect(formatDuration(23 * HOUR + 59 * MIN)).toBe('23 ч 59 мин');
+  });
+
+  it('сутки: старшие две единицы, ровные сутки — без «0 ч»', () => {
+    expect(formatDuration(DAY)).toBe('1 сут');
+    expect(formatDuration(3 * DAY + 4 * HOUR)).toBe('3 сут 4 ч');
+    // Минуты при сутках не показываем — точность здесь шум.
+    expect(formatDuration(2 * DAY + 5 * HOUR + 30 * MIN)).toBe('2 сут 5 ч');
+  });
+
+  it('единицы округляются вниз — остаток не переполняет старшую', () => {
+    // 1 ч 59 мин 59 с: округление минут вверх дало бы невозможное «1 ч 60 мин».
+    expect(formatDuration(HOUR + 59 * MIN + 59)).toBe('1 ч 59 мин');
+    expect(formatDuration(DAY - 1)).toBe('23 ч 59 мин');
+  });
+
+  it('отрицательное (грязные данные) показываем со знаком, а не прячем', () => {
+    expect(formatDuration(-5 * MIN)).toBe('-5 мин');
+  });
+
+  it('пустое -> пустая строка, нечисловое -> как есть', () => {
+    expect(formatDuration(null)).toBe('');
+    expect(formatDuration(undefined)).toBe('');
+    expect(formatDuration('')).toBe('');
+    expect(formatDuration('нет')).toBe('нет');
   });
 });
 

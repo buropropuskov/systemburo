@@ -92,6 +92,35 @@ const aggPivotFloat = {
   float_totals: { avg_cars_per_day: 2.5 },
 };
 
+// Метрики обработки заявок (#1240): длительность — целые СЕКУНДЫ в values с
+// type='duration', доля — дробь в float_values с float=true. Форма фикстуры взята с
+// бэка (ReportMetricColumn.Type/Float, applyRateScale). У «ООО Б» этап завершения не
+// пройден и доля не считана — движок ключ не выставляет («нет данных» != 0).
+const aggDuration = {
+  mode: 'aggregate',
+  dimension: 'organization',
+  columns: [
+    { key: 'avg_approval_time', label: 'Время согласования', type: 'duration' },
+    { key: 'avg_completion_time', label: 'Время до завершения', type: 'duration' },
+    { key: 'refusal_rate', label: 'Доля отказов', unit: '%', float: true },
+    { key: 'applications_count', label: 'Количество заявок', unit: 'шт' },
+  ],
+  metric_rows: [
+    {
+      label: 'ООО А',
+      values: { avg_approval_time: 8100, avg_completion_time: 259200, applications_count: 10 },
+      float_values: { refusal_rate: 12.5 },
+    },
+    {
+      label: 'ООО Б',
+      values: { avg_approval_time: 0, applications_count: 4 },
+      float_values: {},
+    },
+  ],
+  totals: { avg_approval_time: 5400, avg_completion_time: 259200, applications_count: 14 },
+  float_totals: { refusal_rate: 12.5 },
+};
+
 describe('ReportResult — переключатель Таблица/График', () => {
   it('list-режим: переключателя нет, только таблица', () => {
     const w = mountResult(listRes);
@@ -399,5 +428,61 @@ describe('ReportResult — переключатель Таблица/Графи�
     // вид сохраняется (график), тип переключился на дефолт нового разреза
     expect(w.findComponent(areaStub).exists()).toBe(false);
     expect(w.findComponent(barStub).exists()).toBe(true);
+  });
+});
+
+describe('ReportResult — длительности (#1240)', () => {
+  const rowCells = (w, i) => w.findAll('.rr__table tbody tr')[i].findAll('td').map((td) => td.text());
+
+  it('колонка type=duration: секунды -> читаемая длительность, а не сырое число', () => {
+    const cells = rowCells(mountResult(aggDuration), 0);
+    expect(cells[1]).toBe('2 ч 15 мин'); // 8100 секунд
+    expect(cells[2]).toBe('3 сут'); // 259200 секунд
+  });
+
+  it('прочие метрики форматом длительности не задеты', () => {
+    const cells = rowCells(mountResult(aggDuration), 0);
+    expect(cells[3]).toBe('12,5'); // доля (float) — число
+    expect(cells[4]).toBe('10'); // счётчик
+  });
+
+  it('нет ключа у длительности = «нет данных» -> «—», а не «0 мин»', () => {
+    // Ключевая защита: у «ООО Б» этап завершения не пройден, движок ключ не выставил.
+    // `?? 0` нарисовал бы «0 мин» = «завершилось мгновенно».
+    const cells = rowCells(mountResult(aggDuration), 1);
+    expect(cells[2]).toBe('—');
+  });
+
+  it('нет ключа у доли -> «—»: пустой бин не «отказов не было»', () => {
+    expect(rowCells(mountResult(aggDuration), 1)[3]).toBe('—');
+  });
+
+  it('ноль длительности честен и остаётся «0 мин»', () => {
+    // Движок COALESCE'ит пустое окно в 0 — это значение, а не отсутствие данных.
+    expect(rowCells(mountResult(aggDuration), 1)[1]).toBe('0 мин');
+  });
+
+  it('итоги: длительность форматируется, непосчитанная -> «—»', () => {
+    const w = mountResult({
+      ...aggDuration,
+      totals: { avg_approval_time: 5400, applications_count: 14 },
+      float_totals: {},
+    });
+    const totals = w.findAll('.rr__table tfoot td').map((td) => td.text());
+    expect(totals[1]).toBe('1 ч 30 мин'); // 5400 секунд
+    expect(totals[2]).toBe('—'); // завершения не было ни у кого
+    expect(totals[3]).toBe('—'); // доля не посчитана
+    expect(totals[4]).toBe('14'); // счётчик как был
+  });
+
+  it('счётчик без ключа по-прежнему 0 — для него это честно', () => {
+    const w = mountResult({
+      mode: 'aggregate',
+      dimension: 'organization',
+      columns: [{ key: 'applications_count', label: 'Количество заявок', unit: 'шт' }],
+      metric_rows: [{ label: 'ООО Б', values: {} }],
+      totals: {},
+    });
+    expect(rowCells(w, 0)[1]).toBe('0');
   });
 });
