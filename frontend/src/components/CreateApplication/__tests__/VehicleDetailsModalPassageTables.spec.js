@@ -22,17 +22,17 @@ const stubs = { teleport: true, UnloadPlaceModal: true, TableInfoModal: true, Ca
 
 // Контекст проходной (CarsTable) - source=carstable, showCarFeatures=true, история идёт
 // через /cars/history/unified (никакой фильтрации по action_type на бэке, см. car_history_service.go).
-function mountModal(vehicle, historyItems = []) {
+function mountModal(vehicle, historyItems = [], source = 'carstable') {
   apiRequest.mockReset();
   apiRequest.mockImplementation((url) => {
-    if (String(url).startsWith('/cars/history/unified')) return Promise.resolve(okResponse(historyItems));
+    if (String(url).includes('/history')) return Promise.resolve(okResponse(historyItems));
     return Promise.resolve(okResponse([]));
   });
   return mount(VehicleDetailsModal, {
     props: {
       show: true,
       vehicle,
-      source: 'carstable',
+      source,
       showCarFeatures: true,
     },
     global: { stubs },
@@ -63,15 +63,34 @@ describe('VehicleDetailsModal - секция Проезд: источник и �
     expect(wrapper.text()).toContain('из заявки');
   });
 
-  it('нормализует плоскую числовую форму target_tables (контекст заявки) как application', async () => {
+  it('плоская числовая форма target_tables -> source=null, бейдж НЕ рисуется (источник неизвестен)', async () => {
     const wrapper = mountModal({ id: 5, target_tables: [7] });
     await flushPromises();
     await wrapper.vm.$nextTick();
 
     expect(wrapper.vm.passageActiveTables).toEqual([
-      { id: 7, name: 'Неизвестное место (ID: 7)', source: 'application' },
+      { id: 7, name: 'Неизвестное место (ID: 7)', source: null },
     ]);
-    expect(wrapper.text()).toContain('из заявки');
+    expect(wrapper.text()).not.toContain('из заявки');
+    expect(wrapper.text()).not.toContain('добавлено');
+  });
+
+  it('контекст заявки (source=application, плоские ID + история снятий): НЕТ бейджей и НЕТ зачёркнутых (#1227 fix - иначе каша с проходной)', async () => {
+    const wrapper = mountModal(
+      { id: 5, target_tables: [10, 11] },
+      [{ id: 1, action_type: 'unbound_from_table', table_id: 12, table_name: 'Таблица В' }],
+      'application'
+    );
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    // активные привязки видны как плоский список, но без бейджей источника
+    expect(wrapper.vm.passageActiveTables.every(t => t.source === null)).toBe(true);
+    expect(wrapper.text()).not.toContain('из заявки');
+    expect(wrapper.text()).not.toContain('добавлено');
+    // зачёркнутых снятых в заявке нет, хотя в истории есть unbound
+    expect(wrapper.vm.passageRemovedTables).toEqual([]);
+    expect(wrapper.findAll('.place-item--removed')).toHaveLength(0);
   });
 
   it('снятые/перенесённые таблицы из истории показываются зачёркнутыми, активная привязка перекрывает снятую', async () => {
