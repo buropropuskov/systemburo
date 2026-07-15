@@ -132,6 +132,7 @@
             :series-name="chartSeriesName"
             :unit-forms="chartUnitForms"
             :is-float="chartIsFloat"
+            :value-type="chartValueType"
             data-testid="rr-chart-area"
           />
           <AnalyticsBarChart
@@ -141,6 +142,7 @@
             :series-name="chartSeriesName"
             :unit-forms="chartUnitForms"
             :is-float="chartIsFloat"
+            :value-type="chartValueType"
             data-testid="rr-chart-bar"
           />
           <AnalyticsDonutChart
@@ -330,7 +332,12 @@ const isPeriod = computed(() => props.result?.dimension === 'period');
 
 // Кольцо осмысленно для категориального распределения с >=2 долями: период —
 // динамика во времени (доли бессмысленны), один разрез — доля 100% сама по себе.
-const canDonut = computed(() => !isPeriod.value && aggRows.value.length >= 2);
+// Длительность в кольцо не годится: оно рисует доли от суммы, а сумма средних и
+// перцентилей смысла не имеет — по той же причине движок считает итог такой
+// метрики отдельным запросом, а не сложением строк.
+const canDonut = computed(
+  () => !isPeriod.value && aggRows.value.length >= 2 && !isDurationColumn(chartColumn.value),
+);
 
 // Что показываем в слоте графика: area (период), кольцо (доли по выбору) или
 // столбцы; вне режима графика/без строк — таблица. Один источник для v-if и :key.
@@ -377,6 +384,9 @@ const chartColumn = computed(
 const chartSeriesName = computed(() => chartColumn.value?.label || 'Количество');
 // Дробная метрика (среднее/день) -> график не округляет до целых, как и таблица.
 const chartIsFloat = computed(() => chartColumn.value?.float === true);
+// Длительность -> ось и тултип графика рисуют «2 ч 15 мин», а не сырые секунды
+// (тот же тип колонки, по которому форматируется таблица).
+const chartValueType = computed(() => (isDurationColumn(chartColumn.value) ? 'duration' : ''));
 // Единица метрики ("шт", "шт/день") инвариантна по числу -> одна форма на все.
 const chartUnitForms = computed(() => {
   const u = chartColumn.value?.unit;

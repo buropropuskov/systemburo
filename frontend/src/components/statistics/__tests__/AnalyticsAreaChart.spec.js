@@ -68,4 +68,58 @@ describe('AnalyticsAreaChart', () => {
     expect(wrapper.text()).toContain('Нет данных');
     expect(rendered.last).toBeNull();
   });
+
+  it('точка без значения остаётся разрывом, а не нулём', () => {
+    // «Нет данных» у производной метрики (этап никто не прошёл) != 0: ноль на дне
+    // шкалы читался бы как реальное значение «прошло мгновенно».
+    rendered.last = null;
+    mount(AnalyticsAreaChart, {
+      props: {
+        data: [
+          { timestamp: '2026-06-15', count: 4 },
+          { timestamp: '2026-06-16', count: null },
+          { timestamp: '2026-06-17', count: 0 },
+        ],
+      },
+    });
+    // 0 — честное значение и остаётся нулём, null — разрыв.
+    expect(rendered.last.series[0].data).toEqual([4, null, 0]);
+  });
+
+  it('ни одной точки со значением: заглушка, а не пустая сетка', () => {
+    // Мультиметрика: строки есть по другой метрике, а выбранный этап не прошёл никто.
+    rendered.last = null;
+    const wrapper = mount(AnalyticsAreaChart, {
+      props: { data: [{ timestamp: '2026-06-15', count: null }, { timestamp: '2026-06-16', count: null }] },
+    });
+    expect(wrapper.text()).toContain('Нет данных');
+    expect(rendered.last).toBeNull();
+  });
+
+  it('ряд из одних нулей — данные: ноль это значение, а не его отсутствие', () => {
+    rendered.last = null;
+    mount(AnalyticsAreaChart, { props: { data: [{ timestamp: '2026-06-15', count: 0 }] } });
+    expect(rendered.last).not.toBeNull();
+    expect(rendered.last.series[0].data).toEqual([0]);
+  });
+
+  it('valueType=duration: ось и тултип рисуют длительность, а не сырые секунды', () => {
+    rendered.last = null;
+    mount(AnalyticsAreaChart, {
+      props: { data: DATA, valueType: 'duration' },
+    });
+    const opts = rendered.last.options;
+    expect(opts.yaxis.labels.formatter(8100)).toBe('2 ч 15 мин');
+    expect(opts.tooltip.y.formatter(259200)).toBe('3 сут');
+  });
+
+  it('без valueType длительности нет: ось остаётся числом с единицей', () => {
+    rendered.last = null;
+    mount(AnalyticsAreaChart, { props: { data: DATA, unitForms: ['заявка', 'заявки', 'заявок'] } });
+    const opts = rendered.last.options;
+    // Разделитель разрядов берём у самой локали: он неразрывный и зависит от ICU.
+    const n = (8100).toLocaleString('ru-RU');
+    expect(opts.yaxis.labels.formatter(8100)).toBe(n);
+    expect(opts.tooltip.y.formatter(8100)).toBe(`${n} заявок`);
+  });
 });

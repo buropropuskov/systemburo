@@ -58,4 +58,56 @@ describe('AnalyticsBarChart', () => {
     expect(wrapper.text()).toContain('Нет данных');
     expect(rendered.last).toBeNull();
   });
+
+  it('столбец без значения пропускается, а не рисуется нулевым', () => {
+    // «Нет данных» у производной метрики (этап никто не прошёл) != 0: столбец
+    // нулевой высоты читался бы как реальное значение «прошло мгновенно».
+    rendered.last = null;
+    mount(AnalyticsBarChart, {
+      props: {
+        data: [
+          { label: 'ООО А', value: 7 },
+          { label: 'ООО Б', value: null },
+          { label: 'ООО В', value: 0 },
+        ],
+      },
+    });
+    // 0 — честное значение и остаётся нулём, null — пропуск.
+    expect(rendered.last.series[0].data).toEqual([7, null, 0]);
+  });
+
+  it('ни одного столбца со значением: заглушка, а не пустая сетка', () => {
+    // Мультиметрика: строки есть по другой метрике, а выбранный этап не прошёл никто.
+    rendered.last = null;
+    const wrapper = mount(AnalyticsBarChart, {
+      props: { data: [{ label: 'ООО А', value: null }, { label: 'ООО Б', value: null }] },
+    });
+    expect(wrapper.text()).toContain('Нет данных');
+    expect(rendered.last).toBeNull();
+  });
+
+  it('ряд из одних нулей — данные: ноль это значение, а не его отсутствие', () => {
+    rendered.last = null;
+    mount(AnalyticsBarChart, { props: { data: [{ label: 'ООО А', value: 0 }] } });
+    expect(rendered.last).not.toBeNull();
+    expect(rendered.last.series[0].data).toEqual([0]);
+  });
+
+  it('valueType=duration: ось и тултип рисуют длительность, а не сырые секунды', () => {
+    rendered.last = null;
+    mount(AnalyticsBarChart, { props: { data: DATA, valueType: 'duration' } });
+    const opts = rendered.last.options;
+    expect(opts.yaxis.labels.formatter(8100)).toBe('2 ч 15 мин');
+    expect(opts.tooltip.y.formatter(259200)).toBe('3 сут');
+  });
+
+  it('без valueType длительности нет: ось остаётся числом с единицей', () => {
+    rendered.last = null;
+    mount(AnalyticsBarChart, { props: { data: DATA, unitForms: ['проезд', 'проезда', 'проездов'] } });
+    const opts = rendered.last.options;
+    // Разделитель разрядов берём у самой локали: он неразрывный и зависит от ICU.
+    const n = (8100).toLocaleString('ru-RU');
+    expect(opts.yaxis.labels.formatter(8100)).toBe(n);
+    expect(opts.tooltip.y.formatter(8100)).toBe(`${n} проездов`);
+  });
 });

@@ -22,6 +22,7 @@
 <script setup>
 import { computed } from 'vue';
 import VueApexCharts from 'vue3-apexcharts';
+import { formatDuration } from '@/utils/datetime';
 
 const props = defineProps({
   /** Столбцы в форме [{ label, value }]; label — подпись оси X (час суток и т.п.). */
@@ -52,12 +53,29 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  /**
+   * Тип значения ряда. 'duration' — секунды: ось и тултип рисуют «2 ч 15 мин»
+   * вместо сырых 8100. Пусто — число с единицей из unitForms.
+   */
+  valueType: {
+    type: String,
+    default: '',
+  },
 });
 
-const hasData = computed(() => props.data.length > 0);
+// Ряд, где значения нет ни у одного столбца (этап не прошёл никто), — это тоже «нет
+// данных»: рисовать пустую сетку с осями значило бы выдать отсутствие данных за сбой.
+const hasData = computed(() => props.data.some((d) => d.value != null));
+
+const isDuration = computed(() => props.valueType === 'duration');
 
 const categories = computed(() => props.data.map((d) => String(d.label)));
-const values = computed(() => props.data.map((d) => Number(d.value) || 0));
+// null/undefined — «нет данных» (производные метрики: этап никто не прошёл), и это
+// НЕ ноль: столбца просто не будет, иначе нулевая высота читалась бы как реальное
+// значение «прошло мгновенно» (см. metricValue).
+const values = computed(() =>
+  props.data.map((d) => (d.value == null ? null : Number(d.value) || 0))
+);
 const series = computed(() => [{ name: props.seriesName, data: values.value }]);
 
 function pluralize(n) {
@@ -114,23 +132,31 @@ const options = computed(() => ({
   tooltip: {
     theme: 'dark',
     y: {
-      formatter: (v) => {
-        const num = Number(v) || 0;
-        const shown = props.isFloat
-          ? num.toLocaleString('ru-RU', { maximumFractionDigits: 2 })
-          : Math.round(num).toLocaleString('ru-RU');
-        return `${shown} ${pluralize(Math.round(num))}`;
-      },
+      formatter: (v) => formatTooltipValue(v),
       title: { formatter: () => '' },
     },
   },
 }));
 
 function formatAxis(v) {
+  if (isDuration.value) return formatDuration(v);
   const num = Number(v) || 0;
   return props.isFloat
     ? num.toLocaleString('ru-RU', { maximumFractionDigits: 1 })
     : Math.round(num).toLocaleString('ru-RU');
+}
+
+// У длительности единица уже внутри текста («2 ч 15 мин») — склонять нечего.
+// Пропущенный столбец Apex тултипом не показывает, но значение может прийти
+// null — рисуем «—», а не «0».
+function formatTooltipValue(v) {
+  if (v == null) return '—';
+  if (isDuration.value) return formatDuration(v);
+  const num = Number(v) || 0;
+  const shown = props.isFloat
+    ? num.toLocaleString('ru-RU', { maximumFractionDigits: 2 })
+    : Math.round(num).toLocaleString('ru-RU');
+  return `${shown} ${pluralize(Math.round(num))}`;
 }
 </script>
 

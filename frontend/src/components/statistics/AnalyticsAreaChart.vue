@@ -22,6 +22,7 @@
 <script setup>
 import { computed } from 'vue';
 import VueApexCharts from 'vue3-apexcharts';
+import { formatDuration } from '@/utils/datetime';
 
 const props = defineProps({
   /** Точки ряда в форме [{ timestamp, count }] — совместимо с timeline дашборда. */
@@ -61,9 +62,21 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  /**
+   * Тип значения ряда. 'duration' — секунды: ось и тултип рисуют «2 ч 15 мин»
+   * вместо сырых 8100. Пусто — число с единицей из unitForms.
+   */
+  valueType: {
+    type: String,
+    default: '',
+  },
 });
 
-const hasData = computed(() => props.data.length > 0);
+// Ряд, где значения нет ни у одной точки (этап не прошёл никто), — это тоже «нет
+// данных»: рисовать пустую сетку с осями значило бы выдать отсутствие данных за сбой.
+const hasData = computed(() => props.data.some((d) => d.count != null));
+
+const isDuration = computed(() => props.valueType === 'duration');
 
 // Дата timeline приходит как 'YYYY-MM-DD'. Парсим вручную, без new Date(), чтобы
 // не словить сдвиг таймзоны (date-only -> UTC-полночь -> съезд на -3ч в МСК).
@@ -98,7 +111,12 @@ const categories = computed(() =>
 const fullLabels = computed(() =>
   props.categories ?? props.data.map((d) => formatFull(d.timestamp))
 );
-const values = computed(() => props.data.map((d) => Number(d.count) || 0));
+// null/undefined — «нет данных» (производные метрики: этап никто не прошёл), и это
+// НЕ ноль: Apex рисует такую точку разрывом, а не значением на дне шкалы, иначе
+// «данных нет» читалось бы как «прошло мгновенно» (см. metricValue).
+const values = computed(() =>
+  props.data.map((d) => (d.count == null ? null : Number(d.count) || 0))
+);
 
 const series = computed(() => [{ name: props.seriesName, data: values.value }]);
 
@@ -158,13 +176,7 @@ const options = computed(() => ({
       formatter: (_val, opts) => fullLabels.value[opts?.dataPointIndex] ?? '',
     },
     y: {
-      formatter: (v) => {
-        const num = Number(v) || 0;
-        const shown = props.isFloat
-          ? num.toLocaleString('ru-RU', { maximumFractionDigits: 2 })
-          : Math.round(num).toLocaleString('ru-RU');
-        return `${shown} ${pluralize(Math.round(num))}`;
-      },
+      formatter: (v) => formatTooltipValue(v),
       title: { formatter: () => '' },
     },
     marker: { show: true },
@@ -172,10 +184,24 @@ const options = computed(() => ({
 }));
 
 function formatAxis(v) {
+  if (isDuration.value) return formatDuration(v);
   const num = Number(v) || 0;
   return props.isFloat
     ? num.toLocaleString('ru-RU', { maximumFractionDigits: 1 })
     : Math.round(num).toLocaleString('ru-RU');
+}
+
+// У длительности единица уже внутри текста («2 ч 15 мин») — склонять нечего.
+// Точку-разрыв Apex тултипом не показывает, но при hover по соседней серии
+// значение может прийти null — рисуем «—», а не «0».
+function formatTooltipValue(v) {
+  if (v == null) return '—';
+  if (isDuration.value) return formatDuration(v);
+  const num = Number(v) || 0;
+  const shown = props.isFloat
+    ? num.toLocaleString('ru-RU', { maximumFractionDigits: 2 })
+    : Math.round(num).toLocaleString('ru-RU');
+  return `${shown} ${pluralize(Math.round(num))}`;
 }
 </script>
 
