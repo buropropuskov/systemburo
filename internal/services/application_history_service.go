@@ -143,7 +143,7 @@ func (s *applicationService) GetForwardMessages(ctx context.Context, application
 			a.created_at
 		FROM audit_log a
 		JOIN users u ON a.actor_user_id = u.id
-		WHERE a.entity_type = ? AND a.entity_id = ? AND a.action = '` + models.AuditActionForwarded + `'
+		WHERE a.entity_type = ? AND a.entity_id = ? AND a.action = ?
 		ORDER BY a.created_at ASC, a.id ASC
 	`
 
@@ -158,7 +158,7 @@ func (s *applicationService) GetForwardMessages(ctx context.Context, application
 		CreatedAt       time.Time
 	}
 	var rows []forwardMessageRow
-	if err := s.db.WithContext(ctx).Raw(sql, models.AuditEntityApplication, applicationID).Scan(&rows).Error; err != nil {
+	if err := s.db.WithContext(ctx).Raw(sql, models.AuditEntityApplication, applicationID, models.AuditActionForwarded).Scan(&rows).Error; err != nil {
 		slog.Error("Ошибка получения ветки заявки", "application_id", applicationID, "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching forward messages")
 	}

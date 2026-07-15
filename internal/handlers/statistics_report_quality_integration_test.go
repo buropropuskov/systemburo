@@ -55,9 +55,9 @@ func seedQualityApps(t *testing.T, db *gorm.DB) {
 		for i := 0; i < forwards; i++ {
 			id := app.ID
 			require.NoError(t, db.Create(&models.AuditLog{
-				EntityType: models.AuditEntityApplication,
-				EntityID:   &id,
-				Action:     models.AuditActionForwarded,
+				EntityType:  models.AuditEntityApplication,
+				EntityID:    &id,
+				Action:      models.AuditActionForwarded,
 				ActorUserID: &sender.ID,
 			}).Error)
 		}
