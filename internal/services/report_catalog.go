@@ -39,6 +39,9 @@ const (
 	metricGroupApplications = "Заявки"
 	metricGroupCars         = "Машины"
 	metricGroupPeople       = "Люди"
+	// metricGroupProcessing - длительности этапов обработки заявки (#1240,
+	// report_duration_metrics.go регистрирует их в реестры через init).
+	metricGroupProcessing = "Обработка заявок"
 )
 
 // dimensionDef — разрез группировки. Конкретное GROUP BY-выражение и join-путь

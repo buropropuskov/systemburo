@@ -56,6 +56,8 @@ type aggColumn struct {
 // joinBlock — 1:1 LEFT JOIN'ы (не размножают строки, добавляются по требованию);
 // attachJoin — fan-out join к вложениям, поэтому applications_count считает
 // COUNT(DISTINCT app.id). period/hour_of_day строятся в коде по tsColumn.
+// valueType — тип значения для форматирования на фронте (пусто — число,
+// "duration" — секунды); едет в колонку ответа через план.
 type aggMetricSchema struct {
 	base       string
 	aggExpr    string
@@ -63,6 +65,7 @@ type aggMetricSchema struct {
 	tsColumn   string
 	tsJoin     joinKind
 	unit       string
+	valueType  models.ReportValueType
 	joinBlock  []string
 	attachJoin []string
 	dims       map[string]aggColumn
@@ -231,6 +234,7 @@ type aggPlan struct {
 	orderStr  string
 	limit     int
 	unit      string
+	valueType models.ReportValueType
 }
 
 // buildAggregatePlan собирает план агрегатного отчёта из whitelist-схем.
@@ -264,6 +268,7 @@ func buildAggregatePlan(req models.ReportRequest) (*aggPlan, error) {
 		selectStr: labelExpr + " AS label, " + schema.aggExpr + " AS value",
 		groupExpr: groupExpr,
 		unit:      schema.unit,
+		valueType: schema.valueType,
 	}
 	if schema.baseWhere != "" {
 		plan.wheres = append(plan.wheres, whereClause{expr: schema.baseWhere})
