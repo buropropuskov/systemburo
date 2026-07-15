@@ -162,6 +162,43 @@ func TestRunReport_DurationMetrics_PeriodTotal(t *testing.T) {
 	assert.Equal(t, int64(19200), res.Total, "legacy-итог первой метрики согласован с Totals")
 }
 
+// TestRunReport_DurationMetrics_MixedStagesNoFakeZero — в мультиметрике этапы
+// имеют РАЗНОЕ покрытие (заявку согласовали, но ещё не завершили), и бин, где
+// этап не пройден, обязан остаться БЕЗ значения. Ноль тут неотличим от «прошло
+// мгновенно» и на графике рисует падение до нуля вместо разрыва.
+func TestRunReport_DurationMetrics_MixedStagesNoFakeZero(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	seedDurationApps(t, db)
+
+	svc := services.NewStatisticsService(db, 0)
+	res, err := svc.RunReport(context.Background(), models.ReportRequest{
+		Mode:        "aggregate",
+		Metrics:     []string{"avg_approval_time", "avg_completion_time"},
+		Dimension:   "period",
+		Granularity: "day",
+		Filters:     durationWindow(),
+	})
+	require.NoError(t, err)
+	require.Len(t, res.MetricRows, 3)
+
+	// 01.06 — заявка A: согласована и завершена, оба этапа пройдены.
+	first := res.MetricRows[0]
+	require.Equal(t, "2026-06-01", first.Label)
+	assert.Equal(t, int64(7200), first.Values["avg_approval_time"])
+	assert.Equal(t, int64(86400), first.Values["avg_completion_time"])
+
+	// 02.06 и 03.06 — заявки B и C согласованы, но не завершены.
+	for _, i := range []int{1, 2} {
+		row := res.MetricRows[i]
+		assert.Contains(t, row.Values, "avg_approval_time",
+			"этап согласования пройден -> значение есть (%s)", row.Label)
+		assert.NotContains(t, row.Values, "avg_completion_time",
+			"этап не пройден -> ключа быть не должно, 0 читался бы как «завершено мгновенно» (%s)", row.Label)
+	}
+}
+
 // TestRunReport_DurationMetrics_EmptyWindow — на окне без данных агрегат отдаёт 0,
 // а не NULL: без COALESCE скан NULL в int64 падает в рантайме.
 func TestRunReport_DurationMetrics_EmptyWindow(t *testing.T) {
