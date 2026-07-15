@@ -27,6 +27,10 @@ type StatisticsService interface {
 	// GetOnlineUsers возвращает список пользователей онлайн (last_seen в окне) по
 	// убыванию свежести активности — для модалки «кто онлайн» на дашборде.
 	GetOnlineUsers(ctx context.Context) ([]models.OnlineUser, error)
+	// GetProcessingSummary возвращает бандл curated-вкладки «Обработка заявок»:
+	// KPI этапов пути заявки со сравнением с прошлым периодом, качество обработки,
+	// топ медленных согласующих и разбивку по организациям (#1240).
+	GetProcessingSummary(ctx context.Context, from, to time.Time) (*models.ProcessingSummary, error)
 	GetTimeline(ctx context.Context, from, to time.Time, metric, granularity string) ([]models.StatsTimelinePoint, error)
 	GetRecentPassages(ctx context.Context, limit int) (*models.RecentPassages, error)
 	GetReportCatalog(ctx context.Context) (*models.ReportCatalog, error)
@@ -48,10 +52,11 @@ type StatisticsService interface {
 }
 
 type statisticsService struct {
-	db            *gorm.DB
-	cacheRefresh  time.Duration
-	summaryCache  *periodCache[*models.StatsSummary]
-	insightsCache *periodCache[*models.InsightsResponse]
+	db              *gorm.DB
+	cacheRefresh    time.Duration
+	summaryCache    *periodCache[*models.StatsSummary]
+	insightsCache   *periodCache[*models.InsightsResponse]
+	processingCache *periodCache[*models.ProcessingSummary]
 }
 
 // NewStatisticsService создаёт реализацию StatisticsService. cacheRefresh > 0
@@ -66,6 +71,7 @@ func NewStatisticsService(db *gorm.DB, cacheRefresh time.Duration) StatisticsSer
 			func(ctx context.Context, from, to time.Time) (*models.InsightsResponse, error) {
 				return s.computeInsights(ctx, from.Format("2006-01-02"), to.Format("2006-01-02"))
 			})
+		s.processingCache = newPeriodCache[*models.ProcessingSummary](db, "processing", evict, s.computeProcessingSummary)
 	}
 	return s
 }
@@ -77,6 +83,9 @@ func (s *statisticsService) WarmCache(ctx context.Context) {
 	}
 	if s.insightsCache != nil {
 		s.insightsCache.warmup(ctx)
+	}
+	if s.processingCache != nil {
+		s.processingCache.warmup(ctx)
 	}
 }
 
@@ -97,6 +106,9 @@ func (s *statisticsService) StartCacheRefresh(ctx context.Context) {
 			}
 			if s.insightsCache != nil {
 				s.insightsCache.refresh(ctx)
+			}
+			if s.processingCache != nil {
+				s.processingCache.refresh(ctx)
 			}
 		}
 	}
