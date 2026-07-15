@@ -658,6 +658,7 @@ func (s *statisticsService) RunReport(ctx context.Context, req models.ReportRequ
 			Key:   m,
 			Label: reportMetricRegistry[m].label,
 			Unit:  plan.unit,
+			Type:  plan.valueType,
 		})
 	}
 
@@ -698,6 +699,20 @@ func (s *statisticsService) RunReport(ctx context.Context, req models.ReportRequ
 		}
 		floatTotals[m] = total
 		delete(totals, m)
+	}
+
+	// Метрики-длительности (#1240): итог — НЕ сумма значений строк, которую посчитал
+	// mergeMetricRows (сумма средних/перцентилей по бинам бессмысленна), а тот же
+	// агрегат по всему окну отдельным запросом без разреза.
+	for i, m := range metrics {
+		if columns[i].Type != models.ReportValueDuration || req.Dimension == dimNone {
+			continue // без разреза единственная строка уже и есть итог по окну
+		}
+		total, terr := s.execDurationTotal(ctx, req, m)
+		if terr != nil {
+			return nil, terr
+		}
+		totals[m] = total
 	}
 
 	// Legacy-поля одиночной метрики (текущий FE читает Rows/Total/Unit): первая
@@ -766,6 +781,29 @@ func (s *statisticsService) execPivotPlan(ctx context.Context, plan *pivotPlan) 
 		return nil, fmt.Errorf("statistics: run report pivot: %w", err)
 	}
 	return cells, nil
+}
+
+// execDurationTotal считает итог метрики-длительности по всему окну фильтров
+// отдельным запросом без разреза. Сложить значения бинов нельзя: сумма средних не
+// среднее, а перцентили в принципе не складываются и не усредняются — их нужно
+// пересчитать по всей выборке. Лимит строк на итог не влияет: это агрегат по всем
+// заявкам окна, а не по видимым строкам (у счётчиков итог — сумма видимых).
+func (s *statisticsService) execDurationTotal(ctx context.Context, req models.ReportRequest, metric string) (int64, error) {
+	treq := req
+	treq.Metric = metric
+	treq.Dimension = dimNone
+	plan, err := buildAggregatePlan(treq)
+	if err != nil {
+		return 0, err
+	}
+	rows, err := s.execAggregatePlan(ctx, plan)
+	if err != nil {
+		return 0, err
+	}
+	if len(rows) == 0 {
+		return 0, nil // нет заявок с пройденным этапом за период
+	}
+	return rows[0].Value, nil
 }
 
 // execAggregatePlan исполняет один резолвленный план агрегата и возвращает строки

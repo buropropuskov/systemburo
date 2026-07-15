@@ -56,6 +56,8 @@ type aggColumn struct {
 // joinBlock — 1:1 LEFT JOIN'ы (не размножают строки, добавляются по требованию);
 // attachJoin — fan-out join к вложениям, поэтому applications_count считает
 // COUNT(DISTINCT app.id). period/hour_of_day строятся в коде по tsColumn.
+// valueType — тип значения для форматирования на фронте (пусто — число,
+// "duration" — секунды); едет в колонку ответа через план.
 type aggMetricSchema struct {
 	base       string
 	aggExpr    string
@@ -63,6 +65,7 @@ type aggMetricSchema struct {
 	tsColumn   string
 	tsJoin     joinKind
 	unit       string
+	valueType  models.ReportValueType
 	joinBlock  []string
 	attachJoin []string
 	dims       map[string]aggColumn
@@ -231,6 +234,7 @@ type aggPlan struct {
 	orderStr  string
 	limit     int
 	unit      string
+	valueType models.ReportValueType
 }
 
 // buildAggregatePlan собирает план агрегатного отчёта из whitelist-схем.
@@ -264,6 +268,7 @@ func buildAggregatePlan(req models.ReportRequest) (*aggPlan, error) {
 		selectStr: labelExpr + " AS label, " + schema.aggExpr + " AS value",
 		groupExpr: groupExpr,
 		unit:      schema.unit,
+		valueType: schema.valueType,
 	}
 	if schema.baseWhere != "" {
 		plan.wheres = append(plan.wheres, whereClause{expr: schema.baseWhere})
@@ -460,10 +465,20 @@ func resolveReportMetrics(req models.ReportRequest) ([]string, error) {
 	return out, nil
 }
 
+// metricOmitsFakeZero — метрике нельзя дорисовывать 0 в бины, где у неё нет строк.
+// Для счётчиков 0 честен («в этот день не было въездов»), а для длительности
+// неотличим от реального «прошло мгновенно»: в мультиметрике этапы имеют разное
+// покрытие (заявку согласовали, но ещё не завершили), и дорисованный 0 уводил бы
+// график завершения в пол. Отсутствие ключа = «нет данных» (фронт рисует прочерк).
+func metricOmitsFakeZero(metric string) bool {
+	return aggMetricRegistry[metric].valueType == models.ReportValueDuration
+}
+
 // mergeMetricRows сливает построчные результаты метрик в мультиметричные строки
-// (подпись разреза -> значение каждой метрики, отсутствующая метрика -> 0),
-// упорядочивает их и применяет лимит. Итоги (totals) считаются по уже усечённым
-// строкам — как сумма видимых значений каждой метрики. Чистая функция.
+// (подпись разреза -> значение каждой метрики), упорядочивает их и применяет лимит.
+// Отсутствующая в бине метрика -> 0 для счётчиков и пропуск ключа для длительностей
+// (metricOmitsFakeZero). Итоги (totals) считаются по уже усечённым строкам — как
+// сумма видимых значений каждой метрики. Чистая функция.
 func mergeMetricRows(metrics []string, perMetric map[string][]models.ReportAggregateRow, dim, sortKey string, limit int) ([]models.ReportMetricRow, map[string]int64) {
 	order := make([]string, 0)
 	bucket := make(map[string]map[string]int64)
@@ -483,7 +498,11 @@ func mergeMetricRows(metrics []string, perMetric map[string][]models.ReportAggre
 	for _, label := range order {
 		vals := make(map[string]int64, len(metrics))
 		for _, m := range metrics {
-			vals[m] = bucket[label][m] // отсутствие -> 0
+			v, ok := bucket[label][m]
+			if !ok && metricOmitsFakeZero(m) {
+				continue // нет данных != 0, ключ не выставляем
+			}
+			vals[m] = v // отсутствие счётчика -> 0 (в бине не было событий)
 		}
 		rows = append(rows, models.ReportMetricRow{Label: label, Values: vals})
 	}
