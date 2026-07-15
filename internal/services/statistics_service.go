@@ -701,18 +701,35 @@ func (s *statisticsService) RunReport(ctx context.Context, req models.ReportRequ
 		delete(totals, m)
 	}
 
-	// Метрики-длительности (#1240): итог — НЕ сумма значений строк, которую посчитал
-	// mergeMetricRows (сумма средних/перцентилей по бинам бессмысленна), а тот же
-	// агрегат по всему окну отдельным запросом без разреза.
-	for i, m := range metrics {
-		if columns[i].Type != models.ReportValueDuration || req.Dimension == dimNone {
+	// Производные метрики — длительности и доли (#1240): итог — НЕ сумма значений
+	// строк, которую посчитал mergeMetricRows (сумма средних/перцентилей/долей по
+	// бинам бессмысленна), а тот же агрегат по всему окну отдельным запросом без
+	// разреза.
+	for _, m := range metrics {
+		if !metricTotalNotAdditive(m) || req.Dimension == dimNone {
 			continue // без разреза единственная строка уже и есть итог по окну
 		}
-		total, terr := s.execDurationTotal(ctx, req, m)
+		total, terr := s.execWindowTotal(ctx, req, m)
 		if terr != nil {
 			return nil, terr
 		}
 		totals[m] = total
+	}
+
+	// Метрики-доли (#1240, B3): SQL отдаёт их домноженными на rateScale (целое —
+	// иначе скан numeric в int64 падает), здесь возвращаем дробь и переносим её в
+	// FloatValues — тот же контракт, по которому фронт рисует avg-метрики.
+	for i, m := range metrics {
+		if !rateMetrics[m] {
+			continue
+		}
+		columns[i].Float = true
+		applyRateScale(metricRows, m)
+		if floatTotals == nil {
+			floatTotals = map[string]float64{}
+		}
+		floatTotals[m] = round1(float64(totals[m]) / rateScale)
+		delete(totals, m)
 	}
 
 	// Legacy-поля одиночной метрики (текущий FE читает Rows/Total/Unit): первая
@@ -783,12 +800,13 @@ func (s *statisticsService) execPivotPlan(ctx context.Context, plan *pivotPlan) 
 	return cells, nil
 }
 
-// execDurationTotal считает итог метрики-длительности по всему окну фильтров
-// отдельным запросом без разреза. Сложить значения бинов нельзя: сумма средних не
-// среднее, а перцентили в принципе не складываются и не усредняются — их нужно
-// пересчитать по всей выборке. Лимит строк на итог не влияет: это агрегат по всем
-// заявкам окна, а не по видимым строкам (у счётчиков итог — сумма видимых).
-func (s *statisticsService) execDurationTotal(ctx context.Context, req models.ReportRequest, metric string) (int64, error) {
+// execWindowTotal считает итог производной метрики (длительность, доля) по всему
+// окну фильтров отдельным запросом без разреза. Сложить значения бинов нельзя:
+// сумма средних не среднее, перцентили в принципе не складываются, а доля от долей
+// не считается — всё это нужно пересчитать по всей выборке. Лимит строк на итог не
+// влияет: это агрегат по всем заявкам окна, а не по видимым строкам (у счётчиков
+// итог — сумма видимых).
+func (s *statisticsService) execWindowTotal(ctx context.Context, req models.ReportRequest, metric string) (int64, error) {
 	treq := req
 	treq.Metric = metric
 	treq.Dimension = dimNone
