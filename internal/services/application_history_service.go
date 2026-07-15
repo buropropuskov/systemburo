@@ -60,9 +60,10 @@ func (s *applicationService) GetApplicationResponsibleUsers(ctx context.Context,
 // application_history дропнута в дроп-sweep (F.8). Форму ответа
 // стерегут TestApplications_HistoryGolden_*. Плоские поля старой схемы
 // (action_status/old_value/new_value/comment) у audit_log лежат внутри details jsonb,
-// metadata - вложенным объектом details->'metadata'. INNER JOIN users сохранён как в
-// исходном чтении: строки с user_id IS NULL в историю не попадают (заявка всегда пишет
-// не-NULL автора). Порядок created_at DESC, id DESC - id-тайбрейкер делает
+// metadata - вложенным объектом details->'metadata'. LEFT JOIN users (#1240): у системных
+// событий (completed - завершение по сроку кроном) актора нет, а прежний INNER JOIN такие
+// строки терял; user_id тогда 0, и FE рисует "Система" (ветка !item.user_id).
+// Порядок created_at DESC, id DESC - id-тайбрейкер делает
 // детерминированным порядок записей одного действия (recorder проставляет created_at
 // временем вставки - монотонно растущим, как и id).
 func (s *applicationService) GetApplicationHistory(ctx context.Context, applicationID int) ([]ApplicationHistoryItem, error) {
@@ -74,7 +75,7 @@ func (s *applicationService) GetApplicationHistory(ctx context.Context, applicat
 		SELECT
 			m.id,
 			m.application_id,
-			m.user_id,
+			COALESCE(m.user_id, 0) as user_id,
 			` + userName + ` as user_name,
 			u.last_name,
 			u.first_name,
@@ -98,7 +99,7 @@ func (s *applicationService) GetApplicationHistory(ctx context.Context, applicat
 			FROM audit_log a
 			WHERE a.entity_type = ? AND a.entity_id = ?
 		) m
-		JOIN users u ON m.user_id = u.id
+		LEFT JOIN users u ON m.user_id = u.id
 		ORDER BY m.created_at DESC, m.id DESC
 	`
 

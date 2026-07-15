@@ -60,7 +60,9 @@ func (s *applicationService) TakeApplicationToWork(ctx context.Context, username
 			return echo.NewHTTPError(http.StatusBadRequest, "Application is already in work")
 		}
 
-		tx.Exec("UPDATE applications SET status = ?, responsible_user_id = ?, responsible_comment = ? WHERE id = ?",
+		// accepted_at через COALESCE: заявку могли отозвать из работы и принять снова
+		// (revoke/restore -> "В обработке"), но T2 воронки обработки - ПЕРВОЕ принятие.
+		tx.Exec("UPDATE applications SET status = ?, responsible_user_id = ?, responsible_comment = ?, accepted_at = COALESCE(accepted_at, NOW()) WHERE id = ?",
 			models.StatusInWork, user.ID, req.Comment, applicationID)
 
 		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "take_to_work", &user.ID,
@@ -402,10 +404,34 @@ func (s *applicationService) CheckExpiredAttachments(ctx context.Context) error 
 	for appID := range uniqueAppIDs {
 		var activeCount int64
 		tx.Raw("SELECT COUNT(*) FROM attachments WHERE application_id = ? AND status = 1", appID).Scan(&activeCount)
-		if activeCount == 0 {
-			tx.Exec("UPDATE applications SET status = ? WHERE id = ?", models.StatusCompleted, appID)
-			slog.Info("Заявка завершена", "application_id", appID)
+		if activeCount != 0 {
+			continue
 		}
+
+		id := appID
+		var snapshot struct{ Status *string }
+		tx.Raw("SELECT status FROM applications WHERE id = ?", id).Scan(&snapshot)
+
+		// Завершаем только заявки, которые ещё живы: у закрытых (отказ, отзыв, уже
+		// завершённые) решение принято, и срок вложений его не отменяет. Белый список, а не
+		// "всё кроме Завершено": иначе отказ молча превращается в завершение с фальшивым
+		// completed_at и событием в истории. Отзыв сюда не доходит - withdraw гасит
+		// вложения сам, а вот reject их активными и оставляет. COALESCE - NULL-safe:
+		// заявка без статуса завершается как и раньше.
+		res := tx.Exec("UPDATE applications SET status = ?, completed_at = NOW() WHERE id = ? AND COALESCE(status, '') NOT IN (?)",
+			models.StatusCompleted, id, models.ArchivableStatuses)
+		if res.Error != nil {
+			tx.Rollback()
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to complete application")
+		}
+		if res.RowsAffected == 0 {
+			continue
+		}
+
+		// Актор nil: заявку завершил крон по сроку, а не человек - история рисует "Система".
+		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &id, "completed", nil,
+			applicationAuditDetails{OldValue: snapshot.Status, NewValue: ptrString(models.StatusCompleted)})
+		slog.Info("Заявка завершена", "application_id", id)
 	}
 
 	if err := tx.Commit().Error; err != nil {

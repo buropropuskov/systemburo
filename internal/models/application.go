@@ -9,6 +9,14 @@ type Application struct {
 	SendingDatetime      *time.Time   `json:"sending_datetime"`
 	ReadingDatetime      *time.Time   `json:"reading_datetime"`
 	ConfirmationDatetime *time.Time   `json:"confirmation_datetime"`
+	// AcceptedAt - момент ПЕРВОГО принятия заявки в работу (#1240). Пишется COALESCE'ом:
+	// revoke/restore возвращают заявку в "В обработке", и повторное принятие не перетирает
+	// исходный момент - иначе длительность обработки считалась бы от последней попытки.
+	AcceptedAt *time.Time `gorm:"index" json:"accepted_at"`
+	// CompletedAt - момент завершения заявки по истечении срока вложений
+	// (CheckExpiredAttachments, #1240). У завершённых до появления колонки остаётся NULL:
+	// момента завершения в прошлом не зафиксировано, восстанавливать неоткуда.
+	CompletedAt *time.Time `gorm:"index" json:"completed_at"`
 	OrganizationID       int          `gorm:"index" json:"organization_id"`
 	Organization         Organization `json:"-"`
 	SenderUserID         int          `gorm:"index" json:"sender_user_id"`

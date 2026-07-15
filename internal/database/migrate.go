@@ -205,6 +205,9 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := backfillCarTargetTables(db); err != nil {
 		return err
 	}
+	if err := BackfillApplicationAcceptedAt(db); err != nil {
+		return err
+	}
 	if err := installSQLFunctions(db); err != nil {
 		return err
 	}
@@ -435,6 +438,30 @@ func backfillCarTargetTables(db *gorm.DB) error {
 		  )`
 	if err := db.Exec(q).Error; err != nil {
 		return fmt.Errorf("backfill car_target_tables: %w", err)
+	}
+	return nil
+}
+
+// BackfillApplicationAcceptedAt восстанавливает applications.accepted_at (#1240) у заявок,
+// принятых в работу до появления колонки: момент берётся из ПЕРВОЙ записи audit_log
+// take_to_work - той же семантики, что COALESCE при живом принятии. Идемпотентно и
+// аддитивно: трогает только строки с NULL, свежие принятия пишут колонку сами, заявки без
+// события take_to_work остаются NULL. completed_at так не восстановить: крон момента
+// завершения не писал, событий в прошлом нет. Экспортирована, чтобы восстановление
+// исторических данных крылось handler-тестом (DB-тесты живут только там, #706).
+func BackfillApplicationAcceptedAt(db *gorm.DB) error {
+	const q = `
+		UPDATE applications a
+		SET accepted_at = t.first_take
+		FROM (
+			SELECT entity_id, MIN(created_at) AS first_take
+			FROM audit_log
+			WHERE entity_type = ? AND action = 'take_to_work' AND entity_id IS NOT NULL
+			GROUP BY entity_id
+		) t
+		WHERE a.id = t.entity_id AND a.accepted_at IS NULL`
+	if err := db.Exec(q, models.AuditEntityApplication).Error; err != nil {
+		return fmt.Errorf("backfill applications.accepted_at: %w", err)
 	}
 	return nil
 }
