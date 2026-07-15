@@ -278,6 +278,7 @@ import AnalyticsDonutChart from './AnalyticsDonutChart.vue';
 import ReportExportButton from './ReportExportButton.vue';
 import { useReportExport } from '@/composables/useReportExport';
 import { formatDateRu, formatReportCell } from '@/utils/datetime';
+import { isDurationColumn, metricValue } from '@/utils/reportColumns';
 
 const props = defineProps({
   result: { type: Object, default: null },
@@ -427,37 +428,21 @@ async function onExport(format) {
   }
 }
 
-// Дробные колонки (среднее) держат значение в float_values, остальные (счётчики,
-// суммы, pivot) — в values; итоги симметрично в float_totals/totals.
-// Отсутствие ключа у производной колонки (длительность, доля) — это «нет данных»:
-// движок намеренно не дорисовывает такому бину 0, иначе непройденный этап читался
-// бы как «завершилось мгновенно» (metricOmitsFakeZero, #1240). Счётчику 0 честен.
-function bucketValue(bucket, floatBucket, col) {
-  if (!col) return 0;
-  const raw = col.float ? floatBucket?.[col.key] : bucket?.[col.key];
-  if (raw != null) return raw;
-  return isDerivedColumn(col) ? null : 0;
-}
-
-// Производные метрики опознаём по контракту бэка: длительность несёт type='duration'
-// (секунды в values), доля — float=true (дробь в float_values).
-function isDerivedColumn(col) {
-  return col?.type === 'duration' || col?.float === true;
-}
-
+// Значение колонки (транспорт values/float_values и «нет данных» -> null) читаем по
+// общему контракту колонок — тому же, по которому строится выгрузка.
 function cellValue(row, col) {
-  return bucketValue(row?.values, row?.float_values, col);
+  return metricValue(row?.values, row?.float_values, col);
 }
 
 function totalValue(col) {
-  return bucketValue(aggTotals.value, aggFloatTotals.value, col);
+  return metricValue(aggTotals.value, aggFloatTotals.value, col);
 }
 
 // Длительность форматируем по ТИПУ колонки (секунды -> «2 ч 15 мин»), «нет данных»
 // -> «—»; прочие метрики — число с локальным разделителем.
 function formatMetricValue(value, col) {
   if (value === null || value === undefined) return '—';
-  if (col?.type === 'duration') return formatReportCell(value, 'duration');
+  if (isDurationColumn(col)) return formatReportCell(value, 'duration');
   return formatNumber(value, col?.float);
 }
 

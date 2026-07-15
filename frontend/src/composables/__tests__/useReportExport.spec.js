@@ -96,6 +96,24 @@ describe('reportToTable', () => {
       ['ООО Б', '0 мин', '', 4],
     ]);
     expect(t.totalsRow).toEqual(['Итого', '1 ч 30 мин', '', 14]);
+    // Метрики остаются числовыми колонками (вправо), даже став текстом длительности.
+    expect(t.numericColumns).toEqual([false, true, true, true]);
+  });
+
+  it('непосчитанная доля (float без ключа) -> пустая ячейка, счётчик -> честный 0', () => {
+    const t = reportToTable({
+      mode: 'aggregate',
+      dimension: 'organization',
+      columns: [
+        { key: 'refusal_rate', label: 'Доля отказов', unit: '%', float: true },
+        { key: 'applications_count', label: 'Заявки', unit: 'шт' },
+      ],
+      // Заявок в бине не было: доли нет (ключ не выставлен), счётчик честно 0.
+      metric_rows: [{ label: 'ООО Б', values: {}, float_values: {} }],
+      totals: {},
+      float_totals: {},
+    });
+    expect(t.rows).toEqual([['ООО Б', '', 0]]);
   });
 
   it('list: заголовки и строки по колонкам сущности, без итогов', () => {

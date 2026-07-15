@@ -93,7 +93,9 @@ export function formatDuration(seconds) {
   const sign = total < 0 ? '-' : '';
   const abs = Math.floor(Math.abs(total));
   if (abs === 0) return '0 мин';
-  if (abs < 60) return `${sign}<1 мин`;
+  // Доля минуты в любую сторону — «<1 мин»: знак у околонулевой величины не несёт
+  // смысла, а «-<1 мин» ещё и не читается.
+  if (abs < 60) return '<1 мин';
 
   const days = Math.floor(abs / 86400);
   const hours = Math.floor((abs % 86400) / 3600);
