@@ -1,10 +1,15 @@
 import { ref } from 'vue';
 import { formatDateRu, formatReportCell } from '@/utils/datetime';
+import { isDurationColumn, metricValue } from '@/utils/reportColumns';
 
-// Значение колонки строки/итогов: дробные метрики (float) лежат в float_values/
-// float_totals, целочисленные (счётчики, суммы, pivot cross-tab) — в values/totals.
+// Значение колонки строки/итогов по общему контракту колонок (тому же, что у таблицы
+// на экране). Длительность выгружаем в читаемом виде («2 ч 15 мин»), иначе в файле
+// остались бы сырые секунды; «нет данных» -> пустая ячейка (как и прочие пустые
+// значения выгрузки), а не 0 — движок производной метрике ноль не дорисовывает.
 function colValue(bucket, floatBucket, col) {
-  return col.float ? Number(floatBucket?.[col.key] ?? 0) : Number(bucket?.[col.key] ?? 0);
+  const value = metricValue(bucket, floatBucket, col);
+  if (value === null) return '';
+  return isDurationColumn(col) ? formatReportCell(value, 'duration') : value;
 }
 
 /**
@@ -17,10 +22,12 @@ function colValue(bucket, floatBucket, col) {
  *
  * @param {object} result результат POST /statistics/report
  * @returns {{ sheetName: string, header: string[], rows: Array<Array<string|number>>,
- *   totalsRow: Array<string|number>|null }}
+ *   totalsRow: Array<string|number>|null, numericColumns: boolean[] }}
+ *   numericColumns — колонки, выравниваемые вправо (метрики; у list не размечаем —
+ *   там тип ячейки определяется по значению).
  */
 export function reportToTable(result) {
-  if (!result) return { sheetName: 'Отчёт', header: [], rows: [], totalsRow: null };
+  if (!result) return { sheetName: 'Отчёт', header: [], rows: [], totalsRow: null, numericColumns: [] };
 
   if (result.mode === 'list') {
     const columns = result.columns || [];
@@ -29,6 +36,7 @@ export function reportToTable(result) {
       header: columns.map((c) => c.label),
       rows: (result.rows || []).map((row) => columns.map((c) => cellText(row[c.key], c.type))),
       totalsRow: null,
+      numericColumns: [],
     };
   }
 
@@ -52,7 +60,11 @@ export function reportToTable(result) {
     ? null
     : ['Итого', ...columns.map((c) => colValue(totals, floatTotals, c))];
 
-  return { sheetName: 'Сводка', header, rows, totalsRow };
+  // Первая колонка — подпись разреза (текст), остальные метрики выравниваются вправо
+  // и когда значение стало текстом («2 ч 15 мин»), как в таблице на экране.
+  const numericColumns = [false, ...columns.map(() => true)];
+
+  return { sheetName: 'Сводка', header, rows, totalsRow, numericColumns };
 }
 
 function cellText(value, type) {
@@ -198,9 +210,12 @@ const PDF_ROW_EVEN = '#F0F5FF';
 const PDF_TOTALS = '#D3DCFF';
 const PDF_BORDER = '#E6E6E6';
 
-// Число выравниваем вправо (как в таблице на экране), текст и первая колонка-разрез — влево.
-function pdfAlign(value, colIndex) {
+// Число выравниваем вправо (как в таблице на экране), текст и первая колонка-разрез —
+// влево. Колонки-метрики размечены сводкой (numericColumns): длительность уезжает в
+// файл текстом («2 ч 15 мин»), но остаётся числовой колонкой, как на экране.
+function pdfAlign(value, colIndex, numericColumns) {
   if (colIndex === 0) return 'left';
+  if (numericColumns?.[colIndex]) return 'right';
   return typeof value === 'number' ? 'right' : 'left';
 }
 
@@ -238,13 +253,13 @@ async function exportPdf(table, opts) {
   }));
   const bodyRows = table.rows.map((cells, index) => cells.map((value, i) => ({
     text: pdfCellText(value),
-    alignment: pdfAlign(value, i),
+    alignment: pdfAlign(value, i, table.numericColumns),
     fillColor: index % 2 === 0 ? PDF_ROW_EVEN : '#FFFFFF',
   })));
   const body = [headerCells, ...bodyRows];
   if (table.totalsRow) {
     body.push(table.totalsRow.map((value, i) => ({
-      text: pdfCellText(value), bold: true, alignment: pdfAlign(value, i), fillColor: PDF_TOTALS,
+      text: pdfCellText(value), bold: true, alignment: pdfAlign(value, i, table.numericColumns), fillColor: PDF_TOTALS,
     })));
   }
 

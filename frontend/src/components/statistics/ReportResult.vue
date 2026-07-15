@@ -181,7 +181,7 @@
                 :key="col.key"
                 class="rr__num"
               >
-                {{ formatNumber(cellValue(row, col), col.float) }}
+                {{ formatMetricValue(cellValue(row, col), col) }}
               </td>
             </tr>
             <tr v-if="!aggRows.length">
@@ -201,7 +201,7 @@
                 :key="col.key"
                 class="rr__num"
               >
-                <b>{{ formatNumber(totalValue(col), col.float) }}</b>
+                <b>{{ formatMetricValue(totalValue(col), col) }}</b>
               </td>
             </tr>
           </tfoot>
@@ -278,6 +278,7 @@ import AnalyticsDonutChart from './AnalyticsDonutChart.vue';
 import ReportExportButton from './ReportExportButton.vue';
 import { useReportExport } from '@/composables/useReportExport';
 import { formatDateRu, formatReportCell } from '@/utils/datetime';
+import { isDurationColumn, metricValue } from '@/utils/reportColumns';
 
 const props = defineProps({
   result: { type: Object, default: null },
@@ -427,16 +428,22 @@ async function onExport(format) {
   }
 }
 
-// Дробные колонки (среднее) держат значение в float_values, остальные (счётчики,
-// суммы, pivot) — в values; итоги симметрично в float_totals/totals.
+// Значение колонки (транспорт values/float_values и «нет данных» -> null) читаем по
+// общему контракту колонок — тому же, по которому строится выгрузка.
 function cellValue(row, col) {
-  if (!col) return 0;
-  return col.float ? (row?.float_values?.[col.key] ?? 0) : (row?.values?.[col.key] ?? 0);
+  return metricValue(row?.values, row?.float_values, col);
 }
 
 function totalValue(col) {
-  if (!col) return 0;
-  return col.float ? (aggFloatTotals.value[col.key] ?? 0) : (aggTotals.value[col.key] ?? 0);
+  return metricValue(aggTotals.value, aggFloatTotals.value, col);
+}
+
+// Длительность форматируем по ТИПУ колонки (секунды -> «2 ч 15 мин»), «нет данных»
+// -> «—»; прочие метрики — число с локальным разделителем.
+function formatMetricValue(value, col) {
+  if (value === null || value === undefined) return '—';
+  if (isDurationColumn(col)) return formatReportCell(value, 'duration');
+  return formatNumber(value, col?.float);
 }
 
 // Период-разрез отдаёт подписи строк как YYYY-MM-DD -> человекочитаемое дд.мм.гггг.
