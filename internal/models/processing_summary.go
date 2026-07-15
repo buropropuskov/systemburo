@@ -1,0 +1,96 @@
+package models
+
+// Бандл curated-вкладки «Обработка заявок» (#1240, B4): всё, что вкладка рисует,
+// одним запросом — KPI этапов пути заявки, качество обработки, медленные
+// согласующие и разбивка по организациям. Конструктор отчётов те же метрики
+// отдаёт по одной; вкладке нужен готовый набор, иначе она бьёт полтора десятка
+// запросов на открытие.
+//
+// Длительности здесь — СЕКУНДЫ (как их отдаёт движок, см. ReportValueDuration),
+// доли — уже дробь (движок везёт их домноженными, бандл делит обратно).
+//
+// «Нет данных» != 0. Значения этапов и качества — указатели: nil означает, что
+// считать было не по чему (этап не прошла ни одна заявка периода), и вкладка
+// рисует прочерк. Без этого пустой период показывал бы «0 мин» — SQL-агрегат по
+// пустой выборке приводится к нулю, чтобы скан не падал на NULL.
+
+// Направление изменения KPI к прошлому периоду.
+const (
+	ProcessingDirectionUp   = "up"
+	ProcessingDirectionDown = "down"
+	ProcessingDirectionFlat = "flat"
+)
+
+// Как читать изменение KPI. Направление — факт (значение выросло), тональность —
+// смысл (для времени обработки и доли отказов рост это ухудшение). Разделены
+// намеренно: дашборд красит рост зелёным, и для метрик этой вкладки такая
+// раскраска врала бы — цвет выбирается по Sentiment, а не по Direction.
+const (
+	ProcessingSentimentGood    = "good"
+	ProcessingSentimentBad     = "bad"
+	ProcessingSentimentNeutral = "neutral"
+)
+
+// ProcessingSummary — ответ GET /statistics/processing-summary.
+type ProcessingSummary struct {
+	From string `json:"from"`
+	To   string `json:"to"`
+	// TotalApplications — заявки, поданные за период: знаменатель качества и
+	// признак «данные вообще есть» (0 -> доли не считаются, а не рисуются нулём).
+	TotalApplications int64 `json:"total_applications"`
+
+	Stages         []ProcessingStageKPI     `json:"stages"`
+	Quality        []ProcessingQualityKPI   `json:"quality"`
+	SlowApprovers  []ProcessingApproverKPI  `json:"slow_approvers"`
+	ByOrganization []ProcessingBreakdownRow `json:"by_organization"`
+}
+
+// ProcessingTrend — сравнение KPI с предыдущим периодом равной длины.
+type ProcessingTrend struct {
+	DeltaPct  float64 `json:"delta_pct"`
+	Direction string  `json:"direction"`
+	Sentiment string  `json:"sentiment"`
+}
+
+// ProcessingStageKPI — этап пути заявки: сколько он занимает в среднем и по
+// 90-му перцентилю. Перцентиль рядом со средним намеренно: одна зависшая заявка
+// тянет среднее вверх, и без p90 не видно, норма это или выброс.
+type ProcessingStageKPI struct {
+	Key   string `json:"key"`
+	Label string `json:"label"`
+	// Samples — по скольким заявкам посчитан этап (прошли его в этом периоде).
+	// 0 -> Avg/P90 nil: этап не проходил никто, а не «прошёл мгновенно».
+	Samples int64  `json:"samples"`
+	Avg     *int64 `json:"avg"`
+	P90     *int64 `json:"p90"`
+	// PrevAvg и Trend — сравнение среднего с прошлым периодом. nil, если сравнивать
+	// не с чем (в одном из периодов этап никто не прошёл).
+	PrevAvg *int64           `json:"prev_avg"`
+	Trend   *ProcessingTrend `json:"trend,omitempty"`
+}
+
+// ProcessingQualityKPI — качество обработки: доля отказов, среднее число пересылок.
+type ProcessingQualityKPI struct {
+	Key       string           `json:"key"`
+	Label     string           `json:"label"`
+	Unit      string           `json:"unit,omitempty"`
+	Value     *float64         `json:"value"`
+	PrevValue *float64         `json:"prev_value"`
+	Trend     *ProcessingTrend `json:"trend,omitempty"`
+}
+
+// ProcessingApproverKPI — согласующий в топе медленных: время реакции и нагрузка.
+// AvgResponseTime nil — согласующий не отдал ни одного голоса за период (нагрузка
+// при этом ненулевая: заявки на него завели, он их ещё не разобрал).
+type ProcessingApproverKPI struct {
+	Name            string `json:"name"`
+	AvgResponseTime *int64 `json:"avg_response_time"`
+	VotesCount      int64  `json:"votes_count"`
+}
+
+// ProcessingBreakdownRow — разбивка времени обработки по организациям.
+type ProcessingBreakdownRow struct {
+	Label             string `json:"label"`
+	AvgProcessingTime *int64 `json:"avg_processing_time"`
+	ApplicationsCount int64  `json:"applications_count"`
+}

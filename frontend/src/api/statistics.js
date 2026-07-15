@@ -36,6 +36,51 @@ export async function getSummary(from, to) {
 }
 
 /**
+ * Получить сводку обработки заявок за период — бандл curated-вкладки «Обработка
+ * заявок» одним запросом (#1240).
+ *
+ * Формы значений, которые нельзя путать (контракт движка отчётов):
+ * - длительности (`avg`/`p90`/`prev_avg`/`avg_response_time`/`avg_processing_time`)
+ *   приходят в СЕКУНДАХ и показываются через formatReportCell(value, 'duration');
+ * - доли (`quality[].value`) приходят готовой дробью в единицах `unit` ('%', 'раз/заявку').
+ *
+ * `null` в любом значении — «нет данных» (этап не прошла ни одна заявка периода,
+ * согласующий не отдал голоса), а НЕ ноль: рисовать прочерк, `?? 0` неверен.
+ * Признак наличия данных у этапа — `samples` (0 -> avg/p90 всегда null), у долей —
+ * `total_applications`.
+ *
+ * `trend.direction` — куда двинулось значение (up/down/flat), `trend.sentiment` —
+ * как это читать (good/bad/neutral): для времени и отказов рост это ухудшение,
+ * поэтому цвет берётся из sentiment, а не из direction. trend отсутствует, если
+ * сравнивать не с чем.
+ *
+ * @param {string} from - дата начала в формате YYYY-MM-DD
+ * @param {string} to   - дата конца в формате YYYY-MM-DD
+ * @returns {Promise<{
+ *   from: string,
+ *   to: string,
+ *   total_applications: number,
+ *   stages: Array<{key: string, label: string, samples: number, avg: number|null, p90: number|null, prev_avg: number|null, trend?: {delta_pct: number, direction: 'up'|'down'|'flat', sentiment: 'good'|'bad'|'neutral'}}>,
+ *   quality: Array<{key: string, label: string, unit?: string, value: number|null, prev_value: number|null, trend?: {delta_pct: number, direction: 'up'|'down'|'flat', sentiment: 'good'|'bad'|'neutral'}}>,
+ *   slow_approvers: Array<{name: string, avg_response_time: number|null, votes_count: number}>,
+ *   by_organization: Array<{label: string, avg_processing_time: number|null, applications_count: number}>,
+ * }>}
+ */
+export async function getProcessingSummary(from, to) {
+  const params = new URLSearchParams();
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  const res = await apiRequest(`/statistics/processing-summary?${params}`);
+  if (!res.ok) {
+    // На 5xx baseRequest редиректит на /500 и тела JSON не отдаёт — парсим
+    // защищённо, чтобы не словить SyntaxError на HTML-странице ошибки.
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data?.message || 'Не удалось загрузить сводку обработки заявок');
+  }
+  return res.json();
+}
+
+/**
  * Получить временной ряд метрики.
  * @param {{from: string, to: string, metric: string, granularity: string}} opts
  *   metric: 'applications' | 'people_entries' | 'car_entries'
