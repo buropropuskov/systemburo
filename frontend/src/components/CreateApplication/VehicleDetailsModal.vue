@@ -284,6 +284,7 @@
                       >
                         {{ t.name }}
                         <Badge
+                          v-if="t.source"
                           :label="t.source === 'manual' ? 'добавлено' : 'из заявки'"
                           :variant="t.source === 'manual' ? 'neutral' : 'primary'"
                           size="sm"
@@ -693,19 +694,30 @@ export default {
         entryExitHistory() {
             return this.history.filter(item => item.action_type === 'entry' || item.action_type === 'exit');
         },
-        // Активные привязки «Проезд» (#1227 P3). Нормализует ОБЕ формы target_tables:
-        // контекст заявки отдаёт плоский массив ID (число), контекст проходной - объекты
-        // {id,name,source} (P1/P2). Число трактуем как заявочную привязку (старое поведение).
+        // Бейдж источника и зачёркнутые снятые - фича карточки ИЗ ПРОХОДНОЙ (#1227): только там
+        // target_tables несут реальный source (объекты {id,name,source} от P1/P2) и история привязок
+        // осмысленна. В заявке (source='application') / списках / корзине target_tables - плоские ID
+        // БЕЗ source -> бейджа нет (иначе один элемент в проходной «добавлено», а в заявке дефолтно
+        // «из заявки» - каша). Признак проходной = у активных есть реальный source.
+        hasPassageSource() {
+            return this.passageActiveTables.some(t => t.source);
+        },
+        // Активные привязки «Проезд» (#1227 P3). Нормализует ОБЕ формы target_tables: контекст
+        // заявки - плоский массив ID (число, source=null -> без бейджа), проходной - объекты
+        // {id,name,source}. source НЕ фабрикуем - null значит «источник неизвестен, не показывать».
         passageActiveTables() {
             const raw = this.vehicle?.target_tables || [];
             return raw.map(t => (typeof t === 'number'
-                ? { id: t, name: this.getTableName(t), source: 'application' }
-                : { id: t.id, name: t.name || this.getTableName(t.id), source: t.source || 'application' }));
+                ? { id: t, name: this.getTableName(t), source: null }
+                : { id: t.id, name: t.name || this.getTableName(t.id), source: t.source || null }));
         },
         // Снятые/перенесённые таблицы (unbound_from_table/moved_between_tables из истории) -
         // показываем зачёркнутыми, кроме тех, что сейчас снова активны (активная привязка
         // перекрывает снятую). Дедуп по table_id - несколько снятий одной таблицы не дублируем.
         passageRemovedTables() {
+            // Зачёркнутые снятые - только когда карточка показывает реальные привязки проходной
+            // (hasPassageSource); в заявке/списках/корзине история привязок машины не показывается.
+            if (!this.hasPassageSource) return [];
             const activeIds = new Set(this.passageActiveTables.map(t => t.id));
             const seen = new Set();
             const removed = [];

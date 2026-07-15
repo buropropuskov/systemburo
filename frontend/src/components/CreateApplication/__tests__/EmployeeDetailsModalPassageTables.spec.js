@@ -22,17 +22,17 @@ const stubs = { teleport: true, TableInfoModal: true, EmployeeHistoryModal: true
 
 // Контекст проходной (PeopleTable) - source=peopletable, история идёт через
 // /employees/:id/history (никакой фильтрации по action_type на бэке, см. employees_history_service.go).
-function mountModal(employee, historyItems = []) {
+function mountModal(employee, historyItems = [], source = 'peopletable') {
   apiRequest.mockReset();
   apiRequest.mockImplementation((url) => {
-    if (String(url).startsWith(`/employees/${employee.id}/history`)) return Promise.resolve(okResponse(historyItems));
+    if (String(url).includes('/history')) return Promise.resolve(okResponse(historyItems));
     return Promise.resolve(okResponse([]));
   });
   return mount(EmployeeDetailsModal, {
     props: {
       show: true,
       employee,
-      source: 'peopletable',
+      source,
     },
     global: { stubs },
   });
@@ -64,15 +64,32 @@ describe('EmployeeDetailsModal - секция Места прохода: ист�
     expect(wrapper.text()).toContain('из заявки');
   });
 
-  it('нормализует плоскую числовую форму target_tables (контекст заявки) как application', async () => {
+  it('плоская числовая форма target_tables -> source=null, бейдж НЕ рисуется', async () => {
     const wrapper = mountModal({ id: 5, last_name: 'Иванов', first_name: 'Иван', target_tables: [7] });
     await flushPromises();
     await wrapper.vm.$nextTick();
 
     expect(wrapper.vm.passageActiveTables).toEqual([
-      { id: 7, name: 'Неизвестное место (ID: 7)', source: 'application' },
+      { id: 7, name: 'Неизвестное место (ID: 7)', source: null },
     ]);
-    expect(wrapper.text()).toContain('из заявки');
+    expect(wrapper.text()).not.toContain('из заявки');
+    expect(wrapper.text()).not.toContain('добавлено');
+  });
+
+  it('контекст заявки (source=application, плоские ID + история снятий): НЕТ бейджей и НЕТ зачёркнутых (#1227 fix)', async () => {
+    const wrapper = mountModal(
+      { id: 5, last_name: 'Иванов', first_name: 'Иван', target_tables: [10, 11] },
+      [{ id: 1, action_type: 'unbound_from_table', table_id: 12, table_name: 'Таблица В' }],
+      'application'
+    );
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.vm.passageActiveTables.every(t => t.source === null)).toBe(true);
+    expect(wrapper.text()).not.toContain('из заявки');
+    expect(wrapper.text()).not.toContain('добавлено');
+    expect(wrapper.vm.passageRemovedTables).toEqual([]);
+    expect(wrapper.findAll('.place-item--removed')).toHaveLength(0);
   });
 
   it('снятые/перенесённые таблицы из истории показываются зачёркнутыми, активная привязка перекрывает снятую', async () => {
