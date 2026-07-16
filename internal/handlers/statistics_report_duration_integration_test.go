@@ -280,6 +280,52 @@ func TestRunReport_DurationMetrics_Filter(t *testing.T) {
 	assert.Equal(t, int64(0), res.MetricRows[0].Values["avg_approval_time"], "нет заявок -> 0")
 }
 
+// TestRunReport_DurationMetrics_ExcludesNegativePairs — у части исторических
+// заявок конечный момент этапа раньше начального (confirmation_datetime до
+// sending_datetime), что даёт отрицательную длительность и утягивает среднее в
+// минус. Такая пара обязана выпасть из выборки, а не клампиться в ноль.
+func TestRunReport_DurationMetrics_ExcludesNegativePairs(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+
+	org := models.Organization{Name: "Орг-Битая", IsActive: true}
+	require.NoError(t, db.Create(&org).Error)
+	user := models.User{Username: "neg_sender", TypeID: 1, IsActive: true}
+	require.NoError(t, db.Create(&user).Error)
+
+	status := models.StatusInWork
+	mk := func(number string, sent, confirmed *time.Time) {
+		n := number
+		app := models.Application{
+			ApplicationNumber:    &n,
+			OrganizationID:       org.ID,
+			SenderUserID:         user.ID,
+			Status:               &status,
+			SendingDatetime:      sent,
+			ConfirmationDatetime: confirmed,
+		}
+		require.NoError(t, db.Create(&app).Error)
+	}
+	// Корректная: согласование 2ч (7200с).
+	mk("N/OK", mskTime(t, "2026-06-01 10:00"), mskTime(t, "2026-06-01 12:00"))
+	// Битая: confirmation РАНЬШЕ sending на час — длительность была бы -3600.
+	mk("N/BAD", mskTime(t, "2026-06-02 10:00"), mskTime(t, "2026-06-02 09:00"))
+
+	svc := services.NewStatisticsService(db, 0)
+	res, err := svc.RunReport(context.Background(), models.ReportRequest{
+		Mode:      "aggregate",
+		Metric:    "avg_approval_time",
+		Dimension: "none",
+		Filters:   durationWindow(),
+	})
+	require.NoError(t, err)
+	require.Len(t, res.MetricRows, 1)
+	// Только корректная заявка в выборке: без отсечения было бы (7200-3600)/2=1800.
+	assert.Equal(t, int64(7200), res.MetricRows[0].Values["avg_approval_time"],
+		"битая пара confirmation<sending исключена, среднее не уходит в минус")
+}
+
 // TestReportCatalog_DurationMetrics — метрики длительностей публикуются каталогом
 // (иначе движок их исполняет, а гид не показывает) в своей группе и с разрезами,
 // которые движок умеет резолвить.
