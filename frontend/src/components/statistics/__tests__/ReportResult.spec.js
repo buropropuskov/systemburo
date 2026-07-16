@@ -15,12 +15,12 @@ vi.mock('@/composables/useReportExport', async () => {
 // переключателя они не нужны, подменяем стабами и читаем переданные props.
 const areaStub = {
   name: 'AnalyticsAreaChart',
-  props: ['data', 'height', 'seriesName', 'unitForms', 'isFloat'],
+  props: ['data', 'height', 'seriesName', 'unitForms', 'isFloat', 'valueType'],
   template: '<div class="area-stub" />',
 };
 const barStub = {
   name: 'AnalyticsBarChart',
-  props: ['data', 'height', 'seriesName', 'unitForms', 'isFloat'],
+  props: ['data', 'height', 'seriesName', 'unitForms', 'isFloat', 'valueType'],
   template: '<div class="bar-stub" />',
 };
 const donutStub = {
@@ -484,5 +484,48 @@ describe('ReportResult — длительности (#1240)', () => {
       totals: {},
     });
     expect(rowCells(w, 0)[1]).toBe('0');
+  });
+});
+
+describe('ReportResult — график длительностей (#1240)', () => {
+  // Метрика графика выбирается тогглом; по умолчанию — первая колонка.
+  async function openChart(w, metricKey) {
+    await w.find('[data-testid="rr-view-chart"]').trigger('click');
+    await nextTick();
+    if (metricKey) {
+      await w.find(`[data-testid="rr-metric-${metricKey}"]`).trigger('click');
+      await nextTick();
+    }
+    return w;
+  }
+
+  it('duration-метрика: графику передан тип значения, ось и тултип форматирует он сам', async () => {
+    const w = await openChart(mountResult(aggDuration));
+    expect(w.findComponent(barStub).props('valueType')).toBe('duration');
+  });
+
+  it('обычная метрика: тип значения не передаётся', async () => {
+    const w = await openChart(mountResult(aggDuration), 'applications_count');
+    expect(w.findComponent(barStub).props('valueType')).toBe('');
+  });
+
+  it('непройденный этап уезжает в график как null, а не как 0', async () => {
+    // Ключевая защита: у «ООО Б» завершения не было. `?? 0` дал бы столбец нулевой
+    // высоты = «завершилось мгновенно», хотя таблица в этой же ячейке рисует «—».
+    const w = await openChart(mountResult(aggDuration), 'avg_completion_time');
+    expect(w.findComponent(barStub).props('data')).toEqual([
+      { label: 'ООО А', value: 259200 },
+      { label: 'ООО Б', value: null },
+    ]);
+  });
+
+  it('duration-метрика: тоггла Кольцо нет (доли от суммы средних смысла не имеют)', async () => {
+    const w = await openChart(mountResult(aggDuration));
+    expect(w.find('[data-testid="rr-kind-donut"]').exists()).toBe(false);
+  });
+
+  it('переключение с duration на счётчик возвращает тоггл Кольцо', async () => {
+    const w = await openChart(mountResult(aggDuration), 'applications_count');
+    expect(w.find('[data-testid="rr-kind-donut"]').exists()).toBe(true);
   });
 });
