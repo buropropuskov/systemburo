@@ -75,6 +75,13 @@
         </button>
         <button
           class="statistics__tab"
+          :class="{ 'statistics__tab--active': activeTab === 'processing' }"
+          @click="activeTab = 'processing'"
+        >
+          Обработка заявок
+        </button>
+        <button
+          class="statistics__tab"
           :class="{ 'statistics__tab--active': activeTab === 'reports' }"
           @click="activeTab = 'reports'"
         >
@@ -92,6 +99,18 @@
         >
           <StatisticsDashboard
             ref="dashboardRef"
+            :from="fromStr"
+            :to="toStr"
+          />
+        </div>
+
+        <!-- Обработка заявок -->
+        <div
+          v-else-if="activeTab === 'processing'"
+          class="statistics__panel"
+        >
+          <ProcessingAnalytics
+            ref="processingRef"
             :from="fromStr"
             :to="toStr"
           />
@@ -124,6 +143,7 @@ import AdminPageShell from '@/views/admin/AdminPageShell.vue';
 import DateFilter from '@/components/DateFilter.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import StatisticsDashboard from '@/components/statistics/StatisticsDashboard.vue';
+import ProcessingAnalytics from '@/components/statistics/ProcessingAnalytics.vue';
 import ReportsTab from '@/components/statistics/ReportsTab.vue';
 import AnalyticsInstructionModal from '@/components/statistics/AnalyticsInstructionModal.vue';
 
@@ -236,8 +256,9 @@ function toDateStr(d) {
 const fromStr = computed(() => toDateStr(rangeStart.value));
 const toStr = computed(() => toDateStr(rangeEnd.value));
 
-// ---- ссылка на дашборд для вызова refresh ----
+// ---- ссылки на вкладки для вызова refresh ----
 const dashboardRef = ref(null);
+const processingRef = ref(null);
 
 function onPeriodApply() {
   // Ручной выбор из календаря — период больше не соответствует кнопке-пресету.
@@ -249,6 +270,8 @@ function onRefresh() {
   // Отчёты строятся по кнопке, фонового обновления не требуют.
   if (activeTab.value === 'dashboard') {
     dashboardRef.value?.refresh();
+  } else if (activeTab.value === 'processing') {
+    processingRef.value?.refresh();
   }
 }
 </script>
