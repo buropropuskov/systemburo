@@ -29,7 +29,7 @@
         </div>
 
         <div class="proc__tiles">
-          <template v-if="loading && !ready">
+          <template v-if="showSkeleton">
             <div
               v-for="n in 4"
               :key="n"
@@ -68,7 +68,14 @@
           <span class="proc__group-chip">среднее время этапа</span>
           <span class="proc__group-rule" />
         </div>
-        <div class="proc__card">
+        <div
+          v-if="showSkeleton"
+          class="proc__skeleton proc__skeleton--chart"
+        />
+        <div
+          v-else
+          class="proc__card"
+        >
           <AnalyticsBarChart
             :data="bottleneckData"
             value-type="duration"
@@ -85,7 +92,7 @@
           <span class="proc__group-rule" />
         </div>
         <div class="proc__tiles">
-          <template v-if="loading && !ready">
+          <template v-if="showSkeleton">
             <div
               v-for="n in 2"
               :key="n"
@@ -132,7 +139,14 @@
             <span class="proc__group-chip">топ по времени реакции</span>
             <span class="proc__group-rule" />
           </div>
-          <div class="proc__card proc__card--table">
+          <div
+            v-if="showSkeleton"
+            class="proc__skeleton proc__skeleton--table"
+          />
+          <div
+            v-else
+            class="proc__card proc__card--table"
+          >
             <table class="proc__table">
               <thead>
                 <tr>
@@ -171,7 +185,14 @@
             <span class="proc__group-chip">время обработки</span>
             <span class="proc__group-rule" />
           </div>
-          <div class="proc__card proc__card--table">
+          <div
+            v-if="showSkeleton"
+            class="proc__skeleton proc__skeleton--table"
+          />
+          <div
+            v-else
+            class="proc__card proc__card--table"
+          >
             <table class="proc__table">
               <thead>
                 <tr>
@@ -256,6 +277,12 @@ const totalApplications = computed(() => summary.value?.total_applications ?? 0)
 
 // Пустой период — заявок не подавали: доли и длительности считать не по чему.
 const isEmpty = computed(() => !summary.value || totalApplications.value === 0);
+
+// Первая загрузка: показываем скелетоны во ВСЕХ секциях. Без этого график и
+// таблицы (в отличие от плиток) на холодном заходе флэшнули бы «Нет данных» до
+// прихода ответа — «пусто» и «ещё грузится» смешались бы. На рефреше (ready уже
+// true) скелетон не мигает: до нового ответа держим прежние данные.
+const showSkeleton = computed(() => loading.value && !ready.value);
 
 // Столбцы узких мест = среднее время этапа. null (этап никто не прошёл) едет как
 // null, график рисует разрыв, а не нулевой столбец (valueType=duration, F1b).
@@ -488,6 +515,21 @@ defineExpose({ refresh: loadSummary });
 .proc__card--table {
   padding: 6px 6px;
   overflow-x: auto;
+}
+
+/* Скелетон секций-карточек на первой загрузке (график/таблицы), в тон плиткам. */
+.proc__skeleton {
+  background: var(--color-skeleton);
+  border-radius: var(--radius-lg);
+  animation: proc-skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+.proc__skeleton--chart {
+  min-height: 296px;
+}
+
+.proc__skeleton--table {
+  min-height: 190px;
 }
 
 /* ===== ДВЕ КОЛОНКИ ===== */

@@ -200,6 +200,24 @@ describe('ProcessingAnalytics — крайние состояния', () => {
     expect(wrapper.find('.proc__tiles').exists()).toBe(false);
   });
 
+  it('на первой загрузке показывает скелетоны во всех секциях, а не «Нет данных»', async () => {
+    state.hang = true;
+    const wrapper = mountTab();
+    await nextTick(); // onMounted -> loadSummary висит (loading, !ready)
+
+    expect(wrapper.findAll('.proc__tile--skeleton').length).toBeGreaterThan(0);
+    expect(wrapper.find('.proc__skeleton--chart').exists()).toBe(true);
+    expect(wrapper.findAll('.proc__skeleton--table').length).toBe(2);
+    // График/таблицы не должны флэшить пустоту до прихода ответа.
+    expect(wrapper.text()).not.toContain('Нет данных');
+
+    // Ответ пришёл -> скелетоны уходят, данные на месте.
+    state.deferred[0](fullSummary());
+    await flushPromises();
+    expect(wrapper.find('.proc__skeleton--chart').exists()).toBe(false);
+    expect(wrapper.text()).toContain('Время согласования');
+  });
+
   it('ошибка загрузки показывает сообщение', async () => {
     state.reject = true;
     const wrapper = mountTab();
