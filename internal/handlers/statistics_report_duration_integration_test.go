@@ -280,6 +280,95 @@ func TestRunReport_DurationMetrics_Filter(t *testing.T) {
 	assert.Equal(t, int64(0), res.MetricRows[0].Values["avg_approval_time"], "нет заявок -> 0")
 }
 
+// optMskTime — момент из строки или nil для пустой (незаполненный этап).
+func optMskTime(t *testing.T, s string) *time.Time {
+	t.Helper()
+	if s == "" {
+		return nil
+	}
+	return mskTime(t, s)
+}
+
+// TestRunReport_DurationMetrics_ExcludesNegativePairs — у части исторических
+// заявок конечный момент этапа раньше начального (напр. confirmation_datetime до
+// sending_datetime), что даёт отрицательную длительность и утягивает среднее в
+// минус. Такая пара обязана выпасть из выборки КАЖДОГО этапа, а не клампиться в
+// ноль. Проверяем все четыре этапа: корректная заявка + битая пара, среднее = только
+// корректная (sending всегда задан — по нему метрика фильтрует окно).
+func TestRunReport_DurationMetrics_ExcludesNegativePairs(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+
+	type appMoments struct{ sent, conf, acc, comp string }
+	cases := []struct {
+		metric  string
+		wantSec int64
+		ok, bad appMoments
+	}{
+		{
+			"avg_approval_time", 7200, // согласование 2ч
+			appMoments{sent: "2026-06-01 10:00", conf: "2026-06-01 12:00"},
+			appMoments{sent: "2026-06-02 10:00", conf: "2026-06-02 09:00"}, // conf < sent
+		},
+		{
+			"avg_acceptance_time", 3600, // принятие 1ч
+			appMoments{sent: "2026-06-01 09:00", conf: "2026-06-01 10:00", acc: "2026-06-01 11:00"},
+			appMoments{sent: "2026-06-02 09:00", conf: "2026-06-02 10:00", acc: "2026-06-02 09:30"}, // acc < conf
+		},
+		{
+			"avg_processing_time", 10800, // обработка 3ч
+			appMoments{sent: "2026-06-01 10:00", acc: "2026-06-01 13:00"},
+			appMoments{sent: "2026-06-02 10:00", acc: "2026-06-02 09:00"}, // acc < sent
+		},
+		{
+			"avg_completion_time", 86400, // до завершения 24ч
+			appMoments{sent: "2026-06-01 10:00", comp: "2026-06-02 10:00"},
+			appMoments{sent: "2026-06-03 10:00", comp: "2026-06-02 10:00"}, // comp < sent
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.metric, func(t *testing.T) {
+			testutil.CleanDB(t, db)
+			org := models.Organization{Name: "Орг-Битая", IsActive: true}
+			require.NoError(t, db.Create(&org).Error)
+			user := models.User{Username: "neg_sender", TypeID: 1, IsActive: true}
+			require.NoError(t, db.Create(&user).Error)
+
+			status := models.StatusInWork
+			mk := func(number string, m appMoments) {
+				n := number
+				app := models.Application{
+					ApplicationNumber:    &n,
+					OrganizationID:       org.ID,
+					SenderUserID:         user.ID,
+					Status:               &status,
+					SendingDatetime:      optMskTime(t, m.sent),
+					ConfirmationDatetime: optMskTime(t, m.conf),
+					AcceptedAt:           optMskTime(t, m.acc),
+					CompletedAt:          optMskTime(t, m.comp),
+				}
+				require.NoError(t, db.Create(&app).Error)
+			}
+			mk("N/OK", c.ok)
+			mk("N/BAD", c.bad)
+
+			svc := services.NewStatisticsService(db, 0)
+			res, err := svc.RunReport(context.Background(), models.ReportRequest{
+				Mode:      "aggregate",
+				Metric:    c.metric,
+				Dimension: "none",
+				Filters:   durationWindow(),
+			})
+			require.NoError(t, err)
+			require.Len(t, res.MetricRows, 1)
+			// Только корректная заявка: без отсечения среднее уехало бы в минус.
+			assert.Equal(t, c.wantSec, res.MetricRows[0].Values[c.metric],
+				"битая пара (конец этапа < начало) исключена, среднее не уходит в минус")
+		})
+	}
+}
+
 // TestReportCatalog_DurationMetrics — метрики длительностей публикуются каталогом
 // (иначе движок их исполняет, а гид не показывает) в своей группе и с разрезами,
 // которые движок умеет резолвить.

@@ -61,12 +61,15 @@ var approverDimensions = []string{dimByApprover, "status", "organization", "comp
 func init() {
 	// Время реакции: от назначения согласующим (aru.created_at) до его голоса
 	// (aru.approval_datetime). Голоса без ответа в среднее не попадают — иначе
-	// «ещё думает» считалось бы мгновенным ответом и занижало метрику.
+	// «ещё думает» считалось бы мгновенным ответом и занижало метрику. Гард
+	// approval_datetime >= created_at отсекает битые пары (голос раньше назначения
+	// на исторических данных) — иначе отрицательная длительность утянула бы среднее
+	// в минус, как у этапов заявки (см. durationStage.baseWhere).
 	responseAgg := durationRound("AVG(" + durationBetween("aru.created_at", "aru.approval_datetime") + ")")
 	aggMetricRegistry["avg_approver_response_time"] = aggMetricSchema{
 		base:      "application_responsible_users aru",
 		aggExpr:   responseAgg,
-		baseWhere: "aru.approval_datetime IS NOT NULL",
+		baseWhere: "aru.approval_datetime IS NOT NULL AND aru.approval_datetime >= aru.created_at",
 		tsColumn:  "app.sending_datetime",
 		tsJoin:    jChain,
 		unit:      "", // длительность форматируется целиком, суффикс единицы не нужен
@@ -81,7 +84,7 @@ func init() {
 		group:      metricGroupApprovers,
 		baseTable:  "application_responsible_users",
 		aggExpr:    responseAgg,
-		baseFilter: "approval_datetime IS NOT NULL",
+		baseFilter: "approval_datetime IS NOT NULL AND approval_datetime >= created_at",
 		dimensions: approverDimensions,
 	}
 	reportMetricOrder = append(reportMetricOrder, "avg_approver_response_time")

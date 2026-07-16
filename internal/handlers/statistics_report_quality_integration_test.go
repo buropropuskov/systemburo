@@ -292,6 +292,67 @@ func TestRunReport_ApproverMetrics_ByApprover(t *testing.T) {
 			"и не усреднён по строкам (7200)")
 }
 
+// TestRunReport_ApproverResponseTime_ExcludesNegativePairs — тот же класс, что у
+// длительностей этапов: на исторических данных голос согласующего может стоять
+// раньше его назначения (approval_datetime < created_at), давая отрицательное
+// время реакции. Битый голос обязан выпасть из среднего, а не тянуть его в минус.
+func TestRunReport_ApproverResponseTime_ExcludesNegativePairs(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+
+	org := models.Organization{Name: "Орг-Апрувер", IsActive: true}
+	require.NoError(t, db.Create(&org).Error)
+	sender := models.User{Username: "ar_sender", TypeID: 1, IsActive: true}
+	require.NoError(t, db.Create(&sender).Error)
+	l, f := "Реакция", "Тест"
+	appr := models.User{Username: "ar_appr", TypeID: 1, IsActive: true, LastName: &l, FirstName: &f}
+	require.NoError(t, db.Create(&appr).Error)
+
+	status := models.StatusInWork
+	mkApp := func(number string, sent *time.Time) int {
+		n := number
+		app := models.Application{
+			ApplicationNumber: &n,
+			OrganizationID:    org.ID,
+			SenderUserID:      sender.ID,
+			Status:            &status,
+			SendingDatetime:   sent,
+		}
+		require.NoError(t, db.Create(&app).Error)
+		return app.ID
+	}
+	vote := func(appID int, assigned, approved *time.Time) {
+		row := models.ApplicationResponsibleUser{
+			ApplicationID:    appID,
+			UserID:           appr.ID,
+			CreatedAt:        *assigned,
+			ApprovalDatetime: approved,
+		}
+		require.NoError(t, db.Create(&row).Error)
+	}
+
+	win := []models.ReportFilterValue{{Key: "date_range", From: "2026-06-01", To: "2026-06-03"}}
+	// Корректный голос: реакция 2ч (7200с).
+	okApp := mkApp("AR/OK", mskTime(t, "2026-06-01 10:00"))
+	vote(okApp, mskTime(t, "2026-06-01 10:00"), mskTime(t, "2026-06-01 12:00"))
+	// Битый: голос РАНЬШЕ назначения на час — длительность была бы -3600.
+	badApp := mkApp("AR/BAD", mskTime(t, "2026-06-02 10:00"))
+	vote(badApp, mskTime(t, "2026-06-02 10:00"), mskTime(t, "2026-06-02 09:00"))
+
+	svc := services.NewStatisticsService(db, 0)
+	res, err := svc.RunReport(context.Background(), models.ReportRequest{
+		Mode:      "aggregate",
+		Metric:    "avg_approver_response_time",
+		Dimension: "none",
+		Filters:   win,
+	})
+	require.NoError(t, err)
+	require.Len(t, res.MetricRows, 1)
+	assert.Equal(t, int64(7200), res.MetricRows[0].Values["avg_approver_response_time"],
+		"битый голос (approval<created) исключён, среднее не уходит в минус")
+}
+
 // TestRunReport_ApproverMetrics_Dimensions — прочие разрезы согласующих идут через
 // тот же join к заявке (окно, статус, организация) и должны исполняться.
 func TestRunReport_ApproverMetrics_Dimensions(t *testing.T) {

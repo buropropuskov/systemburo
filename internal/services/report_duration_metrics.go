@@ -24,6 +24,12 @@ import "systemburo/internal/models"
 // durationStage - этап пути заявки: длительность и условие, при котором этап
 // реально пройден. Незавершённые этапы (момент NULL) в агрегат не попадают:
 // иначе «ещё не приняли» считалось бы нулевой длительностью и занижало метрику.
+// baseWhere требует и <момент конца> >= <момент начала>: у части исторических
+// заявок конечный момент раньше начального (напр. confirmation_datetime до
+// sending_datetime) - такая пара даёт отрицательную длительность и утягивает
+// среднее в минус («-2 сут 2 ч согласования»). Битую пару отсекаем из выборки
+// (samples тоже её не считает), а не клампим в ноль: ноль исказил бы среднее,
+// исключение - честно убирает некорректную строку.
 type durationStage struct {
 	key       string // суффикс ключа метрики: <agg>_<key>
 	label     string // именительный падеж: «Среднее <label>»
@@ -45,21 +51,21 @@ var durationStages = []durationStage{
 		label:     "время согласования",
 		labelGen:  "времени согласования",
 		expr:      durationBetween("app.sending_datetime", "app.confirmation_datetime"),
-		baseWhere: "app.sending_datetime IS NOT NULL AND app.confirmation_datetime IS NOT NULL",
+		baseWhere: "app.sending_datetime IS NOT NULL AND app.confirmation_datetime IS NOT NULL AND app.confirmation_datetime >= app.sending_datetime",
 	},
 	{
 		key:       "acceptance_time",
 		label:     "время принятия в работу",
 		labelGen:  "времени принятия в работу",
 		expr:      durationBetween("app.confirmation_datetime", "app.accepted_at"),
-		baseWhere: "app.confirmation_datetime IS NOT NULL AND app.accepted_at IS NOT NULL",
+		baseWhere: "app.confirmation_datetime IS NOT NULL AND app.accepted_at IS NOT NULL AND app.accepted_at >= app.confirmation_datetime",
 	},
 	{
 		key:       "processing_time",
 		label:     "время обработки",
 		labelGen:  "времени обработки",
 		expr:      durationBetween("app.sending_datetime", "app.accepted_at"),
-		baseWhere: "app.sending_datetime IS NOT NULL AND app.accepted_at IS NOT NULL",
+		baseWhere: "app.sending_datetime IS NOT NULL AND app.accepted_at IS NOT NULL AND app.accepted_at >= app.sending_datetime",
 	},
 	{
 		key:      "completion_time",
@@ -69,7 +75,7 @@ var durationStages = []durationStage{
 		// completed_at пишется только живым заявкам (белый список статусов, B1), а
 		// у завершённых до появления колонки он NULL - на исторических данных
 		// метрика разрежена. Это честнее нуля: момента завершения там не было.
-		baseWhere: "app.sending_datetime IS NOT NULL AND app.completed_at IS NOT NULL",
+		baseWhere: "app.sending_datetime IS NOT NULL AND app.completed_at IS NOT NULL AND app.completed_at >= app.sending_datetime",
 	},
 }
 
