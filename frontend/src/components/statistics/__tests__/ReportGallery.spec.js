@@ -8,6 +8,12 @@ const FULL_CATALOG = {
     { key: 'applications_count', dimensions: ['status', 'period'] },
     { key: 'car_entries_count', dimensions: ['unload_place', 'period'] },
     { key: 'people_entries_count', dimensions: ['period'] },
+    // Метрики обработки заявок (#1240) — чтобы новые пресеты галереи считались
+    // доступными (разрезы из каталога бэка, см. reportPresets.spec.js).
+    { key: 'avg_approval_time', dimensions: ['organization', 'period'] },
+    { key: 'avg_processing_time', dimensions: ['organization', 'period'] },
+    { key: 'refusal_rate', dimensions: ['organization', 'period'] },
+    { key: 'avg_approver_response_time', dimensions: ['by_approver', 'period'] },
   ],
   list_entities: [{ key: 'work_applications' }, { key: 'cars' }],
 };
