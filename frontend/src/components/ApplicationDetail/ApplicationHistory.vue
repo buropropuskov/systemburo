@@ -1091,8 +1091,11 @@ export default {
 .modal-content {
     padding: 20px 25px;
     overflow-y: auto;
-    height: calc(80vh - 150px);
-    max-height: calc(80vh - 150px);
+    /* Рост по контенту: flex:1 заполняет остаток .history-modal (max-height 80vh) и
+       скроллит при переполнении. Раньше был фиксированный height:calc(80vh-150px) -
+       окно ВСЕГДА тянулось на ~80vh даже при короткой истории ("белая сосиска"). */
+    flex: 1 1 auto;
+    min-height: 0;
     scrollbar-width: none;
     -ms-overflow-style: none;
 }
