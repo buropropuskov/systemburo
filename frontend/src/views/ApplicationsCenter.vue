@@ -1,5 +1,5 @@
 <template>
-  <section class="center">
+  <section ref="root" class="center">
     <header class="center__header">
       <div class="header-top">
         <h2 class="center__title">
@@ -911,6 +911,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useSoundStore } from '@/stores/sound'
 import { usePermissionsStore } from '@/stores/permissions'
 import { useInfiniteList } from '@/composables/useInfiniteList'
+import { getViewportZoom } from '@/utils/viewportScale'
 import { playPreset, SOUND_PRESETS } from '@/utils/notificationSound'
 import OrganizationFilter from '@/components/OrganizationFilter.vue';
 import DateFilter from '@/components/DateFilter.vue';
@@ -1367,9 +1368,29 @@ export default {
         document.addEventListener('mousedown', this._soundClickOutsideHandler);
 
         this.initMobileWatcher();
+
+        // Десктоп: тянем .center на оставшуюся высоту вьюпорта, чтобы таблица
+        // скроллилась внутри (.table-body), а документ НЕ рос и не мигал скроллбаром
+        // (иначе появление/исчезновение скроллбара двигало обе шапки по горизонтали, а
+        // resize пересчитывал --app-vh -> осцилляция). Эталон CarsView/EmployeeView;
+        // на мобилке (<=768) высота сбрасывается - там список скроллит страница
+        // (sticky-шапка, @media 767).
+        this._lastHeight = -1;
+        this.$nextTick(this._applyHeight);
+        window.addEventListener('resize', this._applyHeight);
+        const header = document.querySelector('.theheader');
+        if (header && typeof ResizeObserver !== 'undefined') {
+            this._headerObs = new ResizeObserver(this._applyHeight);
+            this._headerObs.observe(header);
+        }
     },
     beforeUnmount() {
         this.disconnectApplicationsSentinel();
+        window.removeEventListener('resize', this._applyHeight);
+        if (this._headerObs) {
+            this._headerObs.disconnect();
+            this._headerObs = null;
+        }
         if (this.shakeInterval) {
             clearInterval(this.shakeInterval);
         }
@@ -1395,6 +1416,28 @@ export default {
     methods: {
         can(key) {
             return this.permissionsStore.hasPermission(key);
+        },
+        /**
+         * Десктоп: фиксирует высоту .center = оставшаяся высота вьюпорта под шапкой,
+         * чтобы таблица заполняла экран и скроллилась внутри, а документ не рос (нет
+         * мигания скроллбара -> нет прыжка шапок). На мобилке (<=768) сбрасываем -
+         * список скроллит страница (sticky-шапка). rect.top под корневым zoom -
+         * device-px, innerHeight - НЕзумленный: делим на zoom (эталон
+         * AdminPageShell/EmployeeView), иначе на мониторах >1440 .center уходит ниже экрана.
+         */
+        _applyHeight() {
+            const el = this.$refs.root;
+            if (!el) return;
+            if (window.innerWidth <= 768) {
+                el.style.height = '';
+                this._lastHeight = -1;
+                return;
+            }
+            const top = el.getBoundingClientRect().top;
+            const height = Math.max(0, Math.round((window.innerHeight - top) / getViewportZoom()));
+            if (height === this._lastHeight) return;
+            this._lastHeight = height;
+            el.style.height = `${height}px`;
         },
         // Период заявки относительно сегодня для группировки списка (#1097 r2).
         // Бакеты по убыванию свежести; неделя считается от понедельника.
@@ -2195,6 +2238,10 @@ export default {
 .center {
     padding: 20px;
     position: relative;
+    /* Высота проставляется JS (_applyHeight) = оставшийся вьюпорт; flex-column, чтобы
+       таблица (flex:1) заполнила его и скроллилась внутри, а документ не рос. */
+    display: flex;
+    flex-direction: column;
 }
 
 .center__header {
@@ -2647,23 +2694,19 @@ export default {
     overflow: hidden;
     container-type: inline-size;
     margin-top: 20px;
-    height: fit-content;
-    /* Тянем таблицу под ОСТАВШУЮСЯ высоту экрана: var(--app-vh) = зумленная
-       высота вьюпорта (viewportScale.js), минус высота над таблицей (глобальная
-       шапка + шапка Центра с инлайн-фильтрами + отступы ~340px, замерено на десктопе).
-       Инлайн-фильтры вернули на десктоп (правка волны 3), поэтому снова 340. На
-       мобилке (@media 767) это правило переопределяется на height:auto. fit-content
-       не даёт перерасти контент. */
-    max-height: calc(var(--app-vh, 1vh) * 100 - 340px);
+    /* Таблица заполняет оставшуюся высоту .center (высота задана JS в _applyHeight)
+       и скроллит внутри .table-body. Раньше высота считалась от var(--app-vh) с
+       магической поправкой -340px: несовпадение с реальным чромом то роняло, то
+       переполняло документ -> мигал скроллбар и прыгали шапки, а resize пересчитывал
+       --app-vh -> осцилляция. flex:1 + min-height:0 убирают эту зависимость. На
+       мобилке (@media 767) переопределяется на height:auto (скролл страницы). */
+    flex: 1;
+    min-height: 0;
 
     display: flex;
     flex-direction: column;
     transition: all 0.3s ease;
     position: relative;
-}
-
-.applications-table.with-details {
-    height: calc(var(--app-vh, 1vh) * 100 - 340px);
 }
 
 /* Overlay-лоадер при refresh - накрывает только область данных (ниже шапки
@@ -3443,6 +3486,10 @@ export default {
         /* Верхний отступ убран - шапка Центра примыкает к app bar без «странного»
            просвета сверху (#1097 p2). Боковой/нижний padding сохранён. */
         padding: 0 12px 12px;
+        /* На мобилке - обычный поток (высота сброшена в _applyHeight), список
+           скроллит страница под sticky-шапкой; десктопный flex-fill не нужен. */
+        display: block;
+        height: auto;
     }
 
     /* Шапка Центра закреплена под app bar (TheHeader min-height 60px, sticky top:0),
