@@ -105,6 +105,38 @@ func (h *StatisticsHandler) GetProcessingSummary(c echo.Context) error {
 	return RespondSuccess(c, summary)
 }
 
+// GetProcessingJournal godoc
+// @Summary      Журнал обработки заявок
+// @Description  Сквозная лента событий согласования и принятия в работу за период по времени убыванием: кто, по какой заявке, в какой роли, когда и сколько рабочего времени Бюро на это ушло. Глубина ограничена лимитом.
+// @Tags         statistics
+// @Produce      json
+// @Security     BearerAuth
+// @Param        from  query string false "Начало периода (YYYY-MM-DD), по умолчанию 7 дней назад"
+// @Param        to    query string false "Конец периода (YYYY-MM-DD), по умолчанию сегодня"
+// @Param        limit query int    false "Глубина ленты (по умолчанию 50, максимум 200)"
+// @Success      200 {object} Response
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /statistics/processing-journal [get]
+func (h *StatisticsHandler) GetProcessingJournal(c echo.Context) error {
+	from, to := parseDateRange(c)
+	if from.After(to) {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid date range")
+	}
+	limit := 0
+	if v := c.QueryParam("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			limit = n
+		}
+	}
+	entries, err := h.service.GetProcessingJournal(c.Request().Context(), from, to, limit)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, entries)
+}
+
 // GetOnlinePeaks godoc
 // @Summary      Дневные пики онлайна пользователей
 // @Description  Серия дневных пиков одновременного онлайна за период для графика динамики пользователей
