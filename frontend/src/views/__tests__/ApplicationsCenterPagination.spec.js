@@ -91,6 +91,42 @@ describe('ApplicationsCenter — бесшовная подгрузка порц�
     expect(params.per_page).toBe(30);
   });
 
+  // Регресс: "Непрочитано" уходил как status='Непрочитано' -> бэк искал колонку a.status,
+  // отдавал пусто ("нет заявок"). Теперь это отдельный флаг unread; статусы/подтверждения -
+  // весь выбор через запятую (бэк матчит IN), а не только [0].
+  async function paramsFor(setup) {
+    getApplicationsPaginated.mockResolvedValue({ items: [], meta: { total: 0 } });
+    wrapper = mountCenter();
+    await flushPromises();
+    setup(wrapper.vm);
+    getApplicationsPaginated.mockClear();
+    await wrapper.vm.buildApplicationsPage(1, 30);
+    return getApplicationsPaginated.mock.calls[0][0];
+  }
+
+  it('фильтр Непрочитано -> unread=true, БЕЗ status=Непрочитано', async () => {
+    const p = await paramsFor((vm) => { vm.selectedApplicationStatuses = ['Непрочитано']; });
+    expect(p.unread).toBe('true');
+    expect(p.status).toBeUndefined();
+  });
+
+  it('Непрочитано + статусы -> unread=true И status с остальными через запятую', async () => {
+    const p = await paramsFor((vm) => { vm.selectedApplicationStatuses = ['Непрочитано', 'В работе', 'Завершено']; });
+    expect(p.unread).toBe('true');
+    expect(p.status).toBe('В работе,Завершено');
+  });
+
+  it('только статусы (без Непрочитано) -> status comma-joined, unread не шлётся', async () => {
+    const p = await paramsFor((vm) => { vm.selectedApplicationStatuses = ['В работе', 'Завершено']; });
+    expect(p.status).toBe('В работе,Завершено');
+    expect(p.unread).toBeUndefined();
+  });
+
+  it('мультивыбор подтверждений -> confirmation comma-joined (не только первый)', async () => {
+    const p = await paramsFor((vm) => { vm.selectedConfirmations = ['Согласовано', 'Не согласовано']; });
+    expect(p.confirmation).toBe('Согласовано,Не согласовано');
+  });
+
   it('вторая порция дописывается в конец, не затирая первую', async () => {
     getApplicationsPaginated.mockResolvedValueOnce({
       items: [makeApp(1), makeApp(2)],
