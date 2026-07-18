@@ -10,6 +10,14 @@ import "systemburo/internal/models"
 //	T2 accepted_at           - принятие в работу
 //	T3 completed_at          - завершение по истечении срока вложений
 //
+// Этапы, зависящие от РАБОТЫ людей Бюро (согласование T0->T1, принятие T1->T2,
+// обработка T0->T2), считаются по рабочему времени Бюро (#1251 S2): ночь и выходные
+// из длительности вычитаются, иначе метрика завышала сроки и была несправедлива к
+// согласующим (поданная в пятницу вечером заявка «согласовывалась двое суток», хотя
+// Бюро всё это время не работало). См. bureauWorkingDuration. «Время до завершения»
+// (T0->T3) остаётся КАЛЕНДАРНЫМ: это срок действия пропуска (реальные сутки до
+// истечения вложений), а не работа человека -- рабочие часы к нему неприменимы.
+//
 // Значение метрики - СЕКУНДЫ (bigint), колонка ответа несёт Type="duration", по
 // нему фронт показывает «2 ч 15 мин» (форматируем по типу колонки, не по виду
 // значения). Целые секунды, а не дробь: execAggregatePlan сканирует значение в
@@ -29,7 +37,9 @@ import "systemburo/internal/models"
 // sending_datetime) - такая пара даёт отрицательную длительность и утягивает
 // среднее в минус («-2 сут 2 ч согласования»). Битую пару отсекаем из выборки
 // (samples тоже её не считает), а не клампим в ноль: ноль исказил бы среднее,
-// исключение - честно убирает некорректную строку.
+// исключение - честно убирает некорректную строку. Гард нужен и рабочему времени:
+// на календарном фолбэке битая пара даёт минус, а bureau_working_seconds для неё
+// вернул бы 0 (to<=from) - тоже фейковая нулевая выборка, которую надо исключить.
 type durationStage struct {
 	key       string // суффикс ключа метрики: <agg>_<key>
 	label     string // именительный падеж: «Среднее <label>»
@@ -50,28 +60,30 @@ var durationStages = []durationStage{
 		key:       "approval_time",
 		label:     "время согласования",
 		labelGen:  "времени согласования",
-		expr:      durationBetween("app.sending_datetime", "app.confirmation_datetime"),
+		expr:      bureauWorkingDuration("app.sending_datetime", "app.confirmation_datetime"),
 		baseWhere: "app.sending_datetime IS NOT NULL AND app.confirmation_datetime IS NOT NULL AND app.confirmation_datetime >= app.sending_datetime",
 	},
 	{
 		key:       "acceptance_time",
 		label:     "время принятия в работу",
 		labelGen:  "времени принятия в работу",
-		expr:      durationBetween("app.confirmation_datetime", "app.accepted_at"),
+		expr:      bureauWorkingDuration("app.confirmation_datetime", "app.accepted_at"),
 		baseWhere: "app.confirmation_datetime IS NOT NULL AND app.accepted_at IS NOT NULL AND app.accepted_at >= app.confirmation_datetime",
 	},
 	{
 		key:       "processing_time",
 		label:     "время обработки",
 		labelGen:  "времени обработки",
-		expr:      durationBetween("app.sending_datetime", "app.accepted_at"),
+		expr:      bureauWorkingDuration("app.sending_datetime", "app.accepted_at"),
 		baseWhere: "app.sending_datetime IS NOT NULL AND app.accepted_at IS NOT NULL AND app.accepted_at >= app.sending_datetime",
 	},
 	{
 		key:      "completion_time",
 		label:    "время до завершения",
 		labelGen: "времени до завершения",
-		expr:     durationBetween("app.sending_datetime", "app.completed_at"),
+		// КАЛЕНДАРНОЕ, а не рабочее (#1251 S2): срок действия пропуска идёт реальными
+		// сутками, Бюро в его течении не участвует. durationBetween, не bureauWorkingDuration.
+		expr: durationBetween("app.sending_datetime", "app.completed_at"),
 		// completed_at пишется только живым заявкам (белый список статусов, B1), а
 		// у завершённых до появления колонки он NULL - на исторических данных
 		// метрика разрежена. Это честнее нуля: момента завершения там не было.

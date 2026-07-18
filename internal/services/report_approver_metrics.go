@@ -60,12 +60,15 @@ var approverDimensions = []string{dimByApprover, "status", "organization", "comp
 // метрики #1240 — выражение агрегата считается один раз на оба реестра).
 func init() {
 	// Время реакции: от назначения согласующим (aru.created_at) до его голоса
-	// (aru.approval_datetime). Голоса без ответа в среднее не попадают — иначе
-	// «ещё думает» считалось бы мгновенным ответом и занижало метрику. Гард
+	// (aru.approval_datetime), по РАБОЧЕМУ времени Бюро (#1251 S2): ночь и выходные
+	// вычитаются, иначе «согласующему на ответ дали двое суток» на заявке, поданной в
+	// пятницу вечером, — несправедливо к человеку (пустой график -> календарный
+	// фолбэк, см. bureauWorkingDuration). Голоса без ответа в среднее не попадают —
+	// иначе «ещё думает» считалось бы мгновенным ответом и занижало метрику. Гард
 	// approval_datetime >= created_at отсекает битые пары (голос раньше назначения
 	// на исторических данных) — иначе отрицательная длительность утянула бы среднее
 	// в минус, как у этапов заявки (см. durationStage.baseWhere).
-	responseAgg := durationRound("AVG(" + durationBetween("aru.created_at", "aru.approval_datetime") + ")")
+	responseAgg := durationRound("AVG(" + bureauWorkingDuration("aru.created_at", "aru.approval_datetime") + ")")
 	aggMetricRegistry["avg_approver_response_time"] = aggMetricSchema{
 		base:      "application_responsible_users aru",
 		aggExpr:   responseAgg,

@@ -76,6 +76,11 @@ func seedQualityApps(t *testing.T, db *gorm.DB) {
 //
 // Ожидаемо: Иванов - реакция 3ч, нагрузка 2; Петров - реакция 1ч, нагрузка 2
 // (неотданный голос считается нагрузкой, но в среднее время реакции не входит).
+//
+// Время реакции с #1251 S2 считается по рабочему времени Бюро, но тесты голосов не
+// заводят график bureau_time_slots -> метрика падает на календарный фолбэк, поэтому
+// часы реакции равны календарной разнице. Вычет нерабочих часов и фолбэк проверяет
+// TestRunReport_ApproverResponseTime_BureauWorkingTime.
 func seedApproverVotes(t *testing.T, db *gorm.DB) {
 	t.Helper()
 
@@ -444,4 +449,60 @@ func TestReportCatalog_QualityAndApproverMetrics(t *testing.T) {
 		dims[d.Key] = d.Label
 	}
 	assert.Equal(t, "Согласующий", dims["by_approver"], "разрез должен быть в каталоге с подписью")
+}
+
+// TestRunReport_ApproverResponseTime_BureauWorkingTime — время реакции согласующего
+// считается по РАБОЧЕМУ времени Бюро (#1251 S2), как и этапы заявки: при графике
+// ночь и выходные вычитаются, при пустом графике — календарный фолбэк. Голос,
+// назначенный в пятницу вечером и отданный в понедельник, показывает контраст.
+// setBureauSchedule живёт в statistics_report_duration_integration_test.go (тот же
+// пакет handlers_test).
+func TestRunReport_ApproverResponseTime_BureauWorkingTime(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+
+	org := models.Organization{Name: "Орг-Реакция-Раб", IsActive: true}
+	require.NoError(t, db.Create(&org).Error)
+	sender := models.User{Username: "wr_sender", TypeID: 1, IsActive: true}
+	require.NoError(t, db.Create(&sender).Error)
+	l, f := "Реакция", "Рабочая"
+	appr := models.User{Username: "wr_appr", TypeID: 1, IsActive: true, LastName: &l, FirstName: &f}
+	require.NoError(t, db.Create(&appr).Error)
+
+	status := models.StatusInWork
+	number := "WR/1"
+	app := models.Application{
+		ApplicationNumber: &number,
+		OrganizationID:    org.ID,
+		SenderUserID:      sender.ID,
+		Status:            &status,
+		SendingDatetime:   mskTime(t, "2026-06-19 16:00"),
+	}
+	require.NoError(t, db.Create(&app).Error)
+	// Назначен Пт 19.06 16:00, проголосовал Пн 22.06 11:00.
+	require.NoError(t, db.Create(&models.ApplicationResponsibleUser{
+		ApplicationID:    app.ID,
+		UserID:           appr.ID,
+		CreatedAt:        *mskTime(t, "2026-06-19 16:00"),
+		ApprovalDatetime: mskTime(t, "2026-06-22 11:00"),
+	}).Error)
+
+	win := []models.ReportFilterValue{{Key: "date_range", From: "2026-06-19", To: "2026-06-19"}}
+	svc := services.NewStatisticsService(db, 0)
+	runAvg := func() int64 {
+		res, err := svc.RunReport(context.Background(), models.ReportRequest{
+			Mode: "aggregate", Metric: "avg_approver_response_time", Dimension: "none", Filters: win,
+		})
+		require.NoError(t, err, "SQL времени реакции должен исполняться")
+		require.Len(t, res.MetricRows, 1)
+		return res.MetricRows[0].Values["avg_approver_response_time"]
+	}
+
+	// Пустой график: Пт16:00 -> Пн11:00 = 67ч календарно.
+	assert.Equal(t, int64(67*3600), runAvg(), "пустой график -> календарный фолбэк")
+
+	// График Пн-Пт 09:00-18:00: Пт 16-18 (2ч) + Пн 09-11 (2ч) = 4ч.
+	setBureauSchedule(t, db, []int{0, 1, 2, 3, 4}, "09:00", "18:00")
+	assert.Equal(t, int64(4*3600), runAvg(), "рабочее время: ночь и выходные вычтены")
 }

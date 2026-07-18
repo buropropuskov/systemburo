@@ -1,14 +1,28 @@
 package services
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
-// bureauWorkingDuration должна давать вызов SQL-функции с тем же порядком
-// аргументов, что durationBetween (from, to). Корректность самого расчёта рабочих
-// секунд проверяет DB-тест в internal/handlers (bureau_working_seconds_test.go).
+// bureauWorkingDuration должна давать вызов SQL-функции рабочих секунд с тем же
+// порядком аргументов, что durationBetween (from, to), и календарный фолбэк на
+// пустом графике Бюро (#1251 S2). Корректность самого расчёта рабочих секунд
+// проверяет DB-тест в internal/handlers (bureau_working_seconds_test.go), обе ветки
+// на реальных данных — TestRunReport_DurationMetrics_BureauWorkingTime.
 func TestBureauWorkingDuration(t *testing.T) {
 	got := bureauWorkingDuration("app.sending_datetime", "app.confirmation_datetime")
-	want := "bureau_working_seconds(app.sending_datetime, app.confirmation_datetime)"
-	if got != want {
-		t.Fatalf("bureauWorkingDuration = %q, want %q", got, want)
+
+	// Рабочая ветка: вызов функции с порядком аргументов from, to.
+	if want := "bureau_working_seconds(app.sending_datetime, app.confirmation_datetime)"; !strings.Contains(got, want) {
+		t.Fatalf("bureauWorkingDuration = %q, ожидался вызов %q", got, want)
+	}
+	// Фолбэк: календарная разница (durationBetween, порядок to - from) при пустом графике.
+	if want := durationBetween("app.sending_datetime", "app.confirmation_datetime"); !strings.Contains(got, want) {
+		t.Fatalf("bureauWorkingDuration = %q, ожидался календарный фолбэк %q", got, want)
+	}
+	// Условие фолбэка — наличие активных слотов расписания.
+	if !strings.Contains(got, "EXISTS") || !strings.Contains(got, "bureau_time_slots") {
+		t.Fatalf("bureauWorkingDuration = %q, ожидался гард EXISTS по bureau_time_slots", got)
 	}
 }
