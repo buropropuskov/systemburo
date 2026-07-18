@@ -112,6 +112,18 @@ describe('ApplicationDetail - отображение отозванной зая
     expect(wrapper.vm.canForwardApplication).toBe(false);
   });
 
+  it('canLeaveComment: на ВСЕХ терминальных статусах false у ответственного без голоса (#1097 - баг «Завершено»)', async () => {
+    // Раньше проверялась только «Отозвана», поэтому на «Завершено»/«Отказано»/
+    // «Не согласовано» ответственный-без-голоса проходил ветку return !hasUserVoted = true
+    // и видел поле комментария на закрытой заявке.
+    for (const status of ['Завершено', 'Не согласовано', 'Отказано', 'Отозвана']) {
+      const wrapper = mountDetail({ status });
+      await wrapper.setData({ responsibleUsers: [{ id: 1, approval_status: 'pending' }] });
+      expect(wrapper.vm.isResponsibleUser, status).toBe(true);
+      expect(wrapper.vm.canLeaveComment, status).toBe(false);
+    }
+  });
+
   it('контроль: у не-отозванной те же действия доступны', async () => {
     const wrapper = mountDetail({ status: 'Согласование' });
     await wrapper.setData({ responsibleUsers: [{ id: 1, approval_status: 'pending' }] });
