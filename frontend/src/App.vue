@@ -276,11 +276,11 @@ body.auth-active .content__container {
 
 /* На мобилке шапка (TheHeader) - position:fixed;top:0 (нативно прибита композитором
    к видимой области, без JS-переменной вьюпорта, #1097 R5-S1). fixed убирает шапку из
-   потока - резервируем её высоту (60px = min-height .header), иначе контент уезжает под
-   шапку. Только auth-active: на логине/ошибках шапки нет. */
+   потока - резервируем её высоту (= --mobile-header-height, min-height .header), иначе
+   контент уезжает под шапку. Только auth-active: на логине/ошибках шапки нет. */
 @media (max-width: 768px) {
   body.auth-active #main-content {
-    padding-top: 60px;
+    padding-top: var(--mobile-header-height);
   }
 }
 
