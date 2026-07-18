@@ -131,7 +131,7 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background-color: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -147,7 +147,11 @@ export default {
 
 .modal-fade-enter-from,
 .modal-fade-leave-to {
-  opacity: 0;
+  /* Фейдим ТОЛЬКО затемнение подложки (background-color), не opacity оверлея - opacity
+     каскадит на .modal-content и заставляет лист гаснуть вместе с подложкой (на мобилке
+     тогда виден фейд поверх выезда снизу). Десктопный fade+scale самого листа остаётся
+     через .modal-content-правило ниже. */
+  background-color: rgba(0, 0, 0, 0);
 }
 
 .modal-fade-enter-from .modal-content,
