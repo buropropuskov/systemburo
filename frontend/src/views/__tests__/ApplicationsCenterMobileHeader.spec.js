@@ -78,7 +78,7 @@ describe('ApplicationsCenter: мобильная шапка vs десктоп-и
     expect(w.find('.center__filters').exists()).toBe(false); // инлайн-фильтры скрыты
     expect(w.find('.header-row2').exists()).toBe(true); // мобильный второй ряд
     expect(w.find('[data-testid="center-button-filter"]').exists()).toBe(true);
-    expect(w.find('.search-icon-btn').exists()).toBe(true); // поиск иконкой
+    expect(w.find('.mobile-search').exists()).toBe(true); // морф-поиск (свёрнут = иконка)
   });
 
   it('десктоп (matchMedia не matches): инлайн-фильтры, без мобильной кнопки/ряда', async () => {
@@ -88,41 +88,42 @@ describe('ApplicationsCenter: мобильная шапка vs десктоп-и
     expect(w.vm.isMobileHeader).toBe(false);
     expect(w.find('.center__filters').exists()).toBe(true); // инлайн-фильтры Центра
     expect(w.find('.header-row2').exists()).toBe(false);
-    expect(w.find('.search-icon-btn').exists()).toBe(false);
+    expect(w.find('.mobile-search').exists()).toBe(false);
     expect(w.find('[data-testid="center-button-filter"]').exists()).toBe(false);
   });
 
-  it('toggleMobileSearch раскрывает/сворачивает поле поиска', async () => {
+  it('toggleMobileSearch раскрывает/сворачивает морф-поиск (класс --open)', async () => {
     mockMatchMedia(true);
     const w = mountCenter();
     await nextTick();
+    // Инпут в морфе всегда в DOM (скрыт opacity/шириной), раскрытие - класс --open.
     expect(w.vm.showMobileSearch).toBe(false);
-    expect(w.find('[data-testid="center-input-search"]').exists()).toBe(false);
+    expect(w.find('.mobile-search--open').exists()).toBe(false);
     w.vm.toggleMobileSearch();
     await nextTick();
     expect(w.vm.showMobileSearch).toBe(true);
-    expect(w.find('[data-testid="center-input-search"]').exists()).toBe(true);
+    expect(w.find('.mobile-search--open').exists()).toBe(true);
   });
 
-  it('крестик очистки: рендерится по вводу, кликом очищает запрос и сворачивает оверлей', async () => {
+  it('крестик очистки: рендерится по вводу, кликом очищает запрос и сворачивает поиск', async () => {
     mockMatchMedia(true);
     const w = mountCenter();
     await nextTick();
     w.vm.toggleMobileSearch();
     await nextTick();
     // пусто -> крестика нет
-    expect(w.find('.center__search-clear').exists()).toBe(false);
+    expect(w.find('.mobile-search__clear').exists()).toBe(false);
     // ввод -> крестик появляется
     w.vm.searchQuery = 'бмв';
     await nextTick();
-    const clear = w.find('.center__search-clear');
+    const clear = w.find('.mobile-search__clear');
     expect(clear.exists()).toBe(true);
     // клик по DOM-кнопке (проверяет проводку @click) -> очистка + закрытие
     await clear.trigger('click');
     await nextTick();
     expect(w.vm.searchQuery).toBe('');
     expect(w.vm.showMobileSearch).toBe(false);
-    expect(w.find('.center__search-clear').exists()).toBe(false);
+    expect(w.find('.mobile-search__clear').exists()).toBe(false);
   });
 
   it('индикатор «Фильтр» (hasModalFilters) загорается на выбранной организации', async () => {
