@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { mount, flushPromises } from '@vue/test-utils';
 
 vi.mock('@/api/client', () => ({
   apiRequest: vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({}) })),
@@ -127,5 +127,62 @@ describe('ApplicationActionBar - инвариант barKey для cross-fade (#1
     const before = wrapper.vm.barKey;
     await wrapper.setProps({ hasUnoverriddenBlacklistFlags: true });
     expect(wrapper.vm.barKey).toBe(before);
+  });
+});
+
+describe('ApplicationActionBar - принять можно только после согласования (#1227 follow-up)', () => {
+  const withMandatoryPending = {
+    approvers: [{ user_id: 1 }],
+    currentUserId: 1,
+    responsibleUsers: [
+      { id: 1, required_approval: false, approval_status: 'pending' },
+      { id: 2, required_approval: true, approval_status: 'pending' },
+    ],
+  };
+  const soloNonRequired = {
+    approvers: [{ user_id: 1 }],
+    currentUserId: 1,
+    responsibleUsers: [{ id: 1, required_approval: false, approval_status: 'pending' }],
+  };
+
+  it('обязательный другой согласующий pending -> голос НЕ завершает согласование, лейбл "Согласовать"', () => {
+    const wrapper = mountBar(withMandatoryPending);
+    expect(wrapper.vm.approvingCompletesConfirmation).toBe(false);
+    const btn = wrapper.find(APPROVE);
+    expect(btn.text()).toContain('Согласовать');
+    expect(btn.text()).not.toContain('Согласовать и принять');
+  });
+
+  it('единственный необязательный (текущий) -> голос завершает, лейбл "Согласовать и принять"', () => {
+    const wrapper = mountBar(soloNonRequired);
+    expect(wrapper.vm.approvingCompletesConfirmation).toBe(true);
+    expect(wrapper.find(APPROVE).text()).toContain('Согласовать и принять');
+  });
+
+  it('заявка без согласующих -> голос завершает (принять можно)', () => {
+    const wrapper = mountBar({ approvers: [{ user_id: 1 }], currentUserId: 1, responsibleUsers: [] });
+    expect(wrapper.vm.approvingCompletesConfirmation).toBe(true);
+  });
+
+  it('комбо-клик при незавершённом согласовании: approve есть, take-to-work НЕ вызывается', async () => {
+    const { apiRequest } = await import('@/api/client');
+    apiRequest.mockClear();
+    const wrapper = mountBar(withMandatoryPending);
+    await wrapper.find(APPROVE).trigger('click');
+    await flushPromises();
+    const urls = apiRequest.mock.calls.map(c => c[0]);
+    expect(urls.some(u => u.includes('/approve'))).toBe(true);
+    expect(urls.some(u => u.includes('/take-to-work'))).toBe(false);
+  });
+
+  it('комбо-клик при завершающем голосе: approve + take-to-work', async () => {
+    const { apiRequest } = await import('@/api/client');
+    apiRequest.mockClear();
+    const wrapper = mountBar(soloNonRequired);
+    await wrapper.find(APPROVE).trigger('click');
+    await flushPromises();
+    const urls = apiRequest.mock.calls.map(c => c[0]);
+    expect(urls.some(u => u.includes('/approve'))).toBe(true);
+    expect(urls.some(u => u.includes('/take-to-work'))).toBe(true);
   });
 });
