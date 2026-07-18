@@ -1,5 +1,12 @@
 <template>
-  <div class="modal-content-inner">
+  <div
+    class="modal-content-inner"
+    :class="{ 'is-dragging': sheetDragging }"
+    :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
+    @touchstart="onSheetTouchStart"
+    @touchmove="onSheetTouchMove"
+    @touchend="onSheetTouchEnd"
+  >
     <div
       class="sheet-handle"
       aria-hidden="true"
@@ -152,7 +159,7 @@
               <div 
                 ref="photoWrapper"
                 class="photo-wrapper"
-                @mousedown="startDrag"
+                @pointerdown="startDrag"
                 @wheel="onZoom"
               >
                 <img 
@@ -199,6 +206,8 @@
 </template>
 
 <script>
+import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
+
 export default {
     name: 'UnloadPlaceModal',
     props: {
@@ -212,12 +221,29 @@ export default {
         }
     },
     emits: ['close'],
+    setup(props, { emit }) {
+        // Свайп-вниз по ползунку закрывает окно места (эмитит close родителю). getScrollTop
+        // намеренно >0 - свайп стартует ТОЛЬКО с ползунка, не из контента: иначе тач по фото
+        // конфликтовал бы с его pan (drag фото на .photo-wrapper через Pointer Events).
+        const swipe = useSwipeDismiss(() => emit('close'), {
+            handleSelector: '.sheet-handle',
+            getScrollTop: () => 1,
+        });
+        return {
+            sheetOffset: swipe.offset,
+            sheetDragging: swipe.isDragging,
+            onSheetTouchStart: swipe.onTouchStart,
+            onSheetTouchMove: swipe.onTouchMove,
+            onSheetTouchEnd: swipe.onTouchEnd,
+        };
+    },
     data() {
         return {
             photoScale: 1.5,
             photoTranslateX: 0,
             photoTranslateY: 0,
             isDragging: false,
+            dragPointerId: null,
             dragStartX: 0,
             dragStartY: 0,
             initialTranslateX: 0,
@@ -228,8 +254,8 @@ export default {
             containerHeight: 0,
             fullDayNames: ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'],
             currentTime: new Date(),
-            windowMouseMoveHandler: null,
-            windowMouseUpHandler: null
+            windowPointerMoveHandler: null,
+            windowPointerUpHandler: null
         }
     },
     computed: {
@@ -254,9 +280,10 @@ export default {
         }
     },
     beforeUnmount() {
-        if (this.windowMouseMoveHandler) {
-            window.removeEventListener('mousemove', this.windowMouseMoveHandler);
-            window.removeEventListener('mouseup', this.windowMouseUpHandler);
+        if (this.windowPointerMoveHandler) {
+            window.removeEventListener('pointermove', this.windowPointerMoveHandler);
+            window.removeEventListener('pointerup', this.windowPointerUpHandler);
+            window.removeEventListener('pointercancel', this.windowPointerUpHandler);
         }
     },
     methods: {
@@ -505,19 +532,28 @@ export default {
             if (this.isDragging) return;
             event.preventDefault();
             this.isDragging = true;
+            // Pointer Events (не mouse) - drag работает и мышью, и пальцем: у PointerEvent
+            // есть clientX/clientY и для тача. touch-action:none на .photo-wrapper не даёт
+            // браузеру забрать жест под скролл/зум страницы.
+            // Запоминаем pointerId ведущего пальца: window-листенеры реагируют на ЛЮБОЙ
+            // поинтер, а поверх фото есть кнопки зума - тап вторым пальцем по ним не должен
+            // оборвать драг первого.
+            this.dragPointerId = event.pointerId;
             this.dragStartX = event.clientX;
             this.dragStartY = event.clientY;
             this.initialTranslateX = this.photoTranslateX;
             this.initialTranslateY = this.photoTranslateY;
 
-            this.windowMouseMoveHandler = this.onDrag;
-            this.windowMouseUpHandler = this.stopDrag;
-            window.addEventListener('mousemove', this.windowMouseMoveHandler);
-            window.addEventListener('mouseup', this.windowMouseUpHandler);
+            this.windowPointerMoveHandler = this.onDrag;
+            this.windowPointerUpHandler = this.stopDrag;
+            window.addEventListener('pointermove', this.windowPointerMoveHandler);
+            window.addEventListener('pointerup', this.windowPointerUpHandler);
+            window.addEventListener('pointercancel', this.windowPointerUpHandler);
         },
 
         onDrag(event) {
             if (!this.isDragging) return;
+            if (event.pointerId !== this.dragPointerId) return;
             const deltaX = event.clientX - this.dragStartX;
             const deltaY = event.clientY - this.dragStartY;
             this.photoTranslateX = this.initialTranslateX + deltaX;
@@ -525,13 +561,17 @@ export default {
             this.clampTranslate();
         },
 
-        stopDrag() {
-            if (this.windowMouseMoveHandler) {
-                window.removeEventListener('mousemove', this.windowMouseMoveHandler);
-                window.removeEventListener('mouseup', this.windowMouseUpHandler);
-                this.windowMouseMoveHandler = null;
-                this.windowMouseUpHandler = null;
+        stopDrag(event) {
+            // Игнорируем up/cancel НЕ ведущего пальца (второй палец на кнопках зума).
+            if (event && event.pointerId != null && event.pointerId !== this.dragPointerId) return;
+            if (this.windowPointerMoveHandler) {
+                window.removeEventListener('pointermove', this.windowPointerMoveHandler);
+                window.removeEventListener('pointerup', this.windowPointerUpHandler);
+                window.removeEventListener('pointercancel', this.windowPointerUpHandler);
+                this.windowPointerMoveHandler = null;
+                this.windowPointerUpHandler = null;
             }
+            this.dragPointerId = null;
             this.isDragging = false;
         },
 
@@ -777,6 +817,8 @@ export default {
     overflow: hidden;
     position: relative;
     cursor: grab;
+    /* Тач-жест на фото - наш drag/pan, а не скролл/зум страницы (нужно для Pointer Events). */
+    touch-action: none;
 }
 
 .photo-wrapper:active {
@@ -939,6 +981,12 @@ export default {
         height: auto;
         max-height: 90dvh;
         border-radius: 16px 16px 0 0;
+        /* Плавный снап-назад после свайпа-вниз; во время перетаскивания (is-dragging)
+           отключаем, чтобы лист следовал за пальцем 1:1 (как main-modal в VehicleDetailsModal). */
+        transition: transform 0.3s ease;
+    }
+    .modal-content-inner.is-dragging {
+        transition: none;
     }
 
     .sheet-handle {
