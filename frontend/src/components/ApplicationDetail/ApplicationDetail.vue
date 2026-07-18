@@ -772,8 +772,12 @@ export default {
 
         canLeaveComment() {
             if (this.processingApplication) return false;
-            // Отозванную заявку нельзя ни принять/согласовать, ни прокомментировать (#951).
-            if (this.applicationData.status === 'Отозвана') return false;
+            // Терминальные (закрытые) статусы: поток согласования завершён, действия и
+            // комментарий недоступны - список зеркалит canWithdraw/BE-гейт (#951). Раньше
+            // проверялась только «Отозвана», из-за чего на «Завершено» ответственный, ещё
+            // не голосовавший, проходил ветку ниже (return !hasUserVoted = true) и видел
+            // поле комментария на завершённой заявке (баг keeq0, #1097).
+            if (['Завершено', 'Не согласовано', 'Отказано', 'Отозвана'].includes(this.applicationData.status)) return false;
 
             if (this.isApprover && !this.isResponsibleUser) {
                 return !this.isApproverActionDone;
