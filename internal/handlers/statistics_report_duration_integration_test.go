@@ -19,6 +19,12 @@ import (
 // проверяет (EXTRACT/PERCENTILE_CONT/скан numeric в int64 падают только при
 // исполнении), поэтому каждая метрика гоняется через RunReport на заведомых
 // данных и сверяется с посчитанным вручную числом.
+//
+// Согласование/принятие/обработка с #1251 S2 считаются по рабочему времени Бюро
+// (bureauWorkingDuration), но тесты значений ниже НЕ заводят график bureau_time_slots
+// (CleanDB его чистит) -> метрика падает на календарный фолбэк, поэтому числа сидов
+// равны календарной разнице и остались прежними. Сам вычет нерабочих часов и фолбэк
+// проверяет TestRunReport_DurationMetrics_BureauWorkingTime.
 
 // mskTime — момент в московской зоне (в ней же движок бьёт бины и границы окна).
 func mskTime(t *testing.T, s string) *time.Time {
@@ -397,4 +403,87 @@ func TestReportCatalog_DurationMetrics(t *testing.T) {
 	}
 	assert.Equal(t, "Среднее время согласования", byKey["avg_approval_time"].Label)
 	assert.Equal(t, "90-й перцентиль времени до завершения", byKey["p90_completion_time"].Label)
+}
+
+// setBureauSchedule заменяет график Бюро слотами на дни недели dows (0=Пн..6=Вс) с
+// общими часами. Тесты рабочего времени задают ограниченный график, чтобы вычет
+// нерабочих часов был виден; БЕЗ вызова график пуст и bureauWorkingDuration падает
+// на календарный фолбэк (по нему совпадают числа сидов длительностей выше).
+func setBureauSchedule(t *testing.T, db *gorm.DB, dows []int, open, close string) {
+	t.Helper()
+	require.NoError(t, db.Exec("DELETE FROM bureau_time_slots").Error)
+	for _, dow := range dows {
+		slot := models.BureauTimeSlot{DayOfWeek: dow, OpenTime: open, CloseTime: close, IsActive: true}
+		require.NoError(t, db.Create(&slot).Error)
+	}
+}
+
+// TestRunReport_DurationMetrics_BureauWorkingTime — этапы работы людей Бюро
+// (согласование/принятие/обработка) считаются по РАБОЧЕМУ времени (#1251 S2): при
+// заведённом графике ночь и выходные вычитаются, при пустом — календарный фолбэк.
+// «Время до завершения» остаётся календарным в обеих ветках (срок пропуска, а не
+// работа человека). Одна заявка, поданная в пятницу вечером и принятая во вторник,
+// показывает контраст. Дни недели сверены в TestBureauWorkingSeconds (19.06 Пт,
+// 22.06 Пн, 23.06 Вт, 24.06 Ср).
+func TestRunReport_DurationMetrics_BureauWorkingTime(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+
+	org := models.Organization{Name: "Орг-Рабочее", IsActive: true}
+	require.NoError(t, db.Create(&org).Error)
+	user := models.User{Username: "work_sender", TypeID: 1, IsActive: true}
+	require.NoError(t, db.Create(&user).Error)
+
+	status := models.StatusInWork
+	number := "W/1"
+	app := models.Application{
+		ApplicationNumber:    &number,
+		OrganizationID:       org.ID,
+		SenderUserID:         user.ID,
+		Status:               &status,
+		SendingDatetime:      mskTime(t, "2026-06-19 16:00"),
+		ConfirmationDatetime: mskTime(t, "2026-06-22 11:00"),
+		AcceptedAt:           mskTime(t, "2026-06-23 10:00"),
+		CompletedAt:          mskTime(t, "2026-06-24 16:00"),
+	}
+	require.NoError(t, db.Create(&app).Error)
+
+	// Окно бьёт по дате ПОДАЧИ (sending_datetime), заявка подана 19.06; этапы
+	// свободно дотягиваются в следующие дни.
+	win := []models.ReportFilterValue{{Key: "date_range", From: "2026-06-19", To: "2026-06-19"}}
+	svc := services.NewStatisticsService(db, 0)
+	runAvg := func(metric string) int64 {
+		res, err := svc.RunReport(context.Background(), models.ReportRequest{
+			Mode: "aggregate", Metric: metric, Dimension: "none", Filters: win,
+		})
+		require.NoError(t, err, "SQL метрики должен исполняться")
+		require.Len(t, res.MetricRows, 1)
+		return res.MetricRows[0].Values[metric]
+	}
+
+	// --- Пустой график: календарный фолбэк ---
+	t.Run("empty_schedule_calendar", func(t *testing.T) {
+		// Пт16:00 -> Пн11:00 = 67ч календарно (график не задан -> вычитать нечего).
+		assert.Equal(t, int64(67*3600), runAvg("avg_approval_time"))
+		// Пт16:00 -> Ср16:00 = 5 суток = 120ч (завершение всегда календарное).
+		assert.Equal(t, int64(120*3600), runAvg("avg_completion_time"))
+	})
+
+	// --- График Пн-Пт 09:00-18:00: вычитаем ночь и выходные ---
+	t.Run("weekday_schedule_working", func(t *testing.T) {
+		setBureauSchedule(t, db, []int{0, 1, 2, 3, 4}, "09:00", "18:00")
+
+		// Согласование Пт16:00 -> Пн11:00: Пт 16-18 (2ч) + Пн 09-11 (2ч) = 4ч.
+		assert.Equal(t, int64(4*3600), runAvg("avg_approval_time"))
+		// Перцентиль идёт через тот же expr (durationPercentile): при единственной
+		// заявке p90 = её рабочее время — заодно проверяем percentile-путь на рабочей ветке.
+		assert.Equal(t, int64(4*3600), runAvg("p90_approval_time"))
+		// Принятие Пн11:00 -> Вт10:00: Пн 11-18 (7ч) + Вт 09-10 (1ч) = 8ч.
+		assert.Equal(t, int64(8*3600), runAvg("avg_acceptance_time"))
+		// Обработка Пт16:00 -> Вт10:00: Пт 16-18 (2ч) + Пн 09-18 (9ч) + Вт 09-10 (1ч) = 12ч.
+		assert.Equal(t, int64(12*3600), runAvg("avg_processing_time"))
+		// Завершение остаётся календарным и при заведённом графике: 120ч.
+		assert.Equal(t, int64(120*3600), runAvg("avg_completion_time"))
+	})
 }
