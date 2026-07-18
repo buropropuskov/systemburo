@@ -14,6 +14,10 @@
   --radius-md: 15px;
   --radius-lg: 20px;
   --radius-pill: 999px;
+  /* Высота мобильной шапки (TheHeader fixed на <=768). Единый источник: min-height
+     шапки, padding-top #main-content под неё и sticky-top вложенных шапок (Центр, ЛК)
+     считаются от него - иначе рассинхрон/зазор при смене высоты. */
+  --mobile-header-height: 55px;
   --spacing-sm: 10px;
   --spacing-md: 20px;
   --color-skeleton: #e9eaef;

@@ -609,6 +609,9 @@ h3 {
     background: #fff;
     padding: 0 12px;
     gap: 8px;
+    /* -5px к высоте (60 -> 55): единый токен, синхронно с padding-top #main-content
+       и sticky-top вложенных шапок. Элементы ниже пропорционально уменьшены до 36px. */
+    min-height: var(--mobile-header-height);
   }
 
   .header__burger {
@@ -631,15 +634,15 @@ h3 {
 
   /* Объявление на мобилке - текстовый pill (правка волны 3), просто компактнее */
   .broadcast {
-    height: 40px;
+    height: 36px;
     font-size: 13px;
     padding: 0 14px;
   }
 
   /* Колокольчик - в самой шапке, укрупнён под тач (A.2) */
   .user__notifications {
-    width: 40px;
-    height: 40px;
+    width: 36px;
+    height: 36px;
   }
 
   /* Кнопка "Подать заявку" на мобилке - outline: белый фон, синий border+текст,
@@ -654,7 +657,7 @@ h3 {
   }
 
   .appl-btn {
-    height: 40px;
+    height: 36px;
     width: auto;
     padding: 0 16px;
     border-radius: var(--radius-md);

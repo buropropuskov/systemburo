@@ -3505,16 +3505,16 @@ export default {
         height: auto;
     }
 
-    /* Шапка Центра закреплена под app bar (TheHeader min-height 60px, sticky top:0),
+    /* Шапка Центра закреплена под app bar (TheHeader = --mobile-header-height, sticky top:0),
        список заявок скроллит страница под ней. Full-bleed белый фон (margin -12px гасит
        боковой padding .center) - edge-to-edge карточки уходят под шапку без просвета.
        Нижняя граница - разделитель между шапкой и списком (гасит «белую пустоту» перед
        первой карточкой), держится закреплённой при скролле. */
     .center__header {
         position: sticky;
-        /* Липнет ровно под fixed-шапкой (TheHeader 60px). sticky отслеживает скролл
-           документа нативно на композиторе - без JS-переменной и reflow-дёрганья. */
-        top: 60px;
+        /* Липнет ровно под fixed-шапкой (= --mobile-header-height). sticky отслеживает
+           скролл документа нативно на композиторе - без JS-переменной и reflow-дёрганья. */
+        top: var(--mobile-header-height);
         z-index: 20;
         gap: 8px;
         background: #FAFAFA;

@@ -2011,12 +2011,12 @@ export default {
     overflow: visible;
   }
 
-  /* Шапка кабинета закреплена под app bar (TheHeader min-height 60px, sticky top:0),
+  /* Шапка кабинета закреплена под app bar (= --mobile-header-height, sticky top:0),
      список заявок скроллит страница под ней (зеркало Центра, срез 3). Нижняя граница
      (уже есть из базового .card-header) - разделитель между шапкой и списком. */
   .card-header {
     position: sticky;
-    top: 60px;
+    top: var(--mobile-header-height);
     z-index: 20;
     /* Компактнее и фон #FAFAFA - как шапка Центра (зеркалим правки Центра). Гасит
        щедрый padding:16px/gap:12px из блока 992px -> шапка ниже и опрятнее. */
