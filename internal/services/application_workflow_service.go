@@ -45,9 +45,10 @@ func (s *applicationService) TakeApplicationToWork(ctx context.Context, username
 	}()
 
 	var app struct {
-		Status *string
+		Status       *string
+		Confirmation *string
 	}
-	result := tx.Raw("SELECT status FROM applications WHERE id = ?", applicationID).Scan(&app)
+	result := tx.Raw("SELECT status, confirmation FROM applications WHERE id = ?", applicationID).Scan(&app)
 	if result.Error != nil || result.RowsAffected == 0 {
 		tx.Rollback()
 		return echo.NewHTTPError(http.StatusNotFound, "Application not found")
@@ -58,6 +59,24 @@ func (s *applicationService) TakeApplicationToWork(ctx context.Context, username
 		if oldStatus != nil && *oldStatus == models.StatusInWork {
 			tx.Rollback()
 			return echo.NewHTTPError(http.StatusBadRequest, "Application is already in work")
+		}
+
+		// Гейт согласования: принять в работу можно только когда заявка согласована
+		// (confirmation='Согласовано' = все обязательные approved, при отсутствии обязательных -
+		// хотя бы один approved). Исключение - заявка вообще без согласующих (согласовывать
+		// нечего) - её принять можно. FE-кнопка "Согласовать и принять" тоже это проверяет,
+		// но барьер обязан быть на бэке: FE-гейт обходится гонкой/устаревшим состоянием.
+		if app.Confirmation == nil || *app.Confirmation != models.ConfirmationApproved {
+			var approverCount int64
+			if err := tx.Model(&models.ApplicationResponsibleUser{}).
+				Where("application_id = ?", applicationID).Count(&approverCount).Error; err != nil {
+				tx.Rollback()
+				return echo.NewHTTPError(http.StatusInternalServerError, "Error checking approvals")
+			}
+			if approverCount > 0 {
+				tx.Rollback()
+				return echo.NewHTTPError(http.StatusBadRequest, "Заявку нельзя принять в работу: не завершено согласование")
+			}
 		}
 
 		// accepted_at через COALESCE: заявку могли отозвать из работы и принять снова

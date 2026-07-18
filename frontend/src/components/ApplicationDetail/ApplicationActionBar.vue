@@ -32,7 +32,7 @@
                     v-if="processing"
                     class="button-loading"
                   />
-                  <span v-else>Согласовать и принять</span>
+                  <span v-else>{{ approvingCompletesConfirmation ? 'Согласовать и принять' : 'Согласовать' }}</span>
                 </button>
                 <button
                   class="reject-btn"
@@ -493,6 +493,26 @@ export default {
             return true;
         },
 
+        // Завершит ли голос текущего пользователя согласование целиком (заявка станет
+        // "Согласовано" -> её можно сразу принять в работу). Зеркало бэкенд-логики
+        // updateConfirmationBasedOnApprovals: все обязательные approved / при отсутствии
+        // обязательных - хотя бы один approved; заявка без согласующих - принять можно.
+        // По этому решаем: комбо-кнопка "Согласовать и принять" vs просто "Согласовать".
+        approvingCompletesConfirmation() {
+            const users = this.responsibleUsers.map(u =>
+                u.id === this.currentUserId ? { ...u, approval_status: 'approved' } : u);
+            if (users.length === 0) return true;
+            const required = users.filter(u => u.required_approval);
+            if (required.some(u => u.approval_status === 'rejected')) return false;
+            if (required.length > 0) return required.every(u => u.approval_status === 'approved');
+            const nonRequired = users.filter(u => !u.required_approval);
+            if (nonRequired.length > 0) {
+                return nonRequired.some(u => u.approval_status === 'approved')
+                    && !nonRequired.some(u => u.approval_status === 'rejected');
+            }
+            return true;
+        },
+
         getApproverStatusMessage() {
             if (this.application.status === 'В работе') return 'Заявка уже в работе';
             if (this.application.status === 'Отказано') return 'Заявка отклонена';
@@ -541,7 +561,14 @@ export default {
                 }
 
                 if (action === 'accept') {
-                    await this.acceptApplication();
+                    // Принять в работу можно, только если голос текущего пользователя реально
+                    // завершает согласование; иначе только согласовываем (бэк всё равно отобьёт
+                    // accept до завершения согласования - барьер там authoritative).
+                    if (this.approvingCompletesConfirmation) {
+                        await this.acceptApplication();
+                    } else {
+                        this.$emit('action-completed', { success: true, message: 'Ваш голос учтён. Заявка ожидает согласования остальных обязательных согласующих.', type: 'success' });
+                    }
                 } else {
                     await this.rejectApplication();
                 }
