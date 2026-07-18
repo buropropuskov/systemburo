@@ -131,6 +131,47 @@ describe('ProcessingAnalytics — KPI этапов', () => {
   });
 });
 
+describe('ProcessingAnalytics — тултипы и основа времени (S5)', () => {
+  it('на плитке этапа есть подсказка «что считается» (data-hint), а не native title', async () => {
+    state.summary = fullSummary();
+    const wrapper = mountTab();
+    await flushPromises();
+
+    const approval = wrapper.findAll('.proc__tile').find((t) => t.text().includes('Время согласования'));
+    const hint = approval.find('.proc__hint');
+    expect(hint.exists()).toBe(true);
+    expect(hint.attributes('data-hint')).toContain('рабочему времени бюро');
+    expect(hint.attributes('title')).toBeUndefined(); // не native title
+  });
+
+  it('помечает основу расчёта: рабочее время у согласования, календарное у завершения', async () => {
+    state.summary = fullSummary();
+    const wrapper = mountTab();
+    await flushPromises();
+
+    const approval = wrapper.findAll('.proc__tile').find((t) => t.text().includes('Время согласования'));
+    const workBadge = approval.find('.proc__basis');
+    expect(workBadge.classes()).toContain('proc__basis--work');
+    expect(workBadge.text()).toContain('раб. время');
+
+    const completion = wrapper.findAll('.proc__tile').find((t) => t.text().includes('Время до завершения'));
+    const calBadge = completion.find('.proc__basis');
+    expect(calBadge.classes()).toContain('proc__basis--calendar');
+    expect(calBadge.text()).toContain('календарное');
+  });
+
+  it('у метрики качества тоже есть подсказка «что считается»', async () => {
+    state.summary = fullSummary();
+    const wrapper = mountTab();
+    await flushPromises();
+
+    const refusal = wrapper.findAll('.proc__tile').find((t) => t.text().includes('Доля отказов'));
+    const hint = refusal.find('.proc__hint');
+    expect(hint.exists()).toBe(true);
+    expect(hint.attributes('data-hint')).toContain('отказ');
+  });
+});
+
 describe('ProcessingAnalytics — качество', () => {
   it('долю отказов показывает процентом, число пересылок — с единицей', async () => {
     state.summary = fullSummary();
