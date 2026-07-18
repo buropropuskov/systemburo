@@ -301,13 +301,68 @@
         </div>
       </section>
     </template>
+
+    <!-- ===== ЖУРНАЛ: ЛЕНТА СОГЛАСОВАНИЙ И ПРИНЯТИЙ =====
+         ВНЕ isEmpty-гейта намеренно: окно журнала бьёт по времени СОБЫТИЯ
+         (согласование/принятие), а не по дате подачи, поэтому события могут быть и
+         когда за период не подали ни одной новой заявки. Своя загрузка/ошибка/пусто. -->
+    <section
+      v-if="!errorMsg"
+      class="proc__group"
+    >
+      <div class="proc__group-head">
+        <h2 class="proc__group-title">Журнал</h2>
+        <span class="proc__group-chip">последние согласования и принятия</span>
+        <span class="proc__group-rule" />
+      </div>
+      <div
+        v-if="journalError"
+        class="proc__state proc__state--error"
+      >
+        {{ journalError }}
+      </div>
+      <div
+        v-else-if="!journalReady"
+        class="proc__skeleton proc__skeleton--table"
+      />
+      <div
+        v-else
+        class="proc__card proc__card--scroll proc__journal"
+      >
+        <div
+          v-for="e in journal"
+          :key="`${e.application_id}-${e.role}-${e.occurred_at}`"
+          class="proc__journal-row"
+        >
+          <span
+            class="proc__journal-role"
+            :class="`proc__journal-role--${e.role}`"
+          >{{ roleLabel(e.role) }}</span>
+          <span
+            class="proc__journal-actor"
+            :title="e.actor_name"
+          >{{ e.actor_name }}</span>
+          <span class="proc__journal-app">{{ e.application_number || '—' }}</span>
+          <span class="proc__journal-dur">{{ e.working_seconds == null ? '' : fmtDur(e.working_seconds) }}</span>
+          <span
+            class="proc__journal-when"
+            :title="formatDateTime(e.occurred_at)"
+          >{{ formatTimeAgo(e.occurred_at) }}</span>
+        </div>
+        <div
+          v-if="journal.length === 0"
+          class="proc__table-empty"
+        >Событий за период нет</div>
+      </div>
+    </section>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue';
-import { getProcessingSummary } from '@/api/statistics.js';
-import { formatDuration } from '@/utils/datetime';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
+import { getProcessingSummary, getProcessingJournal } from '@/api/statistics.js';
+import { formatDuration, formatDateTime, formatTimeAgo } from '@/utils/datetime';
+import eventStream from '@/services/eventStream';
 import AnalyticsBarChart from './AnalyticsBarChart.vue';
 import DirIcon from './DirIcon.vue';
 
@@ -343,6 +398,35 @@ async function loadSummary() {
       ready.value = true;
     }
   }
+}
+
+// Журнал (#1251 S7): лента согласований и принятий отдельным запросом, без кэша
+// (реальное время). Обновляется по SSE-сигналу applications-center (тот же, что
+// двигает Центр заявок) + рефетч. Свой seq-guard и journalReady, чтобы гонка
+// устаревшего ответа не затирала актуальный и на рефреше не мигал скелетон.
+const journal = ref([]);
+const journalError = ref('');
+const journalReady = ref(false);
+const JOURNAL_LIMIT = 50;
+let journalSeq = 0;
+async function loadJournal() {
+  const seq = ++journalSeq;
+  journalError.value = '';
+  try {
+    const data = await getProcessingJournal(props.from, props.to, JOURNAL_LIMIT);
+    if (seq !== journalSeq) return;
+    journal.value = Array.isArray(data) ? data : [];
+  } catch (e) {
+    if (seq !== journalSeq) return;
+    journalError.value = e?.message || 'Не удалось загрузить журнал обработки';
+  } finally {
+    if (seq === journalSeq) journalReady.value = true;
+  }
+}
+
+const JOURNAL_ROLES = { approval: 'Согласование', acceptance: 'Принятие' };
+function roleLabel(role) {
+  return JOURNAL_ROLES[role] || role;
 }
 
 const stages = computed(() => summary.value?.stages ?? []);
@@ -450,13 +534,40 @@ function deltaText(pct) {
   return `${r > 0 ? '+' : ''}${r}%`;
 }
 
+function reload() {
+  loadSummary();
+  loadJournal();
+}
+
 watch(
   () => [props.from, props.to],
-  () => loadSummary(),
+  reload,
 );
-onMounted(loadSummary);
 
-defineExpose({ refresh: loadSummary });
+// Real-time: тот же SSE-сигнал, что двигает Центр заявок (подача/согласование/
+// принятие/пересылка). На каждый сигнал перечитываем журнал за текущий период;
+// бандл-метрики не трогаем — они тяжёлые и кэшируются, лента же лёгкая и живая.
+let journalStreamOff = null;
+let journalPoll = null;
+const JOURNAL_POLL_MS = 60000;
+onMounted(() => {
+  reload();
+  // connect держит SSE-соединение через refcount (как у прочих потребителей
+  // eventStream); без него subscribe молча полагался бы на чужой connect.
+  eventStream.connect();
+  journalStreamOff = eventStream.subscribe('applications-center', () => loadJournal());
+  // Фолбэк-опрос: если SSE ушёл в fallback, лента всё равно не протухнет.
+  journalPoll = setInterval(loadJournal, JOURNAL_POLL_MS);
+});
+onBeforeUnmount(() => {
+  if (journalStreamOff) journalStreamOff();
+  journalStreamOff = null;
+  eventStream.disconnect();
+  if (journalPoll) clearInterval(journalPoll);
+  journalPoll = null;
+});
+
+defineExpose({ refresh: reload });
 </script>
 
 <style scoped>
@@ -832,5 +943,80 @@ defineExpose({ refresh: loadSummary });
   text-align: center;
   color: var(--color-text-muted);
   padding: 18px 0;
+}
+
+/* ===== ЖУРНАЛ (лента) ===== */
+.proc__journal {
+  padding: 2px 4px;
+}
+
+.proc__journal-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 8px;
+  border-bottom: 1px solid var(--color-bg);
+  font-size: 13px;
+}
+
+.proc__journal-row:last-child {
+  border-bottom: none;
+}
+
+.proc__journal-role {
+  flex-shrink: 0;
+  min-width: 96px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 9px;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+}
+
+/* Согласование — синий tint (шаг пути), принятие — зелёный (заявка пошла в работу). */
+.proc__journal-role--approval {
+  background: var(--color-primary-tint);
+  color: var(--color-primary);
+}
+
+.proc__journal-role--acceptance {
+  background: rgba(40, 167, 69, 0.12);
+  color: var(--color-success);
+}
+
+.proc__journal-actor {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+.proc__journal-app {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.proc__journal-dur {
+  flex-shrink: 0;
+  min-width: 58px;
+  text-align: right;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.proc__journal-when {
+  flex-shrink: 0;
+  min-width: 78px;
+  text-align: right;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  white-space: nowrap;
 }
 </style>

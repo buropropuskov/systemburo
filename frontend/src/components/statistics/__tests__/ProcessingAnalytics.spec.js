@@ -4,7 +4,7 @@ import { nextTick } from 'vue';
 
 // Фабрика vi.mock поднимается над импортами — управляемое состояние в hoisted.
 const { state } = vi.hoisted(() => ({
-  state: { summary: {}, reject: false, deferred: [] },
+  state: { summary: {}, journal: [], reject: false, deferred: [], streamHandler: null },
 }));
 
 vi.mock('@/api/statistics.js', () => ({
@@ -12,6 +12,22 @@ vi.mock('@/api/statistics.js', () => ({
     if (state.reject) return Promise.reject(new Error('boom'));
     if (state.hang) return new Promise((resolve) => { state.deferred.push(resolve); });
     return Promise.resolve(state.summary);
+  },
+  getProcessingJournal: () => {
+    if (state.hang) return new Promise(() => {}); // на первой загрузке лента тоже висит
+    return Promise.resolve(state.journal);
+  },
+}));
+
+// eventStream.subscribe запоминаем handler, чтобы имитировать SSE-сигнал в тесте.
+vi.mock('@/services/eventStream', () => ({
+  default: {
+    connect: () => {},
+    disconnect: () => {},
+    subscribe: (scope, handler) => {
+      state.streamHandler = handler;
+      return () => { state.streamHandler = null; };
+    },
   },
 }));
 
@@ -90,10 +106,19 @@ const fullSummary = () => ({
 
 beforeEach(() => {
   state.summary = {};
+  state.journal = [];
   state.reject = false;
   state.hang = false;
   state.deferred = [];
+  state.streamHandler = null;
 });
+
+// application_number приходит от бэка УЖЕ с префиксом «№ » (COALESCE(app.application_number)),
+// фронт его не дублирует.
+const journalEntries = () => [
+  { application_id: 5, application_number: '№ 20260710/001', actor_name: 'Иванов И.И.', role: 'acceptance', occurred_at: '2026-06-07T09:30:00Z', working_seconds: 3600 },
+  { application_id: 5, application_number: '№ 20260710/001', actor_name: 'Петров П.П.', role: 'approval', occurred_at: '2026-06-07T08:00:00Z', working_seconds: null },
+];
 
 describe('ProcessingAnalytics — KPI этапов', () => {
   it('рисует длительность этапа человекочитаемо, а не сырые секунды', async () => {
@@ -258,6 +283,76 @@ describe('ProcessingAnalytics — рейтинги (S6)', () => {
   });
 });
 
+describe('ProcessingAnalytics — журнал (S7)', () => {
+  it('рендерит события ленты: роль, актор, заявка, рабочая длительность', async () => {
+    state.summary = fullSummary();
+    state.journal = journalEntries();
+    const wrapper = mountTab();
+    await flushPromises();
+
+    const rows = wrapper.findAll('.proc__journal-row');
+    expect(rows).toHaveLength(2);
+
+    // Первое событие — принятие (роль «Принятие»), актор, заявка, длительность 1 ч.
+    expect(rows[0].find('.proc__journal-role').text()).toBe('Принятие');
+    expect(rows[0].find('.proc__journal-role').classes()).toContain('proc__journal-role--acceptance');
+    expect(rows[0].find('.proc__journal-actor').text()).toBe('Иванов И.И.');
+    // Номер как есть от бэка, без дублирования префикса «№».
+    expect(rows[0].find('.proc__journal-app').text()).toBe('№ 20260710/001');
+    expect(rows[0].find('.proc__journal-dur').text()).toBe('1 ч'); // 3600 с
+
+    // Второе — согласование без рабочей длительности (null -> пусто, не «—»).
+    expect(rows[1].find('.proc__journal-role').text()).toBe('Согласование');
+    expect(rows[1].find('.proc__journal-role').classes()).toContain('proc__journal-role--approval');
+    expect(rows[1].find('.proc__journal-dur').text()).toBe('');
+  });
+
+  it('пустой журнал показывает заглушку, а не строки', async () => {
+    state.summary = fullSummary();
+    state.journal = [];
+    const wrapper = mountTab();
+    await flushPromises();
+
+    expect(wrapper.findAll('.proc__journal-row')).toHaveLength(0);
+    expect(wrapper.text()).toContain('Событий за период нет');
+  });
+
+  it('журнал виден даже когда за период не подали новых заявок (окно по времени события)', async () => {
+    // total_applications=0 (нет подач), но в журнале есть события (согласовали/приняли
+    // заявки, поданные раньше) — лента не должна скрываться заглушкой «не подавали».
+    state.summary = { from: '2026-06-01', to: '2026-06-07', total_applications: 0, stages: [], quality: [], approvers: [], acceptors: [], by_organization: [] };
+    state.journal = journalEntries();
+    const wrapper = mountTab();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('заявок не подавали'); // заглушка бандла на месте
+    // Но журнал всё равно отрисован со своими событиями.
+    expect(wrapper.text()).toContain('Журнал');
+    expect(wrapper.findAll('.proc__journal-row')).toHaveLength(2);
+  });
+
+  it('обновляет ленту по SSE-сигналу applications-center (real-time)', async () => {
+    state.summary = fullSummary();
+    state.journal = journalEntries();
+    const wrapper = mountTab();
+    await flushPromises();
+    expect(wrapper.findAll('.proc__journal-row')).toHaveLength(2);
+
+    // Пришло новое событие -> сигнал -> рефетч ленты.
+    expect(typeof state.streamHandler).toBe('function');
+    state.journal = [
+      { application_id: 9, application_number: '№ 20260711/003', actor_name: 'Сидоров С.С.', role: 'acceptance', occurred_at: '2026-06-07T10:00:00Z', working_seconds: 1800 },
+      ...journalEntries(),
+    ];
+    state.streamHandler();
+    await flushPromises();
+
+    const rows = wrapper.findAll('.proc__journal-row');
+    expect(rows).toHaveLength(3);
+    expect(rows[0].text()).toContain('20260711/003'); // свежее сверху
+  });
+});
+
 describe('ProcessingAnalytics — крайние состояния', () => {
   it('пустой период показывает заглушку, а не нулевые метрики', async () => {
     state.summary = { from: '2026-06-01', to: '2026-06-07', total_applications: 0, stages: [], quality: [], approvers: [], acceptors: [], by_organization: [] };
@@ -275,7 +370,7 @@ describe('ProcessingAnalytics — крайние состояния', () => {
 
     expect(wrapper.findAll('.proc__tile--skeleton').length).toBeGreaterThan(0);
     expect(wrapper.find('.proc__skeleton--chart').exists()).toBe(true);
-    expect(wrapper.findAll('.proc__skeleton--table').length).toBe(3); // согласующие + принимающие + организации
+    expect(wrapper.findAll('.proc__skeleton--table').length).toBe(4); // согласующие + принимающие + организации + журнал
     // График/таблицы не должны флэшить пустоту до прихода ответа.
     expect(wrapper.text()).not.toContain('Нет данных');
 
