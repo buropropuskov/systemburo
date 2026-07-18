@@ -465,6 +465,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { getViewportZoom } from '@/utils/viewportScale'
 import { getUniqueEmployeesPaginated } from '@/api/employees'
 import { useInfiniteList } from '@/composables/useInfiniteList'
 import { useDeletionsStore } from '@/stores/deletions';
@@ -697,8 +698,11 @@ export default {
                 this._lastHeight = -1;
                 return;
             }
+            // rect.top под корневым zoom - device-px, innerHeight - НЕзумленный;
+            // делим на zoom, чтобы высота была в layout-px (иначе на мониторах >1440
+            // контейнер выходит в zoom раз ниже экрана). См. AdminPageShell/AccountComponent.
             const top = el.getBoundingClientRect().top;
-            const height = Math.max(0, Math.round(window.innerHeight - top));
+            const height = Math.max(0, Math.round((window.innerHeight - top) / getViewportZoom()));
             if (height === this._lastHeight) return;
             this._lastHeight = height;
             el.style.height = `${height}px`;

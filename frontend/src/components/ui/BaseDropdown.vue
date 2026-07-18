@@ -93,6 +93,8 @@
 </template>
 
 <script>
+import { getViewportZoom } from '@/utils/viewportScale';
+
 export default {
   name: 'BaseDropdown',
   props: {
@@ -213,8 +215,21 @@ export default {
     updateMenuPosition() {
       const el = this.$refs.dropdown;
       if (!el) return;
-      const r = el.getBoundingClientRect();
-      const vh = window.innerHeight;
+      // Меню телепортится в body ВНУТРИ зазумленного <html> (масштаб под 1440 на
+      // мониторах >1440): его inline top/left трактуются в зазумленных CSS-px и
+      // домножаются на zoom. getBoundingClientRect отдаёт device-px, innerHeight -
+      // НЕзумленную высоту; делим оба на zoom, чтобы считать в layout-px (при
+      // zoom=1 - деление на 1, поведение не меняется). Иначе меню улетает по X/Y
+      // в правый нижний угол тем дальше, чем правее триггер.
+      const z = getViewportZoom();
+      const raw = el.getBoundingClientRect();
+      const r = {
+        left: raw.left / z,
+        top: raw.top / z,
+        bottom: raw.bottom / z,
+        width: raw.width / z,
+      };
+      const vh = window.innerHeight / z;
       const gap = 5;
       const margin = 8; // не впритык к краю экрана
       const spaceBelow = vh - r.bottom - gap - margin;
