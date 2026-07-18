@@ -73,9 +73,15 @@ const fullSummary = () => ({
       trend: { delta_pct: 18.2, direction: 'up', sentiment: 'bad' },
     },
   ],
-  slow_approvers: [
+  // Полные рейтинги по скорости (S6): бэк отдаёт отсортированными (быстрые сверху,
+  // без данных — в конце). Фронт не пересортировывает.
+  approvers: [
     { name: 'Иванов И.И.', avg_response_time: 14400, votes_count: 12 },
     { name: 'Петров П.П.', avg_response_time: null, votes_count: 3 },
+  ],
+  acceptors: [
+    { name: 'Сидоров С.С.', avg_acceptance_time: 7200, accepts_count: 5 },
+    { name: 'Кузнецов К.К.', avg_acceptance_time: 10800, accepts_count: 2 },
   ],
   by_organization: [
     { label: 'ООО Ромашка', avg_processing_time: 10800, applications_count: 20 },
@@ -204,20 +210,41 @@ describe('ProcessingAnalytics — узкие места', () => {
   });
 });
 
-describe('ProcessingAnalytics — таблицы', () => {
-  it('согласующий без ответов показывает прочерк времени, но реальную нагрузку', async () => {
+describe('ProcessingAnalytics — рейтинги (S6)', () => {
+  it('согласующие — полный рейтинг по скорости с рангом; без ответов — прочерк времени, но реальная нагрузка', async () => {
     state.summary = fullSummary();
     const wrapper = mountTab();
     await flushPromises();
 
-    const text = wrapper.text();
-    expect(text).toContain('Иванов И.И.');
-    expect(text).toContain('4 ч'); // 14400 с
+    // Первая таблица — рейтинг согласующих; Иванов ранг 1 (порядок задаёт бэк).
+    const approversTable = wrapper.findAll('.proc__table')[0];
+    const rows = approversTable.findAll('tbody tr');
+    expect(rows[0].find('.proc__rank').text()).toBe('1');
+    expect(rows[0].text()).toContain('Иванов И.И.');
+    expect(rows[0].findAll('.proc__num')[0].text()).toBe('4 ч'); // 14400 с
+
     // Петров без времени реакции — прочерк, нагрузка 3.
-    const rows = wrapper.findAll('.proc__table')[0].findAll('tbody tr');
     const petrov = rows.find((r) => r.text().includes('Петров'));
     expect(petrov.findAll('.proc__num')[0].text()).toBe('—');
     expect(petrov.findAll('.proc__num')[1].text()).toBe('3');
+  });
+
+  it('принимающие — отдельная таблица рейтинга по скорости принятия', async () => {
+    state.summary = fullSummary();
+    const wrapper = mountTab();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Принимающие');
+    // Вторая таблица — рейтинг принимающих.
+    const acceptorsTable = wrapper.findAll('.proc__table')[1];
+    const rows = acceptorsTable.findAll('tbody tr');
+    expect(rows[0].find('.proc__rank').text()).toBe('1');
+    expect(rows[0].text()).toContain('Сидоров С.С.');
+    expect(rows[0].findAll('.proc__num')[0].text()).toBe('2 ч'); // 7200 с — время принятия
+    expect(rows[0].findAll('.proc__num')[1].text()).toBe('5'); // принято
+
+    expect(rows[1].text()).toContain('Кузнецов К.К.');
+    expect(rows[1].findAll('.proc__num')[0].text()).toBe('3 ч'); // 10800 с
   });
 
   it('разбивку по организациям показывает временем обработки и числом заявок', async () => {
@@ -233,7 +260,7 @@ describe('ProcessingAnalytics — таблицы', () => {
 
 describe('ProcessingAnalytics — крайние состояния', () => {
   it('пустой период показывает заглушку, а не нулевые метрики', async () => {
-    state.summary = { from: '2026-06-01', to: '2026-06-07', total_applications: 0, stages: [], quality: [], slow_approvers: [], by_organization: [] };
+    state.summary = { from: '2026-06-01', to: '2026-06-07', total_applications: 0, stages: [], quality: [], approvers: [], acceptors: [], by_organization: [] };
     const wrapper = mountTab();
     await flushPromises();
 
@@ -248,7 +275,7 @@ describe('ProcessingAnalytics — крайние состояния', () => {
 
     expect(wrapper.findAll('.proc__tile--skeleton').length).toBeGreaterThan(0);
     expect(wrapper.find('.proc__skeleton--chart').exists()).toBe(true);
-    expect(wrapper.findAll('.proc__skeleton--table').length).toBe(2);
+    expect(wrapper.findAll('.proc__skeleton--table').length).toBe(3); // согласующие + принимающие + организации
     // График/таблицы не должны флэшить пустоту до прихода ответа.
     expect(wrapper.text()).not.toContain('Нет данных');
 
@@ -281,7 +308,7 @@ describe('ProcessingAnalytics — крайние состояния', () => {
     // Актуальный seq 2 приходит первым, устаревший seq 1 — позже с другими данными.
     state.deferred[1](fullSummary());
     await flushPromises();
-    state.deferred[0]({ total_applications: 999, stages: [], quality: [], slow_approvers: [], by_organization: [] });
+    state.deferred[0]({ total_applications: 999, stages: [], quality: [], approvers: [], acceptors: [], by_organization: [] });
     await flushPromises();
 
     // На экране — данные seq 2 (42 заявки), а не устаревшие seq 1 (999).
