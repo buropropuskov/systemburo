@@ -47,6 +47,10 @@ const (
 	// (#1240, report_approver_metrics.go). Отдельная группа, т.к. считаются не по
 	// заявкам, а по голосам согласующих.
 	metricGroupApprovers = "Согласующие"
+	// metricGroupAcceptors - метрики принимающих: время принятия в работу и нагрузка
+	// (#1251 S3, report_acceptor_metrics.go). Считаются по первому принятию заявки,
+	// не по самим заявкам.
+	metricGroupAcceptors = "Принимающие"
 )
 
 // dimensionDef — разрез группировки. Конкретное GROUP BY-выражение и join-путь
@@ -148,6 +152,11 @@ const dimNone = "none"
 // заявка : N согласующих размножили бы её по числу голосов.
 const dimByApprover = "by_approver"
 
+// dimByAcceptor — разрез по принимающему (#1251 S3). Применим ТОЛЬКО к метрикам
+// принимающих (report_acceptor_metrics.go): там база — подзапрос первого принятия
+// на заявку, строка = одна заявка на её принимающего, разрез ничего не размножает.
+const dimByAcceptor = "by_acceptor"
+
 var reportDimensionOrder = []string{
 	dimNone,
 	"status",
@@ -156,6 +165,7 @@ var reportDimensionOrder = []string{
 	"attachment_type",
 	"unload_place",
 	dimByApprover,
+	dimByAcceptor,
 	"period",
 	"hour_of_day",
 }
@@ -168,6 +178,7 @@ var reportDimensionRegistry = map[string]dimensionDef{
 	"attachment_type": {label: "Тип вложения"},
 	"unload_place":    {label: "Место разгрузки"},
 	dimByApprover:     {label: "Согласующий"},
+	dimByAcceptor:     {label: "Принимающий"},
 	"period":          {label: "Период (дата)"},
 	"hour_of_day":     {label: "Час суток"},
 }

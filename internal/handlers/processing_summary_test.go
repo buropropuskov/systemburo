@@ -187,6 +187,45 @@ func TestGetProcessingSummary_QualityAndSlowApprovers(t *testing.T) {
 	assert.Nil(t, approval.P90)
 }
 
+// TestGetProcessingSummary_ApproversAndAcceptorsRatings — полные рейтинги по скорости
+// (#1251 S3): согласующие по времени реакции и принимающие по времени принятия,
+// оба быстрые сверху. SlowApprovers остаётся топом медленных (сортировка обратная).
+func TestGetProcessingSummary_ApproversAndAcceptorsRatings(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	seedQualityApps(t, db)
+	seedApproverVotes(t, db)
+	seedAcceptedApps(t, db)
+
+	svc := services.NewStatisticsService(db, 0)
+	from, to := processingWindowArgs(t, "2026-06-01", "2026-06-04")
+
+	got, err := svc.GetProcessingSummary(context.Background(), from, to)
+	require.NoError(t, err)
+
+	// Approvers — полный рейтинг по скорости: быстрый (Петров 1ч) сверху, Иванов (3ч) ниже.
+	require.Len(t, got.Approvers, 2)
+	assert.Equal(t, "Петров Пётр", got.Approvers[0].Name, "быстрый согласующий сверху")
+	require.NotNil(t, got.Approvers[0].AvgResponseTime)
+	assert.Equal(t, int64(3600), *got.Approvers[0].AvgResponseTime)
+	assert.Equal(t, "Иванов Иван", got.Approvers[1].Name)
+	assert.Equal(t, int64(10800), *got.Approvers[1].AvgResponseTime)
+
+	// SlowApprovers — та же пара, но медленный сверху (топ узких мест).
+	require.NotEmpty(t, got.SlowApprovers)
+	assert.Equal(t, "Иванов Иван", got.SlowApprovers[0].Name, "медленный согласующий сверху")
+
+	// Acceptors — рейтинг принимающих по скорости: Кузнецов (2ч) выше Сидорова (3ч).
+	require.Len(t, got.Acceptors, 2)
+	assert.Equal(t, "Кузнецов Кузьма", got.Acceptors[0].Name, "быстрый принимающий сверху")
+	require.NotNil(t, got.Acceptors[0].AvgAcceptanceTime)
+	assert.Equal(t, int64(7200), *got.Acceptors[0].AvgAcceptanceTime)
+	assert.Equal(t, int64(2), got.Acceptors[0].AcceptsCount)
+	assert.Equal(t, "Сидоров Сидор", got.Acceptors[1].Name)
+	assert.Equal(t, int64(10800), *got.Acceptors[1].AvgAcceptanceTime)
+}
+
 // TestGetProcessingSummary_EmptyPeriod_NoFakeZero — главный замок среза. Агрегат
 // пустой выборки SQL приводит к нулю (гард скана NULL в int64), и без счётчиков
 // выборки пустая вкладка отрапортовала бы «обработка за 0 минут, 0% отказов»
@@ -249,7 +288,7 @@ func TestGetProcessingSummary_HTTP(t *testing.T) {
 		Data map[string]json.RawMessage `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &raw))
-	for _, key := range []string{"from", "to", "total_applications", "stages", "quality", "slow_approvers", "by_organization"} {
+	for _, key := range []string{"from", "to", "total_applications", "stages", "quality", "slow_approvers", "by_organization", "approvers", "acceptors"} {
 		assert.Contains(t, raw.Data, key, "поле бандла %q", key)
 	}
 

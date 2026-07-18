@@ -72,9 +72,22 @@ func (s *statisticsService) computeProcessingSummary(ctx context.Context, from, 
 		Quality:           buildProcessingQuality(current, previous),
 	}
 
-	if out.SlowApprovers, err = s.runSlowApprovers(ctx, fromStr, toStr); err != nil {
+	// Согласующих и принимающих забираем одним набором каждого и ранжируем в Go:
+	// топ медленных (SlowApprovers) и полный рейтинг по скорости (Approvers) — из
+	// одних строк, разница только в сортировке.
+	approvers, err := s.runApproverKPIs(ctx, fromStr, toStr)
+	if err != nil {
 		return nil, err
 	}
+	out.SlowApprovers = slowApprovers(approvers)
+	out.Approvers = rankApproversBySpeed(approvers)
+
+	acceptors, err := s.runAcceptorKPIs(ctx, fromStr, toStr)
+	if err != nil {
+		return nil, err
+	}
+	out.Acceptors = rankAcceptorsBySpeed(acceptors)
+
 	if out.ByOrganization, err = s.runProcessingByOrganization(ctx, fromStr, toStr); err != nil {
 		return nil, err
 	}
@@ -270,23 +283,24 @@ func lowerIsBetterSentiment(direction string) string {
 	}
 }
 
-// runSlowApprovers — топ согласующих по времени реакции. Сортируем в Go, а не
-// движком: при мультиметриках он упорядочивает строки по СУММЕ значений метрик,
-// и секунды времени реакции смешались бы со штуками нагрузки. Согласующие без
-// ответов (время nil) уходят вниз — они не медленные, они не отвечали.
-func (s *statisticsService) runSlowApprovers(ctx context.Context, from, to string) ([]models.ProcessingApproverKPI, error) {
+// runApproverKPIs — согласующие с временем реакции и нагрузкой, БЕЗ сортировки:
+// порядок задаёт вызывающий (топ медленных и полный рейтинг по скорости строятся
+// из одного набора). Движком не сортируем: при мультиметриках он упорядочивает
+// строки по СУММЕ значений метрик, и секунды времени реакции смешались бы со
+// штуками нагрузки.
+func (s *statisticsService) runApproverKPIs(ctx context.Context, from, to string) ([]models.ProcessingApproverKPI, error) {
 	resp, err := s.RunReport(ctx, models.ReportRequest{
 		Mode:      "aggregate",
 		Metrics:   []string{"avg_approver_response_time", "approver_votes_count"},
 		Dimension: dimByApprover,
 		Filters:   []models.ReportFilterValue{{Key: "date_range", From: from, To: to}},
-		// Забираем строки широко и отбираем топ сами: свой лимит движок применил бы
-		// ПОСЛЕ упорядочивания по сумме метрик, и самый медленный согласующий мог бы
-		// не дожить до нашей сортировки, не попав в первую сотню строк.
+		// Забираем строки широко: свой лимит движок применил бы ПОСЛЕ упорядочивания
+		// по сумме метрик, и самый медленный согласующий мог бы не дожить до нашей
+		// сортировки, не попав в первую сотню строк.
 		Limit: maxReportLimit,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("statistics: processing slow approvers: %w", err)
+		return nil, fmt.Errorf("statistics: processing approvers: %w", err)
 	}
 
 	rows := make([]models.ProcessingApproverKPI, 0, len(resp.MetricRows))
@@ -299,8 +313,57 @@ func (s *statisticsService) runSlowApprovers(ctx context.Context, from, to strin
 			VotesCount:      r.Values["approver_votes_count"],
 		})
 	}
-	sortByOptionalDesc(rows, func(r models.ProcessingApproverKPI) *int64 { return r.AvgResponseTime })
-	return topN(rows, processingTopN), nil
+	return rows, nil
+}
+
+// runAcceptorKPIs — принимающие с временем принятия в работу и нагрузкой (#1251 S3),
+// БЕЗ сортировки (симметрично согласующим). Строка = один принимающий: база метрики
+// — первое принятие каждой заявки, разрез by_acceptor заявки не размножает.
+func (s *statisticsService) runAcceptorKPIs(ctx context.Context, from, to string) ([]models.ProcessingAcceptorKPI, error) {
+	resp, err := s.RunReport(ctx, models.ReportRequest{
+		Mode:      "aggregate",
+		Metrics:   []string{"avg_acceptor_response_time", "acceptor_accepts_count"},
+		Dimension: dimByAcceptor,
+		Filters:   []models.ReportFilterValue{{Key: "date_range", From: from, To: to}},
+		Limit:     maxReportLimit, // как у согласующих: топ отбираем сами, движок сортирует по сумме
+	})
+	if err != nil {
+		return nil, fmt.Errorf("statistics: processing acceptors: %w", err)
+	}
+
+	rows := make([]models.ProcessingAcceptorKPI, 0, len(resp.MetricRows))
+	for _, r := range resp.MetricRows {
+		rows = append(rows, models.ProcessingAcceptorKPI{
+			Name:              r.Label,
+			AvgAcceptanceTime: optionalValue(r.Values, "avg_acceptor_response_time"),
+			AcceptsCount:      r.Values["acceptor_accepts_count"],
+		})
+	}
+	return rows, nil
+}
+
+// slowApprovers — топ медленных согласующих: по убыванию времени реакции, первые N.
+// Согласующие без ответов (время nil) уходят вниз — они не медленные, не отвечали.
+func slowApprovers(rows []models.ProcessingApproverKPI) []models.ProcessingApproverKPI {
+	out := append([]models.ProcessingApproverKPI(nil), rows...)
+	sortByOptionalDesc(out, func(r models.ProcessingApproverKPI) *int64 { return r.AvgResponseTime })
+	return topN(out, processingTopN)
+}
+
+// rankApproversBySpeed — полный рейтинг согласующих по скорости реакции: быстрые
+// сверху, без ответов — в конце. Копия, чтобы не мутировать общий набор.
+func rankApproversBySpeed(rows []models.ProcessingApproverKPI) []models.ProcessingApproverKPI {
+	out := append([]models.ProcessingApproverKPI(nil), rows...)
+	sortByOptionalAsc(out, func(r models.ProcessingApproverKPI) *int64 { return r.AvgResponseTime })
+	return out
+}
+
+// rankAcceptorsBySpeed — полный рейтинг принимающих по скорости принятия: быстрые
+// сверху, без валидной длительности — в конце.
+func rankAcceptorsBySpeed(rows []models.ProcessingAcceptorKPI) []models.ProcessingAcceptorKPI {
+	out := append([]models.ProcessingAcceptorKPI(nil), rows...)
+	sortByOptionalAsc(out, func(r models.ProcessingAcceptorKPI) *int64 { return r.AvgAcceptanceTime })
+	return out
 }
 
 // runProcessingByOrganization — разбивка времени обработки по организациям,
@@ -313,7 +376,7 @@ func (s *statisticsService) runProcessingByOrganization(ctx context.Context, fro
 		Metrics:   []string{"avg_processing_time", "applications_count"},
 		Dimension: "organization",
 		Filters:   []models.ReportFilterValue{{Key: "date_range", From: from, To: to}},
-		Limit:     maxReportLimit, // как и у согласующих: топ отбираем сами, см. runSlowApprovers
+		Limit:     maxReportLimit, // как и у согласующих: топ отбираем сами, см. slowApprovers
 	})
 	if err != nil {
 		return nil, fmt.Errorf("statistics: processing by organization: %w", err)
@@ -350,6 +413,18 @@ func sortByOptionalDesc[T any](rows []T, value func(T) *int64) {
 			return a != nil && b == nil
 		}
 		return *a > *b
+	})
+}
+
+// sortByOptionalAsc — по возрастанию значения (быстрые сверху), строки без значения
+// в конец: nil это «нет данных», а не «мгновенно», в начале рейтинга ему не место.
+func sortByOptionalAsc[T any](rows []T, value func(T) *int64) {
+	sort.SliceStable(rows, func(i, j int) bool {
+		a, b := value(rows[i]), value(rows[j])
+		if a == nil || b == nil {
+			return a != nil && b == nil
+		}
+		return *a < *b
 	})
 }
 

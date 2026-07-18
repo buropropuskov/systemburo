@@ -43,6 +43,14 @@ type ProcessingSummary struct {
 	Quality        []ProcessingQualityKPI   `json:"quality"`
 	SlowApprovers  []ProcessingApproverKPI  `json:"slow_approvers"`
 	ByOrganization []ProcessingBreakdownRow `json:"by_organization"`
+
+	// Approvers/Acceptors — полные рейтинги по скорости (#1251 S3), которые вкладка
+	// (S6) рисует таблицами. Approvers — согласующие по времени реакции (полный
+	// список, не только топ-5 медленных из SlowApprovers). Acceptors — принимающие
+	// по времени принятия в работу. Оба ранжированы по скорости: быстрые сверху, у
+	// кого длительности нет (не отвечал / принятых с валидной парой нет) — в конце.
+	Approvers []ProcessingApproverKPI `json:"approvers"`
+	Acceptors []ProcessingAcceptorKPI `json:"acceptors"`
 }
 
 // ProcessingTrend — сравнение KPI с предыдущим периодом равной длины.
@@ -86,6 +94,16 @@ type ProcessingApproverKPI struct {
 	Name            string `json:"name"`
 	AvgResponseTime *int64 `json:"avg_response_time"`
 	VotesCount      int64  `json:"votes_count"`
+}
+
+// ProcessingAcceptorKPI — принимающий в рейтинге (#1251 S3): как быстро он
+// забирает заявку в работу после согласования и сколько заявок принял.
+// AvgAcceptanceTime nil — принятых им заявок с валидной длительностью за период
+// нет (нагрузка при этом может быть ненулевой).
+type ProcessingAcceptorKPI struct {
+	Name              string `json:"name"`
+	AvgAcceptanceTime *int64 `json:"avg_acceptance_time"`
+	AcceptsCount      int64  `json:"accepts_count"`
 }
 
 // ProcessingBreakdownRow — разбивка времени обработки по организациям.

@@ -84,7 +84,7 @@ func (s *applicationService) TakeApplicationToWork(ctx context.Context, username
 		tx.Exec("UPDATE applications SET status = ?, responsible_user_id = ?, responsible_comment = ?, accepted_at = COALESCE(accepted_at, NOW()) WHERE id = ?",
 			models.StatusInWork, user.ID, req.Comment, applicationID)
 
-		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "take_to_work", &user.ID,
+		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, models.AuditActionTakeToWork, &user.ID,
 			applicationAuditDetails{OldValue: oldStatus, NewValue: ptrString(models.StatusInWork), Comment: req.Comment})
 
 		if err := s.activateApplicationItems(ctx, tx, applicationID, true, &user.ID); err != nil {
