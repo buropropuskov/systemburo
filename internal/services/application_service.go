@@ -256,6 +256,11 @@ type ApplicationFilter struct {
 	CompanyID      *int    `query:"company_id"`
 	Confirmation   *string `query:"confirmation"`
 	Status         *string `query:"status"`
+	// Unread - псевдо-фильтр "Непрочитано": заявки без записи в application_reads для
+	// текущего пользователя (непрочитанность живёт там, а не в колонке a.status). В UI
+	// комбинируется со статусами по OR. userID для предиката берётся не отсюда, а из
+	// вызывающего сервиса (applyApplicationFilters получает его параметром).
+	Unread         *bool   `query:"unread"`
 	DateFrom       *string `query:"date_from"`
 	DateTo         *string `query:"date_to"`
 	Archive        *bool   `query:"archive"`
@@ -726,7 +731,7 @@ func (s *applicationService) GetApplications(ctx context.Context, username strin
 
 	query = applyApplicationAccessFilter(query, user.ID, isApprover)
 
-	query = applyApplicationFilters(query, filter, true)
+	query = applyApplicationFilters(query, filter, true, user.ID)
 	query = query.Order("a.sending_datetime DESC")
 
 	rows := make([]ApplicationWithDetails, 0)
@@ -766,7 +771,7 @@ func (s *applicationService) GetAttachableApplications(ctx context.Context, user
 		Joins("LEFT JOIN users ru ON a.responsible_user_id = ru.id")
 
 	// Намеренно БЕЗ applyApplicationAccessFilter - привязка это admin-операция.
-	query = applyApplicationFilters(query, filter, true)
+	query = applyApplicationFilters(query, filter, true, user.ID)
 	query = query.Order("a.sending_datetime DESC")
 
 	rows := make([]ApplicationWithDetails, 0)
@@ -789,7 +794,7 @@ func (s *applicationService) buildApplicationsBaseQuery(ctx context.Context, use
 
 	query = applyApplicationAccessFilter(query, userID, isApprover)
 
-	return applyApplicationFilters(query, filter, true)
+	return applyApplicationFilters(query, filter, true, userID)
 }
 
 // GetApplicationsPaginated возвращает страницу заявок с общим количеством.
@@ -854,7 +859,7 @@ func (s *applicationService) buildUserApplicationsBaseQuery(ctx context.Context,
 
 	query = applyUserApplicationsAccessFilter(query, user.ID, user.OrganizationID)
 
-	return applyApplicationFilters(query, filter, true)
+	return applyApplicationFilters(query, filter, true, user.ID)
 }
 
 // GetUserApplications возвращает заявки текущего пользователя с фильтрацией (legacy,

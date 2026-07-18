@@ -373,7 +373,10 @@ func ilikePatternsArgs(cols []string, variants []string) (string, []interface{})
 	return strings.Join(parts, " OR "), args
 }
 
-func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUserSearch bool) *gorm.DB {
+// applyApplicationFilters навешивает фильтры из ApplicationFilter. userID нужен для
+// псевдо-фильтра "Непрочитано" (filter.Unread) - предикат по application_reads текущего
+// пользователя; для остальных фильтров он не используется.
+func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUserSearch bool, userID int) *gorm.DB {
 	if filter.SearchQuery != nil && *filter.SearchQuery != "" {
 		raw := *filter.SearchQuery
 		variants := buildSearchVariants(raw)
@@ -510,11 +513,27 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 	if filter.SenderUserID != nil {
 		query = query.Where("a.sender_user_id = ?", *filter.SenderUserID)
 	}
-	if filter.Confirmation != nil {
-		query = query.Where("a.confirmation = ?", *filter.Confirmation)
+	if filter.Confirmation != nil && *filter.Confirmation != "" {
+		// Мультивыбор чипов подтверждения = OR: comma-список -> IN (одно значение тоже
+		// проходит как IN из одного элемента).
+		query = query.Where("a.confirmation IN ?", strings.Split(*filter.Confirmation, ","))
 	}
-	if filter.Status != nil {
-		query = query.Where("a.status = ?", *filter.Status)
+	// Статус заявки + псевдо-фильтр "Непрочитано" (нет записи в application_reads).
+	// В UI это один OR-набор чипов, поэтому условия объединяются через OR внутри одной
+	// скобки (иначе AND отсёк бы одно другим). "Непрочитано" не хранится как a.status
+	// (мигрирован в "В обработке"), непрочитанность - только через application_reads.
+	statusConds := make([]string, 0, 2)
+	statusArgs := make([]any, 0, 2)
+	if filter.Status != nil && *filter.Status != "" {
+		statusConds = append(statusConds, "a.status IN ?")
+		statusArgs = append(statusArgs, strings.Split(*filter.Status, ","))
+	}
+	if filter.Unread != nil && *filter.Unread {
+		statusConds = append(statusConds, "NOT EXISTS (SELECT 1 FROM application_reads ar WHERE ar.application_id = a.id AND ar.user_id = ?)")
+		statusArgs = append(statusArgs, userID)
+	}
+	if len(statusConds) > 0 {
+		query = query.Where("("+strings.Join(statusConds, " OR ")+")", statusArgs...)
 	}
 	if filter.DateFrom != nil && *filter.DateFrom != "" {
 		query = query.Where("a.sending_datetime >= ?", *filter.DateFrom+" 00:00:00")

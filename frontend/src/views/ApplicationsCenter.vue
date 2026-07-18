@@ -1924,11 +1924,24 @@ export default {
             if (this.selectedCompanyId) {
                 params.company_id = this.selectedCompanyId;
             }
+            // Мультивыбор чипов = OR: шлём ВСЕ выбранные (бэк матчит IN), а не только
+            // первый - иначе при выборе нескольких статусов/подтверждений сервер отдавал
+            // подмножество по [0] и с пагинацией остальные не подгружались.
             if (this.selectedConfirmations.length > 0) {
-                params.confirmation = this.selectedConfirmations[0];
+                params.confirmation = this.selectedConfirmations.join(',');
             }
             if (this.selectedApplicationStatuses.length > 0) {
-                params.status = this.selectedApplicationStatuses[0];
+                // "Непрочитано" - псевдо-статус (нет записи в application_reads для юзера),
+                // а НЕ значение колонки a.status (мигрирован в "В обработке"). Шлём его
+                // отдельным флагом unread, иначе бэк искал бы a.status='Непрочитано' и
+                // возвращал пусто ("нет заявок"). Остальные статусы - как есть.
+                const statuses = this.selectedApplicationStatuses.filter(s => s !== 'Непрочитано');
+                if (statuses.length > 0) {
+                    params.status = statuses.join(',');
+                }
+                if (this.selectedApplicationStatuses.includes('Непрочитано')) {
+                    params.unread = 'true';
+                }
             }
 
             // Добавляем параметр архива
