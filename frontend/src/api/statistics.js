@@ -83,6 +83,27 @@ export async function getProcessingSummary(from, to) {
 }
 
 /**
+ * Получить журнал обработки — сквозную ленту согласований и принятий за период по
+ * времени убыванием (#1251 S4/S7).
+ * @param {string} from YYYY-MM-DD
+ * @param {string} to YYYY-MM-DD
+ * @param {number} [limit] глубина ленты (бэк клампит: по умолчанию 50, максимум 200)
+ * @returns {Promise<Array<{application_id: number, application_number: string, actor_name: string, role: 'approval'|'acceptance', occurred_at: string, working_seconds: number|null}>>}
+ */
+export async function getProcessingJournal(from, to, limit) {
+  const params = new URLSearchParams();
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  if (limit) params.set('limit', String(limit));
+  const res = await apiRequest(`/statistics/processing-journal?${params}`);
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data?.message || 'Не удалось загрузить журнал обработки');
+  }
+  return res.json();
+}
+
+/**
  * Получить временной ряд метрики.
  * @param {{from: string, to: string, metric: string, granularity: string}} opts
  *   metric: 'applications' | 'people_entries' | 'car_entries'
