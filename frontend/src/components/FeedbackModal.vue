@@ -1,124 +1,125 @@
 <template>
   <teleport to="body">
-    <transition
-      name="modal-overlay"
-      @after-leave="handleAfterLeave"
+    <!-- Оверлей смонтирован пока show=true; при закрытии сперва проигрывается slide-down
+         листа (showContent=false, оверлей на месте), а update:show=false эмитится только
+         в @after-leave (onSheetLeft) - иначе inner-лист снимался вместе с оверлеем и slide
+         не проигрывался. Затемнение подложки - классом is-visible (по showContent),
+         transition background-color, чтобы фейд подложки шёл СИНХРОННО со слайдом и НЕ
+         каскадил opacity на лист. -->
+    <div
+      v-if="show"
+      class="modal-overlay"
+      :class="{ 'is-visible': showContent }"
+      @mousedown="onOverlayMousedown"
+      @mouseup="onOverlayMouseup"
     >
-      <div
-        v-if="show"
-        class="modal-overlay"
-        @mousedown="onOverlayMousedown"
-        @mouseup="onOverlayMouseup"
+      <transition
+        name="modal"
+        @after-leave="onSheetLeft"
       >
-        <transition
-          name="modal"
-          @after-leave="emitClose"
+        <div
+          v-if="showContent"
+          class="modal"
+          :class="{ 'is-dragging': sheetDragging }"
+          :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
+          @mousedown.stop
+          @touchstart="onSheetTouchStart"
+          @touchmove="onSheetTouchMove"
+          @touchend="onSheetTouchEnd"
         >
           <div
-            v-if="showContent"
-            class="modal"
-            :class="{ 'is-dragging': sheetDragging }"
-            :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
-            @mousedown.stop
-            @touchstart="onSheetTouchStart"
-            @touchmove="onSheetTouchMove"
-            @touchend="onSheetTouchEnd"
-          >
-            <div
-              class="sheet-handle"
-              aria-hidden="true"
-            />
-            <div class="modal__header">
-              <h3 class="modal__title">
-                Сообщить о проблеме
-              </h3>
-              <button
-                class="modal__close"
-                aria-label="Закрыть"
-                @click="handleCloseClick"
-              >
-                <span class="close-icon">&times;</span>
-              </button>
-            </div>
-            <div
-              ref="modalScroll"
-              class="modal__body"
+            class="sheet-handle"
+            aria-hidden="true"
+          />
+          <div class="modal__header">
+            <h3 class="modal__title">
+              Сообщить о проблеме
+            </h3>
+            <button
+              class="modal__close"
+              aria-label="Закрыть"
+              @click="handleCloseClick"
             >
-              <div class="modal__content">
-                <label
-                  for="feedback-textarea"
-                  class="textarea-label"
+              <span class="close-icon">&times;</span>
+            </button>
+          </div>
+          <div
+            ref="modalScroll"
+            class="modal__body"
+          >
+            <div class="modal__content">
+              <label
+                for="feedback-textarea"
+                class="textarea-label"
+              >
+                Ниже вы можете дать обратную связь по работе системы. Расскажите о вашей проблеме, что не работает, с чем вам нужна помощь. Вы можете оставить предложение по улучшению работы системы.
+              </label>
+              <div class="textarea-wrapper">
+                <textarea 
+                  id="feedback-textarea" 
+                  ref="textareaRef"
+                  v-model="message"
+                  placeholder="Например: не работает кнопка отправки формы на странице..."
+                  class="feedback-textarea"
+                  :class="{ 'feedback-textarea--error': hasError }"
+                  rows="6"
+                  :disabled="isSubmitting"
+                  @keydown.enter.prevent="handleEnterKey"
+                  @input="handleInput"
+                />
+                <div 
+                  class="textarea-counter-wrapper"
+                  :class="{ 
+                    'textarea-counter-wrapper--error': isOverLimit,
+                    'textarea-counter-wrapper--warning': isNearLimit 
+                  }"
                 >
-                  Ниже вы можете дать обратную связь по работе системы. Расскажите о вашей проблеме, что не работает, с чем вам нужна помощь. Вы можете оставить предложение по улучшению работы системы.
-                </label>
-                <div class="textarea-wrapper">
-                  <textarea 
-                    id="feedback-textarea" 
-                    ref="textareaRef"
-                    v-model="message"
-                    placeholder="Например: не работает кнопка отправки формы на странице..."
-                    class="feedback-textarea"
-                    :class="{ 'feedback-textarea--error': hasError }"
-                    rows="6"
-                    :disabled="isSubmitting"
-                    @keydown.enter.prevent="handleEnterKey"
-                    @input="handleInput"
-                  />
-                  <div 
-                    class="textarea-counter-wrapper"
-                    :class="{ 
-                      'textarea-counter-wrapper--error': isOverLimit,
-                      'textarea-counter-wrapper--warning': isNearLimit 
-                    }"
-                  >
-                    {{ message.length }}/{{ maxLength }}
-                  </div>
-                </div>
-                <div
-                  v-if="error"
-                  class="error-message"
-                  role="alert"
-                >
-                  <span class="error-icon">⚠</span>
-                  {{ error }}
+                  {{ message.length }}/{{ maxLength }}
                 </div>
               </div>
-            </div>
-            <div class="modal__footer">
-              <button 
-                class="modal-btn modal-btn--cancel" 
-                :disabled="isSubmitting"
-                @click="handleCancelClick"
+              <div
+                v-if="error"
+                class="error-message"
+                role="alert"
               >
-                Отмена
-              </button>
-              <button 
-                class="modal-btn modal-btn--submit" 
-                :disabled="isSubmitDisabled" 
-                :class="{ 
-                  'modal-btn--disabled': isSubmitDisabled,
-                  'modal-btn--loading': isSubmitting 
-                }"
-                @click="submitFeedback"
-              >
-                <span
-                  v-if="isSubmitting"
-                  class="submit-spinner"
-                />
-                <span
-                  v-else
-                  class="submit-text"
-                >
-                  {{ submitButtonText }}
-                </span>
-              </button>
+                <span class="error-icon">⚠</span>
+                {{ error }}
+              </div>
             </div>
           </div>
-        </transition>
-      </div>
-    </transition>
+          <div class="modal__footer">
+            <button 
+              class="modal-btn modal-btn--cancel" 
+              :disabled="isSubmitting"
+              @click="handleCancelClick"
+            >
+              Отмена
+            </button>
+            <button 
+              class="modal-btn modal-btn--submit" 
+              :disabled="isSubmitDisabled" 
+              :class="{ 
+                'modal-btn--disabled': isSubmitDisabled,
+                'modal-btn--loading': isSubmitting 
+              }"
+              @click="submitFeedback"
+            >
+              <span
+                v-if="isSubmitting"
+                class="submit-spinner"
+              />
+              <span
+                v-else
+                class="submit-text"
+              >
+                {{ submitButtonText }}
+              </span>
+            </button>
+          </div>
+        </div>
+      </transition>
+    </div>
   </teleport>
-
 </template>
 
 <script>
@@ -235,8 +236,13 @@ export default {
           });
         });
       } else {
+        // Штатное закрытие идёт через closeModal->slide->onSheetLeft (тот эмитит
+        // update:show=false). Эта ветка - safety на форс-закрытие родителем напрямую
+        // (show=false в обход round-trip): слайда не будет (оверлей v-if=show снимется
+        // разом), но обязательно снимаем scroll-lock, иначе body.overflow залипнет.
         this.showContent = false;
         this.removeEscListener();
+        document.body.style.overflow = '';
       }
     },
     
@@ -295,15 +301,20 @@ export default {
     },
     
     closeModal() {
-      this.$emit('update:show', false);
+      // Инициируем закрытие: гасим лист (showContent=false -> slide-down + фейд подложки
+      // через is-visible). update:show=false эмитим только когда лист доиграл leave
+      // (onSheetLeft), иначе оверлей (v-if=show) снимал бы лист ДО слайда. Гвард от
+      // повторного вызова во время анимации.
+      if (!this.showContent) return;
+      this.showContent = false;
     },
-    
-    emitClose() {
-      this.$emit('close');
-    },
-    
-    handleAfterLeave() {
+
+    onSheetLeft() {
+      // Лист доехал вниз и размонтирован: размонтируем оверлей (родитель через v-model),
+      // сообщаем о закрытии, снимаем scroll-lock.
       document.body.style.overflow = '';
+      this.$emit('update:show', false);
+      this.$emit('close');
     },
     
     onOverlayMousedown(e) {
@@ -422,17 +433,6 @@ export default {
 </script>
 
 <style scoped>
-/* Анимации оверлея */
-.modal-overlay-enter-active,
-.modal-overlay-leave-active {
-  transition: opacity 0.3s ease;
-}
-
-.modal-overlay-enter-from,
-.modal-overlay-leave-to {
-  opacity: 0;
-}
-
 /* Анимации модального окна */
 .modal-enter-active,
 .modal-leave-active {
@@ -451,27 +451,33 @@ export default {
   transform: translateY(0) scale(1);
 }
 
-/* Для мобильных устройств */
+/* Для мобильных устройств: лист - bottom-sheet, ТОЛЬКО выезд снизу без фейда.
+   Транзишн на transform (не all), opacity держим 1 во всех фазах (перебиваем базовое
+   opacity:0 у enter-from/leave-to) - иначе лист гаснет вместе со слайдом. */
 @media (max-width: 768px) {
   .modal-enter-active,
   .modal-leave-active {
-    transition: all 0.3s ease-out;
+    transition: transform 0.3s ease-out;
   }
-  
+
   .modal-enter-from {
     transform: translateY(100%);
+    opacity: 1;
   }
-  
+
   .modal-enter-to {
     transform: translateY(0);
+    opacity: 1;
   }
-  
+
   .modal-leave-from {
     transform: translateY(0);
+    opacity: 1;
   }
-  
+
   .modal-leave-to {
     transform: translateY(100%);
+    opacity: 1;
   }
 }
 
@@ -481,7 +487,11 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  /* Затемнение через класс is-visible (по showContent), transition background-color -
+     фейд подложки идёт синхронно со слайдом листа и НЕ каскадит opacity на лист
+     (opacity на оверлее гасила бы и лист -> slide не виден). */
+  background-color: rgba(0, 0, 0, 0);
+  transition: background-color 0.3s ease;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -489,6 +499,10 @@ export default {
   padding: 20px;
   /* backdrop-filter НЕ используем: даже blur(0.1px) форсит compositing-слой и
      репэйнты, роняющие кадры при слайде листа на 120Hz (#1097 R3-4, как BaseModal). */
+}
+
+.modal-overlay.is-visible {
+  background-color: rgba(0, 0, 0, 0.5);
 }
 
 .modal {
@@ -836,14 +850,14 @@ export default {
   }
   
   .modal__footer {
-    padding: 20px;
+    padding: 12px 16px;
     flex-direction: column-reverse;
-    gap: 10px;
+    gap: 8px;
   }
-  
+
   .modal-btn {
     width: 100%;
-    padding: 14px;
+    padding: 11px;
   }
   
   .modal-btn--submit {
