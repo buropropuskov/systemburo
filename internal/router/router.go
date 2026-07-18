@@ -823,6 +823,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 		statsGroup := protected.Group("/statistics")
 		statsGroup.GET("/summary", statistics.GetSummary, requireStats)
 		statsGroup.GET("/processing-summary", statistics.GetProcessingSummary, requireStats)
+		statsGroup.GET("/processing-journal", statistics.GetProcessingJournal, requireStats)
 		statsGroup.GET("/timeline", statistics.GetTimeline, requireStats)
 		statsGroup.GET("/online-peaks", statistics.GetOnlinePeaks, requireStats)
 		statsGroup.GET("/online-users", statistics.GetOnlineUsers, requireStats)

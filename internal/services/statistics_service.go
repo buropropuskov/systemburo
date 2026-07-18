@@ -31,6 +31,10 @@ type StatisticsService interface {
 	// KPI этапов пути заявки со сравнением с прошлым периодом, качество обработки,
 	// топ медленных согласующих и разбивку по организациям (#1240).
 	GetProcessingSummary(ctx context.Context, from, to time.Time) (*models.ProcessingSummary, error)
+	// GetProcessingJournal возвращает сквозную ленту событий обработки (согласования и
+	// принятия в работу) за период [from, to] по времени убыванием, не более limit
+	// (глубина). Реальное время: без кэша (#1251 S4).
+	GetProcessingJournal(ctx context.Context, from, to time.Time, limit int) ([]models.ProcessingJournalEntry, error)
 	GetTimeline(ctx context.Context, from, to time.Time, metric, granularity string) ([]models.StatsTimelinePoint, error)
 	GetRecentPassages(ctx context.Context, limit int) (*models.RecentPassages, error)
 	GetReportCatalog(ctx context.Context) (*models.ReportCatalog, error)
