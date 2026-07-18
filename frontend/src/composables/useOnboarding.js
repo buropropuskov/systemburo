@@ -1,6 +1,7 @@
 import { driver } from 'driver.js';
 import 'driver.js/dist/driver.css';
 import { sanitizeHtml } from '@/utils/sanitize.js';
+import { getViewportZoom } from '@/utils/viewportScale';
 import { useOnboardingStore } from '@/stores/onboarding';
 import { getDemo } from '@/components/onboarding/onboardingDemo';
 
@@ -318,6 +319,27 @@ export function useOnboarding() {
             buildSkipButton(() => (onCloseRequest ? onCloseRequest() : driverObj.destroy())),
             popover.footerButtons.firstChild,
           );
+        }
+
+        // Центро-модальный шаг (element:null) driver центрирует по window.innerWidth/2
+        // и записывает это в CSS-px left/top, но поповер живёт внутри зазумленного
+        // <html> (масштаб под 1440 на мониторах >1440), где CSS-px домножаются на
+        // zoom -> центр уезжает в правый нижний угол. Перецентровываем по layout-
+        // viewport = innerWidth/zoom (documentElement.clientWidth под zoom отдаёт
+        // ФИЗИЧЕСКУЮ ширину, а offsetWidth поповера - в layout-px, поэтому берём
+        // innerWidth/zoom, а не clientWidth). rAF - чтобы отработать ПОСЛЕ
+        // синхронного repositionPopover самого driver; при zoom=1 - деление на 1.
+        if (!step?.element) {
+          const w = popover.wrapper;
+          requestAnimationFrame(() => {
+            const z = getViewportZoom();
+            const vw = window.innerWidth / z;
+            const vh = window.innerHeight / z;
+            w.style.left = `${Math.round(vw / 2 - w.offsetWidth / 2)}px`;
+            w.style.top = `${Math.round(vh / 2 - w.offsetHeight / 2)}px`;
+            w.style.right = 'auto';
+            w.style.bottom = 'auto';
+          });
         }
       },
       // Esc / клик по оверлею / крестик идут сюда (g(true)) ДО гейта на

@@ -276,6 +276,8 @@
 </template>
 
 <script>
+import { getViewportZoom } from '@/utils/viewportScale';
+
 export default {
     name: 'DateFilter',
     props: {
@@ -460,26 +462,36 @@ export default {
             const trigger = this.$refs.trigger;
             if (!trigger) return;
             // На мобильных вёрстка центрирует попап через @media - не навязываем inline-позицию.
+            // Брейкпоинт по ФИЗИЧЕСКОЙ innerWidth (device-width на телефоне ~390, zoom=1);
+            // на мониторах >1440 innerWidth>1440 - в эту ветку не попадаем.
             if (window.innerWidth <= 768) {
                 this.calendarStyle = {};
                 return;
             }
-            const rect = trigger.getBoundingClientRect();
+            // Попап телепортится в body ВНУТРИ зазумленного <html> (масштаб под 1440):
+            // inline top/left трактуются в зазумленных CSS-px. getBoundingClientRect -
+            // device-px, innerWidth/innerHeight - НЕзумленные; приводим всё к layout-px
+            // делением на zoom (при zoom=1 - без изменений), width уже в layout-px.
+            const z = getViewportZoom();
+            const raw = trigger.getBoundingClientRect();
+            const rect = { left: raw.left / z, top: raw.top / z, bottom: raw.bottom / z };
+            const vw = window.innerWidth / z;
+            const vh = window.innerHeight / z;
             const width = 500;
             const margin = 8;
             // Горизонтальный зазор больше вертикального: при клампе у правого края
             // попап не должен прилипать к краю экрана (= padding карточки).
             const edgeMargin = 24;
             let left = rect.left;
-            if (left + width > window.innerWidth - edgeMargin) {
-                left = Math.max(edgeMargin, window.innerWidth - width - edgeMargin);
+            if (left + width > vw - edgeMargin) {
+                left = Math.max(edgeMargin, vw - width - edgeMargin);
             }
             let top = rect.bottom + 5;
             const height = this.$refs.calendar ? this.$refs.calendar.offsetHeight : 0;
             // Не влезает снизу - открываем вверх, если там есть место.
-            if (height && top + height > window.innerHeight - margin) {
+            if (height && top + height > vh - margin) {
                 const above = rect.top - height - 5;
-                top = above >= margin ? above : Math.max(margin, window.innerHeight - height - margin);
+                top = above >= margin ? above : Math.max(margin, vh - height - margin);
             }
             this.calendarStyle = {
                 position: 'fixed',

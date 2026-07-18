@@ -56,6 +56,8 @@
  * getBoundingClientRect с флипом вверх/вниз, 1:1 с паттерном BaseDropdown
  * (тот же класс задачи: триггер живёт внутри rt-table с overflow:hidden).
  */
+import { getViewportZoom } from '@/utils/viewportScale';
+
 export default {
   name: 'TableRowRemoveMenu',
   props: {
@@ -106,9 +108,14 @@ export default {
       // getBoundingClientRect дал бы нулевой rect; координаты берём с самой кнопки.
       const el = this.$refs.button;
       if (!el) return;
-      const r = el.getBoundingClientRect();
-      const vh = window.innerHeight;
-      const vw = window.innerWidth;
+      // Меню телепортится в body внутри зазумленного <html> (масштаб под 1440):
+      // rect - device-px, innerHeight/innerWidth - НЕзумленные; делим на zoom, чтобы
+      // считать в layout-px (при zoom=1 без изменений). 1:1 с BaseDropdown.
+      const z = getViewportZoom();
+      const raw = el.getBoundingClientRect();
+      const r = { top: raw.top / z, bottom: raw.bottom / z, right: raw.right / z };
+      const vh = window.innerHeight / z;
+      const vw = window.innerWidth / z;
       const gap = 5;
       const margin = 8;
       const menuWidth = 210;
