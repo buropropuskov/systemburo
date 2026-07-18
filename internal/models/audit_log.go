@@ -72,6 +72,11 @@ const (
 	// (не на получателя, тех пишут assigned_responsible/assigned_viewer). Читают
 	// ветка пересылок в истории заявки (#680) и метрика avg_forwards (#1240).
 	AuditActionForwarded = "forwarded"
+	// AuditActionTakeToWork - заявка принята в работу (TakeApplicationToWork,
+	// action=accept). Пишется на КАЖДОЕ принятие (заявку могли отозвать и принять
+	// снова), поэтому принимающего берут как актора ПЕРВОГО такого действия. Читают
+	// метрика принимающих (#1251, report_acceptor_metrics.go) и backfill accepted_at.
+	AuditActionTakeToWork = "take_to_work"
 )
 
 // AuditLogItem - запись аудита для API с разрезолвленным именем актора
