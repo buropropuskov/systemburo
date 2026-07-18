@@ -555,13 +555,104 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 `
+	// bureau_working_seconds -- рабочие секунды Бюро между двумя моментами по
+	// расписанию bureau_time_slots (аналитика обработки заявок #1251). Календарная
+	// разница завышала сроки согласования/принятия: ночь и выходные Бюро не работает,
+	// а метрика их считала. Функция пересекает окно [ts_from, ts_to] с рабочими
+	// слотами (день недели + HH:MM в МСК) и суммирует только рабочее время.
+	//
+	// STABLE, а не IMMUTABLE: результат зависит от содержимого bureau_time_slots.
+	// Момент переводим в московское «настенное» время через INTERVAL '3 hours'
+	// (UTC+3 без DST, эквивалент FixedZone moscowWorkModeLoc бэкенда) -- слоты заданы
+	// московским днём недели и часами, пересекать надо в той же зоне; фиксированный
+	// сдвиг не зависит от tzdata контейнера.
+	//
+	// Анкер-дни слотов сканируем со дня ПЕРЕД ts_from (слот is_next_day предыдущего
+	// дня дотягивает до утра ts_from) по день ts_to включительно. day_of_week в
+	// модели 0=Пн..6=Вс, поэтому ISODOW (1=Пн..7=Вс) минус 1. Перекрывающиеся слоты
+	// одного дня сливаем (gaps-and-islands), чтобы рабочее время не удвоилось.
+	const bureauWorkingSeconds = `
+CREATE OR REPLACE FUNCTION bureau_working_seconds(ts_from timestamptz, ts_to timestamptz)
+RETURNS bigint AS $$
+DECLARE
+    f timestamp;  -- ts_from в московском «настенном» времени
+    t timestamp;  -- ts_to   в московском «настенном» времени
+    total bigint;
+BEGIN
+    IF ts_from IS NULL OR ts_to IS NULL THEN
+        RETURN 0;
+    END IF;
+    f := ts_from AT TIME ZONE INTERVAL '3 hours';
+    t := ts_to   AT TIME ZONE INTERVAL '3 hours';
+    IF t <= f THEN
+        RETURN 0;
+    END IF;
+
+    WITH days AS (
+        SELECT gs::date AS d
+        FROM generate_series((f::date - 1)::timestamp, (t::date)::timestamp, INTERVAL '1 day') AS gs
+    ),
+    -- ::time-каст безопасен: open_time/close_time (varchar) пишутся только через
+    -- timeSlotStore (validateClock = time.Parse("15:04")), другого пути записи в
+    -- bureau_time_slots нет. Если появится прямая запись в обход валидации -- нужен
+    -- CHECK или защита каста (ср. security_visibility_service, где ::time избегают).
+    raw_slots AS (
+        SELECT
+            d + s.open_time::time AS slot_start,
+            CASE WHEN s.is_next_day
+                 THEN (d + 1) + s.close_time::time
+                 ELSE d + s.close_time::time
+            END AS slot_end
+        FROM days
+        JOIN bureau_time_slots s
+          ON s.is_active
+         AND s.day_of_week = (EXTRACT(ISODOW FROM d)::int - 1)
+    ),
+    segments AS (
+        SELECT GREATEST(slot_start, f) AS seg_start,
+               LEAST(slot_end, t)      AS seg_end
+        FROM raw_slots
+        WHERE slot_end > slot_start                 -- отбрасываем вырожденные слоты (close <= open)
+    ),
+    windowed AS (
+        SELECT seg_start, seg_end
+        FROM segments
+        WHERE seg_end > seg_start                    -- реально пересекается с [f, t]
+    ),
+    marked AS (
+        SELECT seg_start, seg_end,
+               MAX(seg_end) OVER (ORDER BY seg_start, seg_end
+                                  ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS prev_max
+        FROM windowed
+    ),
+    islands AS (
+        SELECT seg_start, seg_end,
+               SUM(CASE WHEN prev_max IS NULL OR seg_start > prev_max THEN 1 ELSE 0 END)
+                   OVER (ORDER BY seg_start, seg_end) AS grp
+        FROM marked
+    )
+    SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (island_end - island_start)))::bigint, 0)
+    INTO total
+    FROM (
+        SELECT MIN(seg_start) AS island_start, MAX(seg_end) AS island_end
+        FROM islands
+        GROUP BY grp
+    ) merged;
+
+    RETURN total;
+END;
+$$ LANGUAGE plpgsql STABLE;
+`
 	if err := db.Exec(formatShortName).Error; err != nil {
 		return err
 	}
 	if err := db.Exec(formatFullName).Error; err != nil {
 		return err
 	}
-	slog.Info("SQL functions installed: format_short_name, format_full_name")
+	if err := db.Exec(bureauWorkingSeconds).Error; err != nil {
+		return err
+	}
+	slog.Info("SQL functions installed: format_short_name, format_full_name, bureau_working_seconds")
 	return nil
 }
 
