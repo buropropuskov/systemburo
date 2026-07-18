@@ -63,6 +63,8 @@ export async function getSummary(from, to) {
  *   stages: Array<{key: string, label: string, samples: number, avg: number|null, p90: number|null, prev_avg: number|null, trend?: {delta_pct: number, direction: 'up'|'down'|'flat', sentiment: 'good'|'bad'|'neutral'}}>,
  *   quality: Array<{key: string, label: string, unit?: string, value: number|null, prev_value: number|null, trend?: {delta_pct: number, direction: 'up'|'down'|'flat', sentiment: 'good'|'bad'|'neutral'}}>,
  *   slow_approvers: Array<{name: string, avg_response_time: number|null, votes_count: number}>,
+ *   approvers: Array<{name: string, avg_response_time: number|null, votes_count: number}>,
+ *   acceptors: Array<{name: string, avg_acceptance_time: number|null, accepts_count: number}>,
  *   by_organization: Array<{label: string, avg_processing_time: number|null, applications_count: number}>,
  * }>}
  */

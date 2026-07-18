@@ -156,13 +156,13 @@
         </div>
       </section>
 
-      <!-- ===== СОГЛАСУЮЩИЕ И ОРГАНИЗАЦИИ ===== -->
+      <!-- ===== РЕЙТИНГИ: СОГЛАСУЮЩИЕ И ПРИНИМАЮЩИЕ ===== -->
       <div class="proc__cols">
-        <!-- Медленные согласующие -->
+        <!-- Согласующие: полный рейтинг по скорости реакции (быстрые сверху) -->
         <section class="proc__group">
           <div class="proc__group-head">
             <h2 class="proc__group-title">Согласующие</h2>
-            <span class="proc__group-chip">топ по времени реакции</span>
+            <span class="proc__group-chip">рейтинг по скорости реакции</span>
             <span class="proc__group-rule" />
           </div>
           <div
@@ -171,11 +171,12 @@
           />
           <div
             v-else
-            class="proc__card proc__card--table"
+            class="proc__card proc__card--table proc__card--scroll"
           >
             <table class="proc__table">
               <thead>
                 <tr>
+                  <th class="proc__rank-h">#</th>
                   <th>Согласующий</th>
                   <th class="proc__num">Время реакции</th>
                   <th class="proc__num">Нагрузка</th>
@@ -183,9 +184,10 @@
               </thead>
               <tbody>
                 <tr
-                  v-for="(a, i) in slowApprovers"
+                  v-for="(a, i) in approvers"
                   :key="i"
                 >
+                  <td class="proc__rank">{{ i + 1 }}</td>
                   <td
                     class="proc__ellipsis"
                     :title="a.name"
@@ -193,9 +195,9 @@
                   <td class="proc__num">{{ fmtDur(a.avg_response_time) }}</td>
                   <td class="proc__num">{{ fmtCount(a.votes_count) }}</td>
                 </tr>
-                <tr v-if="slowApprovers.length === 0">
+                <tr v-if="approvers.length === 0">
                   <td
-                    colspan="3"
+                    colspan="4"
                     class="proc__table-empty"
                   >Нет данных</td>
                 </tr>
@@ -204,11 +206,11 @@
           </div>
         </section>
 
-        <!-- Разбивка по организациям -->
+        <!-- Принимающие: полный рейтинг по скорости принятия в работу -->
         <section class="proc__group">
           <div class="proc__group-head">
-            <h2 class="proc__group-title">По организациям</h2>
-            <span class="proc__group-chip">время обработки</span>
+            <h2 class="proc__group-title">Принимающие</h2>
+            <span class="proc__group-chip">рейтинг по скорости принятия</span>
             <span class="proc__group-rule" />
           </div>
           <div
@@ -217,31 +219,33 @@
           />
           <div
             v-else
-            class="proc__card proc__card--table"
+            class="proc__card proc__card--table proc__card--scroll"
           >
             <table class="proc__table">
               <thead>
                 <tr>
-                  <th>Организация</th>
-                  <th class="proc__num">Время обработки</th>
-                  <th class="proc__num">Заявок</th>
+                  <th class="proc__rank-h">#</th>
+                  <th>Принимающий</th>
+                  <th class="proc__num">Время принятия</th>
+                  <th class="proc__num">Принято</th>
                 </tr>
               </thead>
               <tbody>
                 <tr
-                  v-for="(o, i) in byOrganization"
+                  v-for="(a, i) in acceptors"
                   :key="i"
                 >
+                  <td class="proc__rank">{{ i + 1 }}</td>
                   <td
                     class="proc__ellipsis"
-                    :title="o.label"
-                  >{{ o.label }}</td>
-                  <td class="proc__num">{{ fmtDur(o.avg_processing_time) }}</td>
-                  <td class="proc__num">{{ fmtCount(o.applications_count) }}</td>
+                    :title="a.name"
+                  >{{ a.name }}</td>
+                  <td class="proc__num">{{ fmtDur(a.avg_acceptance_time) }}</td>
+                  <td class="proc__num">{{ fmtCount(a.accepts_count) }}</td>
                 </tr>
-                <tr v-if="byOrganization.length === 0">
+                <tr v-if="acceptors.length === 0">
                   <td
-                    colspan="3"
+                    colspan="4"
                     class="proc__table-empty"
                   >Нет данных</td>
                 </tr>
@@ -250,6 +254,52 @@
           </div>
         </section>
       </div>
+
+      <!-- ===== ПО ОРГАНИЗАЦИЯМ ===== -->
+      <section class="proc__group">
+        <div class="proc__group-head">
+          <h2 class="proc__group-title">По организациям</h2>
+          <span class="proc__group-chip">среднее время обработки</span>
+          <span class="proc__group-rule" />
+        </div>
+        <div
+          v-if="showSkeleton"
+          class="proc__skeleton proc__skeleton--table"
+        />
+        <div
+          v-else
+          class="proc__card proc__card--table"
+        >
+          <table class="proc__table">
+            <thead>
+              <tr>
+                <th>Организация</th>
+                <th class="proc__num">Время обработки</th>
+                <th class="proc__num">Заявок</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="(o, i) in byOrganization"
+                :key="i"
+              >
+                <td
+                  class="proc__ellipsis"
+                  :title="o.label"
+                >{{ o.label }}</td>
+                <td class="proc__num">{{ fmtDur(o.avg_processing_time) }}</td>
+                <td class="proc__num">{{ fmtCount(o.applications_count) }}</td>
+              </tr>
+              <tr v-if="byOrganization.length === 0">
+                <td
+                  colspan="3"
+                  class="proc__table-empty"
+                >Нет данных</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
     </template>
   </div>
 </template>
@@ -297,7 +347,10 @@ async function loadSummary() {
 
 const stages = computed(() => summary.value?.stages ?? []);
 const quality = computed(() => summary.value?.quality ?? []);
-const slowApprovers = computed(() => summary.value?.slow_approvers ?? []);
+// Полные рейтинги по скорости (#1251 S6): согласующие по времени реакции и
+// принимающие по времени принятия, оба уже отсортированы бэком (быстрые сверху).
+const approvers = computed(() => summary.value?.approvers ?? []);
+const acceptors = computed(() => summary.value?.acceptors ?? []);
 const byOrganization = computed(() => summary.value?.by_organization ?? []);
 const totalApplications = computed(() => summary.value?.total_applications ?? 0);
 
@@ -681,6 +734,29 @@ defineExpose({ refresh: loadSummary });
 .proc__card--table {
   padding: 6px 6px;
   overflow-x: auto;
+}
+
+/* Рейтинги согласующих/принимающих — полный список, поэтому карточка скроллится, а
+   шапка липнет к верху (видно колонки при прокрутке длинного рейтинга). */
+.proc__card--scroll {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.proc__card--scroll .proc__table thead th {
+  position: sticky;
+  top: 0;
+  background: #fff;
+  z-index: 1;
+}
+
+/* Колонка ранга: узкая, номер по центру. */
+.proc__rank,
+.proc__rank-h {
+  width: 30px;
+  text-align: center;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Скелетон секций-карточек на первой загрузке (график/таблицы), в тон плиткам. */
