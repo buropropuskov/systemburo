@@ -367,15 +367,24 @@ export default {
 .guide__close {
   width: 36px;
   height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border: none;
-  background: #f3f4fa;
+  /* Единый крестик как в BaseModal - плоский, без серой заливки-круга (#999),
+     фон появляется только на hover. */
+  background: none;
   border-radius: 50%;
-  font-size: 22px;
+  font-size: 24px;
   line-height: 1;
-  color: #6a6a7d;
+  color: #999;
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
   flex-shrink: 0;
+}
+.guide__close:hover {
+  background: #f3f4fa;
+  color: #666;
 }
 
 .guide__close:hover {
@@ -579,9 +588,11 @@ export default {
 }
 
 .guide__footer {
-  padding: 16px 26px 22px;
+  padding: 14px 26px;
   display: flex;
   justify-content: flex-end;
+  /* Разделительная линия между телом и футером (MOD-1) - как в BaseModal/остальных модалках. */
+  border-top: 1px solid var(--color-border);
 }
 
 .guide__done {
