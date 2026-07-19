@@ -67,19 +67,21 @@ describe('formatDuration', () => {
   const HOUR = 60 * MIN;
   const DAY = 24 * HOUR;
 
-  it('ноль осмыслен: пустое окно движка -> «0 мин», а не «нет данных»', () => {
-    expect(formatDuration(0)).toBe('0 мин');
+  it('ноль осмыслен: пустое окно движка -> «0 с», а не «нет данных»', () => {
+    expect(formatDuration(0)).toBe('0 с');
   });
 
-  it('меньше минуты -> «<1 мин»', () => {
-    expect(formatDuration(1)).toBe('<1 мин');
-    expect(formatDuration(59)).toBe('<1 мин');
+  it('меньше минуты -> секунды: «0 мин» на шестисекундном этапе читалось как поломка', () => {
+    expect(formatDuration(1)).toBe('1 с');
+    expect(formatDuration(6)).toBe('6 с');
+    expect(formatDuration(59)).toBe('59 с');
   });
 
-  it('минуты', () => {
+  it('минуты: секунды остатка показываем, ровная минута — без «0 с»', () => {
     expect(formatDuration(MIN)).toBe('1 мин');
     expect(formatDuration(45 * MIN)).toBe('45 мин');
-    expect(formatDuration(59 * MIN + 59)).toBe('59 мин');
+    expect(formatDuration(59 * MIN + 59)).toBe('59 мин 59 с');
+    expect(formatDuration(10 * MIN + 20)).toBe('10 мин 20 с');
   });
 
   it('часы: остаток минут показываем, ровный час — без «0 мин»', () => {
@@ -106,8 +108,8 @@ describe('formatDuration', () => {
     expect(formatDuration(-2 * HOUR)).toBe('-2 ч');
   });
 
-  it('доля минуты в минус -> «<1 мин» без знака: «-<1 мин» не читается', () => {
-    expect(formatDuration(-30)).toBe('<1 мин');
+  it('доля минуты в минус -> секунды со знаком', () => {
+    expect(formatDuration(-30)).toBe('-30 с');
   });
 
   it('пустое -> пустая строка, нечисловое -> как есть', () => {

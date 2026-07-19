@@ -44,18 +44,17 @@
             >
               <div class="proc__tile-label">
                 <span class="proc__tile-name">{{ s.label }}</span>
-                <span
+                <HintTooltip
                   v-if="stageMeta(s.key).hint"
-                  class="proc__hint"
-                  :data-hint="stageMeta(s.key).hint"
-                  tabindex="0"
-                  role="note"
-                  :aria-label="stageMeta(s.key).hint"
-                >i</span>
+                  :text="stageMeta(s.key).hint"
+                />
               </div>
-              <div class="proc__tile-val">{{ fmtDur(s.avg) }}</div>
+              <div class="proc__tile-val">
+                {{ fmtDur(s.avg) }}
+                <span class="proc__tile-agg">среднее</span>
+              </div>
               <div class="proc__tile-meta">
-                <span class="proc__tile-sub">p90: {{ fmtDur(s.p90) }}</span>
+                <span class="proc__tile-sub">9 из 10 — до {{ fmtDur(s.p90) }}</span>
                 <span
                   v-if="s.trend"
                   class="proc__delta"
@@ -123,14 +122,10 @@
             >
               <div class="proc__tile-label">
                 <span class="proc__tile-name">{{ q.label }}</span>
-                <span
+                <HintTooltip
                   v-if="qualityHint(q.key)"
-                  class="proc__hint"
-                  :data-hint="qualityHint(q.key)"
-                  tabindex="0"
-                  role="note"
-                  :aria-label="qualityHint(q.key)"
-                >i</span>
+                  :text="qualityHint(q.key)"
+                />
               </div>
               <div class="proc__tile-val">{{ fmtQuality(q) }}</div>
               <div class="proc__tile-meta">
@@ -363,6 +358,7 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { getProcessingSummary, getProcessingJournal } from '@/api/statistics.js';
 import { formatDuration, formatDateTime, formatTimeAgo } from '@/utils/datetime';
 import eventStream from '@/services/eventStream';
+import HintTooltip from '@/components/ui/HintTooltip.vue';
 import AnalyticsBarChart from './AnalyticsBarChart.vue';
 import DirIcon from './DirIcon.vue';
 
@@ -429,7 +425,14 @@ function roleLabel(role) {
   return JOURNAL_ROLES[role] || role;
 }
 
-const stages = computed(() => summary.value?.stages ?? []);
+// «Время до завершения» с вкладки убрано (#1251 polish, п.6): это срок действия
+// пропуска, а не работа бюро, и оно в тысячи раз больше остальных этапов (59 суток
+// против секунд) - на графике три полезных столбца схлопывались в ноль. Метрика
+// осталась в конструкторе отчётов, кому нужна.
+const HIDDEN_STAGES = ['completion_time'];
+const stages = computed(() =>
+  (summary.value?.stages ?? []).filter((s) => !HIDDEN_STAGES.includes(s.key)),
+);
 const quality = computed(() => summary.value?.quality ?? []);
 // Полные рейтинги по скорости (#1251 S6): согласующие по времени реакции и
 // принимающие по времени принятия, оба уже отсортированы бэком (быстрые сверху).
@@ -491,9 +494,17 @@ const STAGE_META = {
 
 const BASIS_LABEL = { work: 'раб. время бюро', calendar: 'календарное' };
 
+// Общий хвост подсказки: объясняет, ЧТО за числа на плитке (среднее vs 9 из 10) —
+// раньше было непонятно, среднее это, максимум или минимум (#1251 polish, пп.2,5).
+const STAGE_NUMBERS_HINT = 'Крупное число — среднее по заявкам периода. Строкой ниже — время, в которое укладываются 9 заявок из 10: редкие зависшие заявки его не задирают.';
+
 function stageMeta(key) {
   const m = STAGE_META[key] || { hint: '', basis: 'work' };
-  return { ...m, basisLabel: BASIS_LABEL[m.basis] };
+  return {
+    ...m,
+    hint: m.hint ? `${m.hint} ${STAGE_NUMBERS_HINT}` : '',
+    basisLabel: BASIS_LABEL[m.basis],
+  };
 }
 
 // Пояснение «что считается» для метрик качества.
@@ -682,76 +693,24 @@ defineExpose({ refresh: reload });
   white-space: nowrap;
 }
 
-/* Подсказка «что считается» — системный стиль #333 (data-hint), не native title. */
-.proc__hint {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
-  color: var(--color-text-muted);
-  font-size: 9px;
-  font-weight: 700;
-  font-style: normal;
-  line-height: 1;
-  cursor: help;
-  position: relative;
-  flex-shrink: 0;
-  user-select: none;
-}
-
-.proc__hint::after {
-  content: attr(data-hint);
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%);
-  width: max-content;
-  max-width: 240px;
-  padding: 8px 10px;
-  background: #333;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 400;
-  line-height: 1.4;
-  text-align: left;
-  white-space: normal;
-  border-radius: 8px;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.15s ease;
-  z-index: 10;
-}
-
-.proc__hint::before {
-  content: '';
-  position: absolute;
-  bottom: calc(100% + 3px);
-  left: 50%;
-  transform: translateX(-50%);
-  border: 5px solid transparent;
-  border-top-color: #333;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.15s ease;
-}
-
-.proc__hint:hover::after,
-.proc__hint:focus::after,
-.proc__hint:hover::before,
-.proc__hint:focus::before {
-  opacity: 1;
-}
-
 .proc__tile-val {
   font-size: 24px;
   font-weight: 700;
   color: var(--color-text);
   margin-top: 6px;
   line-height: 1.1;
+}
+
+/* «среднее» под крупным числом: без этой подписи было непонятно, среднее это,
+   максимум или минимум (#1251 polish, п.2). Отдельной строкой, а не в строку с
+   числом: иначе на узкой плитке подпись то влезает, то переносится — вид скачет. */
+.proc__tile-agg {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--color-text-muted);
 }
 
 .proc__tile-meta {
