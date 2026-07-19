@@ -76,25 +76,38 @@
         </div>
       </section>
 
-      <!-- ===== УЗКИЕ МЕСТА ===== -->
+      <!-- ===== ДИНАМИКА ЭТАПОВ ===== -->
       <section class="proc__group">
         <div class="proc__group-head">
-          <h2 class="proc__group-title">Узкие места</h2>
-          <span class="proc__group-chip">среднее время этапа</span>
+          <h2 class="proc__group-title">Динамика</h2>
+          <span class="proc__group-chip">среднее время этапа {{ trendGranularity.label }}</span>
           <span class="proc__group-rule" />
         </div>
+        <div class="proc__trend-head">
+          <FilterTabs
+            v-model="trendStage"
+            :tabs="TREND_TABS"
+          />
+          <HintTooltip :text="TREND_HINT" />
+        </div>
         <div
-          v-if="showSkeleton"
+          v-if="trendError"
+          class="proc__state proc__state--error"
+        >
+          {{ trendError }}
+        </div>
+        <div
+          v-else-if="!trendReady"
           class="proc__skeleton proc__skeleton--chart"
         />
         <div
           v-else
           class="proc__card"
         >
-          <AnalyticsBarChart
-            :data="bottleneckData"
+          <AnalyticsAreaChart
+            :data="trendData"
             value-type="duration"
-            series-name="Среднее время"
+            :series-name="trendSeriesName"
             :height="260"
           />
         </div>
@@ -355,11 +368,12 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
-import { getProcessingSummary, getProcessingJournal } from '@/api/statistics.js';
+import { getProcessingSummary, getProcessingJournal, runReport } from '@/api/statistics.js';
 import { formatDuration, formatDateTime, formatTimeAgo } from '@/utils/datetime';
 import eventStream from '@/services/eventStream';
 import HintTooltip from '@/components/ui/HintTooltip.vue';
-import AnalyticsBarChart from './AnalyticsBarChart.vue';
+import FilterTabs from '@/components/ui/FilterTabs.vue';
+import AnalyticsAreaChart from './AnalyticsAreaChart.vue';
 import DirIcon from './DirIcon.vue';
 
 const props = defineProps({
@@ -425,6 +439,91 @@ function roleLabel(role) {
   return JOURNAL_ROLES[role] || role;
 }
 
+/*
+ * Динамика по дням (#1251 polish, п.7). Прежний столбчатый график «Узкие места»
+ * повторял те же три числа, что и плитки над ним - отсюда «непонятно зачем».
+ * Здесь показываем то, чего в плитках нет: как этап менялся ПО ДНЯМ периода, с
+ * выбором этапа (раньше вид был один и без выбора). Отдельный запрос к движку
+ * отчётов - разрез period он умеет, новый эндпоинт не нужен.
+ */
+const TREND_TABS = [
+  { key: 'approval_time', label: 'Согласование' },
+  { key: 'acceptance_time', label: 'Принятие' },
+  { key: 'processing_time', label: 'Обработка' },
+];
+const TREND_HINT = 'Как менялось среднее время выбранного этапа внутри периода. Если в этот день заявки были, но этап не прошла ни одна, линия рвётся, а не падает в ноль.';
+
+// Лимит строк ответа. Без явного значения движок берёт дефолт 100, а строки
+// разреза period он сортирует хронологически ДО обрезки - на годовом периоде
+// хвост молча пропал бы (осталась бы только первая сотня дней).
+const TREND_LIMIT = 1000;
+
+// Гранулярность под длину окна: 365 точек по дням ещё читаются, но многолетний
+// произвольный диапазон упёрся бы в лимит. Подпись рядом с графиком всегда
+// говорит, в чём шаг, чтобы «по дням» не превращалось во враньё.
+const TREND_GRANULARITY = [
+  { maxDays: 92, key: 'day', label: 'по дням' },
+  { maxDays: 730, key: 'week', label: 'по неделям' },
+];
+const TREND_GRANULARITY_FALLBACK = { key: 'month', label: 'по месяцам' };
+
+const trendGranularity = computed(() => {
+  const from = Date.parse(props.from);
+  const to = Date.parse(props.to);
+  if (!Number.isFinite(from) || !Number.isFinite(to)) return TREND_GRANULARITY[0];
+  const days = Math.round((to - from) / 86400000) + 1;
+  return TREND_GRANULARITY.find((g) => days <= g.maxDays) ?? TREND_GRANULARITY_FALLBACK;
+});
+
+const trendStage = ref('processing_time');
+const trendRows = ref([]);
+const trendError = ref('');
+const trendReady = ref(false);
+let trendSeq = 0;
+
+async function loadTrend() {
+  const seq = ++trendSeq;
+  const metric = `avg_${trendStage.value}`;
+  trendError.value = '';
+  try {
+    const data = await runReport({
+      mode: 'aggregate',
+      // applications_count тянем спутником НЕ для показа: движок анкерит бины
+      // объединением строк всех запрошенных метрик. Без него день, когда заявки
+      // были, но этап не прошла ни одна, вообще не пришёл бы в ответе - линия
+      // склеилась бы через него. Со спутником такой день приходит без ключа
+      // длительности -> ниже превращается в null -> график рисует разрыв.
+      metrics: [metric, 'applications_count'],
+      dimension: 'period',
+      granularity: trendGranularity.value.key,
+      limit: TREND_LIMIT,
+      filters: [{ key: 'date_range', from: props.from, to: props.to }],
+    });
+    if (seq !== trendSeq) return;
+    trendRows.value = data?.metric_rows ?? [];
+  } catch (e) {
+    if (seq !== trendSeq) return;
+    trendRows.value = [];
+    trendError.value = e?.message || 'Не удалось построить динамику';
+  } finally {
+    if (seq === trendSeq) trendReady.value = true;
+  }
+}
+
+// Ключ метрики может отсутствовать в values (движок не дорисовывает ноль
+// производным метрикам) - отдаём null, график рисует разрыв, а не падение в ноль.
+const trendData = computed(() => {
+  const metric = `avg_${trendStage.value}`;
+  return trendRows.value.map((r) => ({
+    timestamp: r.label,
+    count: r.values?.[metric] ?? null,
+  }));
+});
+
+const trendSeriesName = computed(
+  () => TREND_TABS.find((t) => t.key === trendStage.value)?.label ?? 'Среднее время',
+);
+
 // «Время до завершения» с вкладки убрано (#1251 polish, п.6): это срок действия
 // пропуска, а не работа бюро, и оно в тысячи раз больше остальных этапов (59 суток
 // против секунд) - на графике три полезных столбца схлопывались в ноль. Метрика
@@ -449,12 +548,6 @@ const isEmpty = computed(() => !summary.value || totalApplications.value === 0);
 // прихода ответа — «пусто» и «ещё грузится» смешались бы. На рефреше (ready уже
 // true) скелетон не мигает: до нового ответа держим прежние данные.
 const showSkeleton = computed(() => loading.value && !ready.value);
-
-// Столбцы узких мест = среднее время этапа. null (этап никто не прошёл) едет как
-// null, график рисует разрыв, а не нулевой столбец (valueType=duration, F1b).
-const bottleneckData = computed(() =>
-  stages.value.map((s) => ({ label: s.label, value: s.avg })),
-);
 
 const totalChip = computed(() => `${totalApplications.value} ${plural(totalApplications.value, APP_FORMS)} за период`);
 
@@ -551,12 +644,16 @@ function deltaText(pct) {
 function reload() {
   loadSummary();
   loadJournal();
+  loadTrend();
 }
 
 watch(
   () => [props.from, props.to],
   reload,
 );
+
+// Смена этапа перестраивает только график - бандл и лента от неё не зависят.
+watch(trendStage, loadTrend);
 
 // Real-time: тот же SSE-сигнал, что двигает Центр заявок (подача/согласование/
 // принятие/пересылка). На каждый сигнал перечитываем журнал за текущий период;
@@ -639,6 +736,14 @@ defineExpose({ refresh: reload });
   flex: 1;
   height: 1px;
   background: var(--color-border);
+}
+
+/* Строка над графиком динамики: выбор этапа + подсказка что показано. */
+.proc__trend-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 /* ===== ПЛИТКИ ===== */
