@@ -3,8 +3,9 @@ import { mount, flushPromises } from '@vue/test-utils';
 import { nextTick } from 'vue';
 
 // Фабрика vi.mock поднимается над импортами — управляемое состояние в hoisted.
-const { state } = vi.hoisted(() => ({
-  state: { summary: {}, journal: [], trendRows: [], trendCalls: [], trendDeferred: [], reject: false, deferred: [], streamHandler: null },
+const { state, notifySpy } = vi.hoisted(() => ({
+  notifySpy: vi.fn(),
+  state: { summary: {}, journal: [], trendRows: [], trendCalls: [], trendDeferred: [], journalDeferred: [], reject: false, deferred: [], streamHandler: null },
 }));
 
 vi.mock('@/api/statistics.js', () => ({
@@ -15,6 +16,7 @@ vi.mock('@/api/statistics.js', () => ({
   },
   getProcessingJournal: () => {
     if (state.hang) return new Promise(() => {}); // на первой загрузке лента тоже висит
+    if (state.holdJournal) return new Promise((resolve) => { state.journalDeferred.push(resolve); });
     return Promise.resolve(state.journal);
   },
   // Динамика по дням строится отдельным запросом к движку отчётов (S/P3).
@@ -23,6 +25,11 @@ vi.mock('@/api/statistics.js', () => ({
     if (state.hang) return new Promise((resolve) => { state.trendDeferred.push(resolve); });
     return Promise.resolve({ metric_rows: state.trendRows });
   },
+}));
+
+// Стор уведомлений мокаем модулем: Pinia в этой спеке не поднимается.
+vi.mock('@/stores/deletions', () => ({
+  useDeletionsStore: () => ({ notify: notifySpy }),
 }));
 
 // eventStream.subscribe запоминаем handler, чтобы имитировать SSE-сигнал в тесте.
@@ -40,6 +47,7 @@ vi.mock('@/services/eventStream', () => ({
 import ProcessingAnalytics from '../ProcessingAnalytics.vue';
 import AnalyticsAreaChart from '../AnalyticsAreaChart.vue';
 import FilterTabs from '@/components/ui/FilterTabs.vue';
+import RefreshButton from '@/components/RefreshButton.vue';
 import HintTooltip from '@/components/ui/HintTooltip.vue';
 
 const mountTab = () => mount(ProcessingAnalytics, {
@@ -145,10 +153,13 @@ beforeEach(() => {
   state.trendRows = [];
   state.trendCalls = [];
   state.trendDeferred = [];
+  state.journalDeferred = [];
+  state.holdJournal = false;
   state.reject = false;
   state.hang = false;
   state.deferred = [];
   state.streamHandler = null;
+  notifySpy.mockClear();
 });
 
 // application_number приходит от бэка УЖЕ с префиксом «№ » (COALESCE(app.application_number)),
@@ -429,6 +440,9 @@ describe('ProcessingAnalytics — журнал (S7)', () => {
     expect(rows[0].find('.proc__journal-app').text()).toBe('№ 20260710/001');
     expect(rows[0].find('.proc__journal-dur').text()).toBe('1 ч'); // 3600 с
 
+    // Время абсолютное: «5 дн назад» не давало понять, когда именно (#1251 polish, п.12).
+    expect(rows[0].find('.proc__journal-when').text()).toMatch(/^\d{2}\.\d{2}\.\d{4} \d{2}:\d{2}$/);
+
     // Второе — согласование без рабочей длительности (null -> пусто, не «—»).
     expect(rows[1].find('.proc__journal-role').text()).toBe('Согласование');
     expect(rows[1].find('.proc__journal-role').classes()).toContain('proc__journal-role--approval');
@@ -457,6 +471,68 @@ describe('ProcessingAnalytics — журнал (S7)', () => {
     // Но журнал всё равно отрисован со своими событиями.
     expect(wrapper.text()).toContain('Журнал');
     expect(wrapper.findAll('.proc__journal-row')).toHaveLength(2);
+  });
+
+  it('номер заявки копируется в буфер и подтверждается уведомлением', async () => {
+    const writeText = vi.fn().mockResolvedValue();
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+
+    state.summary = fullSummary();
+    state.journal = journalEntries();
+    const wrapper = mountTab();
+    await flushPromises();
+
+    await wrapper.findAll('.proc__journal-app--copy')[0].trigger('click');
+    await flushPromises();
+
+    expect(writeText).toHaveBeenCalledWith('№ 20260710/001');
+    expect(notifySpy).toHaveBeenCalledWith(
+      expect.objectContaining({ bold: '№ 20260710/001', type: 'success' }),
+    );
+  });
+
+  it('кнопка обновления перечитывает ленту руками', async () => {
+    state.summary = fullSummary();
+    state.journal = journalEntries();
+    const wrapper = mountTab();
+    await flushPromises();
+    expect(wrapper.findAll('.proc__journal-row')).toHaveLength(2);
+
+    state.journal = [journalEntries()[0]];
+    await wrapper.findComponent(RefreshButton).vm.$emit('refresh');
+    await flushPromises();
+
+    expect(wrapper.findAll('.proc__journal-row')).toHaveLength(1);
+  });
+
+  it('на время обновления кнопка показывает загрузку и отпускает её после ответа', async () => {
+    state.summary = fullSummary();
+    state.journal = journalEntries();
+    const wrapper = mountTab();
+    await flushPromises();
+
+    const btn = wrapper.findComponent(RefreshButton);
+    expect(btn.props('loading')).toBe(false);
+
+    state.holdJournal = true;
+    btn.vm.$emit('refresh');
+    await flushPromises();
+    expect(btn.props('loading')).toBe(true); // запрос висит
+
+    state.journalDeferred[0](journalEntries());
+    await flushPromises();
+    expect(btn.props('loading')).toBe(false); // отпустили
+  });
+
+  it('событие без номера заявки показывает прочерк, а не кнопку копирования', async () => {
+    state.summary = fullSummary();
+    state.journal = [{ ...journalEntries()[0], application_number: '' }];
+    const wrapper = mountTab();
+    await flushPromises();
+
+    const row = wrapper.findAll('.proc__journal-row')[0];
+    expect(row.find('.proc__journal-app--copy').exists()).toBe(false);
+    expect(row.find('.proc__journal-app').text()).toBe('—');
   });
 
   it('обновляет ленту по SSE-сигналу applications-center (real-time)', async () => {
