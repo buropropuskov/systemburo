@@ -39,10 +39,13 @@ type ProcessingSummary struct {
 	// признак «данные вообще есть» (0 -> доли не считаются, а не рисуются нулём).
 	TotalApplications int64 `json:"total_applications"`
 
-	Stages         []ProcessingStageKPI     `json:"stages"`
-	Quality        []ProcessingQualityKPI   `json:"quality"`
-	SlowApprovers  []ProcessingApproverKPI  `json:"slow_approvers"`
+	Stages        []ProcessingStageKPI    `json:"stages"`
+	Quality       []ProcessingQualityKPI  `json:"quality"`
+	SlowApprovers []ProcessingApproverKPI `json:"slow_approvers"`
+	// Разбивки по этапам: один и тот же набор колонок в двух разрезах, вкладка
+	// переключает их одной таблицей (#1251 polish, п.10). Дольше всего сверху.
 	ByOrganization []ProcessingBreakdownRow `json:"by_organization"`
+	ByCompany      []ProcessingBreakdownRow `json:"by_company"`
 
 	// Approvers/Acceptors — полные рейтинги по скорости (#1251 S3), которые вкладка
 	// (S6) рисует таблицами. Approvers — согласующие по времени реакции (полный
@@ -106,9 +109,15 @@ type ProcessingAcceptorKPI struct {
 	AcceptsCount      int64  `json:"accepts_count"`
 }
 
-// ProcessingBreakdownRow — разбивка времени обработки по организациям.
+// ProcessingBreakdownRow — строка разбивки по организации или компании: сколько у
+// неё занимают этапы обработки и сколько заявок она подала за период (#1251 polish,
+// п.10 - раньше здесь было только общее время обработки и только по организациям).
+// Длительности — указатели: nil означает, что этап не прошла ни одна её заявка, и
+// вкладка рисует прочерк, а не «0 секунд».
 type ProcessingBreakdownRow struct {
 	Label             string `json:"label"`
+	AvgApprovalTime   *int64 `json:"avg_approval_time"`
+	AvgAcceptanceTime *int64 `json:"avg_acceptance_time"`
 	AvgProcessingTime *int64 `json:"avg_processing_time"`
 	ApplicationsCount int64  `json:"applications_count"`
 }
