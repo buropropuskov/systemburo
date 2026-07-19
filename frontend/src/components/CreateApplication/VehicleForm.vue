@@ -434,6 +434,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { getViewportZoom } from '@/utils/viewportScale'
 import { checkVehicleBlacklist } from '@/api/blacklist'
 import { useAuthStore } from '@/stores/auth'
 import { useDeletionsStore } from '@/stores/deletions'
@@ -1111,9 +1112,12 @@ export default {
                 
                 // Позиционируем тултип
                 this.$nextTick(() => {
+                    // position:fixed тултип внутри зазумленного <html>: rect device-px ->
+                    // делим на zoom (inline left/top = layout-px). Отступ -10 не делим.
+                    const z = getViewportZoom();
                     const rect = event.target.getBoundingClientRect();
-                    this.inactiveTooltip.x = rect.left + rect.width / 2;
-                    this.inactiveTooltip.y = rect.top - 10;
+                    this.inactiveTooltip.x = (rect.left + rect.width / 2) / z;
+                    this.inactiveTooltip.y = rect.top / z - 10;
                 });
             }
         },

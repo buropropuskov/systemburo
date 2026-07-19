@@ -177,6 +177,7 @@
 
 <script>
 import { useFieldConfig } from '@/composables/useFieldConfig';
+import { getViewportZoom } from '@/utils/viewportScale';
 
 export default {
     name: 'ItemsForm',
@@ -428,9 +429,13 @@ export default {
                 this.inactiveTooltip.visible = true;
 
                 this.$nextTick(() => {
+                    // Тултип position:fixed внутри зазумленного <html>: rect в device-px,
+                    // а inline left/top трактуются как layout-px - делим на zoom, иначе
+                    // подсказка уезжает вправо-вниз. Отступ -10 уже в layout-px.
+                    const z = getViewportZoom();
                     const rect = event.target.getBoundingClientRect();
-                    this.inactiveTooltip.x = rect.left + rect.width / 2;
-                    this.inactiveTooltip.y = rect.top - 10;
+                    this.inactiveTooltip.x = (rect.left + rect.width / 2) / z;
+                    this.inactiveTooltip.y = rect.top / z - 10;
                 });
             }
         },

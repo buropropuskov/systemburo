@@ -335,6 +335,7 @@
 
 <script>
 import { useFieldConfig } from '@/composables/useFieldConfig';
+import { getViewportZoom } from '@/utils/viewportScale';
 
 export default {
     name: 'DateRangeSection',
@@ -523,12 +524,16 @@ export default {
             this.closeDatepicker();
             const btn = this.$refs.qdTrigger;
             if (!btn) return;
+            // Меню телепортится в body внутри зазумленного <html> - rect (device-px)
+            // приводим к layout-px делением на zoom; width/клэмп - константы в layout-px,
+            // их НЕ делим.
+            const z = getViewportZoom();
             const r = btn.getBoundingClientRect();
             const width = 230;
-            const left = Math.max(8, r.right - width);
+            const left = Math.max(8, r.right / z - width);
             this.qdMenuStyle = {
                 position: 'fixed',
-                top: `${Math.round(r.bottom + 6)}px`,
+                top: `${Math.round(r.bottom / z + 6)}px`,
                 left: `${Math.round(left)}px`,
                 right: 'auto',
                 width: `${width}px`,
@@ -956,11 +961,17 @@ export default {
             const refByType = { start: 'startDateInput', end: 'endDateInput', single: 'singleDateInput' };
             const input = this.$refs[refByType[type]];
             if (input) {
+                // Календарь телепортится в body ВНУТРИ зазумленного <html> (масштаб под 1440
+                // на мониторах >1440): inline top/left трактуются в зазумленных CSS-px.
+                // getBoundingClientRect отдаёт device-px - делим на zoom, иначе календарь
+                // домножается на zoom второй раз и улетает в правый нижний угол.
+                // Константы-отступы (+8) уже в layout-px - НЕ делим.
+                const z = getViewportZoom();
                 const r = input.getBoundingClientRect();
                 this.datepickerStyle = {
                     position: 'fixed',
-                    top: `${Math.round(r.bottom + 8)}px`,
-                    left: `${Math.round(r.left)}px`,
+                    top: `${Math.round(r.bottom / z + 8)}px`,
+                    left: `${Math.round(r.left / z)}px`,
                     zIndex: 12000
                 };
             }
