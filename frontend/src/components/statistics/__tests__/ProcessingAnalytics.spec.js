@@ -33,6 +33,7 @@ vi.mock('@/services/eventStream', () => ({
 
 import ProcessingAnalytics from '../ProcessingAnalytics.vue';
 import AnalyticsBarChart from '../AnalyticsBarChart.vue';
+import HintTooltip from '@/components/ui/HintTooltip.vue';
 
 const mountTab = () => mount(ProcessingAnalytics, {
   props: { from: '2026-06-01', to: '2026-06-07' },
@@ -63,11 +64,20 @@ const fullSummary = () => ({
       trend: { delta_pct: 20, direction: 'up', sentiment: 'bad' },
     },
     {
-      key: 'completion_time',
-      label: 'Время до завершения',
+      key: 'processing_time',
+      label: 'Время обработки',
       samples: 0,
       avg: null, // этап никто не прошёл
       p90: null,
+      prev_avg: null,
+    },
+    {
+      // Бэк по-прежнему отдаёт этап, но вкладка его скрывает (#1251 polish, п.6).
+      key: 'completion_time',
+      label: 'Время до завершения',
+      samples: 1,
+      avg: 5154628,
+      p90: 5154628,
       prev_avg: null,
     },
   ],
@@ -129,19 +139,40 @@ describe('ProcessingAnalytics — KPI этапов', () => {
     const text = wrapper.text();
     expect(text).toContain('Время согласования');
     expect(text).toContain('2 ч 15 мин'); // 8100 с
-    expect(text).toContain('p90: 5 ч'); // 18000 с
+    // p90 без жаргона: «9 из 10 — до X» вместо «p90: X» (#1251 polish, п.5).
+    expect(text).toContain('9 из 10 — до 5 ч'); // 18000 с
+    expect(text).not.toContain('p90');
     expect(text).not.toContain('8100');
   });
 
-  it('этап без выборки показывает прочерк, а не «0 мин»', async () => {
+  it('подписывает крупное число как среднее — иначе непонятно, среднее это или максимум', async () => {
     state.summary = fullSummary();
     const wrapper = mountTab();
     await flushPromises();
 
-    const tile = wrapper.findAll('.proc__tile').find((t) => t.text().includes('Время до завершения'));
+    const approval = wrapper.findAll('.proc__tile').find((t) => t.text().includes('Время согласования'));
+    expect(approval.find('.proc__tile-agg').text()).toBe('среднее');
+  });
+
+  it('«Время до завершения» с вкладки убрано (срок пропуска, а не работа бюро)', async () => {
+    state.summary = fullSummary();
+    const wrapper = mountTab();
+    await flushPromises();
+
+    // Бэк этап отдаёт, но вкладка его не рисует и в график не кладёт.
+    expect(wrapper.text()).not.toContain('Время до завершения');
+    expect(wrapper.findAll('.proc__tile').length).toBe(3 + 2); // 3 видимых этапа + 2 метрики качества
+  });
+
+  it('этап без выборки показывает прочерк, а не «0 с»', async () => {
+    state.summary = fullSummary();
+    const wrapper = mountTab();
+    await flushPromises();
+
+    const tile = wrapper.findAll('.proc__tile').find((t) => t.text().includes('Время обработки'));
     expect(tile).toBeTruthy();
-    expect(tile.find('.proc__tile-val').text()).toBe('—');
-    expect(tile.text()).not.toContain('0 мин');
+    expect(tile.find('.proc__tile-val').text()).toContain('—');
+    expect(tile.text()).not.toContain('0 с');
   });
 
   it('дельту красит по тональности, а не по направлению (стрелка вниз может быть зелёной)', async () => {
@@ -163,19 +194,21 @@ describe('ProcessingAnalytics — KPI этапов', () => {
 });
 
 describe('ProcessingAnalytics — тултипы и основа времени (S5)', () => {
-  it('на плитке этапа есть подсказка «что считается» (data-hint), а не native title', async () => {
+  it('подсказка этапа — teleport-компонент (не ::after, который резали контейнеры со скроллом)', async () => {
     state.summary = fullSummary();
     const wrapper = mountTab();
     await flushPromises();
 
     const approval = wrapper.findAll('.proc__tile').find((t) => t.text().includes('Время согласования'));
-    const hint = approval.find('.proc__hint');
+    const hint = approval.findComponent(HintTooltip);
     expect(hint.exists()).toBe(true);
-    expect(hint.attributes('data-hint')).toContain('рабочему времени бюро');
-    expect(hint.attributes('title')).toBeUndefined(); // не native title
+    expect(hint.props('text')).toContain('рабочему времени бюро');
+    // И объясняет, что за числа на плитке (среднее vs 9 из 10).
+    expect(hint.props('text')).toContain('среднее');
+    expect(hint.props('text')).toContain('9 заявок из 10');
   });
 
-  it('помечает основу расчёта: рабочее время у согласования, календарное у завершения', async () => {
+  it('помечает основу расчёта: у видимых этапов — рабочее время бюро', async () => {
     state.summary = fullSummary();
     const wrapper = mountTab();
     await flushPromises();
@@ -185,10 +218,8 @@ describe('ProcessingAnalytics — тултипы и основа времени 
     expect(workBadge.classes()).toContain('proc__basis--work');
     expect(workBadge.text()).toContain('раб. время');
 
-    const completion = wrapper.findAll('.proc__tile').find((t) => t.text().includes('Время до завершения'));
-    const calBadge = completion.find('.proc__basis');
-    expect(calBadge.classes()).toContain('proc__basis--calendar');
-    expect(calBadge.text()).toContain('календарное');
+    // Единственный календарный этап (время до завершения) с вкладки убран.
+    expect(wrapper.find('.proc__basis--calendar').exists()).toBe(false);
   });
 
   it('у метрики качества тоже есть подсказка «что считается»', async () => {
@@ -197,9 +228,9 @@ describe('ProcessingAnalytics — тултипы и основа времени 
     await flushPromises();
 
     const refusal = wrapper.findAll('.proc__tile').find((t) => t.text().includes('Доля отказов'));
-    const hint = refusal.find('.proc__hint');
+    const hint = refusal.findComponent(HintTooltip);
     expect(hint.exists()).toBe(true);
-    expect(hint.attributes('data-hint')).toContain('отказ');
+    expect(hint.props('text')).toContain('отказ');
   });
 });
 
@@ -227,10 +258,12 @@ describe('ProcessingAnalytics — узкие места', () => {
     const chart = wrapper.findComponent(AnalyticsBarChart);
     expect(chart.props('valueType')).toBe('duration');
     const data = chart.props('data');
+    // «Время до завершения» в график не попадает: 59 суток против секунд схлопывали
+    // остальные столбцы в ноль и делали график нечитаемым (#1251 polish, пп.6,7).
     expect(data).toEqual([
       { label: 'Время согласования', value: 8100 },
       { label: 'Время принятия в работу', value: 3600 },
-      { label: 'Время до завершения', value: null }, // разрыв, не 0
+      { label: 'Время обработки', value: null }, // разрыв, не 0
     ]);
   });
 });

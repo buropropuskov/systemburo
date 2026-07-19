@@ -92,16 +92,19 @@ export function formatDuration(seconds) {
 
   const sign = total < 0 ? '-' : '';
   const abs = Math.floor(Math.abs(total));
-  if (abs === 0) return '0 мин';
-  // Доля минуты в любую сторону — «<1 мин»: знак у околонулевой величины не несёт
-  // смысла, а «-<1 мин» ещё и не читается.
-  if (abs < 60) return '<1 мин';
+  if (abs === 0) return '0 с';
+  // Секунды на коротких интервалах: без них реальные «6 секунд» показывались как
+  // «0 мин»/«<1 мин», и метрика читалась как сломанная (#1251 polish, п.3 - на
+  // проходной согласование и принятие часто делаются одним действием).
+  if (abs < 60) return `${sign}${abs} с`;
 
   const days = Math.floor(abs / 86400);
   const hours = Math.floor((abs % 86400) / 3600);
   const minutes = Math.floor((abs % 3600) / 60);
+  const secs = abs % 60;
 
   if (days > 0) return hours > 0 ? `${sign}${days} сут ${hours} ч` : `${sign}${days} сут`;
   if (hours > 0) return minutes > 0 ? `${sign}${hours} ч ${minutes} мин` : `${sign}${hours} ч`;
-  return `${sign}${minutes} мин`;
+  // До часа секунды ещё информативны, на часах и сутках — уже шум.
+  return secs > 0 ? `${sign}${minutes} мин ${secs} с` : `${sign}${minutes} мин`;
 }

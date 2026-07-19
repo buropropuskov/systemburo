@@ -459,7 +459,7 @@ describe('ReportResult — длительности (#1240)', () => {
 
   it('ноль длительности честен и остаётся «0 мин»', () => {
     // Движок COALESCE'ит пустое окно в 0 — это значение, а не отсутствие данных.
-    expect(rowCells(mountResult(aggDuration), 1)[1]).toBe('0 мин');
+    expect(rowCells(mountResult(aggDuration), 1)[1]).toBe('0 с');
   });
 
   it('итоги: длительность форматируется, непосчитанная -> «—»', () => {
