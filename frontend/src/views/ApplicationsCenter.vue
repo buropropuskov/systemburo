@@ -2043,10 +2043,17 @@ export default {
             }
         },
 
-        // Автодогрузка следующей порции по пересечению sentinel с table-body (#1158).
+        // Автодогрузка следующей порции по пересечению sentinel (#1158).
         // el=null при v-if="hasMoreApplications"===false просто отключает observer.
+        // root: на ДЕСКТОПЕ скроллпорт - .table-body (overflow-y:scroll). На МОБИЛКЕ
+        // @media снимает внутренний скролл (overflow-y:visible) и список скроллит
+        // документ: .table-body там НЕ скроллпорт, его root-прямоугольник равен полной
+        // высоте списка -> sentinel пересечён ВСЕГДА -> loadMore зацикливается и
+        // непрерывно наращивает DOM во время прокрутки. Поэтому на мобилке root=null
+        // (скроллер - документ).
         setSentinelRef(el) {
-            this.observeApplicationsSentinel(el, this.buildApplicationsPage, { root: this.$refs.tableBody || null });
+            const root = this.isMobileHeader ? null : (this.$refs.tableBody || null);
+            this.observeApplicationsSentinel(el, this.buildApplicationsPage, { root });
         },
 
         // Ручной повтор упавшей страницы (первичной или догрузки, #1173) - composable
