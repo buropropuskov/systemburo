@@ -30,8 +30,11 @@ import (
 // показывает, куда смотреть в первую очередь.
 const processingTopN = 5
 
-// processingQualityMetrics — метрики качества бандла в порядке показа.
-var processingQualityMetrics = []string{"refusal_rate", "avg_forwards"}
+// processingQualityMetrics — метрики качества бандла в порядке показа. Отказ
+// принимающего и несогласование показываем ПО ОТДЕЛЬНОСТИ (#1251 polish, п.8): в
+// объединённой доле не видно, кто завернул заявку. Объединённая refusal_rate
+// осталась в конструкторе отчётов.
+var processingQualityMetrics = []string{"rejected_rate", "not_approved_rate", "avg_forwards"}
 
 // processingStageAggs — агрегаты этапа, попадающие в KPI-плитку.
 const (

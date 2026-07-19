@@ -9,11 +9,13 @@ import (
 // Метрики качества обработки заявок (#1240, B3): чем заявка закончилась и сколько
 // раз её передавали из рук в руки.
 //
-//	refusal_rate — доля заявок, которым отказал принимающий (статус «Отказано»)
-//	               либо которые не согласовали (confirmation «Не согласовано»).
-//	avg_forwards — сколько раз заявку в среднем пересылали.
+//	refusal_rate      — доля заявок, которым отказал принимающий (статус «Отказано»)
+//	                    ЛИБО которые не согласовали (confirmation «Не согласовано»).
+//	rejected_rate     — только отказ принимающего (#1251 polish, п.8).
+//	not_approved_rate — только несогласование согласующими (#1251 polish, п.8).
+//	avg_forwards      — сколько раз заявку в среднем пересылали.
 //
-// Обе метрики ДРОБНЫЕ, а execAggregatePlan сканирует значение агрегата в int64:
+// Все метрики-доли ДРОБНЫЕ, а execAggregatePlan сканирует значение агрегата в int64:
 // на PG16 сырое AVG/деление дают numeric, и скан падает в рантайме (go build
 // такого не видит — только исполнение запроса). Поэтому SQL отдаёт значение,
 // домноженное на rateScale (целое), а постпроцесс RunReport делит его обратно и
@@ -32,8 +34,10 @@ const rateScale = 10
 // rateMetrics — метрики-доли, чьё значение SQL отдаёт домноженным на rateScale.
 // Читают постпроцесс RunReport (обратное деление) и metricIsDerived.
 var rateMetrics = map[string]bool{
-	"refusal_rate": true,
-	"avg_forwards": true,
+	"refusal_rate":      true,
+	"rejected_rate":     true,
+	"not_approved_rate": true,
+	"avg_forwards":      true,
 }
 
 // rateScaled поднимает дробное выражение до целого (x rateScale) и округляет.
@@ -51,6 +55,24 @@ func rateScaled(expr string) string {
 var refusalRateExpr = fmt.Sprintf(
 	"100 * COUNT(*) FILTER (WHERE app.confirmation = '%s' OR app.status = '%s')::numeric / NULLIF(COUNT(*), 0)",
 	models.ConfirmationRejected, models.StatusRefused,
+)
+
+// Две ветки отказа по отдельности (#1251 polish, п.8): в сводной доле они слиты, и
+// по ней не понять, кто «зарубил» заявку - согласующие или принимающий. Ветки
+// НЕ взаимоисключающие (заявку могли не согласовать И получить отказ принимающего),
+// поэтому их сумма не обязана равняться объединённой refusal_rate.
+
+// rejectedRateExpr — доля заявок, которым отказал ПРИНИМАЮЩИЙ (статус «Отказано»).
+var rejectedRateExpr = fmt.Sprintf(
+	"100 * COUNT(*) FILTER (WHERE app.status = '%s')::numeric / NULLIF(COUNT(*), 0)",
+	models.StatusRefused,
+)
+
+// notApprovedRateExpr — доля заявок, которые не согласовали СОГЛАСУЮЩИЕ
+// (confirmation «Не согласовано»).
+var notApprovedRateExpr = fmt.Sprintf(
+	"100 * COUNT(*) FILTER (WHERE app.confirmation = '%s')::numeric / NULLIF(COUNT(*), 0)",
+	models.ConfirmationRejected,
 )
 
 // avgForwardsExpr — среднее число пересылок на заявку. Коррелированный подзапрос,
@@ -104,7 +126,9 @@ func init() {
 		filters:   durationFilters(),
 	}
 	reportMetricRegistry["refusal_rate"] = metricDef{
-		label:      "Доля отказов",
+		// «и несогласований» в подписи: метрика объединяет обе ветки, а рядом теперь
+		// живут они же по отдельности - без уточнения три доли путались бы.
+		label:      "Доля отказов и несогласований",
 		unit:       "%",
 		group:      metricGroupProcessing,
 		baseTable:  "applications",
@@ -112,6 +136,43 @@ func init() {
 		dimensions: refusalRateDimensions,
 	}
 	reportMetricOrder = append(reportMetricOrder, "refusal_rate")
+
+	// Ветки отказа по отдельности: та же база и окно, что у объединённой. Разрезы
+	// РАЗНЫЕ: отказ принимающего фильтрует по status, поэтому группировка по статусу
+	// тавтологична (группа «Отказано» = 100%); несогласование фильтрует confirmation,
+	// и «сколько несогласованных среди заявок каждого статуса» - осмысленный вопрос,
+	// поэтому ему статус как разрез оставлен.
+	for _, m := range []struct {
+		key        string
+		label      string
+		expr       string
+		dims       map[string]aggColumn
+		dimensions []string
+	}{
+		{"rejected_rate", "Доля отказов принимающего", rejectedRateExpr, refusalRateDims(), refusalRateDimensions},
+		{"not_approved_rate", "Доля несогласованных", notApprovedRateExpr, durationDims(), avgForwardsDimensions},
+	} {
+		agg := rateScaled(m.expr)
+		aggMetricRegistry[m.key] = aggMetricSchema{
+			base:      "applications app",
+			aggExpr:   agg,
+			tsColumn:  "app.sending_datetime",
+			tsJoin:    jNone,
+			unit:      "%",
+			joinBlock: durationJoinBlock(),
+			dims:      m.dims,
+			filters:   durationFilters(),
+		}
+		reportMetricRegistry[m.key] = metricDef{
+			label:      m.label,
+			unit:       "%",
+			group:      metricGroupProcessing,
+			baseTable:  "applications",
+			aggExpr:    agg,
+			dimensions: m.dimensions,
+		}
+		reportMetricOrder = append(reportMetricOrder, m.key)
+	}
 
 	forwardsAgg := rateScaled(avgForwardsExpr)
 	aggMetricRegistry["avg_forwards"] = aggMetricSchema{

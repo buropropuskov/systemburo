@@ -137,6 +137,11 @@ func TestRunReport_QualityMetrics_Values(t *testing.T) {
 		why    string
 	}{
 		{"refusal_rate", 50, "%", "2 отказа (статус + несогласование) из 4 заявок"},
+		// Те же данные по отдельности (#1251 polish, п.8): отказал принимающий у B,
+		// не согласовали у C. Ветки не взаимоисключающие, сумма долей совпала с
+		// объединённой здесь случайно - на пересекающихся данных совпадать не обязана.
+		{"rejected_rate", 25, "%", "статус «Отказано» у одной заявки из 4"},
+		{"not_approved_rate", 25, "%", "confirmation «Не согласовано» у одной заявки из 4"},
 		{"avg_forwards", 1.5, "раз/заявку", "(3+2+1+0)/4 пересылок на заявку"},
 	}
 
@@ -161,6 +166,52 @@ func TestRunReport_QualityMetrics_Values(t *testing.T) {
 				"домноженное целое — деталь транспорта, наружу выходить не должно")
 		})
 	}
+}
+
+// TestRunReport_RefusalBranches_NotAdditiveOnOverlap — ради чего ветки разводили:
+// заявку могли И не согласовать, И получить отказ принимающего. На таких данных
+// сумма двух долей НЕ равна объединённой refusal_rate (та считает заявку один раз).
+// Общий сид качества этого не ловит: там ветки лежат на разных заявках.
+func TestRunReport_RefusalBranches_NotAdditiveOnOverlap(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+
+	org := models.Organization{Name: "Орг-Пересечение", IsActive: true}
+	require.NoError(t, db.Create(&org).Error)
+	sender := models.User{Username: "ovl_sender", TypeID: 1, IsActive: true}
+	require.NoError(t, db.Create(&sender).Error)
+
+	mk := func(number, status, confirmation string, sent *time.Time) {
+		n, s, c := number, status, confirmation
+		require.NoError(t, db.Create(&models.Application{
+			ApplicationNumber: &n, OrganizationID: org.ID, SenderUserID: sender.ID,
+			Status: &s, Confirmation: &c, SendingDatetime: sent,
+		}).Error)
+	}
+	// Одна заявка сразу с обеими ветками, одна чистая.
+	mk("OVL/BOTH", models.StatusRefused, models.ConfirmationRejected, mskTime(t, "2026-06-01 10:00"))
+	mk("OVL/OK", models.StatusInWork, models.ConfirmationApproved, mskTime(t, "2026-06-02 10:00"))
+
+	svc := services.NewStatisticsService(db, 0)
+	rate := func(metric string) float64 {
+		res, err := svc.RunReport(context.Background(), models.ReportRequest{
+			Mode: "aggregate", Metric: metric, Dimension: "none", Filters: qualityWindow(),
+		})
+		require.NoError(t, err)
+		require.Len(t, res.MetricRows, 1)
+		return res.MetricRows[0].FloatValues[metric]
+	}
+
+	rejected := rate("rejected_rate")
+	notApproved := rate("not_approved_rate")
+	combined := rate("refusal_rate")
+
+	assert.Equal(t, float64(50), rejected, "отказ принимающего у 1 заявки из 2")
+	assert.Equal(t, float64(50), notApproved, "несогласование у той же 1 заявки из 2")
+	assert.Equal(t, float64(50), combined, "объединённая считает эту заявку ОДИН раз")
+	assert.NotEqual(t, rejected+notApproved, combined,
+		"ветки пересекаются - складывать доли нельзя, ради этого их и развели")
 }
 
 // TestRunReport_QualityMetrics_PeriodTotal — итог по разрезу period считается по
@@ -426,10 +477,26 @@ func TestReportCatalog_QualityAndApproverMetrics(t *testing.T) {
 	rate, ok := byKey["refusal_rate"]
 	require.True(t, ok, "каталог должен публиковать долю отказов")
 	assert.Equal(t, "Обработка заявок", rate.Group)
-	assert.Equal(t, "Доля отказов", rate.Label)
+	assert.Equal(t, "Доля отказов и несогласований", rate.Label,
+		"объединённая доля осталась в каталоге, но подпись уточнена - рядом живут её ветки по отдельности")
 	assert.NotContains(t, rate.Dimensions, "status",
 		"разрез доли отказов по статусу тавтологичен: группа «Отказано» дала бы 100%")
 	assert.Contains(t, rate.Filters, "status", "как фильтр статус остаётся")
+
+	// Ветки отказа по отдельности: разрезы у них РАЗНЫЕ (у отказа принимающего
+	// статус тавтологичен и убран, у несогласования — осмыслен и оставлен).
+	rejected, ok := byKey["rejected_rate"]
+	require.True(t, ok, "каталог должен публиковать долю отказов принимающего")
+	assert.Equal(t, "Доля отказов принимающего", rejected.Label)
+	assert.Equal(t, "Обработка заявок", rejected.Group)
+	assert.NotContains(t, rejected.Dimensions, "status",
+		"группировка отказа принимающего по статусу тавтологична: группа «Отказано» даст 100%")
+
+	notApproved, ok := byKey["not_approved_rate"]
+	require.True(t, ok, "каталог должен публиковать долю несогласованных")
+	assert.Equal(t, "Доля несогласованных", notApproved.Label)
+	assert.Contains(t, notApproved.Dimensions, "status",
+		"несогласование фильтрует confirmation, разрез по статусу здесь не тавтологичен")
 
 	fwd, ok := byKey["avg_forwards"]
 	require.True(t, ok)

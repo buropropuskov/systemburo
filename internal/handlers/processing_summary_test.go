@@ -159,10 +159,16 @@ func TestGetProcessingSummary_QualityAndSlowApprovers(t *testing.T) {
 
 	assert.Equal(t, int64(4), got.TotalApplications)
 
-	refusal := qualityByKey(t, got.Quality, "refusal_rate")
-	require.NotNil(t, refusal.Value)
-	assert.Equal(t, 50.0, *refusal.Value, "2 отказа из 4 (статус и confirmation — обе ветки)")
-	assert.Equal(t, "%", refusal.Unit)
+	// Вкладка показывает ветки отказа ПО ОТДЕЛЬНОСТИ (#1251 polish, п.8): по сводной
+	// доле не понять, кто завернул заявку - согласующие или принимающий.
+	rejected := qualityByKey(t, got.Quality, "rejected_rate")
+	require.NotNil(t, rejected.Value)
+	assert.Equal(t, 25.0, *rejected.Value, "отказ принимающего у 1 заявки из 4")
+	assert.Equal(t, "%", rejected.Unit)
+
+	notApproved := qualityByKey(t, got.Quality, "not_approved_rate")
+	require.NotNil(t, notApproved.Value)
+	assert.Equal(t, 25.0, *notApproved.Value, "несогласование у 1 заявки из 4")
 
 	forwards := qualityByKey(t, got.Quality, "avg_forwards")
 	require.NotNil(t, forwards.Value)
