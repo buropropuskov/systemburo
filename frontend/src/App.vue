@@ -274,15 +274,11 @@ body.auth-active .content__container {
   width: 100%;
 }
 
-/* На мобилке шапка (TheHeader) - position:fixed;top:0 (нативно прибита композитором
-   к видимой области, без JS-переменной вьюпорта, #1097 R5-S1). fixed убирает шапку из
-   потока - резервируем её высоту (= --mobile-header-height, min-height .header), иначе
-   контент уезжает под шапку. Только auth-active: на логине/ошибках шапки нет. */
-@media (max-width: 768px) {
-  body.auth-active #main-content {
-    padding-top: var(--mobile-header-height);
-  }
-}
+/* На мобилке шапка (TheHeader) - position:sticky;top:0, т.е. ОСТАЁТСЯ В ПОТОКЕ и сама
+   занимает свою высоту: резервировать её padding'ом НЕ нужно (иначе двойной отступ).
+   Раньше шапка была fixed и высота компенсировалась здесь, но fixed рассинхронизировался
+   со второй закреплённой шапкой Центра (sticky) при сворачивании адресной строки -
+   обе прыгали. Подробности - в мобильном @media TheHeader.vue. */
 
 /* Блокировка body-scroll пока mobile drawer открыт */
 body.nav-drawer-open {
