@@ -83,12 +83,21 @@ const fullSummary = () => ({
   ],
   quality: [
     {
-      key: 'refusal_rate',
-      label: 'Доля отказов',
+      // Ветки отказа приходят по отдельности (#1251 polish, п.8).
+      key: 'rejected_rate',
+      label: 'Доля отказов принимающего',
       unit: '%',
       value: 15,
       prev_value: 20,
       trend: { delta_pct: -25, direction: 'down', sentiment: 'good' },
+    },
+    {
+      key: 'not_approved_rate',
+      label: 'Доля несогласованных',
+      unit: '%',
+      value: 5,
+      prev_value: 4,
+      trend: { delta_pct: 25, direction: 'up', sentiment: 'bad' },
     },
     {
       key: 'avg_forwards',
@@ -161,7 +170,7 @@ describe('ProcessingAnalytics — KPI этапов', () => {
 
     // Бэк этап отдаёт, но вкладка его не рисует и в график не кладёт.
     expect(wrapper.text()).not.toContain('Время до завершения');
-    expect(wrapper.findAll('.proc__tile').length).toBe(3 + 2); // 3 видимых этапа + 2 метрики качества
+    expect(wrapper.findAll('.proc__tile').length).toBe(3 + 3); // 3 видимых этапа + 3 метрики качества
   });
 
   it('этап без выборки показывает прочерк, а не «0 с»', async () => {
@@ -227,7 +236,7 @@ describe('ProcessingAnalytics — тултипы и основа времени 
     const wrapper = mountTab();
     await flushPromises();
 
-    const refusal = wrapper.findAll('.proc__tile').find((t) => t.text().includes('Доля отказов'));
+    const refusal = wrapper.findAll('.proc__tile').find((t) => t.text().includes('Доля отказов принимающего'));
     const hint = refusal.findComponent(HintTooltip);
     expect(hint.exists()).toBe(true);
     expect(hint.props('text')).toContain('отказ');
@@ -240,8 +249,11 @@ describe('ProcessingAnalytics — качество', () => {
     const wrapper = mountTab();
     await flushPromises();
 
-    const refusal = wrapper.findAll('.proc__tile').find((t) => t.text().includes('Доля отказов'));
+    const refusal = wrapper.findAll('.proc__tile').find((t) => t.text().includes('Доля отказов принимающего'));
     expect(refusal.find('.proc__tile-val').text()).toBe('15%');
+
+    const notApproved = wrapper.findAll('.proc__tile').find((t) => t.text().includes('Доля несогласованных'));
+    expect(notApproved.find('.proc__tile-val').text()).toBe('5%');
 
     const forwards = wrapper.findAll('.proc__tile').find((t) => t.text().includes('Среднее число пересылок'));
     expect(forwards.find('.proc__tile-val').text()).toBe('1,3'); // ru-RU десятичная запятая
