@@ -4,7 +4,7 @@ import { nextTick } from 'vue';
 
 // Фабрика vi.mock поднимается над импортами — управляемое состояние в hoisted.
 const { state } = vi.hoisted(() => ({
-  state: { summary: {}, journal: [], reject: false, deferred: [], streamHandler: null },
+  state: { summary: {}, journal: [], trendRows: [], trendCalls: [], trendDeferred: [], reject: false, deferred: [], streamHandler: null },
 }));
 
 vi.mock('@/api/statistics.js', () => ({
@@ -16,6 +16,12 @@ vi.mock('@/api/statistics.js', () => ({
   getProcessingJournal: () => {
     if (state.hang) return new Promise(() => {}); // на первой загрузке лента тоже висит
     return Promise.resolve(state.journal);
+  },
+  // Динамика по дням строится отдельным запросом к движку отчётов (S/P3).
+  runReport: (req) => {
+    state.trendCalls.push(req);
+    if (state.hang) return new Promise((resolve) => { state.trendDeferred.push(resolve); });
+    return Promise.resolve({ metric_rows: state.trendRows });
   },
 }));
 
@@ -32,12 +38,13 @@ vi.mock('@/services/eventStream', () => ({
 }));
 
 import ProcessingAnalytics from '../ProcessingAnalytics.vue';
-import AnalyticsBarChart from '../AnalyticsBarChart.vue';
+import AnalyticsAreaChart from '../AnalyticsAreaChart.vue';
+import FilterTabs from '@/components/ui/FilterTabs.vue';
 import HintTooltip from '@/components/ui/HintTooltip.vue';
 
 const mountTab = () => mount(ProcessingAnalytics, {
   props: { from: '2026-06-01', to: '2026-06-07' },
-  global: { stubs: { AnalyticsBarChart: true } },
+  global: { stubs: { AnalyticsAreaChart: true } },
 });
 
 const fullSummary = () => ({
@@ -126,6 +133,9 @@ const fullSummary = () => ({
 beforeEach(() => {
   state.summary = {};
   state.journal = [];
+  state.trendRows = [];
+  state.trendCalls = [];
+  state.trendDeferred = [];
   state.reject = false;
   state.hang = false;
   state.deferred = [];
@@ -261,22 +271,70 @@ describe('ProcessingAnalytics — качество', () => {
   });
 });
 
-describe('ProcessingAnalytics — узкие места', () => {
-  it('передаёт в bar-chart средние времена этапов как duration с null-разрывами', async () => {
+describe('ProcessingAnalytics — динамика (P3)', () => {
+  it('строит серию выбранного этапа; день с заявками, но без прошедшего этапа = разрыв, а не ноль', async () => {
+    state.summary = fullSummary();
+    // Реальная форма ответа движка: бины анкерятся объединением строк ВСЕХ
+    // запрошенных метрик. День 02.06 заявки имел, но этап не прошла ни одна ->
+    // ключа длительности в values нет (metricOmitsFakeZero), спутник есть.
+    state.trendRows = [
+      { label: '2026-06-01', values: { avg_processing_time: 8100, applications_count: 4 } },
+      { label: '2026-06-02', values: { applications_count: 2 } },
+      { label: '2026-06-03', values: { avg_processing_time: 3600, applications_count: 3 } },
+    ];
+    const wrapper = mountTab();
+    await flushPromises();
+
+    const chart = wrapper.findComponent(AnalyticsAreaChart);
+    expect(chart.props('valueType')).toBe('duration');
+    expect(chart.props('data')).toEqual([
+      { timestamp: '2026-06-01', count: 8100 },
+      { timestamp: '2026-06-02', count: null }, // разрыв, не 0
+      { timestamp: '2026-06-03', count: 3600 },
+    ]);
+  });
+
+  it('запрашивает спутника-анкер, явный лимит и шаг по длине окна', async () => {
     state.summary = fullSummary();
     const wrapper = mountTab();
     await flushPromises();
 
-    const chart = wrapper.findComponent(AnalyticsBarChart);
-    expect(chart.props('valueType')).toBe('duration');
-    const data = chart.props('data');
-    // «Время до завершения» в график не попадает: 59 суток против секунд схлопывали
-    // остальные столбцы в ноль и делали график нечитаемым (#1251 polish, пп.6,7).
-    expect(data).toEqual([
-      { label: 'Время согласования', value: 8100 },
-      { label: 'Время принятия в работу', value: 3600 },
-      { label: 'Время обработки', value: null }, // разрыв, не 0
-    ]);
+    const req = state.trendCalls[0];
+    // Спутник нужен, чтобы день без прошедшего этапа вообще пришёл в ответе.
+    expect(req.metrics).toEqual(['avg_processing_time', 'applications_count']);
+    expect(req.dimension).toBe('period');
+    // Окно теста - неделя, значит шаг дневной.
+    expect(req.granularity).toBe('day');
+    // Без явного лимита движок обрезал бы период до 100 первых бинов.
+    expect(req.limit).toBeGreaterThanOrEqual(365);
+    expect(wrapper.text()).toContain('по дням');
+  });
+
+  it('на длинном окне шаг укрупняется, чтобы период не обрезался лимитом', async () => {
+    state.summary = fullSummary();
+    const wrapper = mount(ProcessingAnalytics, {
+      props: { from: '2025-01-01', to: '2026-07-19' }, // ~1.5 года
+      global: { stubs: { AnalyticsAreaChart: true } },
+    });
+    await flushPromises();
+
+    expect(state.trendCalls.at(-1).granularity).toBe('week');
+    expect(wrapper.text()).toContain('по неделям');
+  });
+
+  it('переключение этапа перестраивает график (раньше вид был один и без выбора)', async () => {
+    state.summary = fullSummary();
+    state.trendRows = [{ label: '2026-06-01', values: { avg_approval_time: 100 } }];
+    const wrapper = mountTab();
+    await flushPromises();
+    const before = state.trendCalls.length;
+
+    await wrapper.findComponent(FilterTabs).vm.$emit('update:modelValue', 'approval_time');
+    await flushPromises();
+
+    expect(state.trendCalls.length).toBe(before + 1);
+    expect(state.trendCalls.at(-1).metrics[0]).toBe('avg_approval_time');
+    expect(wrapper.findComponent(AnalyticsAreaChart).props('seriesName')).toBe('Согласование');
   });
 });
 
@@ -421,6 +479,7 @@ describe('ProcessingAnalytics — крайние состояния', () => {
 
     // Ответ пришёл -> скелетоны уходят, данные на месте.
     state.deferred[0](fullSummary());
+    state.trendDeferred[0]({ metric_rows: [] }); // график ждёт свой запрос отдельно
     await flushPromises();
     expect(wrapper.find('.proc__skeleton--chart').exists()).toBe(false);
     expect(wrapper.text()).toContain('Время согласования');
