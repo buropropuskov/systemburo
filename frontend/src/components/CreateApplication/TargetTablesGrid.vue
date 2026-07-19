@@ -39,6 +39,8 @@
  * tables - список в формате { table: { id, display_name, status, status_comment,
  * table_type } } (как отдаёт VehicleForm/EmployeeForm после маппинга /system-tables).
  */
+import { getViewportZoom } from '@/utils/viewportScale';
+
 export default {
   name: 'TargetTablesGrid',
   props: {
@@ -103,9 +105,12 @@ export default {
         this.tooltip.visible = true;
 
         this.$nextTick(() => {
+          // position:fixed тултип внутри зазумленного <html>: rect device-px ->
+          // делим на zoom (inline left/top = layout-px). Отступ -10 не делим.
+          const z = getViewportZoom();
           const rect = event.target.getBoundingClientRect();
-          this.tooltip.x = rect.left + rect.width / 2;
-          this.tooltip.y = rect.top - 10;
+          this.tooltip.x = (rect.left + rect.width / 2) / z;
+          this.tooltip.y = rect.top / z - 10;
         });
       }
     },

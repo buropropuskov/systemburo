@@ -123,6 +123,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { getViewportZoom } from '@/utils/viewportScale'
 import { useOnboardingStore } from '@/stores/onboarding';
 import ConfirmationModal from './ConfirmationModal.vue';
 
@@ -483,10 +484,13 @@ export default {
 
         updateTooltipPosition(event) {
             if (event && event.target) {
+                // position:fixed тултип внутри зазумленного <html>: rect device-px ->
+                // делим на zoom (inline left/top = layout-px). Отступ +7 не делим.
+                const z = getViewportZoom();
                 const rect = event.target.getBoundingClientRect();
                 this.tooltipStyle = {
-                    left: `${rect.left + rect.width / 2}px`,
-                    top: `${rect.bottom + 7}px`,
+                    left: `${(rect.left + rect.width / 2) / z}px`,
+                    top: `${rect.bottom / z + 7}px`,
                     transform: 'translateX(-50%)'
                 };
             }

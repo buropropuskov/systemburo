@@ -191,6 +191,65 @@ export function useOnboarding() {
     const store = useOnboardingStore();
     const lastLocal = stepsForSegment.length - 1;
 
+    // ── Zoom-компенсация позиционирования driver.js ──────────────────────────────
+    // driver считает позицию поповера КОРРЕКТНО, но целиком в device-px (rect элемента,
+    // innerWidth/innerHeight) и пишет результат в inline left/top/right/bottom. Поповер
+    // живёт в <body> ВНУТРИ зазумленного <html> (масштаб под 1440 на мониторах >1440),
+    // где эти px трактуются как layout-px и домножаются на zoom - поповер уезжает
+    // вправо-вниз пропорционально zoom НА ВСЕХ шагах (и anchored, и центро-модальных).
+    // Однородно делим все четыре inset'а на zoom: выбор стороны и клэмпы driver'а
+    // сохраняются, т.к. масштабирование равномерное. Оверлей/spotlight НЕ трогаем -
+    // они самосогласованы (viewBox в device-px при width/height:100%).
+    // MutationObserver, а не одноразовый rAF: driver перезаписывает стили на СВОИХ
+    // внутренних scroll/resize-слушателях, до которых снаружи не дотянуться.
+    let zoomFixObserver = null;
+    let applyingZoomFix = false;
+    const zoomFixLast = {};
+    const INSETS = ['left', 'top', 'right', 'bottom'];
+
+    function applyPopoverZoomFix(wrapper) {
+      const z = getViewportZoom();
+      if (z === 1 || !wrapper) return;
+      const next = {};
+      let changed = false;
+      for (const prop of INSETS) {
+        const raw = wrapper.style[prop];
+        // 'auto'/пусто не трогаем; значение, которое записали мы сами - тоже
+        // (иначе поделим повторно и поповер уползёт вверх-влево).
+        if (!raw || raw === 'auto' || zoomFixLast[prop] === raw) continue;
+        const px = parseFloat(raw);
+        if (!Number.isFinite(px)) continue;
+        next[prop] = `${Math.round(px / z)}px`;
+        changed = true;
+      }
+      if (!changed) return;
+      applyingZoomFix = true;
+      for (const prop of Object.keys(next)) {
+        wrapper.style[prop] = next[prop];
+        zoomFixLast[prop] = next[prop];
+      }
+      applyingZoomFix = false;
+    }
+
+    function attachPopoverZoomFix(wrapper) {
+      detachPopoverZoomFix();
+      if (!wrapper || typeof MutationObserver === 'undefined') return;
+      zoomFixObserver = new MutationObserver(() => {
+        if (applyingZoomFix) return;
+        applyPopoverZoomFix(wrapper);
+      });
+      zoomFixObserver.observe(wrapper, { attributes: true, attributeFilter: ['style'] });
+      requestAnimationFrame(() => applyPopoverZoomFix(wrapper));
+    }
+
+    function detachPopoverZoomFix() {
+      if (zoomFixObserver) {
+        zoomFixObserver.disconnect();
+        zoomFixObserver = null;
+      }
+      for (const prop of INSETS) delete zoomFixLast[prop];
+    }
+
     const driverObj = driver({
       showProgress: false,
       animate: !prefersReducedMotion(),
@@ -321,26 +380,9 @@ export function useOnboarding() {
           );
         }
 
-        // Центро-модальный шаг (element:null) driver центрирует по window.innerWidth/2
-        // и записывает это в CSS-px left/top, но поповер живёт внутри зазумленного
-        // <html> (масштаб под 1440 на мониторах >1440), где CSS-px домножаются на
-        // zoom -> центр уезжает в правый нижний угол. Перецентровываем по layout-
-        // viewport = innerWidth/zoom (documentElement.clientWidth под zoom отдаёт
-        // ФИЗИЧЕСКУЮ ширину, а offsetWidth поповера - в layout-px, поэтому берём
-        // innerWidth/zoom, а не clientWidth). rAF - чтобы отработать ПОСЛЕ
-        // синхронного repositionPopover самого driver; при zoom=1 - деление на 1.
-        if (!step?.element) {
-          const w = popover.wrapper;
-          requestAnimationFrame(() => {
-            const z = getViewportZoom();
-            const vw = window.innerWidth / z;
-            const vh = window.innerHeight / z;
-            w.style.left = `${Math.round(vw / 2 - w.offsetWidth / 2)}px`;
-            w.style.top = `${Math.round(vh / 2 - w.offsetHeight / 2)}px`;
-            w.style.right = 'auto';
-            w.style.bottom = 'auto';
-          });
-        }
+        // Компенсация корневого zoom для позиционирования поповера - едина для ВСЕХ
+        // шагов (и anchored, и центро-модальных): см. attachPopoverZoomFix выше.
+        attachPopoverZoomFix(popover.wrapper);
       },
       // Esc / клик по оверлею / крестик идут сюда (g(true)) ДО гейта на
       // __activeStep - в отличие от onDestroyed это надёжно срабатывает, даже
@@ -355,6 +397,7 @@ export function useOnboarding() {
         onIndexChange?.(startIndex + localIndex);
       },
       onDestroyed() {
+        detachPopoverZoomFix();
         onDestroyed?.();
       },
     });
