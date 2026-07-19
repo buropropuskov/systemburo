@@ -28,9 +28,11 @@
         </div>
 
         <div class="header-top__actions">
-          <!-- Обновить список - в шапке Центра, виден и на десктопе, и на мобилке
-               (в table-header кнопка была скрыта на мобилке вместе со всей шапкой таблицы). -->
+          <!-- Обновить: на десктопе живёт в шапке ТАБЛИЦЫ (как исторически), здесь -
+               только мобильный вариант, иконкой без текста (шапка таблицы на мобилке
+               скрыта, иначе обновить нечем). Стиль иконки - как в «Обзор и новости». -->
           <RefreshButton
+            v-if="isMobileHeader"
             :loading="refreshing"
             @refresh="fetchApplications"
           />
@@ -140,41 +142,13 @@
           </Transition>
         </div>
 
-        </div>
-
-        <!-- Мобилка: морф-поиск. Свёрнут = круглая кнопка-иконка справа (в зарезервированном
-             gutter'е). По клику САМА кнопка разъезжается ВЛЕВО в полную строку поиска
-             (анимация width, right-anchored). Иконка-тоггл всегда справа, инпут проявляется
-             слева, крестик очистки перед иконкой. -->
-        <div
-          v-if="isMobileHeader"
-          class="mobile-search"
-          :class="{ 'mobile-search--open': showMobileSearch }"
-        >
-          <input
-            ref="mobileSearchInput"
-            v-model="searchQuery"
-            placeholder="Поиск заявок..."
-            type="text"
-            class="mobile-search__input"
-            data-testid="center-input-search"
-            :tabindex="showMobileSearch ? 0 : -1"
-            @input="onSearchInput"
-          >
+          <!-- Мобилка: иконка-тоггл раскрывает поле поиска оверлеем влево (не всегда-видимый инпут) -->
           <button
-            v-if="showMobileSearch && searchQuery.trim()"
+            v-if="isMobileHeader"
             type="button"
-            class="mobile-search__clear"
-            aria-label="Очистить поиск"
-            @click="clearMobileSearch"
-          >
-            &times;
-          </button>
-          <button
-            type="button"
-            class="mobile-search__toggle"
-            :class="{ 'mobile-search__toggle--active': showMobileSearch || !!searchQuery.trim() }"
-            :aria-label="showMobileSearch ? 'Закрыть поиск' : 'Поиск заявок'"
+            class="search-icon-btn"
+            :class="{ 'search-icon-btn--active': showMobileSearch || !!searchQuery.trim() }"
+            aria-label="Поиск заявок"
             @click="toggleMobileSearch"
           >
             <img
@@ -184,6 +158,37 @@
             >
           </button>
         </div>
+
+        <!-- Мобилка: поле поиска раскрывается ВЛЕВО оверлеем поверх первого ряда
+             (заголовок/бейдж/звук), не отдельным рядом ниже. Иконка справа - тоггл,
+             крестик внутри - очистить и закрыть. -->
+        <Transition name="center-search">
+          <div
+            v-if="isMobileHeader && showMobileSearch"
+            class="center__search-overlay"
+          >
+            <div class="field search">
+              <input
+                ref="mobileSearchInput"
+                v-model="searchQuery"
+                placeholder="Поиск заявок..."
+                type="text"
+                class="field__input search"
+                data-testid="center-input-search"
+                @input="onSearchInput"
+              >
+              <button
+                v-if="searchQuery.trim()"
+                type="button"
+                class="center__search-clear"
+                aria-label="Очистить поиск"
+                @click="clearMobileSearch"
+              >
+                &times;
+              </button>
+            </div>
+          </div>
+        </Transition>
       </div>
 
       <!-- Десктоп: инлайн-фильтры Центра (как до волны 3). На мобилке - в модалке. -->
@@ -552,9 +557,12 @@
           <div class="header-col tags-col">
             <p>Теги</p>
           </div>
-          <!-- Обновить переехало в шапку Центра (header-top__actions) - виден на всех
-               ширинах. Колонка действий в шапке таблицы без содержимого. -->
-          <div class="header-col actions-col" />
+          <div class="header-col actions-col">
+            <RefreshButton
+              :loading="refreshing"
+              @refresh="fetchApplications"
+            />
+          </div>
         </div>
       </div>
             
@@ -2294,67 +2302,30 @@ export default {
     min-width: 150px;
 }
 
-/* Мобилка: морф-поиск. Right-anchored абсолютный контейнер в шапке (.header-top
-   position:relative), сам растёт из круглой 40px-кнопки в полную строку через
-   анимацию width (не отдельный оверлей-«занавес»). Иконка-тоггл всегда справа,
-   инпут проявляется слева. Живёт в 48px-gutter'е справа (см. reserve ниже). */
-.mobile-search {
+/* Мобилка: оверлей поиска - поверх первого ряда, растёт справа налево (clip-path в
+   Transition, без reflow). right:44px оставляет справа иконку-тоггл открытой. */
+.center__search-overlay {
     position: absolute;
     top: 0;
     bottom: 0;
-    right: 0;
-    margin: auto 0;
-    height: 40px;
-    width: 40px;
+    left: 0;
+    right: 44px;
+    z-index: 1;
     display: flex;
     align-items: center;
     background: #fff;
-    border: 1px solid var(--color-border);
-    border-radius: 50%;
-    overflow: hidden;
-    transition: width 0.25s ease, border-radius 0.25s ease, border-color 0.15s ease;
-    z-index: 2;
-}
-
-.mobile-search--open {
-    width: 100%;
+    /* Скруглить фон под скруглённое поле (15px) - иначе белые квадратные углы
+       оверлея торчат за pill-полем рядом с круглой иконкой поиска (#1097 R3-3). */
     border-radius: var(--radius-md);
-    border-color: var(--color-primary);
 }
 
-.mobile-search__input {
-    flex: 1;
-    min-width: 0;
-    height: 100%;
-    border: none;
-    outline: none;
-    background: transparent;
-    padding: 0 6px 0 14px;
-    font-size: 14px;
-    /* Инпут скрыт в свёрнутом состоянии (кнопка 40px), проявляется при раскрытии. */
-    opacity: 0;
-    transition: opacity 0.15s ease;
-}
-
-.mobile-search--open .mobile-search__input {
-    opacity: 1;
-}
-
-.mobile-search__toggle {
-    width: 40px;
-    height: 40px;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    padding: 0;
+.center__search-overlay .field.search {
+    width: 100%;
+    margin: 0;
 }
 
 /* Крестик очистки внутри поля (появляется при вводе): сбрасывает и закрывает поиск. */
-.mobile-search__clear {
+.center__search-clear {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2370,8 +2341,45 @@ export default {
     flex-shrink: 0;
 }
 
-.mobile-search__clear:hover {
+.center__search-clear:hover {
     color: var(--color-primary);
+}
+
+/* Раскрытие влево - clip-path (композитится, не двигает ряд). */
+.center-search-enter-active,
+.center-search-leave-active {
+    transition: clip-path 0.25s ease;
+}
+
+.center-search-enter-from,
+.center-search-leave-to {
+    clip-path: inset(0 0 0 100%);
+}
+
+.center-search-enter-to,
+.center-search-leave-from {
+    clip-path: inset(0 0 0 0);
+}
+
+/* Иконка-кнопка поиска (мобилка): тоггл оверлея поиска (раскрывается влево поверх ряда). */
+.search-icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--color-border);
+    border-radius: 50%;
+    background: #fff;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.search-icon-btn:hover,
+.search-icon-btn--active {
+    background: var(--color-bg);
+    border-color: var(--color-primary);
 }
 
 .search-icon-btn__img {
@@ -2379,11 +2387,20 @@ export default {
     height: 16px;
 }
 
-/* Резерв справа под свёрнутую морф-кнопку поиска (40px, right:0), чтобы [Обновить][звук]
-   не попадали под неё. Только мобилка (морф рендерится при isMobileHeader). */
+/* Мобилка: «Обновить» в шапке Центра - только иконка, без подписи (эталон «Обзор и
+   новости»), кружок как у иконки поиска. На десктопе кнопка живёт в шапке таблицы. */
 @media (max-width: 767.98px) {
-    .header-top__actions {
-        padding-right: 48px;
+    .header-top__actions :deep(.refresh-btn) {
+        width: 40px;
+        height: 40px;
+        padding: 0;
+        justify-content: center;
+        border-radius: 50%;
+        box-sizing: border-box;
+    }
+
+    .header-top__actions :deep(.refresh-btn__text) {
+        display: none;
     }
 }
 
@@ -3160,11 +3177,14 @@ export default {
     padding: 8px 16px;
     border-top: 1px solid #e2e2e6;
     border-bottom: 1px solid #e2e2e6;
-    /* Серая полоса-разделитель периодов на десктопе (полоса на всю ширину .applications-list),
-       текст по центру горизонтально. На мобилке (карточки) возвращаем transparent + текст
-       слева - см. @media ниже. */
+    /* Серая полоса-разделитель периодов на десктопе (полоса на всю ширину .applications-list).
+       Центрируем ЛЕЙБЛ флексом (align-items/justify-content), а не text-align - лейбл это
+       отдельный span, флекс-центрирование кладёт его ровно по центру полосы и по вертикали.
+       На мобилке (карточки) возвращаем transparent + лейбл слева - см. @media ниже. */
     background: #FAFAFA;
-    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 .applications-list .applications-day-separator:first-child {
     border-top: none;
@@ -3181,7 +3201,7 @@ export default {
         background: transparent;
         border-top: none;
         border-bottom: none;
-        text-align: left;
+        justify-content: flex-start;
         padding: 15px 16px 6px;
     }
 }
