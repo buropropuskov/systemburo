@@ -588,7 +588,7 @@ export default {
 }
 
 .guide__footer {
-  padding: 14px 26px;
+  padding: 10px 22px;
   display: flex;
   justify-content: flex-end;
   /* Разделительная линия между телом и футером (MOD-1) - как в BaseModal/остальных модалках. */
@@ -596,14 +596,15 @@ export default {
 }
 
 .guide__done {
-  height: 42px;
-  padding: 0 26px;
+  /* Компактнее и легче: 42px/600 читались как «жирная большая» кнопка (правка ревью). */
+  height: 34px;
+  padding: 0 18px;
   border: 1px solid var(--color-border);
   background: #fff;
   border-radius: var(--radius-pill);
   font-family: inherit;
-  font-size: 13.5px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 500;
   color: #6a6a7d;
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
@@ -681,7 +682,7 @@ export default {
     padding: 0 16px;
   }
   .guide__footer {
-    padding: 14px 16px 18px;
+    padding: 8px 14px 12px;
   }
   .guide__done {
     padding: 0 20px;

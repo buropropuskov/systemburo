@@ -50,7 +50,10 @@
       </button>
     </div>
 
-    <div class="modal-body">
+    <div
+      ref="modalBody"
+      class="modal-body"
+    >
       <div
         v-if="place"
         class="place-details"
@@ -161,6 +164,7 @@
                 class="photo-wrapper"
                 @pointerdown="startDrag"
                 @wheel="onZoom"
+                @touchstart.stop
               >
                 <img 
                   :src="getMainPhotoUrl(place.photos)" 
@@ -206,6 +210,7 @@
 </template>
 
 <script>
+import { ref } from 'vue';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 
 export default {
@@ -222,14 +227,19 @@ export default {
     },
     emits: ['close'],
     setup(props, { emit }) {
-        // Свайп-вниз по ползунку закрывает окно места (эмитит close родителю). getScrollTop
-        // намеренно >0 - свайп стартует ТОЛЬКО с ползунка, не из контента: иначе тач по фото
-        // конфликтовал бы с его pan (drag фото на .photo-wrapper через Pointer Events).
+        // Свайп-вниз закрывает окно места (эмитит close родителю). Тянуть можно и за
+        // ползунок, и за ЛЮБУЮ часть модалки - для этого getScrollTop отдаёт реальную
+        // прокрутку тела: из контента свайп стартует, когда тело прокручено вверх
+        // (иначе жест уходит в скролл списка). Исключение - фото местоположения: на нём
+        // висит собственный pan (Pointer Events), поэтому .photo-wrapper гасит всплытие
+        // touchstart (@touchstart.stop в шаблоне), чтобы жесты не конфликтовали.
+        const modalBody = ref(null);
         const swipe = useSwipeDismiss(() => emit('close'), {
             handleSelector: '.sheet-handle',
-            getScrollTop: () => 1,
+            getScrollTop: () => modalBody.value?.scrollTop ?? 0,
         });
         return {
+            modalBody,
             sheetOffset: swipe.offset,
             sheetDragging: swipe.isDragging,
             onSheetTouchStart: swipe.onTouchStart,
