@@ -25,9 +25,9 @@ import (
 // int64), поэтому «нет данных» ловится не значением, а счётчиком выборки:
 // Samples у этапа и TotalApplications у долей.
 
-// processingTopN — сколько строк отдаём в топе медленных согласующих и разбивке
-// по организациям. Витрина узких мест: длинный список читать некому, а вкладка
-// показывает, куда смотреть в первую очередь.
+// processingTopN — сколько строк отдаём в топе медленных согласующих. Только там:
+// рейтинги людей и разбивка по организациям/компаниям идут ПОЛНЫМИ списками, вкладка
+// показывает их прокручиваемыми таблицами (#1251 S6 и polish п.10).
 const processingTopN = 5
 
 // processingQualityMetrics — метрики качества бандла в порядке показа. Отказ
@@ -91,7 +91,10 @@ func (s *statisticsService) computeProcessingSummary(ctx context.Context, from, 
 	}
 	out.Acceptors = rankAcceptorsBySpeed(acceptors)
 
-	if out.ByOrganization, err = s.runProcessingByOrganization(ctx, fromStr, toStr); err != nil {
+	if out.ByOrganization, err = s.runProcessingBreakdown(ctx, "organization", fromStr, toStr); err != nil {
+		return nil, err
+	}
+	if out.ByCompany, err = s.runProcessingBreakdown(ctx, "company", fromStr, toStr); err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -369,32 +372,41 @@ func rankAcceptorsBySpeed(rows []models.ProcessingAcceptorKPI) []models.Processi
 	return out
 }
 
-// runProcessingByOrganization — разбивка времени обработки по организациям,
-// медленные сверху. Разреза по типу вложения здесь нет намеренно: вложения к
-// заявке 1:N, join размножил бы её строку и взвесил среднее по числу вложений
-// (см. report_duration_metrics.go).
-func (s *statisticsService) runProcessingByOrganization(ctx context.Context, from, to string) ([]models.ProcessingBreakdownRow, error) {
+// runProcessingBreakdown — разбивка этапов обработки в заданном разрезе
+// (организация или компания), дольше всего сверху. Возвращает ПОЛНЫЙ список:
+// вкладка показывает его прокручиваемой таблицей, а не топом (#1251 polish, п.10).
+// Разреза по типу вложения здесь нет намеренно: вложения к заявке 1:N, join
+// размножил бы её строку и взвесил среднее по числу вложений (см.
+// report_duration_metrics.go).
+func (s *statisticsService) runProcessingBreakdown(ctx context.Context, dimension, from, to string) ([]models.ProcessingBreakdownRow, error) {
 	resp, err := s.RunReport(ctx, models.ReportRequest{
-		Mode:      "aggregate",
-		Metrics:   []string{"avg_processing_time", "applications_count"},
-		Dimension: "organization",
+		Mode: "aggregate",
+		Metrics: []string{
+			"avg_approval_time", "avg_acceptance_time", "avg_processing_time", "applications_count",
+		},
+		Dimension: dimension,
 		Filters:   []models.ReportFilterValue{{Key: "date_range", From: from, To: to}},
-		Limit:     maxReportLimit, // как и у согласующих: топ отбираем сами, см. slowApprovers
+		Limit:     maxReportLimit, // сортируем в Go, движок упорядочил бы по сумме метрик
 	})
 	if err != nil {
-		return nil, fmt.Errorf("statistics: processing by organization: %w", err)
+		return nil, fmt.Errorf("statistics: processing by %s: %w", dimension, err)
 	}
 
 	rows := make([]models.ProcessingBreakdownRow, 0, len(resp.MetricRows))
 	for _, r := range resp.MetricRows {
 		rows = append(rows, models.ProcessingBreakdownRow{
 			Label:             r.Label,
+			AvgApprovalTime:   optionalValue(r.Values, "avg_approval_time"),
+			AvgAcceptanceTime: optionalValue(r.Values, "avg_acceptance_time"),
 			AvgProcessingTime: optionalValue(r.Values, "avg_processing_time"),
 			ApplicationsCount: r.Values["applications_count"],
 		})
 	}
+	// Сортируем по полному времени обработки: вопрос разбивки - «где дольше всего
+	// тянут», поэтому медленные сверху (в отличие от рейтингов людей, где сверху
+	// быстрые). Строки без данных уходят вниз.
 	sortByOptionalDesc(rows, func(r models.ProcessingBreakdownRow) *int64 { return r.AvgProcessingTime })
-	return topN(rows, processingTopN), nil
+	return rows, nil
 }
 
 // optionalValue — значение метрики строки или nil, если движок не дал ключа

@@ -102,12 +102,63 @@ func TestGetProcessingSummary_StagesAndBreakdown(t *testing.T) {
 		})
 	}
 
+	// Разбивка несёт ВСЕ этапы, а не только общее время обработки (#1251 polish, п.10).
 	require.Len(t, got.ByOrganization, 1)
 	org := got.ByOrganization[0]
 	assert.Equal(t, "Орг-Длительности", org.Label)
 	assert.Equal(t, int64(3), org.ApplicationsCount)
 	require.NotNil(t, org.AvgProcessingTime)
-	assert.Equal(t, int64(16200), *org.AvgProcessingTime)
+	assert.Equal(t, int64(16200), *org.AvgProcessingTime, "обработка: 3ч и 6ч")
+	require.NotNil(t, org.AvgApprovalTime)
+	assert.Equal(t, int64(19200), *org.AvgApprovalTime, "согласование: 2ч, 4ч, 10ч")
+	require.NotNil(t, org.AvgAcceptanceTime)
+	assert.Equal(t, int64(5400), *org.AvgAcceptanceTime, "принятие: 1ч и 2ч")
+
+	// Тот же набор колонок во втором разрезе. У заявок сида компании нет ->
+	// движок группирует их в «(без компании)», строка всё равно должна прийти.
+	require.Len(t, got.ByCompany, 1)
+	comp := got.ByCompany[0]
+	assert.Equal(t, "(без компании)", comp.Label)
+	assert.Equal(t, int64(3), comp.ApplicationsCount)
+	require.NotNil(t, comp.AvgProcessingTime)
+	assert.Equal(t, int64(16200), *comp.AvgProcessingTime)
+}
+
+// TestGetProcessingSummary_Breakdown_SlowestFirst — заявленный порядок разбивки:
+// дольше всего обрабатывающие сверху (в отличие от рейтингов людей, где сверху
+// быстрые). Сид длительностей этого не ловит - там одна организация.
+func TestGetProcessingSummary_Breakdown_SlowestFirst(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+
+	user := models.User{Username: "brk_sender", TypeID: 1, IsActive: true}
+	require.NoError(t, db.Create(&user).Error)
+	status := models.StatusInWork
+
+	// Организация «Быстрая» обрабатывает 1ч, «Медленная» — 5ч.
+	mkOrg := func(name, number string, sent, accepted *time.Time) {
+		org := models.Organization{Name: name, IsActive: true}
+		require.NoError(t, db.Create(&org).Error)
+		n := number
+		require.NoError(t, db.Create(&models.Application{
+			ApplicationNumber: &n, OrganizationID: org.ID, SenderUserID: user.ID,
+			Status: &status, SendingDatetime: sent, AcceptedAt: accepted,
+		}).Error)
+	}
+	mkOrg("Быстрая", "B/1", mskTime(t, "2026-06-01 10:00"), mskTime(t, "2026-06-01 11:00"))
+	mkOrg("Медленная", "M/1", mskTime(t, "2026-06-01 10:00"), mskTime(t, "2026-06-01 15:00"))
+
+	svc := services.NewStatisticsService(db, 0)
+	from, to := processingWindowArgs(t, "2026-06-01", "2026-06-03")
+	got, err := svc.GetProcessingSummary(context.Background(), from, to)
+	require.NoError(t, err)
+
+	require.Len(t, got.ByOrganization, 2)
+	assert.Equal(t, "Медленная", got.ByOrganization[0].Label, "дольше всего обрабатывающая — сверху")
+	assert.Equal(t, int64(5*3600), *got.ByOrganization[0].AvgProcessingTime)
+	assert.Equal(t, "Быстрая", got.ByOrganization[1].Label)
+	assert.Equal(t, int64(3600), *got.ByOrganization[1].AvgProcessingTime)
 }
 
 // TestGetProcessingSummary_TrendAgainstPreviousPeriod — сравнение с предыдущим
@@ -261,6 +312,7 @@ func TestGetProcessingSummary_EmptyPeriod_NoFakeZero(t *testing.T) {
 	}
 	assert.Empty(t, got.SlowApprovers)
 	assert.Empty(t, got.ByOrganization)
+	assert.Empty(t, got.ByCompany)
 }
 
 // TestGetProcessingSummary_HTTP — контракт эндпоинта: envelope, статус и имена
@@ -294,7 +346,7 @@ func TestGetProcessingSummary_HTTP(t *testing.T) {
 		Data map[string]json.RawMessage `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &raw))
-	for _, key := range []string{"from", "to", "total_applications", "stages", "quality", "slow_approvers", "by_organization", "approvers", "acceptors"} {
+	for _, key := range []string{"from", "to", "total_applications", "stages", "quality", "slow_approvers", "by_organization", "by_company", "approvers", "acceptors"} {
 		assert.Contains(t, raw.Data, key, "поле бандла %q", key)
 	}
 

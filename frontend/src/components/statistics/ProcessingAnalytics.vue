@@ -263,12 +263,19 @@
         </section>
       </div>
 
-      <!-- ===== ПО ОРГАНИЗАЦИЯМ ===== -->
+      <!-- ===== РАЗБИВКА: ОРГАНИЗАЦИИ И КОМПАНИИ ===== -->
       <section class="proc__group">
         <div class="proc__group-head">
-          <h2 class="proc__group-title">По организациям</h2>
-          <span class="proc__group-chip">среднее время обработки</span>
+          <h2 class="proc__group-title">Разбивка</h2>
+          <span class="proc__group-chip">среднее время этапов, дольше всего сверху</span>
           <span class="proc__group-rule" />
+        </div>
+        <div class="proc__trend-head">
+          <FilterTabs
+            v-model="breakdownDim"
+            :tabs="BREAKDOWN_TABS"
+          />
+          <HintTooltip :text="BREAKDOWN_HINT" />
         </div>
         <div
           v-if="showSkeleton"
@@ -276,31 +283,35 @@
         />
         <div
           v-else
-          class="proc__card proc__card--table"
+          class="proc__card proc__card--table proc__card--scroll"
         >
           <table class="proc__table">
             <thead>
               <tr>
-                <th>Организация</th>
-                <th class="proc__num">Время обработки</th>
+                <th>{{ breakdownNameHeader }}</th>
+                <th class="proc__num">Согласование</th>
+                <th class="proc__num">Принятие</th>
+                <th class="proc__num">Обработка</th>
                 <th class="proc__num">Заявок</th>
               </tr>
             </thead>
             <tbody>
               <tr
-                v-for="(o, i) in byOrganization"
+                v-for="(o, i) in breakdownRows"
                 :key="i"
               >
                 <td
                   class="proc__ellipsis"
                   :title="o.label"
                 >{{ o.label }}</td>
+                <td class="proc__num">{{ fmtDur(o.avg_approval_time) }}</td>
+                <td class="proc__num">{{ fmtDur(o.avg_acceptance_time) }}</td>
                 <td class="proc__num">{{ fmtDur(o.avg_processing_time) }}</td>
                 <td class="proc__num">{{ fmtCount(o.applications_count) }}</td>
               </tr>
-              <tr v-if="byOrganization.length === 0">
+              <tr v-if="breakdownRows.length === 0">
                 <td
-                  colspan="3"
+                  colspan="5"
                   class="proc__table-empty"
                 >Нет данных</td>
               </tr>
@@ -537,7 +548,23 @@ const quality = computed(() => summary.value?.quality ?? []);
 // принимающие по времени принятия, оба уже отсортированы бэком (быстрые сверху).
 const approvers = computed(() => summary.value?.approvers ?? []);
 const acceptors = computed(() => summary.value?.acceptors ?? []);
+// Разбивка (#1251 polish, п.10): один набор колонок в двух разрезах, переключаемых
+// на месте, вместо отдельной таблицы «по организациям» с единственной длительностью.
+const BREAKDOWN_TABS = [
+  { key: 'organization', label: 'Организации' },
+  { key: 'company', label: 'Компании' },
+];
+const BREAKDOWN_HINT = 'Сколько в среднем занимают этапы у заявок каждой организации или компании. Сверху те, у кого полная обработка идёт дольше всего. Прочерк — этап не прошла ни одна их заявка за период.';
+
+const breakdownDim = ref('organization');
 const byOrganization = computed(() => summary.value?.by_organization ?? []);
+const byCompany = computed(() => summary.value?.by_company ?? []);
+const breakdownRows = computed(() =>
+  (breakdownDim.value === 'company' ? byCompany.value : byOrganization.value),
+);
+const breakdownNameHeader = computed(() =>
+  (breakdownDim.value === 'company' ? 'Компания' : 'Организация'),
+);
 const totalApplications = computed(() => summary.value?.total_applications ?? 0);
 
 // Пустой период — заявок не подавали: доли и длительности считать не по чему.

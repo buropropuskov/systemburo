@@ -126,7 +126,16 @@ const fullSummary = () => ({
     { name: 'Кузнецов К.К.', avg_acceptance_time: 10800, accepts_count: 2 },
   ],
   by_organization: [
-    { label: 'ООО Ромашка', avg_processing_time: 10800, applications_count: 20 },
+    {
+      label: 'ООО Ромашка', avg_approval_time: 8100, avg_acceptance_time: null,
+      avg_processing_time: 10800, applications_count: 20,
+    },
+  ],
+  by_company: [
+    {
+      label: 'АО Компания', avg_approval_time: 60, avg_acceptance_time: 120,
+      avg_processing_time: 180, applications_count: 7,
+    },
   ],
 });
 
@@ -375,14 +384,30 @@ describe('ProcessingAnalytics — рейтинги (S6)', () => {
     expect(rows[1].findAll('.proc__num')[0].text()).toBe('3 ч'); // 10800 с
   });
 
-  it('разбивку по организациям показывает временем обработки и числом заявок', async () => {
+  it('разбивка несёт все этапы, а не только общее время; прочерк вместо нуля', async () => {
     state.summary = fullSummary();
     const wrapper = mountTab();
     await flushPromises();
 
-    const text = wrapper.text();
-    expect(text).toContain('ООО Ромашка');
-    expect(text).toContain('3 ч'); // 10800 с
+    const rows = wrapper.findAll('.proc__table')[2].findAll('tbody tr');
+    const cells = rows[0].findAll('.proc__num').map((c) => c.text());
+    expect(rows[0].text()).toContain('ООО Ромашка');
+    expect(cells).toEqual(['2 ч 15 мин', '—', '3 ч', '20']); // согласование / принятие / обработка / заявок
+  });
+
+  it('переключает разрез организации <-> компании одной таблицей', async () => {
+    state.summary = fullSummary();
+    const wrapper = mountTab();
+    await flushPromises();
+
+    const tabs = wrapper.findAllComponents(FilterTabs);
+    const breakdownTabs = tabs[tabs.length - 1];
+    await breakdownTabs.vm.$emit('update:modelValue', 'company');
+    await flushPromises();
+
+    const table = wrapper.findAll('.proc__table')[2];
+    expect(table.find('thead').text()).toContain('Компания');
+    expect(table.findAll('tbody tr')[0].text()).toContain('АО Компания');
   });
 });
 
@@ -423,7 +448,7 @@ describe('ProcessingAnalytics — журнал (S7)', () => {
   it('журнал виден даже когда за период не подали новых заявок (окно по времени события)', async () => {
     // total_applications=0 (нет подач), но в журнале есть события (согласовали/приняли
     // заявки, поданные раньше) — лента не должна скрываться заглушкой «не подавали».
-    state.summary = { from: '2026-06-01', to: '2026-06-07', total_applications: 0, stages: [], quality: [], approvers: [], acceptors: [], by_organization: [] };
+    state.summary = { from: '2026-06-01', to: '2026-06-07', total_applications: 0, stages: [], quality: [], approvers: [], acceptors: [], by_organization: [], by_company: [] };
     state.journal = journalEntries();
     const wrapper = mountTab();
     await flushPromises();
@@ -458,7 +483,7 @@ describe('ProcessingAnalytics — журнал (S7)', () => {
 
 describe('ProcessingAnalytics — крайние состояния', () => {
   it('пустой период показывает заглушку, а не нулевые метрики', async () => {
-    state.summary = { from: '2026-06-01', to: '2026-06-07', total_applications: 0, stages: [], quality: [], approvers: [], acceptors: [], by_organization: [] };
+    state.summary = { from: '2026-06-01', to: '2026-06-07', total_applications: 0, stages: [], quality: [], approvers: [], acceptors: [], by_organization: [], by_company: [] };
     const wrapper = mountTab();
     await flushPromises();
 
