@@ -748,7 +748,7 @@ export default {
 }
 
 .modes__footer {
-  padding: 14px 26px;
+  padding: 10px 22px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -777,14 +777,15 @@ export default {
 }
 
 .modes__done {
-  height: 42px;
-  padding: 0 26px;
+  /* Компактнее и легче: 42px/600 читались как «жирная большая» кнопка (правка ревью). */
+  height: 34px;
+  padding: 0 18px;
   border: 1px solid var(--color-border);
   background: #fff;
   border-radius: var(--radius-pill);
   font-family: inherit;
-  font-size: 13.5px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 500;
   color: #6a6a7d;
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
@@ -888,7 +889,7 @@ export default {
   /* Легенда скрыта - без space-between кнопка «Готово» уезжала бы влево, держим справа. */
   .modes__footer {
     justify-content: flex-end;
-    padding: 14px 16px 18px;
+    padding: 8px 14px 12px;
   }
 }
 
