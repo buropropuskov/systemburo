@@ -649,6 +649,18 @@ export default {
         }
     },
     watch: {
+        // Дропдаун гражданства закрывают из трёх мест (тоггл, выбор, клик вне),
+        // поэтому позиция и слушатели живут на одном вотчере, а не в каждом из них.
+        isCitizenshipDropdownOpen(open) {
+            if (open) {
+                this.citizenshipMenuStyle = this.buildCitizenshipMenuStyle();
+                window.addEventListener('scroll', this.repositionCitizenshipMenu, true);
+                window.addEventListener('resize', this.repositionCitizenshipMenu);
+            } else {
+                this.citizenshipMenuStyle = null;
+                this.stopCitizenshipReposition();
+            }
+        },
         lastName() { this.checkBlacklist(); },
         firstName() { this.checkBlacklist(); },
         middleName() { this.checkBlacklist(); },
@@ -675,6 +687,7 @@ export default {
         this.warningTimer = setInterval(() => { this.warningNow = new Date(); }, 60000);
     },
     beforeUnmount() {
+        this.stopCitizenshipReposition();
         document.removeEventListener('click', this.handleDocumentClick);
         if (this.blacklistTimeout) {
             clearTimeout(this.blacklistTimeout);
@@ -1070,22 +1083,22 @@ export default {
         
         toggleCitizenshipDropdown() {
             this.isCitizenshipDropdownOpen = !this.isCitizenshipDropdownOpen;
-            if (this.isCitizenshipDropdownOpen) {
-                this.citizenshipMenuStyle = this.buildCitizenshipMenuStyle();
-            }
         },
 
         /**
          * Список гражданств длинный: снизу его обрезает край экрана, поэтому
          * высоту ограничиваем доступным местом, а если снизу тесно - раскрываем
-         * вверх. rect в device-px под масштабом, innerHeight - нет, отсюда деление.
+         * вверх. Формула зеркалит BaseDropdown.updateMenuPosition: rect отдаёт
+         * device-px под корневым zoom, innerHeight - незумленную высоту, поэтому
+         * к layout-px приводятся ОБА (при zoom=1 деление ничего не меняет).
          */
         buildCitizenshipMenuStyle() {
             const btn = this.$refs.citizenshipButton;
             if (!btn || typeof window === 'undefined') return null;
             const zoom = getViewportZoom() || 1;
             const rect = btn.getBoundingClientRect();
-            const spaceBelow = window.innerHeight - rect.bottom / zoom;
+            const viewportHeight = window.innerHeight / zoom;
+            const spaceBelow = viewportHeight - rect.bottom / zoom;
             const spaceAbove = rect.top / zoom;
             const flipUp = spaceBelow < 200 && spaceAbove > spaceBelow;
             const space = (flipUp ? spaceAbove : spaceBelow) - 16;
@@ -1093,6 +1106,8 @@ export default {
             if (!flipUp) {
                 return { maxHeight: maxHeight + 'px' };
             }
+            // top:'auto' обязателен - иначе базовое .dropdown__menu{top:100%}
+            // остаётся в силе и конфликтует с bottom.
             return {
                 top: 'auto',
                 bottom: '100%',
@@ -1101,11 +1116,21 @@ export default {
                 maxHeight: maxHeight + 'px'
             };
         },
+
+        /** Пока меню открыто, положение пересчитываем: скролл и поворот экрана его смещают. */
+        repositionCitizenshipMenu() {
+            if (!this.isCitizenshipDropdownOpen) return;
+            this.citizenshipMenuStyle = this.buildCitizenshipMenuStyle();
+        },
+
+        stopCitizenshipReposition() {
+            window.removeEventListener('scroll', this.repositionCitizenshipMenu, true);
+            window.removeEventListener('resize', this.repositionCitizenshipMenu);
+        },
         
         selectCitizenship(citizenship) {
             this.selectedCitizenship = citizenship;
             this.isCitizenshipDropdownOpen = false;
-            this.citizenshipMenuStyle = null;
             if (!citizenship.patent_required) {
                 this.patentNumber = '';
                 this.selectedPermission = '';
