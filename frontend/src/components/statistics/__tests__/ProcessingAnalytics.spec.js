@@ -614,53 +614,53 @@ describe('ProcessingAnalytics — страницы журнала (P5b)', () => 
   it('показывает общее число событий и номер страницы, первую грузит без смещения', async () => {
     const wrapper = await mountWithPages();
 
-    expect(wrapper.find('.proc__journal-total').text()).toBe('Всего: 51');
-    expect(wrapper.find('.proc__journal-page').text()).toBe('1 / 2');
+    expect(wrapper.find('.pager__total').text()).toBe('Всего: 51');
+    expect(wrapper.find('.pager__page').text()).toBe('1 / 2');
     expect(state.journalCalls[0]).toMatchObject({ limit: 50, offset: 0 });
   });
 
   it('«Вперёд» листает на следующую страницу и запрашивает её со смещением', async () => {
     const wrapper = await mountWithPages();
-    const [back, forward] = wrapper.findAll('.proc__page-btn');
+    const [back, forward] = wrapper.findAll('.pager__btn');
     expect(back.attributes('disabled')).toBeDefined(); // на первой странице назад некуда
 
     await forward.trigger('click');
     await flushPromises();
 
     expect(state.journalCalls.at(-1)).toMatchObject({ offset: 50 });
-    expect(wrapper.find('.proc__journal-page').text()).toBe('2 / 2');
+    expect(wrapper.find('.pager__page').text()).toBe('2 / 2');
     const rows = wrapper.findAll('.proc__journal-row');
     expect(rows).toHaveLength(1);
     expect(rows[0].text()).toContain('20260601/077');
     // На последней странице вперёд некуда, назад — можно.
-    expect(wrapper.findAll('.proc__page-btn')[1].attributes('disabled')).toBeDefined();
-    expect(wrapper.findAll('.proc__page-btn')[0].attributes('disabled')).toBeUndefined();
+    expect(wrapper.findAll('.pager__btn')[1].attributes('disabled')).toBeDefined();
+    expect(wrapper.findAll('.pager__btn')[0].attributes('disabled')).toBeUndefined();
   });
 
   it('автообновление держит текущую страницу, а смена периода возвращает на первую', async () => {
     const wrapper = await mountWithPages();
-    await wrapper.findAll('.proc__page-btn')[1].trigger('click');
+    await wrapper.findAll('.pager__btn')[1].trigger('click');
     await flushPromises();
-    expect(wrapper.find('.proc__journal-page').text()).toBe('2 / 2');
+    expect(wrapper.find('.pager__page').text()).toBe('2 / 2');
 
     // SSE-сигнал перечитывает ТУ ЖЕ страницу: читающего не выбрасывает наверх.
     state.streamHandler();
     await flushPromises();
     expect(state.journalCalls.at(-1)).toMatchObject({ offset: 50 });
-    expect(wrapper.find('.proc__journal-page').text()).toBe('2 / 2');
+    expect(wrapper.find('.pager__page').text()).toBe('2 / 2');
 
     // Новый период — новая лента с первой страницы.
     await wrapper.setProps({ from: '2026-05-01', to: '2026-05-31' });
     await flushPromises();
     expect(state.journalCalls.at(-1)).toMatchObject({ from: '2026-05-01', offset: 0 });
-    expect(wrapper.find('.proc__journal-page').text()).toBe('1 / 2');
+    expect(wrapper.find('.pager__page').text()).toBe('1 / 2');
   });
 
   it('если событий стало меньше, страница за хвостом схлопывается к последней', async () => {
     const wrapper = await mountWithPages();
-    await wrapper.findAll('.proc__page-btn')[1].trigger('click');
+    await wrapper.findAll('.pager__btn')[1].trigger('click');
     await flushPromises();
-    expect(wrapper.find('.proc__journal-page').text()).toBe('2 / 2');
+    expect(wrapper.find('.pager__page').text()).toBe('2 / 2');
 
     // Лента усохла до одной страницы — вторая больше не существует.
     state.journalPages = { 0: journalEntries(), 50: [] };
@@ -668,7 +668,7 @@ describe('ProcessingAnalytics — страницы журнала (P5b)', () => 
     state.streamHandler();
     await flushPromises();
 
-    expect(wrapper.find('.proc__journal-page').text()).toBe('1 / 1');
+    expect(wrapper.find('.pager__page').text()).toBe('1 / 1');
     expect(wrapper.findAll('.proc__journal-row')).toHaveLength(2);
   });
 
@@ -726,15 +726,15 @@ describe('ProcessingAnalytics — фильтры журнала (P5c)', () => {
 
   it('фильтр роли уходит на бэк и возвращает ленту на первую страницу', async () => {
     const wrapper = await mountFiltered();
-    await wrapper.findAll('.proc__page-btn')[1].trigger('click');
+    await wrapper.findAll('.pager__btn')[1].trigger('click');
     await flushPromises();
-    expect(wrapper.find('.proc__journal-page').text()).toBe('2 / 2');
+    expect(wrapper.find('.pager__page').text()).toBe('2 / 2');
 
     await roleTab(wrapper, 'approval').trigger('click');
     await flushPromises();
 
     expect(state.journalCalls.at(-1)).toMatchObject({ role: 'approval', offset: 0 });
-    expect(wrapper.find('.proc__journal-page').text()).toBe('1 / 2');
+    expect(wrapper.find('.pager__page').text()).toBe('1 / 2');
 
     // «Все» снимает фильтр, а не шлёт своё значение (бэк на неизвестную роль даёт 400).
     await roleTab(wrapper, '').trigger('click');

@@ -167,24 +167,15 @@
       </table>
     </div>
 
-    <footer class="pagination">
-      <span class="muted">Всего: {{ total }}</span>
-      <button
-        class="lk-button lk-button--ghost"
-        :disabled="page <= 1"
-        @click="page = page - 1; fetch()"
-      >
-        Назад
-      </button>
-      <span>Стр. {{ page }} / {{ totalPages }}</span>
-      <button
-        class="lk-button lk-button--ghost"
-        :disabled="page >= totalPages"
-        @click="page = page + 1; fetch()"
-      >
-        Вперёд
-      </button>
-    </footer>
+    <Pager
+      class="pagination"
+      :page="page"
+      :total-pages="totalPages"
+      :total="total"
+      :loading="loading"
+      page-prefix="Стр. "
+      @update:page="goToPage"
+    />
   </section>
 </template>
 
@@ -197,12 +188,13 @@ import {
 } from '@/api/permissions';
 import RefreshButton from '@/components/RefreshButton.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
+import Pager from '@/components/ui/Pager.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
 
 export default {
   name: 'AccessDenialsLog',
-  components: { RefreshButton, BaseDropdown },
+  components: { RefreshButton, BaseDropdown, Pager },
   data() {
     return {
       mode: 'active',
@@ -243,6 +235,11 @@ export default {
     resetFilters() {
       this.filters = { user_id: '', resource: '', reason: '', from: '', to: '' };
       this.page = 1;
+      this.fetch();
+    },
+    goToPage(next) {
+      if (next < 1 || next > this.totalPages) return;
+      this.page = next;
       this.fetch();
     },
     async fetch() {
@@ -429,11 +426,11 @@ code {
 }
 
 .pagination {
-  display: flex;
-  align-items: center;
-  gap: 12px;
   justify-content: flex-end;
-  font-size: 13px;
+}
+
+.pagination :deep(.pager__total) {
+  color: var(--color-text-muted);
 }
 
 /* Журнал - не master-detail-справочник (#1097 S9c), а section+фильтры+
@@ -510,7 +507,7 @@ code {
     justify-content: center;
   }
 
-  .pagination .lk-button {
+  .pagination :deep(.lk-button) {
     min-height: 44px;
   }
 }

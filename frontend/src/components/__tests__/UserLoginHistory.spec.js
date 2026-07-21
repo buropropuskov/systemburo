@@ -98,8 +98,10 @@ describe('UserLoginHistory', () => {
     await flushPromises()
     // total 30, limit 25 -> 2 страницы.
     expect(wrapper.vm.totalPages).toBe(2)
+    expect(wrapper.find('.pager__total').text()).toBe('Всего: 30')
+    expect(wrapper.find('.pager__page').text()).toBe('1 / 2')
 
-    wrapper.vm.goToPage(2)
+    await wrapper.findAll('.pager__btn')[1].trigger('click')
     await flushPromises()
     expect(getUserAuthEvents).toHaveBeenLastCalledWith('ivanov', expect.objectContaining({ page: 2 }))
     wrapper.unmount()
