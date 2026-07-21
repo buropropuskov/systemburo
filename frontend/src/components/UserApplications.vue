@@ -204,12 +204,24 @@
                   tag="div"
                   class="applications-transition-group"
                 >
-                  <div 
-                    v-for="(application) in sortedApplications" 
-                    :key="application.id" 
-                    class="application-item"
-                    @click="openApplication(application)"
+                  <template
+                    v-for="group in applicationGroups"
+                    :key="group.key"
                   >
+                    <!-- Разделитель периода (серая линия + подпись), как в Центре. -->
+                    <div
+                      v-if="group.label"
+                      :key="`${group.key}-sep`"
+                      class="applications-day-separator"
+                    >
+                      <span class="applications-day-label">{{ group.label }}</span>
+                    </div>
+                    <div
+                      v-for="application in group.apps"
+                      :key="application.id"
+                      class="application-item"
+                      @click="openApplication(application)"
+                    >
                     <div class="application-row rt-row">
                       <div
                         class="application-col id-col"
@@ -372,8 +384,9 @@
                           Скачать
                         </button>
                       </div>
+                      </div>
                     </div>
-                  </div>
+                  </template>
                 </transition-group>
               </div>
               
@@ -501,6 +514,7 @@ import Badge from './ui/Badge.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
 import { blacklistFlagCount, blacklistFlagLabel, BLACKLIST_FLAG_TITLE } from '@/utils/blacklistBadge';
 import { stripHtml } from '@/utils/sanitize';
+import { groupApplicationsByPeriod } from '@/utils/applicationPeriod';
 
 // Размер порции бесшовной подгрузки ЛК (#1158 срез 4) - как в Центре заявок.
 const USER_APPLICATIONS_PER_PAGE = 30;
@@ -649,6 +663,13 @@ export default {
       return this.showTotalInFooter ? `Показано ${shown} из ${this.total}` : `Показано ${shown}`;
     },
 
+    // Группировка по периодам для разделителей списка - как в Центре заявок
+    // (общий utils/applicationPeriod). При сортировке НЕ по дате подачи порядок не
+    // хронологический, поэтому разделители не рисуются.
+    applicationGroups() {
+      const sortedByDate = !this.sortField || this.sortField === 'sending_datetime';
+      return groupApplicationsByPeriod(this.sortedApplications, sortedByDate);
+    },
     sortedApplications() {
       const applications = [...this.filteredApplications];
 
@@ -1234,6 +1255,27 @@ export default {
   flex: 1;
   width: 100%;
   overflow: hidden;
+}
+
+/* Разделитель периода (зеркало Центра): серая полоса с подписью периода.
+   Первый разделитель без верхней линии - граница шапки уже есть. */
+.applications-day-separator {
+  padding: 8px 16px;
+  border-top: 1px solid #e2e2e6;
+  border-bottom: 1px solid #e2e2e6;
+  background: #FAFAFA;
+  display: flex;
+  align-items: center;
+}
+
+.applications-transition-group > .applications-day-separator:first-child {
+  border-top: none;
+}
+
+.applications-day-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #9a9aae;
 }
 
 /* Левая часть - таблица заявок */
@@ -2145,6 +2187,15 @@ export default {
     overflow-y: visible !important;
     height: auto !important;
     max-height: none !important;
+  }
+
+  /* На мобилке список - карточки на белом, серая полоса разделителя лишняя
+     (зеркало Центра). */
+  .applications-day-separator {
+    background: transparent;
+    border-top: none;
+    border-bottom: none;
+    padding: 15px 16px 6px;
   }
 
   /* Карточки вплотную - разделены нижней границей (см. ниже), без зазора-«плитки». */

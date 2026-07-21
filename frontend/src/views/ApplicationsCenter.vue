@@ -918,6 +918,7 @@ import { usePermissionsStore } from '@/stores/permissions'
 import { useInfiniteList } from '@/composables/useInfiniteList'
 import { getViewportZoom } from '@/utils/viewportScale'
 import { playPreset, SOUND_PRESETS } from '@/utils/notificationSound'
+import { groupApplicationsByPeriod } from '@/utils/applicationPeriod'
 import OrganizationFilter from '@/components/OrganizationFilter.vue';
 import DateFilter from '@/components/DateFilter.vue';
 import RefreshButton from '../components/RefreshButton.vue';
@@ -1161,22 +1162,8 @@ export default {
         // подписи (порядок не по времени, разделители не рисуем). Разделитель ставится,
         // когда бакет периода меняется в уже отсортированном списке -> учитывает сортировку.
         applicationGroups() {
-            const apps = this.sortedApplications;
-            if (this.sortField && this.sortField !== 'date') {
-                return [{ label: null, key: 'all', apps }];
-            }
-            const now = new Date();
-            const groups = [];
-            let current = null;
-            for (const application of apps) {
-                const label = this.applicationPeriodLabel(application.sending_datetime, now);
-                if (!current || current.label !== label) {
-                    current = { label, key: `grp-${label}`, apps: [] };
-                    groups.push(current);
-                }
-                current.apps.push(application);
-            }
-            return groups;
+            const sortedByDate = !this.sortField || this.sortField === 'date';
+            return groupApplicationsByPeriod(this.sortedApplications, sortedByDate);
         },
         sortedApplications() {
             const applications = [...this.filteredApplications];
@@ -1443,31 +1430,6 @@ export default {
             if (height === this._lastHeight) return;
             this._lastHeight = height;
             el.style.height = `${height}px`;
-        },
-        // Период заявки относительно сегодня для группировки списка (#1097 r2).
-        // Бакеты по убыванию свежести; неделя считается от понедельника.
-        applicationPeriodLabel(dateStr, now) {
-            const startOfDay = (d) => {
-                const x = new Date(d);
-                x.setHours(0, 0, 0, 0);
-                return x;
-            };
-            const d = startOfDay(new Date(dateStr));
-            const today = startOfDay(now || new Date());
-            const MS = 86400000;
-            const yesterday = new Date(today.getTime() - MS);
-            const dow = (today.getDay() + 6) % 7; // 0 = понедельник
-            const thisWeekStart = new Date(today.getTime() - dow * MS);
-            const lastWeekStart = new Date(thisWeekStart.getTime() - 7 * MS);
-            const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-            const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-            if (d.getTime() >= today.getTime()) return 'Сегодня';
-            if (d.getTime() === yesterday.getTime()) return 'Вчера';
-            if (d >= thisWeekStart) return 'На этой неделе';
-            if (d >= lastWeekStart) return 'На прошлой неделе';
-            if (d >= thisMonthStart) return 'В этом месяце';
-            if (d >= lastMonthStart) return 'В прошлом месяце';
-            return 'Ранее';
         },
         /**
          * Реактивно отслеживает мобильный брейкпоинт (совпадает с CSS @media 768,
