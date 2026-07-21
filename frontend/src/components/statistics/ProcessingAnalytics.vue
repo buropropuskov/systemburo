@@ -333,6 +333,11 @@
         <h2 class="proc__group-title">Журнал</h2>
         <span class="proc__group-chip">последние согласования и принятия</span>
         <span class="proc__group-rule" />
+        <RefreshButton
+          :loading="journalLoading"
+          title="Обновить только журнал (кнопка вверху страницы обновляет всю вкладку)"
+          @refresh="loadJournal"
+        />
       </div>
       <div
         v-if="journalError"
@@ -361,12 +366,22 @@
             class="proc__journal-actor"
             :title="e.actor_name"
           >{{ e.actor_name }}</span>
-          <span class="proc__journal-app">{{ e.application_number || '—' }}</span>
+          <button
+            v-if="e.application_number"
+            type="button"
+            class="proc__journal-app proc__journal-app--copy"
+            title="Скопировать номер заявки"
+            @click="copyApplicationNumber(e.application_number)"
+          >{{ e.application_number }}</button>
+          <span
+            v-else
+            class="proc__journal-app"
+          >—</span>
           <span class="proc__journal-dur">{{ e.working_seconds == null ? '' : fmtDur(e.working_seconds) }}</span>
           <span
             class="proc__journal-when"
-            :title="formatDateTime(e.occurred_at)"
-          >{{ formatTimeAgo(e.occurred_at) }}</span>
+            :title="formatTimeAgo(e.occurred_at)"
+          >{{ formatDateTime(e.occurred_at) }}</span>
         </div>
         <div
           v-if="journal.length === 0"
@@ -382,8 +397,10 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { getProcessingSummary, getProcessingJournal, runReport } from '@/api/statistics.js';
 import { formatDuration, formatDateTime, formatTimeAgo } from '@/utils/datetime';
 import eventStream from '@/services/eventStream';
+import { useDeletionsStore } from '@/stores/deletions';
 import HintTooltip from '@/components/ui/HintTooltip.vue';
 import FilterTabs from '@/components/ui/FilterTabs.vue';
+import RefreshButton from '@/components/RefreshButton.vue';
 import AnalyticsAreaChart from './AnalyticsAreaChart.vue';
 import DirIcon from './DirIcon.vue';
 
@@ -428,11 +445,13 @@ async function loadSummary() {
 const journal = ref([]);
 const journalError = ref('');
 const journalReady = ref(false);
+const journalLoading = ref(false);
 const JOURNAL_LIMIT = 50;
 let journalSeq = 0;
 async function loadJournal() {
   const seq = ++journalSeq;
   journalError.value = '';
+  journalLoading.value = true;
   try {
     const data = await getProcessingJournal(props.from, props.to, JOURNAL_LIMIT);
     if (seq !== journalSeq) return;
@@ -441,7 +460,35 @@ async function loadJournal() {
     if (seq !== journalSeq) return;
     journalError.value = e?.message || 'Не удалось загрузить журнал обработки';
   } finally {
-    if (seq === journalSeq) journalReady.value = true;
+    if (seq === journalSeq) {
+      journalReady.value = true;
+      journalLoading.value = false;
+    }
+  }
+}
+
+// Копирование номера заявки из ленты - тот же приём, что в списке заявок
+// (UserApplications): clipboard с фолбэком на textarea для окружений без него.
+async function copyApplicationNumber(number) {
+  if (!number) return;
+  const value = String(number);
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+    } else {
+      const textarea = document.createElement('textarea');
+      textarea.value = value;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'absolute';
+      textarea.style.left = '-9999px';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    }
+    useDeletionsStore().notify({ prefix: 'Скопирован номер ', bold: value, type: 'success' });
+  } catch {
+    useDeletionsStore().notify({ prefix: 'Не удалось ', bold: 'скопировать номер', type: 'error' });
   }
 }
 
@@ -1089,16 +1136,37 @@ defineExpose({ refresh: reload });
   font-weight: 500;
 }
 
+/* Колонки ленты фиксированной ширины: раньше номер и время подстраивались под
+   содержимое, и соседние строки не выстраивались в столбцы (#1251 polish, п.12). */
 .proc__journal-app {
   flex-shrink: 0;
+  width: 140px;
+  text-align: right;
   color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
+/* Номер кликабелен - копируется в буфер. */
+.proc__journal-app--copy {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.proc__journal-app--copy:hover,
+.proc__journal-app--copy:focus-visible {
+  color: var(--color-primary);
+  text-decoration: underline;
+  outline: none;
+}
+
 .proc__journal-dur {
   flex-shrink: 0;
-  min-width: 58px;
+  width: 84px;
   text-align: right;
   color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
@@ -1107,10 +1175,11 @@ defineExpose({ refresh: reload });
 
 .proc__journal-when {
   flex-shrink: 0;
-  min-width: 78px;
+  width: 124px;
   text-align: right;
   color: var(--color-text-muted);
   font-size: 11px;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 </style>
