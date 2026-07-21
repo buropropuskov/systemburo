@@ -179,6 +179,7 @@
 </template>
 
 <script>
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import { apiRequest } from '@/api/client'
 import SearchComponent from '@/components/SearchComponent.vue'
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
@@ -228,14 +229,14 @@ export default {
     watch: {
         visible(newVal) {
             if (newVal) {
-                document.body.style.overflow = 'hidden'
+                setBodyScrollLock(this, true);
                 this.tempSelectedEmployees = [...this.initialSelectedEmployees]
                 this.currentFilter = 'all'
                 this.searchQuery = ''
                 // Грузим ЧС до списка, чтобы строки сразу рисовались с бейджем "В ЧС".
                 this.loadBlacklist().then(() => this.loadEmployeesByFilter('all'))
             } else {
-                document.body.style.overflow = ''
+                releaseBodyScrollLock(this);
                 this.tempSelectedEmployees = []
                 this.searchQuery = ''
             }
@@ -246,7 +247,7 @@ export default {
     },
     beforeUnmount() {
         document.removeEventListener('keydown', this.handleKeydown)
-        document.body.style.overflow = ''
+        releaseBodyScrollLock(this);
     },
     methods: {
         handleKeydown(e) {
@@ -398,7 +399,7 @@ export default {
     border-radius: 30px;
     width: 100%;
     max-width: 900px;
-    max-height: 85vh;
+    max-height: 85dvh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -782,7 +783,7 @@ export default {
     }
 
     .modal-content {
-        max-height: 90vh;
+        max-height: 90dvh;
         max-width: 100vw;
         border-radius: 16px 16px 0 0;
     }

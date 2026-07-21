@@ -188,6 +188,7 @@
 </template>
 
 <script>
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import { apiRequest } from '@/api/client'
 import SearchComponent from '@/components/SearchComponent.vue'
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
@@ -241,7 +242,7 @@ export default {
     watch: {
         visible(newVal) {
             if (newVal) {
-                document.body.style.overflow = 'hidden'
+                setBodyScrollLock(this, true);
                 this.tempSelectedCars = [...this.initialSelectedCars]
                 this.currentFilter = 'all'
                 this.searchQuery = ''
@@ -249,7 +250,7 @@ export default {
                 // (иначе строка на миг отрисуется выбираемой, пока blacklistKeys пуст).
                 this.loadBlacklist().then(() => this.loadCarsByFilter('all'))
             } else {
-                document.body.style.overflow = ''
+                releaseBodyScrollLock(this);
                 this.tempSelectedCars = []
                 this.searchQuery = ''
             }
@@ -260,7 +261,7 @@ export default {
     },
     beforeUnmount() {
         document.removeEventListener('keydown', this.handleKeydown)
-        document.body.style.overflow = ''
+        releaseBodyScrollLock(this);
     },
     methods: {
         handleKeydown(e) {
@@ -440,7 +441,7 @@ export default {
     border-radius: 30px;
     width: 100%;
     max-width: 700px;
-    max-height: 85vh;
+    max-height: 85dvh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -817,7 +818,7 @@ export default {
     }
 
     .modal-content {
-        max-height: 90vh;
+        max-height: 90dvh;
         max-width: 100vw;
         border-radius: 16px 16px 0 0;
     }

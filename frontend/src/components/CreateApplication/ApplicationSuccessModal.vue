@@ -6,7 +6,18 @@
         class="modal-overlay"
         @click.self="handleClose"
       >
-        <div class="modal-content">
+        <div
+          class="modal-content"
+          :class="{ 'is-dragging': sheetDragging }"
+          :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
+          @touchstart="onSheetTouchStart"
+          @touchmove="onSheetTouchMove"
+          @touchend="onSheetTouchEnd"
+        >
+          <div
+            class="sheet-handle"
+            aria-hidden="true"
+          />
           <div class="modal-header">
             <button
               class="modal-close"
@@ -28,7 +39,10 @@
             </button>
           </div>
 
-          <div class="modal-body">
+          <div
+            ref="modalBody"
+            class="modal-body"
+          >
             <h2 class="modal-title">
               Заявка успешно оформлена!
             </h2>
@@ -184,7 +198,10 @@
 </template>
 
 <script>
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
+import { ref } from 'vue';
 import { useDeletionsStore } from '@/stores/deletions';
+import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 
 export default {
     name: 'ApplicationSuccessModal',
@@ -194,6 +211,22 @@ export default {
         attachmentsData: { type: Array, default: () => [] }
     },
     emits: ['close'],
+    setup(_, { emit }) {
+        // Контракт окна: свайп вниз за ползунок закрывает лист на мобилке.
+        const modalBody = ref(null);
+        const swipe = useSwipeDismiss(() => emit('close'), {
+            handleSelector: '.sheet-handle',
+            getScrollTop: () => modalBody.value?.scrollTop ?? 0,
+        });
+        return {
+            modalBody,
+            sheetOffset: swipe.offset,
+            sheetDragging: swipe.isDragging,
+            onSheetTouchStart: swipe.onTouchStart,
+            onSheetTouchMove: swipe.onTouchMove,
+            onSheetTouchEnd: swipe.onTouchEnd,
+        };
+    },
     data() {
         return {
             steps: ['Оформлена', 'В обработке', 'Согласование', 'В работе', 'Завершена'],
@@ -205,7 +238,23 @@ export default {
             return ((this.currentStep + 1) / this.steps.length) * 100
         }
     },
+    watch: {
+        show(visible) {
+            setBodyScrollLock(this, visible);
+        }
+    },
+    mounted() {
+        document.addEventListener('keydown', this.handleKeydown);
+    },
+    beforeUnmount() {
+        document.removeEventListener('keydown', this.handleKeydown);
+        releaseBodyScrollLock(this);
+    },
     methods: {
+        handleKeydown(e) {
+            if (e.key === 'Escape' && this.show) this.handleClose();
+        },
+
         handleClose() {
             this.$emit('close')
         },
@@ -270,7 +319,7 @@ export default {
     border-radius: 50px;
     width: 540px;
     max-width: 90vw;
-    max-height: 91vh;
+    max-height: 91dvh;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
     display: flex;
     flex-direction: column;
@@ -724,12 +773,8 @@ export default {
 }
 
 @media (max-width: 768px) {
-    .modal-content {
-        width: 95vw;
-        margin: 16px;
-        max-height: 85vh;
-        border-radius: 30px;
-    }
+    /* Размеры листа приходят из глобального .modal-content (App.vue) с !important -
+       локальные width/max-height/radius здесь были мёртвыми и вводили в заблуждение. */
 
     .modal-header {
         padding: 16px 20px 0;
@@ -785,6 +830,37 @@ export default {
     .btn {
         width: 100%;
         min-width: auto;
+    }
+}
+
+.sheet-handle {
+    display: none;
+    width: 40px;
+    height: 4px;
+    border-radius: 2px;
+    background: #d5d5d5;
+    margin: 10px auto 2px;
+    flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+    /* Лист выезжает снизу глобальным паттерном .modal-content (App.vue), здесь -
+       ползунок и возврат листа на место после недотянутого свайпа. */
+    .sheet-handle {
+        display: block;
+    }
+
+    .modal-content {
+        transition: transform 0.3s ease;
+    }
+
+    .modal-content.is-dragging {
+        transition: none;
+    }
+
+    .modal-close {
+        min-width: 40px;
+        min-height: 40px;
     }
 }
 </style>

@@ -6,8 +6,17 @@
     >
       <div
         class="modal-content"
+        :class="{ 'is-dragging': sheetDragging }"
+        :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
         @click.stop
+        @touchstart="onSheetTouchStart"
+        @touchmove="onSheetTouchMove"
+        @touchend="onSheetTouchEnd"
       >
+        <div
+          class="sheet-handle"
+          aria-hidden="true"
+        />
         <div class="modal-header">
           <div class="modal-header__top">
             <h3>Привязка новых сотрудников</h3>
@@ -19,7 +28,10 @@
             ×
           </button>
         </div>
-        <div class="modal-body">
+        <div
+          ref="modalBody"
+          class="modal-body"
+        >
           <div class="binding-info">
             <p class="binding-description">
               Все добавленные сотрудники будут <strong>автоматически привязаны</strong> к вашему аккаунту.
@@ -94,6 +106,10 @@
 </template>
 
 <script>
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
+import { ref } from 'vue';
+import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
+
 export default {
     name: 'EmployeeBindingModal',
     props: {
@@ -104,6 +120,23 @@ export default {
         hasCompany: Boolean
     },
     emits: ['confirm-binding', 'skip-binding', 'close'],
+    setup(_, { emit }) {
+        // Контракт окна: свайп вниз за ползунок закрывает лист на мобилке;
+        // Escape и блокировка прокрутки фона - в mounted/beforeUnmount ниже.
+        const modalBody = ref(null);
+        const swipe = useSwipeDismiss(() => emit('close'), {
+            handleSelector: '.sheet-handle',
+            getScrollTop: () => modalBody.value?.scrollTop ?? 0,
+        });
+        return {
+            modalBody,
+            sheetOffset: swipe.offset,
+            sheetDragging: swipe.isDragging,
+            onSheetTouchStart: swipe.onTouchStart,
+            onSheetTouchMove: swipe.onTouchMove,
+            onSheetTouchEnd: swipe.onTouchEnd,
+        };
+    },
     data() {
         return {
             bindToOrganization: false,
@@ -118,6 +151,14 @@ export default {
                 return 'Отправить';
             }
         }
+    },
+    mounted() {
+        document.addEventListener('keydown', this.handleKeydown);
+        setBodyScrollLock(this, true);
+    },
+    beforeUnmount() {
+        document.removeEventListener('keydown', this.handleKeydown);
+        releaseBodyScrollLock(this);
     },
     methods: {
         formatFullName(employee) {
@@ -134,8 +175,12 @@ export default {
                 bindToOrganization: this.bindToOrganization,
                 bindToCompany: this.bindToCompany
             });
+        },
+
+        handleKeydown(e) {
+            if (e.key === 'Escape') this.$emit('close');
         }
-    }
+    },
 }
 </script>
 
@@ -349,11 +394,8 @@ export default {
 }
 
 @media (max-width: 768px) {
-    .modal-content {
-        width: 95vw;
-        margin: 10px;
-        max-height: 400px;
-    }
+    /* Размеры листа приходят из глобального .modal-content (App.vue) с !important -
+       локальные width/max-height/radius здесь были мёртвыми и вводили в заблуждение. */
     
     .modal-body {
         max-height: 350px;
@@ -362,6 +404,37 @@ export default {
     .confirm-btn {
         width: 100%;
         min-width: auto;
+    }
+}
+
+.sheet-handle {
+    display: none;
+    width: 40px;
+    height: 4px;
+    border-radius: 2px;
+    background: #d5d5d5;
+    margin: 10px auto 2px;
+    flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+    /* Лист выезжает снизу глобальным паттерном .modal-content (App.vue), здесь -
+       ползунок и возврат листа на место после недотянутого свайпа. */
+    .sheet-handle {
+        display: block;
+    }
+
+    .modal-content {
+        transition: transform 0.3s ease;
+    }
+
+    .modal-content.is-dragging {
+        transition: none;
+    }
+
+    .modal-close {
+        min-width: 40px;
+        min-height: 40px;
     }
 }
 </style>

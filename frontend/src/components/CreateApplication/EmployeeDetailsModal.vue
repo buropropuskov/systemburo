@@ -471,6 +471,7 @@
 </template>
 
 <script>
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import { ref, getCurrentInstance } from 'vue';
 import { apiRequest } from '@/api/client';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
@@ -707,6 +708,8 @@ export default {
         show: {
         immediate: true,
         handler(val) {
+            // Контракт окна: фон под листом не прокручивается.
+            setBodyScrollLock(this, val);
             if (val) {
                 this.loadHistory();
                 this.loadEmployeeStatus(); // для EmployeeDetailsModal
@@ -733,6 +736,7 @@ export default {
     },
     beforeUnmount() {
         document.removeEventListener('keydown', this.handleEscKey);
+        releaseBodyScrollLock(this);
     },
     methods: {
         // Закрытие по Escape (фон закрывается через @click.self на оверлее).
@@ -1778,7 +1782,7 @@ export default {
         width: 90%;
         left: 0 !important;
         height: auto;
-        max-height: 80vh;
+        max-height: 80dvh;
         /* transition для свайп-спринга/слайда; НЕ transform:none!important - блокировал бы
            inline-transform свайпа (#1097 r2). */
         transition: transform 0.3s ease;
@@ -1807,7 +1811,7 @@ export default {
     
     .modal-content .modal-body {
         height: auto;
-        max-height: calc(80vh - 70px);
+        max-height: calc(80dvh - 70px);
     }
     
     .modal-content.main-modal.shifted {
@@ -1818,7 +1822,7 @@ export default {
         width: 90%;
         left: 5%;
         height: auto;
-        max-height: 80vh;
+        max-height: 80dvh;
     }
     
     .modal-header {

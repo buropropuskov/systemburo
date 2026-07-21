@@ -9,9 +9,18 @@
       >
         <div
           class="dup-conflict-dialog"
+          :class="{ 'is-dragging': sheetDragging }"
+          :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
           role="dialog"
           aria-modal="true"
+          @touchstart="onSheetTouchStart"
+          @touchmove="onSheetTouchMove"
+          @touchend="onSheetTouchEnd"
         >
+          <div
+            class="sheet-handle"
+            aria-hidden="true"
+          />
           <div class="dup-conflict-dialog__header">
             <h3 class="dup-conflict-dialog__title">
               В форме уже есть данные
@@ -60,7 +69,10 @@
 </template>
 
 <script setup>
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
+import { watch, onBeforeUnmount } from 'vue';
 import { useEscapeClose } from '@/composables/useEscapeClose';
+import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 
 const props = defineProps({
   show: { type: Boolean, default: false },
@@ -69,6 +81,21 @@ const emit = defineEmits(['replace', 'merge', 'cancel']);
 
 // Escape закрывает как "Отмена" (гейтим по show, т.к. модалка присутствует в DOM всегда).
 useEscapeClose(() => emit('cancel'), () => props.show);
+
+// Свайп вниз = отмена, как крестик и клик по затемнению.
+const swipe = useSwipeDismiss(() => emit('cancel'), { handleSelector: '.sheet-handle' });
+const sheetOffset = swipe.offset;
+const sheetDragging = swipe.isDragging;
+const onSheetTouchStart = swipe.onTouchStart;
+const onSheetTouchMove = swipe.onTouchMove;
+const onSheetTouchEnd = swipe.onTouchEnd;
+
+// Владелец блокировки - токен инстанса: в script setup `this` недоступен.
+const scrollLockOwner = {};
+watch(() => props.show, (visible) => {
+  setBodyScrollLock(scrollLockOwner, visible);
+});
+onBeforeUnmount(() => { releaseBodyScrollLock(scrollLockOwner); });
 </script>
 
 <style scoped>
@@ -93,6 +120,16 @@ useEscapeClose(() => emit('cancel'), () => props.show);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
   /* без overflow:hidden - иначе всплывающая подсказка над кнопкой обрезается по краю диалога */
   font-family: 'Montserrat', sans-serif;
+}
+
+.sheet-handle {
+  display: none;
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: #d5d5d5;
+  margin: 10px auto 2px;
+  flex-shrink: 0;
 }
 
 .dup-conflict-dialog__header {
@@ -237,5 +274,45 @@ useEscapeClose(() => emit('cancel'), () => props.show);
 .dup-conflict-fade-enter-from,
 .dup-conflict-fade-leave-to {
   opacity: 0;
+}
+
+@media (max-width: 768px) {
+  /* Окно жило вне общего контракта: карточка 440px с радиусом 30px по центру.
+     Приводим к листу снизу, как у остальных окон страницы. */
+  .dup-conflict-overlay {
+    padding: 0;
+    align-items: flex-end;
+  }
+
+  .dup-conflict-dialog {
+    max-width: 100%;
+    max-height: 90dvh;
+    overflow-y: auto;
+    border-radius: 16px 16px 0 0;
+    transition: transform 0.3s ease;
+    animation: dup-conflict-up 0.3s cubic-bezier(0.32, 0.72, 0, 1) backwards;
+  }
+
+  .dup-conflict-dialog.is-dragging {
+    transition: none;
+  }
+
+  .sheet-handle {
+    display: block;
+  }
+
+  .dup-conflict-dialog__close {
+    width: 36px;
+    height: 36px;
+  }
+
+  .dup-conflict-dialog__btn {
+    min-height: 44px;
+  }
+}
+
+@keyframes dup-conflict-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
 }
 </style>
