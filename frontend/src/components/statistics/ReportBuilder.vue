@@ -260,8 +260,8 @@
           v-model="form.limit"
           type="number"
           min="1"
-          max="1000"
-          placeholder="100"
+          :max="MAX_REPORT_LIMIT"
+          :placeholder="String(limitPlaceholder)"
           class="lk-input rb__limit-input"
         >
       </label>
@@ -282,7 +282,7 @@ import { reactive, ref, computed, watch, nextTick } from 'vue';
 import FilterTabs from '@/components/ui/FilterTabs.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import DateFilter from '@/components/DateFilter.vue';
-import { buildReportRequest } from '@/composables/useReportRequest';
+import { buildReportRequest, defaultReportLimit, MAX_REPORT_LIMIT } from '@/composables/useReportRequest';
 import { formatDateRu } from '@/utils/datetime';
 
 const props = defineProps({
@@ -654,6 +654,13 @@ function onPeriodClear() {
 // чтобы степпер был корректен сразу.
 const filterCount = computed(
   () => Object.values(form.filters).reduce((n, vals) => n + (vals?.length || 0), 0),
+);
+
+// Плейсхолдер поля «Строк» показывает, какой лимит уйдёт в запрос при пустом
+// поле: у разреза «период» это потолок (иначе хвост периода обрезался бы), у
+// остальных — дефолт движка.
+const limitPlaceholder = computed(
+  () => defaultReportLimit({ mode: form.mode, dimension: form.dimension }),
 );
 
 // Полный снимок состояния гида для сохранения в шаблон. Тот же формат принимает

@@ -449,6 +449,7 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { getProcessingSummary, getProcessingJournal, runReport } from '@/api/statistics.js';
 import { formatDuration, formatDateTime, formatTimeAgo } from '@/utils/datetime';
+import { MAX_REPORT_LIMIT } from '@/composables/useReportRequest';
 import eventStream from '@/services/eventStream';
 import { useDeletionsStore } from '@/stores/deletions';
 import HintTooltip from '@/components/ui/HintTooltip.vue';
@@ -690,7 +691,7 @@ const TREND_HINT = 'Как менялось среднее время выбра
 // Лимит строк ответа. Без явного значения движок берёт дефолт 100, а строки
 // разреза period он сортирует хронологически ДО обрезки - на годовом периоде
 // хвост молча пропал бы (осталась бы только первая сотня дней).
-const TREND_LIMIT = 1000;
+const TREND_LIMIT = MAX_REPORT_LIMIT;
 
 // Гранулярность под длину окна: 365 точек по дням ещё читаются, но многолетний
 // произвольный диапазон упёрся бы в лимит. Подпись рядом с графиком всегда
