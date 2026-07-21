@@ -268,7 +268,9 @@ func (s *applicationService) WithdrawApplication(ctx context.Context, username s
 		return echo.NewHTTPError(http.StatusConflict, "Заявку в этом статусе отозвать нельзя")
 	}
 
-	if err := tx.Exec("UPDATE applications SET status = ? WHERE id = ?", models.StatusWithdrawn, applicationID).Error; err != nil {
+	// withdrawn_at - точка отсчёта месяца до архива (вложения при отзыве гасятся,
+	// их сроки для архивации больше не показательны).
+	if err := tx.Exec("UPDATE applications SET status = ?, withdrawn_at = NOW() WHERE id = ?", models.StatusWithdrawn, applicationID).Error; err != nil {
 		tx.Rollback()
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to withdraw application")
 	}

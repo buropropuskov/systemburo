@@ -542,18 +542,14 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 		query = query.Where("a.sending_datetime <= ?", *filter.DateTo+" 23:59:59")
 	}
 
-	// Archive filter: by default exclude archived, archive=true shows only archived
-	archiveCondition := `
-		(a.status IN ? AND EXISTS(
-			SELECT 1 FROM attachments att WHERE att.application_id = a.id
-			AND att.entry_date_to IS NOT NULL
-			AND CAST(att.entry_date_to AS DATE) + INTERVAL '1 month' < NOW()
-		))
-	`
+	// Архив: по умолчанию скрываем архивные, archive=true оставляет только их.
+	// Определение архива одно на весь сервис - application_archive.go.
 	if filter.Archive != nil && *filter.Archive {
-		query = query.Where(archiveCondition, models.ArchivableStatuses)
+		cond, args := archivedApplicationCond("a")
+		query = query.Where(cond, args...)
 	} else {
-		query = query.Where("NOT "+archiveCondition, models.ArchivableStatuses)
+		cond, args := activeApplicationCond("a")
+		query = query.Where(cond, args...)
 	}
 
 	// Active today: заявка активна сегодня, если период действия хотя бы одного
