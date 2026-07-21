@@ -296,6 +296,14 @@ func TestGetProcessingJournal_FilterHTTP(t *testing.T) {
 	require.Len(t, resp.Data, 2, "принятия Кузнецова")
 	assert.Equal(t, int64(2), resp.Meta.Total, "meta.total учитывает фильтры")
 
+	// Роль и поиск складываются через И: Кузнецов только принимал, среди согласований
+	// его нет. Если бы предикаты сложились через ИЛИ, тут пришли бы все согласования.
+	rec = call("from=2026-06-01&to=2026-06-04&role=approval&q=" + url.QueryEscape("Кузнецов"))
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	assert.Empty(t, resp.Data, "согласований Кузнецова нет")
+	assert.Zero(t, resp.Meta.Total)
+
 	req := httptest.NewRequest(http.MethodGet, "/statistics/processing-journal?role=неизвестно", nil)
 	err := h.GetProcessingJournal(e.NewContext(req, httptest.NewRecorder()))
 	var httpErr *echo.HTTPError

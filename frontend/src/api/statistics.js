@@ -89,6 +89,8 @@ export async function getProcessingSummary(from, to) {
  * @param {string} to YYYY-MM-DD
  * @param {number} [limit] размер страницы (бэк клампит: по умолчанию 50, максимум 200)
  * @param {number} [offset] смещение от начала ленты (постраничная навигация, #1251 P5b)
+ * @param {{role?: 'approval'|'acceptance'|'', q?: string}} [filter] отбор ленты (#1251 P5c):
+ *   роль события и подстрока номера заявки или ФИО актора. Фильтры входят и в meta.total.
  * @returns {Promise<{items: Array<{application_id: number, application_number: string, actor_name: string, role: 'approval'|'acceptance', occurred_at: string, working_seconds: number|null}>, meta: {total: number, page: number, per_page: number}}>}
  */
 export async function getProcessingJournal(from, to, limit, offset, filter = {}) {
