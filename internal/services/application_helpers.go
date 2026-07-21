@@ -545,9 +545,11 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 	// Архив: по умолчанию скрываем архивные, archive=true оставляет только их.
 	// Определение архива одно на весь сервис - application_archive.go.
 	if filter.Archive != nil && *filter.Archive {
-		query = query.Where(archivedApplicationCond("a"), models.ArchivableStatuses)
+		cond, args := archivedApplicationCond("a")
+		query = query.Where(cond, args...)
 	} else {
-		query = query.Where(activeApplicationCond("a"), models.ArchivableStatuses)
+		cond, args := activeApplicationCond("a")
+		query = query.Where(cond, args...)
 	}
 
 	// Active today: заявка активна сегодня, если период действия хотя бы одного

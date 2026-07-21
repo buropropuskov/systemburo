@@ -13,10 +13,11 @@ import (
 // isArchived проверяет, является ли заявка архивной (определение - application_archive.go).
 func (s *applicationService) isArchived(ctx context.Context, applicationID int) (bool, error) {
 	var count int64
+	cond, args := archivedApplicationCond("app")
 	err := s.db.WithContext(ctx).
 		Table("applications app").
 		Where("app.id = ?", applicationID).
-		Where(archivedApplicationCond("app"), models.ArchivableStatuses).
+		Where(cond, args...).
 		Count(&count).Error
 	if err != nil {
 		return false, echo.NewHTTPError(http.StatusInternalServerError, "Failed to check archive status")
@@ -113,10 +114,11 @@ func (s *applicationService) GetUnreadCount(ctx context.Context, username string
 	var count int64
 	// Непрочитанные = нет записи в application_reads для пользователя + не архивные
 	// (архив считаем тем же предикатом, что и листинг - application_archive.go).
+	activeCond, activeArgs := activeApplicationCond("a")
 	query := s.db.WithContext(ctx).
 		Table("applications a").
 		Where("NOT EXISTS (SELECT 1 FROM application_reads ar WHERE ar.application_id = a.id AND ar.user_id = ?)", user.ID).
-		Where(activeApplicationCond("a"), models.ArchivableStatuses)
+		Where(activeCond, activeArgs...)
 
 	// Permission filter: совпадает с GetApplications (см. application_service.go).
 	// Если юзер не approver, видит только заявки, где он responsible или viewer.

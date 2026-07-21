@@ -345,6 +345,80 @@ func TestGetApplications_Archive_OpenEndedAttachmentKeepsActive(t *testing.T) {
 	}
 }
 
+// Отозванная заявка архивируется через месяц ПОСЛЕ ОТЗЫВА: отзыв гасит вложения
+// сразу, поэтому их сроки для архива уже не показательны.
+func TestGetApplications_Archive_WithdrawnCountsFromWithdrawal(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	makeApprover(t, db, "testadmin")
+
+	// Вложение действует до 2099 - по общему правилу заявка не архивная никогда.
+	withdrawn := func(name string, at time.Time) int {
+		uaID := seedUniqueAttachment(t, db, "cars", "tmpl_"+name, "Disp_"+name)
+		appID := submitCompleteApplication(t, e, token, "Test Organization", uaID)
+		require.NoError(t, db.Model(&models.Application{}).Where("id = ?", appID).
+			Updates(map[string]interface{}{"status": models.StatusWithdrawn, "withdrawn_at": at}).Error)
+		return appID
+	}
+
+	freshID := withdrawn("fresh", time.Now().AddDate(0, 0, -3))
+	oldID := withdrawn("old", time.Now().AddDate(0, 0, -40))
+
+	ids := func(apps []map[string]interface{}) []float64 {
+		out := make([]float64, 0, len(apps))
+		for _, a := range apps {
+			if id, ok := a["id"].(float64); ok {
+				out = append(out, id)
+			}
+		}
+		return out
+	}
+
+	rec := testutil.GET(t, e, "/applications?archive=true", testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusOK, rec.Code)
+	archived := ids(testutil.ParseSlice(t, rec))
+	assert.Contains(t, archived, float64(oldID), "отозвана больше месяца назад - в архиве")
+	assert.NotContains(t, archived, float64(freshID), "отозвана 3 дня назад - ещё не в архиве")
+
+	recActive := testutil.GET(t, e, "/applications", testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusOK, recActive.Code)
+	active := ids(testutil.ParseSlice(t, recActive))
+	assert.Contains(t, active, float64(freshID))
+	assert.NotContains(t, active, float64(oldID))
+}
+
+// Отозванные до появления withdrawn_at (пусто) архивируются по общему правилу -
+// по срокам вложений, а не пропадают из обоих списков.
+func TestGetApplications_Archive_WithdrawnWithoutTimestamp_FallsBackToAttachments(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	makeApprover(t, db, "testadmin")
+
+	uaID := seedUniqueAttachment(t, db, "cars", "cars_wd_legacy", "CarsWdLegacy")
+	appID := submitCompleteApplication(t, e, token, "Test Organization", uaID)
+	require.NoError(t, db.Model(&models.Application{}).Where("id = ?", appID).
+		Updates(map[string]interface{}{"status": models.StatusWithdrawn, "withdrawn_at": nil}).Error)
+	db.Model(&models.Attachment{}).Where("application_id = ?", appID).Update("entry_date_to", "2025-01-01")
+
+	rec := testutil.GET(t, e, "/applications?archive=true", testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusOK, rec.Code)
+	found := false
+	for _, app := range testutil.ParseSlice(t, rec) {
+		if app["id"] == float64(appID) {
+			found = true
+		}
+	}
+	assert.True(t, found, "без withdrawn_at работает старое правило по срокам вложений")
+}
+
 // --- Part 3: Active today ---
 
 func TestGetApplications_ActiveToday_FiltersByAttachmentPeriod(t *testing.T) {

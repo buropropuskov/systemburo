@@ -3,12 +3,12 @@ package models
 import "time"
 
 type Application struct {
-	ID                   int          `json:"id"`
-	ApplicationNumber    *string      `gorm:"size:50" json:"application_number"`
-	Confirmation         *string      `gorm:"size:20" json:"confirmation"`
-	SendingDatetime      *time.Time   `json:"sending_datetime"`
-	ReadingDatetime      *time.Time   `json:"reading_datetime"`
-	ConfirmationDatetime *time.Time   `json:"confirmation_datetime"`
+	ID                   int        `json:"id"`
+	ApplicationNumber    *string    `gorm:"size:50" json:"application_number"`
+	Confirmation         *string    `gorm:"size:20" json:"confirmation"`
+	SendingDatetime      *time.Time `json:"sending_datetime"`
+	ReadingDatetime      *time.Time `json:"reading_datetime"`
+	ConfirmationDatetime *time.Time `json:"confirmation_datetime"`
 	// AcceptedAt - момент ПЕРВОГО принятия заявки в работу (#1240). Пишется COALESCE'ом:
 	// revoke/restore возвращают заявку в "В обработке", и повторное принятие не перетирает
 	// исходный момент - иначе длительность обработки считалась бы от последней попытки.
@@ -17,18 +17,23 @@ type Application struct {
 	// (CheckExpiredAttachments, #1240). У завершённых до появления колонки остаётся NULL:
 	// момента завершения в прошлом не зафиксировано, восстанавливать неоткуда.
 	CompletedAt *time.Time `gorm:"index" json:"completed_at"`
-	OrganizationID       int          `gorm:"index" json:"organization_id"`
-	Organization         Organization `json:"-"`
-	SenderUserID         int          `gorm:"index" json:"sender_user_id"`
-	SenderUser           User         `gorm:"foreignKey:SenderUserID" json:"-"`
-	Message              *string      `gorm:"type:text" json:"message"`
-	Status               *string      `gorm:"size:50;index" json:"status"`
-	ResponsibleUserID    *int         `gorm:"index" json:"responsible_user_id"`
-	ResponsibleUser      *User        `gorm:"foreignKey:ResponsibleUserID" json:"-"`
-	ResponsibleComment   *string      `gorm:"type:text" json:"responsible_comment"`
-	DataApproval         *string      `gorm:"type:text" json:"data_approval"`
-	CompanyID            *int         `gorm:"index" json:"company_id"`
-	Company              *Company     `json:"-"`
+	// WithdrawnAt - момент отзыва заявки отправителем. От него отсчитывается месяц
+	// до архивации: отзыв гасит вложения сразу, поэтому их сроки для архива уже
+	// ничего не значат. У отозванных до появления колонки остаётся NULL - такие
+	// заявки архивируются по старому правилу (срокам вложений).
+	WithdrawnAt        *time.Time   `gorm:"index" json:"withdrawn_at"`
+	OrganizationID     int          `gorm:"index" json:"organization_id"`
+	Organization       Organization `json:"-"`
+	SenderUserID       int          `gorm:"index" json:"sender_user_id"`
+	SenderUser         User         `gorm:"foreignKey:SenderUserID" json:"-"`
+	Message            *string      `gorm:"type:text" json:"message"`
+	Status             *string      `gorm:"size:50;index" json:"status"`
+	ResponsibleUserID  *int         `gorm:"index" json:"responsible_user_id"`
+	ResponsibleUser    *User        `gorm:"foreignKey:ResponsibleUserID" json:"-"`
+	ResponsibleComment *string      `gorm:"type:text" json:"responsible_comment"`
+	DataApproval       *string      `gorm:"type:text" json:"data_approval"`
+	CompanyID          *int         `gorm:"index" json:"company_id"`
+	Company            *Company     `json:"-"`
 }
 
 type ApplicationStatusHistory struct {
