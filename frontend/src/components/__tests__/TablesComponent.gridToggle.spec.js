@@ -10,7 +10,6 @@ vi.mock('@/api/client', () => ({
 import TablesComponent from '../TablesComponent.vue';
 import CarsTable from '../CarsTable.vue';
 import FactTable from '../FactTable.vue';
-import SwitchToggle from '../ui/SwitchToggle.vue';
 
 function okResponse(data) {
   return { ok: true, json: async () => data };
@@ -68,16 +67,16 @@ describe('TablesComponent - тумблер "Сетка" (#1289)', () => {
     const wrapper = mountPage();
     await flushPromises();
 
-    expect(wrapper.getComponent(SwitchToggle).props('modelValue')).toBe(false);
     expect(wrapper.getComponent(CarsTable).props('grid')).toBe(false);
     expect(wrapper.getComponent(FactTable).props('grid')).toBe(false);
   });
 
-  it('включение прокидывает grid=true в обе таблицы страницы и пишет localStorage', async () => {
+  it('тумблер таблицы включает сетку и в таблице по факту, состояние в localStorage', async () => {
     const wrapper = mountPage();
     await flushPromises();
 
-    await wrapper.get('[data-testid=grid-toggle] input').setValue(true);
+    // Тумблер живёт в шапке основной таблицы и поднимает состояние на страницу.
+    wrapper.getComponent(CarsTable).vm.$emit('update:grid', true);
     await flushPromises();
 
     expect(wrapper.getComponent(CarsTable).props('grid')).toBe(true);
@@ -90,10 +89,11 @@ describe('TablesComponent - тумблер "Сетка" (#1289)', () => {
     const wrapper = mountPage();
     await flushPromises();
 
-    await wrapper.get('[data-testid=grid-toggle] input').setValue(false);
+    wrapper.getComponent(CarsTable).vm.$emit('update:grid', false);
     await flushPromises();
 
     expect(wrapper.getComponent(CarsTable).props('grid')).toBe(false);
+    expect(wrapper.getComponent(FactTable).props('grid')).toBe(false);
     expect(localStorage.getItem('grid-mode:kpp_4')).toBe('0');
   });
 

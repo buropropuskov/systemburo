@@ -36,6 +36,14 @@
           v-model="enlarged"
           data-testid="enlarged-toggle"
         />
+        <SwitchToggle
+          class="grid-toggle"
+          :model-value="grid"
+          label="Сетка"
+          title="Показать границы ячеек таблицы"
+          data-testid="grid-toggle"
+          @update:model-value="$emit('update:grid', $event)"
+        />
         <RefreshButton
           :loading="refreshing"
           @refresh="loadData"
@@ -695,7 +703,7 @@ export default {
     // Режим "Сетка" (#1289): границы ячеек. Управляется одним тумблером страницы.
     grid: { type: Boolean, default: false }
   },
-  emits: ['open-application'],
+  emits: ['open-application', 'update:grid'],
   data() {
     return {
       sortField: null,
@@ -2322,36 +2330,43 @@ export default {
   padding-bottom: 16px;
 }
 
+/* На мобилке строки показываются карточками - сетка не применяется, тумблер
+   там не нужен. */
+@media (max-width: 767.98px) {
+  .grid-toggle {
+    display: none;
+  }
+}
+
 /* Режим "Сетка" (#1289): границы ячеек, как в Excel. Внешний контур даёт рамка
    карточки, горизонтальные линии - border-bottom строк, здесь добавляем
    вертикальные. На мобилке строки превращаются в карточки (rt-row), поэтому
-   весь блок живёт только от 768px. */
+   весь блок живёт только от 768px.
+
+   Включение режима НЕ меняет раскладку: gap между колонками, padding строк и
+   ширины столбцов остаются прежними, линия рисуется псевдоэлементом поверх
+   (border съел бы пиксель внутренней ширины ячейки). */
 @media (min-width: 768px) {
-  /* stretch - чтобы ячейка занимала всю высоту строки: при align-items:center
-     ячейка высотой в свой текст и border-right давал бы обрубки вместо линий.
-     Вертикальный padding переезжает со строки на ячейки, иначе линия короче
-     строки на величину этого padding. */
+  /* Ячейка тянется на высоту строки, иначе она высотой в свой текст и линия
+     получилась бы обрубком. Высота самой строки от этого не меняется, а
+     содержимое остаётся по центру - его держит align-content вместо align-items
+     строки (flex-контейнером ячейку делать нельзя: сломается ellipsis у голых
+     текстовых нод внутри). Вертикальный padding переезжает со строки на ячейки:
+     суммарные отступы те же, текст не двигается, но линия идёт от края до края
+     строки, а не обрывается на её padding. */
   .selected-table-card.grid-mode .header-row,
   .selected-table-card.grid-mode .item-data {
     align-items: stretch;
-    gap: 0;
     padding-top: 0;
     padding-bottom: 0;
-    /* Боковой отступ строки снят: то, что ячейки забирают себе под внутренний
-       padding, возвращаем колонкам, иначе широкая таблица начинает обрезать
-       содержимое ячеек. Крайние линии при этом идут по краю карточки. */
-    padding-left: 0;
-    padding-right: 0;
   }
 
-  /* align-content центрирует содержимое блочной ячейки по вертикали, не превращая
-     её во flex/grid-контейнер: ячейки данных содержат голые текстовые ноды, у
-     которых text-overflow: ellipsis работает только пока .col блочный. */
   .selected-table-card.grid-mode .header-row > .col,
   .selected-table-card.grid-mode .item-data > .col {
-    border-right: 1px solid #e6e6e6;
-    padding: 10px 6px;
+    position: relative;
     align-content: center;
+    padding-top: 10px;
+    padding-bottom: 10px;
   }
 
   .selected-table-card.grid-mode.density-compact .header-row > .col,
@@ -2366,21 +2381,24 @@ export default {
     padding-bottom: 16px;
   }
 
-  /* Бейдж статуса не сжимается: без своей минимальной ширины он упирается в
-     линию сетки и обрезается на плотных таблицах (12 колонок). */
-  .selected-table-card.grid-mode .status-col {
-    min-width: max-content;
+  .selected-table-card.grid-mode .header-row > .col::after,
+  .selected-table-card.grid-mode .item-data > .col::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 1px;
+    background: #e6e6e6;
   }
 
-  /* Схлопнутая колонка (увеличенный режим, приоритет) имеет нулевую ширину -
-     её border дал бы лишнюю линию поверх соседней. */
-  .selected-table-card.grid-mode .col--collapsed {
-    border-right: none !important;
-  }
-
-  .selected-table-card.grid-mode .header-row > .col:last-child,
-  .selected-table-card.grid-mode .item-data > .col:last-child {
-    border-right: none;
+  /* У схлопнутой колонки (увеличенный режим, приоритет) нулевая ширина - её
+     линия легла бы поверх соседней. Последняя колонка упирается в рамку
+     карточки, своя линия ей не нужна. */
+  .selected-table-card.grid-mode .col--collapsed::after,
+  .selected-table-card.grid-mode .header-row > .col:last-child::after,
+  .selected-table-card.grid-mode .item-data > .col:last-child::after {
+    display: none;
   }
 }
 

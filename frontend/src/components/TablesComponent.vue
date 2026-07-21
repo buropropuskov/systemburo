@@ -123,13 +123,6 @@
         />
       </div>
       <div class="filters__options">
-        <SwitchToggle
-          v-model="gridMode"
-          class="options__grid-toggle"
-          label="Сетка"
-          title="Показать границы ячеек таблицы"
-          data-testid="grid-toggle"
-        />
         <button
           v-if="canManualAdd"
           class="options__manual-add"
@@ -225,6 +218,7 @@
       <CarsTable
         v-if="tableType === 'cars' && currentUserId"
         ref="carsTable"
+        v-model:grid="gridMode"
         :table-name="tableSystemName"
         :table-id="tableData?.table?.id"
         :search-query="searchQuery"
@@ -236,7 +230,6 @@
         :selected-date="selectedDate"
         :current-user-id="currentUserId"
         :current-user-name="currentUserName"
-        :grid="gridMode"
         @refresh-data="refreshData"
         @open-application="handleOpenApplication"
       />
@@ -244,6 +237,7 @@
       <PeopleTable
         v-if="tableType === 'people'"
         ref="peopleTable"
+        v-model:grid="gridMode"
         :table-name="tableSystemName"
         :search-query="searchQuery"
         :selected-organization-id="selectedOrganizationId"
@@ -254,7 +248,6 @@
         :selected-date="selectedDate"
         :current-user-id="currentUserId"
         :current-user-name="currentUserName"
-        :grid="gridMode"
         @refresh-data="refreshData"
         @open-application="handleOpenApplication"
       />
@@ -301,7 +294,6 @@ import PeopleTable from './PeopleTable.vue';
 import ApplicationDetail from './ApplicationDetail/ApplicationDetail.vue';
 import TableExportModal from './TableExportModal.vue';
 import ManualAddModal from './ManualAddModal.vue';
-import SwitchToggle from '@/components/ui/SwitchToggle.vue';
 import { usePermissionsStore } from '@/stores/permissions';
 
 export default {
@@ -316,7 +308,6 @@ export default {
         ApplicationDetail,
         TableExportModal,
         ManualAddModal,
-        SwitchToggle,
     },
     emits: ['refresh-data'],
     setup() {
@@ -1220,14 +1211,6 @@ export default {
 
 .blue {
     color: #4F5BDF;
-}
-
-/* На мобилке строки таблиц конвертируются в карточки (responsive-tables.css,
-   брейкпоинт 767.98px) - границы ячеек там не рисуются, тумблер прячем. */
-@media (max-width: 767.98px) {
-    .options__grid-toggle {
-        display: none;
-    }
 }
 
 @media (max-width: 768px) {
