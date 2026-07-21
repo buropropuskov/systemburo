@@ -1,3 +1,27 @@
+/** Дефолт движка для лимита строк (clampLimit, internal/services/report_engine.go). */
+export const DEFAULT_REPORT_LIMIT = 100;
+
+/** Потолок движка (maxReportLimit) — больше он всё равно зажмёт. */
+export const MAX_REPORT_LIMIT = 1000;
+
+/**
+ * Лимит строк для среза, когда поле «Строк» не заполнено.
+ *
+ * Разрез «период» — особый случай: движок сортирует его строки хронологически ДО
+ * обрезки, поэтому дефолтные 100 отрезают не «лишние» строки, а хвост периода —
+ * на годовом окне по дням отчёт молча заканчивался бы в начале апреля. Берём
+ * потолок: 1000 бинов покрывают год по дням с запасом, а если и его не хватит,
+ * результат честно пометит обрезку (ReportResult).
+ *
+ * @param {{mode?: string, dimension?: string}} state
+ * @returns {number}
+ */
+export function defaultReportLimit(state) {
+  return state?.mode !== 'list' && state?.dimension === 'period'
+    ? MAX_REPORT_LIMIT
+    : DEFAULT_REPORT_LIMIT;
+}
+
 /**
  * Сборка тела запроса POST /statistics/report из состояния конструктора отчётов.
  *
@@ -34,7 +58,7 @@ export function buildReportRequest(state, period = {}, applicableFilters = []) {
     if (clean.length) filters.push({ key, values: clean });
   }
 
-  const limit = normalizeLimit(state.limit);
+  const limit = normalizeLimit(state.limit, defaultReportLimit(state));
 
   if (state.mode === 'list') {
     return { mode: 'list', entity: state.entity || '', filters, limit };
@@ -65,13 +89,14 @@ export function buildReportRequest(state, period = {}, applicableFilters = []) {
 }
 
 /**
- * Нормализует лимит строк: пусто/невалидно -> 0 (бэк применит дефолт 100),
- * иначе целое в диапазоне [1, 1000].
+ * Нормализует лимит строк: пусто/невалидно -> дефолт среза, иначе целое в
+ * диапазоне [1, MAX_REPORT_LIMIT].
  * @param {number|string|null|undefined} limit
+ * @param {number} fallback лимит, когда поле не заполнено
  * @returns {number}
  */
-function normalizeLimit(limit) {
+function normalizeLimit(limit, fallback) {
   const n = Number(limit);
-  if (!Number.isFinite(n) || n <= 0) return 0;
-  return Math.min(Math.floor(n), 1000);
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return Math.min(Math.floor(n), MAX_REPORT_LIMIT);
 }

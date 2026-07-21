@@ -529,3 +529,43 @@ describe('ReportResult — график длительностей (#1240)', () 
     expect(w.find('[data-testid="rr-kind-donut"]').exists()).toBe(true);
   });
 });
+
+// Движок признака обрезки не отдаёт, поэтому «упёрлись в лимит» выводим сами:
+// строк ровно столько, сколько разрешал запрос. Молчание тут стоило бы дорого -
+// у разреза «период» обрезка съедает хвост периода, а не «лишние» строки.
+describe('пометка обрезки по лимиту', () => {
+  function mountWithLimit(result, limit) {
+    return mount(ReportResult, {
+      props: { result, limit },
+      global: {
+        stubs: { AnalyticsAreaChart: areaStub, AnalyticsBarChart: barStub, AnalyticsDonutChart: donutStub },
+      },
+    });
+  }
+
+  const rowsOf = (n) => ({
+    mode: 'aggregate', dimension: 'period', unit: 'шт',
+    rows: Array.from({ length: n }, (_, i) => ({ label: `2026-06-${i + 1}`, value: 1 })),
+    total: n,
+  });
+
+  it('строк столько же, сколько лимит -> подпись есть', () => {
+    const w = mountWithLimit(rowsOf(3), 3);
+    expect(w.find('[data-testid="rr-truncated"]').text()).toContain('лимит 3');
+  });
+
+  it('строк меньше лимита -> подписи нет', () => {
+    const w = mountWithLimit(rowsOf(2), 3);
+    expect(w.find('[data-testid="rr-truncated"]').exists()).toBe(false);
+  });
+
+  it('лимит не передан -> подписи нет', () => {
+    const w = mountWithLimit(rowsOf(3), 0);
+    expect(w.find('[data-testid="rr-truncated"]').exists()).toBe(false);
+  });
+
+  it('выгрузка строк тоже помечается', () => {
+    const w = mountWithLimit({ ...listRes, rows: [{ a: 'x' }, { a: 'y' }], total: 2 }, 2);
+    expect(w.find('[data-testid="rr-truncated"]').exists()).toBe(true);
+  });
+});

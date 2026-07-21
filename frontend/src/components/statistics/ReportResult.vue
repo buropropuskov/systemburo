@@ -213,6 +213,11 @@
       </Transition>
       <div class="rr__footer">
         строк: {{ aggRows.length }}
+        <span
+          v-if="truncated"
+          class="rr__truncated"
+          data-testid="rr-truncated"
+        >Достигнут лимит {{ limit }} строк - показана только часть результата.</span>
       </div>
     </template>
 
@@ -266,6 +271,11 @@
       <div class="rr__footer">
         Всего: <b>{{ result.total }}</b>
         <span class="rr__footer-sep">·</span> показано строк: {{ result.rows.length }}
+        <span
+          v-if="truncated"
+          class="rr__truncated"
+          data-testid="rr-truncated"
+        >Достигнут лимит {{ limit }} строк - показана только часть результата.</span>
       </div>
     </template>
   </div>
@@ -288,6 +298,10 @@ const props = defineProps({
   error: { type: String, default: '' },
   // Подпись выгрузки в Excel: { title, period:{from,to}, author }.
   meta: { type: Object, default: () => ({}) },
+  // Лимит строк, с которым построен этот результат. Нужен, чтобы отличить
+  // «данных ровно столько» от «результат упёрся в лимит»: движок признака
+  // обрезки не отдаёт, а для разреза «период» обрезка съедает его хвост.
+  limit: { type: Number, default: 0 },
 });
 
 const emit = defineEmits(['export-error']);
@@ -324,6 +338,16 @@ const aggTotals = computed(() => {
 const aggFloatTotals = computed(() => props.result?.float_totals || {});
 
 const hasRows = computed(() => aggRows.value.length > 0);
+
+// Строк ровно столько, сколько разрешал лимит -> движок почти наверняка отрезал
+// хвост (точного признака в ответе нет). Ложное срабатывание «данных ровно
+// столько» безобидно: подпись лишь предлагает сузить период.
+const truncated = computed(() => {
+  const r = props.result;
+  if (!r || props.limit <= 0) return false;
+  const rows = r.mode === 'list' ? (r.rows?.length || 0) : aggRows.value.length;
+  return rows >= props.limit;
+});
 
 // «Без разреза» -> единственная строка уже итоговая, отдельный футер итогов лишний.
 const showTotals = computed(() => props.result?.dimension !== 'none');
@@ -672,5 +696,10 @@ function formatCell(value, type) {
 .rr__footer-sep {
   color: var(--color-text-muted);
   margin: 0 4px;
+}
+
+.rr__truncated {
+  margin-left: 8px;
+  color: var(--color-text-muted);
 }
 </style>

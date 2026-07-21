@@ -140,6 +140,7 @@
         :loading="running"
         :error="runError"
         :meta="exportMeta"
+        :limit="resultLimit"
         @export-error="onExportError"
       />
     </template>
@@ -175,6 +176,8 @@ const running = ref(false);
 const runError = ref('');
 // Подпись для выгрузки в Excel: период берём из последнего построенного запроса.
 const exportMeta = ref({});
+// Лимит последнего запроса — по нему результат понимает, что упёрся в потолок.
+const resultLimit = ref(0);
 
 // Пресет из галереи: новый объект на каждый клик (даже по той же карточке),
 // чтобы watch в ReportBuilder сработал повторно и перезаполнил конструктор.
@@ -295,12 +298,14 @@ async function onRun(request) {
     const r = await runReport(request);
     if (seq !== runSeq) return;
     result.value = r;
+    resultLimit.value = Number(request.limit) || 0;
     const dr = (request.filters || []).find((f) => f.key === 'date_range');
     const { from = '', to = '' } = dr || {};
     exportMeta.value = dr ? { period: { from, to } } : {};
   } catch (e) {
     if (seq !== runSeq) return;
     result.value = null;
+    resultLimit.value = 0;
     runError.value = e?.message || 'Не удалось построить отчёт. Проверьте параметры.';
   } finally {
     if (seq === runSeq) running.value = false;
