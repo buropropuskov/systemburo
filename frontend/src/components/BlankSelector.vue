@@ -17,7 +17,6 @@
           <span class="attachment-count">{{ getCategoryAttachments(category).length }}/10</span>
         </div>
         <button
-          v-if="!isNarrow"
           class="add-btn"
           :disabled="getCategoryAttachments(category).length >= 10"
           @click="addAttachment(category)"
@@ -97,8 +96,9 @@
                 @dblclick.stop="startRename(attachment)"
               >{{ attachment.display_name }}</span>
 
+              <!-- На тач-экране hover не наступает: кнопки строки держим видимыми всегда. -->
               <button
-                v-if="hoveredAttachment === getAttachmentKey(attachment)"
+                v-if="isNarrow || hoveredAttachment === getAttachmentKey(attachment)"
                 class="edit-btn"
                 title="Переименовать"
                 @click.stop="startRename(attachment)"
@@ -106,7 +106,7 @@
                 ✎
               </button>
               <button
-                v-if="hoveredAttachment === getAttachmentKey(attachment)"
+                v-if="isNarrow || hoveredAttachment === getAttachmentKey(attachment)"
                 class="delete-btn"
                 title="Удалить"
                 @click.stop="confirmDelete(attachment)"
@@ -118,6 +118,7 @@
         </transition-group>
 
         <button
+          v-if="!isNarrow"
           class="add-btn"
           :disabled="getCategoryAttachments(category).length >= 10"
           @click="addAttachment(category)"
@@ -909,10 +910,19 @@ export default {
         white-space: nowrap;
     }
 
+    /* На тач-экране hover не наступает, а базовый фон кнопки - полупрозрачный
+       (полный цвет он берёт только на :hover): без этого кнопка выглядит выключенной. */
     .category-chip .add-btn {
         width: 100%;
         min-height: 36px;
+        margin-top: 0;
         font-size: 13px;
+        border-radius: var(--radius-md);
+        background: var(--color-primary);
+    }
+
+    .category-chip .add-btn:disabled {
+        background: #a2a2a2;
     }
 
     .created-caption {
@@ -941,9 +951,15 @@ export default {
         margin-bottom: 4px;
     }
 
-    /* Тач-таргеты: строка вложения и кнопки очистки под палец. */
+    /* Тач-таргеты: строка вложения и кнопки очистки под палец. Ширина 130px была
+       рассчитана на узкую колонку десктопа - здесь селектор во всю страницу. */
     .attachment {
+        max-width: none;
+        width: 100%;
         min-height: 40px;
+        padding: 0 10px;
+        border-radius: var(--radius-md);
+        font-size: 13px;
     }
 
     .attachment-checkbox {
