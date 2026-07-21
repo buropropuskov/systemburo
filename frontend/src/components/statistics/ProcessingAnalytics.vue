@@ -388,6 +388,29 @@
           class="proc__table-empty"
         >Событий за период нет</div>
       </div>
+      <div
+        v-if="!journalError && journalReady && journalTotal > 0"
+        class="proc__journal-pager"
+      >
+        <span class="proc__journal-total">Всего: {{ fmtCount(journalTotal) }}</span>
+        <button
+          type="button"
+          class="lk-button lk-button--ghost proc__page-btn"
+          :disabled="journalPage <= 1 || journalLoading"
+          @click="goToJournalPage(journalPage - 1)"
+        >
+          Назад
+        </button>
+        <span class="proc__journal-page">{{ journalPage }} / {{ journalTotalPages }}</span>
+        <button
+          type="button"
+          class="lk-button lk-button--ghost proc__page-btn"
+          :disabled="journalPage >= journalTotalPages || journalLoading"
+          @click="goToJournalPage(journalPage + 1)"
+        >
+          Вперёд
+        </button>
+      </div>
     </section>
   </div>
 </template>
@@ -447,15 +470,36 @@ const journalError = ref('');
 const journalReady = ref(false);
 const journalLoading = ref(false);
 const JOURNAL_LIMIT = 50;
+// Страница ленты (#1251 P5b): бэк отдаёт срез limit/offset и общее число событий
+// периода. Автообновление (SSE/опрос) перечитывает ТЕКУЩУЮ страницу, а не сбрасывает
+// на первую - иначе лента уезжала бы из-под читающего.
+const journalPage = ref(1);
+const journalTotal = ref(0);
+// Размер страницы берём из ответа: limit бэк клампит своими правилами, и считать
+// страницы по своей константе значило бы верить, что она совпала.
+const journalPerPage = ref(JOURNAL_LIMIT);
+const journalTotalPages = computed(() => Math.max(1, Math.ceil(journalTotal.value / journalPerPage.value)));
 let journalSeq = 0;
 async function loadJournal() {
   const seq = ++journalSeq;
+  const page = journalPage.value;
   journalError.value = '';
   journalLoading.value = true;
   try {
-    const data = await getProcessingJournal(props.from, props.to, JOURNAL_LIMIT);
+    const { items, meta } = await getProcessingJournal(
+      props.from, props.to, JOURNAL_LIMIT, (page - 1) * journalPerPage.value,
+    );
     if (seq !== journalSeq) return;
-    journal.value = Array.isArray(data) ? data : [];
+    journal.value = Array.isArray(items) ? items : [];
+    journalTotal.value = Number(meta?.total) || 0;
+    journalPerPage.value = Number(meta?.per_page) || JOURNAL_LIMIT;
+    // События могли уйти из окна (смена периода, удаление) - страница за хвостом
+    // осталась бы пустой без единого способа вернуться, кроме кнопки «Назад».
+    if (page > journalTotalPages.value) {
+      journalPage.value = journalTotalPages.value;
+      await loadJournal();
+      return;
+    }
   } catch (e) {
     if (seq !== journalSeq) return;
     journalError.value = e?.message || 'Не удалось загрузить журнал обработки';
@@ -465,6 +509,12 @@ async function loadJournal() {
       journalLoading.value = false;
     }
   }
+}
+
+function goToJournalPage(next) {
+  if (next < 1 || next > journalTotalPages.value || journalLoading.value) return;
+  journalPage.value = next;
+  loadJournal();
 }
 
 // Копирование номера заявки из ленты - тот же приём, что в списке заявок
@@ -721,9 +771,14 @@ function reload() {
   loadTrend();
 }
 
+// Новый период - новая лента: страница сбрасывается на первую (её события к
+// прошлому окну отношения не имеют). Ручное «Обновить» страницу сохраняет.
 watch(
   () => [props.from, props.to],
-  reload,
+  () => {
+    journalPage.value = 1;
+    reload();
+  },
 );
 
 // Смена этапа перестраивает только график - бандл и лента от неё не зависят.
@@ -1181,5 +1236,29 @@ defineExpose({ refresh: reload });
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+/* Пейджер ленты - как в истории входов (UserLoginHistory): всего + Назад/Вперёд. */
+.proc__journal-pager {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.proc__journal-total {
+  margin-right: auto;
+}
+
+.proc__page-btn {
+  padding: 6px 14px;
+  font-size: 13px;
+}
+
+.proc__journal-page {
+  font-variant-numeric: tabular-nums;
 }
 </style>
