@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"systemburo/internal/models"
 	"systemburo/internal/services"
@@ -253,6 +254,95 @@ func TestGetApplications_Archive_IncludesRefused_ExcludesInWork(t *testing.T) {
 	assert.Contains(t, active, float64(inWorkID))
 	assert.NotContains(t, active, float64(completedID))
 	assert.NotContains(t, active, float64(refusedID))
+}
+
+// Архив ждёт, пока просрочатся ВСЕ вложения заявки: месяц отсчитывается от
+// последнего заканчивающегося. Одно давно истёкшее вложение рядом с ещё
+// действующим в архив заявку не отправляет (#1097 follow-up).
+func TestGetApplications_Archive_WaitsForLastAttachment(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	makeApprover(t, db, "testadmin")
+
+	uaID := seedUniqueAttachment(t, db, "cars", "cars_last_att", "CarsLastAtt")
+	appID := submitCompleteApplication(t, e, token, "Test Organization", uaID)
+	db.Model(&models.Application{}).Where("id = ?", appID).Update("status", models.StatusCompleted)
+
+	// Первое вложение истекло давно, второе - вчера (месяц ещё не прошёл).
+	db.Model(&models.Attachment{}).Where("application_id = ?", appID).Update("entry_date_to", "2025-01-01")
+	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	secondName, secondLabel := "cars_second", "Cars Second"
+	require.NoError(t, db.Create(&models.Attachment{
+		ApplicationID:         &appID,
+		AttachmentType:        "cars",
+		AttachmentName:        &secondName,
+		AttachmentDisplayName: &secondLabel,
+		EntryDateTo:           &yesterday,
+	}).Error)
+
+	ids := func(apps []map[string]interface{}) []float64 {
+		out := make([]float64, 0, len(apps))
+		for _, a := range apps {
+			if id, ok := a["id"].(float64); ok {
+				out = append(out, id)
+			}
+		}
+		return out
+	}
+
+	rec := testutil.GET(t, e, "/applications?archive=true", testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.NotContains(t, ids(testutil.ParseSlice(t, rec)), float64(appID),
+		"заявка с ещё действующим вложением не архивная")
+
+	recActive := testutil.GET(t, e, "/applications", testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusOK, recActive.Code)
+	assert.Contains(t, ids(testutil.ParseSlice(t, recActive)), float64(appID),
+		"пока не архивная - остаётся в активных")
+
+	// Просрочили и второе вложение больше месяца назад - заявка уходит в архив.
+	longAgo := time.Now().AddDate(0, 0, -40).Format("2006-01-02")
+	db.Model(&models.Attachment{}).Where("application_id = ?", appID).Update("entry_date_to", longAgo)
+
+	rec = testutil.GET(t, e, "/applications?archive=true", testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, ids(testutil.ParseSlice(t, rec)), float64(appID),
+		"все вложения просрочены больше месяца - заявка архивная")
+}
+
+// Вложение без даты окончания сроком не ограничено - заявка с таким вложением
+// в архив не уходит, даже если остальные давно истекли.
+func TestGetApplications_Archive_OpenEndedAttachmentKeepsActive(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	makeApprover(t, db, "testadmin")
+
+	uaID := seedUniqueAttachment(t, db, "cars", "cars_openended", "CarsOpenEnded")
+	appID := submitCompleteApplication(t, e, token, "Test Organization", uaID)
+	db.Model(&models.Application{}).Where("id = ?", appID).Update("status", models.StatusCompleted)
+	db.Model(&models.Attachment{}).Where("application_id = ?", appID).Update("entry_date_to", "2025-01-01")
+
+	openName, openLabel := "cars_no_end", "Cars No End"
+	require.NoError(t, db.Create(&models.Attachment{
+		ApplicationID:         &appID,
+		AttachmentType:        "cars",
+		AttachmentName:        &openName,
+		AttachmentDisplayName: &openLabel,
+	}).Error)
+
+	rec := testutil.GET(t, e, "/applications?archive=true", testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusOK, rec.Code)
+	for _, app := range testutil.ParseSlice(t, rec) {
+		assert.NotEqual(t, float64(appID), app["id"], "вложение без даты окончания держит заявку активной")
+	}
 }
 
 // --- Part 3: Active today ---

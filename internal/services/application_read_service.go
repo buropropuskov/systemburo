@@ -10,15 +10,13 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// isArchived проверяет, является ли заявка архивной.
+// isArchived проверяет, является ли заявка архивной (определение - application_archive.go).
 func (s *applicationService) isArchived(ctx context.Context, applicationID int) (bool, error) {
 	var count int64
 	err := s.db.WithContext(ctx).
 		Table("applications app").
-		Joins("JOIN attachments a ON a.application_id = app.id").
 		Where("app.id = ?", applicationID).
-		Where("app.status IN ?", models.ArchivableStatuses).
-		Where("CAST(a.entry_date_to AS DATE) + INTERVAL '1 month' < NOW()").
+		Where(archivedApplicationCond("app"), models.ArchivableStatuses).
 		Count(&count).Error
 	if err != nil {
 		return false, echo.NewHTTPError(http.StatusInternalServerError, "Failed to check archive status")
@@ -113,20 +111,12 @@ func (s *applicationService) GetUnreadCount(ctx context.Context, username string
 	}
 
 	var count int64
-	// Непрочитанные = нет записи в application_reads для пользователя + не архивные.
-	archiveExclude := `
-		NOT (
-			a.status IN ? AND EXISTS(
-				SELECT 1 FROM attachments att WHERE att.application_id = a.id
-				AND att.entry_date_to IS NOT NULL
-				AND CAST(att.entry_date_to AS DATE) + INTERVAL '1 month' < NOW()
-			)
-		)
-	`
+	// Непрочитанные = нет записи в application_reads для пользователя + не архивные
+	// (архив считаем тем же предикатом, что и листинг - application_archive.go).
 	query := s.db.WithContext(ctx).
 		Table("applications a").
 		Where("NOT EXISTS (SELECT 1 FROM application_reads ar WHERE ar.application_id = a.id AND ar.user_id = ?)", user.ID).
-		Where(archiveExclude, models.ArchivableStatuses)
+		Where(activeApplicationCond("a"), models.ArchivableStatuses)
 
 	// Permission filter: совпадает с GetApplications (см. application_service.go).
 	// Если юзер не approver, видит только заявки, где он responsible или viewer.
