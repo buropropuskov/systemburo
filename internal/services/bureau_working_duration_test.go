@@ -25,4 +25,9 @@ func TestBureauWorkingDuration(t *testing.T) {
 	if !strings.Contains(got, "EXISTS") || !strings.Contains(got, "bureau_time_slots") {
 		t.Fatalf("bureauWorkingDuration = %q, ожидался гард EXISTS по bureau_time_slots", got)
 	}
+	// Второй фолбэк: нулевое пересечение с графиком тоже уходит в календарное время,
+	// иначе события вне рабочих часов дают «0 секунд» вместо реальной длительности.
+	if !strings.Contains(got, "NULLIF") || !strings.Contains(got, "COALESCE") {
+		t.Fatalf("bureauWorkingDuration = %q, ожидался COALESCE/NULLIF для нулевого пересечения", got)
+	}
 }
