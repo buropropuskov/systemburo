@@ -256,10 +256,10 @@ func TestGetApplications_Archive_IncludesRefused_ExcludesInWork(t *testing.T) {
 	assert.NotContains(t, active, float64(refusedID))
 }
 
-// Архив ждёт, пока просрочатся ВСЕ вложения заявки: месяц отсчитывается от
-// последнего заканчивающегося. Одно давно истёкшее вложение рядом с ещё
-// действующим в архив заявку не отправляет (#1097 follow-up).
-func TestGetApplications_Archive_WaitsForLastAttachment(t *testing.T) {
+// Правила архива, завязанные на сроки вложений и момент отзыва (#1097 follow-up).
+// Один SetupTestApp на все кейсы: пакет handlers - единственный DB-бинарь и уже
+// упирается в CI-таймаут, отдельный сетап на каждый кейс стоит дороже самого теста.
+func TestGetApplications_ArchiveRules(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
@@ -267,108 +267,35 @@ func TestGetApplications_Archive_WaitsForLastAttachment(t *testing.T) {
 
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 	makeApprover(t, db, "testadmin")
+	adminID := getUserID(t, db, "testadmin")
 
-	uaID := seedUniqueAttachment(t, db, "cars", "cars_last_att", "CarsLastAtt")
-	appID := submitCompleteApplication(t, e, token, "Test Organization", uaID)
-	db.Model(&models.Application{}).Where("id = ?", appID).Update("status", models.StatusCompleted)
-
-	// Первое вложение истекло давно, второе - вчера (месяц ещё не прошёл).
-	db.Model(&models.Attachment{}).Where("application_id = ?", appID).Update("entry_date_to", "2025-01-01")
-	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
-	secondName, secondLabel := "cars_second", "Cars Second"
-	require.NoError(t, db.Create(&models.Attachment{
-		ApplicationID:         &appID,
-		AttachmentType:        "cars",
-		AttachmentName:        &secondName,
-		AttachmentDisplayName: &secondLabel,
-		EntryDateTo:           &yesterday,
-	}).Error)
-
-	ids := func(apps []map[string]interface{}) []float64 {
-		out := make([]float64, 0, len(apps))
-		for _, a := range apps {
-			if id, ok := a["id"].(float64); ok {
-				out = append(out, id)
-			}
-		}
-		return out
-	}
-
-	rec := testutil.GET(t, e, "/applications?archive=true", testutil.AuthHeader(token))
-	assert.Equal(t, http.StatusOK, rec.Code)
-	assert.NotContains(t, ids(testutil.ParseSlice(t, rec)), float64(appID),
-		"заявка с ещё действующим вложением не архивная")
-
-	recActive := testutil.GET(t, e, "/applications", testutil.AuthHeader(token))
-	assert.Equal(t, http.StatusOK, recActive.Code)
-	assert.Contains(t, ids(testutil.ParseSlice(t, recActive)), float64(appID),
-		"пока не архивная - остаётся в активных")
-
-	// Просрочили и второе вложение больше месяца назад - заявка уходит в архив.
-	longAgo := time.Now().AddDate(0, 0, -40).Format("2006-01-02")
-	db.Model(&models.Attachment{}).Where("application_id = ?", appID).Update("entry_date_to", longAgo)
-
-	rec = testutil.GET(t, e, "/applications?archive=true", testutil.AuthHeader(token))
-	assert.Equal(t, http.StatusOK, rec.Code)
-	assert.Contains(t, ids(testutil.ParseSlice(t, rec)), float64(appID),
-		"все вложения просрочены больше месяца - заявка архивная")
-}
-
-// Вложение без даты окончания сроком не ограничено - заявка с таким вложением
-// в архив не уходит, даже если остальные давно истекли.
-func TestGetApplications_Archive_OpenEndedAttachmentKeepsActive(t *testing.T) {
-	e, db, cleanup := testutil.SetupTestApp(t)
-	defer cleanup()
-	testutil.CleanDB(t, db)
-	td := testutil.SeedTestData(t, db)
-
-	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
-	makeApprover(t, db, "testadmin")
-
-	uaID := seedUniqueAttachment(t, db, "cars", "cars_openended", "CarsOpenEnded")
-	appID := submitCompleteApplication(t, e, token, "Test Organization", uaID)
-	db.Model(&models.Application{}).Where("id = ?", appID).Update("status", models.StatusCompleted)
-	db.Model(&models.Attachment{}).Where("application_id = ?", appID).Update("entry_date_to", "2025-01-01")
-
-	openName, openLabel := "cars_no_end", "Cars No End"
-	require.NoError(t, db.Create(&models.Attachment{
-		ApplicationID:         &appID,
-		AttachmentType:        "cars",
-		AttachmentName:        &openName,
-		AttachmentDisplayName: &openLabel,
-	}).Error)
-
-	rec := testutil.GET(t, e, "/applications?archive=true", testutil.AuthHeader(token))
-	assert.Equal(t, http.StatusOK, rec.Code)
-	for _, app := range testutil.ParseSlice(t, rec) {
-		assert.NotEqual(t, float64(appID), app["id"], "вложение без даты окончания держит заявку активной")
-	}
-}
-
-// Отозванная заявка архивируется через месяц ПОСЛЕ ОТЗЫВА: отзыв гасит вложения
-// сразу, поэтому их сроки для архива уже не показательны.
-func TestGetApplications_Archive_WithdrawnCountsFromWithdrawal(t *testing.T) {
-	e, db, cleanup := testutil.SetupTestApp(t)
-	defer cleanup()
-	testutil.CleanDB(t, db)
-	td := testutil.SeedTestData(t, db)
-
-	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
-	makeApprover(t, db, "testadmin")
-
-	// Вложение действует до 2099 - по общему правилу заявка не архивная никогда.
-	withdrawn := func(name string, at time.Time) int {
+	// Заявка с одним вложением (по умолчанию действует до 2099) в заданном статусе.
+	closedApp := func(name, status string) int {
 		uaID := seedUniqueAttachment(t, db, "cars", "tmpl_"+name, "Disp_"+name)
 		appID := submitCompleteApplication(t, e, token, "Test Organization", uaID)
 		require.NoError(t, db.Model(&models.Application{}).Where("id = ?", appID).
-			Updates(map[string]interface{}{"status": models.StatusWithdrawn, "withdrawn_at": at}).Error)
+			Update("status", status).Error)
 		return appID
 	}
-
-	freshID := withdrawn("fresh", time.Now().AddDate(0, 0, -3))
-	oldID := withdrawn("old", time.Now().AddDate(0, 0, -40))
-
-	ids := func(apps []map[string]interface{}) []float64 {
+	// Второе вложение заявки с заданной датой окончания (nil - бессрочное).
+	addAttachment := func(appID int, name string, dateTo *string) {
+		label := "Disp " + name
+		require.NoError(t, db.Create(&models.Attachment{
+			ApplicationID:         &appID,
+			AttachmentType:        "cars",
+			AttachmentName:        &name,
+			AttachmentDisplayName: &label,
+			EntryDateTo:           dateTo,
+		}).Error)
+	}
+	expireFirst := func(appID int, dateTo string) {
+		require.NoError(t, db.Model(&models.Attachment{}).Where("application_id = ?", appID).
+			Update("entry_date_to", dateTo).Error)
+	}
+	ids := func(query string) []float64 {
+		rec := testutil.GET(t, e, query, testutil.AuthHeader(token))
+		require.Equal(t, http.StatusOK, rec.Code)
+		apps := testutil.ParseSlice(t, rec)
 		out := make([]float64, 0, len(apps))
 		for _, a := range apps {
 			if id, ok := a["id"].(float64); ok {
@@ -377,46 +304,70 @@ func TestGetApplications_Archive_WithdrawnCountsFromWithdrawal(t *testing.T) {
 		}
 		return out
 	}
+	ptr := func(s string) *string { return &s }
 
-	rec := testutil.GET(t, e, "/applications?archive=true", testutil.AuthHeader(token))
-	assert.Equal(t, http.StatusOK, rec.Code)
-	archived := ids(testutil.ParseSlice(t, rec))
-	assert.Contains(t, archived, float64(oldID), "отозвана больше месяца назад - в архиве")
-	assert.NotContains(t, archived, float64(freshID), "отозвана 3 дня назад - ещё не в архиве")
+	t.Run("месяц считается от последнего вложения", func(t *testing.T) {
+		appID := closedApp("last_att", models.StatusCompleted)
+		expireFirst(appID, "2025-01-01")
+		addAttachment(appID, "cars_second", ptr(time.Now().AddDate(0, 0, -1).Format("2006-01-02")))
 
-	recActive := testutil.GET(t, e, "/applications", testutil.AuthHeader(token))
-	assert.Equal(t, http.StatusOK, recActive.Code)
-	active := ids(testutil.ParseSlice(t, recActive))
-	assert.Contains(t, active, float64(freshID))
-	assert.NotContains(t, active, float64(oldID))
-}
+		assert.NotContains(t, ids("/applications?archive=true"), float64(appID),
+			"второе вложение истекло вчера - месяц не прошёл, заявка не архивная")
+		assert.Contains(t, ids("/applications"), float64(appID), "пока не архивная - в активных")
 
-// Отозванные до появления withdrawn_at (пусто) архивируются по общему правилу -
-// по срокам вложений, а не пропадают из обоих списков.
-func TestGetApplications_Archive_WithdrawnWithoutTimestamp_FallsBackToAttachments(t *testing.T) {
-	e, db, cleanup := testutil.SetupTestApp(t)
-	defer cleanup()
-	testutil.CleanDB(t, db)
-	td := testutil.SeedTestData(t, db)
+		expireFirst(appID, time.Now().AddDate(0, 0, -40).Format("2006-01-02"))
+		assert.Contains(t, ids("/applications?archive=true"), float64(appID),
+			"все вложения просрочены больше месяца - заявка архивная")
+	})
 
-	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
-	makeApprover(t, db, "testadmin")
+	t.Run("бессрочное вложение держит заявку активной", func(t *testing.T) {
+		appID := closedApp("open_ended", models.StatusCompleted)
+		expireFirst(appID, "2025-01-01")
+		addAttachment(appID, "cars_no_end", nil)
 
-	uaID := seedUniqueAttachment(t, db, "cars", "cars_wd_legacy", "CarsWdLegacy")
-	appID := submitCompleteApplication(t, e, token, "Test Organization", uaID)
-	require.NoError(t, db.Model(&models.Application{}).Where("id = ?", appID).
-		Updates(map[string]interface{}{"status": models.StatusWithdrawn, "withdrawn_at": nil}).Error)
-	db.Model(&models.Attachment{}).Where("application_id = ?", appID).Update("entry_date_to", "2025-01-01")
+		assert.NotContains(t, ids("/applications?archive=true"), float64(appID))
+		assert.Contains(t, ids("/applications"), float64(appID))
+	})
 
-	rec := testutil.GET(t, e, "/applications?archive=true", testutil.AuthHeader(token))
-	assert.Equal(t, http.StatusOK, rec.Code)
-	found := false
-	for _, app := range testutil.ParseSlice(t, rec) {
-		if app["id"] == float64(appID) {
-			found = true
+	t.Run("отозванная архивируется через месяц после отзыва", func(t *testing.T) {
+		// Вложение действует до 2099 - по общему правилу заявка не архивная никогда.
+		withdrawn := func(name string, at time.Time) int {
+			appID := closedApp(name, models.StatusWithdrawn)
+			require.NoError(t, db.Model(&models.Application{}).Where("id = ?", appID).
+				Update("withdrawn_at", at).Error)
+			return appID
 		}
-	}
-	assert.True(t, found, "без withdrawn_at работает старое правило по срокам вложений")
+		freshID := withdrawn("wd_fresh", time.Now().AddDate(0, 0, -3))
+		oldID := withdrawn("wd_old", time.Now().AddDate(0, 0, -40))
+
+		archived := ids("/applications?archive=true")
+		assert.Contains(t, archived, float64(oldID), "отозвана больше месяца назад - в архиве")
+		assert.NotContains(t, archived, float64(freshID), "отозвана 3 дня назад - ещё не в архиве")
+		assert.Contains(t, ids("/applications"), float64(freshID))
+	})
+
+	t.Run("отозванная без withdrawn_at - по срокам вложений", func(t *testing.T) {
+		appID := closedApp("wd_legacy", models.StatusWithdrawn)
+		require.NoError(t, db.Model(&models.Application{}).Where("id = ?", appID).
+			Update("withdrawn_at", nil).Error)
+		expireFirst(appID, "2025-01-01")
+
+		assert.Contains(t, ids("/applications?archive=true"), float64(appID),
+			"без withdrawn_at работает старое правило по срокам вложений")
+	})
+
+	t.Run("гейт read-only не срабатывает у неархивной заявки", func(t *testing.T) {
+		appID := closedApp("gate_mixed", models.StatusCompleted)
+		expireFirst(appID, "2025-01-01")
+		addAttachment(appID, "cars_gate_second", ptr(time.Now().AddDate(0, 1, 0).Format("2006-01-02")))
+
+		// Проверяем именно архивный гейт по тексту ошибки: 403 у approve может прийти и
+		// по другой причине (пользователь не ответственный), она к архиву не относится.
+		body := fmt.Sprintf(`{"user_id":%d,"status":"approved"}`, adminID)
+		rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/approve", appID), body, testutil.AuthHeader(token))
+		assert.NotContains(t, rec.Body.String(), "Архивная заявка",
+			"заявка с ещё действующим вложением не архивная - гейт срабатывать не должен")
+	})
 }
 
 // --- Part 3: Active today ---
@@ -458,41 +409,6 @@ func TestGetApplications_ActiveToday_FiltersByAttachmentPeriod(t *testing.T) {
 // Пересылка архивной заявки разрешена с #869 - позитивный кейс в
 // applications_forward_archive_test.go (TestForwardApplication_Archived_Allowed).
 // Read-only архива остаётся на approve/take-to-work (тесты ниже).
-
-// Гейт read-only архива считает архив тем же предикатом, что и листинг: пока
-// просрочены не все вложения, заявка не архивная и действия над ней разрешены.
-func TestApproveApplication_NotAllAttachmentsExpired_Allowed(t *testing.T) {
-	e, db, cleanup := testutil.SetupTestApp(t)
-	defer cleanup()
-	testutil.CleanDB(t, db)
-	td := testutil.SeedTestData(t, db)
-
-	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
-	adminID := getUserID(t, db, "testadmin")
-
-	uaID := seedUniqueAttachment(t, db, "cars", "cars_gate_mixed", "CarsGateMixed")
-	appID := submitCompleteApplication(t, e, token, "Test Organization", uaID)
-	db.Model(&models.Application{}).Where("id = ?", appID).Update("status", models.StatusCompleted)
-	db.Model(&models.Attachment{}).Where("application_id = ?", appID).Update("entry_date_to", "2025-01-01")
-
-	// Второе вложение ещё действует - заявка не архивная, гейт пускать обязан.
-	future := time.Now().AddDate(0, 1, 0).Format("2006-01-02")
-	gateName, gateLabel := "cars_gate_second", "Cars Gate Second"
-	require.NoError(t, db.Create(&models.Attachment{
-		ApplicationID:         &appID,
-		AttachmentType:        "cars",
-		AttachmentName:        &gateName,
-		AttachmentDisplayName: &gateLabel,
-		EntryDateTo:           &future,
-	}).Error)
-
-	// Проверяем именно архивный гейт по тексту ошибки: 403 у approve может прийти и
-	// по другой причине (пользователь не ответственный), она к архиву отношения не имеет.
-	body := fmt.Sprintf(`{"user_id":%d,"status":"approved"}`, adminID)
-	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/approve", appID), body, testutil.AuthHeader(token))
-	assert.NotContains(t, rec.Body.String(), "Архивная заявка",
-		"заявка с ещё действующим вложением не архивная - гейт read-only срабатывать не должен")
-}
 
 func TestApproveApplication_ArchivedReturns403(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
