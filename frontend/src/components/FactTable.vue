@@ -2,7 +2,7 @@
   <div
     class="fact-table-card"
     :class="[
-      { 'grid-mode': grid, 'config-not-ready': !configReady },
+      { 'grid-mode': grid, 'config-not-ready': !configReady, 'scrolled-x': scrolledX },
       `density-${rowDensity}`,
     ]"
     :style="{ '--table-font-size': tableFontSize + 'px' }"
@@ -23,352 +23,362 @@
     
     <div class="card-content rt-table">
       <!-- Заголовок таблицы -->
-      <div class="fact-header">
-        <div class="header-row rt-head-row">
-          <!-- Служебные въезд/выезд - всегда первые (только cars) -->
-          <div
-            v-if="tableType === 'cars'"
-            class="col entry-col"
-            style="order: 0;"
-          >
-            Въезд
-          </div>
-          <div
-            v-if="tableType === 'cars'"
-            class="col exit-col"
-            style="order: 1;"
-          >
-            Выезд
-          </div>
-          <!-- Конфигурируемые столбцы CarsTable-каталога -->
-          <div
-            v-if="tableType === 'cars' && isFieldVisible('car_number')"
-            class="col number-col"
-            :style="getColStyle('car_number')"
-          >
-            <p>Номер Т/С</p>
-          </div>
-          <div
-            v-if="tableType === 'cars' && isFieldVisible('car_brand')"
-            class="col brand-col"
-            :style="getColStyle('car_brand')"
-            @click="sortBy('car_brand')"
-          >
-            <p :class="{ 'active-sort': sortField === 'car_brand' }">Марка</p>
-          </div>
-          <div
-            v-if="isFieldVisible('organization')"
-            class="col organization-col"
-            :style="getColStyle('organization')"
-            @click="sortBy('organization')"
-          >
-            <p :class="{ 'active-sort': sortField === 'organization' }">Организация</p>
-          </div>
-          <div
-            v-if="tableType === 'cars' && isFieldVisible('company')"
-            class="col company-col"
-            :style="getColStyle('company')"
-          >
-            <p>Компания</p>
-          </div>
-          <div
-            v-if="isFieldVisible('application_id')"
-            class="col application-col"
-            :style="getColStyle('application_id')"
-          >
-            <p>Номер заявки</p>
-          </div>
-          <div
-            v-if="tableType === 'cars' && isFieldVisible('unload_place')"
-            class="col place-col"
-            :style="getColStyle('unload_place')"
-          >
-            <p>Место разгрузки</p>
-          </div>
-          <div
-            v-if="isFieldVisible('valid_until')"
-            class="col date-col"
-            :style="getColStyle('valid_until')"
-            @click="sortBy('entry_date_to')"
-          >
-            <p :class="{ 'active-sort': sortField === 'entry_date_to' }">Действует до</p>
-          </div>
-          <div
-            v-if="isFieldVisible(tableType === 'cars' ? 'time_range' : 'pass_time')"
-            class="col time-col"
-            :style="getColStyle(tableType === 'cars' ? 'time_range' : 'pass_time')"
-            @click="sortBy('entry_time')"
-          >
-            <p :class="{ 'active-sort': sortField === 'entry_time' }">
-              {{ tableType === 'cars' ? 'Время' : 'Время прохода' }}
-            </p>
-          </div>
-          <div
-            v-if="tableType === 'cars' && isFieldVisible('status')"
-            class="col status-col"
-            :style="getColStyle('status')"
-          >
-            <p>Статус</p>
-          </div>
-          <!-- People-only поля -->
-          <div
-            v-if="tableType === 'people' && isFieldVisible('last_name')"
-            class="col last-name-col"
-            :style="getColStyle('last_name')"
-          >
-            <p>Фамилия</p>
-          </div>
-          <div
-            v-if="tableType === 'people' && isFieldVisible('first_name')"
-            class="col first-name-col"
-            :style="getColStyle('first_name')"
-          >
-            <p>Имя</p>
-          </div>
-          <div
-            v-if="tableType === 'people' && isFieldVisible('middle_name')"
-            class="col middle-name-col"
-            :style="getColStyle('middle_name')"
-          >
-            <p>Отчество</p>
-          </div>
-          <div
-            v-if="tableType === 'people' && isFieldVisible('position')"
-            class="col position-col"
-            :style="getColStyle('position')"
-          >
-            <p>Должность</p>
-          </div>
-          <div
-            v-if="tableType === 'people' && isFieldVisible('citizenship_name')"
-            class="col citizenship-col"
-            :style="getColStyle('citizenship_name')"
-          >
-            <p>Гражданство</p>
-          </div>
-          <!-- Служебная actions всегда последняя -->
-          <div
-            class="col actions-col"
-            style="order: 9999;"
-          >
+      <!-- Общая ширина для шапки и строк: иначе каждая считает её по своему
+             содержимому и при прокрутке столбцы разъезжаются (#1307). -->
+      <div class="table-scroll">
+        <div class="fact-header">
+          <div class="header-row rt-head-row">
+            <!-- Служебные въезд/выезд - всегда первые (только cars) -->
+            <div
+              v-if="tableType === 'cars'"
+              class="col entry-col"
+              style="order: 0;"
+            >
+              Въезд
+            </div>
+            <div
+              v-if="tableType === 'cars'"
+              class="col exit-col"
+              style="order: 1;"
+            >
+              Выезд
+            </div>
+            <!-- Конфигурируемые столбцы CarsTable-каталога -->
+            <div
+              v-if="tableType === 'cars' && isFieldVisible('car_number')"
+              class="col number-col"
+              :style="getColStyle('car_number')"
+            >
+              <p>Номер Т/С</p>
+            </div>
+            <div
+              v-if="tableType === 'cars' && isFieldVisible('car_brand')"
+              class="col brand-col"
+              :style="getColStyle('car_brand')"
+              @click="sortBy('car_brand')"
+            >
+              <p :class="{ 'active-sort': sortField === 'car_brand' }">
+                Марка
+              </p>
+            </div>
+            <div
+              v-if="isFieldVisible('organization')"
+              class="col organization-col"
+              :style="getColStyle('organization')"
+              @click="sortBy('organization')"
+            >
+              <p :class="{ 'active-sort': sortField === 'organization' }">
+                Организация
+              </p>
+            </div>
+            <div
+              v-if="tableType === 'cars' && isFieldVisible('company')"
+              class="col company-col"
+              :style="getColStyle('company')"
+            >
+              <p>Компания</p>
+            </div>
+            <div
+              v-if="isFieldVisible('application_id')"
+              class="col application-col"
+              :style="getColStyle('application_id')"
+            >
+              <p>Номер заявки</p>
+            </div>
+            <div
+              v-if="tableType === 'cars' && isFieldVisible('unload_place')"
+              class="col place-col"
+              :style="getColStyle('unload_place')"
+            >
+              <p>Место разгрузки</p>
+            </div>
+            <div
+              v-if="isFieldVisible('valid_until')"
+              class="col date-col"
+              :style="getColStyle('valid_until')"
+              @click="sortBy('entry_date_to')"
+            >
+              <p :class="{ 'active-sort': sortField === 'entry_date_to' }">
+                Действует до
+              </p>
+            </div>
+            <div
+              v-if="isFieldVisible(tableType === 'cars' ? 'time_range' : 'pass_time')"
+              class="col time-col"
+              :style="getColStyle(tableType === 'cars' ? 'time_range' : 'pass_time')"
+              @click="sortBy('entry_time')"
+            >
+              <p :class="{ 'active-sort': sortField === 'entry_time' }">
+                {{ tableType === 'cars' ? 'Время' : 'Время прохода' }}
+              </p>
+            </div>
+            <div
+              v-if="tableType === 'cars' && isFieldVisible('status')"
+              class="col status-col"
+              :style="getColStyle('status')"
+            >
+              <p>Статус</p>
+            </div>
+            <!-- People-only поля -->
+            <div
+              v-if="tableType === 'people' && isFieldVisible('last_name')"
+              class="col last-name-col"
+              :style="getColStyle('last_name')"
+            >
+              <p>Фамилия</p>
+            </div>
+            <div
+              v-if="tableType === 'people' && isFieldVisible('first_name')"
+              class="col first-name-col"
+              :style="getColStyle('first_name')"
+            >
+              <p>Имя</p>
+            </div>
+            <div
+              v-if="tableType === 'people' && isFieldVisible('middle_name')"
+              class="col middle-name-col"
+              :style="getColStyle('middle_name')"
+            >
+              <p>Отчество</p>
+            </div>
+            <div
+              v-if="tableType === 'people' && isFieldVisible('position')"
+              class="col position-col"
+              :style="getColStyle('position')"
+            >
+              <p>Должность</p>
+            </div>
+            <div
+              v-if="tableType === 'people' && isFieldVisible('citizenship_name')"
+              class="col citizenship-col"
+              :style="getColStyle('citizenship_name')"
+            >
+              <p>Гражданство</p>
+            </div>
+            <!-- Служебная actions всегда последняя -->
+            <div
+              class="col actions-col"
+              style="order: 9999;"
+            >
             <!-- Пустой заголовок для действий -->
+            </div>
           </div>
         </div>
-      </div>
       
-      <!-- Тело таблицы -->
-      <div class="fact-container">
-        <!-- Спиннер ТОЛЬКО когда показывать нечего (первая загрузка). На обновлении
+        <!-- Тело таблицы -->
+        <div class="fact-container">
+          <!-- Спиннер ТОЛЬКО когда показывать нечего (первая загрузка). На обновлении
              таблица остаётся на месте: её подмена спиннером схлопывает высоту
              документа, и на телефоне страница прыгает в начало. -->
-        <div
-          v-if="loading && !filteredData.length"
-          class="loading-message"
-        >
-          <LoaderSpinner :label="tableType === 'cars' ? 'Загрузка машин...' : 'Загрузка...'" />
-        </div>
-        <div
-          v-else-if="filteredData.length > 0"
-          class="fact-body"
-        >
-          <transition-group
-            name="fade-list"
-            tag="div"
+          <div
+            v-if="loading && !filteredData.length"
+            class="loading-message"
           >
-            <div
-              v-for="(item, index) in sortedData"
-              :key="item.id"
-              class="fact-item"
-              data-testid="ob-fact-row"
-              :style="{ animationDelay: `${index * 0.1}s` }"
-              @click="openItemDetails(item)"
+            <LoaderSpinner :label="tableType === 'cars' ? 'Загрузка машин...' : 'Загрузка...'" />
+          </div>
+          <div
+            v-else-if="filteredData.length > 0"
+            class="fact-body"
+          >
+            <transition-group
+              name="fade-list"
+              tag="div"
             >
-              <div class="fact-row rt-row">
-                <!-- Служебные въезд/выезд - всегда первые (только cars) -->
-                <div
-                  v-if="tableType === 'cars'"
-                  class="col entry-col"
-                  style="order: 0;"
-                  data-label="Въезд"
-                  @click.stop
-                >
-                  <button
-                    class="action-btn entry-btn"
-                    :class="{ 'active': item.entry_checked }"
-                    :disabled="item.entry_checked"
-                    data-testid="ob-fact-entry"
-                    @click="handleEntryExit(item, 'entry')"
+              <div
+                v-for="(item, index) in sortedData"
+                :key="item.id"
+                class="fact-item"
+                data-testid="ob-fact-row"
+                :style="{ animationDelay: `${index * 0.1}s` }"
+                @click="openItemDetails(item)"
+              >
+                <div class="fact-row rt-row">
+                  <!-- Служебные въезд/выезд - всегда первые (только cars) -->
+                  <div
+                    v-if="tableType === 'cars'"
+                    class="col entry-col"
+                    style="order: 0;"
+                    data-label="Въезд"
+                    @click.stop
                   >
-                    Въезд
-                  </button>
-                </div>
-                <div
-                  v-if="tableType === 'cars'"
-                  class="col exit-col"
-                  style="order: 1;"
-                  data-label="Выезд"
-                  @click.stop
-                >
-                  <button
-                    class="action-btn exit-btn"
-                    :class="{ 'active': item.exit_checked }"
-                    :disabled="!item.entry_checked || item.exit_checked"
-                    data-testid="ob-fact-exit"
-                    @click="handleEntryExit(item, 'exit')"
-                  >
-                    Выезд
-                  </button>
-                </div>
-                <!-- Конфигурируемые столбцы -->
-                <div
-                  v-if="tableType === 'cars' && isFieldVisible('car_number')"
-                  class="col number-col"
-                  :style="getColStyle('car_number')"
-                  data-label="Номер Т/С"
-                >
-                  {{ item.car_number || '-' }}
-                </div>
-                <div
-                  v-if="tableType === 'cars' && isFieldVisible('car_brand')"
-                  class="col brand-col"
-                  :style="getColStyle('car_brand')"
-                  data-label="Марка"
-                >
-                  {{ item.car_brand || '-' }}
-                </div>
-                <div
-                  v-if="isFieldVisible('organization')"
-                  class="col organization-col"
-                  :style="getColStyle('organization')"
-                  data-label="Организация"
-                >
-                  {{ item.organization_name || '-' }}
-                </div>
-                <div
-                  v-if="tableType === 'cars' && isFieldVisible('company')"
-                  class="col company-col"
-                  :style="getColStyle('company')"
-                  data-label="Компания"
-                >
-                  {{ item.company || '-' }}
-                </div>
-                <div
-                  v-if="isFieldVisible('application_id')"
-                  class="col application-col"
-                  :style="getColStyle('application_id')"
-                  data-label="Номер заявки"
-                >
-                  <span
-                    v-if="isManualItem(item)"
-                    class="manual-badge"
-                  >Добавлено вручную</span>
-                  <template v-else>
-                    {{ item.applicationNumber || '-' }}
-                  </template>
-                </div>
-                <div
-                  v-if="tableType === 'cars' && isFieldVisible('unload_place')"
-                  class="col place-col"
-                  :style="getColStyle('unload_place')"
-                  data-label="Место разгрузки"
-                >
-                  {{ formatUnloadPlaces ? formatUnloadPlaces(item) : '-' }}
-                </div>
-                <div
-                  v-if="isFieldVisible('valid_until')"
-                  class="col date-col"
-                  :style="getColStyle('valid_until')"
-                  data-label="Действует до"
-                >
-                  {{ formatDate(item.entry_date_to) }}
-                </div>
-                <div
-                  v-if="isFieldVisible(tableType === 'cars' ? 'time_range' : 'pass_time')"
-                  class="col time-col"
-                  :style="getColStyle(tableType === 'cars' ? 'time_range' : 'pass_time')"
-                  :data-label="tableType === 'cars' ? 'Время' : 'Время прохода'"
-                >
-                  {{ tableType === 'cars'
-                    ? formatTimeRange(item.entry_time_from, item.entry_time_to)
-                    : formatPassTime(item.pass_time)
-                  }}
-                </div>
-                <div
-                  v-if="tableType === 'cars' && isFieldVisible('status')"
-                  class="col status-col"
-                  :style="getColStyle('status')"
-                  data-label="Статус"
-                >
-                  <StatusBadge :status="item.status" />
-                </div>
-                <!-- People-only поля -->
-                <div
-                  v-if="tableType === 'people' && isFieldVisible('last_name')"
-                  class="col last-name-col"
-                  :style="getColStyle('last_name')"
-                  data-label="Фамилия"
-                >
-                  {{ item.last_name || '-' }}
-                </div>
-                <div
-                  v-if="tableType === 'people' && isFieldVisible('first_name')"
-                  class="col first-name-col"
-                  :style="getColStyle('first_name')"
-                  data-label="Имя"
-                >
-                  {{ item.first_name || '-' }}
-                </div>
-                <div
-                  v-if="tableType === 'people' && isFieldVisible('middle_name')"
-                  class="col middle-name-col"
-                  :style="getColStyle('middle_name')"
-                  data-label="Отчество"
-                >
-                  {{ item.middle_name || '-' }}
-                </div>
-                <div
-                  v-if="tableType === 'people' && isFieldVisible('position')"
-                  class="col position-col"
-                  :style="getColStyle('position')"
-                  data-label="Должность"
-                >
-                  {{ item.position || '-' }}
-                </div>
-                <div
-                  v-if="tableType === 'people' && isFieldVisible('citizenship_name')"
-                  class="col citizenship-col"
-                  :style="getColStyle('citizenship_name')"
-                  data-label="Гражданство"
-                >
-                  {{ item.citizenshipName || item.citizenship_name || '-' }}
-                </div>
-                <!-- Удалить - всегда в конце -->
-                <div
-                  class="col actions-col"
-                  style="order: 9999;"
-                  @click.stop
-                >
-                  <button
-                    class="delete-btn"
-                    @click="deleteItem(item)"
-                  >
-                    <img
-                      src="@/assets/icons/trashcan.png"
-                      alt="Удалить"
-                      class="delete-icon"
+                    <button
+                      class="action-btn entry-btn"
+                      :class="{ 'active': item.entry_checked }"
+                      :disabled="item.entry_checked"
+                      data-testid="ob-fact-entry"
+                      @click="handleEntryExit(item, 'entry')"
                     >
-                  </button>
+                      Въезд
+                    </button>
+                  </div>
+                  <div
+                    v-if="tableType === 'cars'"
+                    class="col exit-col"
+                    style="order: 1;"
+                    data-label="Выезд"
+                    @click.stop
+                  >
+                    <button
+                      class="action-btn exit-btn"
+                      :class="{ 'active': item.exit_checked }"
+                      :disabled="!item.entry_checked || item.exit_checked"
+                      data-testid="ob-fact-exit"
+                      @click="handleEntryExit(item, 'exit')"
+                    >
+                      Выезд
+                    </button>
+                  </div>
+                  <!-- Конфигурируемые столбцы -->
+                  <div
+                    v-if="tableType === 'cars' && isFieldVisible('car_number')"
+                    class="col number-col"
+                    :style="getColStyle('car_number')"
+                    data-label="Номер Т/С"
+                  >
+                    {{ item.car_number || '-' }}
+                  </div>
+                  <div
+                    v-if="tableType === 'cars' && isFieldVisible('car_brand')"
+                    class="col brand-col"
+                    :style="getColStyle('car_brand')"
+                    data-label="Марка"
+                  >
+                    {{ item.car_brand || '-' }}
+                  </div>
+                  <div
+                    v-if="isFieldVisible('organization')"
+                    class="col organization-col"
+                    :style="getColStyle('organization')"
+                    data-label="Организация"
+                  >
+                    {{ item.organization_name || '-' }}
+                  </div>
+                  <div
+                    v-if="tableType === 'cars' && isFieldVisible('company')"
+                    class="col company-col"
+                    :style="getColStyle('company')"
+                    data-label="Компания"
+                  >
+                    {{ item.company || '-' }}
+                  </div>
+                  <div
+                    v-if="isFieldVisible('application_id')"
+                    class="col application-col"
+                    :style="getColStyle('application_id')"
+                    data-label="Номер заявки"
+                  >
+                    <span
+                      v-if="isManualItem(item)"
+                      class="manual-badge"
+                    >Добавлено вручную</span>
+                    <template v-else>
+                      {{ item.applicationNumber || '-' }}
+                    </template>
+                  </div>
+                  <div
+                    v-if="tableType === 'cars' && isFieldVisible('unload_place')"
+                    class="col place-col"
+                    :style="getColStyle('unload_place')"
+                    data-label="Место разгрузки"
+                  >
+                    {{ formatUnloadPlaces ? formatUnloadPlaces(item) : '-' }}
+                  </div>
+                  <div
+                    v-if="isFieldVisible('valid_until')"
+                    class="col date-col"
+                    :style="getColStyle('valid_until')"
+                    data-label="Действует до"
+                  >
+                    {{ formatDate(item.entry_date_to) }}
+                  </div>
+                  <div
+                    v-if="isFieldVisible(tableType === 'cars' ? 'time_range' : 'pass_time')"
+                    class="col time-col"
+                    :style="getColStyle(tableType === 'cars' ? 'time_range' : 'pass_time')"
+                    :data-label="tableType === 'cars' ? 'Время' : 'Время прохода'"
+                  >
+                    {{ tableType === 'cars'
+                      ? formatTimeRange(item.entry_time_from, item.entry_time_to)
+                      : formatPassTime(item.pass_time)
+                    }}
+                  </div>
+                  <div
+                    v-if="tableType === 'cars' && isFieldVisible('status')"
+                    class="col status-col"
+                    :style="getColStyle('status')"
+                    data-label="Статус"
+                  >
+                    <StatusBadge :status="item.status" />
+                  </div>
+                  <!-- People-only поля -->
+                  <div
+                    v-if="tableType === 'people' && isFieldVisible('last_name')"
+                    class="col last-name-col"
+                    :style="getColStyle('last_name')"
+                    data-label="Фамилия"
+                  >
+                    {{ item.last_name || '-' }}
+                  </div>
+                  <div
+                    v-if="tableType === 'people' && isFieldVisible('first_name')"
+                    class="col first-name-col"
+                    :style="getColStyle('first_name')"
+                    data-label="Имя"
+                  >
+                    {{ item.first_name || '-' }}
+                  </div>
+                  <div
+                    v-if="tableType === 'people' && isFieldVisible('middle_name')"
+                    class="col middle-name-col"
+                    :style="getColStyle('middle_name')"
+                    data-label="Отчество"
+                  >
+                    {{ item.middle_name || '-' }}
+                  </div>
+                  <div
+                    v-if="tableType === 'people' && isFieldVisible('position')"
+                    class="col position-col"
+                    :style="getColStyle('position')"
+                    data-label="Должность"
+                  >
+                    {{ item.position || '-' }}
+                  </div>
+                  <div
+                    v-if="tableType === 'people' && isFieldVisible('citizenship_name')"
+                    class="col citizenship-col"
+                    :style="getColStyle('citizenship_name')"
+                    data-label="Гражданство"
+                  >
+                    {{ item.citizenshipName || item.citizenship_name || '-' }}
+                  </div>
+                  <!-- Удалить - всегда в конце -->
+                  <div
+                    class="col actions-col"
+                    style="order: 9999;"
+                    @click.stop
+                  >
+                    <button
+                      class="delete-btn"
+                      @click="deleteItem(item)"
+                    >
+                      <img
+                        src="@/assets/icons/trashcan.png"
+                        alt="Удалить"
+                        class="delete-icon"
+                      >
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          </transition-group>
+            </transition-group>
+          </div>
+          <p
+            v-else
+            class="no-data-message"
+          >
+            {{ hasActiveFilters ? 'Нет данных по выбранным фильтрам' : `Заявок ${tableType === 'cars' ? 'на машины' : 'на людей'} по факту нет` }}
+          </p>
         </div>
-        <p
-          v-else
-          class="no-data-message"
-        >
-          {{ hasActiveFilters ? 'Нет данных по выбранным фильтрам' : `Заявок ${tableType === 'cars' ? 'на машины' : 'на людей'} по факту нет` }}
-        </p>
       </div>
     </div>
 
@@ -466,6 +476,9 @@ export default {
       fieldWidths: {},
       tableFontSize: 14,
       rowDensity: 'normal',
+      // Тень у закреплённых столбцов нужна, только когда таблица реально уехала
+      // вбок (#1307) - иначе она читается как лишний разделитель.
+      scrolledX: false,
       configReady: false,
     };
   },
@@ -607,6 +620,7 @@ export default {
     },
   },
   mounted() {
+    this.$nextTick(() => this.bindHorizontalScroll());
     this.startPolling();
 
     // Real-time (#840): по сигналу продюсера tables.refresh тихо перезагружаем строки
@@ -617,6 +631,7 @@ export default {
     });
   },
   beforeUnmount() {
+    this.unbindHorizontalScroll();
     this.stopPolling();
     if (this.eventStreamOff) {
       this.eventStreamOff();
@@ -629,6 +644,29 @@ export default {
     eventStream.disconnect();
   },
   methods: {
+    /**
+     * Следит, прокручена ли таблица по горизонтали - от этого зависит тень
+     * у закреплённых столбцов.
+     */
+    bindHorizontalScroll() {
+      this.scrollHost = this.$el && this.$el.querySelector('.card-content');
+      if (!this.scrollHost) return;
+      this.onHorizontalScroll = () => {
+        this.scrolledX = this.scrollHost.scrollLeft > 0;
+      };
+      this.scrollHost.addEventListener('scroll', this.onHorizontalScroll, { passive: true });
+      this.onHorizontalScroll();
+    },
+
+    unbindHorizontalScroll() {
+      if (this.scrollHost && this.onHorizontalScroll) {
+        this.scrollHost.removeEventListener('scroll', this.onHorizontalScroll);
+      }
+      this.scrollHost = null;
+      this.onHorizontalScroll = null;
+    },
+
+
     isFieldVisible(fieldName) {
       const v = this.fieldsVisibility[fieldName];
       return v === undefined ? true : v;
@@ -1576,6 +1614,104 @@ export default {
 .fact-table-card.density-spacious .header-row {
   padding-top: 16px;
   padding-bottom: 16px;
+}
+
+/* Горизонтальная прокрутка широкой таблицы (#1307). Раньше колонки делили
+   доступную ширину без предела и на 12 столбцах резались многоточием. Теперь у
+   каждой есть минимум, ниже которого она не сжимается: пока места хватает,
+   ширины по-прежнему распределяются по настроенным весам, а когда перестаёт -
+   таблица едет вбок. Служебные столбцы при этом закреплены.
+
+   Не применяется в портретном компактном режиме (.is-portrait) - тамработает
+   скрытие второстепенных столбцов по приоритету и панель "Подробнее". */
+@media (min-width: 768px) {
+  /* Один скролл-контейнер на шапку и тело - иначе они разъезжаются по
+     горизонтали. Вертикально шапка остаётся на месте за счёт sticky. */
+  .fact-table-card .card-content {
+    overflow: auto;
+  }
+
+  .fact-table-card .fact-container,
+  .fact-table-card .fact-body {
+    overflow: visible;
+  }
+
+  .fact-table-card .fact-header {
+    position: sticky;
+    top: 0;
+    z-index: 4;
+    background: #fff;
+  }
+
+  /* Общая ширина шапки и строк: обёртка растягивается по самой широкой из них,
+     строки внутри занимают её целиком - иначе шапка и данные разъезжаются. */
+  .fact-table-card .table-scroll {
+    width: max-content;
+    min-width: 100%;
+  }
+
+  .fact-table-card .header-row,
+  .fact-table-card .fact-row {
+    width: 100%;
+  }
+
+  /* Минимальные ширины: порог читаемости для каждого типа столбца. */
+  .fact-table-card .col { min-width: 90px; }
+  .fact-table-card .entry-col,
+  .fact-table-card .exit-col { min-width: 86px; }
+  .fact-table-card .number-col { min-width: 120px; }
+  .fact-table-card .brand-col { min-width: 100px; }
+  .fact-table-card .organization-col { min-width: 150px; }
+  .fact-table-card .company-col { min-width: 150px; }
+  .fact-table-card .application-col,
+  .fact-table-card .place-col { min-width: 135px; }
+  .fact-table-card .date-col { min-width: 110px; }
+  .fact-table-card .time-col { min-width: 105px; }
+  /* Бейдж статуса не сжимается (StatusBadge min-width: 120px). */
+  .fact-table-card .status-col { min-width: 150px; }
+  .fact-table-card .last-name-col { min-width: 140px; }
+  .fact-table-card .first-name-col,
+  .fact-table-card .middle-name-col { min-width: 120px; }
+  .fact-table-card .position-col,
+  .fact-table-card .citizenship-col { min-width: 130px; }
+  .fact-table-card .actions-col { min-width: 44px; }
+
+  /* Закреплённые столбцы: Въезд и Выезд слева, удаление справа. Смещение
+     второго равно минимуму первого - в прокрутке столбцы стоят на минимуме. */
+  .fact-table-card .entry-col,
+  .fact-table-card .exit-col,
+  .fact-table-card .actions-col {
+    position: sticky;
+    z-index: 2;
+    background: #fff;
+  }
+
+  .fact-table-card .entry-col { left: 0; }
+  .fact-table-card .exit-col { left: 86px; }
+  .fact-table-card .actions-col { right: 0; }
+
+  /* Тень появляется только когда таблица уехала вбок - иначе она выглядела бы
+     разделителем там, где ничего не прокручивается. */
+  .fact-table-card.scrolled-x .exit-col {
+    box-shadow: 6px 0 6px -6px rgba(0, 0, 0, 0.15);
+  }
+  .fact-table-card.scrolled-x .actions-col {
+    box-shadow: -6px 0 6px -6px rgba(0, 0, 0, 0.15);
+  }
+
+  .fact-table-card .header-row .entry-col,
+  .fact-table-card .header-row .exit-col,
+  .fact-table-card .header-row .actions-col {
+    z-index: 5;
+  }
+
+  /* Под закреплённым столбцом не должно просвечивать уезжающее содержимое,
+     поэтому фон непрозрачный и повторяет подсветку строки. */
+  .fact-table-card .fact-item:hover .entry-col,
+  .fact-table-card .fact-item:hover .exit-col,
+  .fact-table-card .fact-item:hover .actions-col {
+    background: #f5f5f5;
+  }
 }
 
 /* Режим "Сетка" (#1289): вертикальные линии между колонками. Горизонтальные
