@@ -42,10 +42,12 @@
           @click="toggleOverflow"
         >
           {{ isNarrow ? `Ещё ${overflowChips.length}` : `+${overflowChips.length}` }}
-          <span
+          <img
+            src="@/assets/icons/arrow.png"
             class="recipients-chevron"
             :class="{ open: showOverflow }"
-          >▾</span>
+            alt=""
+          >
         </button>
         <transition name="rdrop">
           <div
@@ -537,13 +539,17 @@ export default {
   background: rgba(79, 91, 223, 0.06);
 }
 
+/* Та же стрелка, что у дропдаунов проекта (иконка, а не типографский треугольник). */
 .recipients-chevron {
-  font-size: 0.7rem;
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  transform: rotate(90deg);
   transition: transform 0.2s ease;
 }
 
 .recipients-chevron.open {
-  transform: rotate(180deg);
+  transform: rotate(-90deg);
 }
 
 .recipients-popover {

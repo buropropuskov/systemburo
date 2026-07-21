@@ -1868,6 +1868,30 @@ export default {
         margin-top: 8px;
     }
 
+    /* Хвостик указывал на кнопку, стоявшую сбоку - в развёрнутом ряду он смотрит
+       в пустоту. */
+    .tooltip-content::before {
+        display: none;
+    }
+
+    /* Подсказка сидела в ряду с кнопкой и получала его остаток ширины (146px из 338).
+       На телефоне ряд разворачиваем: кнопка сверху, подсказка строкой во всю ширину. */
+    .format__header {
+        flex-wrap: wrap;
+        row-gap: 8px;
+    }
+
+    .format-actions {
+        flex-wrap: wrap;
+        width: 100%;
+        justify-content: flex-end;
+    }
+
+    .tooltip {
+        flex-basis: 100%;
+        width: 100%;
+    }
+
     .tooltip-content {
         max-width: 100%;
         white-space: pre-line;
