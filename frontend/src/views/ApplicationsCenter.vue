@@ -3185,13 +3185,12 @@ export default {
     border-top: 1px solid #e2e2e6;
     border-bottom: 1px solid #e2e2e6;
     /* Серая полоса-разделитель периодов на десктопе (полоса на всю ширину .applications-list).
-       Центрируем ЛЕЙБЛ флексом (align-items/justify-content), а не text-align - лейбл это
-       отдельный span, флекс-центрирование кладёт его ровно по центру полосы и по вертикали.
-       На мобилке (карточки) возвращаем transparent + лейбл слева - см. @media ниже. */
+       Лейбл - отдельный span, флекс выравнивает его по вертикали (align-items); по
+       горизонтали не центрируем - подпись идёт слева, как в списке.
+       На мобилке (карточки) возвращаем transparent - см. @media ниже. */
     background: #FAFAFA;
     display: flex;
     align-items: center;
-    justify-content: center;
 }
 .applications-list .applications-day-separator:first-child {
     border-top: none;
@@ -3202,13 +3201,12 @@ export default {
     color: #9a9aae;
 }
 /* На мобилке список - карточки на белом, серая полоса разделителя лишняя;
-   центрирование/бордеры - десктопные, тут сбрасываем. */
+   фон/бордеры - десктопные, тут сбрасываем. */
 @media (max-width: 767.98px) {
     .applications-day-separator {
         background: transparent;
         border-top: none;
         border-bottom: none;
-        justify-content: flex-start;
         padding: 15px 16px 6px;
     }
 }
