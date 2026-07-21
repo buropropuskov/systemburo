@@ -265,10 +265,10 @@ describe('cross-page конфигурация (создание заявки)', 
 describe('финальный шаг', () => {
   const finish = onboardingSteps[onboardingSteps.length - 1];
 
-  it('финал - последний шаг, на Обзоре, подсвечивает кнопку Обучение', () => {
+  it('финал - последний шаг, на Обзоре, по центру экрана (без подсветки)', () => {
     expect(finish.id).toBe('finish');
     expect(finish.route).toBe('/news');
-    expect(finish.element).toBe('[data-testid="ob-start-button"]');
+    expect(finish.element).toBeNull();
   });
 
   it('несёт празднование и CTA на оформление заявки', () => {
