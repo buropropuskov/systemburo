@@ -148,8 +148,9 @@ export default {
         
         isOpen(newValue) {
             if (newValue) {
+                // Автофокус на поле поиска убран: на мобилке он выбрасывает клавиатуру
+                // поверх списка вариантов - выбрать значение сразу нельзя.
                 this.$nextTick(() => {
-                    this.focusSearchInput();
                     this.setupClickOutside();
                 });
             } else {
@@ -217,11 +218,6 @@ export default {
             }
         },
         
-        focusSearchInput() {
-            if (this.$refs.searchInput) {
-                this.$refs.searchInput.focus();
-            }
-        },
         
         // Метод для сброса фильтра из родительского компонента
         reset() {
