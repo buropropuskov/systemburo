@@ -13,14 +13,24 @@ import (
 // родителя или пользователя (как в legacy *History-моделях).
 // Details (jsonb) - надмножество всех старых схем: новый паттерн пишет details как
 // есть; плоский field_name/old/new/comment/metadata и snapshot-поля маппятся внутрь.
+//
+// Два составных индекса под разные формы чтения:
+//   - idx_audit_entity (entity_type, entity_id, created_at) - история КОНКРЕТНОЙ
+//     сущности («что делали с этой заявкой»);
+//   - idx_audit_entity_action (entity_type, action, created_at) - выборки по ДЕЙСТВИЮ
+//     за период без entity_id: лента журнала обработки (#1251, reject/withdraw по
+//     заявкам) и метрики въездов/входов (statistics_service, action='entry' за окно).
+//     Для них у idx_audit_entity рабочей остаётся только первая колонка, created_at
+//     через пропущенный entity_id не доходит - на 500k строк планировщик уходил в
+//     seq scan (38 мс против 9 мс по новому индексу).
 type AuditLog struct {
 	ID          int             `json:"id"`
-	EntityType  string          `gorm:"size:64;not null;index:idx_audit_entity,priority:1" json:"entity_type"`
+	EntityType  string          `gorm:"size:64;not null;index:idx_audit_entity,priority:1;index:idx_audit_entity_action,priority:1" json:"entity_type"`
 	EntityID    *int            `gorm:"index:idx_audit_entity,priority:2" json:"entity_id,omitempty"`
-	Action      string          `gorm:"size:64;index" json:"action"`
+	Action      string          `gorm:"size:64;index;index:idx_audit_entity_action,priority:2" json:"action"`
 	ActorUserID *int            `gorm:"index" json:"actor_user_id,omitempty"`
 	Details     json.RawMessage `gorm:"type:jsonb" json:"details,omitempty"`
-	CreatedAt   time.Time       `gorm:"index:idx_audit_entity,priority:3" json:"created_at"`
+	CreatedAt   time.Time       `gorm:"index:idx_audit_entity,priority:3;index:idx_audit_entity_action,priority:3" json:"created_at"`
 }
 
 // TableName задаёт имя таблицы явно (singular per #870), без gorm-плюрализации.
