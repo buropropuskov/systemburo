@@ -158,13 +158,30 @@
           {{ errors.startDate || errors.endDate || errors.singleDate }}
         </div>
         <Teleport to="body">
+          <!-- Мобилка: затемнение под листом - календарь не сливается с формой за ним. -->
+          <transition name="datepicker-overlay-fade">
+            <div
+              v-if="showStartDatepicker || showEndDatepicker || showSingleDatepicker"
+              class="datepicker-overlay"
+              @click="closeDatepicker"
+            />
+          </transition>
           <transition name="calendar">
             <div
               v-if="showStartDatepicker || showEndDatepicker || showSingleDatepicker"
               class="datepicker"
-              :style="datepickerStyle"
+              :class="{ 'is-dragging': sheetDragging }"
+              :style="sheetOffset ? { ...datepickerStyle, transform: `translateY(${sheetOffset}px)` } : datepickerStyle"
               @click.stop
+              @touchstart="onSheetTouchStart"
+              @touchmove="onSheetTouchMove"
+              @touchend="onSheetTouchEnd"
             >
+              <!-- Ползунок bottom-sheet - виден только на мобилке (тянуть для закрытия). -->
+              <div
+                class="sheet-handle"
+                aria-hidden="true"
+              />
               <div class="datepicker__header">
                 <button
                   class="datepicker__nav"
@@ -217,7 +234,10 @@
                   {{ day }}
                 </div>
               </div>
-              <div class="datepicker__days">
+              <div
+                ref="sheetBody"
+                class="datepicker__days"
+              >
                 <div
                   v-for="day in calendarDays"
                   :key="day.date"
@@ -334,7 +354,9 @@
 </template>
 
 <script>
+import { ref } from 'vue';
 import { useFieldConfig } from '@/composables/useFieldConfig';
+import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import { getViewportZoom } from '@/utils/viewportScale';
 
 export default {
@@ -369,7 +391,27 @@ export default {
     ],
     setup(props) {
         // Геттер, а не props.fieldConfig напрямую - сохраняет реактивность пропса в хелперах (#529).
-        return useFieldConfig(() => props.fieldConfig);
+        const fieldConfig = useFieldConfig(() => props.fieldConfig);
+        // Свайп-вниз-закрытие мобильного листа календаря - общий useSwipeDismiss (как
+        // BaseModal/DateFilter). Композабл в setup, состояние календаря - в data, поэтому
+        // закрытие идёт через счётчик-сигнал, который гасит watch в Options.
+        const sheetBody = ref(null);
+        const closeSignal = ref(0);
+        const swipe = useSwipeDismiss(() => { closeSignal.value += 1; }, {
+            handleSelector: '.sheet-handle',
+            getScrollTop: () => sheetBody.value?.scrollTop ?? 0,
+        });
+        return {
+            ...fieldConfig,
+            sheetBody,
+            closeSignal,
+            sheetOffset: swipe.offset,
+            sheetDragging: swipe.isDragging,
+            resetSheetSwipe: swipe.reset,
+            onSheetTouchStart: swipe.onTouchStart,
+            onSheetTouchMove: swipe.onTouchMove,
+            onSheetTouchEnd: swipe.onTouchEnd,
+        };
     },
     data() {
         const today = new Date();
@@ -471,6 +513,10 @@ export default {
         }
     },
     watch: {
+        // Свайп-вниз по листу календаря (сигнал из setup) - закрываем календарь.
+        closeSignal() {
+            this.closeDatepicker();
+        },
         startDate(newVal) {
             if (this.internalToggle) return;
             if (newVal && this.endDate && newVal === this.endDate && !this.isOneDay) {
@@ -966,14 +1012,20 @@ export default {
                 // getBoundingClientRect отдаёт device-px - делим на zoom, иначе календарь
                 // домножается на zoom второй раз и улетает в правый нижний угол.
                 // Константы-отступы (+8) уже в layout-px - НЕ делим.
-                const z = getViewportZoom();
-                const r = input.getBoundingClientRect();
-                this.datepickerStyle = {
-                    position: 'fixed',
-                    top: `${Math.round(r.bottom / z + 8)}px`,
-                    left: `${Math.round(r.left / z)}px`,
-                    zIndex: 12000
-                };
+                // На мобилке календарь - bottom-sheet: координаты задаёт @media, inline
+                // top/left их бы перебили (инлайн сильнее любого правила).
+                if (window.innerWidth <= 768) {
+                    this.datepickerStyle = { zIndex: 12000 };
+                } else {
+                    const z = getViewportZoom();
+                    const r = input.getBoundingClientRect();
+                    this.datepickerStyle = {
+                        position: 'fixed',
+                        top: `${Math.round(r.bottom / z + 8)}px`,
+                        left: `${Math.round(r.left / z)}px`,
+                        zIndex: 12000
+                    };
+                }
             }
 
             if (type === 'start') {
@@ -992,6 +1044,7 @@ export default {
         },
 
         closeDatepicker() {
+            this.resetSheetSwipe();
             this.showStartDatepicker = false;
             this.showEndDatepicker = false;
             this.showSingleDatepicker = false;
@@ -1298,6 +1351,21 @@ export default {
     display: inline-block;
 }
 
+/* Затемнение и ползунок - только мобильный лист (см. @media ниже). */
+.datepicker-overlay {
+    display: none;
+}
+
+.sheet-handle {
+    display: none;
+    width: 40px;
+    height: 4px;
+    border-radius: 2px;
+    background: #d5d5db;
+    margin: 0 auto 8px;
+    flex-shrink: 0;
+}
+
 .datepicker {
     /* Позиционирование через datepickerStyle (position:fixed + координаты от инпута). */
     background: white;
@@ -1508,6 +1576,25 @@ export default {
     transform: translateY(-8px);
 }
 
+.datepicker-overlay-fade-enter-active,
+.datepicker-overlay-fade-leave-active {
+    transition: opacity 0.25s ease;
+}
+
+.datepicker-overlay-fade-enter-from,
+.datepicker-overlay-fade-leave-to {
+    opacity: 0;
+}
+
+/* Мобильный лист выезжает снизу, а не сползает сверху, как десктопный попап. */
+@media (max-width: 768px) {
+    .calendar-enter-from,
+    .calendar-leave-to {
+        opacity: 1;
+        transform: translateY(100%);
+    }
+}
+
 .input__label {
     font-size: 13px;
     color: #a2a2a2;
@@ -1520,6 +1607,64 @@ export default {
 /* Дата (250px) + время + доп.опции в ряд не влезают на узком - стекаем в колонку,
    инпуты растягиваем на всю доступную ширину. */
 @media (max-width: 768px) {
+    /* Календарь на телефоне - bottom-sheet с затемнением (как DateFilter): раньше
+       висел попапом у поля, сливался с формой и на коротком экране не помещался.
+       Высота ограничена вьюпортом, сетка дней прокручивается внутри. */
+    .datepicker-overlay {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 11999;
+        background: rgba(0, 0, 0, 0.45);
+    }
+
+    .datepicker {
+        position: fixed;
+        top: auto;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        transform: none;
+        width: 100vw;
+        min-width: 0;
+        max-height: 92dvh;
+        display: flex;
+        flex-direction: column;
+        padding: 8px 12px 12px;
+        border: none;
+        border-radius: 16px 16px 0 0;
+        box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.18);
+    }
+
+    /* Лист тянется за пальцем 1:1 - без transition во время жеста. */
+    .datepicker.is-dragging {
+        transition: none;
+    }
+
+    .sheet-handle {
+        display: block;
+    }
+
+    .datepicker__header,
+    .datepicker__weekdays {
+        flex-shrink: 0;
+    }
+
+    .datepicker__days {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 4px;
+    }
+
+    /* Тач-таргет дня не меньше 40px, но без лишней высоты попапа. */
+    .datepicker__day {
+        padding: 10px 0;
+        font-size: 14px;
+    }
+
     .date-range-section {
         flex-direction: column;
         gap: 16px;
