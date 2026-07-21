@@ -181,7 +181,7 @@
             v-else
             class="proc__card proc__card--table proc__card--scroll"
           >
-            <table class="proc__table">
+            <table class="proc__table proc__table--rating">
               <thead>
                 <tr>
                   <th class="proc__rank-h">#</th>
@@ -229,7 +229,7 @@
             v-else
             class="proc__card proc__card--table proc__card--scroll"
           >
-            <table class="proc__table">
+            <table class="proc__table proc__table--rating">
               <thead>
                 <tr>
                   <th class="proc__rank-h">#</th>
@@ -285,7 +285,7 @@
           v-else
           class="proc__card proc__card--table proc__card--scroll"
         >
-          <table class="proc__table">
+          <table class="proc__table proc__table--breakdown">
             <thead>
               <tr>
                 <th>{{ breakdownNameHeader }}</th>
@@ -388,6 +388,15 @@
         v-else
         class="proc__card proc__card--scroll proc__journal"
       >
+        <!-- Шапка ленты: те же классы ячеек, что у строк, поэтому колонки совпадают
+             по ширине без отдельной таблицы разметки. -->
+        <div class="proc__journal-line proc__journal-head">
+          <span class="proc__journal-role-h">Событие</span>
+          <span class="proc__journal-actor">Кто</span>
+          <span class="proc__journal-app">Заявка</span>
+          <span class="proc__journal-dur">Рабочее время</span>
+          <span class="proc__journal-when">Когда</span>
+        </div>
         <div
           v-for="e in journal"
           :key="`${e.application_id}-${e.role}-${e.occurred_at}`"
@@ -1172,6 +1181,12 @@ defineExpose({ refresh: reload });
 .proc__card--scroll {
   max-height: 320px;
   overflow-y: auto;
+  /* Верхний padding убран намеренно: sticky-шапка липнет к границе padding-box, и в
+     этой щели над ней проезжали строки данных (было видно текст сквозь заголовки). */
+  padding-top: 0;
+  /* Место под скроллбар резервируем всегда, иначе его появление сужает контент и
+     колонки дёргаются (тот же приём, что в UserLoginHistory). */
+  scrollbar-gutter: stable;
 }
 
 .proc__card--scroll .proc__table thead th {
@@ -1184,7 +1199,7 @@ defineExpose({ refresh: reload });
 /* Колонка ранга: узкая, номер по центру. */
 .proc__rank,
 .proc__rank-h {
-  width: 30px;
+  width: 40px;
   text-align: center;
   color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
@@ -1223,10 +1238,22 @@ defineExpose({ refresh: reload });
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
+  /* Ширины колонок заданы явно и не зависят от длины данных: при auto-раскладке
+     колонки перескакивали при смене периода, разреза и страницы. Доли, а не
+     пиксели: с фиксированными px колонка имени получала остаток и на узком
+     контейнере схлопывалась до нуля вместо горизонтального скролла. */
+  table-layout: fixed;
+  /* Ниже этой ширины таблица не ужимается, а честно скроллится внутри карточки
+     (.proc__card--table { overflow-x: auto }) - иначе имя/организация исчезают.
+     Минимум свой у каждой раскладки: он подобран так, чтобы заголовки колонок
+     («Время реакции», «Согласование») влезали целиком, а не резались многоточием. */
+  min-width: 460px;
 }
 
 .proc__table th {
   text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 11px;
   font-weight: 600;
   color: var(--color-text-muted);
@@ -1251,6 +1278,20 @@ defineExpose({ refresh: reload });
   white-space: nowrap;
 }
 
+/* Доли числовых колонок разные, потому что колонок разное число: в рейтингах их
+   две, в разбивке четыре. Имени в обоих случаях остаётся около трети ширины. */
+.proc__table--rating .proc__num {
+  width: 30%;
+}
+
+.proc__table--breakdown {
+  min-width: 680px;
+}
+
+.proc__table--breakdown .proc__num {
+  width: 17%;
+}
+
 .proc__ellipsis {
   max-width: 0;
   width: 100%;
@@ -1267,7 +1308,11 @@ defineExpose({ refresh: reload });
 
 /* ===== ЖУРНАЛ (лента) ===== */
 .proc__journal {
-  padding: 2px 4px;
+  /* Верх без отступа: иначе строки проезжают в щели над липкой шапкой ленты. */
+  padding: 0 4px 2px;
+  /* Узкий экран: лента едет вбок вместе с шапкой, а не схлопывает колонку с ФИО в
+     ноль - ширины остальных ячеек фиксированные, сжиматься там нечему. */
+  overflow-x: auto;
 }
 
 /* Строка фильтров ленты: роль, поиск, свой диапазон дат и сброс. */
@@ -1288,22 +1333,51 @@ defineExpose({ refresh: reload });
   font-size: 13px;
 }
 
+/* Общая раскладка строки ленты - и для шапки, и для событий: одни ширины ячеек,
+   поэтому колонки шапки и данных всегда совпадают. */
+.proc__journal-line,
 .proc__journal-row {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 9px 8px;
-  border-bottom: 1px solid var(--color-bg);
   font-size: 13px;
+  /* Сумма фиксированных колонок плюс читаемый минимум на ФИО (~150px): уже -
+     горизонтальный скролл, а не сжатие имени в несколько букв. */
+  min-width: 700px;
+}
+
+.proc__journal-row {
+  border-bottom: 1px solid var(--color-bg);
 }
 
 .proc__journal-row:last-child {
   border-bottom: none;
 }
 
+/* Шапка ленты: липнет к верху карточки, как thead у таблиц. */
+.proc__journal-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #fff;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: none;
+}
+
+/* Ширина колонки роли общая для шапки и строк: врозь они разъедутся при первой же
+   правке одного из значений. Фиксированная, а не min-width - подписи разной длины
+   («Принятие» vs «Согласование») раздвигали колонку по-разному в каждой строке. */
+.proc__journal-role-h,
 .proc__journal-role {
   flex-shrink: 0;
-  min-width: 96px;
+  width: 122px;
+}
+
+.proc__journal-role {
   text-align: center;
   font-size: 11px;
   font-weight: 600;
@@ -1363,7 +1437,7 @@ defineExpose({ refresh: reload });
 
 .proc__journal-dur {
   flex-shrink: 0;
-  width: 84px;
+  width: 110px;
   text-align: right;
   color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
