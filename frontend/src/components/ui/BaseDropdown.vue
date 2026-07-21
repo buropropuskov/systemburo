@@ -188,12 +188,9 @@ export default {
       if (this.disabled) return;
       this.isOpen = !this.isOpen;
       if (this.isOpen) {
+        // Поле поиска НЕ фокусируем: на мобилке автофокус выбрасывает клавиатуру
+        // поверх списка, и выбрать значение мышью/пальцем сразу нельзя.
         this.searchQuery = '';
-        this.$nextTick(() => {
-          if (this.searchable && this.$refs.searchInput) {
-            this.$refs.searchInput.focus();
-          }
-        });
       }
     },
     select(option) {

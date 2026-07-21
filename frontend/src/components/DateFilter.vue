@@ -68,27 +68,6 @@
               />
               <!-- Header -->
               <div class="calendar-header">
-                <!-- Крестик - только на мобилке (лист-модалка): закрытие как у прочих
-                     окон проекта, наравне с оверлеем, Escape и свайпом вниз. -->
-                <button
-                  type="button"
-                  class="calendar-close"
-                  aria-label="Закрыть календарь"
-                  @click="closeCalendar"
-                >
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    aria-hidden="true"
-                  >
-                    <path d="M18 6L6 18M6 6l12 12" />
-                  </svg>
-                </button>
                 <div class="header-actions">
                   <button
                     class="nav-btn prev-btn"
@@ -1044,24 +1023,6 @@ export default {
     display: none;
 }
 
-/* Крестик закрытия - только в мобильном листе (см. @media ниже). */
-.calendar-close {
-    display: none;
-    position: absolute;
-    top: 50%;
-    right: 12px;
-    transform: translateY(-50%);
-    width: 32px;
-    height: 32px;
-    align-items: center;
-    justify-content: center;
-    border: none;
-    background: transparent;
-    color: #555;
-    cursor: pointer;
-    padding: 0;
-}
-
 .sheet-handle {
     display: none;
     width: 40px;
@@ -1463,7 +1424,6 @@ export default {
         left: 0;
         right: 0;
         bottom: 0;
-        transform: none;
         width: 100vw;
         max-width: none;
         max-height: 92dvh;
@@ -1490,10 +1450,6 @@ export default {
         display: block;
     }
 
-    .calendar-close {
-        display: flex;
-    }
-
     /* Шапка с месяцем и кнопки действий закреплены, прокручивается только тело.
        Фон белый: голубоватый #f8f9ff на всю ширину листа читался как «залипшая»
        подсветка, лист должен быть обычным белым окном. */
@@ -1503,11 +1459,6 @@ export default {
         background: #fff;
     }
 
-    /* Место под крестик справа, чтобы стрелка «следующий месяц» не уезжала под него. */
-    .calendar-header {
-        position: relative;
-        padding-right: 52px;
-    }
 
     .calendar-body {
         flex: 1 1 auto;
@@ -1528,28 +1479,49 @@ export default {
         padding-bottom: 10px;
     }
 
-    /* Быстрые периоды - две ровные колонки: в них помещается самая длинная подпись
-       («Следующая неделя») в ОДНУ строку, поэтому кнопки одинаковой высоты и сетка
-       читается. В три колонки подписи переносились и блок выглядел кашей. */
+    /* Быстрые периоды - ОДНА строка-карусель с горизонтальной прокруткой: сеткой они
+       занимали половину листа и оттесняли сам календарь. Прокрутка не мешает
+       вертикальному скроллу тела листа (жест по оси X ловит только эта полоса).
+       Обрезка по краям листа гасится отрицательными margin - чипы уезжают под край,
+       видно, что ряд продолжается. */
+    .quick-selection {
+        margin: 0 -12px;
+        padding: 0 0 10px;
+    }
+
     .quick-buttons-list {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
+        display: flex;
+        /* Базовый стиль - колонка; для строки-карусели направление задаём явно. */
+        flex-direction: row;
+        flex-wrap: nowrap;
         gap: 6px;
         max-height: none;
-        overflow-y: visible;
-        padding-right: 0;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding: 0 12px 2px;
+        scroll-snap-type: x proximity;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-x: contain;
+        scrollbar-width: none;
+    }
+
+    .quick-buttons-list::-webkit-scrollbar {
+        display: none;
     }
 
     .quick-btn {
-        padding: 0 8px;
+        flex: 0 0 auto;
+        padding: 0 12px;
         font-size: 12px;
         line-height: 1;
-        height: 32px;
-        min-height: 32px;
+        height: 30px;
+        min-height: 30px;
         max-height: none;
+        border-radius: 50px;
         white-space: nowrap;
         text-align: center;
         justify-content: center;
+        scroll-snap-align: start;
     }
 
     .calendar-main {
