@@ -661,6 +661,34 @@ describe('ProcessingAnalytics — страницы журнала (P5b)', () => 
   });
 });
 
+describe('ProcessingAnalytics — шапка ленты (P6)', () => {
+  it('над лентой стоит строка заголовков колонок', async () => {
+    state.summary = fullSummary();
+    state.journal = journalEntries();
+    const wrapper = mountTab();
+    await flushPromises();
+
+    const head = wrapper.find('.proc__journal-head');
+    expect(head.exists()).toBe(true);
+    expect(head.text()).toContain('Событие');
+    expect(head.text()).toContain('Кто');
+    expect(head.text()).toContain('Заявка');
+    expect(head.text()).toContain('Когда');
+    // Шапка НЕ должна попадать в выборку событий - иначе счётчики строк врут.
+    expect(wrapper.findAll('.proc__journal-row')).toHaveLength(2);
+  });
+
+  it('заголовки ленты остаются и когда событий нет', async () => {
+    state.summary = fullSummary();
+    state.journal = [];
+    const wrapper = mountTab();
+    await flushPromises();
+
+    expect(wrapper.find('.proc__journal-head').exists()).toBe(true);
+    expect(wrapper.findAll('.proc__journal-row')).toHaveLength(0);
+  });
+});
+
 describe('ProcessingAnalytics — фильтры журнала (P5c)', () => {
   const mountFiltered = async () => {
     state.summary = fullSummary();

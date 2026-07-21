@@ -388,6 +388,15 @@
         v-else
         class="proc__card proc__card--scroll proc__journal"
       >
+        <!-- Шапка ленты: те же классы ячеек, что у строк, поэтому колонки совпадают
+             по ширине без отдельной таблицы разметки. -->
+        <div class="proc__journal-line proc__journal-head">
+          <span class="proc__journal-role-h">Событие</span>
+          <span class="proc__journal-actor">Кто</span>
+          <span class="proc__journal-app">Заявка</span>
+          <span class="proc__journal-dur">Рабочее время</span>
+          <span class="proc__journal-when">Когда</span>
+        </div>
         <div
           v-for="e in journal"
           :key="`${e.application_id}-${e.role}-${e.occurred_at}`"
@@ -1172,6 +1181,12 @@ defineExpose({ refresh: reload });
 .proc__card--scroll {
   max-height: 320px;
   overflow-y: auto;
+  /* Верхний padding убран намеренно: sticky-шапка липнет к границе padding-box, и в
+     этой щели над ней проезжали строки данных (было видно текст сквозь заголовки). */
+  padding-top: 0;
+  /* Место под скроллбар резервируем всегда, иначе его появление сужает контент и
+     колонки дёргаются (тот же приём, что в UserLoginHistory). */
+  scrollbar-gutter: stable;
 }
 
 .proc__card--scroll .proc__table thead th {
@@ -1223,6 +1238,9 @@ defineExpose({ refresh: reload });
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
+  /* Ширины колонок заданы явно и не зависят от длины данных: при auto-раскладке
+     колонки перескакивали при смене периода, разреза и страницы. */
+  table-layout: fixed;
 }
 
 .proc__table th {
@@ -1246,6 +1264,9 @@ defineExpose({ refresh: reload });
 }
 
 .proc__num {
+  /* Ширина под самый длинный заголовок («Время реакции», «Согласование») при
+     table-layout: fixed; имя тянется на остаток. */
+  width: 130px;
   text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -1267,7 +1288,8 @@ defineExpose({ refresh: reload });
 
 /* ===== ЖУРНАЛ (лента) ===== */
 .proc__journal {
-  padding: 2px 4px;
+  /* Верх без отступа: иначе строки проезжают в щели над липкой шапкой ленты. */
+  padding: 0 4px 2px;
 }
 
 /* Строка фильтров ленты: роль, поиск, свой диапазон дат и сброс. */
@@ -1288,22 +1310,48 @@ defineExpose({ refresh: reload });
   font-size: 13px;
 }
 
+/* Общая раскладка строки ленты - и для шапки, и для событий: одни ширины ячеек,
+   поэтому колонки шапки и данных всегда совпадают. */
+.proc__journal-line,
 .proc__journal-row {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 9px 8px;
-  border-bottom: 1px solid var(--color-bg);
   font-size: 13px;
+}
+
+.proc__journal-row {
+  border-bottom: 1px solid var(--color-bg);
 }
 
 .proc__journal-row:last-child {
   border-bottom: none;
 }
 
+/* Шапка ленты: липнет к верху карточки, как thead у таблиц. */
+.proc__journal-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #fff;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: none;
+}
+
+.proc__journal-role-h {
+  flex-shrink: 0;
+  width: 122px;
+}
+
 .proc__journal-role {
   flex-shrink: 0;
-  min-width: 96px;
+  /* Фиксированная, а не min-width: подписи ролей разной длины («Принятие» vs
+     «Согласование») раздвигали колонку по-разному в каждой строке. */
+  width: 122px;
   text-align: center;
   font-size: 11px;
   font-weight: 600;
@@ -1363,7 +1411,7 @@ defineExpose({ refresh: reload });
 
 .proc__journal-dur {
   flex-shrink: 0;
-  width: 84px;
+  width: 110px;
   text-align: right;
   color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
