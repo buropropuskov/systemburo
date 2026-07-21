@@ -2,7 +2,7 @@
   <div
     class="fact-table-card"
     :class="[
-      { 'config-not-ready': !configReady },
+      { 'grid-mode': grid, 'config-not-ready': !configReady },
       `density-${rowDensity}`,
     ]"
     :style="{ '--table-font-size': tableFontSize + 'px' }"
@@ -430,7 +430,9 @@ export default {
     selectedDate: { type: Date, default: null },
     currentUserId: { type: Number, default: null },
     currentUserName: { type: String, default: '' },
-    loading: { type: Boolean, default: false }
+    loading: { type: Boolean, default: false },
+    // Режим "Сетка" (#1289): границы ячеек. Управляется одним тумблером страницы.
+    grid: { type: Boolean, default: false }
   },
   emits: ['refresh-data', 'open-application'],
   data() {
@@ -1565,6 +1567,68 @@ export default {
 .fact-table-card.density-spacious .header-row {
   padding-top: 16px;
   padding-bottom: 16px;
+}
+
+/* Режим "Сетка" (#1289): границы ячеек, как в Excel. Внешний контур даёт рамка
+   карточки, горизонтальные линии - border-bottom строк, здесь добавляем
+   вертикальные. На мобилке строки превращаются в карточки (rt-row), поэтому
+   весь блок живёт только от 768px. */
+@media (min-width: 768px) {
+  /* stretch - чтобы ячейка занимала всю высоту строки: при align-items:center
+     ячейка высотой в свой текст и border-right давал бы обрубки вместо линий.
+     Вертикальный padding переезжает со строки на ячейки, иначе линия короче
+     строки на величину этого padding. */
+  .fact-table-card.grid-mode .header-row,
+  .fact-table-card.grid-mode .fact-row {
+    align-items: stretch;
+    gap: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    /* Боковой отступ строки снят: то, что ячейки забирают себе под внутренний
+       padding, возвращаем колонкам, иначе широкая таблица начинает обрезать
+       содержимое ячеек. Крайние линии при этом идут по краю карточки. */
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  /* align-content центрирует содержимое блочной ячейки по вертикали, не превращая
+     её во flex/grid-контейнер: ячейки данных содержат голые текстовые ноды, у
+     которых text-overflow: ellipsis работает только пока .col блочный. */
+  .fact-table-card.grid-mode .header-row > .col,
+  .fact-table-card.grid-mode .fact-row > .col {
+    border-right: 1px solid #e6e6e6;
+    padding: 10px 6px;
+    align-content: center;
+  }
+
+  .fact-table-card.grid-mode.density-compact .header-row > .col,
+  .fact-table-card.grid-mode.density-compact .fact-row > .col {
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+
+  .fact-table-card.grid-mode.density-spacious .header-row > .col,
+  .fact-table-card.grid-mode.density-spacious .fact-row > .col {
+    padding-top: 16px;
+    padding-bottom: 16px;
+  }
+
+  /* Бейдж статуса не сжимается: без своей минимальной ширины он упирается в
+     линию сетки и обрезается на плотных таблицах (12 колонок). */
+  .fact-table-card.grid-mode .status-col {
+    min-width: max-content;
+  }
+
+  /* Схлопнутая колонка (увеличенный режим, приоритет) имеет нулевую ширину -
+     её border дал бы лишнюю линию поверх соседней. */
+  .fact-table-card.grid-mode .col--collapsed {
+    border-right: none !important;
+  }
+
+  .fact-table-card.grid-mode .header-row > .col:last-child,
+  .fact-table-card.grid-mode .fact-row > .col:last-child {
+    border-right: none;
+  }
 }
 
 /* Пока конфиг не загружен - запрещаем transitions на всех потомках, чтобы
