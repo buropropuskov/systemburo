@@ -429,13 +429,14 @@ h4 {
         border: none;
         border-radius: 0;
         box-shadow: none;
-        overflow: visible;
+        /* Только по Y: по X инфраструктура держит свой overflow-x: hidden. */
+        overflow-y: visible;
     }
 
     /* Список больше не скроллится внутри 180px - страница скроллит сама. */
     .table-body {
         max-height: none;
-        overflow: visible;
+        overflow-y: visible;
         background: transparent;
     }
 
