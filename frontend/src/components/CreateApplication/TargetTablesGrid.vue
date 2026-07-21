@@ -9,7 +9,7 @@
         'passage__item--attached': attachedIds.includes(item.table.id),
         'passage__item--inactive': item.table.status !== 'active'
       }"
-      @click="toggle(item)"
+      @click="toggle(item, $event)"
       @mouseenter="showTooltip(item, $event)"
       @mouseleave="hideTooltip"
     >
@@ -74,12 +74,20 @@ export default {
       }
     };
   },
+  beforeUnmount() {
+    if (this.tooltipTimer) clearTimeout(this.tooltipTimer);
+  },
   methods: {
     isSelected(id) {
       return this.modelValue.includes(id);
     },
-    toggle(item) {
+    toggle(item, event) {
       if (item.table.status !== 'active') {
+        // На телефоне hover не наступает, и причина недоступности была недостижима:
+        // показываем её по тапу и гасим сама через пару секунд.
+        this.showTooltip(item, event);
+        if (this.tooltipTimer) clearTimeout(this.tooltipTimer);
+        this.tooltipTimer = setTimeout(() => this.hideTooltip(), 2500);
         return;
       }
       const id = item.table.id;
@@ -115,6 +123,10 @@ export default {
       }
     },
     hideTooltip() {
+      if (this.tooltipTimer) {
+        clearTimeout(this.tooltipTimer);
+        this.tooltipTimer = null;
+      }
       this.tooltip.visible = false;
     }
   }
