@@ -217,6 +217,7 @@ func main() {
 	consentService := services.NewConsentService(db)
 	settingsService := services.NewSettingsService(db, cfg)
 	userService.SetPasswordPolicyProvider(settingsService) // политика паролей при создании/смене
+	reminderService := services.NewReminderService(db, notificationService, settingsService)
 	telegramService := services.NewTelegramService(cfg.TelegramBotToken, cfg.TelegramChatID)
 	bugReportService := services.NewBugReportService(db, telegramService)
 	maintenanceService := services.NewMaintenanceService(db)
@@ -374,6 +375,11 @@ func main() {
 	// с прошедшим entry_date_to/entry_time_to, завершает заявку когда все
 	// вложения неактивны. См. ApplicationWorkflowService.CheckExpiredAttachments.
 	go startExpiryScheduler(ctxSig, applicationService, 15*time.Minute)
+
+	// Напоминания зависшим согласующим (#1315): раз в час отбирает pending-строки
+	// application_responsible_users, молчащие дольше настроенного срока, и шлёт
+	// уведомление. См. ReminderService.SendPendingReminders.
+	go startReminderScheduler(ctxSig, reminderService, time.Hour)
 
 	// Архив access_denials: 3 мес retention, цикл раз в сутки.
 	go startAccessDenialsArchiver(ctxSig, accessDenialService, 90*24*time.Hour, 24*time.Hour)
@@ -566,6 +572,28 @@ func startExpiryScheduler(ctx context.Context, svc services.ApplicationService, 
 		case <-ticker.C:
 			if err := svc.CheckExpiredAttachments(ctx); err != nil {
 				slog.Error("expiry check failed", "error", err)
+			}
+		}
+	}
+}
+
+// startReminderScheduler запускает периодический прогон напоминаний зависшим
+// согласующим (#1315). Первый прогон — сразу при старте; далее — каждый interval,
+// пока ctx не отменён.
+func startReminderScheduler(ctx context.Context, svc services.ReminderService, interval time.Duration) {
+	if err := svc.SendPendingReminders(ctx); err != nil {
+		slog.Error("initial reminder run failed", "error", err)
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			slog.Info("reminder scheduler stopped")
+			return
+		case <-ticker.C:
+			if err := svc.SendPendingReminders(ctx); err != nil {
+				slog.Error("reminder run failed", "error", err)
 			}
 		}
 	}

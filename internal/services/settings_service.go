@@ -30,6 +30,7 @@ type SettingsService interface {
 	GetDataProcessingDoc(ctx context.Context) (*models.DataProcessingDocument, error)
 	SetDataProcessingDoc(ctx context.Context, meta *models.DataProcessingDocument) error
 	ClearDataProcessingDoc(ctx context.Context) error
+	GetApprovalReminderSettings(ctx context.Context) (enabled bool, firstDays int, repeatDays int)
 }
 
 var knownKeys = map[string]string{
@@ -49,6 +50,9 @@ var knownKeys = map[string]string{
 	"password.require_special":       "bool",
 	"contacts.bureau_phone":          "string",
 	"contacts.bureau_email":          "string",
+	"approval.reminder_enabled":      "bool",
+	"approval.reminder_first_days":   "int",
+	"approval.reminder_repeat_days":  "int",
 }
 
 type settingsService struct {
@@ -77,6 +81,11 @@ func NewSettingsService(db *gorm.DB, cfg *config.Config) SettingsService {
 		"password.require_special":       {Key: "password.require_special", Value: "false", Type: "bool"},
 		"contacts.bureau_phone":          {Key: "contacts.bureau_phone", Value: "", Type: "string"},
 		"contacts.bureau_email":          {Key: "contacts.bureau_email", Value: "", Type: "string"},
+		// Автонапоминания зависшим согласующим (#1315, ReminderService): включены по
+		// умолчанию, первое напоминание через 3 дня молчания, дальше раз в 3 дня.
+		"approval.reminder_enabled":     {Key: "approval.reminder_enabled", Value: "true", Type: "bool"},
+		"approval.reminder_first_days":  {Key: "approval.reminder_first_days", Value: "3", Type: "int"},
+		"approval.reminder_repeat_days": {Key: "approval.reminder_repeat_days", Value: "3", Type: "int"},
 	}
 
 	s := &settingsService{db: db, defaults: defaults, cache: make(map[string]models.SystemSetting)}
@@ -226,6 +235,26 @@ func (s *settingsService) GetPasswordPolicy() models.PasswordPolicy {
 	}
 }
 
+// GetApprovalReminderSettings возвращает настройки автонапоминаний согласующим
+// (#1315): включены ли напоминания, через сколько дней молчания слать первое и
+// с каким периодом повторять. Некорректные/нулевые значения в кэше (не должны
+// возникать при валидации через Update, но защищаемся) фолбэчат на дефолт 3 дня.
+func (s *settingsService) GetApprovalReminderSettings(ctx context.Context) (enabled bool, firstDays int, repeatDays int) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	enabled = s.cache["approval.reminder_enabled"].Value == "true"
+	firstDays, _ = strconv.Atoi(s.cache["approval.reminder_first_days"].Value)
+	if firstDays <= 0 {
+		firstDays = 3
+	}
+	repeatDays, _ = strconv.Atoi(s.cache["approval.reminder_repeat_days"].Value)
+	if repeatDays <= 0 {
+		repeatDays = 3
+	}
+	return enabled, firstDays, repeatDays
+}
+
 // GetDataProcessingDoc возвращает метаданные документа согласия или nil, если он не загружен.
 func (s *settingsService) GetDataProcessingDoc(ctx context.Context) (*models.DataProcessingDocument, error) {
 	var setting models.SystemSetting
@@ -344,6 +373,15 @@ func validateSettingValue(key, value string) error {
 		var arr []string
 		if err := json.Unmarshal([]byte(value), &arr); err != nil {
 			return fmt.Errorf("%s: должен быть JSON массив строк", key)
+		}
+	case "approval.reminder_enabled":
+		if value != "true" && value != "false" {
+			return fmt.Errorf("approval.reminder_enabled: true/false (получено %s)", value)
+		}
+	case "approval.reminder_first_days", "approval.reminder_repeat_days":
+		v, err := strconv.Atoi(value)
+		if err != nil || v < 1 || v > 30 {
+			return fmt.Errorf("%s: 1-30 (получено %s)", key, value)
 		}
 	}
 	return nil

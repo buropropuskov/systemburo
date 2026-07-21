@@ -62,6 +62,10 @@ type ApplicationResponsibleUser struct {
 	ApprovalComment  *string     `gorm:"type:text" json:"approval_comment"`
 	ApprovalDatetime *time.Time  `json:"approval_datetime"`
 	CreatedBy        *int        `json:"created_by"`
+	// LastReminderAt/ReminderCount -- отметки автонапоминаний зависшим согласующим
+	// (#1315, ReminderService). LastReminderAt=NULL означает "напоминаний не было".
+	LastReminderAt *time.Time `json:"last_reminder_at"`
+	ReminderCount  int        `gorm:"default:0" json:"reminder_count"`
 }
 
 type ApplicationApprover struct {
