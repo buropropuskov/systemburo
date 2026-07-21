@@ -156,7 +156,9 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
   position: fixed;
   right: 20px;
   bottom: 20px;
-  z-index: 1200;
+  /* Ниже окон страницы (1000 у модалок привязки и выбора): подсказка не должна
+     закрывать их нижнюю часть с кнопками действий. */
+  z-index: 990;
   width: 360px;
   max-width: calc(100vw - 32px);
   max-height: 60dvh;
@@ -326,7 +328,7 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
   transform: translateX(14px);
 }
 
-@media (max-width: 640px) {
+@media (max-width: 768px) {
   .warn-panel {
     right: 12px;
     left: 12px;
