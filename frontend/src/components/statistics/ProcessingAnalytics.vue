@@ -181,7 +181,7 @@
             v-else
             class="proc__card proc__card--table proc__card--scroll"
           >
-            <table class="proc__table">
+            <table class="proc__table proc__table--rating">
               <thead>
                 <tr>
                   <th class="proc__rank-h">#</th>
@@ -229,7 +229,7 @@
             v-else
             class="proc__card proc__card--table proc__card--scroll"
           >
-            <table class="proc__table">
+            <table class="proc__table proc__table--rating">
               <thead>
                 <tr>
                   <th class="proc__rank-h">#</th>
@@ -285,7 +285,7 @@
           v-else
           class="proc__card proc__card--table proc__card--scroll"
         >
-          <table class="proc__table">
+          <table class="proc__table proc__table--breakdown">
             <thead>
               <tr>
                 <th>{{ breakdownNameHeader }}</th>
@@ -1199,7 +1199,7 @@ defineExpose({ refresh: reload });
 /* Колонка ранга: узкая, номер по центру. */
 .proc__rank,
 .proc__rank-h {
-  width: 30px;
+  width: 40px;
   text-align: center;
   color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
@@ -1239,12 +1239,21 @@ defineExpose({ refresh: reload });
   border-collapse: collapse;
   font-size: 13px;
   /* Ширины колонок заданы явно и не зависят от длины данных: при auto-раскладке
-     колонки перескакивали при смене периода, разреза и страницы. */
+     колонки перескакивали при смене периода, разреза и страницы. Доли, а не
+     пиксели: с фиксированными px колонка имени получала остаток и на узком
+     контейнере схлопывалась до нуля вместо горизонтального скролла. */
   table-layout: fixed;
+  /* Ниже этой ширины таблица не ужимается, а честно скроллится внутри карточки
+     (.proc__card--table { overflow-x: auto }) - иначе имя/организация исчезают.
+     Минимум свой у каждой раскладки: он подобран так, чтобы заголовки колонок
+     («Время реакции», «Согласование») влезали целиком, а не резались многоточием. */
+  min-width: 460px;
 }
 
 .proc__table th {
   text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 11px;
   font-weight: 600;
   color: var(--color-text-muted);
@@ -1264,12 +1273,23 @@ defineExpose({ refresh: reload });
 }
 
 .proc__num {
-  /* Ширина под самый длинный заголовок («Время реакции», «Согласование») при
-     table-layout: fixed; имя тянется на остаток. */
-  width: 130px;
   text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+/* Доли числовых колонок разные, потому что колонок разное число: в рейтингах их
+   две, в разбивке четыре. Имени в обоих случаях остаётся около трети ширины. */
+.proc__table--rating .proc__num {
+  width: 30%;
+}
+
+.proc__table--breakdown {
+  min-width: 680px;
+}
+
+.proc__table--breakdown .proc__num {
+  width: 17%;
 }
 
 .proc__ellipsis {
@@ -1290,6 +1310,9 @@ defineExpose({ refresh: reload });
 .proc__journal {
   /* Верх без отступа: иначе строки проезжают в щели над липкой шапкой ленты. */
   padding: 0 4px 2px;
+  /* Узкий экран: лента едет вбок вместе с шапкой, а не схлопывает колонку с ФИО в
+     ноль - ширины остальных ячеек фиксированные, сжиматься там нечему. */
+  overflow-x: auto;
 }
 
 /* Строка фильтров ленты: роль, поиск, свой диапазон дат и сброс. */
@@ -1319,6 +1342,9 @@ defineExpose({ refresh: reload });
   gap: 10px;
   padding: 9px 8px;
   font-size: 13px;
+  /* Сумма фиксированных колонок плюс читаемый минимум на ФИО (~150px): уже -
+     горизонтальный скролл, а не сжатие имени в несколько букв. */
+  min-width: 700px;
 }
 
 .proc__journal-row {
@@ -1342,16 +1368,16 @@ defineExpose({ refresh: reload });
   text-transform: none;
 }
 
-.proc__journal-role-h {
+/* Ширина колонки роли общая для шапки и строк: врозь они разъедутся при первой же
+   правке одного из значений. Фиксированная, а не min-width - подписи разной длины
+   («Принятие» vs «Согласование») раздвигали колонку по-разному в каждой строке. */
+.proc__journal-role-h,
+.proc__journal-role {
   flex-shrink: 0;
   width: 122px;
 }
 
 .proc__journal-role {
-  flex-shrink: 0;
-  /* Фиксированная, а не min-width: подписи ролей разной длины («Принятие» vs
-     «Согласование») раздвигали колонку по-разному в каждой строке. */
-  width: 122px;
   text-align: center;
   font-size: 11px;
   font-weight: 600;
