@@ -224,8 +224,11 @@ func (s *employeesHistoryService) GetByTable(ctx context.Context, tableID int) (
 	rows := make([]employeeHistoryRow, 0)
 	err := s.db.WithContext(ctx).Raw(baseSelectSQL+`
 		WHERE eh.table_id = ?
-		   OR eh.employee_id IN (
-		     SELECT ett.employee_id FROM employee_target_tables ett WHERE ett.table_id = ?
+		   OR (
+		     eh.table_id IS NULL
+		     AND eh.employee_id IN (
+		       SELECT ett.employee_id FROM employee_target_tables ett WHERE ett.table_id = ?
+		     )
 		   )
 		ORDER BY eh.created_at DESC
 	`, tableID, tableID).Scan(&rows).Error

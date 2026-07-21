@@ -556,6 +556,7 @@
       v-if="!preview && showCarsTableHistory"
       :cars="itemsData"
       :table-id="tableId"
+      :table-title="tableTitle"
       :current-user-id="currentUserId"
       :current-user-name="currentUserName"
       @close="showCarsTableHistory = false"
@@ -634,6 +635,8 @@ export default {
   },
   props: {
     tableName: { type: String, default: '' },
+    // Отображаемое имя таблицы - показывается в заголовке истории.
+    tableTitle: { type: String, default: '' },
     tableId: { type: Number, default: null },
     searchQuery: { type: String, default: '' },
     selectedOrganizationId: { type: [Number, String], default: null },
@@ -2462,6 +2465,14 @@ export default {
   }
 }
 
+/* Служебные столбцы не проходят через getColStyle, поэтому минимум ширины
+   задаём здесь: без него режим «Сетка» (overflow: clip) обнулял их
+   автоминимум и ширины столбцов прыгали при включении (#1307). */
+.entry-col,
+.exit-col { min-width: 86px; }
+.actions-col { min-width: 44px; }
+.expand-col { min-width: 44px; }
+
 /* Режим "Сетка" (#1289): вертикальные линии между колонками. Горизонтальные
    линии и внешний контур уже дают border-bottom строк и рамка карточки.
    На мобилке строки превращаются в карточки (rt-row), поэтому блок живёт от 768px.
@@ -2476,14 +2487,6 @@ export default {
   .selected-table-card.grid-mode .header-row,
   .selected-table-card.grid-mode .item-data {
     overflow: clip;
-  }
-
-  /* overflow: clip, в отличие от hidden, не создаёт скролл-контейнер, поэтому
-     ячейка перестаёт занулять свой автоматический минимум ширины и начинает
-     распираться содержимым. Возвращаем нулевой минимум явно - слабым селектором,
-     чтобы фиксированные min-width увеличенного режима остались в силе. */
-  .selected-table-card.grid-mode .col {
-    min-width: 0;
   }
 
   .selected-table-card.grid-mode .header-row > .col,

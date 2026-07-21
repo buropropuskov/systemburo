@@ -15,7 +15,9 @@
           @mousedown.stop
         >
           <div class="modal-header">
-            <h3>История въездов и выездов всех автомобилей</h3>
+            <h3>
+              История въездов и выездов<template v-if="tableTitle"> - {{ tableTitle }}</template>
+            </h3>
             <div class="header-actions">
               <button
                 class="export-btn"
@@ -276,6 +278,11 @@ export default {
     tableId: {
       type: Number,
       default: null
+    },
+    // Отображаемое имя таблицы для заголовка.
+    tableTitle: {
+      type: String,
+      default: ''
     },
     currentUserId: {
       type: Number,

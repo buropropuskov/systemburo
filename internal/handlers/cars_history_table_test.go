@@ -67,6 +67,11 @@ func TestGetCarsHistoryByTable_ScopedToOwnTable(t *testing.T) {
 	writeCarPassageAudit(t, db, carOther, "entry", &tableOther)
 	// Запись без table_id у машины своей таблицы - подбирается по привязке.
 	writeCarPassageAudit(t, db, carOwn, "exit", nil)
+	// Машина стоит в обеих таблицах, но её проезд через чужой пост остаётся в
+	// истории того поста: иначе один проезд попал бы в историю всех таблиц.
+	shared := createCarIn("H003CC777", tableOwn)
+	require.NoError(t, db.Exec("INSERT INTO car_target_tables (car_id, table_id) VALUES (?, ?)", shared, tableOther).Error)
+	writeCarPassageAudit(t, db, shared, "entry", &tableOther)
 
 	rec := testutil.GET(t, e, fmt.Sprintf("/cars/history/table/%d", tableOwn), h)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -79,9 +84,10 @@ func TestGetCarsHistoryByTable_ScopedToOwnTable(t *testing.T) {
 
 	assert.Len(t, items, 2, "обе записи своей таблицы: с table_id и без него")
 	assert.NotContains(t, carIDs, carOther, "запись чужой таблицы не попадает в выдачу")
+	assert.NotContains(t, carIDs, shared, "проезд через чужой пост не попадает, хотя машина есть в обеих таблицах")
 
 	// Контроль: общий журнал по-прежнему отдаёт всё - его читают другие экраны.
 	recAll := testutil.GET(t, e, "/cars/history/all", h)
 	require.Equal(t, http.StatusOK, recAll.Code)
-	assert.Len(t, testutil.ParseSlice(t, recAll), 3, "общая история не отфильтрована")
+	assert.Len(t, testutil.ParseSlice(t, recAll), 4, "общая история не отфильтрована")
 }

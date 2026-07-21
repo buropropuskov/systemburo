@@ -220,6 +220,7 @@
         ref="carsTable"
         v-model:grid="gridMode"
         :table-name="tableSystemName"
+        :table-title="tableDisplayName"
         :table-id="tableData?.table?.id"
         :search-query="searchQuery"
         :selected-organization-id="selectedOrganizationId"
