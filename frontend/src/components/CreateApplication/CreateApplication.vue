@@ -2477,7 +2477,7 @@ export default {
     .text-constructor-content :deep(.text-align-right) { text-align: right; }
 
     .create {
-        padding: 20px;
+        padding: var(--gutter, 20px);
     }
 
     .create__title {
@@ -2808,6 +2808,24 @@ export default {
             font-size: 18px;
         }
 
+        /* Заголовок страницы и пилюля с типом бланка рядом не помещаются: на 320
+           ряд распирало до 331-352px и браузер ужимал всю страницу. */
+        .create__header-top {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 8px;
+        }
+
+        .create__header-left {
+            gap: 10px;
+        }
+
+        h4 {
+            font-size: 15px;
+            padding: 4px 14px;
+            max-width: 100%;
+        }
+
         .create__container {
             flex-direction: column;
             gap: 12px;
@@ -2827,10 +2845,46 @@ export default {
 
         .form__submit-bar {
             min-width: 0;
+            max-width: none;
+            width: 100%;
+            align-self: stretch;
         }
 
         .consent-section {
             width: 100%;
+        }
+
+        .consent-checkbox input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+        }
+
+        .consent-checkbox label {
+            font-size: 13px;
+            line-height: 1.35;
+        }
+
+        .send-all-btn {
+            width: 100%;
+            min-height: 44px;
+            font-size: 14px;
+        }
+
+        /* Причины блокировки: сбоку окно в 380px не помещается - ставим его в поток
+           под кнопкой, стрелка смотрит вверх. */
+        .submit-tooltip {
+            position: static;
+            width: 100%;
+            max-width: 100%;
+            margin: 8px 0 0;
+            max-height: min(50dvh, 320px);
+        }
+
+        .submit-tooltip::before {
+            top: -10px;
+            left: 16px;
+            border-color: transparent;
+            border-bottom-color: #333;
         }
 
         .form__textarea {
@@ -2840,6 +2894,18 @@ export default {
         .form__info-row {
             padding: 12px;
             gap: 16px;
+        }
+
+        /* До выбора вложения заглушка занимала пол-экрана - на телефоне это
+           пустая карточка между селектором и низом страницы. */
+        .form-placeholder {
+            min-height: 0;
+            border-radius: var(--radius-lg);
+        }
+
+        .placeholder-content p {
+            font-size: 14px;
+            padding: 14px;
         }
     }
 

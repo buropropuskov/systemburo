@@ -1,16 +1,59 @@
 <template>
   <div class="selector">
+    <!-- Мобилка: типы бланков - горизонтальная карусель (в столбик они съедали пол-экрана
+         до самой формы). Ниже - список уже созданных вложений; на десктопе всё как было:
+         тип, под ним свои вложения, под ними кнопка. -->
+    <div
+      v-if="isNarrow"
+      class="category-carousel"
+    >
+      <div
+        v-for="category in uniqueCategories"
+        :key="`chip-${category}`"
+        class="category-chip"
+      >
+        <div class="category-chip__head">
+          <span class="category-title">{{ category }}</span>
+          <span class="attachment-count">{{ getCategoryAttachments(category).length }}/10</span>
+        </div>
+        <button
+          class="add-btn"
+          :disabled="getCategoryAttachments(category).length >= 10"
+          @click="addAttachment(category)"
+        >
+          Добавить
+        </button>
+      </div>
+    </div>
+
+    <div
+      v-if="isNarrow && attachments.length"
+      class="created-caption"
+    >
+      Созданные вложения
+    </div>
+
     <div class="categories-container">
       <div
         v-for="category in uniqueCategories"
+        v-show="!isNarrow || getCategoryAttachments(category).length"
         :key="category"
         class="category"
       >
-        <div class="category-header">
+        <div
+          v-if="!isNarrow"
+          class="category-header"
+        >
           <div class="category-title">
             {{ category }}
           </div>
           <span class="attachment-count">{{ getCategoryAttachments(category).length }}/10</span>
+        </div>
+        <div
+          v-else
+          class="category-label"
+        >
+          {{ category }}
         </div>
 
         <transition-group
@@ -53,8 +96,9 @@
                 @dblclick.stop="startRename(attachment)"
               >{{ attachment.display_name }}</span>
 
+              <!-- На тач-экране hover не наступает: кнопки строки держим видимыми всегда. -->
               <button
-                v-if="hoveredAttachment === getAttachmentKey(attachment)"
+                v-if="isNarrow || hoveredAttachment === getAttachmentKey(attachment)"
                 class="edit-btn"
                 title="Переименовать"
                 @click.stop="startRename(attachment)"
@@ -62,7 +106,7 @@
                 ✎
               </button>
               <button
-                v-if="hoveredAttachment === getAttachmentKey(attachment)"
+                v-if="isNarrow || hoveredAttachment === getAttachmentKey(attachment)"
                 class="delete-btn"
                 title="Удалить"
                 @click.stop="confirmDelete(attachment)"
@@ -74,6 +118,7 @@
         </transition-group>
 
         <button
+          v-if="!isNarrow"
           class="add-btn"
           :disabled="getCategoryAttachments(category).length >= 10"
           @click="addAttachment(category)"
@@ -164,7 +209,10 @@ export default {
             demoAttachment: null,
             // Inline-переименование вложения (#883): ключ редактируемого + черновик имени.
             editingKey: null,
-            editingName: ''
+            editingName: '',
+            // Узкий экран (<=768, тот же порог, что у @media): типы бланков едут в
+            // карусель, вложения показываются отдельным списком под ней.
+            isNarrow: false
         }
     },
     computed: {
@@ -221,12 +269,33 @@ export default {
     },
     mounted() {
         this.fetchTemplates();
+        this.initNarrowWatcher();
     },
     beforeUnmount() {
         // Уходя со страницы посреди тура - не оставить демо-вложение висеть.
         this.removeDemoAttachment();
+        if (this._narrowMql) {
+            if (this._narrowMql.removeEventListener) {
+                this._narrowMql.removeEventListener('change', this._onNarrowChange);
+            } else if (this._narrowMql.removeListener) {
+                this._narrowMql.removeListener(this._onNarrowChange);
+            }
+        }
     },
     methods: {
+        initNarrowWatcher() {
+            if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+            // Матчер держим вне data: реактивность ему не нужна, а ключи с _ в data запрещены линтом.
+            this._narrowMql = window.matchMedia('(max-width: 768px)');
+            this.isNarrow = this._narrowMql.matches;
+            this._onNarrowChange = (e) => { this.isNarrow = e.matches; };
+            if (this._narrowMql.addEventListener) {
+                this._narrowMql.addEventListener('change', this._onNarrowChange);
+            } else if (this._narrowMql.addListener) {
+                this._narrowMql.addListener(this._onNarrowChange);
+            }
+        },
+
         getAttachmentKey(attachment) {
             return attachment.local_id || attachment.id;
         },
@@ -788,6 +857,134 @@ export default {
     to {
         opacity: 1;
         transform: translateX(-50%) translateY(0);
+    }
+}
+
+/* ── Мобилка: карусель типов + список созданных вложений ── */
+@media (max-width: 768px) {
+    .selector {
+        width: 100%;
+        height: auto;
+        max-height: none;
+        border-radius: var(--radius-lg);
+        padding: 12px;
+    }
+
+    /* Типы бланков - одна прокручиваемая строка (паттерн быстрых периодов календаря):
+       чипы уезжают под край, видно, что ряд продолжается. */
+    .category-carousel {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        gap: 8px;
+        margin: 0 -12px 10px;
+        padding: 0 12px 2px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scroll-snap-type: x proximity;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-x: contain;
+        scrollbar-width: none;
+    }
+
+    .category-carousel::-webkit-scrollbar {
+        display: none;
+    }
+
+    .category-chip {
+        flex: 0 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 8px 10px;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        background: #fff;
+        scroll-snap-align: start;
+    }
+
+    .category-chip__head {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        white-space: nowrap;
+    }
+
+    /* На тач-экране hover не наступает, а базовый фон кнопки - полупрозрачный
+       (полный цвет он берёт только на :hover): без этого кнопка выглядит выключенной. */
+    .category-chip .add-btn {
+        width: 100%;
+        min-height: 36px;
+        margin-top: 0;
+        font-size: 13px;
+        border-radius: var(--radius-md);
+        background: var(--color-primary);
+    }
+
+    .category-chip .add-btn:disabled {
+        background: #a2a2a2;
+    }
+
+    .created-caption {
+        font-size: 10px;
+        font-weight: 700;
+        color: #a2a2a2;
+        text-transform: uppercase;
+        margin-bottom: 6px;
+    }
+
+    .categories-container {
+        overflow-y: visible;
+        margin-bottom: 0;
+        border-bottom: none;
+    }
+
+    .category {
+        margin-bottom: 12px;
+    }
+
+    .category-label {
+        font-size: 10px;
+        font-weight: 700;
+        color: #a2a2a2;
+        text-transform: uppercase;
+        margin-bottom: 4px;
+    }
+
+    /* Тач-таргеты: строка вложения и кнопки очистки под палец. Ширина 130px была
+       рассчитана на узкую колонку десктопа - здесь селектор во всю страницу. */
+    .attachment {
+        max-width: none;
+        width: 100%;
+        min-height: 40px;
+        padding: 0 10px;
+        border-radius: var(--radius-md);
+        font-size: 13px;
+    }
+
+    .attachment-checkbox {
+        width: 20px;
+        height: 20px;
+    }
+
+    .edit-btn,
+    .delete-btn {
+        min-width: 32px;
+        min-height: 32px;
+    }
+
+    .actions {
+        flex-direction: row;
+        gap: 8px;
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid var(--color-border);
+    }
+
+    .action-btn {
+        min-height: 36px;
+        font-size: 12px;
+        border-radius: var(--radius-pill);
     }
 }
 </style>
