@@ -2320,9 +2320,9 @@ export default {
         margin-left: 0;
         margin-top: 5px;
     }
-}
 
-@media (max-width: 480px) {
+    /* Поля и гриды перестраивались только с 480 - на 481-768 форма ещё жила
+       десктопной сеткой. */
     .completion__fields {
         flex-direction: column;
     }
@@ -2330,6 +2330,52 @@ export default {
     .unloading__grid {
         grid-template-columns: repeat(2, 1fr);
         max-width: 100%;
+    }
+
+    /* Поле госномера было фиксировано на 202px - ячейки под палец не попадали.
+       В колонке flex:1 ширину не задаёт, поэтому растягиваем сами блоки. */
+    .completion__number,
+    .completion__mark {
+        width: 100%;
+    }
+
+    .number__field {
+        min-width: 0;
+        max-width: none;
+        width: 100%;
+    }
+
+    .mark__dropdown,
+    .mark__dropdown-button,
+    .mark__field {
+        width: 100%;
+    }
+
+    .dropdown__button {
+        height: 40px;
+    }
+
+    .add-button {
+        min-height: 40px;
+        padding: 8px 18px;
+        font-size: 13px;
+    }
+
+    .completion__button {
+        height: 36px;
+        font-size: 12px;
+    }
+
+    /* Названия мест не влезали в 164px и обрезались многоточием - пускаем в
+       две строки вместо ellipsis. */
+    .unloading__item {
+        height: auto;
+        min-height: 36px;
+        padding: 6px 10px;
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+        line-height: 1.25;
     }
 }
 </style>

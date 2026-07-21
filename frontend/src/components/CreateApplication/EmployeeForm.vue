@@ -78,6 +78,7 @@
         </div>
         <div class="citizenship__dropdown">
           <button 
+            ref="citizenshipButton"
             class="dropdown__button" 
             :disabled="editingEmployee && editingEmployee.isExisting"
             @click="toggleCitizenshipDropdown"
@@ -95,6 +96,7 @@
             <div
               v-if="isCitizenshipDropdownOpen"
               class="dropdown__menu"
+              :style="citizenshipMenuStyle"
             >
               <div 
                 v-for="citizenship in availableCitizenships" 
@@ -415,6 +417,7 @@ import { useFieldConfig } from '@/composables/useFieldConfig'
 import { collectActiveWarnings } from '@/utils/warningWindows'
 import { buildScheduleReport } from '@/utils/scheduleCheck'
 import { getCurrentInstance } from 'vue'
+import { getViewportZoom } from '@/utils/viewportScale'
 
 export default {
     name: 'EmployeeForm',
@@ -531,6 +534,7 @@ export default {
             availableCitizenships: [],
             selectedCitizenship: null,
             isCitizenshipDropdownOpen: false,
+            citizenshipMenuStyle: null,
             
             selectedPermission: '',
             isPermissionDropdownOpen: false,
@@ -1066,11 +1070,42 @@ export default {
         
         toggleCitizenshipDropdown() {
             this.isCitizenshipDropdownOpen = !this.isCitizenshipDropdownOpen;
+            if (this.isCitizenshipDropdownOpen) {
+                this.citizenshipMenuStyle = this.buildCitizenshipMenuStyle();
+            }
+        },
+
+        /**
+         * Список гражданств длинный: снизу его обрезает край экрана, поэтому
+         * высоту ограничиваем доступным местом, а если снизу тесно - раскрываем
+         * вверх. rect в device-px под масштабом, innerHeight - нет, отсюда деление.
+         */
+        buildCitizenshipMenuStyle() {
+            const btn = this.$refs.citizenshipButton;
+            if (!btn || typeof window === 'undefined') return null;
+            const zoom = getViewportZoom() || 1;
+            const rect = btn.getBoundingClientRect();
+            const spaceBelow = window.innerHeight - rect.bottom / zoom;
+            const spaceAbove = rect.top / zoom;
+            const flipUp = spaceBelow < 200 && spaceAbove > spaceBelow;
+            const space = (flipUp ? spaceAbove : spaceBelow) - 16;
+            const maxHeight = Math.max(160, Math.min(300, space));
+            if (!flipUp) {
+                return { maxHeight: maxHeight + 'px' };
+            }
+            return {
+                top: 'auto',
+                bottom: '100%',
+                marginTop: '0',
+                marginBottom: '5px',
+                maxHeight: maxHeight + 'px'
+            };
         },
         
         selectCitizenship(citizenship) {
             this.selectedCitizenship = citizenship;
             this.isCitizenshipDropdownOpen = false;
+            this.citizenshipMenuStyle = null;
             if (!citizenship.patent_required) {
                 this.patentNumber = '';
                 this.selectedPermission = '';
@@ -1806,12 +1841,27 @@ export default {
         min-width: 0;
         max-width: calc(100vw - 40px);
     }
-}
 
-@media (max-width: 480px) {
+    /* Ряды полей вставали в колонку только с 480 - на 481-768 ФИО и должность
+       ещё делили строку пополам. */
     .completion__name-row {
         flex-direction: column;
         gap: 15px;
+    }
+
+    .dropdown__button {
+        height: 40px;
+    }
+
+    .add-button {
+        min-height: 40px;
+        padding: 8px 18px;
+        font-size: 13px;
+    }
+
+    .completion__button {
+        height: 36px;
+        font-size: 12px;
     }
 }
 </style>
