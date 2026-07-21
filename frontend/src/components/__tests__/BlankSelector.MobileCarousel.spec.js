@@ -41,7 +41,7 @@ async function mountSelector(attachments = ATTACHMENTS) {
   return w;
 }
 
-describe('BlankSelector: карусель типов на телефоне vs колонки на десктопе (#1097 S1)', () => {
+describe('BlankSelector: выбор типа строкой на телефоне, колонки на десктопе (#1097 S1)', () => {
   let origMatchMedia;
 
   beforeEach(() => {
@@ -53,39 +53,52 @@ describe('BlankSelector: карусель типов на телефоне vs к
     window.matchMedia = origMatchMedia;
   });
 
-  it('на телефоне типы едут в карусель, и у каждого чипа есть своя кнопка «Добавить»', async () => {
+  it('на телефоне типы едут в строку выбора, добавляет одна кнопка под ней', async () => {
     mockMatchMedia(true);
     const w = await mountSelector();
 
     expect(w.vm.isNarrow).toBe(true);
     expect(w.find('.category-carousel').exists()).toBe(true);
-
-    const chips = w.findAll('.category-chip');
-    expect(chips.length).toBe(w.vm.uniqueCategories.length);
-    // Кнопка добавления обязана жить в чипе: без неё на телефоне вложение не создать.
-    expect(w.findAll('.category-chip .add-btn').length).toBe(chips.length);
-    // Дублей кнопки в списке созданных вложений быть не должно.
+    expect(w.findAll('.category-chip').length).toBe(w.vm.uniqueCategories.length);
+    // Кнопка добавления одна на всю строку: в чипах её быть не должно, иначе
+    // она вылезала за их границы и дублировалась по числу типов.
+    expect(w.findAll('.category-chip .add-btn').length).toBe(0);
     expect(w.findAll('.category .add-btn').length).toBe(0);
+    expect(w.find('.picker-add').exists()).toBe(true);
     expect(w.findAll('.category-header').length).toBe(0);
   });
 
-  it('на телефоне кнопка чипа реально добавляет вложение выбранного типа', async () => {
+  it('первый тип выбран сразу, кнопка добавляет вложение выбранного типа', async () => {
     mockMatchMedia(true);
     const w = await mountSelector();
 
-    await w.findAll('.category-chip .add-btn')[0].trigger('click');
+    expect(w.vm.pickedCategory).toBe(w.vm.uniqueCategories[0]);
+    await w.find('.picker-add').trigger('click');
 
     const added = w.emitted('attachment-added');
     expect(added).toBeTruthy();
     expect(added[0][0].title).toBe(w.vm.uniqueCategories[0]);
   });
 
-  it('на десктопе карусели нет, кнопка «Добавить» остаётся в колонке типа', async () => {
+  it('выбор другого чипа переключает тип, который добавит кнопка', async () => {
+    mockMatchMedia(true);
+    const w = await mountSelector();
+    const second = w.vm.uniqueCategories[1];
+
+    await w.findAll('.category-chip')[1].trigger('click');
+    expect(w.vm.pickedCategory).toBe(second);
+
+    await w.find('.picker-add').trigger('click');
+    expect(w.emitted('attachment-added')[0][0].title).toBe(second);
+  });
+
+  it('на десктопе строки выбора нет, кнопка «Добавить» остаётся в колонке типа', async () => {
     mockMatchMedia(false);
     const w = await mountSelector();
 
     expect(w.vm.isNarrow).toBe(false);
     expect(w.find('.category-carousel').exists()).toBe(false);
+    expect(w.find('.picker-add').exists()).toBe(false);
     expect(w.find('.created-caption').exists()).toBe(false);
     expect(w.findAll('.category .add-btn').length).toBe(w.vm.uniqueCategories.length);
     expect(w.findAll('.category-header').length).toBe(w.vm.uniqueCategories.length);

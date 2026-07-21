@@ -40,7 +40,7 @@
           type="button"
           @click="toggleOverflow"
         >
-          +{{ overflowChips.length }}
+          {{ isNarrow ? `Ещё ${overflowChips.length}` : `+${overflowChips.length}` }}
           <span
             class="recipients-chevron"
             :class="{ open: showOverflow }"
@@ -50,6 +50,7 @@
           <div
             v-if="showOverflow"
             class="recipients-popover recipients-popover--overflow"
+            :style="popoverStyle"
           >
             <span
               v-for="chip in overflowChips"
@@ -79,14 +80,16 @@
         <button
           class="recipients-add__btn"
           type="button"
+          :aria-label="isNarrow ? 'Добавить получателя' : null"
           @click="toggleAdd"
         >
-          + получатель
+          {{ isNarrow ? '+' : '+ получатель' }}
         </button>
         <transition name="rdrop">
           <div
             v-if="showAdd"
             class="recipients-popover recipients-popover--add"
+            :style="popoverStyle"
           >
             <input
               v-model="search"
@@ -125,8 +128,11 @@
 <script>
 import { apiRequest } from '@/api/client'
 import { formatShortName } from '@/utils/formatName'
+import { getViewportZoom } from '@/utils/viewportScale'
 
 const MAX_VISIBLE = 4
+// На телефоне в строку помещается один получатель, остальные - под кнопкой «Ещё N».
+const MAX_VISIBLE_NARROW = 1
 
 export default {
   name: 'ApplicationRecipientsRow',
@@ -148,7 +154,9 @@ export default {
       managerUsers: [],
       search: '',
       showAdd: false,
-      showOverflow: false
+      showOverflow: false,
+      isNarrow: false,
+      popoverStyle: null
     }
   },
   computed: {
@@ -169,11 +177,14 @@ export default {
       }))
       return [...approverChips, ...readerChips]
     },
+    maxVisible() {
+      return this.isNarrow ? MAX_VISIBLE_NARROW : MAX_VISIBLE
+    },
     visibleChips() {
-      return this.allChips.slice(0, MAX_VISIBLE)
+      return this.allChips.slice(0, this.maxVisible)
     },
     overflowChips() {
-      return this.allChips.slice(MAX_VISIBLE)
+      return this.allChips.slice(this.maxVisible)
     },
     availableManagers() {
       const taken = new Set([
@@ -189,9 +200,15 @@ export default {
   mounted() {
     this.fetchManagers()
     document.addEventListener('mousedown', this.handleOutside)
+    this.initNarrowWatcher()
   },
   beforeUnmount() {
     document.removeEventListener('mousedown', this.handleOutside)
+    this.stopReposition()
+    if (this.narrowMql) {
+      if (this.narrowMql.removeEventListener) this.narrowMql.removeEventListener('change', this.onNarrowChange)
+      else if (this.narrowMql.removeListener) this.narrowMql.removeListener(this.onNarrowChange)
+    }
   },
   methods: {
     async fetchManagers() {
@@ -237,6 +254,7 @@ export default {
       ])
       this.search = ''
       this.showAdd = false
+      this.syncPopover(false)
     },
 
     removeReader(userId) {
@@ -246,11 +264,78 @@ export default {
     toggleAdd() {
       this.showAdd = !this.showAdd
       if (this.showAdd) this.showOverflow = false
+      this.syncPopover(this.showAdd, this.$refs.addRef)
     },
 
     toggleOverflow() {
       this.showOverflow = !this.showOverflow
       if (this.showOverflow) this.showAdd = false
+      this.syncPopover(this.showOverflow, this.$refs.overflowRef)
+    },
+
+    initNarrowWatcher() {
+      if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
+      this.narrowMql = window.matchMedia('(max-width: 768px)')
+      this.isNarrow = this.narrowMql.matches
+      this.onNarrowChange = (e) => { this.isNarrow = e.matches }
+      if (this.narrowMql.addEventListener) this.narrowMql.addEventListener('change', this.onNarrowChange)
+      else if (this.narrowMql.addListener) this.narrowMql.addListener(this.onNarrowChange)
+    },
+
+    syncPopover(open, anchor) {
+      if (!open) {
+        this.popoverStyle = null
+        this.stopReposition()
+        return
+      }
+      this.popoverAnchor = anchor || null
+      this.reposition()
+      window.addEventListener('scroll', this.reposition, true)
+      window.addEventListener('resize', this.reposition)
+    },
+
+    stopReposition() {
+      window.removeEventListener('scroll', this.reposition, true)
+      window.removeEventListener('resize', this.reposition)
+      this.popoverAnchor = null
+    },
+
+    reposition() {
+      this.popoverStyle = this.buildPopoverStyle(this.popoverAnchor)
+    },
+
+    /**
+     * Список открывался вниз-вправо от кнопки и на телефоне уезжал за правый край.
+     * Считаем координаты сами и держим окно в пределах экрана; на десктопе оставляем
+     * штатное absolute-позиционирование. rect в device-px под корневым масштабом,
+     * innerWidth/innerHeight - нет, поэтому к layout-px приводятся обе величины.
+     */
+    buildPopoverStyle(anchor) {
+      if (!this.isNarrow || !anchor || typeof window === 'undefined') return null
+      const zoom = getViewportZoom() || 1
+      const rect = anchor.getBoundingClientRect()
+      const viewportWidth = window.innerWidth / zoom
+      const viewportHeight = window.innerHeight / zoom
+      const margin = 12
+      const gap = 8
+      const width = Math.min(280, viewportWidth - margin * 2)
+      const left = Math.min(Math.max(margin, rect.left / zoom), viewportWidth - margin - width)
+      const spaceBelow = viewportHeight - rect.bottom / zoom - gap
+      const spaceAbove = rect.top / zoom - gap
+      const flipUp = spaceBelow < 200 && spaceAbove > spaceBelow
+      const maxHeight = Math.max(160, Math.min(320, (flipUp ? spaceAbove : spaceBelow) - margin))
+      return {
+        position: 'fixed',
+        left: `${Math.round(left)}px`,
+        width: `${Math.round(width)}px`,
+        maxHeight: `${Math.round(maxHeight)}px`,
+        overflowY: 'auto',
+        // top: 'auto' в ветке вверх обязателен - иначе базовое top: calc(100% + 8px)
+        // остаётся в силе и спорит с bottom.
+        ...(flipUp
+          ? { bottom: `${Math.round(viewportHeight - rect.top / zoom + gap)}px`, top: 'auto' }
+          : { top: `${Math.round(rect.bottom / zoom + gap)}px`, bottom: 'auto' })
+      }
     },
 
     // Клик вне конкретного дропдауна закрывает именно его - в т.ч. клик по свободному
@@ -259,10 +344,12 @@ export default {
       const addEl = this.$refs.addRef
       if (this.showAdd && addEl && !addEl.contains(event.target)) {
         this.showAdd = false
+        this.syncPopover(false)
       }
       const overflowEl = this.$refs.overflowRef
       if (this.showOverflow && overflowEl && !overflowEl.contains(event.target)) {
         this.showOverflow = false
+        this.syncPopover(false)
       }
     }
   }
@@ -518,5 +605,80 @@ export default {
 .rdrop-leave-to {
   opacity: 0;
   transform: translateY(-6px);
+}
+@media (max-width: 768px) {
+  /* Строка должна оставаться одной строкой: получатель, «Ещё N», плюс. */
+  .recipients-row {
+    flex-wrap: nowrap;
+    gap: 8px;
+    /* Без ограничения строка растёт по содержимому и распирает страницу. */
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .recipients-chips {
+    flex: 1 1 auto;
+    flex-wrap: nowrap;
+    min-width: 0;
+  }
+
+  /* Чип отдаёт ширину первым: на узком экране имя ужимается многоточием,
+     а «Ещё N» и плюс остаются целыми. */
+  .recipient-chip {
+    flex: 0 1 auto;
+    min-width: 72px;
+    padding: 6px 10px;
+    overflow: hidden;
+  }
+
+  .recipient-chip__name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Крестик был 16px - в него не попасть пальцем; растим зону клика,
+     не раздувая сам чип. */
+  .recipient-chip__remove {
+    position: relative;
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+  }
+
+  .recipient-chip__remove::before {
+    content: '';
+    position: absolute;
+    inset: -8px;
+  }
+
+  .recipients-extra__btn {
+    min-height: 32px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .recipients-add__btn {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    justify-content: center;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+  }
+
+  /* Ширину и координаты задаёт JS (buildPopoverStyle) - здесь только страховка
+     от старой фиксированной ширины 240px. */
+  .recipients-popover--add,
+  .recipients-popover--overflow {
+    width: auto;
+    min-width: 0;
+    max-width: calc(100vw - 24px);
+  }
+
+  .recipients-add-item {
+    min-height: 40px;
+  }
 }
 </style>
