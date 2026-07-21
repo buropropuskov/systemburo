@@ -1885,7 +1885,7 @@ export default {
 
 /* header-row повторяет геометрию item-data: padding 10/16 + flex + gap 4. */
 .header-row {
-  padding: 10px 16px;
+  padding: 10px 10px;
   display: flex;
   width: 100%;
   align-items: center;
@@ -1896,6 +1896,12 @@ export default {
   flex-shrink: 0;
   box-sizing: border-box;
   text-align: left;
+  /* Данные не липнут к границам столбца (заметно в режиме "Сетка", #1289).
+     Боковой отступ строки уменьшен на столько же, поэтому крайние столбцы
+     остались на прежнем расстоянии от края карточки. */
+  padding-left: 6px;
+  padding-right: 6px;
+
   font-size: 14px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2043,7 +2049,7 @@ export default {
 .item-data {
   display: flex;
   width: 100%;
-  padding: 10px 16px;
+  padding: 10px 10px;
   align-items: center;
   border-bottom: 1px solid #e6e6e6;
   gap: 4px;
