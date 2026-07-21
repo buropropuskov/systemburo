@@ -6,7 +6,18 @@
         class="modal-overlay"
         @click.self="closeModal"
       >
-        <div class="modal-content">
+        <div
+          class="modal-content"
+          :class="{ 'is-dragging': sheetDragging }"
+          :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
+          @touchstart="onSheetTouchStart"
+          @touchmove="onSheetTouchMove"
+          @touchend="onSheetTouchEnd"
+        >
+          <div
+            class="sheet-handle"
+            aria-hidden="true"
+          />
           <div class="modal-header">
             <h3 class="modal-title">
               Привязка новых данных
@@ -31,7 +42,10 @@
             </button>
           </div>
 
-          <div class="modal-body">
+          <div
+            ref="modalBody"
+            class="modal-body"
+          >
             <div class="binding-description">
               Все добавленные данные будут <strong>автоматически привязаны</strong> к вашему аккаунту.
               Вы можете дополнительно привязать их к организации и/или компании для использования <strong>другими сотрудниками</strong>:
@@ -210,6 +224,10 @@
 </template>
 
 <script>
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
+import { ref } from 'vue';
+import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
+
 export default {
     name: 'UniversalBindingModal',
     props: {
@@ -243,6 +261,22 @@ export default {
         }
     },
     emits: ['confirm-binding', 'skip-binding', 'close'],
+    setup(_, { emit }) {
+        // Контракт окна: свайп вниз за ползунок закрывает лист на мобилке.
+        const modalBody = ref(null);
+        const swipe = useSwipeDismiss(() => emit('close'), {
+            handleSelector: '.sheet-handle',
+            getScrollTop: () => modalBody.value?.scrollTop ?? 0,
+        });
+        return {
+            modalBody,
+            sheetOffset: swipe.offset,
+            sheetDragging: swipe.isDragging,
+            onSheetTouchStart: swipe.onTouchStart,
+            onSheetTouchMove: swipe.onTouchMove,
+            onSheetTouchEnd: swipe.onTouchEnd,
+        };
+    },
     data() {
         return {
             vehiclesBindToOrganization: false,
@@ -268,6 +302,7 @@ export default {
         // Модалка теперь всегда смонтирована (для leave-анимации), поэтому
         // сбрасываем галочки при каждом открытии, как было при v-if.
         show(visible) {
+            setBodyScrollLock(this, visible);
             if (visible) {
                 this.vehiclesBindToOrganization = false;
                 this.vehiclesBindToCompany = false;
@@ -276,7 +311,18 @@ export default {
             }
         }
     },
+    mounted() {
+        document.addEventListener('keydown', this.handleKeydown);
+    },
+    beforeUnmount() {
+        document.removeEventListener('keydown', this.handleKeydown);
+        releaseBodyScrollLock(this);
+    },
     methods: {
+        handleKeydown(e) {
+            if (e.key === 'Escape' && this.show) this.closeModal();
+        },
+
         formatFullName(employee) {
             const parts = [];
             if (employee.lastName) parts.push(employee.lastName);
@@ -365,7 +411,7 @@ export default {
     border-radius: 50px;
     width: 540px;
     max-width: 90vw;
-    max-height: 80vh;
+    max-height: 80dvh;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
     display: flex;
     flex-direction: column;
@@ -657,12 +703,8 @@ export default {
 }
 
 @media (max-width: 768px) {
-    .modal-content {
-        width: 95vw;
-        margin: 16px;
-        max-height: 85vh;
-        border-radius: 30px;
-    }
+    /* Размеры листа приходят из глобального .modal-content (App.vue) с !important -
+       локальные width/max-height/radius здесь были мёртвыми и вводили в заблуждение. */
 
     .modal-header {
         padding: 16px 20px;
@@ -715,5 +757,36 @@ export default {
 .modal-fade-enter-from,
 .modal-fade-leave-to {
     opacity: 0;
+}
+
+.sheet-handle {
+    display: none;
+    width: 40px;
+    height: 4px;
+    border-radius: 2px;
+    background: #d5d5d5;
+    margin: 10px auto 2px;
+    flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+    /* Лист выезжает снизу глобальным паттерном .modal-content (App.vue), здесь -
+       ползунок и возврат листа на место после недотянутого свайпа. */
+    .sheet-handle {
+        display: block;
+    }
+
+    .modal-content {
+        transition: transform 0.3s ease;
+    }
+
+    .modal-content.is-dragging {
+        transition: none;
+    }
+
+    .modal-close {
+        min-width: 40px;
+        min-height: 40px;
+    }
 }
 </style>

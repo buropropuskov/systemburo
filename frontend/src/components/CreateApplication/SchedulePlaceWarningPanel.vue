@@ -159,7 +159,7 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
   z-index: 1200;
   width: 360px;
   max-width: calc(100vw - 32px);
-  max-height: 60vh;
+  max-height: 60dvh;
   display: flex;
   flex-direction: column;
   background: #fff;
@@ -333,7 +333,7 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
     bottom: 12px;
     width: auto;
     max-width: none;
-    max-height: 52vh;
+    max-height: 52dvh;
   }
 }
 </style>

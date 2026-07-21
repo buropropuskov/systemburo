@@ -12,8 +12,17 @@
       >
         <div
           class="employees-history-modal"
+          :class="{ 'is-dragging': sheetDragging }"
+          :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
           @mousedown.stop
+          @touchstart="onSheetTouchStart"
+          @touchmove="onSheetTouchMove"
+          @touchend="onSheetTouchEnd"
         >
+          <div
+            class="sheet-handle"
+            aria-hidden="true"
+          />
           <div class="modal-header">
             <h3>История проходов сотрудников (таблица)</h3>
             <div class="header-actions">
@@ -172,7 +181,7 @@
 
           <div
             ref="scrollContainer"
-            class="modal-content"
+            class="history-scroll"
           >
             <div
               v-if="loading"
@@ -246,6 +255,7 @@
 import { ref } from 'vue';
 import { apiRequest } from '@/api/client';
 import { useOverlayClose } from '@/composables/useOverlayClose';
+import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import { useDeletionsStore } from '@/stores/deletions';
 import ExcelJS from 'exceljs';
 
@@ -274,7 +284,21 @@ export default {
     const requestClose = () => { visible.value = false; };
     const onAfterLeave = () => emit('close');
     const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(requestClose);
-    return { visible, requestClose, onAfterLeave, onOverlayMousedown, onOverlayMouseup };
+    // Bottom-sheet на мобилке: свайп вниз за ползунок закрывает (как в истории сотрудника).
+    const scrollContainer = ref(null);
+    const swipe = useSwipeDismiss(requestClose, {
+      getScrollTop: () => scrollContainer.value?.scrollTop ?? 0,
+      handleSelector: '.sheet-handle',
+    });
+    return {
+      visible, requestClose, onAfterLeave, onOverlayMousedown, onOverlayMouseup,
+      scrollContainer,
+      sheetOffset: swipe.offset,
+      sheetDragging: swipe.isDragging,
+      onSheetTouchStart: swipe.onTouchStart,
+      onSheetTouchMove: swipe.onTouchMove,
+      onSheetTouchEnd: swipe.onTouchEnd,
+    };
   },
   data() {
     return {
@@ -750,12 +774,27 @@ export default {
   to { transform: scale(0.95); opacity: 0; }
 }
 
+.sheet-handle {
+  display: none;
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: #d5d5d5;
+  margin: 10px auto 2px;
+  flex-shrink: 0;
+}
+
+@keyframes employeesTableHistorySlideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
 .employees-history-modal {
   background: white;
   border-radius: 30px;
   width: 900px;
   max-width: 95%;
-  max-height: 80vh;
+  max-height: 80dvh;
   display: flex;
   flex-direction: column;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
@@ -1024,7 +1063,9 @@ export default {
   transform: rotate(180deg);
 }
 
-.modal-content {
+/* Имя .modal-content ловило глобальное min-width:100vw из App.vue и распирало
+   внутренний блок внутри самого окна - у скролл-контейнера своё имя. */
+.history-scroll {
   padding: 20px;
   overflow-y: auto;
   flex: 1;
@@ -1143,9 +1184,63 @@ export default {
 }
 
 @media (max-width: 768px) {
+  /* Bottom-sheet: окно выезжает снизу, свайп вниз за ползунок закрывает. Своё имя
+     класса не ловит глобальный паттерн .modal-content из App.vue, поэтому лист
+     описан здесь целиком - раньше карточка 900px с радиусом 30px просто липла к
+     нижней кромке экрана. */
+  .modal-overlay {
+    padding: 0;
+    align-items: flex-end;
+    top: 0;
+    height: 100dvh;
+    bottom: auto;
+  }
+
+  .employees-history-modal {
+    width: 100%;
+    max-width: 100%;
+    max-height: 90dvh;
+    border-radius: 16px 16px 0 0;
+    transition: transform 0.3s ease;
+  }
+
+  .employees-history-modal.is-dragging {
+    transition: none;
+  }
+
+  .sheet-handle {
+    display: block;
+  }
+
+  .close-btn,
+  .export-btn {
+    min-height: 40px;
+  }
+
+  .modal-fade-enter-active .employees-history-modal {
+    animation: employeesTableHistorySlideUp 0.3s ease-out;
+  }
+
+  .modal-fade-leave-active .employees-history-modal {
+    animation: none;
+    transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  .modal-fade-leave-to .employees-history-modal {
+    transform: translateY(100%);
+  }
+
+  .modal-fade-leave-active {
+    transition: opacity 0.3s ease;
+  }
+
+  /* flex-элемент с min-width:auto в колонке = ширина по содержимому: без width
+     фильтры распирали окно шире экрана. */
   .filter-row {
     flex-direction: column;
     align-items: flex-start;
+    width: 100%;
+    min-width: 0;
   }
   
   .search-filter,

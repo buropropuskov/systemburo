@@ -502,6 +502,7 @@
 </template>
 
 <script>
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import { ref } from 'vue';
 import { apiRequest } from '@/api/client'
 import UnloadPlaceModal from './UnloadPlaceModal.vue';
@@ -760,6 +761,8 @@ export default {
         show: {
             immediate: true,
             handler(newVal) {
+                // Контракт окна: фон под листом не прокручивается.
+                setBodyScrollLock(this, newVal);
                 if (newVal) {
                     this.loadCarStatus();
                     this.checkBlacklist();
@@ -793,6 +796,7 @@ export default {
         }
     },
     beforeUnmount() {
+        releaseBodyScrollLock(this);
         if (this.shiftTimer) {
             clearTimeout(this.shiftTimer);
         }
@@ -2030,7 +2034,7 @@ export default {
     width: 90%;
     left: 0 !important;
     height: auto;
-    max-height: 80vh;
+    max-height: 80dvh;
     /* transition для свайп-спринга и слайда; НЕ transform:none!important - иначе
        блокировался бы inline-transform свайпа (#1097 r2). */
     transition: transform 0.3s ease;
@@ -2061,7 +2065,7 @@ export default {
   
   .modal-content .modal-body {
     height: auto;
-    max-height: calc(80vh - 70px);
+    max-height: calc(80dvh - 70px);
   }
   
   .modal-content.main-modal.shifted {

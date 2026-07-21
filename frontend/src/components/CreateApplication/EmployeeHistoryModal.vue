@@ -181,7 +181,7 @@
 
           <div
             ref="scrollContainer"
-            class="modal-content"
+            class="history-scroll"
           >
             <div
               v-if="loading"
@@ -902,7 +902,7 @@ export default {
   border-radius: 30px;
   width: 900px;
   max-width: 95%;
-  max-height: 80vh;
+  max-height: 80dvh;
   display: flex;
   flex-direction: column;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
@@ -1172,10 +1172,12 @@ export default {
   transform: rotate(180deg);
 }
 
-.modal-content {
+/* Имя .modal-content ловило глобальное min-width:100vw из App.vue и распирало
+   внутренний блок внутри самого окна - у скролл-контейнера своё имя. */
+.history-scroll {
   padding: 20px 25px;
   overflow-y: auto;
-  max-height: calc(80vh - 180px);
+  max-height: calc(80dvh - 180px);
   position: relative;
 }
 

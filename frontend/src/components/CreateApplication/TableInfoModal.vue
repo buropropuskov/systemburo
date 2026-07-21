@@ -1,5 +1,12 @@
 <template>
-  <div class="modal-content-inner">
+  <div
+    class="modal-content-inner"
+    :class="{ 'is-dragging': sheetDragging }"
+    :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
+    @touchstart="onSheetTouchStart"
+    @touchmove="onSheetTouchMove"
+    @touchend="onSheetTouchEnd"
+  >
     <div
       class="sheet-handle"
       aria-hidden="true"
@@ -42,7 +49,10 @@
       </button>
     </div>
 
-    <div class="modal-body">
+    <div
+      ref="modalBody"
+      class="modal-body"
+    >
       <div
         v-if="table && table.table"
         class="place-details"
@@ -208,6 +218,9 @@
 </template>
 
 <script>
+import { ref } from 'vue';
+import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
+
 export default {
     name: 'TableInfoModal',
     props: {
@@ -221,6 +234,24 @@ export default {
         }
     },
     emits: ['close'],
+    setup(_, { emit }) {
+        // Ползунок в шапке был нарисован, а жест не работал - подключаем свайп, как
+        // у окна места разгрузки: тянуть можно за ползунок и за любую часть окна,
+        // когда тело прокручено вверх.
+        const modalBody = ref(null);
+        const swipe = useSwipeDismiss(() => emit('close'), {
+            handleSelector: '.sheet-handle',
+            getScrollTop: () => modalBody.value?.scrollTop ?? 0,
+        });
+        return {
+            modalBody,
+            sheetOffset: swipe.offset,
+            sheetDragging: swipe.isDragging,
+            onSheetTouchStart: swipe.onTouchStart,
+            onSheetTouchMove: swipe.onTouchMove,
+            onSheetTouchEnd: swipe.onTouchEnd,
+        };
+    },
     data() {
         return {
             fullDayNames: ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'],
@@ -960,6 +991,13 @@ export default {
         height: auto;
         max-height: 90dvh;
         border-radius: 16px 16px 0 0;
+        /* Плавный возврат после недотянутого свайпа; во время перетаскивания
+           отключаем, чтобы лист шёл за пальцем 1:1. */
+        transition: transform 0.3s ease;
+    }
+
+    .modal-content-inner.is-dragging {
+        transition: none;
     }
 
     .sheet-handle {

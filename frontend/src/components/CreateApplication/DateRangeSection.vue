@@ -354,6 +354,7 @@
 </template>
 
 <script>
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import { ref } from 'vue';
 import { useFieldConfig } from '@/composables/useFieldConfig';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
@@ -559,7 +560,7 @@ export default {
     beforeUnmount() {
         window.removeEventListener('scroll', this.closeQuickMenuOnScroll, true);
         document.removeEventListener('keydown', this.handleDatepickerEscape);
-        document.body.style.overflow = '';
+        releaseBodyScrollLock(this);
     },
     methods: {
         // "Быстрый выбор": меню телепортится в body (иначе тонет под гейтом/инпутами
@@ -1019,7 +1020,7 @@ export default {
                 // top/left их бы перебили (инлайн сильнее любого правила).
                 if (window.innerWidth <= 768) {
                     // Под листом-модалкой фон не скроллится, как у прочих окон.
-                    document.body.style.overflow = 'hidden';
+                    setBodyScrollLock(this, true);
                     this.datepickerStyle = { zIndex: 12000 };
                 } else {
                     const z = getViewportZoom();
@@ -1057,7 +1058,7 @@ export default {
 
         closeDatepicker() {
             this.resetSheetSwipe();
-            document.body.style.overflow = '';
+            releaseBodyScrollLock(this);
             this.showStartDatepicker = false;
             this.showEndDatepicker = false;
             this.showSingleDatepicker = false;
