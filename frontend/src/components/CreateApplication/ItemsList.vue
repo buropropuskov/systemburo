@@ -4,8 +4,8 @@
       <h4>Список ТМЦ</h4>
       <span class="items-badge">{{ items.length }}</span>
     </div>
-    <div class="items-table rt-table">
-      <div class="table-header rt-head-row">
+    <div class="items-table">
+      <div class="table-header">
         <div
           class="header-col number-col"
           @click="$emit('sort', 'number')"
@@ -63,7 +63,7 @@
           <div 
             v-for="(item, index) in items" 
             :key="item.id"
-            class="table-row rt-row"
+            class="table-row"
           >
             <div class="table-col number-col">
               {{ index + 1 }}
@@ -370,85 +370,5 @@ h4 {
 
 .table-body::-webkit-scrollbar-thumb:hover {
     background: #a8a8a8;
-}
-/* Мобилка: строки становятся карточками (rt-* из responsive-tables.css). Подписи
-   полей не выводим - решение по эпику: карточки без лейблов, как в Центре; голое
-   количество читалось бы двусмысленно, поэтому у него знак умножения.
-   Брейкпоинт 767.98 - как у инфраструктуры. */
-@media (max-width: 767.98px) {
-    .items-table {
-        border: none;
-        border-radius: 0;
-        box-shadow: none;
-        /* Только по Y: по X инфраструктура держит свой overflow-x: hidden. */
-        overflow-y: visible;
-    }
-
-    /* Список больше не скроллится внутри 300px - страница скроллит сама. */
-    .table-body {
-        max-height: none;
-        overflow-y: visible;
-        background: transparent;
-    }
-
-    .table-row.rt-row {
-        position: relative;
-        flex-direction: row !important;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 2px 8px;
-        min-height: 56px;
-        /* Резерв под две кнопки действий, приколотые справа. */
-        padding: 10px 92px 10px 12px !important;
-        font-size: 14px;
-    }
-
-    .table-col {
-        width: auto !important;
-        padding: 0;
-        text-align: left;
-    }
-
-    .number-col {
-        color: #a2a2a2;
-        font-size: 12px;
-    }
-
-    .name-col {
-        font-weight: 600;
-        font-size: 15px;
-    }
-
-    .quantity-col {
-        flex-basis: 100%;
-        color: #666;
-        font-size: 13px;
-    }
-
-    .quantity-col::before {
-        content: 'x ';
-    }
-
-    .actions-col {
-        position: absolute;
-        top: 50%;
-        right: 8px;
-        transform: translateY(-50%);
-        width: auto !important;
-        gap: 2px;
-    }
-
-    .edit-btn,
-    .delete-btn {
-        width: 40px;
-        height: 40px;
-    }
-
-    .edit-icon,
-    .delete-icon {
-        width: 20px;
-        height: 20px;
-        opacity: 0.75;
-    }
 }
 </style>

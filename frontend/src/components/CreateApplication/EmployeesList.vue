@@ -4,8 +4,8 @@
       <h4>Список сотрудников</h4>
       <span class="employees-badge">{{ employees.length }}</span>
     </div>
-    <div class="employees-table rt-table">
-      <div class="table-header rt-head-row">
+    <div class="employees-table">
+      <div class="table-header">
         <div
           class="header-col number-col"
           @click="$emit('sort', 'number')"
@@ -74,7 +74,7 @@
         <div 
           v-for="(employee, index) in employees" 
           :key="employee.id"
-          class="table-row rt-row"
+          class="table-row"
         >
           <div class="table-col number-col">
             {{ index + 1 }}
@@ -432,78 +432,19 @@ h4 {
     background: #a8a8a8;
 }
 
-/* Мобилка: строки становятся карточками (rt-* из responsive-tables.css). Подписи
-   полей не выводим - решение по эпику: карточки без лейблов, как в Центре; ФИО
-   читается само. Брейкпоинт 767.98 - как у инфраструктуры. */
-@media (max-width: 767.98px) {
-    .employees-table {
-        border: none;
-        border-radius: 0;
-        box-shadow: none;
-        /* Только по Y: по X инфраструктура держит свой overflow-x: hidden. */
-        overflow-y: visible;
-    }
-
-    /* Список больше не скроллится внутри 180px - страница скроллит сама. */
-    .table-body {
-        max-height: none;
-        overflow-y: visible;
-        background: transparent;
-    }
-
-    .table-row.rt-row {
-        position: relative;
-        flex-direction: row !important;
+@media (max-width: 768px) {
+    .table-row {
         flex-wrap: wrap;
-        align-items: center;
-        gap: 2px 6px;
-        min-height: 56px;
-        /* Резерв под три кнопки действий, приколотые справа. */
-        padding: 10px 136px 10px 12px !important;
-        font-size: 14px;
     }
-
+    
     .table-col {
-        width: auto !important;
-        padding: 0;
+        width: 50% !important;
+        margin-bottom: 4px;
     }
-
-    .number-col {
-        color: #a2a2a2;
-        font-size: 12px;
-    }
-
-    /* 14px, а не 15: при 15 типовое ФИО не влезало в строку карточки и
-       переносилось на вторую. */
-    .lastName-col,
-    .firstName-col,
-    .middleName-col {
-        font-weight: 600;
-        font-size: 14px;
-    }
-
+    
     .actions-col {
-        position: absolute;
-        top: 50%;
-        right: 8px;
-        transform: translateY(-50%);
-        width: auto !important;
-        gap: 2px;
-    }
-
-    .details-btn,
-    .edit-btn,
-    .delete-btn {
-        width: 40px;
-        height: 40px;
-    }
-
-    .details-icon,
-    .edit-icon,
-    .delete-icon {
-        width: 20px;
-        height: 20px;
-        opacity: 0.75;
+        width: 100%;
+        justify-content: flex-end;
     }
 }
 </style>

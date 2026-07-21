@@ -2,7 +2,7 @@
   <div
     class="selected-table-card"
     :class="[
-      { 'enlarged': enlarged, 'grid-mode': grid, 'is-portrait': isCompact, 'config-not-ready': !configReady, 'scrolled-x': scrolledX },
+      { 'enlarged': enlarged, 'grid-mode': grid, 'is-portrait': isCompact, 'config-not-ready': !configReady },
       `density-${rowDensity}`,
     ]"
     :style="{ '--table-font-size': tableFontSize + 'px' }"
@@ -110,432 +110,428 @@
     </div>
 
     <div class="card-content rt-table">
-      <!-- Общая ширина для шапки и строк: иначе каждая считает её по своему
-             содержимому и при прокрутке столбцы разъезжаются (#1307). -->
-      <div class="table-scroll">
-        <div class="items-header">
-          <div class="header-row rt-head-row">
-            <!-- Въезд - отдельная колонка -->
-            <div
-              class="col entry-col"
-              style="order: 0;"
+      <div class="items-header">
+        <div class="header-row rt-head-row">
+          <!-- Въезд - отдельная колонка -->
+          <div
+            class="col entry-col"
+            style="order: 0;"
+          >
+            Въезд
+          </div>
+          <!-- Выезд - отдельная колонка -->
+          <div
+            class="col exit-col"
+            style="order: 1;"
+          >
+            Выезд
+          </div>
+          <div
+            v-if="isFieldInDom('car_number')"
+            class="col number-col"
+            :class="fieldColClass('car_number')"
+            :style="getColStyle('car_number', true)"
+            @click="sortBy('car_number')"
+          >
+            <p :class="{ 'active-sort': sortField === 'car_number' }">
+              Номер Т/С
+            </p>
+            <img
+              src="@/assets/icons/sort.png"
+              class="sort-icon"
+              :class="{ 'sorted': sortField === 'car_number', 'desc': sortField === 'car_number' && sortDirection === 'desc' }"
             >
-              Въезд
-            </div>
-            <!-- Выезд - отдельная колонка -->
-            <div
-              class="col exit-col"
-              style="order: 1;"
+          </div>
+          <div
+            v-if="isFieldInDom('car_brand')"
+            class="col brand-col"
+            :class="fieldColClass('car_brand')"
+            :style="getColStyle('car_brand', true)"
+            @click="sortBy('car_brand')"
+          >
+            <p :class="{ 'active-sort': sortField === 'car_brand' }">
+              Марка
+            </p>
+            <img
+              src="@/assets/icons/sort.png"
+              class="sort-icon"
+              :class="{ 'sorted': sortField === 'car_brand', 'desc': sortField === 'car_brand' && sortDirection === 'desc' }"
             >
-              Выезд
-            </div>
-            <div
-              v-if="isFieldInDom('car_number')"
-              class="col number-col"
-              :class="fieldColClass('car_number')"
-              :style="getColStyle('car_number', true)"
-              @click="sortBy('car_number')"
+          </div>
+          <div
+            v-if="isFieldInDom('organization')"
+            class="col organization-col"
+            :class="fieldColClass('organization')"
+            :style="getColStyle('organization', true)"
+            @click="sortBy('organization')"
+          >
+            <p :class="{ 'active-sort': sortField === 'organization' }">
+              Организация
+            </p>
+            <img
+              src="@/assets/icons/sort.png"
+              class="sort-icon"
+              :class="{ 'sorted': sortField === 'organization', 'desc': sortField === 'organization' && sortDirection === 'desc' }"
             >
-              <p :class="{ 'active-sort': sortField === 'car_number' }">
-                Номер Т/С
-              </p>
-              <img
-                src="@/assets/icons/sort.png"
-                class="sort-icon"
-                :class="{ 'sorted': sortField === 'car_number', 'desc': sortField === 'car_number' && sortDirection === 'desc' }"
-              >
-            </div>
-            <div
-              v-if="isFieldInDom('car_brand')"
-              class="col brand-col"
-              :class="fieldColClass('car_brand')"
-              :style="getColStyle('car_brand', true)"
-              @click="sortBy('car_brand')"
+          </div>
+          <div
+            v-if="isFieldInDom('company')"
+            class="col company-col"
+            :class="fieldColClass('company')"
+            :style="getColStyle('company', true)"
+            @click="sortBy('company')"
+          >
+            <p :class="{ 'active-sort': sortField === 'company' }">
+              Компания
+            </p>
+            <img
+              src="@/assets/icons/sort.png"
+              class="sort-icon"
+              :class="{ 'sorted': sortField === 'company', 'desc': sortField === 'company' && sortDirection === 'desc' }"
             >
-              <p :class="{ 'active-sort': sortField === 'car_brand' }">
-                Марка
-              </p>
-              <img
-                src="@/assets/icons/sort.png"
-                class="sort-icon"
-                :class="{ 'sorted': sortField === 'car_brand', 'desc': sortField === 'car_brand' && sortDirection === 'desc' }"
-              >
-            </div>
-            <div
-              v-if="isFieldInDom('organization')"
-              class="col organization-col"
-              :class="fieldColClass('organization')"
-              :style="getColStyle('organization', true)"
-              @click="sortBy('organization')"
+          </div>
+          <div
+            v-if="isFieldInDom('application_id')"
+            class="col application-col"
+            :class="fieldColClass('application_id')"
+            :style="getColStyle('application_id', true)"
+            @click="sortBy('application_id')"
+          >
+            <p :class="{ 'active-sort': sortField === 'application_id' }">
+              Номер заявки
+            </p>
+            <img
+              src="@/assets/icons/sort.png"
+              class="sort-icon"
+              :class="{ 'sorted': sortField === 'application_id', 'desc': sortField === 'application_id' && sortDirection === 'desc' }"
             >
-              <p :class="{ 'active-sort': sortField === 'organization' }">
-                Организация
-              </p>
-              <img
-                src="@/assets/icons/sort.png"
-                class="sort-icon"
-                :class="{ 'sorted': sortField === 'organization', 'desc': sortField === 'organization' && sortDirection === 'desc' }"
-              >
-            </div>
-            <div
-              v-if="isFieldInDom('company')"
-              class="col company-col"
-              :class="fieldColClass('company')"
-              :style="getColStyle('company', true)"
-              @click="sortBy('company')"
+          </div>
+          <div
+            v-if="isFieldInDom('unload_place')"
+            class="col place-col"
+            :class="fieldColClass('unload_place')"
+            :style="getColStyle('unload_place', true)"
+            @click="sortBy('unload_place')"
+          >
+            <p :class="{ 'active-sort': sortField === 'unload_place' }">
+              Место разгрузки
+            </p>
+            <img
+              src="@/assets/icons/sort.png"
+              class="sort-icon"
+              :class="{ 'sorted': sortField === 'unload_place', 'desc': sortField === 'unload_place' && sortDirection === 'desc' }"
             >
-              <p :class="{ 'active-sort': sortField === 'company' }">
-                Компания
-              </p>
-              <img
-                src="@/assets/icons/sort.png"
-                class="sort-icon"
-                :class="{ 'sorted': sortField === 'company', 'desc': sortField === 'company' && sortDirection === 'desc' }"
-              >
-            </div>
-            <div
-              v-if="isFieldInDom('application_id')"
-              class="col application-col"
-              :class="fieldColClass('application_id')"
-              :style="getColStyle('application_id', true)"
-              @click="sortBy('application_id')"
+          </div>
+          <div
+            v-if="isFieldInDom('valid_until')"
+            class="col date-col"
+            :class="fieldColClass('valid_until')"
+            :style="getColStyle('valid_until', true)"
+            @click="sortBy('entry_date_to')"
+          >
+            <p :class="{ 'active-sort': sortField === 'entry_date_to' }">
+              Действует до
+            </p>
+            <img
+              src="@/assets/icons/sort.png"
+              class="sort-icon"
+              :class="{ 'sorted': sortField === 'entry_date_to', 'desc': sortField === 'entry_date_to' && sortDirection === 'desc' }"
             >
-              <p :class="{ 'active-sort': sortField === 'application_id' }">
-                Номер заявки
-              </p>
-              <img
-                src="@/assets/icons/sort.png"
-                class="sort-icon"
-                :class="{ 'sorted': sortField === 'application_id', 'desc': sortField === 'application_id' && sortDirection === 'desc' }"
-              >
-            </div>
-            <div
-              v-if="isFieldInDom('unload_place')"
-              class="col place-col"
-              :class="fieldColClass('unload_place')"
-              :style="getColStyle('unload_place', true)"
-              @click="sortBy('unload_place')"
+          </div>
+          <div
+            v-if="isFieldInDom('time_range')"
+            class="col time-col"
+            :class="fieldColClass('time_range')"
+            :style="getColStyle('time_range', true)"
+            @click="sortBy('entry_time')"
+          >
+            <p :class="{ 'active-sort': sortField === 'entry_time' }">
+              Время
+            </p>
+            <img
+              src="@/assets/icons/sort.png"
+              class="sort-icon"
+              :class="{ 'sorted': sortField === 'entry_time', 'desc': sortField === 'entry_time' && sortDirection === 'desc' }"
             >
-              <p :class="{ 'active-sort': sortField === 'unload_place' }">
-                Место разгрузки
-              </p>
-              <img
-                src="@/assets/icons/sort.png"
-                class="sort-icon"
-                :class="{ 'sorted': sortField === 'unload_place', 'desc': sortField === 'unload_place' && sortDirection === 'desc' }"
-              >
-            </div>
-            <div
-              v-if="isFieldInDom('valid_until')"
-              class="col date-col"
-              :class="fieldColClass('valid_until')"
-              :style="getColStyle('valid_until', true)"
-              @click="sortBy('entry_date_to')"
+          </div>
+          <div
+            v-if="isFieldInDom('status')"
+            class="col status-col"
+            :class="fieldColClass('status')"
+            :style="getColStyle('status', true)"
+            @click="sortBy('status')"
+          >
+            <p :class="{ 'active-sort': sortField === 'status' }">
+              Статус
+            </p>
+            <img
+              src="@/assets/icons/sort.png"
+              class="sort-icon"
+              :class="{ 'sorted': sortField === 'status', 'desc': sortField === 'status' && sortDirection === 'desc' }"
             >
-              <p :class="{ 'active-sort': sortField === 'entry_date_to' }">
-                Действует до
-              </p>
-              <img
-                src="@/assets/icons/sort.png"
-                class="sort-icon"
-                :class="{ 'sorted': sortField === 'entry_date_to', 'desc': sortField === 'entry_date_to' && sortDirection === 'desc' }"
-              >
-            </div>
-            <div
-              v-if="isFieldInDom('time_range')"
-              class="col time-col"
-              :class="fieldColClass('time_range')"
-              :style="getColStyle('time_range', true)"
-              @click="sortBy('entry_time')"
-            >
-              <p :class="{ 'active-sort': sortField === 'entry_time' }">
-                Время
-              </p>
-              <img
-                src="@/assets/icons/sort.png"
-                class="sort-icon"
-                :class="{ 'sorted': sortField === 'entry_time', 'desc': sortField === 'entry_time' && sortDirection === 'desc' }"
-              >
-            </div>
-            <div
-              v-if="isFieldInDom('status')"
-              class="col status-col"
-              :class="fieldColClass('status')"
-              :style="getColStyle('status', true)"
-              @click="sortBy('status')"
-            >
-              <p :class="{ 'active-sort': sortField === 'status' }">
-                Статус
-              </p>
-              <img
-                src="@/assets/icons/sort.png"
-                class="sort-icon"
-                :class="{ 'sorted': sortField === 'status', 'desc': sortField === 'status' && sortDirection === 'desc' }"
-              >
-            </div>
-            <!-- Пустой spacer-заголовок над chevron-кнопкой "Подробнее" в строке -
+          </div>
+          <!-- Пустой spacer-заголовок над chevron-кнопкой "Подробнее" в строке -
                без него шапка короче строки на 1 колонку и заголовки уезжают. -->
-            <div
-              v-if="isCompact && hiddenInPortraitFields().length"
-              class="col expand-col"
-              style="order: 9998;"
-            />
-            <div
-              class="col actions-col"
-              style="order: 9999;"
-            />
-          </div>
+          <div
+            v-if="hiddenInPortraitFields().length"
+            class="col expand-col"
+            style="order: 9998;"
+          />
+          <div
+            class="col actions-col"
+            style="order: 9999;"
+          />
         </div>
+      </div>
       
-        <div class="items-container">
-          <!-- Полноэкранный лоадер - только при первой загрузке (isLoading),
+      <div class="items-container">
+        <!-- Полноэкранный лоадер - только при первой загрузке (isLoading),
              когда данных ещё нет вообще. -->
-          <div
-            v-if="isLoading"
-            class="loading-message"
-          >
-            <LoaderSpinner label="Загрузка машин…" />
-          </div>
+        <div
+          v-if="isLoading"
+          class="loading-message"
+        >
+          <LoaderSpinner label="Загрузка машин…" />
+        </div>
 
-          <!-- Оверлей-лоадер при refresh: накрывает таблицу полупрозрачной
+        <!-- Оверлей-лоадер при refresh: накрывает таблицу полупрозрачной
              плёнкой, не схлопывает строки - высота остаётся стабильной. -->
-          <div
-            v-if="refreshing && !isLoading"
-            class="refresh-overlay"
-          >
-            <LoaderSpinner label="Обновление…" />
-          </div>
+        <div
+          v-if="refreshing && !isLoading"
+          class="refresh-overlay"
+        >
+          <LoaderSpinner label="Обновление…" />
+        </div>
 
-          <div
-            v-if="!isLoading && displayItems.length > 0"
-            class="items-body"
-            :class="{ 'is-drag-selecting': isDragging }"
+        <div
+          v-if="!isLoading && displayItems.length > 0"
+          class="items-body"
+          :class="{ 'is-drag-selecting': isDragging }"
+        >
+          <transition-group
+            name="fade-list"
+            tag="div"
           >
-            <transition-group
-              name="fade-list"
-              tag="div"
+            <div
+              v-for="(item, index) in displayItems"
+              :key="item.id"
+              class="item-row"
+              :class="{ 'item-row--expanded': expandedRows[item.id], 'item-row--selected': isSelected(item.id) }"
+              :style="{ animationDelay: `${index * 0.05}s` }"
+              @click="preview ? null : onRowClick($event, item)"
+              @mousedown="preview ? null : onRowMouseDown($event, item)"
+              @mouseenter="preview ? null : dragOver(item.id)"
             >
-              <div
-                v-for="(item, index) in displayItems"
-                :key="item.id"
-                class="item-row"
-                :class="{ 'item-row--expanded': expandedRows[item.id], 'item-row--selected': isSelected(item.id) }"
-                :style="{ animationDelay: `${index * 0.05}s` }"
-                @click="preview ? null : onRowClick($event, item)"
-                @mousedown="preview ? null : onRowMouseDown($event, item)"
-                @mouseenter="preview ? null : dragOver(item.id)"
-              >
-                <div class="item-data rt-row">
-                  <!-- Въезд - кнопка -->
-                  <div
-                    class="col entry-col"
-                    style="order: 0;"
-                    data-label="Въезд"
-                    @click.stop
+              <div class="item-data rt-row">
+                <!-- Въезд - кнопка -->
+                <div
+                  class="col entry-col"
+                  style="order: 0;"
+                  data-label="Въезд"
+                  @click.stop
+                >
+                  <button
+                    class="action-btn entry-btn"
+                    :class="{ 'active': item.entry_checked }"
+                    :disabled="preview || item.entry_checked"
+                    @click="preview ? null : handleEntryExit(item, 'entry')"
                   >
-                    <button
-                      class="action-btn entry-btn"
-                      :class="{ 'active': item.entry_checked }"
-                      :disabled="preview || item.entry_checked"
-                      @click="preview ? null : handleEntryExit(item, 'entry')"
+                    Въезд
+                  </button>
+                </div>
+                <!-- Выезд - кнопка -->
+                <div
+                  class="col exit-col"
+                  style="order: 1;"
+                  data-label="Выезд"
+                  @click.stop
+                >
+                  <button
+                    class="action-btn exit-btn"
+                    :class="{ 'active': item.exit_checked }"
+                    :disabled="preview || !item.entry_checked || item.exit_checked"
+                    @click="preview ? null : handleEntryExit(item, 'exit')"
+                  >
+                    Выезд
+                  </button>
+                </div>
+                <div
+                  v-if="isFieldInDom('car_number')"
+                  class="col number-col"
+                  :class="fieldColClass('car_number')"
+                  :style="getColStyle('car_number')"
+                  data-label="Номер Т/С"
+                >
+                  {{ item.car_number }}
+                </div>
+                <div
+                  v-if="isFieldInDom('car_brand')"
+                  class="col brand-col"
+                  :class="fieldColClass('car_brand')"
+                  :style="getColStyle('car_brand')"
+                  data-label="Марка"
+                >
+                  {{ item.car_brand }}
+                </div>
+                <div
+                  v-if="isFieldInDom('organization')"
+                  class="col organization-col"
+                  :class="fieldColClass('organization')"
+                  :style="getColStyle('organization')"
+                  data-label="Организация"
+                >
+                  {{ item.organization_name }}
+                </div>
+                <div
+                  v-if="isFieldInDom('company')"
+                  class="col company-col"
+                  :class="fieldColClass('company')"
+                  :style="getColStyle('company')"
+                  data-label="Компания"
+                >
+                  {{ item.company || '-' }}
+                </div>
+                <div
+                  v-if="isFieldInDom('application_id')"
+                  class="col application-col"
+                  :class="fieldColClass('application_id')"
+                  :style="getColStyle('application_id')"
+                  data-label="Номер заявки"
+                >
+                  <span
+                    v-if="isManualItem(item)"
+                    class="manual-badge"
+                  >Добавлено вручную</span>
+                  <template v-else>
+                    {{ item.applicationNumber || '-' }}
+                  </template>
+                </div>
+                <div
+                  v-if="isFieldInDom('unload_place')"
+                  class="col place-col"
+                  :class="fieldColClass('unload_place')"
+                  :style="getColStyle('unload_place')"
+                  data-label="Место разгрузки"
+                >
+                  {{ formatUnloadPlaces(item) }}
+                </div>
+                <div
+                  v-if="isFieldInDom('valid_until')"
+                  class="col date-col"
+                  :class="fieldColClass('valid_until')"
+                  :style="getColStyle('valid_until')"
+                  data-label="Действует до"
+                >
+                  {{ formatDate(item.entry_date_to) }}
+                </div>
+                <div
+                  v-if="isFieldInDom('time_range')"
+                  class="col time-col"
+                  :class="fieldColClass('time_range')"
+                  :style="getColStyle('time_range')"
+                  data-label="Время"
+                >
+                  {{ formatTimeRange(item.entry_time_from, item.entry_time_to) }}
+                </div>
+                <div
+                  v-if="isFieldInDom('status')"
+                  class="col status-col"
+                  :class="fieldColClass('status')"
+                  :style="getColStyle('status')"
+                  data-label="Статус"
+                >
+                  <StatusBadge :status="item.status" />
+                </div>
+                <div
+                  v-if="hiddenInPortraitFields().length"
+                  class="col expand-col"
+                  style="order: 9998;"
+                  @click.stop
+                >
+                  <button
+                    type="button"
+                    class="expand-btn"
+                    :class="{ 'expand-btn--open': expandedRows[item.id] }"
+                    :aria-expanded="!!expandedRows[item.id]"
+                    :aria-label="expandedRows[item.id] ? 'Скрыть' : 'Подробнее'"
+                    @click="toggleRowExpand(item.id)"
+                  >
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 14 14"
+                      fill="none"
                     >
-                      Въезд
-                    </button>
-                  </div>
-                  <!-- Выезд - кнопка -->
-                  <div
-                    class="col exit-col"
-                    style="order: 1;"
-                    data-label="Выезд"
-                    @click.stop
-                  >
-                    <button
-                      class="action-btn exit-btn"
-                      :class="{ 'active': item.exit_checked }"
-                      :disabled="preview || !item.entry_checked || item.exit_checked"
-                      @click="preview ? null : handleEntryExit(item, 'exit')"
-                    >
-                      Выезд
-                    </button>
-                  </div>
-                  <div
-                    v-if="isFieldInDom('car_number')"
-                    class="col number-col"
-                    :class="fieldColClass('car_number')"
-                    :style="getColStyle('car_number')"
-                    data-label="Номер Т/С"
-                  >
-                    {{ item.car_number }}
-                  </div>
-                  <div
-                    v-if="isFieldInDom('car_brand')"
-                    class="col brand-col"
-                    :class="fieldColClass('car_brand')"
-                    :style="getColStyle('car_brand')"
-                    data-label="Марка"
-                  >
-                    {{ item.car_brand }}
-                  </div>
-                  <div
-                    v-if="isFieldInDom('organization')"
-                    class="col organization-col"
-                    :class="fieldColClass('organization')"
-                    :style="getColStyle('organization')"
-                    data-label="Организация"
-                  >
-                    {{ item.organization_name }}
-                  </div>
-                  <div
-                    v-if="isFieldInDom('company')"
-                    class="col company-col"
-                    :class="fieldColClass('company')"
-                    :style="getColStyle('company')"
-                    data-label="Компания"
-                  >
-                    {{ item.company || '-' }}
-                  </div>
-                  <div
-                    v-if="isFieldInDom('application_id')"
-                    class="col application-col"
-                    :class="fieldColClass('application_id')"
-                    :style="getColStyle('application_id')"
-                    data-label="Номер заявки"
-                  >
-                    <span
-                      v-if="isManualItem(item)"
-                      class="manual-badge"
-                    >Добавлено вручную</span>
-                    <template v-else>
-                      {{ item.applicationNumber || '-' }}
-                    </template>
-                  </div>
-                  <div
-                    v-if="isFieldInDom('unload_place')"
-                    class="col place-col"
-                    :class="fieldColClass('unload_place')"
-                    :style="getColStyle('unload_place')"
-                    data-label="Место разгрузки"
-                  >
-                    {{ formatUnloadPlaces(item) }}
-                  </div>
-                  <div
-                    v-if="isFieldInDom('valid_until')"
-                    class="col date-col"
-                    :class="fieldColClass('valid_until')"
-                    :style="getColStyle('valid_until')"
-                    data-label="Действует до"
-                  >
-                    {{ formatDate(item.entry_date_to) }}
-                  </div>
-                  <div
-                    v-if="isFieldInDom('time_range')"
-                    class="col time-col"
-                    :class="fieldColClass('time_range')"
-                    :style="getColStyle('time_range')"
-                    data-label="Время"
-                  >
-                    {{ formatTimeRange(item.entry_time_from, item.entry_time_to) }}
-                  </div>
-                  <div
-                    v-if="isFieldInDom('status')"
-                    class="col status-col"
-                    :class="fieldColClass('status')"
-                    :style="getColStyle('status')"
-                    data-label="Статус"
-                  >
-                    <StatusBadge :status="item.status" />
-                  </div>
-                  <div
-                    v-if="isCompact && hiddenInPortraitFields().length"
-                    class="col expand-col"
-                    style="order: 9998;"
-                    @click.stop
-                  >
-                    <button
-                      type="button"
-                      class="expand-btn"
-                      :class="{ 'expand-btn--open': expandedRows[item.id] }"
-                      :aria-expanded="!!expandedRows[item.id]"
-                      :aria-label="expandedRows[item.id] ? 'Скрыть' : 'Подробнее'"
-                      @click="toggleRowExpand(item.id)"
-                    >
-                      <svg
-                        width="14"
-                        height="14"
-                        viewBox="0 0 14 14"
-                        fill="none"
-                      >
-                        <path
-                          d="M3.5 5L7 8.5L10.5 5"
-                          stroke="currentColor"
-                          stroke-width="1.5"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                        />
-                      </svg>
-                    </button>
-                  </div>
-                  <div
-                    v-if="can('entity.cars.delete')"
-                    class="col actions-col"
-                    style="order: 9999;"
-                    @click.stop
-                  >
-                    <!-- Машина привязана к нескольким таблицам (#1194 S5) - выбор
+                      <path
+                        d="M3.5 5L7 8.5L10.5 5"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+                  </button>
+                </div>
+                <div
+                  v-if="can('entity.cars.delete')"
+                  class="col actions-col"
+                  style="order: 9999;"
+                  @click.stop
+                >
+                  <!-- Машина привязана к нескольким таблицам (#1194 S5) - выбор
                        между "убрать только отсюда" и глобальной деактивацией.
                        Единственная привязка ИЛИ не-админ - корзина работает как
                        раньше (unbind-table гейтится page.admin на бэке, иначе
                        "видно, но 403"). -->
-                    <TableRowRemoveMenu
-                      v-if="(item.target_tables_count || 0) > 1 && can('page.admin')"
-                      :disabled="preview || isLoading"
-                      @remove-current="removeFromCurrentTableWithNotification(item)"
-                      @remove-all="removeItemWithNotification(item)"
-                    />
-                    <button
-                      v-else
-                      class="delete-btn"
-                      :disabled="preview || isLoading"
-                      @click="preview ? null : removeItemWithNotification(item)"
-                    >
-                      <img
-                        src="@/assets/icons/trashcan.png"
-                        alt="Удалить"
-                        class="delete-icon"
-                      >
-                    </button>
-                  </div>
-                </div>
-                <div
-                  v-if="isCompact && expandedRows[item.id]"
-                  class="item-row__details"
-                  @click.stop
-                >
-                  <div
-                    v-for="name in hiddenInPortraitFields()"
-                    :key="name"
-                    class="detail-item"
+                  <TableRowRemoveMenu
+                    v-if="(item.target_tables_count || 0) > 1 && can('page.admin')"
+                    :disabled="preview || isLoading"
+                    @remove-current="removeFromCurrentTableWithNotification(item)"
+                    @remove-all="removeItemWithNotification(item)"
+                  />
+                  <button
+                    v-else
+                    class="delete-btn"
+                    :disabled="preview || isLoading"
+                    @click="preview ? null : removeItemWithNotification(item)"
                   >
-                    <span class="detail-item__label">{{ portraitFieldLabel(name) }}</span>
-                    <span class="detail-item__value">
-                      <StatusBadge
-                        v-if="name === 'status'"
-                        :status="item.status"
-                      />
-                      <template v-else>{{ portraitFieldValue(item, name) }}</template>
-                    </span>
-                  </div>
+                    <img
+                      src="@/assets/icons/trashcan.png"
+                      alt="Удалить"
+                      class="delete-icon"
+                    >
+                  </button>
                 </div>
               </div>
-            </transition-group>
-          </div>
+              <div
+                v-if="expandedRows[item.id] && hiddenInPortraitFields().length"
+                class="item-row__details"
+                @click.stop
+              >
+                <div
+                  v-for="name in hiddenInPortraitFields()"
+                  :key="name"
+                  class="detail-item"
+                >
+                  <span class="detail-item__label">{{ portraitFieldLabel(name) }}</span>
+                  <span class="detail-item__value">
+                    <StatusBadge
+                      v-if="name === 'status'"
+                      :status="item.status"
+                    />
+                    <template v-else>{{ portraitFieldValue(item, name) }}</template>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </transition-group>
+        </div>
         
-          <div
-            v-else-if="!isLoading"
-            class="no-data-message"
-          >
-            {{ hasActiveFilters ? 'Нет данных по выбранным фильтрам' : 'Нет активных автомобилей' }}
-          </div>
+        <div
+          v-else-if="!isLoading"
+          class="no-data-message"
+        >
+          {{ hasActiveFilters ? 'Нет данных по выбранным фильтрам' : 'Нет активных автомобилей' }}
         </div>
       </div>
     </div>
@@ -613,6 +609,7 @@ import StatusBadge from '@/components/ui/StatusBadge.vue';
 import SwitchToggle from '@/components/ui/SwitchToggle.vue';
 import ExcelJS from 'exceljs';
 import { bulkMoveCarsTable, bulkAddCarsTable, bulkUnbindCarsTable } from '@/api/cars';
+import { pickOverflowFields, columnMinWidth, SERVICE_COLUMNS_WIDTH } from '@/utils/tableColumnFit';
 
 const ENLARGED_KEY_PREFIX = 'enlarged-mode:cars:';
 
@@ -628,6 +625,12 @@ export default {
     LoaderSpinner,
     StatusBadge,
     SwitchToggle
+  },
+  setup() {
+    const { isPortrait, isCompact } = useOrientation();
+    const permissionsStore = usePermissionsStore();
+    const rowSelection = useRowSelection();
+    return { isPortrait, isCompact, permissionsStore, ...rowSelection };
   },
   props: {
     tableName: { type: String, default: '' },
@@ -649,12 +652,6 @@ export default {
     grid: { type: Boolean, default: false }
   },
   emits: ['open-application', 'update:grid'],
-  setup() {
-    const { isPortrait, isCompact } = useOrientation();
-    const permissionsStore = usePermissionsStore();
-    const rowSelection = useRowSelection();
-    return { isPortrait, isCompact, permissionsStore, ...rowSelection };
-  },
   data() {
     return {
       sortField: null,
@@ -669,9 +666,9 @@ export default {
       licensePlateFormats: [],
       showVehicleDetails: false,
       selectedVehicle: null,
-      // Тень у закреплённых столбцов нужна, только когда таблица реально уехала
-      // вбок (#1307) - иначе она читается как лишний разделитель.
-      scrolledX: false,
+      // Столбцы, не поместившиеся по ширине (#1307): скрываются от наименее
+      // важных, при равном приоритете - правые. Значения остаются в «Подробнее».
+      overflowFields: [],
       showCarsTableHistory: false,
       pollingInterval: null,
       // Real-time (#840): подписка на tables:<tableId>, статус SSE-соединения и seq-токен
@@ -799,8 +796,7 @@ export default {
       handler(newVal) {
         if (this.preview) return;
         if (newVal) {
-          this.unbindHorizontalScroll();
-    this.stopPolling();
+          this.stopPolling();
           this.startPolling();
         }
       }
@@ -819,6 +815,8 @@ export default {
     enlarged(value) {
       if (this.preview) return;
       this.saveEnlargedToStorage(value);
+      // У увеличенного режима свой набор видимых столбцов - пересобираем подгонку.
+      this.$nextTick(() => this.recalcOverflowFields());
     },
     // Строки, ушедшие из видимого списка (фильтр/поиск/удаление/поллинг),
     // убираем из выделения - счётчик "Выбрано: N" не должен врать (#1194).
@@ -851,6 +849,7 @@ export default {
         this.fieldOrders = nextOrd;
         this.fieldWidths = nextW;
         this.fieldPriorities = nextP;
+        this.$nextTick(() => this.recalcOverflowFields());
         this.markConfigReady();
       }
     }
@@ -874,9 +873,10 @@ export default {
     // за пределы таблицы) - слушаем на window, иначе drag "залипнет".
     this.onGlobalMouseUp = () => this.endDrag();
     window.addEventListener('mouseup', this.onGlobalMouseUp);
-    this.$nextTick(() => this.bindHorizontalScroll());
+    this.$nextTick(() => this.bindWidthWatcher());
   },
   beforeUnmount() {
+    this.unbindWidthWatcher();
     this.stopPolling();
     if (this.onGlobalMouseUp) {
       window.removeEventListener('mouseup', this.onGlobalMouseUp);
@@ -894,29 +894,6 @@ export default {
     eventStream.disconnect();
   },
   methods: {
-    /**
-     * Следит, прокручена ли таблица по горизонтали - от этого зависит тень
-     * у закреплённых столбцов.
-     */
-    bindHorizontalScroll() {
-      this.scrollHost = this.$el && this.$el.querySelector('.card-content');
-      if (!this.scrollHost) return;
-      this.onHorizontalScroll = () => {
-        this.scrolledX = this.scrollHost.scrollLeft > 0;
-      };
-      this.scrollHost.addEventListener('scroll', this.onHorizontalScroll, { passive: true });
-      this.onHorizontalScroll();
-    },
-
-    unbindHorizontalScroll() {
-      if (this.scrollHost && this.onHorizontalScroll) {
-        this.scrollHost.removeEventListener('scroll', this.onHorizontalScroll);
-      }
-      this.scrollHost = null;
-      this.onHorizontalScroll = null;
-    },
-
-
     // Гейтинг по правам (#187 Фаза 2). super -> всегда true, admin -> всё кроме
     // denied, обычный -> по эффективному гранту. Реактивно: читает стор прав.
     can(key) {
@@ -1493,6 +1470,8 @@ export default {
         const p = this.fieldPriorities[fieldName];
         if (typeof p === 'number' && p > this.compactPriorityThreshold) return false;
       }
+      // Не поместившиеся по ширине (#1307).
+      if (this.overflowFields.includes(fieldName)) return false;
       return true;
     },
 
@@ -1509,6 +1488,49 @@ export default {
      * плавной анимацией. Применяется когда поле скрыто в текущем режиме
      * (обычный/enlarged) либо когда priority выше порога в компактном.
      */
+    /**
+     * Поля, видимые по настройкам таблицы, в порядке отображения слева направо.
+     */
+    configuredFields() {
+      const source = this.enlarged ? this.fieldsEnlargedVisibility : this.fieldsVisibility;
+      return Object.keys(source)
+        .filter(name => source[name] !== false)
+        .sort((a, b) => (this.fieldOrders[a] ?? 0) - (this.fieldOrders[b] ?? 0));
+    },
+
+    /**
+     * Пересчитывает, какие столбцы не помещаются в текущую ширину таблицы.
+     */
+    recalcOverflowFields() {
+      const host = this.$el && this.$el.querySelector('.card-content');
+      if (!host) return;
+      const reserved = SERVICE_COLUMNS_WIDTH.passage
+        + (this.can('entity.cars.delete') ? SERVICE_COLUMNS_WIDTH.actions : 0)
+        + SERVICE_COLUMNS_WIDTH.expand;
+      this.overflowFields = pickOverflowFields({
+        fields: this.configuredFields(),
+        available: host.clientWidth,
+        priorities: this.fieldPriorities,
+        orders: this.fieldOrders,
+        reserved,
+      });
+    },
+
+    bindWidthWatcher() {
+      const host = this.$el && this.$el.querySelector('.card-content');
+      if (!host || typeof ResizeObserver !== 'function') return;
+      this.widthObserver = new ResizeObserver(() => this.recalcOverflowFields());
+      this.widthObserver.observe(host);
+      this.recalcOverflowFields();
+    },
+
+    unbindWidthWatcher() {
+      if (this.widthObserver) {
+        this.widthObserver.disconnect();
+        this.widthObserver = null;
+      }
+    },
+
     fieldColClass(fieldName) {
       if (this.enlarged) {
         const ev = this.fieldsEnlargedVisibility[fieldName];
@@ -1523,6 +1545,7 @@ export default {
           return 'col--collapsed';
         }
       }
+      if (this.overflowFields.includes(fieldName)) return 'col--collapsed';
       return '';
     },
 
@@ -1532,13 +1555,19 @@ export default {
      * "Подробнее" под строкой - показать пользователю недостающие поля.
      */
     hiddenInPortraitFields() {
-      if (!this.isCompact) return [];
-      return Object.keys(this.fieldsVisibility)
-        .filter(name => this.fieldsVisibility[name] !== false)
-        .filter(name => {
-          const p = this.fieldPriorities[name];
-          return typeof p === 'number' && p > this.compactPriorityThreshold;
-        });
+      const portrait = this.isCompact
+        ? Object.keys(this.fieldsVisibility)
+          .filter(name => this.fieldsVisibility[name] !== false)
+          .filter(name => {
+            const p = this.fieldPriorities[name];
+            return typeof p === 'number' && p > this.compactPriorityThreshold;
+          })
+        : [];
+      // Не поместившиеся столбцы прячутся так же, как портретные, - значения
+      // остаются доступны в панели «Подробнее» (#1307).
+      const merged = [...portrait, ...this.overflowFields];
+      return [...new Set(merged)]
+        .sort((a, b) => (this.fieldOrders[a] ?? 0) - (this.fieldOrders[b] ?? 0));
     },
 
     toggleRowExpand(rowId) {
@@ -1604,6 +1633,10 @@ export default {
       } else if (width !== undefined && width > 0) {
         style.flexGrow = width;
       }
+      // Ниже этого порога столбец не сжимается - значения переставали читаться
+      // (#1307). Не поместившиеся столбцы к этому моменту уже скрыты, поэтому
+      // минимум не переполняет строку. В портретном режиме своя раскладка.
+      if (!this.isCompact) style.minWidth = columnMinWidth(fieldName) + 'px';
       return Object.keys(style).length ? style : null;
     },
 
@@ -1646,6 +1679,7 @@ export default {
         this.fieldsEnlargedVisibility = nextEnlVis;
         this.fieldsEnlargedWidth = nextEnlW;
         this.fieldsEnlargedWeight = nextEnlWeight;
+        this.$nextTick(() => this.recalcOverflowFields());
         // Применяем стиль уровня таблицы (#345 фазы 1D+1E).
         const tbl = data.table || {};
         const fs = Number(tbl.font_size);
@@ -2425,99 +2459,6 @@ export default {
 @media (max-width: 767.98px) {
   .grid-toggle {
     display: none;
-  }
-}
-
-/* Горизонтальная прокрутка широкой таблицы (#1307). Раньше колонки делили
-   доступную ширину без предела и на 12 столбцах резались многоточием. Теперь у
-   каждой есть минимум, ниже которого она не сжимается: пока места хватает,
-   ширины по-прежнему распределяются по настроенным весам, а когда перестаёт -
-   таблица едет вбок. Служебные столбцы при этом закреплены.
-
-   Не применяется в портретном компактном режиме (.is-portrait) - тамработает
-   скрытие второстепенных столбцов по приоритету и панель "Подробнее". */
-@media (min-width: 768px) {
-  /* Один скролл-контейнер на шапку и тело - иначе они разъезжаются по
-     горизонтали. Вертикально шапка остаётся на месте за счёт sticky. */
-  .selected-table-card:not(.is-portrait) .card-content {
-    overflow: auto;
-  }
-
-  .selected-table-card:not(.is-portrait) .items-container,
-  .selected-table-card:not(.is-portrait) .items-body {
-    overflow: visible;
-  }
-
-  .selected-table-card:not(.is-portrait) .items-header {
-    position: sticky;
-    top: 0;
-    z-index: 4;
-    background: #fff;
-  }
-
-  /* Общая ширина шапки и строк: обёртка растягивается по самой широкой из них,
-     строки внутри занимают её целиком - иначе шапка и данные разъезжаются. */
-  .selected-table-card:not(.is-portrait) .table-scroll {
-    width: max-content;
-    min-width: 100%;
-  }
-
-  .selected-table-card:not(.is-portrait) .header-row,
-  .selected-table-card:not(.is-portrait) .item-data {
-    width: 100%;
-  }
-
-  /* Минимальные ширины: порог читаемости для каждого типа столбца. */
-  .selected-table-card:not(.is-portrait) .col { min-width: 90px; }
-  .selected-table-card:not(.is-portrait) .entry-col,
-  .selected-table-card:not(.is-portrait) .exit-col { min-width: 86px; }
-  .selected-table-card:not(.is-portrait) .number-col { min-width: 120px; }
-  .selected-table-card:not(.is-portrait) .brand-col { min-width: 100px; }
-  .selected-table-card:not(.is-portrait) .organization-col { min-width: 150px; }
-  .selected-table-card:not(.is-portrait) .company-col { min-width: 150px; }
-  .selected-table-card:not(.is-portrait) .application-col,
-  .selected-table-card:not(.is-portrait) .place-col { min-width: 135px; }
-  .selected-table-card:not(.is-portrait) .date-col { min-width: 110px; }
-  .selected-table-card:not(.is-portrait) .time-col { min-width: 105px; }
-  /* Бейдж статуса не сжимается (StatusBadge min-width: 120px). */
-  .selected-table-card:not(.is-portrait) .status-col { min-width: 150px; }
-  .selected-table-card:not(.is-portrait) .actions-col { min-width: 44px; }
-
-  /* Закреплённые столбцы: Въезд и Выезд слева, удаление справа. Смещение
-     второго равно минимуму первого - в прокрутке столбцы стоят на минимуме. */
-  .selected-table-card:not(.is-portrait) .entry-col,
-  .selected-table-card:not(.is-portrait) .exit-col,
-  .selected-table-card:not(.is-portrait) .actions-col {
-    position: sticky;
-    z-index: 2;
-    background: #fff;
-  }
-
-  .selected-table-card:not(.is-portrait) .entry-col { left: 0; }
-  .selected-table-card:not(.is-portrait) .exit-col { left: 86px; }
-  .selected-table-card:not(.is-portrait) .actions-col { right: 0; }
-
-  /* Тень появляется только когда таблица уехала вбок - иначе она выглядела бы
-     разделителем там, где ничего не прокручивается. */
-  .selected-table-card:not(.is-portrait).scrolled-x .exit-col {
-    box-shadow: 6px 0 6px -6px rgba(0, 0, 0, 0.15);
-  }
-  .selected-table-card:not(.is-portrait).scrolled-x .actions-col {
-    box-shadow: -6px 0 6px -6px rgba(0, 0, 0, 0.15);
-  }
-
-  .selected-table-card:not(.is-portrait) .header-row .entry-col,
-  .selected-table-card:not(.is-portrait) .header-row .exit-col,
-  .selected-table-card:not(.is-portrait) .header-row .actions-col {
-    z-index: 5;
-  }
-
-  /* Под закреплённым столбцом не должно просвечивать уезжающее содержимое,
-     поэтому фон непрозрачный и повторяет подсветку строки. */
-  .selected-table-card:not(.is-portrait) .item-row:hover .entry-col,
-  .selected-table-card:not(.is-portrait) .item-row:hover .exit-col,
-  .selected-table-card:not(.is-portrait) .item-row:hover .actions-col {
-    background: #f5f5f5;
   }
 }
 
