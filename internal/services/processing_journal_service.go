@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"systemburo/internal/models"
@@ -40,6 +41,37 @@ func NormalizeProcessingJournalPaging(limit, offset int) (int, int) {
 		offset = 0
 	}
 	return limit, offset
+}
+
+// ProcessingJournalFilter — отбор событий ленты поверх окна периода (#1251 P5c):
+// роль события и поиск по номеру заявки или подписи актора. Пустое поле — фильтр
+// не применяется.
+type ProcessingJournalFilter struct {
+	Role   string // approval | acceptance, иное значение отсекает NormalizeProcessingJournalFilter
+	Search string // подстрока номера заявки или ФИО/логина актора, регистр не важен
+}
+
+// NormalizeProcessingJournalFilter приводит фильтр к применимому виду: неизвестная
+// роль превращается в ошибку (её отдаёт handler как 400 — молча показывать ВСЕ
+// события на опечатку в параметре значило бы врать пользователю о выборке), поиск
+// обрезается по краям.
+func NormalizeProcessingJournalFilter(f ProcessingJournalFilter) (ProcessingJournalFilter, error) {
+	f.Role = strings.TrimSpace(f.Role)
+	f.Search = strings.TrimSpace(f.Search)
+	switch f.Role {
+	case "", models.ProcessingJournalRoleApproval, models.ProcessingJournalRoleAcceptance:
+	default:
+		return f, fmt.Errorf("unknown processing journal role %q", f.Role)
+	}
+	return f, nil
+}
+
+// journalSearchPattern — подстрочный шаблон для ILIKE. Спецсимволы самого LIKE
+// экранируются: без этого «%» из поля поиска матчил бы всё подряд, а «_» — любой
+// символ, и выборка молча переставала бы соответствовать запросу.
+func journalSearchPattern(search string) string {
+	escaped := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(search)
+	return "%" + escaped + "%"
 }
 
 // processingJournalSource — UNION ALL обеих веток ленты за период [from, to] без
@@ -95,17 +127,31 @@ func processingJournalSource() string {
 
 // GetProcessingJournal возвращает страницу событий согласования/принятия за период
 // [from, to] по времени убыванием (limit событий, начиная с offset) и общее число
-// событий периода для постраничной навигации. Окно бьёт по времени САМОГО события
+// подходящих событий для постраничной навигации. Окно бьёт по времени САМОГО события
 // (согласование/принятие), а не по дате подачи: лента показывает, что происходило в
-// выбранный период.
-func (s *statisticsService) GetProcessingJournal(ctx context.Context, from, to time.Time, limit, offset int) ([]models.ProcessingJournalEntry, int64, error) {
+// выбранный период. Фильтр роли и поиска применяются ПОВЕРХ окна одним предикатом и
+// для страницы, и для счётчика — иначе «Всего» разошлось бы с содержимым страниц.
+func (s *statisticsService) GetProcessingJournal(ctx context.Context, from, to time.Time, filter ProcessingJournalFilter, limit, offset int) ([]models.ProcessingJournalEntry, int64, error) {
 	// HTTP-слой уже нормализовал (ему значения нужны для meta), но метод публичный:
 	// нормализуем и здесь, иначе прямой вызов из другого места ушёл бы в БД с
 	// limit<=0. Функция идемпотентна, повторный вызов ничего не меняет.
 	limit, offset = NormalizeProcessingJournalPaging(limit, offset)
+	filter, err := NormalizeProcessingJournalFilter(filter)
+	if err != nil {
+		return nil, 0, err
+	}
 
-	source := processingJournalSource()
-	args := map[string]any{"from": from, "to": to, "limit": limit, "offset": offset}
+	source := fmt.Sprintf(`
+		SELECT * FROM (%s) j
+		WHERE (@role = '' OR j.role = @role)
+		  AND (@search = ''
+			   OR j.application_number ILIKE @pattern ESCAPE '\'
+			   OR j.actor_name ILIKE @pattern ESCAPE '\')`, processingJournalSource())
+	args := map[string]any{
+		"from": from, "to": to, "limit": limit, "offset": offset,
+		"role": filter.Role, "search": filter.Search,
+		"pattern": journalSearchPattern(filter.Search),
+	}
 
 	var total int64
 	if err := s.db.WithContext(ctx).Raw(

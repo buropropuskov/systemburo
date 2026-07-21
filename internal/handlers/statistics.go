@@ -107,12 +107,14 @@ func (h *StatisticsHandler) GetProcessingSummary(c echo.Context) error {
 
 // GetProcessingJournal godoc
 // @Summary      Журнал обработки заявок
-// @Description  Сквозная лента событий согласования и принятия в работу за период по времени убыванием: кто, по какой заявке, в какой роли, когда и сколько рабочего времени Бюро на это ушло. Страница задаётся limit и offset, общее число событий периода — в meta.total.
+// @Description  Сквозная лента событий согласования и принятия в работу за период по времени убыванием: кто, по какой заявке, в какой роли, когда и сколько рабочего времени Бюро на это ушло. Страница задаётся limit и offset, общее число подходящих событий — в meta.total. Фильтры role и q сужают выборку и учитываются в meta.total.
 // @Tags         statistics
 // @Produce      json
 // @Security     BearerAuth
 // @Param        from   query string false "Начало периода (YYYY-MM-DD), по умолчанию 7 дней назад"
 // @Param        to     query string false "Конец периода (YYYY-MM-DD), по умолчанию сегодня"
+// @Param        role   query string false "Роль события: approval или acceptance (по умолчанию обе)"
+// @Param        q      query string false "Поиск по номеру заявки или ФИО актора (подстрока, регистр не важен)"
 // @Param        limit  query int    false "Размер страницы (по умолчанию 50, максимум 200)"
 // @Param        offset query int    false "Смещение от начала ленты (по умолчанию 0)"
 // @Success      200 {object} Response
@@ -140,7 +142,17 @@ func (h *StatisticsHandler) GetProcessingJournal(c echo.Context) error {
 	// применённый размер страницы и её номер, а не сырые значения из query.
 	limit, offset = services.NormalizeProcessingJournalPaging(limit, offset)
 
-	entries, total, err := h.service.GetProcessingJournal(c.Request().Context(), from, to, limit, offset)
+	// Неизвестная роль — 400, а не тихий показ всех событий: иначе опечатка в
+	// параметре выглядела бы как «фильтр применён, просто ничего не отсеялось».
+	filter, err := services.NormalizeProcessingJournalFilter(services.ProcessingJournalFilter{
+		Role:   c.QueryParam("role"),
+		Search: c.QueryParam("q"),
+	})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid role filter")
+	}
+
+	entries, total, err := h.service.GetProcessingJournal(c.Request().Context(), from, to, filter, limit, offset)
 	if err != nil {
 		return err
 	}

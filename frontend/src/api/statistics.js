@@ -89,14 +89,20 @@ export async function getProcessingSummary(from, to) {
  * @param {string} to YYYY-MM-DD
  * @param {number} [limit] размер страницы (бэк клампит: по умолчанию 50, максимум 200)
  * @param {number} [offset] смещение от начала ленты (постраничная навигация, #1251 P5b)
+ * @param {{role?: 'approval'|'acceptance'|'', q?: string}} [filter] отбор ленты (#1251 P5c):
+ *   роль события и подстрока номера заявки или ФИО актора. Фильтры входят и в meta.total.
  * @returns {Promise<{items: Array<{application_id: number, application_number: string, actor_name: string, role: 'approval'|'acceptance', occurred_at: string, working_seconds: number|null}>, meta: {total: number, page: number, per_page: number}}>}
  */
-export async function getProcessingJournal(from, to, limit, offset) {
+export async function getProcessingJournal(from, to, limit, offset, filter = {}) {
   const params = new URLSearchParams();
   if (from) params.set('from', from);
   if (to) params.set('to', to);
   if (limit) params.set('limit', String(limit));
   if (offset) params.set('offset', String(offset));
+  // role: approval | acceptance (иное бэк отбивает 400), q — подстрока номера
+  // заявки или ФИО актора. Фильтры учитываются и в meta.total.
+  if (filter.role) params.set('role', filter.role);
+  if (filter.q) params.set('q', filter.q);
   // Сырой ответ: общее число событий лежит в envelope.meta рядом с data, а apiRequest
   // снимает только data и meta теряется (см. getApplicationsPaginated).
   const res = await apiRequestRaw(`/statistics/processing-journal?${params}`);
