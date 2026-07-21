@@ -9,9 +9,18 @@
       >
         <div
           class="modal-content"
+          :class="{ 'is-dragging': sheetDragging }"
+          :style="sheetOffset ? { transform: `translateY(${sheetOffset}px)` } : null"
           @mousedown.stop
           @click.stop
+          @touchstart="onSheetTouchStart"
+          @touchmove="onSheetTouchMove"
+          @touchend="onSheetTouchEnd"
         >
+          <div
+            class="sheet-handle"
+            aria-hidden="true"
+          />
           <!-- Заголовок модалки -->
           <div class="modal-header">
             <h3>Выбор существующих автомобилей</h3>
@@ -75,9 +84,9 @@
 
           <!-- Список машин -->
           <div class="cars-table-container">
-            <div class="cars-table">
+            <div class="cars-table rt-table">
               <!-- Заголовки таблицы -->
-              <div class="table-header">
+              <div class="table-header rt-head-row">
                 <div class="header-cell select-cell" />
                 <div class="header-cell number-cell">
                   №
@@ -94,11 +103,14 @@
               </div>
 
               <!-- Тело таблицы -->
-              <div class="table-body">
+              <div
+                ref="listBody"
+                class="table-body"
+              >
                 <div
                   v-for="car in displayedCars"
                   :key="car.id"
-                  class="table-row"
+                  class="table-row rt-row"
                   :class="{
                     'table-row--disabled': isCarDisabled(car),
                     'table-row--blacklisted': isCarBlacklisted(car),
@@ -193,7 +205,9 @@ import { apiRequest } from '@/api/client'
 import SearchComponent from '@/components/SearchComponent.vue'
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
 import { listVehicleBlacklist } from '@/api/blacklist'
+import { ref } from 'vue'
 import { useOverlayClose } from '@/composables/useOverlayClose'
+import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
 
 export default {
     name: 'ExistingCarsModal',
@@ -226,7 +240,22 @@ export default {
     emits: ['cars-selected', 'close'],
     setup(props, { emit }) {
         const { onOverlayMousedown, onOverlayMouseup } = useOverlayClose(() => emit('close'))
-        return { onOverlayMousedown, onOverlayMouseup }
+        // Свайп вниз закрывает лист: тянем за ползунок или за окно, когда список вверху.
+        const listBody = ref(null)
+        const swipe = useSwipeDismiss(() => emit('close'), {
+            handleSelector: '.sheet-handle',
+            getScrollTop: () => listBody.value?.scrollTop ?? 0,
+        })
+        return {
+            onOverlayMousedown,
+            onOverlayMouseup,
+            listBody,
+            sheetOffset: swipe.offset,
+            sheetDragging: swipe.isDragging,
+            onSheetTouchStart: swipe.onTouchStart,
+            onSheetTouchMove: swipe.onTouchMove,
+            onSheetTouchEnd: swipe.onTouchEnd,
+        }
     },
     data() {
         return {
@@ -446,6 +475,16 @@ export default {
     flex-direction: column;
     overflow: hidden;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+}
+
+.sheet-handle {
+    display: none;
+    width: 40px;
+    height: 4px;
+    border-radius: 2px;
+    background: #d5d5d5;
+    margin: 10px auto 2px;
+    flex-shrink: 0;
 }
 
 .modal-header {
@@ -825,9 +864,33 @@ export default {
 
     .modal-header {
         padding: 12px 16px;
-        flex-direction: column;
-        gap: 12px;
-        align-items: stretch;
+    }
+
+    /* Шапка в колонку ставила крестик третьей строкой слева - возвращаем его в
+       правый верхний угол: заголовок и крестик в строке, поиск под ними. */
+    .modal-header {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px 12px;
+        align-items: center;
+    }
+
+    .modal-header h3 {
+        grid-column: 1;
+        grid-row: 1;
+        font-size: 16px;
+    }
+
+    .modal-close {
+        grid-column: 2;
+        grid-row: 1;
+        width: 36px;
+        height: 36px;
+    }
+
+    .header-right {
+        grid-column: 1 / -1;
+        grid-row: 2;
     }
 
     .header-right {
@@ -852,6 +915,105 @@ export default {
 
     .modal-actions {
         padding: 12px 16px;
+    }
+}
+
+@media (max-width: 767.98px) {
+    /* Карточки вместо таблицы: минимум 502px ширины колонок на 390 просто резал
+       данные - скролла у контейнера не было. Классы rt-* из responsive-tables.css,
+       подписи полей не выводим (решение по эпику - карточки без лейблов). */
+    .cars-table-container {
+        min-height: 0;
+        max-height: none;
+        flex: 1;
+        overflow: visible;
+    }
+
+    /* Высота списка была прибита к 200px внутри листа на 90dvh - под ним оставалась
+       пустота, а данные скроллились в окошке. */
+    .table-body {
+        height: auto;
+        min-height: 0;
+        max-height: none;
+        flex: 1;
+        overflow-y: auto;
+        padding: 8px 12px 12px;
+    }
+
+    .table-row.rt-row {
+        position: relative;
+        flex-direction: row !important;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 2px 8px;
+        height: auto !important;
+        min-height: 56px;
+        padding: 10px 100px 10px 46px !important;
+        font-size: 14px;
+    }
+
+    .table-cell {
+        width: auto !important;
+        min-width: 0 !important;
+        flex: 0 1 auto;
+        padding: 0;
+    }
+
+    .select-cell {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+    }
+
+    /* Внутренний идентификатор записи на карточке не нужен. */
+    .number-cell {
+        display: none;
+    }
+
+    .plate-cell {
+        font-weight: 600;
+        font-size: 15px;
+    }
+
+    .mark-cell {
+        flex-basis: 100%;
+        color: #666;
+        font-size: 13px;
+    }
+
+    .status-cell {
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+    }
+
+    /* Чекбокс под палец: сам 24px, зона клика расширена псевдоэлементом. */
+    .table-cell input[type="checkbox"] {
+        position: relative;
+        width: 24px;
+        height: 24px;
+    }
+
+    .table-cell input[type="checkbox"]::before {
+        content: '';
+        position: absolute;
+        inset: -8px;
+    }
+}
+
+@media (max-width: 768px) {
+    .sheet-handle {
+        display: block;
+    }
+
+    .modal-content {
+        transition: transform 0.3s ease;
+    }
+
+    .modal-content.is-dragging {
+        transition: none;
     }
 }
 </style>
