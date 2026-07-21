@@ -28,14 +28,6 @@
         </div>
 
         <div class="header-top__actions">
-          <!-- Обновить: на десктопе живёт в шапке ТАБЛИЦЫ (как исторически), здесь -
-               только мобильный вариант, иконкой без текста (шапка таблицы на мобилке
-               скрыта, иначе обновить нечем). Стиль иконки - как в «Обзор и новости». -->
-          <RefreshButton
-            v-if="isMobileHeader"
-            :loading="refreshing"
-            @refresh="fetchApplications"
-          />
           <!-- Настройки звука -->
         <div
           ref="soundPopoverRef"
@@ -383,6 +375,14 @@
             @update:model-value="archiveMode = $event"
           />
         </div>
+
+        <!-- Обновить: на десктопе живёт в шапке ТАБЛИЦЫ (как исторически), здесь -
+             только мобильный вариант, иконкой без текста (шапка таблицы на мобилке
+             скрыта, иначе обновить нечем). Стоит перед «Фильтром» и одной с ним высоты. -->
+        <RefreshButton
+          :loading="refreshing"
+          @refresh="fetchApplications"
+        />
 
         <button
           type="button"
@@ -2301,7 +2301,9 @@ export default {
     gap: 10px;
 }
 
-.header-row2 .filter-btn {
+/* Группа [Обновить][Фильтр] прижата вправо; отступ от дропдаума даёт auto на
+   первом элементе группы, между ними остаётся gap ряда. */
+.header-row2 :deep(.refresh-btn) {
     margin-left: auto;
 }
 
@@ -2394,19 +2396,20 @@ export default {
     height: 16px;
 }
 
-/* Мобилка: «Обновить» в шапке Центра - только иконка, без подписи (эталон «Обзор и
-   новости»), кружок как у иконки поиска. На десктопе кнопка живёт в шапке таблицы. */
+/* Мобилка: «Обновить» во втором ряду шапки Центра - только иконка, без подписи
+   (эталон «Обзор и новости»), кружок высотой с кнопку «Фильтр» рядом (34px).
+   На десктопе кнопка живёт в шапке таблицы. */
 @media (max-width: 767.98px) {
-    .header-top__actions :deep(.refresh-btn) {
-        width: 40px;
-        height: 40px;
+    .header-row2 :deep(.refresh-btn) {
+        width: 34px;
+        height: 34px;
         padding: 0;
         justify-content: center;
         border-radius: 50%;
         box-sizing: border-box;
     }
 
-    .header-top__actions :deep(.refresh-btn__text) {
+    .header-row2 :deep(.refresh-btn__text) {
         display: none;
     }
 }
