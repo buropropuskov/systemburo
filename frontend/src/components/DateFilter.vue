@@ -45,7 +45,7 @@
           <div
             v-if="showCalendar"
             class="calendar-overlay"
-            @click="showCalendar = false"
+            @click="closeCalendar"
           />
         </transition>
         <transition name="calendar-slide">
@@ -68,6 +68,27 @@
               />
               <!-- Header -->
               <div class="calendar-header">
+                <!-- Крестик - только на мобилке (лист-модалка): закрытие как у прочих
+                     окон проекта, наравне с оверлеем, Escape и свайпом вниз. -->
+                <button
+                  type="button"
+                  class="calendar-close"
+                  aria-label="Закрыть календарь"
+                  @click="closeCalendar"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                </button>
                 <div class="header-actions">
                   <button
                     class="nav-btn prev-btn"
@@ -458,6 +479,11 @@ export default {
         },
         showCalendar(open) {
             if (!open) this.resetSheetSwipe();
+            // Под листом-модалкой фон не скроллится (как у прочих окон). На десктопе
+            // календарь - попап у поля и репозиционируется на скролле: там не блокируем.
+            if (typeof window !== 'undefined' && window.innerWidth <= 768) {
+                document.body.style.overflow = open ? 'hidden' : '';
+            }
             if (open) {
                 this.$nextTick(() => {
                     if (!this.showCalendar) return; // успели закрыть до тика - не вешаем слушатели
@@ -476,11 +502,14 @@ export default {
         // клики внутри модалки не всплывают до document и календарь не закрывался.
         // В фазе capture слушатель срабатывает до stopPropagation.
         document.addEventListener('click', this.handleClickOutside, true);
+        document.addEventListener('keydown', this.handleEscape);
         // Устанавливаем режим на основе пропса
         this.selectingRange = this.mode === 'range';
     },
     beforeUnmount() {
         document.removeEventListener('click', this.handleClickOutside, true);
+        document.removeEventListener('keydown', this.handleEscape);
+        document.body.style.overflow = '';
         window.removeEventListener('scroll', this.updatePosition, true);
         window.removeEventListener('resize', this.updatePosition);
     },
@@ -490,6 +519,25 @@ export default {
             return string.charAt(0).toUpperCase() + string.slice(1);
         },
         
+        /**
+         * Закрытие календаря - единая точка для всех способов: крестик, оверлей,
+         * Escape, свайп вниз. Сбрасывает недовыбранный период, как и повторный клик
+         * по полю (иначе остаётся «висящая» начальная дата без конечной).
+         */
+        closeCalendar() {
+            if (!this.showCalendar) return;
+            this.showCalendar = false;
+            if (this.selectingRange && !this.internalRangeEnd) {
+                this.internalRangeStart = null;
+            }
+        },
+
+        handleEscape(event) {
+            if (event.key === 'Escape' && this.showCalendar) {
+                this.closeCalendar();
+            }
+        },
+
         toggleCalendar() {
             this.showCalendar = !this.showCalendar;
             if (this.showCalendar) {
@@ -996,6 +1044,24 @@ export default {
     display: none;
 }
 
+/* Крестик закрытия - только в мобильном листе (см. @media ниже). */
+.calendar-close {
+    display: none;
+    position: absolute;
+    top: 50%;
+    right: 12px;
+    transform: translateY(-50%);
+    width: 32px;
+    height: 32px;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    color: #555;
+    cursor: pointer;
+    padding: 0;
+}
+
 .sheet-handle {
     display: none;
     width: 40px;
@@ -1424,10 +1490,23 @@ export default {
         display: block;
     }
 
-    /* Шапка с месяцем и кнопки действий закреплены, прокручивается только тело. */
+    .calendar-close {
+        display: flex;
+    }
+
+    /* Шапка с месяцем и кнопки действий закреплены, прокручивается только тело.
+       Фон белый: голубоватый #f8f9ff на всю ширину листа читался как «залипшая»
+       подсветка, лист должен быть обычным белым окном. */
     .calendar-header,
     .calendar-actions {
         flex-shrink: 0;
+        background: #fff;
+    }
+
+    /* Место под крестик справа, чтобы стрелка «следующий месяц» не уезжала под него. */
+    .calendar-header {
+        position: relative;
+        padding-right: 52px;
     }
 
     .calendar-body {
@@ -1449,25 +1528,26 @@ export default {
         padding-bottom: 10px;
     }
 
-    /* Быстрые периоды в три колонки - блок вдвое ниже, чем в две (232px -> ~120px). */
+    /* Быстрые периоды - две ровные колонки: в них помещается самая длинная подпись
+       («Следующая неделя») в ОДНУ строку, поэтому кнопки одинаковой высоты и сетка
+       читается. В три колонки подписи переносились и блок выглядел кашей. */
     .quick-buttons-list {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 5px;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 6px;
         max-height: none;
         overflow-y: visible;
         padding-right: 0;
     }
 
-    /* Три колонки узкие - длинные подписи («Следующая неделя») переносим в две строки
-       вместо обрезки многоточием, поэтому высота по контенту и текст по центру. */
     .quick-btn {
-        padding: 4px 6px;
-        font-size: 11px;
-        line-height: 1.15;
-        min-height: 30px;
+        padding: 0 8px;
+        font-size: 12px;
+        line-height: 1;
+        height: 32px;
+        min-height: 32px;
         max-height: none;
-        white-space: normal;
+        white-space: nowrap;
         text-align: center;
         justify-content: center;
     }
