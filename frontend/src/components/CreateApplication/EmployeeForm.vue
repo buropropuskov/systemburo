@@ -67,7 +67,7 @@
               {{ editingEmployee ? 'Применить' : 'Добавить' }}
             </button>
             <div
-              v-if="showTooltip && !canAddEmployee"
+              v-if="(showTooltip || isNarrow) && !canAddEmployee"
               class="tooltip"
             >
               <div class="tooltip-content">
@@ -413,6 +413,7 @@ import { useDeletionsStore } from '@/stores/deletions'
 import ExistingEmployeesModal from '@/components/CreateApplication/ExistingEmployeesModal.vue'
 import TargetTablesGrid from '@/components/CreateApplication/TargetTablesGrid.vue'
 import { useFormValidation } from '@/composables/useFormValidation'
+import { useNarrowScreen } from '@/composables/useNarrowScreen'
 import { useFieldConfig } from '@/composables/useFieldConfig'
 import { collectActiveWarnings } from '@/utils/warningWindows'
 import { buildScheduleReport } from '@/utils/scheduleCheck'
@@ -520,7 +521,10 @@ export default {
             return rules
         })
 
-        return { canAddEmployee: isValid, getTooltipMessage: tooltipMessage, showTooltip, fieldVisible, fieldRequired }
+        // Причина блокировки кнопки живёт на hover - на телефоне его нет,
+        // поэтому там показываем её сразу под кнопкой.
+        const { isNarrow } = useNarrowScreen()
+        return { canAddEmployee: isValid, getTooltipMessage: tooltipMessage, showTooltip, fieldVisible, fieldRequired, isNarrow }
     },
     data() {
         return {
@@ -1857,6 +1861,18 @@ export default {
 }
 
 @media (max-width: 768px) {
+    /* На телефоне подсказка показана всегда, пока кнопка заблокирована - ставим её
+       в поток под кнопку, а не абсолютным поповером поверх соседних полей. */
+    .tooltip {
+        position: static;
+        margin-top: 8px;
+    }
+
+    .tooltip-content {
+        max-width: 100%;
+        white-space: pre-line;
+    }
+
     .completion__header {
         flex-wrap: wrap;
         gap: 10px;

@@ -119,6 +119,7 @@ function barColorFor(item) {
   display: flex;
   align-items: center;
   gap: 16px;
+  min-width: 0;
 }
 
 .del-text {
@@ -184,5 +185,28 @@ function barColorFor(item) {
 .del-leave-active {
   position: absolute;
   right: 0;
+}
+
+@media (max-width: 768px) {
+  /* Текст шёл в одну строку (nowrap) и вылезал за карточку: замер на 390 давал
+     ширину 490px и правый край на 527. На узком экране переносим. */
+  .del-stack {
+    left: 12px;
+    right: 12px;
+    max-width: none;
+    align-items: stretch;
+  }
+
+  .del-card {
+    width: auto;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .del-text {
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
 }
 </style>
