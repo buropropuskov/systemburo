@@ -2389,56 +2389,45 @@ export default {
   }
 }
 
-/* Режим "Сетка" (#1289): границы ячеек, как в Excel. Внешний контур даёт рамка
-   карточки, горизонтальные линии - border-bottom строк, здесь добавляем
-   вертикальные. На мобилке строки превращаются в карточки (rt-row), поэтому
-   весь блок живёт только от 768px.
+/* Режим "Сетка" (#1289): вертикальные линии между колонками. Горизонтальные
+   линии и внешний контур уже дают border-bottom строк и рамка карточки.
+   На мобилке строки превращаются в карточки (rt-row), поэтому блок живёт от 768px.
 
-   Включение режима НЕ меняет раскладку: gap между колонками, padding строк и
-   ширины столбцов остаются прежними, линия рисуется псевдоэлементом поверх
-   (border съел бы пиксель внутренней ширины ячейки). */
+   Включение режима ничего не двигает: отступы, выравнивание и размеры ячеек
+   остаются прежними при любых настройках размера шрифта и плотности строк.
+   Линия - псевдоэлемент; ячейке разрешён вынос за свои границы (overflow: clip
+   вместо hidden, обрезка содержимого и ellipsis при этом сохраняются), а по
+   высоте строки линию подрезает сама строка. Так линия идёт от края до края
+   независимо от того, насколько содержимое ячейки ниже строки. */
 @media (min-width: 768px) {
-  /* Ячейка тянется на высоту строки, иначе она высотой в свой текст и линия
-     получилась бы обрубком. Высота самой строки от этого не меняется, а
-     содержимое остаётся по центру - его держит align-content вместо align-items
-     строки (flex-контейнером ячейку делать нельзя: сломается ellipsis у голых
-     текстовых нод внутри). Вертикальный padding переезжает со строки на ячейки:
-     суммарные отступы те же, текст не двигается, но линия идёт от края до края
-     строки, а не обрывается на её padding. */
   .selected-table-card.grid-mode .header-row,
   .selected-table-card.grid-mode .item-data {
-    align-items: stretch;
-    padding-top: 0;
-    padding-bottom: 0;
+    overflow: clip;
+  }
+
+  /* overflow: clip, в отличие от hidden, не создаёт скролл-контейнер, поэтому
+     ячейка перестаёт занулять свой автоматический минимум ширины и начинает
+     распираться содержимым. Возвращаем нулевой минимум явно - слабым селектором,
+     чтобы фиксированные min-width увеличенного режима остались в силе. */
+  .selected-table-card.grid-mode .col {
+    min-width: 0;
   }
 
   .selected-table-card.grid-mode .header-row > .col,
   .selected-table-card.grid-mode .item-data > .col {
     position: relative;
-    align-content: center;
-    padding-top: 10px;
-    padding-bottom: 10px;
-  }
-
-  .selected-table-card.grid-mode.density-compact .header-row > .col,
-  .selected-table-card.grid-mode.density-compact .item-data > .col {
-    padding-top: 4px;
-    padding-bottom: 4px;
-  }
-
-  .selected-table-card.grid-mode.density-spacious .header-row > .col,
-  .selected-table-card.grid-mode.density-spacious .item-data > .col {
-    padding-top: 16px;
-    padding-bottom: 16px;
+    overflow: clip;
+    /* Заведомо больше любой строки - лишнее подрежет строка. */
+    overflow-clip-margin: 200px;
   }
 
   .selected-table-card.grid-mode .header-row > .col::after,
   .selected-table-card.grid-mode .item-data > .col::after {
     content: '';
     position: absolute;
-    top: 0;
+    top: -200px;
     right: 0;
-    bottom: 0;
+    bottom: -200px;
     width: 1px;
     background: #e6e6e6;
   }
