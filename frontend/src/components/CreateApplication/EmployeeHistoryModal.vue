@@ -286,6 +286,7 @@
 import { ref } from 'vue';
 import { apiRequest } from '@/api/client';
 import { useOverlayClose } from '@/composables/useOverlayClose';
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import { useDeletionsStore } from '@/stores/deletions';
 import DateFilter from '../DateFilter.vue';
@@ -500,12 +501,14 @@ export default {
     }
   },
   mounted() {
+    setBodyScrollLock(this, true);
     this.visible = true;
     this.loadHistory();
     document.addEventListener('click', this.handleClickOutside);
     document.addEventListener('keydown', this.onKeydown);
   },
   beforeUnmount() {
+    releaseBodyScrollLock(this);
     document.removeEventListener('click', this.handleClickOutside);
     document.removeEventListener('keydown', this.onKeydown);
   },

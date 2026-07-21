@@ -289,7 +289,13 @@ export default {
             }
         }
     },
+    mounted() {
+        // Свой Escape: без него жест закрывал сразу и карточку-родителя, тогда как
+        // крестик, затемнение и свайп закрывают только это окно.
+        document.addEventListener('keydown', this.handleKeydown, true);
+    },
     beforeUnmount() {
+        document.removeEventListener('keydown', this.handleKeydown, true);
         if (this.windowPointerMoveHandler) {
             window.removeEventListener('pointermove', this.windowPointerMoveHandler);
             window.removeEventListener('pointerup', this.windowPointerUpHandler);
@@ -297,6 +303,14 @@ export default {
         }
     },
     methods: {
+        handleKeydown(e) {
+            if (e.key !== 'Escape') return;
+            // Гасим всплытие: иначе тот же Escape поймает карточка-родитель и закроет
+            // сразу два уровня.
+            e.stopPropagation();
+            this.$emit('close');
+        },
+
         close() {
             this.$emit('close');
         },

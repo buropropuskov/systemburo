@@ -255,6 +255,7 @@
 import { ref } from 'vue';
 import { apiRequest } from '@/api/client';
 import { useOverlayClose } from '@/composables/useOverlayClose';
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import { useDeletionsStore } from '@/stores/deletions';
 import ExcelJS from 'exceljs';
@@ -450,10 +451,12 @@ export default {
     this.loadHistory();
     document.addEventListener('click', this.handleClickOutside);
     document.addEventListener('keydown', this.onKeydown);
+    setBodyScrollLock(this, true);
   },
   beforeUnmount() {
     document.removeEventListener('click', this.handleClickOutside);
     document.removeEventListener('keydown', this.onKeydown);
+    releaseBodyScrollLock(this);
   },
   methods: {
     async loadHistory() {

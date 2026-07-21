@@ -123,6 +123,7 @@
 </template>
 
 <script>
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import { ref, getCurrentInstance } from 'vue'
 import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
@@ -242,7 +243,7 @@ export default {
         // разом), но обязательно снимаем scroll-lock, иначе body.overflow залипнет.
         this.showContent = false;
         this.removeEscListener();
-        document.body.style.overflow = '';
+        releaseBodyScrollLock(this);
       }
     },
     
@@ -261,7 +262,7 @@ export default {
       () => this.show,
       (newVal) => {
         if (newVal) {
-          document.body.style.overflow = 'hidden';
+          setBodyScrollLock(this, true);
         }
       },
       { immediate: true }
@@ -270,7 +271,7 @@ export default {
   
   beforeUnmount() {
     this.removeEscListener();
-    document.body.style.overflow = '';
+    releaseBodyScrollLock(this);
   },
   
   methods: {
@@ -312,7 +313,7 @@ export default {
     onSheetLeft() {
       // Лист доехал вниз и размонтирован: размонтируем оверлей (родитель через v-model),
       // сообщаем о закрытии, снимаем scroll-lock.
-      document.body.style.overflow = '';
+      releaseBodyScrollLock(this);
       this.$emit('update:show', false);
       this.$emit('close');
     },

@@ -206,6 +206,7 @@
 </template>
 
 <script>
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import { h, ref, getCurrentInstance } from 'vue';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
@@ -307,7 +308,7 @@ export default {
     // Модалка всегда смонтирована (leave-анимация): блокировку скролла и загрузку
     // вешаем на открытие. Перезапрашиваем каждый раз - current_status зависит от времени.
     show(visible) {
-      document.body.style.overflow = visible ? 'hidden' : '';
+      setBodyScrollLock(this, visible);
       if (visible) this.load();
     },
     // Сброс поиска при переключении категории.
@@ -320,7 +321,7 @@ export default {
   },
   beforeUnmount() {
     document.removeEventListener('keydown', this.onKey);
-    document.body.style.overflow = '';
+    releaseBodyScrollLock(this);
   },
   methods: {
     async load() {

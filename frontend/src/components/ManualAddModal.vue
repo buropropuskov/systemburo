@@ -326,6 +326,7 @@
 </template>
 
 <script>
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import FilterTabs from '@/components/ui/FilterTabs.vue';
 import DateRangeSection from '@/components/CreateApplication/DateRangeSection.vue';
@@ -500,7 +501,7 @@ export default {
     },
     watch: {
         show(open) {
-            document.body.style.overflow = open ? 'hidden' : '';
+            setBodyScrollLock(this, open);
             if (open) {
                 this.resetState();
                 this.loadDictionaries();
@@ -516,13 +517,13 @@ export default {
         this.closeRef.fn = this.close;
         document.addEventListener('keydown', this.onKeydown);
         if (this.show) {
-            document.body.style.overflow = 'hidden';
+            setBodyScrollLock(this, true);
             this.loadDictionaries();
         }
     },
     beforeUnmount() {
         document.removeEventListener('keydown', this.onKeydown);
-        document.body.style.overflow = '';
+        releaseBodyScrollLock(this);
     },
     methods: {
         onKeydown(e) {
