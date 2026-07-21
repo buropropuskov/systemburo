@@ -2,7 +2,7 @@
   <div
     class="selected-table-card"
     :class="[
-      { 'enlarged': enlarged, 'is-portrait': isCompact, 'config-not-ready': !configReady },
+      { 'enlarged': enlarged, 'grid-mode': grid, 'is-portrait': isCompact, 'config-not-ready': !configReady },
       `density-${rowDensity}`,
     ]"
     :style="{ '--table-font-size': tableFontSize + 'px' }"
@@ -34,7 +34,7 @@
             История
           </button>
         </span>
-        <EnlargedToggle
+        <SwitchToggle
           v-model="enlarged"
           data-testid="enlarged-toggle"
         />
@@ -597,7 +597,7 @@ import TableRowRemoveMenu from './TableRowRemoveMenu.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
-import EnlargedToggle from '@/components/ui/EnlargedToggle.vue';
+import SwitchToggle from '@/components/ui/SwitchToggle.vue';
 import ExcelJS from 'exceljs';
 import { bulkMoveCarsTable, bulkAddCarsTable, bulkUnbindCarsTable } from '@/api/cars';
 
@@ -614,7 +614,7 @@ export default {
     ConfirmationModal,
     LoaderSpinner,
     StatusBadge,
-    EnlargedToggle
+    SwitchToggle
   },
   setup() {
     const { isPortrait, isCompact } = useOrientation();
@@ -637,7 +637,9 @@ export default {
     // Preview-режим для админ-вкладки "Колонки" (#345): seed-данные, без API и без кнопок.
     preview: { type: Boolean, default: false },
     previewFields: { type: Array, default: null },
-    previewItems: { type: Array, default: null }
+    previewItems: { type: Array, default: null },
+    // Режим "Сетка" (#1289): границы ячеек. Управляется одним тумблером страницы.
+    grid: { type: Boolean, default: false }
   },
   data() {
     return {
@@ -2368,6 +2370,68 @@ export default {
 .selected-table-card.density-spacious .header-row {
   padding-top: 16px;
   padding-bottom: 16px;
+}
+
+/* Режим "Сетка" (#1289): границы ячеек, как в Excel. Внешний контур даёт рамка
+   карточки, горизонтальные линии - border-bottom строк, здесь добавляем
+   вертикальные. На мобилке строки превращаются в карточки (rt-row), поэтому
+   весь блок живёт только от 768px. */
+@media (min-width: 768px) {
+  /* stretch - чтобы ячейка занимала всю высоту строки: при align-items:center
+     ячейка высотой в свой текст и border-right давал бы обрубки вместо линий.
+     Вертикальный padding переезжает со строки на ячейки, иначе линия короче
+     строки на величину этого padding. */
+  .selected-table-card.grid-mode .header-row,
+  .selected-table-card.grid-mode .item-data {
+    align-items: stretch;
+    gap: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    /* Боковой отступ строки снят: то, что ячейки забирают себе под внутренний
+       padding, возвращаем колонкам, иначе широкая таблица начинает обрезать
+       содержимое ячеек. Крайние линии при этом идут по краю карточки. */
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  /* align-content центрирует содержимое блочной ячейки по вертикали, не превращая
+     её во flex/grid-контейнер: ячейки данных содержат голые текстовые ноды, у
+     которых text-overflow: ellipsis работает только пока .col блочный. */
+  .selected-table-card.grid-mode .header-row > .col,
+  .selected-table-card.grid-mode .item-data > .col {
+    border-right: 1px solid #e6e6e6;
+    padding: 10px 6px;
+    align-content: center;
+  }
+
+  .selected-table-card.grid-mode.density-compact .header-row > .col,
+  .selected-table-card.grid-mode.density-compact .item-data > .col {
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+
+  .selected-table-card.grid-mode.density-spacious .header-row > .col,
+  .selected-table-card.grid-mode.density-spacious .item-data > .col {
+    padding-top: 16px;
+    padding-bottom: 16px;
+  }
+
+  /* Бейдж статуса не сжимается: без своей минимальной ширины он упирается в
+     линию сетки и обрезается на плотных таблицах (12 колонок). */
+  .selected-table-card.grid-mode .status-col {
+    min-width: max-content;
+  }
+
+  /* Схлопнутая колонка (увеличенный режим, приоритет) имеет нулевую ширину -
+     её border дал бы лишнюю линию поверх соседней. */
+  .selected-table-card.grid-mode .col--collapsed {
+    border-right: none !important;
+  }
+
+  .selected-table-card.grid-mode .header-row > .col:last-child,
+  .selected-table-card.grid-mode .item-data > .col:last-child {
+    border-right: none;
+  }
 }
 
 /* #345 Phase 1F: портретный режим (узкий экран с orientation: portrait). */

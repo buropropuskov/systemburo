@@ -123,6 +123,13 @@
         />
       </div>
       <div class="filters__options">
+        <SwitchToggle
+          v-model="gridMode"
+          class="options__grid-toggle"
+          label="Сетка"
+          title="Показать границы ячеек таблицы"
+          data-testid="grid-toggle"
+        />
         <button
           v-if="canManualAdd"
           class="options__manual-add"
@@ -198,6 +205,7 @@
           :current-user-id="currentUserId"
           :current-user-name="currentUserName"
           :loading="isRefreshing"
+          :grid="gridMode"
           @refresh-data="refreshData"
           @open-application="handleOpenApplication"
         />
@@ -228,6 +236,7 @@
         :selected-date="selectedDate"
         :current-user-id="currentUserId"
         :current-user-name="currentUserName"
+        :grid="gridMode"
         @refresh-data="refreshData"
         @open-application="handleOpenApplication"
       />
@@ -245,6 +254,7 @@
         :selected-date="selectedDate"
         :current-user-id="currentUserId"
         :current-user-name="currentUserName"
+        :grid="gridMode"
         @refresh-data="refreshData"
         @open-application="handleOpenApplication"
       />
@@ -291,6 +301,7 @@ import PeopleTable from './PeopleTable.vue';
 import ApplicationDetail from './ApplicationDetail/ApplicationDetail.vue';
 import TableExportModal from './TableExportModal.vue';
 import ManualAddModal from './ManualAddModal.vue';
+import SwitchToggle from '@/components/ui/SwitchToggle.vue';
 import { usePermissionsStore } from '@/stores/permissions';
 
 export default {
@@ -305,6 +316,7 @@ export default {
         ApplicationDetail,
         TableExportModal,
         ManualAddModal,
+        SwitchToggle,
     },
     emits: ['refresh-data'],
     setup() {
@@ -357,6 +369,10 @@ export default {
             selectedApplication: null,
             showExportModal: false,
             showManualAdd: false,
+
+            // Режим "Сетка" (#1289): один тумблер страницы на обе таблицы
+            // (по факту + основная). Состояние своё у каждой таблицы.
+            gridMode: false,
         };
     },
     computed: {
@@ -423,8 +439,12 @@ export default {
             handler() {
                 this.fetchTableData();
                 this.clearFilters();
+                this.loadGridMode();
             },
             immediate: true
+        },
+        gridMode(value) {
+            this.saveGridMode(value);
         }
     },
     async mounted() {
@@ -436,6 +456,28 @@ export default {
         // denied, обычный -> по эффективному гранту. Реактивно: читает стор прав.
         can(key) {
             return this.permissionsStore.hasPermission(key);
+        },
+
+        // Ключ от имени таблицы в роуте, а не от tableData.table.id: id приезжает
+        // асинхронно, тумблер успел бы моргнуть до загрузки настроек таблицы.
+        gridStorageKey() {
+            return `grid-mode:${this.$route.params.tableName || 'default'}`;
+        },
+
+        loadGridMode() {
+            try {
+                this.gridMode = localStorage.getItem(this.gridStorageKey()) === '1';
+            } catch {
+                this.gridMode = false;
+            }
+        },
+
+        saveGridMode(value) {
+            try {
+                localStorage.setItem(this.gridStorageKey(), value ? '1' : '0');
+            } catch {
+                // localStorage недоступен (приватный режим) - режим просто не запомнится.
+            }
         },
         handleApplicationUpdate(updatedApp) {
             console.log('Application updated:', updatedApp);
@@ -1178,6 +1220,14 @@ export default {
 
 .blue {
     color: #4F5BDF;
+}
+
+/* На мобилке строки таблиц конвертируются в карточки (responsive-tables.css,
+   брейкпоинт 767.98px) - границы ячеек там не рисуются, тумблер прячем. */
+@media (max-width: 767.98px) {
+    .options__grid-toggle {
+        display: none;
+    }
 }
 
 @media (max-width: 768px) {

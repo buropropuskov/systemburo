@@ -1,30 +1,30 @@
 <template>
   <label
-    class="enlarged-toggle"
-    :class="{ 'enlarged-toggle--active': modelValue }"
+    class="switch-toggle"
+    :class="{ 'switch-toggle--active': modelValue }"
     :title="title"
   >
     <input
       type="checkbox"
-      class="enlarged-toggle__input"
+      class="switch-toggle__input"
       :checked="modelValue"
       @change="onChange"
     >
-    <span class="enlarged-toggle__switch">
-      <span class="enlarged-toggle__thumb" />
+    <span class="switch-toggle__switch">
+      <span class="switch-toggle__thumb" />
     </span>
-    <span class="enlarged-toggle__label">{{ label }}</span>
+    <span class="switch-toggle__label">{{ label }}</span>
   </label>
 </template>
 
 <script>
 /**
- * Переключатель "Увеличенный режим" для таблиц.
- * Используется в CarsTable и PeopleTable как v-model.
- * Сохранение в localStorage делает родитель по своему ключу.
+ * Универсальный тумблер режима отображения таблиц.
+ * Используется для "Увеличенного режима" (CarsTable, PeopleTable) и "Сетки"
+ * (TablesComponent) как v-model. Сохранение состояния делает родитель.
  */
 export default {
-  name: 'EnlargedToggle',
+  name: 'SwitchToggle',
   props: {
     modelValue: { type: Boolean, default: false },
     label: { type: String, default: 'Увеличенный режим' },
@@ -40,7 +40,7 @@ export default {
 </script>
 
 <style scoped>
-.enlarged-toggle {
+.switch-toggle {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -50,7 +50,7 @@ export default {
   color: #333;
 }
 
-.enlarged-toggle__input {
+.switch-toggle__input {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -61,7 +61,7 @@ export default {
   border: 0;
 }
 
-.enlarged-toggle__switch {
+.switch-toggle__switch {
   position: relative;
   width: 32px;
   height: 18px;
@@ -71,7 +71,7 @@ export default {
   flex-shrink: 0;
 }
 
-.enlarged-toggle__thumb {
+.switch-toggle__thumb {
   position: absolute;
   top: 2px;
   left: 2px;
@@ -83,23 +83,23 @@ export default {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
-.enlarged-toggle--active .enlarged-toggle__switch {
+.switch-toggle--active .switch-toggle__switch {
   background: #4F5BDF;
 }
 
-.enlarged-toggle--active .enlarged-toggle__thumb {
+.switch-toggle--active .switch-toggle__thumb {
   transform: translateX(14px);
 }
 
-.enlarged-toggle__label {
+.switch-toggle__label {
   white-space: nowrap;
 }
 
-.enlarged-toggle:hover .enlarged-toggle__switch {
+.switch-toggle:hover .switch-toggle__switch {
   filter: brightness(0.95);
 }
 
-.enlarged-toggle__input:focus-visible + .enlarged-toggle__switch {
+.switch-toggle__input:focus-visible + .switch-toggle__switch {
   outline: 2px solid #4F5BDF;
   outline-offset: 2px;
 }
