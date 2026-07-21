@@ -187,8 +187,12 @@
             ref="applicationsBody"
             class="applications-body"
           >
+            <!-- Спиннер ТОЛЬКО когда показывать нечего (первая загрузка/пустой список).
+                 На обновлении список остаётся на месте: подмена его спиннером схлопывала
+                 высоту документа, и страница прыгала в начало (обратная связь об
+                 обновлении - точки перезарядки на самой кнопке). -->
             <div
-              v-if="isLoading"
+              v-if="isLoading && !filteredApplications.length"
               class="loading-message"
             >
               <LoaderSpinner label="Загрузка заявок…" />
@@ -889,7 +893,13 @@ export default {
     // Автодогрузка следующей порции по пересечению sentinel с applications-body (#1158).
     // el=null при v-if="hasMoreApplications"===false просто отключает observer.
     setSentinelRef(el) {
-      this.observeApplicationsSentinel(el, this.buildUserApplicationsPage, { root: this.$refs.applicationsBody || null });
+      // root: на ДЕСКТОПЕ скроллпорт - .applications-body. На МОБИЛКЕ @media снимает
+      // внутренний скролл (overflow-y:visible) и список скроллит документ: тогда
+      // .applications-body НЕ скроллпорт, его прямоугольник равен всей высоте списка,
+      // sentinel пересечён ВСЕГДА -> loadMore зацикливается (тот же баг чинили в
+      // Центре, #1273). Поэтому на мобилке root=null - скроллер документ.
+      const root = this.isMobileHeader ? null : (this.$refs.applicationsBody || null);
+      this.observeApplicationsSentinel(el, this.buildUserApplicationsPage, { root });
     },
 
     // Ручной повтор упавшей страницы (первичной или догрузки, #1173) - composable
