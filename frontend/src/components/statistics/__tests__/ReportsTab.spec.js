@@ -154,4 +154,24 @@ describe('ReportsTab', () => {
     await flushPromises();
     expect(state.deleted).toHaveLength(0);
   });
+  // Лимит запроса нужен результату, чтобы отличить «данных ровно столько» от
+  // «упёрлись в лимит»: движок признака обрезки не отдаёт.
+  it('лимит построенного запроса доходит до результата, ошибка его сбрасывает', async () => {
+    state.deferred.length = 0;
+    const wrapper = mount(ReportsTab, { props: { from: '2026-06-01', to: '2026-06-07' } });
+    await flushPromises();
+
+    const builder = wrapper.findComponent(ReportBuilder);
+    builder.vm.$emit('run', { mode: 'aggregate', metric: 'applications_count', dimension: 'period', limit: 1000 });
+    await nextTick();
+    state.deferred[0]({ mode: 'aggregate', dimension: 'period', rows: [], total: 0, unit: 'шт' });
+    await flushPromises();
+    expect(wrapper.findComponent(ReportResult).props('limit')).toBe(1000);
+
+    builder.vm.$emit('run', { mode: 'aggregate', metric: 'applications_count', dimension: 'period', limit: 1000 });
+    await nextTick();
+    state.deferred[1](Promise.reject(new Error('бэк упал')));
+    await flushPromises();
+    expect(wrapper.findComponent(ReportResult).props('limit')).toBe(0);
+  });
 });
