@@ -3,9 +3,11 @@ package handlers_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"systemburo/internal/handlers"
 	"systemburo/internal/models"
@@ -45,10 +47,11 @@ func TestGetProcessingJournal_MixedEvents(t *testing.T) {
 	from, _ := processingWindowArgs(t, "2026-06-01", "2026-06-01")
 	_, to := processingWindowArgs(t, "2026-06-04", "2026-06-04")
 
-	entries, err := svc.GetProcessingJournal(context.Background(), from, to, 0)
+	entries, total, err := svc.GetProcessingJournal(context.Background(), from, to, 0, 0)
 	require.NoError(t, err, "SQL ленты должен исполняться")
 
 	require.Len(t, entries, 7, "3 согласования (голос отдан) + 4 принятия")
+	assert.Equal(t, int64(7), total, "всего событий периода — столько же, страница вмещает все")
 
 	// Отсортировано по времени убыванием: свежее сверху.
 	for i := 1; i < len(entries); i++ {
@@ -105,9 +108,10 @@ func TestGetProcessingJournal_DepthLimit(t *testing.T) {
 	from, _ := processingWindowArgs(t, "2026-06-01", "2026-06-01")
 	_, to := processingWindowArgs(t, "2026-06-04", "2026-06-04")
 
-	entries, err := svc.GetProcessingJournal(context.Background(), from, to, 2)
+	entries, total, err := svc.GetProcessingJournal(context.Background(), from, to, 2, 0)
 	require.NoError(t, err)
 	require.Len(t, entries, 2, "лимит глубины отдаёт только 2 события")
+	assert.Equal(t, int64(7), total, "total считает ВСЕ события периода, не размер страницы")
 
 	// Первое — самое свежее (принятие AC/D 04.06 13:00).
 	assert.Equal(t, models.ProcessingJournalRoleAcceptance, entries[0].Role)
@@ -128,9 +132,10 @@ func TestGetProcessingJournal_EmptyWindow(t *testing.T) {
 	svc := services.NewStatisticsService(db, 0)
 	from, to := processingWindowArgs(t, "2030-01-01", "2030-01-31")
 
-	entries, err := svc.GetProcessingJournal(context.Background(), from, to, 0)
+	entries, total, err := svc.GetProcessingJournal(context.Background(), from, to, 0, 0)
 	require.NoError(t, err)
 	assert.Empty(t, entries, "в 2030 событий обработки нет")
+	assert.Zero(t, total, "пустое окно — нечего листать")
 }
 
 // TestGetProcessingJournal_HTTP — контракт эндпоинта: envelope, статус, имена полей
@@ -155,10 +160,14 @@ func TestGetProcessingJournal_HTTP(t *testing.T) {
 	var resp struct {
 		Success bool                            `json:"success"`
 		Data    []models.ProcessingJournalEntry `json:"data"`
+		Meta    models.PaginationMeta           `json:"meta"`
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.True(t, resp.Success)
 	require.Len(t, resp.Data, 3, "limit=3 из query")
+	assert.Equal(t, int64(7), resp.Meta.Total, "meta.total — все события периода")
+	assert.Equal(t, 1, resp.Meta.Page)
+	assert.Equal(t, 3, resp.Meta.PerPage, "per_page = применённый limit")
 
 	// Имена полей в сыром JSON: фронт (api/statistics.js) читает именно их.
 	var raw struct {
@@ -169,4 +178,56 @@ func TestGetProcessingJournal_HTTP(t *testing.T) {
 	for _, key := range []string{"application_id", "application_number", "actor_name", "role", "occurred_at", "working_seconds"} {
 		assert.Contains(t, raw.Data[0], key, "поле события %q", key)
 	}
+	assert.NotContains(t, raw.Data[0], "event_id", "тай-брейк сортировки наружу не течёт")
+}
+
+// TestGetProcessingJournal_Pages — страницы не пересекаются и не теряют событий:
+// две страницы по 3 подряд дают те же 6 событий, что первые 6 одной страницей.
+func TestGetProcessingJournal_Pages(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	seedQualityApps(t, db)
+	seedApproverVotes(t, db)
+	seedAcceptedApps(t, db)
+
+	svc := services.NewStatisticsService(db, 0)
+	from, _ := processingWindowArgs(t, "2026-06-01", "2026-06-01")
+	_, to := processingWindowArgs(t, "2026-06-04", "2026-06-04")
+
+	all, total, err := svc.GetProcessingJournal(context.Background(), from, to, 6, 0)
+	require.NoError(t, err)
+	require.Len(t, all, 6)
+	assert.Equal(t, int64(7), total)
+
+	key := func(e models.ProcessingJournalEntry) string {
+		return fmt.Sprintf("%d|%s|%s|%s", e.ApplicationID, e.Role, e.ActorName, e.OccurredAt.Format(time.RFC3339Nano))
+	}
+
+	page1, _, err := svc.GetProcessingJournal(context.Background(), from, to, 3, 0)
+	require.NoError(t, err)
+	page2, total2, err := svc.GetProcessingJournal(context.Background(), from, to, 3, 3)
+	require.NoError(t, err)
+	require.Len(t, page1, 3)
+	require.Len(t, page2, 3, "вторая страница из 7 событий полная")
+	assert.Equal(t, int64(7), total2, "total не зависит от страницы")
+
+	var paged []string
+	for _, e := range append(append([]models.ProcessingJournalEntry{}, page1...), page2...) {
+		paged = append(paged, key(e))
+	}
+	var expected []string
+	for _, e := range all {
+		expected = append(expected, key(e))
+	}
+	assert.Equal(t, expected, paged, "склейка страниц совпадает с одной выборкой: ни дублей, ни пропусков")
+
+	// Последняя страница — хвост, за ней пусто.
+	tail, _, err := svc.GetProcessingJournal(context.Background(), from, to, 3, 6)
+	require.NoError(t, err)
+	assert.Len(t, tail, 1, "7-е событие на третьей странице")
+
+	beyond, _, err := svc.GetProcessingJournal(context.Background(), from, to, 3, 99)
+	require.NoError(t, err)
+	assert.Empty(t, beyond, "за хвостом событий нет")
 }

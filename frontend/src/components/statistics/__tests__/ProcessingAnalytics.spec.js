@@ -5,7 +5,7 @@ import { nextTick } from 'vue';
 // Фабрика vi.mock поднимается над импортами — управляемое состояние в hoisted.
 const { state, notifySpy } = vi.hoisted(() => ({
   notifySpy: vi.fn(),
-  state: { summary: {}, journal: [], trendRows: [], trendCalls: [], trendDeferred: [], journalDeferred: [], reject: false, deferred: [], streamHandler: null },
+  state: { summary: {}, journal: [], journalPages: null, journalTotal: null, journalCalls: [], trendRows: [], trendCalls: [], trendDeferred: [], journalDeferred: [], reject: false, deferred: [], streamHandler: null },
 }));
 
 vi.mock('@/api/statistics.js', () => ({
@@ -14,10 +14,22 @@ vi.mock('@/api/statistics.js', () => ({
     if (state.hang) return new Promise((resolve) => { state.deferred.push(resolve); });
     return Promise.resolve(state.summary);
   },
-  getProcessingJournal: () => {
+  // Бэк отдаёт страницу {items, meta:{total}} (#1251 P5b). Форма ответа - как в
+  // api/statistics.js: items из envelope.data, total из envelope.meta.
+  getProcessingJournal: (from, to, limit, offset = 0) => {
+    state.journalCalls.push({ from, to, limit, offset });
+    const page = (items) => ({
+      items,
+      meta: {
+        total: state.journalTotal != null ? state.journalTotal : items.length,
+        page: Math.floor(offset / (limit || 50)) + 1,
+        per_page: limit || 50,
+      },
+    });
     if (state.hang) return new Promise(() => {}); // на первой загрузке лента тоже висит
-    if (state.holdJournal) return new Promise((resolve) => { state.journalDeferred.push(resolve); });
-    return Promise.resolve(state.journal);
+    if (state.holdJournal) return new Promise((resolve) => { state.journalDeferred.push((items) => resolve(page(items))); });
+    // journalPages задаёт постраничную выдачу (ключ - offset), иначе одна страница.
+    return Promise.resolve(page(state.journalPages ? (state.journalPages[offset] || []) : state.journal));
   },
   // Динамика по дням строится отдельным запросом к движку отчётов (S/P3).
   runReport: (req) => {
@@ -150,6 +162,9 @@ const fullSummary = () => ({
 beforeEach(() => {
   state.summary = {};
   state.journal = [];
+  state.journalPages = null;
+  state.journalTotal = null;
+  state.journalCalls = [];
   state.trendRows = [];
   state.trendCalls = [];
   state.trendDeferred = [];
@@ -554,6 +569,93 @@ describe('ProcessingAnalytics — журнал (S7)', () => {
     const rows = wrapper.findAll('.proc__journal-row');
     expect(rows).toHaveLength(3);
     expect(rows[0].text()).toContain('20260711/003'); // свежее сверху
+  });
+});
+
+describe('ProcessingAnalytics — страницы журнала (P5b)', () => {
+  // Страницы по 50: ключ journalPages — offset, который должен уйти на бэк.
+  const secondPage = () => [
+    { application_id: 12, application_number: '№ 20260601/077', actor_name: 'Сидоров С.С.', role: 'approval', occurred_at: '2026-06-02T08:00:00Z', working_seconds: 600 },
+  ];
+
+  const mountWithPages = async () => {
+    state.summary = fullSummary();
+    state.journalPages = { 0: journalEntries(), 50: secondPage() };
+    state.journalTotal = 51;
+    const wrapper = mountTab();
+    await flushPromises();
+    return wrapper;
+  };
+
+  it('показывает общее число событий и номер страницы, первую грузит без смещения', async () => {
+    const wrapper = await mountWithPages();
+
+    expect(wrapper.find('.proc__journal-total').text()).toBe('Всего: 51');
+    expect(wrapper.find('.proc__journal-page').text()).toBe('1 / 2');
+    expect(state.journalCalls[0]).toMatchObject({ limit: 50, offset: 0 });
+  });
+
+  it('«Вперёд» листает на следующую страницу и запрашивает её со смещением', async () => {
+    const wrapper = await mountWithPages();
+    const [back, forward] = wrapper.findAll('.proc__page-btn');
+    expect(back.attributes('disabled')).toBeDefined(); // на первой странице назад некуда
+
+    await forward.trigger('click');
+    await flushPromises();
+
+    expect(state.journalCalls.at(-1)).toMatchObject({ offset: 50 });
+    expect(wrapper.find('.proc__journal-page').text()).toBe('2 / 2');
+    const rows = wrapper.findAll('.proc__journal-row');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].text()).toContain('20260601/077');
+    // На последней странице вперёд некуда, назад — можно.
+    expect(wrapper.findAll('.proc__page-btn')[1].attributes('disabled')).toBeDefined();
+    expect(wrapper.findAll('.proc__page-btn')[0].attributes('disabled')).toBeUndefined();
+  });
+
+  it('автообновление держит текущую страницу, а смена периода возвращает на первую', async () => {
+    const wrapper = await mountWithPages();
+    await wrapper.findAll('.proc__page-btn')[1].trigger('click');
+    await flushPromises();
+    expect(wrapper.find('.proc__journal-page').text()).toBe('2 / 2');
+
+    // SSE-сигнал перечитывает ТУ ЖЕ страницу: читающего не выбрасывает наверх.
+    state.streamHandler();
+    await flushPromises();
+    expect(state.journalCalls.at(-1)).toMatchObject({ offset: 50 });
+    expect(wrapper.find('.proc__journal-page').text()).toBe('2 / 2');
+
+    // Новый период — новая лента с первой страницы.
+    await wrapper.setProps({ from: '2026-05-01', to: '2026-05-31' });
+    await flushPromises();
+    expect(state.journalCalls.at(-1)).toMatchObject({ from: '2026-05-01', offset: 0 });
+    expect(wrapper.find('.proc__journal-page').text()).toBe('1 / 2');
+  });
+
+  it('если событий стало меньше, страница за хвостом схлопывается к последней', async () => {
+    const wrapper = await mountWithPages();
+    await wrapper.findAll('.proc__page-btn')[1].trigger('click');
+    await flushPromises();
+    expect(wrapper.find('.proc__journal-page').text()).toBe('2 / 2');
+
+    // Лента усохла до одной страницы — вторая больше не существует.
+    state.journalPages = { 0: journalEntries(), 50: [] };
+    state.journalTotal = 2;
+    state.streamHandler();
+    await flushPromises();
+
+    expect(wrapper.find('.proc__journal-page').text()).toBe('1 / 1');
+    expect(wrapper.findAll('.proc__journal-row')).toHaveLength(2);
+  });
+
+  it('без событий пейджер не показывается', async () => {
+    state.summary = fullSummary();
+    state.journal = [];
+    const wrapper = mountTab();
+    await flushPromises();
+
+    expect(wrapper.find('.proc__journal-pager').exists()).toBe(false);
+    expect(wrapper.find('.proc__table-empty').text()).toContain('Событий за период нет');
   });
 });
 

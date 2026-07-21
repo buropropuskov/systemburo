@@ -1,4 +1,4 @@
-import { apiRequest } from './client';
+import { apiRequest, apiRequestRaw } from './client';
 
 /**
  * Получить сводку метрик за период.
@@ -87,20 +87,27 @@ export async function getProcessingSummary(from, to) {
  * времени убыванием (#1251 S4/S7).
  * @param {string} from YYYY-MM-DD
  * @param {string} to YYYY-MM-DD
- * @param {number} [limit] глубина ленты (бэк клампит: по умолчанию 50, максимум 200)
- * @returns {Promise<Array<{application_id: number, application_number: string, actor_name: string, role: 'approval'|'acceptance', occurred_at: string, working_seconds: number|null}>>}
+ * @param {number} [limit] размер страницы (бэк клампит: по умолчанию 50, максимум 200)
+ * @param {number} [offset] смещение от начала ленты (постраничная навигация, #1251 P5b)
+ * @returns {Promise<{items: Array<{application_id: number, application_number: string, actor_name: string, role: 'approval'|'acceptance', occurred_at: string, working_seconds: number|null}>, meta: {total: number, page: number, per_page: number}}>}
  */
-export async function getProcessingJournal(from, to, limit) {
+export async function getProcessingJournal(from, to, limit, offset) {
   const params = new URLSearchParams();
   if (from) params.set('from', from);
   if (to) params.set('to', to);
   if (limit) params.set('limit', String(limit));
-  const res = await apiRequest(`/statistics/processing-journal?${params}`);
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data?.message || 'Не удалось загрузить журнал обработки');
+  if (offset) params.set('offset', String(offset));
+  // Сырой ответ: общее число событий лежит в envelope.meta рядом с data, а apiRequest
+  // снимает только data и meta теряется (см. getApplicationsPaginated).
+  const res = await apiRequestRaw(`/statistics/processing-journal?${params}`);
+  const body = await res.json().catch(() => null);
+  if (!res.ok || !body || !body.success) {
+    throw new Error(body?.error || 'Не удалось загрузить журнал обработки');
   }
-  return res.json();
+  return {
+    items: body.data || [],
+    meta: body.meta || { total: 0, page: 1, per_page: limit || 50 },
+  };
 }
 
 /**
