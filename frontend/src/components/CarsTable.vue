@@ -555,6 +555,7 @@
     <CarsTableHistoryModal
       v-if="!preview && showCarsTableHistory"
       :cars="itemsData"
+      :table-id="tableId"
       :current-user-id="currentUserId"
       :current-user-name="currentUserName"
       @close="showCarsTableHistory = false"

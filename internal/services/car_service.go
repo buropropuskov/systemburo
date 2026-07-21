@@ -43,6 +43,8 @@ type CarService interface {
 	AddCarHistoryEntry(ctx context.Context, carID int, req AddCarHistoryRequest) error
 	// GetAllCarsHistory возвращает историю въездов/выездов всех автомобилей.
 	GetAllCarsHistory(ctx context.Context) ([]AllCarsHistoryItem, error)
+	// GetCarsHistoryByTable возвращает историю въездов/выездов таблицы проходной.
+	GetCarsHistoryByTable(ctx context.Context, tableID int) ([]AllCarsHistoryItem, error)
 	// GetCarsCurrentStatus возвращает текущий территориальный статус активных машин.
 	GetCarsCurrentStatus(ctx context.Context) ([]CarCurrentStatus, error)
 	// UpdateCarTerritoryStatus обновляет статус нахождения на территории (въезд/выезд).
