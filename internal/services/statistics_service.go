@@ -33,9 +33,10 @@ type StatisticsService interface {
 	GetProcessingSummary(ctx context.Context, from, to time.Time) (*models.ProcessingSummary, error)
 	// GetProcessingJournal возвращает страницу сквозной ленты событий обработки
 	// (согласования и принятия в работу) за период [from, to] по времени убыванием:
-	// limit событий начиная с offset и общее число событий периода для постраничной
-	// навигации. Реальное время: без кэша (#1251 S4, страницы — P5b).
-	GetProcessingJournal(ctx context.Context, from, to time.Time, limit, offset int) ([]models.ProcessingJournalEntry, int64, error)
+	// limit событий начиная с offset и общее число подходящих событий для постраничной
+	// навигации. filter сужает выборку по роли и подстроке номера/актора. Реальное
+	// время: без кэша (#1251 S4, страницы — P5b, фильтры и поиск — P5c).
+	GetProcessingJournal(ctx context.Context, from, to time.Time, filter ProcessingJournalFilter, limit, offset int) ([]models.ProcessingJournalEntry, int64, error)
 	GetTimeline(ctx context.Context, from, to time.Time, metric, granularity string) ([]models.StatsTimelinePoint, error)
 	GetRecentPassages(ctx context.Context, limit int) (*models.RecentPassages, error)
 	GetReportCatalog(ctx context.Context) (*models.ReportCatalog, error)

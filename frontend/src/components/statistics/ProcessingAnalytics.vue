@@ -339,6 +339,41 @@
           @refresh="loadJournal"
         />
       </div>
+      <!-- Фильтры ленты (#1251 P5c). Отбор идёт на бэке: страница и «Всего»
+           считаются по одному предикату, иначе фильтрация в пределах текущей
+           страницы врала бы о числе событий. -->
+      <div class="proc__journal-filters">
+        <FilterTabs
+          :model-value="journalRole"
+          :tabs="JOURNAL_ROLE_TABS"
+          @update:model-value="onJournalRoleChange"
+        />
+        <SearchComponent
+          :model-value="journalSearch"
+          class="proc__journal-search"
+          title="Номер заявки или ФИО"
+          @update:model-value="onJournalSearchInput"
+        />
+        <DateFilter
+          mode="range"
+          :selected-date="journalSelectedDate"
+          :date-range-start="journalRangeStart"
+          :date-range-end="journalRangeEnd"
+          @update:selected-date="journalSelectedDate = $event"
+          @update:date-range-start="journalRangeStart = $event"
+          @update:date-range-end="journalRangeEnd = $event"
+          @apply="applyJournalFilters"
+          @clear="clearJournalRange"
+        />
+        <button
+          type="button"
+          class="lk-button lk-button--ghost proc__journal-reset"
+          :disabled="!journalHasFilters"
+          @click="resetJournalFilters"
+        >
+          Сбросить
+        </button>
+      </div>
       <div
         v-if="journalError"
         class="proc__state proc__state--error"
@@ -386,7 +421,7 @@
         <div
           v-if="journal.length === 0"
           class="proc__table-empty"
-        >Событий за период нет</div>
+        >{{ journalHasFilters ? 'По фильтрам ничего не нашлось' : 'Событий за период нет' }}</div>
       </div>
       <div
         v-if="!journalError && journalReady && journalTotal > 0"
@@ -424,6 +459,8 @@ import { useDeletionsStore } from '@/stores/deletions';
 import HintTooltip from '@/components/ui/HintTooltip.vue';
 import FilterTabs from '@/components/ui/FilterTabs.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
+import SearchComponent from '@/components/SearchComponent.vue';
+import DateFilter from '@/components/DateFilter.vue';
 import AnalyticsAreaChart from './AnalyticsAreaChart.vue';
 import DirIcon from './DirIcon.vue';
 
@@ -479,6 +516,44 @@ const journalTotal = ref(0);
 // страницы по своей константе значило бы верить, что она совпала.
 const journalPerPage = ref(JOURNAL_LIMIT);
 const journalTotalPages = computed(() => Math.max(1, Math.ceil(journalTotal.value / journalPerPage.value)));
+
+// Фильтры ленты (#1251 P5c): роль события, свой диапазон дат внутри периода вкладки
+// и поиск по номеру заявки или ФИО актора. Отбор серверный - иначе «Всего» и
+// страницы считались бы по нефильтрованной выборке.
+const JOURNAL_ROLE_TABS = [
+  { key: '', label: 'Все' },
+  { key: 'approval', label: 'Согласования' },
+  { key: 'acceptance', label: 'Принятия' },
+];
+const JOURNAL_SEARCH_DEBOUNCE_MS = 300;
+
+const journalRole = ref('');
+const journalSearch = ref('');
+const journalSelectedDate = ref(null);
+const journalRangeStart = ref(null);
+const journalRangeEnd = ref(null);
+
+// Дата в 'YYYY-MM-DD' по ЛОКАЛЬНЫМ частям: toISOString увёл бы выбранный день на
+// предыдущий восточнее UTC (бэк трактует границы периода в МСК).
+function toYMD(d) {
+  if (!(d instanceof Date)) return '';
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
+// Свой диапазон журнала сужает период вкладки; не задан - берём период вкладки.
+const journalFrom = computed(() => toYMD(journalSelectedDate.value || journalRangeStart.value) || props.from);
+const journalTo = computed(() => toYMD(journalSelectedDate.value || journalRangeEnd.value) || props.to);
+
+const journalHasFilters = computed(() => Boolean(
+  journalRole.value
+  || journalSearch.value.trim()
+  || journalSelectedDate.value
+  || journalRangeStart.value
+  || journalRangeEnd.value,
+));
+
 let journalSeq = 0;
 async function loadJournal() {
   const seq = ++journalSeq;
@@ -487,7 +562,8 @@ async function loadJournal() {
   journalLoading.value = true;
   try {
     const { items, meta } = await getProcessingJournal(
-      props.from, props.to, JOURNAL_LIMIT, (page - 1) * journalPerPage.value,
+      journalFrom.value, journalTo.value, JOURNAL_LIMIT, (page - 1) * journalPerPage.value,
+      { role: journalRole.value, q: journalSearch.value.trim() },
     );
     if (seq !== journalSeq) return;
     journal.value = Array.isArray(items) ? items : [];
@@ -509,6 +585,47 @@ async function loadJournal() {
       journalLoading.value = false;
     }
   }
+}
+
+// Печать в поиске не должна бить по бэку на каждый символ. Дебаунс висит на вводе, а
+// не на watch(journalSearch): иначе программная очистка поля в «Сбросить» ставила бы
+// отложенный запрос поверх немедленного (два обращения на одно действие).
+let journalSearchTimer = null;
+function cancelJournalSearchDebounce() {
+  if (journalSearchTimer) clearTimeout(journalSearchTimer);
+  journalSearchTimer = null;
+}
+
+// Смена фильтра всегда возвращает на первую страницу: номер страницы относится к
+// прежней выборке, оставлять его - показать пустоту за хвостом новой.
+function applyJournalFilters() {
+  cancelJournalSearchDebounce();
+  journalPage.value = 1;
+  loadJournal();
+}
+
+function onJournalRoleChange(role) {
+  journalRole.value = role;
+  applyJournalFilters();
+}
+
+function onJournalSearchInput(value) {
+  journalSearch.value = value;
+  cancelJournalSearchDebounce();
+  journalSearchTimer = setTimeout(applyJournalFilters, JOURNAL_SEARCH_DEBOUNCE_MS);
+}
+
+function clearJournalRange() {
+  journalSelectedDate.value = null;
+  journalRangeStart.value = null;
+  journalRangeEnd.value = null;
+  applyJournalFilters();
+}
+
+function resetJournalFilters() {
+  journalRole.value = '';
+  journalSearch.value = '';
+  clearJournalRange();
 }
 
 function goToJournalPage(next) {
@@ -773,9 +890,15 @@ function reload() {
 
 // Новый период - новая лента: страница сбрасывается на первую (её события к
 // прошлому окну отношения не имеют). Ручное «Обновить» страницу сохраняет.
+// Свой диапазон журнала - сужение внутри прежнего периода, к новому он отношения не
+// имеет и тоже сбрасывается; роль и поиск остаются, они от дат не зависят.
 watch(
   () => [props.from, props.to],
   () => {
+    journalSelectedDate.value = null;
+    journalRangeStart.value = null;
+    journalRangeEnd.value = null;
+    cancelJournalSearchDebounce();
     journalPage.value = 1;
     reload();
   },
@@ -805,6 +928,7 @@ onBeforeUnmount(() => {
   eventStream.disconnect();
   if (journalPoll) clearInterval(journalPoll);
   journalPoll = null;
+  cancelJournalSearchDebounce();
 });
 
 defineExpose({ refresh: reload });
@@ -1144,6 +1268,24 @@ defineExpose({ refresh: reload });
 /* ===== ЖУРНАЛ (лента) ===== */
 .proc__journal {
   padding: 2px 4px;
+}
+
+/* Строка фильтров ленты: роль, поиск, свой диапазон дат и сброс. */
+.proc__journal-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.proc__journal-search {
+  width: 240px;
+}
+
+.proc__journal-reset {
+  height: 30px;
+  padding: 0 16px;
+  font-size: 13px;
 }
 
 .proc__journal-row {

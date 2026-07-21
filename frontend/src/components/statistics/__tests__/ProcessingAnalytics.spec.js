@@ -16,8 +16,8 @@ vi.mock('@/api/statistics.js', () => ({
   },
   // Бэк отдаёт страницу {items, meta:{total}} (#1251 P5b). Форма ответа - как в
   // api/statistics.js: items из envelope.data, total из envelope.meta.
-  getProcessingJournal: (from, to, limit, offset = 0) => {
-    state.journalCalls.push({ from, to, limit, offset });
+  getProcessingJournal: (from, to, limit, offset = 0, filter = {}) => {
+    state.journalCalls.push({ from, to, limit, offset, ...filter });
     const page = (items) => ({
       items,
       meta: {
@@ -426,8 +426,10 @@ describe('ProcessingAnalytics — рейтинги (S6)', () => {
     const wrapper = mountTab();
     await flushPromises();
 
-    const tabs = wrapper.findAllComponents(FilterTabs);
-    const breakdownTabs = tabs[tabs.length - 1];
+    // Ищем переключатель по составу вкладок, а не по позиции: FilterTabs на вкладке
+    // несколько (этап динамики, разрез разбивки, роль журнала).
+    const breakdownTabs = wrapper.findAllComponents(FilterTabs)
+      .find((t) => t.props('tabs').some((tab) => tab.key === 'organization'));
     await breakdownTabs.vm.$emit('update:modelValue', 'company');
     await flushPromises();
 
@@ -656,6 +658,124 @@ describe('ProcessingAnalytics — страницы журнала (P5b)', () => 
 
     expect(wrapper.find('.proc__journal-pager').exists()).toBe(false);
     expect(wrapper.find('.proc__table-empty').text()).toContain('Событий за период нет');
+  });
+});
+
+describe('ProcessingAnalytics — фильтры журнала (P5c)', () => {
+  const mountFiltered = async () => {
+    state.summary = fullSummary();
+    state.journalPages = { 0: journalEntries(), 50: [] };
+    state.journalTotal = 51;
+    const wrapper = mountTab();
+    await flushPromises();
+    return wrapper;
+  };
+
+  // Роли лежат вкладками FilterTabs: ключ '' — «Все», остальные уходят на бэк as-is.
+  const roleTab = (wrapper, key) => wrapper.find(`[data-testid="filter-tab-${key}"]`);
+
+  it('фильтр роли уходит на бэк и возвращает ленту на первую страницу', async () => {
+    const wrapper = await mountFiltered();
+    await wrapper.findAll('.proc__page-btn')[1].trigger('click');
+    await flushPromises();
+    expect(wrapper.find('.proc__journal-page').text()).toBe('2 / 2');
+
+    await roleTab(wrapper, 'approval').trigger('click');
+    await flushPromises();
+
+    expect(state.journalCalls.at(-1)).toMatchObject({ role: 'approval', offset: 0 });
+    expect(wrapper.find('.proc__journal-page').text()).toBe('1 / 2');
+
+    // «Все» снимает фильтр, а не шлёт своё значение (бэк на неизвестную роль даёт 400).
+    await roleTab(wrapper, '').trigger('click');
+    await flushPromises();
+    expect(state.journalCalls.at(-1).role).toBe('');
+  });
+
+  it('поиск уходит одним запросом после паузы в наборе, а не на каждый символ', async () => {
+    vi.useFakeTimers();
+    try {
+      const wrapper = await mountFiltered();
+      const callsBefore = state.journalCalls.length;
+      const input = wrapper.find('.proc__journal-search input');
+
+      await input.setValue('Куз');
+      await input.setValue('Кузнецов');
+      expect(state.journalCalls).toHaveLength(callsBefore); // до паузы бэк не дёргаем
+
+      vi.advanceTimersByTime(300);
+      await flushPromises();
+
+      expect(state.journalCalls).toHaveLength(callsBefore + 1);
+      expect(state.journalCalls.at(-1)).toMatchObject({ q: 'Кузнецов', offset: 0 });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('свой диапазон дат сужает ленту, не трогая период вкладки', async () => {
+    const wrapper = await mountFiltered();
+    const dateFilter = wrapper.findComponent({ name: 'DateFilter' });
+
+    dateFilter.vm.$emit('update:date-range-start', new Date(2026, 5, 3));
+    dateFilter.vm.$emit('update:date-range-end', new Date(2026, 5, 4));
+    dateFilter.vm.$emit('apply');
+    await flushPromises();
+
+    // Локальные части даты, не toISOString: иначе 03.06 уехало бы на 02.06.
+    expect(state.journalCalls.at(-1)).toMatchObject({ from: '2026-06-03', to: '2026-06-04' });
+    // Сводка и график остались на периоде вкладки — их запросы к датам журнала не привязаны.
+    expect(state.trendCalls.at(-1).filters[0]).toMatchObject({ from: '2026-06-01', to: '2026-06-07' });
+  });
+
+  it('«Сбросить» снимает все фильтры одним запросом', async () => {
+    const wrapper = await mountFiltered();
+    await roleTab(wrapper, 'acceptance').trigger('click');
+    await flushPromises();
+    await wrapper.find('.proc__journal-search input').setValue('Иванов');
+    const dateFilter = wrapper.findComponent({ name: 'DateFilter' });
+    dateFilter.vm.$emit('update:date-range-start', new Date(2026, 5, 3));
+    dateFilter.vm.$emit('apply');
+    await flushPromises();
+
+    const reset = wrapper.find('.proc__journal-reset');
+    expect(reset.attributes('disabled')).toBeUndefined();
+    const callsBefore = state.journalCalls.length;
+    await reset.trigger('click');
+    await flushPromises();
+
+    expect(state.journalCalls).toHaveLength(callsBefore + 1); // одно обращение на сброс
+    expect(state.journalCalls.at(-1)).toMatchObject({
+      role: '', q: '', from: '2026-06-01', to: '2026-06-07', offset: 0,
+    });
+    expect(wrapper.find('.proc__journal-reset').attributes('disabled')).toBeDefined();
+  });
+
+  it('смена периода вкладки снимает свой диапазон журнала', async () => {
+    const wrapper = await mountFiltered();
+    const dateFilter = wrapper.findComponent({ name: 'DateFilter' });
+    dateFilter.vm.$emit('update:date-range-start', new Date(2026, 5, 3));
+    dateFilter.vm.$emit('update:date-range-end', new Date(2026, 5, 4));
+    dateFilter.vm.$emit('apply');
+    await flushPromises();
+
+    await wrapper.setProps({ from: '2026-05-01', to: '2026-05-31' });
+    await flushPromises();
+
+    expect(state.journalCalls.at(-1)).toMatchObject({ from: '2026-05-01', to: '2026-05-31' });
+  });
+
+  it('под фильтрами пустая лента объясняет, что дело в фильтрах', async () => {
+    state.summary = fullSummary();
+    state.journal = [];
+    const wrapper = mountTab();
+    await flushPromises();
+    expect(wrapper.find('.proc__table-empty').text()).toContain('Событий за период нет');
+
+    await roleTab(wrapper, 'approval').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('.proc__table-empty').text()).toContain('По фильтрам ничего не нашлось');
   });
 });
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -47,7 +48,7 @@ func TestGetProcessingJournal_MixedEvents(t *testing.T) {
 	from, _ := processingWindowArgs(t, "2026-06-01", "2026-06-01")
 	_, to := processingWindowArgs(t, "2026-06-04", "2026-06-04")
 
-	entries, total, err := svc.GetProcessingJournal(context.Background(), from, to, 0, 0)
+	entries, total, err := svc.GetProcessingJournal(context.Background(), from, to, services.ProcessingJournalFilter{}, 0, 0)
 	require.NoError(t, err, "SQL ленты должен исполняться")
 
 	require.Len(t, entries, 7, "3 согласования (голос отдан) + 4 принятия")
@@ -108,7 +109,7 @@ func TestGetProcessingJournal_DepthLimit(t *testing.T) {
 	from, _ := processingWindowArgs(t, "2026-06-01", "2026-06-01")
 	_, to := processingWindowArgs(t, "2026-06-04", "2026-06-04")
 
-	entries, total, err := svc.GetProcessingJournal(context.Background(), from, to, 2, 0)
+	entries, total, err := svc.GetProcessingJournal(context.Background(), from, to, services.ProcessingJournalFilter{}, 2, 0)
 	require.NoError(t, err)
 	require.Len(t, entries, 2, "лимит глубины отдаёт только 2 события")
 	assert.Equal(t, int64(7), total, "total считает ВСЕ события периода, не размер страницы")
@@ -132,7 +133,7 @@ func TestGetProcessingJournal_EmptyWindow(t *testing.T) {
 	svc := services.NewStatisticsService(db, 0)
 	from, to := processingWindowArgs(t, "2030-01-01", "2030-01-31")
 
-	entries, total, err := svc.GetProcessingJournal(context.Background(), from, to, 0, 0)
+	entries, total, err := svc.GetProcessingJournal(context.Background(), from, to, services.ProcessingJournalFilter{}, 0, 0)
 	require.NoError(t, err)
 	assert.Empty(t, entries, "в 2030 событий обработки нет")
 	assert.Zero(t, total, "пустое окно — нечего листать")
@@ -181,6 +182,127 @@ func TestGetProcessingJournal_HTTP(t *testing.T) {
 	assert.NotContains(t, raw.Data[0], "event_id", "тай-брейк сортировки наружу не течёт")
 }
 
+// TestGetProcessingJournal_RoleFilter — фильтр роли (#1251 P5c) оставляет только свою
+// ветку UNION, и total считает отфильтрованные события, а не все за период (иначе
+// пейджер обещал бы страницы, которых нет).
+func TestGetProcessingJournal_RoleFilter(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	seedQualityApps(t, db)
+	seedApproverVotes(t, db)
+	seedAcceptedApps(t, db)
+
+	svc := services.NewStatisticsService(db, 0)
+	from, _ := processingWindowArgs(t, "2026-06-01", "2026-06-01")
+	_, to := processingWindowArgs(t, "2026-06-04", "2026-06-04")
+
+	acceptances, total, err := svc.GetProcessingJournal(context.Background(), from, to,
+		services.ProcessingJournalFilter{Role: models.ProcessingJournalRoleAcceptance}, 0, 0)
+	require.NoError(t, err)
+	require.Len(t, acceptances, 4, "принятий в окне четыре")
+	assert.Equal(t, int64(4), total, "total считает только принятия")
+	for _, e := range acceptances {
+		assert.Equal(t, models.ProcessingJournalRoleAcceptance, e.Role)
+	}
+
+	approvals, total, err := svc.GetProcessingJournal(context.Background(), from, to,
+		services.ProcessingJournalFilter{Role: models.ProcessingJournalRoleApproval}, 0, 0)
+	require.NoError(t, err)
+	require.Len(t, approvals, 3, "согласований с отданным голосом три")
+	assert.Equal(t, int64(3), total)
+	for _, e := range approvals {
+		assert.Equal(t, models.ProcessingJournalRoleApproval, e.Role)
+	}
+
+	_, _, err = svc.GetProcessingJournal(context.Background(), from, to,
+		services.ProcessingJournalFilter{Role: "нет такой"}, 0, 0)
+	assert.Error(t, err, "неизвестная роль — ошибка, а не тихая выдача всех событий")
+}
+
+// TestGetProcessingJournal_Search — поиск (#1251 P5c) бьёт и по номеру заявки, и по
+// подписи актора, регистр не важен, а спецсимволы LIKE экранируются.
+func TestGetProcessingJournal_Search(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	seedQualityApps(t, db)
+	seedApproverVotes(t, db)
+	seedAcceptedApps(t, db)
+
+	svc := services.NewStatisticsService(db, 0)
+	from, _ := processingWindowArgs(t, "2026-06-01", "2026-06-01")
+	_, to := processingWindowArgs(t, "2026-06-04", "2026-06-04")
+
+	search := func(q string) ([]models.ProcessingJournalEntry, int64) {
+		entries, total, err := svc.GetProcessingJournal(context.Background(), from, to,
+			services.ProcessingJournalFilter{Search: q}, 0, 0)
+		require.NoError(t, err)
+		return entries, total
+	}
+
+	byNumber, total := search("AC/D")
+	require.Len(t, byNumber, 1, "по номеру находится ровно принятие этой заявки")
+	assert.Equal(t, int64(1), total, "total сходится с числом найденного")
+	assert.Equal(t, "AC/D", byNumber[0].ApplicationNumber)
+
+	byActor, total := search("кузнецов")
+	require.Len(t, byActor, 2, "Кузнецов принял две заявки; регистр запроса не важен")
+	assert.Equal(t, int64(2), total)
+	for _, e := range byActor {
+		assert.Equal(t, "Кузнецов Кузьма", e.ActorName)
+	}
+
+	wildcard, total := search("%")
+	assert.Empty(t, wildcard, "процент — обычный символ поиска, а не «показать всё»")
+	assert.Zero(t, total)
+
+	underscore, _ := search("_")
+	assert.Empty(t, underscore, "подчёркивание не должно матчить любой символ")
+
+	nothing, total := search("такого нет")
+	assert.Empty(t, nothing)
+	assert.Zero(t, total)
+}
+
+// TestGetProcessingJournal_FilterHTTP — фильтры доезжают из query (role, q), meta
+// считает отфильтрованное, а неизвестная роль отбивается 400.
+func TestGetProcessingJournal_FilterHTTP(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	seedQualityApps(t, db)
+	seedApproverVotes(t, db)
+	seedAcceptedApps(t, db)
+
+	h := handlers.NewStatisticsHandler(services.NewStatisticsService(db, 0))
+	e := echo.New()
+
+	call := func(query string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, "/statistics/processing-journal?"+query, nil)
+		rec := httptest.NewRecorder()
+		require.NoError(t, h.GetProcessingJournal(e.NewContext(req, rec)))
+		return rec
+	}
+
+	rec := call("from=2026-06-01&to=2026-06-04&role=acceptance&q=" + url.QueryEscape("Кузнецов"))
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var resp struct {
+		Data []models.ProcessingJournalEntry `json:"data"`
+		Meta models.PaginationMeta           `json:"meta"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	require.Len(t, resp.Data, 2, "принятия Кузнецова")
+	assert.Equal(t, int64(2), resp.Meta.Total, "meta.total учитывает фильтры")
+
+	req := httptest.NewRequest(http.MethodGet, "/statistics/processing-journal?role=неизвестно", nil)
+	err := h.GetProcessingJournal(e.NewContext(req, httptest.NewRecorder()))
+	var httpErr *echo.HTTPError
+	require.ErrorAs(t, err, &httpErr, "неизвестная роль — HTTP-ошибка")
+	assert.Equal(t, http.StatusBadRequest, httpErr.Code)
+}
+
 // TestGetProcessingJournal_Pages — страницы не пересекаются и не теряют событий:
 // две страницы по 3 подряд дают те же 6 событий, что первые 6 одной страницей.
 func TestGetProcessingJournal_Pages(t *testing.T) {
@@ -195,7 +317,7 @@ func TestGetProcessingJournal_Pages(t *testing.T) {
 	from, _ := processingWindowArgs(t, "2026-06-01", "2026-06-01")
 	_, to := processingWindowArgs(t, "2026-06-04", "2026-06-04")
 
-	all, total, err := svc.GetProcessingJournal(context.Background(), from, to, 6, 0)
+	all, total, err := svc.GetProcessingJournal(context.Background(), from, to, services.ProcessingJournalFilter{}, 6, 0)
 	require.NoError(t, err)
 	require.Len(t, all, 6)
 	assert.Equal(t, int64(7), total)
@@ -204,9 +326,9 @@ func TestGetProcessingJournal_Pages(t *testing.T) {
 		return fmt.Sprintf("%d|%s|%s|%s", e.ApplicationID, e.Role, e.ActorName, e.OccurredAt.Format(time.RFC3339Nano))
 	}
 
-	page1, _, err := svc.GetProcessingJournal(context.Background(), from, to, 3, 0)
+	page1, _, err := svc.GetProcessingJournal(context.Background(), from, to, services.ProcessingJournalFilter{}, 3, 0)
 	require.NoError(t, err)
-	page2, total2, err := svc.GetProcessingJournal(context.Background(), from, to, 3, 3)
+	page2, total2, err := svc.GetProcessingJournal(context.Background(), from, to, services.ProcessingJournalFilter{}, 3, 3)
 	require.NoError(t, err)
 	require.Len(t, page1, 3)
 	require.Len(t, page2, 3, "вторая страница из 7 событий полная")
@@ -223,11 +345,11 @@ func TestGetProcessingJournal_Pages(t *testing.T) {
 	assert.Equal(t, expected, paged, "склейка страниц совпадает с одной выборкой: ни дублей, ни пропусков")
 
 	// Последняя страница — хвост, за ней пусто.
-	tail, _, err := svc.GetProcessingJournal(context.Background(), from, to, 3, 6)
+	tail, _, err := svc.GetProcessingJournal(context.Background(), from, to, services.ProcessingJournalFilter{}, 3, 6)
 	require.NoError(t, err)
 	assert.Len(t, tail, 1, "7-е событие на третьей странице")
 
-	beyond, _, err := svc.GetProcessingJournal(context.Background(), from, to, 3, 99)
+	beyond, _, err := svc.GetProcessingJournal(context.Background(), from, to, services.ProcessingJournalFilter{}, 3, 99)
 	require.NoError(t, err)
 	assert.Empty(t, beyond, "за хвостом событий нет")
 }
