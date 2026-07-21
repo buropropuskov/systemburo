@@ -225,6 +225,26 @@ func (h *CarHandler) GetAllCarsHistory(c echo.Context) error {
 	return RespondSuccess(c, items)
 }
 
+// GetCarsHistoryByTable обрабатывает GET /cars/history/table/:table_id.
+// @Summary Получение истории въездов/выездов таблицы проходной
+// @Tags cars
+// @Security BearerAuth
+// @Produce json
+// @Param table_id path int true "ID таблицы"
+// @Success 200 {array} services.AllCarsHistoryItem
+// @Router /cars/history/table/{table_id} [get]
+func (h *CarHandler) GetCarsHistoryByTable(c echo.Context) error {
+	tableID, err := ParseID(c, "table_id")
+	if err != nil {
+		return err
+	}
+	items, err := h.service.GetCarsHistoryByTable(c.Request().Context(), tableID)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, items)
+}
+
 // GetCarsCurrentStatus обрабатывает GET /cars/history/current-status.
 // @Summary Получение текущего территориального статуса активных автомобилей
 // @Tags cars

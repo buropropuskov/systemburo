@@ -470,6 +470,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	carsGroup.GET("/:id/history", cars.GetCarHistory)
 	carsGroup.POST("/:id/history", cars.AddCarHistoryEntry)
 	carsGroup.GET("/history/all", cars.GetAllCarsHistory)
+	carsGroup.GET("/history/table/:table_id", cars.GetCarsHistoryByTable)
 	carsGroup.GET("/history/current-status", cars.GetCarsCurrentStatus)
 	carsGroup.PUT("/:id/territory-status", cars.UpdateCarTerritoryStatus)
 	carsGroup.PUT("/:id/deactivate", cars.DeactivateCar)

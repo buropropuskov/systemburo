@@ -271,6 +271,12 @@ export default {
       type: Array,
       required: true
     },
+    // Таблица проходной, из которой открыли историю. Без неё модалка показывает
+    // историю всех таблиц - так она используется вне конкретной таблицы.
+    tableId: {
+      type: Number,
+      default: null
+    },
     currentUserId: {
       type: Number,
       default: null
@@ -499,7 +505,10 @@ export default {
     async loadHistory() {
       this.loading = true;
       try {
-        const response = await apiRequest(`/cars/history/all`, {});
+        const url = this.tableId
+          ? `/cars/history/table/${this.tableId}`
+          : '/cars/history/all';
+        const response = await apiRequest(url, {});
 
         if (response.ok) {
           const data = await response.json();

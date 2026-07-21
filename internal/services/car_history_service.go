@@ -101,61 +101,90 @@ func (s *carService) AddCarHistoryEntry(ctx context.Context, carID int, req AddC
 	return nil
 }
 
+// allCarsHistoryRow - сырая строка выборки истории въездов/выездов.
+type allCarsHistoryRow struct {
+	ID           int
+	CarID        int
+	UserID       *int
+	UserName     string
+	ActionType   string
+	Comment      *string
+	CreatedAt    time.Time
+	CarNumber    *string
+	CarBrand     *string
+	Organization *string
+	Company      *string
+	TableID      *int
+	TableName    *string
+}
+
+// allCarsHistorySelectSQL - общая часть выборки истории въездов/выездов;
+// вызывающий дописывает условия и сортировку.
+const allCarsHistorySelectSQL = `
+	SELECT
+		h.id,
+		h.car_id,
+		h.user_id,
+		CONCAT(
+			COALESCE(u.last_name, ''),
+			CASE WHEN u.first_name IS NOT NULL AND u.first_name != '' THEN ' ' || u.first_name ELSE '' END,
+			CASE WHEN u.middle_name IS NOT NULL AND u.middle_name != '' THEN ' ' || u.middle_name ELSE '' END
+		) AS user_name,
+		h.action_type,
+		h.comment,
+		h.created_at,
+		c.car_number,
+		c.car_brand,
+		COALESCE(o.name, '') AS organization,
+		COALESCE(c2.name, '') AS company,
+		h.table_id,
+		st.display_name AS table_name
+	FROM ` + carsHistoryUnion + ` h
+	LEFT JOIN users u ON h.user_id = u.id
+	JOIN cars c ON h.car_id = c.id
+	LEFT JOIN attachments a ON c.attachment_id = a.id
+	LEFT JOIN applications app ON a.application_id = app.id
+	-- Ручные машины (#1049) висят на вложении-сироте без заявки (app.* NULL),
+	-- поэтому org/company берём через COALESCE с самого вложения.
+	LEFT JOIN organizations o ON o.id = COALESCE(app.organization_id, a.organization_id)
+	LEFT JOIN companies c2 ON c2.id = COALESCE(app.company_id, a.company_id)
+	LEFT JOIN system_tables st ON h.table_id = st.id
+	WHERE h.action_type IN ('entry', 'exit')
+`
+
 // GetAllCarsHistory возвращает историю въездов/выездов всех автомобилей.
 func (s *carService) GetAllCarsHistory(ctx context.Context) ([]AllCarsHistoryItem, error) {
-	type allHistRow struct {
-		ID           int
-		CarID        int
-		UserID       *int
-		UserName     string
-		ActionType   string
-		Comment      *string
-		CreatedAt    time.Time
-		CarNumber    *string
-		CarBrand     *string
-		Organization *string
-		Company      *string
-		TableID      *int
-		TableName    *string
-	}
-
-	rows := make([]allHistRow, 0)
-	err := s.db.WithContext(ctx).Raw(`
-		SELECT
-			h.id,
-			h.car_id,
-			h.user_id,
-			CONCAT(
-				COALESCE(u.last_name, ''),
-				CASE WHEN u.first_name IS NOT NULL AND u.first_name != '' THEN ' ' || u.first_name ELSE '' END,
-				CASE WHEN u.middle_name IS NOT NULL AND u.middle_name != '' THEN ' ' || u.middle_name ELSE '' END
-			) AS user_name,
-			h.action_type,
-			h.comment,
-			h.created_at,
-			c.car_number,
-			c.car_brand,
-			COALESCE(o.name, '') AS organization,
-			COALESCE(c2.name, '') AS company,
-			h.table_id,
-			st.display_name AS table_name
-		FROM ` + carsHistoryUnion + ` h
-		LEFT JOIN users u ON h.user_id = u.id
-		JOIN cars c ON h.car_id = c.id
-		LEFT JOIN attachments a ON c.attachment_id = a.id
-		LEFT JOIN applications app ON a.application_id = app.id
-		-- Ручные машины (#1049) висят на вложении-сироте без заявки (app.* NULL),
-		-- поэтому org/company берём через COALESCE с самого вложения.
-		LEFT JOIN organizations o ON o.id = COALESCE(app.organization_id, a.organization_id)
-		LEFT JOIN companies c2 ON c2.id = COALESCE(app.company_id, a.company_id)
-		LEFT JOIN system_tables st ON h.table_id = st.id
-		WHERE h.action_type IN ('entry', 'exit')
+	rows := make([]allCarsHistoryRow, 0)
+	err := s.db.WithContext(ctx).Raw(allCarsHistorySelectSQL + `
 		ORDER BY h.created_at DESC
 	`).Scan(&rows).Error
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching all cars history")
 	}
+	return mapAllCarsHistoryRows(rows), nil
+}
 
+// GetCarsHistoryByTable возвращает историю въездов/выездов таблицы проходной.
+// У части записей table_id не проставлен (писались до появления привязки),
+// поэтому такие подбираются по текущей привязке машины к таблице - так же,
+// как это делает история сотрудников.
+func (s *carService) GetCarsHistoryByTable(ctx context.Context, tableID int) ([]AllCarsHistoryItem, error) {
+	rows := make([]allCarsHistoryRow, 0)
+	err := s.db.WithContext(ctx).Raw(allCarsHistorySelectSQL+`
+		AND (
+			h.table_id = ?
+			OR h.car_id IN (SELECT ctt.car_id FROM car_target_tables ctt WHERE ctt.table_id = ?)
+		)
+		ORDER BY h.created_at DESC
+	`, tableID, tableID).Scan(&rows).Error
+	if err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching cars history by table")
+	}
+	return mapAllCarsHistoryRows(rows), nil
+}
+
+// mapAllCarsHistoryRows преобразует сырые строки истории в DTO.
+func mapAllCarsHistoryRows(rows []allCarsHistoryRow) []AllCarsHistoryItem {
 	items := make([]AllCarsHistoryItem, 0, len(rows))
 	for _, r := range rows {
 		userName := r.UserName
@@ -178,7 +207,7 @@ func (s *carService) GetAllCarsHistory(ctx context.Context) ([]AllCarsHistoryIte
 			TableName:    r.TableName,
 		})
 	}
-	return items, nil
+	return items
 }
 
 // GetUnifiedCarHistory возвращает объединённую историю для всех автомобилей с одинаковыми параметрами.
