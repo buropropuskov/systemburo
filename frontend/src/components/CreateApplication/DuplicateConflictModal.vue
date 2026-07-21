@@ -306,8 +306,41 @@ onBeforeUnmount(() => { releaseBodyScrollLock(scrollLockOwner); });
     height: 36px;
   }
 
+
+  /* Подсказка к варианту живёт на hover - на телефоне его нет, а тап по кнопке
+     сразу выполняет действие. Показываем пояснение прямо в кнопке строкой ниже. */
+  .dup-conflict-dialog__footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
   .dup-conflict-dialog__btn {
-    min-height: 44px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    min-height: 56px;
+    padding: 10px 14px;
+    text-align: left;
+  }
+
+  .dup-conflict-dialog__btn[data-hint]::after {
+    position: static;
+    transform: none;
+    opacity: 1;
+    max-width: 100%;
+    padding: 0;
+    background: none;
+    box-shadow: none;
+    color: inherit;
+    font-size: 11px;
+    line-height: 1.3;
+    text-align: left;
+    opacity: 0.75;
+  }
+
+  .dup-conflict-dialog__btn[data-hint]::before {
+    display: none;
   }
 }
 

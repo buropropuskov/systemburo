@@ -25,7 +25,7 @@
         </button>
         <!-- Подсказка для кнопки -->
         <div
-          v-if="showTooltip && !canAddItems"
+          v-if="(showTooltip || isNarrow) && !canAddItems"
           class="tooltip"
         >
           <div class="tooltip-content">
@@ -176,7 +176,8 @@
 </template>
 
 <script>
-import { useFieldConfig } from '@/composables/useFieldConfig';
+import { useFieldConfig } from '@/composables/useFieldConfig'
+import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import { getViewportZoom } from '@/utils/viewportScale';
 
 export default {
@@ -214,7 +215,10 @@ export default {
     },
     emits: ['edit-cancelled', 'item-added', 'item-updated', 'items-added', 'update:unload-places'],
     setup(props) {
-        return useFieldConfig(() => props.fieldConfig);
+        // Причина блокировки кнопки живёт на hover - на телефоне его нет,
+        // поэтому там показываем её сразу под кнопкой.
+        const { isNarrow } = useNarrowScreen();
+        return { ...useFieldConfig(() => props.fieldConfig), isNarrow };
     },
     data() {
         return {
@@ -897,6 +901,18 @@ export default {
 }
 
 @media (max-width: 768px) {
+    /* На телефоне подсказка показана всегда, пока кнопка заблокирована - ставим её
+       в поток под кнопку, а не абсолютным поповером поверх соседних полей. */
+    .tooltip {
+        position: static;
+        margin-top: 8px;
+    }
+
+    .tooltip-content {
+        max-width: 100%;
+        white-space: pre-line;
+    }
+
     .tooltip-content {
         min-width: 0;
         max-width: calc(100vw - 40px);

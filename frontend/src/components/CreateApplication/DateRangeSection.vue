@@ -1070,14 +1070,24 @@ export default {
             else if (this.showSingleDatepicker) this.selectSingleDate(day);
         },
 
+        /**
+         * Перевод фокуса на следующее поле после выбора дня. На телефоне не делаем:
+         * лист календаря закрывается и тут же выбрасывает клавиатуру в соседнее поле,
+         * перекрывая пол-экрана.
+         */
+        focusNext(refName) {
+            if (typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+                && window.matchMedia('(max-width: 768px)').matches) return;
+            const el = this.$refs[refName];
+            if (el) el.focus();
+        },
+
         selectStartDate(day) {
             if (!day.isCurrentMonth || this.isPastDate(day.date)) return;
             this.$emit('update:start-date', day.date);
             this.showStartDatepicker = false;
             this.validateDateRange();
-            if (this.$refs.endDateInput) {
-                this.$refs.endDateInput.focus();
-            }
+            this.focusNext('endDateInput');
         },
 
         selectEndDate(day) {
@@ -1085,9 +1095,7 @@ export default {
             this.$emit('update:end-date', day.date);
             this.showEndDatepicker = false;
             this.validateDateRange();
-            if (this.$refs.startTimeInput) {
-                this.$refs.startTimeInput.focus();
-            }
+            this.focusNext('startTimeInput');
         },
 
         selectSingleDate(day) {
@@ -1096,9 +1104,7 @@ export default {
             this.showSingleDatepicker = false;
             this.$emit('validate-field', 'singleDate');
             this.validateTimeCrossing();
-            if (this.$refs.startTimeInput) {
-                this.$refs.startTimeInput.focus();
-            }
+            this.focusNext('startTimeInput');
         },
 
         prevMonth() {

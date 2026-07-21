@@ -10,15 +10,16 @@
         v-for="chip in visibleChips"
         :key="chip.key"
         class="recipient-chip"
-        :class="{ 'is-approver': chip.isApprover }"
+        :class="{ 'is-approver': chip.isApprover, 'is-hinted': hintedChip === chip.key }"
         :data-hint="chip.name"
+        @click="revealName(chip)"
       >
         <span class="recipient-chip__name">{{ shortName(chip.name) }}</span>
         <button
           v-if="chip.removable"
           class="recipient-chip__remove"
           title="Убрать читателя"
-          @click="removeReader(chip.userId)"
+          @click.stop="removeReader(chip.userId)"
         >
           ×
         </button>
@@ -156,7 +157,8 @@ export default {
       showAdd: false,
       showOverflow: false,
       isNarrow: false,
-      popoverStyle: null
+      popoverStyle: null,
+      hintedChip: null
     }
   },
   computed: {
@@ -220,6 +222,7 @@ export default {
     this.initNarrowWatcher()
   },
   beforeUnmount() {
+    if (this.hintTimer) clearTimeout(this.hintTimer)
     document.removeEventListener('mousedown', this.handleOutside)
     this.stopReposition()
     if (this.narrowMql) {
@@ -288,6 +291,21 @@ export default {
       this.showOverflow = !this.showOverflow
       if (this.showOverflow) this.showAdd = false
       this.syncPopover(this.showOverflow, this.$refs.overflowRef)
+    },
+
+    /**
+     * Имя в чипе сокращено до «Фамилия И.О.», полное живёт в подсказке на hover -
+     * на телефоне его не увидеть. По тапу показываем и гасим через пару секунд.
+     */
+    revealName(chip) {
+      if (!this.isNarrow) return
+      if (this.hintTimer) clearTimeout(this.hintTimer)
+      if (this.hintedChip === chip.key) {
+        this.hintedChip = null
+        return
+      }
+      this.hintedChip = chip.key
+      this.hintTimer = setTimeout(() => { this.hintedChip = null }, 2500)
     },
 
     initNarrowWatcher() {
@@ -457,6 +475,8 @@ export default {
   transition: opacity 0.15s;
 }
 
+.recipient-chip[data-hint].is-hinted::after,
+.recipient-chip[data-hint].is-hinted::before,
 .recipient-chip[data-hint]:hover::after,
 .recipient-chip[data-hint]:hover::before {
   opacity: 1;
