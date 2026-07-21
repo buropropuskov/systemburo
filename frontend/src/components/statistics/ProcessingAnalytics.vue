@@ -432,29 +432,15 @@
           class="proc__table-empty"
         >{{ journalHasFilters ? 'По фильтрам ничего не нашлось' : 'Событий за период нет' }}</div>
       </div>
-      <div
+      <Pager
         v-if="!journalError && journalReady && journalTotal > 0"
         class="proc__journal-pager"
-      >
-        <span class="proc__journal-total">Всего: {{ fmtCount(journalTotal) }}</span>
-        <button
-          type="button"
-          class="lk-button lk-button--ghost proc__page-btn"
-          :disabled="journalPage <= 1 || journalLoading"
-          @click="goToJournalPage(journalPage - 1)"
-        >
-          Назад
-        </button>
-        <span class="proc__journal-page">{{ journalPage }} / {{ journalTotalPages }}</span>
-        <button
-          type="button"
-          class="lk-button lk-button--ghost proc__page-btn"
-          :disabled="journalPage >= journalTotalPages || journalLoading"
-          @click="goToJournalPage(journalPage + 1)"
-        >
-          Вперёд
-        </button>
-      </div>
+        :page="journalPage"
+        :total-pages="journalTotalPages"
+        :total="fmtCount(journalTotal)"
+        :loading="journalLoading"
+        @update:page="goToJournalPage"
+      />
     </section>
   </div>
 </template>
@@ -467,6 +453,7 @@ import eventStream from '@/services/eventStream';
 import { useDeletionsStore } from '@/stores/deletions';
 import HintTooltip from '@/components/ui/HintTooltip.vue';
 import FilterTabs from '@/components/ui/FilterTabs.vue';
+import Pager from '@/components/ui/Pager.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import SearchComponent from '@/components/SearchComponent.vue';
 import DateFilter from '@/components/DateFilter.vue';
@@ -1485,27 +1472,19 @@ defineExpose({ refresh: reload });
   white-space: nowrap;
 }
 
-/* Пейджер ленты - как в истории входов (UserLoginHistory): всего + Назад/Вперёд. */
+/* Пейджер ленты - общий ui/Pager: здесь только место в карточке и размер кнопок. */
 .proc__journal-pager {
-  display: flex;
-  align-items: center;
   justify-content: flex-end;
-  gap: 10px;
   margin-top: 10px;
-  font-size: 13px;
   color: var(--color-text-muted);
 }
 
-.proc__journal-total {
+/* «Всего» прижато к левому краю карточки, страницы - к правому. */
+.proc__journal-pager :deep(.pager__total) {
   margin-right: auto;
 }
 
-.proc__page-btn {
+.proc__journal-pager :deep(.pager__btn) {
   padding: 6px 14px;
-  font-size: 13px;
-}
-
-.proc__journal-page {
-  font-variant-numeric: tabular-nums;
 }
 </style>

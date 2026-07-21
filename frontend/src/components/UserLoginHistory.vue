@@ -203,31 +203,22 @@
         <span><i class="lh-dot lh-dot--danger" />Неудачный вход</span>
         <span><i class="lh-dot lh-dot--warn" />Блокировка</span>
       </div>
-      <div class="lh-pager">
-        <span
-          v-if="isLiveHead"
-          class="lh-live"
-          title="Список обновляется автоматически"
-        ><i class="lh-live__dot" />в реальном времени</span>
-        <span class="lh-total">Всего: {{ total }}</span>
-        <button
-          type="button"
-          class="lk-button lk-button--ghost lh-page-btn"
-          :disabled="page <= 1 || loading"
-          @click="goToPage(page - 1)"
-        >
-          Назад
-        </button>
-        <span class="lh-page-num">{{ page }} / {{ totalPages }}</span>
-        <button
-          type="button"
-          class="lk-button lk-button--ghost lh-page-btn"
-          :disabled="page >= totalPages || loading"
-          @click="goToPage(page + 1)"
-        >
-          Вперёд
-        </button>
-      </div>
+      <Pager
+        class="lh-pager"
+        :page="page"
+        :total-pages="totalPages"
+        :total="total"
+        :loading="loading"
+        @update:page="goToPage"
+      >
+        <template #lead>
+          <span
+            v-if="isLiveHead"
+            class="lh-live"
+            title="Список обновляется автоматически"
+          ><i class="lh-live__dot" />в реальном времени</span>
+        </template>
+      </Pager>
     </div>
   </div>
 </template>
@@ -235,6 +226,7 @@
 <script>
 import ExcelJS from 'exceljs'
 import BaseDropdown from './ui/BaseDropdown.vue'
+import Pager from './ui/Pager.vue'
 import DateFilter from './DateFilter.vue'
 import { getUserAuthEvents } from '@/api/users'
 import { formatDateTime } from '@/utils/datetime'
@@ -271,7 +263,7 @@ function toYMD(d) {
 
 export default {
   name: 'UserLoginHistory',
-  components: { BaseDropdown, DateFilter },
+  components: { BaseDropdown, DateFilter, Pager },
   props: {
     username: {
       type: String,
@@ -859,10 +851,6 @@ function thinBorder() {
 .lh-dot--warn { background: #92400e; }
 
 .lh-pager {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 13px;
   color: #6b6f8a;
 }
 
@@ -891,10 +879,6 @@ function thinBorder() {
   .lh-live__dot {
     animation: none;
   }
-}
-
-.lh-page-num {
-  font-variant-numeric: tabular-nums;
 }
 
 @media (max-width: 640px) {
