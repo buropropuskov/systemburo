@@ -1632,6 +1632,14 @@ export default {
   padding-bottom: 16px;
 }
 
+/* Служебные столбцы не проходят через getColStyle, поэтому минимум ширины
+   задаём здесь: без него режим «Сетка» (overflow: clip) обнулял их
+   автоминимум и ширины столбцов прыгали при включении (#1307). */
+.entry-col,
+.exit-col { min-width: 86px; }
+.actions-col { min-width: 44px; }
+.expand-col { min-width: 44px; }
+
 /* Режим "Сетка" (#1289): вертикальные линии между колонками. Горизонтальные
    линии и внешний контур уже дают border-bottom строк и рамка карточки.
    На мобилке строки превращаются в карточки (rt-row), поэтому блок живёт от 768px.
@@ -1646,14 +1654,6 @@ export default {
   .fact-table-card.grid-mode .header-row,
   .fact-table-card.grid-mode .fact-row {
     overflow: clip;
-  }
-
-  /* overflow: clip, в отличие от hidden, не создаёт скролл-контейнер, поэтому
-     ячейка перестаёт занулять свой автоматический минимум ширины и начинает
-     распираться содержимым. Возвращаем нулевой минимум явно - слабым селектором,
-     чтобы фиксированные min-width увеличенного режима остались в силе. */
-  .fact-table-card.grid-mode .col {
-    min-width: 0;
   }
 
   .fact-table-card.grid-mode .header-row > .col,

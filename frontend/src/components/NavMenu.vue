@@ -1782,9 +1782,18 @@ export default {
   letter-spacing: 0.04em;
   color: var(--nav-text-faint);
   text-transform: uppercase;
-  padding: 8px 12px 4px;
+  padding: 6px 12px 4px;
   white-space: nowrap;
   overflow: hidden;
+}
+
+/* Между группами нужен заметный воздух, иначе списки читаются как один. */
+.dropdown-group-title + .dropdown-item {
+  margin-top: 2px;
+}
+
+.dropdown-item + .dropdown-group-title {
+  margin-top: 14px;
 }
 
 .dropdown-item {

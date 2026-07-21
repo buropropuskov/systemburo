@@ -165,15 +165,19 @@ func (s *carService) GetAllCarsHistory(ctx context.Context) ([]AllCarsHistoryIte
 }
 
 // GetCarsHistoryByTable возвращает историю въездов/выездов таблицы проходной.
-// У части записей table_id не проставлен (писались до появления привязки),
-// поэтому такие подбираются по текущей привязке машины к таблице - так же,
-// как это делает история сотрудников.
+// Запись с проставленным table_id принадлежит только своей таблице, иначе проезд
+// через один пост попал бы в историю всех постов, где числится машина. По
+// привязке подбираются лишь записи без table_id - те, что писались до её
+// появления (сейчас это большая часть журнала).
 func (s *carService) GetCarsHistoryByTable(ctx context.Context, tableID int) ([]AllCarsHistoryItem, error) {
 	rows := make([]allCarsHistoryRow, 0)
 	err := s.db.WithContext(ctx).Raw(allCarsHistorySelectSQL+`
 		AND (
 			h.table_id = ?
-			OR h.car_id IN (SELECT ctt.car_id FROM car_target_tables ctt WHERE ctt.table_id = ?)
+			OR (
+				h.table_id IS NULL
+				AND h.car_id IN (SELECT ctt.car_id FROM car_target_tables ctt WHERE ctt.table_id = ?)
+			)
 		)
 		ORDER BY h.created_at DESC
 	`, tableID, tableID).Scan(&rows).Error
