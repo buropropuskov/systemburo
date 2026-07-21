@@ -2814,10 +2814,17 @@ export default {
             flex-direction: column;
             align-items: flex-start;
             gap: 8px;
+            /* min-width:auto у flex-элемента = ширина по содержимому: строка
+               получателей распирала шапку шире страницы. */
+            width: 100%;
+            min-width: 0;
         }
 
+        /* В колонке align-items:flex-start даёт детям ширину по содержимому -
+           строка получателей тогда распирает страницу вместо того, чтобы ужаться. */
         .create__header-left {
             gap: 10px;
+            width: 100%;
         }
 
         h4 {

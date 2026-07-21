@@ -1,37 +1,42 @@
 <template>
   <div class="selector">
-    <!-- Мобилка: типы бланков - горизонтальная карусель (в столбик они съедали пол-экрана
-         до самой формы). Ниже - список уже созданных вложений; на десктопе всё как было:
-         тип, под ним свои вложения, под ними кнопка. -->
-    <div
-      v-if="isNarrow"
-      class="category-carousel"
-    >
-      <div
-        v-for="category in uniqueCategories"
-        :key="`chip-${category}`"
-        class="category-chip"
-      >
-        <div class="category-chip__head">
-          <span class="category-title">{{ category }}</span>
-          <span class="attachment-count">{{ getCategoryAttachments(category).length }}/10</span>
-        </div>
+    <!-- Мобилка: в столбик типы бланков съедали пол-экрана до самой формы. Тип
+         выбирается в прокручиваемой строке, добавляет одна кнопка под ней; на
+         десктопе всё как было: тип, под ним свои вложения, под ними кнопка. -->
+    <template v-if="isNarrow">
+      <div class="picker-caption">
+        Тип нового вложения
+      </div>
+      <div class="category-carousel">
         <button
-          class="add-btn"
-          :disabled="getCategoryAttachments(category).length >= 10"
-          @click="addAttachment(category)"
+          v-for="category in uniqueCategories"
+          :key="`chip-${category}`"
+          class="category-chip"
+          :class="{ 'category-chip--active': category === pickedCategory }"
+          @click="pickedCategory = category"
         >
-          Добавить
+          <span class="category-chip__title">{{ category }}</span>
+          <span
+            v-if="getCategoryAttachments(category).length"
+            class="category-chip__count"
+          >{{ getCategoryAttachments(category).length }}</span>
         </button>
       </div>
-    </div>
+      <button
+        class="picker-add"
+        :disabled="pickedCategoryIsFull"
+        @click="addAttachment(pickedCategory)"
+      >
+        Добавить вложение
+      </button>
 
-    <div
-      v-if="isNarrow && attachments.length"
-      class="created-caption"
-    >
-      Созданные вложения
-    </div>
+      <div
+        v-if="attachments.length"
+        class="created-caption"
+      >
+        Созданные вложения
+      </div>
+    </template>
 
     <div class="categories-container">
       <div
@@ -66,7 +71,7 @@
             :key="getAttachmentKey(attachment)"
             class="attachment"
             :class="{ selected: isSelected(attachment), editing: isEditing(attachment) }"
-            @click="selectAttachment(attachment)"
+            @click="selectAttachment(attachment, $event)"
             @mouseenter="handleMouseEnter(attachment, $event)"
             @mouseleave="handleMouseLeave"
           >
@@ -103,7 +108,15 @@
                 title="Переименовать"
                 @click.stop="startRename(attachment)"
               >
-                ✎
+                <img
+                  v-if="isNarrow"
+                  src="@/assets/icons/edit.png"
+                  alt="Переименовать"
+                  class="edit-btn__icon"
+                >
+                <template v-else>
+                  ✎
+                </template>
               </button>
               <button
                 v-if="isNarrow || hoveredAttachment === getAttachmentKey(attachment)"
@@ -212,7 +225,9 @@ export default {
             editingName: '',
             // Узкий экран (<=768, тот же порог, что у @media): типы бланков едут в
             // карусель, вложения показываются отдельным списком под ней.
-            isNarrow: false
+            isNarrow: false,
+            // Тип, выбранный в мобильном пикере (добавляет одна кнопка под строкой).
+            pickedCategory: null
         }
     },
     computed: {
@@ -233,9 +248,23 @@ export default {
                 }
             });
             return Array.from(categories);
+        },
+
+        pickedCategoryIsFull() {
+            if (!this.pickedCategory) return true;
+            return this.getCategoryAttachments(this.pickedCategory).length >= 10;
         }
     },
     watch: {
+        // Первый тип встаёт выбранным сразу, чтобы кнопка добавления не была мёртвой.
+        uniqueCategories: {
+            immediate: true,
+            handler(categories) {
+                if (!this.pickedCategory || !categories.includes(this.pickedCategory)) {
+                    this.pickedCategory = categories[0] || null;
+                }
+            }
+        },
         attachments: {
             handler(newAttachments) {
                 const existingIds = new Set(newAttachments.map(a => this.getAttachmentKey(a)));
@@ -430,14 +459,31 @@ export default {
             this.$emit('attachment-added', newAttachment);
         },
 
-        selectAttachment(attachment) {
+        selectAttachment(attachment, event) {
             // Инструкция принадлежит ТИПУ вложения (админка) и могла измениться после
             // добавления черновика - объект вложения хранит снапшот на момент добавления.
             // Берём актуальную инструкцию из загруженных шаблонов, иначе восстановленный
             // черновик (или тип, которому инструкцию дописали позже) не покажет кнопку.
             const enriched = this.withCurrentInstruction(attachment);
+            this.keepRowInPlace(event && event.currentTarget);
             this.selectedAttachment = enriched;
             this.$emit('attachment-selected', enriched);
+        },
+
+        /**
+         * Форма другого вложения выше или ниже прежней, страница меняет высоту, и
+         * браузер сдвигает прокрутку - на телефоне это выглядит как прыжок к началу.
+         * Держим кликнутую строку на том же месте экрана.
+         */
+        keepRowInPlace(row) {
+            if (!this.isNarrow || !row || typeof window === 'undefined') return;
+            const before = row.getBoundingClientRect().top;
+            this.$nextTick(() => {
+                window.requestAnimationFrame(() => {
+                    const shift = row.getBoundingClientRect().top - before;
+                    if (Math.abs(shift) > 1) window.scrollBy(0, shift);
+                });
+            });
         },
 
         isEditing(attachment) {
@@ -860,7 +906,7 @@ export default {
     }
 }
 
-/* ── Мобилка: карусель типов + список созданных вложений ── */
+/* ── Мобилка: выбор типа строкой + список созданных вложений ── */
 @media (max-width: 768px) {
     .selector {
         width: 100%;
@@ -870,14 +916,24 @@ export default {
         padding: 12px;
     }
 
-    /* Типы бланков - одна прокручиваемая строка (паттерн быстрых периодов календаря):
+    .picker-caption,
+    .created-caption {
+        font-size: 10px;
+        font-weight: 700;
+        color: #a2a2a2;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        margin-bottom: 8px;
+    }
+
+    /* Типы - одна прокручиваемая строка (паттерн быстрых периодов календаря):
        чипы уезжают под край, видно, что ряд продолжается. */
     .category-carousel {
         display: flex;
         flex-direction: row;
         flex-wrap: nowrap;
         gap: 8px;
-        margin: 0 -12px 10px;
+        margin: 0 -12px;
         padding: 0 12px 2px;
         overflow-x: auto;
         overflow-y: hidden;
@@ -893,44 +949,65 @@ export default {
 
     .category-chip {
         flex: 0 0 auto;
-        display: flex;
-        flex-direction: column;
+        display: inline-flex;
+        align-items: center;
         gap: 6px;
-        padding: 8px 10px;
+        height: 36px;
+        padding: 0 14px;
         border: 1px solid var(--color-border);
-        border-radius: var(--radius-md);
+        border-radius: var(--radius-pill);
         background: #fff;
-        scroll-snap-align: start;
-    }
-
-    .category-chip__head {
-        display: flex;
-        align-items: baseline;
-        gap: 8px;
-        white-space: nowrap;
-    }
-
-    /* На тач-экране hover не наступает, а базовый фон кнопки - полупрозрачный
-       (полный цвет он берёт только на :hover): без этого кнопка выглядит выключенной. */
-    .category-chip .add-btn {
-        width: 100%;
-        min-height: 36px;
-        margin-top: 0;
+        color: #666;
         font-size: 13px;
+        font-weight: 500;
+        white-space: nowrap;
+        cursor: pointer;
+        scroll-snap-align: start;
+        transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+    }
+
+    .category-chip--active {
+        background: var(--color-primary);
+        border-color: var(--color-primary);
+        color: #fff;
+    }
+
+    .category-chip__count {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 18px;
+        height: 18px;
+        padding: 0 5px;
+        border-radius: var(--radius-pill);
+        background: rgba(0, 0, 0, 0.08);
+        font-size: 11px;
+        font-weight: 600;
+    }
+
+    .category-chip--active .category-chip__count {
+        background: rgba(255, 255, 255, 0.25);
+    }
+
+    /* Одна кнопка на выбранный тип - раньше кнопка сидела в каждом чипе и
+       вылезала за его границы. */
+    .picker-add {
+        width: 100%;
+        min-height: 44px;
+        margin: 10px 0 16px;
+        border: none;
         border-radius: var(--radius-md);
         background: var(--color-primary);
+        color: #fff;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
     }
 
-    .category-chip .add-btn:disabled {
+    .picker-add:disabled {
         background: #a2a2a2;
-    }
-
-    .created-caption {
-        font-size: 10px;
-        font-weight: 700;
-        color: #a2a2a2;
-        text-transform: uppercase;
-        margin-bottom: 6px;
+        opacity: 0.6;
+        cursor: not-allowed;
     }
 
     .categories-container {
@@ -940,7 +1017,7 @@ export default {
     }
 
     .category {
-        margin-bottom: 12px;
+        margin-bottom: 14px;
     }
 
     .category-label {
@@ -948,15 +1025,17 @@ export default {
         font-weight: 700;
         color: #a2a2a2;
         text-transform: uppercase;
-        margin-bottom: 4px;
+        letter-spacing: 0.03em;
+        margin-bottom: 6px;
     }
 
-    /* Тач-таргеты: строка вложения и кнопки очистки под палец. Ширина 130px была
+    /* Тач-таргеты: строка вложения и кнопки под палец. Ширина 130px была
        рассчитана на узкую колонку десктопа - здесь селектор во всю страницу. */
     .attachment {
         max-width: none;
         width: 100%;
-        min-height: 40px;
+        min-height: 44px;
+        gap: 8px;
         padding: 0 10px;
         border-radius: var(--radius-md);
         font-size: 13px;
@@ -969,8 +1048,18 @@ export default {
 
     .edit-btn,
     .delete-btn {
-        min-width: 32px;
-        min-height: 32px;
+        min-width: 36px;
+        min-height: 36px;
+    }
+
+    .edit-btn__icon {
+        width: 16px;
+        height: 16px;
+        opacity: 0.65;
+    }
+
+    .delete-btn {
+        font-size: 20px;
     }
 
     .actions {
