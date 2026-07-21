@@ -385,6 +385,41 @@ func TestGetApplications_ActiveToday_FiltersByAttachmentPeriod(t *testing.T) {
 // applications_forward_archive_test.go (TestForwardApplication_Archived_Allowed).
 // Read-only архива остаётся на approve/take-to-work (тесты ниже).
 
+// Гейт read-only архива считает архив тем же предикатом, что и листинг: пока
+// просрочены не все вложения, заявка не архивная и действия над ней разрешены.
+func TestApproveApplication_NotAllAttachmentsExpired_Allowed(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	adminID := getUserID(t, db, "testadmin")
+
+	uaID := seedUniqueAttachment(t, db, "cars", "cars_gate_mixed", "CarsGateMixed")
+	appID := submitCompleteApplication(t, e, token, "Test Organization", uaID)
+	db.Model(&models.Application{}).Where("id = ?", appID).Update("status", models.StatusCompleted)
+	db.Model(&models.Attachment{}).Where("application_id = ?", appID).Update("entry_date_to", "2025-01-01")
+
+	// Второе вложение ещё действует - заявка не архивная, гейт пускать обязан.
+	future := time.Now().AddDate(0, 1, 0).Format("2006-01-02")
+	gateName, gateLabel := "cars_gate_second", "Cars Gate Second"
+	require.NoError(t, db.Create(&models.Attachment{
+		ApplicationID:         &appID,
+		AttachmentType:        "cars",
+		AttachmentName:        &gateName,
+		AttachmentDisplayName: &gateLabel,
+		EntryDateTo:           &future,
+	}).Error)
+
+	// Проверяем именно архивный гейт по тексту ошибки: 403 у approve может прийти и
+	// по другой причине (пользователь не ответственный), она к архиву отношения не имеет.
+	body := fmt.Sprintf(`{"user_id":%d,"status":"approved"}`, adminID)
+	rec := testutil.POST(t, e, fmt.Sprintf("/applications/%d/approve", appID), body, testutil.AuthHeader(token))
+	assert.NotContains(t, rec.Body.String(), "Архивная заявка",
+		"заявка с ещё действующим вложением не архивная - гейт read-only срабатывать не должен")
+}
+
 func TestApproveApplication_ArchivedReturns403(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()

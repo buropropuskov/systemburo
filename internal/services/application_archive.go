@@ -22,9 +22,13 @@ import "fmt"
 // archivedApplicationCond возвращает SQL-условие «заявка архивная» для указанного
 // алиаса таблицы applications. Условие содержит ОДИН плейсхолдер - список
 // закрытых статусов (models.ArchivableStatuses).
+//
+// COALESCE по статусу обязателен: status в БД nullable, а `NULL IN (...)` даёт NULL,
+// и заявка не прошла бы ни `WHERE cond` (архив), ни `WHERE NOT cond` (активные) -
+// пропала бы из обоих списков. Тот же приём рядом в application_workflow_service.go.
 func archivedApplicationCond(alias string) string {
 	return fmt.Sprintf(`(
-		%[1]s.status IN ?
+		COALESCE(%[1]s.status, '') IN ?
 		AND EXISTS (
 			SELECT 1 FROM attachments att
 			WHERE att.application_id = %[1]s.id
