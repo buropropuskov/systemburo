@@ -39,15 +39,33 @@
       </div>
             
       <Teleport to="body">
+        <!-- Мобилка: затемнение под листом - календарь не сливается со списком за ним.
+             На десктопе оверлей скрыт, попап по-прежнему якорится к полю. -->
+        <transition name="calendar-overlay-fade">
+          <div
+            v-if="showCalendar"
+            class="calendar-overlay"
+            @click="showCalendar = false"
+          />
+        </transition>
         <transition name="calendar-slide">
           <div
             v-if="showCalendar"
             ref="calendar"
             class="calendar-modal"
-            :style="calendarStyle"
+            :class="{ 'is-dragging': sheetDragging }"
+            :style="sheetOffset ? { ...calendarStyle, transform: `translateY(${sheetOffset}px)` } : calendarStyle"
             @click.stop
+            @touchstart="onSheetTouchStart"
+            @touchmove="onSheetTouchMove"
+            @touchend="onSheetTouchEnd"
           >
             <div class="calendar-container">
+              <!-- Ползунок bottom-sheet - виден только на мобилке (тянуть для закрытия). -->
+              <div
+                class="sheet-handle"
+                aria-hidden="true"
+              />
               <!-- Header -->
               <div class="calendar-header">
                 <div class="header-actions">
@@ -95,7 +113,10 @@
                 </div>
               </div>
                         
-              <div class="calendar-body">
+              <div
+                ref="sheetBody"
+                class="calendar-body"
+              >
                 <!-- Quick selection слева -->
                 <div class="quick-selection">
                   <div class="quick-buttons-list">
@@ -276,7 +297,9 @@
 </template>
 
 <script>
+import { ref } from 'vue';
 import { getViewportZoom } from '@/utils/viewportScale';
+import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 
 export default {
     name: 'DateFilter',
@@ -299,6 +322,31 @@ export default {
         },
     },
     emits: ['apply', 'clear', 'update:dateRangeEnd', 'update:dateRangeStart', 'update:selectedDate'],
+    /*
+     * Свайп-вниз-закрытие мобильного листа - общий useSwipeDismiss (как BaseModal).
+     * Композабл живёт в setup, а состояние календаря - в data (Options API), поэтому
+     * закрытие проходит через счётчик-сигнал: setup его увеличивает, watch в Options
+     * гасит showCalendar. Свайп берётся только с ползунка или когда тело листа
+     * прокручено вверх - иначе жест внутри списка быстрых периодов был бы закрытием.
+     */
+    setup() {
+        const sheetBody = ref(null);
+        const closeSignal = ref(0);
+        const swipe = useSwipeDismiss(() => { closeSignal.value += 1; }, {
+            handleSelector: '.sheet-handle',
+            getScrollTop: () => sheetBody.value?.scrollTop ?? 0,
+        });
+        return {
+            sheetBody,
+            closeSignal,
+            sheetOffset: swipe.offset,
+            sheetDragging: swipe.isDragging,
+            resetSheetSwipe: swipe.reset,
+            onSheetTouchStart: swipe.onTouchStart,
+            onSheetTouchMove: swipe.onTouchMove,
+            onSheetTouchEnd: swipe.onTouchEnd,
+        };
+    },
     data() {
         return {
             showCalendar: false,
@@ -405,7 +453,11 @@ export default {
                 this.selectingRange = newVal === 'range';
             }
         },
+        closeSignal() {
+            this.showCalendar = false;
+        },
         showCalendar(open) {
+            if (!open) this.resetSheetSwipe();
             if (open) {
                 this.$nextTick(() => {
                     if (!this.showCalendar) return; // успели закрыть до тика - не вешаем слушатели
@@ -912,12 +964,46 @@ export default {
     transform: translateY(-10px);
 }
 
+.calendar-overlay-fade-enter-active,
+.calendar-overlay-fade-leave-active {
+    transition: opacity 0.25s ease;
+}
+
+.calendar-overlay-fade-enter-from,
+.calendar-overlay-fade-leave-to {
+    opacity: 0;
+}
+
+/* Мобильный лист выезжает снизу, а не сползает сверху, как десктопный попап. */
+@media (max-width: 768px) {
+    .calendar-slide-enter-from,
+    .calendar-slide-leave-to {
+        opacity: 1;
+        transform: translateY(100%);
+    }
+}
+
 .calendar-modal {
     /* Телепортирован в body: top/left задаёт inline-стиль из updatePosition.
        width нужен здесь, чтобы offsetHeight измерялся до применения inline-стиля. */
     position: fixed;
     z-index: 9999;
     width: 500px;
+}
+
+/* Затемнение и ползунок - только мобильный лист (см. @media ниже). */
+.calendar-overlay {
+    display: none;
+}
+
+.sheet-handle {
+    display: none;
+    width: 40px;
+    height: 4px;
+    border-radius: 2px;
+    background: #d5d5db;
+    margin: 6px auto 0;
+    flex-shrink: 0;
 }
 
 .calendar-container {
@@ -1292,44 +1378,115 @@ export default {
     .date-filter {
         width: 100%;
     }
-    
+
+    /* Календарь на телефоне - bottom-sheet: прижат к низу, во всю ширину, с
+       затемнением под ним (раньше был центрированный попап 320px без подложки -
+       сливался со списком и не помещался в экран). Высота ограничена вьюпортом,
+       лишнее прокручивается телом листа. */
+    .calendar-overlay {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 9998;
+        background: rgba(0, 0, 0, 0.45);
+    }
+
     .calendar-modal {
         position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        width: 90vw;
-        max-width: 320px;
+        top: auto;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        transform: none;
+        width: 100vw;
+        max-width: none;
+        max-height: 92dvh;
+        display: flex;
         z-index: 9999;
     }
-    
-    .calendar-body {
-        flex-direction: column;
-        padding: 12px;
-        gap: 12px;
+
+    /* Лист тянется за пальцем 1:1 - без transition во время жеста. */
+    .calendar-modal.is-dragging {
+        transition: none;
     }
-    
+
+    .calendar-container {
+        width: 100%;
+        max-height: 92dvh;
+        display: flex;
+        flex-direction: column;
+        border: none;
+        border-radius: 16px 16px 0 0;
+        box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.18);
+    }
+
+    .sheet-handle {
+        display: block;
+    }
+
+    /* Шапка с месяцем и кнопки действий закреплены, прокручивается только тело. */
+    .calendar-header,
+    .calendar-actions {
+        flex-shrink: 0;
+    }
+
+    .calendar-body {
+        flex: 1 1 auto;
+        flex-direction: column;
+        padding: 10px 12px;
+        gap: 10px;
+        min-height: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+    }
+
     .quick-selection {
         flex: none;
         border-right: none;
         border-bottom: 1px solid #f0f0f0;
         padding-right: 0;
-        padding-bottom: 12px;
+        padding-bottom: 10px;
     }
-    
+
+    /* Быстрые периоды в три колонки - блок вдвое ниже, чем в две (232px -> ~120px). */
     .quick-buttons-list {
         display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 6px;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 5px;
         max-height: none;
         overflow-y: visible;
         padding-right: 0;
     }
-    
+
+    /* Три колонки узкие - длинные подписи («Следующая неделя») переносим в две строки
+       вместо обрезки многоточием, поэтому высота по контенту и текст по центру. */
+    .quick-btn {
+        padding: 4px 6px;
+        font-size: 11px;
+        line-height: 1.15;
+        min-height: 30px;
+        max-height: none;
+        white-space: normal;
+        text-align: center;
+        justify-content: center;
+    }
+
     .calendar-main {
         width: 100%;
     }
-    
+
+    /* Компактная сетка дней - ячейки ниже, но тач-таргет остаётся 32px. */
+    .day {
+        height: 32px;
+    }
+
+    .selected-range {
+        margin-top: 10px;
+        padding: 6px 8px;
+        min-height: 32px;
+    }
+
     .action-btn {
         padding: 10px 12px;
         font-size: 11px;
