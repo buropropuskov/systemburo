@@ -99,6 +99,9 @@ func processingJournalSource() string {
 // (согласование/принятие), а не по дате подачи: лента показывает, что происходило в
 // выбранный период.
 func (s *statisticsService) GetProcessingJournal(ctx context.Context, from, to time.Time, limit, offset int) ([]models.ProcessingJournalEntry, int64, error) {
+	// HTTP-слой уже нормализовал (ему значения нужны для meta), но метод публичный:
+	// нормализуем и здесь, иначе прямой вызов из другого места ушёл бы в БД с
+	// limit<=0. Функция идемпотентна, повторный вызов ничего не меняет.
 	limit, offset = NormalizeProcessingJournalPaging(limit, offset)
 
 	source := processingJournalSource()
