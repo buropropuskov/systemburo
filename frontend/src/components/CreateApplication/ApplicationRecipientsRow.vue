@@ -197,6 +197,23 @@ export default {
         .filter(u => !q || u.name.toLowerCase().includes(q) || (u.position || '').toLowerCase().includes(q))
     }
   },
+  watch: {
+    // Читателей можно удалять прямо из окна «Ещё N»: когда список опустел, обёртка
+    // с ref размонтируется, и закрыть окно по клику вне уже некому - гасим сами.
+    'overflowChips.length'(count) {
+      if (!count && this.showOverflow) {
+        this.showOverflow = false
+        this.syncPopover(false)
+      }
+    },
+    // Переход между мобильной и десктопной раскладкой с открытым окном оставил бы
+    // либо мёртвые координаты, либо лишние слушатели.
+    isNarrow() {
+      if (this.showAdd) this.syncPopover(true, this.$refs.addRef)
+      else if (this.showOverflow) this.syncPopover(true, this.$refs.overflowRef)
+      else this.syncPopover(false)
+    }
+  },
   mounted() {
     this.fetchManagers()
     document.addEventListener('mousedown', this.handleOutside)
@@ -283,7 +300,7 @@ export default {
     },
 
     syncPopover(open, anchor) {
-      if (!open) {
+      if (!open || !this.isNarrow) {
         this.popoverStyle = null
         this.stopReposition()
         return
