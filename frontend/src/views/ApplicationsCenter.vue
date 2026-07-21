@@ -3535,9 +3535,13 @@ export default {
 
 @media (max-width: 767.98px) {
     .center {
+        /* Боковой отступ страницы вынесен в переменную: full-bleed блоки (шапка,
+           список) гасят его отрицательным margin через ту же переменную. Иначе
+           значения разъезжаются на узких брейкпоинтах и блок вылезает за вьюпорт. */
+        --center-pad: 12px;
         /* Верхний отступ убран - шапка Центра примыкает к app bar без «странного»
            просвета сверху (#1097 p2). Боковой/нижний padding сохранён. */
-        padding: 0 12px 12px;
+        padding: 0 var(--center-pad) var(--center-pad);
         /* На мобилке - обычный поток (высота сброшена в _applyHeight), список
            скроллит страница под sticky-шапкой; десктопный flex-fill не нужен. */
         display: block;
@@ -3545,8 +3549,8 @@ export default {
     }
 
     /* Шапка Центра закреплена под app bar (TheHeader = --mobile-header-height, sticky top:0),
-       список заявок скроллит страница под ней. Full-bleed белый фон (margin -12px гасит
-       боковой padding .center) - edge-to-edge карточки уходят под шапку без просвета.
+       список заявок скроллит страницу под ней. Full-bleed белый фон (отрицательный margin
+       гасит боковой padding .center) - edge-to-edge карточки уходят под шапку без просвета.
        Нижняя граница - разделитель между шапкой и списком (гасит «белую пустоту» перед
        первой карточкой), держится закреплённой при скролле. */
     .center__header {
@@ -3557,8 +3561,8 @@ export default {
         z-index: 20;
         gap: 8px;
         background: #FAFAFA;
-        margin: 0 -12px;
-        padding: 8px 12px 12px;
+        margin: 0 calc(-1 * var(--center-pad));
+        padding: 8px var(--center-pad) 12px;
         border-bottom: 1px solid var(--color-border);
     }
 
@@ -3603,11 +3607,11 @@ export default {
         max-height: none;
         height: auto;
         overflow: visible;
-        /* Карточки на всю ширину экрана: гасим боковой padding .center (12px)
+        /* Карточки на всю ширину экрана: гасим боковой padding .center
            отрицательным margin, убираем рамку/скругление таблицы - список идёт от
            края до края (боковой отступ экрана у заявок = 0). Верхний отступ убран -
            список примыкает к разделителю шапки, между ними только padding table-body. */
-        margin: 0 -12px;
+        margin: 0 calc(-1 * var(--center-pad));
         border: none;
         border-radius: 0;
     }
@@ -3839,16 +3843,12 @@ export default {
 
 @media (max-width: 480px) {
     .center {
-        /* Верхний отступ убран (#1097 p2), боковой/нижний 10px сохранён - от него
-           зависит full-bleed margin таблицы ниже. */
-        padding: 0 10px 10px;
-    }
-
-    /* Full-bleed margin таблицы = padding .center (тут 10px, не 12px как в 767.98),
-       иначе margin -12 overshoot'ит на 2px -> горизонтальный скролл документа. */
-    .applications-table {
-        margin-left: -10px;
-        margin-right: -10px;
+        /* Верхний отступ убран (#1097 p2), боковой/нижний 10px сохранён. Full-bleed
+           шапка и список гасят его тем же --center-pad, поэтому переопределяем только
+           переменную: разъезд «margin -12 против padding 10» (overshoot 2px ->
+           горизонтальный скролл документа) структурно невозможен. */
+        --center-pad: 10px;
+        padding: 0 var(--center-pad) var(--center-pad);
     }
 
     .center__tabs {
