@@ -100,7 +100,7 @@ func (s *applicationService) TakeApplicationToWork(ctx context.Context, username
 		tx.Exec("UPDATE applications SET status = ?, responsible_user_id = ?, responsible_comment = ? WHERE id = ?",
 			models.StatusRefused, user.ID, req.Comment, applicationID)
 
-		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "reject", &user.ID,
+		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, models.AuditActionReject, &user.ID,
 			applicationAuditDetails{OldValue: oldStatus, NewValue: ptrString(models.StatusRefused), Comment: req.Comment})
 
 		if err := s.activateApplicationItems(ctx, tx, applicationID, false, nil); err != nil {
@@ -275,7 +275,7 @@ func (s *applicationService) WithdrawApplication(ctx context.Context, username s
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to withdraw application")
 	}
 
-	s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "withdraw", &user.ID,
+	s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, models.AuditActionWithdraw, &user.ID,
 		applicationAuditDetails{OldValue: app.Status, NewValue: ptrString(models.StatusWithdrawn)})
 
 	// Деактивируем машины и сотрудников вложений...

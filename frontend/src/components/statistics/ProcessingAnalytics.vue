@@ -321,9 +321,9 @@
       </section>
     </template>
 
-    <!-- ===== ЖУРНАЛ: ЛЕНТА СОГЛАСОВАНИЙ И ПРИНЯТИЙ =====
-         ВНЕ isEmpty-гейта намеренно: окно журнала бьёт по времени СОБЫТИЯ
-         (согласование/принятие), а не по дате подачи, поэтому события могут быть и
+    <!-- ===== ЖУРНАЛ: ЛЕНТА РЕШЕНИЙ ПО ЗАЯВКАМ =====
+         ВНЕ isEmpty-гейта намеренно: окно журнала бьёт по времени СОБЫТИЯ,
+         а не по дате подачи, поэтому события могут быть и
          когда за период не подали ни одной новой заявки. Своя загрузка/ошибка/пусто. -->
     <section
       v-if="!errorMsg"
@@ -331,7 +331,7 @@
     >
       <div class="proc__group-head">
         <h2 class="proc__group-title">Журнал</h2>
-        <span class="proc__group-chip">последние согласования и принятия</span>
+        <span class="proc__group-chip">решения по заявкам: согласования, принятия, отказы, отзывы</span>
         <span class="proc__group-rule" />
         <RefreshButton
           :loading="journalLoading"
@@ -507,9 +507,10 @@ async function loadSummary() {
   }
 }
 
-// Журнал (#1251 S7): лента согласований и принятий отдельным запросом, без кэша
-// (реальное время). Обновляется по SSE-сигналу applications-center (тот же, что
-// двигает Центр заявок) + рефетч. Свой seq-guard и journalReady, чтобы гонка
+// Журнал (#1251 S7, роли расширены в P7): лента решений по заявкам - голоса
+// согласующих, принятия, отказы принимающего и отзывы инициатором - отдельным
+// запросом, без кэша (реальное время). Обновляется по SSE-сигналу
+// applications-center (тот же, что двигает Центр заявок) + рефетч. Свой seq-guard и journalReady, чтобы гонка
 // устаревшего ответа не затирала актуальный и на рефреше не мигал скелетон.
 const journal = ref([]);
 const journalError = ref('');
@@ -529,10 +530,16 @@ const journalTotalPages = computed(() => Math.max(1, Math.ceil(journalTotal.valu
 // Фильтры ленты (#1251 P5c): роль события, свой диапазон дат внутри периода вкладки
 // и поиск по номеру заявки или ФИО актора. Отбор серверный - иначе «Всего» и
 // страницы считались бы по нефильтрованной выборке.
+// Роли перечислены в порядке пути заявки и совпадают с models.ProcessingJournalRoles
+// на бэке: чужое значение эндпоинт отбивает 400, поэтому ключи вкладок - не свободный
+// текст.
 const JOURNAL_ROLE_TABS = [
   { key: '', label: 'Все' },
   { key: 'approval', label: 'Согласования' },
+  { key: 'not_approved', label: 'Несогласования' },
   { key: 'acceptance', label: 'Принятия' },
+  { key: 'rejection', label: 'Отказы' },
+  { key: 'withdrawal', label: 'Отзывы' },
 ];
 const JOURNAL_SEARCH_DEBOUNCE_MS = 300;
 
@@ -668,7 +675,13 @@ async function copyApplicationNumber(number) {
   }
 }
 
-const JOURNAL_ROLES = { approval: 'Согласование', acceptance: 'Принятие' };
+const JOURNAL_ROLES = {
+  approval: 'Согласование',
+  not_approved: 'Несогласование',
+  acceptance: 'Принятие',
+  rejection: 'Отказ',
+  withdrawal: 'Отзыв',
+};
 function roleLabel(role) {
   return JOURNAL_ROLES[role] || role;
 }
@@ -1386,7 +1399,10 @@ defineExpose({ refresh: reload });
   white-space: nowrap;
 }
 
-/* Согласование — синий tint (шаг пути), принятие — зелёный (заявка пошла в работу). */
+/* Цвет бейджа = исход: синий - шаг пути пройден (согласование), зелёный - заявка
+   пошла в работу, оранжевый - её не согласовали, красный - отказал принимающий,
+   серый - инициатор забрал сам. Пастель (тёмный текст на светлом фоне), как в
+   остальных бейджах проекта. */
 .proc__journal-role--approval {
   background: var(--color-primary-tint);
   color: var(--color-primary);
@@ -1395,6 +1411,21 @@ defineExpose({ refresh: reload });
 .proc__journal-role--acceptance {
   background: rgba(40, 167, 69, 0.12);
   color: var(--color-success);
+}
+
+.proc__journal-role--not_approved {
+  background: rgba(230, 126, 34, 0.14);
+  color: #b45309;
+}
+
+.proc__journal-role--rejection {
+  background: rgba(192, 57, 43, 0.12);
+  color: #c0392b;
+}
+
+.proc__journal-role--withdrawal {
+  background: rgba(120, 120, 120, 0.14);
+  color: #5a5a5a;
 }
 
 .proc__journal-actor {

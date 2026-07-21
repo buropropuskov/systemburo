@@ -18,10 +18,12 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
-// Сквозная лента событий обработки (#1251 S4) на РЕАЛЬНОМ SQL: UNION согласований
-// (aru.approval_datetime) и принятий (первое take_to_work). Рабочая длительность
+// Сквозная лента событий обработки (#1251 S4) на РЕАЛЬНОМ SQL: UNION голосов
+// согласующих (aru.approval_datetime), принятий (первое take_to_work) и решений из
+// audit_log — отказов принимающего и отзывов инициатором. Рабочая длительность
 // считается по рабочему времени Бюро, но тест не заводит график bureau_time_slots
 // -> календарный фолбэк, поэтому часы = календарной разнице.
 //
@@ -309,6 +311,146 @@ func TestGetProcessingJournal_FilterHTTP(t *testing.T) {
 	var httpErr *echo.HTTPError
 	require.ErrorAs(t, err, &httpErr, "неизвестная роль — HTTP-ошибка")
 	assert.Equal(t, http.StatusBadRequest, httpErr.Code)
+}
+
+// seedJournalDecisionEvents заводит события решений по заявкам за 05.06 (#1251 P7):
+//
+//	DEC/A — согласующий НЕ согласовал в 11:00 (назначен 10:00) -> несогласование, 1ч.
+//	        Голос согласующего пишет в audit_log ту же action 'reject', что и отказ
+//	        принимающего, но без new_value — эта запись в ленту попасть НЕ должна,
+//	        иначе одно несогласование показалось бы дважды.
+//	DEC/B — принимающий отказал в 13:00 (согласовано 10:00) -> отказ, 3ч.
+//	DEC/C — инициатор отозвал заявку в 09:00 -> отзыв, длительности нет.
+//	DEC/D — согласующий согласовал в 12:00 (назначен 10:00) -> согласование, 2ч.
+func seedJournalDecisionEvents(t *testing.T, db *gorm.DB) {
+	t.Helper()
+
+	org := models.Organization{Name: "Орг-Решения", IsActive: true}
+	require.NoError(t, db.Create(&org).Error)
+
+	mkUser := func(username, last, first string) models.User {
+		l, f := last, first
+		u := models.User{Username: username, TypeID: 1, IsActive: true, LastName: &l, FirstName: &f}
+		require.NoError(t, db.Create(&u).Error)
+		return u
+	}
+	sender := mkUser("dec_sender", "Отправителев", "Олег")
+	approver := mkUser("dec_approver", "Согласуев", "Семён")
+	acceptor := mkUser("dec_acceptor", "Принимаев", "Пётр")
+
+	mkApp := func(number string, confirmed *time.Time) int {
+		n, status := number, models.StatusProcessing
+		app := models.Application{
+			ApplicationNumber:    &n,
+			OrganizationID:       org.ID,
+			SenderUserID:         sender.ID,
+			Status:               &status,
+			SendingDatetime:      mskTime(t, "2026-06-05 09:00"),
+			ConfirmationDatetime: confirmed,
+		}
+		require.NoError(t, db.Create(&app).Error)
+		return app.ID
+	}
+	vote := func(appID int, u models.User, status string, assigned, voted *time.Time) {
+		s := status
+		require.NoError(t, db.Create(&models.ApplicationResponsibleUser{
+			ApplicationID:    appID,
+			UserID:           u.ID,
+			CreatedAt:        *assigned,
+			ApprovalStatus:   &s,
+			ApprovalDatetime: voted,
+		}).Error)
+	}
+	audit := func(appID int, action string, actor models.User, at *time.Time, details string) {
+		id := appID
+		row := models.AuditLog{
+			EntityType:  models.AuditEntityApplication,
+			EntityID:    &id,
+			Action:      action,
+			ActorUserID: &actor.ID,
+			CreatedAt:   *at,
+		}
+		if details != "" {
+			row.Details = json.RawMessage(details)
+		}
+		require.NoError(t, db.Create(&row).Error)
+	}
+
+	a := mkApp("DEC/A", mskTime(t, "2026-06-05 10:00"))
+	vote(a, approver, "rejected", mskTime(t, "2026-06-05 10:00"), mskTime(t, "2026-06-05 11:00"))
+	audit(a, models.AuditActionReject, approver, mskTime(t, "2026-06-05 11:00"), `{"comment":"не согласую"}`)
+
+	b := mkApp("DEC/B", mskTime(t, "2026-06-05 10:00"))
+	audit(b, models.AuditActionReject, acceptor, mskTime(t, "2026-06-05 13:00"),
+		`{"old_value":"В обработке","new_value":"`+models.StatusRefused+`"}`)
+
+	c := mkApp("DEC/C", nil)
+	audit(c, models.AuditActionWithdraw, sender, mskTime(t, "2026-06-05 09:00"),
+		`{"old_value":"В обработке","new_value":"`+models.StatusWithdrawn+`"}`)
+
+	d := mkApp("DEC/D", mskTime(t, "2026-06-05 12:00"))
+	vote(d, approver, "approved", mskTime(t, "2026-06-05 10:00"), mskTime(t, "2026-06-05 12:00"))
+}
+
+// TestGetProcessingJournal_DecisionRoles (#1251 P7) — лента разводит согласование и
+// несогласование и показывает отказ принимающего и отзыв инициатором. До P7
+// отрицательный голос ехал ролью «Согласование», а отказов и отзывов в ленте не было
+// вовсе — по ней нельзя было понять, чем кончилась заявка.
+func TestGetProcessingJournal_DecisionRoles(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	seedJournalDecisionEvents(t, db)
+
+	svc := services.NewStatisticsService(db, 0)
+	from, _ := processingWindowArgs(t, "2026-06-05", "2026-06-05")
+	_, to := processingWindowArgs(t, "2026-06-05", "2026-06-05")
+
+	entries, total, err := svc.GetProcessingJournal(context.Background(), from, to, services.ProcessingJournalFilter{}, 0, 0)
+	require.NoError(t, err, "SQL ленты должен исполняться")
+	require.Len(t, entries, 4, "несогласование, отказ, отзыв и согласование; запись аудита о голосе согласующего не дублирует несогласование")
+	assert.Equal(t, int64(4), total)
+
+	byNumber := map[string]models.ProcessingJournalEntry{}
+	for _, e := range entries {
+		_, dup := byNumber[e.ApplicationNumber]
+		require.False(t, dup, "заявка %s дала два события — ветки UNION пересеклись", e.ApplicationNumber)
+		byNumber[e.ApplicationNumber] = e
+	}
+
+	notApproved := byNumber["DEC/A"]
+	assert.Equal(t, models.ProcessingJournalRoleNotApproved, notApproved.Role, "отрицательный голос — не согласование")
+	assert.Equal(t, "Согласуев Семён", notApproved.ActorName)
+	require.NotNil(t, notApproved.WorkingSeconds)
+	assert.Equal(t, int64(3600), *notApproved.WorkingSeconds, "назначен 10:00 -> голос 11:00 (календарный фолбэк)")
+
+	rejection := byNumber["DEC/B"]
+	assert.Equal(t, models.ProcessingJournalRoleRejection, rejection.Role)
+	assert.Equal(t, "Принимаев Пётр", rejection.ActorName)
+	require.NotNil(t, rejection.WorkingSeconds)
+	assert.Equal(t, int64(3*3600), *rejection.WorkingSeconds, "согласовано 10:00 -> отказ 13:00")
+
+	withdrawal := byNumber["DEC/C"]
+	assert.Equal(t, models.ProcessingJournalRoleWithdrawal, withdrawal.Role)
+	assert.Equal(t, "Отправителев Олег", withdrawal.ActorName, "отзыв показывает инициатора")
+	assert.Nil(t, withdrawal.WorkingSeconds, "на отзыв инициатором рабочее время Бюро не тратится")
+
+	assert.Equal(t, models.ProcessingJournalRoleApproval, byNumber["DEC/D"].Role, "положительный голос остаётся согласованием")
+
+	// Каждая новая роль отбирается фильтром, и счётчик сходится с выдачей.
+	for _, role := range []string{
+		models.ProcessingJournalRoleApproval,
+		models.ProcessingJournalRoleNotApproved,
+		models.ProcessingJournalRoleRejection,
+		models.ProcessingJournalRoleWithdrawal,
+	} {
+		filtered, filteredTotal, err := svc.GetProcessingJournal(context.Background(), from, to,
+			services.ProcessingJournalFilter{Role: role}, 0, 0)
+		require.NoError(t, err, "роль %q должна приниматься фильтром", role)
+		require.Len(t, filtered, 1, "по роли %q ровно одно событие", role)
+		assert.Equal(t, role, filtered[0].Role)
+		assert.Equal(t, int64(1), filteredTotal, "total по роли %q", role)
+	}
 }
 
 // TestGetProcessingJournal_Pages — страницы не пересекаются и не теряют событий:

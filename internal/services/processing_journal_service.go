@@ -3,19 +3,27 @@ package services
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
 	"systemburo/internal/models"
 )
 
-// Сквозная лента событий обработки (#1251 S4): согласования (голос согласующего с
-// проставленным approval_datetime) и принятия в работу (первое take_to_work,
-// acceptorBase) одним UNION ALL, отсортированным по времени убыванием. Рабочая
-// длительность события — bureauWorkingDuration (#1251 S2, с фолбэком на календарь
-// при пустом графике Бюро). Кэша нет: лента «реального времени», глубину ограничивает
-// лимит. Момент начала (назначение / согласование) может отсутствовать или стоять
-// позже действия — тогда длительность NULL (событие в ленте остаётся).
+// Сквозная лента событий обработки (#1251 S4, роли расширены в P7): голоса
+// согласующих (approval_datetime; согласование и несогласование — разные роли),
+// принятия в работу (первое take_to_work, acceptorBase), отказы принимающего и
+// отзывы инициатором (audit_log) одним UNION ALL, отсортированным по времени
+// убыванием. Рабочая длительность события — bureauWorkingDuration (#1251 S2, с
+// фолбэком на календарь при пустом графике Бюро). Кэша нет: лента «реального
+// времени», глубину ограничивает лимит. Момент начала (назначение / согласование)
+// может отсутствовать или стоять позже действия — тогда длительность NULL (событие
+// в ленте остаётся).
+//
+// Ветка audit_log показывает КАЖДОЕ действие, а не первое: отказать после возврата
+// в обработку можно повторно, и каждый отказ — самостоятельное событие ленты. У
+// принятия иначе — оно привязано к accepted_at (первое принятие), от которого
+// считается рабочее время, поэтому там acceptorBase с DISTINCT ON.
 
 const (
 	processingJournalDefaultDepth = 50
@@ -23,7 +31,7 @@ const (
 )
 
 // journalActorName — подпись актора события: ФИО, при пустых частях — логин. На
-// обеих ветках UNION users подключён под алиасом u, выражение общее.
+// всех ветках UNION users подключён под алиасом u, выражение общее.
 const journalActorName = acceptorNameExpr
 
 // NormalizeProcessingJournalPaging приводит глубину и смещение к допустимому
@@ -47,7 +55,7 @@ func NormalizeProcessingJournalPaging(limit, offset int) (int, int) {
 // роль события и поиск по номеру заявки или подписи актора. Пустое поле — фильтр
 // не применяется.
 type ProcessingJournalFilter struct {
-	Role   string // approval | acceptance, иное значение отсекает NormalizeProcessingJournalFilter
+	Role   string // одна из models.ProcessingJournalRoles, иное значение отсекает NormalizeProcessingJournalFilter
 	Search string // подстрока номера заявки или ФИО/логина актора, регистр не важен
 }
 
@@ -58,9 +66,7 @@ type ProcessingJournalFilter struct {
 func NormalizeProcessingJournalFilter(f ProcessingJournalFilter) (ProcessingJournalFilter, error) {
 	f.Role = strings.TrimSpace(f.Role)
 	f.Search = strings.TrimSpace(f.Search)
-	switch f.Role {
-	case "", models.ProcessingJournalRoleApproval, models.ProcessingJournalRoleAcceptance:
-	default:
+	if f.Role != "" && !slices.Contains(models.ProcessingJournalRoles, f.Role) {
 		return f, fmt.Errorf("unknown processing journal role %q", f.Role)
 	}
 	return f, nil
@@ -74,23 +80,41 @@ func journalSearchPattern(search string) string {
 	return "%" + escaped + "%"
 }
 
-// processingJournalSource — UNION ALL обеих веток ленты за период [from, to] без
+// processingJournalSource — UNION ALL всех веток ленты за период [from, to] без
 // сортировки и пагинации. Страница и счётчик строят его одним вызовом, чтобы
-// предикаты окна не разъехались. event_id (id голоса / id заявки) в выдачу не
-// попадает — он нужен как тай-брейк сортировки: без него страницы могли бы
+// предикаты окна не разъехались. event_id (id голоса / заявки / записи аудита) в
+// выдачу не попадает — он нужен как тай-брейк сортировки: без него страницы могли бы
 // пересечься на событиях с одинаковым временем.
 func processingJournalSource() string {
 	// bureauWorkingDuration даёт SQL-выражение из имён колонок (без пользовательского
 	// ввода); границы окна, лимит и смещение идут именованными параметрами.
 	approvalDur := bureauWorkingDuration("aru.created_at", "aru.approval_datetime")
 	acceptDur := bureauWorkingDuration("app.confirmation_datetime", "app.accepted_at")
+	rejectDur := bureauWorkingDuration("app.confirmation_datetime", "al.created_at")
+
+	// Роль голоса согласующего: явный отказ — несогласование, всё остальное —
+	// согласование. Голос без 'rejected', но с датой, — только 'approved': снятие
+	// согласования (application_approval_service) чистит и статус, и дату разом,
+	// поэтому pending с проставленной датой в данных не встречается.
+	approvalRole := fmt.Sprintf(`CASE WHEN aru.approval_status = 'rejected'
+			THEN '%s' ELSE '%s' END`,
+		models.ProcessingJournalRoleNotApproved, models.ProcessingJournalRoleApproval)
+
+	// Отказ принимающего и отзыв инициатором живут в audit_log. Действие 'reject'
+	// делят принимающий и согласующий (см. models.AuditActionReject), поэтому берём
+	// только записи со сменой статуса на «Отказано» — иначе несогласования приехали
+	// бы в ленту дважды: и из голоса, и из аудита.
+	auditRole := fmt.Sprintf(`CASE WHEN al.action = '%s'
+			THEN '%s' ELSE '%s' END`,
+		models.AuditActionWithdraw,
+		models.ProcessingJournalRoleWithdrawal, models.ProcessingJournalRoleRejection)
 
 	return fmt.Sprintf(`
 		SELECT
 			app.id AS application_id,
 			COALESCE(app.application_number, '') AS application_number,
 			%[1]s AS actor_name,
-			'%[2]s' AS role,
+			%[2]s AS role,
 			aru.approval_datetime AS occurred_at,
 			CASE WHEN aru.approval_datetime >= aru.created_at
 				 THEN ROUND(%[3]s)::bigint END AS working_seconds,
@@ -115,18 +139,46 @@ func processingJournalSource() string {
 		JOIN applications app ON app.id = acc.application_id
 		LEFT JOIN users u ON u.id = acc.acceptor_user_id
 		WHERE app.accepted_at IS NOT NULL
-		  AND app.accepted_at >= @from AND app.accepted_at <= @to`,
+		  AND app.accepted_at >= @from AND app.accepted_at <= @to
+		UNION ALL
+		SELECT
+			app.id,
+			COALESCE(app.application_number, ''),
+			%[1]s,
+			%[7]s,
+			al.created_at,
+			CASE WHEN al.action = '%[8]s'
+				  AND app.confirmation_datetime IS NOT NULL
+				  AND al.created_at >= app.confirmation_datetime
+				 THEN ROUND(%[9]s)::bigint END,
+			al.id
+		FROM audit_log al
+		JOIN applications app ON app.id = al.entity_id
+		LEFT JOIN users u ON u.id = al.actor_user_id
+		WHERE al.entity_type = '%[10]s'
+		  AND (
+			(al.action = '%[8]s' AND al.details->>'new_value' = '%[11]s')
+			OR al.action = '%[12]s'
+		  )
+		  AND al.created_at >= @from AND al.created_at <= @to`,
 		journalActorName,                       // %[1]s — подпись актора
-		models.ProcessingJournalRoleApproval,   // %[2]s
-		approvalDur,                            // %[3]s — рабочее время согласования
+		approvalRole,                           // %[2]s — согласование или несогласование
+		approvalDur,                            // %[3]s — рабочее время голоса согласующего
 		models.ProcessingJournalRoleAcceptance, // %[4]s
 		acceptDur,                              // %[5]s — рабочее время принятия
 		acceptorBase,                           // %[6]s — первое принятие каждой заявки (алиас acc в шаблоне)
+		auditRole,                              // %[7]s — отказ или отзыв
+		models.AuditActionReject,               // %[8]s
+		rejectDur,                              // %[9]s — рабочее время отказа принимающего
+		models.AuditEntityApplication,          // %[10]s
+		models.StatusRefused,                   // %[11]s — маркер отказа ИМЕННО принимающего
+		models.AuditActionWithdraw,             // %[12]s
 	)
 }
 
-// GetProcessingJournal возвращает страницу событий согласования/принятия за период
-// [from, to] по времени убыванием (limit событий, начиная с offset) и общее число
+// GetProcessingJournal возвращает страницу событий обработки (голоса согласующих,
+// принятия, отказы принимающего, отзывы инициатором) за период [from, to] по
+// времени убыванием (limit событий, начиная с offset) и общее число
 // подходящих событий для постраничной навигации. Окно бьёт по времени САМОГО события
 // (согласование/принятие), а не по дате подачи: лента показывает, что происходило в
 // выбранный период. Фильтр роли и поиска применяются ПОВЕРХ окна одним предикатом и
