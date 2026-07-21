@@ -4,8 +4,8 @@
       <h4>Список транспортных средств</h4>
       <span class="vehicles-badge">{{ vehicles.length }}</span>
     </div>
-    <div class="vehicles-table rt-table">
-      <div class="table-header rt-head-row">
+    <div class="vehicles-table">
+      <div class="table-header">
         <div
           class="header-col number-col"
           @click="$emit('sort', 'number')"
@@ -59,7 +59,7 @@
         <div 
           v-for="(vehicle, index) in vehicles" 
           :key="vehicle.id"
-          class="table-row rt-row"
+          class="table-row"
           :class="{ 'has-active': vehicle.activeInfo }"
         >
           <div class="table-col number-col">
@@ -421,87 +421,19 @@ h4 {
     margin: 0;
 }
 
-/* Мобилка: строки таблицы становятся карточками (rt-* из responsive-tables.css).
-   Подписи полей не выводим - решение по эпику: карточки без лейблов, как в Центре;
-   номер и марка читаются сами по себе. Брейкпоинт 767.98 - как у инфраструктуры. */
-@media (max-width: 767.98px) {
-    .vehicles-table {
-        border: none;
-        border-radius: 0;
-        box-shadow: none;
-        /* Только по Y: по X инфраструктура держит свой overflow-x: hidden. */
-        overflow-y: visible;
-    }
-
-    /* Список больше не скроллится внутри 180px - страница скроллит сама. */
-    .table-body {
-        max-height: none;
-        overflow-y: visible;
-        background: transparent;
-    }
-
-    .table-row.rt-row {
-        position: relative;
-        flex-direction: row !important;
+@media (max-width: 768px) {
+    .table-row {
         flex-wrap: wrap;
-        align-items: center;
-        gap: 2px 8px;
-        min-height: 56px;
-        /* Резерв под три кнопки действий, приколотые справа. */
-        padding: 10px 136px 10px 12px !important;
-        font-size: 14px;
     }
-
-    /* Подсветку уже заведённой машины возвращаем: карточный фон приходит
-       из инфраструктуры с !important и иначе её съедает. */
-    .table-row.rt-row.has-active {
-        background: #fff3cd !important;
-    }
-
+    
     .table-col {
-        width: auto !important;
-        padding: 0;
+        width: 50% !important;
+        margin-bottom: 4px;
     }
-
-    .number-col {
-        color: #a2a2a2;
-        font-size: 12px;
-    }
-
-    .plate-col {
-        font-weight: 600;
-        font-size: 15px;
-    }
-
-    /* Марка уходит на вторую строку карточки. */
-    .mark-col {
-        flex-basis: 100%;
-        color: #666;
-        font-size: 13px;
-    }
-
+    
     .actions-col {
-        position: absolute;
-        top: 50%;
-        right: 8px;
-        transform: translateY(-50%);
-        width: auto !important;
-        gap: 2px;
-    }
-
-    .details-btn,
-    .edit-btn,
-    .delete-btn {
-        width: 40px;
-        height: 40px;
-    }
-
-    .details-icon,
-    .edit-icon,
-    .delete-icon {
-        width: 20px;
-        height: 20px;
-        opacity: 0.75;
+        width: 100%;
+        justify-content: flex-end;
     }
 }
 </style>
