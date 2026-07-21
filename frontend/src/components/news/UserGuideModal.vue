@@ -189,6 +189,7 @@
 </template>
 
 <script>
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import { ref, getCurrentInstance } from 'vue';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import FileTypeIcon from '@/components/ui/FileTypeIcon.vue';
@@ -252,7 +253,7 @@ export default {
     // Модалка всегда смонтирована (для leave-анимации): блокировку скролла и
     // сброс активной вкладки вешаем на открытие.
     show(visible) {
-      document.body.style.overflow = visible ? 'hidden' : '';
+      setBodyScrollLock(this, visible);
       if (visible) this.activeRole = this.sections[0]?.role || '';
     },
     // Разделы приходят асинхронно (загрузка по открытию) — подхватываем первую вкладку.
@@ -267,7 +268,7 @@ export default {
   },
   beforeUnmount() {
     document.removeEventListener('keydown', this.onKey);
-    document.body.style.overflow = '';
+    releaseBodyScrollLock(this);
   },
   methods: {
     roleLabel(role) {

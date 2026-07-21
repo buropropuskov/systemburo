@@ -503,6 +503,7 @@
 </template>
 
 <script>
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import { apiRequest } from '@/api/client'
 import { getUserApplicationsPaginated, getApplicationById } from '@/api/applications'
 import { useAuthStore } from '@/stores/auth'
@@ -765,7 +766,7 @@ export default {
       }
     }
     // Восстанавливаем скролл при размонтировании компонента
-    document.body.style.overflow = '';
+    releaseBodyScrollLock(this);
   },
   methods: {
     /**
@@ -1006,7 +1007,7 @@ export default {
       this.showDetailModal = true;
 
       // Блокируем скролл body при открытии модального окна
-      document.body.style.overflow = 'hidden';
+      setBodyScrollLock(this, true);
     },
 
     // Все вопросы заявки прочитаны в детали -> гасим маркер в списке оптимистично (#973).
@@ -1052,7 +1053,7 @@ export default {
       this.responsibleUsers = [];
       
       // Разблокируем скролл body при закрытии модального окна
-      document.body.style.overflow = '';
+      releaseBodyScrollLock(this);
     },
 
     handleDuplicate() {

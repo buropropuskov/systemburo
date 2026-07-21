@@ -67,6 +67,7 @@
 <script>
 import { ref } from 'vue';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 
 export default {
   name: 'BaseModal',
@@ -152,7 +153,9 @@ export default {
   },
   watch: {
     show(val) {
-      document.body.style.overflow = val ? 'hidden' : '';
+      // Через общий замок: окна живут стопкой, и прямое присвоение снимало блокировку,
+      // поставленную окном-родителем (закрыли вложенное - фон поехал под открытым).
+      setBodyScrollLock(this, val);
       // Переоткрытие: сбросить застрявший после свайп-закрытия offset/closing (лист снизу).
       if (val) this.resetSwipe();
     },
@@ -162,7 +165,7 @@ export default {
   },
   beforeUnmount() {
     document.removeEventListener('keydown', this.handleKeydown);
-    document.body.style.overflow = '';
+    releaseBodyScrollLock(this);
   },
   methods: {
     handleOverlayMousedown(e) {

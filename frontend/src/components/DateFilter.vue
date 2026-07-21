@@ -297,6 +297,7 @@
 </template>
 
 <script>
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import { ref } from 'vue';
 import { getViewportZoom } from '@/utils/viewportScale';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
@@ -461,7 +462,7 @@ export default {
             // Под листом-модалкой фон не скроллится (как у прочих окон). На десктопе
             // календарь - попап у поля и репозиционируется на скролле: там не блокируем.
             if (typeof window !== 'undefined' && window.innerWidth <= 768) {
-                document.body.style.overflow = open ? 'hidden' : '';
+                setBodyScrollLock(this, open);
             }
             if (open) {
                 this.$nextTick(() => {
@@ -488,7 +489,7 @@ export default {
     beforeUnmount() {
         document.removeEventListener('click', this.handleClickOutside, true);
         document.removeEventListener('keydown', this.handleEscape);
-        document.body.style.overflow = '';
+        releaseBodyScrollLock(this);
         window.removeEventListener('scroll', this.updatePosition, true);
         window.removeEventListener('resize', this.updatePosition);
     },

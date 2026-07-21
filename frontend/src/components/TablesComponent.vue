@@ -282,6 +282,7 @@
 </template>
 
 <script>
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import { apiRequest } from '@/api/client'
 import { sanitizeHtml } from '@/utils/sanitize';
@@ -322,13 +323,13 @@ export default {
         };
 
         watch(showInstruction, (open) => {
-            document.body.style.overflow = open ? 'hidden' : '';
+            setBodyScrollLock(this, open);
         });
 
         onMounted(() => document.addEventListener('keydown', onKeydown));
         onBeforeUnmount(() => {
             document.removeEventListener('keydown', onKeydown);
-            document.body.style.overflow = '';
+            releaseBodyScrollLock(this);
         });
 
         const permissionsStore = usePermissionsStore();

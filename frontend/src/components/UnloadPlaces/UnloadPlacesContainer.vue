@@ -735,6 +735,7 @@
 </template>
 
 <script>
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import { apiRequest } from '@/api/client'
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import { useDeletionsStore } from '@/stores/deletions';
@@ -907,13 +908,13 @@ export default {
   },
   beforeUnmount() {
     document.removeEventListener('keydown', this.onKeydown);
-    document.body.style.overflow = '';
+    releaseBodyScrollLock(this);
   },
   methods: {
     // Скролл body блокируется, пока открыта ЛЮБАЯ из модалок (не залипает при
     // закрытии одной, если вдруг открыта другая).
     syncBodyScroll() {
-      document.body.style.overflow = (this.showAddModal || this.showPhotoModal) ? 'hidden' : '';
+      setBodyScrollLock(this, this.showAddModal || this.showPhotoModal);
     },
 
     onKeydown(e) {

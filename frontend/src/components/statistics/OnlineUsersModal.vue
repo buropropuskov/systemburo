@@ -88,6 +88,7 @@
 </template>
 
 <script setup>
+import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import { useOverlayClose } from '@/composables/useOverlayClose';
@@ -113,11 +114,14 @@ function onKeydown(e) {
   if (props.show && e.key === 'Escape') emit('close');
 }
 
+// Владелец блокировки - токен инстанса: в script setup `this` недоступен.
+const scrollLockOwner = {};
+
 // Блокируем прокрутку фона и переводим фокус в модалку при открытии (a11y).
 watch(
   () => props.show,
   (val) => {
-    document.body.style.overflow = val ? 'hidden' : '';
+    setBodyScrollLock(scrollLockOwner, val);
     if (val) nextTick(() => dialogRef.value?.focus());
   }
 );
@@ -125,7 +129,7 @@ watch(
 onMounted(() => document.addEventListener('keydown', onKeydown));
 onUnmounted(() => {
   document.removeEventListener('keydown', onKeydown);
-  document.body.style.overflow = '';
+  releaseBodyScrollLock(scrollLockOwner);
 });
 </script>
 
