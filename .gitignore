@@ -4,6 +4,9 @@
 .idea/
 .vscode/
 
+# Зависимости и кэши сборки (в т.ч. node_modules/.vite от прогона vitest из корня)
+node_modules/
+
 # Claude Code / Superpowers
 .claude/
 .superpowers/
