@@ -77,6 +77,16 @@ const (
 	// снова), поэтому принимающего берут как актора ПЕРВОГО такого действия. Читают
 	// метрика принимающих (#1251, report_acceptor_metrics.go) и backfill accepted_at.
 	AuditActionTakeToWork = "take_to_work"
+	// AuditActionReject - ВНИМАНИЕ, значение делят два РАЗНЫХ действия: отказ
+	// принимающего (TakeApplicationToWork, action=reject -> статус «Отказано») и
+	// несогласование согласующего (ApproveApplication со status=rejected). Различить
+	// их можно только по details: у отказа принимающего заполнен new_value статусом
+	// «Отказано», у голоса согласующего его нет. Читатели, которым нужен именно отказ
+	// принимающего (журнал обработки), обязаны фильтровать по new_value.
+	AuditActionReject = "reject"
+	// AuditActionWithdraw - заявка отозвана инициатором (WithdrawApplication).
+	// Действие терминальное и доступно только отправителю заявки.
+	AuditActionWithdraw = "withdraw"
 )
 
 // AuditLogItem - запись аудита для API с разрезолвленным именем актора

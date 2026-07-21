@@ -466,6 +466,28 @@ describe('ProcessingAnalytics — журнал (S7)', () => {
     expect(rows[1].find('.proc__journal-dur').text()).toBe('');
   });
 
+  // #1251 P7: до этого среза отрицательный голос приезжал ролью 'approval' и лента
+  // показывала его как «Согласование», а отказов и отзывов в ней не было вовсе.
+  it('различает несогласование, отказ принимающего и отзыв инициатором', async () => {
+    state.summary = fullSummary();
+    state.journal = [
+      { application_id: 7, application_number: '№ 20260710/007', actor_name: 'Согласуев С.С.', role: 'not_approved', occurred_at: '2026-06-07T09:00:00Z', working_seconds: 3600 },
+      { application_id: 8, application_number: '№ 20260710/008', actor_name: 'Принимаев П.П.', role: 'rejection', occurred_at: '2026-06-07T08:30:00Z', working_seconds: 1800 },
+      { application_id: 9, application_number: '№ 20260710/009', actor_name: 'Отправителев О.О.', role: 'withdrawal', occurred_at: '2026-06-07T08:00:00Z', working_seconds: null },
+    ];
+    const wrapper = mountTab();
+    await flushPromises();
+
+    const badges = wrapper.findAll('.proc__journal-row').map((r) => r.find('.proc__journal-role'));
+    expect(badges.map((b) => b.text())).toEqual(['Несогласование', 'Отказ', 'Отзыв']);
+    expect(badges[0].classes()).toContain('proc__journal-role--not_approved');
+    expect(badges[1].classes()).toContain('proc__journal-role--rejection');
+    expect(badges[2].classes()).toContain('proc__journal-role--withdrawal');
+
+    // На отзыв инициатором рабочее время Бюро не тратится - ячейка пустая, не «0 с».
+    expect(wrapper.findAll('.proc__journal-row')[2].find('.proc__journal-dur').text()).toBe('');
+  });
+
   it('пустой журнал показывает заглушку, а не строки', async () => {
     state.summary = fullSummary();
     state.journal = [];
@@ -718,6 +740,20 @@ describe('ProcessingAnalytics — фильтры журнала (P5c)', () => {
     await roleTab(wrapper, '').trigger('click');
     await flushPromises();
     expect(state.journalCalls.at(-1).role).toBe('');
+  });
+
+  // Ключи вкладок = роли бэка (models.ProcessingJournalRoles): на чужое значение
+  // эндпоинт отвечает 400, поэтому каждая новая вкладка обязана доехать as-is.
+  it('вкладки покрывают все роли ленты и уходят на бэк своим ключом', async () => {
+    const wrapper = await mountFiltered();
+
+    for (const role of ['not_approved', 'rejection', 'withdrawal']) {
+      const tab = roleTab(wrapper, role);
+      expect(tab.exists()).toBe(true);
+      await tab.trigger('click');
+      await flushPromises();
+      expect(state.journalCalls.at(-1)).toMatchObject({ role, offset: 0 });
+    }
   });
 
   it('поиск уходит одним запросом после паузы в наборе, а не на каждый символ', async () => {

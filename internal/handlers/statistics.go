@@ -107,13 +107,13 @@ func (h *StatisticsHandler) GetProcessingSummary(c echo.Context) error {
 
 // GetProcessingJournal godoc
 // @Summary      Журнал обработки заявок
-// @Description  Сквозная лента событий согласования и принятия в работу за период по времени убыванием: кто, по какой заявке, в какой роли, когда и сколько рабочего времени Бюро на это ушло. Страница задаётся limit и offset, общее число подходящих событий — в meta.total. Фильтры role и q сужают выборку и учитываются в meta.total.
+// @Description  Сквозная лента событий обработки за период по времени убыванием: согласования и несогласования, принятия в работу, отказы принимающего и отзывы инициатором — кто, по какой заявке, в какой роли, когда и сколько рабочего времени Бюро на это ушло. Страница задаётся limit и offset, общее число подходящих событий — в meta.total. Фильтры role и q сужают выборку и учитываются в meta.total.
 // @Tags         statistics
 // @Produce      json
 // @Security     BearerAuth
 // @Param        from   query string false "Начало периода (YYYY-MM-DD), по умолчанию 7 дней назад"
 // @Param        to     query string false "Конец периода (YYYY-MM-DD), по умолчанию сегодня"
-// @Param        role   query string false "Роль события: approval или acceptance (по умолчанию обе)"
+// @Param        role   query string false "Роль события: approval, not_approved, acceptance, rejection или withdrawal (по умолчанию все)"
 // @Param        q      query string false "Поиск по номеру заявки или ФИО актора (подстрока, регистр не важен)"
 // @Param        limit  query int    false "Размер страницы (по умолчанию 50, максимум 200)"
 // @Param        offset query int    false "Смещение от начала ленты (по умолчанию 0)"
