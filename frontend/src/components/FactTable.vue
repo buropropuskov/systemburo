@@ -1341,6 +1341,21 @@ export default {
   gap: 5px;
 }
 
+/* Подпись столбца сжимается с многоточием, а иконка сортировки - нет: раньше
+   длинный заголовок выталкивал её за пределы ячейки, и она либо срезалась,
+   либо наезжала на соседний столбец в режиме «Сетка» (#1307). */
+.header-row .col > p {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin: 0;
+}
+
+.header-row .col .sort-icon {
+  flex-shrink: 0;
+}
+
 .header-row .col:hover {
   color: #333;
 }
