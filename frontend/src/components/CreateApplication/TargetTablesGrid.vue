@@ -201,10 +201,23 @@ export default {
     border-top-color: #333;
 }
 
-@media (max-width: 480px) {
+@media (max-width: 768px) {
+    /* Сетка перестраивалась только с 480 - на 481-768 оставались три колонки
+       по 135px, куда название места не влезало. */
     .passage__grid {
         grid-template-columns: repeat(2, 1fr);
         max-width: 100%;
+    }
+
+    /* Названия обрезались многоточием - пускаем в две строки. */
+    .passage__item {
+        height: auto;
+        min-height: 36px;
+        padding: 6px 10px;
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+        line-height: 1.25;
     }
 }
 </style>

@@ -78,6 +78,7 @@
         </div>
         <div class="citizenship__dropdown">
           <button 
+            ref="citizenshipButton"
             class="dropdown__button" 
             :disabled="editingEmployee && editingEmployee.isExisting"
             @click="toggleCitizenshipDropdown"
@@ -95,6 +96,7 @@
             <div
               v-if="isCitizenshipDropdownOpen"
               class="dropdown__menu"
+              :style="citizenshipMenuStyle"
             >
               <div 
                 v-for="citizenship in availableCitizenships" 
@@ -415,6 +417,7 @@ import { useFieldConfig } from '@/composables/useFieldConfig'
 import { collectActiveWarnings } from '@/utils/warningWindows'
 import { buildScheduleReport } from '@/utils/scheduleCheck'
 import { getCurrentInstance } from 'vue'
+import { getViewportZoom } from '@/utils/viewportScale'
 
 export default {
     name: 'EmployeeForm',
@@ -531,6 +534,7 @@ export default {
             availableCitizenships: [],
             selectedCitizenship: null,
             isCitizenshipDropdownOpen: false,
+            citizenshipMenuStyle: null,
             
             selectedPermission: '',
             isPermissionDropdownOpen: false,
@@ -645,6 +649,18 @@ export default {
         }
     },
     watch: {
+        // Дропдаун гражданства закрывают из трёх мест (тоггл, выбор, клик вне),
+        // поэтому позиция и слушатели живут на одном вотчере, а не в каждом из них.
+        isCitizenshipDropdownOpen(open) {
+            if (open) {
+                this.citizenshipMenuStyle = this.buildCitizenshipMenuStyle();
+                window.addEventListener('scroll', this.repositionCitizenshipMenu, true);
+                window.addEventListener('resize', this.repositionCitizenshipMenu);
+            } else {
+                this.citizenshipMenuStyle = null;
+                this.stopCitizenshipReposition();
+            }
+        },
         lastName() { this.checkBlacklist(); },
         firstName() { this.checkBlacklist(); },
         middleName() { this.checkBlacklist(); },
@@ -671,6 +687,7 @@ export default {
         this.warningTimer = setInterval(() => { this.warningNow = new Date(); }, 60000);
     },
     beforeUnmount() {
+        this.stopCitizenshipReposition();
         document.removeEventListener('click', this.handleDocumentClick);
         if (this.blacklistTimeout) {
             clearTimeout(this.blacklistTimeout);
@@ -1066,6 +1083,49 @@ export default {
         
         toggleCitizenshipDropdown() {
             this.isCitizenshipDropdownOpen = !this.isCitizenshipDropdownOpen;
+        },
+
+        /**
+         * Список гражданств длинный: снизу его обрезает край экрана, поэтому
+         * высоту ограничиваем доступным местом, а если снизу тесно - раскрываем
+         * вверх. Формула зеркалит BaseDropdown.updateMenuPosition: rect отдаёт
+         * device-px под корневым zoom, innerHeight - незумленную высоту, поэтому
+         * к layout-px приводятся ОБА (при zoom=1 деление ничего не меняет).
+         */
+        buildCitizenshipMenuStyle() {
+            const btn = this.$refs.citizenshipButton;
+            if (!btn || typeof window === 'undefined') return null;
+            const zoom = getViewportZoom() || 1;
+            const rect = btn.getBoundingClientRect();
+            const viewportHeight = window.innerHeight / zoom;
+            const spaceBelow = viewportHeight - rect.bottom / zoom;
+            const spaceAbove = rect.top / zoom;
+            const flipUp = spaceBelow < 200 && spaceAbove > spaceBelow;
+            const space = (flipUp ? spaceAbove : spaceBelow) - 16;
+            const maxHeight = Math.max(160, Math.min(300, space));
+            if (!flipUp) {
+                return { maxHeight: maxHeight + 'px' };
+            }
+            // top:'auto' обязателен - иначе базовое .dropdown__menu{top:100%}
+            // остаётся в силе и конфликтует с bottom.
+            return {
+                top: 'auto',
+                bottom: '100%',
+                marginTop: '0',
+                marginBottom: '5px',
+                maxHeight: maxHeight + 'px'
+            };
+        },
+
+        /** Пока меню открыто, положение пересчитываем: скролл и поворот экрана его смещают. */
+        repositionCitizenshipMenu() {
+            if (!this.isCitizenshipDropdownOpen) return;
+            this.citizenshipMenuStyle = this.buildCitizenshipMenuStyle();
+        },
+
+        stopCitizenshipReposition() {
+            window.removeEventListener('scroll', this.repositionCitizenshipMenu, true);
+            window.removeEventListener('resize', this.repositionCitizenshipMenu);
         },
         
         selectCitizenship(citizenship) {
@@ -1806,12 +1866,27 @@ export default {
         min-width: 0;
         max-width: calc(100vw - 40px);
     }
-}
 
-@media (max-width: 480px) {
+    /* Ряды полей вставали в колонку только с 480 - на 481-768 ФИО и должность
+       ещё делили строку пополам. */
     .completion__name-row {
         flex-direction: column;
         gap: 15px;
+    }
+
+    .dropdown__button {
+        height: 40px;
+    }
+
+    .add-button {
+        min-height: 40px;
+        padding: 8px 18px;
+        font-size: 13px;
+    }
+
+    .completion__button {
+        height: 36px;
+        font-size: 12px;
     }
 }
 </style>

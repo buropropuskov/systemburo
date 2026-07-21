@@ -901,12 +901,67 @@ export default {
         min-width: 0;
         max-width: calc(100vw - 40px);
     }
-}
 
-@media (max-width: 480px) {
+    /* Сетка мест перестраивалась только с 480. */
     .unloading__grid {
         grid-template-columns: repeat(2, 1fr);
         max-width: 100%;
+    }
+
+    /* Названия мест обрезались многоточием - пускаем в две строки. */
+    .unloading__item {
+        height: auto;
+        min-height: 36px;
+        padding: 6px 10px;
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+        line-height: 1.25;
+    }
+
+    /* Таблица ввода: фиксированные колонки съедали 190px из 320, и поле
+       наименования схлопывалось. Порядковый номер строки убираем - строк
+       единицы, а подписи колонок остаются на месте. */
+    .number-header,
+    .number-cell {
+        display: none;
+    }
+
+    .name-header,
+    .name-cell {
+        margin-right: 8px;
+        min-width: 0;
+    }
+
+    .quantity-header,
+    .quantity-cell {
+        width: 64px;
+        min-width: 64px;
+        max-width: 64px;
+        margin-right: 8px;
+    }
+
+    .actions-header,
+    .actions-cell {
+        width: 36px;
+        min-width: 36px;
+        max-width: 36px;
+    }
+
+    .remove-row-btn {
+        width: 36px;
+        height: 36px;
+    }
+
+    .add-button {
+        min-height: 40px;
+        padding: 8px 18px;
+        font-size: 13px;
+    }
+
+    .completion__button,
+    .add-row-btn {
+        min-height: 36px;
     }
 }
 </style>
