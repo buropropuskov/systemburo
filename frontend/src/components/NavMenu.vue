@@ -247,15 +247,28 @@
                 :class="{ open: tablesDropdownOpen && (railExpanded || mobileOpen) }"
               >
                 <div class="dropdown-below__inner">
-                  <div
-                    v-for="table in filteredTables"
-                    :key="getTableId(table)"
-                    class="dropdown-item"
-                    :class="{ active: isCurrentTable(getTableName(table)) }"
-                    @click="navigateToTable(getTableName(table))"
+                  <template
+                    v-for="group in groupedTables"
+                    :key="group.key"
                   >
-                    {{ getTableDisplayName(table) }}
-                  </div>
+                    <!-- Подпись типа показываем только когда групп несколько:
+                         на одном типе она была бы лишним шумом. -->
+                    <div
+                      v-if="groupedTables.length > 1"
+                      class="dropdown-group-title"
+                    >
+                      {{ group.label }}
+                    </div>
+                    <div
+                      v-for="table in group.tables"
+                      :key="getTableId(table)"
+                      class="dropdown-item"
+                      :class="{ active: isCurrentTable(getTableName(table)) }"
+                      @click="navigateToTable(getTableName(table))"
+                    >
+                      {{ getTableDisplayName(table) }}
+                    </div>
+                  </template>
                   <div
                     v-if="filteredTables.length === 0"
                     class="dropdown-item disabled"
@@ -774,6 +787,26 @@ export default {
         (t) => this.getTableDisplayName(t).toLowerCase().includes(q),
       );
     },
+    // Таблицы, разложенные по типу: машины и люди - иначе на нескольких постах
+    // получается один длинный список без ориентиров. Порядок групп фиксирован,
+    // пустые не показываются; тип, которого нет в словаре, попадает в «Прочие».
+    groupedTables() {
+      const labels = [
+        ['cars', 'Автомобили'],
+        ['people', 'Люди'],
+      ];
+      const groups = labels.map(([key, label]) => ({
+        key,
+        label,
+        tables: this.filteredTables.filter((t) => this.getTableType(t) === key),
+      }));
+      const known = labels.map(([key]) => key);
+      const rest = this.filteredTables.filter((t) => !known.includes(this.getTableType(t)));
+      if (rest.length) {
+        groups.push({ key: 'other', label: 'Прочие', tables: rest });
+      }
+      return groups.filter((g) => g.tables.length > 0);
+    },
     // Пункт «Таблицы» виден если есть доступные таблицы; при поиске - ещё и если
     // совпала его метка. Нет доступных таблиц (нет грантов) - пункт скрыт целиком.
     tablesItemVisible() {
@@ -1039,6 +1072,13 @@ export default {
         return table.table.name;
       }
       return table.name;
+    },
+
+    getTableType(table) {
+      if (table.table && table.table.table_type) {
+        return table.table.table_type;
+      }
+      return table.table_type || '';
     },
 
     getTableDisplayName(table) {
@@ -1731,6 +1771,20 @@ export default {
   min-height: 0;
   margin: 0 7px 4px;
   padding-left: 22px;
+}
+
+/* Подпись типа таблиц внутри выпадающего списка - тот же язык, что у подписей
+   секций рельса, но мельче и без внешних отступов секции. */
+.dropdown-group-title {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 700;
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  color: var(--nav-text-faint);
+  text-transform: uppercase;
+  padding: 8px 12px 4px;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .dropdown-item {
