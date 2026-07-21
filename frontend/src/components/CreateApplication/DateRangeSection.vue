@@ -183,6 +183,27 @@
                 aria-hidden="true"
               />
               <div class="datepicker__header">
+                <!-- Крестик - только на мобилке (лист-модалка): закрытие как у прочих
+                     окон проекта, наравне с оверлеем, Escape и свайпом вниз. -->
+                <button
+                  type="button"
+                  class="datepicker__close"
+                  aria-label="Закрыть календарь"
+                  @click="closeDatepicker"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                </button>
                 <button
                   class="datepicker__nav"
                   tabindex="-1"
@@ -552,11 +573,14 @@ export default {
         });
         // Меню позиционируется fixed от триггера - при скролле отрываться нельзя, закрываем.
         window.addEventListener('scroll', this.closeQuickMenuOnScroll, true);
+        document.addEventListener('keydown', this.handleDatepickerEscape);
         this.validateDateRange();
         this.validateTimeCrossing();
     },
     beforeUnmount() {
         window.removeEventListener('scroll', this.closeQuickMenuOnScroll, true);
+        document.removeEventListener('keydown', this.handleDatepickerEscape);
+        document.body.style.overflow = '';
     },
     methods: {
         // "Быстрый выбор": меню телепортится в body (иначе тонет под гейтом/инпутами
@@ -1015,6 +1039,8 @@ export default {
                 // На мобилке календарь - bottom-sheet: координаты задаёт @media, inline
                 // top/left их бы перебили (инлайн сильнее любого правила).
                 if (window.innerWidth <= 768) {
+                    // Под листом-модалкой фон не скроллится, как у прочих окон.
+                    document.body.style.overflow = 'hidden';
                     this.datepickerStyle = { zIndex: 12000 };
                 } else {
                     const z = getViewportZoom();
@@ -1043,8 +1069,16 @@ export default {
             }
         },
 
+        handleDatepickerEscape(event) {
+            if (event.key !== 'Escape') return;
+            if (this.showStartDatepicker || this.showEndDatepicker || this.showSingleDatepicker) {
+                this.closeDatepicker();
+            }
+        },
+
         closeDatepicker() {
             this.resetSheetSwipe();
+            document.body.style.overflow = '';
             this.showStartDatepicker = false;
             this.showEndDatepicker = false;
             this.showSingleDatepicker = false;
@@ -1356,6 +1390,24 @@ export default {
     display: none;
 }
 
+/* Крестик закрытия - только в мобильном листе (см. @media ниже). */
+.datepicker__close {
+    display: none;
+    position: absolute;
+    top: 50%;
+    right: 4px;
+    transform: translateY(-50%);
+    width: 32px;
+    height: 32px;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    color: #555;
+    cursor: pointer;
+    padding: 0;
+}
+
 .sheet-handle {
     display: none;
     width: 40px;
@@ -1643,6 +1695,16 @@ export default {
 
     .sheet-handle {
         display: block;
+    }
+
+    .datepicker__close {
+        display: flex;
+    }
+
+    /* Место под крестик справа, чтобы стрелка «следующий месяц» не уезжала под него. */
+    .datepicker__header {
+        position: relative;
+        padding-right: 40px;
     }
 
     .datepicker__header,
