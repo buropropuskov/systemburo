@@ -25,7 +25,7 @@
         class="card-header__settings"
       >
         <span class="items-count">
-          Машин на территории: {{ carsOnTerritory }}
+          <span class="items-count__text">Машин на территории: <AnimatedCounter :value="carsOnTerritory" /></span>
           <button
             v-if="can(`table.${tableName}.history`)"
             class="history-btn"
@@ -608,6 +608,7 @@ import ConfirmationModal from './ConfirmationModal.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import SwitchToggle from '@/components/ui/SwitchToggle.vue';
+import AnimatedCounter from '@/components/ui/AnimatedCounter.vue';
 import ExcelJS from 'exceljs';
 import { bulkMoveCarsTable, bulkAddCarsTable, bulkUnbindCarsTable } from '@/api/cars';
 import { pickOverflowFields, columnMinWidth, SERVICE_COLUMNS_WIDTH } from '@/utils/tableColumnFit';
@@ -625,7 +626,8 @@ export default {
     ConfirmationModal,
     LoaderSpinner,
     StatusBadge,
-    SwitchToggle
+    SwitchToggle,
+    AnimatedCounter
   },
   setup() {
     const { isPortrait, isCompact } = useOrientation();
@@ -928,11 +930,13 @@ export default {
       try {
         await this.fetchUnloadingPlaces();
         await this.fetchLicensePlateFormats();
-        await this.fetchCarsData(seq);
+        await this.fetchCarsData(seq, silent);
         await this.fetchCarUnloadPlaces(seq);
         await this.fetchCarHistoryStatus(seq);
+        return true;
       } catch (error) {
         console.error('Ошибка при загрузке машин:', error);
+        return false;
       } finally {
         if (!silent) this.isLoading = false;
       }
@@ -944,10 +948,15 @@ export default {
     async loadData() {
       this.refreshing = true;
       try {
-        await Promise.all([
+        const [ok] = await Promise.all([
           this._loadData(true),
           this.fetchFieldsVisibility(),
         ]);
+        // Тихий сбой оставляет прежние строки (не чистим таблицу), но на ЯВНОЕ
+        // обновление пользователь должен получить сигнал, что данные не свежие.
+        if (!ok) {
+          useDeletionsStore().notify({ prefix: 'Не удалось обновить таблицу: ', bold: 'показаны последние данные', type: 'error' });
+        }
       } finally {
         this.refreshing = false;
       }
@@ -976,7 +985,7 @@ export default {
       }
     },
 
-    async fetchCarsData(seq) {
+    async fetchCarsData(seq, silent = false) {
       if (!this.tableId) return;
       try {
         const response = await apiRequest(`/cars/active-for-table/${this.tableId}`, {});
@@ -987,6 +996,19 @@ export default {
         Object.keys(this.organizationsMap).forEach(id => {
           nameToIdMap[this.organizationsMap[id]] = id;
         });
+        // Территориальное состояние уже отрисованных строк - страховка на случай,
+        // если строка пришла без territory_status: без неё каждая перезагрузка
+        // (real-time сигнал, поллинг) обнуляла бы отметки въезда и счётчик на
+        // территории проваливался бы в 0 до ответа /cars/history/current-status.
+        const prevTerritory = new Map(
+          this.itemsData.map(item => [item.id, {
+            entry_checked: item.entry_checked,
+            exit_checked: item.exit_checked,
+            entry_time: item.entry_time,
+            exit_time: item.exit_time,
+            territory_status: item.territory_status,
+          }])
+        );
         const regularCars = cars.filter(car => {
           if (car.status !== 1) return false;
           const carNumber = car.car_number?.toLowerCase().trim();
@@ -996,6 +1018,16 @@ export default {
         const newItems = regularCars.map(car => {
           const orgName = car.organization || '';
           const orgId = nameToIdMap[orgName] || car.organization_id;
+          // Статус берём из самой строки (тот же источник, что у current-status -
+          // колонка cars.territory_status), а при его отсутствии - из предыдущего
+          // состояния строки. Так отметки въезда/выезда и счётчик не мигают.
+          const prev = prevTerritory.get(car.id);
+          const entryChecked = car.territory_status != null
+            ? car.territory_status === 1
+            : (prev?.entry_checked ?? false);
+          const exitChecked = car.territory_status != null
+            ? car.territory_status === 2
+            : (prev?.exit_checked ?? false);
           return {
             id: car.id,
             car_number: car.car_number || '',
@@ -1011,13 +1043,13 @@ export default {
             entry_time_to: car.entry_time_to || '',
             status: 'В работе',
             checked: false,
-            entry_checked: false,
-            exit_checked: false,
-            entry_time: null,
-            exit_time: null,
+            entry_checked: entryChecked,
+            exit_checked: exitChecked,
+            entry_time: car.territory_entry_time ?? prev?.entry_time ?? null,
+            exit_time: prev?.exit_time ?? null,
             applicationId: car.application_id,
             applicationNumber: car.application_number,
-            territory_status: car.territory_status || 0,
+            territory_status: car.territory_status ?? prev?.territory_status ?? 0,
             plateNumber: car.car_number,
             mark: car.car_brand,
             formatId: null,
@@ -1035,7 +1067,10 @@ export default {
         this.itemsData = newItems;
       } catch (error) {
         console.error("Ошибка при загрузке данных машин:", error);
-        if (seq === undefined || seq === this.refreshSeq) this.itemsData = [];
+        // Тихое обновление (real-time сигнал, поллинг) при сбое сети оставляет
+        // последние известные строки: очистка стирала бы таблицу и счётчик под
+        // пользователем на ровном месте (тот же класс, что обнуление счётчика #1021).
+        if (!silent && (seq === undefined || seq === this.refreshSeq)) this.itemsData = [];
         throw error;
       }
     },
@@ -1937,6 +1972,15 @@ export default {
   display: flex;
   align-items: center;
   gap: 10px;
+  white-space: nowrap;
+}
+
+.items-count__text {
+  /* Подпись и число - один flex-элемент: иначе gap контейнера вставил бы
+     лишний зазор между «...территории:» и цифрой. */
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
   white-space: nowrap;
 }
 
