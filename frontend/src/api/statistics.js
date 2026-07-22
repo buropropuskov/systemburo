@@ -83,6 +83,21 @@ export async function getProcessingSummary(from, to) {
 }
 
 /**
+ * Получить список зависших согласований (#1315 S4): живые заявки, ждущие решения
+ * согласующего дольше настроенного порога молчания. Снимок текущего состояния, а
+ * не агрегат за период — от дат вкладки не зависит (эндпоинт их не принимает).
+ * @returns {Promise<Array<{application_id: number, application_number: string, approver_name: string, waiting_days: number, reminder_count: number, last_reminder_at: string|null}>>}
+ */
+export async function getStuckApprovals() {
+  const res = await apiRequest('/statistics/stuck-approvals');
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data?.message || 'Не удалось загрузить зависшие согласования');
+  }
+  return res.json();
+}
+
+/**
  * Получить журнал обработки — сквозную ленту согласований и принятий за период по
  * времени убыванием (#1251 S4/S7).
  * @param {string} from YYYY-MM-DD

@@ -284,6 +284,7 @@ func main() {
 	documentHandler := handlers.NewDocumentHandler(documentService, documentFileService)
 	guideHandler := handlers.NewGuideHandler(guideService, guideFileService, cfg.UploadMaxFileSize)
 	statisticsHandler := handlers.NewStatisticsHandler(statisticsService)
+	reminderHandler := handlers.NewReminderHandler(reminderService)
 	auditHandler := handlers.NewAuditHandler(services.NewAuditReader(db))
 	authEventHandler := handlers.NewAuthEventHandler(services.NewAuthEventReader(db))
 
@@ -353,6 +354,7 @@ func main() {
 		Bureau:              bureauHandler,
 		WorkModes:           workModesHandler,
 		Statistics:          statisticsHandler,
+		Reminder:            reminderHandler,
 		Onboarding:          onboardingHandler,
 		Audit:               auditHandler,
 		AuthEvents:          authEventHandler,

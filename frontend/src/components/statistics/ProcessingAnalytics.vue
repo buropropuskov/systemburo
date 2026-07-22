@@ -321,6 +321,79 @@
       </section>
     </template>
 
+    <!-- ===== ЗАВИСШИЕ СОГЛАСОВАНИЯ =====
+         ВНЕ isEmpty-гейта, как журнал: снимок ТЕКУЩИХ зависших заявок не зависит
+         от дат вкладки (эндпоинт их не принимает) — заявка может ждать согласования
+         дольше выбранного периода. Своя загрузка/ошибка/пусто. Рядом с рейтингом
+         согласующих смыслово: та же ось «кто тормозит согласование». -->
+    <section
+      v-if="!errorMsg"
+      class="proc__group"
+    >
+      <div class="proc__group-head">
+        <h2 class="proc__group-title">Зависшие согласования</h2>
+        <span class="proc__group-chip">ждут решения дольше порога напоминаний</span>
+        <span class="proc__group-rule" />
+        <RefreshButton
+          :loading="stuckLoading"
+          title="Обновить список зависших согласований"
+          @refresh="loadStuck"
+        />
+      </div>
+      <div
+        v-if="stuckError"
+        class="proc__state proc__state--error"
+      >
+        {{ stuckError }}
+      </div>
+      <div
+        v-else-if="!stuckReady"
+        class="proc__skeleton proc__skeleton--table"
+      />
+      <div
+        v-else
+        class="proc__card proc__card--table proc__card--scroll"
+      >
+        <table class="proc__table proc__table--rating">
+          <thead>
+            <tr>
+              <th>Заявка</th>
+              <th>Согласующий</th>
+              <th class="proc__num">Ждёт</th>
+              <th class="proc__num">Напоминаний</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="(a, i) in stuck"
+              :key="`${a.application_id}-${i}`"
+            >
+              <td>
+                <button
+                  type="button"
+                  class="proc__journal-app proc__journal-app--copy"
+                  title="Скопировать номер заявки"
+                  @click="copyApplicationNumber(a.application_number)"
+                >{{ a.application_number }}</button>
+              </td>
+              <td
+                class="proc__ellipsis"
+                :title="a.approver_name"
+              >{{ a.approver_name }}</td>
+              <td class="proc__num">{{ waitingText(a.waiting_days) }}</td>
+              <td class="proc__num">{{ fmtCount(a.reminder_count) }}</td>
+            </tr>
+            <tr v-if="stuck.length === 0">
+              <td
+                colspan="4"
+                class="proc__table-empty"
+              >Зависших согласований нет</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
     <!-- ===== ЖУРНАЛ: ЛЕНТА РЕШЕНИЙ ПО ЗАЯВКАМ =====
          ВНЕ isEmpty-гейта намеренно: окно журнала бьёт по времени СОБЫТИЯ,
          а не по дате подачи, поэтому события могут быть и
@@ -447,7 +520,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
-import { getProcessingSummary, getProcessingJournal, runReport } from '@/api/statistics.js';
+import { getProcessingSummary, getProcessingJournal, getStuckApprovals, runReport } from '@/api/statistics.js';
 import { formatDuration, formatDateTime, formatTimeAgo } from '@/utils/datetime';
 import { MAX_REPORT_LIMIT } from '@/composables/useReportRequest';
 import eventStream from '@/services/eventStream';
@@ -493,6 +566,42 @@ async function loadSummary() {
       ready.value = true;
     }
   }
+}
+
+// Зависшие согласования (#1315 S4): снимок ТЕКУЩИХ заявок, ждущих решения
+// согласующего дольше порога молчания. Как журнал - от периода вкладки не зависит
+// (эндпоинт дат не принимает) и живой: перечитываем по тому же SSE-сигналу
+// applications-center (согласование убирает заявку из списка) + фолбэк-опрос. Свой
+// seq-guard и stuckReady, чтобы гонка устаревшего ответа не затирала актуальный и на
+// рефреше не мигал скелетон.
+const stuck = ref([]);
+const stuckError = ref('');
+const stuckReady = ref(false);
+const stuckLoading = ref(false);
+let stuckSeq = 0;
+async function loadStuck() {
+  const seq = ++stuckSeq;
+  stuckError.value = '';
+  stuckLoading.value = true;
+  try {
+    const data = await getStuckApprovals();
+    if (seq !== stuckSeq) return;
+    stuck.value = Array.isArray(data) ? data : [];
+  } catch (e) {
+    if (seq !== stuckSeq) return;
+    stuckError.value = e?.message || 'Не удалось загрузить зависшие согласования';
+  } finally {
+    if (seq === stuckSeq) {
+      stuckReady.value = true;
+      stuckLoading.value = false;
+    }
+  }
+}
+
+const DAY_FORMS = ['день', 'дня', 'дней'];
+function waitingText(days) {
+  const n = Number(days) || 0;
+  return `${n} ${plural(n, DAY_FORMS)}`;
 }
 
 // Журнал (#1251 S7, роли расширены в P7): лента решений по заявкам - голоса
@@ -896,6 +1005,7 @@ function reload() {
   loadSummary();
   loadJournal();
   loadTrend();
+  loadStuck();
 }
 
 // Новый период - новая лента: страница сбрасывается на первую (её события к
@@ -918,19 +1028,24 @@ watch(
 watch(trendStage, loadTrend);
 
 // Real-time: тот же SSE-сигнал, что двигает Центр заявок (подача/согласование/
-// принятие/пересылка). На каждый сигнал перечитываем журнал за текущий период;
-// бандл-метрики не трогаем — они тяжёлые и кэшируются, лента же лёгкая и живая.
+// принятие/пересылка). На каждый сигнал перечитываем журнал И зависшие согласования
+// за текущий момент (согласование убирает заявку из зависших); бандл-метрики не
+// трогаем — они тяжёлые и кэшируются, лента и снимок зависших лёгкие и живые.
 let journalStreamOff = null;
 let journalPoll = null;
 const JOURNAL_POLL_MS = 60000;
+function refreshLive() {
+  loadJournal();
+  loadStuck();
+}
 onMounted(() => {
   reload();
   // connect держит SSE-соединение через refcount (как у прочих потребителей
   // eventStream); без него subscribe молча полагался бы на чужой connect.
   eventStream.connect();
-  journalStreamOff = eventStream.subscribe('applications-center', () => loadJournal());
-  // Фолбэк-опрос: если SSE ушёл в fallback, лента всё равно не протухнет.
-  journalPoll = setInterval(loadJournal, JOURNAL_POLL_MS);
+  journalStreamOff = eventStream.subscribe('applications-center', refreshLive);
+  // Фолбэк-опрос: если SSE ушёл в fallback, лента и зависшие всё равно не протухнут.
+  journalPoll = setInterval(refreshLive, JOURNAL_POLL_MS);
 });
 onBeforeUnmount(() => {
   if (journalStreamOff) journalStreamOff();
