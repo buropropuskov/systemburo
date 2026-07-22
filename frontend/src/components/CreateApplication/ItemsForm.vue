@@ -6,7 +6,10 @@
   >
     <div class="completion__header">
       <h3>Новые ТМЦ</h3>
-      <div class="completion__actions">
+      <div
+        class="completion__actions"
+        @click="revealBlockedHint"
+      >
         <button 
           v-if="editingItem" 
           class="cancel-edit-btn" 
@@ -25,7 +28,7 @@
         </button>
         <!-- Подсказка для кнопки -->
         <div
-          v-if="(showTooltip || isNarrow) && !canAddItems"
+          v-if="showTooltip && !canAddItems"
           class="tooltip"
         >
           <div class="tooltip-content">
@@ -284,7 +287,22 @@ export default {
             deep: true
         }
     },
+    beforeUnmount() {
+        if (this.hintTimer) clearTimeout(this.hintTimer);
+    },
     methods: {
+        /**
+         * Причина блокировки на телефоне показывается по тапу на зону кнопки
+         * (сама кнопка disabled и события не даёт - на мобилке она прозрачна для
+         * тапа через pointer-events) и гаснет сама.
+         */
+        revealBlockedHint() {
+            if (!this.isNarrow || this.canAddItems) return;
+            this.showTooltip = true;
+            if (this.hintTimer) clearTimeout(this.hintTimer);
+            this.hintTimer = setTimeout(() => { this.showTooltip = false; }, 3000);
+        },
+
         generateKey() {
             return Date.now() + Math.random().toString(36).substr(2, 9);
         },
@@ -901,35 +919,30 @@ export default {
 }
 
 @media (max-width: 768px) {
-    /* На телефоне подсказка показана всегда, пока кнопка заблокирована - ставим её
-       в поток под кнопку, а не абсолютным поповером поверх соседних полей. */
+    /* Подсказка поверх НАД кнопкой: в потоке она двигала форму. Контейнер
+       кнопок - её positioned-родитель. */
     .tooltip {
-        position: static;
-        margin-top: 8px;
+        position: absolute;
+        top: auto;
+        bottom: calc(100% + 10px);
+        right: 0;
+        left: auto;
+        margin: 0;
+        width: min(320px, calc(100vw - 44px));
+        z-index: 1100;
     }
 
-    /* Хвостик указывал на кнопку, стоявшую сбоку - в развёрнутом ряду он смотрит
-       в пустоту. */
     .tooltip-content::before {
         display: none;
     }
 
-    /* Подсказка сидела в ряду с кнопкой и получала его остаток ширины (146px из 338).
-       На телефоне ряд разворачиваем: кнопка сверху, подсказка строкой во всю ширину. */
+    /* Тап по заблокированной кнопке уходит контейнеру и показывает причину. */
+    .add-button:disabled {
+        pointer-events: none;
+    }
+
     .completion__header {
-        flex-wrap: wrap;
-        row-gap: 8px;
-    }
-
-    .completion__actions {
-        flex-wrap: wrap;
-        width: 100%;
-        justify-content: flex-end;
-    }
-
-    .tooltip {
-        flex-basis: 100%;
-        width: 100%;
+        align-items: center;
     }
 
     .tooltip-content {

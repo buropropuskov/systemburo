@@ -1187,6 +1187,7 @@ export default {
             // группы через @notices-change (иначе стейл-группы прошлого вложения
             // мелькнут до пересчёта). Это реальный путь переключения между вложениями.
             this.placeNotices = [];
+            this.preserveFormHeight();
 
             if (!attachment) {
                 this.selectedAttachment = null;
@@ -1204,6 +1205,24 @@ export default {
         attachmentKey(attachment) {
             if (!attachment) return null;
             return attachment.local_id || attachment.id;
+        },
+
+        /**
+         * Пока форма пересобирается под другое вложение, документ на миг схлопывается
+         * на её высоту - мобильный браузер клампит прокрутку, и страницу выбрасывает
+         * к началу. Держим высоту карточки, пока новая форма не встала.
+         */
+        preserveFormHeight() {
+            if (typeof window === 'undefined' || typeof window.matchMedia !== 'function'
+                || !window.matchMedia('(max-width: 768px)').matches) return;
+            const el = this.$el && this.$el.querySelector('.create__form');
+            if (!el) return;
+            el.style.minHeight = `${el.offsetHeight}px`;
+            this.$nextTick(() => {
+                window.requestAnimationFrame(() => {
+                    window.requestAnimationFrame(() => { el.style.minHeight = ''; });
+                });
+            });
         },
 
         tooltipMouseEnter() {
@@ -2854,6 +2873,8 @@ export default {
             align-self: center;
             margin: 0;
             text-align: center;
+            font-size: 18px;
+            padding: 6px 20px;
         }
 
         .create__container {
@@ -2863,8 +2884,66 @@ export default {
 
         .form__header {
             height: auto;
-            padding: 12px;
+            padding: 12px 0;
             flex-direction: column;
+        }
+
+        /* Сообщение во всю ширину карточки; свои скругления ему не нужны -
+           углы держит сама карточка. */
+        .create__form .form__message-tc {
+            width: 100%;
+            border-left: none;
+            border-right: none;
+            border-radius: 0;
+        }
+
+        /* Панель форматирования - как в мобильном Outlook: одна компактная
+           прокручиваемая строка иконок с разделителями групп вместо трёх рядов
+           кнопок с рамками. */
+        .create__form :deep(.editor-toolbar) {
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            gap: 2px;
+            padding: 4px 8px;
+            scrollbar-width: none;
+        }
+
+        .create__form :deep(.editor-toolbar)::-webkit-scrollbar {
+            display: none;
+        }
+
+        .create__form :deep(.toolbar-group) {
+            flex: 0 0 auto;
+            gap: 2px;
+            padding-right: 8px;
+            margin-right: 6px;
+            border-right: 1px solid #ececec;
+        }
+
+        .create__form :deep(.toolbar-group:last-child) {
+            border-right: none;
+            margin-right: 0;
+            padding-right: 0;
+        }
+
+        .create__form :deep(.toolbar-btn) {
+            min-width: 34px;
+            height: 34px;
+            padding: 0 6px;
+            border: none;
+            border-radius: 8px;
+            background: transparent;
+        }
+
+        .create__form :deep(.toolbar-btn.active) {
+            background: var(--color-primary-tint);
+        }
+
+        /* Полоса согласия и отправки возвращает себе боковые отступы, которые
+           сняли с form__header ради full-bleed сообщения. */
+        .form__header .form__submit-bar {
+            width: calc(100% - 24px);
+            margin: 0 12px;
         }
 
         .create__form .form__message-tc {
@@ -2900,21 +2979,26 @@ export default {
             font-size: 14px;
         }
 
-        /* Причины блокировки: сбоку окно в 380px не помещается - ставим его в поток
-           под кнопкой, стрелка смотрит вверх. */
+        /* Причины блокировки: поверх контента НАД кнопкой - в потоке подсказка
+           двигала форму, а её стрелка отрывалась от блока. */
         .submit-tooltip {
-            position: static;
+            position: absolute;
+            right: auto;
+            top: auto;
+            bottom: calc(100% + 10px);
+            left: 0;
             width: 100%;
             max-width: 100%;
-            margin: 8px 0 0;
+            margin: 0;
             max-height: min(50dvh, 320px);
+            z-index: 1100;
         }
 
         .submit-tooltip::before {
-            top: -10px;
-            left: 16px;
+            top: 100%;
+            left: 24px;
             border-color: transparent;
-            border-bottom-color: #333;
+            border-top-color: #333;
         }
 
         .form__textarea {

@@ -42,12 +42,23 @@
           @click="toggleOverflow"
         >
           {{ isNarrow ? `Ещё ${overflowChips.length}` : `+${overflowChips.length}` }}
-          <img
-            src="@/assets/icons/arrow.png"
+          <svg
             class="recipients-chevron"
             :class="{ open: showOverflow }"
-            alt=""
+            width="10"
+            height="10"
+            viewBox="0 0 10 10"
+            fill="none"
+            aria-hidden="true"
           >
+            <path
+              d="M2 3.5L5 6.5L8 3.5"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
         </button>
         <transition name="rdrop">
           <div
@@ -539,17 +550,16 @@ export default {
   background: rgba(79, 91, 223, 0.06);
 }
 
-/* Та же стрелка, что у дропдаунов проекта (иконка, а не типографский треугольник). */
+/* Векторная стрелка: png-иконка на телефоне мылилась. currentColor - в цвет текста. */
 .recipients-chevron {
   width: 10px;
   height: 10px;
   flex-shrink: 0;
-  transform: rotate(90deg);
   transition: transform 0.2s ease;
 }
 
 .recipients-chevron.open {
-  transform: rotate(-90deg);
+  transform: rotate(180deg);
 }
 
 .recipients-popover {
@@ -696,8 +706,11 @@ export default {
     inset: -8px;
   }
 
+  /* Одна ширина независимо от числа: «Ещё 2» и «Ещё 12» не двигают соседей. */
   .recipients-extra__btn {
     min-height: 32px;
+    width: 84px;
+    justify-content: center;
     white-space: nowrap;
     flex-shrink: 0;
   }
