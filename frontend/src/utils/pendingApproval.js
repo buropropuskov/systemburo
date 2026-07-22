@@ -62,3 +62,56 @@ export function pendingApprovalLabel(days) {
 export function pendingApprovalShort(days) {
   return `${days} дн.`;
 }
+
+/**
+ * Заявка всё ещё ждёт согласования - то же условие, что у бейджа списков
+ * (confirmation === 'Согласование' и статус в белом списке ожидающих). Отдельная
+ * функция, потому что карточке заявки нужен этот гейт без расчёта дней от подачи.
+ * @param {{confirmation?: string, status?: string}} application
+ * @returns {boolean}
+ */
+export function isAwaitingApproval(application) {
+  return !!application
+    && application.confirmation === 'Согласование'
+    && AWAITING_STATUSES.includes(application.status);
+}
+
+/** Русское склонение слова "раз": 1 раз, 2-4 раза, 5+ раз. */
+function timesWord(n) {
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 14) return 'раз';
+  const mod10 = n % 10;
+  if (mod10 >= 2 && mod10 <= 4) return 'раза';
+  return 'раз';
+}
+
+/**
+ * Число полных суток молчания согласующего - с момента его НАЗНАЧЕНИЯ (created_at
+ * строки, не подача заявки: согласующего могли добавить позже, так же считает
+ * ReminderService в BE). Возвращает null, если нет даты назначения или ещё нет
+ * полных суток (в первый день "не отвечает 0 дней" - шум, метку не рисуем).
+ * @param {{created_at?: string}} user
+ * @returns {number|null}
+ */
+export function approverSilenceDays(user) {
+  if (!user || !user.created_at) return null;
+  const assigned = new Date(user.created_at);
+  if (Number.isNaN(assigned.getTime())) return null;
+  const days = Math.floor((Date.now() - assigned.getTime()) / 86_400_000);
+  return days > 0 ? days : null;
+}
+
+/**
+ * Текст метки молчащего согласующего для карточки заявки (#1315 S3):
+ * "Не отвечает N дней" + ", напомнили K раз", если напоминания уже уходили.
+ * @param {number} days
+ * @param {number} reminderCount
+ * @returns {string}
+ */
+export function approverSilenceLabel(days, reminderCount) {
+  let text = `Не отвечает ${days} ${dayWord(days)}`;
+  if (reminderCount > 0) {
+    text += `, напомнили ${reminderCount} ${timesWord(reminderCount)}`;
+  }
+  return text;
+}

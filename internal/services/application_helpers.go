@@ -583,7 +583,9 @@ func (s *applicationService) fetchResponsibleUsers(db *gorm.DB, applicationID in
 			COALESCE(aru.required_approval, false) as required_approval,
 			aru.approval_status,
 			aru.approval_comment,
-			aru.approval_datetime
+			aru.approval_datetime,
+			aru.created_at,
+			COALESCE(aru.reminder_count, 0) as reminder_count
 		FROM application_responsible_users aru
 		JOIN users u ON aru.user_id = u.id
 		WHERE aru.application_id = ?
