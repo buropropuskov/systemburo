@@ -294,13 +294,33 @@
                         data-label="Теги"
                       >
                         <div
-                          v-if="blacklistFlagCount(application) > 0 || application.has_roof_access || application.has_free_parking || application.has_unseen_questions"
+                          v-if="blacklistFlagCount(application) > 0 || application.has_roof_access || application.has_free_parking || application.has_unseen_questions || pendingApprovalDays(application) !== null"
                           class="application-tags"
                           :class="{
                             'application-tags--both': application.has_roof_access && application.has_free_parking,
                             'application-tags--chs': blacklistFlagCount(application) > 0
                           }"
                         >
+                          <Badge
+                            v-if="pendingApprovalDays(application) !== null"
+                            variant="warning"
+                            size="sm"
+                            class="rt-tag rt-tag--awaiting tag-hint"
+                            :data-hint="pendingApprovalLabel(pendingApprovalDays(application))"
+                          >
+                            <svg
+                              class="rt-tag__icon rt-tag__icon--fixed"
+                              width="13"
+                              height="13"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                            ><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+                            <span class="rt-tag__text">{{ pendingApprovalShort(pendingApprovalDays(application)) }}</span>
+                          </Badge>
                           <Badge
                             v-if="blacklistFlagCount(application) > 0"
                             variant="danger"
@@ -518,6 +538,7 @@ import LoaderSpinner from './ui/LoaderSpinner.vue';
 import Badge from './ui/Badge.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
 import { blacklistFlagCount, blacklistFlagLabel, BLACKLIST_FLAG_TITLE } from '@/utils/blacklistBadge';
+import { pendingApprovalDays, pendingApprovalLabel, pendingApprovalShort } from '@/utils/pendingApproval';
 import { stripHtml } from '@/utils/sanitize';
 import { groupApplicationsByPeriod } from '@/utils/applicationPeriod';
 
@@ -987,6 +1008,10 @@ export default {
     blacklistFlagTitle() {
       return BLACKLIST_FLAG_TITLE;
     },
+
+    pendingApprovalDays,
+    pendingApprovalLabel,
+    pendingApprovalShort,
 
     getNoDataHint() {
       switch (this.currentFilter) {
@@ -1489,6 +1514,16 @@ export default {
 
 .tags-col .rt-tag__icon {
   display: none;
+}
+
+/* Иконка часов у бейджа "ждёт согласования" видима (прочие теги в кабинете - текстом). */
+.tags-col .rt-tag__icon--fixed {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  opacity: 1;
+  margin-right: 3px;
+  flex-shrink: 0;
 }
 
 /* Маркер вопросов (#973): чат-иконка (всегда видна) + красная точка-индикатор. */
