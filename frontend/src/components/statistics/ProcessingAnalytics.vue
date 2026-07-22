@@ -354,10 +354,10 @@
         v-else
         class="proc__card proc__card--table proc__card--scroll"
       >
-        <table class="proc__table proc__table--rating">
+        <table class="proc__table proc__table--stuck">
           <thead>
             <tr>
-              <th>Заявка</th>
+              <th class="proc__col-app">Заявка</th>
               <th>Согласующий</th>
               <th class="proc__num">Ждёт</th>
               <th class="proc__num">Напоминаний</th>
@@ -371,7 +371,7 @@
               <td>
                 <button
                   type="button"
-                  class="proc__journal-app proc__journal-app--copy"
+                  class="proc__stuck-app proc__journal-app--copy"
                   title="Скопировать номер заявки"
                   @click="copyApplicationNumber(a.application_number)"
                 >{{ a.application_number }}</button>
@@ -1418,6 +1418,36 @@ defineExpose({ refresh: reload });
 
 .proc__table--breakdown .proc__num {
   width: 17%;
+}
+
+/* Зависшие согласования (#1315 S4): свои доли колонок, НЕ reuse --rating. У рейтинга
+   .proc__num=30% на две колонки (60%), из-за чего номер заявки и имя делили по 20%,
+   а 140px-кнопка номера (стиль ленты) вылезала на колонку имени. Здесь номер широкий
+   (не режем - по нему копируют), имя ellipsis-им, счётчики узкие. */
+.proc__table--stuck {
+  min-width: 460px;
+}
+
+.proc__table--stuck .proc__col-app {
+  width: 34%;
+}
+
+.proc__table--stuck .proc__num {
+  width: 16%;
+}
+
+/* Номер заявки в ячейке: слева, во всю ширину колонки; лишнее - многоточием
+   (копируется полное значение из данных, а не из отображаемого текста). Без width:140px
+   и правого выравнивания из .proc__journal-app - те для флекс-ленты журнала. */
+.proc__stuck-app {
+  display: inline-block;
+  max-width: 100%;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
 }
 
 .proc__ellipsis {
