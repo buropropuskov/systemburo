@@ -2924,19 +2924,18 @@ export default {
             border-radius: 29px 29px 0 0;
         }
 
-        .create__form :deep(.editor-toolbar) {
-            padding-left: 16px;
-            padding-right: 16px;
-        }
-
         /* Панель форматирования - как в мобильном Outlook: одна компактная
            прокручиваемая строка иконок с разделителями групп вместо трёх рядов
            кнопок с рамками. */
+        /* Свой фон и скругление под радиус карточки: прямоугольные крайние кнопки
+           у скруглённых углов выглядели неровно. */
         .create__form :deep(.editor-toolbar) {
             flex-wrap: nowrap;
             overflow-x: auto;
             gap: 2px;
-            padding: 4px 8px;
+            padding: 6px 18px;
+            background: #fafafa;
+            border-radius: 29px 29px 0 0;
             scrollbar-width: none;
         }
 
