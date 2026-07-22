@@ -944,8 +944,16 @@ export default {
         pointer-events: none;
     }
 
+
+    /* Шапка с кнопками закреплена: после заполнения таблицы кнопка «Добавить»
+       оставалась невидимой в самом верху. */
     .completion__header {
-        align-items: center;
+        position: sticky;
+        top: var(--mobile-header-height, 55px);
+        z-index: 40;
+        background: #fff;
+        padding: 8px 0;
+        box-shadow: 0 8px 10px -10px rgba(0, 0, 0, 0.18);
     }
 
     .tooltip-content {
