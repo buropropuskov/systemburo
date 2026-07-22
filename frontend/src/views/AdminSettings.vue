@@ -72,6 +72,16 @@
         >
           Информация Бюро
         </div>
+        <div
+          class="sidebar-item"
+          :class="{ 'sidebar-item--active': activeSection === 'approvals' }"
+          role="button"
+          tabindex="0"
+          @click="activeSection = 'approvals'"
+          @keydown.enter="activeSection = 'approvals'"
+        >
+          Напоминания
+        </div>
       </nav>
 
       <div class="admin-settings__content">
@@ -539,6 +549,85 @@
               <span class="form-hint">PDF, DOC или DOCX.</span>
             </div>
           </div>
+
+          <!-- Напоминания согласующим -->
+          <div
+            v-else-if="activeSection === 'approvals'"
+            class="settings-section"
+          >
+            <h3 class="section-title">
+              Напоминания согласующим
+            </h3>
+
+            <p class="form-hint section-intro">
+              Согласующему приходит уведомление, если он молчит по заявке. Напоминания
+              останавливаются, как только его голос перестаёт быть нужным.
+            </p>
+
+            <div class="form-group">
+              <label class="switch-label">
+                <span class="switch-text">Рассылка напоминаний включена</span>
+                <span
+                  class="switch"
+                  :class="{ 'switch--on': settings.approval_reminder_enabled }"
+                  role="switch"
+                  :aria-checked="String(settings.approval_reminder_enabled)"
+                  tabindex="0"
+                  @click="settings.approval_reminder_enabled = !settings.approval_reminder_enabled"
+                  @keydown.enter="settings.approval_reminder_enabled = !settings.approval_reminder_enabled"
+                  @keydown.space.prevent="settings.approval_reminder_enabled = !settings.approval_reminder_enabled"
+                >
+                  <span class="switch__thumb" />
+                </span>
+              </label>
+            </div>
+
+            <div class="form-group">
+              <label
+                class="form-label"
+                for="reminder-first-days"
+              >
+                Первое напоминание через (дни)
+              </label>
+              <input
+                id="reminder-first-days"
+                v-model.number="settings.approval_reminder_first_days"
+                type="number"
+                class="form-input"
+                :min="1"
+                :max="30"
+                :disabled="!settings.approval_reminder_enabled"
+              >
+              <span class="form-hint">От 1 до 30 дней после назначения согласующего</span>
+            </div>
+
+            <div class="form-group">
+              <label
+                class="form-label"
+                for="reminder-repeat-days"
+              >
+                Повтор напоминания каждые (дни)
+              </label>
+              <input
+                id="reminder-repeat-days"
+                v-model.number="settings.approval_reminder_repeat_days"
+                type="number"
+                class="form-input"
+                :min="1"
+                :max="30"
+                :disabled="!settings.approval_reminder_enabled"
+              >
+              <span class="form-hint">От 1 до 30 дней между повторными напоминаниями</span>
+            </div>
+
+            <button
+              class="btn btn--primary"
+              :disabled="saving"
+              @click="saveApprovalSettings"
+            >
+              {{ saving ? 'Сохранение...' : 'Сохранить' }}
+            </button>
+          </div>
         </SkeletonTransition>
       </div>
     </div>
@@ -592,6 +681,9 @@ export default {
         password_require_special: false,
         bureau_phone: '',
         bureau_email: '',
+        approval_reminder_enabled: true,
+        approval_reminder_first_days: 3,
+        approval_reminder_repeat_days: 3,
       },
       availableImageTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'],
       availableDocTypes: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'],
@@ -729,6 +821,15 @@ export default {
           case 'contacts.bureau_email':
             this.settings.bureau_email = item.value || '';
             break;
+          case 'approval.reminder_enabled':
+            this.settings.approval_reminder_enabled = item.value === 'true';
+            break;
+          case 'approval.reminder_first_days':
+            this.settings.approval_reminder_first_days = Number(item.value) || 3;
+            break;
+          case 'approval.reminder_repeat_days':
+            this.settings.approval_reminder_repeat_days = Number(item.value) || 3;
+            break;
         }
       }
     },
@@ -862,6 +963,31 @@ export default {
         // вступят в силу только после полной перезагрузки страницы.
         useDeletionsStore().setDurations(del, res);
         useDeletionsStore().notify({ prefix: 'Настройки уведомлений сохранены' });
+      } catch (error) {
+        console.error('Ошибка сохранения:', error);
+        useDeletionsStore().notify({ prefix: 'Ошибка сохранения настроек', type: 'error' });
+      } finally {
+        this.saving = false;
+      }
+    },
+
+    async saveApprovalSettings() {
+      const first = this.settings.approval_reminder_first_days;
+      const repeat = this.settings.approval_reminder_repeat_days;
+      if (!Number.isInteger(first) || first < 1 || first > 30) {
+        useDeletionsStore().notify({ prefix: 'Первое напоминание: от 1 до 30 дней', type: 'error' });
+        return;
+      }
+      if (!Number.isInteger(repeat) || repeat < 1 || repeat > 30) {
+        useDeletionsStore().notify({ prefix: 'Повтор напоминания: от 1 до 30 дней', type: 'error' });
+        return;
+      }
+      this.saving = true;
+      try {
+        await updateSetting('approval.reminder_enabled', String(this.settings.approval_reminder_enabled));
+        await updateSetting('approval.reminder_first_days', String(first));
+        await updateSetting('approval.reminder_repeat_days', String(repeat));
+        useDeletionsStore().notify({ prefix: 'Настройки напоминаний сохранены' });
       } catch (error) {
         console.error('Ошибка сохранения:', error);
         useDeletionsStore().notify({ prefix: 'Ошибка сохранения настроек', type: 'error' });
