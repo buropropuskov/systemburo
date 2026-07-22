@@ -116,4 +116,51 @@ describe('BlankSelector: выбор типа строкой на телефон�
     await w.findAll('.category-chip')[1].trigger('click');
     expect(w.vm.selectedAttachments).toEqual([]);
   });
+
+  describe('переименование на телефоне: blur отменяет отложенно', () => {
+    it('тап по галочке успевает сохранить, даже если blur пришёл первым', async () => {
+      vi.useFakeTimers();
+      mockMatchMedia(true);
+      const w = await mountSelector();
+
+      w.vm.startRename(ATTACHMENTS[0]);
+      w.vm.editingName = 'Моя машина';
+      // порядок реального браузера при тапе: сперва blur инпута, затем обработчик кнопки
+      w.vm.onRenameBlur(ATTACHMENTS[0]);
+      w.vm.commitRename(ATTACHMENTS[0]);
+
+      const ev = w.emitted('attachment-renamed');
+      expect(ev).toBeTruthy();
+      expect(ev[0][0].display_name).toBe('Моя машина');
+      // отложенная отмена снята - по таймеру ничего не происходит
+      vi.runAllTimers();
+      expect(w.vm.editingKey).toBe(null);
+      vi.useRealTimers();
+    });
+
+    it('без нажатия кнопок blur отменяет по таймеру, имя не эмитится', async () => {
+      vi.useFakeTimers();
+      mockMatchMedia(true);
+      const w = await mountSelector();
+
+      w.vm.startRename(ATTACHMENTS[0]);
+      w.vm.editingName = 'Не сохранять';
+      w.vm.onRenameBlur(ATTACHMENTS[0]);
+      expect(w.vm.editingKey).not.toBe(null);
+      vi.runAllTimers();
+      expect(w.vm.editingKey).toBe(null);
+      expect(w.emitted('attachment-renamed')).toBeFalsy();
+      vi.useRealTimers();
+    });
+
+    it('на десктопе blur сохраняет сразу, как раньше', async () => {
+      mockMatchMedia(false);
+      const w = await mountSelector();
+
+      w.vm.startRename(ATTACHMENTS[0]);
+      w.vm.editingName = 'Десктопное имя';
+      w.vm.onRenameBlur(ATTACHMENTS[0]);
+      expect(w.emitted('attachment-renamed')[0][0].display_name).toBe('Десктопное имя');
+    });
+  });
 });
