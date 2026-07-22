@@ -81,7 +81,6 @@
     <div v-else>
       <div class="completion__format">
         <div class="format__header">
-          <label class="format__label">Формат номеров</label>
           <div
             class="format-actions"
             @click="revealBlockedHint($event)"
@@ -112,6 +111,10 @@
               </div>
             </div>
           </div>
+          <!-- В DOM лейбл после кнопок: на мобилке шапка разворачивается в поток,
+               и лейбл встаёт прямо над своим дропдауном, а не над липкой строкой.
+               На десктопе order возвращает его влево. -->
+          <label class="format__label">Формат номеров</label>
         </div>
         <div class="format__dropdown">
           <button 
@@ -1537,6 +1540,7 @@ export default {
 }
 
 .format__label {
+    order: -1;
     font-size: 13px;
     color: #a2a2a2;
 }

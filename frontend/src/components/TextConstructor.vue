@@ -3,7 +3,10 @@
     class="text-constructor"
     :class="{ 'is-disabled': disabled }"
   >
-    <div class="editor-toolbar">
+    <div
+      class="editor-toolbar"
+      @mousedown.prevent
+    >
       <div class="toolbar-group">
         <button
           type="button"
@@ -543,12 +546,16 @@ onBeforeUnmount(() => {
 });
 
 /**
- * Запускает chain-команду на редакторе с фокусом, если редактор активен.
+ * Запускает chain-команду на редакторе. Фокус дёргаем только когда редактор уже
+ * активен: без этого тап по кнопке тулбара на телефоне открывал клавиатуру, хотя
+ * пользователь ещё не собирался печатать. При наборе фокус наоборот сохраняем
+ * (вместе с mousedown.prevent на панели), чтобы клавиатура не схлопывалась.
  * @param {(chain: import('@tiptap/core').ChainedCommands) => import('@tiptap/core').ChainedCommands} build
  */
 function runCommand(build) {
   if (props.disabled || !editor.value) return;
-  build(editor.value.chain().focus()).run();
+  const chain = editor.value.isFocused ? editor.value.chain().focus() : editor.value.chain();
+  build(chain).run();
 }
 
 function applyColor(colorClass) {

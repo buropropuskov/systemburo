@@ -5,7 +5,6 @@
     :inert="disabled ? '' : undefined"
   >
     <div class="completion__header">
-      <h3>Новые ТМЦ</h3>
       <div
         class="completion__actions"
         @click="revealBlockedHint($event)"
@@ -36,6 +35,11 @@
           </div>
         </div>
       </div>
+      <!-- В DOM заголовок после кнопок: на мобилке шапка разворачивается в поток,
+           на десктопе order возвращает его влево. -->
+      <h3 class="completion__title">
+        Новые ТМЦ
+      </h3>
     </div>
 
     <!-- Форма для добавления новых ТМЦ -->
@@ -488,6 +492,10 @@ export default {
     display: flex;
     justify-content: space-between;
     align-items: center;
+}
+
+.completion__title {
+    order: -1;
 }
 
 .completion__header h3 {
@@ -951,7 +959,7 @@ export default {
         display: contents;
     }
 
-    .completion__header h3 {
+    .completion__title {
         display: block;
         margin-bottom: 6px;
     }
