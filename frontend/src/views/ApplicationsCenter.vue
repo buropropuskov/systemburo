@@ -681,10 +681,30 @@
                   data-label="Теги"
                 >
                   <div
-                    v-if="blacklistFlagCount(application) > 0 || application.has_roof_access || application.has_free_parking || application.sender_is_important || application.has_unseen_questions"
+                    v-if="blacklistFlagCount(application) > 0 || application.has_roof_access || application.has_free_parking || application.sender_is_important || application.has_unseen_questions || pendingApprovalDays(application) !== null"
                     class="application-tags"
                     :class="{ 'application-tags--compact': tagsAreCompact(application) }"
                   >
+                    <Badge
+                      v-if="pendingApprovalDays(application) !== null"
+                      variant="warning"
+                      size="sm"
+                      class="rt-tag rt-tag--awaiting tag-hint"
+                      :data-hint="pendingApprovalLabel(pendingApprovalDays(application))"
+                    >
+                      <svg
+                        class="rt-tag__icon rt-tag__icon--fixed"
+                        width="13"
+                        height="13"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      ><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+                      <span class="rt-tag__text">{{ pendingApprovalShort(pendingApprovalDays(application)) }}</span>
+                    </Badge>
                     <Badge
                       v-if="blacklistFlagCount(application) > 0"
                       variant="danger"
@@ -932,6 +952,7 @@ import DownloadBlanksModal from '@/components/applications/DownloadBlanksModal.v
 import Badge from '@/components/ui/Badge.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import { blacklistFlagCount, blacklistFlagLabel, BLACKLIST_FLAG_TITLE } from '@/utils/blacklistBadge';
+import { pendingApprovalDays, pendingApprovalLabel, pendingApprovalShort } from '@/utils/pendingApproval';
 import { stripHtml } from '@/utils/sanitize';
 import { useDeletionsStore } from '@/stores/deletions';
 
@@ -1754,12 +1775,17 @@ export default {
             return BLACKLIST_FLAG_TITLE;
         },
 
+        pendingApprovalDays,
+        pendingApprovalLabel,
+        pendingApprovalShort,
+
         // Колонка тегов фиксированная (120/90px) - один текстовый тег влезает, два и больше нет.
         // При 2+ тегах сворачиваем крыша/парковка/важный в иконки (ЧС держим текстом). Решение
         // по данным, а не замером DOM - реактивно, без дёрганья на ре-рендерах.
         tagsAreCompact(application) {
             const count =
                 (this.blacklistFlagCount(application) > 0 ? 1 : 0) +
+                (this.pendingApprovalDays(application) !== null ? 1 : 0) +
                 (application.has_roof_access ? 1 : 0) +
                 (application.has_free_parking ? 1 : 0) +
                 (application.sender_is_important ? 1 : 0) +
@@ -2870,6 +2896,14 @@ export default {
     overflow: hidden;
     flex-shrink: 0;
     transition: width 0.28s ease, opacity 0.2s ease;
+}
+
+/* Иконка бейджа "ждёт согласования" видима всегда: бейдж компактный (иконка + "N дн."),
+   в отличие от roof/parking он не прячет текст и не участвует в --compact-свёртке. */
+.rt-tag__icon--fixed {
+    width: 13px;
+    opacity: 1;
+    margin-right: 3px;
 }
 
 /* текст с многоточием в flex-ячейке (на самой ячейке text-overflow:ellipsis не работает) */
