@@ -496,6 +496,11 @@ type ResponsibleUserInfo struct {
 	ApprovalStatus   *string    `json:"approval_status"`
 	ApprovalComment  *string    `json:"approval_comment"`
 	ApprovalDatetime *time.Time `json:"approval_datetime"`
+	// CreatedAt - момент назначения согласующего (не подача заявки: его могли
+	// добавить позже). От него карточка заявки считает "не отвечает N дней" (#1315 S3),
+	// так же считает ReminderService. ReminderCount - сколько напоминаний уже ушло.
+	CreatedAt     time.Time `json:"created_at"`
+	ReminderCount int       `json:"reminder_count"`
 }
 
 // ApplicationHistoryItem запись истории заявки.

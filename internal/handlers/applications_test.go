@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 
 	"systemburo/internal/database"
 	"systemburo/internal/models"
@@ -779,6 +780,50 @@ func TestGetResponsibleUsers_Empty(t *testing.T) {
 
 	testutil.ParseResponse[[]interface{}](t, rec)
 	// May or may not have responsible users depending on org_users seeding
+}
+
+// TestGetResponsibleUsers_ExposesReminderFields — карточке заявки (#1315 S3) нужны
+// created_at (момент назначения, от него "не отвечает N дней") и reminder_count
+// ("напомнили K раз") в ответе responsible-users. Тест бьёт по реальному эндпоинту:
+// go build видит поля DTO, но не проверяет, что SQL их реально селектит.
+func TestGetResponsibleUsers_ExposesReminderFields(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "resp2", "pass123", 1, td.OrgID, td.CompanyID)
+	appID := createSimpleApplication(t, e, token, td.OrgID)
+
+	approverID := newReminderUser(t, db, "approver")
+	past := time.Now().Add(-2 * 24 * time.Hour)
+	aru := models.ApplicationResponsibleUser{
+		ApplicationID:    appID,
+		UserID:           approverID,
+		CreatedAt:        time.Now().Add(-5 * 24 * time.Hour),
+		RequiredApproval: true,
+		ApprovalStatus:   pendingStatus(),
+		ReminderCount:    2,
+		LastReminderAt:   &past,
+	}
+	require.NoError(t, db.Create(&aru).Error)
+
+	rec := testutil.GET(t, e, fmt.Sprintf("/applications/%d/responsible-users", appID), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	users := testutil.ParseSlice(t, rec)
+	var found map[string]interface{}
+	for _, u := range users {
+		if int(u["id"].(float64)) == approverID {
+			found = u
+			break
+		}
+	}
+	require.NotNil(t, found, "назначенный согласующий должен быть в ответе: %s", rec.Body.String())
+	assert.Equal(t, float64(2), found["reminder_count"], "reminder_count должен отдаваться")
+	createdAt, ok := found["created_at"].(string)
+	assert.True(t, ok && createdAt != "", "created_at должен отдаваться непустой строкой")
+	assert.NotContains(t, createdAt, "0001-01-01", "created_at не должен быть нулевым временем")
 }
 
 // --- GET /applications/:id/attachments ---

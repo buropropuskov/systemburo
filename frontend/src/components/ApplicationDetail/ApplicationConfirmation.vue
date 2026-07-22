@@ -69,7 +69,15 @@
               {{ getStatusText(user.approval_status) }}
             </span>
           </div>
-                    
+
+          <!-- Молчащий согласующий: "не отвечает N дней, напомнили K раз" (#1315 S3) -->
+          <div
+            v-if="silenceLabel(user)"
+            class="user-silence-block"
+          >
+            {{ silenceLabel(user) }}
+          </div>
+
           <!-- Комментарий пользователя (только если есть) -->
           <div
             v-if="user.approval_comment"
@@ -94,6 +102,7 @@
 
 <script>
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
+import { isAwaitingApproval, approverSilenceDays, approverSilenceLabel } from '@/utils/pendingApproval'
 
 export default {
     name: 'ApplicationConfirmation',
@@ -138,6 +147,9 @@ export default {
             
             // Объединяем: сначала обязательные, потом остальные
             return [...required, ...others];
+        },
+        hasRequiredApprover() {
+            return (this.responsibleUsers || []).some(user => user.required_approval === true);
         }
     },
     methods: {
@@ -183,6 +195,21 @@ export default {
                 hour: '2-digit',
                 minute: '2-digit'
             });
+        },
+
+        // Метка "не отвечает N дней, напомнили K раз" для молчащего согласующего
+        // (#1315 S3). Показываем только тому, чей голос ещё нужен - зеркало предиката
+        // "кому напоминаем" из ReminderService.selectCandidates: есть обязательные ->
+        // только им (голос необязательного на исход не влияет), нет -> всем pending.
+        // Иначе пометили бы "не отвечает" необязательного, чьё молчание ничего не решает.
+        silenceLabel(user) {
+            if (!isAwaitingApproval(this.application)) return '';
+            const status = user.approval_status || 'pending';
+            if (status !== 'pending') return '';
+            if (this.hasRequiredApprover && !user.required_approval) return '';
+            const days = approverSilenceDays(user);
+            if (days === null) return '';
+            return approverSilenceLabel(days, user.reminder_count || 0);
         }
     }
 }
@@ -387,6 +414,18 @@ export default {
 .required-badge-container:hover .required-tooltip {
     opacity: 1;
     visibility: visible;
+}
+
+.user-silence-block {
+    font-size: 11px;
+    font-weight: 500;
+    color: #b45309;
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    padding: 4px 10px;
+    border-radius: 8px;
+    align-self: flex-start;
+    margin-top: 4px;
 }
 
 .user-comment-block {
