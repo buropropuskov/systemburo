@@ -166,6 +166,12 @@ type TableEmployeeResponse struct {
 	Status            int     `json:"status"`
 	ApplicationID     *int    `json:"application_id"`
 	ApplicationNumber *string `json:"application_number"`
+	// TerritoryStatus - территориальный статус сотрудника (0 - не отмечен, 1 - вошёл,
+	// 2 - вышел) из той же колонки employees.territory_status, что читает
+	// /employees/history/current-status. Отдаём вместе со строкой, чтобы счётчик
+	// «Людей зашло» и кнопки входа/выхода были верны сразу, а не проваливались в
+	// «никто не отмечен» до ответа второго запроса.
+	TerritoryStatus *int `json:"territory_status"`
 	// TargetTablesCount - число таблиц проходной, к которым привязан сотрудник
 	// (employee_target_tables). Используется FE (#1194) для решения, показывать ли
 	// per-row выбор «из этой/из всех» при отвязке (>1) или сразу деактивировать (=1).
@@ -415,6 +421,7 @@ func (s *employeeService) GetActiveEmployeesForTable(ctx context.Context, tableI
 		Status            *int
 		ApplicationID     *int
 		ApplicationNumber *string
+		TerritoryStatus   *int
 		TargetTablesCount int
 	}
 
@@ -438,6 +445,7 @@ func (s *employeeService) GetActiveEmployeesForTable(ctx context.Context, tableI
 			status,
 			application_id,
 			application_number,
+			territory_status,
 			target_tables_count
 		FROM (
 			SELECT
@@ -460,6 +468,7 @@ func (s *employeeService) GetActiveEmployeesForTable(ctx context.Context, tableI
 				e.status,
 				app.id AS application_id,
 				app.application_number AS application_number,
+				e.territory_status,
 				(
 					SELECT COUNT(*) FROM employee_target_tables ett3
 					WHERE ett3.employee_id = e.id
@@ -491,7 +500,7 @@ func (s *employeeService) GetActiveEmployeesForTable(ctx context.Context, tableI
 					 o.name, co.name, c.name, e.position,
 					 a.entry_date_to, a.entry_time_from,
 					 a.entry_time_to, e.status, app.id, app.application_number,
-					 e.passport_series_number_hmac
+					 e.territory_status, e.passport_series_number_hmac
 		) sub
 		WHERE sub.passport_series_number_hmac IS NULL OR sub.rn = 1
 		ORDER BY last_name, first_name
@@ -530,6 +539,7 @@ func (s *employeeService) GetActiveEmployeesForTable(ctx context.Context, tableI
 			Status:            status,
 			ApplicationID:     r.ApplicationID,
 			ApplicationNumber: r.ApplicationNumber,
+			TerritoryStatus:   r.TerritoryStatus,
 			TargetTablesCount: r.TargetTablesCount,
 			TargetTables:      targetTablesMap[r.ID],
 		})

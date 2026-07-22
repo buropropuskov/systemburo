@@ -25,7 +25,7 @@
         class="card-header__settings"
       >
         <span class="items-count">
-          Людей зашло: {{ peopleOnTerritory }}
+          <span class="items-count__text">Людей зашло: <AnimatedCounter :value="peopleOnTerritory" /></span>
           <button
             v-if="can(`table.${tableName}.history`)"
             class="history-btn"
@@ -631,6 +631,7 @@ import ConfirmationModal from './ConfirmationModal.vue';
 import StatusBadge from './ui/StatusBadge.vue';
 import SwitchToggle from './ui/SwitchToggle.vue';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
+import AnimatedCounter from './ui/AnimatedCounter.vue';
 import ExcelJS from 'exceljs';
 import { bulkMoveEmployeesTable, bulkAddEmployeesTable, bulkUnbindEmployeesTable } from '@/api/employees';
 import { pickOverflowFields, columnMinWidth, SERVICE_COLUMNS_WIDTH } from '@/utils/tableColumnFit';
@@ -648,7 +649,8 @@ export default {
     ConfirmationModal,
     StatusBadge,
     SwitchToggle,
-    LoaderSpinner
+    LoaderSpinner,
+    AnimatedCounter
   },
   setup() {
     const { isPortrait, isCompact } = useOrientation();
@@ -971,10 +973,12 @@ export default {
       try {
         await this.fetchAllTables();
         await this.fetchOrganizations();
-        await this.fetchPeopleData(seq);
+        await this.fetchPeopleData(seq, silent);
         await this.fetchEmployeesStatus(seq);
+        return true;
       } catch (error) {
         console.error('Ошибка при загрузке людей:', error);
+        return false;
       } finally {
         if (!silent) this.isLoading = false;
       }
@@ -983,7 +987,12 @@ export default {
     async loadData() {
       this.refreshing = true;
       try {
-        await this._loadData(true);
+        const ok = await this._loadData(true);
+        // Тихий сбой оставляет прежние строки (не чистим таблицу), но на ЯВНОЕ
+        // обновление пользователь должен получить сигнал, что данные не свежие.
+        if (!ok) {
+          useDeletionsStore().notify({ prefix: 'Не удалось обновить таблицу: ', bold: 'показаны последние данные', type: 'error' });
+        }
       } finally {
         this.refreshing = false;
       }
@@ -1017,7 +1026,7 @@ export default {
       }
     },
 
-    async fetchPeopleData(seq) {
+    async fetchPeopleData(seq, silent = false) {
       try {
         if (!this.tableName) return;
 
@@ -1077,9 +1086,26 @@ export default {
           nameToIdMap[this.organizationsMap[id]] = id;
         });
 
+        // Территориальное состояние уже отрисованных строк - страховка на случай,
+        // если строка пришла без territory_status: без неё каждая перезагрузка
+        // (real-time сигнал, поллинг) обнуляла бы отметки входа и счётчик зашедших
+        // проваливался бы в 0 до ответа /employees/history/current-status.
+        const prevTerritory = new Map(
+          this.itemsData.map(item => [item.id, {
+            entry_checked: item.entry_checked,
+            exit_checked: item.exit_checked,
+            territory_status: item.territory_status,
+          }])
+        );
+
         const newItems = employees.map(emp => {
           const orgName = emp.organization || '';
           const orgId = nameToIdMap[orgName] || emp.organization_id;
+          // Статус берём из самой строки (та же колонка employees.territory_status,
+          // что читает current-status), а при его отсутствии - из предыдущего
+          // состояния строки. Так отметки входа/выхода и счётчик не мигают.
+          const prev = prevTerritory.get(emp.id);
+          const territoryStatus = emp.territory_status ?? prev?.territory_status ?? 0;
           return {
             id: emp.id,
             last_name: emp.last_name || '',
@@ -1101,9 +1127,9 @@ export default {
             position: emp.position,
             company: emp.company,
             company_id: emp.company_id,
-            entry_checked: false,
-            exit_checked: false,
-            territory_status: 0,
+            entry_checked: territoryStatus === 1,
+            exit_checked: territoryStatus === 2,
+            territory_status: territoryStatus,
             // Число таблиц «Проход», к которым привязан сотрудник (#1194 S5) -
             // >1 включает per-row подменю «Убрать из этой/из всех».
             target_tables_count: emp.target_tables_count || 0
@@ -1113,7 +1139,10 @@ export default {
         this.itemsData = newItems;
       } catch (error) {
         console.error("Ошибка при загрузке сотрудников:", error);
-        if (seq === undefined || seq === this.refreshSeq) this.itemsData = [];
+        // Тихое обновление (real-time сигнал, поллинг) при сбое сети оставляет
+        // последние известные строки: очистка стирала бы таблицу и счётчик под
+        // пользователем на ровном месте (тот же класс, что обнуление счётчика #1021).
+        if (!silent && (seq === undefined || seq === this.refreshSeq)) this.itemsData = [];
       }
     },
 
@@ -1894,6 +1923,15 @@ export default {
   display: flex;
   align-items: center;
   gap: 10px;
+  white-space: nowrap;
+}
+
+.items-count__text {
+  /* Подпись и число - один flex-элемент: иначе gap контейнера вставил бы
+     лишний зазор между «...территории:» и цифрой. */
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
   white-space: nowrap;
 }
 
