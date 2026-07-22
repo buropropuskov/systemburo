@@ -870,6 +870,7 @@ export default {
 
     .filter-tabs {
         flex-wrap: nowrap;
+        gap: 6px;
         overflow-x: auto;
         scrollbar-width: none;
         justify-content: flex-start;
@@ -883,6 +884,8 @@ export default {
     .filter-tab {
         flex: 0 0 auto;
         min-height: 34px;
+        padding: 6px 9px;
+        font-size: 11.5px;
     }
 
     /* Счётчик выбранных занимает своё место всегда - иначе его появление
