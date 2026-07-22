@@ -152,7 +152,7 @@
               v-if="fieldRequired('number')"
               class="required"
             >*</span></label>
-            <div class="number-fact">
+            <label class="number-fact fact-toggle">
               <input
                 v-model="isNumberByFact"
                 class="fact-checkbox"
@@ -160,10 +160,12 @@
                 :disabled="editingVehicle && editingVehicle.isExisting"
                 @change="handleNumberByFactChange"
               >
-              <p class="fact-text">
-                по факту
-              </p>
-            </div>
+              <span
+                class="fact-switch"
+                aria-hidden="true"
+              />
+              <span class="fact-text">по факту</span>
+            </label>
           </div>
           <!-- Поле "по факту" -->
           <div
@@ -214,17 +216,19 @@
               v-if="fieldRequired('mark')"
               class="required"
             >*</span></label>
-            <div class="mark-fact">
+            <label class="mark-fact fact-toggle">
               <input
                 v-model="isMarkByFact"
                 class="fact-checkbox"
                 type="checkbox"
                 @change="handleMarkByFactChange"
               >
-              <p class="fact-text">
-                по факту
-              </p>
-            </div>
+              <span
+                class="fact-switch"
+                aria-hidden="true"
+              />
+              <span class="fact-text">по факту</span>
+            </label>
           </div>
           <div
             v-if="isMarkByFact"
@@ -1800,15 +1804,61 @@ export default {
     gap: 5px;
 }
 
-.fact-checkbox {
-    width: 12px;
-    height: 12px;
+/* Тумблер вместо чекбокса 12px: попасть в него пальцем было нельзя, а подпись
+   не была кликабельной. Нативный input прячем, но оставляем в потоке для фокуса
+   с клавиатуры; вся пара «переключатель + подпись» - один label. */
+.fact-toggle {
     cursor: pointer;
+    user-select: none;
 }
 
-.fact-checkbox:disabled {
-    cursor: not-allowed;
+.fact-checkbox {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.fact-switch {
+    position: relative;
+    display: inline-block;
+    width: 34px;
+    height: 20px;
+    border-radius: var(--radius-pill);
+    background: #d5d5d5;
+    transition: background-color 0.2s ease;
+    flex-shrink: 0;
+}
+
+.fact-switch::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    transition: transform 0.2s ease;
+}
+
+.fact-checkbox:checked + .fact-switch {
+    background: var(--color-primary);
+}
+
+.fact-checkbox:checked + .fact-switch::after {
+    transform: translateX(14px);
+}
+
+.fact-checkbox:focus-visible + .fact-switch {
+    box-shadow: var(--shadow-focus);
+}
+
+.fact-checkbox:disabled + .fact-switch {
     opacity: 0.6;
+    cursor: not-allowed;
 }
 
 .fact-text {
@@ -2312,6 +2362,30 @@ export default {
         margin-top: 8px;
     }
 
+    /* Хвостик указывал на кнопку, стоявшую сбоку - в развёрнутом ряду он смотрит
+       в пустоту. */
+    .tooltip-content::before {
+        display: none;
+    }
+
+    /* Подсказка сидела в ряду с кнопкой и получала его остаток ширины (146px из 338).
+       На телефоне ряд разворачиваем: кнопка сверху, подсказка строкой во всю ширину. */
+    .format__header {
+        flex-wrap: wrap;
+        row-gap: 8px;
+    }
+
+    .format-actions {
+        flex-wrap: wrap;
+        width: 100%;
+        justify-content: flex-end;
+    }
+
+    .tooltip {
+        flex-basis: 100%;
+        width: 100%;
+    }
+
     .tooltip-content {
         max-width: 100%;
         white-space: pre-line;
@@ -2355,10 +2429,22 @@ export default {
         width: 100%;
     }
 
+    /* Ячейки растянулись по ширине, а высота и шрифт остались десктопными -
+       поле выглядело приплюснутым. */
     .number__field {
         min-width: 0;
         max-width: none;
         width: 100%;
+        height: 52px;
+    }
+
+    .number__input {
+        font-size: 18px;
+        font-weight: 500;
+    }
+
+    .number__input::placeholder {
+        font-size: 15px;
     }
 
     .mark__dropdown,

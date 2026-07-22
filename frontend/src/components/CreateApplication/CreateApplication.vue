@@ -12,7 +12,9 @@
             @update:readers="readers = $event"
           />
         </div>
-        <h4>{{ currentFormTitle }}</h4>
+        <h4 class="create__blank-title create__blank-title--header">
+          {{ currentFormTitle }}
+        </h4>
       </div>
     </div>
 
@@ -27,6 +29,12 @@
         @attachment-removed="handleAttachmentRemoved"
         @attachment-renamed="handleAttachmentRenamed"
       />
+
+      <!-- На телефоне заголовок вложения стоит между селектором и формой: в шапке
+           он висел рядом с названием страницы и терялся. -->
+      <h4 class="create__blank-title create__blank-title--inline">
+        {{ currentFormTitle }}
+      </h4>
 
       <div
         v-if="selectedAttachment"
@@ -2734,6 +2742,10 @@ export default {
         z-index: 1;
     }
 
+    .create__blank-title--inline {
+        display: none;
+    }
+
     h4 {
         font-size: 22px;
         font-weight: 800;
@@ -2831,6 +2843,17 @@ export default {
             font-size: 15px;
             padding: 4px 14px;
             max-width: 100%;
+        }
+
+        .create__blank-title--header {
+            display: none;
+        }
+
+        .create__blank-title--inline {
+            display: block;
+            align-self: center;
+            margin: 0;
+            text-align: center;
         }
 
         .create__container {

@@ -5,7 +5,7 @@
          десктопе всё как было: тип, под ним свои вложения, под ними кнопка. -->
     <template v-if="isNarrow">
       <div class="picker-caption">
-        Тип нового вложения
+        Тип вложения
       </div>
       <div class="category-carousel">
         <button
@@ -31,17 +31,23 @@
       </button>
 
       <div
-        v-if="attachments.length"
+        v-if="pickedCategoryAttachments.length"
         class="created-caption"
       >
         Созданные вложения
+      </div>
+      <div
+        v-else-if="attachments.length"
+        class="created-caption created-caption--empty"
+      >
+        В этом типе вложений пока нет
       </div>
     </template>
 
     <div class="categories-container">
       <div
         v-for="category in uniqueCategories"
-        v-show="!isNarrow || getCategoryAttachments(category).length"
+        v-show="!isNarrow || category === pickedCategory"
         :key="category"
         class="category"
       >
@@ -54,12 +60,7 @@
           </div>
           <span class="attachment-count">{{ getCategoryAttachments(category).length }}/10</span>
         </div>
-        <div
-          v-else
-          class="category-label"
-        >
-          {{ category }}
-        </div>
+
 
         <transition-group
           name="attachment"
@@ -248,6 +249,11 @@ export default {
                 }
             });
             return Array.from(categories);
+        },
+
+        pickedCategoryAttachments() {
+            if (!this.pickedCategory) return [];
+            return this.getCategoryAttachments(this.pickedCategory);
         },
 
         pickedCategoryIsFull() {
@@ -493,6 +499,10 @@ export default {
         startRename(attachment) {
             this.editingKey = this.getAttachmentKey(attachment);
             this.editingName = attachment.display_name || '';
+            // На телефоне автофокус тут же выбрасывает клавиатуру на пол-экрана,
+            // хотя пользователь мог открыть переименование, чтобы просто посмотреть
+            // полное имя. На десктопе поведение прежнее.
+            if (this.isNarrow) return;
             this.$nextTick(() => {
                 const input = this.$el.querySelector('.attachment-name-input');
                 if (input) {
@@ -926,15 +936,26 @@ export default {
         margin-bottom: 8px;
     }
 
+    /* Пустой тип - обычная фраза, не рубрика. */
+    .created-caption--empty {
+        color: #c4c4c4;
+        text-transform: none;
+        font-weight: 500;
+        font-size: 12px;
+        letter-spacing: 0;
+    }
+
     /* Типы - одна прокручиваемая строка (паттерн быстрых периодов календаря):
        чипы уезжают под край, видно, что ряд продолжается. */
+    /* Отрицательные margin уводили строку левее карточки и налезали на её край -
+       прокручиваем внутри контента, а не под ним. */
     .category-carousel {
         display: flex;
         flex-direction: row;
         flex-wrap: nowrap;
         gap: 8px;
-        margin: 0 -12px;
-        padding: 0 12px 2px;
+        margin: 0;
+        padding: 0 0 2px;
         overflow-x: auto;
         overflow-y: hidden;
         scroll-snap-type: x proximity;
@@ -966,10 +987,13 @@ export default {
         transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
     }
 
+    /* Выбранный тип - светлая пилюля с синей рамкой: сплошная заливка сливалась
+       с синей кнопкой добавления прямо под строкой. */
     .category-chip--active {
-        background: var(--color-primary);
+        background: var(--color-primary-tint);
         border-color: var(--color-primary);
-        color: #fff;
+        color: var(--color-primary);
+        font-weight: 600;
     }
 
     .category-chip__count {
@@ -986,7 +1010,8 @@ export default {
     }
 
     .category-chip--active .category-chip__count {
-        background: rgba(255, 255, 255, 0.25);
+        background: rgba(79, 91, 223, 0.16);
+        color: var(--color-primary);
     }
 
     /* Одна кнопка на выбранный тип - раньше кнопка сидела в каждом чипе и
@@ -1020,13 +1045,13 @@ export default {
         margin-bottom: 14px;
     }
 
-    .category-label {
-        font-size: 10px;
-        font-weight: 700;
-        color: #a2a2a2;
-        text-transform: uppercase;
-        letter-spacing: 0.03em;
-        margin-bottom: 6px;
+    /* Поле переименования по размеру строки: 12px и padding 2px делали его
+       заметно ниже и мельче остальных. */
+    .attachment-name-input {
+        min-height: 32px;
+        padding: 4px 8px;
+        font-size: 13px;
+        border-radius: var(--radius-sm);
     }
 
     /* Тач-таргеты: строка вложения и кнопки под палец. Ширина 130px была
@@ -1042,8 +1067,8 @@ export default {
     }
 
     .attachment-checkbox {
-        width: 20px;
-        height: 20px;
+        width: 16px;
+        height: 16px;
     }
 
     .edit-btn,

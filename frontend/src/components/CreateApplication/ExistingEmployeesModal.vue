@@ -56,8 +56,8 @@
               </button>
             </div>
             <div
-              v-if="tempSelectedEmployees.length > 0"
               class="selected-counter"
+              :class="{ 'is-empty': !tempSelectedEmployees.length }"
             >
               Выбрано: <span class="selected-count">{{ tempSelectedEmployees.length }}</span>
             </div>
@@ -529,6 +529,11 @@ export default {
     pointer-events: none;
 }
 
+/* Место под счётчик держим всегда: его появление сдвигало список под пальцем. */
+.selected-counter.is-empty {
+    visibility: hidden;
+}
+
 .selected-counter {
     font-size: 12px;
     color: #666;
@@ -822,6 +827,72 @@ export default {
         padding: 12px 16px;
     }
 
+    /* Лист фиксированной высоты: пока список грузился, окно росло и «подпрыгивало». */
+    .modal-content {
+        height: 90dvh;
+        /* Глобальный .modal-content из App.vue запускает свою выездку снизу, и
+           вместе с локальной анимацией лист дёргался: замер кадров показывал
+           ход 844 -> 96 -> 356 -> 84. Оставляем одну - локальную. */
+        animation: none;
+    }
+
+    /* Своя анимация (сдвиг на 20px) спорила с выездом листа снизу - на мобилке
+       оставляем только слайд. */
+    .modal-fade-enter-active .modal-content {
+        animation: modal-sheet-up 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+    }
+
+    .modal-fade-leave-active .modal-content {
+        animation: none;
+        transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+    }
+
+    .modal-fade-leave-to .modal-content {
+        transform: translateY(100%);
+    }
+
+    /* Поиск во всю ширину: прижатый вправо, он выглядел обрезанным. */
+    .header-right {
+        justify-content: stretch;
+        gap: 8px;
+    }
+
+    .header-right :deep(.search-component),
+    .header-right > * {
+        width: 100%;
+    }
+
+    /* Фильтры - одна прокручиваемая строка вместо переноса «3 + 1 по центру». */
+    .filter-section {
+        display: block;
+        padding: 10px 16px;
+    }
+
+    .filter-tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scrollbar-width: none;
+        justify-content: flex-start;
+        padding-bottom: 2px;
+    }
+
+    .filter-tabs::-webkit-scrollbar {
+        display: none;
+    }
+
+    .filter-tab {
+        flex: 0 0 auto;
+        min-height: 34px;
+    }
+
+    /* Счётчик выбранных занимает своё место всегда - иначе его появление
+       сдвигало список под пальцем. */
+    .selected-counter {
+        min-height: 16px;
+        margin-top: 4px;
+        justify-content: flex-start;
+    }
+
     /* Шапка в колонку ставила крестик третьей строкой слева - возвращаем его в
        правый верхний угол: заголовок и крестик в строке, поиск под ними. */
     .modal-header {
@@ -965,10 +1036,11 @@ export default {
     }
 
     /* Чекбокс под палец: сам 24px, зона клика расширена псевдоэлементом. */
+    /* 24px выглядели крупно рядом с текстом строки - зону клика держит ::before. */
     .table-cell input[type="checkbox"] {
         position: relative;
-        width: 24px;
-        height: 24px;
+        width: 19px;
+        height: 19px;
     }
 
     .table-cell input[type="checkbox"]::before {
@@ -990,5 +1062,10 @@ export default {
     .modal-content.is-dragging {
         transition: none;
     }
+}
+
+@keyframes modal-sheet-up {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
 }
 </style>
