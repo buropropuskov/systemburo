@@ -723,9 +723,13 @@ defineExpose({ editor });
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
 }
 
-.toolbar-btn:hover:not(:disabled) {
-  background: #f4f5ff;
-  border-color: var(--color-primary);
+/* Только на устройствах с настоящим hover: на таче :hover залипает после тапа,
+   и кнопка выглядит зажатой, а подсказка повисает. */
+@media (hover: hover) {
+  .toolbar-btn:hover:not(:disabled) {
+    background: #f4f5ff;
+    border-color: var(--color-primary);
+  }
 }
 
 .toolbar-btn.active {
@@ -754,25 +758,30 @@ defineExpose({ editor });
 .color-btn.green-text { color: #079d1d; }
 .color-btn.blue-text { color: #4f5bdf; }
 
-.color-btn.active,
-.color-btn:hover:not(:disabled) {
+.color-btn.active {
   color: inherit;
 }
 
-.toolbar-btn[data-tooltip]:hover::after {
-  content: attr(data-tooltip);
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 4px 8px;
-  background: #1a1a1a;
-  color: #fff;
-  font-size: 11px;
-  white-space: nowrap;
-  border-radius: 6px;
-  pointer-events: none;
-  z-index: 10;
+@media (hover: hover) {
+  .color-btn:hover:not(:disabled) {
+    color: inherit;
+  }
+
+  .toolbar-btn[data-tooltip]:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 4px 8px;
+    background: #1a1a1a;
+    color: #fff;
+    font-size: 11px;
+    white-space: nowrap;
+    border-radius: 6px;
+    pointer-events: none;
+    z-index: 10;
+  }
 }
 
 .image-input {
@@ -803,8 +812,10 @@ defineExpose({ editor });
   transition: border-color 0.15s ease;
 }
 
-.select-header:hover {
-  border-color: var(--color-primary);
+@media (hover: hover) {
+  .select-header:hover {
+    border-color: var(--color-primary);
+  }
 }
 
 .select-arrow {
@@ -854,10 +865,16 @@ defineExpose({ editor });
   transition: background 0.15s ease, color 0.15s ease;
 }
 
-.select-option:hover,
 .select-option.active {
   background: #f4f5ff;
   color: var(--color-primary);
+}
+
+@media (hover: hover) {
+  .select-option:hover {
+    background: #f4f5ff;
+    color: var(--color-primary);
+  }
 }
 
 .editor-content {
