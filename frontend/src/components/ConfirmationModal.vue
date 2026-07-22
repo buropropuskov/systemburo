@@ -10,7 +10,7 @@
           <div class="modal-header">
             {{ title }}
           </div>
-          <div class="modal-content">
+          <div class="modal-message">
             {{ message }}
           </div>
           <div class="modal-actions">
@@ -71,15 +71,6 @@ export default {
         }
     },
     emits: ['cancel', 'confirm'],
-    methods: {
-        handleConfirm() {
-            this.$emit('confirm');
-        },
-        
-        handleCancel() {
-            this.$emit('cancel');
-        }
-    },
     mounted() {
         this.escHandler = (e) => {
             if (e.key === 'Escape' && this.show) this.handleCancel();
@@ -88,6 +79,15 @@ export default {
     },
     beforeUnmount() {
         document.removeEventListener('keydown', this.escHandler);
+    },
+    methods: {
+        handleConfirm() {
+            this.$emit('confirm');
+        },
+        
+        handleCancel() {
+            this.$emit('cancel');
+        }
     }
 }
 </script>
@@ -124,7 +124,7 @@ export default {
     color: #333;
 }
 
-.modal-content {
+.modal-message {
     font-size: 12px;
     color: #666;
     margin-bottom: 20px;
@@ -191,5 +191,31 @@ export default {
 .modal-fade-leave-to .modal {
     opacity: 0;
     transform: scale(1) translateY(-20px);
+}
+
+@media (max-width: 768px) {
+    /* Глобальный оверлей App.vue прижимает окно к низу - даём ему вид листа:
+       раньше узкая карточка 300px висела у нижней кромки со щелями по бокам. */
+    .modal {
+        width: 100%;
+        max-width: 100%;
+        border-radius: 16px 16px 0 0;
+        padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
+    }
+
+    .modal-header {
+        font-size: 16px;
+    }
+
+    .modal-message {
+        font-size: 14px;
+    }
+
+    .cancel-btn,
+    .confirm-btn {
+        min-height: 44px;
+        font-size: 14px;
+        flex: 1;
+    }
 }
 </style>
