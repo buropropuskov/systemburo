@@ -862,19 +862,27 @@ export default {
         width: 100%;
     }
 
-    /* Фильтры - одна прокручиваемая строка вместо переноса «3 + 1 по центру». */
+    /* Фильтры - карусель по паттерну строки типов вложений: пилюли нормального
+       размера, уход под край с обеих сторон вместо жёсткой обрезки у кромки. */
     .filter-section {
         display: block;
-        padding: 10px 16px;
+        padding: 10px 0;
     }
 
     .filter-tabs {
         flex-wrap: nowrap;
-        gap: 6px;
+        gap: 8px;
         overflow-x: auto;
+        overflow-y: hidden;
+        scroll-snap-type: x proximity;
+        /* Иначе снап тянет первую пилюлю к кромке мимо padding - строка выглядит
+           прокрученной и обрезанной слева уже при открытии. */
+        scroll-padding: 0 16px;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-x: contain;
         scrollbar-width: none;
         justify-content: flex-start;
-        padding-bottom: 2px;
+        padding: 0 16px 2px;
     }
 
     .filter-tabs::-webkit-scrollbar {
@@ -883,16 +891,17 @@ export default {
 
     .filter-tab {
         flex: 0 0 auto;
-        min-height: 34px;
-        padding: 6px 9px;
-        font-size: 11.5px;
+        min-height: 36px;
+        padding: 8px 14px;
+        font-size: 13px;
+        scroll-snap-align: start;
     }
 
     /* Счётчик выбранных занимает своё место всегда - иначе его появление
        сдвигало список под пальцем. */
     .selected-counter {
         min-height: 16px;
-        margin-top: 4px;
+        margin: 4px 16px 0;
         justify-content: flex-start;
     }
 
@@ -932,10 +941,6 @@ export default {
         flex-direction: column;
         gap: 12px;
         align-items: stretch;
-    }
-
-    .filter-tabs {
-        justify-content: center;
     }
 
     .table-header,
