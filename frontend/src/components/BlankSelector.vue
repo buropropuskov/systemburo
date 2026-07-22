@@ -351,6 +351,7 @@ export default {
         this.initNarrowWatcher();
     },
     beforeUnmount() {
+        this.clearBlurCancel();
         // Уходя со страницы посреди тура - не оставить демо-вложение висеть.
         this.removeDemoAttachment();
         if (this._narrowMql) {
@@ -559,14 +560,28 @@ export default {
         /**
          * Blur на десктопе сохраняет (привычный inline-edit), на телефоне - отменяет:
          * там blur это тап мимо, а не осознанное подтверждение, и без Esc иначе
-         * не выйти из редактирования, не тронув имя. Сохранение - галочкой или Enter.
+         * не выйти из редактирования, не тронув имя. Отмена отложена: порядок
+         * blur против touchstart браузеро-зависим, и мгновенная отмена съедала бы
+         * тап по галочке - commit и cancel от кнопок снимают таймер.
          */
         onRenameBlur(attachment) {
-            if (this.isNarrow) this.cancelRename();
-            else this.commitRename(attachment);
+            if (!this.isNarrow) {
+                this.commitRename(attachment);
+                return;
+            }
+            this.clearBlurCancel();
+            this.blurCancelTimer = setTimeout(() => this.cancelRename(), 250);
+        },
+
+        clearBlurCancel() {
+            if (this.blurCancelTimer) {
+                clearTimeout(this.blurCancelTimer);
+                this.blurCancelTimer = null;
+            }
         },
 
         commitRename(attachment) {
+            this.clearBlurCancel();
             // Enter и blur оба зовут commit; после первого editingKey уже null - выходим.
             if (this.editingKey === null) return;
             const name = this.editingName.trim();
@@ -578,6 +593,7 @@ export default {
         },
 
         cancelRename() {
+            this.clearBlurCancel();
             this.editingKey = null;
             this.editingName = '';
         },

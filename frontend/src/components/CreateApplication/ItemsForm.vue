@@ -8,7 +8,7 @@
       <h3>Новые ТМЦ</h3>
       <div
         class="completion__actions"
-        @click="revealBlockedHint"
+        @click="revealBlockedHint($event)"
       >
         <button 
           v-if="editingItem" 
@@ -296,7 +296,10 @@ export default {
          * (сама кнопка disabled и события не даёт - на мобилке она прозрачна для
          * тапа через pointer-events) и гаснет сама.
          */
-        revealBlockedHint() {
+        revealBlockedHint(event) {
+            // Тап по «Отменить» в режиме редактирования - не повод объяснять,
+            // почему заблокировано добавление.
+            if (event && event.target.closest('.cancel-edit-btn')) return;
             if (!this.isNarrow || this.canAddItems) return;
             this.showTooltip = true;
             if (this.hintTimer) clearTimeout(this.hintTimer);

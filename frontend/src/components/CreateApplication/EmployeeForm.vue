@@ -51,7 +51,7 @@
           >*</span></label>
           <div
             class="citizenship-actions"
-            @click="revealBlockedHint"
+            @click="revealBlockedHint($event)"
           >
             <button
               v-if="editingEmployee"
@@ -714,7 +714,10 @@ export default {
          * (сама кнопка disabled и события не даёт - на мобилке она прозрачна для
          * тапа через pointer-events) и гаснет сама.
          */
-        revealBlockedHint() {
+        revealBlockedHint(event) {
+            // Тап по «Отменить» в режиме редактирования - не повод объяснять,
+            // почему заблокировано добавление.
+            if (event && event.target.closest('.cancel-edit-btn')) return;
             if (!this.isNarrow || this.canAddEmployee) return;
             this.showTooltip = true;
             if (this.hintTimer) clearTimeout(this.hintTimer);

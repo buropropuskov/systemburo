@@ -1217,10 +1217,16 @@ export default {
                 || !window.matchMedia('(max-width: 768px)').matches) return;
             const el = this.$el && this.$el.querySelector('.create__form');
             if (!el) return;
+            // Токен поколения: при быстром переключении вложений хвост раннего
+            // вызова не должен снять подпорку, поставленную поздним.
+            const seq = (this.preserveHeightSeq = (this.preserveHeightSeq || 0) + 1);
             el.style.minHeight = `${el.offsetHeight}px`;
             this.$nextTick(() => {
                 window.requestAnimationFrame(() => {
-                    window.requestAnimationFrame(() => { el.style.minHeight = ''; });
+                    window.requestAnimationFrame(() => {
+                        if (seq !== this.preserveHeightSeq) return;
+                        el.style.minHeight = '';
+                    });
                 });
             });
         },
