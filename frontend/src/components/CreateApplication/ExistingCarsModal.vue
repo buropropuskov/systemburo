@@ -309,7 +309,7 @@ export default {
                 })
 
                 if (response.ok) {
-                    this.filteredCars = await response.json()
+                    this.filteredCars = this.sortByPlateDigits(await response.json())
                     this.applySearch()
                 } else {
                     console.error('Ошибка при загрузке машин по фильтру:', filterType)
@@ -323,6 +323,23 @@ export default {
 
         handleSearch() {
             this.applySearch()
+        },
+
+        /**
+         * Список идёт по первой ЦИФРОВОЙ группе номера (А 123 ВС - по 123): буквенный
+         * префикс - серия, искать машину глазами удобнее по числу. Номера без цифр
+         * («По факту») - в конец, по алфавиту.
+         */
+        sortByPlateDigits(cars) {
+            const firstDigits = (number) => {
+                const m = String(number || '').match(/\d+/)
+                return m ? parseInt(m[0], 10) : Number.POSITIVE_INFINITY
+            }
+            return [...cars].sort((a, b) => {
+                const diff = firstDigits(a.number) - firstDigits(b.number)
+                if (diff !== 0) return diff
+                return String(a.number || '').localeCompare(String(b.number || ''), 'ru')
+            })
         },
 
         applySearch() {
@@ -914,6 +931,7 @@ export default {
 
     .filter-tabs {
         flex-wrap: nowrap;
+        gap: 6px;
         overflow-x: auto;
         scrollbar-width: none;
         justify-content: flex-start;
@@ -924,9 +942,12 @@ export default {
         display: none;
     }
 
+    /* Все четыре пилюли встают в один ряд без прокрутки - «Мои» обрезало краем. */
     .filter-tab {
         flex: 0 0 auto;
         min-height: 34px;
+        padding: 6px 9px;
+        font-size: 11.5px;
     }
 
     /* Счётчик выбранных занимает своё место всегда - иначе его появление

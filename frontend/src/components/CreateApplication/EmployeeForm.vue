@@ -1903,25 +1903,31 @@ export default {
     }
 
 
-    /* Строка с кнопкой «Добавить» закреплена: форма длинная, и после заполнения
-       кнопка оставалась невидимой в самом верху. contents у обёртки - иначе sticky
-       липнет только в пределах низкого блока гражданства, а не всей формы. */
-    .completion__citizenship {
+    /* Закреплена ТОЛЬКО строка кнопок: форма длинная, и после заполнения кнопка
+       «Добавить» оставалась невидимой в самом верху. contents у двух обёрток -
+       иначе sticky липнет в пределах низкого блока гражданства, а не всей формы;
+       лейбл «Гражданство» остаётся в потоке над дропдауном. */
+    .completion__citizenship,
+    .citizenship__header {
         display: contents;
     }
 
-    .citizenship__header {
+    .citizenship-actions {
         position: sticky;
         top: var(--mobile-header-height, 55px);
         z-index: 40;
-        align-items: center;
+        justify-content: flex-end;
         background: #fff;
-        margin-bottom: 10px;
+        margin-bottom: 8px;
         padding: 8px 0;
-        box-shadow: 0 8px 10px -10px rgba(0, 0, 0, 0.18);
     }
 
-    /* Компенсация потерянных отступов contents-обёртки. */
+    /* Компенсация потерянных отступов contents-обёрток. */
+    .citizenship__label {
+        display: block;
+        margin-bottom: 6px;
+    }
+
     .citizenship__dropdown {
         margin-bottom: 15px;
     }

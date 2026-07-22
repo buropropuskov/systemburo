@@ -2967,8 +2967,22 @@ export default {
             background: transparent;
         }
 
+        /* Цвет глифа вместе с фоном: базовый .active красит букву белым под сплошную
+           заливку - на бледной подложке она исчезала. */
         .create__form :deep(.toolbar-btn.active) {
             background: var(--color-primary-tint);
+            color: var(--color-primary);
+        }
+
+        /* Часть мобильных браузеров держит :hover после тапа до следующего касания -
+           глушим его на тулбаре принудительно, не полагаясь на media (hover). */
+        .create__form :deep(.toolbar-btn:hover:not(.active)) {
+            background: transparent;
+            border-color: transparent;
+        }
+
+        .create__form :deep(.toolbar-btn:focus) {
+            outline: none;
         }
 
         /* Полоса согласия и отправки возвращает себе боковые отступы, которые

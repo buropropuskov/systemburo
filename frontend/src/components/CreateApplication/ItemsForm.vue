@@ -945,15 +945,25 @@ export default {
     }
 
 
-    /* Шапка с кнопками закреплена: после заполнения таблицы кнопка «Добавить»
-       оставалась невидимой в самом верху. */
+    /* Закреплена ТОЛЬКО строка кнопок: после заполнения таблицы кнопка «Добавить»
+       оставалась невидимой в самом верху; заголовок «Новые ТМЦ» остаётся в потоке. */
     .completion__header {
+        display: contents;
+    }
+
+    .completion__header h3 {
+        display: block;
+        margin-bottom: 6px;
+    }
+
+    .completion__actions {
         position: sticky;
         top: var(--mobile-header-height, 55px);
         z-index: 40;
+        justify-content: flex-end;
         background: #fff;
+        margin-bottom: 8px;
         padding: 8px 0;
-        box-shadow: 0 8px 10px -10px rgba(0, 0, 0, 0.18);
     }
 
     .tooltip-content {
