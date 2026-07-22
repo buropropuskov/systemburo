@@ -1208,6 +1208,22 @@ export default {
         },
 
         /**
+         * «Редактировать» в списке заполняет форму, которая стоит ВЫШЕ списка: на
+         * телефоне без прокрутки кажется, что кнопка не сработала. Ведём к началу
+         * формы; на десктопе форма и список рядом - скролл только мешал бы.
+         */
+        scrollToEntityForm() {
+            if (typeof window === 'undefined' || typeof window.matchMedia !== 'function'
+                || !window.matchMedia('(max-width: 768px)').matches) return;
+            this.$nextTick(() => {
+                const el = this.$el && this.$el.querySelector('.form__data');
+                if (!el) return;
+                const top = el.getBoundingClientRect().top + window.scrollY - 64;
+                window.scrollTo({ top: Math.max(top, 0), behavior: 'smooth' });
+            });
+        },
+
+        /**
          * Пока форма пересобирается под другое вложение, документ на миг схлопывается
          * на её высоту - мобильный браузер клампит прокрутку, и страницу выбрасывает
          * к началу. Держим высоту карточки, пока новая форма не встала.
@@ -1463,6 +1479,7 @@ export default {
         editVehicle(vehicle) {
             if (this.$refs.vehicleForm) {
                 this.$refs.vehicleForm.editVehicle(vehicle);
+                this.scrollToEntityForm();
             }
         },
 
@@ -1535,6 +1552,7 @@ export default {
         editEmployee(employee) {
             if (this.$refs.employeeForm) {
                 this.$refs.employeeForm.editEmployee(employee);
+                this.scrollToEntityForm();
             }
         },
 
@@ -1613,6 +1631,7 @@ export default {
         editItem(item) {
             if (this.$refs.itemsForm) {
                 this.$refs.itemsForm.editItem(item);
+                this.scrollToEntityForm();
             }
         },
 
@@ -2879,8 +2898,8 @@ export default {
             align-self: center;
             margin: 0;
             text-align: center;
-            font-size: 18px;
-            padding: 6px 20px;
+            font-size: 22px;
+            padding: 8px 24px;
         }
 
         .create__container {
@@ -2890,17 +2909,24 @@ export default {
 
         .form__header {
             height: auto;
-            padding: 12px 0;
+            padding: 0 0 12px;
             flex-direction: column;
         }
 
-        /* Сообщение во всю ширину карточки; свои скругления ему не нужны -
-           углы держит сама карточка. */
+        /* Сообщение во всю ширину карточки и вплотную к её верху: прямые углы
+           блока торчали в скруглённом верхе карточки. Радиус на 1px меньше
+           карточного - рамки совпадают. */
         .create__form .form__message-tc {
             width: 100%;
             border-left: none;
             border-right: none;
-            border-radius: 0;
+            border-top: none;
+            border-radius: 29px 29px 0 0;
+        }
+
+        .create__form :deep(.editor-toolbar) {
+            padding-left: 16px;
+            padding-right: 16px;
         }
 
         /* Панель форматирования - как в мобильном Outlook: одна компактная
