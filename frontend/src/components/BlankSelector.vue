@@ -5,7 +5,7 @@
          десктопе всё как было: тип, под ним свои вложения, под ними кнопка. -->
     <template v-if="isNarrow">
       <div class="picker-caption">
-        Тип вложения
+        Вложения заявки
       </div>
       <div class="category-carousel">
         <button
@@ -86,8 +86,42 @@
                 @click.stop
                 @keydown.enter.prevent="commitRename(attachment)"
                 @keydown.esc.prevent="cancelRename"
-                @blur="commitRename(attachment)"
+                @blur="onRenameBlur(attachment)"
               >
+              <!-- На телефоне Esc нет, а blur по тапу мимо ОТМЕНЯЕТ - сохранить
+                   можно только явной галочкой (или Enter с клавиатуры). -->
+              <button
+                v-if="isNarrow"
+                class="rename-confirm"
+                title="Сохранить имя"
+                @mousedown.prevent
+                @touchstart.prevent="commitRename(attachment)"
+                @click.stop="commitRename(attachment)"
+              >
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 12 12"
+                  fill="none"
+                  aria-hidden="true"
+                ><path
+                  d="M2 6.5L4.8 9.2L10 3.6"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                /></svg>
+              </button>
+              <button
+                v-if="isNarrow"
+                class="rename-cancel"
+                title="Отменить"
+                @mousedown.prevent
+                @touchstart.prevent="cancelRename"
+                @click.stop="cancelRename"
+              >
+                ×
+              </button>
             </template>
             <template v-else>
               <input
@@ -520,6 +554,16 @@ export default {
                     input.select();
                 }
             });
+        },
+
+        /**
+         * Blur на десктопе сохраняет (привычный inline-edit), на телефоне - отменяет:
+         * там blur это тап мимо, а не осознанное подтверждение, и без Esc иначе
+         * не выйти из редактирования, не тронув имя. Сохранение - галочкой или Enter.
+         */
+        onRenameBlur(attachment) {
+            if (this.isNarrow) this.cancelRename();
+            else this.commitRename(attachment);
         },
 
         commitRename(attachment) {
@@ -1085,6 +1129,29 @@ export default {
     .delete-btn {
         min-width: 36px;
         min-height: 36px;
+    }
+
+    .rename-confirm,
+    .rename-cancel {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 36px;
+        min-height: 36px;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-sm);
+        background: #fff;
+        cursor: pointer;
+        flex-shrink: 0;
+    }
+
+    .rename-confirm {
+        color: #2e9e5b;
+    }
+
+    .rename-cancel {
+        color: var(--color-danger);
+        font-size: 20px;
     }
 
     .edit-btn__icon {

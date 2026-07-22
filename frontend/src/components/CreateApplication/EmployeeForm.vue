@@ -49,7 +49,10 @@
             v-if="fieldRequired('citizenship')"
             class="required"
           >*</span></label>
-          <div class="citizenship-actions">
+          <div
+            class="citizenship-actions"
+            @click="revealBlockedHint"
+          >
             <button
               v-if="editingEmployee"
               class="cancel-edit-btn"
@@ -67,7 +70,7 @@
               {{ editingEmployee ? 'Применить' : 'Добавить' }}
             </button>
             <div
-              v-if="(showTooltip || isNarrow) && !canAddEmployee"
+              v-if="showTooltip && !canAddEmployee"
               class="tooltip"
             >
               <div class="tooltip-content">
@@ -691,6 +694,7 @@ export default {
         this.warningTimer = setInterval(() => { this.warningNow = new Date(); }, 60000);
     },
     beforeUnmount() {
+        if (this.hintTimer) clearTimeout(this.hintTimer);
         this.stopCitizenshipReposition();
         document.removeEventListener('click', this.handleDocumentClick);
         if (this.blacklistTimeout) {
@@ -705,6 +709,18 @@ export default {
         this.$emit('notices-change', []);
     },
     methods: {
+        /**
+         * Причина блокировки на телефоне показывается по тапу на зону кнопки
+         * (сама кнопка disabled и события не даёт - на мобилке она прозрачна для
+         * тапа через pointer-events) и гаснет сама.
+         */
+        revealBlockedHint() {
+            if (!this.isNarrow || this.canAddEmployee) return;
+            this.showTooltip = true;
+            if (this.hintTimer) clearTimeout(this.hintTimer);
+            this.hintTimer = setTimeout(() => { this.showTooltip = false; }, 3000);
+        },
+
         // Закрывает открытые дропдауны при клике вне них. Именованный метод (не
         // анонимная стрелка в mounted) - иначе removeEventListener не снимет слушатель
         // и он копится при частом откр/закр формы в модалке ручного добавления.
@@ -1861,34 +1877,41 @@ export default {
 }
 
 @media (max-width: 768px) {
-    /* На телефоне подсказка показана всегда, пока кнопка заблокирована - ставим её
-       в поток под кнопку, а не абсолютным поповером поверх соседних полей. */
+    /* Подсказка поверх НАД кнопкой: в потоке она двигала форму. Контейнер
+       кнопок - её positioned-родитель. */
     .tooltip {
-        position: static;
-        margin-top: 8px;
+        position: absolute;
+        top: auto;
+        bottom: calc(100% + 10px);
+        right: 0;
+        left: auto;
+        margin: 0;
+        width: min(320px, calc(100vw - 44px));
+        z-index: 1100;
     }
 
-    /* Хвостик указывал на кнопку, стоявшую сбоку - в развёрнутом ряду он смотрит
-       в пустоту. */
     .tooltip-content::before {
         display: none;
     }
 
-    /* Подсказка сидела в ряду с кнопкой и получала его остаток ширины (146px из 338).
-       На телефоне ряд разворачиваем: кнопка сверху, подсказка строкой во всю ширину. */
+    /* Тап по заблокированной кнопке уходит контейнеру и показывает причину. */
+    .add-button:disabled {
+        pointer-events: none;
+    }
+
     .citizenship__header {
-        flex-wrap: wrap;
-        row-gap: 8px;
+        align-items: center;
     }
 
-    .citizenship-actions {
-        flex-wrap: wrap;
-        width: 100%;
-        justify-content: flex-end;
+    /* «Добавить существующего(-их)» не влезает в строку с заголовком - отдаём ей
+       свою строку на всю ширину, а не прижатый влево огрызок. */
+    .completion__header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
     }
 
-    .tooltip {
-        flex-basis: 100%;
+    .completion__button {
         width: 100%;
     }
 
