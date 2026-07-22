@@ -1045,15 +1045,6 @@ export default {
         margin-bottom: 14px;
     }
 
-    .category-label {
-        font-size: 10px;
-        font-weight: 700;
-        color: #a2a2a2;
-        text-transform: uppercase;
-        letter-spacing: 0.03em;
-        margin-bottom: 6px;
-    }
-
     /* Поле переименования по размеру строки: 12px и padding 2px делали его
        заметно ниже и мельче остальных. */
     .attachment-name-input {
