@@ -21,6 +21,10 @@ type ReminderService interface {
 	// SendPendingReminders прогоняет отбор и рассылку. Вызывается кроном
 	// (cmd/server/main.go) раз в час; no-op, если approval.reminder_enabled выключен.
 	SendPendingReminders(ctx context.Context) error
+
+	// ListStuckApprovals возвращает снимок зависших согласований для вкладки
+	// «Обработка заявок» (#1315, S4). Не зависит от периода и от reminder_enabled.
+	ListStuckApprovals(ctx context.Context) ([]models.StuckApproval, error)
 }
 
 type reminderService struct {
@@ -83,9 +87,27 @@ func (s *reminderService) selectCandidates(ctx context.Context, firstDays, repea
 	firstBefore := time.Now().Add(-time.Duration(firstDays) * 24 * time.Hour)
 	repeatBefore := time.Now().Add(-time.Duration(repeatDays) * 24 * time.Hour)
 
-	query := s.db.WithContext(ctx).
-		Table("application_responsible_users aru").
+	var rows []reminderCandidate
+	err := s.pendingApproverBaseQuery(ctx).
 		Select("aru.id, aru.user_id, aru.application_id, aru.created_at, a.application_number").
+		Where("aru.created_at <= ?", firstBefore).
+		Where("aru.last_reminder_at IS NULL OR aru.last_reminder_at <= ?", repeatBefore).
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
+// pendingApproverBaseQuery строит запрос по строкам application_responsible_users,
+// чей голос ещё нужен на живой заявке - единый предикат кворума для рассылки
+// напоминаний (selectCandidates) и отчёта «Зависшие согласования»
+// (ListStuckApprovals). Держим его в одном месте, иначе две модели «кому ещё ждать
+// решения» разъедутся (см. selectCandidates про зеркало updateConfirmationBasedOnApprovals).
+// Без Select и без временных фильтров - их добавляет вызывающий под свою задачу.
+func (s *reminderService) pendingApproverBaseQuery(ctx context.Context) *gorm.DB {
+	q := s.db.WithContext(ctx).
+		Table("application_responsible_users aru").
 		Joins("JOIN applications a ON a.id = aru.application_id").
 		Where("a.confirmation = ?", models.ConfirmationPending).
 		Where("COALESCE(a.status, '') NOT IN ?", models.ArchivableStatuses).
@@ -96,18 +118,65 @@ func (s *reminderService) selectCandidates(ctx context.Context, firstDays, repea
 				SELECT 1 FROM application_responsible_users r2
 				WHERE r2.application_id = aru.application_id AND r2.required_approval = true
 			)
-		`).
-		Where("aru.created_at <= ?", firstBefore).
-		Where("aru.last_reminder_at IS NULL OR aru.last_reminder_at <= ?", repeatBefore)
+		`)
 
 	activeCond, activeArgs := activeApplicationCond("a")
-	query = query.Where(activeCond, activeArgs...)
+	return q.Where(activeCond, activeArgs...)
+}
 
-	var rows []reminderCandidate
-	if err := query.Scan(&rows).Error; err != nil {
-		return nil, err
+// stuckApprovalRow - сырая строка отчёта до вычисления WaitingDays в Go.
+type stuckApprovalRow struct {
+	ApplicationID     int
+	ApplicationNumber *string
+	ApproverName      string
+	CreatedAt         time.Time
+	ReminderCount     int
+	LastReminderAt    *time.Time
+}
+
+// ListStuckApprovals возвращает текущий снимок зависших согласований (#1315, S4):
+// живые заявки, где согласующий, чей голос ещё нужен, молчит дольше порога
+// approval.reminder_first_days. Отбор зеркалит рассылку напоминаний через общий
+// pendingApproverBaseQuery, отличается только порогом (без repeat-гейта - показываем
+// все зависшие, а не только те, кому прямо сейчас пора слать повтор). От флага
+// reminder_enabled не зависит: видимость зависших нужна и при выключенной рассылке.
+func (s *reminderService) ListStuckApprovals(ctx context.Context) ([]models.StuckApproval, error) {
+	_, firstDays, _ := s.settingsService.GetApprovalReminderSettings(ctx)
+	stuckBefore := time.Now().Add(-time.Duration(firstDays) * 24 * time.Hour)
+
+	var rows []stuckApprovalRow
+	err := s.pendingApproverBaseQuery(ctx).
+		// LEFT JOIN и фолбэк на username - как в разрезе by_approver рейтинга
+		// согласующих (approverNameExpr), чтобы имя на вкладке считалось одинаково.
+		Joins("LEFT JOIN users u ON u.id = aru.user_id").
+		Select("aru.application_id, a.application_number, "+approverNameExpr+" AS approver_name, aru.created_at, aru.reminder_count, aru.last_reminder_at").
+		Where("aru.created_at <= ?", stuckBefore).
+		Order("aru.created_at ASC"). // дольше всего ждущие - сверху
+		Scan(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to list stuck approvals: %w", err)
 	}
-	return rows, nil
+
+	out := make([]models.StuckApproval, 0, len(rows))
+	for _, r := range rows {
+		number := "б/н"
+		if r.ApplicationNumber != nil && *r.ApplicationNumber != "" {
+			number = *r.ApplicationNumber
+		}
+		waitingDays := int(time.Since(r.CreatedAt).Hours() / 24)
+		if waitingDays < 1 {
+			waitingDays = 1
+		}
+		out = append(out, models.StuckApproval{
+			ApplicationID:     r.ApplicationID,
+			ApplicationNumber: number,
+			ApproverName:      r.ApproverName,
+			WaitingDays:       waitingDays,
+			ReminderCount:     r.ReminderCount,
+			LastReminderAt:    r.LastReminderAt,
+		})
+	}
+	return out, nil
 }
 
 // remind шлёт одно напоминание и отмечает его на строке ответственного. Условие

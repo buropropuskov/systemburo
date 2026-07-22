@@ -58,6 +58,7 @@ type Dependencies struct {
 	Documents           *handlers.DocumentHandler
 	Guide               *handlers.GuideHandler
 	Statistics          *handlers.StatisticsHandler
+	Reminder            *handlers.ReminderHandler
 	Bureau              *handlers.BureauHandler
 	WorkModes           *handlers.WorkModesHandler
 	Audit               *handlers.AuditHandler
@@ -123,6 +124,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	docs := d.Documents
 	guide := d.Guide
 	statistics := d.Statistics
+	reminder := d.Reminder
 	bureau := d.Bureau
 	audit := d.Audit
 	authEvents := d.AuthEvents
@@ -825,6 +827,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 		statsGroup.GET("/summary", statistics.GetSummary, requireStats)
 		statsGroup.GET("/processing-summary", statistics.GetProcessingSummary, requireStats)
 		statsGroup.GET("/processing-journal", statistics.GetProcessingJournal, requireStats)
+		if reminder != nil {
+			statsGroup.GET("/stuck-approvals", reminder.GetStuckApprovals, requireStats)
+		}
 		statsGroup.GET("/timeline", statistics.GetTimeline, requireStats)
 		statsGroup.GET("/online-peaks", statistics.GetOnlinePeaks, requireStats)
 		statsGroup.GET("/online-users", statistics.GetOnlineUsers, requireStats)

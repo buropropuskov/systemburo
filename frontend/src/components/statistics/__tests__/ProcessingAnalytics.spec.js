@@ -5,7 +5,7 @@ import { nextTick } from 'vue';
 // Фабрика vi.mock поднимается над импортами — управляемое состояние в hoisted.
 const { state, notifySpy } = vi.hoisted(() => ({
   notifySpy: vi.fn(),
-  state: { summary: {}, journal: [], journalPages: null, journalTotal: null, journalCalls: [], trendRows: [], trendCalls: [], trendDeferred: [], journalDeferred: [], reject: false, deferred: [], streamHandler: null },
+  state: { summary: {}, journal: [], journalPages: null, journalTotal: null, journalCalls: [], trendRows: [], trendCalls: [], trendDeferred: [], journalDeferred: [], stuck: [], stuckCalls: 0, reject: false, deferred: [], streamHandler: null },
 }));
 
 vi.mock('@/api/statistics.js', () => ({
@@ -30,6 +30,13 @@ vi.mock('@/api/statistics.js', () => ({
     if (state.holdJournal) return new Promise((resolve) => { state.journalDeferred.push((items) => resolve(page(items))); });
     // journalPages задаёт постраничную выдачу (ключ - offset), иначе одна страница.
     return Promise.resolve(page(state.journalPages ? (state.journalPages[offset] || []) : state.journal));
+  },
+  // Зависшие согласования (#1315 S4): снимок текущих зависших заявок, от периода
+  // не зависит. На первой загрузке при state.hang висит (скелетон таблицы).
+  getStuckApprovals: () => {
+    state.stuckCalls += 1;
+    if (state.hang) return new Promise(() => {});
+    return Promise.resolve(state.stuck);
   },
   // Динамика по дням строится отдельным запросом к движку отчётов (S/P3).
   runReport: (req) => {
@@ -66,6 +73,11 @@ const mountTab = () => mount(ProcessingAnalytics, {
   props: { from: '2026-06-01', to: '2026-06-07' },
   global: { stubs: { AnalyticsAreaChart: true } },
 });
+
+// В шапке две кнопки «Обновить»: у журнала и у зависших согласований (#1315 S4).
+// Различаем по title, чтобы тесты журнала не цепляли соседнюю.
+const journalRefreshBtn = (wrapper) =>
+  wrapper.findAllComponents(RefreshButton).find((b) => b.attributes('title')?.includes('журнал'));
 
 const fullSummary = () => ({
   from: '2026-06-01',
@@ -169,6 +181,8 @@ beforeEach(() => {
   state.trendCalls = [];
   state.trendDeferred = [];
   state.journalDeferred = [];
+  state.stuck = [];
+  state.stuckCalls = 0;
   state.holdJournal = false;
   state.reject = false;
   state.hang = false;
@@ -439,6 +453,56 @@ describe('ProcessingAnalytics — рейтинги (S6)', () => {
   });
 });
 
+describe('ProcessingAnalytics — зависшие согласования (S4)', () => {
+  const stuckRows = () => ([
+    { application_id: 11, application_number: '№ 20260701/002', approver_name: 'Иванов И.И.', waiting_days: 5, reminder_count: 2, last_reminder_at: '2026-06-06T09:00:00Z' },
+    { application_id: 12, application_number: '№ 20260703/004', approver_name: 'Петров П.П.', waiting_days: 1, reminder_count: 0, last_reminder_at: null },
+  ]);
+
+  it('рисует строки зависших: согласующий, дни ожидания и число напоминаний', async () => {
+    state.summary = fullSummary();
+    state.stuck = stuckRows();
+    const wrapper = mountTab();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Зависшие согласования');
+    // Таблица зависших идёт после рейтингов и разбивки (индекс 3 среди .proc__table).
+    const table = wrapper.findAll('.proc__table')[3];
+    const rows = table.findAll('tbody tr');
+    expect(rows).toHaveLength(2);
+
+    expect(rows[0].text()).toContain('20260701/002');
+    expect(rows[0].text()).toContain('Иванов И.И.');
+    expect(rows[0].findAll('.proc__num').map((c) => c.text())).toEqual(['5 дней', '2']);
+    // Единственное число дней склоняется корректно.
+    expect(rows[1].findAll('.proc__num').map((c) => c.text())).toEqual(['1 день', '0']);
+  });
+
+  it('пустой список — дружелюбное «Зависших согласований нет», не «Нет данных»', async () => {
+    state.summary = fullSummary();
+    state.stuck = [];
+    const wrapper = mountTab();
+    await flushPromises();
+
+    const table = wrapper.findAll('.proc__table')[3];
+    expect(table.text()).toContain('Зависших согласований нет');
+  });
+
+  it('снимок живой: SSE-сигнал перечитывает список зависших', async () => {
+    state.summary = fullSummary();
+    state.stuck = stuckRows();
+    const wrapper = mountTab();
+    await flushPromises();
+    expect(wrapper.findAll('.proc__table')[3].findAll('tbody tr')).toHaveLength(2);
+
+    // Согласующий проголосовал -> заявка ушла из зависших -> сигнал -> рефетч.
+    state.stuck = [stuckRows()[0]];
+    state.streamHandler();
+    await flushPromises();
+    expect(wrapper.findAll('.proc__table')[3].findAll('tbody tr')).toHaveLength(1);
+  });
+});
+
 describe('ProcessingAnalytics — журнал (S7)', () => {
   it('рендерит события ленты: роль, актор, заявка, рабочая длительность', async () => {
     state.summary = fullSummary();
@@ -538,7 +602,7 @@ describe('ProcessingAnalytics — журнал (S7)', () => {
     expect(wrapper.findAll('.proc__journal-row')).toHaveLength(2);
 
     state.journal = [journalEntries()[0]];
-    await wrapper.findComponent(RefreshButton).vm.$emit('refresh');
+    await journalRefreshBtn(wrapper).vm.$emit('refresh');
     await flushPromises();
 
     expect(wrapper.findAll('.proc__journal-row')).toHaveLength(1);
@@ -550,7 +614,7 @@ describe('ProcessingAnalytics — журнал (S7)', () => {
     const wrapper = mountTab();
     await flushPromises();
 
-    const btn = wrapper.findComponent(RefreshButton);
+    const btn = journalRefreshBtn(wrapper);
     expect(btn.props('loading')).toBe(false);
 
     state.holdJournal = true;
@@ -679,7 +743,7 @@ describe('ProcessingAnalytics — страницы журнала (P5b)', () => 
     await flushPromises();
 
     expect(wrapper.find('.proc__journal-pager').exists()).toBe(false);
-    expect(wrapper.find('.proc__table-empty').text()).toContain('Событий за период нет');
+    expect(wrapper.find('.proc__journal .proc__table-empty').text()).toContain('Событий за период нет');
   });
 });
 
@@ -834,12 +898,12 @@ describe('ProcessingAnalytics — фильтры журнала (P5c)', () => {
     state.journal = [];
     const wrapper = mountTab();
     await flushPromises();
-    expect(wrapper.find('.proc__table-empty').text()).toContain('Событий за период нет');
+    expect(wrapper.find('.proc__journal .proc__table-empty').text()).toContain('Событий за период нет');
 
     await roleTab(wrapper, 'approval').trigger('click');
     await flushPromises();
 
-    expect(wrapper.find('.proc__table-empty').text()).toContain('По фильтрам ничего не нашлось');
+    expect(wrapper.find('.proc__journal .proc__table-empty').text()).toContain('По фильтрам ничего не нашлось');
   });
 });
 
@@ -860,7 +924,7 @@ describe('ProcessingAnalytics — крайние состояния', () => {
 
     expect(wrapper.findAll('.proc__tile--skeleton').length).toBeGreaterThan(0);
     expect(wrapper.find('.proc__skeleton--chart').exists()).toBe(true);
-    expect(wrapper.findAll('.proc__skeleton--table').length).toBe(4); // согласующие + принимающие + организации + журнал
+    expect(wrapper.findAll('.proc__skeleton--table').length).toBe(5); // согласующие + принимающие + организации + журнал + зависшие
     // График/таблицы не должны флэшить пустоту до прихода ответа.
     expect(wrapper.text()).not.toContain('Нет данных');
 
