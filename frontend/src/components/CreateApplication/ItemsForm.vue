@@ -953,25 +953,39 @@ export default {
     }
 
 
-    /* Закреплена ТОЛЬКО строка кнопок: после заполнения таблицы кнопка «Добавить»
-       оставалась невидимой в самом верху; заголовок «Новые ТМЦ» остаётся в потоке. */
+    /* Кнопка «Добавить» - внизу формы, куда пользователь приходит, заполнив
+       таблицу; заголовок «Новые ТМЦ» остаётся в потоке сверху. */
+    .data__completion {
+        display: flex;
+        flex-direction: column;
+    }
+
     .completion__header {
         display: contents;
     }
 
+    /* order:-1 нужен только десктопной строке шапки: во флексе всей формы он
+       утаскивал заголовок в самое начало. */
     .completion__title {
+        order: 0;
         display: block;
         margin-bottom: 6px;
     }
 
     .completion__actions {
-        position: sticky;
-        top: var(--mobile-header-height, 55px);
-        z-index: 40;
-        justify-content: flex-end;
-        background: #fff;
-        margin-bottom: 8px;
-        padding: 8px 0;
+        order: 999;
+        justify-content: stretch;
+        margin-top: 4px;
+        padding: 4px 0;
+    }
+
+    .completion__actions .add-button {
+        flex: 1;
+        min-height: 44px;
+    }
+
+    .completion__actions .cancel-edit-btn {
+        min-height: 44px;
     }
 
     .tooltip-content {

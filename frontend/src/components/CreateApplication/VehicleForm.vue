@@ -78,7 +78,10 @@
     </div>
 
     <!-- Форма для добавления новой машины -->
-    <div v-else>
+    <div
+      v-else
+      class="completion__body"
+    >
       <div class="completion__format">
         <div class="format__header">
           <div
@@ -2417,27 +2420,46 @@ export default {
 
     /* Лейбл и кнопка добавления - на одной линии. */
 
-    /* Закреплена ТОЛЬКО строка кнопок: форма длинная, и после заполнения кнопка
-       «Добавить» оставалась невидимой в самом верху. contents у двух обёрток -
-       иначе sticky липнет в пределах низкого блока формата, а не всей формы;
-       лейбл «Формат номеров» остаётся в потоке над дропдауном. */
+    /* Кнопка «Добавить» - внизу формы, куда пользователь приходит, заполнив поля.
+       contents у двух обёрток выводит строку кнопок в прямые дети формы, флекс с
+       order отправляет её в конец; лейбл «Формат номеров» остаётся над дропдауном. */
+    /* Места разгрузки и проезд - сиблинги этой обёртки, поэтому флекс с order
+       живёт на всей форме, а обёртка разворачивается. */
+    .data__completion {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .completion__body {
+        display: contents;
+    }
+
     .completion__format,
     .format__header {
         display: contents;
     }
 
     .format-actions {
-        position: sticky;
-        top: var(--mobile-header-height, 55px);
-        z-index: 40;
-        justify-content: flex-end;
-        background: #fff;
-        margin-bottom: 8px;
-        padding: 8px 0;
+        order: 999;
+        justify-content: stretch;
+        margin-top: 4px;
+        padding: 4px 0;
+    }
+
+    .format-actions .add-button {
+        flex: 1;
+        min-height: 44px;
+    }
+
+    .format-actions .cancel-edit-btn {
+        min-height: 44px;
     }
 
     /* Компенсация потерянных отступов contents-обёрток. */
+    /* order:-1 нужен только десктопной строке шапки: во флексе всей формы он
+       утаскивал лейбл в самое начало. */
     .format__label {
+        order: 0;
         display: block;
         margin-bottom: 6px;
     }
