@@ -916,12 +916,12 @@ export default {
 
     /* Подсказка сидела в ряду с кнопкой и получала его остаток ширины (146px из 338).
        На телефоне ряд разворачиваем: кнопка сверху, подсказка строкой во всю ширину. */
-    .format__header {
+    .completion__header {
         flex-wrap: wrap;
         row-gap: 8px;
     }
 
-    .format-actions {
+    .completion__actions {
         flex-wrap: wrap;
         width: 100%;
         justify-content: flex-end;
