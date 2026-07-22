@@ -1858,6 +1858,10 @@ export default {
 
 .fact-checkbox:disabled + .fact-switch {
     opacity: 0.6;
+}
+
+/* Курсор на всём label, а не только на переключателе: label и есть кликабельная зона. */
+.fact-toggle:has(.fact-checkbox:disabled) {
     cursor: not-allowed;
 }
 
