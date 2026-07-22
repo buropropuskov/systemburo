@@ -103,4 +103,17 @@ describe('BlankSelector: выбор типа строкой на телефон�
     expect(w.findAll('.category .add-btn').length).toBe(w.vm.uniqueCategories.length);
     expect(w.findAll('.category-header').length).toBe(w.vm.uniqueCategories.length);
   });
+
+  it('переключение типа снимает отметки со скрывшихся вложений', async () => {
+    mockMatchMedia(true);
+    const w = await mountSelector([
+      { local_id: 'a1', title: 'Автозаявки', name: 'cars_1', display_name: 'Автозаявка №1', attachment_type: 'cars' },
+    ]);
+
+    // отметили вложение первого типа
+    w.vm.selectedAttachments = ['a1'];
+    // переключились на другой тип - строка a1 скрылась вместе с отметкой
+    await w.findAll('.category-chip')[1].trigger('click');
+    expect(w.vm.selectedAttachments).toEqual([]);
+  });
 });

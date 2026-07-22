@@ -262,6 +262,16 @@ export default {
         }
     },
     watch: {
+        // На телефоне список показывает только выбранный тип: отметки на скрывшихся
+        // вложениях снимаем, иначе «Удалить выбранные» удалит то, чего не видно.
+        pickedCategory() {
+            if (!this.isNarrow || !this.selectedAttachments.length) return;
+            const visible = new Set(
+                this.pickedCategoryAttachments.map(a => this.getAttachmentKey(a))
+            );
+            this.selectedAttachments = this.selectedAttachments.filter(k => visible.has(k));
+        },
+
         // Первый тип встаёт выбранным сразу, чтобы кнопка добавления не была мёртвой.
         uniqueCategories: {
             immediate: true,
