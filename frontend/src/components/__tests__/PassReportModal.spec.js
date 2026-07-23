@@ -136,4 +136,16 @@ describe('PassReportModal', () => {
 
     expect(td(w, 'pass-report-days-empty').exists()).toBe(true);
   });
+
+  it('ошибка бэка (unwrap кидает) рисует заглушку живого окна, а не крашит рендер', async () => {
+    getPassReportLive.mockRejectedValue(new Error('Недостаточно прав'));
+    listPassReports.mockRejectedValue(new Error('Недостаточно прав'));
+    const w = mountModal();
+    await w.setProps({ show: true });
+    await flushPromises();
+
+    expect(td(w, 'pass-report-live').text()).toContain('Не удалось загрузить отчёт');
+    expect(td(w, 'pass-report-days-empty').exists()).toBe(true);
+    expect(td(w, 'pass-report-rows').exists()).toBe(false);
+  });
 });

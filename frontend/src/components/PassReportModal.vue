@@ -33,8 +33,8 @@
           >
             <span class="pr-counter__title">Машины</span>
             <span class="pr-counter__pair">
-              пропущено <b data-testid="pr-total-car-entries">{{ live.totals.car_entries }}</b>
-              · выпущено <b data-testid="pr-total-car-exits">{{ live.totals.car_exits }}</b>
+              пропущено <b data-testid="pr-total-car-entries">{{ live.totals?.car_entries ?? 0 }}</b>
+              · выпущено <b data-testid="pr-total-car-exits">{{ live.totals?.car_exits ?? 0 }}</b>
             </span>
           </div>
           <div
@@ -43,8 +43,8 @@
           >
             <span class="pr-counter__title">Люди</span>
             <span class="pr-counter__pair">
-              пропущено <b data-testid="pr-total-people-entries">{{ live.totals.people_entries }}</b>
-              · выпущено <b data-testid="pr-total-people-exits">{{ live.totals.people_exits }}</b>
+              пропущено <b data-testid="pr-total-people-entries">{{ live.totals?.people_entries ?? 0 }}</b>
+              · выпущено <b data-testid="pr-total-people-exits">{{ live.totals?.people_exits ?? 0 }}</b>
             </span>
           </div>
         </div>
