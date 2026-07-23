@@ -9,6 +9,7 @@
  * данные приходят готовым реактивным `groups` из формы.
  */
 import { computed, ref, watch } from 'vue';
+import { useNarrowScreen } from '@/composables/useNarrowScreen';
 
 const props = defineProps({
   /**
@@ -29,6 +30,17 @@ const visibleGroups = computed(() =>
 );
 
 const dismissed = ref(false);
+
+// На телефоне развёрнутый список занимал пол-экрана и закрывал форму - панель
+// появляется невысокой плашкой (заголовок + счётчик), список раскрывается тапом.
+// На десктопе места хватает, панель всегда развёрнута.
+const { isNarrow } = useNarrowScreen();
+const collapsed = ref(true);
+const expanded = computed(() => !isNarrow.value || !collapsed.value);
+
+function toggleCollapsed() {
+  if (isNarrow.value) collapsed.value = !collapsed.value;
+}
 
 /** Сигнатура состава - для решения "показать снова, если добавились новые". */
 const signature = computed(() =>
@@ -55,16 +67,48 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
         role="status"
         aria-live="polite"
       >
-        <header class="warn-panel__head">
+        <header
+          class="warn-panel__head"
+          :class="{
+            'warn-panel__head--tappable': isNarrow,
+            'warn-panel__head--solo': !expanded,
+          }"
+          data-testid="schedule-warning-head"
+          :aria-expanded="expanded ? 'true' : 'false'"
+          @click="toggleCollapsed"
+        >
           <span class="warn-panel__title">
             Предупреждение
+            <span
+              v-if="isNarrow"
+              class="warn-panel__count"
+              data-testid="schedule-warning-count"
+            >{{ visibleGroups.length }}</span>
           </span>
+          <svg
+            v-if="isNarrow"
+            class="warn-panel__chevron"
+            :class="{ 'warn-panel__chevron--up': !expanded }"
+            width="12"
+            height="12"
+            viewBox="0 0 12 12"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M2 4.5 6 8.5l4-4"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
           <button
             type="button"
             class="warn-panel__close"
             aria-label="Скрыть предупреждения"
             data-testid="schedule-warning-close"
-            @click="dismissed = true"
+            @click.stop="dismissed = true"
           >
             <svg
               width="12"
@@ -84,6 +128,7 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
         </header>
 
         <transition-group
+          v-show="expanded"
           tag="div"
           name="warn-group"
           class="warn-panel__body"
@@ -183,9 +228,47 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
 }
 
 .warn-panel__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-size: 14px;
   font-weight: 600;
   color: #8a5a10;
+}
+
+.warn-panel__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill, 999px);
+  background: rgba(243, 156, 18, 0.18);
+  color: #8a5a10;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.warn-panel__head--tappable {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Свёрнутая плашка - шапка и есть вся панель, полоска-граница снизу лишняя. */
+.warn-panel__head--solo {
+  border-bottom: none;
+}
+
+.warn-panel__chevron {
+  flex-shrink: 0;
+  margin-left: auto;
+  color: #a06a17;
+  transition: transform 0.2s ease;
+}
+
+.warn-panel__chevron--up {
+  transform: rotate(180deg);
 }
 
 .warn-panel__close {
