@@ -27,7 +27,7 @@
         :disabled="pickedCategoryIsFull"
         @click="addAttachment(pickedCategory)"
       >
-        Добавить: {{ pickedCategory }}
+        Добавить: {{ pickedTemplateName }}
       </button>
 
       <div
@@ -293,6 +293,13 @@ export default {
         pickedCategoryIsFull() {
             if (!this.pickedCategory) return true;
             return this.getCategoryAttachments(this.pickedCategory).length >= 10;
+        },
+
+        // Наименование ВЛОЖЕНИЯ, которое создаст кнопка («Автозаявка»), а не группы
+        // («АВТОЗАЯВКИ») - из него же addAttachment строит display_name «... №N».
+        pickedTemplateName() {
+            const template = this.allTemplates.find(t => t.title === this.pickedCategory);
+            return (template && template.display_name) || this.pickedCategory;
         }
     },
     watch: {
