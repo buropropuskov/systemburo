@@ -62,7 +62,8 @@ const applicationsListSelect = `
 			OR EXISTS (SELECT 1 FROM application_answers ans WHERE ans.application_id = a.id
 				AND ans.author_user_id <> ?
 				AND ans.created_at > COALESCE((SELECT r.read_at FROM application_question_reads r WHERE r.question_id = ans.question_id AND r.user_id = ?), to_timestamp(0)))
-		) as has_unseen_questions
+		) as has_unseen_questions,
+		` + hasStatusUpdatePredicate + ` as has_status_update
 	`
 
 // applicationsListSelectArgs связывает плейсхолдеры applicationsListSelect: is_read (1)
@@ -77,6 +78,8 @@ func applicationsListSelectArgs(readUserID, forwardViewerID int) []interface{} {
 		// has_unseen_questions (#973): per-топик отметка прочтения. На каждый из двух EXISTS -
 		// author_user_id <> reader (свой вопрос/ответ не светит) + read по вопросу этого reader.
 		readUserID, readUserID, readUserID, readUserID,
+		// has_status_update (#1349): seen_at и read_at этого же reader (см. hasStatusUpdatePredicate).
+		readUserID, readUserID,
 	}
 }
 
@@ -191,6 +194,10 @@ type ApplicationService interface {
 
 	// MarkAsRead фиксирует прочтение заявки пользователем.
 	MarkAsRead(ctx context.Context, applicationID int, username string) error
+
+	// MarkStatusSeen помечает текущий статус заявки просмотренным пользователем (#1349):
+	// гасит его флаг "статус обновился". Идемпотентно.
+	MarkStatusSeen(ctx context.Context, username string, applicationID int) error
 
 	// GetReads возвращает список пользователей, прочитавших заявку.
 	GetReads(ctx context.Context, applicationID int) ([]models.ApplicationReadResponse, error)
@@ -452,6 +459,7 @@ type ApplicationWithDetails struct {
 	HasRoofAccess        bool       `json:"has_roof_access"`
 	HasFreeParking       bool       `json:"has_free_parking"`
 	HasUnseenQuestions   bool       `json:"has_unseen_questions"`
+	HasStatusUpdate      bool       `json:"has_status_update"`
 }
 
 // ApplicationCreateResponse ответ при создании заявки.
@@ -978,7 +986,8 @@ func (s *applicationService) GetApplicationByID(ctx context.Context, username st
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
 
-	// Обновляем статус при первом прочтении не отправителем
+	// Обновляем статус при первом прочтении не отправителем. Этот переход НЕ бампает
+	// status_updated_at (#1349): смена от факта открытия - шум, а не событие для участников.
 	if row.Status != nil && *row.Status == "Непрочитано" && row.SenderUserID != user.ID {
 		if err := tx.Exec("UPDATE applications SET status = 'В обработке', reading_datetime = NOW() WHERE id = ?", applicationID).Error; err != nil {
 			tx.Rollback()
@@ -987,6 +996,13 @@ func (s *applicationService) GetApplicationByID(ctx context.Context, username st
 		// Записываем прочтение в историю
 		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "read", &user.ID,
 			applicationAuditDetails{OldValue: ptrString("Непрочитано"), NewValue: ptrString("В обработке")})
+	}
+
+	// Просмотр детали гасит флаг "статус обновился" для смотрящего (#1349). Здесь - путь
+	// deep-link (?open=); основной путь открытия детали - GET /:id/details (MarkStatusSeen).
+	if err := tx.Exec(statusViewUpsert, applicationID, user.ID).Error; err != nil {
+		tx.Rollback()
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to mark status seen")
 	}
 
 	// Получаем ответственных
@@ -1995,10 +2011,47 @@ func (s *applicationService) UpdateApplication(ctx context.Context, username str
 	sqlQuery := fmt.Sprintf("UPDATE applications SET %s WHERE id = ?", strings.Join(setClauses, ", "))
 	args = append(args, applicationID)
 
-	result := s.db.WithContext(ctx).Exec(sqlQuery, args...)
+	tx := s.db.WithContext(ctx).Begin()
+	if tx.Error != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to start transaction")
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Старые значения под блокировкой строки: флаг "статус обновился" бампаем только при
+	// реальной смене status/confirmation, а не на каждый PUT (#1349).
+	var old struct {
+		Status       *string
+		Confirmation *string
+	}
+	oldRes := tx.Raw("SELECT status, confirmation FROM applications WHERE id = ? FOR UPDATE", applicationID).Scan(&old)
+	if oldRes.Error != nil {
+		tx.Rollback()
+		slog.Error("Ошибка чтения заявки перед обновлением", "application_id", applicationID, "error", oldRes.Error)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error updating application")
+	}
+
+	result := tx.Exec(sqlQuery, args...)
 	if result.Error != nil {
+		tx.Rollback()
 		slog.Error("Ошибка обновления заявки", "application_id", applicationID, "error", result.Error)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error updating application")
+	}
+
+	statusChanged := req.Status != nil && (old.Status == nil || *old.Status != *req.Status)
+	confirmationChanged := req.Confirmation != nil && (old.Confirmation == nil || *old.Confirmation != *req.Confirmation)
+	if oldRes.RowsAffected > 0 && (statusChanged || confirmationChanged) {
+		if err := s.bumpStatusUpdated(tx, applicationID, &user.ID); err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
 	}
 
 	// Любое изменение заявки этим путём (статус/подтверждение/коммент) участники

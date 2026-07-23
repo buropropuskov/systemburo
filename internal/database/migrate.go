@@ -63,6 +63,7 @@ func AllModels() []interface{} {
 		// Applications (depends on User, Organization, Company)
 		&models.Application{},
 		&models.ApplicationRead{},
+		&models.ApplicationStatusView{},
 		&models.ApplicationStatusHistory{},
 		&models.ApplicationResponsibleUser{},
 		&models.ApplicationApprover{},

@@ -80,6 +80,22 @@ func (s *applicationService) MarkAsRead(ctx context.Context, applicationID int, 
 	return nil
 }
 
+// MarkStatusSeen помечает текущий статус заявки просмотренным пользователем (#1349): гасит
+// его флаг "статус обновился". Идемпотентно, зовётся при каждом открытии детали заявки
+// (GET /:id/details); при смене статуса флаг загорится снова - status_updated_at станет
+// позже seen_at.
+func (s *applicationService) MarkStatusSeen(ctx context.Context, username string, applicationID int) error {
+	user, err := s.getUserByUsername(ctx, username)
+	if err != nil {
+		return err
+	}
+	if err := s.db.WithContext(ctx).Exec(statusViewUpsert, applicationID, user.ID).Error; err != nil {
+		slog.Error("Ошибка отметки просмотра статуса", "application_id", applicationID, "user_id", user.ID, "error", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to mark status seen")
+	}
+	return nil
+}
+
 // GetReads возвращает список пользователей, прочитавших заявку.
 func (s *applicationService) GetReads(ctx context.Context, applicationID int) ([]models.ApplicationReadResponse, error) {
 	var reads []models.ApplicationReadResponse
