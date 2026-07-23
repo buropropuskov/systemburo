@@ -173,6 +173,20 @@
             Экспорт
           </p>
         </button>
+        <button
+          v-if="can(`table.${$route.params.tableName}.report`)"
+          class="options__export"
+          data-testid="pass-report-button"
+          @click="showPassReport = true"
+        >
+          <img
+            src="@/assets/icons/stats.png"
+            class="tables__icon"
+          >
+          <p class="options__text">
+            Отчёт
+          </p>
+        </button>
       </div>
     </div>
 
@@ -278,6 +292,15 @@
       @close="showManualAdd = false"
       @added="onManualAdded"
     />
+
+    <PassReportModal
+      :show="showPassReport"
+      :table-id="tableData?.table?.id"
+      :table-type="tableType"
+      :table-display-name="tableDisplayName"
+      :current-user-name="currentUserName"
+      @close="showPassReport = false"
+    />
   </div>
 </template>
 
@@ -296,6 +319,7 @@ import PeopleTable from './PeopleTable.vue';
 import ApplicationDetail from './ApplicationDetail/ApplicationDetail.vue';
 import TableExportModal from './TableExportModal.vue';
 import ManualAddModal from './ManualAddModal.vue';
+import PassReportModal from './PassReportModal.vue';
 import { usePermissionsStore } from '@/stores/permissions';
 
 export default {
@@ -310,6 +334,7 @@ export default {
         ApplicationDetail,
         TableExportModal,
         ManualAddModal,
+        PassReportModal,
     },
     emits: ['refresh-data'],
     setup() {
@@ -362,6 +387,7 @@ export default {
             selectedApplication: null,
             showExportModal: false,
             showManualAdd: false,
+            showPassReport: false,
 
             // Режим "Сетка" (#1289): один тумблер страницы на обе таблицы
             // (по факту + основная). Состояние своё у каждой таблицы.
