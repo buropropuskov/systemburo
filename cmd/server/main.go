@@ -213,6 +213,7 @@ func main() {
 	requestLogsService := services.NewRequestLogsService(db)
 	employeesHistoryService := services.NewEmployeesHistoryService(db)
 	tableSnapshotService := services.NewTableSnapshotService(db, carService, employeeService, employeesHistoryService)
+	dailyPassReportService := services.NewDailyPassReportService(db)
 	approverService := services.NewApproverService(db)
 	consentService := services.NewConsentService(db)
 	settingsService := services.NewSettingsService(db, cfg)
@@ -256,6 +257,7 @@ func main() {
 	employeeHandler := handlers.NewEmployeeHandler(employeeService)
 	systemTableHandler := handlers.NewSystemTableHandler(systemTableService, auditRecorder, cfg.UploadMaxFileSize, cfg.UploadPath)
 	tableSnapshotHandler := handlers.NewTableSnapshotHandler(tableSnapshotService)
+	passReportHandler := handlers.NewPassReportHandler(dailyPassReportService, permissionResolver)
 	uniqueCarHandler := handlers.NewUniqueCarHandler(uniqueCarService)
 	uniqueEmployeeHandler := handlers.NewUniqueEmployeeHandler(uniqueEmployeeService)
 	feedbackHandler := handlers.NewFeedbackHandler(feedbackService)
@@ -324,6 +326,7 @@ func main() {
 		Employees:           employeeHandler,
 		SystemTable:         systemTableHandler,
 		TableSnapshot:       tableSnapshotHandler,
+		PassReport:          passReportHandler,
 		UniqueCar:           uniqueCarHandler,
 		UniqueEmployee:      uniqueEmployeeHandler,
 		Feedback:            feedbackHandler,
@@ -365,6 +368,7 @@ func main() {
 		BanCheck:            banCheck,
 		LoginLimiter:        loginLimiter,
 		LastSeen:            lastSeen,
+		TableReportGate:     mw.RequireTableVerb(db, permissionResolver, accessDenialService, "report"),
 		JWTSecret:           []byte(cfg.JWTSecret),
 		UploadPath:          cfg.UploadPath,
 	})
@@ -394,6 +398,10 @@ func main() {
 	}
 	resetService := services.NewTerritoryResetService(db)
 	go startDailyStatusReset(ctxSig, tableSnapshotService, resetService, resetLoc)
+
+	// Суточные отчёты охранника по проходам: фиксация в 21:30 + catch-up на
+	// старте (пропущенные за даунтайм дни; первый запуск - полный backfill).
+	go startDailyPassReportSaver(ctxSig, dailyPassReportService, resetLoc)
 
 	// Снимок дневного пика онлайна (#632): раз в минуту фиксирует текущий онлайн
 	// как пик за сегодня (peak_count = MAX(...)). Останавливается по ctxSig.
@@ -533,6 +541,53 @@ func snapshotThenReset(ctx context.Context, snapSvc services.TableSnapshotServic
 		slog.Error("сброс территориальных статусов завершился ошибкой", "error", err)
 	} else {
 		slog.Info("сброс территориальных статусов выполнен", "employees", emp, "cars", cars)
+	}
+}
+
+// startDailyPassReportSaver ежедневно в 21:30 по location фиксирует суточные
+// отчёты охранников по проходам (агрегаты audit_log за окно [21:30, 21:30) МСК)
+// в daily_pass_reports. На старте - разовый CatchUp: дозаписывает дни,
+// пропущенные из-за даунтайма (первый запуск делает полный backfill истории).
+// CatchUp вместо SaveDailyReports и в тике: покрывает и только что закрытое
+// окно, и возможные пропуски. Ошибки логируются, паники нет.
+func startDailyPassReportSaver(ctx context.Context, svc services.DailyPassReportService, location *time.Location) {
+	if err := svc.CatchUp(ctx); err != nil {
+		slog.Error("суточные отчёты проходов: catch-up на старте", "error", err)
+	}
+
+	now := time.Now().In(location)
+	next := time.Date(now.Year(), now.Month(), now.Day(), 21, 30, 0, 0, location)
+	if !next.After(now) {
+		next = next.Add(24 * time.Hour)
+	}
+	timer := time.NewTimer(time.Until(next))
+	defer timer.Stop()
+
+	slog.Info("планировщик суточных отчётов проходов запущен", "next_run", next.Format(time.RFC3339))
+
+	select {
+	case <-ctx.Done():
+		slog.Info("планировщик суточных отчётов проходов остановлен до первого срабатывания")
+		return
+	case <-timer.C:
+	}
+
+	if err := svc.CatchUp(ctx); err != nil {
+		slog.Error("суточные отчёты проходов: сохранение", "error", err)
+	}
+
+	ticker := time.NewTicker(24 * time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			slog.Info("планировщик суточных отчётов проходов остановлен")
+			return
+		case <-ticker.C:
+			if err := svc.CatchUp(ctx); err != nil {
+				slog.Error("суточные отчёты проходов: сохранение", "error", err)
+			}
+		}
 	}
 }
 

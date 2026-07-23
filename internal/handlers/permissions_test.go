@@ -204,10 +204,10 @@ func TestPermissions_AutoGenerate(t *testing.T) {
 	rec := testutil.POST(t, e, "/permissions/auto-generate", body, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	// Verify permissions were created (по одному на глагол, всего 9).
+	// Verify permissions were created (по одному на глагол, всего 10).
 	var count int64
 	db.Model(&models.Permission{}).Where("key LIKE ?", "table.test_table.%").Count(&count)
-	assert.Equal(t, int64(9), count)
+	assert.Equal(t, int64(10), count)
 
 	// Verify specific keys
 	var perm models.Permission
@@ -238,10 +238,10 @@ func TestPermissions_AutoGenerate_Idempotent(t *testing.T) {
 	rec = testutil.POST(t, e, "/permissions/auto-generate", body, h)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	// Should still only have 9 permissions (идемпотентно, без дублей)
+	// Should still only have 10 permissions (идемпотентно, без дублей)
 	var count int64
 	db.Model(&models.Permission{}).Where("key LIKE ?", "table.idem_table.%").Count(&count)
-	assert.Equal(t, int64(9), count)
+	assert.Equal(t, int64(10), count)
 }
 
 func TestPermissions_DefaultSeeded(t *testing.T) {
@@ -278,10 +278,10 @@ func TestPermissions_SystemTableCreate_AutoGenerates(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	// Verify permissions were auto-generated (по одному на глагол: view/entry/exit/
-	// detail/history/versions/export/trash/delete).
+	// detail/history/versions/export/report/trash/delete).
 	var count int64
 	db.Model(&models.Permission{}).Where("key LIKE ?", "table.autogen_test.%").Count(&count)
-	assert.Equal(t, int64(9), count)
+	assert.Equal(t, int64(10), count)
 
 	var viewPerm models.Permission
 	require.NoError(t, db.Where("key = ?", "table.autogen_test.view").First(&viewPerm).Error)

@@ -590,13 +590,13 @@ func TestPermissions_ReconcileAllTablePermissions_BackfillsMissingVerb(t *testin
 	require.NoError(t, db.Where("key = ?", "table.reconcile_tbl.versions").Delete(&models.Permission{}).Error)
 	var before int64
 	require.NoError(t, db.Model(&models.Permission{}).Where("key LIKE ?", "table.reconcile_tbl.%").Count(&before).Error)
-	require.EqualValues(t, 8, before, "versions удалён - осталось 8")
+	require.EqualValues(t, 9, before, "versions удалён - осталось 9")
 
 	// Реконсиляция восстанавливает недостающее право.
 	require.NoError(t, svc.ReconcileAllTablePermissions(context.Background()))
 	var after int64
 	require.NoError(t, db.Model(&models.Permission{}).Where("key LIKE ?", "table.reconcile_tbl.%").Count(&after).Error)
-	assert.EqualValues(t, 9, after, "versions догенерирован")
+	assert.EqualValues(t, 10, after, "versions догенерирован")
 
 	var versionsPerm models.Permission
 	require.NoError(t, db.Where("key = ?", "table.reconcile_tbl.versions").First(&versionsPerm).Error)
@@ -608,7 +608,7 @@ func TestPermissions_ReconcileAllTablePermissions_BackfillsMissingVerb(t *testin
 	require.NoError(t, svc.ReconcileAllTablePermissions(context.Background()))
 	var again int64
 	require.NoError(t, db.Model(&models.Permission{}).Where("key LIKE ?", "table.reconcile_tbl.%").Count(&again).Error)
-	assert.EqualValues(t, 9, again, "повторная реконсиляция без дублей")
+	assert.EqualValues(t, 10, again, "повторная реконсиляция без дублей")
 }
 
 // TestTableSnapshot_Get_ReturnsPayload: GET версии отдаёт полный payload со строками.

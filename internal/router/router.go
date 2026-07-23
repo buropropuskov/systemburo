@@ -30,6 +30,7 @@ type Dependencies struct {
 	Employees           *handlers.EmployeeHandler
 	SystemTable         *handlers.SystemTableHandler
 	TableSnapshot       *handlers.TableSnapshotHandler
+	PassReport          *handlers.PassReportHandler
 	UniqueCar           *handlers.UniqueCarHandler
 	UniqueEmployee      *handlers.UniqueEmployeeHandler
 	Feedback            *handlers.FeedbackHandler
@@ -74,6 +75,10 @@ type Dependencies struct {
 	BanCheck         echo.MiddlewareFunc
 	LoginLimiter     echo.MiddlewareFunc
 	LastSeen         echo.MiddlewareFunc
+	// TableReportGate - RequireTableVerb(..., "report"): гейт отчётов по проходам
+	// правом table.<name>.report. НЕ опционален для роутов pass-report (main и
+	// testutil обязаны заполнять) - без гейта отчёт открылся бы любому залогиненному.
+	TableReportGate echo.MiddlewareFunc
 
 	// Misc
 	JWTSecret  []byte
@@ -96,6 +101,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	employees := d.Employees
 	st := d.SystemTable
 	tsnap := d.TableSnapshot
+	passReport := d.PassReport
 	uc := d.UniqueCar
 	ue := d.UniqueEmployee
 	fb := d.Feedback
@@ -544,6 +550,13 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// auth-only, как соседи; sid=current экспортирует текущее состояние таблицы.
 	stg.GET("/:id/snapshots/:sid/export", tsnap.Export)
 	stg.DELETE("/:id/snapshots", tsnap.Cleanup, requireAdmin)
+
+	// Суточный отчёт охранника по проходам: живое окно [посл. 21:30, now) и
+	// история дней. В отличие от соседей гейт НЕ на фронте: право
+	// table.<name>.report проверяет BE (d.TableReportGate = RequireTableVerb),
+	// FE-кнопка проверяет тот же ключ (#976: FE-гейт и BE-гейт - один набор прав).
+	stg.GET("/:id/pass-report/live", passReport.Live, d.TableReportGate)
+	stg.GET("/:id/pass-reports", passReport.List, d.TableReportGate)
 
 	// Столбцы таблицы (#345)
 	stg.PUT("/:id/fields", st.UpdateFields)
