@@ -3,8 +3,9 @@ import { mount, flushPromises } from '@vue/test-utils';
 import PassReportModal from '@/components/PassReportModal.vue';
 
 // Суточный отчёт охранника по проходам: загрузка по открытию (show=false ->
-// true, как реальный родитель), счётчики totals, разбивка по охранникам,
-// секции по типу таблицы, «Без автора» для user_id=0.
+// true, как реальный родитель), крупные карточки «заехало/выехало», разбивка по
+// охранникам только при >1 строке, история свёрнута под кнопку, «Без автора»
+// для user_id=0, устойчивость к ошибке бэка.
 
 vi.mock('@/api/pass-reports', () => ({
   getPassReportLive: vi.fn(),
@@ -78,42 +79,76 @@ describe('PassReportModal', () => {
     expect(listPassReports).not.toHaveBeenCalled();
   });
 
-  it('открытие грузит живое окно и историю, рендерит totals и строку охранника', async () => {
+  it('открытие грузит живое окно и историю, рисует крупные счётчики машин', async () => {
     const w = mountModal();
     await w.setProps({ show: true });
     await flushPromises();
 
     expect(getPassReportLive).toHaveBeenCalledWith(7);
     expect(listPassReports).toHaveBeenCalledWith(7, {});
-    expect(td(w, 'pr-total-car-entries').text()).toBe('3');
-    expect(td(w, 'pr-total-car-exits').text()).toBe('2');
-
-    const rows = td(w, 'pass-report-rows').findAll('tbody tr');
-    expect(rows).toHaveLength(1);
-    expect(rows[0].text()).toContain('Иванов Иван');
-    expect(rows[0].text()).toContain('2');
+    expect(td(w, 'pr-total-cars-in').text()).toBe('3');
+    expect(td(w, 'pr-total-cars-out').text()).toBe('2');
+    // Простые слова, не жаргон.
+    expect(td(w, 'pass-report-live').text()).toContain('Заехало');
+    expect(td(w, 'pass-report-live').text()).toContain('Выехало');
   });
 
-  it('cars-таблица без людских событий не рендерит счётчики людей', async () => {
+  it('одна строка охранника — разбивка «кто сколько» не показывается', async () => {
     const w = mountModal();
     await w.setProps({ show: true });
     await flushPromises();
 
-    expect(td(w, 'pr-total-people-entries').exists()).toBe(false);
-    expect(w.find('[data-testid="pass-report-live"]').text()).not.toContain('Люди');
+    expect(td(w, 'pass-report-breakdown').exists()).toBe(false);
   });
 
-  it('история рендерит день с итогами и разбивкой, user_id=0 подписан «Без автора»', async () => {
+  it('несколько охранников — показывает разбивку с именами', async () => {
+    getPassReportLive.mockResolvedValue({
+      ...liveFixture,
+      rows: [
+        { user_id: 5, user_name: 'Иванов Иван', car_entries: 2, car_exits: 1, people_entries: 0, people_exits: 0 },
+        { user_id: 6, user_name: 'Петров Пётр', car_entries: 1, car_exits: 1, people_entries: 0, people_exits: 0 },
+      ],
+    });
     const w = mountModal();
     await w.setProps({ show: true });
+    await flushPromises();
+
+    const bd = td(w, 'pass-report-breakdown');
+    expect(bd.exists()).toBe(true);
+    expect(bd.text()).toContain('Иванов Иван');
+    expect(bd.text()).toContain('Петров Пётр');
+  });
+
+  it('cars-таблица без людских событий не рендерит карточку людей', async () => {
+    const w = mountModal();
+    await w.setProps({ show: true });
+    await flushPromises();
+
+    expect(td(w, 'pr-total-people-in').exists()).toBe(false);
+    expect(td(w, 'pass-report-live').text()).not.toContain('Зашло');
+  });
+
+  it('история свёрнута по умолчанию, раскрывается по кнопке и пишет дни по-человечески', async () => {
+    const w = mountModal();
+    await w.setProps({ show: true });
+    await flushPromises();
+
+    // Свёрнута: дней не видно, но кнопка-аккордеон есть.
+    expect(td(w, 'pass-report-day').exists()).toBe(false);
+    const toggle = td(w, 'pass-report-history-toggle');
+    expect(toggle.text()).toContain('Показать прошлые дни');
+
+    await toggle.trigger('click');
     await flushPromises();
 
     const day = td(w, 'pass-report-day');
     expect(day.exists()).toBe(true);
-    expect(day.text()).toContain('21.07.2026');
-    expect(day.text()).toContain('машины 5 / 4');
+    expect(day.text()).toContain('21 июля 2026');
+    expect(day.text()).toContain('Машины: заехало 5, выехало 4');
+    // Разбивка по охранникам внутри дня (2 строки) с «Без автора».
     expect(day.text()).toContain('Иванов Иван');
     expect(day.text()).toContain('Без автора');
+    expect(toggle.text()).toContain('Скрыть прошлые дни');
   });
 
   it('открытая до прихода tableId модалка дозагружает данные по его приезду', async () => {
@@ -128,10 +163,12 @@ describe('PassReportModal', () => {
     expect(listPassReports).toHaveBeenCalledWith(7, {});
   });
 
-  it('пустая история показывает заглушку', async () => {
+  it('пустая история показывает заглушку после раскрытия', async () => {
     listPassReports.mockResolvedValue({ days: [] });
     const w = mountModal();
     await w.setProps({ show: true });
+    await flushPromises();
+    await td(w, 'pass-report-history-toggle').trigger('click');
     await flushPromises();
 
     expect(td(w, 'pass-report-days-empty').exists()).toBe(true);
@@ -145,7 +182,6 @@ describe('PassReportModal', () => {
     await flushPromises();
 
     expect(td(w, 'pass-report-live').text()).toContain('Не удалось загрузить отчёт');
-    expect(td(w, 'pass-report-days-empty').exists()).toBe(true);
-    expect(td(w, 'pass-report-rows').exists()).toBe(false);
+    expect(td(w, 'pr-total-cars-in').exists()).toBe(false);
   });
 });
