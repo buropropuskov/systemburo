@@ -2,7 +2,7 @@
   <BaseModal
     :show="show"
     :title="`Отчёт по проходам — ${tableDisplayName}`"
-    width="760px"
+    width="720px"
     radius="30px"
     content-class="pass-report-modal"
     @close="$emit('close')"
@@ -11,8 +11,15 @@
       class="pr-section"
       data-testid="pass-report-live"
     >
-      <div class="pr-section__head">
-        <span class="pr-period">{{ livePeriodLabel }}</span>
+      <div class="pr-today">
+        <div class="pr-today__text">
+          <div class="pr-today__title">
+            {{ liveTitle }}
+          </div>
+          <div class="pr-today__hint">
+            смена с 21:30 вчера до 21:30 сегодня
+          </div>
+        </div>
         <RefreshButton
           :loading="loadingLive"
           @refresh="loadLive"
@@ -26,69 +33,55 @@
         Загрузка...
       </div>
       <template v-else-if="live">
-        <div class="pr-counters">
+        <div class="pr-cards">
           <div
-            v-if="showCarsSection"
-            class="pr-counter"
+            v-for="s in sectionDefs"
+            :key="s.key"
+            class="pr-card"
           >
-            <span class="pr-counter__title">Машины</span>
-            <span class="pr-counter__pair">
-              пропущено <b data-testid="pr-total-car-entries">{{ live.totals?.car_entries ?? 0 }}</b>
-              · выпущено <b data-testid="pr-total-car-exits">{{ live.totals?.car_exits ?? 0 }}</b>
-            </span>
-          </div>
-          <div
-            v-if="showPeopleSection"
-            class="pr-counter"
-          >
-            <span class="pr-counter__title">Люди</span>
-            <span class="pr-counter__pair">
-              пропущено <b data-testid="pr-total-people-entries">{{ live.totals?.people_entries ?? 0 }}</b>
-              · выпущено <b data-testid="pr-total-people-exits">{{ live.totals?.people_exits ?? 0 }}</b>
-            </span>
+            <div class="pr-card__title">
+              <img
+                :src="s.icon"
+                class="pr-card__icon"
+                alt=""
+              >
+              {{ s.title }}
+            </div>
+            <div class="pr-card__stat pr-card__stat--in">
+              <span class="pr-card__label">{{ s.inLabel }}</span>
+              <span
+                class="pr-card__num"
+                :data-testid="`pr-total-${s.key}-in`"
+              >{{ liveCount(s.inField) }}</span>
+            </div>
+            <div class="pr-card__stat pr-card__stat--out">
+              <span class="pr-card__label">{{ s.outLabel }}</span>
+              <span
+                class="pr-card__num"
+                :data-testid="`pr-total-${s.key}-out`"
+              >{{ liveCount(s.outField) }}</span>
+            </div>
           </div>
         </div>
 
-        <table
-          v-if="live.rows && live.rows.length"
-          class="pr-rows"
-          data-testid="pass-report-rows"
-        >
-          <thead>
-            <tr>
-              <th>Охранник</th>
-              <template v-if="showCarsSection">
-                <th>Машины: въезд</th>
-                <th>Машины: выезд</th>
-              </template>
-              <template v-if="showPeopleSection">
-                <th>Люди: вход</th>
-                <th>Люди: выход</th>
-              </template>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="row in live.rows"
-              :key="row.user_id"
-            >
-              <td>{{ userLabel(row) }}</td>
-              <template v-if="showCarsSection">
-                <td>{{ row.car_entries }}</td>
-                <td>{{ row.car_exits }}</td>
-              </template>
-              <template v-if="showPeopleSection">
-                <td>{{ row.people_entries }}</td>
-                <td>{{ row.people_exits }}</td>
-              </template>
-            </tr>
-          </tbody>
-        </table>
+        <!-- Разбивка по охранникам видна, только когда за смену отмечал не один
+             человек (у деда на посту одна строка - лишний шум не показываем). -->
         <div
-          v-else
-          class="pr-empty"
+          v-if="live.rows && live.rows.length > 1"
+          class="pr-breakdown"
+          data-testid="pass-report-breakdown"
         >
-          В текущем периоде отметок ещё нет
+          <div class="pr-breakdown__title">
+            Кто сколько отметил
+          </div>
+          <div
+            v-for="row in live.rows"
+            :key="row.user_id"
+            class="pr-breakdown__row"
+          >
+            <span class="pr-breakdown__name">{{ userLabel(row) }}</span>
+            <span class="pr-breakdown__nums">{{ rowSummary(row) }}</span>
+          </div>
         </div>
       </template>
       <div
@@ -99,15 +92,28 @@
       </div>
     </div>
 
-    <div
-      class="pr-section"
-      data-testid="pass-report-history"
-    >
-      <div class="pr-section__head">
-        <h4 class="pr-section__title">
-          История по дням
-        </h4>
-        <div class="pr-section__tools">
+    <div class="pr-section pr-section--history">
+      <button
+        class="pr-history-toggle"
+        data-testid="pass-report-history-toggle"
+        :aria-expanded="historyOpen ? 'true' : 'false'"
+        @click="toggleHistory"
+      >
+        <span>{{ historyOpen ? 'Скрыть прошлые дни' : 'Показать прошлые дни' }}</span>
+        <span
+          class="pr-history-toggle__arrow"
+          :class="{ open: historyOpen }"
+          aria-hidden="true"
+        >▾</span>
+      </button>
+
+      <div
+        v-if="historyOpen"
+        class="pr-history"
+        data-testid="pass-report-history"
+      >
+        <div class="pr-history__tools">
+          <span class="pr-history__filter-label">Выбрать период:</span>
           <DateFilter
             mode="range"
             :date-range-start="dateRangeStart"
@@ -117,6 +123,51 @@
             @apply="loadDays"
             @clear="clearDates"
           />
+        </div>
+
+        <div
+          v-if="loadingDays"
+          class="pr-empty"
+        >
+          Загрузка...
+        </div>
+        <div
+          v-else-if="!days.length"
+          class="pr-empty"
+          data-testid="pass-report-days-empty"
+        >
+          Пока нет данных за прошлые дни
+        </div>
+        <template v-else>
+          <div class="pr-days">
+            <div
+              v-for="day in days"
+              :key="day.report_date"
+              class="pr-day"
+              data-testid="pass-report-day"
+            >
+              <div class="pr-day__date">
+                {{ formatDayHuman(day.report_date) }}
+              </div>
+              <div class="pr-day__total">
+                {{ rowSummary(day.totals) }}
+              </div>
+              <div
+                v-if="day.rows && day.rows.length > 1"
+                class="pr-day__people"
+              >
+                <div
+                  v-for="row in day.rows"
+                  :key="`${day.report_date}-${row.user_id}`"
+                  class="pr-day__person"
+                >
+                  <span class="pr-day__person-name">{{ userLabel(row) }}</span>
+                  <span class="pr-day__person-nums">{{ rowSummary(row) }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <button
             class="pr-export"
             :disabled="isExporting || !days.length"
@@ -129,55 +180,9 @@
               class="pr-export__icon"
               alt=""
             >
-            <span>{{ isExporting ? 'Формируем...' : 'Экспорт' }}</span>
+            <span>{{ isExporting ? 'Формируем файл...' : 'Скачать в Excel' }}</span>
           </button>
-        </div>
-      </div>
-
-      <div
-        v-if="loadingDays"
-        class="pr-empty"
-      >
-        Загрузка...
-      </div>
-      <div
-        v-else-if="!days.length"
-        class="pr-empty"
-        data-testid="pass-report-days-empty"
-      >
-        Нет сохранённых отчётов за период
-      </div>
-      <div
-        v-else
-        class="pr-days"
-      >
-        <div
-          v-for="day in days"
-          :key="day.report_date"
-          class="pr-day"
-          data-testid="pass-report-day"
-        >
-          <div class="pr-day__head">
-            <span class="pr-day__date">{{ formatDay(day.report_date) }}</span>
-            <span class="pr-day__totals">
-              <template v-if="showCarsSection">машины {{ day.totals.car_entries }} / {{ day.totals.car_exits }}</template>
-              <template v-if="showCarsSection && showPeopleSection"> · </template>
-              <template v-if="showPeopleSection">люди {{ day.totals.people_entries }} / {{ day.totals.people_exits }}</template>
-            </span>
-          </div>
-          <div
-            v-for="row in day.rows"
-            :key="`${day.report_date}-${row.user_id}`"
-            class="pr-day__row"
-          >
-            <span class="pr-day__user">{{ userLabel(row) }}</span>
-            <span class="pr-day__counts">
-              <template v-if="showCarsSection">машины {{ row.car_entries }} / {{ row.car_exits }}</template>
-              <template v-if="showCarsSection && showPeopleSection"> · </template>
-              <template v-if="showPeopleSection">люди {{ row.people_entries }} / {{ row.people_exits }}</template>
-            </span>
-          </div>
-        </div>
+        </template>
       </div>
     </div>
   </BaseModal>
@@ -188,8 +193,12 @@ import ExcelJS from 'exceljs';
 import BaseModal from '@/components/ui/BaseModal.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import DateFilter from '@/components/DateFilter.vue';
+import carIcon from '@/assets/icons/car.png';
+import peopleIcon from '@/assets/icons/employees.png';
 import { getPassReportLive, listPassReports } from '@/api/pass-reports';
 import { useDeletionsStore } from '@/stores/deletions';
+
+const MONTHS = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
 
 // Дата -> YYYY-MM-DD по ЛОКАЛЬНЫМ частям: toISOString увёз бы выбранный день на
 // предыдущий у пользователей восточнее UTC.
@@ -217,22 +226,28 @@ export default {
       dateRangeStart: null,
       dateRangeEnd: null,
       isExporting: false,
+      historyOpen: false,
     };
   },
   computed: {
     // Секции по типу таблицы; «чужая» пара показывается, только если в данных
-    // реально есть события (не фабрикуем нули там, где их не бывает).
-    showCarsSection() {
-      if (this.tableType === 'cars') return true;
-      return this.anyCount('car_entries') || this.anyCount('car_exits');
+    // реально есть события (не фабрикуем нули там, где их не бывает). Простые
+    // слова направления - «заехало/выехало» для машин, «зашло/вышло» для людей.
+    sectionDefs() {
+      const defs = [];
+      if (this.tableType === 'cars' || this.anyCount('car_entries') || this.anyCount('car_exits')) {
+        defs.push({ key: 'cars', icon: carIcon, title: 'Машины', inLabel: 'Заехало', outLabel: 'Выехало', inField: 'car_entries', outField: 'car_exits' });
+      }
+      if (this.tableType === 'people' || this.anyCount('people_entries') || this.anyCount('people_exits')) {
+        defs.push({ key: 'people', icon: peopleIcon, title: 'Люди', inLabel: 'Зашло', outLabel: 'Вышло', inField: 'people_entries', outField: 'people_exits' });
+      }
+      return defs;
     },
-    showPeopleSection() {
-      if (this.tableType === 'people') return true;
-      return this.anyCount('people_entries') || this.anyCount('people_exits');
-    },
-    livePeriodLabel() {
-      if (!this.live) return 'Текущий период';
-      return `Текущий период: с ${this.formatMoment(this.live.period_start)} до ${this.formatMoment(this.live.period_end)}`;
+    liveTitle() {
+      if (!this.live) return 'Сегодня';
+      const d = new Date(this.live.period_end);
+      if (Number.isNaN(d.getTime())) return 'Сегодня';
+      return `Сегодня, ${d.getDate()} ${MONTHS[d.getMonth()]}`;
     },
   },
   watch: {
@@ -252,19 +267,29 @@ export default {
       const inTotals = (this.live?.totals?.[field] || 0) > 0;
       return inTotals || this.days.some((d) => (d.totals?.[field] || 0) > 0);
     },
+    liveCount(field) {
+      return this.live?.totals?.[field] ?? 0;
+    },
     userLabel(row) {
       return row.user_name || (row.user_id ? `Пользователь #${row.user_id}` : 'Без автора');
     },
-    formatMoment(iso) {
-      const d = new Date(iso);
-      if (Number.isNaN(d.getTime())) return '';
-      const dd = `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-      return `${dd} ${hm}`;
+    // Человекочитаемая сводка счётчиков: «Машины: заехало 5, выехало 4».
+    rowSummary(counts) {
+      return this.sectionDefs
+        .map((s) => `${s.title}: ${s.inLabel.toLowerCase()} ${counts?.[s.inField] || 0}, ${s.outLabel.toLowerCase()} ${counts?.[s.outField] || 0}`)
+        .join(' · ');
     },
+    formatDayHuman(dateStr) {
+      const [y, m, d] = dateStr.split('-').map(Number);
+      return `${d} ${MONTHS[m - 1]} ${y}`;
+    },
+    // Для имени файла экспорта (ASCII, без месяцев словами).
     formatDay(dateStr) {
       const [y, m, d] = dateStr.split('-');
       return `${d}.${m}.${y}`;
+    },
+    toggleHistory() {
+      this.historyOpen = !this.historyOpen;
     },
     reload() {
       this.loadLive();
@@ -310,7 +335,7 @@ export default {
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('Otchet_po_prohodam');
 
-        const headers = ['Дата', 'Охранник', 'Машины: въезд', 'Машины: выезд', 'Люди: вход', 'Люди: выход'];
+        const headers = ['Дата', 'Охранник', 'Машины: заехало', 'Машины: выехало', 'Люди: зашло', 'Люди: вышло'];
         const headerRow = worksheet.addRow(headers);
         headerRow.height = 25;
         headerRow.eachCell((cell) => {
@@ -336,7 +361,7 @@ export default {
           (day.rows || []).forEach((row) => {
             addDataRow([this.formatDay(day.report_date), this.userLabel(row), row.car_entries, row.car_exits, row.people_entries, row.people_exits]);
           });
-          addDataRow([this.formatDay(day.report_date), 'Итого по таблице', day.totals.car_entries, day.totals.car_exits, day.totals.people_entries, day.totals.people_exits], true);
+          addDataRow([this.formatDay(day.report_date), 'Итого по посту', day.totals.car_entries, day.totals.car_exits, day.totals.people_entries, day.totals.people_exits], true);
         });
 
         worksheet.addRow([]);
@@ -371,102 +396,180 @@ export default {
 </script>
 
 <style scoped>
-/* base-modal__body имеет padding:0 - горизонтальный отступ несёт секция,
-   20px в тон паддингу шапки/футера BaseModal. */
+/* base-modal__body имеет padding:0 - горизонтальный отступ несёт секция. */
 .pr-section {
-  padding: 6px 20px 14px;
+  padding: 10px 22px 18px;
 }
 
-.pr-section + .pr-section {
+.pr-section--history {
   border-top: 1px solid #e6e6e6;
   padding-top: 14px;
 }
 
-.pr-section__head {
+/* Заголовок «Сегодня» - крупный, для пожилого пользователя. */
+.pr-today {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.pr-today__title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.pr-today__hint {
+  font-size: 14px;
+  color: #777;
+  margin-top: 2px;
+}
+
+.pr-cards {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.pr-card {
+  flex: 1 1 260px;
+  min-width: 0;
+  border: 1px solid #e6e6e6;
+  border-radius: 20px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pr-card__title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 19px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.pr-card__icon {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+}
+
+.pr-card__stat {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  padding: 10px 16px;
+  border-radius: 14px;
+}
+
+.pr-card__stat--in {
+  background: #e8f5ea;
+}
+
+.pr-card__stat--out {
+  background: #eef0f4;
+}
+
+.pr-card__label {
+  font-size: 18px;
+  color: #333;
+}
+
+.pr-card__num {
+  font-size: 44px;
+  font-weight: 800;
+  line-height: 1;
+  color: #1a1a1a;
+}
+
+.pr-breakdown {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px dashed #e0e0e0;
+}
+
+.pr-breakdown__title {
+  font-size: 14px;
+  color: #777;
+  margin-bottom: 8px;
+}
+
+.pr-breakdown__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
   flex-wrap: wrap;
-  margin-bottom: 10px;
-}
-
-.pr-section__title {
-  margin: 0;
+  padding: 4px 0;
   font-size: 15px;
-  font-weight: 600;
 }
 
-.pr-section__tools {
+.pr-breakdown__name {
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.pr-breakdown__nums {
+  color: #444;
+}
+
+.pr-empty {
+  font-size: 16px;
+  color: #888;
+  padding: 12px 0;
+  text-align: center;
+}
+
+/* Кнопка-аккордеон истории - крупная, во всю ширину, как «ссылка-действие». */
+.pr-history-toggle {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  flex-wrap: wrap;
+  width: 100%;
+  background: #f5f6ff;
+  border: 1px solid #e0e3f5;
+  border-radius: 999px;
+  padding: 12px 18px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #4f5bdf;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
 }
 
-.pr-period {
-  font-size: 13px;
-  color: #555;
+.pr-history-toggle:hover {
+  background: #eceeff;
 }
 
-.pr-counters {
+.pr-history-toggle__arrow {
+  font-size: 14px;
+  transition: transform 0.2s ease;
+}
+
+.pr-history-toggle__arrow.open {
+  transform: rotate(180deg);
+}
+
+.pr-history {
+  margin-top: 14px;
+}
+
+.pr-history__tools {
   display: flex;
-  gap: 12px;
+  align-items: center;
+  gap: 10px;
   flex-wrap: wrap;
   margin-bottom: 12px;
 }
 
-.pr-counter {
-  flex: 1 1 220px;
-  min-width: 0;
-  border: 1px solid #e6e6e6;
-  border-radius: var(--radius-md, 15px);
-  padding: 10px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.pr-counter__title {
-  font-size: 12px;
-  color: #777;
-}
-
-.pr-counter__pair {
-  font-size: 14px;
-}
-
-.pr-counter__pair b {
-  font-size: 18px;
-}
-
-.pr-rows {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-
-.pr-rows th,
-.pr-rows td {
-  text-align: left;
-  padding: 6px 8px;
-  border-bottom: 1px solid #eee;
-}
-
-.pr-rows th {
-  font-weight: 600;
-  color: #777;
-  font-size: 12px;
-}
-
-.pr-rows tr:last-child td {
-  border-bottom: none;
-}
-
-.pr-empty {
-  font-size: 13px;
-  color: #888;
-  padding: 8px 0;
+.pr-history__filter-label {
+  font-size: 15px;
+  color: #555;
 }
 
 .pr-days {
@@ -475,51 +578,54 @@ export default {
 }
 
 .pr-day {
-  padding: 8px 0;
+  padding: 12px 0;
 }
 
 .pr-day:not(:last-child) {
   border-bottom: 1px solid #eee;
 }
 
-.pr-day__head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
 .pr-day__date {
-  font-weight: 600;
-  font-size: 13px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 4px;
 }
 
-.pr-day__totals {
-  font-size: 13px;
+.pr-day__total {
+  font-size: 15px;
   color: #333;
 }
 
-.pr-day__row {
+.pr-day__people {
+  margin-top: 6px;
+  padding-left: 14px;
+}
+
+.pr-day__person {
   display: flex;
-  align-items: baseline;
   justify-content: space-between;
   gap: 10px;
   flex-wrap: wrap;
-  padding: 2px 0 2px 14px;
-  font-size: 12px;
+  padding: 2px 0;
+  font-size: 14px;
   color: #666;
+}
+
+.pr-day__person-name {
+  font-weight: 600;
 }
 
 .pr-export {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  margin-top: 14px;
   border: 1px solid #e6e6e6;
   background: #fff;
   border-radius: 999px;
-  padding: 7px 14px;
-  font-size: 13px;
+  padding: 10px 18px;
+  font-size: 15px;
   cursor: pointer;
   transition: background-color 0.2s ease;
 }
@@ -534,7 +640,17 @@ export default {
 }
 
 .pr-export__icon {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
+}
+
+@media (max-width: 560px) {
+  .pr-card__num {
+    font-size: 38px;
+  }
+
+  .pr-cards {
+    gap: 12px;
+  }
 }
 </style>
