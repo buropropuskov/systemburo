@@ -27,14 +27,14 @@
         :disabled="pickedCategoryIsFull"
         @click="addAttachment(pickedCategory)"
       >
-        Добавить вложение
+        Добавить: {{ pickedCategory }}
       </button>
 
       <div
         v-if="pickedCategoryAttachments.length"
         class="created-caption"
       >
-        Созданные вложения
+        {{ pickedCategory }}
       </div>
       <div
         v-else-if="attachments.length"

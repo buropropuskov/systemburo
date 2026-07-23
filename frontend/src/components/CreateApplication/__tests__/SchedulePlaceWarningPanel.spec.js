@@ -1,6 +1,20 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import SchedulePlaceWarningPanel from '../SchedulePlaceWarningPanel.vue';
+
+// jsdom не реализует matchMedia - без мока useNarrowScreen выходит по гарду и
+// isNarrow навсегда false, то есть мобильное поведение не проверяется.
+function mockMatchMedia(matches) {
+  window.matchMedia = vi.fn().mockImplementation((query) => ({
+    matches,
+    media: query,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }));
+}
 
 // #1183 polish: плавающая панель предупреждений - агрегирует группы мест, скрывается
 // крестиком, возвращается при появлении новых предупреждений.
@@ -83,5 +97,61 @@ describe('SchedulePlaceWarningPanel', () => {
     await w.vm.$nextTick();
     expect(panel()).not.toBeNull();
     expect(panel().textContent).toContain('Дебаркадер №1');
+  });
+
+  it('на десктопе содержимое видно сразу, счётчика и шеврона в шапке нет', () => {
+    mountPanel([scheduleGroup()]);
+    const body = document.querySelector('.warn-panel__body');
+    expect(body.style.display).not.toBe('none');
+    expect(document.querySelector('[data-testid="schedule-warning-count"]')).toBeNull();
+    expect(document.querySelector('.warn-panel__chevron')).toBeNull();
+  });
+
+  describe('на телефоне панель сворачиваемая (#1097 P9)', () => {
+    let origMatchMedia;
+
+    beforeEach(() => {
+      origMatchMedia = window.matchMedia;
+      mockMatchMedia(true);
+    });
+
+    afterEach(() => {
+      window.matchMedia = origMatchMedia;
+    });
+
+    it('появляется свёрнутой плашкой со счётчиком, содержимое скрыто', async () => {
+      // isNarrow выставляется в onMounted - DOM догоняет на nextTick
+      const w = mountPanel([scheduleGroup(), scheduleGroup({ id: 'p2', name: 'Дебаркадер №1' })]);
+      await w.vm.$nextTick();
+      const head = document.querySelector('[data-testid="schedule-warning-head"]');
+      expect(head.getAttribute('aria-expanded')).toBe('false');
+      expect(document.querySelector('[data-testid="schedule-warning-count"]').textContent).toBe('2');
+      expect(document.querySelector('.warn-panel__body').style.display).toBe('none');
+    });
+
+    it('тап по плашке разворачивает и сворачивает обратно', async () => {
+      const w = mountPanel([scheduleGroup()]);
+      await w.vm.$nextTick();
+      const head = document.querySelector('[data-testid="schedule-warning-head"]');
+      const body = () => document.querySelector('.warn-panel__body');
+      expect(body().style.display).toBe('none');
+
+      await head.click();
+      await w.vm.$nextTick();
+      expect(head.getAttribute('aria-expanded')).toBe('true');
+      expect(body().style.display).not.toBe('none');
+
+      await head.click();
+      await w.vm.$nextTick();
+      expect(head.getAttribute('aria-expanded')).toBe('false');
+      expect(body().style.display).toBe('none');
+    });
+
+    it('крестик скрывает свёрнутую плашку, не разворачивая её', async () => {
+      const w = mountPanel([scheduleGroup()]);
+      await document.querySelector('[data-testid="schedule-warning-close"]').click();
+      await w.vm.$nextTick();
+      expect(panel()).toBeNull();
+    });
   });
 });

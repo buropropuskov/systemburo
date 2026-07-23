@@ -104,6 +104,24 @@ describe('BlankSelector: выбор типа строкой на телефон�
     expect(w.findAll('.category-header').length).toBe(w.vm.uniqueCategories.length);
   });
 
+  it('кнопка и подпись списка называют выбранный тип, пустой тип сохраняет строку-заглушку', async () => {
+    mockMatchMedia(true);
+    const w = await mountSelector();
+
+    const first = w.vm.uniqueCategories[0];
+    expect(w.find('.picker-add').text()).toBe(`Добавить: ${first}`);
+    // Подпись над списком - заголовок выбранного типа, как рубрика на десктопе,
+    // а не безликое «Созданные вложения».
+    expect(w.find('.created-caption').text()).toBe(first);
+
+    // У второго типа вложений нет - подпись остаётся строкой-заглушкой.
+    await w.findAll('.category-chip')[1].trigger('click');
+    const second = w.vm.uniqueCategories[1];
+    expect(w.find('.picker-add').text()).toBe(`Добавить: ${second}`);
+    expect(w.find('.created-caption').text()).toBe('В этом типе вложений пока нет');
+    expect(w.find('.created-caption').classes()).toContain('created-caption--empty');
+  });
+
   it('переключение типа снимает отметки со скрывшихся вложений', async () => {
     mockMatchMedia(true);
     const w = await mountSelector([

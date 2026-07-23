@@ -217,5 +217,32 @@ export default {
         font-size: 14px;
         flex: 1;
     }
+
+    /* Лист прижат к низу, а десктопная modal-fade двигала его сверху
+       (translateY(-20px)) - на мобилке выезжаем снизу, как остальные листы
+       (образец - ExistingCarsModal). enter-from глушим: его сдвиг вверх
+       спорил бы с выездом снизу. */
+    .modal-fade-enter-from .modal {
+        opacity: 1;
+        transform: none;
+    }
+
+    .modal-fade-enter-active .modal {
+        animation: confirm-sheet-up 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+    }
+
+    .modal-fade-leave-active .modal {
+        transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+    }
+
+    .modal-fade-leave-to .modal {
+        opacity: 1;
+        transform: translateY(100%);
+    }
+}
+
+@keyframes confirm-sheet-up {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
 }
 </style>
