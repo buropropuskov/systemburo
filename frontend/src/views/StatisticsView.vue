@@ -146,6 +146,7 @@ import StatisticsDashboard from '@/components/statistics/StatisticsDashboard.vue
 import ProcessingAnalytics from '@/components/statistics/ProcessingAnalytics.vue';
 import ReportsTab from '@/components/statistics/ReportsTab.vue';
 import AnalyticsInstructionModal from '@/components/statistics/AnalyticsInstructionModal.vue';
+import { getViewportZoom } from '@/utils/viewportScale';
 
 // ---- вкладки ----
 const activeTab = ref('dashboard');
@@ -195,11 +196,15 @@ function updatePresetIndicator() {
   }
   const btn = cont.querySelectorAll('.period-preset')[idx];
   if (!btn) return;
+  // На >1440 корень зумлен (viewportScale): rect'ы приходят в device-px, а style
+  // применяется в layout-px и снова умножается на zoom - без деления индикатор
+  // уезжает и растягивается в zoom раз (на 2539x1440 был dx +88, ширина +76).
+  const z = getViewportZoom();
   const cRect = cont.getBoundingClientRect();
   const bRect = btn.getBoundingClientRect();
   presetIndicatorStyle.value = {
-    width: `${Math.round(bRect.width)}px`,
-    transform: `translateX(${Math.round(bRect.left - cRect.left - cont.clientLeft)}px)`,
+    width: `${Math.round(bRect.width / z)}px`,
+    transform: `translateX(${Math.round((bRect.left - cRect.left) / z - cont.clientLeft)}px)`,
     opacity: 1,
   };
 }
