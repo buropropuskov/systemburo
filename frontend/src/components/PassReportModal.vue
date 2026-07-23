@@ -239,6 +239,13 @@ export default {
     show(value) {
       if (value) this.reload();
     },
+    // Кнопка отчёта гейтится роутом и кликабельна ДО прихода tableData - модалка
+    // может открыться с tableId=null (loadLive/loadDays уходят в ранний return).
+    // Дозагружаем, когда id приехал; в один тик с show он не меняется (tableData
+    // ставится асинхронным fetch задолго до/после клика), двойного вызова нет.
+    tableId(value) {
+      if (value && this.show) this.reload();
+    },
   },
   methods: {
     anyCount(field) {
@@ -364,8 +371,10 @@ export default {
 </script>
 
 <style scoped>
+/* base-modal__body имеет padding:0 - горизонтальный отступ несёт секция,
+   20px в тон паддингу шапки/футера BaseModal. */
 .pr-section {
-  padding: 6px 0 14px;
+  padding: 6px 20px 14px;
 }
 
 .pr-section + .pr-section {

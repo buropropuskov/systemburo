@@ -116,6 +116,18 @@ describe('PassReportModal', () => {
     expect(day.text()).toContain('Без автора');
   });
 
+  it('открытая до прихода tableId модалка дозагружает данные по его приезду', async () => {
+    const w = mountModal({ tableId: null });
+    await w.setProps({ show: true });
+    await flushPromises();
+    expect(getPassReportLive).not.toHaveBeenCalled();
+
+    await w.setProps({ tableId: 7 });
+    await flushPromises();
+    expect(getPassReportLive).toHaveBeenCalledWith(7);
+    expect(listPassReports).toHaveBeenCalledWith(7, {});
+  });
+
   it('пустая история показывает заглушку', async () => {
     listPassReports.mockResolvedValue({ days: [] });
     const w = mountModal();
