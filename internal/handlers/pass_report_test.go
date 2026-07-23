@@ -106,12 +106,19 @@ func TestPassReport_LiveScopeAndGate(t *testing.T) {
 	carE, carX, pplE, pplX = passCounts(totals)
 	assert.Equal(t, []int{1, 1, 1, 1}, []int{carE, carX, pplE, pplX}, "итог включает события всех охранников")
 
-	// Админ: разбивка по обоим охранникам (allowAll, без гранта).
+	// Супер-админ: разбивка по обоим охранникам (allowAll, без гранта).
 	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/pass-report/live", table.ID), testutil.AuthHeader(adminToken))
 	require.Equal(t, http.StatusOK, rec.Code)
 	data = testutil.ParseMap(t, rec)
 	rows = data["rows"].([]interface{})
-	assert.Len(t, rows, 2, "админ видит разбивку по всем")
+	assert.Len(t, rows, 2, "супер-админ видит разбивку по всем")
+
+	// Обычный админ (is_admin, ветка set.IsAdmin в scopeFor): тоже полная разбивка.
+	managerToken := testutil.RegisterManager(t, e, "prmanager", td.OrgID, td.CompanyID)
+	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/pass-report/live", table.ID), testutil.AuthHeader(managerToken))
+	require.Equal(t, http.StatusOK, rec.Code)
+	rows = testutil.ParseMap(t, rec)["rows"].([]interface{})
+	assert.Len(t, rows, 2, "админ (не супер) видит разбивку по всем")
 
 	// Без права - 403 с required_permission (FE-гейт и BE-гейт - один ключ).
 	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/pass-report/live", table.ID), testutil.AuthHeader(guard2Token))

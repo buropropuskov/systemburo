@@ -551,10 +551,9 @@ func snapshotThenReset(ctx context.Context, snapSvc services.TableSnapshotServic
 // CatchUp вместо SaveDailyReports и в тике: покрывает и только что закрытое
 // окно, и возможные пропуски. Ошибки логируются, паники нет.
 func startDailyPassReportSaver(ctx context.Context, svc services.DailyPassReportService, location *time.Location) {
-	if err := svc.CatchUp(ctx); err != nil {
-		slog.Error("суточные отчёты проходов: catch-up на старте", "error", err)
-	}
-
+	// Таймер взводится ДО стартового CatchUp: если долгий catch-up/backfill
+	// пересечёт границу 21:30, уже взведённый таймер сработает сразу после него
+	// и зафиксирует только что закрывшееся окно - иначе оно ждало бы сутки.
 	now := time.Now().In(location)
 	next := time.Date(now.Year(), now.Month(), now.Day(), 21, 30, 0, 0, location)
 	if !next.After(now) {
@@ -562,6 +561,10 @@ func startDailyPassReportSaver(ctx context.Context, svc services.DailyPassReport
 	}
 	timer := time.NewTimer(time.Until(next))
 	defer timer.Stop()
+
+	if err := svc.CatchUp(ctx); err != nil {
+		slog.Error("суточные отчёты проходов: catch-up на старте", "error", err)
+	}
 
 	slog.Info("планировщик суточных отчётов проходов запущен", "next_run", next.Format(time.RFC3339))
 

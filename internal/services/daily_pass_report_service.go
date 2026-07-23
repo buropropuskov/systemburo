@@ -157,7 +157,7 @@ type passAggRow struct {
 func (s *dailyPassReportService) aggregateWindow(ctx context.Context, from, to time.Time, tableID *int) ([]passAggRow, error) {
 	q := s.db.WithContext(ctx).
 		Table("audit_log a").
-		Select("(a.details->>'table_id')::int AS table_id, " + passAggSelect).
+		Select("(a.details->>'table_id')::int AS table_id, "+passAggSelect).
 		Where("a.entity_type IN ('car', 'employee')").
 		Where("a.action IN ('entry', 'exit')").
 		Where("a.created_at >= ? AND a.created_at < ?", from, to).
@@ -256,8 +256,7 @@ func (s *dailyPassReportService) backfillAll(ctx context.Context, upTo time.Time
 
 	sel := fmt.Sprintf(
 		"(date_trunc('day', %s + interval '2 hours 30 minutes'))::date AS report_date, (a.details->>'table_id')::int AS table_id, %s",
-		tzColumn("a.created_at"), passAggSelect,
-	)
+		tzColumn("a.created_at"), passAggSelect)
 	var rows []backfillRow
 	if err := s.db.WithContext(ctx).
 		Table("audit_log a").
@@ -267,6 +266,11 @@ func (s *dailyPassReportService) backfillAll(ctx context.Context, upTo time.Time
 		Where("a.created_at < ?", upTo).
 		Where("a.details->>'table_id' IS NOT NULL").
 		Group("1, 2, 3").
+		// ORDER BY report_date - страховка водяного знака CatchUp (MAX(report_date)):
+		// мульти-батч CreateInBatches у gorm атомарен (обёрнут в транзакцию), но при
+		// включении SkipDefaultTransaction частичная запись сохранила бы непрерывный
+		// префикс дат снизу, а не дыры в середине истории.
+		Order("1").
 		Scan(&rows).Error; err != nil {
 		return fmt.Errorf("failed to backfill daily pass reports: %w", err)
 	}
