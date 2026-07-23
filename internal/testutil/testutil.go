@@ -60,7 +60,7 @@ var tables = []string{
 	"attachments",
 	"unique_employees", "unique_cars", "unique_attachments",
 	"application_answers", "application_question_attachments", "application_question_views", "application_question_reads", "application_questions",
-	"application_reads", "application_viewers", "application_approvers", "application_responsible_users",
+	"application_status_views", "application_reads", "application_viewers", "application_approvers", "application_responsible_users",
 	"application_status_history", "applications",
 	"bureau_time_slots",
 	"companies_unload_places", "organization_unload_places",

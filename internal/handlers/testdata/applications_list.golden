@@ -9,6 +9,7 @@ data[].data_approval
 data[].has_blank_template
 data[].has_free_parking
 data[].has_roof_access
+data[].has_status_update
 data[].has_unseen_questions
 data[].id
 data[].is_read

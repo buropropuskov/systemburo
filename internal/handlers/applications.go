@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -215,6 +216,12 @@ func (h *ApplicationHandler) GetApplicationDetails(c echo.Context) error {
 	username := c.Get("username").(string)
 	if !h.service.CanAccessApplication(c.Request().Context(), id, username, IsSuperAdmin(c)) {
 		return echo.NewHTTPError(http.StatusForbidden, "Access denied")
+	}
+
+	// Открытие детали = пользователь увидел текущий статус: гасим его флаг "статус
+	// обновился" (#1349). Best-effort - сбой отметки не должен ломать выдачу деталей.
+	if err := h.service.MarkStatusSeen(c.Request().Context(), username, id); err != nil {
+		slog.Warn("Не удалось отметить просмотр статуса заявки", "application_id", id, "error", err)
 	}
 
 	details, err := h.service.GetApplicationDetails(c.Request().Context(), id)

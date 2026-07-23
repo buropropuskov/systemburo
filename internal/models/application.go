@@ -21,7 +21,11 @@ type Application struct {
 	// до архивации: отзыв гасит вложения сразу, поэтому их сроки для архива уже
 	// ничего не значат. У отозванных до появления колонки остаётся NULL - такие
 	// заявки архивируются по старому правилу (срокам вложений).
-	WithdrawnAt        *time.Time   `gorm:"index" json:"withdrawn_at"`
+	WithdrawnAt *time.Time `gorm:"index" json:"withdrawn_at"`
+	// StatusUpdatedAt - момент последней РЕАЛЬНОЙ смены status/confirmation (#1349).
+	// Сравнивается с per-user application_status_views.seen_at: заявка подсвечивается
+	// тем участникам, кто смену ещё не видел. NULL - переходов после внедрения не было.
+	StatusUpdatedAt    *time.Time   `gorm:"index" json:"status_updated_at"`
 	OrganizationID     int          `gorm:"index" json:"organization_id"`
 	Organization       Organization `json:"-"`
 	SenderUserID       int          `gorm:"index" json:"sender_user_id"`

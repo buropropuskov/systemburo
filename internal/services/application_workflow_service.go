@@ -87,6 +87,11 @@ func (s *applicationService) TakeApplicationToWork(ctx context.Context, username
 		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, models.AuditActionTakeToWork, &user.ID,
 			applicationAuditDetails{OldValue: oldStatus, NewValue: ptrString(models.StatusInWork), Comment: req.Comment})
 
+		if err := s.bumpStatusUpdated(tx, applicationID, &user.ID); err != nil {
+			tx.Rollback()
+			return err
+		}
+
 		if err := s.activateApplicationItems(ctx, tx, applicationID, true, &user.ID); err != nil {
 			tx.Rollback()
 			return err
@@ -102,6 +107,11 @@ func (s *applicationService) TakeApplicationToWork(ctx context.Context, username
 
 		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, models.AuditActionReject, &user.ID,
 			applicationAuditDetails{OldValue: oldStatus, NewValue: ptrString(models.StatusRefused), Comment: req.Comment})
+
+		if err := s.bumpStatusUpdated(tx, applicationID, &user.ID); err != nil {
+			tx.Rollback()
+			return err
+		}
 
 		if err := s.activateApplicationItems(ctx, tx, applicationID, false, nil); err != nil {
 			tx.Rollback()
@@ -157,6 +167,15 @@ func (s *applicationService) RevokeApplicationFromWork(ctx context.Context, user
 	s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "revoke_from_work", &user.ID,
 		applicationAuditDetails{OldValue: app.Status, NewValue: ptrString(models.StatusProcessing), Comment: req.Comment})
 
+	// Флаг "статус обновился" - только при реальной смене (#1349): повторный отзыв
+	// уже возвращённой в обработку заявки статус не меняет.
+	if app.Status == nil || *app.Status != models.StatusProcessing {
+		if err := s.bumpStatusUpdated(tx, applicationID, &user.ID); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
 	if err := s.activateApplicationItems(ctx, tx, applicationID, false, nil); err != nil {
 		tx.Rollback()
 		return err
@@ -209,6 +228,14 @@ func (s *applicationService) RestoreApplicationToWork(ctx context.Context, usern
 
 	s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "restore_to_work", &user.ID,
 		applicationAuditDetails{OldValue: app.Status, NewValue: ptrString(models.StatusProcessing), Comment: req.Comment})
+
+	// Как и в RevokeApplicationFromWork: бамп только при реальной смене статуса (#1349).
+	if app.Status == nil || *app.Status != models.StatusProcessing {
+		if err := s.bumpStatusUpdated(tx, applicationID, &user.ID); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
 
 	if err := s.activateApplicationItems(ctx, tx, applicationID, false, nil); err != nil {
 		tx.Rollback()
@@ -277,6 +304,12 @@ func (s *applicationService) WithdrawApplication(ctx context.Context, username s
 
 	s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, models.AuditActionWithdraw, &user.ID,
 		applicationAuditDetails{OldValue: app.Status, NewValue: ptrString(models.StatusWithdrawn)})
+
+	// Актор - сам отправитель: флаг загорится у принимающих/согласующих, но не у него (#1349).
+	if err := s.bumpStatusUpdated(tx, applicationID, &user.ID); err != nil {
+		tx.Rollback()
+		return err
+	}
 
 	// Деактивируем машины и сотрудников вложений...
 	if err := s.activateApplicationItems(ctx, tx, applicationID, false, nil); err != nil {
@@ -422,6 +455,7 @@ func (s *applicationService) CheckExpiredAttachments(ctx context.Context) error 
 	for _, id := range appIDs {
 		uniqueAppIDs[id] = true
 	}
+	var completedAppIDs []int
 	for appID := range uniqueAppIDs {
 		var activeCount int64
 		tx.Raw("SELECT COUNT(*) FROM attachments WHERE application_id = ? AND status = 1", appID).Scan(&activeCount)
@@ -452,11 +486,24 @@ func (s *applicationService) CheckExpiredAttachments(ctx context.Context) error 
 		// Актор nil: заявку завершил крон по сроку, а не человек - история рисует "Система".
 		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &id, "completed", nil,
 			applicationAuditDetails{OldValue: snapshot.Status, NewValue: ptrString(models.StatusCompleted)})
+
+		// Актор nil и здесь: флаг "статус обновился" загорается у ВСЕХ участников,
+		// включая отправителя - завершение по сроку никто не совершал руками (#1349).
+		if err := s.bumpStatusUpdated(tx, id, nil); err != nil {
+			tx.Rollback()
+			return err
+		}
+		completedAppIDs = append(completedAppIDs, id)
 		slog.Info("Заявка завершена", "application_id", id)
 	}
 
 	if err := tx.Commit().Error; err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
+	}
+
+	// Завершение - смена статуса заявки: участники видят её live в детали и списках (#1349).
+	for _, id := range completedAppIDs {
+		s.notifyApplicationUpdated(ctx, id)
 	}
 
 	slog.Info("Проверка истекших вложений завершена")

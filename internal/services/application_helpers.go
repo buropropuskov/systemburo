@@ -147,6 +147,42 @@ func (s *applicationService) updateConfirmationBasedOnApprovals(tx *gorm.DB, app
 	return nil
 }
 
+// statusViewUpsert - идемпотентная per-user отметка "видел текущий статус заявки" (#1349).
+// Эталон паттерна - questionViewUpsert (application_question_service.go).
+const statusViewUpsert = `INSERT INTO application_status_views (application_id, user_id, seen_at)
+	VALUES (?, ?, now())
+	ON CONFLICT (application_id, user_id) DO UPDATE SET seen_at = now()`
+
+// hasStatusUpdatePredicate - условие "status/confirmation заявки менялись после последнего
+// просмотра пользователем" (#1349) для листингов и фильтров. Оба плейсхолдера - id
+// просматривающего. GREATEST в Postgres игнорирует NULL; read_at участвует, чтобы
+// прочтение ПОСЛЕ смены статуса (первое открытие непрочитанной) тоже гасило флаг.
+const hasStatusUpdatePredicate = `(
+		a.status_updated_at IS NOT NULL
+		AND a.status_updated_at > COALESCE(GREATEST(
+			(SELECT sv.seen_at FROM application_status_views sv WHERE sv.application_id = a.id AND sv.user_id = ?),
+			(SELECT ar2.read_at FROM application_reads ar2 WHERE ar2.application_id = a.id AND ar2.user_id = ?)
+		), to_timestamp(0))
+	)`
+
+// bumpStatusUpdated помечает заявку "статус изменился" (status_updated_at=NOW()) и тут же
+// гасит флаг для автора действия: его seen_at ставится тем же NOW(), а предикат - строгое
+// ">". Звать СТРОГО в той же транзакции, что и UPDATE статуса/подтверждения (NOW() внутри
+// tx стабилен - иначе актор увидит собственный флаг), и только при реальной смене значения.
+func (s *applicationService) bumpStatusUpdated(tx *gorm.DB, applicationID int, actorUserID *int) error {
+	if err := tx.Exec("UPDATE applications SET status_updated_at = NOW() WHERE id = ?", applicationID).Error; err != nil {
+		slog.Error("Ошибка отметки смены статуса", "application_id", applicationID, "error", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to mark status update")
+	}
+	if actorUserID != nil {
+		if err := tx.Exec(statusViewUpsert, applicationID, *actorUserID).Error; err != nil {
+			slog.Error("Ошибка отметки просмотра статуса актором", "application_id", applicationID, "user_id", *actorUserID, "error", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to mark status seen")
+		}
+	}
+	return nil
+}
+
 // activateApplicationItems активирует/деактивирует машины и сотрудников заявки. При активации
 // (activate=true) для каждой машины/сотрудника, РЕАЛЬНО перешедших в активный статус (0->1),
 // пишется история «Добавлен в таблицу проходной» (#1085) по их целевым таблицам - это и есть

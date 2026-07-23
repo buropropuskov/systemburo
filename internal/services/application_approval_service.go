@@ -260,6 +260,10 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 	if (oldConfirmation == nil) != (newConfirmation == nil) || (oldConfirmation != nil && newConfirmation != nil && *oldConfirmation != *newConfirmation) {
 		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "confirmation_change", &user.ID,
 			applicationAuditDetails{OldValue: oldConfirmation, NewValue: newConfirmation})
+		if err := s.bumpStatusUpdated(tx, applicationID, &user.ID); err != nil {
+			tx.Rollback()
+			return err
+		}
 	}
 
 	if err := tx.Commit().Error; err != nil {
@@ -427,6 +431,10 @@ func (s *applicationService) ApproveApplicationByUser(ctx context.Context, usern
 	if (oldConfirmation == nil) != (newConfirmation == nil) || (oldConfirmation != nil && newConfirmation != nil && *oldConfirmation != *newConfirmation) {
 		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "confirmation_change", &user.ID,
 			applicationAuditDetails{OldValue: oldConfirmation, NewValue: newConfirmation})
+		if err := s.bumpStatusUpdated(tx, applicationID, &user.ID); err != nil {
+			tx.Rollback()
+			return err
+		}
 	}
 
 	if err := tx.Commit().Error; err != nil {
@@ -527,6 +535,10 @@ func (s *applicationService) RevokeApproval(ctx context.Context, username string
 	if (oldConfirmation == nil) != (newConfirmation == nil) || (oldConfirmation != nil && newConfirmation != nil && *oldConfirmation != *newConfirmation) {
 		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "confirmation_change", &user.ID,
 			applicationAuditDetails{OldValue: oldConfirmation, NewValue: newConfirmation})
+		if err := s.bumpStatusUpdated(tx, applicationID, &user.ID); err != nil {
+			tx.Rollback()
+			return nil, err
+		}
 	}
 
 	if err := tx.Commit().Error; err != nil {
