@@ -629,7 +629,10 @@ export default {
   border-radius: 45px;
   width: 980px;
   max-width: 96vw;
-  max-height: 92vh;
+  /* Не голый 92vh: на >1440 корень зумлен, vh считается от НЕзумленной высоты и
+     завышает кап в zoom раз (на 2539x1440 кап был 1324px при layout-высоте 900 -
+     модалка вылезала на 340px сверху и снизу). --app-vh нормирован на zoom. */
+  max-height: calc(var(--app-vh, 1vh) * 92);
   display: flex;
   flex-direction: column;
   overflow: hidden;
