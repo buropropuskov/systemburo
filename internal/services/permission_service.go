@@ -290,6 +290,7 @@ var tableVerbs = []struct{ Verb, Title string }{
 	{"history", "История таблицы"},
 	{"versions", "Сохранённые версии"},
 	{"export", "Экспорт"},
+	{"report", "Отчёт по проходам"},
 	{"trash", "Корзина"},
 	{"delete", "Удаление записи"},
 }

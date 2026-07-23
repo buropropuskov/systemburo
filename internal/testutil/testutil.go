@@ -13,6 +13,7 @@ import (
 	"systemburo/internal/crypto"
 	"systemburo/internal/database"
 	"systemburo/internal/handlers"
+	mw "systemburo/internal/middleware"
 	"systemburo/internal/router"
 	"systemburo/internal/services"
 	appvalidator "systemburo/internal/validator"
@@ -36,6 +37,7 @@ const (
 // tables lists all tables in FK-safe deletion order (dependents first).
 var tables = []string{
 	"audit_log",
+	"daily_pass_reports",
 	"system_settings",
 	"user_online_peaks",
 	"report_templates",
@@ -177,6 +179,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	manualAttachHandler := handlers.NewManualAttachHandler(manualAttachService)
 	systemTableHandler := handlers.NewSystemTableHandler(systemTableService, auditRecorder, 10*1024*1024, uploadDir)
 	tableSnapshotHandler := handlers.NewTableSnapshotHandler(services.NewTableSnapshotService(db, carService, employeeService, employeesHistoryService))
+	passReportHandler := handlers.NewPassReportHandler(services.NewDailyPassReportService(db), permissionResolver)
 	uniqueCarHandler := handlers.NewUniqueCarHandler(uniqueCarService)
 	uniqueEmployeeHandler := handlers.NewUniqueEmployeeHandler(uniqueEmployeeService)
 	feedbackHandler := handlers.NewFeedbackHandler(feedbackService)
@@ -234,6 +237,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 		Employees:           employeeHandler,
 		SystemTable:         systemTableHandler,
 		TableSnapshot:       tableSnapshotHandler,
+		PassReport:          passReportHandler,
 		UniqueCar:           uniqueCarHandler,
 		UniqueEmployee:      uniqueEmployeeHandler,
 		Feedback:            feedbackHandler,
@@ -265,6 +269,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 		AuthEvents:          authEventHandler,
 		PermResolver:        permissionResolver,
 		DenialLog:           accessDenialService,
+		TableReportGate:     mw.RequireTableVerb(db, permissionResolver, accessDenialService, "report"),
 		JWTSecret:           []byte(TestJWTSecret),
 		UploadPath:          uploadDir,
 	})
