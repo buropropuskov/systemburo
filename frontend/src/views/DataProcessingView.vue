@@ -47,6 +47,13 @@
         </p>
       </div>
 
+      <!-- На телефоне <embed> PDF не рендерит - показываем страницами через pdf.js. -->
+      <PdfDocumentViewer
+        v-else-if="isPdf && isMobile && pdfBlob"
+        :blob="pdfBlob"
+        class="dp-pdf-mobile"
+      />
+
       <embed
         v-else-if="isPdf && pdfUrl"
         :src="pdfUrl"
@@ -83,12 +90,18 @@ import {
   fetchDataProcessingBlob,
   downloadDataProcessingDoc,
 } from '@/api/dataProcessing';
+import PdfDocumentViewer from '@/components/ui/PdfDocumentViewer.vue';
 
 const meta = ref(null);
 const loading = ref(true);
 const error = ref(null);
 const pdfUrl = ref(null);
+const pdfBlob = ref(null);
 const downloading = ref(false);
+// Порог 768px: телефон рендерит PDF через pdf.js (нативный embed не работает),
+// десктоп/планшет оставляет <embed>. Реактивно - вью полноэкранная, ловим поворот/ресайз.
+const isMobile = ref(false);
+let mql = null;
 
 const isPdf = computed(
   () => meta.value && (meta.value.mime_type === 'application/pdf' || meta.value.ext === '.pdf'),
@@ -99,6 +112,7 @@ function revokePdf() {
     URL.revokeObjectURL(pdfUrl.value);
     pdfUrl.value = null;
   }
+  pdfBlob.value = null;
 }
 
 async function load() {
@@ -109,6 +123,7 @@ async function load() {
     meta.value = await getDataProcessingMeta();
     if (isPdf.value) {
       const blob = await fetchDataProcessingBlob();
+      pdfBlob.value = blob;
       pdfUrl.value = URL.createObjectURL(blob);
     }
   } catch {
@@ -116,6 +131,10 @@ async function load() {
   } finally {
     loading.value = false;
   }
+}
+
+function applyMobile(e) {
+  isMobile.value = e.matches;
 }
 
 async function download() {
@@ -130,8 +149,18 @@ async function download() {
   }
 }
 
-onMounted(load);
-onBeforeUnmount(revokePdf);
+onMounted(() => {
+  if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+    mql = window.matchMedia('(max-width: 768px)');
+    isMobile.value = mql.matches;
+    mql.addEventListener('change', applyMobile);
+  }
+  load();
+});
+onBeforeUnmount(() => {
+  if (mql) mql.removeEventListener('change', applyMobile);
+  revokePdf();
+});
 </script>
 
 <style scoped>
@@ -172,6 +201,15 @@ onBeforeUnmount(revokePdf);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: #fff;
+}
+
+.dp-pdf-mobile {
+  flex: 1;
+  width: 100%;
+  min-height: 70vh;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
 }
 
 .dp-state {

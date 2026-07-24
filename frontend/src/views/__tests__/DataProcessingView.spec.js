@@ -74,4 +74,30 @@ describe('DataProcessingView', () => {
     await wrapper.find('.dp-button--primary').trigger('click');
     expect(downloadDataProcessingDoc).toHaveBeenCalledWith('soglasie.pdf');
   });
+
+  it('на мобилке рендерит PDF через pdf.js-просмотрщик, а не <embed>', async () => {
+    vi.stubGlobal('matchMedia', vi.fn(() => ({
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })));
+    getDataProcessingMeta.mockResolvedValue({
+      file_name: 'soglasie.pdf', mime_type: 'application/pdf', ext: '.pdf', uploaded_at: '',
+    });
+    fetchDataProcessingBlob.mockResolvedValue(new Blob(['%PDF'], { type: 'application/pdf' }));
+    const wrapper = mount(DataProcessingView, {
+      global: {
+        stubs: {
+          PdfDocumentViewer: {
+            name: 'PdfDocumentViewer', props: ['blob'], template: '<div class="pdf-stub" />',
+          },
+        },
+      },
+    });
+    await flushPromises();
+
+    expect(wrapper.find('.dp-pdf').exists()).toBe(false);
+    expect(wrapper.find('.pdf-stub').exists()).toBe(true);
+    vi.unstubAllGlobals();
+  });
 });
