@@ -2990,8 +2990,12 @@ export default {
             z-index: 5;
             display: flex;
             justify-content: center;
-            margin: 0 -12px;
-            padding: 8px 12px;
+            /* Full-bleed подложка гасит padding .create (= --gutter). margin И padding
+               ОБА из --gutter, иначе на брейкпоинте где gutter меняется (768->12,
+               480->10) хардкод -12px вылезает за экран на 2px -> горизонтальное
+               переполнение -> Chrome ужимает страницу -> шапки уезжают на ~5px (#1282). */
+            margin: 0 calc(-1 * var(--gutter, 12px));
+            padding: 8px var(--gutter, 12px);
             background: transparent;
             border-bottom: 1px solid transparent;
             transition: background-color 0.2s ease, border-color 0.2s ease;
