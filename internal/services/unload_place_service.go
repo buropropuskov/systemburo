@@ -12,6 +12,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // CreateUnloadPlaceRequest -- тело запроса на создание места разгрузки.
@@ -72,6 +73,28 @@ type UnloadPlaceWithDetails struct {
 	UpdatedAt      time.Time                         `json:"updated_at"`
 }
 
+// UnloadPlaceBinding -- привязанная к месту разгрузки организация/компания.
+// IsActive=false помечает архивную запись (её всё равно показываем: гейт Delete
+// считает по junction без фильтра активности, поэтому она держит место).
+type UnloadPlaceBinding struct {
+	ID       int    `json:"id"`
+	Name     string `json:"name"`
+	IsActive bool   `json:"is_active"`
+}
+
+// UnloadPlaceUsage -- организации и компании, привязанные к месту разгрузки.
+// Набор совпадает с тем, что блокирует удаление (см. Delete).
+type UnloadPlaceUsage struct {
+	Organizations []UnloadPlaceBinding `json:"organizations"`
+	Companies     []UnloadPlaceBinding `json:"companies"`
+}
+
+// UnloadPlaceDetachResult -- сколько привязок снято операцией «Отвязать всё».
+type UnloadPlaceDetachResult struct {
+	OrganizationsDetached int `json:"organizations_detached"`
+	CompaniesDetached     int `json:"companies_detached"`
+}
+
 // UnloadPlaceService -- интерфейс бизнес-логики мест разгрузки.
 // В мутациях callerUserID - актор для аудита (#413).
 type UnloadPlaceService interface {
@@ -83,6 +106,11 @@ type UnloadPlaceService interface {
 	Restore(ctx context.Context, callerUserID, id int) error
 	BulkArchive(ctx context.Context, callerUserID int, ids []int) (*BulkOpResult, error)
 	BulkRestore(ctx context.Context, callerUserID int, ids []int) (*BulkOpResult, error)
+
+	// GetUsage возвращает организации и компании, привязанные к месту разгрузки
+	// (те же, что блокируют Delete). DetachAll снимает все эти привязки разом.
+	GetUsage(ctx context.Context, id int) (*UnloadPlaceUsage, error)
+	DetachAll(ctx context.Context, callerUserID, id int) (*UnloadPlaceDetachResult, error)
 
 	// GetHistory возвращает историю изменений места разгрузки (новые сверху).
 	GetHistory(ctx context.Context, id int) ([]models.UnloadPlaceHistoryItem, error)
@@ -386,6 +414,103 @@ func (s *unloadPlaceService) Restore(ctx context.Context, callerUserID, id int) 
 	slog.Info("место разгрузки восстановлено", "id", id)
 	s.recorder.Log(ctx, nil, models.AuditEntityUnloadPlace, &id, models.UnloadPlaceActionRestored, &callerUserID, nil)
 	return nil
+}
+
+// GetUsage возвращает организации и компании, привязанные к месту разгрузки.
+// Junction читается БЕЗ фильтра is_active орг/компании: набор обязан совпадать с
+// тем, что считает гейт в Delete, иначе получилось бы «привязок нет», а удалить
+// нельзя. Архивные орг/компании помечаются is_active=false.
+func (s *unloadPlaceService) GetUsage(ctx context.Context, id int) (*UnloadPlaceUsage, error) {
+	if _, ok := s.loadUnloadPlace(ctx, id); !ok {
+		return nil, echo.NewHTTPError(http.StatusNotFound, "Место разгрузки не найдено")
+	}
+
+	usage := &UnloadPlaceUsage{
+		Organizations: make([]UnloadPlaceBinding, 0),
+		Companies:     make([]UnloadPlaceBinding, 0),
+	}
+	if err := s.db.WithContext(ctx).
+		Table("organization_unload_places oup").
+		Select("o.id, o.name, o.is_active").
+		Joins("JOIN organizations o ON o.id = oup.organization_id").
+		Where("oup.unload_place_id = ?", id).
+		Order("o.name").
+		Scan(&usage.Organizations).Error; err != nil {
+		slog.Error("не удалось прочитать привязки организаций места разгрузки", "id", id, "error", err)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching organization bindings")
+	}
+	if err := s.db.WithContext(ctx).
+		Table("companies_unload_places cup").
+		Select("c.id, c.name, c.is_active").
+		Joins("JOIN companies c ON c.id = cup.company_id").
+		Where("cup.unload_place_id = ?", id).
+		Order("c.name").
+		Scan(&usage.Companies).Error; err != nil {
+		slog.Error("не удалось прочитать привязки компаний места разгрузки", "id", id, "error", err)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching company bindings")
+	}
+	return usage, nil
+}
+
+// DetachAll снимает привязки места разгрузки ко ВСЕМ организациям и компаниям
+// (обе join-таблицы удаляются в одной транзакции). На каждую затронутую
+// организацию/компанию пишется история «место убрано из набора» - зеркало
+// аудита UpdateOrganizationUnloadPlaces/UpdateUnloadPlaces. После этого место
+// можно архивировать (Delete больше не заблокирует). Идемпотентно: повтор по
+// уже отвязанному месту возвращает нулевые счётчики.
+func (s *unloadPlaceService) DetachAll(ctx context.Context, callerUserID, id int) (*UnloadPlaceDetachResult, error) {
+	place, ok := s.loadUnloadPlace(ctx, id)
+	if !ok {
+		return nil, echo.NewHTTPError(http.StatusNotFound, "Место разгрузки не найдено")
+	}
+
+	// DELETE ... RETURNING внутри одной транзакции: удаляем привязки и получаем
+	// id ровно затронутых сущностей атомарно. Отдельный SELECT-перед-DELETE дал бы
+	// гонку - конкурентная привязка попала бы под DELETE, но мимо аудита.
+	var orgIDs, companyIDs []int
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var removedOrgs []models.OrganizationUnloadPlace
+		if err := tx.Clauses(clause.Returning{Columns: []clause.Column{{Name: "organization_id"}}}).
+			Where("unload_place_id = ?", id).Delete(&removedOrgs).Error; err != nil {
+			slog.Error("не удалось отвязать организации от места разгрузки", "id", id, "error", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error detaching organizations")
+		}
+		var removedCompanies []models.CompaniesUnloadPlace
+		if err := tx.Clauses(clause.Returning{Columns: []clause.Column{{Name: "company_id"}}}).
+			Where("unload_place_id = ?", id).Delete(&removedCompanies).Error; err != nil {
+			slog.Error("не удалось отвязать компании от места разгрузки", "id", id, "error", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error detaching companies")
+		}
+		for _, r := range removedOrgs {
+			orgIDs = append(orgIDs, r.OrganizationID)
+		}
+		for _, r := range removedCompanies {
+			companyIDs = append(companyIDs, r.CompanyID)
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	if len(orgIDs) == 0 && len(companyIDs) == 0 {
+		return &UnloadPlaceDetachResult{}, nil
+	}
+
+	removed := auditNameDiff{Removed: []string{place.Name}}
+	for _, orgID := range orgIDs {
+		oid := orgID
+		s.recorder.Log(ctx, nil, models.AuditEntityOrganization, &oid, models.OrganizationActionUnloadPlacesChanged, &callerUserID, removed)
+	}
+	for _, companyID := range companyIDs {
+		cid := companyID
+		s.recorder.Log(ctx, nil, models.AuditEntityCompany, &cid, models.CompanyActionUnloadPlacesChanged, &callerUserID, removed)
+	}
+
+	slog.Info("место разгрузки отвязано от всех орг/компаний", "id", id, "orgs", len(orgIDs), "companies", len(companyIDs))
+	return &UnloadPlaceDetachResult{
+		OrganizationsDetached: len(orgIDs),
+		CompaniesDetached:     len(companyIDs),
+	}, nil
 }
 
 // loadUnloadPlace подгружает место разгрузки без сборки полного набора

@@ -5,10 +5,12 @@ import (
 	"net/http"
 	"testing"
 
+	"systemburo/internal/models"
 	"systemburo/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func TestUnloadPlaces_Unauthorized(t *testing.T) {
@@ -152,6 +154,121 @@ func TestUnloadPlaces_Restore_NotFound(t *testing.T) {
 
 	rec := testutil.POST(t, e, "/unload-places/99999/restore", "", h)
 	assert.Equal(t, http.StatusNotFound, rec.Code)
+}
+
+// TestUnloadPlaces_UsageAndDetachAll: usage показывает привязки, они блокируют
+// удаление, «Отвязать всё» их снимает (с аудитом на каждую орг/компанию) и после
+// этого место архивируется. Повтор detach-all по пустому - идемпотентен.
+func TestUnloadPlaces_UsageAndDetachAll(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	placeID := int(testutil.ParseMap(t, testutil.POST(t, e, "/unload-places", `{"name":"Отвяз-Место"}`, h))["id"].(float64))
+	require.NoError(t, db.Create(&models.OrganizationUnloadPlace{OrganizationID: td.OrgID, UnloadPlaceID: placeID}).Error)
+	require.NoError(t, db.Create(&models.CompaniesUnloadPlace{CompanyID: td.CompanyID, UnloadPlaceID: placeID}).Error)
+
+	// usage перечисляет обе привязки
+	usage := testutil.ParseMap(t, testutil.GET(t, e, fmt.Sprintf("/unload-places/%d/usage", placeID), h))
+	orgs := usage["organizations"].([]interface{})
+	comps := usage["companies"].([]interface{})
+	require.Len(t, orgs, 1)
+	require.Len(t, comps, 1)
+	assert.Equal(t, float64(td.OrgID), orgs[0].(map[string]interface{})["id"])
+	assert.Equal(t, true, orgs[0].(map[string]interface{})["is_active"])
+	assert.NotEmpty(t, orgs[0].(map[string]interface{})["name"])
+
+	// пока привязано - удаление заблокировано (400)
+	assert.Equal(t, http.StatusBadRequest, testutil.DELETE(t, e, fmt.Sprintf("/unload-places/%d", placeID), h).Code)
+
+	// detach-all снимает обе привязки
+	detach := testutil.ParseMap(t, testutil.POST(t, e, fmt.Sprintf("/unload-places/%d/detach-all", placeID), "", h))
+	assert.Equal(t, float64(1), detach["organizations_detached"])
+	assert.Equal(t, float64(1), detach["companies_detached"])
+
+	// аудит «место убрано» записан на организацию и компанию
+	assert.Contains(t, auditDetails(t, db, models.AuditEntityOrganization, td.OrgID, models.OrganizationActionUnloadPlacesChanged), "Отвяз-Место")
+	assert.Contains(t, auditDetails(t, db, models.AuditEntityCompany, td.CompanyID, models.CompanyActionUnloadPlacesChanged), "Отвяз-Место")
+
+	// usage теперь пуст
+	usage = testutil.ParseMap(t, testutil.GET(t, e, fmt.Sprintf("/unload-places/%d/usage", placeID), h))
+	assert.Empty(t, usage["organizations"].([]interface{}))
+	assert.Empty(t, usage["companies"].([]interface{}))
+
+	// теперь место архивируется
+	assert.Equal(t, http.StatusOK, testutil.DELETE(t, e, fmt.Sprintf("/unload-places/%d", placeID), h).Code)
+
+	// повторный detach-all идемпотентен (нулевые счётчики, 200)
+	detach = testutil.ParseMap(t, testutil.POST(t, e, fmt.Sprintf("/unload-places/%d/detach-all", placeID), "", h))
+	assert.Equal(t, float64(0), detach["organizations_detached"])
+	assert.Equal(t, float64(0), detach["companies_detached"])
+}
+
+// TestUnloadPlaces_Usage_ArchivedBindingVisible: архивная (is_active=false)
+// организация всё равно попадает в usage - она держит место (гейт Delete считает
+// по junction без фильтра активности), поэтому оператор обязан её видеть.
+func TestUnloadPlaces_Usage_ArchivedBindingVisible(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	placeID := int(testutil.ParseMap(t, testutil.POST(t, e, "/unload-places", `{"name":"Арх-Место"}`, h))["id"].(float64))
+	require.NoError(t, db.Create(&models.OrganizationUnloadPlace{OrganizationID: td.OrgID, UnloadPlaceID: placeID}).Error)
+	require.NoError(t, db.Table("organizations").Where("id = ?", td.OrgID).Update("is_active", false).Error)
+
+	usage := testutil.ParseMap(t, testutil.GET(t, e, fmt.Sprintf("/unload-places/%d/usage", placeID), h))
+	orgs := usage["organizations"].([]interface{})
+	require.Len(t, orgs, 1)
+	assert.Equal(t, false, orgs[0].(map[string]interface{})["is_active"], "архивная организация должна быть видна в usage")
+}
+
+func TestUnloadPlaces_Usage_NotFound(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	h := testutil.AuthHeader(testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID))
+
+	assert.Equal(t, http.StatusNotFound, testutil.GET(t, e, "/unload-places/99999/usage", h).Code)
+	assert.Equal(t, http.StatusNotFound, testutil.POST(t, e, "/unload-places/99999/detach-all", "", h).Code)
+}
+
+// TestUnloadPlaces_DetachAll_Forbidden: detach-all под admin-гейтом (меняет
+// привязки орг/компаний), обычному пользователю - 403.
+func TestUnloadPlaces_DetachAll_Forbidden(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	placeID := int(testutil.ParseMap(t, testutil.POST(t, e, "/unload-places", `{"name":"Гейт-Место"}`, testutil.AuthHeader(adminToken)))["id"].(float64))
+
+	userToken := testutil.RegisterAndLogin(t, e, "detachuser", "pass123", 1, td.OrgID, td.CompanyID)
+	rec := testutil.POST(t, e, fmt.Sprintf("/unload-places/%d/detach-all", placeID), "", testutil.AuthHeader(userToken))
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+}
+
+// auditDetails - JSON деталей (как строка) последней записи audit_log для
+// сущности/действия.
+func auditDetails(t *testing.T, db *gorm.DB, entityType string, entityID int, action string) string {
+	t.Helper()
+	var row struct {
+		Details string `gorm:"column:details"`
+	}
+	err := db.Table("audit_log").
+		Select("details").
+		Where("entity_type = ? AND entity_id = ? AND action = ?", entityType, entityID, action).
+		Order("created_at DESC, id DESC").
+		Limit(1).
+		Scan(&row).Error
+	require.NoError(t, err)
+	return row.Details
 }
 
 func TestUnloadPlaces_TimeSlots_CRUD(t *testing.T) {

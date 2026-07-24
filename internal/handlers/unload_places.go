@@ -189,6 +189,56 @@ func (h *UnloadPlaceHandler) Restore(c echo.Context) error {
 	return RespondMessage(c, "Место разгрузки восстановлено")
 }
 
+// GetUsage возвращает организации и компании, привязанные к месту разгрузки.
+// @Summary      Привязки места разгрузки
+// @Description  Организации и компании, к которым привязано место разгрузки (те же, что блокируют удаление)
+// @Tags         unload-places
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID места разгрузки"
+// @Success      200 {object} services.UnloadPlaceUsage
+// @Failure      401 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /unload-places/{id}/usage [get]
+func (h *UnloadPlaceHandler) GetUsage(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	usage, err := h.service.GetUsage(c.Request().Context(), id)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, usage)
+}
+
+// DetachAll снимает привязки места разгрузки ко всем организациям и компаниям.
+// @Summary      Отвязать место разгрузки от всех организаций и компаний
+// @Description  Разом снимает все привязки места к организациям/компаниям (с записью в историю каждой). После этого место можно архивировать
+// @Tags         unload-places
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID места разгрузки"
+// @Success      200 {object} services.UnloadPlaceDetachResult
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /unload-places/{id}/detach-all [post]
+func (h *UnloadPlaceHandler) DetachAll(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	userID, _ := c.Get("user_id").(int)
+	res, err := h.service.DetachAll(c.Request().Context(), userID, id)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, res)
+}
+
 // BulkArchive godoc
 // @Summary      Групповая архивация мест разгрузки
 // @Description  Архивирует набор мест разгрузки. Привязанные к организациям/компаниям попадают в Errors (частичный успех)
