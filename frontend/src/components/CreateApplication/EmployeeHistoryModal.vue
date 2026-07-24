@@ -905,7 +905,7 @@ export default {
   border-radius: 30px;
   width: 900px;
   max-width: 95%;
-  max-height: 80dvh;
+  max-height: calc(var(--app-vh, 1vh) * 80);
   display: flex;
   flex-direction: column;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
@@ -1180,7 +1180,7 @@ export default {
 .history-scroll {
   padding: 20px 25px;
   overflow-y: auto;
-  max-height: calc(80dvh - 180px);
+  max-height: calc(var(--app-vh, 1vh) * 80 - 180px);
   position: relative;
 }
 

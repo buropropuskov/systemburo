@@ -797,7 +797,7 @@ export default {
   border-radius: 30px;
   width: 900px;
   max-width: 95%;
-  max-height: 80dvh;
+  max-height: calc(var(--app-vh, 1vh) * 80);
   display: flex;
   flex-direction: column;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
