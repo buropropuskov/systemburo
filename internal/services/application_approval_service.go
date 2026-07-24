@@ -257,7 +257,9 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 	var newConfirmation *string
 	tx.Raw("SELECT confirmation FROM applications WHERE id = ?", applicationID).Scan(&newConfirmation)
 
-	if (oldConfirmation == nil) != (newConfirmation == nil) || (oldConfirmation != nil && newConfirmation != nil && *oldConfirmation != *newConfirmation) {
+	confirmationChanged := (oldConfirmation == nil) != (newConfirmation == nil) ||
+		(oldConfirmation != nil && newConfirmation != nil && *oldConfirmation != *newConfirmation)
+	if confirmationChanged {
 		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "confirmation_change", &user.ID,
 			applicationAuditDetails{OldValue: oldConfirmation, NewValue: newConfirmation})
 		if err := s.bumpStatusUpdated(tx, applicationID, &user.ID); err != nil {
@@ -324,6 +326,13 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 	slog.Info("заявка переслана", "application_id", applicationID, "user_id", user.ID,
 		"responsible_count", len(addedResponsibleUsers), "viewer_count", len(addedViewers))
 	s.notifyApplicationUpdated(ctx, applicationID)
+	// Пересылка может пересчитать confirmation до финального значения (#1349): если он
+	// сменился в Согласовано/Не согласовано - уведомляем инициатора об исходе.
+	if confirmationChanged {
+		if outcome := confirmationOutcome(newConfirmation); outcome != "" {
+			s.notifyInitiatorStatusChanged(ctx, applicationID, &user.ID, outcome)
+		}
+	}
 	return nil
 }
 
@@ -428,7 +437,9 @@ func (s *applicationService) ApproveApplicationByUser(ctx context.Context, usern
 	var newConfirmation *string
 	tx.Raw("SELECT confirmation FROM applications WHERE id = ?", applicationID).Scan(&newConfirmation)
 
-	if (oldConfirmation == nil) != (newConfirmation == nil) || (oldConfirmation != nil && newConfirmation != nil && *oldConfirmation != *newConfirmation) {
+	confirmationChanged := (oldConfirmation == nil) != (newConfirmation == nil) ||
+		(oldConfirmation != nil && newConfirmation != nil && *oldConfirmation != *newConfirmation)
+	if confirmationChanged {
 		s.recorder.Log(ctx, tx, models.AuditEntityApplication, &applicationID, "confirmation_change", &user.ID,
 			applicationAuditDetails{OldValue: oldConfirmation, NewValue: newConfirmation})
 		if err := s.bumpStatusUpdated(tx, applicationID, &user.ID); err != nil {
@@ -453,6 +464,13 @@ func (s *applicationService) ApproveApplicationByUser(ctx context.Context, usern
 
 	slog.Info("заявка одобрена/отклонена", "application_id", applicationID, "user_id", user.ID, "status", req.Status)
 	s.notifyApplicationUpdated(ctx, applicationID)
+	// Инициатору - уведомление об исходе согласования, если confirmation сменился в
+	// финальное значение Согласовано/Не согласовано (#1349).
+	if confirmationChanged {
+		if outcome := confirmationOutcome(newConfirmation); outcome != "" {
+			s.notifyInitiatorStatusChanged(ctx, applicationID, &user.ID, outcome)
+		}
+	}
 	return nil
 }
 

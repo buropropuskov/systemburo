@@ -145,5 +145,46 @@ func (s *applicationService) GetUnreadCount(ctx context.Context, username string
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
 
-	return &models.UnreadCountResponse{Count: int(count)}, nil
+	// Обновления статуса (#1349): ПРОЧИТАННЫЕ заявки того же скоупа (EXISTS ar), статус/
+	// подтверждение которых менялись после последнего просмотра пользователем. Отличие от
+	// unread-запроса: EXISTS(ar) вместо NOT EXISTS + предикат hasStatusUpdatePredicate.
+	var statusUpdates int64
+	suQuery := s.db.WithContext(ctx).
+		Table("applications a").
+		Where("EXISTS (SELECT 1 FROM application_reads ar WHERE ar.application_id = a.id AND ar.user_id = ?)", user.ID).
+		Where(activeCond, activeArgs...).
+		Where(hasStatusUpdatePredicate, user.ID, user.ID)
+	suQuery = applyApplicationAccessFilter(suQuery, user.ID, isApprover)
+	if err := suQuery.Count(&statusUpdates).Error; err != nil {
+		slog.Error("Ошибка подсчёта обновлений статуса", "error", err, "user_id", user.ID)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
+	}
+
+	return &models.UnreadCountResponse{Count: int(count), StatusUpdates: int(statusUpdates)}, nil
+}
+
+// GetUserStatusUpdatesCount возвращает число заявок ЛК с обновлённым статусом (#1349): scope
+// ЛК (applyUserApplicationsAccessFilter - sender или заявки его организации) + активные +
+// предикат обновления. БЕЗ гейта прочтения (у отправителя нет строк application_reads).
+// Отдельный от Центра эндпоинт: у ЛК другая матрица доступа, чем у approver/viewer.
+func (s *applicationService) GetUserStatusUpdatesCount(ctx context.Context, username string) (*models.StatusUpdatesCountResponse, error) {
+	user, err := s.getUserByUsername(ctx, username)
+	if err != nil {
+		return nil, err
+	}
+
+	activeCond, activeArgs := activeApplicationCond("a")
+	query := s.db.WithContext(ctx).
+		Table("applications a").
+		Where(activeCond, activeArgs...).
+		Where(hasStatusUpdatePredicate, user.ID, user.ID)
+	query = applyUserApplicationsAccessFilter(query, user.ID, user.OrganizationID)
+
+	var count int64
+	if err := query.Count(&count).Error; err != nil {
+		slog.Error("Ошибка подсчёта обновлений статуса ЛК", "error", err, "user_id", user.ID)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
+	}
+
+	return &models.StatusUpdatesCountResponse{StatusUpdates: int(count)}, nil
 }
