@@ -153,14 +153,16 @@ describe('PassReportModal', () => {
     await w.setProps({ show: true });
     await flushPromises();
 
-    // Свёрнута: дней не видно, но кнопка-аккордеон есть.
-    expect(td(w, 'pass-report-day').exists()).toBe(false);
+    // Свёрнута: обёртка-аккордеон без класса open (содержимое в DOM, но обрезано
+    // высотой - оно остаётся ради плавного закрытия).
     const toggle = td(w, 'pass-report-history-toggle');
     expect(toggle.text()).toContain('Показать прошлые дни');
+    expect(w.find('.pr-history-wrap').classes()).not.toContain('open');
 
     await toggle.trigger('click');
     await flushPromises();
 
+    expect(w.find('.pr-history-wrap').classes()).toContain('open');
     const day = td(w, 'pass-report-day');
     expect(day.exists()).toBe(true);
     expect(day.text()).toContain('21 июля 2026');
