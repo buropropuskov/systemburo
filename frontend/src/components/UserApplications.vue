@@ -1504,6 +1504,13 @@ export default {
   min-width: 150px;
 }
 
+/* Пульс-точку "статус обновился" (#1349) режет overflow:hidden базового
+   .application-col - у колонки статуса ellipsis не нужен (бейдж фиксированный),
+   поэтому разрешаем выход точки за границы (спецификой 0,2,0 бьём .application-col). */
+.application-col.status-col {
+  overflow: visible;
+}
+
 .tags-col {
   flex: 1.5;
   min-width: 150px;
@@ -1781,7 +1788,10 @@ export default {
    В ЛК гейта прочтения нет (у отправителя нет строк application_reads) - фон по одному
    флагу has_status_update. Ставим после hover, чтобы подсветка держалась при наведении. */
 .application-item.status-updated {
-  background-color: #eaf3fb;
+  background-color: #dbeafe;
+  /* Левая полоса-акцент (inset - без reflow): заметный сигнал "обновление" даже там,
+     где мягкого фона мало (мобильная карточка, где точка статуса скрыта). */
+  box-shadow: inset 3px 0 0 0 #2b8bf2;
 }
 
 .status-badge-wrap {
