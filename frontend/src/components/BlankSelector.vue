@@ -1095,13 +1095,15 @@ export default {
        вылезала за его границы. */
     .picker-add {
         width: 100%;
-        min-height: 44px;
-        margin: 10px 0 16px;
+        min-height: 50px;
+        /* Больше воздуха сверху - кнопка отделяется от карусели типов и не
+           сливается с блоком формы; снизу отступ до подписи/списка. */
+        margin: 22px 0 20px;
         border: none;
         border-radius: var(--radius-md);
         background: var(--color-primary);
         color: #fff;
-        font-size: 14px;
+        font-size: 16px;
         font-weight: 600;
         cursor: pointer;
     }
