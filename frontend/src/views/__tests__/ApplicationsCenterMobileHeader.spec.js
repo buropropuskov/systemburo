@@ -130,7 +130,7 @@ describe('ApplicationsCenter: мобильная шапка vs десктоп-и
     const w = mountCenter();
     await nextTick();
     expect(w.vm.hasModalFilters).toBe(false);
-    w.vm.selectedOrganizationId = 7;
+    w.vm.selectedOrganizationIds = [7];
     expect(w.vm.hasModalFilters).toBe(true);
   });
 
@@ -139,22 +139,36 @@ describe('ApplicationsCenter: мобильная шапка vs десктоп-и
     const w = mountCenter();
     await nextTick();
     expect(w.vm.hasModalFilters).toBe(false);
-    w.vm.handleCompanyChange({ id: 5, name: 'ООО Ромашка' });
-    expect(w.vm.selectedCompanyId).toBe(5);
+    w.vm.setMultiFilter('selectedCompanyIds', [5]);
+    expect(w.vm.selectedCompanyIds).toEqual([5]);
     expect(w.vm.hasModalFilters).toBe(true);
     expect(w.vm.hasActiveFilters).toBe(true);
   });
 
-  it('buildApplicationsPage передаёт company_id при выбранной компании', async () => {
+  it('индикатор «Фильтр» загорается на местах разгрузки и проходах (#1398)', async () => {
+    mockMatchMedia(true);
+    const w = mountCenter();
+    await nextTick();
+    w.vm.setMultiFilter('selectedUnloadPlaceIds', [3]);
+    expect(w.vm.hasModalFilters).toBe(true);
+
+    w.vm.setMultiFilter('selectedUnloadPlaceIds', []);
+    expect(w.vm.hasModalFilters).toBe(false);
+
+    w.vm.setMultiFilter('selectedPassageTableIds', [9]);
+    expect(w.vm.hasModalFilters).toBe(true);
+  });
+
+  it('buildApplicationsPage передаёт company_ids при выбранной компании', async () => {
     mockMatchMedia(true);
     const w = mountCenter();
     await nextTick();
     getApplicationsPaginated.mockClear();
     getApplicationsPaginated.mockResolvedValue({ items: [], meta: { total: 0, page: 1, per_page: 30 } });
-    w.vm.selectedCompanyId = 5;
+    w.vm.selectedCompanyIds = [5];
     await w.vm.buildApplicationsPage(1, 30);
     expect(getApplicationsPaginated).toHaveBeenCalled();
-    expect(getApplicationsPaginated.mock.calls[0][0].company_id).toBe(5);
+    expect(getApplicationsPaginated.mock.calls[0][0].company_ids).toBe('5');
   });
 
   it('messagePreview снимает HTML-теги rich-сообщения до плоского текста', async () => {

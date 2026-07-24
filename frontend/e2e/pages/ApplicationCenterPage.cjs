@@ -36,8 +36,22 @@ class ApplicationCenterPage {
     return this.page.locator('[data-testid^="center-row-"]');
   }
 
-  getStatusButton(status) {
-    return this.page.getByTestId(`center-button-status-${status}`);
+  // Статусы, подтверждения, теги и справочники (организации/компании/места/проходы)
+  // выбираются мультивыбором в дропдауне (#1398): открыть кнопку фильтра, затем
+  // отметить пункт по подписи. Меню телепортится в body, поэтому ищем его от page.
+  getFilterDropdown(name) {
+    return this.page.getByTestId(`center-filter-${name}`);
+  }
+
+  async selectFilterOption(name, optionLabel) {
+    await this.getFilterDropdown(name).locator('.base-dropdown__button').click();
+    const menu = this.page.locator('.base-dropdown__menu');
+    await menu.waitFor({ state: 'visible' });
+    await menu.locator('.base-dropdown__item', { hasText: optionLabel }).first().click();
+  }
+
+  getSelectedFilterLabel(name) {
+    return this.getFilterDropdown(name).locator('.base-dropdown__text');
   }
 }
 

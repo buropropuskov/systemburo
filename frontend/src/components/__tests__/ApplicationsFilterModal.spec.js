@@ -18,28 +18,60 @@ const DateFilterStub = {
   template: '<div class="date-filter-stub" />',
 };
 
-// Один стаб на оба фильтра (Организация/Компания) - различаем по all-label.
-const OrganizationFilterStub = {
-  name: 'OrganizationFilter',
-  props: ['value', 'organizations', 'allLabel', 'placeholderText'],
-  emits: ['change'],
-  template: '<button class="org-filter-stub" :data-all-label="allLabel" @click="$emit(\'change\', 7)" />',
+// Мультивыборные фильтры (#1398): клик по стабу отдаёт массив, как настоящий
+// BaseDropdown multiple. Различаем инстансы по проброшенному data-testid.
+const BaseDropdownStub = {
+  name: 'BaseDropdown',
+  props: ['modelValue', 'options', 'placeholder', 'summaryLabel', 'labelKey', 'valueKey', 'multiple', 'searchable', 'teleport'],
+  emits: ['update:modelValue'],
+  template: `<button
+    class="dd-stub"
+    :data-summary="summaryLabel"
+    :data-selected="(modelValue || []).join(',')"
+    @click="$emit('update:modelValue', [firstValue])"
+  />`,
+  computed: {
+    firstValue() {
+      const first = this.options[0] || {};
+      return first[this.valueKey || 'id'];
+    },
+  },
 };
+
+// Конфиги фильтров приходят из ApplicationsCenter готовыми - модалка их только рендерит.
+const DIRECTORY_FILTERS = [
+  {
+    field: 'selectedOrganizationIds', values: [], options: [{ id: 7, name: 'Орг' }], allLabel: 'Все организации', summaryLabel: 'Организация', testid: 'center-filter-organizations',
+  },
+  {
+    field: 'selectedCompanyIds', values: [], options: [{ id: 5, name: 'Компания' }], allLabel: 'Все компании', summaryLabel: 'Компания', testid: 'center-filter-companies',
+  },
+  {
+    field: 'selectedUnloadPlaceIds', values: [], options: [{ id: 3, name: 'Место' }], allLabel: 'Все места разгрузки', summaryLabel: 'Места разгрузки', testid: 'center-filter-unload-places',
+  },
+  {
+    field: 'selectedPassageTableIds', values: [], options: [{ id: 9, name: 'КПП' }], allLabel: 'Все проходы', summaryLabel: 'Проход', testid: 'center-filter-passage-tables',
+  },
+];
+
+const STATE_FILTERS = [
+  {
+    field: 'selectedConfirmations', values: [], options: [{ value: 'approved', label: 'Согласовано' }], allLabel: 'Всё подтверждение', summaryLabel: 'Подтверждение', testid: 'center-filter-confirmations',
+  },
+  {
+    field: 'selectedApplicationStatuses', values: [], options: [{ value: 'inwork', label: 'В работе' }], allLabel: 'Все статусы', summaryLabel: 'Статус', testid: 'center-filter-statuses',
+  },
+  {
+    field: 'selectedTags', values: [], options: [{ value: 'bl', label: 'ЧС' }], allLabel: 'Все теги', summaryLabel: 'Теги', testid: 'center-filter-tags',
+  },
+];
 
 function mountModal(props = {}) {
   return mount(ApplicationsFilterModal, {
     props: {
       show: true,
-      organizations: [{ id: 7, name: 'Орг' }],
-      selectedOrganizationId: null,
-      companies: [{ id: 5, name: 'Компания' }],
-      selectedCompanyId: null,
-      confirmations: [{ value: 'approved', label: 'Согласовано' }],
-      selectedConfirmations: [],
-      applicationStatuses: [{ value: 'inwork', label: 'В работе' }],
-      selectedApplicationStatuses: [],
-      tags: [{ value: 'bl', label: 'ЧС' }],
-      selectedTags: [],
+      directoryFilters: DIRECTORY_FILTERS,
+      stateFilters: STATE_FILTERS,
       activeToday: false,
       sortField: null,
       sortDirection: 'desc',
@@ -47,7 +79,7 @@ function mountModal(props = {}) {
       ...props,
     },
     global: {
-      stubs: { BaseModal: BaseModalStub, DateFilter: DateFilterStub, OrganizationFilter: OrganizationFilterStub },
+      stubs: { BaseModal: BaseModalStub, DateFilter: DateFilterStub, BaseDropdown: BaseDropdownStub },
     },
   });
 }
@@ -55,21 +87,33 @@ function mountModal(props = {}) {
 const td = (w, id) => w.find(`[data-testid="${id}"]`);
 
 describe('ApplicationsFilterModal', () => {
-  it('рендерит секцию организации и пробрасывает change как organization-change', async () => {
+  it('рендерит все справочные фильтры мультивыбором (#1398)', () => {
     const w = mountModal();
-    // Первый фильтр без all-label «Все компании» = организация.
-    const org = w.findAll('.org-filter-stub').find((el) => el.attributes('data-all-label') !== 'Все компании');
-    expect(org.exists()).toBe(true);
-    await org.trigger('click');
-    expect(w.emitted('organization-change')[0]).toEqual([7]);
+    expect(td(w, 'center-filter-organizations').exists()).toBe(true);
+    expect(td(w, 'center-filter-companies').exists()).toBe(true);
+    expect(td(w, 'center-filter-unload-places').exists()).toBe(true);
+    expect(td(w, 'center-filter-passage-tables').exists()).toBe(true);
   });
 
-  it('рендерит секцию компании и пробрасывает change как company-change', async () => {
+  it('выбор в справочном фильтре эмитит set-filter с именем поля и массивом', async () => {
     const w = mountModal();
-    const company = w.find('[data-all-label="Все компании"]');
-    expect(company.exists()).toBe(true);
-    await company.trigger('click');
-    expect(w.emitted('company-change')[0]).toEqual([7]);
+    await td(w, 'center-filter-unload-places').trigger('click');
+    expect(w.emitted('set-filter')[0]).toEqual(['selectedUnloadPlaceIds', [3]]);
+  });
+
+  it('выбор в фильтре состояния эмитит set-filter со значением опции, а не id', async () => {
+    const w = mountModal();
+    await td(w, 'center-filter-statuses').trigger('click');
+    expect(w.emitted('set-filter')[0]).toEqual(['selectedApplicationStatuses', ['inwork']]);
+  });
+
+  it('выбранные значения уходят в дропдаун (модалка отражает состояние родителя)', () => {
+    const withSelection = DIRECTORY_FILTERS.map((f) => (
+      f.field === 'selectedOrganizationIds' ? { ...f, values: [7] } : f
+    ));
+    const w = mountModal({ directoryFilters: withSelection });
+    expect(td(w, 'center-filter-organizations').attributes('data-selected')).toBe('7');
+    expect(td(w, 'center-filter-companies').attributes('data-selected')).toBe('');
   });
 
   it('секция сортировки: клик по полю эмитит sort-by, активное поле показывает направление', async () => {
@@ -90,34 +134,25 @@ describe('ApplicationsFilterModal', () => {
   it('рендерит секции фильтров по пропсам', () => {
     const w = mountModal();
     expect(td(w, 'center-button-today').exists()).toBe(true);
-    expect(td(w, 'center-button-confirmation-approved').exists()).toBe(true);
-    expect(td(w, 'center-button-status-inwork').exists()).toBe(true);
-    expect(td(w, 'center-button-tag-bl').exists()).toBe(true);
+    expect(td(w, 'center-filter-confirmations').exists()).toBe(true);
+    expect(td(w, 'center-filter-statuses').exists()).toBe(true);
+    expect(td(w, 'center-filter-tags').exists()).toBe(true);
     expect(td(w, 'center-button-reset-filters').exists()).toBe(true);
     expect(w.find('.date-filter-stub').exists()).toBe(true);
   });
 
-  it('клики эмитят правильные события со значением', async () => {
+  it('клики по бинарным чипам и сбросу эмитят свои события', async () => {
     // hasActiveFilters:true - иначе кнопка «Сбросить фильтры» disabled и клик не эмитит
     const w = mountModal({ hasActiveFilters: true });
     await td(w, 'center-button-today').trigger('click');
     expect(w.emitted('toggle-today')).toBeTruthy();
-    await td(w, 'center-button-confirmation-approved').trigger('click');
-    expect(w.emitted('toggle-confirmation')[0]).toEqual(['approved']);
-    await td(w, 'center-button-status-inwork').trigger('click');
-    expect(w.emitted('toggle-status')[0]).toEqual(['inwork']);
-    await td(w, 'center-button-tag-bl').trigger('click');
-    expect(w.emitted('toggle-tag')[0]).toEqual(['bl']);
     await td(w, 'center-button-reset-filters').trigger('click');
     expect(w.emitted('reset-filters')).toBeTruthy();
   });
 
-  it('active-класс отражает selected-пропсы', () => {
-    const w = mountModal({ selectedApplicationStatuses: ['inwork'], activeToday: true });
-    expect(td(w, 'center-button-status-inwork').classes()).toContain('status-btn--active');
+  it('active-класс бинарного чипа отражает проп', () => {
+    const w = mountModal({ activeToday: true });
     expect(td(w, 'center-button-today').classes()).toContain('status-btn--active');
-    // невыбранное подтверждение - без active
-    expect(td(w, 'center-button-confirmation-approved').classes()).not.toContain('status-btn--active');
   });
 
   it('чип "Обновления" эмитит toggle-status-updated и показывает счётчик (#1349)', async () => {
