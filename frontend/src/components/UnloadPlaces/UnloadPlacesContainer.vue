@@ -233,6 +233,13 @@
             >
               Местоположение и маршрут
             </button>
+            <button
+              class="tab-btn"
+              :class="{ 'active': activeTab === 'usage' }"
+              @click="activeTab = 'usage'"
+            >
+              Привязки
+            </button>
           </div>
         </div>
 
@@ -542,8 +549,106 @@
             </div>
           </div>
         </div>
+
+        <!-- Вкладка Привязки -->
+        <div
+          v-if="activeTab === 'usage'"
+          class="tab-content"
+        >
+          <div class="usage-section">
+            <div class="usage-header">
+              <div class="usage-header__text">
+                <h4 class="section-title">
+                  Привязано к организациям и компаниям
+                </h4>
+                <p class="field-hint">
+                  Пока место разгрузки привязано хотя бы к одной организации или
+                  компании, его нельзя удалить. Отвяжите все, чтобы освободить место.
+                </p>
+              </div>
+              <button
+                v-if="canDetachUnloadPlace && !usageLoading && !usageError && usageHasBindings"
+                class="action-btn detach-all-btn"
+                :disabled="detaching"
+                @click="confirmDetachAll"
+              >
+                {{ detaching ? 'Отвязываем...' : 'Отвязать всё' }}
+              </button>
+            </div>
+
+            <div
+              v-if="usageLoading"
+              class="usage-state"
+            >
+              Загрузка привязок...
+            </div>
+            <div
+              v-else-if="usageError"
+              class="usage-state usage-state--error"
+            >
+              {{ usageError }}
+            </div>
+            <template v-else>
+              <div class="usage-group">
+                <div class="usage-group__title">
+                  Организации: {{ usage.organizations.length }}
+                </div>
+                <ul
+                  v-if="usage.organizations.length"
+                  class="usage-list"
+                >
+                  <li
+                    v-for="org in usage.organizations"
+                    :key="'org-' + org.id"
+                    class="usage-item"
+                  >
+                    <span class="usage-item__name">{{ org.name }}</span>
+                    <span
+                      v-if="!org.is_active"
+                      class="usage-item__archived"
+                    >(архив)</span>
+                  </li>
+                </ul>
+                <p
+                  v-else
+                  class="usage-empty"
+                >
+                  Нет привязанных организаций
+                </p>
+              </div>
+
+              <div class="usage-group">
+                <div class="usage-group__title">
+                  Компании: {{ usage.companies.length }}
+                </div>
+                <ul
+                  v-if="usage.companies.length"
+                  class="usage-list"
+                >
+                  <li
+                    v-for="comp in usage.companies"
+                    :key="'comp-' + comp.id"
+                    class="usage-item"
+                  >
+                    <span class="usage-item__name">{{ comp.name }}</span>
+                    <span
+                      v-if="!comp.is_active"
+                      class="usage-item__archived"
+                    >(архив)</span>
+                  </li>
+                </ul>
+                <p
+                  v-else
+                  class="usage-empty"
+                >
+                  Нет привязанных компаний
+                </p>
+              </div>
+            </template>
+          </div>
+        </div>
       </div>
-      
+
       <div
         v-else
         class="no-selection-message"
@@ -725,6 +830,17 @@
       @cancel="cancelBulkConfirm"
     />
 
+    <ConfirmationModal
+      :show="detachConfirmVisible"
+      title="Отвязать все организации и компании"
+      :message="detachConfirmMessage"
+      confirm-text="Отвязать всё"
+      cancel-text="Отмена"
+      :confirm-button-style="{ background: '#c62828', borderColor: '#c62828' }"
+      @confirm="performDetachAll"
+      @cancel="detachConfirmVisible = false"
+    />
+
     <UnloadPlaceHistoryModal
       v-if="historyPlace"
       :unload-place="historyPlace"
@@ -739,6 +855,7 @@ import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock
 import { apiRequest } from '@/api/client'
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import { useDeletionsStore } from '@/stores/deletions';
+import { usePermissionsStore } from '@/stores/permissions';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import RefreshButton from '../RefreshButton.vue';
 import SearchComponent from '../SearchComponent.vue';
@@ -747,7 +864,7 @@ import BaseDropdown from '../ui/BaseDropdown.vue';
 import WorkScheduleTab from '../WorkScheduleTab.vue';
 import WarningWindowsEditor from '../WarningWindowsEditor.vue';
 import UnloadPlaceHistoryModal from './UnloadPlaceHistoryModal.vue';
-import { bulkArchiveUnloadPlaces, bulkRestoreUnloadPlaces } from '@/api/unload-places';
+import { bulkArchiveUnloadPlaces, bulkRestoreUnloadPlaces, getUnloadPlaceUsage, detachAllUnloadPlace } from '@/api/unload-places';
 
 export default {
   components: {
@@ -805,11 +922,32 @@ export default {
       pendingBulkOp: null,
       bulkConfirmVisible: false,
       bulkSubmitting: false,
+      // Вкладка «Привязки»: организации/компании, держащие место разгрузки.
+      usage: { organizations: [], companies: [] },
+      usageLoading: false,
+      usageError: '',
+      usageSeq: 0,
+      detaching: false,
+      detachConfirmVisible: false,
     };
   },
   computed: {
     isArchivedView() {
       return !!this.selectedPlace && !this.selectedPlace.is_active;
+    },
+    usageHasBindings() {
+      return this.usage.organizations.length > 0 || this.usage.companies.length > 0;
+    },
+    // Зеркалит BE-гейт detach-all (requireAdmin = RequirePermissionV2 page.admin):
+    // права page.admin.directories (открывающего экран) недостаточно.
+    canDetachUnloadPlace() {
+      return usePermissionsStore().hasPermission('page.admin');
+    },
+    detachConfirmMessage() {
+      if (!this.selectedPlace) return '';
+      const o = this.usage.organizations.length;
+      const c = this.usage.companies.length;
+      return `Отвязать место разгрузки «${this.selectedPlace.name}» от всех организаций (${o}) и компаний (${c})? Это освободит место, чтобы его можно было удалить.`;
     },
     allSelected() {
       return this.sortedUnloadPlaces.length > 0 && this.selectedIds.length === this.sortedUnloadPlaces.length;
@@ -895,6 +1033,10 @@ export default {
     // Список фильтруется по режиму архив/поиск - выпавшие из вида id снимаем.
     sortedUnloadPlaces() {
       this.pruneSelection();
+    },
+    // Привязки грузим лениво при заходе на вкладку (данные второстепенные).
+    activeTab(tab) {
+      if (tab === 'usage') this.loadUsage();
     }
   },
   created() {
@@ -1171,6 +1313,65 @@ export default {
 
     openHistory(place) {
       this.historyPlace = place;
+    },
+
+    // seq-guard: быстрое переключение мест не даст устаревшему ответу затереть
+    // актуальные привязки (last-resolve-wins иначе показал бы чужое место).
+    async loadUsage() {
+      if (!this.selectedPlace) return;
+      const seq = ++this.usageSeq;
+      this.usageLoading = true;
+      this.usageError = '';
+      // Гасим привязки предыдущего места сразу: пока грузятся новые, кнопка
+      // «Отвязать всё» и текст подтверждения не должны показывать чужие цифры.
+      this.usage = { organizations: [], companies: [] };
+      try {
+        const data = await getUnloadPlaceUsage(this.selectedPlace.id);
+        if (seq !== this.usageSeq) return;
+        this.usage = {
+          organizations: data?.organizations || [],
+          companies: data?.companies || [],
+        };
+      } catch (err) {
+        if (seq !== this.usageSeq) return;
+        this.usage = { organizations: [], companies: [] };
+        this.usageError = err instanceof TypeError
+          ? 'Не удалось загрузить привязки (ошибка сети)'
+          : (err.message || 'Не удалось загрузить привязки');
+      } finally {
+        if (seq === this.usageSeq) this.usageLoading = false;
+      }
+    },
+
+    confirmDetachAll() {
+      this.detachConfirmVisible = true;
+    },
+
+    async performDetachAll() {
+      this.detachConfirmVisible = false;
+      const place = this.selectedPlace;
+      if (!place) return;
+      this.detaching = true;
+      try {
+        const res = await detachAllUnloadPlace(place.id);
+        const orgN = res?.organizations_detached || 0;
+        const compN = res?.companies_detached || 0;
+        // Перезагружаем привязки только если пользователь не ушёл на другое место,
+        // пока летел запрос (иначе затрём usage чужого места).
+        if (this.selectedPlace && this.selectedPlace.id === place.id) {
+          await this.loadUsage();
+        }
+        useDeletionsStore().notify({
+          prefix: 'Место разгрузки ',
+          bold: place.name,
+          suffix: ` отвязано от организаций (${orgN}) и компаний (${compN})`,
+        });
+      } catch (err) {
+        const msg = err instanceof TypeError ? 'ошибка сети' : (err.message || 'ошибка');
+        useDeletionsStore().notify({ prefix: 'Не удалось отвязать: ', bold: msg, type: 'error' });
+      } finally {
+        this.detaching = false;
+      }
     },
 
     async fetchCurrentUser() {
@@ -2119,6 +2320,107 @@ async uploadPhotoFiles(files) {
   font-size: 12px;
   color: #a2a2a2;
   line-height: 1.5;
+}
+
+/* Вкладка «Привязки». */
+.usage-section {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.usage-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.usage-header__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.usage-header .section-title {
+  margin: 0 0 4px 0;
+}
+
+.usage-header .field-hint {
+  margin: 0;
+}
+
+.detach-all-btn {
+  background: #fff;
+  color: #dc3545;
+  border: 1px solid #fecaca;
+  white-space: nowrap;
+}
+
+.detach-all-btn:hover:not(:disabled) {
+  background: #fff1f2;
+  border-color: #dc3545;
+}
+
+.detach-all-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.usage-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.usage-group__title {
+  font-size: 0.9em;
+  font-weight: 600;
+  color: #333;
+}
+
+.usage-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.usage-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #f7f8fa;
+  border: 1px solid #e6e6e6;
+  border-radius: 15px;
+  font-size: 14px;
+}
+
+.usage-item__name {
+  color: #1a1a1a;
+}
+
+.usage-item__archived {
+  color: #6b7280;
+  font-size: 0.8em;
+  font-weight: 500;
+}
+
+.usage-empty {
+  margin: 0;
+  font-size: 13px;
+  color: #a2a2a2;
+}
+
+.usage-state {
+  font-size: 14px;
+  color: #a2a2a2;
+}
+
+.usage-state--error {
+  color: #c62828;
 }
 
 /* Drag&drop zone (как в TableConstructorPhotoSection). */
