@@ -233,13 +233,6 @@
             >
               Местоположение и маршрут
             </button>
-            <button
-              class="tab-btn"
-              :class="{ 'active': activeTab === 'usage' }"
-              @click="activeTab = 'usage'"
-            >
-              Привязки
-            </button>
           </div>
         </div>
 
@@ -350,6 +343,99 @@
                 :disabled="isArchivedView"
                 @change="updatePlace(selectedPlace)"
               />
+            </div>
+
+            <!-- Привязки к организациям/компаниям + «Отвязать всё» (#1379) -->
+            <div class="usage-section usage-section--inline">
+              <div class="usage-header">
+                <div class="usage-header__text">
+                  <h4 class="section-title">
+                    Привязано к организациям и компаниям
+                  </h4>
+                  <p class="field-hint">
+                    Пока место разгрузки привязано хотя бы к одной организации или
+                    компании, его нельзя удалить. Отвяжите все, чтобы освободить место.
+                  </p>
+                </div>
+                <button
+                  v-if="canDetachUnloadPlace && !usageLoading && !usageError && usageHasBindings"
+                  class="action-btn detach-all-btn"
+                  :disabled="detaching"
+                  @click="confirmDetachAll"
+                >
+                  {{ detaching ? 'Отвязываем...' : 'Отвязать всё' }}
+                </button>
+              </div>
+
+              <div
+                v-if="usageLoading"
+                class="usage-state"
+              >
+                Загрузка привязок...
+              </div>
+              <div
+                v-else-if="usageError"
+                class="usage-state usage-state--error"
+              >
+                {{ usageError }}
+              </div>
+              <template v-else>
+                <div class="usage-group">
+                  <div class="usage-group__title">
+                    Организации: {{ usage.organizations.length }}
+                  </div>
+                  <ul
+                    v-if="usage.organizations.length"
+                    class="usage-list"
+                  >
+                    <li
+                      v-for="org in usage.organizations"
+                      :key="'org-' + org.id"
+                      class="usage-item"
+                    >
+                      <span class="usage-item__name">{{ org.name }}</span>
+                      <span
+                        v-if="!org.is_active"
+                        class="usage-item__archived"
+                      >(архив)</span>
+                    </li>
+                  </ul>
+                  <p
+                    v-else
+                    class="usage-empty"
+                  >
+                    Нет привязанных организаций
+                  </p>
+                </div>
+
+                <div class="usage-group">
+                  <div class="usage-group__title">
+                    Компании: {{ usage.companies.length }}
+                  </div>
+                  <ul
+                    v-if="usage.companies.length"
+                    class="usage-list"
+                  >
+                    <li
+                      v-for="comp in usage.companies"
+                      :key="'comp-' + comp.id"
+                      class="usage-item"
+                    >
+                      <span class="usage-item__name">{{ comp.name }}</span>
+                      <span
+                        v-if="!comp.is_active"
+                        class="usage-item__archived"
+                      >(архив)</span>
+                    </li>
+                  </ul>
+                  <p
+                    v-else
+                    class="usage-empty"
+                  >
+                    Нет привязанных компаний
+                  </p>
+                </div>
+              </template>
             </div>
           </div>
         </div>
@@ -547,104 +633,6 @@
                 <p>Фотографии не загружены</p>
               </div>
             </div>
-          </div>
-        </div>
-
-        <!-- Вкладка Привязки -->
-        <div
-          v-if="activeTab === 'usage'"
-          class="tab-content"
-        >
-          <div class="usage-section">
-            <div class="usage-header">
-              <div class="usage-header__text">
-                <h4 class="section-title">
-                  Привязано к организациям и компаниям
-                </h4>
-                <p class="field-hint">
-                  Пока место разгрузки привязано хотя бы к одной организации или
-                  компании, его нельзя удалить. Отвяжите все, чтобы освободить место.
-                </p>
-              </div>
-              <button
-                v-if="canDetachUnloadPlace && !usageLoading && !usageError && usageHasBindings"
-                class="action-btn detach-all-btn"
-                :disabled="detaching"
-                @click="confirmDetachAll"
-              >
-                {{ detaching ? 'Отвязываем...' : 'Отвязать всё' }}
-              </button>
-            </div>
-
-            <div
-              v-if="usageLoading"
-              class="usage-state"
-            >
-              Загрузка привязок...
-            </div>
-            <div
-              v-else-if="usageError"
-              class="usage-state usage-state--error"
-            >
-              {{ usageError }}
-            </div>
-            <template v-else>
-              <div class="usage-group">
-                <div class="usage-group__title">
-                  Организации: {{ usage.organizations.length }}
-                </div>
-                <ul
-                  v-if="usage.organizations.length"
-                  class="usage-list"
-                >
-                  <li
-                    v-for="org in usage.organizations"
-                    :key="'org-' + org.id"
-                    class="usage-item"
-                  >
-                    <span class="usage-item__name">{{ org.name }}</span>
-                    <span
-                      v-if="!org.is_active"
-                      class="usage-item__archived"
-                    >(архив)</span>
-                  </li>
-                </ul>
-                <p
-                  v-else
-                  class="usage-empty"
-                >
-                  Нет привязанных организаций
-                </p>
-              </div>
-
-              <div class="usage-group">
-                <div class="usage-group__title">
-                  Компании: {{ usage.companies.length }}
-                </div>
-                <ul
-                  v-if="usage.companies.length"
-                  class="usage-list"
-                >
-                  <li
-                    v-for="comp in usage.companies"
-                    :key="'comp-' + comp.id"
-                    class="usage-item"
-                  >
-                    <span class="usage-item__name">{{ comp.name }}</span>
-                    <span
-                      v-if="!comp.is_active"
-                      class="usage-item__archived"
-                    >(архив)</span>
-                  </li>
-                </ul>
-                <p
-                  v-else
-                  class="usage-empty"
-                >
-                  Нет привязанных компаний
-                </p>
-              </div>
-            </template>
           </div>
         </div>
       </div>
@@ -922,7 +910,7 @@ export default {
       pendingBulkOp: null,
       bulkConfirmVisible: false,
       bulkSubmitting: false,
-      // Вкладка «Привязки»: организации/компании, держащие место разгрузки.
+      // Привязки (блок на вкладке «Основное»): организации/компании, держащие место разгрузки.
       usage: { organizations: [], companies: [] },
       usageLoading: false,
       usageError: '',
@@ -1034,9 +1022,10 @@ export default {
     sortedUnloadPlaces() {
       this.pruneSelection();
     },
-    // Привязки грузим лениво при заходе на вкладку (данные второстепенные).
-    activeTab(tab) {
-      if (tab === 'usage') this.loadUsage();
+    // Привязки показываются на вкладке «Основное» - грузим при смене места
+    // (id меняется), а не по правке полей того же места (id тот же).
+    'selectedPlace.id'(id) {
+      if (id) this.loadUsage();
     }
   },
   created() {
@@ -2322,11 +2311,18 @@ async uploadPhotoFiles(files) {
   line-height: 1.5;
 }
 
-/* Вкладка «Привязки». */
+/* Блок привязок на вкладке «Основное». */
 .usage-section {
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+/* Отделяем блок привязок от секций выше на вкладке «Основное». */
+.usage-section--inline {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid #e6e6e6;
 }
 
 .usage-header {
