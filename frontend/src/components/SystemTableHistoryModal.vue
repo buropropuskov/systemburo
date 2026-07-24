@@ -941,7 +941,7 @@ export default {
 .modal-content {
   padding: 20px 25px;
   overflow-y: auto;
-  max-height: calc(80vh - 180px);
+  max-height: calc(var(--app-vh, 1vh) * 80 - 180px);
   position: relative;
 }
 
