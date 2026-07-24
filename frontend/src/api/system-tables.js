@@ -1,6 +1,16 @@
 import { apiRequest, apiRequestRaw } from './client';
 import { parseContentDispositionFilename } from '@/utils/download';
 
+/**
+ * unwrap бросает на !res.ok с сообщением бэка (fallback - если тела нет),
+ * чтобы 4xx/5xx не прошёл молчаливым успехом (эталон api/approvers.js).
+ */
+async function unwrap(res, fallback) {
+  const body = await res.json();
+  if (!res.ok) throw new Error(body?.message || fallback);
+  return body;
+}
+
 export async function getSystemTables() {
   const res = await apiRequest('/system-tables');
   return res.json();
@@ -42,6 +52,27 @@ export async function bulkArchiveSystemTables(ids) {
 export async function bulkRestoreSystemTables(ids) {
   const res = await apiRequest('/system-tables/bulk/restore', { method: 'POST', body: JSON.stringify({ ids }) });
   return res.json();
+}
+
+/**
+ * Организации и компании, привязанные к системной таблице. Набор совпадает с тем,
+ * что блокирует удаление таблицы (гейт Delete считает по junction без фильтра
+ * активности), поэтому архивные орг/компании тоже приходят (is_active=false).
+ * @returns {Promise<{organizations: Array<{id, name, is_active}>, companies: Array<{id, name, is_active}>}>}
+ */
+export async function getSystemTableUsage(id) {
+  const res = await apiRequest(`/system-tables/${id}/usage`);
+  return unwrap(res, 'Не удалось загрузить привязки таблицы');
+}
+
+/**
+ * Снять все привязки организаций/компаний к системной таблице. Идемпотентно.
+ * BE гейтит requireAdmin (page.admin); FE-кнопку гейтим тем же правом.
+ * @returns {Promise<{organizations_detached: number, companies_detached: number}>}
+ */
+export async function detachAllSystemTable(id) {
+  const res = await apiRequest(`/system-tables/${id}/detach-all`, { method: 'POST' });
+  return unwrap(res, 'Не удалось отвязать таблицу');
 }
 
 export async function uploadTablePhotos(tableId, formData) {
