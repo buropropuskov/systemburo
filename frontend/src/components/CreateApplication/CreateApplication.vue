@@ -3011,6 +3011,9 @@ export default {
             text-align: center;
             font-size: 22px;
             padding: 8px 24px;
+            /* Сама пилюля - плотный белый: при закреплении она выделяется на
+               полупрозрачной подложке обёртки, а не сливается/просвечивает. */
+            background: #fff;
         }
 
         .create__container {
