@@ -70,7 +70,8 @@
                     target="_blank"
                     rel="noopener"
                     class="blue consent-link"
-                    @click.stop
+                    data-testid="create-app-consent-link"
+                    @click.stop="onConsentClick"
                   >согласие</a> на обработку, хранение, передачу
                   персональных данных, изложенных в заявке
                 </label>
@@ -341,6 +342,12 @@
 
     <!-- #1183: единая плавающая панель предупреждений выбранных мест (режим/текст/окна). -->
     <SchedulePlaceWarningPanel :groups="placeNotices" />
+
+    <!-- #1380: на телефоне согласие открывается модалкой с содержимым, не новой вкладкой. -->
+    <DataProcessingModal
+      :show="showConsentModal"
+      @close="showConsentModal = false"
+    />
   </div>
 </template>
 
@@ -366,6 +373,7 @@ import TextConstructor from '@/components/TextConstructor.vue';
 import ApplicationRecipientsRow from './ApplicationRecipientsRow.vue';
 import DuplicateConflictModal from './DuplicateConflictModal.vue';
 import SchedulePlaceWarningPanel from './SchedulePlaceWarningPanel.vue';
+import DataProcessingModal from '@/components/DataProcessingModal.vue';
 
 // Параллелизм привязки новых ТС/сотрудников при подаче: держим веер узким, чтобы
 // крупная заявка не выстрелила сотнями одновременных POST и не упёрлась в лимит.
@@ -389,7 +397,8 @@ export default {
         CustomFieldsSection,
         TextConstructor,
         ApplicationRecipientsRow,
-        DuplicateConflictModal
+        DuplicateConflictModal,
+        DataProcessingModal
     },
     data() {
         return {
@@ -404,6 +413,9 @@ export default {
             phoneNumber: '',
             rawPhoneNumber: '',
             consentGiven: false,
+            // На телефоне ссылка "согласие" открывает эту модалку вместо новой вкладки
+            // с /data-processing (там <embed> PDF на мобилке не рендерится).
+            showConsentModal: false,
             applicationNumber: 1,
 
             allUnloadingPlaces: [],
@@ -831,6 +843,17 @@ export default {
         window.removeEventListener('beforeunload', this.saveToLocalStorage);
     },
     methods: {
+
+        // На телефоне открываем согласие модалкой (в ней PDF рендерит pdf.js), на десктопе -
+        // отдаём нативной ссылке href="/data-processing" (там <embed> работает). Порог 768px
+        // совпадает с sheet-брейкпоинтом BaseModal, чтобы модалка выезжала снизу листом.
+        onConsentClick(e) {
+            if (typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+                && window.matchMedia('(max-width: 768px)').matches) {
+                e.preventDefault();
+                this.showConsentModal = true;
+            }
+        },
 
         async loadPassageTables() {
             try {
