@@ -135,6 +135,22 @@ export async function getUnreadCount() {
   return res.json();
 }
 
+/**
+ * Число заявок ЛК с обновлённым статусом для чипа "Обновления" (#1349): scope ЛК
+ * (автор или заявки его организации), активные, с флагом обновления - БЕЗ гейта
+ * прочтения (у отправителя нет строк application_reads). Отдельный от Центра
+ * эндпоинт: у ЛК другая матрица доступа, чем у approver/viewer.
+ * unwrap как approvers.js: apiRequest снимает envelope в data, на !ok бросаем
+ * сообщением бэка (голый res.json() отдал бы {message} при !success как успех).
+ * @returns {Promise<{status_updates: number}>}
+ */
+export async function getUserStatusUpdatesCount() {
+  const res = await apiRequest('/applications/user/status-updates-count');
+  const body = await res.json();
+  if (!res.ok) throw new Error(body?.message || 'Не удалось загрузить счётчик обновлений');
+  return body;
+}
+
 export async function getApplicationHistory(id) {
   const res = await apiRequest(`/applications/${id}/history`);
   return res.json();

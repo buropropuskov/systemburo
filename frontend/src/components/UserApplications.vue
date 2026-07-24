@@ -15,6 +15,18 @@
           label-key="label"
           @update:model-value="setFilter"
         />
+
+        <!-- Чип "Обновления" (#1349): серверный фильтр status_updated=true (только
+             заявки с обновлённым статусом) + счётчик из отдельного эндпоинта ЛК. -->
+        <button
+          type="button"
+          class="updates-chip"
+          :class="{ 'updates-chip--active': statusUpdatedOnly }"
+          data-testid="lk-button-updates"
+          @click="toggleStatusUpdated"
+        >
+          Обновления<template v-if="statusUpdateCount > 0">: {{ statusUpdateCount }}</template>
+        </button>
       </div>
       
       <div class="card-header__settings">
@@ -37,7 +49,7 @@
           v-model="searchQuery"
           :title="'Поиск заявок..'"
         />
-        <RefreshButton @refresh="fetchUserApplications" />
+        <RefreshButton @refresh="refreshApplications" />
 
         <!-- Мобилка: иконка-тоггл раскрывает поле поиска оверлеем влево (не всегда-видимый инпут). -->
         <button
@@ -224,6 +236,7 @@
                       v-for="application in group.apps"
                       :key="application.id"
                       class="application-item"
+                      :class="{ 'status-updated': application.has_status_update }"
                       @click="openApplication(application)"
                     >
                     <div class="application-row rt-row">
@@ -281,12 +294,23 @@
                         class="application-col status-col"
                         data-label="Статус"
                       >
-                        <span
-                          class="status-badge"
-                          :class="getStatusClass(application.status)"
-                          :title="application.status"
-                        >
-                          {{ application.status }}
+                        <span class="status-badge-wrap">
+                          <span
+                            class="status-badge"
+                            :class="getStatusClass(application.status)"
+                            :title="application.status"
+                          >
+                            {{ application.status }}
+                          </span>
+                          <!-- Пульс-точка "статус обновился" (#1349). В ЛК нет гейта
+                               прочтения (у отправителя нет строк application_reads) -
+                               показываем по одному флагу has_status_update. -->
+                          <span
+                            v-if="application.has_status_update"
+                            class="status-update-dot"
+                            :data-testid="`lk-status-dot-${application.id}`"
+                            aria-hidden="true"
+                          />
                         </span>
                       </div>
                       <div
@@ -525,7 +549,7 @@
 <script>
 import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock';
 import { apiRequest } from '@/api/client'
-import { getUserApplicationsPaginated, getApplicationById } from '@/api/applications'
+import { getUserApplicationsPaginated, getApplicationById, getUserStatusUpdatesCount } from '@/api/applications'
 import { useAuthStore } from '@/stores/auth'
 import { useDeletionsStore } from '@/stores/deletions'
 import { useInfiniteList } from '@/composables/useInfiniteList'
@@ -619,6 +643,11 @@ export default {
       // оверлеем, а не всегда-видимым инпутом (он там сплющивается).
       isMobileHeader: false,
       showMobileSearch: false,
+      // Чип "Обновления" (#1349): серверный фильтр только заявок с обновлённым статусом
+      // + счётчик из GET /applications/user/status-updates-count (scope-wide, не из
+      // загруженной порции - у ЛК свой эндпоинт без гейта прочтения).
+      statusUpdatedOnly: false,
+      statusUpdateCount: 0,
       // seq-токен (#632/#840): fetchUserApplications дёргается фильтрами/поиском/сменой
       // вкладки/сортировкой - управляет isLoading, отдельно от собственного seq-guard
       // items/total внутри useInfiniteList.
@@ -773,6 +802,7 @@ export default {
   },
   mounted() {
     this.fetchUserApplications().then(() => this.openFromDeepLink());
+    this.fetchStatusUpdateCount();
     this.getCurrentUser();
     this.initMobileWatcher();
   },
@@ -845,6 +875,12 @@ export default {
         params.organization_id = this.userOrganizationId;
       }
 
+      // Чип "Обновления" (#1349): бэк фильтрует по hasStatusUpdatePredicate БЕЗ гейта
+      // прочтения (applyStatusUpdatedFilter requireRead=false для ЛК).
+      if (this.statusUpdatedOnly) {
+        params.status_updated = 'true';
+      }
+
       // Дата - ЛОКАЛЬНЫМИ частями (не toISOString: UTC-сдвиг увёл бы выбранный день
       // назад у пользователей восточнее UTC, #1076/#1158).
       if (this.selectedDate) {
@@ -897,6 +933,32 @@ export default {
       } finally {
         if (seq === this.fetchSeq) this.isLoading = false;
       }
+    },
+
+    // Обновление по кнопке: перечитываем и список, и счётчик чипа "Обновления" (#1349).
+    // Счётчик scope-wide (свой эндпоинт), от фильтров/поиска не зависит - поэтому не
+    // дёргаем его на каждый search/date/sort, только на явном refresh, mount и withdraw.
+    refreshApplications() {
+      this.fetchUserApplications();
+      this.fetchStatusUpdateCount();
+    },
+
+    // Счётчик чипа "Обновления" (#1349): число заявок ЛК с обновлённым статусом
+    // (scope автора/организации, без гейта прочтения). При сбое сохраняем последнее
+    // известное значение (не обнуляем - восстановление не должно выглядеть как
+    // "обновления пропали").
+    async fetchStatusUpdateCount() {
+      try {
+        const { status_updates } = await getUserStatusUpdatesCount();
+        this.statusUpdateCount = status_updates || 0;
+      } catch (error) {
+        console.error('Не удалось загрузить счётчик обновлений статуса:', error);
+      }
+    },
+
+    toggleStatusUpdated() {
+      this.statusUpdatedOnly = !this.statusUpdatedOnly;
+      this.fetchUserApplications();
     },
 
     // Догрузка всех оставшихся порций (full-load режим: сортировка по всему набору).
@@ -1025,6 +1087,14 @@ export default {
     },
 
     async openApplication(application) {
+      // Оптимистичное гашение флага "статус обновился" (#1349): открытие детали дёргает
+      // GET /:id/details -> MarkStatusSeen (seen_at=now) гасит флаг на сервере. Точку и
+      // счётчик чипа гасим сразу, не дожидаясь рефреша списка.
+      if (application.has_status_update) {
+        application.has_status_update = false;
+        this.statusUpdateCount = Math.max(0, this.statusUpdateCount - 1);
+      }
+
       // Маркер вопросов гасит ПРОЧТЕНИЕ топиков в детали (клик), не факт открытия (#973):
       // иконка обновится при следующей загрузке списка. Оптимистично не снимаем.
       this.selectedApplication = application;
@@ -1088,8 +1158,10 @@ export default {
 
     // Заявка отозвана (#951) - деталь сама закрылась, обновляем список,
     // чтобы заявка переехала в завершённые с актуальным статусом "Отозвана".
+    // Счётчик чипа тоже перечитываем - смена статуса могла изменить набор обновлений.
     handleWithdraw() {
       this.fetchUserApplications();
+      this.fetchStatusUpdateCount();
     },
 
     downloadApplication(application) {
@@ -1274,6 +1346,36 @@ export default {
 }
 
 .filter-tab--active:hover {
+  background: #3a45c0;
+  border-color: #3a45c0;
+}
+
+/* Чип "Обновления" (#1349) - пилюля-тоггл в шапке ЛК, стиль как у filter-tab. */
+.updates-chip {
+  padding: 4px 12px;
+  border: 1px solid #e6e6e6;
+  background: #fff;
+  border-radius: 16px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #333;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.updates-chip:hover:not(.updates-chip--active) {
+  background: #f5f5f5;
+  border-color: #d9d9d9;
+}
+
+.updates-chip--active {
+  background: #4f5bdf;
+  border-color: #4f5bdf;
+  color: #fff;
+}
+
+.updates-chip--active:hover {
   background: #3a45c0;
   border-color: #3a45c0;
 }
@@ -1702,6 +1804,49 @@ export default {
   background-color: #fafafa;
 }
 
+/* Заявка с обновлённым статусом (#1349): мягкий голубой фон + пульс-точка на бейдже.
+   В ЛК гейта прочтения нет (у отправителя нет строк application_reads) - фон по одному
+   флагу has_status_update. Ставим после hover, чтобы подсветка держалась при наведении. */
+.application-item.status-updated {
+  background-color: #eaf3fb;
+}
+
+.status-badge-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.status-update-dot {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background-color: #2b8bf2;
+  box-shadow: 0 0 0 2px #fff;
+}
+
+.status-update-dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background-color: #2b8bf2;
+  animation: statusUpdatePulse 1.6s ease-out infinite;
+}
+
+@keyframes statusUpdatePulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
 .application-row {
   display: flex;
   width: 100%;
@@ -2003,8 +2148,11 @@ export default {
   .card-header__title {
     width: 100%;
     /* Заголовок + выпадающий фильтр Мои/Организации в один ряд (#1097 p2 r2:
-       раньше 2 таба, теперь один список - без каши). */
+       раньше 2 таба, теперь один список - без каши). Чип "Обновления" (#1349)
+       переносится на вторую строку (flex-wrap) - на узком экране в один ряд с
+       заголовком и дропдауном не влезает. */
     flex-direction: row;
+    flex-wrap: wrap;
     align-items: center;
     gap: 10px;
   }
