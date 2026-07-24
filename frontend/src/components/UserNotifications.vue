@@ -574,7 +574,7 @@ export default {
   bottom: 0;
   width: 100vw;
   max-width: 100vw;
-  max-height: 90dvh;
+  max-height: calc(var(--app-vh, 1vh) * 90);
   border: none;
   border-radius: 16px 16px 0 0;
   box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.15);

@@ -211,7 +211,7 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
   z-index: 990;
   width: 360px;
   max-width: calc(100vw - 32px);
-  max-height: 60dvh;
+  max-height: calc(var(--app-vh, 1vh) * 60);
   display: flex;
   flex-direction: column;
   background: #fff;
