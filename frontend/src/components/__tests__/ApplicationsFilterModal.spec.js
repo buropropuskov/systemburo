@@ -122,7 +122,7 @@ describe('ApplicationsFilterModal', () => {
 
   it('чип "Обновления" эмитит toggle-status-updated и показывает счётчик (#1349)', async () => {
     const w = mountModal({ statusUpdatedOnly: true, statusUpdateCount: 4 });
-    const btn = td(w, 'center-button-status-updated');
+    const btn = td(w, 'center-button-updates');
     expect(btn.exists()).toBe(true);
     expect(btn.classes()).toContain('status-btn--active');
     expect(btn.text()).toContain('Обновления: 4');
@@ -131,7 +131,7 @@ describe('ApplicationsFilterModal', () => {
   });
 
   it('чип "Обновления" без счётчика показывает только подпись', () => {
-    const btn = td(mountModal({ statusUpdateCount: 0 }), 'center-button-status-updated');
+    const btn = td(mountModal({ statusUpdateCount: 0 }), 'center-button-updates');
     expect(btn.text()).toBe('Обновления');
     expect(btn.classes()).not.toContain('status-btn--active');
   });

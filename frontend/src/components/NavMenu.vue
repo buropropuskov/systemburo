@@ -1163,6 +1163,9 @@ export default {
       // responsible своей же заявки, получает сигнал о «новой заявке в Центре».
       if (!this.can('page.center')) {
         this.newApplicationsCount = 0
+        // База роста тоже в 0: иначе при возврате права в рамках сессии следующий опрос
+        // сравнит count с протухшей базой и сыграет/проглотит звук на мнимом росте.
+        this.unreadBaseCount = 0
         return
       }
       const SOUND_COOLDOWN_MS = 5000

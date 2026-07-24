@@ -268,7 +268,7 @@
                 <button
                   class="status-btn status-btn--updates"
                   :class="{ 'status-btn--active': statusUpdatedOnly }"
-                  data-testid="center-button-status-updated"
+                  data-testid="center-button-updates"
                   @click="toggleStatusUpdated"
                 >
                   Обновления<template v-if="statusUpdateCount > 0">: {{ statusUpdateCount }}</template>
@@ -2151,6 +2151,11 @@ export default {
         },
 
         async openApplication(application) {
+            // Копится причина пересчитать бейдж NavMenu (прочтение и/или гашение флага
+            // статуса). Эмитим ОДИН раз в конце: заявка, что и непрочитана, и с обновлением
+            // статуса, иначе дала бы два запроса /unread-count подряд в одном тике.
+            let badgeChanged = false;
+
             if (!application.is_read) {
                 try {
                     const response = await apiRequest(`/applications/${application.id}/read`, {
@@ -2158,9 +2163,7 @@ export default {
                     });
                     if (response.ok) {
                         application.is_read = true;
-                        // Гасим бейдж непрочитанных в меню сразу: NavMenu слушает
-                        // 'application-read' и перезапрашивает счётчик, не дожидаясь 30с-опроса.
-                        this.$bus.emit('application-read', application.id);
+                        badgeChanged = true;
                     }
                 } catch (error) {
                     console.error("Ошибка при отметке прочтения:", error);
@@ -2172,7 +2175,12 @@ export default {
             // Гасим точку в списке сразу, не дожидаясь следующего опроса.
             if (application.has_status_update) {
                 application.has_status_update = false;
-                // Бейдж-сумму в NavMenu пересчитываем сразу (тот же bus, что и прочтение).
+                badgeChanged = true;
+            }
+
+            // NavMenu слушает 'application-read' и перезапрашивает {count, status_updates}
+            // разом, не дожидаясь 30с-опроса.
+            if (badgeChanged) {
                 this.$bus.emit('application-read', application.id);
             }
 

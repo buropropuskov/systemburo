@@ -157,6 +157,19 @@ describe('ApplicationsCenter — флаг обновления статуса (#
     expect(busEmit).not.toHaveBeenCalledWith('application-read', 10);
   });
 
+  it('открытие НЕпрочитанной заявки с флагом эмитит application-read РОВНО один раз', async () => {
+    wrapper = mountCenter();
+    apiRequest.mockResolvedValue({ ok: true, json: async () => ({}) });
+    const app = fullApp({ id: 11, is_read: false, has_status_update: true });
+    wrapper.vm.applications = [app];
+    await wrapper.vm.openApplication(app);
+    expect(app.is_read).toBe(true);
+    expect(app.has_status_update).toBe(false);
+    // Прочтение + гашение флага сходятся в ОДИН эмит (не два запроса /unread-count).
+    const reads = busEmit.mock.calls.filter(c => c[0] === 'application-read' && c[1] === 11);
+    expect(reads.length).toBe(1);
+  });
+
   it('инкрементальный синк подхватывает смену has_status_update', async () => {
     wrapper = mountCenter();
     const auth = useAuthStore();

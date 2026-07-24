@@ -67,7 +67,7 @@
           <button
             class="status-btn status-btn--updates"
             :class="{ 'status-btn--active': statusUpdatedOnly }"
-            data-testid="center-button-status-updated"
+            data-testid="center-button-updates"
             @click="$emit('toggle-status-updated')"
           >
             Обновления<template v-if="statusUpdateCount > 0">: {{ statusUpdateCount }}</template>
