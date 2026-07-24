@@ -124,6 +124,25 @@ func latestPassBoundary(now time.Time) time.Time {
 	return b
 }
 
+// passReportGracePeriod - сколько после границы 21:30 живой отчёт продолжает
+// показывать ТОЛЬКО ЧТО ЗАКРЫТУЮ смену, а не новую пустую. Охранник, открывший
+// отчёт сразу после 21:30, растеряется на нулях («где мои проходы за день?») -
+// в это окно отдаём его отработанную смену целиком.
+const passReportGracePeriod = 15 * time.Minute
+
+// liveWindow - границы живого отчёта. Обычно [последняя граница 21:30, now). Но в
+// первые passReportGracePeriod после границы - завершившаяся смена целиком
+// [предыдущая граница, последняя граница): даём доработавшему охраннику увидеть
+// свою смену, пока он не перешёл на новую. По истечении grace показываем новую
+// (изначально пустую) смену.
+func liveWindow(now time.Time) (from, to time.Time) {
+	b := latestPassBoundary(now)
+	if now.Sub(b) < passReportGracePeriod {
+		return b.AddDate(0, 0, -1), b
+	}
+	return b, now
+}
+
 // passReportDateOnly нормализует дату к полуночи UTC: колонка report_date имеет
 // тип date, произвольный time.Time с зоной дал бы драйверу неоднозначный день.
 func passReportDateOnly(d time.Time) time.Time {
@@ -291,9 +310,8 @@ func (s *dailyPassReportService) backfillAll(ctx context.Context, upTo time.Time
 }
 
 func (s *dailyPassReportService) Live(ctx context.Context, tableID int, scope PassReportScope) (*PassReportLive, error) {
-	now := s.now()
-	from := latestPassBoundary(now)
-	agg, err := s.aggregateWindow(ctx, from, now, &tableID)
+	from, to := liveWindow(s.now())
+	agg, err := s.aggregateWindow(ctx, from, to, &tableID)
 	if err != nil {
 		return nil, err
 	}
@@ -302,7 +320,7 @@ func (s *dailyPassReportService) Live(ctx context.Context, tableID int, scope Pa
 	if err != nil {
 		return nil, err
 	}
-	return &PassReportLive{PeriodStart: from, PeriodEnd: now, Rows: rows, Totals: totals}, nil
+	return &PassReportLive{PeriodStart: from, PeriodEnd: to, Rows: rows, Totals: totals}, nil
 }
 
 func (s *dailyPassReportService) ListDays(ctx context.Context, tableID int, from, to *time.Time, scope PassReportScope) ([]PassReportDay, error) {
