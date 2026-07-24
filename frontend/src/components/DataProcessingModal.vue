@@ -103,25 +103,34 @@ const error = ref(null);
 const downloading = ref(false);
 // Грузим документ один раз на сеанс: повторное открытие модалки не дёргает бэк заново.
 const loaded = ref(false);
+// Seq-токен: быстрый закрыть/открыть до резолва пускает два load() в общие meta/blob;
+// пишет только последний, устаревший ответ отбрасываем (last-resolve-wins иначе).
+let loadSeq = 0;
 
 const isPdf = computed(
   () => meta.value && (meta.value.mime_type === 'application/pdf' || meta.value.ext === '.pdf'),
 );
 
 async function load() {
+  const seq = ++loadSeq;
   loading.value = true;
   error.value = null;
   try {
-    meta.value = await getDataProcessingMeta();
+    const nextMeta = await getDataProcessingMeta();
+    if (seq !== loadSeq) return;
+    meta.value = nextMeta;
     if (isPdf.value) {
-      blob.value = await fetchDataProcessingBlob();
+      const nextBlob = await fetchDataProcessingBlob();
+      if (seq !== loadSeq) return;
+      blob.value = nextBlob;
     }
     loaded.value = true;
   } catch {
+    if (seq !== loadSeq) return;
     error.value = 'Не удалось загрузить документ. Попробуйте ещё раз.';
     loaded.value = false;
   } finally {
-    loading.value = false;
+    if (seq === loadSeq) loading.value = false;
   }
 }
 
