@@ -631,7 +631,10 @@ export default {
                 return place && place.status !== 'active';
             });
             const placesOk = !this.fieldVisible('unloading_places') || (this.selectedUnloadingPlaces.length > 0 && !hasInactiveSelected);
-            return this.selectedExistingCars.length > 0 && placesOk;
+            // "Проезд" обязателен так же, как для новой машины (см. useFormValidation) -
+            // без выбранной таблицы проезда кнопка "Добавить" для существующих не активна.
+            const passageOk = !this.fieldVisible('passage_tables') || !this.fieldRequired('passage_tables') || this.selectedPassageTables.length > 0;
+            return this.selectedExistingCars.length > 0 && placesOk && passageOk;
         },
         existingCarsTooltip() {
             if (this.canAddExistingCars) return '';
@@ -645,6 +648,9 @@ export default {
             }
             if (hasInactiveSelected) {
                 missing.push('убрать неактивное место разгрузки');
+            }
+            if (this.fieldVisible('passage_tables') && this.fieldRequired('passage_tables') && this.selectedPassageTables.length === 0) {
+                missing.push('хотя бы одно место проезда');
             }
             if (missing.length === 0) return 'Заполните обязательные поля';
             if (missing.length === 1) return `Заполните поле: ${missing[0]}`;
@@ -1361,6 +1367,11 @@ export default {
 
             if (this.selectedUnloadingPlaces.length === 0) {
                 useDeletionsStore().notify({ bold: 'Выберите места разгрузки', type: 'error' });
+                return;
+            }
+
+            if (this.fieldVisible('passage_tables') && this.fieldRequired('passage_tables') && this.selectedPassageTables.length === 0) {
+                useDeletionsStore().notify({ bold: 'Выберите места проезда', type: 'error' });
                 return;
             }
 

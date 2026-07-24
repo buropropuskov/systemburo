@@ -103,6 +103,52 @@ describe('VehicleForm - блок "Проезд" (#1036)', () => {
         );
     });
 
+    it('кнопка "Добавить" существующих не активна без обязательного места проезда', async () => {
+        const w = mount(VehicleForm, {
+            props: {
+                fieldConfig: {
+                    unloading_places: { visible: false },
+                    passage_tables: { visible: true, required: true },
+                },
+            },
+            attachTo: document.body,
+        });
+        await flushPromises();
+
+        w.vm.selectedExistingCars = [{ id: 1, number: 'A001', mark: 'Kamaz' }];
+        await flushPromises();
+
+        // Проезд обязателен и не выбран - кнопка заблокирована, как и для новой машины.
+        expect(w.vm.canAddExistingCars).toBe(false);
+
+        await w.find('.passage__item').trigger('click');
+        expect(w.vm.selectedPassageTables).toEqual([10]);
+        expect(w.vm.canAddExistingCars).toBe(true);
+    });
+
+    it('addExistingCars без обязательного проезда - уведомление, без эмита', async () => {
+        const w = mount(VehicleForm, {
+            props: {
+                fieldConfig: {
+                    unloading_places: { visible: false },
+                    passage_tables: { visible: true, required: true },
+                },
+            },
+            attachTo: document.body,
+        });
+        await flushPromises();
+
+        w.vm.selectedUnloadingPlaces = [5]; // пройти первый guard мест разгрузки
+        w.vm.selectedExistingCars = [{ id: 1, number: 'A001', mark: 'Kamaz' }];
+        w.vm.addExistingCars();
+        await flushPromises();
+
+        expect(notifyMock).toHaveBeenCalledWith(
+            expect.objectContaining({ bold: expect.stringContaining('проезд'), type: 'error' }),
+        );
+        expect(w.emitted('vehicles-added')).toBeFalsy();
+    });
+
     it('НЕ автовыбирает места проезда по компании и НЕ показывает уведомление (#1036)', async () => {
         apiRequest.mockImplementation((url) => {
             if (url === '/system-tables') return Promise.resolve({ ok: true, json: async () => SYSTEM_TABLES });
