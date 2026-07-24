@@ -34,7 +34,15 @@
            он висел рядом с названием страницы и терялся. При скролле формы
            заголовок закрепляется под шапкой приложения (sticky), чтобы было видно,
            какое вложение заполняешь. -->
-      <div class="create__blank-sticky">
+      <div
+        ref="blankSentinel"
+        class="create__blank-sentinel"
+        aria-hidden="true"
+      />
+      <div
+        class="create__blank-sticky"
+        :class="{ 'create__blank-sticky--stuck': blankStuck }"
+      >
         <h4 class="create__blank-title create__blank-title--inline">
           {{ currentFormTitle }}
         </h4>
@@ -403,6 +411,8 @@ export default {
     data() {
         return {
             message: '',
+            // Прилип ли заголовок вложения к верху (для подложки и границы при скролле).
+            blankStuck: false,
             // Конфликт дублирования (#952): на странице уже есть черновик, а из ЛК пришёл
             // дубль - показываем модалку "Заменить / Объединить / Отмена".
             showDuplicateConflict: false,
@@ -838,11 +848,29 @@ export default {
             this.saveCurrentAttachmentData();
             this.saveToLocalStorage();
         });
+
+        this.initBlankStickyObserver();
     },
     beforeUnmount() {
         window.removeEventListener('beforeunload', this.saveToLocalStorage);
+        if (this._blankObserver) this._blankObserver.disconnect();
     },
     methods: {
+        /**
+         * Заголовок вложения «прилипает» под шапкой при скролле формы. Sentinel
+         * перед ним уходит за верхнюю линию (шапка 55px) - значит заголовок
+         * закреплён, включаем подложку и границу (blankStuck).
+         */
+        initBlankStickyObserver() {
+            if (typeof IntersectionObserver === 'undefined') return;
+            const sentinel = this.$refs.blankSentinel;
+            if (!sentinel) return;
+            this._blankObserver = new IntersectionObserver(
+                ([entry]) => { this.blankStuck = !entry.isIntersecting; },
+                { rootMargin: '-56px 0px 0px 0px', threshold: 0 },
+            );
+            this._blankObserver.observe(sentinel);
+        },
 
         // На телефоне открываем согласие модалкой (в ней PDF рендерит pdf.js), на десктопе -
         // отдаём нативной ссылке href="/data-processing" (там <embed> работает). Порог 768px
@@ -2845,6 +2873,11 @@ export default {
         display: contents;
     }
 
+    /* Маркер для IntersectionObserver: ловит момент закрепления заголовка. */
+    .create__blank-sentinel {
+        height: 0;
+    }
+
     h4 {
         font-size: 22px;
         font-weight: 800;
@@ -2949,7 +2982,8 @@ export default {
         }
 
         /* Обёртка заголовка закрепляется под шапкой приложения при скролле формы:
-           фон на всю ширину карточки прячет проезжающий контент, пилюля по центру. */
+           в потоке подложки нет, а закрепившись (blankStuck) - полупрозрачный
+           белый фон с размытием и нижняя граница, чтобы отделиться от контента. */
         .create__blank-sticky {
             position: sticky;
             top: var(--mobile-header-height, 55px);
@@ -2958,7 +2992,16 @@ export default {
             justify-content: center;
             margin: 0 -12px;
             padding: 8px 12px;
-            background: #fff;
+            background: transparent;
+            border-bottom: 1px solid transparent;
+            transition: background-color 0.2s ease, border-color 0.2s ease;
+        }
+
+        .create__blank-sticky--stuck {
+            background: rgba(255, 255, 255, 0.82);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            border-bottom-color: #e6e6e6;
         }
 
         .create__blank-title--inline {
