@@ -256,3 +256,36 @@ func TestPassReport_ListDaysScope(t *testing.T) {
 	rec = testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/pass-reports?from=oops", table.ID), testutil.AuthHeader(adminToken))
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
+
+// TestPassReport_LiveGracePeriod: первые 15 минут после 21:30 живой отчёт
+// показывает ТОЛЬКО ЧТО ЗАКРЫТУЮ смену (кейс «открыл в 21:31»), после - новую
+// пустую. Момент инъектирован, тест детерминирован в любое время суток.
+func TestPassReport_LiveGracePeriod(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	testutil.SeedTestData(t, db)
+	ctx := context.Background()
+
+	tableID := seedSystemTable(t, db)
+	loc := services.AnalyticsLocation()
+
+	// Проход в смене [23.07 21:30, 24.07 21:30) - днём 24.07.
+	seedPassAudit(t, db, models.AuditEntityCar, "entry", nil, &tableID, time.Date(2026, 7, 24, 15, 0, 0, 0, loc))
+
+	scope := services.PassReportScope{AllUsers: true}
+
+	// Внутри grace (21:35, +5 мин): видим закрытую смену, окно закрыто границей.
+	svcGrace := services.NewDailyPassReportServiceAt(db, func() time.Time { return time.Date(2026, 7, 24, 21, 35, 0, 0, loc) })
+	grace, err := svcGrace.Live(ctx, tableID, scope)
+	require.NoError(t, err)
+	assert.Equal(t, 1, grace.Totals.CarEntries, "в grace показываем отработанную смену")
+	assert.Equal(t, time.Date(2026, 7, 24, 21, 30, 0, 0, loc).UTC(), grace.PeriodEnd.UTC(), "окно закрыто границей 21:30, не now")
+
+	// После grace (21:50, +20 мин): новая смена [24.07 21:30, now), проход туда не входит.
+	svcAfter := services.NewDailyPassReportServiceAt(db, func() time.Time { return time.Date(2026, 7, 24, 21, 50, 0, 0, loc) })
+	after, err := svcAfter.Live(ctx, tableID, scope)
+	require.NoError(t, err)
+	assert.Equal(t, 0, after.Totals.CarEntries, "после grace новая смена пуста")
+	assert.Equal(t, time.Date(2026, 7, 24, 21, 30, 0, 0, loc).UTC(), after.PeriodStart.UTC(), "новая смена начинается с границы 21:30")
+}
