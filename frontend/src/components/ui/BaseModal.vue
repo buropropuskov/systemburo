@@ -232,7 +232,11 @@ export default {
   background: #fff;
   border-radius: var(--base-modal-radius, var(--radius-md));
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
-  max-height: 92vh;
+  /* Не голый 92vh: на >1440 корень зумлен (viewportScale.js), vh считается от
+     НЕзумленной высоты и завышает кап в zoom раз - на 2500px окно вылезало за
+     экран (#1359). --app-vh = innerHeight/zoom/100, нормирован на zoom; на <=1440
+     (zoom=1) он равен vh, поведение не меняется. Эталон - UserAccessModal (P10). */
+  max-height: calc(var(--app-vh, 1vh) * 92);
   overflow-y: auto;
   width: 100%;
   margin: 0 20px;
