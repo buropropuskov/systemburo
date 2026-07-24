@@ -25,6 +25,11 @@ function okJson(body, init = {}) {
 function errJson(body, status) {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 }
+function err429(retryAfterSec) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (retryAfterSec != null) headers['Retry-After'] = String(retryAfterSec);
+  return new Response(JSON.stringify({ success: false, error: 'too many' }), { status: 429, headers });
+}
 
 describe('apiRequest basics', () => {
   let fetchMock;
@@ -301,5 +306,89 @@ describe('403 handling', () => {
     const resp = await apiRequest('/some-action', { method: 'POST' });
 
     expect(resp.status).toBe(403);
+  });
+});
+
+describe('429 handling', () => {
+  let fetchMock;
+
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    localStorage.clear();
+    routerPush.mockReset();
+    notifyMock.mockReset();
+    _resetDedup403();
+    fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('на 429 ждёт Retry-After и повторяет запрос; при успехе повтора тоста нет', async () => {
+    vi.useFakeTimers();
+    fetchMock
+      .mockResolvedValueOnce(err429(1))
+      .mockResolvedValueOnce(okJson({ success: true, data: { ok: 1 } }));
+
+    const p = apiRequest('/cars/1/territory-status', { method: 'PUT', body: '{}' });
+    await vi.advanceTimersByTimeAsync(1500);
+    const resp = await p;
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(resp.status).toBe(200);
+    expect(notifyMock).not.toHaveBeenCalled();
+  });
+
+  it('ограничивает ожидание потолком: Retry-After 60с не ждём дольше 6с на попытку', async () => {
+    vi.useFakeTimers();
+    fetchMock
+      .mockResolvedValueOnce(err429(60))
+      .mockResolvedValueOnce(okJson({ success: true, data: { ok: 1 } }));
+
+    const p = apiRequest('/x', { method: 'PUT', body: '{}' });
+    await vi.advanceTimersByTimeAsync(6000);
+    const resp = await p;
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(resp.status).toBe(200);
+  });
+
+  it('после исчерпания попыток показывает notify с типом warning и возвращает 429', async () => {
+    vi.useFakeTimers();
+    fetchMock.mockResolvedValue(err429(2));
+
+    const p = apiRequest('/x', { method: 'PUT', body: '{}' });
+    await vi.advanceTimersByTimeAsync(10000);
+    const resp = await p;
+
+    // 3 попытки: первичная + 2 ретрая (MAX_429_RETRIES).
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(resp.status).toBe(429);
+    expect(notifyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'warning', prefix: expect.stringContaining('Слишком много запросов') })
+    );
+  });
+
+  it('silent: 429 не ретраится и не тостится', async () => {
+    fetchMock.mockResolvedValue(err429(2));
+
+    const resp = await apiRequest('/notifications', { silent: true });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(resp.status).toBe(429);
+    expect(notifyMock).not.toHaveBeenCalled();
+  });
+
+  it('/login 429 не перехватывается глобально (у логина свой таймер)', async () => {
+    fetchMock.mockResolvedValueOnce(err429(60));
+
+    const resp = await apiRequest('/login', { method: 'POST', body: '{}' });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(resp.status).toBe(429);
+    expect(notifyMock).not.toHaveBeenCalled();
   });
 });

@@ -205,7 +205,10 @@ func TestLogin_WrongPassword(t *testing.T) {
 	rec := testutil.POST(t, e, "/login", body, nil)
 
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
-	assert.Contains(t, rec.Body.String(), "Invalid credentials")
+	assert.Contains(t, rec.Body.String(), "Неверный логин или пароль")
+	// Существующий логин + неверный пароль -> остаток попыток до блокировки.
+	// Первая неудача: 10 - 1 = 9.
+	assert.Equal(t, "9", rec.Header().Get("X-Auth-Attempts-Remaining"))
 }
 
 func TestLogin_NonexistentUser(t *testing.T) {
@@ -217,7 +220,10 @@ func TestLogin_NonexistentUser(t *testing.T) {
 	rec := testutil.POST(t, e, "/login", body, nil)
 
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
-	assert.Contains(t, rec.Body.String(), "Invalid credentials")
+	// Тот же текст, что и при неверном пароле (единый ответ), но БЕЗ заголовка
+	// счётчика - иначе по нему можно было бы отличить существующий логин.
+	assert.Contains(t, rec.Body.String(), "Неверный логин или пароль")
+	assert.Empty(t, rec.Header().Get("X-Auth-Attempts-Remaining"))
 }
 
 // --- POST /refresh-token ---
@@ -604,6 +610,8 @@ func TestLogin_LockedAccountRejectsEvenCorrectPassword(t *testing.T) {
 	rec := testutil.POST(t, e, "/login", `{"username":"locked","password":"correctpass"}`, nil)
 	assert.Equal(t, http.StatusTooManyRequests, rec.Code)
 	assert.Contains(t, rec.Body.String(), "заблокирована")
+	// Retry-After даёт фронту остаток для таймера обратного отсчёта.
+	assert.NotEmpty(t, rec.Header().Get("Retry-After"), "блокировка учётки должна отдавать Retry-After")
 }
 
 func TestLogin_ExpiredLockAllowsLogin(t *testing.T) {

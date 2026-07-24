@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"fmt"
+	"hash/fnv"
 	"net/http"
 	"strconv"
 	"strings"
@@ -31,8 +32,9 @@ func RateLimit(limit int, windowSeconds int64) echo.MiddlewareFunc {
 		return func(c echo.Context) error {
 			key := rl.getKey(c)
 			if !rl.allow(key) {
+				c.Response().Header().Set("Retry-After", strconv.FormatInt(rl.window, 10))
 				return echo.NewHTTPError(http.StatusTooManyRequests,
-					"Вы отправляете слишком много запросов. Подождите 60 секунд.")
+					fmt.Sprintf("Вы отправляете слишком много запросов. Подождите %d секунд.", rl.window))
 			}
 			return next(c)
 		}
@@ -43,10 +45,14 @@ func (rl *rateLimiter) getKey(c echo.Context) string {
 	auth := c.Request().Header.Get("Authorization")
 	if auth != "" && strings.HasPrefix(auth, "Bearer ") {
 		token := strings.TrimPrefix(auth, "Bearer ")
-		if len(token) > 20 {
-			return "user:" + token[:20]
-		}
-		return "user:" + token
+		// Хешируем ВЕСЬ токен. Префикс JWT (первые ~36 символов) - это base64
+		// заголовка {"alg":"HS256","typ":"JWT"}, одинаковый у всех пользователей,
+		// поэтому token[:20] схлопывал всех авторизованных в одно ведро и делил
+		// лимит на всю систему. Уникальность токена в payload+signature -> хеш
+		// по всей строке даёт ключ per-token (по факту per-user/сессия).
+		h := fnv.New64a()
+		_, _ = h.Write([]byte(token))
+		return "user:" + strconv.FormatUint(h.Sum64(), 16)
 	}
 	return c.RealIP()
 }

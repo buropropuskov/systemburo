@@ -106,7 +106,7 @@
                   class="error-message"
                   data-testid="login-error-message"
                 >
-                  {{ errors.general }}
+                  {{ displayError }}
                 </div>
               </transition>
             </div>
@@ -116,7 +116,7 @@
                 class="login__button"
                 data-testid="login-button-submit"
                 :class="{'loading': isLoading, 'success': isSuccess}"
-                :disabled="isLoading || isSuccess"
+                :disabled="isLoading || isSuccess || isCoolingDown"
               >
                 <p class="button__text">
                   {{ getButtonText }}
@@ -251,14 +251,32 @@ export default {
             showNotification: false,
             notificationText: '',
             notificationTimeout: null,
-            showPasswordRecovery: false
+            showPasswordRecovery: false,
+            cooldownSeconds: 0,
+            cooldownTimer: null
         }
     },
     computed: {
         getButtonText() {
+            if (this.isCoolingDown) return `Подождите ${this.cooldownText}`;
             if (this.isLoading) return 'Вход...';
             if (this.isSuccess) return 'Успешно!';
             return 'Войти';
+        },
+        isCoolingDown() {
+            return this.cooldownSeconds > 0;
+        },
+        cooldownText() {
+            const total = Math.max(0, this.cooldownSeconds);
+            const m = Math.floor(total / 60);
+            const s = total % 60;
+            return `${m}:${String(s).padStart(2, '0')}`;
+        },
+        displayError() {
+            if (this.isCoolingDown) {
+                return `Слишком много попыток. Повторите через ${this.cooldownText}`;
+            }
+            return this.errors.general;
         },
         bureauEmail() {
             return useContactsStore().email || FALLBACK_BUREAU_EMAIL;
@@ -346,6 +364,7 @@ export default {
         if (this.notificationTimeout) {
             clearTimeout(this.notificationTimeout);
         }
+        this.clearCooldown();
     },
     methods: {
         handleMouseMove(e) {
@@ -374,11 +393,42 @@ export default {
             if (this.errorTimeout) {
                 clearTimeout(this.errorTimeout);
             }
-            
+
             this.errorTimeout = setTimeout(() => {
                 this.showError = false;
                 this.errors.general = '';
             }, 10000);
+        },
+
+        // startCooldown запускает обратный отсчёт блокировки входа (429): плашка
+        // с оставшимся временем держится до нуля, кнопка входа заблокирована.
+        // Auto-hide (10с) при кулдауне НЕ используем - сообщение живёт весь отсчёт.
+        startCooldown(seconds) {
+            this.clearCooldown();
+            const sec = Math.floor(Number(seconds));
+            if (!Number.isFinite(sec) || sec <= 0) return;
+            if (this.errorTimeout) {
+                clearTimeout(this.errorTimeout);
+                this.errorTimeout = null;
+            }
+            this.cooldownSeconds = sec;
+            this.showError = true;
+            this.cooldownTimer = setInterval(() => {
+                this.cooldownSeconds -= 1;
+                if (this.cooldownSeconds <= 0) {
+                    this.clearCooldown();
+                    this.showError = false;
+                    this.errors.general = '';
+                }
+            }, 1000);
+        },
+
+        clearCooldown() {
+            if (this.cooldownTimer) {
+                clearInterval(this.cooldownTimer);
+                this.cooldownTimer = null;
+            }
+            this.cooldownSeconds = 0;
         },
         
         showNotificationMessage(text) {
@@ -421,7 +471,7 @@ export default {
     // Enter в поле формы вызывает и @submit формы, и @keyup.enter инпута - без guard'а
     // это два параллельных логина (в auth_events двоились login_failed). isLoading
     // ставим ДО первого await, чтобы второй синхронный вызов отсёкся здесь.
-    if (this.isLoading || this.isSuccess) return;
+    if (this.isLoading || this.isSuccess || this.isCoolingDown) return;
     this.resetAnimations();
     this.errors.general = '';
 
@@ -479,9 +529,20 @@ export default {
         } else {
             // Проверяем статус код для определения типа ошибки
             if (response.status === 429) {
-                this.errors.general = "Вы отправляете слишком много запросов. Пожалуйста, подождите.";
+                // Retry-After (сек): и IP-лимитер входа, и блокировка учётки.
+                // Запускаем обратный отсчёт; текст плашки берёт displayError.
+                const retryAfter = parseInt(response.headers.get('Retry-After'), 10);
+                const sec = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : 60;
+                this.isLoading = false;
+                this.startCooldown(sec);
+                return;
             } else if (response.status === 401) {
-                this.errors.general = "Неверный логин и/или пароль";
+                // X-Auth-Attempts-Remaining: остаток попыток до блокировки учётки
+                // (есть только для существующего логина).
+                const remaining = parseInt(response.headers.get('X-Auth-Attempts-Remaining'), 10);
+                this.errors.general = Number.isFinite(remaining)
+                    ? `Неверный логин или пароль. Осталось попыток: ${remaining}`
+                    : 'Неверный логин или пароль';
             } else {
                 try {
                     const errorText = await response.text();
@@ -514,11 +575,14 @@ export default {
             // Это может быть CORS ошибка
             this.errors.general = "Ошибка сети. Проверьте подключение и повторите позже.";
         } else if (error.toString().includes("Too many requests") || error.toString().includes("429")) {
-            this.errors.general = "Вы отправляете слишком много запросов. Подождите.";
+            // Сетевой путь без заголовков - fallback-кулдаун 60с.
+            this.isLoading = false;
+            this.startCooldown(60);
+            return;
         } else {
             this.errors.general = "Ошибка соединения. Проверьте подключение к интернету.";
         }
-        
+
         this.isLoading = false;
         await this.showErrorWithDelay();
     }

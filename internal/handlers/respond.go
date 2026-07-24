@@ -55,6 +55,10 @@ func CustomHTTPErrorHandler(err error, c echo.Context) {
 	if errors.As(err, &ae) {
 		code = ae.Code
 		msg = ae.Message
+		// Доп. заголовки ошибки (Retry-After и т.п.) выставляем до тела ответа.
+		for k, v := range ae.Headers {
+			c.Response().Header().Set(k, v)
+		}
 		if code >= http.StatusInternalServerError {
 			slog.Error("internal error", "error", err)
 		}
