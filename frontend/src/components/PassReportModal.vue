@@ -120,82 +120,93 @@
         >▾</span>
       </button>
 
+      <!-- Плавное раскрытие/скрытие через grid-template-rows 0fr<->1fr (эталон
+           проекта): содержимое остаётся в DOM, поэтому анимируется и закрытие. -->
       <div
-        v-if="historyOpen"
-        class="pr-history"
-        data-testid="pass-report-history"
+        class="pr-history-wrap"
+        :class="{ open: historyOpen }"
       >
-        <div class="pr-history__tools">
-          <span class="pr-history__filter-label">Выбрать период:</span>
-          <DateFilter
-            mode="range"
-            :date-range-start="dateRangeStart"
-            :date-range-end="dateRangeEnd"
-            @update:date-range-start="dateRangeStart = $event"
-            @update:date-range-end="dateRangeEnd = $event"
-            @apply="loadDays"
-            @clear="clearDates"
-          />
-        </div>
-
-        <div
-          v-if="loadingDays"
-          class="pr-empty"
-        >
-          Загрузка...
-        </div>
-        <div
-          v-else-if="!days.length"
-          class="pr-empty"
-          data-testid="pass-report-days-empty"
-        >
-          Пока нет данных за прошлые дни
-        </div>
-        <template v-else>
-          <div class="pr-days">
-            <div
-              v-for="day in days"
-              :key="day.report_date"
-              class="pr-day"
-              data-testid="pass-report-day"
-            >
-              <div class="pr-day__date">
-                {{ formatDayHuman(day.report_date) }}
-              </div>
-              <div class="pr-day__total">
-                {{ rowSummary(day.totals) }}
-              </div>
-              <div
-                v-if="day.rows && day.rows.length > 1"
-                class="pr-day__people"
-              >
-                <div
-                  v-for="row in day.rows"
-                  :key="`${day.report_date}-${row.user_id}`"
-                  class="pr-day__person"
-                >
-                  <span class="pr-day__person-name">{{ userLabel(row) }}</span>
-                  <span class="pr-day__person-nums">{{ rowSummary(row) }}</span>
-                </div>
+        <div class="pr-history-inner">
+          <div
+            class="pr-history"
+            data-testid="pass-report-history"
+          >
+            <div class="pr-history__head">
+              <span class="pr-history__title">Прошлые дни</span>
+              <div class="pr-history__filter">
+                <span class="pr-history__filter-label">Период:</span>
+                <DateFilter
+                  mode="range"
+                  :date-range-start="dateRangeStart"
+                  :date-range-end="dateRangeEnd"
+                  @update:date-range-start="dateRangeStart = $event"
+                  @update:date-range-end="dateRangeEnd = $event"
+                  @apply="loadDays"
+                  @clear="clearDates"
+                />
               </div>
             </div>
-          </div>
 
-          <button
-            class="pr-export"
-            :disabled="isExporting || !days.length"
-            data-testid="pass-report-export"
-            @click="exportToExcel"
-          >
-            <img
-              v-if="!isExporting"
-              src="@/assets/icons/export.png"
-              class="pr-export__icon"
-              alt=""
+            <div
+              v-if="loadingDays"
+              class="pr-empty"
             >
-            <span>{{ isExporting ? 'Формируем файл...' : 'Скачать в Excel' }}</span>
-          </button>
-        </template>
+              Загрузка...
+            </div>
+            <div
+              v-else-if="!days.length"
+              class="pr-empty"
+              data-testid="pass-report-days-empty"
+            >
+              Пока нет данных за прошлые дни
+            </div>
+            <template v-else>
+              <div class="pr-days">
+                <div
+                  v-for="day in days"
+                  :key="day.report_date"
+                  class="pr-day"
+                  data-testid="pass-report-day"
+                >
+                  <div class="pr-day__date">
+                    {{ formatDayHuman(day.report_date) }}
+                  </div>
+                  <div class="pr-day__total">
+                    {{ rowSummary(day.totals) }}
+                  </div>
+                  <div
+                    v-if="day.rows && day.rows.length > 1"
+                    class="pr-day__people"
+                  >
+                    <div
+                      v-for="row in day.rows"
+                      :key="`${day.report_date}-${row.user_id}`"
+                      class="pr-day__person"
+                    >
+                      <span class="pr-day__person-name">{{ userLabel(row) }}</span>
+                      <span class="pr-day__person-nums">{{ rowSummary(row) }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                class="pr-export"
+                :disabled="isExporting || !days.length"
+                data-testid="pass-report-export"
+                @click="exportToExcel"
+              >
+                <img
+                  v-if="!isExporting"
+                  src="@/assets/icons/export.png"
+                  class="pr-export__icon"
+                  alt=""
+                >
+                <span>{{ isExporting ? 'Формируем файл...' : 'Скачать в Excel' }}</span>
+              </button>
+            </template>
+          </div>
+        </div>
       </div>
     </div>
   </BaseModal>
@@ -593,21 +604,67 @@ export default {
   transform: rotate(180deg);
 }
 
-.pr-history {
-  margin-top: 14px;
+/* Аккордеон: высота анимируется через grid-template-rows 0fr<->1fr, внутренний
+   контейнер с min-height:0 + overflow:hidden обрезает содержимое при свёртке. */
+.pr-history-wrap {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.28s ease;
 }
 
-.pr-history__tools {
+.pr-history-wrap.open {
+  grid-template-rows: 1fr;
+}
+
+.pr-history-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* «Прошлые дни» - отдельный обведённый блок под кнопкой. */
+.pr-history {
+  margin-top: 12px;
+  border: 1px solid #e6e6e6;
+  border-radius: 16px;
+  padding: 16px;
+  background: #fafbff;
+}
+
+.pr-history__head {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
   flex-wrap: wrap;
   margin-bottom: 12px;
 }
 
+.pr-history__title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.pr-history__filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .pr-history__filter-label {
   font-size: 15px;
   color: #555;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pr-history-wrap {
+    transition: none;
+  }
+
+  .pr-history-toggle__arrow {
+    transition: none;
+  }
 }
 
 .pr-days {
