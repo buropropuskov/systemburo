@@ -4,7 +4,139 @@
       <h4>Список транспортных средств</h4>
       <span class="vehicles-badge">{{ vehicles.length }}</span>
     </div>
-    <div class="vehicles-table rt-table">
+
+    <!-- Десктоп/планшет: колоночная раскладка. В DOM ячейки идут по столбцам, поэтому
+         выделение мышью сверху-вниз захватывает один столбец и копируется как список
+         значений (Ctrl+C). Мобилка (карточки) - строковый блок ниже. -->
+    <div
+      v-if="!isNarrow"
+      class="vehicles-cols"
+      @mouseleave="hoveredIndex = null"
+    >
+      <div class="vcol vcol--index">
+        <div
+          class="vcol__head"
+          @click="$emit('sort', 'number')"
+        >
+          <p :class="{ 'active-sort': sortField === 'number' }">
+            №
+          </p>
+          <img
+            src="@/assets/icons/sort.png"
+            class="sort-icon"
+            :class="{ 'desc': sortField === 'number' && sortDirection === 'desc' }"
+          >
+        </div>
+        <div
+          v-for="(vehicle, index) in vehicles"
+          :key="vehicle.id"
+          class="vcol__cell vcol__cell--muted"
+          :class="rowState(vehicle, index)"
+          @mouseenter="hoveredIndex = index"
+        >
+          {{ index + 1 }}
+        </div>
+      </div>
+
+      <div class="vcol vcol--plate">
+        <div
+          class="vcol__head"
+          @click="$emit('sort', 'plate')"
+        >
+          <p :class="{ 'active-sort': sortField === 'plate' }">
+            Номер
+          </p>
+          <img
+            src="@/assets/icons/sort.png"
+            class="sort-icon"
+            :class="{ 'desc': sortField === 'plate' && sortDirection === 'desc' }"
+          >
+        </div>
+        <div
+          v-for="(vehicle, index) in vehicles"
+          :key="vehicle.id"
+          class="vcol__cell vcol__cell--text"
+          :class="rowState(vehicle, index)"
+          @mouseenter="hoveredIndex = index"
+        >
+          {{ vehicle.plateNumber || 'Не указано' }}
+        </div>
+      </div>
+
+      <div class="vcol vcol--mark">
+        <div
+          class="vcol__head"
+          @click="$emit('sort', 'mark')"
+        >
+          <p :class="{ 'active-sort': sortField === 'mark' }">
+            Марка
+          </p>
+          <img
+            src="@/assets/icons/sort.png"
+            class="sort-icon"
+            :class="{ 'desc': sortField === 'mark' && sortDirection === 'desc' }"
+          >
+        </div>
+        <div
+          v-for="(vehicle, index) in vehicles"
+          :key="vehicle.id"
+          class="vcol__cell vcol__cell--text"
+          :class="rowState(vehicle, index)"
+          @mouseenter="hoveredIndex = index"
+        >
+          {{ vehicle.mark || 'Не указано' }}
+        </div>
+      </div>
+
+      <div class="vcol vcol--actions">
+        <div class="vcol__head vcol__head--actions">
+          Действия
+        </div>
+        <div
+          v-for="(vehicle, index) in vehicles"
+          :key="vehicle.id"
+          class="vcol__cell vcol__cell--actions"
+          :class="rowState(vehicle, index)"
+          @mouseenter="hoveredIndex = index"
+        >
+          <button
+            class="details-btn"
+            title="Детали"
+            @click="showVehicleDetails(vehicle)"
+          >
+            <DetailsIcon class="details-icon" />
+          </button>
+          <button
+            class="edit-btn"
+            title="Редактировать"
+            @click="$emit('edit-vehicle', vehicle)"
+          >
+            <img
+              src="@/assets/icons/edit.png"
+              alt="Редактировать"
+              class="edit-icon"
+            >
+          </button>
+          <button
+            class="delete-btn"
+            title="Удалить"
+            @click="$emit('delete-vehicle', vehicle.id)"
+          >
+            <img
+              src="@/assets/icons/trashcan.png"
+              alt="Удалить"
+              class="delete-icon"
+            >
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Мобилка: строки становятся карточками (rt-* из responsive-tables.css). -->
+    <div
+      v-else
+      class="vehicles-table rt-table"
+    >
       <div class="table-header rt-head-row">
         <div
           class="header-col number-col"
@@ -13,13 +145,6 @@
           <p :class="{ 'active-sort': sortField === 'number' }">
             №
           </p>
-          <img 
-            src="@/assets/icons/sort.png" 
-            class="sort-icon" 
-            :class="{ 
-              'desc': sortField === 'number' && sortDirection === 'desc'
-            }" 
-          >
         </div>
         <div
           class="header-col plate-col"
@@ -28,13 +153,6 @@
           <p :class="{ 'active-sort': sortField === 'plate' }">
             Номер
           </p>
-          <img 
-            src="@/assets/icons/sort.png" 
-            class="sort-icon" 
-            :class="{ 
-              'desc': sortField === 'plate' && sortDirection === 'desc'
-            }" 
-          >
         </div>
         <div
           class="header-col mark-col"
@@ -43,21 +161,14 @@
           <p :class="{ 'active-sort': sortField === 'mark' }">
             Марка
           </p>
-          <img 
-            src="@/assets/icons/sort.png" 
-            class="sort-icon" 
-            :class="{ 
-              'desc': sortField === 'mark' && sortDirection === 'desc'
-            }" 
-          >
         </div>
         <div class="header-col actions-col">
           Действия
         </div>
       </div>
       <div class="table-body">
-        <div 
-          v-for="(vehicle, index) in vehicles" 
+        <div
+          v-for="(vehicle, index) in vehicles"
           :key="vehicle.id"
           class="table-row rt-row"
           :class="{ 'has-active': vehicle.activeInfo }"
@@ -83,37 +194,38 @@
             >
               <DetailsIcon class="details-icon" />
             </button>
-            <button 
+            <button
               class="edit-btn"
               title="Редактировать"
               @click="$emit('edit-vehicle', vehicle)"
             >
-              <img 
-                src="@/assets/icons/edit.png" 
-                alt="Редактировать" 
+              <img
+                src="@/assets/icons/edit.png"
+                alt="Редактировать"
                 class="edit-icon"
               >
             </button>
-            <button 
+            <button
               class="delete-btn"
               title="Удалить"
               @click="$emit('delete-vehicle', vehicle.id)"
             >
-              <img 
-                src="@/assets/icons/trashcan.png" 
-                alt="Удалить" 
+              <img
+                src="@/assets/icons/trashcan.png"
+                alt="Удалить"
                 class="delete-icon"
               >
             </button>
           </div>
         </div>
-        <div
-          v-if="vehicles.length === 0"
-          class="no-vehicles"
-        >
-          Нет добавленных транспортных средств
-        </div>
       </div>
+    </div>
+
+    <div
+      v-if="vehicles.length === 0"
+      class="no-vehicles"
+    >
+      Нет добавленных транспортных средств
     </div>
 
     <!-- Модальное окно деталей транспортного средства -->
@@ -133,6 +245,7 @@
 <script>
 import VehicleDetailsModal from './VehicleDetailsModal.vue';
 import DetailsIcon from '@/components/ui/DetailsIcon.vue';
+import { useNarrowScreen } from '@/composables/useNarrowScreen';
 
 export default {
     name: 'VehiclesList',
@@ -167,13 +280,31 @@ export default {
         }
     },
     emits: ['sort', 'edit-vehicle', 'delete-vehicle'],
+    // 767.98 - тот же порог, что у карточного @media: ниже него рендерим карточки,
+    // выше - колоночную раскладку с выделением по столбцам.
+    setup() {
+        const { isNarrow } = useNarrowScreen(767.98);
+        return { isNarrow };
+    },
     data() {
         return {
             showDetailsModal: false,
-            selectedVehicle: null
+            selectedVehicle: null,
+            // Индекс строки под курсором: подсвечиваем ячейки того же индекса во всех
+            // столбцах (в колоночном DOM «строки» как элемента нет - синхроним по index).
+            hoveredIndex: null
         }
     },
     methods: {
+        // Классы состояния ячейки: жёлтая подсветка уже активной машины и hover-строка
+        // по общему индексу (колонки - отдельные элементы, CSS :hover строку не даёт).
+        rowState(vehicle, index) {
+            return {
+                'vcol__cell--active': !!vehicle.activeInfo,
+                'vcol__cell--hover': this.hoveredIndex === index
+            };
+        },
+
         showVehicleDetails(vehicle) {
             const info = this.detailInfo || {};
             this.selectedVehicle = {
@@ -199,6 +330,9 @@ export default {
 .data__list {
     padding: 12px;
     flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
 }
 
 .header-with-badge {
@@ -220,6 +354,152 @@ export default {
     line-height: 1.2;
 }
 
+/* Колоночная раскладка (десктоп/планшет): каждый столбец - отдельный flex-column,
+   ячейки одного индекса выровнены по фиксированной высоте. Растягиваем на высоту
+   соседней формы (data__list stretch по form__data) - список показывает максимум
+   строк, а не фиксированные ~180px; переполнение уходит во внутренний скролл. */
+.vehicles-cols {
+    display: flex;
+    flex: 1;
+    min-height: 180px;
+    overflow-y: auto;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 20px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    scrollbar-width: thin;
+}
+
+.vcol {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.vcol--index {
+    width: 10%;
+    flex-shrink: 0;
+    user-select: none;
+    text-align: center;
+}
+
+.vcol--plate {
+    width: 32%;
+    /* Столбцы с данными выделяемы для копирования; служебные (№, действия) - нет. */
+    user-select: text;
+}
+
+.vcol--mark {
+    width: 30%;
+    user-select: text;
+}
+
+.vcol--actions {
+    width: 28%;
+    flex-shrink: 0;
+    user-select: none;
+}
+
+.vcol__head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 40px;
+    padding: 0 12px;
+    box-sizing: border-box;
+    background: #f5f5f5;
+    border-bottom: 1px solid #e0e0e0;
+    font-weight: 500;
+    color: #666;
+    font-size: 13px;
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.2s ease;
+}
+
+.vcol--index .vcol__head {
+    justify-content: center;
+}
+
+.vcol__head--actions {
+    cursor: default;
+    justify-content: center;
+}
+
+.vcol__head p {
+    margin: 0;
+}
+
+.vcol__head:hover:not(.vcol__head--actions) p,
+.vcol__head p.active-sort {
+    color: #333;
+}
+
+.sort-icon {
+    width: 10px;
+    height: 10px;
+    transition: all 0.2s ease;
+    opacity: 0.4;
+    transform: rotate(0deg);
+}
+
+.vcol__head:hover .sort-icon,
+.vcol__head .active-sort ~ .sort-icon {
+    opacity: 0.8;
+}
+
+.sort-icon.desc {
+    transform: rotate(180deg);
+    opacity: 0.8;
+}
+
+.vcol__cell {
+    height: 38px;
+    padding: 0 12px;
+    box-sizing: border-box;
+    line-height: 38px;
+    font-size: 13px;
+    border-bottom: 1px solid #f5f5f5;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: background-color 0.2s ease;
+}
+
+.vcol__cell:last-child {
+    border-bottom: none;
+}
+
+.vcol__cell--muted {
+    color: #a2a2a2;
+    text-align: center;
+}
+
+.vcol__cell--actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    line-height: normal;
+    overflow: visible;
+}
+
+.vcol__cell--hover {
+    background: #f8f9fa;
+}
+
+.vcol__cell--active {
+    background: #fff3cd;
+}
+
+.vcol__cell--active.vcol__cell--hover {
+    background: #ffe69b;
+}
+
+/* --- Строковая раскладка (мобильные карточки) --- */
 .vehicles-table {
     width: 100%;
     border: 1px solid #e0e0e0;
@@ -250,24 +530,6 @@ export default {
 .header-col:hover,
 .header-col.active-sort {
     color: #333;
-}
-
-.header-col:hover .sort-icon,
-.header-col.active-sort .sort-icon {
-    opacity: 0.8;
-}
-
-.sort-icon {
-    width: 10px;
-    height: 10px;
-    transition: all 0.2s ease;
-    opacity: 0.4;
-    transform: rotate(0deg);
-}
-
-.sort-icon.desc {
-    transform: rotate(180deg);
-    opacity: 0.8;
 }
 
 .table-body {
@@ -324,10 +586,6 @@ export default {
     width: 25%;
 }
 
-.status-col {
-    width: 20%;
-}
-
 .actions-col {
     width: 20%;
     text-align: center;
@@ -340,22 +598,6 @@ export default {
     display: flex;
     align-items: center;
     gap: 6px;
-}
-
-.status-icon {
-    width: 14px;
-    height: 14px;
-}
-
-.active-badge {
-    display: inline-block;
-    padding: 2px 8px;
-    background: #ffc107;
-    color: #856404;
-    border-radius: 12px;
-    font-size: 10px;
-    font-weight: 500;
-    white-space: nowrap;
 }
 
 .details-btn, .edit-btn, .delete-btn {
