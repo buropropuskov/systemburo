@@ -3167,6 +3167,13 @@ export default {
     min-width: 130px;
 }
 
+/* Пульс-точку "статус обновился" (#1349) режет overflow:hidden базового
+   .application-col - у колонки статуса ellipsis не нужен (бейдж фиксированный),
+   поэтому разрешаем выход точки за границы (спецификой 0,2,0 бьём .application-col). */
+.application-col.status-col {
+    overflow: visible;
+}
+
 .actions-col {
     flex: 0 0 96px;
     justify-content: flex-end;
@@ -3360,7 +3367,10 @@ export default {
    Взаимоисключимо с .unread (флаг показываем только у прочитанных), поэтому фоны не
    конфликтуют. Ставим после hover-правил, чтобы подсветка держалась и при наведении. */
 .application-item.status-updated {
-    background-color: #eaf3fb;
+    background-color: #dbeafe;
+    /* Левая полоса-акцент (inset - без reflow): заметный сигнал "обновление" даже там,
+       где мягкого фона мало (мобильная карточка, где точка статуса скрыта). */
+    box-shadow: inset 3px 0 0 0 #2b8bf2;
 }
 
 .status-badge-wrap {
