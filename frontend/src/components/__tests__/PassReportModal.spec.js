@@ -93,6 +93,26 @@ describe('PassReportModal', () => {
     expect(td(w, 'pass-report-live').text()).toContain('Выехало');
   });
 
+  it('пустая текущая смена (кейс 21:31) показывает подсказку про прошлые дни, непустая — нет', async () => {
+    getPassReportLive.mockResolvedValue({
+      period_start: '2026-07-22T18:30:00Z',
+      period_end: '2026-07-22T18:31:00Z',
+      rows: [],
+      totals: { car_entries: 0, car_exits: 0, people_entries: 0, people_exits: 0 },
+    });
+    const w = mountModal();
+    await w.setProps({ show: true });
+    await flushPromises();
+    expect(td(w, 'pass-report-empty-hint').exists()).toBe(true);
+    expect(td(w, 'pass-report-empty-hint').text()).toContain('21:30');
+
+    getPassReportLive.mockResolvedValue(liveFixture);
+    const w2 = mountModal();
+    await w2.setProps({ show: true });
+    await flushPromises();
+    expect(td(w2, 'pass-report-empty-hint').exists()).toBe(false);
+  });
+
   it('одна строка охранника — разбивка «кто сколько» не показывается', async () => {
     const w = mountModal();
     await w.setProps({ show: true });

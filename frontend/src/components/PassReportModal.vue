@@ -64,6 +64,19 @@
           </div>
         </div>
 
+        <!-- Кейс «открыл в 21:31»: в 21:30 смена сменилась, текущая новая - пустая.
+             Уходящий охранник тупанул бы на нулях; подсказываем, что его смена уже
+             в прошлых днях. Показываем всегда, когда текущая смена пуста. -->
+        <div
+          v-if="liveIsEmpty"
+          class="pr-hint"
+          data-testid="pass-report-empty-hint"
+        >
+          <b>За текущую смену отметок пока нет.</b>
+          Смена меняется каждый день в 21:30. Если ищете отчёт за прошедший день -
+          нажмите «Показать прошлые дни» ниже.
+        </div>
+
         <!-- Разбивка по охранникам видна, только когда за смену отмечал не один
              человек (у деда на посту одна строка - лишний шум не показываем). -->
         <div
@@ -248,6 +261,13 @@ export default {
       const d = new Date(this.live.period_end);
       if (Number.isNaN(d.getTime())) return 'Сегодня';
       return `Сегодня, ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+    },
+    // Текущая смена пуста по всем активным секциям - основание показать подсказку
+    // про смену в 21:30 (кейс «открыл сразу после 21:30»).
+    liveIsEmpty() {
+      const t = this.live?.totals;
+      if (!t) return false;
+      return this.sectionDefs.every((s) => !(t[s.inField] || 0) && !(t[s.outField] || 0));
     },
   },
   watch: {
@@ -467,8 +487,10 @@ export default {
   border-radius: 14px;
 }
 
+/* Гамма сайта (primary #4f5bdf): «заехало» - мягкий синий с акцентным числом,
+   «выехало» - нейтральный серо-синий. Без зелёного. */
 .pr-card__stat--in {
-  background: #e8f5ea;
+  background: #eef0ff;
 }
 
 .pr-card__stat--out {
@@ -485,6 +507,22 @@ export default {
   font-weight: 800;
   line-height: 1;
   color: #1a1a1a;
+}
+
+.pr-card__stat--in .pr-card__num {
+  color: #4f5bdf;
+}
+
+.pr-hint {
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: #eef0ff;
+  border: 1px solid #e0e3f5;
+  border-left: 4px solid #4f5bdf;
+  border-radius: 14px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: #333;
 }
 
 .pr-breakdown {
