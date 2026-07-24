@@ -1788,10 +1788,10 @@ export default {
    В ЛК гейта прочтения нет (у отправителя нет строк application_reads) - фон по одному
    флагу has_status_update. Ставим после hover, чтобы подсветка держалась при наведении. */
 .application-item.status-updated {
-  background-color: #ede9fe;
+  background-color: #f3e8ff;
   /* Левая полоса-акцент (inset - без reflow): заметный сигнал "обновление" даже там,
      где мягкого фона мало (мобильная карточка, где точка статуса скрыта). */
-  box-shadow: inset 3px 0 0 0 #7c3aed;
+  box-shadow: inset 3px 0 0 0 #9333ea;
 }
 
 .status-badge-wrap {
@@ -1806,7 +1806,7 @@ export default {
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background-color: #7c3aed;
+  background-color: #9333ea;
   box-shadow: 0 0 0 2px #fff;
 }
 
@@ -1815,7 +1815,7 @@ export default {
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  background-color: #7c3aed;
+  background-color: #9333ea;
   animation: statusUpdatePulse 1.6s ease-out infinite;
 }
 
