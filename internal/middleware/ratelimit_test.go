@@ -3,6 +3,7 @@ package middleware_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -134,5 +135,10 @@ func TestRateLimit_SetsRetryAfterOn429(t *testing.T) {
 	require.Equal(t, http.StatusOK, do().Code)
 	rec := do()
 	assert.Equal(t, http.StatusTooManyRequests, rec.Code)
-	assert.Equal(t, "60", rec.Header().Get("Retry-After"))
+	// Retry-After - реальный остаток окна (не полное окно): для только что занятого
+	// слота это ~window, но зависит от границы секунды, поэтому проверяем диапазон.
+	ra, err := strconv.Atoi(rec.Header().Get("Retry-After"))
+	require.NoError(t, err)
+	assert.Greater(t, ra, 0)
+	assert.LessOrEqual(t, ra, 60)
 }

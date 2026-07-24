@@ -32,9 +32,10 @@ func RateLimit(limit int, windowSeconds int64) echo.MiddlewareFunc {
 		return func(c echo.Context) error {
 			key := rl.getKey(c)
 			if !rl.allow(key) {
-				c.Response().Header().Set("Retry-After", strconv.FormatInt(rl.window, 10))
+				ra := rl.retryAfterSeconds(key)
+				c.Response().Header().Set("Retry-After", strconv.FormatInt(ra, 10))
 				return echo.NewHTTPError(http.StatusTooManyRequests,
-					fmt.Sprintf("Вы отправляете слишком много запросов. Подождите %d секунд.", rl.window))
+					fmt.Sprintf("Вы отправляете слишком много запросов. Подождите %d секунд.", ra))
 			}
 			return next(c)
 		}
@@ -105,6 +106,23 @@ func (rl *rateLimiter) allow(key string) bool {
 	return true
 }
 
+// retryAfterSeconds - сколько секунд до освобождения слота: остаток жизни самого
+// старого запроса в окне. Отдаём РЕАЛЬНЫЙ остаток, а не полное окно, иначе клиентский
+// таймер сбрасывался бы на максимум при каждом новом запросе. Минимум 1.
+func (rl *rateLimiter) retryAfterSeconds(key string) int64 {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+	ts := rl.requests[key]
+	if len(ts) == 0 {
+		return rl.window
+	}
+	remaining := rl.window - (time.Now().Unix() - ts[0])
+	if remaining < 1 {
+		return 1
+	}
+	return remaining
+}
+
 // LoginRateLimit - специализированный rate limiter для /login.
 // Ключ - client IP, окно и лимит задаются отдельно от общего RateLimit.
 // При превышении отвечает 429 + Retry-After, чтобы клиент знал через сколько
@@ -121,9 +139,10 @@ func LoginRateLimit(maxAttempts int, window time.Duration) echo.MiddlewareFunc {
 		return func(c echo.Context) error {
 			key := "login:" + c.RealIP()
 			if !rl.allow(key) {
-				c.Response().Header().Set("Retry-After", strconv.FormatInt(rl.window, 10))
+				ra := rl.retryAfterSeconds(key)
+				c.Response().Header().Set("Retry-After", strconv.FormatInt(ra, 10))
 				return echo.NewHTTPError(http.StatusTooManyRequests,
-					fmt.Sprintf("Слишком много попыток входа. Повторите через %d секунд.", rl.window))
+					fmt.Sprintf("Слишком много попыток входа. Повторите через %d секунд.", ra))
 			}
 			return next(c)
 		}
