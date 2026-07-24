@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"systemburo/internal/models"
 	"systemburo/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
@@ -146,6 +147,107 @@ func TestSystemTables_ArchiveAndRestore(t *testing.T) {
 	// Restore несуществующей - 404
 	rec = testutil.POST(t, e, "/system-tables/999999/restore", "", h)
 	assert.Equal(t, http.StatusNotFound, rec.Code)
+}
+
+// TestSystemTables_UsageAndDetachAll: usage показывает привязки, они блокируют
+// удаление, «Отвязать всё» их снимает (с аудитом на каждую орг/компанию) и после
+// этого таблица архивируется. Повтор detach-all по пустому - идемпотентен.
+func TestSystemTables_UsageAndDetachAll(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	body := `{"name":"otvyaz_table","display_name":"Отвяз-Таблица","table_type":"cars"}`
+	tableID := int(testutil.ParseMap(t, testutil.POST(t, e, "/system-tables", body, h))["id"].(float64))
+	require.NoError(t, db.Create(&models.OrganizationTable{OrganizationID: td.OrgID, TableID: tableID}).Error)
+	require.NoError(t, db.Create(&models.CompaniesTable{CompanyID: td.CompanyID, TableID: tableID}).Error)
+
+	// usage перечисляет обе привязки
+	usage := testutil.ParseMap(t, testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/usage", tableID), h))
+	orgs := usage["organizations"].([]interface{})
+	comps := usage["companies"].([]interface{})
+	require.Len(t, orgs, 1)
+	require.Len(t, comps, 1)
+	assert.Equal(t, float64(td.OrgID), orgs[0].(map[string]interface{})["id"])
+	assert.Equal(t, true, orgs[0].(map[string]interface{})["is_active"])
+	assert.NotEmpty(t, orgs[0].(map[string]interface{})["name"])
+
+	// пока привязано - удаление заблокировано (400)
+	assert.Equal(t, http.StatusBadRequest, testutil.DELETE(t, e, fmt.Sprintf("/system-tables/%d", tableID), h).Code)
+
+	// detach-all снимает обе привязки
+	detach := testutil.ParseMap(t, testutil.POST(t, e, fmt.Sprintf("/system-tables/%d/detach-all", tableID), "", h))
+	assert.Equal(t, float64(1), detach["organizations_detached"])
+	assert.Equal(t, float64(1), detach["companies_detached"])
+
+	// аудит «таблица убрана» записан на организацию и компанию (removed = display_name)
+	assert.Contains(t, auditDetails(t, db, models.AuditEntityOrganization, td.OrgID, models.OrganizationActionTablesChanged), "Отвяз-Таблица")
+	assert.Contains(t, auditDetails(t, db, models.AuditEntityCompany, td.CompanyID, models.CompanyActionTablesChanged), "Отвяз-Таблица")
+
+	// usage теперь пуст
+	usage = testutil.ParseMap(t, testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/usage", tableID), h))
+	assert.Empty(t, usage["organizations"].([]interface{}))
+	assert.Empty(t, usage["companies"].([]interface{}))
+
+	// теперь таблица архивируется
+	assert.Equal(t, http.StatusOK, testutil.DELETE(t, e, fmt.Sprintf("/system-tables/%d", tableID), h).Code)
+
+	// повторный detach-all идемпотентен (нулевые счётчики, 200)
+	detach = testutil.ParseMap(t, testutil.POST(t, e, fmt.Sprintf("/system-tables/%d/detach-all", tableID), "", h))
+	assert.Equal(t, float64(0), detach["organizations_detached"])
+	assert.Equal(t, float64(0), detach["companies_detached"])
+}
+
+// TestSystemTables_Usage_ArchivedBindingVisible: архивная (is_active=false)
+// организация всё равно попадает в usage - она держит таблицу (гейт Delete
+// считает по junction без фильтра активности), поэтому оператор обязан её видеть.
+func TestSystemTables_Usage_ArchivedBindingVisible(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	h := testutil.AuthHeader(token)
+
+	body := `{"name":"arch_bind_table","display_name":"Арх-Таблица","table_type":"cars"}`
+	tableID := int(testutil.ParseMap(t, testutil.POST(t, e, "/system-tables", body, h))["id"].(float64))
+	require.NoError(t, db.Create(&models.OrganizationTable{OrganizationID: td.OrgID, TableID: tableID}).Error)
+	require.NoError(t, db.Table("organizations").Where("id = ?", td.OrgID).Update("is_active", false).Error)
+
+	usage := testutil.ParseMap(t, testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/usage", tableID), h))
+	orgs := usage["organizations"].([]interface{})
+	require.Len(t, orgs, 1)
+	assert.Equal(t, false, orgs[0].(map[string]interface{})["is_active"], "архивная организация должна быть видна в usage")
+}
+
+func TestSystemTables_Usage_NotFound(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	h := testutil.AuthHeader(testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID))
+
+	assert.Equal(t, http.StatusNotFound, testutil.GET(t, e, "/system-tables/99999/usage", h).Code)
+	assert.Equal(t, http.StatusNotFound, testutil.POST(t, e, "/system-tables/99999/detach-all", "", h).Code)
+}
+
+// TestSystemTables_DetachAll_Forbidden: detach-all под admin-гейтом (меняет
+// привязки орг/компаний), обычному пользователю - 403.
+func TestSystemTables_DetachAll_Forbidden(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	body := `{"name":"gate_table","display_name":"Гейт-Таблица","table_type":"cars"}`
+	tableID := int(testutil.ParseMap(t, testutil.POST(t, e, "/system-tables", body, testutil.AuthHeader(adminToken)))["id"].(float64))
+
+	userToken := testutil.RegisterAndLogin(t, e, "tabledetachuser", "pass123", 1, td.OrgID, td.CompanyID)
+	rec := testutil.POST(t, e, fmt.Sprintf("/system-tables/%d/detach-all", tableID), "", testutil.AuthHeader(userToken))
+	assert.Equal(t, http.StatusForbidden, rec.Code)
 }
 
 func TestSystemTables_History(t *testing.T) {
