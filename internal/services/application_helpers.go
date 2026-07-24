@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -371,6 +372,118 @@ func (s *applicationService) notifyApplicationUpdated(ctx context.Context, appli
 		Type:  "applications.refresh",
 		Scope: "applications-center",
 	})
+}
+
+// applyStatusUpdatedFilter навешивает фильтр "только заявки с обновлённым статусом" (#1349),
+// если statusUpdated=true. userID подставляется в обе точки предиката (seen_at и read_at
+// того же пользователя). requireRead=true (Центр) дополнительно требует, чтобы заявка была
+// прочитана (EXISTS application_reads) - в Центре флаг обновления виден только на прочитанных
+// строках; requireRead=false (ЛК) - у отправителя записей application_reads нет.
+func applyStatusUpdatedFilter(query *gorm.DB, userID int, statusUpdated *bool, requireRead bool) *gorm.DB {
+	if statusUpdated == nil || !*statusUpdated {
+		return query
+	}
+	query = query.Where(hasStatusUpdatePredicate, userID, userID)
+	if requireRead {
+		query = query.Where("EXISTS (SELECT 1 FROM application_reads ar WHERE ar.application_id = a.id AND ar.user_id = ?)", userID)
+	}
+	return query
+}
+
+// Исходы заявки, о которых уведомляется инициатор (#1349). Значения - для внутреннего
+// switch в notifyInitiatorStatusChanged; наружу уходит только title/body уведомления.
+const (
+	statusOutcomeAccepted    = "accepted"
+	statusOutcomeRejected    = "rejected"
+	statusOutcomeApproved    = "approved"
+	statusOutcomeNotApproved = "not_approved"
+	statusOutcomeCompleted   = "completed"
+)
+
+// applicationStatusChangedType - тип уведомления инициатору об исходе заявки (#1349).
+// Навигация по data.application_id уже поддержана фронтом (UserNotifications.vue).
+const applicationStatusChangedType = "application_status_changed"
+
+// confirmationOutcome возвращает исход-уведомление для нового значения confirmation, если
+// это финальный исход согласования (Согласовано/Не согласовано). "" - промежуточное значение
+// (возврат в "Согласование" при добавлении согласующих/отзыве голоса): инициатору об этом
+// не сообщаем.
+func confirmationOutcome(newConfirmation *string) string {
+	if newConfirmation == nil {
+		return ""
+	}
+	switch *newConfirmation {
+	case models.ConfirmationApproved:
+		return statusOutcomeApproved
+	case models.ConfirmationRejected:
+		return statusOutcomeNotApproved
+	}
+	return ""
+}
+
+// notifyInitiatorStatusChanged шлёт отправителю заявки best-effort уведомление об исходе
+// (#1349): принята в работу / отклонена / согласована / не согласована / завершена. Гейт
+// actorUserID != sender - актору собственный исход не шлём (крон передаёт nil и уведомляет
+// всегда). Звать ПОСЛЕ commit: ошибки логируются, бизнес-операцию не откатывают. data:
+// {application_id, application_number}.
+func (s *applicationService) notifyInitiatorStatusChanged(ctx context.Context, applicationID int, actorUserID *int, outcome string) {
+	if s.notificationService == nil {
+		return
+	}
+
+	var app struct {
+		SenderUserID      *int
+		ApplicationNumber string
+	}
+	if err := s.db.WithContext(ctx).
+		Raw("SELECT sender_user_id, application_number FROM applications WHERE id = ?", applicationID).
+		Scan(&app).Error; err != nil {
+		slog.Warn("не удалось получить отправителя для уведомления об исходе заявки", "application_id", applicationID, "error", err)
+		return
+	}
+	if app.SenderUserID == nil {
+		return
+	}
+	if actorUserID != nil && *actorUserID == *app.SenderUserID {
+		return
+	}
+
+	number := app.ApplicationNumber
+	if number == "" {
+		number = fmt.Sprintf("№ %d", applicationID)
+	}
+
+	var title, body string
+	switch outcome {
+	case statusOutcomeAccepted:
+		title = "Заявка принята в работу"
+		body = fmt.Sprintf("Ваша заявка %s принята в работу.", number)
+	case statusOutcomeRejected:
+		title = "Заявка отклонена"
+		body = fmt.Sprintf("Ваша заявка %s отклонена.", number)
+	case statusOutcomeApproved:
+		title = "Заявка согласована"
+		body = fmt.Sprintf("Ваша заявка %s согласована.", number)
+	case statusOutcomeNotApproved:
+		title = "Заявка не согласована"
+		body = fmt.Sprintf("Ваша заявка %s не согласована.", number)
+	case statusOutcomeCompleted:
+		title = "Заявка завершена"
+		body = fmt.Sprintf("Срок действия вашей заявки %s истёк, она завершена.", number)
+	default:
+		slog.Warn("неизвестный исход заявки для уведомления инициатору", "outcome", outcome, "application_id", applicationID)
+		return
+	}
+
+	data := map[string]any{
+		"application_id":     applicationID,
+		"application_number": number,
+	}
+	payload, _ := json.Marshal(data)
+	payloadStr := string(payload)
+	if err := s.notificationService.CreateForUser(ctx, *app.SenderUserID, applicationStatusChangedType, title, body, &payloadStr); err != nil {
+		slog.Warn("не удалось создать уведомление инициатору об исходе заявки", "user_id", *app.SenderUserID, "error", err)
+	}
 }
 
 // buildSearchVariants возвращает уникальный набор вариантов поискового запроса:

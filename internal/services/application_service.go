@@ -205,6 +205,9 @@ type ApplicationService interface {
 	// GetUnreadCount возвращает количество непрочитанных заявок для пользователя.
 	GetUnreadCount(ctx context.Context, username string) (*models.UnreadCountResponse, error)
 
+	// GetUserStatusUpdatesCount возвращает число заявок ЛК с обновлённым статусом (#1349).
+	GetUserStatusUpdatesCount(ctx context.Context, username string) (*models.StatusUpdatesCountResponse, error)
+
 	// CanAccessApplication проверяет, имеет ли пользователь доступ к заявке.
 	CanAccessApplication(ctx context.Context, applicationID int, username string, isSuperAdmin bool) bool
 
@@ -267,11 +270,17 @@ type ApplicationFilter struct {
 	// текущего пользователя (непрочитанность живёт там, а не в колонке a.status). В UI
 	// комбинируется со статусами по OR. userID для предиката берётся не отсюда, а из
 	// вызывающего сервиса (applyApplicationFilters получает его параметром).
-	Unread         *bool   `query:"unread"`
-	DateFrom       *string `query:"date_from"`
-	DateTo         *string `query:"date_to"`
-	Archive        *bool   `query:"archive"`
-	ActiveToday    *bool   `query:"active_today"`
+	Unread *bool `query:"unread"`
+	// StatusUpdated - псевдо-фильтр "Только с обновлённым статусом" (#1349, чип "Обновления"):
+	// заявки, чей статус/подтверждение менялись после последнего просмотра пользователем.
+	// requireRead различается по листингу (Центр требует прочтения, ЛК нет), поэтому фильтр
+	// применяется не в applyApplicationFilters, а в конкретном листинге через
+	// applyStatusUpdatedFilter.
+	StatusUpdated *bool   `query:"status_updated"`
+	DateFrom      *string `query:"date_from"`
+	DateTo        *string `query:"date_to"`
+	Archive       *bool   `query:"archive"`
+	ActiveToday   *bool   `query:"active_today"`
 	// SenderUserID сужает список до заявок, отправленных конкретным пользователем (#1158,
 	// вкладка "Мои заявки" в ЛК). Опциональное AND-условие поверх access-фильтра - не
 	// расширяет видимость (Центр это поле не использует, для него нейтрально).
@@ -745,6 +754,7 @@ func (s *applicationService) GetApplications(ctx context.Context, username strin
 	query = applyApplicationAccessFilter(query, user.ID, isApprover)
 
 	query = applyApplicationFilters(query, filter, true, user.ID)
+	query = applyStatusUpdatedFilter(query, user.ID, filter.StatusUpdated, true)
 	query = query.Order("a.sending_datetime DESC")
 
 	rows := make([]ApplicationWithDetails, 0)
@@ -807,7 +817,9 @@ func (s *applicationService) buildApplicationsBaseQuery(ctx context.Context, use
 
 	query = applyApplicationAccessFilter(query, userID, isApprover)
 
-	return applyApplicationFilters(query, filter, true, userID)
+	query = applyApplicationFilters(query, filter, true, userID)
+	// Центр: чип "Обновления" показывает только прочитанные заявки (requireRead=true).
+	return applyStatusUpdatedFilter(query, userID, filter.StatusUpdated, true)
 }
 
 // GetApplicationsPaginated возвращает страницу заявок с общим количеством.
@@ -872,7 +884,9 @@ func (s *applicationService) buildUserApplicationsBaseQuery(ctx context.Context,
 
 	query = applyUserApplicationsAccessFilter(query, user.ID, user.OrganizationID)
 
-	return applyApplicationFilters(query, filter, true, user.ID)
+	query = applyApplicationFilters(query, filter, true, user.ID)
+	// ЛК: у отправителя нет строк application_reads, гейт прочтения не нужен (requireRead=false).
+	return applyStatusUpdatedFilter(query, user.ID, filter.StatusUpdated, false)
 }
 
 // GetUserApplications возвращает заявки текущего пользователя с фильтрацией (legacy,
@@ -2057,6 +2071,13 @@ func (s *applicationService) UpdateApplication(ctx context.Context, username str
 	// Любое изменение заявки этим путём (статус/подтверждение/коммент) участники
 	// видят в детали live (#840 V4).
 	s.notifyApplicationUpdated(ctx, applicationID)
+	// Инициатору - уведомление об исходе согласования, если admin выставил confirmation
+	// в финальное значение (Согласовано/Не согласовано) и оно реально сменилось (#1349).
+	if confirmationChanged {
+		if outcome := confirmationOutcome(req.Confirmation); outcome != "" {
+			s.notifyInitiatorStatusChanged(ctx, applicationID, &user.ID, outcome)
+		}
+	}
 	// Прямое выставление "Согласовано" (admin-путь, минуя approve-флоу) делает
 	// вложения доступными охране - сигналим обновить "Доступные мне" (#840 V3). Сигнал
 	// безданных, лишний при не-переходе безвреден (event-then-fetch, клиент рефетчит).

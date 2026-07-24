@@ -343,3 +343,24 @@ func (h *ApplicationHandler) GetUnreadCount(c echo.Context) error {
 	}
 	return RespondSuccess(c, resp)
 }
+
+// GetUserStatusUpdatesCount godoc
+// @Summary      Число заявок ЛК с обновлённым статусом
+// @Description  Счётчик для чипа "Обновления" в ЛК (#1349): заявки пользователя (его или
+// @Description  организации), чей статус/подтверждение менялись после последнего просмотра.
+// @Tags         applications
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {object} models.StatusUpdatesCountResponse
+// @Failure      401 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /applications/user/status-updates-count [get]
+func (h *ApplicationHandler) GetUserStatusUpdatesCount(c echo.Context) error {
+	username := c.Get("username").(string)
+
+	resp, err := h.service.GetUserStatusUpdatesCount(c.Request().Context(), username)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, resp)
+}

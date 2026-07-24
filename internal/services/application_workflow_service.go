@@ -124,6 +124,13 @@ func (s *applicationService) TakeApplicationToWork(ctx context.Context, username
 	}
 
 	s.notifyApplicationUpdated(ctx, applicationID)
+	// Инициатору - уведомление об исходе принятия/отказа (#1349). Гейт actor != sender
+	// внутри хелпера: если принимающий = отправитель, себе не шлём.
+	if req.Action == "accept" {
+		s.notifyInitiatorStatusChanged(ctx, applicationID, &user.ID, statusOutcomeAccepted)
+	} else if req.Action == "reject" {
+		s.notifyInitiatorStatusChanged(ctx, applicationID, &user.ID, statusOutcomeRejected)
+	}
 	return nil
 }
 
@@ -502,8 +509,10 @@ func (s *applicationService) CheckExpiredAttachments(ctx context.Context) error 
 	}
 
 	// Завершение - смена статуса заявки: участники видят её live в детали и списках (#1349).
+	// Инициатору - уведомление "завершена" (actor=nil: завершил крон, шлём и отправителю).
 	for _, id := range completedAppIDs {
 		s.notifyApplicationUpdated(ctx, id)
+		s.notifyInitiatorStatusChanged(ctx, id, nil, statusOutcomeCompleted)
 	}
 
 	slog.Info("Проверка истекших вложений завершена")
