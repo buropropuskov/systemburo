@@ -405,6 +405,8 @@ func Setup(e *echo.Echo, d Dependencies) {
 	upg.PUT("/:id", up.Update)
 	upg.DELETE("/:id", up.Delete)
 	upg.POST("/:id/restore", up.Restore)
+	upg.GET("/:id/usage", up.GetUsage)
+	upg.POST("/:id/detach-all", up.DetachAll, requireAdmin)
 	// Групповые операции (статический bulk приоритетнее param :id в Echo).
 	upg.POST("/bulk/archive", up.BulkArchive)
 	upg.POST("/bulk/restore", up.BulkRestore)
