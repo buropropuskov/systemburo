@@ -17,11 +17,13 @@
         />
 
         <!-- Чип "Обновления" (#1349): серверный фильтр status_updated=true (только
-             заявки с обновлённым статусом) + счётчик из отдельного эндпоинта ЛК. -->
+             заявки с обновлённым статусом) + счётчик из отдельного эндпоинта ЛК.
+             Переиспользуем пилюлю .filter-tab (была под 2 таба Мои/Организации,
+             заменённые дропдауном - стиль остался). -->
         <button
           type="button"
-          class="updates-chip"
-          :class="{ 'updates-chip--active': statusUpdatedOnly }"
+          class="filter-tab"
+          :class="{ 'filter-tab--active': statusUpdatedOnly }"
           data-testid="lk-button-updates"
           @click="toggleStatusUpdated"
         >
@@ -1332,6 +1334,7 @@ export default {
   transition: all 0.2s;
   color: #333;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .filter-tab:hover:not(.filter-tab--active) {
@@ -1346,36 +1349,6 @@ export default {
 }
 
 .filter-tab--active:hover {
-  background: #3a45c0;
-  border-color: #3a45c0;
-}
-
-/* Чип "Обновления" (#1349) - пилюля-тоггл в шапке ЛК, стиль как у filter-tab. */
-.updates-chip {
-  padding: 4px 12px;
-  border: 1px solid #e6e6e6;
-  background: #fff;
-  border-radius: 16px;
-  cursor: pointer;
-  font-size: 13px;
-  color: #333;
-  white-space: nowrap;
-  flex-shrink: 0;
-  transition: background-color 0.2s, border-color 0.2s, color 0.2s;
-}
-
-.updates-chip:hover:not(.updates-chip--active) {
-  background: #f5f5f5;
-  border-color: #d9d9d9;
-}
-
-.updates-chip--active {
-  background: #4f5bdf;
-  border-color: #4f5bdf;
-  color: #fff;
-}
-
-.updates-chip--active:hover {
   background: #3a45c0;
   border-color: #3a45c0;
 }
