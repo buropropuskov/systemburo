@@ -1998,7 +1998,7 @@ export default {
 .nf-modal {
   width: 100%;
   max-width: 680px;
-  max-height: 88vh;
+  max-height: calc(var(--app-vh, 1vh) * 88);
   display: flex;
   flex-direction: column;
   background: #fff;

@@ -2385,7 +2385,7 @@ async uploadPhotoFiles(files) {
 
 .modal-body {
   padding: 20px 24px;
-  max-height: 60vh;
+  max-height: calc(var(--app-vh, 1vh) * 60);
   overflow-y: auto;
 }
 
@@ -2399,7 +2399,7 @@ async uploadPhotoFiles(files) {
 
 .full-photo {
   max-width: 100%;
-  max-height: 70vh;
+  max-height: calc(var(--app-vh, 1vh) * 70);
   object-fit: contain;
 }
 

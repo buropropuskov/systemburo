@@ -2192,7 +2192,7 @@ export default {
     padding: 0;
     width: 500px;
     max-width: 90vw;
-    max-height: 90vh;
+    max-height: calc(var(--app-vh, 1vh) * 90);
     overflow: hidden;
 }
 
@@ -2239,7 +2239,7 @@ export default {
 
 .modal-body {
     padding: 20px;
-    max-height: 70vh;
+    max-height: calc(var(--app-vh, 1vh) * 70);
     overflow-y: auto;
 }
 

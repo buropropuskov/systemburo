@@ -920,7 +920,7 @@ defineExpose({ editor });
 
 .preview-modal-content {
   padding: 24px 28px;
-  max-height: 70vh;
+  max-height: calc(var(--app-vh, 1vh) * 70);
   overflow-y: auto;
   font-size: 15px;
   line-height: 1.6;

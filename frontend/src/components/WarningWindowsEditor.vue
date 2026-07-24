@@ -764,7 +764,7 @@ export default {
 
 .modal-body {
   padding: 22px;
-  max-height: 60vh;
+  max-height: calc(var(--app-vh, 1vh) * 60);
   overflow-y: auto;
 }
 

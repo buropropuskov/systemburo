@@ -1310,7 +1310,7 @@ input:checked + .switch-slider:before {
    включается только когда не влезает в экран (маленькая высота вьюпорта). */
 .copy-modal-body {
   height: auto;
-  max-height: 65vh;
+  max-height: calc(var(--app-vh, 1vh) * 65);
 }
 
 .modal-footer {

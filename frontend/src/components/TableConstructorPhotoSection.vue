@@ -592,7 +592,7 @@ export default {
 
 .full-photo {
   max-width: 100%;
-  max-height: 70vh;
+  max-height: calc(var(--app-vh, 1vh) * 70);
   object-fit: contain;
 }
 

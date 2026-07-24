@@ -1307,7 +1307,7 @@ export default {
 .docs-modal {
   width: 560px;
   max-width: 95vw;
-  max-height: 90vh;
+  max-height: calc(var(--app-vh, 1vh) * 90);
   background: #fff;
   border-radius: 30px;
   box-shadow: 0 20px 60px rgba(20, 22, 60, 0.18);
