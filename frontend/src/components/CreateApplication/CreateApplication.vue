@@ -874,6 +874,27 @@ export default {
   
   return activeVehicles;
 },
+
+        /**
+         * Формирует строку конфликта для одной машины: номер, марка и заявка,
+         * которая уже держит её активной (номер заявки + срок действия). Данные
+         * приходят из GET /cars/check-active (activeInfo). Без номера заявки
+         * (старый ответ бэка) откатываемся на «номер марка».
+         * @param {{plateNumber: string, mark: string, activeInfo?: {application_number?: string, entry_date_to?: string, entry_time_to?: string}}} vehicle
+         * @returns {string}
+         */
+        formatActiveVehicleConflict(vehicle) {
+            const base = `${vehicle.plateNumber} ${vehicle.mark}`;
+            const info = vehicle.activeInfo || {};
+            if (!info.application_number) return base;
+            let until = '';
+            if (info.entry_date_to) {
+                const time = info.entry_time_to ? ` ${info.entry_time_to.slice(0, 5)}` : '';
+                until = `, до ${this.formatDateFromAPI(info.entry_date_to)}${time}`;
+            }
+            return `${base} (в заявке ${info.application_number}${until})`;
+        },
+
         async loadLicensePlateFormats() {
             try {
                 const response = await apiRequest("/license-plate-formats", {
@@ -1717,8 +1738,8 @@ export default {
   const activeVehicles = await this.checkVehiclesBeforeSubmit();
   
   if (activeVehicles.length > 0) {
-    const vehicleList = activeVehicles.map(v => `${v.plateNumber} ${v.mark}`).join(', ');
-    useDeletionsStore().notify({ prefix: 'Невозможно отправить заявку. Уже имеют активные заявки: ', bold: vehicleList, type: 'error' });
+    const vehicleList = activeVehicles.map(v => this.formatActiveVehicleConflict(v)).join('; ');
+    useDeletionsStore().notify({ prefix: 'Невозможно отправить заявку. Уже в активных заявках: ', bold: vehicleList, type: 'error' });
     return;
   }
 
