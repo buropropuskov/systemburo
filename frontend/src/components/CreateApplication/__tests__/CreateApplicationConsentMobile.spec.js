@@ -12,9 +12,9 @@ vi.mock('@/api/client', () => ({
 vi.mock('@/stores/auth', () => ({
   useAuthStore: vi.fn().mockReturnValue({ token: 'test-token' }),
 }));
-// DataProcessingModal -> PdfDocumentViewer статически тянет ?url-ассет воркера pdf.js;
+// DataProcessingModal -> PdfDocumentViewer статически тянет ?worker-конструктор воркера pdf.js;
 // мок делает спек герметичным (children тут и так застаблены shallowMount).
-vi.mock('pdfjs-dist/build/pdf.worker.min.mjs?url', () => ({ default: 'worker-url' }));
+vi.mock('pdfjs-dist/build/pdf.worker.min.mjs?worker', () => ({ default: class {} }));
 
 beforeEach(() => {
   setActivePinia(createPinia());

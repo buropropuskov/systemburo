@@ -11,9 +11,9 @@ vi.mock('@/api/dataProcessing', () => ({
   downloadDataProcessingDoc: (...a) => downloadDataProcessingDoc(...a),
 }));
 
-// PdfDocumentViewer (в цепочке импорта) статически тянет ?url-ассет воркера pdf.js;
+// PdfDocumentViewer (в цепочке импорта) статически тянет ?worker-конструктор воркера pdf.js;
 // мок делает спек герметичным - иначе Vite резолвит реальный ассет из node_modules.
-vi.mock('pdfjs-dist/build/pdf.worker.min.mjs?url', () => ({ default: 'worker-url' }));
+vi.mock('pdfjs-dist/build/pdf.worker.min.mjs?worker', () => ({ default: class {} }));
 
 import DataProcessingModal from '../DataProcessingModal.vue';
 
