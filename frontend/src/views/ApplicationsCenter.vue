@@ -3795,6 +3795,16 @@ export default {
         background-color: #fff5e0 !important;
     }
 
+    /* Заявка с обновлённым статусом на мобилке - фиолетовый фон карточки + левая
+       полоса-акцент, как на десктопе. Подсветка висит на .application-item, а
+       карточка - вложенная .rt-row с белым фоном !important (responsive-tables.css):
+       на десктопе фон родителя виден сквозь прозрачную строку, на мобилке белая
+       карточка его закрывала - пробрасываем на саму .rt-row (#1349 mobile-fix). */
+    .applications-table .application-item.status-updated .application-row.rt-row {
+        background-color: #f3e8ff !important;
+        box-shadow: inset 3px 0 0 0 #9333ea !important;
+    }
+
     /* Компактная карточка-письмо БЕЗ подписей (W3.7): бейдж согласования + дата в углу
        сверху, затем номер (мелко) / организация (жирным) / отправитель / сообщение, теги
        внизу. Статус скрыт, боковой padding у полей убран - падинг у карточки. */
