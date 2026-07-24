@@ -64,6 +64,14 @@
           >
             Заявки на сегодня
           </button>
+          <button
+            class="status-btn status-btn--updates"
+            :class="{ 'status-btn--active': statusUpdatedOnly }"
+            data-testid="center-button-updates"
+            @click="$emit('toggle-status-updated')"
+          >
+            Обновления<template v-if="statusUpdateCount > 0">: {{ statusUpdateCount }}</template>
+          </button>
         </div>
       </div>
 
@@ -218,6 +226,14 @@ export default {
       type: Boolean,
       default: false,
     },
+    statusUpdatedOnly: {
+      type: Boolean,
+      default: false,
+    },
+    statusUpdateCount: {
+      type: Number,
+      default: 0,
+    },
     confirmations: {
       type: Array,
       default: () => [],
@@ -265,6 +281,7 @@ export default {
     'apply-date',
     'clear-date',
     'toggle-today',
+    'toggle-status-updated',
     'toggle-confirmation',
     'toggle-status',
     'toggle-tag',

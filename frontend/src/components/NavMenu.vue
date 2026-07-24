@@ -643,7 +643,12 @@ export default {
       },
       hoverTimeout: null,
       systemTables: [],
+      // Бейдж у "Центра заявок" = сумма непрочитанных + заявок с обновлённым статусом (#1349).
       newApplicationsCount: 0,
+      // База роста ТОЛЬКО непрочитанных - для гейта звука. Обновление статуса уже
+      // прочитанной заявки не "новая заявка", звук на него не играем; поэтому сравниваем
+      // рост count, а не суммы newApplicationsCount (#1349).
+      unreadBaseCount: 0,
       // Непрочитанные обращения обратной связи (бейдж у Администрирования).
       // Персонально для админа: считаем по праву page.admin.feedback (как и виден
       // сам пункт), а не по isSuperAdmin - иначе счётчик не показывался обычным
@@ -1158,6 +1163,9 @@ export default {
       // responsible своей же заявки, получает сигнал о «новой заявке в Центре».
       if (!this.can('page.center')) {
         this.newApplicationsCount = 0
+        // База роста тоже в 0: иначе при возврате права в рамках сессии следующий опрос
+        // сравнит count с протухшей базой и сыграет/проглотит звук на мнимом росте.
+        this.unreadBaseCount = 0
         return
       }
       const SOUND_COOLDOWN_MS = 5000
@@ -1168,11 +1176,12 @@ export default {
         // иначе его снимок count затирает актуальный и играет ложный звук на мнимом росте.
         if (seq !== this.unreadFetchSeq) return
         const count = data.count || 0
-        // Звук только при РОСТЕ счётчика после первичной загрузки (не на логине) и не чаще
-        // кулдауна - пачка заявок в одном опросе даёт +N за раз = один звук.
-        // Звук только вне Центра заявок: когда пользователь на /center,
-        // ApplicationsCenter сам играет звук при prepend новых заявок.
-        if (this.soundPrimed && count > this.newApplicationsCount && this.soundStore.enabled &&
+        const statusUpdates = data.status_updates || 0
+        // Звук только при РОСТЕ НЕПРОЧИТАННЫХ (count, не суммы) после первичной загрузки
+        // (не на логине) и не чаще кулдауна - пачка заявок в одном опросе даёт +N за раз =
+        // один звук. Обновление статуса прочитанной заявки бейдж увеличивает, но звука не
+        // даёт. Звук только вне Центра заявок: на /center ApplicationsCenter сам играет.
+        if (this.soundPrimed && count > this.unreadBaseCount && this.soundStore.enabled &&
             this.$route?.path !== '/center') {
           const now = Date.now()
           if (now - this.lastSoundAt > SOUND_COOLDOWN_MS) {
@@ -1180,7 +1189,8 @@ export default {
             this.lastSoundAt = now
           }
         }
-        this.newApplicationsCount = count
+        this.unreadBaseCount = count
+        this.newApplicationsCount = count + statusUpdates
         this.soundPrimed = true
       } catch {
         // При ошибке опроса НЕ обнуляем счётчик: сброс базы в 0 заставит следующий успешный

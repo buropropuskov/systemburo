@@ -265,6 +265,14 @@
                 >
                   Заявки на сегодня
                 </button>
+                <button
+                  class="status-btn status-btn--updates"
+                  :class="{ 'status-btn--active': statusUpdatedOnly }"
+                  data-testid="center-button-updates"
+                  @click="toggleStatusUpdated"
+                >
+                  Обновления<template v-if="statusUpdateCount > 0">: {{ statusUpdateCount }}</template>
+                </button>
               </div>
             </div>
 
@@ -429,6 +437,8 @@
       :date-range-start="dateRangeStart"
       :date-range-end="dateRangeEnd"
       :active-today="activeToday"
+      :status-updated-only="statusUpdatedOnly"
+      :status-update-count="statusUpdateCount"
       :confirmations="confirmations"
       :selected-confirmations="selectedConfirmations"
       :application-statuses="applicationStatuses"
@@ -447,6 +457,7 @@
       @apply-date="applyDateFilters"
       @clear-date="clearDateRange"
       @toggle-today="toggleActiveToday"
+      @toggle-status-updated="toggleStatusUpdated"
       @toggle-confirmation="toggleConfirmation"
       @toggle-status="toggleApplicationStatus"
       @toggle-tag="toggleTag"
@@ -602,6 +613,7 @@
                 class="application-item"
                 :class="{
                   'unread': !application.is_read,
+                  'status-updated': application.has_status_update && application.is_read,
                   'initial-load': isInitialLoad,
                   'filtered': !isInitialLoad
                 }"
@@ -668,12 +680,22 @@
                   class="application-col status-col"
                   data-label="Статус заявки"
                 >
-                  <span
-                    class="status-badge"
-                    :class="getStatusClass(application.status)"
-                    :title="application.status"
-                  >
-                    {{ application.status }}
+                  <span class="status-badge-wrap">
+                    <span
+                      class="status-badge"
+                      :class="getStatusClass(application.status)"
+                      :title="application.status"
+                    >
+                      {{ application.status }}
+                    </span>
+                    <!-- Пульс-точка "статус обновился" (#1349): только у прочитанных заявок -
+                         непрочитанные и так подсвечены жёлтым, флаг обновления для них шум. -->
+                    <span
+                      v-if="application.has_status_update && application.is_read"
+                      class="status-update-dot"
+                      :data-testid="`center-status-dot-${application.id}`"
+                      aria-hidden="true"
+                    />
                   </span>
                 </div>
                 <div
@@ -1082,6 +1104,9 @@ export default {
             ],
 
             activeToday: false,
+            // Чип "Обновления" (#1349): серверный фильтр status_updated=true - только
+            // заявки, статус/подтверждение которых менялись после последнего просмотра.
+            statusUpdatedOnly: false,
 
             loading: true,
             refreshing: false,
@@ -1257,6 +1282,7 @@ export default {
                    !!this.selectedDate ||
                    !!(this.dateRangeStart && this.dateRangeEnd) ||
                    this.activeToday ||
+                   this.statusUpdatedOnly ||
                    !!this.selectedOrganizationId ||
                    !!this.selectedCompanyId;
         },
@@ -1269,6 +1295,15 @@ export default {
         // от пагинации - отдельный срез (напр. через getUnreadCount с текущими фильтрами).
         unreadCount() {
             return this.applications.filter(app => !app.is_read).length;
+        },
+
+        // Число заявок с обновлённым статусом среди загруженных (#1349). То же
+        // ограничение пагинации, что и unreadCount (счётчик по загруженным порциям):
+        // при активном чипе фильтр возвращает ровно flagged-заявки и счётчик точен.
+        // Гейт is_read зеркалит визуальную точку (Центр показывает флаг лишь у
+        // прочитанных - у непрочитанных своя жёлтая подсветка).
+        statusUpdateCount() {
+            return this.applications.filter(app => app.has_status_update && app.is_read).length;
         },
 
         // Теги фильтруются клиентски (бэк их не знает), сортировка по колонкам - тоже
@@ -1593,6 +1628,12 @@ export default {
             this.fetchApplications();
         },
 
+        toggleStatusUpdated() {
+            this.statusUpdatedOnly = !this.statusUpdatedOnly;
+            this.isInitialLoad = false;
+            this.fetchApplications();
+        },
+
         toggleApplicationStatus(status) {
             const index = this.selectedApplicationStatuses.indexOf(status);
             if (index > -1) {
@@ -1627,6 +1668,7 @@ export default {
             this.dateRangeStart = null;
             this.dateRangeEnd = null;
             this.activeToday = false;
+            this.statusUpdatedOnly = false;
 
             this.resetSort();
             this.tagsDropdownOpen = false;
@@ -1851,7 +1893,8 @@ export default {
                         updated.status !== a.status ||
                         updated.confirmation !== a.confirmation ||
                         updated.is_read !== a.is_read ||
-                        updated.has_unseen_questions !== a.has_unseen_questions
+                        updated.has_unseen_questions !== a.has_unseen_questions ||
+                        updated.has_status_update !== a.has_status_update
                     ) {
                         return { ...a, ...updated };
                     }
@@ -1870,7 +1913,8 @@ export default {
                     this.selectedTags.length ||
                     this.selectedDate ||
                     (this.dateRangeStart && this.dateRangeEnd) ||
-                    this.activeToday
+                    this.activeToday ||
+                    this.statusUpdatedOnly
                 );
                 if (!hasFilters) {
                     const prevIds = this._pollKnownIds;
@@ -1942,6 +1986,12 @@ export default {
 
             if (this.activeToday) {
                 params.active_today = 'true';
+            }
+
+            // Чип "Обновления" (#1349): бэк фильтрует по hasStatusUpdatePredicate с гейтом
+            // прочтения (requireRead=true для Центра, applyStatusUpdatedFilter).
+            if (this.statusUpdatedOnly) {
+                params.status_updated = 'true';
             }
 
             // Дата в query - ЛОКАЛЬНЫМИ частями (не toISOString: UTC увозит день назад
@@ -2101,6 +2151,11 @@ export default {
         },
 
         async openApplication(application) {
+            // Копится причина пересчитать бейдж NavMenu (прочтение и/или гашение флага
+            // статуса). Эмитим ОДИН раз в конце: заявка, что и непрочитана, и с обновлением
+            // статуса, иначе дала бы два запроса /unread-count подряд в одном тике.
+            let badgeChanged = false;
+
             if (!application.is_read) {
                 try {
                     const response = await apiRequest(`/applications/${application.id}/read`, {
@@ -2108,13 +2163,25 @@ export default {
                     });
                     if (response.ok) {
                         application.is_read = true;
-                        // Гасим бейдж непрочитанных в меню сразу: NavMenu слушает
-                        // 'application-read' и перезапрашивает счётчик, не дожидаясь 30с-опроса.
-                        this.$bus.emit('application-read', application.id);
+                        badgeChanged = true;
                     }
                 } catch (error) {
                     console.error("Ошибка при отметке прочтения:", error);
                 }
+            }
+
+            // Оптимистичное гашение флага "статус обновился" (#1349): открытие детали
+            // дёргает GET /:id/details -> MarkStatusSeen (seen_at=now) гасит флаг на сервере.
+            // Гасим точку в списке сразу, не дожидаясь следующего опроса.
+            if (application.has_status_update) {
+                application.has_status_update = false;
+                badgeChanged = true;
+            }
+
+            // NavMenu слушает 'application-read' и перезапрашивает {count, status_updates}
+            // разом, не дожидаясь 30с-опроса.
+            if (badgeChanged) {
+                this.$bus.emit('application-read', application.id);
             }
 
             // Маркер вопросов гасит ПРОЧТЕНИЕ топиков в детали (клик), а не факт открытия
@@ -3287,6 +3354,49 @@ export default {
 
 .application-item.unread {
     background-color: #fff5e0;
+}
+
+/* Заявка с обновлённым статусом (#1349): мягкий голубой фон + пульс-точка на бейдже.
+   Взаимоисключимо с .unread (флаг показываем только у прочитанных), поэтому фоны не
+   конфликтуют. Ставим после hover-правил, чтобы подсветка держалась и при наведении. */
+.application-item.status-updated {
+    background-color: #eaf3fb;
+}
+
+.status-badge-wrap {
+    position: relative;
+    display: inline-block;
+}
+
+.status-update-dot {
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background-color: #2b8bf2;
+    box-shadow: 0 0 0 2px #fff;
+}
+
+.status-update-dot::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background-color: #2b8bf2;
+    animation: statusUpdatePulse 1.6s ease-out infinite;
+}
+
+@keyframes statusUpdatePulse {
+    0% {
+        transform: scale(1);
+        opacity: 0.55;
+    }
+    100% {
+        transform: scale(2.6);
+        opacity: 0;
+    }
 }
 
 .application-row {
