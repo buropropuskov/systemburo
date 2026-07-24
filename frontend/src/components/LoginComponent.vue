@@ -115,7 +115,7 @@
               <button
                 class="login__button"
                 data-testid="login-button-submit"
-                :class="{'loading': isLoading, 'success': isSuccess}"
+                :class="{'loading': isLoading, 'success': isSuccess, 'cooling': isCoolingDown}"
                 :disabled="isLoading || isSuccess || isCoolingDown"
               >
                 <p class="button__text">
@@ -1007,6 +1007,8 @@ export default {
         font-weight: 600;
         animation: errorFadeIn 0.5s ease-out;
         backdrop-filter: blur(5px);
+        /* Моноширинные цифры: плашка не дёргается пока тикает таймер (M:SS). */
+        font-variant-numeric: tabular-nums;
     }
 
     @keyframes errorFadeIn {
@@ -1058,6 +1060,8 @@ export default {
         color: var(--color-primary);
         font-weight: 800;
         transition: all 0.3s ease;
+        /* Моноширинные цифры: ширина таймера на кнопке стабильна. */
+        font-variant-numeric: tabular-nums;
     }
 
     .login__button.loading .button__text {
@@ -1068,6 +1072,16 @@ export default {
 
     .login__button.success .button__text {
         color: var(--color-primary);
+    }
+
+    /* Во время таймера блокировки кнопка выглядит выключенной: серый текст и иконка. */
+    .login__button.cooling .button__text {
+        color: #999;
+    }
+
+    .login__button.cooling .input__icon {
+        filter: grayscale(1);
+        opacity: 0.45;
     }
 
     .login__button:hover:not(:disabled) {

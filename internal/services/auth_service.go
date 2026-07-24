@@ -215,15 +215,34 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *
 			WithHeader("Retry-After", strconv.Itoa(remaining))
 	}
 
+	// Блокировка ИСТЕКЛА (LockedUntil в прошлом) -> сбрасываем счётчик, даём свежий
+	// цикл из maxFailedLoginsBeforeLock попыток. Без этого счётчик остаётся на пороге,
+	// и первая же новая неверная попытка мгновенно лочит заново с "осталось 0".
+	if user.LockedUntil != nil {
+		s.db.WithContext(ctx).Model(&user).Updates(map[string]interface{}{
+			"failed_login_count": 0,
+			"locked_until":       nil,
+		})
+		user.FailedLoginCount = 0
+		user.LockedUntil = nil
+	}
+
 	if !verifyPassword(user.Password, req.Password) {
 		s.registerFailedLogin(ctx, &user)
-		s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventLoginFailed, false, meta, "wrong password")
-		// registerFailedLogin уже инкрементил счётчик в памяти -> отдаём остаток
-		// попыток до блокировки, чтобы фронт показал "Осталось попыток: N".
 		remaining := maxFailedLoginsBeforeLock - user.FailedLoginCount
-		if remaining < 0 {
-			remaining = 0
+		if remaining <= 0 {
+			// Попытки исчерпаны: registerFailedLogin уже залочил учётку. Сразу отдаём
+			// таймер блокировки (ровно 1 минута от этого момента), а НЕ "осталось 0":
+			// ноль попыток - это уже блокировка, а не ещё одна попытка.
+			lockSec := int(accountLockDuration.Seconds())
+			s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventLoginLocked, false, meta,
+				fmt.Sprintf("locked for %ds", lockSec))
+			return nil, apperr.TooManyRequests(
+				fmt.Sprintf("Слишком много попыток. Вход заблокирован на %d секунд.", lockSec)).
+				WithHeader("Retry-After", strconv.Itoa(lockSec))
 		}
+		s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventLoginFailed, false, meta, "wrong password")
+		// Отдаём остаток попыток до блокировки, чтобы фронт показал "Осталось попыток: N".
 		return nil, apperr.Unauthorized("Неверный логин или пароль").
 			WithHeader("X-Auth-Attempts-Remaining", strconv.Itoa(remaining))
 	}

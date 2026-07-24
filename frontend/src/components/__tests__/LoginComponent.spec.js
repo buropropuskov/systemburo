@@ -128,6 +128,17 @@ describe('LoginComponent — 429 таймер', () => {
     wrapper.unmount()
   })
 
+  it('кнопка получает класс cooling (серый вид) во время таймера', async () => {
+    apiRequest.mockResolvedValue(resp(429, { 'Retry-After': '30' }))
+    const wrapper = mountLogin()
+    await submit(wrapper)
+
+    const btn = wrapper.find('[data-testid="login-button-submit"]')
+    expect(btn.classes()).toContain('cooling')
+    expect(btn.attributes('disabled')).toBeDefined()
+    wrapper.unmount()
+  })
+
   it('персистит кулдаун в localStorage и восстанавливает после перезагрузки (F5)', async () => {
     apiRequest.mockResolvedValue(resp(429, { 'Retry-After': '120' }))
     const w1 = mountLogin()
