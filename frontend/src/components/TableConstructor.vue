@@ -268,6 +268,13 @@
               >
                 Оформление
               </button>
+              <button
+                class="tab-btn"
+                :class="{ 'active': activeTab === 'usage' }"
+                @click="switchTab('usage')"
+              >
+                Привязки
+              </button>
             </div>
             <div
               v-if="selectedTable.table.show_fact_table"
@@ -699,6 +706,104 @@
               @update="refreshSelectedTable"
             />
           </div>
+
+          <!-- Вкладка Привязки -->
+          <div
+            v-if="activeTab === 'usage'"
+            class="tab-content"
+          >
+            <div class="usage-section">
+              <div class="usage-header">
+                <div class="usage-header__text">
+                  <h4 class="section-title">
+                    Привязано к организациям и компаниям
+                  </h4>
+                  <p class="field-hint">
+                    Пока таблица привязана хотя бы к одной организации или компании,
+                    её нельзя удалить. Отвяжите все, чтобы освободить таблицу.
+                  </p>
+                </div>
+                <button
+                  v-if="canDetachTable && !usageLoading && !usageError && usageHasBindings"
+                  class="action-btn detach-all-btn"
+                  :disabled="detaching"
+                  @click="confirmDetachAll"
+                >
+                  {{ detaching ? 'Отвязываем...' : 'Отвязать всё' }}
+                </button>
+              </div>
+
+              <div
+                v-if="usageLoading"
+                class="usage-state"
+              >
+                Загрузка привязок...
+              </div>
+              <div
+                v-else-if="usageError"
+                class="usage-state usage-state--error"
+              >
+                {{ usageError }}
+              </div>
+              <template v-else>
+                <div class="usage-group">
+                  <div class="usage-group__title">
+                    Организации: {{ usage.organizations.length }}
+                  </div>
+                  <ul
+                    v-if="usage.organizations.length"
+                    class="usage-list"
+                  >
+                    <li
+                      v-for="org in usage.organizations"
+                      :key="'org-' + org.id"
+                      class="usage-item"
+                    >
+                      <span class="usage-item__name">{{ org.name }}</span>
+                      <span
+                        v-if="!org.is_active"
+                        class="usage-item__archived"
+                      >(архив)</span>
+                    </li>
+                  </ul>
+                  <p
+                    v-else
+                    class="usage-empty"
+                  >
+                    Нет привязанных организаций
+                  </p>
+                </div>
+
+                <div class="usage-group">
+                  <div class="usage-group__title">
+                    Компании: {{ usage.companies.length }}
+                  </div>
+                  <ul
+                    v-if="usage.companies.length"
+                    class="usage-list"
+                  >
+                    <li
+                      v-for="comp in usage.companies"
+                      :key="'comp-' + comp.id"
+                      class="usage-item"
+                    >
+                      <span class="usage-item__name">{{ comp.name }}</span>
+                      <span
+                        v-if="!comp.is_active"
+                        class="usage-item__archived"
+                      >(архив)</span>
+                    </li>
+                  </ul>
+                  <p
+                    v-else
+                    class="usage-empty"
+                  >
+                    Нет привязанных компаний
+                  </p>
+                </div>
+              </template>
+            </div>
+          </div>
         </div>
 
         <div
@@ -747,13 +852,25 @@
         @confirm="applyBulkArchiveRestore"
         @cancel="cancelBulkConfirm"
       />
+
+      <!-- Подтверждение отвязки от всех организаций и компаний -->
+      <ConfirmationModal
+        :show="detachConfirmVisible"
+        title="Отвязать все организации и компании"
+        :message="detachConfirmMessage"
+        confirm-text="Отвязать всё"
+        cancel-text="Отмена"
+        :confirm-button-style="{ background: '#c62828', borderColor: '#c62828' }"
+        @confirm="performDetachAll"
+        @cancel="detachConfirmVisible = false"
+      />
     </div>
   </AdminPageShell>
 </template>
 
 <script>
 import { apiRequest } from '@/api/client'
-import { bulkArchiveSystemTables, bulkRestoreSystemTables } from '@/api/system-tables'
+import { bulkArchiveSystemTables, bulkRestoreSystemTables, getSystemTableUsage, detachAllSystemTable } from '@/api/system-tables'
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import { confirmIfAnyDirty } from '@/utils/dirtyTracker';
 import { useDeletionsStore } from '@/stores/deletions';
@@ -819,6 +936,13 @@ export default {
       pendingBulkOp: null,
       bulkConfirmVisible: false,
       bulkSubmitting: false,
+      // Вкладка «Привязки»: организации/компании, держащие таблицу.
+      usage: { organizations: [], companies: [] },
+      usageLoading: false,
+      usageError: '',
+      usageSeq: 0,
+      detaching: false,
+      detachConfirmVisible: false,
     };
   },
   computed: {
@@ -899,6 +1023,20 @@ export default {
         ? { background: '#10b981', borderColor: '#10b981' }
         : { background: '#c62828', borderColor: '#c62828' };
     },
+    usageHasBindings() {
+      return this.usage.organizations.length > 0 || this.usage.companies.length > 0;
+    },
+    // Зеркалит BE-гейт detach-all (requireAdmin = RequirePermissionV2 page.admin):
+    // права page.admin.tables_constructor (открывающего экран) недостаточно.
+    canDetachTable() {
+      return this.can('page.admin');
+    },
+    detachConfirmMessage() {
+      if (!this.selectedTable) return '';
+      const o = this.usage.organizations.length;
+      const c = this.usage.companies.length;
+      return `Отвязать таблицу «${this.selectedTable.table.display_name}» от всех организаций (${o}) и компаний (${c})? Это освободит таблицу, чтобы её можно было удалить.`;
+    },
   },
   watch: {
     // Если активна вкладка фактовой таблицы, а пользователь снял галочку
@@ -921,6 +1059,10 @@ export default {
     // строки, которых больше не видно (реактивно, не только после refresh).
     sortedTables() {
       this.pruneSelection();
+    },
+    // Привязки грузим лениво при заходе на вкладку (данные второстепенные).
+    activeTab(tab) {
+      if (tab === 'usage') this.loadUsage();
     },
   },
   async mounted() {
@@ -1217,6 +1359,65 @@ export default {
     // кнопка входа на странице таблицы (#980) - иначе кнопка видна, а роут отбивает.
     can(key) {
       return this.permissionsStore.hasPermission(key);
+    },
+
+    // seq-guard: быстрое переключение таблиц не даст устаревшему ответу затереть
+    // актуальные привязки (last-resolve-wins иначе показал бы чужую таблицу).
+    async loadUsage() {
+      if (!this.selectedTable) return;
+      const seq = ++this.usageSeq;
+      this.usageLoading = true;
+      this.usageError = '';
+      // Гасим привязки предыдущей таблицы сразу: пока грузятся новые, кнопка
+      // «Отвязать всё» и текст подтверждения не должны показывать чужие цифры.
+      this.usage = { organizations: [], companies: [] };
+      try {
+        const data = await getSystemTableUsage(this.selectedTable.table.id);
+        if (seq !== this.usageSeq) return;
+        this.usage = {
+          organizations: data?.organizations || [],
+          companies: data?.companies || [],
+        };
+      } catch (err) {
+        if (seq !== this.usageSeq) return;
+        this.usage = { organizations: [], companies: [] };
+        this.usageError = err instanceof TypeError
+          ? 'Не удалось загрузить привязки (ошибка сети)'
+          : (err.message || 'Не удалось загрузить привязки');
+      } finally {
+        if (seq === this.usageSeq) this.usageLoading = false;
+      }
+    },
+
+    confirmDetachAll() {
+      this.detachConfirmVisible = true;
+    },
+
+    async performDetachAll() {
+      this.detachConfirmVisible = false;
+      const table = this.selectedTable;
+      if (!table) return;
+      this.detaching = true;
+      try {
+        const res = await detachAllSystemTable(table.table.id);
+        const orgN = res?.organizations_detached || 0;
+        const compN = res?.companies_detached || 0;
+        // Перезагружаем привязки только если пользователь не ушёл на другую таблицу,
+        // пока летел запрос (иначе затрём usage чужой таблицы).
+        if (this.selectedTable && this.selectedTable.table.id === table.table.id) {
+          await this.loadUsage();
+        }
+        useDeletionsStore().notify({
+          prefix: 'Таблица ',
+          bold: table.table.display_name,
+          suffix: ` отвязана от организаций (${orgN}) и компаний (${compN})`,
+        });
+      } catch (err) {
+        const msg = err instanceof TypeError ? 'ошибка сети' : (err.message || 'ошибка');
+        useDeletionsStore().notify({ prefix: 'Не удалось отвязать: ', bold: msg, type: 'error' });
+      } finally {
+        this.detaching = false;
+      }
     },
 
     openVersions() {
@@ -2716,5 +2917,106 @@ export default {
       transform: translateY(0);
     }
   }
+}
+
+/* Вкладка «Привязки». */
+.usage-section {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.usage-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.usage-header__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.usage-header .section-title {
+  margin: 0 0 4px 0;
+}
+
+.usage-header .field-hint {
+  margin: 0;
+}
+
+.detach-all-btn {
+  background: #fff;
+  color: #dc3545;
+  border: 1px solid #fecaca;
+  white-space: nowrap;
+}
+
+.detach-all-btn:hover:not(:disabled) {
+  background: #fff1f2;
+  border-color: #dc3545;
+}
+
+.detach-all-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.usage-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.usage-group__title {
+  font-size: 0.9em;
+  font-weight: 600;
+  color: #333;
+}
+
+.usage-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.usage-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #f7f8fa;
+  border: 1px solid #e6e6e6;
+  border-radius: 15px;
+  font-size: 14px;
+}
+
+.usage-item__name {
+  color: #1a1a1a;
+}
+
+.usage-item__archived {
+  color: #6b7280;
+  font-size: 0.8em;
+  font-weight: 500;
+}
+
+.usage-empty {
+  margin: 0;
+  font-size: 13px;
+  color: #a2a2a2;
+}
+
+.usage-state {
+  font-size: 14px;
+  color: #a2a2a2;
+}
+
+.usage-state--error {
+  color: #c62828;
 }
 </style>
