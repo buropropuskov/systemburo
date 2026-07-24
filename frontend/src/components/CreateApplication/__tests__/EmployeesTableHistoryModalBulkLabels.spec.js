@@ -41,3 +41,58 @@ describe('EmployeesTableHistoryModal - лейблы групповых опер�
     expect(wrapper.vm.getActionText({ action_type: 'added_to_table' })).toBe('Добавлен в таблицу проходной');
   });
 });
+
+// deactivate (крон CheckExpiredAttachments) тоже течёт в журнал через GetByTable, а
+// словаря для него не было - в истории показывалось сырое английское "deactivate".
+describe('EmployeesTableHistoryModal - deactivate и прочие действия', () => {
+  beforeEach(() => setActivePinia(createPinia()));
+
+  const mountModal = () => mount(EmployeesTableHistoryModal, {
+    props: { tableId: 7 },
+    global: { stubs: { teleport: true } },
+  });
+
+  it('deactivate -> русский лейбл, не сырой код', () => {
+    const vm = mountModal().vm;
+    expect(vm.getActionText({ action_type: 'deactivate' })).toBe('Сотрудник выведен из работы');
+    expect(vm.getActionClass('deactivate')).toBe('dot-exit');
+  });
+
+  it('create/activate -> русские лейблы, зелёная точка', () => {
+    const vm = mountModal().vm;
+    expect(vm.getActionText({ action_type: 'create' })).toBe('Подана заявка на сотрудника');
+    expect(vm.getActionText({ action_type: 'activate' })).toBe('Сотрудник введён в работу');
+    expect(vm.getActionClass('activate')).toBe('dot-entry');
+  });
+});
+
+// ФИО в журнале таблицы бралось из item.last_name, а GetByTable отдаёт employee_last_name
+// - поле было undefined, и заголовок всегда падал на заглушку "ID: N".
+describe('EmployeesTableHistoryModal - ФИО из employee_last_name', () => {
+  beforeEach(() => setActivePinia(createPinia()));
+
+  const mountModal = () => mount(EmployeesTableHistoryModal, {
+    props: { tableId: 7 },
+    global: { stubs: { teleport: true } },
+  });
+
+  it('собирает ФИО из полей employee_*', () => {
+    const vm = mountModal().vm;
+    expect(vm.getEmployeeName({
+      employee_id: 42,
+      employee_last_name: 'Иванов',
+      employee_first_name: 'Иван',
+      employee_middle_name: 'Иванович',
+    })).toBe('Иванов Иван Иванович');
+  });
+
+  it('старое поле last_name больше не используется - остаётся заглушка ID', () => {
+    const vm = mountModal().vm;
+    expect(vm.getEmployeeName({ employee_id: 42, last_name: 'Иванов', first_name: 'Иван' })).toBe('ID: 42');
+  });
+
+  it('без ФИО - заглушка ID', () => {
+    const vm = mountModal().vm;
+    expect(vm.getEmployeeName({ employee_id: 99 })).toBe('ID: 99');
+  });
+});
