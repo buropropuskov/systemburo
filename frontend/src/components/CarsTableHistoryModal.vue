@@ -486,6 +486,9 @@ export default {
     },
 
     getActionText(item) {
+      // GetCarsHistoryByTable (/cars/history/table/:id) не фильтрует action_type (урок
+      // #1085), поэтому словарь обязан покрывать все действия машины, иначе deactivate/
+      // create/прочие текут в журнал сырым английским кодом.
       if (item.action_type === 'entry') {
         return 'Отметил о прибытии';
       } else if (item.action_type === 'exit') {
@@ -496,6 +499,28 @@ export default {
         return 'Восстановление в таблице';
       } else if (item.action_type === 'purge') {
         return 'Безвозвратное удаление';
+      } else if (item.action_type === 'added_to_table') {
+        return 'Добавлен в таблицу проходной';
+      } else if (item.action_type === 'moved_between_tables') {
+        return 'Перенесён между таблицами';
+      } else if (item.action_type === 'unbound_from_table') {
+        return 'Снят с таблицы';
+      } else if (item.action_type === 'create') {
+        return 'Подана заявка на автомобиль';
+      } else if (item.action_type === 'activate') {
+        return 'Автомобиль введён в работу';
+      } else if (item.action_type === 'deactivate') {
+        return 'Автомобиль выведен из работы';
+      } else if (item.action_type === 'blacklisted') {
+        return 'Добавлен в чёрный список';
+      } else if (item.action_type === 'unblacklisted') {
+        return 'Снят с чёрного списка';
+      } else if (item.action_type === 'blacklist_override') {
+        return 'Пропущен несмотря на подозрение в обходе ЧС';
+      } else if (item.action_type === 'blacklist_override_revoke') {
+        return 'Отменено подтверждение пропуска (обход ЧС)';
+      } else if (item.action_type === 'update') {
+        return item.field_name ? `Изменено поле "${item.field_name}"` : 'Данные обновлены';
       }
       return item.action_type;
     },
@@ -529,7 +554,10 @@ export default {
     },
 
     getActionClass(actionType) {
-      if (actionType === 'entry' || actionType === 'restore') return 'dot-entry';
+      // Зелёная точка - машина появляется/остаётся в таблице (прибытие, восстановление,
+      // добавление/перенос, ввод в работу, снятие с ЧС). Остальное (уехала, удаление,
+      // вывод из работы по истечении срока, добавление в ЧС) - красная по умолчанию.
+      if (['entry', 'restore', 'added_to_table', 'moved_between_tables', 'activate', 'create', 'unblacklisted', 'blacklist_override'].includes(actionType)) return 'dot-entry';
       return 'dot-exit';
     },
 

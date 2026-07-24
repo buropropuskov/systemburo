@@ -334,7 +334,7 @@ export default {
       const emps = new Map();
       this.history.forEach(item => {
         if (item.employee_id && !emps.has(item.employee_id)) {
-          const fullName = [item.last_name, item.first_name, item.middle_name].filter(Boolean).join(' ');
+          const fullName = [item.employee_last_name, item.employee_first_name, item.employee_middle_name].filter(Boolean).join(' ');
           emps.set(item.employee_id, {
             id: item.employee_id,
             name: fullName || `ID: ${item.employee_id}`
@@ -478,18 +478,21 @@ export default {
     },
 
     getEmployeeName(item) {
-      return [item.last_name, item.first_name, item.middle_name].filter(Boolean).join(' ') || `ID: ${item.employee_id}`;
+      return [item.employee_last_name, item.employee_first_name, item.employee_middle_name].filter(Boolean).join(' ') || `ID: ${item.employee_id}`;
     },
 
     getActionClass(actionType) {
-      // Групповые операции над таблицами проходной (#1194 S2/S6): added/moved -
-      // зелёная точка (сотрудник появляется здесь), unbound падает в exit-ветку
-      // по умолчанию (сотрудник покидает эту таблицу), как delete/purge.
-      if (actionType === 'entry' || actionType === 'restore' || actionType === 'added_to_table' || actionType === 'moved_between_tables') return 'dot-entry';
+      // Зелёная точка - сотрудник появляется/остаётся в таблице (проход, восстановление,
+      // добавление/перенос, ввод в работу, снятие с ЧС). Остальное (выход, удаление,
+      // вывод из работы по истечении срока, добавление в ЧС) - красная по умолчанию.
+      if (['entry', 'restore', 'added_to_table', 'moved_between_tables', 'activate', 'create', 'unblacklisted', 'blacklist_override'].includes(actionType)) return 'dot-entry';
       return 'dot-exit';
     },
 
     getActionText(item) {
+      // GetByTable (/employees/history/table/:id) не фильтрует action_type (урок #1085),
+      // поэтому словарь обязан покрывать все действия сотрудника, иначе deactivate/create/
+      // прочие текут в журнал сырым английским кодом.
       if (item.action_type === 'entry') {
         return 'Проход на территорию';
       } else if (item.action_type === 'exit') {
@@ -506,6 +509,22 @@ export default {
         return 'Перенесён между таблицами';
       } else if (item.action_type === 'unbound_from_table') {
         return 'Снят с таблицы';
+      } else if (item.action_type === 'create') {
+        return 'Подана заявка на сотрудника';
+      } else if (item.action_type === 'activate') {
+        return 'Сотрудник введён в работу';
+      } else if (item.action_type === 'deactivate') {
+        return 'Сотрудник выведен из работы';
+      } else if (item.action_type === 'blacklisted') {
+        return 'Добавлен в чёрный список';
+      } else if (item.action_type === 'unblacklisted') {
+        return 'Снят с чёрного списка';
+      } else if (item.action_type === 'blacklist_override') {
+        return 'Пропущен несмотря на подозрение в обходе ЧС';
+      } else if (item.action_type === 'blacklist_override_revoke') {
+        return 'Отменено подтверждение пропуска (обход ЧС)';
+      } else if (item.action_type === 'update') {
+        return item.field_name ? `Изменено поле "${item.field_name}"` : 'Данные обновлены';
       }
       return item.action_type;
     },
