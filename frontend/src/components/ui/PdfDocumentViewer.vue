@@ -1,5 +1,8 @@
 <template>
-  <div class="pdf-viewer">
+  <div
+    ref="rootEl"
+    class="pdf-viewer"
+  >
     <p
       v-if="status === 'loading'"
       class="pdf-viewer__state"
@@ -45,16 +48,23 @@ import PdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
  * (CSP connect-src), а сам воркер - same-origin модуль (покрыт script-src 'self').
  */
 const props = defineProps({
-  // Blob документа (application/pdf). null - пусто, рендерить нечего.
+  // Blob документа (application/pdf). null - пусто, рендерить нечего. Object - чтобы
+  // принимать и настоящий Blob, и blob-подобные объекты (arrayBuffer()) в тестах.
   blob: {
+    type: [Blob, Object],
     default: null,
     validator: (v) => v === null || typeof v === 'object',
   },
 });
 const emit = defineEmits(['loaded', 'error']);
 
+const rootEl = ref(null);
 const pagesEl = ref(null);
 const status = ref('idle'); // 'idle' | 'loading' | 'ready' | 'error'
+
+// Горизонтальный padding .pdf-viewer__pages (12px x2): ширину canvas берём от видимого
+// корня минус этот отступ, т.к. сам контейнер страниц скрыт v-show и его clientWidth === 0.
+const PAGES_PADDING_X = 24;
 
 let pdfjsLib = null;
 let pdfDoc = null;
@@ -109,7 +119,10 @@ async function render() {
 
     const host = pagesEl.value;
     if (!host) return;
-    const cssWidth = host.clientWidth || 800;
+    // Меряем ВИДИМЫЙ корень (pagesEl скрыт v-show до 'ready' -> его clientWidth === 0,
+    // и canvas отрендерился бы по фолбэку 800px, раздувая битмап на телефоне).
+    const rootWidth = rootEl.value?.clientWidth || 800;
+    const cssWidth = Math.max(rootWidth - PAGES_PADDING_X, 200);
     // Кап DPR на 2: на телефонах с DPR 3 canvas раздувался бы втрое без видимой пользы.
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
