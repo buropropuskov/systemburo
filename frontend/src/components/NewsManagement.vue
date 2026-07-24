@@ -1090,7 +1090,7 @@ export default {
   border-radius: 30px;
   width: 560px;
   max-width: 92vw;
-  max-height: 82vh;
+  max-height: calc(var(--app-vh, 1vh) * 82);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
   display: flex;
   flex-direction: column;

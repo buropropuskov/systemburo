@@ -1127,7 +1127,7 @@ export default {
     padding: 0;
     max-width: 700px;
     width: 100%;
-    max-height: 80vh;
+    max-height: calc(var(--app-vh, 1vh) * 80);
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
     display: flex;
     flex-direction: column;

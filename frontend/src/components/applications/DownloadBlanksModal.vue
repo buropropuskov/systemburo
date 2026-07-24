@@ -234,7 +234,7 @@ export default {
   padding: 0;
   width: 480px;
   max-width: 92vw;
-  max-height: 80vh;
+  max-height: calc(var(--app-vh, 1vh) * 80);
   display: flex;
   flex-direction: column;
   overflow: hidden;

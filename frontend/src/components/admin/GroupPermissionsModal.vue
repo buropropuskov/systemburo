@@ -194,7 +194,7 @@ export default {
   border-radius: 30px;
   width: 100%;
   max-width: 640px;
-  max-height: 88vh;
+  max-height: calc(var(--app-vh, 1vh) * 88);
   display: flex;
   flex-direction: column;
   overflow: hidden;

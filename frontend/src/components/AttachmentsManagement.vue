@@ -1437,7 +1437,7 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-height: 70vh;
+  max-height: calc(var(--app-vh, 1vh) * 70);
   overflow-y: auto;
 }
 

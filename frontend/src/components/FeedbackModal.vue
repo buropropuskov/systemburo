@@ -514,7 +514,7 @@ export default {
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   overflow: hidden;
   position: relative;
-  max-height: 90vh;
+  max-height: calc(var(--app-vh, 1vh) * 90);
   display: flex;
   flex-direction: column;
 }
