@@ -1,0 +1,116 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
+
+vi.mock('@/api/client', () => ({ apiRequest: vi.fn() }))
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ setTokens: vi.fn() }) }))
+vi.mock('@/stores/contacts', () => ({ useContactsStore: () => ({ fetch: vi.fn(), email: '', phone: '' }) }))
+
+import LoginComponent from '@/components/LoginComponent.vue'
+import { apiRequest } from '@/api/client'
+
+// Response-подобная заглушка: handleSubmit читает ok/status/headers.get/json.
+function resp(status, headers = {}, body = {}) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    statusText: '',
+    headers: { get: (k) => (Object.prototype.hasOwnProperty.call(headers, k) ? headers[k] : null) },
+    json: async () => body,
+    text: async () => JSON.stringify(body),
+  }
+}
+
+function mountLogin() {
+  return mount(LoginComponent, {
+    global: {
+      stubs: { PasswordRecoveryModal: true },
+      mocks: { $router: { push: vi.fn() } },
+    },
+  })
+}
+
+async function submit(wrapper) {
+  wrapper.vm.formData.username = 'ivanov'
+  wrapper.vm.formData.password = 'secret'
+  const p = wrapper.vm.handleSubmit()
+  // Проходим внутренний 100мс delay handleSubmit + showErrorWithDelay + микротаски.
+  await vi.advanceTimersByTimeAsync(300)
+  await p
+  await nextTick()
+}
+
+describe('LoginComponent — 401 счётчик попыток', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  it('показывает остаток попыток из заголовка X-Auth-Attempts-Remaining', async () => {
+    apiRequest.mockResolvedValue(resp(401, { 'X-Auth-Attempts-Remaining': '7' }))
+    const wrapper = mountLogin()
+    await submit(wrapper)
+
+    expect(wrapper.vm.errors.general).toBe('Неверный логин или пароль. Осталось попыток: 7')
+    wrapper.unmount()
+  })
+
+  it('без заголовка счётчика показывает общий текст', async () => {
+    apiRequest.mockResolvedValue(resp(401, {}))
+    const wrapper = mountLogin()
+    await submit(wrapper)
+
+    expect(wrapper.vm.errors.general).toBe('Неверный логин или пароль')
+    wrapper.unmount()
+  })
+})
+
+describe('LoginComponent — 429 таймер', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  it('на 429 запускает обратный отсчёт из Retry-After и блокирует кнопку', async () => {
+    apiRequest.mockResolvedValue(resp(429, { 'Retry-After': '120' }))
+    const wrapper = mountLogin()
+    await submit(wrapper)
+
+    expect(wrapper.vm.cooldownSeconds).toBe(120)
+    expect(wrapper.vm.isCoolingDown).toBe(true)
+    expect(wrapper.vm.displayError).toBe('Слишком много попыток. Повторите через 2:00')
+
+    const btn = wrapper.find('[data-testid="login-button-submit"]')
+    expect(btn.attributes('disabled')).toBeDefined()
+    wrapper.unmount()
+  })
+
+  it('таймер убывает и по нулю разблокирует', async () => {
+    apiRequest.mockResolvedValue(resp(429, { 'Retry-After': '2' }))
+    const wrapper = mountLogin()
+    await submit(wrapper)
+
+    expect(wrapper.vm.cooldownSeconds).toBe(2)
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(wrapper.vm.cooldownSeconds).toBe(0)
+    expect(wrapper.vm.isCoolingDown).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('без Retry-After использует fallback 60с', async () => {
+    apiRequest.mockResolvedValue(resp(429, {}))
+    const wrapper = mountLogin()
+    await submit(wrapper)
+
+    expect(wrapper.vm.cooldownSeconds).toBe(60)
+    wrapper.unmount()
+  })
+})

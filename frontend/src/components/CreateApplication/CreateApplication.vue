@@ -342,6 +342,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
+import { mapWithConcurrency } from '@/utils/mapWithConcurrency'
 import { useAuthStore } from '@/stores/auth'
 import { useDeletionsStore } from '@/stores/deletions'
 import { formatPhoneNumberImmediately, formatPhoneNumber, clearPhoneFormat } from '@/composables/usePhoneFormat'
@@ -361,6 +362,10 @@ import TextConstructor from '@/components/TextConstructor.vue';
 import ApplicationRecipientsRow from './ApplicationRecipientsRow.vue';
 import DuplicateConflictModal from './DuplicateConflictModal.vue';
 import SchedulePlaceWarningPanel from './SchedulePlaceWarningPanel.vue';
+
+// Параллелизм привязки новых ТС/сотрудников при подаче: держим веер узким, чтобы
+// крупная заявка не выстрелила сотнями одновременных POST и не упёрлась в лимит.
+const BIND_CONCURRENCY = 6;
 
 export default {
     name: 'CreateApplication',
@@ -1875,7 +1880,7 @@ export default {
                     );
                     
                     if (vehiclesToBind.length > 0) {
-                        const vehiclePromises = vehiclesToBind.map(vehicle => {
+                        await mapWithConcurrency(vehiclesToBind, BIND_CONCURRENCY, (vehicle) => {
                             const vehicleData = {
                                 number: vehicle.plateNumber,
                                 mark: vehicle.mark,
@@ -1892,8 +1897,6 @@ export default {
                                 body: JSON.stringify(vehicleData)
                             });
                         });
-
-                        await Promise.all(vehiclePromises);
                     }
                 }
 
@@ -1903,7 +1906,7 @@ export default {
                     );
                     
                     if (employeesToBind.length > 0) {
-                        const employeePromises = employeesToBind.map(employee => {
+                        await mapWithConcurrency(employeesToBind, BIND_CONCURRENCY, (employee) => {
                             const employeeData = {
                                 last_name: employee.lastName,
                                 first_name: employee.firstName,
@@ -1923,8 +1926,6 @@ export default {
                                 body: JSON.stringify(employeeData)
                             });
                         });
-
-                        await Promise.all(employeePromises);
                     }
                 }
 

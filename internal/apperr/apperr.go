@@ -14,9 +14,10 @@ import (
 
 // Error -- доменная ошибка с HTTP-статусом и человекочитаемым сообщением.
 type Error struct {
-	Code    int    // HTTP-статус
-	Message string // сообщение для пользователя (попадает в envelope.error)
-	err     error  // обёрнутая первопричина (для логов, %w)
+	Code    int               // HTTP-статус
+	Message string            // сообщение для пользователя (попадает в envelope.error)
+	Headers map[string]string // доп. HTTP-заголовки ответа (Retry-After и т.п.), опционально
+	err     error             // обёрнутая первопричина (для логов, %w)
 }
 
 func (e *Error) Error() string {
@@ -28,6 +29,17 @@ func (e *Error) Error() string {
 
 // Unwrap поддерживает errors.Is/As по обёрнутой первопричине.
 func (e *Error) Unwrap() error { return e.err }
+
+// WithHeader добавляет HTTP-заголовок, который CustomHTTPErrorHandler выставит в
+// ответ вместе с телом ошибки. Пример: Retry-After при 429. Возвращает сам Error
+// для чейнинга: apperr.TooManyRequests(msg).WithHeader("Retry-After", "30").
+func (e *Error) WithHeader(key, value string) *Error {
+	if e.Headers == nil {
+		e.Headers = make(map[string]string, 1)
+	}
+	e.Headers[key] = value
+	return e
+}
 
 // New создаёт доменную ошибку с произвольным статусом. wrapped опционален.
 func New(code int, message string, wrapped ...error) *Error {
@@ -61,6 +73,12 @@ func NotFound(message string, wrapped ...error) *Error {
 // Conflict -- 409, конфликт состояния (дубль, занятость).
 func Conflict(message string, wrapped ...error) *Error {
 	return New(http.StatusConflict, message, wrapped...)
+}
+
+// TooManyRequests -- 429, превышен лимит запросов / временная блокировка.
+// Обычно дополняется .WithHeader("Retry-After", "<секунды>").
+func TooManyRequests(message string, wrapped ...error) *Error {
+	return New(http.StatusTooManyRequests, message, wrapped...)
 }
 
 // Internal -- 500, внутренняя ошибка (логируется централизованно).

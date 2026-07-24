@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
+	"systemburo/internal/apperr"
 	"systemburo/internal/models"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -191,7 +193,9 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *
 		First(&user).Error
 	if err != nil {
 		s.recordAuthEvent(ctx, nil, req.Username, models.AuthEventLoginFailed, false, meta, "user not found")
-		return nil, echo.NewHTTPError(http.StatusUnauthorized, "Invalid credentials")
+		// Тот же текст, что и при неверном пароле: различие только в отсутствии
+		// заголовка X-Auth-Attempts-Remaining (счётчика для несуществующего нет).
+		return nil, echo.NewHTTPError(http.StatusUnauthorized, "Неверный логин или пароль")
 	}
 
 	// Учётка заблокирована - не разрешаем попытки (даже с правильным паролем),
@@ -199,16 +203,28 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *
 	// счётчик и атакующий мог бы "разморозить" учётку угадав пароль в моменте.
 	if user.LockedUntil != nil && user.LockedUntil.After(time.Now().UTC()) {
 		remaining := int(time.Until(*user.LockedUntil).Seconds())
+		if remaining < 1 {
+			remaining = 1
+		}
 		s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventLoginLocked, false, meta,
 			fmt.Sprintf("locked for %ds", remaining))
-		return nil, echo.NewHTTPError(http.StatusTooManyRequests,
-			fmt.Sprintf("Учётная запись временно заблокирована. Повторите через %d секунд.", remaining))
+		// Retry-After даёт фронту точный остаток для таймера обратного отсчёта.
+		return nil, apperr.TooManyRequests(
+			fmt.Sprintf("Учётная запись временно заблокирована. Повторите через %d секунд.", remaining)).
+			WithHeader("Retry-After", strconv.Itoa(remaining))
 	}
 
 	if !verifyPassword(user.Password, req.Password) {
 		s.registerFailedLogin(ctx, &user)
 		s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventLoginFailed, false, meta, "wrong password")
-		return nil, echo.NewHTTPError(http.StatusUnauthorized, "Invalid credentials")
+		// registerFailedLogin уже инкрементил счётчик в памяти -> отдаём остаток
+		// попыток до блокировки, чтобы фронт показал "Осталось попыток: N".
+		remaining := maxFailedLoginsBeforeLock - user.FailedLoginCount
+		if remaining < 0 {
+			remaining = 0
+		}
+		return nil, apperr.Unauthorized("Неверный логин или пароль").
+			WithHeader("X-Auth-Attempts-Remaining", strconv.Itoa(remaining))
 	}
 
 	// Архивная учётка (is_active=false): пароль верный, аутентификация прошла,
@@ -471,7 +487,7 @@ func (s *authService) GetUserTypes(ctx context.Context) ([]models.UserType, erro
 
 // registerFailedLogin увеличивает счётчик неудачных попыток и лочит учётку,
 // если достигнут порог. Ошибки логируются, но не прерывают запрос - клиент
-// всё равно получит "Invalid credentials", чтобы не раскрывать состояние лока.
+// всё равно получит "Неверный логин или пароль", чтобы не раскрывать состояние лока.
 func (s *authService) registerFailedLogin(ctx context.Context, user *models.User) {
 	user.FailedLoginCount++
 	updates := map[string]interface{}{

@@ -25,9 +25,14 @@ const SILENT_403_PREFIXES = [
 // Дедупликация 403-уведомлений: одинаковый текст в окне TTL показывается один раз.
 const DEDUP_TTL_MS = 4000
 const _403dedup = new Map()
+const _429dedup = new Map()
+
+// 429: короткий всплеск лечим ожиданием+повтором, дольше ждать не висим на UI.
+const MAX_429_RETRIES = 2
+const RETRY_429_CAP_MS = 6000
 
 /** @internal только для тестов */
-export function _resetDedup403() { _403dedup.clear() }
+export function _resetDedup403() { _403dedup.clear(); _429dedup.clear() }
 
 function shouldSilence403(path) {
   return SILENT_403_PREFIXES.some((p) => path === p || path.startsWith(p + '?') || path.startsWith(p + '/'))
@@ -38,6 +43,20 @@ function show403Notify(msg) {
   _403dedup.set(msg, true)
   setTimeout(() => _403dedup.delete(msg), DEDUP_TTL_MS)
   useDeletionsStore().notify({ prefix: msg, type: 'error' })
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function show429Notify(retryAfterSec) {
+  const msg = Number.isFinite(retryAfterSec) && retryAfterSec > 0
+    ? `Слишком много запросов. Повторите через ${retryAfterSec} сек.`
+    : 'Слишком много запросов. Повторите чуть позже.'
+  if (_429dedup.has(msg)) return
+  _429dedup.set(msg, true)
+  setTimeout(() => _429dedup.delete(msg), DEDUP_TTL_MS)
+  useDeletionsStore().notify({ prefix: msg, type: 'warning' })
 }
 
 // Забаненному не показываем тосты 403: плашка блокировки (BanOverlay) уже всё
@@ -195,6 +214,27 @@ async function baseRequest(path, options = {}) {
   if (response.status === 403 && !isAuthEndpoint(path)) {
     if (!options.silent403 && !shouldSilence403(path) && !(await isBanContext(response))) {
       show403Notify('Недостаточно прав для этого действия.')
+    }
+    return response
+  }
+
+  // 429 Too Many Requests. Rate limiter отбивает запрос ДО хендлера -> запрос
+  // не выполнился, повтор безопасен (в т.ч. POST/PUT - нет частичного эффекта).
+  // Короткий всплеск лечим ожиданием Retry-After (с потолком) и повтором; при
+  // исчерпании попыток показываем уведомление с остатком времени. /login исключён
+  // (у него своя плашка с таймером). Фоновые (options.silent) не ретраим и не тостим.
+  if (response.status === 429 && !isAuthEndpoint(path)) {
+    const retryAfterSec = parseInt(response.headers.get('Retry-After'), 10)
+    const attempt = options._429retry || 0
+    if (!options.silent && attempt < MAX_429_RETRIES) {
+      const waitMs = Number.isFinite(retryAfterSec) && retryAfterSec > 0
+        ? Math.min(retryAfterSec * 1000, RETRY_429_CAP_MS)
+        : RETRY_429_CAP_MS
+      await sleep(waitMs)
+      return baseRequest(path, { ...options, _429retry: attempt + 1 })
+    }
+    if (!options.silent) {
+      show429Notify(Number.isFinite(retryAfterSec) ? retryAfterSec : 0)
     }
     return response
   }

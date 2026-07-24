@@ -68,7 +68,7 @@ func (h *AuthHandler) clearRefreshCookie(c echo.Context) {
 // @Produce      json
 // @Param        request body models.LoginRequest true "Логин и пароль"
 // @Success      200 {object} models.LoginResponse
-// @Failure      401 {object} models.HTTPError "Invalid credentials"
+// @Failure      401 {object} models.HTTPError "Неверный логин или пароль"
 // @Router       /login [post]
 func (h *AuthHandler) Login(c echo.Context) error {
 	var req models.LoginRequest
