@@ -1070,7 +1070,7 @@ export default {
         justify-content: center;
         gap: 8px;
         border: none;
-        border-radius: var(--radius-md);
+        border-radius: var(--radius-pill);
         background: var(--color-primary);
         color: #fff;
         font-size: 16px;
@@ -1086,6 +1086,8 @@ export default {
         transform: rotate(180deg);
     }
 
+    /* Меню по эталону BaseDropdown: радиус 20, мягкая тень, разделители,
+       hover #f5f5f5, углы через overflow:hidden. */
     .picker-add-menu {
         position: absolute;
         top: calc(100% + 6px);
@@ -1094,12 +1096,11 @@ export default {
         z-index: 20;
         display: flex;
         flex-direction: column;
-        gap: 2px;
-        padding: 6px;
+        overflow: hidden;
         background: #fff;
-        border: 1px solid var(--color-border);
-        border-radius: var(--radius-md);
-        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+        border: 1px solid #e6e6e6;
+        border-radius: var(--radius-lg);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
     }
 
     .picker-add-menu__item {
@@ -1108,20 +1109,26 @@ export default {
         align-items: center;
         justify-content: space-between;
         gap: 8px;
-        min-height: 44px;
-        padding: 0 12px;
+        min-height: 48px;
+        padding: 12px 16px;
         border: none;
-        border-radius: var(--radius-sm);
+        border-bottom: 1px solid #f0f0f0;
         background: transparent;
         color: var(--color-text, #333);
         font-size: 15px;
         font-weight: 500;
         text-align: left;
         cursor: pointer;
+        transition: background-color 0.15s ease;
     }
 
+    .picker-add-menu__item:last-child {
+        border-bottom: none;
+    }
+
+    .picker-add-menu__item:hover:not(:disabled),
     .picker-add-menu__item:active:not(:disabled) {
-        background: var(--color-primary-tint);
+        background: #f5f5f5;
     }
 
     .picker-add-menu__item:disabled {
