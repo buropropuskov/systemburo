@@ -6,8 +6,11 @@ vi.mock('@/api/client', () => ({
   apiRequest: vi.fn().mockResolvedValue({
     ok: true,
     json: vi.fn().mockResolvedValue([
-      { id: 1, title: 'Автозаявки', name: 'cars', display_name: 'Автозаявки', attachment_type: 'cars' },
-      { id: 2, title: 'Ввоз', name: 'items', display_name: 'Ввоз', attachment_type: 'items' },
+      // title - группа (рубрика), display_name - наименование вложения, из которого
+      // addAttachment строит «Автозаявка №N»; поля намеренно разные, чтобы тексты
+      // «кнопка = вложение, подпись = группа» нельзя было перепутать.
+      { id: 1, title: 'Автозаявки', name: 'cars', display_name: 'Автозаявка', attachment_type: 'cars' },
+      { id: 2, title: 'Ввоз', name: 'items', display_name: 'Заявка на ввоз', attachment_type: 'items' },
     ]),
   }),
 }));
@@ -104,20 +107,20 @@ describe('BlankSelector: выбор типа строкой на телефон�
     expect(w.findAll('.category-header').length).toBe(w.vm.uniqueCategories.length);
   });
 
-  it('кнопка и подпись списка называют выбранный тип, пустой тип сохраняет строку-заглушку', async () => {
+  it('кнопка называет наименование вложения, подпись списка - тип; пустой тип сохраняет строку-заглушку', async () => {
     mockMatchMedia(true);
     const w = await mountSelector();
 
-    const first = w.vm.uniqueCategories[0];
-    expect(w.find('.picker-add').text()).toBe(`Добавить: ${first}`);
+    // Кнопка называет ВЛОЖЕНИЕ, которое создаст (display_name шаблона),
+    // а не группу-рубрику.
+    expect(w.find('.picker-add').text()).toBe('Добавить: Автозаявка');
     // Подпись над списком - заголовок выбранного типа, как рубрика на десктопе,
     // а не безликое «Созданные вложения».
-    expect(w.find('.created-caption').text()).toBe(first);
+    expect(w.find('.created-caption').text()).toBe(w.vm.uniqueCategories[0]);
 
     // У второго типа вложений нет - подпись остаётся строкой-заглушкой.
     await w.findAll('.category-chip')[1].trigger('click');
-    const second = w.vm.uniqueCategories[1];
-    expect(w.find('.picker-add').text()).toBe(`Добавить: ${second}`);
+    expect(w.find('.picker-add').text()).toBe('Добавить: Заявка на ввоз');
     expect(w.find('.created-caption').text()).toBe('В этом типе вложений пока нет');
     expect(w.find('.created-caption').classes()).toContain('created-caption--empty');
   });

@@ -69,10 +69,7 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
       >
         <header
           class="warn-panel__head"
-          :class="{
-            'warn-panel__head--tappable': isNarrow,
-            'warn-panel__head--solo': !expanded,
-          }"
+          :class="{ 'warn-panel__head--tappable': isNarrow }"
           data-testid="schedule-warning-head"
           :aria-expanded="expanded ? 'true' : 'false'"
           @click="toggleCollapsed"
@@ -127,70 +124,78 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
           </button>
         </header>
 
-        <transition-group
-          v-show="expanded"
-          tag="div"
-          name="warn-group"
-          class="warn-panel__body"
+        <!-- Плавное раскрытие: grid-rows 0fr <-> 1fr (высота контента анимируется
+             без magic-number, паттерн раскрывающихся списков сайдбара). -->
+        <div
+          class="warn-panel__reveal"
+          :class="{ 'warn-panel__reveal--open': expanded }"
         >
-          <section
-            v-for="group in visibleGroups"
-            :key="group.id || group.name"
-            class="warn-group"
-          >
-            <p class="warn-group__name">
-              {{ group.name }}
-            </p>
-
-            <!-- Режим работы против окна пребывания (S5) -->
-            <div
-              v-if="group.schedule && group.schedule.anyClosed"
-              class="warn-schedule"
+          <div class="warn-panel__reveal-inner">
+            <transition-group
+              tag="div"
+              name="warn-group"
+              class="warn-panel__body"
             >
-              <p class="warn-schedule__lead">
-                Режим работы · Вы указали <b>{{ group.schedule.presence }}</b>
-              </p>
-              <ul class="warn-schedule__days">
-                <li
-                  v-for="day in group.schedule.days"
-                  :key="day.label"
-                  class="warn-day"
-                  :class="{ 'warn-day--closed': !day.open }"
-                >
-                  <span class="warn-day__name">{{ day.label }}</span>
-                  <span class="warn-day__hours">
-                    <span
-                      v-for="(hour, hi) in day.hours"
-                      :key="hi"
-                      class="warn-day__hour"
-                    >{{ hour }}</span>
-                  </span>
-                  <span
-                    v-if="!day.open"
-                    class="warn-day__badge"
-                  >вне графика</span>
-                </li>
-              </ul>
-            </div>
+              <section
+                v-for="group in visibleGroups"
+                :key="group.id || group.name"
+                class="warn-group"
+              >
+                <p class="warn-group__name">
+                  {{ group.name }}
+                </p>
 
-            <!-- Свободный текст (S1) + активные окна (S4) - обычным текстом -->
-            <template v-if="group.free || (group.windows && group.windows.length)">
-              <p
-                v-if="group.free"
-                class="warn-note"
-              >
-                {{ group.free }}
-              </p>
-              <p
-                v-for="(win, wi) in group.windows"
-                :key="'w' + wi"
-                class="warn-note"
-              >
-                {{ win }}
-              </p>
-            </template>
-          </section>
-        </transition-group>
+                <!-- Режим работы против окна пребывания (S5) -->
+                <div
+                  v-if="group.schedule && group.schedule.anyClosed"
+                  class="warn-schedule"
+                >
+                  <p class="warn-schedule__lead">
+                    Режим работы · Вы указали <b>{{ group.schedule.presence }}</b>
+                  </p>
+                  <ul class="warn-schedule__days">
+                    <li
+                      v-for="day in group.schedule.days"
+                      :key="day.label"
+                      class="warn-day"
+                      :class="{ 'warn-day--closed': !day.open }"
+                    >
+                      <span class="warn-day__name">{{ day.label }}</span>
+                      <span class="warn-day__hours">
+                        <span
+                          v-for="(hour, hi) in day.hours"
+                          :key="hi"
+                          class="warn-day__hour"
+                        >{{ hour }}</span>
+                      </span>
+                      <span
+                        v-if="!day.open"
+                        class="warn-day__badge"
+                      >вне графика</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <!-- Свободный текст (S1) + активные окна (S4) - обычным текстом -->
+                <template v-if="group.free || (group.windows && group.windows.length)">
+                  <p
+                    v-if="group.free"
+                    class="warn-note"
+                  >
+                    {{ group.free }}
+                  </p>
+                  <p
+                    v-for="(win, wi) in group.windows"
+                    :key="'w' + wi"
+                    class="warn-note"
+                  >
+                    {{ win }}
+                  </p>
+                </template>
+              </section>
+            </transition-group>
+          </div>
+        </div>
       </aside>
     </transition>
   </Teleport>
@@ -255,9 +260,19 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Свёрнутая плашка - шапка и есть вся панель, полоска-граница снизу лишняя. */
-.warn-panel__head--solo {
-  border-bottom: none;
+/* Плавное раскрытие списка: высота контента через grid-rows 0fr <-> 1fr,
+   inner с overflow:hidden обрезает контент в промежуточных кадрах. */
+.warn-panel__reveal {
+  display: grid;
+  grid-template-rows: 1fr;
+  min-height: 0;
+}
+
+.warn-panel__reveal-inner {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .warn-panel__chevron {
@@ -292,6 +307,7 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
 
 .warn-panel__body {
   position: relative;
+  min-height: 0;
   padding: 8px 16px 14px;
   overflow-y: auto;
   scrollbar-width: thin;
@@ -419,6 +435,25 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
     width: auto;
     max-width: none;
     max-height: 52dvh;
+  }
+
+  /* Свёрнутая плашка раскрывается плавно; граница живёт на теле (border-top),
+     чтобы уезжать под шапку вместе с контентом, а не мигать на самой шапке. */
+  .warn-panel__head {
+    border-bottom: none;
+  }
+
+  .warn-panel__body {
+    border-top: 1px solid #f4e3c8;
+  }
+
+  .warn-panel__reveal {
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.28s ease;
+  }
+
+  .warn-panel__reveal--open {
+    grid-template-rows: 1fr;
   }
 }
 </style>

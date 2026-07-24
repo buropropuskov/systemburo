@@ -99,10 +99,9 @@ describe('SchedulePlaceWarningPanel', () => {
     expect(panel().textContent).toContain('Дебаркадер №1');
   });
 
-  it('на десктопе содержимое видно сразу, счётчика и шеврона в шапке нет', () => {
+  it('на десктопе содержимое раскрыто сразу, счётчика и шеврона в шапке нет', () => {
     mountPanel([scheduleGroup()]);
-    const body = document.querySelector('.warn-panel__body');
-    expect(body.style.display).not.toBe('none');
+    expect(document.querySelector('.warn-panel__reveal').classList.contains('warn-panel__reveal--open')).toBe(true);
     expect(document.querySelector('[data-testid="schedule-warning-count"]')).toBeNull();
     expect(document.querySelector('.warn-panel__chevron')).toBeNull();
   });
@@ -119,32 +118,34 @@ describe('SchedulePlaceWarningPanel', () => {
       window.matchMedia = origMatchMedia;
     });
 
-    it('появляется свёрнутой плашкой со счётчиком, содержимое скрыто', async () => {
+    const revealOpen = () =>
+      document.querySelector('.warn-panel__reveal').classList.contains('warn-panel__reveal--open');
+
+    it('появляется свёрнутой плашкой со счётчиком, содержимое свёрнуто', async () => {
       // isNarrow выставляется в onMounted - DOM догоняет на nextTick
       const w = mountPanel([scheduleGroup(), scheduleGroup({ id: 'p2', name: 'Дебаркадер №1' })]);
       await w.vm.$nextTick();
       const head = document.querySelector('[data-testid="schedule-warning-head"]');
       expect(head.getAttribute('aria-expanded')).toBe('false');
       expect(document.querySelector('[data-testid="schedule-warning-count"]').textContent).toBe('2');
-      expect(document.querySelector('.warn-panel__body').style.display).toBe('none');
+      expect(revealOpen()).toBe(false);
     });
 
     it('тап по плашке разворачивает и сворачивает обратно', async () => {
       const w = mountPanel([scheduleGroup()]);
       await w.vm.$nextTick();
       const head = document.querySelector('[data-testid="schedule-warning-head"]');
-      const body = () => document.querySelector('.warn-panel__body');
-      expect(body().style.display).toBe('none');
+      expect(revealOpen()).toBe(false);
 
       await head.click();
       await w.vm.$nextTick();
       expect(head.getAttribute('aria-expanded')).toBe('true');
-      expect(body().style.display).not.toBe('none');
+      expect(revealOpen()).toBe(true);
 
       await head.click();
       await w.vm.$nextTick();
       expect(head.getAttribute('aria-expanded')).toBe('false');
-      expect(body().style.display).toBe('none');
+      expect(revealOpen()).toBe(false);
     });
 
     it('крестик скрывает свёрнутую плашку, не разворачивая её', async () => {
