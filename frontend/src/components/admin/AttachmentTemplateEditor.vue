@@ -1232,7 +1232,7 @@ export default {
 .te-modal-body {
   display: flex;
   position: relative;
-  height: calc(92vh - 100px);
+  height: calc(var(--app-vh, 1vh) * 92 - 100px);
   min-height: 400px;
   overflow: hidden;
 }
