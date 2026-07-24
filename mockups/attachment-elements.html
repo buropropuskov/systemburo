@@ -1,0 +1,1173 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<title>Мокап: список элементов вложения в заявке</title>
+<style>
+  :root {
+    /* Токены приложения (frontend/src/assets/tokens.css) - внутри "экранов" не меняются */
+    --color-primary: #4F5BDF;
+    --color-primary-hover: #3d49c7;
+    --color-primary-tint: rgba(79, 91, 223, 0.08);
+    --color-success: #28a745;
+    --color-danger: #dc3545;
+    --color-warning: #ffc107;
+    --color-text: #333;
+    --color-text-muted: #999;
+    --color-border: #e6e6e6;
+    --color-bg: #f8f9ff;
+    --color-bg-secondary: #f9f9f9;
+    --radius-sm: 8px;
+    --radius-md: 15px;
+    --radius-lg: 20px;
+    --radius-pill: 999px;
+
+    /* Токены страницы-обёртки (не приложения) - у них есть тёмная тема */
+    --page-bg: #eef0fa;
+    --page-surface: #ffffff;
+    --page-text: #23263a;
+    --page-text-muted: #6a6f8a;
+    --page-line: #d8dcef;
+    --page-accent: #4F5BDF;
+    --page-warn-bg: #fff8e6;
+    --page-warn-line: #ffc107;
+    --page-warn-text: #6b5900;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --page-bg: #14161f;
+      --page-surface: #1c1f2b;
+      --page-text: #e9eaf2;
+      --page-text-muted: #a2a7bf;
+      --page-line: #2e3346;
+      --page-accent: #8f97ff;
+      --page-warn-bg: #2a2413;
+      --page-warn-line: #7a6420;
+      --page-warn-text: #f0d98a;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --page-bg: #14161f;
+    --page-surface: #1c1f2b;
+    --page-text: #e9eaf2;
+    --page-text-muted: #a2a7bf;
+    --page-line: #2e3346;
+    --page-accent: #8f97ff;
+    --page-warn-bg: #2a2413;
+    --page-warn-line: #7a6420;
+    --page-warn-text: #f0d98a;
+  }
+
+  :root[data-theme="light"] {
+    --page-bg: #eef0fa;
+    --page-surface: #ffffff;
+    --page-text: #23263a;
+    --page-text-muted: #6a6f8a;
+    --page-line: #d8dcef;
+    --page-accent: #4F5BDF;
+    --page-warn-bg: #fff8e6;
+    --page-warn-line: #ffc107;
+    --page-warn-text: #6b5900;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 28px 20px 60px;
+    font-family: 'Montserrat', -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+    background: var(--page-bg);
+    color: var(--page-text);
+    line-height: 1.45;
+    font-size: 15px;
+  }
+
+  .wrap { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 26px; }
+
+  .page-head h1 {
+    margin: 0 0 6px;
+    font-size: 27px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+  .page-head p { margin: 0; color: var(--page-text-muted); font-size: 14px; max-width: 70ch; }
+  .page-head code {
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 13px;
+    background: rgba(79, 91, 223, 0.1);
+    color: var(--page-accent);
+    padding: 1px 6px;
+    border-radius: 6px;
+  }
+
+  .note {
+    padding: 14px 18px;
+    background: var(--page-warn-bg);
+    border: 1px solid var(--page-warn-line);
+    border-radius: var(--radius-md);
+    font-size: 13.5px;
+    color: var(--page-warn-text);
+  }
+  .note b { display: block; margin-bottom: 6px; font-size: 14px; }
+  .note ul { margin: 0; padding-left: 18px; }
+  .note li + li { margin-top: 3px; }
+
+  .block { display: flex; flex-direction: column; gap: 12px; }
+
+  .block-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .block-head h2 { margin: 0; font-size: 19px; font-weight: 600; }
+  .block-head .hint { color: var(--page-text-muted); font-size: 13px; }
+
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 11px;
+    border-radius: var(--radius-pill);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .tag--now { background: rgba(220, 53, 69, 0.12); color: #b02330; }
+  .tag--new { background: rgba(40, 167, 69, 0.14); color: #1c7c33; }
+
+  @media (prefers-color-scheme: dark) {
+    .tag--now { background: rgba(220, 53, 69, 0.2); color: #ff9aa4; }
+    .tag--new { background: rgba(40, 167, 69, 0.2); color: #7ee29a; }
+  }
+  :root[data-theme="dark"] .tag--now { background: rgba(220, 53, 69, 0.2); color: #ff9aa4; }
+  :root[data-theme="dark"] .tag--new { background: rgba(40, 167, 69, 0.2); color: #7ee29a; }
+
+  /* ================= Каркас "экрана" приложения ================= */
+  .screen {
+    background: #fff;
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: 30px;
+    overflow: hidden;
+    box-shadow: 0 10px 34px rgba(20, 22, 40, 0.1);
+  }
+
+  .screen-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 22px;
+    border-bottom: 1px solid var(--color-border);
+    font-size: 13px;
+    color: var(--color-text-muted);
+  }
+  .screen-bar strong { color: var(--color-text); font-size: 14px; font-weight: 600; }
+
+  .screen-body { display: flex; }
+
+  .col-left {
+    width: 240px;
+    flex-shrink: 0;
+    padding: 15px;
+    border-right: 1px solid var(--color-border);
+    background: #fafafa;
+  }
+  .col-main { flex: 1; min-width: 0; padding: 15px; background: #fff; }
+  .col-right {
+    width: 300px;
+    flex-shrink: 0;
+    padding: 15px;
+    border-left: 1px solid var(--color-border);
+    background: #fafafa;
+  }
+
+  .col-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted);
+    font-weight: 600;
+    margin-bottom: 10px;
+  }
+
+  .att-nav-item {
+    padding: 9px 12px;
+    margin-bottom: 7px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: #fff;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .att-nav-item.is-active { border-color: var(--color-primary); background: var(--color-primary-tint); color: var(--color-primary); }
+
+  .side-row { font-size: 13px; margin-bottom: 10px; }
+  .side-row span { display: block; color: var(--color-text-muted); font-size: 12px; }
+
+  /* ================= Карточка вложения ================= */
+  .att-card {
+    background: #fff;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  }
+
+  .att-card__head {
+    padding: 15px;
+    border-bottom: 1px solid var(--color-border);
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 12px 24px;
+  }
+  .att-card__title-row { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .att-card__title-row h4 { margin: 0; font-size: 18px; font-weight: 700; color: var(--color-primary); }
+  .att-card__meta { display: flex; flex-direction: column; font-size: 14px; }
+  .att-card__meta span:first-child { color: #a2a2a2; }
+  .att-card__meta span:last-child { color: #000; font-size: 15px; }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: var(--radius-pill);
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .badge--primary { background: var(--color-primary-tint); color: var(--color-primary); }
+  .badge--warning { background: rgba(255, 193, 7, 0.18); color: #8a6d00; }
+  .badge--danger { background: rgba(220, 53, 69, 0.12); color: #b02330; }
+  .badge--danger::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--color-danger); }
+
+  .att-card__body { padding: 15px; }
+
+  /* ================= "СЕЙЧАС": текущая вёрстка списка ================= */
+  .old-section h5 {
+    margin: 0 0 15px;
+    font-size: 16px;
+    font-weight: 700;
+    color: #333;
+  }
+
+  .old-list { display: flex; flex-direction: column; gap: 8px; }
+
+  .old-item {
+    padding: 12px;
+    background: #f9f9f9;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+  }
+  .old-item--flagged { background: #fff5f5; border-color: #fecaca; }
+
+  .old-item__content { display: flex; align-items: center; justify-content: flex-start; width: 100%; gap: 12px; }
+
+  .old-num { color: #a2a2a2; font-size: 14px; font-weight: 500; min-width: 20px; flex-shrink: 0; }
+
+  .old-main { display: flex; gap: 15px; min-width: 250px; flex-shrink: 0; }
+  .old-main .key { font-weight: 600; color: #333; font-size: 15px; }
+  .old-main .sub { color: #666; font-size: 14px; }
+
+  .old-tail { display: flex; gap: 8px; font-size: 13px; flex: 1; min-width: 0; }
+  .old-tail span {
+    color: #333;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: end;
+  }
+
+  .old-btn {
+    flex-shrink: 0;
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #fff;
+    background: var(--color-danger);
+    border: none;
+    border-radius: var(--radius-pill);
+    cursor: pointer;
+  }
+
+  .callout {
+    margin-top: 10px;
+    padding: 10px 14px;
+    border-left: 3px solid var(--color-danger);
+    background: rgba(220, 53, 69, 0.05);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    font-size: 13px;
+    color: #7a2430;
+  }
+  .callout b { font-weight: 600; }
+
+  /* ================= "ПРЕДЛАГАЕТСЯ": строки с шапкой колонок ================= */
+  .el-section { display: flex; flex-direction: column; gap: 10px; }
+
+  .el-section__head { display: flex; align-items: center; gap: 10px; }
+  .el-section__head h5 { margin: 0; font-size: 15px; font-weight: 700; color: #333; }
+  .el-count {
+    padding: 2px 10px;
+    border-radius: var(--radius-pill);
+    background: var(--color-primary-tint);
+    color: var(--color-primary);
+    font-size: 12px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .el-table { border: 1px solid var(--color-border); border-radius: var(--radius-md); overflow: hidden; background: #fff; }
+  .el-scroll { overflow-x: auto; }
+  /* min-width = сумма минимумов колонок: ниже неё включается горизонтальная
+     прокрутка, а колонки не схлопываются в ноль */
+  .el-inner { min-width: 570px; }
+  .el-inner--people { min-width: 580px; }
+  .el-inner--items { min-width: 400px; }
+
+  .el-head,
+  .el-row { display: flex; align-items: center; gap: 10px; padding: 0 12px; }
+
+  .el-head {
+    height: 38px;
+    background: #fbfbfd;
+    border-bottom: 1px solid var(--color-border);
+    font-size: 12px;
+    font-weight: 600;
+    color: #8a8fa3;
+    letter-spacing: 0.02em;
+  }
+
+  .el-row {
+    min-height: 46px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #f2f2f5;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .el-row:last-child { border-bottom: none; }
+  .el-row:hover { background: var(--color-bg); }
+
+  .el-row--flagged { background: #fffafa; box-shadow: inset 3px 0 0 var(--color-danger); }
+  .el-row--flagged:hover { background: #fff4f4; }
+
+  /* Колонки - пропорциональные доли с минимумом ширины. Фиксированные проценты
+     здесь не годятся: в узкой центральной колонке остаток съедается и колонка
+     схлопывается в ноль */
+  .c-num { width: 22px; flex-shrink: 0; color: #b0b3c2; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .c-key { flex: 22 1 0; min-width: 96px; }
+  .c-sub { flex: 18 1 0; min-width: 68px; }
+  .c-places { flex: 30 1 0; min-width: 100px; }
+  .c-tables { flex: 26 1 0; min-width: 92px; }
+  .c-state { width: 112px; flex-shrink: 0; display: flex; justify-content: flex-end; gap: 8px; }
+
+  /* Компактный режим - для узкого контейнера (центральная колонка детали
+     заявки при раскрытых боковых). Номер и марка живут в одной колонке в две
+     строки: резать гос. номер многоточием нельзя, это ключ элемента */
+  .el-inner--compact { min-width: 500px; }
+  .el-inner--compact .c-key { flex: 38 1 0; min-width: 132px; }
+  .el-inner--compact .c-places { flex: 36 1 0; min-width: 124px; }
+  .el-inner--compact .c-tables { flex: 26 1 0; min-width: 96px; }
+
+  .c-key .val-sub {
+    display: block;
+    margin-top: 1px;
+    color: #6b6f80;
+    font-size: 12.5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Сотрудники: ФИО и должность шире, посты - одна колонка */
+  .el-inner--people .c-key { flex: 30 1 0; min-width: 140px; }
+  .el-inner--people .c-sub { flex: 26 1 0; min-width: 110px; }
+  .el-inner--people .c-places { flex: 30 1 0; min-width: 130px; }
+
+  /* ТМЦ: наименование во всю ширину, количество справа */
+  .el-inner--items .c-places { flex: 1 1 0; min-width: 180px; }
+  .el-inner--items .c-state { width: 120px; }
+
+  .c-key .val,
+  .c-sub .val {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .c-key .val { font-weight: 600; color: #222; font-size: 14.5px; letter-spacing: 0.01em; }
+  .cell-ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .c-sub .val { color: #6b6f80; font-size: 13.5px; }
+
+  .chips { display: flex; flex-wrap: nowrap; gap: 6px; min-width: 0; overflow: hidden; }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    max-width: 100%;
+    padding: 3px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-pill);
+    background: #fff;
+    font-size: 12.5px;
+    color: #444;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .chip--more {
+    border-style: dashed;
+    color: var(--color-primary);
+    border-color: rgba(79, 91, 223, 0.4);
+    background: var(--color-primary-tint);
+    font-weight: 600;
+    cursor: help;
+  }
+  .chip--empty { border: none; background: none; color: #c2c5d2; padding-left: 0; }
+
+  /* Подсказка проекта: data-hint + ::after на фоне #333 (не native title) */
+  .hint-host { position: relative; }
+  .hint-host::after {
+    content: attr(data-hint);
+    position: absolute;
+    bottom: calc(100% + 9px);
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 7px 11px;
+    background: #333;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+    border-radius: var(--radius-sm);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+    z-index: 5;
+  }
+  .hint-host::before {
+    content: '';
+    position: absolute;
+    bottom: calc(100% + 3px);
+    left: 50%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-top-color: #333;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+    z-index: 5;
+  }
+  .hint-host:hover::after,
+  .hint-host:hover::before { opacity: 1; }
+  .hint-host.is-shown::after,
+  .hint-host.is-shown::before { opacity: 1; }
+
+  .qty {
+    display: inline-flex;
+    padding: 3px 11px;
+    border-radius: var(--radius-pill);
+    background: var(--color-primary-tint);
+    color: var(--color-primary);
+    font-size: 13px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .btn-pass {
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #fff;
+    background: var(--color-danger);
+    border: none;
+    border-radius: var(--radius-pill);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .btn-pass:hover { background: #c22c3b; }
+
+  .el-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 9px 14px;
+    border-top: 1px solid var(--color-border);
+    background: #fbfbfd;
+    font-size: 12.5px;
+    color: #8a8fa3;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ================= Мобильный вид ================= */
+  .phones { display: flex; gap: 22px; flex-wrap: wrap; }
+
+  .phone {
+    width: 390px;
+    max-width: 100%;
+    background: #fff;
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: 26px;
+    padding: 14px;
+    box-shadow: 0 10px 30px rgba(20, 22, 40, 0.1);
+  }
+  .phone h6 {
+    margin: 0 0 10px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+  }
+
+  .rt-card {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 10px 14px;
+    background: #fff;
+  }
+  .rt-card + .rt-card { margin-top: 8px; }
+  .rt-card--flagged { box-shadow: inset 3px 0 0 var(--color-danger); background: #fffafa; }
+
+  .rt-line {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 5px 0;
+    border-bottom: 1px dashed #f0f0f0;
+    text-align: right;
+    font-size: 13.5px;
+  }
+  .rt-line:last-child { border-bottom: none; }
+  .rt-line::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: #a2a2a2;
+    text-align: left;
+  }
+  .rt-line .chips { justify-content: flex-end; flex-wrap: wrap; overflow: visible; }
+  .rt-line--key { font-weight: 600; font-size: 15px; }
+
+  /* ================= Заметки реализации ================= */
+  .impl {
+    background: var(--page-surface);
+    border: 1px solid var(--page-line);
+    border-radius: var(--radius-lg);
+    padding: 20px 22px;
+  }
+  .impl h2 { margin: 0 0 14px; font-size: 18px; font-weight: 600; }
+  .impl ul { margin: 0; padding-left: 20px; }
+  .impl li { margin-bottom: 7px; font-size: 14px; }
+  .impl li:last-child { margin-bottom: 0; }
+  .impl code {
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 12.5px;
+    background: rgba(79, 91, 223, 0.1);
+    color: var(--page-accent);
+    padding: 1px 5px;
+    border-radius: 5px;
+  }
+
+  .screen-scroll { overflow-x: auto; }
+
+  @media (max-width: 900px) {
+    .col-left, .col-right { display: none; }
+    .screen-scroll .screen { min-width: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="page-head">
+    <h1>Список элементов вложения: машины, люди, ТМЦ</h1>
+    <p>
+      Мокап редизайна блока, который открывается по клику на вложение в детали заявки.
+      Затрагивает один общий компонент <code>ApplicationAttachmentDetail.vue</code> — он же
+      используется в разделе «Доступные мне» у охраны.
+    </p>
+  </header>
+
+  <div class="note">
+    <b>Что не так сейчас</b>
+    <ul>
+      <li>Места разгрузки и посты проезда идут <b>без подписей</b> — двумя одинаковыми серыми строчками, прижатыми к правому краю. Понять, где что, можно только наведением.</li>
+      <li>Списки обрезаются на двух значениях («Склад №1, Рампа А и др.»), остальное — в native <code>title</code>, который в проекте заменён на подсказку <code>data-hint</code>.</li>
+      <li>Блок ФИО/номера имеет <code>min-width: 250px</code> и не сжимается, рядом с ним два растягивающихся блока, бейдж ЧС и кнопка — в центральной колонке они наезжают друг на друга.</li>
+      <li>Серая заливка <code>#f9f9f9</code> на каждой строке: список выглядит выключенным, ключевые значения не выделены.</li>
+    </ul>
+  </div>
+
+  <!-- ===================== МАШИНЫ: СЕЙЧАС ===================== -->
+  <section class="block">
+    <div class="block-head">
+      <span class="tag tag--now">Сейчас</span>
+      <h2>Автомобили</h2>
+      <span class="hint">воспроизведена текущая вёрстка, ширина центральной колонки как на 1440px</span>
+    </div>
+
+    <div class="screen-scroll">
+      <div class="screen">
+        <div class="screen-bar">
+          <strong>Заявка 20260724/014</strong>
+          <span>ООО «Демо-Сервис» · В работе</span>
+        </div>
+        <div class="screen-body">
+          <aside class="col-left">
+            <div class="col-title">Вложения</div>
+            <div class="att-nav-item is-active">Автозаявка на июль</div>
+            <div class="att-nav-item">Сотрудники подрядчика</div>
+            <div class="att-nav-item">Внос имущества</div>
+          </aside>
+
+          <main class="col-main">
+            <div class="att-card">
+              <div class="att-card__head">
+                <div class="att-card__title-row">
+                  <h4>Автозаявка на июль</h4>
+                  <div style="display:flex; gap:8px;">
+                    <span class="badge badge--primary">Крыша</span>
+                    <span class="badge badge--warning">Парковка</span>
+                  </div>
+                </div>
+                <div class="att-card__meta"><span>Срок действия:</span><span>01.07.2026 - 31.07.2026</span></div>
+                <div class="att-card__meta"><span>Время:</span><span>08:00 - 18:00</span></div>
+              </div>
+
+              <div class="att-card__body old-section">
+                <h5>Список автомобилей</h5>
+                <div class="old-list">
+                  <div class="old-item">
+                    <div class="old-item__content">
+                      <div class="old-num">1.</div>
+                      <div class="old-main">
+                        <span class="key">А123ВС 750</span>
+                        <span class="sub">Volvo FH</span>
+                      </div>
+                      <div class="old-tail"><span>Склад №1, Рампа А</span></div>
+                      <div class="old-tail"><span>ПОСТ №72 (АВТО)</span></div>
+                    </div>
+                  </div>
+
+                  <div class="old-item">
+                    <div class="old-item__content">
+                      <div class="old-num">2.</div>
+                      <div class="old-main">
+                        <span class="key">В456ОР 750</span>
+                        <span class="sub">MAN TGX 18.440</span>
+                      </div>
+                      <div class="old-tail"><span>Рампа А, Рампа Б и др.</span></div>
+                      <div class="old-tail"><span>ПОСТ №72 (АВТО)</span></div>
+                    </div>
+                  </div>
+
+                  <div class="old-item old-item--flagged">
+                    <div class="old-item__content">
+                      <div class="old-num">3.</div>
+                      <div class="old-main">
+                        <span class="key">Х004ММ 190</span>
+                        <span class="sub">ГАЗель Next</span>
+                      </div>
+                      <div class="old-tail"><span>Северный въезд</span></div>
+                      <div class="old-tail"><span>ПОСТ №15 (ГРУЗОВОЙ), ПОСТ №72 (АВТО)</span></div>
+                      <span class="badge badge--danger">похоже на ЧС</span>
+                      <button type="button" class="old-btn">Пропустить</button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="callout">
+                  <b>Строка 3</b> — так это выглядит у ответственного: марка, оба списка, бейдж и кнопка не помещаются,
+                  текст режется, а вместо названий колонок — пустота.
+                </div>
+              </div>
+            </div>
+          </main>
+
+          <aside class="col-right">
+            <div class="col-title">Основная информация</div>
+            <div class="side-row"><span>Организация / Отдел</span>ООО «Демо-Сервис»</div>
+            <div class="side-row"><span>Инициатор</span>Кафанова Е. В.</div>
+            <div class="side-row"><span>Принял</span>Зубарев А. П.</div>
+          </aside>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== МАШИНЫ: ПРЕДЛАГАЕТСЯ ===================== -->
+  <section class="block">
+    <div class="block-head">
+      <span class="tag tag--new">Предлагается</span>
+      <h2>Автомобили</h2>
+      <span class="hint">шапка колонок, значения чипами, ЧС — полосой слева</span>
+    </div>
+
+    <div class="screen-scroll">
+      <div class="screen">
+        <div class="screen-bar">
+          <strong>Заявка 20260724/014</strong>
+          <span>ООО «Демо-Сервис» · В работе</span>
+        </div>
+        <div class="screen-body">
+          <aside class="col-left">
+            <div class="col-title">Вложения</div>
+            <div class="att-nav-item is-active">Автозаявка на июль</div>
+            <div class="att-nav-item">Сотрудники подрядчика</div>
+            <div class="att-nav-item">Внос имущества</div>
+          </aside>
+
+          <main class="col-main">
+            <div class="att-card">
+              <div class="att-card__head">
+                <div class="att-card__title-row">
+                  <h4>Автозаявка на июль</h4>
+                  <div style="display:flex; gap:8px;">
+                    <span class="badge badge--primary">Крыша</span>
+                    <span class="badge badge--warning">Парковка</span>
+                  </div>
+                </div>
+                <div class="att-card__meta"><span>Срок действия:</span><span>01.07.2026 - 31.07.2026</span></div>
+                <div class="att-card__meta"><span>Время:</span><span>08:00 - 18:00</span></div>
+              </div>
+
+              <div class="att-card__body">
+                <div class="el-section">
+                  <div class="el-section__head">
+                    <h5>Автомобили</h5>
+                    <span class="el-count">3</span>
+                  </div>
+
+                  <div class="el-table">
+                    <div class="el-scroll">
+                      <div class="el-inner el-inner--compact">
+                        <div class="el-head">
+                          <div class="c-num">№</div>
+                          <div class="c-key">Гос. номер и марка</div>
+                          <div class="c-places">Места разгрузки</div>
+                          <div class="c-tables">Проезд</div>
+                          <div class="c-state"></div>
+                        </div>
+
+                        <div class="el-row">
+                          <div class="c-num">1</div>
+                          <div class="c-key">
+                            <span class="val">А123ВС 750</span>
+                            <span class="val-sub">Volvo FH</span>
+                          </div>
+                          <div class="c-places">
+                            <div class="chips">
+                              <span class="chip">Склад №1</span>
+                              <span class="chip chip--more hint-host" data-hint="Склад №1, Рампа А">+1</span>
+                            </div>
+                          </div>
+                          <div class="c-tables">
+                            <div class="chips"><span class="chip">ПОСТ №72</span></div>
+                          </div>
+                          <div class="c-state"></div>
+                        </div>
+
+                        <div class="el-row">
+                          <div class="c-num">2</div>
+                          <div class="c-key">
+                            <span class="val">В456ОР 750</span>
+                            <span class="val-sub">MAN TGX 18.440</span>
+                          </div>
+                          <div class="c-places">
+                            <div class="chips">
+                              <span class="chip">Рампа А</span>
+                              <span
+                                class="chip chip--more hint-host is-shown"
+                                data-hint="Рампа А, Рампа Б, Северный въезд, Склад №2"
+                              >+3</span>
+                            </div>
+                          </div>
+                          <div class="c-tables">
+                            <div class="chips"><span class="chip">ПОСТ №72</span></div>
+                          </div>
+                          <div class="c-state"></div>
+                        </div>
+
+                        <div class="el-row el-row--flagged">
+                          <div class="c-num">3</div>
+                          <div class="c-key">
+                            <span class="val">Х004ММ 190</span>
+                            <span class="val-sub">ГАЗель Next</span>
+                          </div>
+                          <div class="c-places">
+                            <div class="chips"><span class="chip">Северный въезд</span></div>
+                          </div>
+                          <div class="c-tables">
+                            <div class="chips">
+                              <span class="chip chip--more hint-host" data-hint="ПОСТ №15 (ГРУЗОВОЙ), ПОСТ №72 (АВТО)">2 поста</span>
+                            </div>
+                          </div>
+                          <div class="c-state">
+                            <button type="button" class="btn-pass">Пропустить</button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="el-foot">
+                      <span>Всего: 3</span>
+                      <span class="badge badge--danger">1 похоже на ЧС</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </main>
+
+          <aside class="col-right">
+            <div class="col-title">Основная информация</div>
+            <div class="side-row"><span>Организация / Отдел</span>ООО «Демо-Сервис»</div>
+            <div class="side-row"><span>Инициатор</span>Кафанова Е. В.</div>
+            <div class="side-row"><span>Принял</span>Зубарев А. П.</div>
+          </aside>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== МАШИНЫ НА ШИРОКОМ ЭКРАНЕ ===================== -->
+  <section class="block">
+    <div class="block-head">
+      <span class="tag tag--new">Предлагается</span>
+      <h2>Автомобили на широком экране</h2>
+      <span class="hint">«Доступные мне» у охраны и деталь заявки со свёрнутой боковой колонкой — марка встаёт отдельной колонкой</span>
+    </div>
+
+    <div class="screen">
+      <div class="screen-body" style="display:block; padding: 18px;">
+        <div class="el-section">
+          <div class="el-section__head">
+            <h5>Автомобили</h5>
+            <span class="el-count">3</span>
+          </div>
+
+          <div class="el-table">
+            <div class="el-scroll">
+              <div class="el-inner">
+                <div class="el-head">
+                  <div class="c-num">№</div>
+                  <div class="c-key">Гос. номер</div>
+                  <div class="c-sub">Марка</div>
+                  <div class="c-places">Места разгрузки</div>
+                  <div class="c-tables">Проезд</div>
+                  <div class="c-state"></div>
+                </div>
+
+                <div class="el-row">
+                  <div class="c-num">1</div>
+                  <div class="c-key"><span class="val">А123ВС 750</span></div>
+                  <div class="c-sub"><span class="val">Volvo FH</span></div>
+                  <div class="c-places">
+                    <div class="chips">
+                      <span class="chip">Склад №1</span>
+                      <span class="chip">Рампа А</span>
+                    </div>
+                  </div>
+                  <div class="c-tables">
+                    <div class="chips"><span class="chip">ПОСТ №72 (АВТО)</span></div>
+                  </div>
+                  <div class="c-state"></div>
+                </div>
+
+                <div class="el-row">
+                  <div class="c-num">2</div>
+                  <div class="c-key"><span class="val">В456ОР 750</span></div>
+                  <div class="c-sub"><span class="val">MAN TGX 18.440</span></div>
+                  <div class="c-places">
+                    <div class="chips">
+                      <span class="chip">Рампа А</span>
+                      <span class="chip">Рампа Б</span>
+                      <span class="chip chip--more hint-host" data-hint="Рампа А, Рампа Б, Северный въезд, Склад №2">+2</span>
+                    </div>
+                  </div>
+                  <div class="c-tables">
+                    <div class="chips"><span class="chip">ПОСТ №72 (АВТО)</span></div>
+                  </div>
+                  <div class="c-state"></div>
+                </div>
+
+                <div class="el-row el-row--flagged">
+                  <div class="c-num">3</div>
+                  <div class="c-key"><span class="val">Х004ММ 190</span></div>
+                  <div class="c-sub"><span class="val">ГАЗель Next</span></div>
+                  <div class="c-places">
+                    <div class="chips"><span class="chip">Северный въезд</span></div>
+                  </div>
+                  <div class="c-tables">
+                    <div class="chips">
+                      <span class="chip">ПОСТ №15 (ГРУЗОВОЙ)</span>
+                      <span class="chip chip--more hint-host" data-hint="ПОСТ №15 (ГРУЗОВОЙ), ПОСТ №72 (АВТО)">+1</span>
+                    </div>
+                  </div>
+                  <div class="c-state">
+                    <button type="button" class="btn-pass">Пропустить</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="el-foot">
+              <span>Всего: 3</span>
+              <span class="badge badge--danger">1 похоже на ЧС</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== ЛЮДИ ===================== -->
+  <section class="block">
+    <div class="block-head">
+      <span class="tag tag--now">Сейчас</span>
+      <span class="tag tag--new">Предлагается</span>
+      <h2>Сотрудники</h2>
+      <span class="hint">длинное ФИО + должность + посты прохода</span>
+    </div>
+
+    <div class="screen">
+      <div class="screen-body" style="display:block; padding: 18px;">
+        <div class="old-section" style="margin-bottom: 26px;">
+          <h5>Сотрудники</h5>
+          <div class="old-list">
+            <div class="old-item">
+              <div class="old-item__content">
+                <div class="old-num">1.</div>
+                <div class="old-main">
+                  <span class="key">Кафанова Екатерина Владимировна</span>
+                  <span class="sub">Оператор погрузочно-разгрузочных работ</span>
+                </div>
+                <div class="old-tail"><span>Проходная №1, ПОСТ №72 (АВТО)</span></div>
+              </div>
+            </div>
+            <div class="old-item old-item--flagged">
+              <div class="old-item__content">
+                <div class="old-num">2.</div>
+                <div class="old-main">
+                  <span class="key">Абдурахманов Тимур Русланович</span>
+                  <span class="sub">Водитель-экспедитор</span>
+                </div>
+                <div class="old-tail"><span>Проходная №1</span></div>
+                <span class="badge badge--danger">похоже на ЧС</span>
+                <button type="button" class="old-btn">Пропустить</button>
+              </div>
+            </div>
+          </div>
+          <div class="callout">ФИО и должность стоят в одну строку через пробел и обрезаются вместе, посты — без подписи.</div>
+        </div>
+
+        <div class="el-section">
+          <div class="el-section__head">
+            <h5>Сотрудники</h5>
+            <span class="el-count">3</span>
+          </div>
+
+          <div class="el-table">
+            <div class="el-scroll">
+              <div class="el-inner el-inner--people">
+                <div class="el-head">
+                  <div class="c-num">№</div>
+                  <div class="c-key">ФИО</div>
+                  <div class="c-sub">Должность</div>
+                  <div class="c-places">Места прохода</div>
+                  <div class="c-state"></div>
+                </div>
+
+                <div class="el-row">
+                  <div class="c-num">1</div>
+                  <div class="c-key"><span class="val cell-ellipsis" style="display:block;">Кафанова Екатерина Владимировна</span></div>
+                  <div class="c-sub"><span class="val">Оператор погрузочно-разгрузочных работ</span></div>
+                  <div class="c-places">
+                    <div class="chips">
+                      <span class="chip">Проходная №1</span>
+                      <span class="chip chip--more hint-host" data-hint="Проходная №1, ПОСТ №72 (АВТО)">+1</span>
+                    </div>
+                  </div>
+                  <div class="c-state"></div>
+                </div>
+
+                <div class="el-row el-row--flagged">
+                  <div class="c-num">2</div>
+                  <div class="c-key"><span class="val cell-ellipsis" style="display:block;">Абдурахманов Тимур Русланович</span></div>
+                  <div class="c-sub"><span class="val">Водитель-экспедитор</span></div>
+                  <div class="c-places">
+                    <div class="chips"><span class="chip">Проходная №1</span></div>
+                  </div>
+                  <div class="c-state">
+                    <button type="button" class="btn-pass">Пропустить</button>
+                  </div>
+                </div>
+
+                <div class="el-row">
+                  <div class="c-num">3</div>
+                  <div class="c-key"><span class="val cell-ellipsis" style="display:block;">Зубарев Арсений Петрович</span></div>
+                  <div class="c-sub"><span class="val">Инженер по наладке оборудования</span></div>
+                  <div class="c-places">
+                    <div class="chips">
+                      <span class="chip">Проходная №1</span>
+                      <span class="chip chip--more hint-host" data-hint="Проходная №1, ПОСТ №15 (ГРУЗОВОЙ)">+1</span>
+                    </div>
+                  </div>
+                  <div class="c-state"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="el-foot">
+              <span>Всего: 3</span>
+              <span class="badge badge--danger">1 похоже на ЧС</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== ТМЦ ===================== -->
+  <section class="block">
+    <div class="block-head">
+      <span class="tag tag--new">Предлагается</span>
+      <h2>Товарно-материальные ценности</h2>
+      <span class="hint">две колонки, количество — числом справа</span>
+    </div>
+
+    <div class="screen">
+      <div class="screen-body" style="display:block; padding: 18px;">
+        <div class="el-section">
+          <div class="el-section__head">
+            <h5>Имущество</h5>
+            <span class="el-count">3</span>
+          </div>
+
+          <div class="el-table">
+            <div class="el-scroll">
+              <div class="el-inner el-inner--items">
+                <div class="el-head">
+                  <div class="c-num">№</div>
+                  <div class="c-places">Наименование</div>
+                  <div class="c-state">Количество</div>
+                </div>
+
+                <div class="el-row" style="cursor: default;">
+                  <div class="c-num">1</div>
+                  <div class="c-places"><span class="val" style="font-weight:600; color:#222;">Ноутбук Lenovo ThinkPad T14</span></div>
+                  <div class="c-state"><span class="qty">2 шт</span></div>
+                </div>
+
+                <div class="el-row" style="cursor: default;">
+                  <div class="c-num">2</div>
+                  <div class="c-places"><span class="val" style="font-weight:600; color:#222;">Стеллаж металлический СМ-200</span></div>
+                  <div class="c-state"><span class="qty">12 шт</span></div>
+                </div>
+
+                <div class="el-row" style="cursor: default;">
+                  <div class="c-num">3</div>
+                  <div class="c-places"><span class="val" style="font-weight:600; color:#222;">Кабель ВВГнг 3х2.5, бухта 100 м</span></div>
+                  <div class="c-state"><span class="qty">5 шт</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="el-foot">
+              <span>Всего позиций: 3</span>
+              <span>Единиц: 19</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== МОБИЛКА ===================== -->
+  <section class="block">
+    <div class="block-head">
+      <span class="tag tag--new">Предлагается</span>
+      <h2>Телефон, 390px</h2>
+      <span class="hint">шапка колонок скрывается, строка становится карточкой с подписями — штатный механизм rt-*</span>
+    </div>
+
+    <div class="phones">
+      <div class="phone">
+        <h6>Автомобили</h6>
+        <div class="rt-card">
+          <div class="rt-line rt-line--key" data-label="Гос. номер">А123ВС 750</div>
+          <div class="rt-line" data-label="Марка">Volvo FH</div>
+          <div class="rt-line" data-label="Места разгрузки">
+            <div class="chips"><span class="chip">Склад №1</span><span class="chip">Рампа А</span></div>
+          </div>
+          <div class="rt-line" data-label="Проезд">
+            <div class="chips"><span class="chip">ПОСТ №72</span></div>
+          </div>
+        </div>
+        <div class="rt-card rt-card--flagged">
+          <div class="rt-line rt-line--key" data-label="Гос. номер">Х004ММ 190</div>
+          <div class="rt-line" data-label="Марка">ГАЗель Next</div>
+          <div class="rt-line" data-label="Места разгрузки">
+            <div class="chips"><span class="chip">Северный въезд</span></div>
+          </div>
+          <div class="rt-line" data-label="Проезд">
+            <div class="chips"><span class="chip">ПОСТ №15</span><span class="chip">ПОСТ №72</span></div>
+          </div>
+          <div class="rt-line" data-label="Чёрный список">
+            <span class="badge badge--danger">похоже на ЧС</span>
+          </div>
+          <div class="rt-line" data-label="">
+            <button type="button" class="btn-pass" style="width:100%;">Пропустить</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="phone">
+        <h6>Сотрудники</h6>
+        <div class="rt-card">
+          <div class="rt-line rt-line--key" data-label="ФИО" style="text-align:right;">Кафанова Екатерина Владимировна</div>
+          <div class="rt-line" data-label="Должность">Оператор погрузочно-разгрузочных работ</div>
+          <div class="rt-line" data-label="Места прохода">
+            <div class="chips"><span class="chip">Проходная №1</span><span class="chip">ПОСТ №72</span></div>
+          </div>
+        </div>
+        <div class="rt-card">
+          <div class="rt-line rt-line--key" data-label="ФИО" style="text-align:right;">Зубарев Арсений Петрович</div>
+          <div class="rt-line" data-label="Должность">Инженер по наладке оборудования</div>
+          <div class="rt-line" data-label="Места прохода">
+            <div class="chips"><span class="chip">Проходная №1</span><span class="chip">ПОСТ №15</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="impl">
+    <h2>Что это значит для реализации</h2>
+    <ul>
+      <li>Правится один компонент — <code>ApplicationAttachmentDetail.vue</code>, поэтому вид меняется сразу в детали заявки и в разделе «Доступные мне» у охраны. Проверять нужно оба экрана.</li>
+      <li>Набор полей не расширяем: номер, марка, ФИО, должность, места разгрузки, места прохода и проезда, наименование и количество ТМЦ. Паспорт, патент и гражданство остаются в карточке элемента.</li>
+      <li>Клик по строке по-прежнему открывает карточку машины или сотрудника — поведение не меняется, меняется только вид списка.</li>
+      <li>Два режима по ширине контейнера, а не окна. В детали заявки колонка узкая (около 590px при раскрытых боковых), поэтому марка уходит второй строкой под гос. номер: резать многоточием ключ элемента нельзя. Как только места хватает — в «Доступных мне» или при свёрнутой боковой колонке — марка встаёт своей колонкой. Переключение через <code>ResizeObserver</code> по ширине блока, как уже сделано в <code>utils/tableColumnFit.js</code>.</li>
+      <li>Ширины колонок — пропорциональные доли с минимумом на каждую; у ленты есть <code>min-width</code>, ниже которого включается горизонтальная прокрутка, а не схлопывание колонки в ноль.</li>
+      <li>Чип показывается целиком или не показывается вовсе: обрезанных на середине слова названий быть не должно. Когда в колонку не влезает даже одно название, вместо чипов встаёт счётчик вида «2 поста» с той же подсказкой.</li>
+      <li>Полный список мест показывает подсказка <code>data-hint</code> на тёмном фоне — принятая в проекте, вместо браузерного <code>title</code>. На мокапе она раскрыта у чипа «+2», чтобы было видно стиль.</li>
+      <li>На ширине до 768px работает готовый механизм <code>responsive-tables.css</code>: <code>rt-head-row</code> скрывается, <code>rt-row</code> превращается в карточку, подписи приходят из <code>data-label</code>.</li>
+      <li>Флаг чёрного списка показывается полосой слева и кнопкой «Пропустить» в колонке действий; кнопка остаётся видна только ответственному, как сейчас.</li>
+    </ul>
+  </div>
+</div>
+</body>
+</html>
