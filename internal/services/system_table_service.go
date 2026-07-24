@@ -13,6 +13,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // SystemTableService -- интерфейс бизнес-логики системных таблиц.
@@ -27,6 +28,11 @@ type SystemTableService interface {
 	// Групповая архивация/восстановление (по образцу марок/мест разгрузки).
 	BulkArchive(ctx context.Context, ids []int) (*BulkOpResult, error)
 	BulkRestore(ctx context.Context, ids []int) (*BulkOpResult, error)
+
+	// GetUsage возвращает организации и компании, привязанные к таблице (те же,
+	// что блокируют Delete). DetachAll снимает все эти привязки разом.
+	GetUsage(ctx context.Context, id int) (*SystemTableUsage, error)
+	DetachAll(ctx context.Context, callerUserID, id int) (*SystemTableDetachResult, error)
 
 	// Временные слоты
 	GetTimeSlots(ctx context.Context, tableID int) ([]models.SystemTableTimeSlot, error)
@@ -65,6 +71,29 @@ type systemTableService struct {
 	maxFileSize       int64
 	permSvc           PermissionService
 	realtimePublisher realtime.Publisher
+	recorder          AuditRecorder
+}
+
+// SystemTableBinding -- привязанная к таблице организация/компания.
+// IsActive=false помечает архивную запись (её всё равно показываем: гейт Delete
+// считает по junction без фильтра активности, поэтому она держит таблицу).
+type SystemTableBinding struct {
+	ID       int    `json:"id"`
+	Name     string `json:"name"`
+	IsActive bool   `json:"is_active"`
+}
+
+// SystemTableUsage -- организации и компании, привязанные к таблице.
+// Набор совпадает с тем, что блокирует удаление (см. Delete).
+type SystemTableUsage struct {
+	Organizations []SystemTableBinding `json:"organizations"`
+	Companies     []SystemTableBinding `json:"companies"`
+}
+
+// SystemTableDetachResult -- сколько привязок снято операцией «Отвязать всё».
+type SystemTableDetachResult struct {
+	OrganizationsDetached int `json:"organizations_detached"`
+	CompaniesDetached     int `json:"companies_detached"`
 }
 
 // SystemTableServiceOption конфигурирует systemTableService при создании.
@@ -84,6 +113,7 @@ func NewSystemTableService(db *gorm.DB, uploadDir string, maxFileSize int64, per
 		uploadDir:   uploadDir,
 		maxFileSize: maxFileSize,
 		permSvc:     permSvc,
+		recorder:    NewAuditRecorder(db),
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -687,6 +717,118 @@ func (s *systemTableService) Delete(ctx context.Context, id int) error {
 	slog.Info("системная таблица удалена (мягко)", "id", id)
 	s.notifyTablesChanged(ctx)
 	return nil
+}
+
+// loadTableNameForBinding возвращает человекочитаемое имя таблицы (display_name
+// с фолбэком на name - то же, что пишет в аудит набора UpdateOrganizationTables)
+// и признак существования. Активность таблицы не проверяется: гейт Delete тоже
+// её не смотрит, привязки держат таблицу независимо от архивности.
+func (s *systemTableService) loadTableNameForBinding(ctx context.Context, id int) (string, bool) {
+	var t models.SystemTable
+	if err := s.db.WithContext(ctx).Select("display_name", "name").Where("id = ?", id).First(&t).Error; err != nil {
+		return "", false
+	}
+	if t.DisplayName != nil && *t.DisplayName != "" {
+		return *t.DisplayName, true
+	}
+	return t.Name, true
+}
+
+// GetUsage возвращает организации и компании, привязанные к таблице. Junction
+// читается БЕЗ фильтра is_active орг/компании: набор обязан совпадать с тем, что
+// считает гейт в Delete, иначе получилось бы «привязок нет», а удалить нельзя.
+// Архивные орг/компании помечаются is_active=false.
+func (s *systemTableService) GetUsage(ctx context.Context, id int) (*SystemTableUsage, error) {
+	if _, ok := s.loadTableNameForBinding(ctx, id); !ok {
+		return nil, echo.NewHTTPError(http.StatusNotFound, "Системная таблица не найдена")
+	}
+
+	usage := &SystemTableUsage{
+		Organizations: make([]SystemTableBinding, 0),
+		Companies:     make([]SystemTableBinding, 0),
+	}
+	if err := s.db.WithContext(ctx).
+		Table("organization_tables ot").
+		Select("o.id, o.name, o.is_active").
+		Joins("JOIN organizations o ON o.id = ot.organization_id").
+		Where("ot.table_id = ?", id).
+		Order("o.name").
+		Scan(&usage.Organizations).Error; err != nil {
+		slog.Error("не удалось прочитать привязки организаций таблицы", "id", id, "error", err)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching organization bindings")
+	}
+	if err := s.db.WithContext(ctx).
+		Table("companies_tables ct").
+		Select("c.id, c.name, c.is_active").
+		Joins("JOIN companies c ON c.id = ct.company_id").
+		Where("ct.table_id = ?", id).
+		Order("c.name").
+		Scan(&usage.Companies).Error; err != nil {
+		slog.Error("не удалось прочитать привязки компаний таблицы", "id", id, "error", err)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching company bindings")
+	}
+	return usage, nil
+}
+
+// DetachAll снимает привязки таблицы ко ВСЕМ организациям и компаниям (обе
+// join-таблицы удаляются в одной транзакции). На каждую затронутую
+// организацию/компанию пишется история «таблица убрана из набора» - зеркало
+// аудита UpdateOrganizationTables/UpdateTables. После этого таблицу можно
+// архивировать (Delete больше не заблокирует). Идемпотентно: повтор по уже
+// отвязанной таблице возвращает нулевые счётчики.
+func (s *systemTableService) DetachAll(ctx context.Context, callerUserID, id int) (*SystemTableDetachResult, error) {
+	name, ok := s.loadTableNameForBinding(ctx, id)
+	if !ok {
+		return nil, echo.NewHTTPError(http.StatusNotFound, "Системная таблица не найдена")
+	}
+
+	// DELETE ... RETURNING внутри одной транзакции: удаляем привязки и получаем
+	// id ровно затронутых сущностей атомарно. Отдельный SELECT-перед-DELETE дал бы
+	// гонку - конкурентная привязка попала бы под DELETE, но мимо аудита.
+	var orgIDs, companyIDs []int
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var removedOrgs []models.OrganizationTable
+		if err := tx.Clauses(clause.Returning{Columns: []clause.Column{{Name: "organization_id"}}}).
+			Where("table_id = ?", id).Delete(&removedOrgs).Error; err != nil {
+			slog.Error("не удалось отвязать организации от таблицы", "id", id, "error", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error detaching organizations")
+		}
+		var removedCompanies []models.CompaniesTable
+		if err := tx.Clauses(clause.Returning{Columns: []clause.Column{{Name: "company_id"}}}).
+			Where("table_id = ?", id).Delete(&removedCompanies).Error; err != nil {
+			slog.Error("не удалось отвязать компании от таблицы", "id", id, "error", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error detaching companies")
+		}
+		for _, r := range removedOrgs {
+			orgIDs = append(orgIDs, r.OrganizationID)
+		}
+		for _, r := range removedCompanies {
+			companyIDs = append(companyIDs, r.CompanyID)
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	if len(orgIDs) == 0 && len(companyIDs) == 0 {
+		return &SystemTableDetachResult{}, nil
+	}
+
+	removed := auditNameDiff{Removed: []string{name}}
+	for _, orgID := range orgIDs {
+		oid := orgID
+		s.recorder.Log(ctx, nil, models.AuditEntityOrganization, &oid, models.OrganizationActionTablesChanged, &callerUserID, removed)
+	}
+	for _, companyID := range companyIDs {
+		cid := companyID
+		s.recorder.Log(ctx, nil, models.AuditEntityCompany, &cid, models.CompanyActionTablesChanged, &callerUserID, removed)
+	}
+
+	slog.Info("таблица отвязана от всех орг/компаний", "id", id, "orgs", len(orgIDs), "companies", len(companyIDs))
+	return &SystemTableDetachResult{
+		OrganizationsDetached: len(orgIDs),
+		CompaniesDetached:     len(companyIDs),
+	}, nil
 }
 
 // Restore восстанавливает мягко удалённую системную таблицу (is_active=false -> true).

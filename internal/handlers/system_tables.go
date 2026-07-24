@@ -278,6 +278,56 @@ func (h *SystemTableHandler) Restore(c echo.Context) error {
 	return RespondMessage(c, "Системная таблица восстановлена")
 }
 
+// GetUsage возвращает организации и компании, привязанные к таблице.
+// @Summary      Привязки системной таблицы
+// @Description  Организации и компании, к которым привязана таблица (те же, что блокируют удаление)
+// @Tags         system-tables
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID таблицы"
+// @Success      200 {object} services.SystemTableUsage
+// @Failure      401 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /system-tables/{id}/usage [get]
+func (h *SystemTableHandler) GetUsage(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	usage, err := h.service.GetUsage(c.Request().Context(), id)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, usage)
+}
+
+// DetachAll снимает привязки таблицы ко всем организациям и компаниям.
+// @Summary      Отвязать таблицу от всех организаций и компаний
+// @Description  Разом снимает все привязки таблицы к организациям/компаниям (с записью в историю каждой). После этого таблицу можно архивировать
+// @Tags         system-tables
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID таблицы"
+// @Success      200 {object} services.SystemTableDetachResult
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /system-tables/{id}/detach-all [post]
+func (h *SystemTableHandler) DetachAll(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	userID, _ := c.Get("user_id").(int)
+	res, err := h.service.DetachAll(c.Request().Context(), userID, id)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, res)
+}
+
 // logBulkResult пишет запись аудита для каждого id из запроса, для которого
 // групповая операция реально прошла успешно (нет в res.Errors). Аудит для
 // системных таблиц живёт в handler-слое (см. logAction), а не в сервисе (как
