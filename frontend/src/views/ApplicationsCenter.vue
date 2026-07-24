@@ -3363,14 +3363,14 @@ export default {
     background-color: #fff5e0;
 }
 
-/* Заявка с обновлённым статусом (#1349): мягкий голубой фон + пульс-точка на бейдже.
+/* Заявка с обновлённым статусом (#1349): мягкий фиолетовый фон + пульс-точка на бейдже.
    Взаимоисключимо с .unread (флаг показываем только у прочитанных), поэтому фоны не
    конфликтуют. Ставим после hover-правил, чтобы подсветка держалась и при наведении. */
 .application-item.status-updated {
-    background-color: #dbeafe;
+    background-color: #ede9fe;
     /* Левая полоса-акцент (inset - без reflow): заметный сигнал "обновление" даже там,
        где мягкого фона мало (мобильная карточка, где точка статуса скрыта). */
-    box-shadow: inset 3px 0 0 0 #2b8bf2;
+    box-shadow: inset 3px 0 0 0 #7c3aed;
 }
 
 .status-badge-wrap {
@@ -3385,7 +3385,7 @@ export default {
     width: 9px;
     height: 9px;
     border-radius: 50%;
-    background-color: #2b8bf2;
+    background-color: #7c3aed;
     box-shadow: 0 0 0 2px #fff;
 }
 
@@ -3394,7 +3394,7 @@ export default {
     position: absolute;
     inset: 0;
     border-radius: 50%;
-    background-color: #2b8bf2;
+    background-color: #7c3aed;
     animation: statusUpdatePulse 1.6s ease-out infinite;
 }
 
