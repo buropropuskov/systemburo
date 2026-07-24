@@ -3,6 +3,7 @@ package handlers_test
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"testing"
 	"time"
 
@@ -220,10 +221,10 @@ func TestLogin_NonexistentUser(t *testing.T) {
 	rec := testutil.POST(t, e, "/login", body, nil)
 
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
-	// Тот же текст, что и при неверном пароле (единый ответ), но БЕЗ заголовка
-	// счётчика - иначе по нему можно было бы отличить существующий логин.
 	assert.Contains(t, rec.Body.String(), "Неверный логин или пароль")
-	assert.Empty(t, rec.Header().Get("X-Auth-Attempts-Remaining"))
+	// Несуществующий логин ТОЖЕ получает счётчик (per-IP guard) - тот же ответ, что
+	// и для существующего, иначе по наличию счётчика можно перебирать имена.
+	assert.Equal(t, "9", rec.Header().Get("X-Auth-Attempts-Remaining"))
 }
 
 // --- POST /refresh-token ---
@@ -569,7 +570,7 @@ func TestLogin_SuccessResetsFailedCounter(t *testing.T) {
 	assert.Nil(t, user.LockedUntil)
 }
 
-func TestLogin_LocksAccountAfter10FailedAttempts(t *testing.T) {
+func TestLogin_BlocksAfter10FailedAttempts(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
@@ -577,23 +578,37 @@ func TestLogin_LocksAccountAfter10FailedAttempts(t *testing.T) {
 
 	testutil.RegisterUser(t, e, "lockme", "correctpass", 1, td.OrgID, td.CompanyID)
 
-	// Напрямую через БД выставляем счётчик в 9 - следующая неудача залочит.
-	// Это заодно обходит IP rate limiter (5 попыток/15м), не связанный с этим кейсом.
-	require.NoError(t, db.Model(&models.User{}).Where("username = ?", "lockme").
-		Update("failed_login_count", 9).Error)
+	// Попытки 1..9: счётчик убывает 9..1, статус 401.
+	for i := 1; i <= 9; i++ {
+		rec := testutil.POST(t, e, "/login", `{"username":"lockme","password":"wrong"}`, nil)
+		require.Equal(t, http.StatusUnauthorized, rec.Code, "попытка %d", i)
+		assert.Equal(t, strconv.Itoa(10-i), rec.Header().Get("X-Auth-Attempts-Remaining"),
+			"остаток на попытке %d", i)
+	}
 
+	// 10-я попытка исчерпывает лимит - сразу таймер блокировки (429), а не "осталось 0".
 	rec := testutil.POST(t, e, "/login", `{"username":"lockme","password":"wrong"}`, nil)
-	// На попытке, исчерпавшей лимит, сразу таймер блокировки (429), а не "осталось 0" (401).
 	require.Equal(t, http.StatusTooManyRequests, rec.Code)
-	assert.NotEmpty(t, rec.Header().Get("Retry-After"), "на 10-й неудаче сразу таймер блокировки")
+	assert.NotEmpty(t, rec.Header().Get("Retry-After"), "на 10-й неудаче сразу таймер")
+	assert.Empty(t, rec.Header().Get("X-Auth-Attempts-Remaining"), "при блокировке счётчик не отдаём")
+}
 
-	var user models.User
-	require.NoError(t, db.Where("username = ?", "lockme").First(&user).Error)
-	assert.Equal(t, 10, user.FailedLoginCount)
-	require.NotNil(t, user.LockedUntil, "после 10 неудач учётка залочена")
-	assert.True(t, user.LockedUntil.After(time.Now()), "учётка залочена в будущее")
-	assert.True(t, user.LockedUntil.Before(time.Now().Add(2*time.Minute)),
-		"lock примерно на 1 минуту")
+// TestLogin_NonexistentUserAlsoBlocks - несуществующий логин ведёт тот же per-IP
+// счётчик и так же блокируется (единое поведение, не палит существование логина).
+func TestLogin_NonexistentUserAlsoBlocks(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+
+	for i := 1; i <= 9; i++ {
+		rec := testutil.POST(t, e, "/login", `{"username":"ghost","password":"x"}`, nil)
+		require.Equal(t, http.StatusUnauthorized, rec.Code, "попытка %d", i)
+		assert.Equal(t, strconv.Itoa(10-i), rec.Header().Get("X-Auth-Attempts-Remaining"),
+			"счётчик и для несуществующего логина, попытка %d", i)
+	}
+	rec := testutil.POST(t, e, "/login", `{"username":"ghost","password":"x"}`, nil)
+	assert.Equal(t, http.StatusTooManyRequests, rec.Code, "несуществующий логин тоже блокируется")
+	assert.NotEmpty(t, rec.Header().Get("Retry-After"))
 }
 
 // TestLogin_ExpiredLockResetsCounter - после истечения блокировки счётчик неудач

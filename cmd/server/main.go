@@ -297,12 +297,11 @@ func main() {
 
 	api.SetMaxLimit(cfg.PaginationMaxLimit)
 
-	// /login - отдельный per-IP rate limiter, по умолчанию 5 попыток / 15 минут.
-	// Защита от онлайн brute-force до попадания в Argon2id (который замедляет
-	// только офлайн-атаки). Дополняется per-user lockout в authService.Login.
-	// Лимиты конфигурируемы через LOGIN_RATE_LIMIT_MAX и LOGIN_RATE_LIMIT_WINDOW_SEC
-	// (повышаем в CI/e2e чтобы серия тестов не упёрлась в лимит).
-	loginLimiter := mw.LoginRateLimit(cfg.LoginRateLimitMax, time.Duration(cfg.LoginRateLimitWindowSec)*time.Second)
+	// Rate-limit входа теперь ведёт единый per-IP счётчик в authService.loginGuard:
+	// он показывает остаток попыток для любого логина и блокирует на минуту от момента
+	// исчерпания. Отдельный middleware больше не нужен (иначе его sliding-остаток
+	// перехватывал бы таймер guard). Оставляем nil - router просто не навесит его.
+	var loginLimiter echo.MiddlewareFunc
 	maintenanceBlock := mw.MaintenanceBlock(maintenanceService)
 	banCheck := mw.BanCheck(banCheckService)
 	lastSeen := mw.LastSeen(db)

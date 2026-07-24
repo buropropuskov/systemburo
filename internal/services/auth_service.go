@@ -61,6 +61,7 @@ type authService struct {
 	jwtRefreshSecret []byte
 	accessTTL        time.Duration
 	refreshTTL       time.Duration
+	loginGuard       *loginGuard
 }
 
 // NewAuthService создаёт сервис аутентификации с JWT-секретами и TTL токенов.
@@ -73,6 +74,9 @@ func NewAuthService(db *gorm.DB, jwtSecret, jwtRefreshSecret string, accessTTL, 
 		jwtRefreshSecret: []byte(jwtRefreshSecret),
 		accessTTL:        accessTTL,
 		refreshTTL:       refreshTTL,
+		// Единый per-IP счётчик попыток входа: одинаков для существующих и
+		// несуществующих логинов (счётчик показывается всегда, не палит существование).
+		loginGuard: newLoginGuard(maxFailedLoginsBeforeLock, loginFailureWindow, accountLockDuration),
 	}
 }
 
@@ -183,8 +187,37 @@ const (
 	refreshReuseGraceWindow = 10 * time.Second
 )
 
+// loginFailureResponse формирует ответ на неудачную попытку входа через per-IP
+// счётчик: 401 с остатком попыток ("Осталось попыток: N") либо, если попытка
+// исчерпала лимит, сразу 429 с таймером блокировки (без промежуточного "осталось 0").
+func (s *authService) loginFailureResponse(ip string) error {
+	remaining, blockedSec, blocked := s.loginGuard.recordFailure(ip)
+	if blocked {
+		return apperr.TooManyRequests(
+			fmt.Sprintf("Слишком много попыток. Вход заблокирован на %d секунд.", blockedSec)).
+			WithHeader("Retry-After", strconv.Itoa(blockedSec))
+	}
+	return apperr.Unauthorized("Неверный логин или пароль").
+		WithHeader("X-Auth-Attempts-Remaining", strconv.Itoa(remaining))
+}
+
 // Login выполняет аутентификацию пользователя и возвращает пару токенов.
 func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *RequestMeta) (*models.LoginResponse, error) {
+	ip := ""
+	if meta != nil {
+		ip = meta.IPAddress
+	}
+
+	// IP заблокирован за перебор - сразу таймер, ещё до обращения к БД. Единый
+	// per-IP счётчик работает одинаково для существующих и несуществующих логинов.
+	if sec, blocked := s.loginGuard.blockedSeconds(ip); blocked {
+		s.recordAuthEvent(ctx, nil, req.Username, models.AuthEventLoginLocked, false, meta,
+			fmt.Sprintf("ip locked for %ds", sec))
+		return nil, apperr.TooManyRequests(
+			fmt.Sprintf("Слишком много попыток входа. Повторите через %d секунд.", sec)).
+			WithHeader("Retry-After", strconv.Itoa(sec))
+	}
+
 	var user models.User
 	err := s.db.WithContext(ctx).
 		Preload("Organization").
@@ -194,9 +227,9 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *
 		First(&user).Error
 	if err != nil {
 		s.recordAuthEvent(ctx, nil, req.Username, models.AuthEventLoginFailed, false, meta, "user not found")
-		// Тот же текст, что и при неверном пароле: различие только в отсутствии
-		// заголовка X-Auth-Attempts-Remaining (счётчика для несуществующего нет).
-		return nil, echo.NewHTTPError(http.StatusUnauthorized, "Неверный логин или пароль")
+		// Счётчик показываем и для несуществующего логина (тот же ответ, что и при
+		// неверном пароле) - иначе по наличию счётчика можно перебирать имена.
+		return nil, s.loginFailureResponse(ip)
 	}
 
 	// Учётка заблокирована - не разрешаем попытки (даже с правильным паролем),
@@ -228,23 +261,11 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *
 	}
 
 	if !verifyPassword(user.Password, req.Password) {
+		// registerFailedLogin ведёт per-user счётчик - бэкстоп от distributed
+		// brute-force (атака с разных IP, которую per-IP guard не ловит).
 		s.registerFailedLogin(ctx, &user)
-		remaining := maxFailedLoginsBeforeLock - user.FailedLoginCount
-		if remaining <= 0 {
-			// Попытки исчерпаны: registerFailedLogin уже залочил учётку. Сразу отдаём
-			// таймер блокировки (ровно 1 минута от этого момента), а НЕ "осталось 0":
-			// ноль попыток - это уже блокировка, а не ещё одна попытка.
-			lockSec := int(accountLockDuration.Seconds())
-			s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventLoginLocked, false, meta,
-				fmt.Sprintf("locked for %ds", lockSec))
-			return nil, apperr.TooManyRequests(
-				fmt.Sprintf("Слишком много попыток. Вход заблокирован на %d секунд.", lockSec)).
-				WithHeader("Retry-After", strconv.Itoa(lockSec))
-		}
 		s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventLoginFailed, false, meta, "wrong password")
-		// Отдаём остаток попыток до блокировки, чтобы фронт показал "Осталось попыток: N".
-		return nil, apperr.Unauthorized("Неверный логин или пароль").
-			WithHeader("X-Auth-Attempts-Remaining", strconv.Itoa(remaining))
+		return nil, s.loginFailureResponse(ip)
 	}
 
 	// Архивная учётка (is_active=false): пароль верный, аутентификация прошла,
@@ -254,8 +275,9 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *
 		return nil, echo.NewHTTPError(http.StatusForbidden, "Учётная запись отключена. Обратитесь к администратору.")
 	}
 
-	// Успешный вход - сбрасываем счётчик неудачных попыток и lock.
+	// Успешный вход - сбрасываем счётчик неудачных попыток и lock (и per-IP, и per-user).
 	// Также апдейтим last_login_at для аудита активности.
+	s.loginGuard.reset(ip)
 	now := time.Now().UTC()
 	updates := map[string]interface{}{"last_login_at": now}
 	if user.FailedLoginCount > 0 || user.LockedUntil != nil {
