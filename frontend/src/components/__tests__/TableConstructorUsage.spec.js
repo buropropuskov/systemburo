@@ -57,17 +57,16 @@ function mountConstructor(list = [seedTable()]) {
   })
 }
 
-// Выбрать таблицу и открыть вкладку «Привязки» (watch грузит usage лениво).
-async function openUsageTab(wrapper, table = seedTable()) {
+// Блок привязок теперь на вкладке «Основное» — usage грузится при выборе таблицы
+// (watch по selectedTable.table.id), отдельной вкладки «Привязки» больше нет.
+async function selectTableWithUsage(wrapper, table = seedTable()) {
   await wrapper.vm.selectTable(table)
-  await flushPromises()
-  wrapper.vm.activeTab = 'usage'
   await flushPromises()
 }
 
 const detachBtn = w => w.find('.detach-all-btn')
 
-describe('TableConstructor — вкладка «Привязки» (usage/detach-all)', () => {
+describe('TableConstructor — блок «Привязки» на вкладке «Основное» (usage/detach-all)', () => {
   let wrapper
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -75,7 +74,7 @@ describe('TableConstructor — вкладка «Привязки» (usage/detach
   })
   afterEach(() => wrapper?.unmount())
 
-  it('вкладка грузит и рендерит организации/компании, архивные помечены (архив)', async () => {
+  it('блок грузит и рендерит организации/компании, архивные помечены (архив)', async () => {
     systemTablesApi.getSystemTableUsage.mockResolvedValue({
       organizations: [
         { id: 1, name: 'ООО Ромашка', is_active: true },
@@ -85,7 +84,7 @@ describe('TableConstructor — вкладка «Привязки» (usage/detach
     })
     wrapper = mountConstructor()
     await flushPromises()
-    await openUsageTab(wrapper)
+    await selectTableWithUsage(wrapper)
 
     expect(systemTablesApi.getSystemTableUsage).toHaveBeenCalledWith(7)
     const items = wrapper.findAll('.usage-item')
@@ -100,6 +99,19 @@ describe('TableConstructor — вкладка «Привязки» (usage/detach
     expect(wrapper.text()).toContain('Компании: 1')
   })
 
+  it('правка поля той же таблицы (id не меняется) не перезагружает привязки', async () => {
+    systemTablesApi.getSystemTableUsage.mockResolvedValue({ organizations: [], companies: [] })
+    wrapper = mountConstructor()
+    await flushPromises()
+    await selectTableWithUsage(wrapper)
+    expect(systemTablesApi.getSystemTableUsage).toHaveBeenCalledTimes(1)
+
+    // Правка поля той же таблицы (id тот же) — watch по id не срабатывает, usage не перезапрашивается.
+    wrapper.vm.selectedTable.table.display_name = 'ПОСТ №72 (изм.)'
+    await flushPromises()
+    expect(systemTablesApi.getSystemTableUsage).toHaveBeenCalledTimes(1)
+  })
+
   it('кнопка «Отвязать всё» скрыта без права page.admin, видна с ним', async () => {
     systemTablesApi.getSystemTableUsage.mockResolvedValue({
       organizations: [{ id: 1, name: 'ООО Ромашка', is_active: true }],
@@ -108,7 +120,7 @@ describe('TableConstructor — вкладка «Привязки» (usage/detach
     wrapper = mountConstructor()
     await flushPromises()
     // mode по умолчанию 'normal' -> hasPermission('page.admin') === false
-    await openUsageTab(wrapper)
+    await selectTableWithUsage(wrapper)
     expect(detachBtn(wrapper).exists()).toBe(false)
 
     usePermissionsStore().mode = 'super'
@@ -121,7 +133,7 @@ describe('TableConstructor — вкладка «Привязки» (usage/detach
     wrapper = mountConstructor()
     await flushPromises()
     usePermissionsStore().mode = 'super'
-    await openUsageTab(wrapper)
+    await selectTableWithUsage(wrapper)
     expect(detachBtn(wrapper).exists()).toBe(false)
     expect(wrapper.text()).toContain('Нет привязанных организаций')
     expect(wrapper.text()).toContain('Нет привязанных компаний')
@@ -138,7 +150,7 @@ describe('TableConstructor — вкладка «Привязки» (usage/detach
     wrapper = mountConstructor()
     await flushPromises()
     usePermissionsStore().mode = 'super'
-    await openUsageTab(wrapper)
+    await selectTableWithUsage(wrapper)
     const notify = vi.spyOn(useDeletionsStore(), 'notify')
 
     await wrapper.vm.performDetachAll()
@@ -162,7 +174,7 @@ describe('TableConstructor — вкладка «Привязки» (usage/detach
     wrapper = mountConstructor()
     await flushPromises()
     usePermissionsStore().mode = 'super'
-    await openUsageTab(wrapper)
+    await selectTableWithUsage(wrapper)
     const notify = vi.spyOn(useDeletionsStore(), 'notify')
 
     await wrapper.vm.performDetachAll()
@@ -186,17 +198,13 @@ describe('TableConstructor — вкладка «Привязки» (usage/detach
     await flushPromises()
     usePermissionsStore().mode = 'super'
 
-    // Таблица A с привязками -> кнопка «Отвязать всё» видна.
+    // Таблица A с привязками -> кнопка «Отвязать всё» видна (usage грузится при выборе).
     await wrapper.vm.selectTable(seedTable({ id: 7 }))
-    await flushPromises()
-    wrapper.vm.activeTab = 'usage'
     await flushPromises()
     expect(detachBtn(wrapper).exists()).toBe(true)
 
     // Переключились на таблицу B, её привязки ещё не приехали (запрос висит).
     await wrapper.vm.selectTable(seedTable({ id: 8, name: 'post99', display_name: 'ПОСТ №99' }))
-    await flushPromises()
-    wrapper.vm.activeTab = 'usage'
     await flushPromises()
     expect(wrapper.vm.usageLoading).toBe(true)
     expect(wrapper.vm.usage.organizations).toHaveLength(0) // не осталось цифр таблицы A
@@ -212,7 +220,7 @@ describe('TableConstructor — вкладка «Привязки» (usage/detach
     systemTablesApi.getSystemTableUsage.mockRejectedValue(new Error('Сервер недоступен'))
     wrapper = mountConstructor()
     await flushPromises()
-    await openUsageTab(wrapper)
+    await selectTableWithUsage(wrapper)
 
     expect(wrapper.find('.usage-state--error').exists()).toBe(true)
     expect(wrapper.find('.usage-state--error').text()).toBe('Сервер недоступен')

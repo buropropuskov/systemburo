@@ -37,17 +37,16 @@ function mountContainer(list = seedPlaces()) {
   })
 }
 
-// Выбрать место и открыть вкладку «Привязки» (watch грузит usage лениво).
-async function openUsageTab(wrapper) {
+// Блок привязок теперь на вкладке «Основное» — usage грузится при выборе места
+// (watch по selectedPlace.id), отдельной вкладки «Привязки» больше нет.
+async function selectPlaceWithUsage(wrapper) {
   wrapper.vm.selectPlace({ id: 7, name: 'Alpha', is_active: true })
-  await flushPromises()
-  wrapper.vm.activeTab = 'usage'
   await flushPromises()
 }
 
 const detachBtn = w => w.find('.detach-all-btn')
 
-describe('UnloadPlacesContainer — вкладка «Привязки» (usage/detach-all)', () => {
+describe('UnloadPlacesContainer — блок «Привязки» на вкладке «Основное» (usage/detach-all)', () => {
   let wrapper
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -55,7 +54,7 @@ describe('UnloadPlacesContainer — вкладка «Привязки» (usage/d
   })
   afterEach(() => wrapper?.unmount())
 
-  it('вкладка грузит и рендерит организации/компании, архивные помечены (архив)', async () => {
+  it('блок грузит и рендерит организации/компании, архивные помечены (архив)', async () => {
     unloadPlacesApi.getUnloadPlaceUsage.mockResolvedValue({
       organizations: [
         { id: 1, name: 'ООО Ромашка', is_active: true },
@@ -65,7 +64,7 @@ describe('UnloadPlacesContainer — вкладка «Привязки» (usage/d
     })
     wrapper = mountContainer()
     await flushPromises()
-    await openUsageTab(wrapper)
+    await selectPlaceWithUsage(wrapper)
 
     expect(unloadPlacesApi.getUnloadPlaceUsage).toHaveBeenCalledWith(7)
     const items = wrapper.findAll('.usage-item')
@@ -80,6 +79,19 @@ describe('UnloadPlacesContainer — вкладка «Привязки» (usage/d
     expect(wrapper.text()).toContain('Компании: 1')
   })
 
+  it('правка поля того же места (id не меняется) не перезагружает привязки', async () => {
+    unloadPlacesApi.getUnloadPlaceUsage.mockResolvedValue({ organizations: [], companies: [] })
+    wrapper = mountContainer()
+    await flushPromises()
+    await selectPlaceWithUsage(wrapper)
+    expect(unloadPlacesApi.getUnloadPlaceUsage).toHaveBeenCalledTimes(1)
+
+    // Правка поля того же места (id тот же) — watch по id не срабатывает, usage не перезапрашивается.
+    wrapper.vm.selectedPlace.name = 'Alpha (изм.)'
+    await flushPromises()
+    expect(unloadPlacesApi.getUnloadPlaceUsage).toHaveBeenCalledTimes(1)
+  })
+
   it('кнопка «Отвязать всё» скрыта без права page.admin, видна с ним', async () => {
     unloadPlacesApi.getUnloadPlaceUsage.mockResolvedValue({
       organizations: [{ id: 1, name: 'ООО Ромашка', is_active: true }],
@@ -88,7 +100,7 @@ describe('UnloadPlacesContainer — вкладка «Привязки» (usage/d
     wrapper = mountContainer()
     await flushPromises()
     // mode по умолчанию 'normal' -> hasPermission('page.admin') === false
-    await openUsageTab(wrapper)
+    await selectPlaceWithUsage(wrapper)
     expect(detachBtn(wrapper).exists()).toBe(false)
 
     usePermissionsStore().mode = 'super'
@@ -101,7 +113,7 @@ describe('UnloadPlacesContainer — вкладка «Привязки» (usage/d
     wrapper = mountContainer()
     await flushPromises()
     usePermissionsStore().mode = 'super'
-    await openUsageTab(wrapper)
+    await selectPlaceWithUsage(wrapper)
     expect(detachBtn(wrapper).exists()).toBe(false)
     expect(wrapper.text()).toContain('Нет привязанных организаций')
     expect(wrapper.text()).toContain('Нет привязанных компаний')
@@ -118,7 +130,7 @@ describe('UnloadPlacesContainer — вкладка «Привязки» (usage/d
     wrapper = mountContainer()
     await flushPromises()
     usePermissionsStore().mode = 'super'
-    await openUsageTab(wrapper)
+    await selectPlaceWithUsage(wrapper)
     const notify = vi.spyOn(useDeletionsStore(), 'notify')
 
     await wrapper.vm.performDetachAll()
@@ -142,7 +154,7 @@ describe('UnloadPlacesContainer — вкладка «Привязки» (usage/d
     wrapper = mountContainer()
     await flushPromises()
     usePermissionsStore().mode = 'super'
-    await openUsageTab(wrapper)
+    await selectPlaceWithUsage(wrapper)
     const notify = vi.spyOn(useDeletionsStore(), 'notify')
 
     await wrapper.vm.performDetachAll()
@@ -166,17 +178,13 @@ describe('UnloadPlacesContainer — вкладка «Привязки» (usage/d
     await flushPromises()
     usePermissionsStore().mode = 'super'
 
-    // Место A с привязками -> кнопка «Отвязать всё» видна.
+    // Место A с привязками -> кнопка «Отвязать всё» видна (usage грузится при выборе).
     wrapper.vm.selectPlace({ id: 7, name: 'Alpha', is_active: true })
-    await flushPromises()
-    wrapper.vm.activeTab = 'usage'
     await flushPromises()
     expect(detachBtn(wrapper).exists()).toBe(true)
 
     // Переключились на место B, его привязки ещё не приехали (запрос висит).
     wrapper.vm.selectPlace({ id: 8, name: 'Beta', is_active: true })
-    await flushPromises()
-    wrapper.vm.activeTab = 'usage'
     await flushPromises()
     expect(wrapper.vm.usageLoading).toBe(true)
     expect(wrapper.vm.usage.organizations).toHaveLength(0) // не осталось цифр места A
@@ -192,7 +200,7 @@ describe('UnloadPlacesContainer — вкладка «Привязки» (usage/d
     unloadPlacesApi.getUnloadPlaceUsage.mockRejectedValue(new Error('Сервер недоступен'))
     wrapper = mountContainer()
     await flushPromises()
-    await openUsageTab(wrapper)
+    await selectPlaceWithUsage(wrapper)
 
     expect(wrapper.find('.usage-state--error').exists()).toBe(true)
     expect(wrapper.find('.usage-state--error').text()).toBe('Сервер недоступен')
