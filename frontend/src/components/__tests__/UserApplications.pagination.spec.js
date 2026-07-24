@@ -17,6 +17,7 @@ vi.mock('@/api/client', () => ({ apiRequest: vi.fn() }));
 vi.mock('@/api/applications', () => ({
   getUserApplicationsPaginated: vi.fn(),
   getApplicationById: vi.fn(),
+  getUserStatusUpdatesCount: vi.fn(() => Promise.resolve({ status_updates: 0 })),
 }));
 
 const stubs = {

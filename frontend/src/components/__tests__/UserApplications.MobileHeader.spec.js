@@ -9,6 +9,7 @@ vi.mock('@/api/client', () => ({
 vi.mock('@/api/applications', () => ({
   getUserApplicationsPaginated: vi.fn(() => Promise.resolve({ items: [], meta: { total: 0, page: 1, per_page: 30 } })),
   getApplicationById: vi.fn(() => Promise.resolve({ message: 'Не найдена' })),
+  getUserStatusUpdatesCount: vi.fn(() => Promise.resolve({ status_updates: 0 })),
 }));
 
 import UserApplications from '../UserApplications.vue';
