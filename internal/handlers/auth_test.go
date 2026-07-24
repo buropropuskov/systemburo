@@ -583,7 +583,9 @@ func TestLogin_LocksAccountAfter10FailedAttempts(t *testing.T) {
 		Update("failed_login_count", 9).Error)
 
 	rec := testutil.POST(t, e, "/login", `{"username":"lockme","password":"wrong"}`, nil)
-	require.Equal(t, http.StatusUnauthorized, rec.Code)
+	// На попытке, исчерпавшей лимит, сразу таймер блокировки (429), а не "осталось 0" (401).
+	require.Equal(t, http.StatusTooManyRequests, rec.Code)
+	assert.NotEmpty(t, rec.Header().Get("Retry-After"), "на 10-й неудаче сразу таймер блокировки")
 
 	var user models.User
 	require.NoError(t, db.Where("username = ?", "lockme").First(&user).Error)
@@ -592,6 +594,33 @@ func TestLogin_LocksAccountAfter10FailedAttempts(t *testing.T) {
 	assert.True(t, user.LockedUntil.After(time.Now()), "учётка залочена в будущее")
 	assert.True(t, user.LockedUntil.Before(time.Now().Add(2*time.Minute)),
 		"lock примерно на 1 минуту")
+}
+
+// TestLogin_ExpiredLockResetsCounter - после истечения блокировки счётчик неудач
+// сбрасывается: новая неверная попытка даёт свежий цикл ("осталось 9"), а не
+// мгновенный ре-лок с "осталось 0".
+func TestLogin_ExpiredLockResetsCounter(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	testutil.RegisterUser(t, e, "trapme", "correctpass", 1, td.OrgID, td.CompanyID)
+
+	// Истёкшая блокировка + счётчик на пороге (состояние после отбытой минуты).
+	pastLock := time.Now().Add(-1 * time.Second)
+	require.NoError(t, db.Model(&models.User{}).Where("username = ?", "trapme").
+		Updates(map[string]interface{}{"locked_until": pastLock, "failed_login_count": 10}).Error)
+
+	rec := testutil.POST(t, e, "/login", `{"username":"trapme","password":"wrong"}`, nil)
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+	assert.Equal(t, "9", rec.Header().Get("X-Auth-Attempts-Remaining"),
+		"свежий цикл: 10 - 1 = 9, а не мгновенный ре-лок")
+
+	var user models.User
+	require.NoError(t, db.Where("username = ?", "trapme").First(&user).Error)
+	assert.Equal(t, 1, user.FailedLoginCount, "счётчик сброшен и инкрементнут на 1")
+	assert.Nil(t, user.LockedUntil, "не залочен заново")
 }
 
 func TestLogin_LockedAccountRejectsEvenCorrectPassword(t *testing.T) {
