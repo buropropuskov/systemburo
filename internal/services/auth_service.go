@@ -169,10 +169,11 @@ func hashRefreshToken(token string) string {
 // Пороги lockout-а учётки по количеству неверных попыток. Защита от distributed
 // brute-force когда атакующие идут с разных IP (IP-лимитер их не ловит, т.к.
 // счётчик per-IP, но счётчик per-username общий и копится от всех источников).
-// 10 попыток за любое время подряд без успеха -> lock на 30 минут.
+// 10 попыток подряд без успеха -> lock на 1 минуту (согласовано с окном
+// IP-лимитера входа, чтобы таймер блокировки был единым и коротким).
 const (
 	maxFailedLoginsBeforeLock = 10
-	accountLockDuration       = 30 * time.Minute
+	accountLockDuration       = 1 * time.Minute
 	// refreshReuseGraceWindow: окно, в течение которого только что отозванный
 	// refresh-токен НЕ считается reuse-атакой. Защита от ложного срабатывания
 	// при параллельных refresh из двух табов (общий cookie). Внутри окна -

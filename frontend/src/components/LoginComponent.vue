@@ -258,7 +258,7 @@ export default {
     },
     computed: {
         getButtonText() {
-            if (this.isCoolingDown) return `Подождите ${this.cooldownText}`;
+            if (this.isCoolingDown) return this.cooldownText;
             if (this.isLoading) return 'Вход...';
             if (this.isSuccess) return 'Успешно!';
             return 'Войти';
@@ -353,6 +353,7 @@ export default {
             this.elementsVisible = true;
         }, 100);
         useContactsStore().fetch();
+        this.restoreCooldown();
     },
     beforeUnmount() {
         if (this.animationTimeout) {
@@ -364,7 +365,12 @@ export default {
         if (this.notificationTimeout) {
             clearTimeout(this.notificationTimeout);
         }
-        this.clearCooldown();
+        // Останавливаем только интервал. localStorage НЕ чистим - блокировка должна
+        // пережить перезагрузку/размонтирование (restoreCooldown поднимет её заново).
+        if (this.cooldownTimer) {
+            clearInterval(this.cooldownTimer);
+            this.cooldownTimer = null;
+        }
     },
     methods: {
         handleMouseMove(e) {
@@ -413,6 +419,9 @@ export default {
             }
             this.cooldownSeconds = sec;
             this.showError = true;
+            // Персистим момент окончания: F5 не сбросит таймер и не даст обойти
+            // блокировку перезагрузкой (restoreCooldown поднимет остаток при mount).
+            localStorage.setItem('loginCooldownUntil', String(Date.now() + sec * 1000));
             this.cooldownTimer = setInterval(() => {
                 this.cooldownSeconds -= 1;
                 if (this.cooldownSeconds <= 0) {
@@ -429,6 +438,20 @@ export default {
                 this.cooldownTimer = null;
             }
             this.cooldownSeconds = 0;
+            localStorage.removeItem('loginCooldownUntil');
+        },
+
+        // restoreCooldown поднимает активную блокировку из localStorage при загрузке
+        // страницы - чтобы перезагрузка не обнуляла таймер и не открывала отправку.
+        restoreCooldown() {
+            const until = parseInt(localStorage.getItem('loginCooldownUntil'), 10);
+            if (!Number.isFinite(until)) return;
+            const remaining = Math.ceil((until - Date.now()) / 1000);
+            if (remaining > 0) {
+                this.startCooldown(remaining);
+            } else {
+                localStorage.removeItem('loginCooldownUntil');
+            }
         },
         
         showNotificationMessage(text) {

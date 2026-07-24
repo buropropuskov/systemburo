@@ -589,8 +589,9 @@ func TestLogin_LocksAccountAfter10FailedAttempts(t *testing.T) {
 	require.NoError(t, db.Where("username = ?", "lockme").First(&user).Error)
 	assert.Equal(t, 10, user.FailedLoginCount)
 	require.NotNil(t, user.LockedUntil, "после 10 неудач учётка залочена")
-	assert.True(t, user.LockedUntil.After(time.Now().Add(29*time.Minute)),
-		"lock примерно на 30 минут")
+	assert.True(t, user.LockedUntil.After(time.Now()), "учётка залочена в будущее")
+	assert.True(t, user.LockedUntil.Before(time.Now().Add(2*time.Minute)),
+		"lock примерно на 1 минуту")
 }
 
 func TestLogin_LockedAccountRejectsEvenCorrectPassword(t *testing.T) {

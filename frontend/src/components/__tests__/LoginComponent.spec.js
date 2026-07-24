@@ -43,6 +43,7 @@ async function submit(wrapper) {
 describe('LoginComponent — 401 счётчик попыток', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    localStorage.clear()
     vi.useFakeTimers()
   })
   afterEach(() => {
@@ -72,6 +73,7 @@ describe('LoginComponent — 401 счётчик попыток', () => {
 describe('LoginComponent — 429 таймер', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    localStorage.clear()
     vi.useFakeTimers()
   })
   afterEach(() => {
@@ -111,6 +113,47 @@ describe('LoginComponent — 429 таймер', () => {
     await submit(wrapper)
 
     expect(wrapper.vm.cooldownSeconds).toBe(60)
+    wrapper.unmount()
+  })
+
+  it('на кнопке входа только таймер MM:SS, без слова «Подождите»', async () => {
+    apiRequest.mockResolvedValue(resp(429, { 'Retry-After': '120' }))
+    const wrapper = mountLogin()
+    await submit(wrapper)
+
+    expect(wrapper.vm.getButtonText).toBe('2:00')
+    const btn = wrapper.find('[data-testid="login-button-submit"]')
+    expect(btn.text()).toBe('2:00')
+    expect(btn.text()).not.toContain('Подождите')
+    wrapper.unmount()
+  })
+
+  it('персистит кулдаун в localStorage и восстанавливает после перезагрузки (F5)', async () => {
+    apiRequest.mockResolvedValue(resp(429, { 'Retry-After': '120' }))
+    const w1 = mountLogin()
+    await submit(w1)
+    expect(localStorage.getItem('loginCooldownUntil')).toBeTruthy()
+    // unmount эмулирует уход со страницы - персист НЕ должен стереться.
+    w1.unmount()
+    expect(localStorage.getItem('loginCooldownUntil')).toBeTruthy()
+
+    // Новый монтаж (эмуляция F5): блокировка восстановлена, кнопка заблокирована.
+    const w2 = mountLogin()
+    await nextTick()
+    expect(w2.vm.isCoolingDown).toBe(true)
+    expect(w2.vm.cooldownSeconds).toBeGreaterThan(0)
+    expect(w2.find('[data-testid="login-button-submit"]').attributes('disabled')).toBeDefined()
+    w2.unmount()
+  })
+
+  it('истёкший кулдаун в localStorage не блокирует новый вход', async () => {
+    // Просроченная метка (в прошлом) должна игнорироваться и очищаться.
+    localStorage.setItem('loginCooldownUntil', String(Date.now() - 5000))
+    const wrapper = mountLogin()
+    await nextTick()
+
+    expect(wrapper.vm.isCoolingDown).toBe(false)
+    expect(localStorage.getItem('loginCooldownUntil')).toBeNull()
     wrapper.unmount()
   })
 })
