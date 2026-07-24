@@ -2,13 +2,24 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 
 const getDocument = vi.fn();
-const GlobalWorkerOptions = { workerSrc: '' };
+const GlobalWorkerOptions = { workerPort: null };
 
 vi.mock('pdfjs-dist', () => ({
   getDocument: (...a) => getDocument(...a),
   GlobalWorkerOptions,
 }));
-vi.mock('pdfjs-dist/build/pdf.worker.min.mjs?url', () => ({ default: 'worker-url' }));
+// ?worker отдаёт конструктор Worker - подменяем безобидной заглушкой.
+vi.mock('pdfjs-dist/build/pdf.worker.min.mjs?worker', () => ({
+  default: class {
+    postMessage() {}
+
+    terminate() {}
+
+    addEventListener() {}
+
+    removeEventListener() {}
+  },
+}));
 
 import PdfDocumentViewer from '../PdfDocumentViewer.vue';
 
@@ -30,7 +41,7 @@ function makeBlob() {
 describe('PdfDocumentViewer', () => {
   beforeEach(() => {
     getDocument.mockReset();
-    GlobalWorkerOptions.workerSrc = '';
+    GlobalWorkerOptions.workerPort = null;
   });
 
   it('рендерит по canvas на каждую страницу PDF и настраивает воркер', async () => {
@@ -40,7 +51,7 @@ describe('PdfDocumentViewer', () => {
     await flushPromises();
 
     expect(getDocument).toHaveBeenCalledTimes(1);
-    expect(GlobalWorkerOptions.workerSrc).toBe('worker-url');
+    expect(GlobalWorkerOptions.workerPort).toBeTruthy();
     expect(wrapper.findAll('canvas.pdf-viewer__page')).toHaveLength(3);
     expect(wrapper.emitted('loaded')?.[0]).toEqual([3]);
   });

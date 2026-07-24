@@ -35,11 +35,12 @@
 
 <script setup>
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
-// Статический ?url-импорт: отдаёт лишь строку-URL воркера (сам воркер - отдельный ассет,
-// грузится только при создании Worker), поэтому основной бандл не толстеет, а lazy-load
-// касается самой либы pdf.js (динамический import ниже). Динамический import(...?url) в Vite
-// строку не отдаёт - workerSrc получал невалидный тип.
-import PdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+// ?worker (а не ?url): Vite бандлит воркер в отдельный .js-чанк и отдаёт конструктор Worker.
+// Через ?url воркер оставался .mjs-ассетом, а боевой nginx отдаёт .mjs как
+// application/octet-stream -> браузер отвергает module-скрипт (strict MIME) и воркер не
+// поднимается. .js nginx отдаёт корректно. Основной бандл не толстеет (воркер - свой чанк),
+// а тело pdf.js по-прежнему грузится лениво (динамический import ниже).
+import PdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?worker';
 
 /**
  * Рендер PDF-документа страницами в canvas через pdf.js.
@@ -76,8 +77,10 @@ async function ensurePdfjs() {
   if (pdfjsLib) return pdfjsLib;
   // Ленивая загрузка: тело pdf.js в отдельном чанке, не тянется в основной бандл.
   pdfjsLib = await import('pdfjs-dist');
-  if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = PdfWorkerUrl;
+  // workerPort вместо workerSrc: собранный ?worker-конструктор поднимает воркер из .js-чанка
+  // (обходит .mjs-MIME боевого nginx). Один общий воркер на все документы - нам хватает.
+  if (!pdfjsLib.GlobalWorkerOptions.workerPort) {
+    pdfjsLib.GlobalWorkerOptions.workerPort = new PdfWorker();
   }
   return pdfjsLib;
 }
