@@ -31,10 +31,14 @@
       />
 
       <!-- На телефоне заголовок вложения стоит между селектором и формой: в шапке
-           он висел рядом с названием страницы и терялся. -->
-      <h4 class="create__blank-title create__blank-title--inline">
-        {{ currentFormTitle }}
-      </h4>
+           он висел рядом с названием страницы и терялся. При скролле формы
+           заголовок закрепляется под шапкой приложения (sticky), чтобы было видно,
+           какое вложение заполняешь. -->
+      <div class="create__blank-sticky">
+        <h4 class="create__blank-title create__blank-title--inline">
+          {{ currentFormTitle }}
+        </h4>
+      </div>
 
       <div
         v-if="selectedAttachment"
@@ -2812,6 +2816,12 @@ export default {
         display: none;
     }
 
+    /* На десктопе inline-заголовок скрыт (он в шапке) - обёртка не должна занимать
+       место; на мобилке @media переопределит на sticky-контейнер. */
+    .create__blank-sticky {
+        display: contents;
+    }
+
     h4 {
         font-size: 22px;
         font-weight: 800;
@@ -2913,6 +2923,19 @@ export default {
 
         .create__blank-title--header {
             display: none;
+        }
+
+        /* Обёртка заголовка закрепляется под шапкой приложения при скролле формы:
+           фон на всю ширину карточки прячет проезжающий контент, пилюля по центру. */
+        .create__blank-sticky {
+            position: sticky;
+            top: var(--mobile-header-height, 55px);
+            z-index: 5;
+            display: flex;
+            justify-content: center;
+            margin: 0 -12px;
+            padding: 8px 12px;
+            background: #fff;
         }
 
         .create__blank-title--inline {

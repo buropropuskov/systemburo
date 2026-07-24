@@ -196,6 +196,7 @@
             <input
               v-for="(cell, index) in selectedFormat.cells"
               :key="index"
+              ref="numberCells"
               v-model="numberParts[index]"
               class="number__input"
               :placeholder="getPlaceholder(cell)"
@@ -1191,6 +1192,25 @@ export default {
 
             // Проверяем активность после изменения номера
             this.checkVehicleActive();
+
+            // Клетка заполнена до предела - курсор сам прыгает в следующую,
+            // чтобы номер набирался без ручного перескока между клетками.
+            this.advanceCellFocus(index, value, cell);
+        },
+
+        /**
+         * Переводит фокус в следующую клетку номера, когда текущая заполнена
+         * полностью (только при вводе вперёд, не при стирании/правке короче).
+         */
+        advanceCellFocus(index, value, cell) {
+            if (!value || value.length < cell.max_length) return;
+            const cells = this.selectedFormat && this.selectedFormat.cells;
+            if (!cells || index >= cells.length - 1) return;
+            this.$nextTick(() => {
+                const inputs = this.$refs.numberCells;
+                const next = Array.isArray(inputs) ? inputs[index + 1] : null;
+                if (next && !next.disabled) next.focus();
+            });
         },
 
         formatPart(index, cell) {

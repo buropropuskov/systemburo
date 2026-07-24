@@ -56,86 +56,72 @@ describe('BlankSelector: выбор типа строкой на телефон�
     window.matchMedia = origMatchMedia;
   });
 
-  it('на телефоне типы едут в строку выбора, добавляет одна кнопка под ней', async () => {
+  it('на телефоне - одна кнопка «Добавить вложение» с меню, без карусели-переключателя', async () => {
     mockMatchMedia(true);
     const w = await mountSelector();
 
     expect(w.vm.isNarrow).toBe(true);
-    expect(w.find('.category-carousel').exists()).toBe(true);
-    expect(w.findAll('.category-chip').length).toBe(w.vm.uniqueCategories.length);
-    // Кнопка добавления одна на всю строку: в чипах её быть не должно, иначе
-    // она вылезала за их границы и дублировалась по числу типов.
-    expect(w.findAll('.category-chip .add-btn').length).toBe(0);
+    // карусель типов убрана
+    expect(w.find('.category-carousel').exists()).toBe(false);
+    expect(w.findAll('.category-chip').length).toBe(0);
+    // одна кнопка добавления с общим текстом (не «Добавить: тип»)
+    const btn = w.find('[data-testid="picker-add"]');
+    expect(btn.exists()).toBe(true);
+    expect(btn.text()).toContain('Добавить вложение');
+    // меню закрыто по умолчанию
+    expect(w.find('[data-testid="picker-add-menu"]').exists()).toBe(false);
+    // per-column кнопки в самих секциях на мобилке скрыты
     expect(w.findAll('.category .add-btn').length).toBe(0);
-    expect(w.find('.picker-add').exists()).toBe(true);
-    expect(w.findAll('.category-header').length).toBe(0);
   });
 
-  it('первый тип выбран сразу, кнопка добавляет вложение выбранного типа', async () => {
+  it('клик по кнопке открывает меню со всеми типами (наименования вложений)', async () => {
     mockMatchMedia(true);
     const w = await mountSelector();
 
-    expect(w.vm.pickedCategory).toBe(w.vm.uniqueCategories[0]);
-    await w.find('.picker-add').trigger('click');
+    await w.find('[data-testid="picker-add"]').trigger('click');
+    expect(w.vm.addMenuOpen).toBe(true);
+    expect(w.find('[data-testid="picker-add-menu"]').exists()).toBe(true);
+
+    const items = w.findAll('.picker-add-menu__item');
+    expect(items.length).toBe(w.vm.uniqueCategories.length);
+    // пункты называют ВЛОЖЕНИЕ (display_name), а не группу капсом
+    expect(items[0].text()).toContain('Автозаявка');
+    expect(items[1].text()).toContain('Заявка на ввоз');
+  });
+
+  it('выбор пункта меню добавляет вложение этого типа и закрывает меню', async () => {
+    mockMatchMedia(true);
+    const w = await mountSelector();
+
+    await w.find('[data-testid="picker-add"]').trigger('click');
+    await w.findAll('.picker-add-menu__item')[1].trigger('click');
 
     const added = w.emitted('attachment-added');
     expect(added).toBeTruthy();
-    expect(added[0][0].title).toBe(w.vm.uniqueCategories[0]);
+    expect(added[0][0].title).toBe(w.vm.uniqueCategories[1]);
+    // меню закрылось после выбора
+    expect(w.vm.addMenuOpen).toBe(false);
+    expect(w.find('[data-testid="picker-add-menu"]').exists()).toBe(false);
   });
 
-  it('выбор другого чипа переключает тип, который добавит кнопка', async () => {
+  it('на телефоне список показывает секции типов с заголовком (общий список, не переключаемый)', async () => {
     mockMatchMedia(true);
     const w = await mountSelector();
-    const second = w.vm.uniqueCategories[1];
 
-    await w.findAll('.category-chip')[1].trigger('click');
-    expect(w.vm.pickedCategory).toBe(second);
-
-    await w.find('.picker-add').trigger('click');
-    expect(w.emitted('attachment-added')[0][0].title).toBe(second);
+    // заголовки типов видны в общем списке (не скрыты как на карусельной версии)
+    expect(w.find('.category-header').exists()).toBe(true);
+    expect(w.find('.category-title').exists()).toBe(true);
   });
 
-  it('на десктопе строки выбора нет, кнопка «Добавить» остаётся в колонке типа', async () => {
+  it('на десктопе меню-кнопки нет, кнопки «Добавить» в колонках типов', async () => {
     mockMatchMedia(false);
     const w = await mountSelector();
 
     expect(w.vm.isNarrow).toBe(false);
+    expect(w.find('[data-testid="picker-add"]').exists()).toBe(false);
     expect(w.find('.category-carousel').exists()).toBe(false);
-    expect(w.find('.picker-add').exists()).toBe(false);
-    expect(w.find('.created-caption').exists()).toBe(false);
     expect(w.findAll('.category .add-btn').length).toBe(w.vm.uniqueCategories.length);
     expect(w.findAll('.category-header').length).toBe(w.vm.uniqueCategories.length);
-  });
-
-  it('кнопка называет наименование вложения, подпись списка - тип; пустой тип сохраняет строку-заглушку', async () => {
-    mockMatchMedia(true);
-    const w = await mountSelector();
-
-    // Кнопка называет ВЛОЖЕНИЕ, которое создаст (display_name шаблона),
-    // а не группу-рубрику.
-    expect(w.find('.picker-add').text()).toBe('Добавить: Автозаявка');
-    // Подпись над списком - заголовок выбранного типа, как рубрика на десктопе,
-    // а не безликое «Созданные вложения».
-    expect(w.find('.created-caption').text()).toBe(w.vm.uniqueCategories[0]);
-
-    // У второго типа вложений нет - подпись остаётся строкой-заглушкой.
-    await w.findAll('.category-chip')[1].trigger('click');
-    expect(w.find('.picker-add').text()).toBe('Добавить: Заявка на ввоз');
-    expect(w.find('.created-caption').text()).toBe('В этом типе вложений пока нет');
-    expect(w.find('.created-caption').classes()).toContain('created-caption--empty');
-  });
-
-  it('переключение типа снимает отметки со скрывшихся вложений', async () => {
-    mockMatchMedia(true);
-    const w = await mountSelector([
-      { local_id: 'a1', title: 'Автозаявки', name: 'cars_1', display_name: 'Автозаявка №1', attachment_type: 'cars' },
-    ]);
-
-    // отметили вложение первого типа
-    w.vm.selectedAttachments = ['a1'];
-    // переключились на другой тип - строка a1 скрылась вместе с отметкой
-    await w.findAll('.category-chip')[1].trigger('click');
-    expect(w.vm.selectedAttachments).toEqual([]);
   });
 
   describe('переименование на телефоне: blur отменяет отложенно', () => {

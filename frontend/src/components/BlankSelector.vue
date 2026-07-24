@@ -1,60 +1,68 @@
 <template>
   <div class="selector">
-    <!-- Мобилка: в столбик типы бланков съедали пол-экрана до самой формы. Тип
-         выбирается в прокручиваемой строке, добавляет одна кнопка под ней; на
-         десктопе всё как было: тип, под ним свои вложения, под ними кнопка. -->
+    <!-- Мобилка: один общий список вложений всех типов; добавление - одной
+         кнопкой с выпадающим меню типов (карусель-переключатель убрана). На
+         десктопе всё как было: колонки типов со своими кнопками. -->
     <template v-if="isNarrow">
       <div class="picker-caption">
         Вложения заявки
       </div>
-      <div class="category-carousel">
+      <div class="picker-add-wrap">
         <button
-          v-for="category in uniqueCategories"
-          :key="`chip-${category}`"
-          class="category-chip"
-          :class="{ 'category-chip--active': category === pickedCategory }"
-          @click="pickedCategory = category"
+          class="picker-add"
+          data-testid="picker-add"
+          :aria-expanded="addMenuOpen ? 'true' : 'false'"
+          @click.stop="addMenuOpen = !addMenuOpen"
         >
-          <span class="category-chip__title">{{ category }}</span>
-          <span
-            v-if="getCategoryAttachments(category).length"
-            class="category-chip__count"
-          >{{ getCategoryAttachments(category).length }}</span>
+          Добавить вложение
+          <svg
+            class="picker-add__arrow"
+            :class="{ 'picker-add__arrow--open': addMenuOpen }"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
         </button>
-      </div>
-      <button
-        class="picker-add"
-        :disabled="pickedCategoryIsFull"
-        @click="addAttachment(pickedCategory)"
-      >
-        Добавить: {{ pickedTemplateName }}
-      </button>
-
-      <div
-        v-if="pickedCategoryAttachments.length"
-        class="created-caption"
-      >
-        {{ pickedCategory }}
-      </div>
-      <div
-        v-else-if="attachments.length"
-        class="created-caption created-caption--empty"
-      >
-        В этом типе вложений пока нет
+        <transition name="picker-menu">
+          <div
+            v-if="addMenuOpen"
+            class="picker-add-menu"
+            data-testid="picker-add-menu"
+          >
+            <button
+              v-for="category in uniqueCategories"
+              :key="`add-${category}`"
+              class="picker-add-menu__item"
+              :disabled="getCategoryAttachments(category).length >= 10"
+              @click="addFromMenu(category)"
+            >
+              <span>{{ templateNameFor(category) }}</span>
+              <span
+                v-if="getCategoryAttachments(category).length"
+                class="picker-add-menu__count"
+              >{{ getCategoryAttachments(category).length }}</span>
+            </button>
+          </div>
+        </transition>
       </div>
     </template>
 
     <div class="categories-container">
       <div
         v-for="category in uniqueCategories"
-        v-show="!isNarrow || category === pickedCategory"
+        v-show="!isNarrow || getCategoryAttachments(category).length > 0"
         :key="category"
         class="category"
       >
-        <div
-          v-if="!isNarrow"
-          class="category-header"
-        >
+        <div class="category-header">
           <div class="category-title">
             {{ category }}
           </div>
@@ -262,7 +270,9 @@ export default {
             // карусель, вложения показываются отдельным списком под ней.
             isNarrow: false,
             // Тип, выбранный в мобильном пикере (добавляет одна кнопка под строкой).
-            pickedCategory: null
+            pickedCategory: null,
+            // Открыто ли выпадающее меню типов у кнопки «Добавить» (мобилка).
+            addMenuOpen: false
         }
     },
     computed: {
@@ -298,8 +308,7 @@ export default {
         // Наименование ВЛОЖЕНИЯ, которое создаст кнопка («Автозаявка»), а не группы
         // («АВТОЗАЯВКИ») - из него же addAttachment строит display_name «... №N».
         pickedTemplateName() {
-            const template = this.allTemplates.find(t => t.title === this.pickedCategory);
-            return (template && template.display_name) || this.pickedCategory;
+            return this.templateNameFor(this.pickedCategory);
         }
     },
     watch: {
@@ -356,9 +365,18 @@ export default {
     mounted() {
         this.fetchTemplates();
         this.initNarrowWatcher();
+        // Меню типов у кнопки «Добавить» закрывается кликом вне него.
+        this._onAddMenuOutside = (e) => {
+            if (!this.addMenuOpen) return;
+            if (!this.$el.querySelector('.picker-add-wrap')?.contains(e.target)) {
+                this.addMenuOpen = false;
+            }
+        };
+        document.addEventListener('click', this._onAddMenuOutside);
     },
     beforeUnmount() {
         this.clearBlurCancel();
+        if (this._onAddMenuOutside) document.removeEventListener('click', this._onAddMenuOutside);
         // Уходя со страницы посреди тура - не оставить демо-вложение висеть.
         this.removeDemoAttachment();
         if (this._narrowMql) {
@@ -484,6 +502,18 @@ export default {
             const attachment = this.demoAttachment;
             this.demoAttachment = null;
             this.$emit('attachment-removed', attachment);
+        },
+
+        /** Наименование вложения по типу-группе (display_name шаблона), для меню и подписей. */
+        templateNameFor(category) {
+            const template = this.allTemplates.find(t => t.title === category);
+            return (template && template.display_name) || category;
+        },
+
+        /** Пункт меню «Добавить» на мобилке: создаёт вложение типа и закрывает меню. */
+        addFromMenu(category) {
+            this.addAttachment(category);
+            this.addMenuOpen = false;
         },
 
         addAttachment(category) {
@@ -1001,6 +1031,9 @@ export default {
         max-height: none;
         border-radius: var(--radius-lg);
         padding: 12px;
+        /* Высота по контенту, прокрутки нет - выпадающее меню «Добавить» не должно
+           обрезаться нижней кромкой карточки (десктопный overflow:hidden наследуется). */
+        overflow: visible;
     }
 
     .picker-caption,
@@ -1022,83 +1055,20 @@ export default {
         letter-spacing: 0;
     }
 
-    /* Типы - одна прокручиваемая строка (паттерн быстрых периодов календаря):
-       чипы уезжают под край, видно, что ряд продолжается. */
-    /* Отрицательные margin уводили строку левее карточки и налезали на её край -
-       прокручиваем внутри контента, а не под ним. */
-    .category-carousel {
-        display: flex;
-        flex-direction: row;
-        flex-wrap: nowrap;
-        gap: 8px;
-        margin: 0;
-        padding: 0 0 2px;
-        overflow-x: auto;
-        overflow-y: hidden;
-        scroll-snap-type: x proximity;
-        -webkit-overflow-scrolling: touch;
-        overscroll-behavior-x: contain;
-        scrollbar-width: none;
+    /* Кнопка «Добавить» с выпадающим меню типов - один общий список вложений
+       ниже, добавление одной кнопкой (карусель-переключатель убрана). */
+    .picker-add-wrap {
+        position: relative;
+        margin-bottom: 16px;
     }
 
-    .category-carousel::-webkit-scrollbar {
-        display: none;
-    }
-
-    .category-chip {
-        flex: 0 0 auto;
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        height: 36px;
-        padding: 0 14px;
-        border: 1px solid var(--color-border);
-        border-radius: var(--radius-pill);
-        background: #fff;
-        color: #666;
-        font-size: 13px;
-        font-weight: 500;
-        white-space: nowrap;
-        cursor: pointer;
-        scroll-snap-align: start;
-        transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
-    }
-
-    /* Выбранный тип - светлая пилюля с синей рамкой: сплошная заливка сливалась
-       с синей кнопкой добавления прямо под строкой. */
-    .category-chip--active {
-        background: var(--color-primary-tint);
-        border-color: var(--color-primary);
-        color: var(--color-primary);
-        font-weight: 600;
-    }
-
-    .category-chip__count {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-width: 18px;
-        height: 18px;
-        padding: 0 5px;
-        border-radius: var(--radius-pill);
-        background: rgba(0, 0, 0, 0.08);
-        font-size: 11px;
-        font-weight: 600;
-    }
-
-    .category-chip--active .category-chip__count {
-        background: rgba(79, 91, 223, 0.16);
-        color: var(--color-primary);
-    }
-
-    /* Одна кнопка на выбранный тип - раньше кнопка сидела в каждом чипе и
-       вылезала за его границы. */
     .picker-add {
         width: 100%;
         min-height: 50px;
-        /* Больше воздуха сверху - кнопка отделяется от карусели типов и не
-           сливается с блоком формы; снизу отступ до подписи/списка. */
-        margin: 22px 0 20px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
         border: none;
         border-radius: var(--radius-md);
         background: var(--color-primary);
@@ -1108,10 +1078,105 @@ export default {
         cursor: pointer;
     }
 
-    .picker-add:disabled {
-        background: #a2a2a2;
-        opacity: 0.6;
+    .picker-add__arrow {
+        transition: transform 0.2s ease;
+    }
+
+    .picker-add__arrow--open {
+        transform: rotate(180deg);
+    }
+
+    .picker-add-menu {
+        position: absolute;
+        top: calc(100% + 6px);
+        left: 0;
+        right: 0;
+        z-index: 20;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        padding: 6px;
+        background: #fff;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+    }
+
+    .picker-add-menu__item {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        min-height: 44px;
+        padding: 0 12px;
+        border: none;
+        border-radius: var(--radius-sm);
+        background: transparent;
+        color: var(--color-text, #333);
+        font-size: 15px;
+        font-weight: 500;
+        text-align: left;
+        cursor: pointer;
+    }
+
+    .picker-add-menu__item:active:not(:disabled) {
+        background: var(--color-primary-tint);
+    }
+
+    .picker-add-menu__item:disabled {
+        color: #c4c4c4;
         cursor: not-allowed;
+    }
+
+    .picker-add-menu__count {
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 20px;
+        height: 20px;
+        padding: 0 6px;
+        border-radius: var(--radius-pill);
+        background: rgba(79, 91, 223, 0.14);
+        color: var(--color-primary);
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    .picker-menu-enter-active,
+    .picker-menu-leave-active {
+        transition: opacity 0.15s ease, transform 0.15s ease;
+    }
+
+    .picker-menu-enter-from,
+    .picker-menu-leave-to {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+
+    /* Заголовок типа над секцией вложений в общем списке - лёгкая рубрика. */
+    .category-header {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        margin-bottom: 6px;
+        padding: 0;
+        border: none;
+    }
+
+    .category-title {
+        font-size: 11px;
+        font-weight: 700;
+        color: #a2a2a2;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+    }
+
+    .attachment-count {
+        font-size: 11px;
+        color: #c4c4c4;
+        font-weight: 600;
     }
 
     .categories-container {
