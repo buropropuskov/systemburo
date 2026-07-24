@@ -260,11 +260,14 @@
 
             <!-- AvailableAttachment не несёт roof_access/free_parking/custom_values -
                  эти опц. блоки детали просто не отрисуются (v-if по undefined). -->
+            <!-- Карточку машины/сотрудника здесь не открываем: обработчиков нет,
+                 поэтому строка не должна выглядеть кликабельной (#1392). -->
             <ApplicationAttachmentDetail
               :attachment="detail.attachment"
               :cars="detail.cars || []"
               :employees="detail.employees || []"
               :items="detail.items || []"
+              :interactive="false"
             />
           </template>
 

@@ -54,11 +54,20 @@ function mountEmployees(employees) {
   });
 }
 
+function mountItems(items) {
+  return mount(ApplicationAttachmentDetail, {
+    props: {
+      attachment: { id: 1, attachment_type: 'items', attachment_display_name: 'Имущество' },
+      items,
+    },
+  });
+}
+
 describe('ApplicationAttachmentDetail — подсветка возможного обхода ЧС (#481)', () => {
   it('помеченная машина: красноватый модификатор + бейдж "похоже на ЧС"', () => {
     const wrapper = mountCars([car({ blacklist_similar: flag() })]);
-    const item = wrapper.find('.car-item');
-    expect(item.classes()).toContain('car-item--flagged');
+    const item = wrapper.find('[data-testid="attachment-element-row"]');
+    expect(item.classes()).toContain('el-row--flagged');
 
     const badge = item.find('.blacklist-badge');
     expect(badge.exists()).toBe(true);
@@ -68,15 +77,15 @@ describe('ApplicationAttachmentDetail — подсветка возможног�
 
   it('чистая машина: нет модификатора и нет бейджа', () => {
     const wrapper = mountCars([car()]);
-    const item = wrapper.find('.car-item');
-    expect(item.classes()).not.toContain('car-item--flagged');
+    const item = wrapper.find('[data-testid="attachment-element-row"]');
+    expect(item.classes()).not.toContain('el-row--flagged');
     expect(item.find('.blacklist-badge').exists()).toBe(false);
   });
 
   it('подтверждённый пропуск (overridden): без красной подсветки, нейтральный бейдж', () => {
     const wrapper = mountCars([car({ blacklist_similar: flag({ overridden: true }) })]);
-    const item = wrapper.find('.car-item');
-    expect(item.classes()).not.toContain('car-item--flagged');
+    const item = wrapper.find('[data-testid="attachment-element-row"]');
+    expect(item.classes()).not.toContain('el-row--flagged');
 
     const badge = item.find('.blacklist-badge');
     expect(badge.exists()).toBe(true);
@@ -84,23 +93,33 @@ describe('ApplicationAttachmentDetail — подсветка возможног�
     expect(badge.classes()).toContain('badge--neutral');
   });
 
-  it('tooltip содержит совпавшее значение и причину', () => {
+  it('подсказка ЧС идёт через data-hint (тёмный пузырёк проекта), а не через title', () => {
     const wrapper = mountCars([car({ blacklist_similar: flag() })]);
-    const badge = wrapper.find('.car-item .blacklist-badge');
-    expect(badge.attributes('title')).toBe('Возможный обход чёрного списка. Похоже на: А124ВС Toyota (похожий номер)');
+    const badge = wrapper.find('.blacklist-badge');
+    expect(badge.attributes('data-hint')).toBe('Возможный обход чёрного списка. Похоже на: А124ВС Toyota (похожий номер)');
+    expect(badge.attributes('title')).toBeUndefined();
   });
 
   it('помеченный сотрудник: красноватый модификатор + бейдж', () => {
     const wrapper = mountEmployees([
       employee({ blacklist_similar: flag({ matched_value: 'Иваноф Иван Иванович', matched_reason: 'опечатка в фамилии' }) }),
     ]);
-    const item = wrapper.find('.employee-item');
-    expect(item.classes()).toContain('employee-item--flagged');
+    const item = wrapper.find('[data-testid="attachment-element-row"]');
+    expect(item.classes()).toContain('el-row--flagged');
 
     const badge = item.find('.blacklist-badge');
     expect(badge.exists()).toBe(true);
     expect(badge.text()).toBe('похоже на ЧС');
-    expect(badge.attributes('title')).toContain('Иваноф Иван Иванович');
+    expect(badge.attributes('data-hint')).toContain('Иваноф Иван Иванович');
+  });
+
+  it('в футере видна сводка по количеству помеченных строк', () => {
+    const wrapper = mountCars([
+      car({ id: 1, blacklist_similar: flag() }),
+      car({ id: 2 }),
+      car({ id: 3, blacklist_similar: flag() }),
+    ]);
+    expect(wrapper.find('[data-testid="attachment-flagged-summary"]').text()).toBe('2 похоже на ЧС');
   });
 });
 
@@ -117,7 +136,7 @@ describe('ApplicationAttachmentDetail — кнопка "Пропустить" ov
 
   it('canOverride=true: на помеченной строке есть кнопка "Пропустить"', () => {
     const wrapper = mountCarsWith([car({ blacklist_similar: flag() })], { canOverride: true });
-    const btn = wrapper.find('.car-item .blacklist-override-btn');
+    const btn = wrapper.find('[data-testid="blacklist-override-btn"]');
     expect(btn.exists()).toBe(true);
     expect(btn.text()).toBe('Пропустить');
   });
@@ -155,5 +174,203 @@ describe('ApplicationAttachmentDetail — кнопка "Пропустить" ov
     });
     await wrapper.find('.blacklist-override-btn').trigger('click');
     expect(wrapper.emitted('override-element')[0][0]).toEqual({ label: 'Иваноф Иван Иванович', flag: f });
+  });
+});
+
+describe('ApplicationAttachmentDetail — колонки и подписи (#1392)', () => {
+  function headerLabels(wrapper) {
+    return wrapper.findAll('.el-head .el-cell').map(cell => cell.text());
+  }
+
+  it('машины: колонки названы, места разгрузки и проезд разделены', () => {
+    const wrapper = mountCars([car()]);
+    expect(headerLabels(wrapper)).toEqual(['Гос. номер', 'Марка', 'Места разгрузки', 'Проезд']);
+  });
+
+  it('сотрудники: ФИО, должность и места прохода — отдельные колонки', () => {
+    const wrapper = mountEmployees([employee()]);
+    expect(headerLabels(wrapper)).toEqual(['ФИО', 'Должность', 'Места прохода']);
+  });
+
+  it('ТМЦ: наименование и количество, в футере сумма единиц', () => {
+    const wrapper = mountItems([
+      { id: 1, name: 'Ноутбук', count: 2 },
+      { id: 2, name: 'Стеллаж', count: 12 },
+    ]);
+    expect(headerLabels(wrapper)).toEqual(['Наименование', 'Количество']);
+    expect(wrapper.find('.qty').text()).toBe('2 шт');
+    expect(wrapper.find('[data-testid="attachment-elements-total"]').text()).toBe('Всего позиций: 2, единиц: 14');
+  });
+
+  it('каждая ячейка несёт data-label — на телефоне из него берётся подпись поля', () => {
+    const wrapper = mountCars([car()]);
+    const labels = wrapper.findAll('[data-testid="attachment-element-row"] .el-cell')
+      .map(cell => cell.attributes('data-label'));
+    expect(labels).toEqual(['Гос. номер', 'Марка', 'Места разгрузки', 'Проезд']);
+  });
+
+  it('ключевое значение выводится отдельным полем и не склеено с маркой', () => {
+    const wrapper = mountCars([car({ car_number: 'А123ВС 750', car_brand: 'Volvo FH' })]);
+    expect(wrapper.find('[data-testid="attachment-element-key"]').text()).toBe('А123ВС 750');
+  });
+});
+
+describe('ApplicationAttachmentDetail — чипы мест (#1392)', () => {
+  function chipTexts(wrapper) {
+    return wrapper.findAll('[data-testid="attachment-chip"], [data-testid="attachment-chip-more"]')
+      .map(chip => chip.text());
+  }
+
+  it('места разгрузки выводятся чипами по названию', () => {
+    const wrapper = mountCars([car({
+      unload_places: [{ id: 1, name: 'Склад №1' }, { id: 2, name: 'Рампа А' }],
+    })]);
+    expect(chipTexts(wrapper)).toEqual(['Склад №1', 'Рампа А']);
+  });
+
+  it('лишние места сворачиваются в "+N", полный список — в подсказке data-hint', () => {
+    const wrapper = mountCars([car({
+      unload_places: [
+        { id: 1, name: 'Склад №1' },
+        { id: 2, name: 'Рампа А' },
+        { id: 3, name: 'Рампа Б' },
+        { id: 4, name: 'Северный въезд' },
+      ],
+    })]);
+    expect(chipTexts(wrapper)).toEqual(['Склад №1', 'Рампа А', '+2']);
+
+    const more = wrapper.find('[data-testid="attachment-chip-more"]');
+    expect(more.attributes('data-hint')).toBe('Склад №1, Рампа А, Рампа Б, Северный въезд');
+  });
+
+  it('таблицы проезда берут display_name', () => {
+    const wrapper = mountCars([car({
+      target_tables: [{ id: 7, name: 'post72', display_name: 'ПОСТ №72 (АВТО)' }],
+    })]);
+    expect(chipTexts(wrapper)).toEqual(['ПОСТ №72 (АВТО)']);
+  });
+
+  it('пустой список мест показывает прочерк, а не пустую ячейку', () => {
+    const wrapper = mountCars([car({ unload_places: [] })]);
+    expect(wrapper.find('.chip--empty').text()).toBe('—');
+  });
+
+  it('когда в колонку не влезает ни одно название, вместо чипов встаёт счётчик', () => {
+    const wrapper = mountCars([car()]);
+    const col = wrapper.vm.allColumns.find(c => c.key === 'tables');
+    // Ширины колонок снимаются с DOM (в jsdom нет раскладки) - задаём напрямую.
+    wrapper.vm.chipColumnWidths = { tables: 80 };
+    const row = {
+      target_tables: [
+        { id: 1, display_name: 'ПОСТ №15 (ГРУЗОВОЙ)' },
+        { id: 2, display_name: 'ПОСТ №72 (АВТО)' },
+      ],
+    };
+    expect(wrapper.vm.visibleChips(row, col)).toEqual([{
+      key: 'summary',
+      text: '2 поста',
+      hint: 'ПОСТ №15 (ГРУЗОВОЙ), ПОСТ №72 (АВТО)',
+      isMore: true,
+    }]);
+  });
+
+  it('в широкой колонке помещаются оба названия целиком', () => {
+    const wrapper = mountCars([car()]);
+    const col = wrapper.vm.allColumns.find(c => c.key === 'tables');
+    wrapper.vm.chipColumnWidths = { tables: 420 };
+    const row = {
+      target_tables: [
+        { id: 1, display_name: 'ПОСТ №15' },
+        { id: 2, display_name: 'ПОСТ №72' },
+      ],
+    };
+    expect(wrapper.vm.visibleChips(row, col).map(c => c.text)).toEqual(['ПОСТ №15', 'ПОСТ №72']);
+  });
+
+  it('единственное длинное название остаётся чипом: счётчик «1 место» ничего не сказал бы', () => {
+    const wrapper = mountCars([car()]);
+    const col = wrapper.vm.allColumns.find(c => c.key === 'places');
+    wrapper.vm.chipColumnWidths = { places: 60 };
+    const row = { unload_places: [{ id: 1, name: 'Северный въезд' }] };
+    expect(wrapper.vm.visibleChips(row, col).map(c => c.text)).toEqual(['Северный въезд']);
+  });
+
+  it('счётчик склоняется по числу', () => {
+    const wrapper = mountCars([car()]);
+    const forms = ['пост', 'поста', 'постов'];
+    expect(wrapper.vm.plural(1, forms)).toBe('пост');
+    expect(wrapper.vm.plural(3, forms)).toBe('поста');
+    expect(wrapper.vm.plural(5, forms)).toBe('постов');
+    expect(wrapper.vm.plural(11, forms)).toBe('постов');
+    expect(wrapper.vm.plural(21, forms)).toBe('пост');
+  });
+});
+
+describe('ApplicationAttachmentDetail — клик по строке (#1392)', () => {
+  it('по умолчанию строка кликабельна и открывает карточку машины', async () => {
+    const c = car();
+    const wrapper = mountCars([c]);
+    const row = wrapper.find('[data-testid="attachment-element-row"]');
+    expect(row.classes()).toContain('el-row--clickable');
+
+    await row.trigger('click');
+    expect(wrapper.emitted('open-vehicle')[0][0]).toEqual(c);
+  });
+
+  it('сотрудник открывает свою карточку', async () => {
+    const e = employee();
+    const wrapper = mountEmployees([e]);
+    await wrapper.find('[data-testid="attachment-element-row"]').trigger('click');
+    expect(wrapper.emitted('open-employee')[0][0]).toEqual(e);
+  });
+
+  it('interactive=false («Доступные мне»): строка не кликабельна и ничего не эмитит', async () => {
+    const wrapper = mount(ApplicationAttachmentDetail, {
+      props: {
+        attachment: { id: 1, attachment_type: 'cars', attachment_display_name: 'Машины' },
+        cars: [car()],
+        interactive: false,
+      },
+    });
+    const row = wrapper.find('[data-testid="attachment-element-row"]');
+    expect(row.classes()).not.toContain('el-row--clickable');
+
+    await row.trigger('click');
+    expect(wrapper.emitted('open-vehicle')).toBeUndefined();
+  });
+
+  it('ТМЦ карточку не открывают', async () => {
+    const wrapper = mountItems([{ id: 1, name: 'Ноутбук', count: 2 }]);
+    const row = wrapper.find('[data-testid="attachment-element-row"]');
+    expect(row.classes()).not.toContain('el-row--clickable');
+
+    await row.trigger('click');
+    expect(wrapper.emitted('open-vehicle')).toBeUndefined();
+  });
+});
+
+describe('ApplicationAttachmentDetail — состояния списка (#1392)', () => {
+  it('загрузка: спиннер вместо таблицы', () => {
+    const wrapper = mount(ApplicationAttachmentDetail, {
+      props: {
+        attachment: { id: 1, attachment_type: 'cars', attachment_display_name: 'Машины' },
+        cars: [],
+        loading: true,
+      },
+    });
+    expect(wrapper.find('.loading-spinner').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="attachment-elements"]').exists()).toBe(false);
+  });
+
+  it('пустой список: текст по типу вложения, без шапки колонок', () => {
+    const wrapper = mountEmployees([]);
+    expect(wrapper.find('.no-data').text()).toBe('Нет данных о сотрудниках');
+    expect(wrapper.find('[data-testid="attachment-elements"]').exists()).toBe(false);
+  });
+
+  it('счётчик в заголовке равен числу строк', () => {
+    const wrapper = mountCars([car({ id: 1 }), car({ id: 2 })]);
+    expect(wrapper.find('[data-testid="attachment-elements-count"]').text()).toBe('2');
+    expect(wrapper.find('[data-testid="attachment-elements-total"]').text()).toBe('Всего: 2');
   });
 });
