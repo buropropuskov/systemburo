@@ -128,10 +128,15 @@ function allowedTypos(length) {
  * «Мерседес». Сначала обычное вхождение, нечёткое сравнение подключается,
  * только когда точного совпадения не нашлось.
  *
- * Сравниваем ПОСЛОВНО, как серверный поиск заявок (`strict_word_similarity`
- * в application_helpers.go), а не с произвольными кусками строки: на склейке
- * «У 465 КУ 423» нашлось бы окно «у42», отличающееся от «942» одной буквой,
- * и запрос вытаскивал бы половину таблицы.
+ * Сравниваем со словами и со склейками соседних слов, а не с произвольными
+ * кусками строки. Склейки нужны потому, что номер пишут и раздельно, и слитно:
+ * запрос «у953» должен находить «У 952 ЕУ 935», хотя «у» и «952» - разные
+ * слова. Произвольные окна не годятся: на «У 465 КУ 423» нашёлся бы кусок
+ * «у42» в одной замене от «942», и запрос вытаскивал бы полтаблицы.
+ *
+ * Метрика та же, что у серверной проверки обхода ЧС по номеру
+ * (`vehicleBlacklistService.FindSimilar`), сравнение пословное - как
+ * `strict_word_similarity` в поиске заявок.
  *
  * @param {string} haystack - искомый текст (склейка полей сущности)
  * @param {string[]} variants - результат buildSearchVariants
@@ -148,6 +153,16 @@ export function matchesSearchFuzzy(haystack, variants) {
         const needle = variant.replace(/\s+/g, '');
         const limit = allowedTypos(needle.length);
         if (!limit) return false;
-        return words.some((word) => editDistance(word, needle, limit) <= limit);
+
+        for (let start = 0; start < words.length; start++) {
+            let candidate = '';
+            for (let end = start; end < words.length; end++) {
+                candidate += words[end];
+                if (candidate.length > needle.length + limit) break;
+                if (Math.abs(candidate.length - needle.length) > limit) continue;
+                if (editDistance(candidate, needle, limit) <= limit) return true;
+            }
+        }
+        return false;
     });
 }
