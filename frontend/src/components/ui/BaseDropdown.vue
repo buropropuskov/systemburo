@@ -65,14 +65,19 @@
               @click.stop
             >
           </div>
+          <!-- Строка сброса присутствует всё время, пока меню открыто: если
+               показывать её только при непустом выборе, первый же клик по пункту
+               вставляет её в поток и сдвигает список вниз прямо под курсором. -->
           <button
-            v-if="multiple && selectedValues.length > 0"
+            v-if="multiple"
             type="button"
             class="base-dropdown__clear"
+            :class="{ 'base-dropdown__clear--disabled': selectedValues.length === 0 }"
+            :disabled="selectedValues.length === 0"
             data-testid="base-dropdown-clear"
             @click="clearSelection"
           >
-            Сбросить выбор
+            {{ selectedValues.length > 0 ? `Сбросить выбор (${selectedValues.length})` : 'Ничего не выбрано' }}
           </button>
           <div class="base-dropdown__options">
             <div
@@ -526,8 +531,15 @@ export default {
   cursor: pointer;
 }
 
-.base-dropdown__clear:hover {
+.base-dropdown__clear:hover:not(:disabled) {
   background: #f5f5f5;
+}
+
+/* Пустой выбор: строка остаётся на месте (высота зарезервирована), но гаснет
+   и не кликается - иначе её появление дёргало бы список при первом выборе. */
+.base-dropdown__clear--disabled {
+  color: #a2a2a2;
+  cursor: default;
 }
 
 /* Transition */
