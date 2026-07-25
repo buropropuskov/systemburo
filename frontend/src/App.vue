@@ -45,6 +45,7 @@ import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import { usePermissionsStore } from '@/stores/permissions'
 import { useOnboardingStore } from '@/stores/onboarding'
+import { useThemeStore } from '@/stores/theme'
 import eventStream from '@/services/eventStream'
 import NavMenu from './components/NavMenu.vue';
 import TheHeader from './components/TheHeader/TheHeader.vue';
@@ -136,6 +137,9 @@ export default {
       const permissionsStore = usePermissionsStore()
       permissionsStore.fetchPermissions()
       authStore.loadUserTypeCode()
+      // Тема из профиля поверх локальной: на общем компьютере следующий человек
+      // не должен наследовать чужое оформление из localStorage (#1415).
+      useThemeStore().syncFromServer()
     }
     // Подписка на бан для восстановленной при старте сессии; дальше её ведёт
     // watch(banScopeUserId) на смену токена.
@@ -179,6 +183,7 @@ export default {
       const permissionsStore = usePermissionsStore()
       permissionsStore.fetchPermissions()
       authStore.loadUserTypeCode()
+      useThemeStore().syncFromServer()
       // Подписку на бан для нового токена ставит watch(banScopeUserId).
     },
 

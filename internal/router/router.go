@@ -25,6 +25,7 @@ type Dependencies struct {
 	Company             *handlers.CompanyHandler
 	Users               *handlers.UsersHandler
 	Onboarding          *handlers.OnboardingHandler
+	Theme               *handlers.ThemeHandler
 	UnloadPlace         *handlers.UnloadPlaceHandler
 	Cars                *handlers.CarHandler
 	Employees           *handlers.EmployeeHandler
@@ -96,6 +97,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	comp := d.Company
 	users := d.Users
 	onboarding := d.Onboarding
+	theme := d.Theme
 	up := d.UnloadPlace
 	cars := d.Cars
 	employees := d.Employees
@@ -215,6 +217,11 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// помечает прохождение ДЛЯ СЕБЯ (userID из JWT). Не admin-only.
 	protected.GET("/onboarding", onboarding.GetStatus)
 	protected.POST("/onboarding/complete", onboarding.MarkComplete)
+
+	// Тема оформления (#1415) - тоже self-service: читаем и пишем СВОЮ тему,
+	// userID из JWT. Права не требуются, оформление доступно любому.
+	protected.GET("/users/me/theme", theme.GetTheme)
+	protected.PUT("/users/me/theme", theme.SetTheme)
 
 	// Выдача одноразового билета для SSE-потока (#840). Защищён JWTAuth+banCheck:
 	// забаненный/разлогиненный билет не получит, значит и поток не переоткроет.

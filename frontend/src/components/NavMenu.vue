@@ -246,7 +246,10 @@
                 class="dropdown-below"
                 :class="{ open: tablesDropdownOpen && (railExpanded || mobileOpen) }"
               >
-                <div class="dropdown-below__inner">
+                <div
+                  class="dropdown-below__inner"
+                  data-testid="nav-tables-list"
+                >
                   <template
                     v-for="group in groupedTables"
                     :key="group.key"
@@ -433,6 +436,64 @@
             />
             <span class="nav-text">Личный кабинет</span>
           </div>
+          <!-- Оформление: выбор темы, дропдаун как у «Таблиц» (#1415) -->
+          <div
+            v-show="matches('Оформление')"
+            class="nav-item-container"
+          >
+            <div
+              class="nav-item has-dropdown"
+              data-testid="nav-link-theme"
+              @click="toggleDropdown('themes')"
+            >
+              <div class="nav-item-content">
+                <NavIcon
+                  name="theme"
+                  :size="18"
+                  class="nav-icon"
+                />
+                <span class="nav-text">Оформление</span>
+              </div>
+              <svg
+                class="dropdown-arrow"
+                :class="{ rotated: dropdowns.themes }"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </div>
+
+            <div
+              class="dropdown-below"
+              :class="{ open: dropdowns.themes && (railExpanded || mobileOpen) }"
+            >
+              <div class="dropdown-below__inner">
+                <div
+                  v-for="theme in themes"
+                  :key="theme.id"
+                  class="dropdown-item theme-item"
+                  :class="{ active: theme.id === themeStore.current }"
+                  :data-testid="`nav-theme-${theme.id}`"
+                  @click="selectTheme(theme.id)"
+                >
+                  <span
+                    class="theme-dot"
+                    :style="{ background: theme.dot }"
+                  />
+                  {{ theme.name }}
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div
             v-show="matches('Выйти')"
             class="nav-item"
@@ -611,6 +672,8 @@ import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { useSoundStore } from '@/stores/sound'
 import { usePermissionsStore } from '@/stores/permissions'
+import { useThemeStore } from '@/stores/theme'
+import { THEMES } from '@/utils/theme'
 import { playPreset } from '@/utils/notificationSound'
 import eventStream from '@/services/eventStream'
 import NavIcon from '@/components/icons/NavIcon.vue'
@@ -633,13 +696,18 @@ export default {
     const uiStore = useUiStore()
     const soundStore = useSoundStore()
     const permissionsStore = usePermissionsStore()
-    return { authStore, uiStore, soundStore, permissionsStore }
+    const themeStore = useThemeStore()
+    return { authStore, uiStore, soundStore, permissionsStore, themeStore }
   },
   data() {
     return {
       isExpanded: false,
+      // Реестр тем оформления (#1415) - список и палитра кружков берутся из
+      // utils/theme.js, тот же источник валидирует бэк.
+      themes: THEMES,
       dropdowns: {
-        tables: false
+        tables: false,
+        themes: false
       },
       hoverTimeout: null,
       systemTables: [],
@@ -842,9 +910,11 @@ export default {
           || v('Автомобили', 'page.cars'),
         analytics: v('Аналитика', 'page.statistics'),
         admin: this.canSeeAdmin && this.matches('Администрирование'),
-        // «Выйти» доступно всегда (право не требуется) - секция пользователя видна.
+        // «Выйти» и «Оформление» доступны всегда (право не требуется) - секция
+        // пользователя видна.
         user: v('Обзор и новости', 'page.news')
           || v('Личный кабинет', 'page.personal_cabinet')
+          || this.matches('Оформление')
           || this.matches('Выйти'),
       };
     },
@@ -1054,9 +1124,17 @@ export default {
         this.hoverTimeout = null;
       }, 150);
     },
-    // Таблицы: дропдаун раскрывается/сворачивается по клику (не hover).
+    // Таблицы и оформление: дропдаун раскрывается/сворачивается по клику (не hover).
     toggleDropdown(type) {
       this.dropdowns[type] = !this.dropdowns[type];
+    },
+    /**
+     * Выбор темы оформления (#1415). Стор применяет её к <html> сразу и сохраняет
+     * в профиль; список оставляем раскрытым - видно, какой пункт стал активным.
+     * @param {string} id
+     */
+    selectTheme(id) {
+      this.themeStore.setTheme(id);
     },
     closeAllDropdowns() {
       Object.keys(this.dropdowns).forEach(key => {
@@ -1839,6 +1917,24 @@ export default {
 .dropdown-item.disabled:hover {
   background-color: transparent;
   color: var(--nav-text-faint);
+}
+
+/* Пункт выбора темы: кружок палитры перед названием - по нему тема узнаётся
+   быстрее, чем по слову. */
+.theme-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.theme-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  /* Обводка нейтральная: кружок тёмной темы иначе теряется на светлой панели,
+     а светлой - на тёмной. */
+  border: 1px solid rgba(128, 128, 128, 0.35);
 }
 
 .icon-badge {

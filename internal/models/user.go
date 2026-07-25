@@ -44,6 +44,10 @@ type User struct {
 	// null = не проходил. Хранится per-user (а не per-browser), чтобы тур не
 	// сбрасывался при смене устройства; при подъёме версии шагов тур показывается заново.
 	OnboardingCompletedVersion *int `json:"onboarding_completed_version,omitempty"`
+	// Theme - выбранная тема оформления (#1415), одно из ThemeIDs. null = юзер не
+	// выбирал, показываем DefaultTheme. Хранится per-user (а не только в
+	// localStorage), чтобы оформление ехало за человеком между устройствами.
+	Theme *string `gorm:"size:32" json:"theme,omitempty"`
 }
 
 type Organization struct {

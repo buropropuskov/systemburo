@@ -1,15 +1,306 @@
+/*
+ * Токены оформления (#1415).
+ *
+ * Цвет живёт в двух слоях:
+ *   1) ТЕМА - блоки :root[data-theme=...] ниже. Каждая тема задаёт один и тот же
+ *      набор имён: базовые (фон, поверхности, текст, границы, акцент) и смысловые
+ *      (непрочитанная заявка, обновление статуса, статусы, теги, подсказки). Значения
+ *      подобраны и замерены в мокапе docs/mockups/themes.html (ветка design/theme-mockups):
+ *      34 элемента в каждой теме, минимальный контраст 4.53 - ниже нормы WCAG AA нет.
+ *   2) АЛИАСЫ - легаси-имена --color-* в конце файла ссылаются на переменные темы,
+ *      поэтому компоненты, уже использующие токены, следуют за темой без правок.
+ *
+ * У акцента ТРИ роли, и это разные цвета:
+ *   --accent          заливка кнопок, полос, индикаторов;
+ *   --accent-text     тот же акцент как ТЕКСТ (ссылка, кнопка-призрак, выбранный пункт);
+ *   --accent-contrast подпись НА заливке.
+ * В светлой теме первые две совпадают, в оранжевой нет: заливка #F97316 как текст на
+ * белом даёт 3.19, поэтому текстовая роль затемнена до #A85708. В тёмных темах заливка
+ * светлая, а подпись на ней тёмная - насыщенный цвет на тёмном фоне сливается с подложкой.
+ *
+ * Атрибут data-theme ставится на <html> до первого кадра (bootstrap-скрипт в index.html),
+ * список тем - frontend/src/utils/theme.js.
+ */
+
+/* --- Светлая: текущая тема системы -------------------------------------------
+ * Значения лежат и на голом :root: неизвестный или потерянный data-theme тогда
+ * деградирует в светлую тему, а не в пустые переменные. */
+:root,
+:root[data-theme="light"] {
+  --accent: #4F5BDF;
+  --accent-text: #4F5BDF;
+  --accent-hover: #3d49c7;
+  --accent-contrast: #ffffff;
+  --accent-tint: rgba(79, 91, 223, 0.08);
+
+  --bg: #f8f9ff;
+  --surface: #ffffff;
+  --surface-2: #f9f9f9;
+  --text: #333333;
+  /* 5.74 на белом; прежний #999 давал 2.85 - ниже нормы AA */
+  --text-muted: #5f6672;
+  --border: #e6e6e6;
+  --shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-focus: 0 0 0 3px rgba(79, 91, 223, 0.18);
+
+  --success: #28a745;  --success-bg: #e8f5e8;  --success-text: #2e7d32;
+  --danger:  #dc3545;  --danger-bg:  #ffebee;  --danger-text:  #c62828;
+  /* 6.46 на своей подложке; прежний #ef6c00 давал 2.81 */
+  --warning: #f59e0b;  --warning-bg: #fff3e0;  --warning-text: #92400e;
+  --info:    #3b82f6;  --info-bg:    #e3f2fd;  --info-text:    #1565c0;
+
+  --unread-bg: #fff5e0;
+  --unread-accent: #f59e0b;
+  --updated-bg: #f3e8ff;
+  --row-hover: #f5f6ff;
+
+  --tag-chs-bg: #ffebee;       --tag-chs-text: #c62828;
+  --tag-roof-bg: #e3f2fd;      --tag-roof-text: #1565c0;
+  --tag-parking-bg: #e8f5e8;   --tag-parking-text: #2e7d32;
+  --tag-important-bg: #fff3e0; --tag-important-text: #92400e;
+
+  --hint-bg: #333333;
+  --hint-text: #ffffff;
+  --skeleton: #e9eaef;
+  --skeleton-shine: #f4f5f9;
+  --overlay: rgba(15, 23, 42, 0.45);
+}
+
+/* --- Тёмная ----------------------------------------------------------------- */
+:root[data-theme="dark"] {
+  /* Заливка светлее исходного #4F5BDF: тёмно-синяя кнопка на тёмном фоне
+     отделялась всего на 3.35. Светлая заливка с тёмной подписью даёт 7.74. */
+  --accent: #9AA2FF;
+  --accent-text: #9AA2FF;
+  --accent-hover: #B0B6FF;
+  --accent-contrast: #14161c;
+  --accent-tint: rgba(154, 162, 255, 0.16);
+
+  --bg: #14161c;
+  --surface: #1c1f27;
+  --surface-2: #232733;
+  --text: #e8eaf0;
+  --text-muted: #9aa0ae;
+  --border: #2a2f3a;
+  --shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-focus: 0 0 0 3px rgba(154, 162, 255, 0.3);
+
+  --success: #34d399;  --success-bg: #10291f;  --success-text: #6ee7b7;
+  --danger:  #f87171;  --danger-bg:  #2d1618;  --danger-text:  #fca5a5;
+  --warning: #fbbf24;  --warning-bg: #2b2113;  --warning-text: #fcd34d;
+  --info:    #60a5fa;  --info-bg:    #14202f;  --info-text:    #93c5fd;
+
+  /* Тот же смысл, затемнённая подложка: светлая #fff5e0 на тёмном фоне слепит. */
+  --unread-bg: #2b2113;
+  --unread-accent: #fbbf24;
+  --updated-bg: #241a33;
+  --row-hover: #232733;
+
+  --tag-chs-bg: #2d1618;       --tag-chs-text: #fca5a5;
+  --tag-roof-bg: #14202f;      --tag-roof-text: #93c5fd;
+  --tag-parking-bg: #10291f;   --tag-parking-text: #6ee7b7;
+  --tag-important-bg: #2b2113; --tag-important-text: #fcd34d;
+
+  --hint-bg: #0c0e14;
+  --hint-text: #e8eaf0;
+  --skeleton: #262a35;
+  --skeleton-shine: #313644;
+  --overlay: rgba(0, 0, 0, 0.65);
+}
+
+/* --- Корпоративная оранжевая (по мотивам dreamisland.ru) --------------------- */
+:root[data-theme="corporate-orange"] {
+  /* Оранжевый остаётся оранжевым, а не краснеет: чистый оранжевый светлый, поэтому
+     подпись на заливке тёмная (6.51) - белая дала бы 2.8. */
+  --accent: #F97316;
+  --accent-text: #A85708;
+  --accent-hover: #EA6A0C;
+  --accent-contrast: #1F1300;
+  --accent-tint: rgba(249, 115, 22, 0.10);
+
+  --bg: #FAF8F6;
+  --surface: #ffffff;
+  --surface-2: #F5F1ED;
+  --text: #18232E;
+  /* 4.89 на тёплой подложке; фирменный #979DA5 дал бы 2.73 */
+  --text-muted: #62697A;
+  --border: #E7E1DB;
+  --shadow: 0 2px 10px rgba(24, 35, 46, 0.06);
+  --shadow-sm: 0 1px 2px rgba(24, 35, 46, 0.05);
+  --shadow-focus: 0 0 0 3px rgba(249, 115, 22, 0.25);
+
+  --success: #1fa971;  --success-bg: #e6f6ef;  --success-text: #12784f;
+  --danger:  #d63a2e;  --danger-bg:  #fdeceb;  --danger-text:  #a8201a;
+  --warning: #b45309;  --warning-bg: #fdf1de;  --warning-text: #8a4708;
+  --info:    #2a6df4;  --info-bg:    #e9f0fe;  --info-text:    #1b4bb0;
+
+  --unread-bg: #FFF3E4;
+  --unread-accent: #F97316;
+  --updated-bg: #F1ECF8;
+  --row-hover: #FBF7F3;
+
+  --tag-chs-bg: #fdeceb;       --tag-chs-text: #a8201a;
+  --tag-roof-bg: #e9f0fe;      --tag-roof-text: #1b4bb0;
+  --tag-parking-bg: #e6f6ef;   --tag-parking-text: #12784f;
+  --tag-important-bg: #FFF3E4; --tag-important-text: #8a4708;
+
+  --hint-bg: #18232E;
+  --hint-text: #ffffff;
+  --skeleton: #EFEAE4;
+  --skeleton-shine: #F8F5F1;
+  --overlay: rgba(24, 35, 46, 0.45);
+}
+
+/* --- Деловая графитовая: сдержанная, без ярких акцентов ---------------------- */
+:root[data-theme="business-graphite"] {
+  --accent: #4A5568;
+  --accent-text: #4A5568;
+  --accent-hover: #3a4553;
+  --accent-contrast: #ffffff;
+  --accent-tint: rgba(74, 85, 104, 0.08);
+
+  --bg: #f7f8fa;
+  --surface: #ffffff;
+  --surface-2: #f2f4f7;
+  --text: #1f2430;
+  --text-muted: #5f6672;
+  --border: #dfe3e8;
+  --shadow: 0 1px 4px rgba(31, 36, 48, 0.08);
+  --shadow-sm: 0 1px 2px rgba(31, 36, 48, 0.05);
+  --shadow-focus: 0 0 0 3px rgba(74, 85, 104, 0.22);
+
+  --success: #2f855a;  --success-bg: #eaf5ef;  --success-text: #276749;
+  --danger:  #9b2c2c;  --danger-bg:  #f7eaea;  --danger-text:  #822727;
+  --warning: #975a16;  --warning-bg: #f8f1e4;  --warning-text: #7b4a12;
+  --info:    #2c5282;  --info-bg:    #eaf0f7;  --info-text:    #2a4365;
+
+  --unread-bg: #f6f0e2;
+  --unread-accent: #975a16;
+  --updated-bg: #eeecf6;
+  --row-hover: #f2f4f7;
+
+  --tag-chs-bg: #f7eaea;       --tag-chs-text: #822727;
+  --tag-roof-bg: #eaf0f7;      --tag-roof-text: #2a4365;
+  --tag-parking-bg: #eaf5ef;   --tag-parking-text: #276749;
+  --tag-important-bg: #f8f1e4; --tag-important-text: #7b4a12;
+
+  --hint-bg: #1f2430;
+  --hint-text: #ffffff;
+  --skeleton: #e8eaee;
+  --skeleton-shine: #f3f4f7;
+  --overlay: rgba(31, 36, 48, 0.45);
+}
+
+/* --- Официальная синяя: гос-стиль -------------------------------------------- */
+:root[data-theme="official-blue"] {
+  --accent: #1B4F9C;
+  --accent-text: #1B4F9C;
+  --accent-hover: #143d7a;
+  --accent-contrast: #ffffff;
+  --accent-tint: rgba(27, 79, 156, 0.08);
+
+  --bg: #f4f7fb;
+  --surface: #ffffff;
+  --surface-2: #eef3f9;
+  --text: #16233a;
+  --text-muted: #5b6879;
+  --border: #d6e0ee;
+  --shadow: 0 1px 4px rgba(22, 35, 58, 0.08);
+  --shadow-sm: 0 1px 2px rgba(22, 35, 58, 0.05);
+  --shadow-focus: 0 0 0 3px rgba(27, 79, 156, 0.2);
+
+  --success: #1d7a4c;  --success-bg: #e7f4ed;  --success-text: #14603a;
+  --danger:  #b3261e;  --danger-bg:  #fbeae9;  --danger-text:  #8c1d17;
+  --warning: #a86a00;  --warning-bg: #fdf3e2;  --warning-text: #8a5600;
+  --info:    #1B4F9C;  --info-bg:    #e8effa;  --info-text:    #143d7a;
+
+  --unread-bg: #fdf3e2;
+  --unread-accent: #a86a00;
+  --updated-bg: #ebe9f7;
+  --row-hover: #eef3f9;
+
+  --tag-chs-bg: #fbeae9;       --tag-chs-text: #8c1d17;
+  --tag-roof-bg: #e8effa;      --tag-roof-text: #143d7a;
+  --tag-parking-bg: #e7f4ed;   --tag-parking-text: #14603a;
+  --tag-important-bg: #fdf3e2; --tag-important-text: #8a5600;
+
+  --hint-bg: #16233a;
+  --hint-text: #ffffff;
+  --skeleton: #e5ebf3;
+  --skeleton-shine: #f1f5fa;
+  --overlay: rgba(22, 35, 58, 0.5);
+}
+
+/* --- Тёмная оранжевая: корпоративная ночная ---------------------------------- */
+:root[data-theme="dark-orange"] {
+  --accent: #FFA033;
+  --accent-text: #FFA033;
+  --accent-hover: #FFB55C;
+  --accent-contrast: #1a1005;
+  --accent-tint: rgba(255, 160, 51, 0.16);
+
+  --bg: #17120f;
+  --surface: #211a15;
+  --surface-2: #2b221c;
+  --text: #f2e9e4;
+  --text-muted: #a89a90;
+  --border: #3a2c24;
+  --shadow: 0 2px 12px rgba(0, 0, 0, 0.55);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.45);
+  --shadow-focus: 0 0 0 3px rgba(255, 160, 51, 0.3);
+
+  --success: #4ade80;  --success-bg: #14261a;  --success-text: #86efac;
+  --danger:  #fb7185;  --danger-bg:  #2e1519;  --danger-text:  #fda4af;
+  --warning: #fbbf24;  --warning-bg: #2c2012;  --warning-text: #fcd34d;
+  --info:    #7dd3fc;  --info-bg:    #12242e;  --info-text:    #bae6fd;
+
+  --unread-bg: #2c2012;
+  --unread-accent: #FFA033;
+  --updated-bg: #2a1d2e;
+  --row-hover: #2b221c;
+
+  --tag-chs-bg: #2e1519;       --tag-chs-text: #fda4af;
+  --tag-roof-bg: #12242e;      --tag-roof-text: #bae6fd;
+  --tag-parking-bg: #14261a;   --tag-parking-text: #86efac;
+  --tag-important-bg: #2c2012; --tag-important-text: #fcd34d;
+
+  --hint-bg: #0d0906;
+  --hint-text: #f2e9e4;
+  --skeleton: #2b221c;
+  --skeleton-shine: #372c24;
+  --overlay: rgba(0, 0, 0, 0.7);
+}
+
+/* Фон страницы держим на body: пока приложение не смонтировано, браузер иначе
+   рисует белый лист, и при тёмной теме первый кадр мелькает светлым. Задаём
+   ТОЛЬКО фон - color на body поменял бы унаследованный цвет текста всему, что
+   его не объявляет (сейчас там чёрный по умолчанию); текст переезжает на
+   переменные вместе с экранами, в следующих срезах. */
+body {
+  background-color: var(--bg);
+}
+
 :root {
-  --color-primary: #4F5BDF;
-  --color-primary-hover: #3d49c7;
-  --color-primary-tint: rgba(79, 91, 223, 0.08);
-  --color-success: #28a745;
-  --color-danger: #dc3545;
-  --color-warning: #ffc107;
-  --color-text: #333;
-  --color-text-muted: #999;
-  --color-border: #e6e6e6;
-  --color-bg: #f8f9ff;
-  --color-bg-secondary: #f9f9f9;
+  /* Легаси-имена цветов: ссылаются на переменные темы, поэтому компоненты,
+   * уже использующие --color-*, следуют за темой без правок. Новый код берёт
+   * имена темы напрямую (--accent/--text/--surface), эти алиасы не расширять. */
+  --color-primary: var(--accent);
+  --color-primary-hover: var(--accent-hover);
+  --color-primary-tint: var(--accent-tint);
+  --color-success: var(--success);
+  --color-danger: var(--danger);
+  --color-warning: var(--warning);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-border: var(--border);
+  --color-bg: var(--bg);
+  --color-bg-secondary: var(--surface-2);
+  --color-skeleton: var(--skeleton);
+  --color-skeleton-shine: var(--skeleton-shine);
+  --shadow-md: var(--shadow);
+
   --radius-sm: 8px;
   --radius-md: 15px;
   --radius-lg: 20px;
@@ -20,11 +311,6 @@
   --mobile-header-height: 55px;
   --spacing-sm: 10px;
   --spacing-md: 20px;
-  --color-skeleton: #e9eaef;
-  --color-skeleton-shine: #f4f5f9;
-  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
-  --shadow-md: 0 2px 8px rgba(15, 23, 42, 0.06);
-  --shadow-focus: 0 0 0 3px rgba(79, 91, 223, 0.18);
 
   /* Боковой отступ рабочей области - адаптивный (переопределяется в @media
    * ниже). На узком используем максимум ширины: gutter уменьшается. Токен
