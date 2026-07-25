@@ -13,6 +13,8 @@ const unloadPlacesApi = vi.hoisted(() => ({
   bulkRestoreUnloadPlaces: vi.fn(),
   getUnloadPlaceUsage: vi.fn(),
   detachAllUnloadPlace: vi.fn(),
+  detachOrganizationFromUnloadPlace: vi.fn(),
+  detachCompanyFromUnloadPlace: vi.fn(),
 }))
 vi.mock('@/api/unload-places', () => unloadPlacesApi)
 
@@ -205,5 +207,75 @@ describe('UnloadPlacesContainer — блок «Привязки» на вкла�
     expect(wrapper.find('.usage-state--error').exists()).toBe(true)
     expect(wrapper.find('.usage-state--error').text()).toBe('Сервер недоступен')
     expect(wrapper.findAll('.usage-item')).toHaveLength(0)
+  })
+
+  it('крестик точечной отвязки: скрыт без права page.admin, виден с ним', async () => {
+    unloadPlacesApi.getUnloadPlaceUsage.mockResolvedValue({
+      organizations: [{ id: 1, name: 'ООО Ромашка', is_active: true }],
+      companies: [],
+    })
+    wrapper = mountContainer()
+    await flushPromises()
+    await selectPlaceWithUsage(wrapper) // mode 'normal' -> нет page.admin
+    expect(wrapper.findAll('.usage-item__detach')).toHaveLength(0)
+
+    usePermissionsStore().mode = 'super'
+    await flushPromises()
+    expect(wrapper.findAll('.usage-item__detach')).toHaveLength(1)
+  })
+
+  it('точечная отвязка: клик по крестику -> подтверждение -> API + reload + notify', async () => {
+    unloadPlacesApi.getUnloadPlaceUsage
+      .mockResolvedValueOnce({
+        organizations: [{ id: 1, name: 'ООО Ромашка', is_active: true }],
+        companies: [{ id: 5, name: 'Компания-5', is_active: true }],
+      })
+      .mockResolvedValueOnce({
+        organizations: [],
+        companies: [{ id: 5, name: 'Компания-5', is_active: true }],
+      })
+    unloadPlacesApi.detachOrganizationFromUnloadPlace.mockResolvedValue({ detached: true })
+    wrapper = mountContainer()
+    await flushPromises()
+    usePermissionsStore().mode = 'super'
+    await selectPlaceWithUsage(wrapper)
+    const notify = vi.spyOn(useDeletionsStore(), 'notify')
+
+    const btns = wrapper.findAll('.usage-item__detach')
+    expect(btns).toHaveLength(2) // org + company
+    await btns[0].trigger('click')
+    expect(wrapper.vm.detachOneTarget).toEqual({ kind: 'organization', id: 1, name: 'ООО Ромашка' })
+
+    await wrapper.vm.performDetachOne()
+    await flushPromises()
+
+    expect(unloadPlacesApi.detachOrganizationFromUnloadPlace).toHaveBeenCalledWith(7, 1)
+    expect(unloadPlacesApi.getUnloadPlaceUsage).toHaveBeenCalledTimes(2) // первичная + reload
+    expect(notify).toHaveBeenCalledWith(
+      expect.objectContaining({ bold: 'ООО Ромашка', suffix: expect.stringContaining('отвязана') }),
+    )
+    expect(wrapper.findAll('.usage-item')).toHaveLength(1)
+    expect(wrapper.text()).toContain('Компания-5')
+  })
+
+  it('точечная отвязка: ошибка -> error-notify, привязка на месте', async () => {
+    unloadPlacesApi.getUnloadPlaceUsage.mockResolvedValue({
+      organizations: [{ id: 1, name: 'ООО Ромашка', is_active: true }],
+      companies: [],
+    })
+    unloadPlacesApi.detachOrganizationFromUnloadPlace.mockRejectedValue(new Error('Недостаточно прав'))
+    wrapper = mountContainer()
+    await flushPromises()
+    usePermissionsStore().mode = 'super'
+    await selectPlaceWithUsage(wrapper)
+    const notify = vi.spyOn(useDeletionsStore(), 'notify')
+
+    wrapper.vm.confirmDetachOne('organization', { id: 1, name: 'ООО Ромашка' })
+    await wrapper.vm.performDetachOne()
+    await flushPromises()
+
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'error', bold: 'Недостаточно прав' }))
+    expect(wrapper.vm.detachingOne).toBe(false)
+    expect(wrapper.findAll('.usage-item')).toHaveLength(1)
   })
 })
