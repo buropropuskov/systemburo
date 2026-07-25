@@ -731,9 +731,12 @@ export default {
             return flag.overridden ? 'neutral' : 'danger';
         },
 
+        /**
+         * Подпись короткая в любом режиме: "пропуск подтверждён" не помещался
+         * в колонку действий и обрезался многоточием. Полный текст - в подсказке.
+         */
         blacklistLabel(flag) {
-            if (this.isCompact) return flag.overridden ? 'снят' : 'ЧС';
-            return flag.overridden ? 'пропуск подтверждён' : 'похоже на ЧС';
+            return flag.overridden ? 'ЧС снят' : 'похоже на ЧС';
         },
 
         blacklistTooltip(flag) {

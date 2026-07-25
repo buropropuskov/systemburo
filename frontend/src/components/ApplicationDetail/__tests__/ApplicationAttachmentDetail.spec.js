@@ -89,7 +89,7 @@ describe('ApplicationAttachmentDetail — подсветка возможног�
 
     const badge = item.find('.blacklist-badge');
     expect(badge.exists()).toBe(true);
-    expect(badge.text()).toBe('пропуск подтверждён');
+    expect(badge.text()).toBe('ЧС снят');
     expect(badge.classes()).toContain('badge--neutral');
   });
 
@@ -111,6 +111,13 @@ describe('ApplicationAttachmentDetail — подсветка возможног�
     expect(badge.exists()).toBe(true);
     expect(badge.text()).toBe('похоже на ЧС');
     expect(badge.attributes('data-hint')).toContain('Иваноф Иван Иванович');
+  });
+
+  it('подпись бейджа короткая: длинная не помещалась в колонку действий и резалась', () => {
+    const wrapper = mountCars([car({ blacklist_similar: flag({ overridden: true }) })]);
+    const badge = wrapper.find('.blacklist-badge');
+    expect(badge.text()).toBe('ЧС снят');
+    expect(badge.attributes('data-hint')).toContain('Пропуск подтверждён');
   });
 
   it('в футере видна сводка по количеству помеченных строк', () => {
