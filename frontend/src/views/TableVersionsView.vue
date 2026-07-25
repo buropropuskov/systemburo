@@ -988,4 +988,78 @@ onMounted(async () => {
 @keyframes versions-spin {
   to { transform: rotate(360deg); }
 }
+
+/* --- Мобилка. Брейкпоинт 768 намеренно совпадает с DateFilter
+   (.date-filter -> width:100% на <=768): фильтр-стек и растяжение календаря
+   должны включаться в один момент. Иначе на строчной раскладке календарь
+   шириной 100% распирает строку фильтра и вылезает за экран на ~100px, из-за
+   чего мобильный браузер ужимает страницу (shrink-to-fit) и layout viewport
+   растёт до ~502 вместо 390. Сама preview-таблица (CarsTable/PeopleTable)
+   превращается в карточки своей инфрой responsive-tables.css (767.98) - тут её
+   не трогаем. */
+@media (max-width: 768px) {
+  .versions-view {
+    padding: 12px;
+  }
+
+  /* Заголовок слева, «Назад» справа; длинное имя таблицы переносится строкой,
+     а не толкает кнопку за край экрана. */
+  .versions-titlebar {
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+
+  .versions-title {
+    min-width: 0;
+    font-size: 17px;
+    line-height: 21px;
+  }
+
+  .versions-back-btn {
+    flex-shrink: 0;
+  }
+
+  .versions-toolbar {
+    padding: 12px 14px;
+  }
+
+  .versions-meta,
+  .versions-footer {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  /* Фильтр версий в столбик: селектор версии и календарь - каждый на своей строке
+     во всю ширину группы. Подпись поля идёт над контролом. */
+  .versions-filter {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 12px 14px;
+  }
+
+  .versions-filter__group {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  /* Фиксированная десктопная ширина 280px уступает место полной ширине группы. */
+  .versions-filter__dropdown,
+  .versions-filter__date {
+    width: 100%;
+  }
+
+  /* «Ещё» (появляется при >100 версий) - интринзик-пилюля: при stretch-группе
+     иначе растянулась бы во всю ширину. */
+  .versions-load-more {
+    align-self: flex-start;
+  }
+}
+
+@media (max-width: 480px) {
+  .versions-view {
+    padding: 10px;
+  }
+}
 </style>
