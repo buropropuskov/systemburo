@@ -3292,6 +3292,9 @@ export default {
 
 .application-item.unread {
     background-color: #fff5e0;
+    /* Жёлтая полоса-акцент слева, как фиолетовая у status-updated - единый язык
+       "требует внимания" (inset - без reflow). */
+    box-shadow: inset 3px 0 0 0 #f59e0b;
 }
 
 /* Заявка с обновлённым статусом (#1349): мягкий фиолетовый фон + пульс-точка на бейдже.
@@ -3724,6 +3727,19 @@ export default {
        #fff !important}` (responsive-tables.css). Синяя дата + красная точка остаются. */
     .applications-table .application-item.unread .application-row.rt-row {
         background-color: #fff5e0 !important;
+        /* Жёлтая полоса слева на мобильной карточке (фиолетовая перекрывалась белым
+           фоном rt-row - здесь та же схема для жёлтой). */
+        box-shadow: inset 3px 0 0 0 #f59e0b !important;
+    }
+
+    /* Заявка с обновлённым статусом на мобилке - фиолетовый фон карточки + левая
+       полоса-акцент, как на десктопе. Подсветка висит на .application-item, а
+       карточка - вложенная .rt-row с белым фоном !important (responsive-tables.css):
+       на десктопе фон родителя виден сквозь прозрачную строку, на мобилке белая
+       карточка его закрывала - пробрасываем на саму .rt-row (#1349 mobile-fix). */
+    .applications-table .application-item.status-updated .application-row.rt-row {
+        background-color: #f3e8ff !important;
+        box-shadow: inset 3px 0 0 0 #9333ea !important;
     }
 
     /* Компактная карточка-письмо БЕЗ подписей (W3.7): бейдж согласования + дата в углу
