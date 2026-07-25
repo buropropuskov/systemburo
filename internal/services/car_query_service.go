@@ -277,10 +277,15 @@ func (s *carService) GetCarUnloadPlaces(ctx context.Context) ([]CarUnloadPlaceIn
 		Joins("JOIN unload_places up ON cup.unload_place_id = up.id").
 		Joins("JOIN cars c ON cup.car_id = c.id").
 		Joins("JOIN attachments a ON c.attachment_id = a.id").
-		Joins("JOIN applications app ON a.application_id = app.id").
+		// LEFT JOIN и ветка is_manual - зеркало предиката самой таблицы
+		// (tableCarsBase): ручная машина висит на вложении без заявки, и внутренний
+		// джойн выкидывал её связи. Строка таблицы место при этом показывала (там
+		// имена грузятся отдельно, без заявки), а карточка строит секцию по
+		// unload_place_ids из этого запроса - и оставалась пустой (#1238).
+		Joins("LEFT JOIN applications app ON a.application_id = app.id").
 		Where("c.status = ?", 1).
-		Where("app.confirmation = ?", models.ConfirmationApproved).
-		Where("app.status IN ?", []string{models.StatusInWork, models.StatusCompleted}).
+		Where("a.is_manual OR (app.confirmation = ? AND app.status IN ?)",
+			models.ConfirmationApproved, []string{models.StatusInWork, models.StatusCompleted}).
 		Order("cup.car_id, cup.order_index").
 		Scan(&places).Error
 	if err != nil {
@@ -298,10 +303,11 @@ func (s *carService) GetFactCarUnloadPlaces(ctx context.Context) ([]CarUnloadPla
 		Joins("JOIN unload_places up ON cup.unload_place_id = up.id").
 		Joins("JOIN cars c ON cup.car_id = c.id").
 		Joins("JOIN attachments a ON c.attachment_id = a.id").
-		Joins("JOIN applications app ON a.application_id = app.id").
+		// Тот же зеркальный предикат, что у активных: ручная машина заявки не имеет.
+		Joins("LEFT JOIN applications app ON a.application_id = app.id").
 		Where("c.status = ?", 1).
-		Where("app.confirmation = ?", models.ConfirmationApproved).
-		Where("app.status IN ?", []string{models.StatusInWork, models.StatusCompleted}).
+		Where("a.is_manual OR (app.confirmation = ? AND app.status IN ?)",
+			models.ConfirmationApproved, []string{models.StatusInWork, models.StatusCompleted}).
 		Where("LOWER(TRIM(c.car_number)) = ?", "по факту").
 		Order("cup.car_id, cup.order_index").
 		Scan(&places).Error
