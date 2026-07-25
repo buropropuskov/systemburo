@@ -87,16 +87,41 @@ describe('BaseDropdown multiple', () => {
     expect(rows[0].find('.base-dropdown__check--on').exists()).toBe(false);
   });
 
-  it('«Сбросить выбор» есть только при непустом выборе и эмитит пустой массив', async () => {
-    const empty = mountMulti();
-    await empty.find('.base-dropdown__button').trigger('click');
-    expect(empty.find('[data-testid="base-dropdown-clear"]').exists()).toBe(false);
-
+  it('«Сбросить выбор» эмитит пустой массив', async () => {
     const w = mountMulti({ modelValue: [1, 2] });
     await w.find('.base-dropdown__button').trigger('click');
     await w.find('[data-testid="base-dropdown-clear"]').trigger('click');
 
     expect(w.emitted('update:modelValue')[0][0]).toEqual([]);
+  });
+
+  // Регресс: строка сброса рисовалась по v-if и при первом выборе влезала в поток,
+  // сдвигая список опций вниз прямо под курсором.
+  it('строка сброса присутствует и при пустом выборе - список не сдвигается', async () => {
+    const w = mountMulti();
+    await w.find('.base-dropdown__button').trigger('click');
+
+    const clear = w.find('[data-testid="base-dropdown-clear"]');
+    expect(clear.exists()).toBe(true);
+    expect(clear.attributes('disabled')).toBeDefined();
+    expect(clear.text()).toBe('Ничего не выбрано');
+
+    // выбор не добавляет и не убирает элементов меню, меняется только подпись
+    const before = w.findAll('.base-dropdown__menu > *').length;
+    await items(w)[0].trigger('click');
+    await w.setProps({ modelValue: [1] });
+
+    expect(w.findAll('.base-dropdown__menu > *').length).toBe(before);
+    expect(w.find('[data-testid="base-dropdown-clear"]').attributes('disabled')).toBeUndefined();
+    expect(w.find('[data-testid="base-dropdown-clear"]').text()).toBe('Сбросить выбор (1)');
+  });
+
+  it('неактивная строка сброса не эмитит сброс по клику', async () => {
+    const w = mountMulti();
+    await w.find('.base-dropdown__button').trigger('click');
+    await w.find('[data-testid="base-dropdown-clear"]').trigger('click');
+
+    expect(w.emitted('update:modelValue')).toBeUndefined();
   });
 
   it('поиск фильтрует пункты, выбор из отфильтрованного списка работает', async () => {
