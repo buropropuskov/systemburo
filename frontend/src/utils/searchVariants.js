@@ -82,25 +82,50 @@ export function matchesSearch(haystack, variants) {
 
 
 /**
- * Расстояние Левенштейна с ранним выходом: как только минимум по строке
- * превысил лимит, считать дальше незачем.
+ * Расстояние Дамерау-Левенштейна с ранним выходом: как только минимум по
+ * строке превысил лимит, считать дальше незачем. Перестановка соседних
+ * символов стоит одну правку - «935» против «395» это типичная опечатка,
+ * а не два независимых промаха.
  */
 function editDistance(a, b, limit) {
     if (Math.abs(a.length - b.length) > limit) return limit + 1;
 
-    let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+    const rows = [Array.from({ length: b.length + 1 }, (_, i) => i)];
     for (let i = 1; i <= a.length; i++) {
         const cur = [i];
         let rowMin = i;
+        const prev = rows[i - 1];
+        const prev2 = rows[i - 2];
         for (let j = 1; j <= b.length; j++) {
             const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-            cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
-            if (cur[j] < rowMin) rowMin = cur[j];
+            let value = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+            if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+                value = Math.min(value, prev2[j - 2] + 1);
+            }
+            cur[j] = value;
+            if (value < rowMin) rowMin = value;
         }
         if (rowMin > limit) return limit + 1;
-        prev = cur;
+        rows.push(cur);
     }
-    return prev[b.length];
+    return rows[a.length][b.length];
+}
+
+/** Только цифры - тогда для номера имеет смысл сравнивать состав, а не порядок. */
+function isDigits(text) {
+    return /^\d+$/.test(text);
+}
+
+/**
+ * Цифры те же, порядок другой: «359» и «935». Номер запоминают набором цифр,
+ * порядок путают, поэтому для чисто числового запроса перестановка считается
+ * совпадением. К буквам не применяем - там перестановка всех символов это
+ * обычно другое слово, а не опечатка.
+ */
+function sameDigitsInAnyOrder(candidate, needle) {
+    if (candidate.length !== needle.length) return false;
+    if (!isDigits(candidate) || !isDigits(needle)) return false;
+    return [...candidate].sort().join('') === [...needle].sort().join('');
 }
 
 /**
@@ -136,7 +161,9 @@ function allowedTypos(length) {
  *
  * Метрика та же, что у серверной проверки обхода ЧС по номеру
  * (`vehicleBlacklistService.FindSimilar`), сравнение пословное - как
- * `strict_word_similarity` в поиске заявок.
+ * `strict_word_similarity` в поиске заявок. Сверх этого: перестановка соседних
+ * символов считается одной правкой, а числовой фрагмент совпадает с теми же
+ * цифрами в любом порядке («359» находит «935»).
  *
  * @param {string} haystack - искомый текст (склейка полей сущности)
  * @param {string[]} variants - результат buildSearchVariants
@@ -160,6 +187,7 @@ export function matchesSearchFuzzy(haystack, variants) {
                 candidate += words[end];
                 if (candidate.length > needle.length + limit) break;
                 if (Math.abs(candidate.length - needle.length) > limit) continue;
+                if (sameDigitsInAnyOrder(candidate, needle)) return true;
                 if (editDistance(candidate, needle, limit) <= limit) return true;
             }
         }
