@@ -353,8 +353,14 @@ func Setup(e *echo.Echo, d Dependencies) {
 
 	// Организации. Изменяющие операции и история - page.admin (Ф5, ранее handler-level
 	// CheckAdminPermissions); списки и привязка пользователей - как было, без гейта.
+	// Подсказки при ручном вводе наименования в заявке (#1437). Гейт - то же право,
+	// что разблокирует ручной ввод: без него заявка идёт от своей организации, и
+	// подсказывать нечего. Статический сегмент suggest в Echo приоритетнее :id.
+	requireOrgOverride := mw.RequirePermissionV2(permResolver, denialLog, services.KeyApplicationOrganizationOverride)
+
 	orgg := protected.Group("/organizations")
 	orgg.GET("", org.GetAll)
+	orgg.GET("/suggest", org.Suggest, requireOrgOverride)
 	orgg.POST("", org.Create, requireAdmin)
 	orgg.PUT("/:id", org.Update, requireAdmin)
 	orgg.DELETE("/:id", org.Delete, requireAdmin)
@@ -386,6 +392,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// списки и привязка пользователей (UpdateUsers) - как было, без отдельного гейта.
 	cg := protected.Group("/companies")
 	cg.GET("", comp.GetAll)
+	cg.GET("/suggest", comp.Suggest, requireOrgOverride)
 	cg.POST("", comp.Create, requireAdmin)
 	cg.PUT("/:id", comp.Update, requireAdmin)
 	cg.DELETE("/:id", comp.Delete, requireAdmin)

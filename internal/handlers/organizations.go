@@ -40,6 +40,27 @@ func (h *OrganizationHandler) GetAll(c echo.Context) error {
 	return RespondSuccess(c, orgs)
 }
 
+// Suggest godoc
+// @Summary      Подсказки организаций по наименованию
+// @Description  Близкие к запросу проверенные организации (максимум 5) для ручного ввода наименования в заявке. Требует права application.organization.override. Запрос короче трёх символов даёт пустой список.
+// @Tags         organizations
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        q query string true "Наименование или его часть"
+// @Success      200 {array} services.DirectorySuggestion
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /organizations/suggest [get]
+func (h *OrganizationHandler) Suggest(c echo.Context) error {
+	suggestions, err := h.service.Suggest(c.Request().Context(), c.QueryParam("q"))
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, suggestions)
+}
+
 // Create godoc
 // @Summary      Создать организацию
 // @Description  Создаёт новую организацию. Требует права buropropuskov

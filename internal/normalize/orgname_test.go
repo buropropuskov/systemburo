@@ -1,6 +1,9 @@
 package normalize
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // TestOrgNameCollapsesWritings - написания одного юрлица дают один ключ. Это ядро
 // дедупликации: пара «ООО "Петрушка"» / «ооо петрушка» и есть тот случай, ради
@@ -110,6 +113,60 @@ func TestOrgNameExact(t *testing.T) {
 	for _, c := range cases {
 		if got := OrgName(c.in); got != c.want {
 			t.Errorf("OrgName(%q) = %q, ожидалось %q", c.in, got, c.want)
+		}
+	}
+}
+
+// TestOrgNameCore - ядро для подсказок: ОПФ снята, смысловая часть на месте. Именно по
+// ядру ищется «максима», когда в справочнике лежит «ООО "Максима Групп"» (#1437).
+func TestOrgNameCore(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct{ in, want string }{
+		{`ООО "Максима Групп"`, "максима групп"},
+		{`Общество с ограниченной ответственностью «Победа»`, "победа"},
+		{`ЧОП "АРЕС"`, "арес"},
+		{`ИП Иванов И.И.`, "иванов ии"},
+		{`АО "Регионы-Энтертейнмент"`, "регионы-энтертейнмент"},
+		// ОПФ в середине наименования тоже служебная.
+		{`Торговый дом ООО Ромашка`, "торговый дом ромашка"},
+		// Наименование без ОПФ ядром себе и является.
+		{`Технический департамент`, "технический департамент"},
+		// «м-н» и «р-н» - не ОПФ, вырезать их нельзя: без них останется одно слово.
+		{`м-н Летуаль`, "м-н летуаль"},
+		{``, ""},
+	}
+
+	for _, c := range cases {
+		if got := OrgNameCore(c.in); got != c.want {
+			t.Errorf("OrgNameCore(%q) = %q, ожидалось %q", c.in, got, c.want)
+		}
+	}
+}
+
+// TestOrgNameCoreKeepsBareLegalForm - у наименования из одной ОПФ ядром остаётся сам ключ.
+// Пустое ядро выкинуло бы такую запись из подсказок и из сравнения целиком.
+func TestOrgNameCoreKeepsBareLegalForm(t *testing.T) {
+	t.Parallel()
+
+	for _, in := range []string{`ООО`, `ЗАО`, `Общество с ограниченной ответственностью`} {
+		if got, want := OrgNameCore(in), OrgName(in); got != want {
+			t.Errorf("OrgNameCore(%q) = %q, ожидался ключ %q", in, got, want)
+		}
+	}
+}
+
+// TestOrgLegalFormPatternCoversTokens - в SQL-паттерн попадают все токены ОПФ. Ядро
+// записи снимает Postgres этим паттерном, ядро запроса - OrgNameCore: пропущенный токен
+// развёл бы их. Эквивалентность на реальном движке (границы слова \m и \M в Go-regexp
+// не воспроизводятся - там \b только для ASCII) проверяет TestDirectorySuggest.
+func TestOrgLegalFormPatternCoversTokens(t *testing.T) {
+	t.Parallel()
+
+	pattern := OrgLegalFormPattern()
+	for token := range orgLegalFormTokens {
+		if !strings.Contains(pattern, token+"|") && !strings.Contains(pattern, token+`)\M`) {
+			t.Errorf("токен ОПФ %q не попал в SQL-паттерн %q", token, pattern)
 		}
 	}
 }

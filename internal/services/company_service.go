@@ -21,6 +21,10 @@ type CompanyService interface {
 	// GetAll возвращает список всех компаний, отсортированных по имени.
 	GetAll(ctx context.Context) ([]models.Company, error)
 
+	// Suggest возвращает близкие к query проверенные компании (максимум пять) для
+	// ручного ввода наименования в заявке.
+	Suggest(ctx context.Context, query string) ([]DirectorySuggestion, error)
+
 	// GetWithUsers возвращает компании с количеством пользователей. includeArchived добавляет архивные.
 	GetWithUsers(ctx context.Context, includeArchived bool) ([]CompanyWithUsersResponse, error)
 
@@ -198,6 +202,11 @@ func (s *companyService) GetAll(ctx context.Context) ([]models.Company, error) {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching companies")
 	}
 	return companies, nil
+}
+
+// Suggest подбирает близкие компании по наименованию, см. suggestDirectory.
+func (s *companyService) Suggest(ctx context.Context, query string) ([]DirectorySuggestion, error) {
+	return suggestDirectory(ctx, s.db, "companies", query)
 }
 
 // GetWithUsers возвращает компании с количеством привязанных пользователей.

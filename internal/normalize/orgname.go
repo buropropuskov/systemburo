@@ -2,6 +2,7 @@ package normalize
 
 import (
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -23,6 +24,25 @@ var orgLegalForms = []struct{ full, short string }{
 	{"публичное акционерное общество", "пао"},
 	{"индивидуальный предприниматель", "ип"},
 	{"акционерное общество", "ао"},
+}
+
+// orgAbbrevOnlyForms - организационно-правовые формы, которые в наименованиях пишут
+// только аббревиатурой: полной формы у них в orgLegalForms нет, но для смыслового ядра
+// (OrgNameCore) они такой же служебный префикс, как ООО или ЗАО.
+var orgAbbrevOnlyForms = []string{"чоп", "чоу", "ано", "нко", "тсж", "снт"}
+
+// orgLegalFormTokens - все токены ОПФ: канонические аббревиатуры из orgLegalForms плюс
+// те, что встречаются только сокращёнными. Строится при инициализации, чтобы список ОПФ
+// оставался в одном месте.
+var orgLegalFormTokens = map[string]bool{}
+
+func init() {
+	for _, form := range orgLegalForms {
+		orgLegalFormTokens[form.short] = true
+	}
+	for _, short := range orgAbbrevOnlyForms {
+		orgLegalFormTokens[short] = true
+	}
 }
 
 // orgNameQuotes - кавычки всех начертаний, встречающиеся в наименованиях. Отбрасываются
@@ -76,4 +96,47 @@ func OrgName(name string) string {
 	cleaned = hyphenSpaces.ReplaceAllString(cleaned, "-")
 
 	return strings.Join(strings.Fields(cleaned), " ")
+}
+
+// OrgNameCore возвращает смысловое ядро наименования - ключ OrgName без токенов
+// организационно-правовой формы. Для подсказок сравнивать нужно именно ядра: человек
+// печатает «максима», а в справочнике лежит «ООО "Максима Групп"», и общий префикс «ооо»
+// у всех записей только размывает близость.
+//
+// Ядро НЕ хранится и ключом дедупликации не является: «ООО Ромашка» и «ЗАО Ромашка» -
+// разные юрлица с одним ядром, поэтому оно годится для подсказки и не годится для
+// автоматической привязки (#1437).
+//
+// Наименование, состоящее из одной ОПФ, ядра не имеет - для него возвращается сам ключ,
+// иначе запись стала бы пустой строкой и перестала находиться.
+func OrgNameCore(name string) string {
+	key := OrgName(name)
+	fields := strings.Fields(key)
+	core := make([]string, 0, len(fields))
+	for _, f := range fields {
+		if orgLegalFormTokens[f] {
+			continue
+		}
+		core = append(core, f)
+	}
+	if len(core) == 0 {
+		return key
+	}
+	return strings.Join(core, " ")
+}
+
+// OrgLegalFormPattern возвращает регулярное выражение POSIX, которым SQL снимает токены
+// ОПФ с хранимого name_normalized и получает то же ядро, что OrgNameCore даёт запросу.
+// Список форм живёт только в Go: запрос получает паттерн параметром, поэтому два
+// источника правды не заводятся.
+//
+// Границы слова (\m и \M) обязательны: без них «ао» вырезалось бы внутри «зао» и
+// «Мегобари» превратилось бы в «Мегбари».
+func OrgLegalFormPattern() string {
+	tokens := make([]string, 0, len(orgLegalFormTokens))
+	for token := range orgLegalFormTokens {
+		tokens = append(tokens, token)
+	}
+	sort.Strings(tokens)
+	return `\m(` + strings.Join(tokens, "|") + `)\M`
 }
