@@ -217,8 +217,8 @@ export default {
   position: absolute;
   top: -40px;
   left: 0;
-  background: var(--color-primary);
-  color: white;
+  background: var(--accent);
+  color: var(--accent-contrast);
   padding: 8px 16px;
   z-index: 10000;
   transition: top 0.2s;
@@ -299,11 +299,11 @@ body.nav-drawer-open {
 }
 
 .blue {
-  color: #4F5BDF;
+  color: var(--accent-text);
 }
 
 .red {
-  color: rgb(241, 76, 76);
+  color: var(--danger);
 }
 
 .page-fade-enter-active {

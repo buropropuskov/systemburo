@@ -351,7 +351,7 @@ h3 {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
   padding: 8px 20px;
   position: relative;
   z-index: 100;
@@ -376,7 +376,7 @@ h3 {
 
 .header__subtitle {
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -402,7 +402,7 @@ h3 {
 .header__time {
   min-width: 160px;
   font-size: 16px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   text-align: center;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -411,7 +411,7 @@ h3 {
 .feedback-btn {
   height: 35px;
   font-size: 14px;
-  color: #6E4A3A;
+  color: var(--warning-text);
   border: none;
   outline: none;
   font-weight: 500;
@@ -430,7 +430,7 @@ h3 {
    через @media (hover: hover), чтобы тап на мобилке не оставлял хвост (#1097 p2). */
 @media (hover: hover) {
   .feedback-btn:hover {
-    text-decoration-color: #6E4A3A;
+    text-decoration-color: var(--warning-text);
   }
 }
 
@@ -443,12 +443,12 @@ h3 {
   padding: 0 15px;
   height: 35px;
   font-size: 14px;
-  color: #856404;
-  border: 1px solid #fff3cd;
+  color: var(--warning-text);
+  border: 1px solid var(--warning-bg);
   outline: none;
   border-radius: 50px;
   font-weight: 500;
-  background: #fff3cd;
+  background: var(--warning-bg);
   cursor: pointer;
   white-space: nowrap;
   transition: filter 0.2s ease;
@@ -461,9 +461,9 @@ h3 {
 }
 
 .broadcast--important {
-  color: #c62828;
-  background: #ffb3b3;
-  border-color: #ffb3b3;
+  color: var(--danger-text);
+  background: var(--danger-bg);
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--surface));
 }
 
 @media (hover: hover) {
@@ -480,7 +480,7 @@ h3 {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   box-shadow: 0 2px 2px rgba(0,0,0,0.05);
   position: relative;
   cursor: pointer;
@@ -496,8 +496,8 @@ h3 {
   position: absolute;
   top: -4px;
   right: -4px;
-  background-color: #f14c4c;
-  color: #fff;
+  background-color: var(--danger);
+  color: var(--surface);
   font-size: 11px;
   font-weight: 600;
   min-width: 18px;
@@ -533,9 +533,9 @@ h3 {
   width: fit-content;
   padding: 0 16px;
   font-size: 13px;
-  color: #000;
-  background-color: #fff;
-  border: 1px solid #4F5BDF;
+  color: var(--text);
+  background-color: var(--surface);
+  border: 1px solid var(--accent);
   outline: none;
   cursor: pointer;
   font-weight: 400;
@@ -546,7 +546,7 @@ h3 {
 
 @media (hover: hover) {
   .appl-btn:hover {
-    background-color: #e6e6e6;
+    background-color: var(--surface-2);
   }
 }
 
@@ -588,8 +588,8 @@ h3 {
   width: 44px;
   height: 44px;
   padding: 0;
-  border: 1px solid var(--color-border);
-  background: #fff;
+  border: 1px solid var(--border);
+  background: var(--surface);
   cursor: pointer;
   flex-direction: column;
   gap: 4px;
@@ -612,7 +612,7 @@ h3 {
   display: block;
   width: 20px;
   height: 2px;
-  background: #555;
+  background: var(--text);
   border-radius: 1px;
   transition: background 0.2s;
 }
@@ -641,7 +641,7 @@ h3 {
     position: sticky;
     top: 0;
     z-index: 100;
-    background: #fff;
+    background: var(--surface);
     padding: 0 12px;
     gap: 8px;
     /* Высота 55 (токен) синхронна sticky-top вложенных шапок. nowrap обязателен: при
@@ -709,9 +709,9 @@ h3 {
     width: auto;
     padding: 0 16px;
     border-radius: var(--radius-md);
-    background: #fff;
-    color: var(--color-primary);
-    border: 1px solid var(--color-primary);
+    background: var(--surface);
+    color: var(--accent-text);
+    border: 1px solid var(--accent);
     display: inline-flex;
     align-items: center;
     justify-content: center;

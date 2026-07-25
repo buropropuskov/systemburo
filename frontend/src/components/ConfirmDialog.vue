@@ -82,7 +82,7 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -99,9 +99,9 @@ export default {
 .confirm-dialog {
   width: 100%;
   max-width: 400px;
-  background: #FFFFFF;
+  background: var(--surface);
   border-radius: 30px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 10px 30px var(--shadow-drop);
   overflow: hidden;
   font-family: 'Montserrat', sans-serif;
 }
@@ -111,14 +111,14 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 16px 20px;
-  border-bottom: 1px solid #E6E6E6;
+  border-bottom: 1px solid var(--border);
 }
 
 .confirm-dialog__title {
   margin: 0;
   font-size: 1.1em;
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .confirm-dialog__close {
@@ -126,7 +126,7 @@ export default {
   border: none;
   font-size: 18px;
   cursor: pointer;
-  color: #999;
+  color: var(--text-muted);
   padding: 0;
   width: 24px;
   height: 24px;
@@ -136,12 +136,12 @@ export default {
 }
 
 .confirm-dialog__close:hover {
-  color: #333;
+  color: var(--text);
 }
 
 .confirm-dialog__body {
   padding: 20px;
-  color: #333;
+  color: var(--text);
   font-size: 14px;
   line-height: 1.5;
 }
@@ -151,7 +151,7 @@ export default {
   justify-content: flex-end;
   gap: 10px;
   padding: 16px 20px;
-  border-top: 1px solid #E6E6E6;
+  border-top: 1px solid var(--border);
 }
 
 .confirm-dialog__btn {
@@ -167,31 +167,31 @@ export default {
 }
 
 .confirm-dialog__btn--cancel {
-  background: #f8f9fa;
-  color: #666;
-  border-color: #e6e6e6;
+  background: var(--surface-2);
+  color: var(--text);
+  border-color: var(--border);
 }
 
 .confirm-dialog__btn--cancel:hover {
-  background: #e9ecef;
+  background: var(--row-hover);
 }
 
 .confirm-dialog__btn--primary {
-  background: #4F5BDF;
-  color: #FFFFFF;
+  background: var(--accent);
+  color: var(--accent-contrast);
 }
 
 .confirm-dialog__btn--primary:hover {
-  background: #3a45b2;
+  background: var(--accent-hover);
 }
 
 .confirm-dialog__btn--danger {
-  background: #FF6668;
-  color: #FFFFFF;
+  background: var(--danger);
+  color: var(--surface);
 }
 
 .confirm-dialog__btn--danger:hover {
-  background: #e54e50;
+  background: color-mix(in srgb, var(--danger) 85%, var(--text));
 }
 
 .confirm-fade-enter-active,

@@ -124,7 +124,7 @@ export default {
 .dirty-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -134,18 +134,18 @@ export default {
 }
 
 .dirty-modal {
-  background: #fff;
+  background: var(--surface);
   border-radius: 16px;
   padding: 22px 24px 18px;
   width: 560px;
   max-width: calc(100vw - 32px);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 10px 28px var(--shadow-drop);
 }
 
 .dirty-modal__header {
   font-size: 16px;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--text);
   margin-bottom: 10px;
 }
 
@@ -156,13 +156,13 @@ export default {
 .dirty-modal__message {
   margin: 0 0 12px;
   font-size: 14px;
-  color: #4b5563;
+  color: var(--text-muted);
   line-height: 1.45;
 }
 
 .dirty-modal__changes {
-  background: #f8f9ff;
-  border: 1px solid #eef0ff;
+  background: var(--accent-tint);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 10px 14px;
   max-height: 240px;
@@ -172,7 +172,7 @@ export default {
 .dirty-modal__changes-title {
   font-size: 12px;
   font-weight: 600;
-  color: #4F5BDF;
+  color: var(--accent-text);
   margin-bottom: 6px;
 }
 
@@ -184,7 +184,7 @@ export default {
 
 .dirty-modal__changes-item {
   font-size: 13px;
-  color: #4b5563;
+  color: var(--text-muted);
   line-height: 1.45;
   padding: 2px 0;
   display: flex;
@@ -198,25 +198,25 @@ export default {
   display: inline-block;
   width: 4px;
   height: 4px;
-  background: #4F5BDF;
+  background: var(--accent);
   border-radius: 50%;
   flex-shrink: 0;
   margin-right: 2px;
 }
 
 .dirty-modal__changes-label {
-  color: #4b5563;
+  color: var(--text-muted);
 }
 
 .dirty-modal__changes-value {
   font-weight: 600;
-  color: #1f2937;
+  color: var(--text);
 }
 
 .dirty-modal__changes-arrow {
   width: 14px;
   height: 10px;
-  color: #111827;
+  color: var(--text);
   flex-shrink: 0;
 }
 
@@ -228,7 +228,7 @@ export default {
 
 .dirty-modal__btn {
   padding: 9px 18px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 10px;
   font-size: 13px;
   font-weight: 500;
@@ -238,35 +238,35 @@ export default {
 }
 
 .dirty-modal__btn--cancel {
-  background: #fff;
-  color: #4b5563;
+  background: var(--surface);
+  color: var(--text-muted);
 }
 
 .dirty-modal__btn--cancel:hover {
-  background: #f5f5f5;
-  border-color: #d4d4d4;
+  background: var(--surface-2);
+  border-color: var(--border);
 }
 
 .dirty-modal__btn--confirm {
-  background: #fff;
-  color: #c62828;
-  border-color: #e6e6e6;
+  background: var(--surface);
+  color: var(--danger-text);
+  border-color: var(--border);
 }
 
 .dirty-modal__btn--confirm:hover {
-  background: #fef2f2;
-  border-color: #fecaca;
+  background: var(--danger-bg);
+  border-color: color-mix(in srgb, var(--danger) 30%, var(--surface));
 }
 
 .dirty-modal__btn--save {
-  background: #4F5BDF;
-  color: #fff;
-  border-color: #4F5BDF;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
 }
 
 .dirty-modal__btn--save:hover:not(:disabled) {
-  background: #3a45c4;
-  border-color: #3a45c4;
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
 }
 
 .dirty-modal__btn:disabled {
