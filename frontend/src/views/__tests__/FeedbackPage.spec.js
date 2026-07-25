@@ -130,6 +130,20 @@ describe('FeedbackPage', () => {
     expect(wrapper.find('.detail-title').text()).toContain('Обращение #5');
   });
 
+  // Класс unread несёт подсветку строки (жёлтый фон + полоса слева, как в Центре).
+  it('непрочитанное обращение помечено классом unread, прочтение его снимает', async () => {
+    getAllFeedback.mockResolvedValue([resolved(1), fb(2)]);
+    wrapper = mountPage();
+    await flushPromises();
+
+    expect(rowByAuthor('Пользователь 2').classes()).toContain('unread');
+    expect(rowByAuthor('Пользователь 1').classes()).not.toContain('unread');
+
+    await rowByAuthor('Пользователь 2').trigger('click');
+    await flushPromises();
+    expect(rowByAuthor('Пользователь 2').classes()).not.toContain('unread');
+  });
+
   it('ответ: шлёт status+comment, уведомляет и показывает карточку ответа', async () => {
     getAllFeedback.mockResolvedValue([fb(7)]);
     wrapper = mountPage();

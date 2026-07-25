@@ -563,6 +563,14 @@ onMounted(refresh);
   background-color: #f8f9ff;
 }
 
+/* Непрочитанное обращение - жёлтый фон и полоса-акцент слева, тот же язык, что у
+   непрочитанной заявки в Центре. Правило стоит ниже :hover/.selected (специфичность
+   равная), чтобы подсветка держалась при наведении. */
+.ticket-row.unread {
+  background-color: var(--unread-bg);
+  box-shadow: inset 3px 0 0 0 var(--unread-accent);
+}
+
 .ticket-row.unread .author {
   font-weight: 600;
   color: #000;
