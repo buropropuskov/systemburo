@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"systemburo/internal/models"
+	"systemburo/internal/normalize"
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
@@ -278,9 +279,12 @@ func (s *companyService) Create(ctx context.Context, callerUserID int, req Creat
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Некорректный тип компании")
 	}
 
+	// Сверяем по ключу дедупликации, а не по точному name (#1437), см. organizationService.Create.
 	var active int64
-	if err := s.db.WithContext(ctx).Model(&models.Company{}).
-		Where("name = ? AND is_active = ?", req.Name, true).Count(&active).Error; err != nil {
+	if err := applyNameDuplicateFilter(
+		s.db.WithContext(ctx).Model(&models.Company{}).Where("is_active = ?", true),
+		req.Name, normalize.OrgName(req.Name),
+	).Count(&active).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error checking company")
 	}
 	if active > 0 {
@@ -315,9 +319,12 @@ func (s *companyService) Update(ctx context.Context, callerUserID, companyID int
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Нельзя переименовать архивную компанию")
 	}
 
+	normalized := normalize.OrgName(req.Name)
 	var dup int64
-	if err := s.db.WithContext(ctx).Model(&models.Company{}).
-		Where("name = ? AND is_active = ? AND id <> ?", req.Name, true, companyID).Count(&dup).Error; err != nil {
+	if err := applyNameDuplicateFilter(
+		s.db.WithContext(ctx).Model(&models.Company{}).Where("is_active = ? AND id <> ?", true, companyID),
+		req.Name, normalized,
+	).Count(&dup).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error checking company")
 	}
 	if dup > 0 {
@@ -325,8 +332,9 @@ func (s *companyService) Update(ctx context.Context, callerUserID, companyID int
 	}
 
 	// map-обновление (а не Save структуры) - чтобы явно записать type=NULL при снятии типа.
+	// name_normalized пишем явно: BeforeSave до map-обновления не достаёт.
 	if err := s.db.WithContext(ctx).Model(&models.Company{}).
-		Where("id = ?", companyID).Updates(map[string]any{"name": req.Name, "type": req.Type}).Error; err != nil {
+		Where("id = ?", companyID).Updates(map[string]any{"name": req.Name, "type": req.Type, "name_normalized": normalized}).Error; err != nil {
 		slog.Error("не удалось обновить компанию", "id", companyID, "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error updating company")
 	}
@@ -408,8 +416,10 @@ func (s *companyService) Restore(ctx context.Context, callerUserID, companyID in
 	}
 
 	var active int64
-	if err := s.db.WithContext(ctx).Model(&models.Company{}).
-		Where("name = ? AND is_active = ? AND id <> ?", company.Name, true, companyID).Count(&active).Error; err != nil {
+	if err := applyNameDuplicateFilter(
+		s.db.WithContext(ctx).Model(&models.Company{}).Where("is_active = ? AND id <> ?", true, companyID),
+		company.Name, normalize.OrgName(company.Name),
+	).Count(&active).Error; err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error checking company")
 	}
 	if active > 0 {

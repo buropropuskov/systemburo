@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"systemburo/internal/models"
+	"systemburo/internal/normalize"
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
@@ -237,9 +238,13 @@ func (s *organizationService) Create(ctx context.Context, callerUserID int, req 
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Некорректный тип организации")
 	}
 
+	// Сверяем по ключу дедупликации, а не по точному name: иначе рядом с
+	// «ООО "Ромашка"» заводится «ооо ромашка» как отдельная организация (#1437).
 	var active int64
-	if err := s.db.WithContext(ctx).Model(&models.Organization{}).
-		Where("name = ? AND is_active = ?", req.Name, true).Count(&active).Error; err != nil {
+	if err := applyNameDuplicateFilter(
+		s.db.WithContext(ctx).Model(&models.Organization{}).Where("is_active = ?", true),
+		req.Name, normalize.OrgName(req.Name),
+	).Count(&active).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error checking organization")
 	}
 	if active > 0 {
@@ -274,10 +279,14 @@ func (s *organizationService) Update(ctx context.Context, callerUserID, id int, 
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Нельзя переименовать архивную организацию")
 	}
 
-	// Конфликт с другой активной организацией по имени (partial unique).
+	// Конфликт с другой активной организацией по ключу дедупликации (#1437):
+	// переименование в другое написание существующего наименования - тот же дубль.
+	normalized := normalize.OrgName(req.Name)
 	var dup int64
-	if err := s.db.WithContext(ctx).Model(&models.Organization{}).
-		Where("name = ? AND is_active = ? AND id <> ?", req.Name, true, id).Count(&dup).Error; err != nil {
+	if err := applyNameDuplicateFilter(
+		s.db.WithContext(ctx).Model(&models.Organization{}).Where("is_active = ? AND id <> ?", true, id),
+		req.Name, normalized,
+	).Count(&dup).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error checking organization")
 	}
 	if dup > 0 {
@@ -285,8 +294,9 @@ func (s *organizationService) Update(ctx context.Context, callerUserID, id int, 
 	}
 
 	// map-обновление (а не struct) - чтобы явно записать type=NULL при снятии типа.
+	// name_normalized пишем явно: BeforeSave до map-обновления не достаёт.
 	if err := s.db.WithContext(ctx).Model(&models.Organization{}).
-		Where("id = ?", id).Updates(map[string]any{"name": req.Name, "type": req.Type}).Error; err != nil {
+		Where("id = ?", id).Updates(map[string]any{"name": req.Name, "type": req.Type, "name_normalized": normalized}).Error; err != nil {
 		slog.Error("Не удалось обновить организацию", "id", id, "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error updating organization")
 	}
@@ -315,6 +325,19 @@ func (s *organizationService) Update(ctx context.Context, callerUserID, id int, 
 		"from": map[string]any{"name": org.Name, "type": org.Type},
 	})
 	return &OrganizationInfoResponse{ID: id, Name: req.Name, Type: req.Type}, nil
+}
+
+// applyNameDuplicateFilter добавляет к запросу условие поиска дубля наименования.
+// Обычно это ключ дедупликации, но у вырожденных наименований (одни кавычки, точки
+// или дефисы) ключ пуст, и по нему такие записи схлопнулись бы между собой. Для них
+// сверяемся по точному имени - защита не должна стать слабее той, что была до ключа
+// (#1437). По той же причине unique index на name_normalized ставится с условием
+// name_normalized <> ''.
+func applyNameDuplicateFilter(q *gorm.DB, name, normalized string) *gorm.DB {
+	if normalized == "" {
+		return q.Where("name = ?", name)
+	}
+	return q.Where("name_normalized = ?", normalized)
 }
 
 // strPtrEqual сравнивает два *string как значения (оба nil = равны). Используется
@@ -378,8 +401,10 @@ func (s *organizationService) Restore(ctx context.Context, callerUserID, id int)
 	}
 
 	var active int64
-	if err := s.db.WithContext(ctx).Model(&models.Organization{}).
-		Where("name = ? AND is_active = ? AND id <> ?", org.Name, true, id).Count(&active).Error; err != nil {
+	if err := applyNameDuplicateFilter(
+		s.db.WithContext(ctx).Model(&models.Organization{}).Where("is_active = ? AND id <> ?", true, id),
+		org.Name, normalize.OrgName(org.Name),
+	).Count(&active).Error; err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error checking organization")
 	}
 	if active > 0 {

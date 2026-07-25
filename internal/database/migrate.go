@@ -214,6 +214,9 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := BackfillApplicationAcceptedAt(db); err != nil {
 		return err
 	}
+	if err := BackfillOrgNameNormalized(db); err != nil {
+		return err
+	}
 	if err := installSQLFunctions(db); err != nil {
 		return err
 	}
@@ -447,6 +450,85 @@ func backfillCarTargetTables(db *gorm.DB) error {
 	}
 	return nil
 }
+
+// BackfillOrgNameNormalized заполняет ключ дедупликации наименований (#1437) у
+// организаций и компаний. Нормализация живёт в Go (normalize.OrgName), SQL-аналога у
+// неё нет, поэтому строки читаются и пересчитываются здесь.
+//
+// Пересчитываются ВСЕ записи, а не только пустые: правила нормализации будут
+// уточняться по мере встречи с реальными наименованиями, и ключ, посчитанный старой
+// версией функции, разошёлся бы с ключом запроса. UPDATE выполняется только для строк,
+// где значение реально изменилось, поэтому при неизменных правилах проход бесплатный.
+// Экспортирована ради handler-тестов (DB-тесты живут только там, #706).
+func BackfillOrgNameNormalized(db *gorm.DB) error {
+	for _, table := range []string{"organizations", "companies"} {
+		var rows []struct {
+			ID             int
+			Name           string
+			NameNormalized string
+		}
+		if err := db.Table(table).Select("id, name, name_normalized").Scan(&rows).Error; err != nil {
+			return fmt.Errorf("read %s for name_normalized backfill: %w", table, err)
+		}
+		updated := 0
+		for _, r := range rows {
+			want := normalize.OrgName(r.Name)
+			if want == r.NameNormalized {
+				continue
+			}
+			if err := db.Table(table).Where("id = ?", r.ID).Update("name_normalized", want).Error; err != nil {
+				return fmt.Errorf("backfill %s.name_normalized id=%d: %w", table, r.ID, err)
+			}
+			updated++
+		}
+		if updated > 0 {
+			slog.Info("ключ дедупликации наименований пересчитан", "table", table, "updated", updated)
+		}
+		if err := reportOrgNameCollisions(db, table); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// reportOrgNameCollisions логирует активные записи, схлопывающиеся в один ключ. Это
+// уже существующие дубли: до слияния вручную partial unique index по name_normalized
+// не создать (срез 9 эпика #1437). Отчёт не падает и ничего не меняет - он нужен, чтобы
+// снять список с боевой базы из логов, а не ходить в неё руками.
+func reportOrgNameCollisions(db *gorm.DB, table string) error {
+	var collisions []struct {
+		NameNormalized string
+		Cnt            int
+		Names          string
+	}
+	q := fmt.Sprintf(`
+		SELECT name_normalized, COUNT(*) AS cnt, string_agg(name, ' | ' ORDER BY id) AS names
+		FROM %s
+		WHERE is_active = true AND name_normalized <> ''
+		GROUP BY name_normalized
+		HAVING COUNT(*) > 1
+		ORDER BY cnt DESC, name_normalized`, table)
+	if err := db.Raw(q).Scan(&collisions).Error; err != nil {
+		return fmt.Errorf("collision report for %s: %w", table, err)
+	}
+	if len(collisions) == 0 {
+		return nil
+	}
+	slog.Warn("наименования схлопываются в один ключ - до слияния уникальный индекс не поставить",
+		"table", table, "groups", len(collisions))
+	for i, c := range collisions {
+		if i == orgCollisionLogLimit {
+			slog.Warn("остальные группы коллизий не выведены", "table", table, "skipped", len(collisions)-i)
+			break
+		}
+		slog.Warn("коллизия наименований", "table", table, "key", c.NameNormalized, "count", c.Cnt, "names", c.Names)
+	}
+	return nil
+}
+
+// orgCollisionLogLimit ограничивает вывод отчёта коллизий: список нужен для оценки
+// объёма ручного слияния, а не для дампа справочника в лог.
+const orgCollisionLogLimit = 20
 
 // BackfillApplicationAcceptedAt восстанавливает applications.accepted_at (#1240) у заявок,
 // принятых в работу до появления колонки: момент берётся из ПЕРВОЙ записи audit_log
