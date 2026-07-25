@@ -70,6 +70,12 @@ type Organization struct {
 	// По нему ищется существующая запись при подаче заявки, поэтому три написания
 	// одного юрлица не могут создать три строки. Наружу не отдаётся - служебное поле.
 	NameNormalized string `gorm:"size:150;index" json:"-"`
+	// ModerationStatus - ModerationApproved у обычной записи, ModerationPending у
+	// пришедшей из формы заявки и ещё не разобранной принимающим (#1437). Колонка
+	// добавляется с DEFAULT, поэтому записи, жившие до неё, читаются как проверенные.
+	ModerationStatus string `gorm:"size:16;not null;default:'approved';index" json:"moderation_status"`
+	// CreatedByUserID - кто завёл запись из заявки; NULL у записей справочника.
+	CreatedByUserID *int `json:"created_by_user_id,omitempty"`
 }
 
 // BeforeSave держит ключ дедупликации в согласии с наименованием. Ловит Create и
@@ -92,6 +98,10 @@ type Company struct {
 	IsActive bool `gorm:"default:true;index" json:"is_active"`
 	// NameNormalized - ключ дедупликации наименования, см. Organization.NameNormalized.
 	NameNormalized string `gorm:"size:150;index" json:"-"`
+	// ModerationStatus - статус разбора записи, см. Organization.ModerationStatus.
+	ModerationStatus string `gorm:"size:16;not null;default:'approved';index" json:"moderation_status"`
+	// CreatedByUserID - кто завёл запись из заявки; NULL у записей справочника.
+	CreatedByUserID *int `json:"created_by_user_id,omitempty"`
 }
 
 // BeforeSave держит ключ дедупликации в согласии с наименованием, см.
