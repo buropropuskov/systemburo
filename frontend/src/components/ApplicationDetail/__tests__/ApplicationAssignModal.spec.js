@@ -126,6 +126,28 @@ describe('ApplicationAssignModal (#1393)', () => {
     expect(wrapper.text()).toContain('применится к 8 машинам');
   });
 
+  it('пока справочник грузится, показываются заглушки, а не голый текст', async () => {
+    let release;
+    apiRequest.mockReturnValue(new Promise((resolve) => { release = () => resolve(okJson(TABLES)); }));
+    const wrapper = mountModal();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find('[data-testid="application-assign-loading"]').exists()).toBe(true);
+    expect(wrapper.findAllComponents({ name: 'SkeletonBlock' }).length).toBeGreaterThan(0);
+
+    release();
+    await flushPromises();
+    expect(wrapper.find('[data-testid="application-assign-loading"]').exists()).toBe(false);
+  });
+
+  it('заглушек столько же рядов, сколько займут данные: у мест их больше, чем у постов', () => {
+    const tables = mountModal({ kind: 'tables' });
+    const places = mountModal({ kind: 'places' });
+    expect(places.vm.skeletonCount).toBeGreaterThan(tables.vm.skeletonCount);
+    // резерв высоты тоже разный - иначе окно прыгает при появлении данных
+    expect(places.vm.contentMinHeight).not.toBe(tables.vm.contentMinHeight);
+  });
+
   it('сорванный запрос не роняет окно необработанным промисом', async () => {
     apiRequest.mockRejectedValue(new Error('network'));
     const wrapper = mountModal();

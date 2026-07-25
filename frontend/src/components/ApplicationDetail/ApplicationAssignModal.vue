@@ -16,44 +16,64 @@
       </p>
 
       <div
-        v-if="loading"
-        class="assign__state"
+        class="assign__content"
+        :style="{ minHeight: contentMinHeight }"
       >
-        Загрузка...
-      </div>
-
-      <div
-        v-else-if="!options.length"
-        class="assign__state"
-        data-testid="application-assign-empty"
-      >
-        {{ kind === 'tables' ? 'Нет доступных постов' : 'Нет доступных мест разгрузки' }}
-      </div>
-
-      <TargetTablesGrid
-        v-else-if="kind === 'tables'"
-        v-model="selected"
-        :tables="options"
-        multiple
-      />
-
-      <div
-        v-else
-        class="assign__grid"
-      >
-        <div
-          v-for="place in options"
-          :key="place.id"
-          class="assign__item"
-          :class="{
-            'assign__item--active': selected.includes(place.id) && place.status === 'active',
-            'assign__item--inactive': place.status !== 'active'
-          }"
-          data-testid="application-assign-place"
-          @click="togglePlace(place)"
+        <transition
+          name="assign-fade"
+          mode="out-in"
         >
-          {{ place.name }}
-        </div>
+          <div
+            v-if="loading"
+            key="loading"
+            class="assign__grid"
+            data-testid="application-assign-loading"
+          >
+            <SkeletonBlock
+              v-for="n in skeletonCount"
+              :key="n"
+              :width="skeletonWidth(n)"
+              height="35px"
+            />
+          </div>
+
+          <div
+            v-else-if="!options.length"
+            key="empty"
+            class="assign__state"
+            data-testid="application-assign-empty"
+          >
+            {{ kind === 'tables' ? 'Нет доступных постов' : 'Нет доступных мест разгрузки' }}
+          </div>
+
+          <TargetTablesGrid
+            v-else-if="kind === 'tables'"
+            key="tables"
+            v-model="selected"
+            :tables="options"
+            multiple
+          />
+
+          <div
+            v-else
+            key="places"
+            class="assign__grid"
+          >
+            <div
+              v-for="place in options"
+              :key="place.id"
+              class="assign__item"
+              :class="{
+                'assign__item--active': selected.includes(place.id) && place.status === 'active',
+                'assign__item--inactive': place.status !== 'active'
+              }"
+              data-testid="application-assign-place"
+              @click="togglePlace(place)"
+            >
+              {{ place.name }}
+            </div>
+          </div>
+        </transition>
       </div>
 
       <p
@@ -89,6 +109,7 @@
 
 <script>
 import BaseModal from '@/components/ui/BaseModal.vue';
+import SkeletonBlock from '@/components/ui/SkeletonBlock.vue';
 import TargetTablesGrid from '@/components/CreateApplication/TargetTablesGrid.vue';
 import { apiRequest } from '@/api/client';
 
@@ -103,7 +124,7 @@ import { apiRequest } from '@/api/client';
  */
 export default {
   name: 'ApplicationAssignModal',
-  components: { BaseModal, TargetTablesGrid },
+  components: { BaseModal, SkeletonBlock, TargetTablesGrid },
   props: {
     show: { type: Boolean, default: false },
     // 'tables' - посты проезда/прохода, 'places' - места разгрузки
@@ -175,6 +196,22 @@ export default {
         }));
     },
 
+    /**
+     * Заглушек столько, чтобы они заняли примерно те же ряды, что и данные:
+     * мест обычно много (три-четыре ряда), постов у машины два-четыре (один ряд).
+     */
+    skeletonCount() {
+      return this.kind === 'places' ? 12 : 3;
+    },
+
+    /**
+     * Резерв высоты области: пока справочник грузится, окно уже занимает
+     * примерно столько же, сколько займёт с данными.
+     */
+    contentMinHeight() {
+      return this.kind === 'places' ? '190px' : '55px';
+    },
+
     willClearAll() {
       return this.selected.length === 0 && this.currentIds.length > 0;
     },
@@ -210,6 +247,12 @@ export default {
       }
     },
 
+    /** Ширины заглушек чуть разные - ровный ряд одинаковых плиток выглядит искусственно. */
+    skeletonWidth(index) {
+      const widths = ['132px', '108px', '156px', '120px', '144px', '112px', '128px', '150px'];
+      return widths[(index - 1) % widths.length];
+    },
+
     togglePlace(place) {
       if (place.status !== 'active') return;
       const index = this.selected.indexOf(place.id);
@@ -241,6 +284,32 @@ export default {
   text-align: center;
   color: var(--text-muted, #5f6672);
   font-size: 14px;
+}
+
+/* Область контента резервирует высоту (значение приходит из contentMinHeight):
+   без неё окно прыгало, когда заглушки сменялись плитками. */
+.assign__content {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+
+/* Смена заглушек на данные - мягкая, без рывка */
+.assign-fade-enter-active,
+.assign-fade-leave-active {
+  transition: opacity 0.18s ease;
+}
+
+.assign-fade-enter-from,
+.assign-fade-leave-to {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assign-fade-enter-active,
+  .assign-fade-leave-active {
+    transition: none;
+  }
 }
 
 /* Плитки мест - по образцу блока «Места разгрузки» формы машины */
