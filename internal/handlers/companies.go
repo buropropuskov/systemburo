@@ -260,6 +260,70 @@ func (h *CompanyHandler) GetMembers(c echo.Context) error {
 	return RespondSuccess(c, members)
 }
 
+// GetBlockingUsers godoc
+// @Summary      Пользователи, блокирующие архивацию компании
+// @Description  Возвращает активных участников (users.company_id=id), из-за которых
+// @Description  компанию нельзя архивировать. Тот же набор, что GetMembers; отдельный
+// @Description  endpoint для delete-флоу.
+// @Tags         companies
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID компании"
+// @Success      200 {array} services.MemberResponse
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /companies/{id}/blocking-users [get]
+func (h *CompanyHandler) GetBlockingUsers(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid company ID")
+	}
+	// Блокирующие архивацию = активные участники (те же, что даёт GetMembers) -
+	// переиспользуем запрос, чтобы не плодить дубль active-only выборки.
+	users, err := h.service.GetMembers(c.Request().Context(), id)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, users)
+}
+
+// ReassignUsers godoc
+// @Summary      Перенести всех блокирующих пользователей в другую компанию
+// @Description  Переносит активных участников компании в целевую (target_id),
+// @Description  освобождая исходную для архивации. Требует права admin.
+// @Tags         companies
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID исходной компании"
+// @Param        request body services.ReassignUsersRequest true "ID целевой компании"
+// @Success      200 {object} map[string]int "reassigned"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Router       /companies/{id}/reassign-users [post]
+func (h *CompanyHandler) ReassignUsers(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid company ID")
+	}
+	var req services.ReassignUsersRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if req.TargetID <= 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не указана целевая компания")
+	}
+	userID, _ := c.Get("user_id").(int)
+	count, err := h.service.ReassignMembers(c.Request().Context(), userID, id, req.TargetID)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, map[string]int{"reassigned": count})
+}
+
 // UpdateUsers godoc
 // @Summary      Обновить пользователей компании
 // @Description  Заменяет список ответственных пользователей компании с поддержкой обязательного согласования

@@ -356,6 +356,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	orgg.GET("/:id/users", org.GetOrganizationUsers)
 	orgg.PUT("/:id/users", org.UpdateOrganizationUsers)
 	orgg.GET("/:id/members", org.GetMembers)
+	// Блокеры архивации и перенос всех в другую организацию - гейт как у Delete (page.admin).
+	orgg.GET("/:id/blocking-users", org.GetBlockingUsers, requireAdmin)
+	orgg.POST("/:id/reassign-users", org.ReassignUsers, requireAdmin)
 	orgg.GET("/:id/tables", org.GetOrganizationTables)
 	orgg.PUT("/:id/tables", org.UpdateOrganizationTables, requireAdmin)
 	orgg.GET("/:id/unload-places", org.GetOrganizationUnloadPlaces)
@@ -384,6 +387,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	cg.GET("/:id/users", comp.GetUsers)
 	cg.PUT("/:id/users", comp.UpdateUsers)
 	cg.GET("/:id/members", comp.GetMembers)
+	// Блокеры архивации и перенос всех в другую компанию - гейт как у Delete (page.admin).
+	cg.GET("/:id/blocking-users", comp.GetBlockingUsers, requireAdmin)
+	cg.POST("/:id/reassign-users", comp.ReassignUsers, requireAdmin)
 	cg.GET("/:id/tables", comp.GetTables)
 	cg.PUT("/:id/tables", comp.UpdateTables, requireAdmin)
 	cg.GET("/:id/unload-places", comp.GetUnloadPlaces)
