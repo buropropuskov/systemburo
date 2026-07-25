@@ -248,6 +248,8 @@ func Setup(e *echo.Echo, d Dependencies) {
 	utm.PUT("/:id", userTypes.Update)
 	utm.DELETE("/:id", userTypes.Delete)
 	utm.GET("/:id/history", userTypes.GetHistory)
+	utm.GET("/:id/blocking-users", userTypes.GetBlockingUsers)
+	utm.POST("/:id/reassign-users", userTypes.ReassignUsers)
 
 	// Гражданства. Список и история — для всех авторизованных (дропдаун гражданств
 	// в форме заявки); изменяющие операции — page.admin (Ф5, ранее service checkAdmin).

@@ -12,6 +12,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // UserTypeWithCount — тип пользователя с количеством связанных пользователей.
@@ -35,6 +36,28 @@ type UpdateUserTypeRequest struct {
 	Code string `json:"code" validate:"required,min=1,max=20"`
 }
 
+// ReassignUserTypeRequest — тело запроса переноса всех пользователей типа в
+// целевой тип target_type_id. Отдельный DTO от org/company ReassignUsersRequest
+// (target_id): семантика типа иная и общий пакет services не терпит коллизий
+// символов между срезами (урок #1227).
+type ReassignUserTypeRequest struct {
+	TargetTypeID int `json:"target_type_id"`
+}
+
+// UserTypeMemberResponse — пользователь, привязанный к типу через users.type_id.
+// В отличие от MemberResponse (org/company, active-only) несёт is_active: набор
+// блокирующих удаление типа включает АРХИВНЫХ (Delete считает все type_id, не
+// только активных), поэтому фронт различает активных и архивных бейджем.
+type UserTypeMemberResponse struct {
+	ID         int     `json:"id"`
+	Username   string  `json:"username"`
+	LastName   *string `json:"last_name"`
+	FirstName  *string `json:"first_name"`
+	MiddleName *string `json:"middle_name"`
+	Position   *string `json:"position"`
+	IsActive   bool    `json:"is_active"`
+}
+
 // UserTypeService — интерфейс бизнес-логики управления типами пользователей.
 // Авторизация (page.admin) выполняется роут-middleware RequirePermissionV2.
 type UserTypeService interface {
@@ -48,6 +71,12 @@ type UserTypeService interface {
 	Delete(ctx context.Context, callerUserID, id int) error
 	// GetHistory возвращает историю изменений типа пользователя.
 	GetHistory(ctx context.Context, id int) ([]models.UserTypeHistoryItem, error)
+	// GetTypeUsers возвращает ВСЕХ пользователей типа (включая архивных) - набор,
+	// блокирующий удаление типа (Delete считает все type_id, не только активных).
+	GetTypeUsers(ctx context.Context, typeID int) ([]UserTypeMemberResponse, error)
+	// ReassignTypeUsers переносит всех пользователей типа id в целевой тип targetTypeID,
+	// освобождая исходный для удаления. callerUserID - актор для аудита.
+	ReassignTypeUsers(ctx context.Context, callerUserID, id, targetTypeID int) (int, error)
 }
 
 type userTypeService struct {
@@ -237,4 +266,83 @@ func (s *userTypeService) GetHistory(ctx context.Context, id int) ([]models.User
 		})
 	}
 	return items, nil
+}
+
+// GetTypeUsers возвращает всех пользователей типа typeID (включая архивных) -
+// набор, который блокирует удаление типа: Delete считает users.type_id независимо
+// от is_active. Активные идут первыми, флаг is_active позволяет фронту пометить
+// архивных бейджем. Для несуществующего типа - пустой список (идемпотентно).
+func (s *userTypeService) GetTypeUsers(ctx context.Context, typeID int) ([]UserTypeMemberResponse, error) {
+	members := make([]UserTypeMemberResponse, 0)
+	err := s.db.WithContext(ctx).
+		Table("users u").
+		Select("u.id, u.username, u.last_name, u.first_name, u.middle_name, u.position, u.is_active").
+		Where("u.type_id = ?", typeID).
+		Order("u.is_active DESC, u.last_name, u.first_name, u.username").
+		Scan(&members).Error
+	if err != nil {
+		slog.Error("Не удалось получить пользователей типа", "error", err)
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching user type members")
+	}
+	return members, nil
+}
+
+// ReassignTypeUsers переносит ВСЕХ пользователей типа id (набор, блокирующий его
+// удаление: users.type_id=id, любой is_active) в целевой тип targetTypeID, освобождая
+// исходный. Системный тип нельзя освободить как источник (его и удалять нельзя).
+// Целевой тип может быть системным (в дефолтный тип переносить допустимо), должен
+// существовать и отличаться от исходного. Идемпотентно: без пользователей - 0 без
+// ошибки. Аудит смены типа (UserActionTypeChanged) пишется на каждого в той же
+// транзакции - провал записи откатывает перенос.
+func (s *userTypeService) ReassignTypeUsers(ctx context.Context, callerUserID, id, targetTypeID int) (int, error) {
+	srcSystem, found, err := s.typeFlags(ctx, id)
+	if err != nil {
+		return 0, err
+	}
+	if !found {
+		return 0, echo.NewHTTPError(http.StatusNotFound, "User type not found")
+	}
+	if srcSystem {
+		return 0, echo.NewHTTPError(http.StatusBadRequest, "Системный тип пользователя нельзя освободить")
+	}
+	if targetTypeID == id {
+		return 0, echo.NewHTTPError(http.StatusBadRequest, "Нельзя перенести пользователей в тот же тип")
+	}
+
+	var count int
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Целевой тип проверяем ВНУТРИ транзакции с блокировкой строки (FOR UPDATE):
+		// закрывает окно TOCTOU, когда параллельное удаление target прошло бы между
+		// проверкой существования и переносом - иначе пользователи ушли бы в удалённый тип.
+		var target models.UserType
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&target, targetTypeID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return echo.NewHTTPError(http.StatusBadRequest, "Целевой тип пользователя не найден")
+			}
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error fetching target user type")
+		}
+		// Атомарный UPDATE ... RETURNING id: перенос и выборка затронутых - один
+		// стейтмент, поэтому конкурентная смена type_id тем же пользователем не
+		// разъедется с набором для аудита, а count отражает РЕАЛЬНО применённые строки.
+		var ids []int
+		if err := tx.Raw("UPDATE users SET type_id = ? WHERE type_id = ? RETURNING id", targetTypeID, id).
+			Scan(&ids).Error; err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error reassigning users")
+		}
+		if len(ids) == 0 {
+			return nil
+		}
+		for _, uid := range ids {
+			u := uid
+			if err := s.recorder.Record(ctx, tx, models.AuditEntityUser, &u, models.UserActionTypeChanged, &callerUserID, map[string]any{"old": id, "new": targetTypeID}); err != nil {
+				return err
+			}
+		}
+		count = len(ids)
+		return nil
+	}); err != nil {
+		return 0, err
+	}
+	slog.Info("пользователи перенесены между типами", "from", id, "to", targetTypeID, "count", count)
+	return count, nil
 }

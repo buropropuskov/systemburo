@@ -144,3 +144,64 @@ func (h *UserTypesHandler) GetHistory(c echo.Context) error {
 	}
 	return RespondSuccess(c, items)
 }
+
+// GetBlockingUsers godoc
+// @Summary      Пользователи, блокирующие удаление типа
+// @Description  Возвращает всех пользователей типа (включая архивных), из-за которых
+// @Description  тип нельзя удалить. Требует права admin.
+// @Tags         user-types-management
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID типа пользователя"
+// @Success      200 {array} services.UserTypeMemberResponse
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Router       /user-types-management/{id}/blocking-users [get]
+func (h *UserTypesHandler) GetBlockingUsers(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid user type ID")
+	}
+	users, err := h.service.GetTypeUsers(c.Request().Context(), id)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, users)
+}
+
+// ReassignUsers godoc
+// @Summary      Перенести всех пользователей типа в другой тип
+// @Description  Переносит всех пользователей типа в целевой (target_type_id),
+// @Description  освобождая исходный для удаления. Требует права admin.
+// @Tags         user-types-management
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID исходного типа"
+// @Param        request body services.ReassignUserTypeRequest true "ID целевого типа"
+// @Success      200 {object} map[string]int "reassigned"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Router       /user-types-management/{id}/reassign-users [post]
+func (h *UserTypesHandler) ReassignUsers(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid user type ID")
+	}
+	var req services.ReassignUserTypeRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+	if req.TargetTypeID <= 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не указан целевой тип пользователя")
+	}
+	userID, _ := c.Get("user_id").(int)
+	count, err := h.service.ReassignTypeUsers(c.Request().Context(), userID, id, req.TargetTypeID)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, map[string]int{"reassigned": count})
+}
