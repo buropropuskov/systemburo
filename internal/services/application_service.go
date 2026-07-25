@@ -1684,6 +1684,9 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 		tx.Rollback()
 		return nil, err
 	}
+	// Backstop к гейту выше: при текущем резолве оба nil одновременно недостижимы, но
+	// заявка без организации И компании не должна создаваться ни при каком его изменении -
+	// именно такая сирота и была багом, который срез закрывает.
 	if organizationID == nil && companyID == nil {
 		tx.Rollback()
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Укажите организацию или компанию")
