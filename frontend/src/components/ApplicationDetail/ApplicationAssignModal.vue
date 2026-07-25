@@ -4,6 +4,7 @@
     :title="title"
     width="560px"
     content-class="application-assign-modal"
+    radius="30px"
     :z-index="10006"
     @close="$emit('close')"
   >
