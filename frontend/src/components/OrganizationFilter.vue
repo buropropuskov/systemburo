@@ -82,7 +82,10 @@
 
 <script>
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
-import { applyWholeItemsHeight } from '@/utils/dropdownMetrics';
+import { wholeItemsHeight, measureChromeHeight } from '@/utils/dropdownMetrics';
+
+// Запас под список, если у всплывающего блока не задана max-height.
+const LIST_MAX_SPACE = 320;
 
 export default {
     name: 'OrganizationFilter',
@@ -180,21 +183,21 @@ export default {
         },
 
         /**
-         * Ограничивает список целым числом пунктов: с фиксированной max-height последний
-         * обрывался по середине строки. Меряем в два прохода - своё ограничение снимаем
-         * и ждём кадр, чтобы стало видно, сколько места реально досталось списку
-         * (его зажимает ещё и высота всплывающего блока со строкой поиска).
+         * Ограничивает список целым числом пунктов - иначе последний обрывается по
+         * середине строки. Доступное место считаем из ограничения всплывающего блока
+         * за вычетом строки поиска, ничего не сбрасывая: сброс высоты разворачивал бы
+         * список во весь рост и схлопывал обратно на каждом пересчёте.
          */
         updateListHeight() {
             if (!this.isOpen) return;
-            // Снимаем прежнее ограничение: замер должен видеть реальное место, а не
-            // прошлый результат.
-            this.listMaxHeight = null;
-            applyWholeItemsHeight(
-                () => (this.isOpen ? this.$refs.listContainer : null),
-                () => Array.from((this.$refs.listContainer || { querySelectorAll: () => [] }).querySelectorAll('.dropdown-item')),
-                (h) => { if (this.isOpen) this.listMaxHeight = h; },
-            );
+            const box = this.$refs.listContainer;
+            if (!box) return;
+            const items = Array.from(box.querySelectorAll('.dropdown-item'));
+            const wrap = box.parentElement;
+            const wrapLimit = wrap ? parseFloat(getComputedStyle(wrap).maxHeight) : NaN;
+            const limit = Number.isNaN(wrapLimit) ? LIST_MAX_SPACE : wrapLimit;
+            const available = Math.max(0, limit - measureChromeHeight(wrap, box));
+            this.listMaxHeight = wholeItemsHeight(box, items, available);
         },
 
         setupClickOutside() {
