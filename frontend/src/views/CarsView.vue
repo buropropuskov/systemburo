@@ -112,9 +112,9 @@
           </div>
         </div>
                 
-        <div class="card-content">
-          <!-- Заголовок таблицы всегда отображается -->
-          <div class="cars-header">
+        <div class="card-content rt-table">
+          <!-- Заголовок таблицы всегда отображается (на мобилке скрыт rt-head-row, строки -> карточки) -->
+          <div class="cars-header rt-head-row">
             <div class="header-row">
               <div
                 class="header-col number-col"
@@ -256,23 +256,38 @@
                   class="car-item"
                 >
                   <div
-                    class="car-row"
+                    class="car-row rt-row"
                     title="Открыть детали машины"
                     @click="openCarDetails(car)"
                   >
-                    <div class="car-col number-col">
+                    <div
+                      class="car-col number-col"
+                      data-label="№"
+                    >
                       {{ car.id }}
                     </div>
-                    <div class="car-col car-number-col">
+                    <div
+                      class="car-col car-number-col"
+                      data-label="Номер"
+                    >
                       {{ car.number }}
                     </div>
-                    <div class="car-col brand-col">
+                    <div
+                      class="car-col brand-col"
+                      data-label="Марка"
+                    >
                       {{ car.mark }}
                     </div>
-                    <div class="car-col format-col">
+                    <div
+                      class="car-col format-col"
+                      data-label="Формат номера"
+                    >
                       {{ car.format_name || 'Не указан' }}
                     </div>
-                    <div class="car-col status-col">
+                    <div
+                      class="car-col status-col"
+                      data-label="Статус"
+                    >
                       <StatusBadge
                         v-if="isCarBlacklisted(car)"
                         status="Чёрный список"
@@ -285,6 +300,7 @@
                     <div
                       v-if="currentFilter === 'organization' || currentFilter === 'all_system'"
                       class="car-col org-col"
+                      data-label="Организация"
                       :title="car.organization_name || ''"
                     >
                       {{ car.organization_name || '—' }}
@@ -292,6 +308,7 @@
                     <div
                       v-if="currentFilter === 'company' || currentFilter === 'all_system'"
                       class="car-col company-col"
+                      data-label="Компания"
                       :title="car.company_name || ''"
                     >
                       {{ car.company_name || '—' }}
@@ -2614,36 +2631,13 @@ export default {
         height: auto;
     }
 
-    /* Синхронный horizontal scroll: scroll на .card-content */
-    .card-content {
-        overflow-x: auto !important;
-        overflow-y: visible !important;
-    }
+    /* Таблица машин -> карточки через rt-* (responsive-tables.css, брейкпоинт 767.98).
+       Прежний горизонтальный скролл 800px убран: строки собираются в карточки,
+       заголовок таблицы скрыт (rt-head-row). Зазор между карточками - ниже, в
+       блоке 767.98 (сиблинг .rt-row+.rt-row не сработает: rt-row на .car-row,
+       вложенном в .car-item - v-for-обёртку). */
 
-    .cars-header,
-    .cars-body {
-        overflow: visible !important;
-        min-width: 800px;
-    }
-
-    .header-row,
-    .car-row {
-        flex-wrap: nowrap !important;
-        min-width: 800px;
-    }
-
-    .header-col,
-    .car-col {
-        width: auto !important;
-        min-width: 100px !important;
-        flex: 1 1 auto !important;
-        margin-bottom: 0;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    /* filter-tabs не помещаются в 1 строку - горизонтальный scroll */
+    /* filter-tabs: перенос на строки вместо горизонтального скролла (юзер не любит h-scroll #1307) */
     .filters-container {
         flex-direction: column;
         align-items: stretch;
@@ -2651,18 +2645,16 @@ export default {
     }
 
     .filter-tabs {
-        overflow-x: auto;
-        scrollbar-width: none;
-        -webkit-overflow-scrolling: touch;
+        flex-wrap: wrap;
+        gap: 10px;
     }
 
-    .filter-tabs::-webkit-scrollbar {
-        display: none;
-    }
-
+    /* Каждый таб на всю ширину строкой - единый ровный вид на любой ширине телефона
+       (тексты табов разной длины, 2x2-сетка давала бы неровные колонки). */
     .filter-tab {
+        flex: 1 1 100%;
         white-space: nowrap;
-        flex-shrink: 0;
+        text-align: center;
     }
 
     .card-header {
@@ -2708,6 +2700,30 @@ export default {
     .add-button,
     .add-button-secondary {
         width: 100%;
+    }
+}
+
+/* Зазор между карточками машин на мобилке. Отдельным правилом (а не через
+   .rt-row+.rt-row): rt-row навешен на .car-row, вложенный в .car-item
+   (v-for-обёртку), поэтому соседние .rt-row не являются прямыми сиблингами.
+   Брейкпоинт 767.98 - совпадает с активацией card-режима в responsive-tables.css. */
+@media (max-width: 767.98px) {
+    .cars-body .car-item + .car-item {
+        margin-top: 8px;
+    }
+
+    /* Колонка действий не несёт data-label (не превращается в строку "подпись:значение"),
+       поэтому держала бы desktop-ширину 80px в карточке и обрезала бы "Только просмотр" /
+       кнопки. В card-режиме растягиваем на всю ширину и центрируем. */
+    .car-row.rt-row > .actions-col {
+        width: 100% !important;
+        min-width: 0 !important;
+        justify-content: center;
+        padding-top: 8px;
+    }
+
+    .car-row.rt-row > .actions-col .read-only-text {
+        white-space: normal;
     }
 }
 </style>
