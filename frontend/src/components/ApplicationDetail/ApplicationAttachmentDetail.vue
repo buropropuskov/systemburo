@@ -275,8 +275,9 @@
       </div>
     </div>
 
+    <!-- Без v-if: BaseModal анимирует по :show, а внешний v-if сносил бы
+         компонент мгновенно и уход не проигрывался (см. заметку проекта). -->
     <ApplicationAssignModal
-      v-if="assign.open"
       :show="assign.open"
       :kind="assign.kind"
       :element-type="type === 'people' ? 'people' : 'cars'"

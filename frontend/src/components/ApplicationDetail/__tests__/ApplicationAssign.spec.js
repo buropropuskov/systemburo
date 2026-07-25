@@ -51,6 +51,14 @@ describe('ApplicationAttachmentDetail — доназначение мест пр
     expect(buttons).toHaveLength(2);
   });
 
+  it('окно живёт в разметке и в закрытом виде: иначе уход не успевает проиграться', () => {
+    const wrapper = mountList({ canAssign: true });
+    // v-if на компоненте сносил бы его мгновенно, и анимация закрытия не шла
+    const modal = wrapper.findComponent({ name: 'ApplicationAssignModal' });
+    expect(modal.exists()).toBe(true);
+    expect(modal.props('show')).toBe(false);
+  });
+
   it('клик открывает окно с уже назначенным набором', async () => {
     const wrapper = mountList({ canAssign: true });
     await wrapper.findAll('[data-testid="attachment-assign-open"]')[1].trigger('click');
