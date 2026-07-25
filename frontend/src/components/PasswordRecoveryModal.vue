@@ -227,7 +227,7 @@ export default {
 
 .recovery-contact__text {
   font-size: 15px;
-  color: var(--color-primary);
+  color: var(--accent-text);
   font-weight: 500;
 }
 

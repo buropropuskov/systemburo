@@ -147,6 +147,6 @@ export default {
     }
 
     .refresh-btn__dot.is-lit {
-        background-color: var(--accent-text);
+        background-color: var(--accent);
     }
 </style>

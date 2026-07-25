@@ -1095,7 +1095,7 @@ onUnmounted(() => {
 }
 
 .dashboard__tile:hover {
-  border-color: var(--color-primary);
+  border-color: var(--accent);
   box-shadow: var(--shadow-md);
   transform: translateY(-2px);
 }
@@ -1183,7 +1183,7 @@ onUnmounted(() => {
 }
 
 .dashboard__tile--active {
-  border-color: var(--color-primary);
+  border-color: var(--accent);
   box-shadow: var(--shadow-md);
 }
 
@@ -1209,7 +1209,7 @@ onUnmounted(() => {
 .dashboard__tile--active .dashboard__tile-caret {
   transform: rotate(-135deg);
   margin-top: 2px;
-  border-color: var(--color-primary);
+  border-color: var(--accent);
 }
 
 .dashboard__detail {
@@ -1267,7 +1267,7 @@ onUnmounted(() => {
 .dashboard__detail-chart-note {
   font-size: 11px;
   font-weight: 600;
-  color: var(--color-primary);
+  color: var(--accent-text);
   margin-left: 6px;
 }
 
@@ -1353,7 +1353,7 @@ onUnmounted(() => {
 }
 
 .dashboard__seg-btn:hover {
-  color: var(--color-primary);
+  color: var(--accent-text);
 }
 
 .dashboard__seg-btn--active {

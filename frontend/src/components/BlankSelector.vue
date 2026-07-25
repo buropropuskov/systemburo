@@ -1146,7 +1146,7 @@ export default {
         padding: 0 6px;
         border-radius: var(--radius-pill);
         background: color-mix(in srgb, var(--accent) 14%, var(--surface));
-        color: var(--color-primary);
+        color: var(--accent-text);
         font-size: 12px;
         font-weight: 600;
     }

@@ -1,6 +1,11 @@
 <template>
+  <!-- Экран входа лежит на светлой фотографии, которая темы не знает: в тёмной
+       палитре заголовок и карточка контактов на ней пропадали. Поэтому вход -
+       «светлый остров»: локальный data-theme перекрывает выбранную тему только
+       внутри этого экрана (см. assets/tokens.css). -->
   <div
     class="login"
+    data-theme="light"
     @mousemove="handleMouseMove"
   >
     <div class="login-background">
@@ -651,7 +656,7 @@ export default {
            не дёргает layout); min() держит zoom-корректность на десктопе (app-vh < svh
            под zoom). Отдельное объявление - при отсутствии svh каскад откатится на calc. */
         height: min(calc(var(--app-vh, 1vh) * 100), 100svh);
-        background-color: var(--color-primary);
+        background-color: var(--accent);
         padding: 40px;
         display: flex;
         position: relative;
@@ -852,7 +857,7 @@ export default {
 
     .contact__text {
         font-size: 16px;
-        color: var(--color-primary);
+        color: var(--accent-text);
         font-weight: 500;
         margin: 0;
     }
@@ -1057,7 +1062,7 @@ export default {
 
     .button__text {
         font-size: 20px;
-        color: var(--color-primary);
+        color: var(--accent-text);
         font-weight: 800;
         transition: all 0.3s ease;
         /* Моноширинные цифры: ширина таймера на кнопке стабильна. */
@@ -1071,7 +1076,7 @@ export default {
     }
 
     .login__button.success .button__text {
-        color: var(--color-primary);
+        color: var(--accent-text);
     }
 
     /* Во время таймера блокировки кнопка выглядит выключенной: серый текст и иконка. */
@@ -1109,7 +1114,7 @@ export default {
 
     .success-checkmark {
         font-size: 24px;
-        color: var(--color-primary);
+        color: var(--accent-text);
         font-weight: bold;
         animation: scaleIn 0.3s ease-out;
     }

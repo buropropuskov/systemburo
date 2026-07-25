@@ -78,7 +78,7 @@
 }
 
 .driver-popover.ob-popover .driver-popover-close-btn:hover {
-  color: var(--color-primary);
+  color: var(--accent-text);
 }
 
 /* --- Демо-скриншот в теле поповера (шаги с пустыми у новичка блоками) --- */
@@ -240,7 +240,7 @@
 }
 
 .driver-popover.ob-popover .ob-popover__skip:hover {
-  color: var(--color-primary);
+  color: var(--accent-text);
 }
 
 /* --- Сквозной прогресс "шаг X из N" + полоска --- */

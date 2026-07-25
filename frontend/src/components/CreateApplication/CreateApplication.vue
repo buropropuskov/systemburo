@@ -3088,7 +3088,7 @@ export default {
            заливку - на бледной подложке она исчезала. */
         .create__form :deep(.toolbar-btn.active) {
             background: var(--color-primary-tint);
-            color: var(--color-primary);
+            color: var(--accent-text);
         }
 
         /* Часть мобильных браузеров держит :hover после тапа до следующего касания -

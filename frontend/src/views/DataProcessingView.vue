@@ -269,8 +269,8 @@ onBeforeUnmount(() => {
 
 .dp-button--ghost {
   background: transparent;
-  color: var(--color-primary);
-  border-color: var(--color-primary);
+  color: var(--accent-text);
+  border-color: var(--accent);
 }
 
 .dp-button--ghost:hover:not(:disabled) {

@@ -466,7 +466,7 @@ export default {
 .xv-tab.active {
   background: var(--color-primary);
   color: var(--accent-contrast);
-  border-color: var(--color-primary);
+  border-color: var(--accent);
 }
 
 .xv-table-wrap {

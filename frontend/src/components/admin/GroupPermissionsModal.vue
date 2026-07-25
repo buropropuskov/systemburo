@@ -256,7 +256,7 @@ export default {
 }
 
 .gpm-search .lk-input:focus {
-  border-color: var(--color-primary);
+  border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(79, 91, 223, 0.18);
 }
 

@@ -1285,7 +1285,7 @@ export default {
 }
 
 .history-content--link .action-text {
-  color: var(--color-primary);
+  color: var(--accent-text);
   font-weight: 600;
 }
 

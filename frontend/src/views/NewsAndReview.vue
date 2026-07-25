@@ -762,7 +762,7 @@ export default {
 
 .modes-trigger:hover {
     box-shadow: 0 4px 12px var(--shadow-drop);
-    border-color: var(--color-primary);
+    border-color: var(--accent);
 }
 
 .modes-trigger__icon {
@@ -771,7 +771,7 @@ export default {
     flex-shrink: 0;
     border-radius: 12px;
     background: var(--accent-tint);
-    color: var(--color-primary);
+    color: var(--accent-text);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -804,7 +804,7 @@ export default {
 }
 
 .modes-trigger:hover .modes-trigger__chev {
-    color: var(--color-primary);
+    color: var(--accent-text);
     transform: translateX(3px);
 }
 

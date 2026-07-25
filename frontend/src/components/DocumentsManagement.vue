@@ -1154,7 +1154,7 @@ export default {
 
 .docs-badge--group {
   background: var(--accent-tint);
-  color: var(--color-primary);
+  color: var(--accent-text);
 }
 
 /* --- Панель деталей --- */
@@ -1370,7 +1370,7 @@ export default {
 }
 
 .dropzone--over {
-  border-color: var(--color-primary);
+  border-color: var(--accent);
   background: var(--accent-tint);
 }
 
@@ -1419,7 +1419,7 @@ export default {
   height: 20px;
   border-radius: 6px;
   background: var(--accent-tint);
-  color: var(--color-primary);
+  color: var(--accent-text);
   font-size: 11px;
   font-weight: 700;
   display: flex;

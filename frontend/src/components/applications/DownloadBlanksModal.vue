@@ -294,7 +294,7 @@ export default {
   width: 28px;
   height: 28px;
   border: 3px solid var(--color-border);
-  border-top-color: var(--color-primary);
+  border-top-color: var(--accent);
   border-radius: 50%;
   animation: dbm-spin 0.7s linear infinite;
 }
@@ -324,17 +324,17 @@ export default {
 }
 
 .dbm-item:hover {
-  border-color: var(--color-primary);
+  border-color: var(--accent);
   background: var(--accent-tint);
 }
 
 .dbm-item.selected {
-  border-color: var(--color-primary);
+  border-color: var(--accent);
   background: var(--accent-tint);
 }
 
 .dbm-checkbox {
-  accent-color: var(--color-primary);
+  accent-color: var(--accent-text);
   width: 16px;
   height: 16px;
   flex-shrink: 0;
@@ -366,7 +366,7 @@ export default {
   flex-shrink: 0;
   background: none;
   border: none;
-  color: var(--color-primary);
+  color: var(--accent-text);
   cursor: pointer;
   font-size: 12px;
   font-weight: 500;
@@ -422,8 +422,8 @@ export default {
 }
 
 .dbm-btn--ghost:hover:not(:disabled) {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
+  border-color: var(--accent);
+  color: var(--accent-text);
 }
 
 .modal-fade-enter-active,

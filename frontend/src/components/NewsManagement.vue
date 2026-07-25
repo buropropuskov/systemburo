@@ -1168,7 +1168,7 @@ export default {
   width: 16px;
   height: 16px;
   cursor: pointer;
-  accent-color: var(--accent);
+  accent-color: var(--accent-text);
 }
 
 /* news-body-html от NewsAndReview */

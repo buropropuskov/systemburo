@@ -1200,7 +1200,7 @@ export default {
   width: 100%;
   max-width: 300px;
   margin-top: 4px;
-  accent-color: var(--accent);
+  accent-color: var(--accent-text);
   cursor: pointer;
 }
 
@@ -1237,7 +1237,7 @@ export default {
 }
 
 .checkbox-label input[type="checkbox"] {
-  accent-color: var(--accent);
+  accent-color: var(--accent-text);
   cursor: pointer;
 }
 

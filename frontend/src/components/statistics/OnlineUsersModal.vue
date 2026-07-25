@@ -284,7 +284,7 @@ onUnmounted(() => {
 }
 
 .ou-row__login {
-  color: var(--color-primary);
+  color: var(--accent-text);
   flex-shrink: 0;
 }
 

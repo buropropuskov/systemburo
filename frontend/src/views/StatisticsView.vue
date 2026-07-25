@@ -365,7 +365,7 @@ function onRefresh() {
 }
 
 .period-preset:hover {
-  color: var(--color-primary);
+  color: var(--accent-text);
 }
 
 .period-preset--active,
@@ -429,7 +429,7 @@ function onRefresh() {
 }
 
 .statistics__tab--active {
-  color: var(--color-primary);
+  color: var(--accent-text);
 }
 
 .statistics__tab--active::after {

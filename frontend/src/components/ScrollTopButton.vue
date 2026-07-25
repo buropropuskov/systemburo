@@ -71,7 +71,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: var(--color-primary);
+  background-color: var(--accent);
   color: var(--accent-contrast);
   border: none;
   border-radius: 50%;

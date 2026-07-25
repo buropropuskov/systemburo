@@ -222,8 +222,8 @@ watch(
 
 .dp-modal__btn--ghost {
   background: transparent;
-  color: var(--color-primary);
-  border-color: var(--color-primary);
+  color: var(--accent-text);
+  border-color: var(--accent);
 }
 
 @media (max-width: 768px) {

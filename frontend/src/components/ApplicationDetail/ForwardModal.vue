@@ -609,7 +609,7 @@ export default {
 }
 
 .forward-selected-user:hover {
-    border-color: var(--color-primary);
+    border-color: var(--accent);
     background: var(--color-bg);
 }
 
@@ -702,7 +702,7 @@ export default {
 }
 
 .setting-checkbox:checked + .toggle-slider {
-    background-color: var(--color-primary);
+    background-color: var(--accent);
 }
 
 .setting-checkbox:checked + .toggle-slider:before {
@@ -820,7 +820,7 @@ export default {
     align-self: flex-start;
     font-size: 11px;
     font-weight: 500;
-    color: var(--color-primary);
+    color: var(--accent-text);
     background: var(--accent-tint);
     padding: 1px 8px;
     border-radius: 8px;

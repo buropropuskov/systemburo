@@ -333,12 +333,12 @@ export default {
 }
 
 .assign__item:not(.assign__item--active):not(.assign__item--inactive):hover {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
+  border-color: var(--accent);
+  color: var(--accent-text);
 }
 
 .assign__item--active {
-  border-color: var(--color-primary);
+  border-color: var(--accent);
   background: var(--color-primary);
   color: var(--accent-contrast);
   font-weight: 600;

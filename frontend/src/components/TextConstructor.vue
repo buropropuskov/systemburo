@@ -685,7 +685,7 @@ defineExpose({ editor });
 }
 
 .text-constructor:focus-within {
-  border-color: var(--color-primary);
+  border-color: var(--accent);
   box-shadow: var(--shadow-focus);
 }
 
@@ -735,13 +735,13 @@ defineExpose({ editor });
 @media (hover: hover) {
   .toolbar-btn:hover:not(:disabled) {
     background: var(--accent-tint);
-    border-color: var(--color-primary);
+    border-color: var(--accent);
   }
 }
 
 .toolbar-btn.active {
   background: var(--color-primary);
-  border-color: var(--color-primary);
+  border-color: var(--accent);
   color: var(--accent-contrast);
 }
 
@@ -821,7 +821,7 @@ defineExpose({ editor });
 
 @media (hover: hover) {
   .select-header:hover {
-    border-color: var(--color-primary);
+    border-color: var(--accent);
   }
 }
 
@@ -874,13 +874,13 @@ defineExpose({ editor });
 
 .select-option.active {
   background: var(--accent-tint);
-  color: var(--color-primary);
+  color: var(--accent-text);
 }
 
 @media (hover: hover) {
   .select-option:hover {
     background: var(--accent-tint);
-    color: var(--color-primary);
+    color: var(--accent-text);
   }
 }
 

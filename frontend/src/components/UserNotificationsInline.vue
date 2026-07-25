@@ -342,7 +342,7 @@ export default {
 
 .notification-badge {
   background: var(--color-danger, var(--danger));
-  color: var(--accent-contrast);
+  color: var(--surface);
   border-radius: 30px;
   padding: 2px 8px;
   font-size: 11px;
@@ -370,7 +370,7 @@ export default {
 }
 
 .filter-btn.active {
-  color: var(--color-primary);
+  color: var(--accent-text);
   background: color-mix(in srgb, var(--accent) 8%, var(--surface));
 }
 

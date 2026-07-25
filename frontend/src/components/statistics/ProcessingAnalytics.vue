@@ -1141,7 +1141,7 @@ defineExpose({ refresh: reload });
 }
 
 .proc__tile:hover {
-  border-color: var(--color-primary);
+  border-color: var(--accent);
   box-shadow: var(--shadow-md);
   transform: translateY(-2px);
 }
@@ -1553,7 +1553,7 @@ defineExpose({ refresh: reload });
    остальных бейджах проекта. */
 .proc__journal-role--approval {
   background: var(--color-primary-tint);
-  color: var(--color-primary);
+  color: var(--accent-text);
 }
 
 .proc__journal-role--acceptance {
@@ -1609,7 +1609,7 @@ defineExpose({ refresh: reload });
 
 .proc__journal-app--copy:hover,
 .proc__journal-app--copy:focus-visible {
-  color: var(--color-primary);
+  color: var(--accent-text);
   text-decoration: underline;
   outline: none;
 }

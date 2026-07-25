@@ -815,7 +815,7 @@ export default {
 .columns-tab__checkbox {
   width: 12px;
   height: 12px;
-  accent-color: var(--accent);
+  accent-color: var(--accent-text);
   cursor: pointer;
   flex-shrink: 0;
 }

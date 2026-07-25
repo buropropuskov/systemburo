@@ -365,7 +365,7 @@ export default {
 
 .notifications__unread-count {
   font-weight: 400;
-  color: var(--color-primary);
+  color: var(--accent-text);
 }
 
 .notifications__clear-btn {
@@ -509,7 +509,7 @@ export default {
   width: 20px;
   height: 20px;
   border: 2px solid var(--color-border);
-  border-top-color: var(--color-primary);
+  border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }

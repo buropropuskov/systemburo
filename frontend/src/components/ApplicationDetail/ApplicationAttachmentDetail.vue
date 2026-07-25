@@ -1049,7 +1049,7 @@ export default {
 
 .attachment-details h4 {
     font-size: 18px;
-    color: var(--color-primary);
+    color: var(--accent-text);
     font-weight: 700;
     margin: 0;
     grid-column: 1 / -1;
@@ -1154,7 +1154,7 @@ export default {
     padding: 2px 10px;
     border-radius: var(--radius-pill);
     background: var(--color-primary-tint);
-    color: var(--color-primary);
+    color: var(--accent-text);
     font-size: 12px;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
@@ -1337,7 +1337,7 @@ export default {
     border-style: dashed;
     border-color: rgba(79, 91, 223, 0.4);
     background: var(--color-primary-tint);
-    color: var(--color-primary);
+    color: var(--accent-text);
     font-weight: 600;
 }
 
@@ -1345,7 +1345,7 @@ export default {
     border-style: dashed;
     border-color: rgba(79, 91, 223, 0.45);
     background: var(--surface);
-    color: var(--color-primary);
+    color: var(--accent-text);
     font-weight: 700;
     line-height: 1;
     cursor: pointer;
@@ -1427,7 +1427,7 @@ export default {
     padding: 3px 11px;
     border-radius: var(--radius-pill);
     background: var(--color-primary-tint);
-    color: var(--color-primary);
+    color: var(--accent-text);
     font-size: 13px;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
