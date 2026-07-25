@@ -122,10 +122,12 @@
 
 <script>
 import { getViewportZoom } from '@/utils/viewportScale';
-import { applyWholeItemsHeight } from '@/utils/dropdownMetrics';
+import { wholeItemsHeight, measureChromeHeight } from '@/utils/dropdownMetrics';
 
 // Минимум пунктов в списке: даже в тесном месте должно быть видно, что он прокручивается.
 const MIN_VISIBLE_OPTIONS = 2;
+// Запас под список в обычном (не телепортнутом) режиме - прежняя max-height из стилей.
+const DEFAULT_OPTIONS_SPACE = 250;
 
 export default {
   name: 'BaseDropdown',
@@ -275,23 +277,23 @@ export default {
     },
 
     /**
-     * Ограничивает список целым числом пунктов: с произвольной max-height последний
-     * пункт обрывался по середине строки. Считаем в два прохода - сначала снимаем
-     * своё ограничение и ждём кадр, чтобы браузер разложил меню и стало видно,
-     * сколько места реально досталось списку (высота поиска и строки сброса
-     * доезжает позже первого nextTick).
+     * Ограничивает список целым числом пунктов, чтобы он не обрывался на середине строки.
+     *
+     * Считает доступное место из ограничений меню, ничего предварительно не сбрасывая:
+     * пересчёт зовётся в том числе на каждое событие прокрутки, и сброс высоты
+     * разворачивал бы список во весь рост с последующим схлопыванием - меню мигало
+     * и прыгало под курсором.
      */
     updateOptionsHeight() {
       if (!this.isOpen) return;
-      // Снимаем прежнее ограничение: замер должен видеть, сколько места есть на самом
-      // деле, а не сколько мы отмерили в прошлый раз.
-      this.optionsMaxHeight = null;
-      applyWholeItemsHeight(
-        () => (this.isOpen ? this.$refs.options : null),
-        () => Array.from((this.$refs.options || { querySelectorAll: () => [] }).querySelectorAll('.base-dropdown__item')),
-        (h) => { if (this.isOpen) this.optionsMaxHeight = h; },
-        MIN_VISIBLE_OPTIONS,
-      );
+      const box = this.$refs.options;
+      if (!box) return;
+      const items = Array.from(box.querySelectorAll('.base-dropdown__item'));
+      const menuLimit = this.teleport
+        ? parseFloat(this.menuStyle.maxHeight) || DEFAULT_OPTIONS_SPACE
+        : DEFAULT_OPTIONS_SPACE;
+      const available = Math.max(0, menuLimit - measureChromeHeight(this.$refs.menu, box));
+      this.optionsMaxHeight = wholeItemsHeight(box, items, available, MIN_VISIBLE_OPTIONS);
     },
 
     select(option) {

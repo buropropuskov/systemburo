@@ -43,25 +43,22 @@ export function fitWholeItems(available, itemStep, minVisible = 2) {
 /**
  * Высота списка, при которой видны только целые пункты.
  *
- * Меряет то место, которое РЕАЛЬНО досталось списку после раскладки, а не считает
- * его из чужих ограничений: список зажимают и собственная max-height, и высота
- * всплывающего блока, и соседние строки (поиск, сброс), причём их размеры
- * доезжают позже первого кадра. Единственный надёжный источник - clientHeight
- * уже отрисованного списка.
+ * Доступное место передаётся снаружи и считается из ограничений меню (его max-height
+ * минус служебные строки), а не из clientHeight самого списка. Читать clientHeight
+ * нельзя: он уже включает наше прошлое ограничение, поэтому пересчёт пришлось бы
+ * начинать со сброса высоты - а на каждом событии прокрутки это разворачивало список
+ * во весь рост и схлопывало обратно, из-за чего меню мигало и прыгало.
  *
  * @param {Element} box контейнер списка (с прокруткой)
  * @param {Element[]} items пункты
+ * @param {number} available доступная высота под список
  * @param {number} minVisible минимум пунктов
  * @returns {number|null} высота в пикселях либо null, если ограничивать нечего
  */
-export function wholeItemsHeight(box, items, minVisible = 2) {
-  if (!box || !items || !items.length) return null;
+export function wholeItemsHeight(box, items, available, minVisible = 2) {
+  if (!box || !items || !items.length || !available) return null;
   const step = measureItemStep(items);
   if (!step) return null;
-
-  // clientHeight - тоже layout-величина, не искажается анимацией открытия.
-  const available = box.clientHeight;
-  if (!available) return null;
 
   // Список помещается целиком - ограничивать нечего, прокрутки не будет.
   if (items.length * step <= available + 0.5) return null;
@@ -69,44 +66,19 @@ export function wholeItemsHeight(box, items, minVisible = 2) {
   return fitWholeItems(available, step, minVisible);
 }
 
-// Сколько кадров ждём, пока раскладка меню устаканится, прежде чем поверить замеру.
-const MAX_SETTLE_FRAMES = 12;
-
 /**
- * Считает высоту списка, когда его раскладка перестала меняться, и отдаёт её в setHeight.
+ * Сколько высоты внутри меню занимают НЕ пункты: строка поиска, кнопка сброса и т.п.
  *
- * Первый кадр после открытия верить нельзя: шрифты, паддинги и появление прокрутки
- * доезжают позже, и шаг списка успевает измениться (наблюдалось 40.17 -> 37). Если
- * зафиксировать высоту по раннему замеру, она не будет кратна финальной сетке и
- * последний пункт снова окажется срезан. Поэтому опрашиваем шаг по кадрам и берём
- * первый, который повторился, - тот же приём, что для подсветки шагов онбординга.
+ * offsetHeight, а не rect: меню открывается с анимацией, и rect отдаёт размеры под
+ * трансформацией - при пересчёте на лету это давало бы разные значения на каждом кадре.
  *
- * @param {() => Element|null} getBox контейнер списка
- * @param {() => Element[]} getItems пункты
- * @param {(height: number|null) => void} setHeight куда положить результат
- * @param {number} minVisible минимум пунктов
+ * @param {Element} menu контейнер меню
+ * @param {Element} box контейнер списка (исключается из суммы)
+ * @returns {number} суммарная высота служебных блоков
  */
-export function applyWholeItemsHeight(getBox, getItems, setHeight, minVisible = 2) {
-  let prevStep = null;
-  let frames = 0;
-
-  const tick = () => {
-    const box = getBox();
-    const items = getItems();
-    if (!box || !items || !items.length) {
-      setHeight(null);
-      return;
-    }
-    const step = measureItemStep(items);
-    const settled = prevStep !== null && Math.abs(step - prevStep) < 0.5;
-    if (settled || frames >= MAX_SETTLE_FRAMES) {
-      setHeight(wholeItemsHeight(box, items, minVisible));
-      return;
-    }
-    prevStep = step;
-    frames += 1;
-    requestAnimationFrame(tick);
-  };
-
-  requestAnimationFrame(tick);
+export function measureChromeHeight(menu, box) {
+  if (!menu) return 0;
+  return Array.from(menu.children)
+    .filter((el) => el !== box)
+    .reduce((sum, el) => sum + (el.offsetHeight || 0), 0);
 }

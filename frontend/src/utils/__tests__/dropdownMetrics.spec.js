@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { measureItemStep, fitWholeItems, wholeItemsHeight } from '@/utils/dropdownMetrics';
+import {
+  measureItemStep, fitWholeItems, wholeItemsHeight, measureChromeHeight,
+} from '@/utils/dropdownMetrics';
 
 // Высота выпадающего списка должна быть кратна пункту: с произвольной max-height
 // последний пункт обрывается по середине строки.
@@ -59,21 +61,37 @@ describe('fitWholeItems', () => {
 describe('wholeItemsHeight', () => {
   it('обрезает доступную высоту до целых пунктов', () => {
     // списку досталось 281px при шаге 37 -> 7 пунктов (259), а не 7.6
-    expect(wholeItemsHeight(makeBox(281), makeItems(13, 37))).toBe(7 * 37);
+    expect(wholeItemsHeight(makeBox(281), makeItems(13, 37), 281)).toBe(7 * 37);
   });
 
   it('не ограничивает, когда список помещается целиком', () => {
-    expect(wholeItemsHeight(makeBox(300), makeItems(5, 37))).toBeNull();
+    expect(wholeItemsHeight(makeBox(300), makeItems(5, 37), 300)).toBeNull();
   });
 
   it('пустой список и нулевая высота ограничения не дают', () => {
-    expect(wholeItemsHeight(makeBox(300), [])).toBeNull();
-    expect(wholeItemsHeight(makeBox(0), makeItems(10, 37))).toBeNull();
+    expect(wholeItemsHeight(makeBox(300), [], 300)).toBeNull();
+    expect(wholeItemsHeight(makeBox(0), makeItems(10, 37), 0)).toBeNull();
   });
 
-  it('идемпотентна: повторный расчёт по уже ограниченной высоте не сжимает список', () => {
-    const first = wholeItemsHeight(makeBox(281), makeItems(13, 37));
-    const second = wholeItemsHeight(makeBox(first), makeItems(13, 37));
+  // Регресс: пересчёт зовётся на каждое событие прокрутки. Если он даёт то же
+  // значение, Vue не перерисовывает список и меню не дёргается.
+  it('идемпотентна: повторный расчёт при той же доступной высоте даёт то же число', () => {
+    const first = wholeItemsHeight(makeBox(281), makeItems(13, 37), 281);
+    const second = wholeItemsHeight(makeBox(281), makeItems(13, 37), 281);
     expect(second).toBe(first);
+  });
+});
+
+describe('measureChromeHeight', () => {
+  const el = (offsetHeight) => ({ offsetHeight });
+
+  it('складывает высоты служебных блоков, исключая сам список', () => {
+    const box = el(200);
+    const menu = { children: [el(57), el(33), box] };
+    expect(measureChromeHeight(menu, box)).toBe(90);
+  });
+
+  it('без меню возвращает 0', () => {
+    expect(measureChromeHeight(null, null)).toBe(0);
   });
 });
