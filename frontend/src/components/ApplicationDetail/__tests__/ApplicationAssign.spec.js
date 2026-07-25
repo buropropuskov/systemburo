@@ -107,6 +107,61 @@ describe('ApplicationAttachmentDetail — доназначение мест пр
     expect(wrapper.vm.assign.open).toBe(true);
   });
 
+  it('«Назначить всем» есть у обеих колонок машин', () => {
+    const wrapper = mountList({ canAssign: true });
+    expect(wrapper.find('[data-testid="attachment-assign-all-tables"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="attachment-assign-all-places"]').exists()).toBe(true);
+  });
+
+  it('без права назначать массовых кнопок нет', () => {
+    const wrapper = mountList();
+    expect(wrapper.find('[data-testid="attachment-assign-all-tables"]').exists()).toBe(false);
+  });
+
+  it('массовое назначение берёт все строки, а отмеченным показывает общее для всех', async () => {
+    const wrapper = mountList({
+      canAssign: true,
+      cars: [
+        car({ id: 1, target_tables: [{ id: 7, display_name: 'КПП №4' }, { id: 9, display_name: 'ПОСТ №72' }] }),
+        car({ id: 2, target_tables: [{ id: 7, display_name: 'КПП №4' }] }),
+      ],
+    });
+    await wrapper.find('[data-testid="attachment-assign-all-tables"]').trigger('click');
+
+    expect(wrapper.vm.assign.elementIds).toEqual([1, 2]);
+    // у первой машины два поста, у второй один - общий только КПП №4
+    expect(wrapper.vm.assign.currentIds).toEqual([7]);
+  });
+
+  it('массовое назначение применяется к найденным строкам, а не ко всем', async () => {
+    const wrapper = mountList({
+      canAssign: true,
+      cars: [
+        car({ id: 1, car_number: 'У 952 ЕУ 935' }),
+        car({ id: 2, car_number: 'М 234 ОО 123' }),
+      ],
+    });
+    await wrapper.find('[data-testid="attachment-elements-search"] input').setValue('952');
+    await wrapper.find('[data-testid="attachment-assign-all-tables"]').trigger('click');
+
+    expect(wrapper.vm.assign.elementIds).toEqual([1]);
+  });
+
+  it('сохранение массового назначения шлёт все выбранные строки', async () => {
+    const wrapper = mountList({
+      canAssign: true,
+      cars: [car({ id: 1 }), car({ id: 2 })],
+    });
+    await wrapper.find('[data-testid="attachment-assign-all-places"]').trigger('click');
+    await wrapper.vm.applyAssign([5]);
+
+    expect(assignCarUnloadPlaces).toHaveBeenCalledWith(42, {
+      carIds: [1, 2],
+      placeIds: [5],
+      mode: 'replace',
+    });
+  });
+
   it('у сотрудников кнопка только в колонке мест прохода', () => {
     const wrapper = mount(ApplicationAttachmentDetail, {
       props: {
