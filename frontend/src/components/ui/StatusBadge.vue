@@ -62,23 +62,20 @@ export default {
   flex-shrink: 0;
 }
 
-/* Green */
-.status-badge--green { background: #e8f5e8; color: #2e7d32; border: 1px solid #c8e6c9; }
-.status-badge--green .status-badge__dot { background: #2e7d32; }
+/* Пары фон/текст берутся из темы: они замерены на контраст в каждой из шести
+   палитр, рамка выводится подмесом того же цвета к поверхности. */
+.status-badge--green { background: var(--success-bg); color: var(--success-text); border: 1px solid color-mix(in srgb, var(--success) 30%, var(--surface)); }
+.status-badge--green .status-badge__dot { background: var(--success); }
 
-/* Gray */
-.status-badge--gray { background: #f5f5f5; color: #616161; border: 1px solid #e0e0e0; }
-.status-badge--gray .status-badge__dot { background: #9ca3af; }
+.status-badge--gray { background: var(--surface-2); color: var(--text-muted); border: 1px solid var(--border); }
+.status-badge--gray .status-badge__dot { background: var(--text-muted); }
 
-/* Yellow. Текст #92400e: прежний #ef6c00 на своей подложке давал 2.81 - ниже нормы AA (#1415). */
-.status-badge--yellow { background: #fff3e0; color: #92400e; border: 1px solid #ffe0b2; }
-.status-badge--yellow .status-badge__dot { background: #f59e0b; }
+.status-badge--yellow { background: var(--warning-bg); color: var(--warning-text); border: 1px solid color-mix(in srgb, var(--warning) 30%, var(--surface)); }
+.status-badge--yellow .status-badge__dot { background: var(--warning); }
 
-/* Red */
-.status-badge--red { background: #ffebee; color: #c62828; border: 1px solid #ffcdd2; }
-.status-badge--red .status-badge__dot { background: #ef4444; }
+.status-badge--red { background: var(--danger-bg); color: var(--danger-text); border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface)); }
+.status-badge--red .status-badge__dot { background: var(--danger); }
 
-/* Blue */
-.status-badge--blue { background: #e3f2fd; color: #1565c0; border: 1px solid #bbdefb; }
-.status-badge--blue .status-badge__dot { background: #3b82f6; }
+.status-badge--blue { background: var(--info-bg); color: var(--info-text); border: 1px solid color-mix(in srgb, var(--info) 30%, var(--surface)); }
+.status-badge--blue .status-badge__dot { background: var(--info); }
 </style>

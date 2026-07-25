@@ -2390,7 +2390,7 @@ export default {
     z-index: 1;
     display: flex;
     align-items: center;
-    background: #fff;
+    background: var(--surface);
     /* Скруглить фон под скруглённое поле (15px) - иначе белые квадратные углы
        оверлея торчат за pill-полем рядом с круглой иконкой поиска (#1097 R3-3). */
     border-radius: var(--radius-md);
@@ -2411,7 +2411,7 @@ export default {
     padding: 0;
     border: none;
     background: transparent;
-    color: #888;
+    color: var(--text-muted);
     font-size: 20px;
     line-height: 1;
     cursor: pointer;
@@ -2447,7 +2447,7 @@ export default {
     height: 40px;
     border: 1px solid var(--color-border);
     border-radius: 50%;
-    background: #fff;
+    background: var(--surface);
     cursor: pointer;
     flex-shrink: 0;
     transition: background 0.15s ease, border-color 0.15s ease;
@@ -2490,7 +2490,7 @@ export default {
 /* ── Десктоп: инлайн-фильтры Центра (как до волны 3) ── */
 .center__filters {
     padding: 14px 16px;
-    background: #fff;
+    background: var(--surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-sm);
@@ -2531,8 +2531,8 @@ export default {
 .reset-sort-btn,
 .reset-filters-btn {
     padding: 7px 14px;
-    border: 1px solid var(--color-border);
-    background: white;
+    border: 1px solid var(--border);
+    background: var(--surface);
     border-radius: var(--radius-pill);
     cursor: pointer;
     font-size: 12px;
@@ -2553,9 +2553,9 @@ export default {
 }
 
 .status-btn--active {
-    background: var(--color-primary);
-    color: white;
-    border-color: var(--color-primary);
+    background: var(--accent);
+    color: var(--accent-contrast);
+    border-color: var(--accent);
 }
 
 .status-btn--active:hover {
@@ -2570,15 +2570,15 @@ export default {
 }
 
 .reset-filters-btn {
-    background: #fff;
-    border-color: #fecaca;
+    background: var(--surface);
+    border-color: color-mix(in srgb, var(--danger) 30%, var(--surface));
     color: var(--color-danger);
 }
 
 .reset-filters-btn:hover:not(:disabled) {
-    background: var(--color-danger);
-    border-color: var(--color-danger);
-    color: #fff;
+    background: var(--danger);
+    border-color: var(--danger);
+    color: var(--surface);
 }
 
 /* Дропдаун тегов (десктоп) */
@@ -2592,7 +2592,7 @@ export default {
     height: 36px;
     padding: 0 16px;
     border: 1px solid var(--color-border);
-    background: #fff;
+    background: var(--surface);
     border-radius: var(--radius-pill);
     cursor: pointer;
     font-size: 13px;
@@ -2628,13 +2628,13 @@ export default {
 .center__title {
     font-size: 18px;
     font-weight: bold;
-    color: #000;
+    color: var(--text);
     margin: 0;
 }
 
 .unread-badge {
-    background: var(--color-primary);
-    color: white;
+    background: var(--accent);
+    color: var(--accent-contrast);
     padding: 4px 10px;
     border-radius: 12px;
     font-size: 12px;
@@ -2661,13 +2661,13 @@ export default {
     justify-content: flex-end;
     padding: 8px 0;
     border-bottom: 1px solid var(--color-border);
-    background: #fafafa;
+    background: var(--surface-2);
 }
 
 .field {
     width: 200px;
     height: 36px;
-    background-color: #FFF;
+    background-color: var(--surface);
     border-radius: var(--radius-md);
     border: 1px solid var(--color-border);
     padding: 0 12px;
@@ -2711,7 +2711,7 @@ export default {
 
 .select-text {
     font-size: 14px;
-    color: #000;
+    color: var(--text);
     flex: 1;
 }
 
@@ -2733,7 +2733,7 @@ export default {
 
 .applications-table {
     min-width: 300px;
-    background-color: #fff;
+    background-color: var(--surface);
     border-radius: 30px;
     border: 1px solid var(--color-border);
     overflow: hidden;
@@ -2766,7 +2766,7 @@ export default {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(255, 255, 255, 0.75);
+    background: color-mix(in srgb, var(--surface) 75%, transparent);
     backdrop-filter: blur(1px);
     z-index: 2;
     pointer-events: none;
@@ -2789,7 +2789,7 @@ export default {
 
 .header-col {
     font-weight: 500;
-    color: #a2a2a2;
+    color: var(--text-muted);
     text-align: left;
     font-size: 14px;
     display: flex;
@@ -2803,7 +2803,7 @@ export default {
 }
 
 .header-col:hover {
-    color: #333;
+    color: var(--text);
 }
 
 .header-col:hover .sort-icon {
@@ -2825,7 +2825,7 @@ export default {
 }
 
 .active-sort {
-    color: #333 !important;
+    color: var(--text) !important;
     font-weight: 500 !important;
 }
 
@@ -2927,8 +2927,8 @@ export default {
     transform: translateX(-50%);
     width: max-content;
     max-width: 200px;
-    background: #333;
-    color: #fff;
+    background: var(--hint-bg);
+    color: var(--hint-text);
     padding: 5px 9px;
     border-radius: 6px;
     font-size: 11px;
@@ -2939,7 +2939,7 @@ export default {
     pointer-events: none;
     opacity: 0;
     transition: opacity 0.15s;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 2px 8px var(--shadow-drop);
 }
 
 .tag-hint::before {
@@ -2949,7 +2949,7 @@ export default {
     left: 50%;
     transform: translateX(-50%);
     border: 5px solid transparent;
-    border-bottom-color: #333;
+    border-bottom-color: var(--hint-bg);
     z-index: 1001;
     pointer-events: none;
     opacity: 0;
@@ -3000,7 +3000,7 @@ export default {
     height: 8px;
     border-radius: 50%;
     background: var(--color-danger);
-    border: 1.5px solid #fff;
+    border: 1.5px solid var(--surface);
     pointer-events: none;
 }
 
@@ -3061,8 +3061,8 @@ export default {
     top: calc(100% + 6px);
     left: 50%;
     transform: translateX(-50%);
-    background: #333;
-    color: #fff;
+    background: var(--hint-bg);
+    color: var(--hint-text);
     padding: 6px 10px;
     border-radius: 6px;
     font-size: 12px;
@@ -3071,7 +3071,7 @@ export default {
     pointer-events: none;
     opacity: 0;
     transition: opacity 0.15s;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 2px 8px var(--shadow-drop);
 }
 
 .sender-tooltip-anchor::before {
@@ -3081,7 +3081,7 @@ export default {
     left: 50%;
     transform: translateX(-50%);
     border: 5px solid transparent;
-    border-bottom-color: #333;
+    border-bottom-color: var(--hint-bg);
     z-index: 1001;
     pointer-events: none;
     opacity: 0;
@@ -3112,7 +3112,7 @@ export default {
 }
 
 .header-col.actions-col:hover {
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .table-body {
@@ -3176,7 +3176,7 @@ export default {
     padding: 10px 20px;
     border-top: 1px solid var(--color-border);
     font-size: 13px;
-    color: #8a8a8a;
+    color: var(--text-muted);
 }
 
 .applications-list {
@@ -3200,13 +3200,13 @@ export default {
    Десктоп и мобилка. Первый разделитель без верхней линии (граница шапки уже есть). */
 .applications-day-separator {
     padding: 8px 16px;
-    border-top: 1px solid #e2e2e6;
-    border-bottom: 1px solid #e2e2e6;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
     /* Серая полоса-разделитель периодов на десктопе (полоса на всю ширину .applications-list).
        Лейбл - отдельный span, флекс выравнивает его по вертикали (align-items); по
        горизонтали не центрируем - подпись идёт слева, как в списке.
        На мобилке (карточки) возвращаем transparent - см. @media ниже. */
-    background: #FAFAFA;
+    background: var(--surface-2);
     display: flex;
     align-items: center;
 }
@@ -3216,7 +3216,7 @@ export default {
 .applications-day-label {
     font-size: 12px;
     font-weight: 600;
-    color: #9a9aae;
+    color: var(--text-muted);
 }
 /* На мобилке список - карточки на белом, серая полоса разделителя лишняя;
    фон/бордеры - десктопные, тут сбрасываем. */
@@ -3235,7 +3235,7 @@ export default {
 }
 
 .application-item:hover {
-    background-color: #a2a2a2;
+    background-color: var(--row-hover);
 }
 
 .application-item.initial-load {
@@ -3287,7 +3287,7 @@ export default {
 }
 
 .application-item:hover:not(.download-btn:hover) {
-    background-color: #f0f0f0;
+    background-color: var(--surface-2);
 }
 
 .application-item.unread {
@@ -3301,10 +3301,10 @@ export default {
    Взаимоисключимо с .unread (флаг показываем только у прочитанных), поэтому фоны не
    конфликтуют. Ставим после hover-правил, чтобы подсветка держалась и при наведении. */
 .application-item.status-updated {
-    background-color: #f3e8ff;
+    background-color: var(--updated-bg);
     /* Левая полоса-акцент (inset - без reflow): заметный сигнал "обновление" даже там,
        где мягкого фона мало (мобильная карточка, где точка статуса скрыта). */
-    box-shadow: inset 3px 0 0 0 #9333ea;
+    box-shadow: inset 3px 0 0 0 var(--updated-accent);
 }
 
 .status-badge-wrap {
@@ -3319,8 +3319,8 @@ export default {
     width: 9px;
     height: 9px;
     border-radius: 50%;
-    background-color: #9333ea;
-    box-shadow: 0 0 0 2px #fff;
+    background-color: var(--updated-accent);
+    box-shadow: 0 0 0 2px var(--surface);
 }
 
 .status-update-dot::after {
@@ -3328,7 +3328,7 @@ export default {
     position: absolute;
     inset: 0;
     border-radius: 50%;
-    background-color: #9333ea;
+    background-color: var(--updated-accent);
     animation: statusUpdatePulse 1.6s ease-out infinite;
 }
 
@@ -3349,7 +3349,7 @@ export default {
     padding: 6px 16px;
     align-items: center;
     gap: 14px;
-    border-bottom: 1px solid #f5f5f5;
+    border-bottom: 1px solid var(--border);
     min-height: 40px;
 }
 
@@ -3368,8 +3368,8 @@ export default {
 /* Стили для кнопки "Скачать" */
 .download-btn {
     height: 25px;
-    background-color: #fff;
-    color: #000;
+    background-color: var(--surface);
+    color: var(--text);
     border-radius: 50px;
     border: 1px solid var(--color-border);
     font-size: 12px;
@@ -3385,8 +3385,8 @@ export default {
 }
 
 .download-btn:hover {
-    background-color: #f5f5f5;
-    border-color: #d0d0d0;
+    background-color: var(--surface-2);
+    border-color: var(--border);
 }
 
 .confirmation-badge {
@@ -3402,31 +3402,31 @@ export default {
 }
 
 .confirmation-approved {
-    background-color: #f0f9ff;
-    color: #059669;
-    border: 1px solid #a7f3d0;
+    background-color: var(--success-bg);
+    color: var(--success-text);
+    border: 1px solid color-mix(in srgb, var(--success) 30%, var(--surface));
 }
 
 .confirmation-pending {
-    background-color: #fffbeb;
-    color: #d97706;
-    border: 1px solid #fcd34d;
+    background-color: var(--warning-bg);
+    color: var(--warning-text);
+    border: 1px solid color-mix(in srgb, var(--warning) 30%, var(--surface));
 }
 
 .confirmation-rejected {
-    background-color: #fef2f2;
-    color: #dc2626;
-    border: 1px solid #fecaca;
+    background-color: var(--danger-bg);
+    color: var(--danger-text);
+    border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
 }
 
 .confirmation-default {
-    background-color: #f5f5f5;
-    color: #616161;
-    border: 1px solid #e0e0e0;
+    background-color: var(--surface-2);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
 }
 
 .application-number {
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .application-number--copyable {
@@ -3440,11 +3440,11 @@ export default {
 
 .application-number--copyable:hover,
 .application-number--copyable:focus-visible {
-    color: #333;
+    color: var(--text);
 }
 
 .application-number--copyable:focus-visible {
-    box-shadow: 0 0 0 2px rgba(79, 91, 223, 0.3);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
 .application-number--copyable::after {
@@ -3453,8 +3453,8 @@ export default {
     top: calc(100% + 6px);
     left: 50%;
     transform: translateX(-50%);
-    background: #333;
-    color: #fff;
+    background: var(--hint-bg);
+    color: var(--hint-text);
     padding: 4px 8px;
     border-radius: 6px;
     font-size: 11px;
@@ -3463,7 +3463,7 @@ export default {
     pointer-events: none;
     opacity: 0;
     transition: opacity 0.15s;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 2px 8px var(--shadow-drop);
 }
 
 .application-number--copyable:hover::after {
@@ -3484,44 +3484,44 @@ export default {
 }
 
 .status-unread {
-    background-color: #fff7ed;
-    color: #ea580c;
-    border-color: #fed7aa;
+    background-color: var(--warning-bg);
+    color: var(--warning-text);
+    border-color: color-mix(in srgb, var(--warning) 30%, var(--surface));
 }
 
 .status-processing {
-    background-color: #fff3e0;
-    color: #ef6c00;
-    border-color: #ffe0b2;
+    background-color: var(--warning-bg);
+    color: var(--warning-text);
+    border-color: color-mix(in srgb, var(--warning) 30%, var(--surface));
 }
 
 .status-in-progress {
-    background-color: #e3f2fd;
-    color: #1565c0;
-    border-color: #bbdefb;
+    background-color: var(--info-bg);
+    color: var(--info-text);
+    border-color: color-mix(in srgb, var(--info) 30%, var(--surface));
 }
 
 .status-completed {
-    background-color: #e8f5e8;
-    color: #2e7d32;
-    border-color: #c8e6c9;
+    background-color: var(--success-bg);
+    color: var(--success-text);
+    border-color: color-mix(in srgb, var(--success) 30%, var(--surface));
 }
 
 .status-rejected {
-    background-color: #ffebee;
-    color: #c62828;
-    border-color: #ffcdd2;
+    background-color: var(--danger-bg);
+    color: var(--danger-text);
+    border-color: color-mix(in srgb, var(--danger) 30%, var(--surface));
 }
 
 .status-default {
-    background-color: #f5f5f5;
-    color: #616161;
-    border-color: #e0e0e0;
+    background-color: var(--surface-2);
+    color: var(--text-muted);
+    border-color: var(--border);
 }
 
 .no-data-message {
     text-align: center;
-    color: #a2a2a2;
+    color: var(--text-muted);
     padding: 40px 20px;
     margin: 0;
     font-size: 14px;
@@ -3542,7 +3542,7 @@ export default {
 }
 
 .table-body::-webkit-scrollbar-thumb {
-    background: #D9E2FF;
+    background: color-mix(in srgb, var(--accent) 22%, var(--surface));
     border-radius: 3px;
     border: 1px solid transparent;
     background-clip: content-box;
@@ -3550,14 +3550,14 @@ export default {
 }
 
 .table-body::-webkit-scrollbar-thumb:hover {
-    background: #C5D1FF;
+    background: color-mix(in srgb, var(--accent) 32%, var(--surface));
     border: 1px solid transparent;
     background-clip: content-box;
 }
 
 .table-body {
     scrollbar-width: thin;
-    scrollbar-color: #D9E2FF transparent;
+    scrollbar-color: color-mix(in srgb, var(--accent) 22%, var(--surface)) transparent;
 }
 
 /* При одной строке таблица низкая, а overflow:hidden + scroll обрезали подсказки
@@ -3581,7 +3581,7 @@ export default {
 }
 
 .applications-list::-webkit-scrollbar-thumb {
-    background: #D9E2FF;
+    background: color-mix(in srgb, var(--accent) 22%, var(--surface));
     border-radius: 3px;
     border: 1px solid transparent;
     background-clip: content-box;
@@ -3589,7 +3589,7 @@ export default {
 
 .applications-list {
     scrollbar-width: thin;
-    scrollbar-color: #D9E2FF transparent;
+    scrollbar-color: color-mix(in srgb, var(--accent) 22%, var(--surface)) transparent;
 }
 
 /* Сообщение показываем ТОЛЬКО в компактной карточке на мобилке (W3.7); в десктоп-
@@ -3625,7 +3625,7 @@ export default {
         top: var(--mobile-header-height);
         z-index: 20;
         gap: 8px;
-        background: #FAFAFA;
+        background: var(--surface-2);
         margin: 0 calc(-1 * var(--center-pad));
         padding: 8px var(--center-pad) 12px;
         border-bottom: 1px solid var(--color-border);
@@ -3738,8 +3738,8 @@ export default {
        на десктопе фон родителя виден сквозь прозрачную строку, на мобилке белая
        карточка его закрывала - пробрасываем на саму .rt-row (#1349 mobile-fix). */
     .applications-table .application-item.status-updated .application-row.rt-row {
-        background-color: #f3e8ff !important;
-        box-shadow: inset 3px 0 0 0 #9333ea !important;
+        background-color: var(--updated-bg) !important;
+        box-shadow: inset 3px 0 0 0 var(--updated-accent) !important;
     }
 
     /* Компактная карточка-письмо БЕЗ подписей (W3.7): бейдж согласования + дата в углу
@@ -3763,7 +3763,7 @@ export default {
         border-radius: 0 !important;
         /* Разделитель МЕЖДУ заявками бледнее (#f0f0f0), чтобы отличался от более
            тёмной линии разделителя периода (#e2e2e6) (#1097 r2). */
-        border-bottom-color: #f0f0f0 !important;
+        border-bottom-color: var(--border) !important;
     }
 
     /* Прячем подписи полей (data-label ::before из responsive-tables.css). */
@@ -3829,7 +3829,7 @@ export default {
 
     /* Базовый (прочитанный) цвет даты - приглушённый серый; unread перекрывает синим выше. */
     .application-col.date-col {
-        color: #9a9aae;
+        color: var(--text-muted);
     }
 
     /* Резерв справа у бейджа согласования, чтобы дата в углу не наезжала на него.
@@ -3858,21 +3858,21 @@ export default {
     /* Типографика строк карточки. */
     .application-col.number-col .application-number {
         font-size: 12px;
-        color: #9a9aae;
+        color: var(--text-muted);
         font-weight: 500;
     }
     .application-col.organization-col {
         font-size: 15px;
         font-weight: 700;
-        color: #1a1a2e;
+        color: var(--text);
     }
     .application-col.sender-col {
         font-size: 13px;
-        color: #555;
+        color: var(--text);
     }
     .application-col.message-col {
         font-size: 13px;
-        color: #7a7a8c;
+        color: var(--text-muted);
     }
 
     /* Теги в компактной карточке НЕ сворачиваем в иконки (W3.11) - показываем полным
@@ -3951,14 +3951,14 @@ export default {
     border: none;
     border-radius: 50%;
     background: transparent;
-    color: var(--color-text-muted, #888);
+    color: var(--color-text-muted, var(--text-muted));
     cursor: pointer;
     transition: background 0.15s ease, color 0.15s ease;
 }
 
 .sound-icon-btn:hover {
-    background: var(--color-border, #e6e6e6);
-    color: #444;
+    background: var(--color-border, var(--border));
+    color: var(--text);
 }
 
 .sound-icon-btn--active {
@@ -3976,11 +3976,11 @@ export default {
     right: 0;
     z-index: 500;
     width: 230px;
-    background: #fff;
-    border: 1px solid var(--color-border, #e6e6e6);
+    background: var(--surface);
+    border: 1px solid var(--color-border, var(--border));
     border-radius: 20px;
     padding: 14px 16px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 8px 24px var(--shadow-drop);
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -3996,7 +3996,7 @@ export default {
 .sound-popover__title {
     font-size: 13px;
     font-weight: 600;
-    color: #1a1a1a;
+    color: var(--text);
 }
 
 .sound-popover__field {
@@ -4007,7 +4007,7 @@ export default {
 
 .sound-popover__label {
     font-size: 11px;
-    color: var(--color-text-muted, #888);
+    color: var(--color-text-muted, var(--text-muted));
     font-weight: 500;
 }
 
@@ -4037,7 +4037,7 @@ export default {
     display: inline-block;
     width: 36px;
     height: 20px;
-    background: var(--color-border, #e6e6e6);
+    background: var(--color-border, var(--border));
     border-radius: 999px;
     transition: background 0.2s ease;
     position: relative;
@@ -4050,10 +4050,10 @@ export default {
     left: 3px;
     width: 14px;
     height: 14px;
-    background: #fff;
+    background: var(--surface);
     border-radius: 50%;
     transition: transform 0.2s ease;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 1px 3px var(--shadow-drop);
 }
 
 .sound-toggle__input:checked + .sound-toggle__track {

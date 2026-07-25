@@ -33,7 +33,7 @@
   --accent-contrast: #ffffff;
   --accent-tint: rgba(79, 91, 223, 0.08);
 
-  --bg: #f8f9ff;
+  --bg: #ffffff;
   --surface: #ffffff;
   --surface-2: #f9f9f9;
   --text: #333333;
@@ -54,6 +54,7 @@
   --unread-bg: #fff5e0;
   --unread-accent: #f59e0b;
   --updated-bg: #f3e8ff;
+  --updated-accent: #9333ea;
   --row-hover: #f5f6ff;
 
   --tag-chs-bg: #ffebee;       --tag-chs-text: #c62828;
@@ -98,6 +99,7 @@
   --unread-bg: #2b2113;
   --unread-accent: #fbbf24;
   --updated-bg: #241a33;
+  --updated-accent: #c084fc;
   --row-hover: #232733;
 
   --tag-chs-bg: #2d1618;       --tag-chs-text: #fca5a5;
@@ -122,7 +124,7 @@
   --accent-contrast: #1F1300;
   --accent-tint: rgba(249, 115, 22, 0.10);
 
-  --bg: #FAF8F6;
+  --bg: #ffffff;
   --surface: #ffffff;
   --surface-2: #F5F1ED;
   --text: #18232E;
@@ -142,6 +144,7 @@
   --unread-bg: #FFF3E4;
   --unread-accent: #F97316;
   --updated-bg: #F1ECF8;
+  --updated-accent: #7e3af2;
   --row-hover: #FBF7F3;
 
   --tag-chs-bg: #fdeceb;       --tag-chs-text: #a8201a;
@@ -164,7 +167,7 @@
   --accent-contrast: #ffffff;
   --accent-tint: rgba(74, 85, 104, 0.08);
 
-  --bg: #f7f8fa;
+  --bg: #ffffff;
   --surface: #ffffff;
   --surface-2: #f2f4f7;
   --text: #1f2430;
@@ -183,6 +186,7 @@
   --unread-bg: #f6f0e2;
   --unread-accent: #975a16;
   --updated-bg: #eeecf6;
+  --updated-accent: #5b53a8;
   --row-hover: #f2f4f7;
 
   --tag-chs-bg: #f7eaea;       --tag-chs-text: #822727;
@@ -205,7 +209,7 @@
   --accent-contrast: #ffffff;
   --accent-tint: rgba(27, 79, 156, 0.08);
 
-  --bg: #f4f7fb;
+  --bg: #ffffff;
   --surface: #ffffff;
   --surface-2: #eef3f9;
   --text: #16233a;
@@ -224,6 +228,7 @@
   --unread-bg: #fdf3e2;
   --unread-accent: #a86a00;
   --updated-bg: #ebe9f7;
+  --updated-accent: #5a4fbf;
   --row-hover: #eef3f9;
 
   --tag-chs-bg: #fbeae9;       --tag-chs-text: #8c1d17;
@@ -265,6 +270,7 @@
   --unread-bg: #2c2012;
   --unread-accent: #FFA033;
   --updated-bg: #2a1d2e;
+  --updated-accent: #c084fc;
   --row-hover: #2b221c;
 
   --tag-chs-bg: #2e1519;       --tag-chs-text: #fda4af;
@@ -316,7 +322,7 @@ textarea {
   --color-text: var(--text);
   --color-text-muted: var(--text-muted);
   --color-border: var(--border);
-  --color-bg: var(--bg);
+  --color-bg: var(--surface-2);
   --color-bg-secondary: var(--surface-2);
   --color-skeleton: var(--skeleton);
   --color-skeleton-shine: var(--skeleton-shine);
