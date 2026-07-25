@@ -21,17 +21,17 @@
             width="18"
             height="16"
             rx="3"
-            stroke="#555"
+            stroke="currentColor"
             stroke-width="2"
           />
           <path
             d="M3 9.5H21"
-            stroke="#555"
+            stroke="currentColor"
             stroke-width="2"
           />
           <path
             d="M8 3V7M16 3V7"
-            stroke="#555"
+            stroke="currentColor"
             stroke-width="2"
             stroke-linecap="round"
           />
@@ -81,7 +81,7 @@
                     >
                       <path
                         d="M15 18L9 12L15 6"
-                        stroke="#4F5BDF"
+                        stroke="currentColor"
                         stroke-width="2"
                         stroke-linecap="round"
                         stroke-linejoin="round"
@@ -103,7 +103,7 @@
                     >
                       <path
                         d="M9 18L15 12L9 6"
-                        stroke="#4F5BDF"
+                        stroke="currentColor"
                         stroke-width="2"
                         stroke-linecap="round"
                         stroke-linejoin="round"
@@ -938,9 +938,9 @@ export default {
 .date-field {
     width: 215px;
     height: 35px;
-    background-color: #FFF;
+    background-color: var(--surface);
     border-radius: 15px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     padding: 0 10px;
     cursor: pointer;
     position: relative;
@@ -948,7 +948,7 @@ export default {
 }
 
 .date-field:hover {
-    border-color: #4F5BDF;
+    border-color: var(--accent);
 }
 
 .field-wrapper {
@@ -960,7 +960,7 @@ export default {
 
 .field-input {
     font-size: 14px;
-    color: #000;
+    color: var(--text);
     flex: 1;
     white-space: nowrap;
     overflow: hidden;
@@ -969,7 +969,7 @@ export default {
 }
 
 .field-input::placeholder {
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .field-icon {
@@ -1029,24 +1029,24 @@ export default {
     width: 40px;
     height: 4px;
     border-radius: 2px;
-    background: #d5d5db;
+    background: var(--border);
     margin: 6px auto 0;
     flex-shrink: 0;
 }
 
 .calendar-container {
-    background: white;
+    background: var(--surface);
     border-radius: 12px;
-    border: 1px solid #e6e6e6;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    border: 1px solid var(--border);
+    box-shadow: 0 8px 24px var(--shadow-drop);
     overflow: hidden;
 }
 
 /* Header - высота 40px */
 .calendar-header {
     padding: 8px 16px;
-    background: #f8f9ff;
-    border-bottom: 1px solid #e6e6e6;
+    background: var(--accent-tint);
+    border-bottom: 1px solid var(--border);
     height: 40px;
     display: flex;
     align-items: center;
@@ -1061,7 +1061,7 @@ export default {
 
 .date-display {
     font-weight: 600;
-    color: #333;
+    color: var(--text);
     padding: 0 8px;
 }
 
@@ -1075,8 +1075,8 @@ export default {
     width: 28px;
     height: 28px;
     border-radius: 6px;
-    border: 1px solid #e6e6e6;
-    background: white;
+    border: 1px solid var(--border);
+    background: var(--surface);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1086,8 +1086,8 @@ export default {
 }
 
 .nav-btn:hover {
-    border-color: #4F5BDF;
-    background: #f8f9ff;
+    border-color: var(--accent);
+    background: var(--accent-tint);
 }
 
 /* Horizontal layout */
@@ -1101,7 +1101,7 @@ export default {
 /* Quick selection слева */
 .quick-selection {
     flex: 0 0 160px; /* Фиксированная ширина для быстрых кнопок */
-    border-right: 1px solid #f0f0f0;
+    border-right: 1px solid var(--border);
     padding-right: 10px;
 }
 
@@ -1116,12 +1116,12 @@ export default {
 
 .quick-btn {
     padding: 6px 8px;
-    border: 1px solid #e6e6e6;
-    background: white;
+    border: 1px solid var(--border);
+    background: var(--surface);
     border-radius: 6px;
     font-size: 12px;
     font-weight: 500;
-    color: #333;
+    color: var(--text);
     cursor: pointer;
     transition: all 0.2s ease;
     text-align: left;
@@ -1135,18 +1135,18 @@ export default {
 }
 
 .quick-btn:hover {
-    border-color: #4F5BDF;
-    background: #f8f9ff;
+    border-color: var(--accent);
+    background: var(--accent-tint);
 }
 
 .quick-btn.active {
-    background: #4F5BDF;
-    color: white;
-    border-color: #4F5BDF;
+    background: var(--accent);
+    color: var(--accent-contrast);
+    border-color: var(--accent);
 }
 
 .quick-btn.active:hover {
-    background: #3a45c0;
+    background: var(--accent-hover);
 }
 
 /* Calendar main справа */
@@ -1167,30 +1167,30 @@ export default {
 .mode-btn {
     flex: 1;
     padding: 6px 12px;
-    border: 1px solid #e6e6e6;
-    background: white;
+    border: 1px solid var(--border);
+    background: var(--surface);
     border-radius: 15px; /* Изменено: скругление 15px */
     font-size: 12px;
     font-weight: 500;
-    color: #333;
+    color: var(--text);
     cursor: pointer;
     transition: all 0.2s ease;
     text-align: center;
 }
 
 .mode-btn:hover {
-    border-color: #4F5BDF;
-    background: #f8f9ff;
+    border-color: var(--accent);
+    background: var(--accent-tint);
 }
 
 .mode-btn.active {
-    background: #4F5BDF;
-    color: white;
-    border-color: #4F5BDF;
+    background: var(--accent);
+    color: var(--accent-contrast);
+    border-color: var(--accent);
 }
 
 .mode-btn.active:hover {
-    background: #3a45c0;
+    background: var(--accent-hover);
 }
 
 .weekdays {
@@ -1204,7 +1204,7 @@ export default {
 .weekday {
     text-align: center;
     font-size: 11px;
-    color: #666;
+    color: var(--text-muted);
     font-weight: 500;
     height: 20px;
     display: flex;
@@ -1227,7 +1227,7 @@ export default {
     justify-content: center;
     font-size: 13px;
     font-weight: 500;
-    color: #333;
+    color: var(--text);
     cursor: pointer;
     border-radius: 15px;
     position: relative;
@@ -1241,16 +1241,16 @@ export default {
 }
 
 .day:not(.day--current-month) {
-    color: #d0d0d0;
+    color: var(--text-muted);
     cursor: default;
 }
 
 .day--current-month:hover:not(.day--selected):not(.day--range-start):not(.day--range-end):not(.day--in-range) {
-    background: #f5f5f5;
+    background: var(--surface-2);
 }
 
 .day--today {
-    color: #4F5BDF;
+    color: var(--accent-text);
     font-weight: 600;
 }
 
@@ -1258,26 +1258,26 @@ export default {
 .day--selected,
 .day--range-start,
 .day--range-end {
-    background: #4F5BDF !important; /* Синий цвет для всех выбранных дней */
-    color: white !important;
+    background: var(--accent) !important; /* Акцент темы для всех выбранных дней */
+    color: var(--accent-contrast) !important;
     font-weight: 600;
 }
 
 .day--selected:hover,
 .day--range-start:hover,
 .day--range-end:hover {
-    background: #3a45c0 !important; /* Темнее при наведении */
+    background: var(--accent-hover) !important; /* Ярче/темнее при наведении - по теме */
 }
 
 /* Дни внутри периода (между началом и концом) */
 .day--in-range:not(.day--range-start):not(.day--range-end) {
-    background: #f0f2ff; /* Светло-синий только для дней внутри периода */
-    color: #333;
+    background: var(--accent-tint); /* Подсветка дней внутри периода */
+    color: var(--text);
     border-radius: 0;
 }
 
 .day--in-range:not(.day--range-start):not(.day--range-end):hover {
-    background: #e6e9ff;
+    background: color-mix(in srgb, var(--accent) 18%, var(--surface));
 }
 
 /* Скругления для крайних дней периода */
@@ -1297,9 +1297,9 @@ export default {
 .selected-range {
     margin-top: 12px;
     padding: 8px;
-    border: 1px solid #f0f0f0;
+    border: 1px solid var(--border);
     border-radius: 15px;
-    background: #fafafa;
+    background: var(--surface-2);
     flex-shrink: 0;
     min-height: 36px; /* Фиксированная минимальная высота */
     display: flex;
@@ -1317,19 +1317,19 @@ export default {
 
 .range-label {
     font-size: 11px;
-    color: #666;
+    color: var(--text-muted);
     font-weight: 500;
     white-space: nowrap;
 }
 
 .range-date {
     font-size: 12px;
-    color: #333;
+    color: var(--text);
     font-weight: 500;
-    background: white;
+    background: var(--surface);
     padding: 2px 6px;
     border-radius: 15px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     min-width: 70px;
     text-align: center;
     height: 24px;
@@ -1343,8 +1343,8 @@ export default {
     display: flex;
     padding: 12px 16px;
     gap: 8px;
-    border-top: 1px solid #e6e6e6;
-    background: #f8f9ff;
+    border-top: 1px solid var(--border);
+    background: var(--accent-tint);
 }
 
 .action-btn {
@@ -1361,25 +1361,25 @@ export default {
 }
 
 .action-btn--clear {
-    background: white;
-    color: #666;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
 }
 
 .action-btn--clear:hover {
-    background: #f5f5f5;
-    border-color: #d0d0d0;
+    background: var(--surface-2);
+    border-color: var(--border);
 }
 
 .action-btn--apply {
-    background: #4F5BDF;
-    color: white;
-    border: 1px solid #4F5BDF;
+    background: var(--accent);
+    color: var(--accent-contrast);
+    border: 1px solid var(--accent);
 }
 
 .action-btn--apply:hover {
-    background: #3a45c0;
-    border-color: #3a45c0;
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
 }
 
 /* Scrollbar for quick buttons */
@@ -1388,17 +1388,17 @@ export default {
 }
 
 .quick-buttons-list::-webkit-scrollbar-track {
-    background: #f5f5f5;
+    background: var(--surface-2);
     border-radius: 2px;
 }
 
 .quick-buttons-list::-webkit-scrollbar-thumb {
-    background: #c5c5c5;
+    background: var(--border);
     border-radius: 2px;
 }
 
 .quick-buttons-list::-webkit-scrollbar-thumb:hover {
-    background: #a8a8a8;
+    background: var(--text-muted);
 }
 
 /* Адаптивность */
@@ -1416,7 +1416,7 @@ export default {
         position: fixed;
         inset: 0;
         z-index: 9998;
-        background: rgba(0, 0, 0, 0.45);
+        background: var(--overlay);
     }
 
     .calendar-modal {
@@ -1444,7 +1444,7 @@ export default {
         flex-direction: column;
         border: none;
         border-radius: 16px 16px 0 0;
-        box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.18);
+        box-shadow: 0 -8px 30px var(--shadow-drop);
     }
 
     .sheet-handle {
@@ -1452,12 +1452,12 @@ export default {
     }
 
     /* Шапка с месяцем и кнопки действий закреплены, прокручивается только тело.
-       Фон белый: голубоватый #f8f9ff на всю ширину листа читался как «залипшая»
-       подсветка, лист должен быть обычным белым окном. */
+       Фон - поверхность темы, а не подсветка: тонированная заливка на всю ширину
+       листа читалась как «залипшее» выделение. */
     .calendar-header,
     .calendar-actions {
         flex-shrink: 0;
-        background: #fff;
+        background: var(--surface);
     }
 
 
@@ -1475,7 +1475,7 @@ export default {
     .quick-selection {
         flex: none;
         border-right: none;
-        border-bottom: 1px solid #f0f0f0;
+        border-bottom: 1px solid var(--border);
         padding-right: 0;
         padding-bottom: 10px;
     }

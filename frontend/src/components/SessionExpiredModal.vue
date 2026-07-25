@@ -118,7 +118,7 @@ export default {
 }
 
 .session-expired-modal {
-  background: white;
+  background: var(--surface);
   border-radius: 50px;
   padding: 30px;
   max-width: 400px;
@@ -204,7 +204,7 @@ export default {
 
 .btn-primary {
   background: var(--accent);
-  color: white;
+  color: var(--accent-contrast);
 }
 
 .btn-primary:hover {

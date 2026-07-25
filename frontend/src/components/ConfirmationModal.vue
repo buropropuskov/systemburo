@@ -110,7 +110,7 @@ export default {
 
 
 .modal {
-    background: white;
+    background: var(--surface);
     border-radius: 15px;
     padding: 20px;
     width: 300px;
@@ -148,7 +148,7 @@ export default {
 }
 
 .cancel-btn {
-    background: white;
+    background: var(--surface);
     color: var(--text-muted);
 }
 
@@ -159,7 +159,7 @@ export default {
 
 .confirm-btn {
     background: var(--accent);
-    color: white;
+    color: var(--accent-contrast);
     border-color: var(--accent);
 }
 
