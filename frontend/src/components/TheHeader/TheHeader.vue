@@ -396,13 +396,14 @@ h3 {
 .user__notifications { order: 4; }
 .appl-btn__container { order: 5; }
 
-/* Дата и время в шапке (только десктоп): min-width как в оригинале, чтобы секунды
-   не дёргали ширину; моноширинные цифры. */
+/* Дата и время в шапке (только десктоп): серый цвет, размер, центрирование и
+   min-width как в оригинале до W3; моноширинные цифры, чтобы секунды не дёргали
+   ширину. */
 .header__time {
-  min-width: 140px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--color-text, #333);
+  min-width: 160px;
+  font-size: 16px;
+  color: #a2a2a2;
+  text-align: center;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
