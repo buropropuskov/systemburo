@@ -33,6 +33,7 @@ describe('ApplicationAssignModal (#1393)', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('окно поднято над деталью заявки: с дефолтным слоем оно открывалось за ней', () => {
+    apiRequest.mockResolvedValue(okJson([]));
     const wrapper = mount(ApplicationAssignModal, {
       props: { show: true, kind: 'tables', elementType: 'cars' },
       global: { stubs: { BaseModal: { props: ['zIndex'], template: '<div :data-z="zIndex"><slot /></div>' } } },
@@ -123,6 +124,15 @@ describe('ApplicationAssignModal (#1393)', () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain('применится к 8 машинам');
+  });
+
+  it('сорванный запрос не роняет окно необработанным промисом', async () => {
+    apiRequest.mockRejectedValue(new Error('network'));
+    const wrapper = mountModal();
+    await flushPromises();
+
+    expect(wrapper.vm.loading).toBe(false);
+    expect(wrapper.find('[data-testid="application-assign-empty"]').exists()).toBe(true);
   });
 
   it('пустой справочник объясняет, что выбирать нечего', async () => {
