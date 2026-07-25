@@ -33,13 +33,13 @@
   --surface: #ffffff;
   --surface-2: #f9f9f9;
   --text: #333333;
-  --text-muted: #6b7280;   /* 4.83:1 - прежний #999 давал 2.85 и не проходил AA */
+  --text-muted: #5f6672;   /* 5.49 на подложке, 5.74 на белом; прежний #999 давал 2.85 */
   --border: #e6e6e6;
   --shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
 
   --success: #28a745;  --success-bg: #e8f5e8;  --success-text: #2e7d32;
   --danger:  #dc3545;  --danger-bg:  #ffebee;  --danger-text:  #c62828;
-  --warning: #f59e0b;  --warning-bg: #fff3e0;  --warning-text: #ef6c00;
+  --warning: #f59e0b;  --warning-bg: #fff3e0;  --warning-text: #92400e;   /* 6.46; прежний #ef6c00 давал 2.81 */
   --info:    #3b82f6;  --info-bg:    #e3f2fd;  --info-text:    #1565c0;
 
   --unread-bg: #fff5e0;        /* подложка непрочитанной заявки */
@@ -50,7 +50,7 @@
   --tag-chs-bg: #ffebee;       --tag-chs-text: #c62828;
   --tag-roof-bg: #e3f2fd;      --tag-roof-text: #1565c0;
   --tag-parking-bg: #e8f5e8;   --tag-parking-text: #2e7d32;
-  --tag-important-bg: #fff3e0; --tag-important-text: #ef6c00;
+  --tag-important-bg: #fff3e0; --tag-important-text: #92400e;
 
   --hint-bg: #333333;
   --hint-text: #ffffff;
@@ -61,10 +61,14 @@
 
 /* --- 2. Тёмная ---------------------------------------------------------- */
 :root[data-theme="dark"] {
-  --accent: #6E79F0;           /* осветлён: #4F5BDF на тёмном не читается */
-  --accent-hover: #838CF5;
-  --accent-contrast: #10121a;
-  --accent-tint: rgba(110, 121, 240, 0.16);
+  /* Акцент светлее исходного #4F5BDF: тёмно-синяя заливка на тёмном фоне
+     отделялась всего на 3.35, а сам #6E79F0 как текст давал 4.44 - ниже нормы.
+     Светлая заливка с тёмной подписью решает оба случая разом. */
+  --accent: #9AA2FF;           /* заливка кнопок и активных элементов */
+  --accent-text: #9AA2FF;      /* тот же тон как текст: 7.05 на поверхности */
+  --accent-hover: #B0B6FF;
+  --accent-contrast: #14161c;  /* тёмная подпись на светлой заливке: 7.74 */
+  --accent-tint: rgba(154, 162, 255, 0.16);
 
   --bg: #14161c;
   --surface: #1c1f27;
@@ -98,39 +102,42 @@
 
 /* --- 3. Корпоративная оранжевая (по мотивам dreamisland.ru) -------------- */
 :root[data-theme="corporate-orange"] {
-  --accent: #FF4718;           /* фирменный цвет сайта - акценты, полосы, выделения */
-  --accent-strong: #D6330A;    /* заливка под мелкий текст: белый на фирменном даёт 3.41, здесь 4.84 */
-  --accent-hover: #C62D08;
-  --accent-contrast: #ffffff;
-  --accent-tint: rgba(255, 71, 24, 0.09);
+  /* Оранжевый именно оранжевый, а не алый. Чистый оранжевый светлый, поэтому
+     подпись на заливке тёмная (6.51) - белая дала бы 2.8. Для текста на светлом
+     фоне нужен затемнённый тон: --accent-text (5.21). */
+  --accent: #F97316;           /* заливки, полосы, индикаторы */
+  --accent-text: #A85708;      /* акцент как текст: ссылки, ghost, выбранный пункт */
+  --accent-hover: #EA6A0C;
+  --accent-contrast: #1F1300;  /* тёмная подпись на оранжевой заливке */
+  --accent-tint: rgba(249, 115, 22, 0.10);
 
-  --bg: #F5F6FB;
+  --bg: #FAF8F6;               /* тёплый нейтральный, без синевы */
   --surface: #ffffff;
-  --surface-2: #F5F6FB;
-  --text: #18232E;
-  --text-muted: #6E7681;   /* 4.59:1 - фирменный #979DA5 дал бы 2.73 */
-  --border: rgba(151, 157, 165, 0.32);
-  --shadow: 0 2px 10px rgba(24, 35, 46, 0.07);
+  --surface-2: #F5F1ED;
+  --text: #18232E;             /* фирменный тёмный dreamisland */
+  --text-muted: #62697A;   /* 4.89 на тёплой подложке; фирменный #979DA5 дал бы 2.73 */
+  --border: #E7E1DB;
+  --shadow: 0 2px 10px rgba(24, 35, 46, 0.06);
 
   --success: #1fa971;  --success-bg: #e6f6ef;  --success-text: #12784f;
-  --danger:  #e5342a;  --danger-bg:  #fdeceb;  --danger-text:  #b3221a;
-  --warning: #f59e0b;  --warning-bg: #fff4e3;  --warning-text: #b26a00;
+  --danger:  #d63a2e;  --danger-bg:  #fdeceb;  --danger-text:  #a8201a;
+  --warning: #b45309;  --warning-bg: #fdf1de;  --warning-text: #8a4708;
   --info:    #2a6df4;  --info-bg:    #e9f0fe;  --info-text:    #1b4bb0;
 
-  --unread-bg: #fff1e8;
-  --unread-accent: #FF4718;
-  --updated-bg: #f0ecfb;
-  --row-hover: #fbf7f5;
+  --unread-bg: #FFF3E4;
+  --unread-accent: #F97316;
+  --updated-bg: #F1ECF8;
+  --row-hover: #FBF7F3;
 
-  --tag-chs-bg: #fdeceb;       --tag-chs-text: #b3221a;
+  --tag-chs-bg: #fdeceb;       --tag-chs-text: #a8201a;
   --tag-roof-bg: #e9f0fe;      --tag-roof-text: #1b4bb0;
   --tag-parking-bg: #e6f6ef;   --tag-parking-text: #12784f;
-  --tag-important-bg: #fff1e8; --tag-important-text: #c23a12;
+  --tag-important-bg: #FFF3E4; --tag-important-text: #8a4708;
 
   --hint-bg: #18232E;
   --hint-text: #ffffff;
-  --skeleton: #eceef5;
-  --skeleton-shine: #f6f7fb;
+  --skeleton: #EFEAE4;
+  --skeleton-shine: #F8F5F1;
   --overlay: rgba(24, 35, 46, 0.45);
 }
 
@@ -145,7 +152,7 @@
   --surface: #ffffff;
   --surface-2: #f2f4f7;
   --text: #1f2430;
-  --text-muted: #6b7280;   /* 4.83:1 */
+  --text-muted: #5f6672;   /* 5.25 на подложке */
   --border: #dfe3e8;
   --shadow: 0 1px 4px rgba(31, 36, 48, 0.08);
 
@@ -182,7 +189,7 @@
   --surface: #ffffff;
   --surface-2: #eef3f9;
   --text: #16233a;
-  --text-muted: #667488;   /* 4.53:1 */
+  --text-muted: #5b6879;   /* 5.09 на подложке */
   --border: #d6e0ee;
   --shadow: 0 1px 4px rgba(22, 35, 58, 0.08);
 
@@ -210,10 +217,11 @@
 
 /* --- 6. Тёмная оранжевая: корпоративная ночная --------------------------- */
 :root[data-theme="dark-orange"] {
-  --accent: #FF6A3D;
-  --accent-hover: #ff8460;
-  --accent-contrast: #1a1005;
-  --accent-tint: rgba(255, 106, 61, 0.16);
+  --accent: #FFA033;           /* оранжевый, а не алый */
+  --accent-text: #FFA033;      /* как текст на поверхности: 8.44 */
+  --accent-hover: #FFB55C;
+  --accent-contrast: #1a1005;  /* тёмная подпись на заливке: 9.22 */
+  --accent-tint: rgba(255, 160, 51, 0.16);
 
   --bg: #17120f;
   --surface: #211a15;
@@ -229,7 +237,7 @@
   --info:    #7dd3fc;  --info-bg:    #12242e;  --info-text:    #bae6fd;
 
   --unread-bg: #2c2012;
-  --unread-accent: #FF6A3D;
+  --unread-accent: #FFA033;
   --updated-bg: #2a1d2e;
   --row-hover: #2b221c;
 
@@ -284,7 +292,7 @@ body {
   transition: border-color .15s ease, background .15s ease;
 }
 .theme-btn:hover { border-color: var(--accent); }
-.theme-btn[aria-pressed="true"] { background: var(--accent-strong, var(--accent)); color: var(--accent-contrast); border-color: var(--accent-strong, var(--accent)); }
+.theme-btn[aria-pressed="true"] { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); }
 .theme-btn__dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; border: 1px solid rgba(128,128,128,.35); }
 
 /* --- Секции --- */
@@ -317,11 +325,11 @@ section { margin-bottom: 40px; }
   font: inherit; font-size: 13px; font-weight: 500; white-space: nowrap;
   border: 1px solid transparent; transition: background .15s ease, border-color .15s ease, color .15s ease;
 }
-.btn--primary { background: var(--accent-strong, var(--accent)); color: var(--accent-contrast); }
+.btn--primary { background: var(--accent); color: var(--accent-contrast); }
 .btn--primary:hover { background: var(--accent-hover); }
 .btn--secondary { background: var(--surface); color: var(--text); border-color: var(--border); }
-.btn--secondary:hover { border-color: var(--accent); color: var(--accent); }
-.btn--ghost { background: transparent; color: var(--accent); }
+.btn--secondary:hover { border-color: var(--accent); color: var(--accent-text, var(--accent)); }
+.btn--ghost { background: transparent; color: var(--accent-text, var(--accent)); }
 .btn--ghost:hover { background: var(--accent-tint); }
 .btn--danger { background: var(--surface); color: var(--danger); border-color: var(--danger); }
 .btn--danger:hover { background: var(--danger); color: var(--surface); }
@@ -352,10 +360,10 @@ section { margin-bottom: 40px; }
   margin-top: 6px; border: 1px solid var(--border); border-radius: 20px; overflow: hidden;
   background: var(--surface); box-shadow: var(--shadow);
 }
-.dd__clear { width: 100%; padding: 8px 15px; border: none; border-bottom: 1px solid var(--border); background: var(--surface); color: var(--accent); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.dd__clear { width: 100%; padding: 8px 15px; border: none; border-bottom: 1px solid var(--border); background: var(--surface); color: var(--accent-text, var(--accent)); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
 .dd__item { display: flex; align-items: center; gap: 8px; padding: 9px 15px; font-size: 13px; cursor: pointer; }
 .dd__item:hover { background: var(--row-hover); }
-.dd__item--selected { background: var(--accent-tint); color: var(--accent); }
+.dd__item--selected { background: var(--accent-tint); color: var(--accent-text, var(--accent)); }
 .dd__check { width: 15px; height: 15px; border-radius: 4px; border: 1px solid var(--border); background: var(--surface); position: relative; flex-shrink: 0; }
 .dd__check--on { background: var(--accent); border-color: var(--accent); }
 .dd__check--on::after { content: ''; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px; border: solid var(--accent-contrast); border-width: 0 2px 2px 0; transform: rotate(45deg); }
@@ -380,7 +388,7 @@ section { margin-bottom: 40px; }
 .tag--roof { background: var(--tag-roof-bg); color: var(--tag-roof-text); }
 .tag--parking { background: var(--tag-parking-bg); color: var(--tag-parking-text); }
 .tag--important { background: var(--tag-important-bg); color: var(--tag-important-text); }
-.tag--questions { background: var(--accent-tint); color: var(--accent); }
+.tag--questions { background: var(--accent-tint); color: var(--accent-text, var(--accent)); }
 .tag--awaiting { background: var(--warning-bg); color: var(--warning-text); }
 
 /* --- Уведомления (notify) --- */
@@ -421,12 +429,12 @@ section { margin-bottom: 40px; }
 .screen { border: 1px solid var(--border); border-radius: 20px; overflow: hidden; background: var(--surface); box-shadow: var(--shadow); }
 .screen__header { padding: 16px 18px; border-bottom: 1px solid var(--border); background: var(--surface); }
 .screen__title { font-size: 16px; font-weight: 700; margin: 0 0 14px; display: flex; align-items: center; gap: 10px; }
-.screen__counter { font-size: 12px; font-weight: 500; color: var(--accent-contrast); background: var(--accent-strong, var(--accent)); border-radius: 999px; padding: 2px 9px; }
+.screen__counter { font-size: 12px; font-weight: 500; color: var(--accent-contrast); background: var(--accent); border-radius: 999px; padding: 2px 9px; }
 .filters-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 .filters-row + .filters-row { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border); }
 .filter-control { flex: 1 1 0; min-width: 150px; max-width: 210px; }
 .chip { height: 32px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; }
-.chip--active { background: var(--accent-strong, var(--accent)); color: var(--accent-contrast); border-color: var(--accent-strong, var(--accent)); }
+.chip--active { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); }
 .chip--reset { color: var(--danger); border-color: var(--danger); }
 
 .table { width: 100%; }
@@ -703,7 +711,7 @@ const THEMES = [
   { id: 'dark-orange',       name: 'Тёмная оранж.', dot: '#FF6A3D' },
 ];
 
-const BASE_VARS = ['--accent', '--accent-hover', '--bg', '--surface', '--surface-2', '--text', '--text-muted', '--border'];
+const BASE_VARS = ['--accent', '--accent-text', '--accent-hover', '--bg', '--surface', '--surface-2', '--text', '--text-muted', '--border'];
 const SEMANTIC_VARS = ['--unread-bg', '--unread-accent', '--updated-bg', '--row-hover', '--success', '--danger', '--warning', '--info', '--tag-chs-bg', '--tag-roof-bg', '--tag-parking-bg', '--hint-bg'];
 
 const root = document.documentElement;
@@ -753,7 +761,7 @@ function renderPalette() {
   const text = cs.getPropertyValue('--text').trim();
   const surface = cs.getPropertyValue('--surface').trim();
   const muted = cs.getPropertyValue('--text-muted').trim();
-  const accent = (cs.getPropertyValue('--accent-strong').trim() || cs.getPropertyValue('--accent').trim());
+  const accent = cs.getPropertyValue('--accent').trim();
   const accentContrast = cs.getPropertyValue('--accent-contrast').trim();
   document.getElementById('contrast').innerHTML =
     `Контраст (WCAG AA требует 4.5:1 для текста): текст на поверхности <b>${contrast(text, surface)}:1</b>, ` +
