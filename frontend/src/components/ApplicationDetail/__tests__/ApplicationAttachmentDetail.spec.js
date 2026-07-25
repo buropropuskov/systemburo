@@ -462,6 +462,15 @@ describe('ApplicationAttachmentDetail — поиск по списку (#1392)',
     expect(numbers(wrapper)).toEqual(['У 952 ЕУ 935']);
   });
 
+  it('перепутанный порядок цифр: «359» находит «У 952 ЕУ 935»', async () => {
+    const wrapper = mountCars([
+      car({ id: 1, car_number: 'У 952 ЕУ 935', car_brand: 'BMW X5' }),
+      car({ id: 2, car_number: 'У 465 КУ 423', car_brand: 'BMW X5' }),
+    ]);
+    await search(wrapper, '359');
+    expect(numbers(wrapper)).toEqual(['У 952 ЕУ 935']);
+  });
+
   it('опечатка в марке: «мерсдес» находит «Мерседес»', async () => {
     const wrapper = mountCars([
       car({ id: 1, car_number: 'У 952 ЕУ 935', car_brand: 'Мерседес' }),
