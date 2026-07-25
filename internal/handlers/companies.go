@@ -45,7 +45,7 @@ func (h *CompanyHandler) GetAll(c echo.Context) error {
 // @Accept       json
 // @Produce      json
 // @Security     BearerAuth
-// @Param        q query string true "Наименование или его часть"
+// @Param        q query string false "Наименование или его часть; короче трёх символов - пустой список"
 // @Success      200 {array} services.DirectorySuggestion
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError

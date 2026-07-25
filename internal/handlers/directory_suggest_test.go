@@ -135,21 +135,40 @@ func TestDirectorySuggest(t *testing.T) {
 		assert.Len(t, suggestNames(t, e, token, "/organizations/suggest", "лимит"), 5)
 	})
 
-	// Ядро записи снимает Postgres по normalize.OrgLegalFormPattern, ядро запроса считает
-	// normalize.OrgNameCore: разъедутся - подсказки перестанут находить, а Go-юнит границы
-	// слова POSIX не воспроизводит (\b в Go-regexp только для ASCII).
+	// Ядро записи снимает Postgres выражением services.DirectoryCoreSQL, ядро запроса
+	// считает normalize.OrgNameCore: разъедутся - подсказки молча перестанут находить.
+	// Проверяем на живом движке, потому что границы POSIX в Go-regexp не воспроизводятся
+	// (\b там только для ASCII), а сравнение подсказок этот класс маскирует: у ядер,
+	// отличающихся на служебный префикс, триграммная близость всё равно высокая.
 	t.Run("ядро в SQL совпадает с ядром в Go", func(t *testing.T) {
 		names := []string{
 			`ООО "Максима Групп"`,
 			`АО "Регионы-Энтертейнмент"`,
 			`ЧОП "АРЕС"`,
 			`Технический департамент`,
+			`м-н Летуаль`,
+			// ОПФ через дефис - часть наименования: словесная граница POSIX резала её,
+			// strings.Fields в Go - нет, и ядра расходились.
+			`ИП-Сервис`,
+			`ООО "Ромашка-Строй"`,
+			// Две формы подряд: вторая обязана сняться вслед за первой.
+			`ООО ИП Ромашка`,
+			// Наименование из одной формы ядра не имеет - остаётся ключом.
+			`ООО`,
 		}
 		for _, name := range names {
-			core := normalize.OrgNameCore(name)
-			assert.Contains(t, suggestNames(t, e, token, "/organizations/suggest", core), name,
-				"запись %q должна находиться по собственному ядру %q", name, core)
+			var fromSQL string
+			require.NoError(t, db.Raw("SELECT "+services.DirectoryCoreSQL("@key"), map[string]any{
+				"key": normalize.OrgName(name),
+				"opf": normalize.OrgLegalFormPattern(),
+			}).Row().Scan(&fromSQL))
+			assert.Equal(t, normalize.OrgNameCore(name), fromSQL, "ядра разошлись на %q", name)
 		}
+	})
+
+	t.Run("запись с формой через дефис находится по наименованию", func(t *testing.T) {
+		hyphen := seedOrg(t, db, `ИП-Сервис`, models.ModerationApproved, true)
+		assert.Contains(t, suggestNames(t, e, token, "/organizations/suggest", "ип-сервис"), hyphen.Name)
 	})
 
 	t.Run("компании подсказываются так же", func(t *testing.T) {

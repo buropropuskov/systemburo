@@ -18,8 +18,10 @@ import (
 // Заявитель с правом application.organization.override печатает наименование сам, а
 // незнакомое наименование заводит запись «на проверке» (см. application_org_resolve.go).
 // Подсказка нужна, чтобы он выбрал существующую запись и не плодил черновик из-за
-// сокращения или опечатки. Полный справочник заявителю не отдаётся: показываем только
-// близкие совпадения, максимум пять.
+// сокращения или опечатки. Это поле выбора под формой, а не поиск по справочнику: отдаём
+// пять близких совпадений, и только проверенных - черновики чужих заявок не показываем.
+// Гейт по праву тот же, что разблокирует ручной ввод: без него организация заявки берётся
+// из профиля, и подсказывать нечего.
 //
 // Сравниваем СМЫСЛОВЫЕ ЯДРА (наименование без токена ОПФ, normalize.OrgNameCore): человек
 // печатает «максима», в справочнике лежит «ООО "Максима Групп"», и общий для всех записей
@@ -53,6 +55,19 @@ const (
 type DirectorySuggestion struct {
 	ID   int    `json:"id"`
 	Name string `json:"name"`
+}
+
+// DirectoryCoreSQL возвращает SQL-выражение смыслового ядра над source (колонкой ключа
+// или плейсхолдером). Паттерн ОПФ приходит именованным параметром @opf, список форм
+// остаётся в normalize. Наименование из одной ОПФ ядра не имеет - для него выражение
+// возвращает сам ключ, как и OrgNameCore.
+//
+// Экспортировано ради теста: совпадение этого выражения с normalize.OrgNameCore
+// доказывается только на живом Postgres - границы POSIX в Go-regexp не воспроизводятся,
+// а разъехавшиеся ядра молча перестают находить совпадения.
+func DirectoryCoreSQL(source string) string {
+	return `COALESCE(NULLIF(btrim(regexp_replace(
+		regexp_replace(` + source + `, @opf, ' ', 'g'), '\s+', ' ', 'g')), ''), ` + source + `)`
 }
 
 // escapeLikePattern экранирует спецсимволы LIKE в пользовательском вводе: без него
@@ -91,9 +106,7 @@ func suggestDirectory(ctx context.Context, db *gorm.DB, table, rawQuery string) 
 			         word_similarity(core, @q)
 			       ) AS sim
 			FROM (
-				SELECT id, name,
-				       COALESCE(NULLIF(btrim(regexp_replace(
-				         regexp_replace(name_normalized, @opf, ' ', 'g'), '\s+', ' ', 'g')), ''), name_normalized) AS core
+				SELECT id, name, ` + DirectoryCoreSQL("name_normalized") + ` AS core
 				FROM ` + table + `
 				WHERE is_active = true AND moderation_status = @approved AND name_normalized <> ''
 			) c

@@ -134,6 +134,8 @@ func TestOrgNameCore(t *testing.T) {
 		{`Технический департамент`, "технический департамент"},
 		// «м-н» и «р-н» - не ОПФ, вырезать их нельзя: без них останется одно слово.
 		{`м-н Летуаль`, "м-н летуаль"},
+		// ОПФ, приклеенная дефисом, - часть наименования: отдельным словом её не писали.
+		{`ИП-Сервис`, "ип-сервис"},
 		{``, ""},
 	}
 
@@ -165,7 +167,7 @@ func TestOrgLegalFormPatternCoversTokens(t *testing.T) {
 
 	pattern := OrgLegalFormPattern()
 	for token := range orgLegalFormTokens {
-		if !strings.Contains(pattern, token+"|") && !strings.Contains(pattern, token+`)\M`) {
+		if !strings.Contains(pattern, token+"|") && !strings.Contains(pattern, token+")") {
 			t.Errorf("токен ОПФ %q не попал в SQL-паттерн %q", token, pattern)
 		}
 	}
