@@ -247,7 +247,7 @@
 <script>
 import Badge from '@/components/ui/Badge.vue'
 import SearchComponent from '@/components/SearchComponent.vue'
-import { matchesSearch } from '@/utils/searchVariants'
+import { matchesSearchFuzzy } from '@/utils/searchVariants'
 
 /** Ширины служебных частей строки: порядковый номер, колонка действий, отступы. */
 const NUM_COLUMN_WIDTH = 22;
@@ -508,10 +508,11 @@ export default {
         /**
          * Поиск идёт по всем видимым полям строки, включая названия мест и
          * постов: пользователь ищет и по номеру, и по месту разгрузки.
+         * Опечатка не мешает: «942» находит «У 952 ЕУ 935».
          */
         visibleRows() {
             if (!this.searchVariants.length) return this.rows;
-            return this.rows.filter(row => matchesSearch(this.searchText(row), this.searchVariants));
+            return this.rows.filter(row => matchesSearchFuzzy(this.searchText(row), this.searchVariants));
         },
 
         searchPlaceholder() {
@@ -973,6 +974,8 @@ export default {
 .el-search {
     margin-left: auto;
     flex-shrink: 0;
+    /* Ниже собственных 35px компонента: рядом с заголовком списка так легче. */
+    height: 30px;
 }
 
 .el-section__head h5 {
