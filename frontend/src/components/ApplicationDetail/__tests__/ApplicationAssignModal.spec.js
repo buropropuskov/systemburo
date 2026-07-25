@@ -32,6 +32,15 @@ function mountModal(props = {}) {
 describe('ApplicationAssignModal (#1393)', () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it('скругление как у остальных окон проекта, а не дефолтные 15px', () => {
+    apiRequest.mockResolvedValue(okJson([]));
+    const wrapper = mount(ApplicationAssignModal, {
+      props: { show: true, kind: 'tables', elementType: 'cars' },
+      global: { stubs: { BaseModal: { props: ['radius'], template: '<div :data-radius="radius"><slot /></div>' } } },
+    });
+    expect(wrapper.find('[data-radius]').attributes('data-radius')).toBe('30px');
+  });
+
   it('окно поднято над деталью заявки: с дефолтным слоем оно открывалось за ней', () => {
     apiRequest.mockResolvedValue(okJson([]));
     const wrapper = mount(ApplicationAssignModal, {
