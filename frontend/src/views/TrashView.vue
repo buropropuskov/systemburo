@@ -152,10 +152,10 @@
         </div>
         <table
           v-else-if="items.length"
-          class="trash-table"
+          class="trash-table rt-table"
           data-testid="trash-table"
         >
-          <thead>
+          <thead class="rt-head-row">
             <tr>
               <th class="trash-table__th trash-table__th-check">
                 <input
@@ -191,7 +191,7 @@
             <tr
               v-for="item in sortedItems"
               :key="item.id"
-              class="trash-table__row"
+              class="trash-table__row rt-row"
               data-testid="trash-row"
               @click="onRowClick(item)"
             >
@@ -203,45 +203,79 @@
                   type="checkbox"
                   class="trash-check"
                   :checked="isSelected(item.id)"
+                  :aria-label="`Выбрать запись ${item.application_number || item.id}`"
                   data-testid="trash-row-check"
                   @change="toggleSelect(item.id)"
                 >
               </td>
-              <td class="trash-table__td trash-table__td--muted">
+              <td
+                class="trash-table__td trash-table__td--muted"
+                data-label="Номер заявки"
+              >
                 {{ item.application_number || '—' }}
               </td>
-              <td class="trash-table__td">
+              <td
+                class="trash-table__td"
+                data-label="Дата и время удаления"
+              >
                 {{ formatDateTime(item.deleted_at) }}
               </td>
               <template v-if="tableType === 'cars'">
-                <td class="trash-table__td">
+                <td
+                  class="trash-table__td"
+                  data-label="Номер Т/С"
+                >
                   {{ item.car_number || '—' }}
                 </td>
-                <td class="trash-table__td">
+                <td
+                  class="trash-table__td"
+                  data-label="Марка"
+                >
                   {{ item.mark_name || '—' }}
                 </td>
               </template>
               <template v-else>
-                <td class="trash-table__td">
+                <td
+                  class="trash-table__td"
+                  data-label="Фамилия"
+                >
                   {{ item.last_name || '—' }}
                 </td>
-                <td class="trash-table__td">
+                <td
+                  class="trash-table__td"
+                  data-label="Имя"
+                >
                   {{ item.first_name || '—' }}
                 </td>
-                <td class="trash-table__td">
+                <td
+                  class="trash-table__td"
+                  data-label="Отчество"
+                >
                   {{ item.middle_name || '—' }}
                 </td>
               </template>
-              <td class="trash-table__td">
+              <td
+                class="trash-table__td"
+                data-label="Организация"
+              >
                 {{ item.organization || '—' }}
               </td>
-              <td class="trash-table__td">
+              <td
+                class="trash-table__td"
+                data-label="Действует до"
+              >
                 {{ formatDate(item.entry_date_to) }}
               </td>
-              <td class="trash-table__td">
+              <td
+                class="trash-table__td"
+                data-label="Время"
+              >
                 {{ formatTimeRange(item) }}
               </td>
-              <td class="trash-table__td">
+              <td
+                class="trash-table__td"
+                data-label="Статус"
+              >
                 <span class="trash-badge trash-badge--deleted">
                   {{ tableType === 'cars' ? 'Удалена' : 'Удалён' }}
                 </span>
@@ -1235,14 +1269,76 @@ export default {
     flex-direction: column;
     align-items: stretch;
   }
+  /* При переносе кнопок (Восстановить/История/Обновить) на вторую строку
+     фиксированная height:50px обрезала бы шапку - вторая строка налезала на
+     список. Высота по контенту + min 50px, чтобы тело начиналось ниже. */
   .trash-card__header {
     flex-wrap: wrap;
+    height: auto;
+    min-height: 50px;
+    padding: 10px 20px;
+    row-gap: 8px;
   }
 }
 
-@media (max-width: 768px) {
+/* На <768 реальная <table> конвертируется в карточки (rt-* из
+   responsive-tables.css: thead скрыт, каждый tr -> flex-карточка с data-label
+   подписями). Брейкпоинт 767.98 = как в responsive-tables.css, иначе на ровно
+   768px card-конверсия не включится, а тач-правки да -> гибрид (урок #1097 S8). */
+@media (max-width: 767.98px) {
+  .trash-view {
+    padding: 12px;
+  }
+
   .trash-title {
     font-size: 16px;
+  }
+
+  /* table-layout:auto меряет ширину <table> по самому длинному неразрывному
+     токену даже когда tr/td переопределены во flex (rt-row/[data-label]) - без
+     fixed карточка распирается шире вьюпорта (эталон AccessDenialsLog). */
+  .trash-table {
+    table-layout: fixed;
+  }
+
+  /* Длинные значения без пробелов (номер Т/С, организация) переносятся внутри
+     карточки, а не уходят в скрытый горизонт-скролл обёртки. */
+  .trash-table .rt-row > [data-label] {
+    overflow-wrap: anywhere;
+  }
+
+  /* Десктопный разделитель строк (border-top на ячейке) в card-режиме дал бы
+     ВТОРУЮ линию поверх dashed border-bottom подписей (rt-инфра) - гасим, чтобы
+     между полями была ровно одна пунктирная линия, а над чекбоксом/под Статусом
+     не висел лишний разделитель. */
+  .trash-table__td {
+    border-top: none;
+  }
+
+  /* Ячейки без data-label (чекбокс выбора, кнопка безвозвратного удаления)
+     идут своими строками карточки - тач-таргет 44px. */
+  .trash-table__td-check,
+  .trash-table__td--actions {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+
+  .trash-table__td--actions {
+    justify-content: flex-end;
+    padding: 6px 0 0;
+  }
+
+  /* Последнее подписанное поле (Статус) стоит перед ячейкой действий без
+     подписи - его dashed-разделитель повис бы; убираем. */
+  .trash-table .rt-row > [data-label]:nth-last-child(2) {
+    border-bottom: none;
+  }
+
+  /* Фильтры на всю ширину телефона (в столбце они иначе 200px слева). */
+  .trash-filters :deep(.field) {
+    width: 100%;
+    max-width: 100%;
   }
 }
 </style>
