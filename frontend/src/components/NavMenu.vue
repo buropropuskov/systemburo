@@ -1595,7 +1595,7 @@ export default {
 }
 
 .nav-search::placeholder {
-  color: var(--nav-text-faint);
+  color: var(--nav-text-muted);
 }
 
 .nav-search:focus {
@@ -1878,7 +1878,10 @@ export default {
   font-weight: 700;
   font-size: 9.5px;
   letter-spacing: 0.04em;
-  color: var(--nav-text-faint);
+  /* Подпись группы - текст, а не выключенный контрол: faint-тон оставлен
+     заблокированным пунктам, здесь нужен читаемый muted (замер на staging
+     давал 4.09). Та же правка уже сделана у подписи секции и группы Админки. */
+  color: var(--nav-text-muted);
   text-transform: uppercase;
   padding: 6px 12px 4px;
   white-space: nowrap;
@@ -2115,7 +2118,7 @@ export default {
 }
 
 .admin-search::placeholder {
-  color: var(--nav-text-faint);
+  color: var(--nav-text-muted);
 }
 
 .admin-search:focus {
@@ -2229,7 +2232,7 @@ export default {
 .admin-empty {
   font-family: 'Montserrat', sans-serif;
   font-size: 13px;
-  color: var(--nav-text-faint);
+  color: var(--nav-text-muted);
   padding: 16px 24px;
 }
 
