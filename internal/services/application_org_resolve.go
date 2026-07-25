@@ -24,6 +24,11 @@ import (
 // снят: лишний пробел или другой регистр давали заявку-сироту - её не видели коллеги
 // по организации (applyApplicationAccessFilter матчит organization_id), не подтягивались
 // согласующие из organization_users, и она выпадала из фильтров Центра и аналитики.
+//
+// Подмена организации закрыта правом KeyApplicationOrganizationOverride: без него
+// заявка привязывается только к своей записи из профиля, с ним - к любой активной или
+// к новой, заведённой «на проверке». Право и есть разрешение на чужую организацию,
+// поэтому отдельной проверки «id принадлежит своей» тут нет.
 
 // directoryRef описывает справочник, из которого резолвится ссылка заявки.
 // Организации и компании ведём одним кодом: расхождение между зеркальными
@@ -32,14 +37,29 @@ type directoryRef struct {
 	table         string
 	notFoundMsg   string
 	degenerateMsg string
+	overrideMsg   string
+	// own возвращает запись подающего из его профиля: она разрешена без права.
+	own func(applicantScope) *int
 	// create заводит запись «на проверке» и возвращает её id.
 	create func(tx *gorm.DB, name string, senderID int) (int, error)
+}
+
+// applicantScope - кто подаёт заявку: сам пользователь, его организация и компания из
+// профиля и разрешено ли ему указывать чужие. Собирается в SubmitCompleteApplication
+// и CreateApplication, где известен и пользователь, и результат проверки права.
+type applicantScope struct {
+	userID         int
+	organizationID *int
+	companyID      *int
+	canOverride    bool
 }
 
 var organizationRef = directoryRef{
 	table:         "organizations",
 	notFoundMsg:   "Организация не найдена или находится в архиве",
 	degenerateMsg: "Укажите наименование организации",
+	overrideMsg:   "Недостаточно прав, чтобы подать заявку от другой организации",
+	own:           func(s applicantScope) *int { return s.organizationID },
 	create: func(tx *gorm.DB, name string, senderID int) (int, error) {
 		orgType := models.OrgTypeContractor
 		org := models.Organization{
@@ -60,6 +80,8 @@ var companyRef = directoryRef{
 	table:         "companies",
 	notFoundMsg:   "Компания не найдена или находится в архиве",
 	degenerateMsg: "Укажите наименование компании",
+	overrideMsg:   "Недостаточно прав, чтобы подать заявку от другой компании",
+	own:           func(s applicantScope) *int { return s.companyID },
 	create: func(tx *gorm.DB, name string, senderID int) (int, error) {
 		compType := models.OrgTypeContractor
 		company := models.Company{
@@ -78,20 +100,36 @@ var companyRef = directoryRef{
 
 // resolveOrganizationRef возвращает organization_id заявки. nil - организация не указана
 // (тогда заявка держится на компании, гейт «укажите одно из двух» проверяется выше).
-func (s *applicationService) resolveOrganizationRef(ctx context.Context, tx *gorm.DB, senderID int, id *int, name string) (*int, error) {
-	return s.resolveDirectoryRef(ctx, tx, organizationRef, models.AuditEntityOrganization, models.OrganizationActionCreated, senderID, id, name)
+func (s *applicationService) resolveOrganizationRef(ctx context.Context, tx *gorm.DB, scope applicantScope, id *int, name string) (*int, error) {
+	return s.resolveDirectoryRef(ctx, tx, organizationRef, models.AuditEntityOrganization, models.OrganizationActionCreated, scope, id, name)
 }
 
 // resolveCompanyRef - зеркало resolveOrganizationRef для компаний.
-func (s *applicationService) resolveCompanyRef(ctx context.Context, tx *gorm.DB, senderID int, id *int, name string) (*int, error) {
-	return s.resolveDirectoryRef(ctx, tx, companyRef, models.AuditEntityCompany, models.CompanyActionCreated, senderID, id, name)
+func (s *applicationService) resolveCompanyRef(ctx context.Context, tx *gorm.DB, scope applicantScope, id *int, name string) (*int, error) {
+	return s.resolveDirectoryRef(ctx, tx, companyRef, models.AuditEntityCompany, models.CompanyActionCreated, scope, id, name)
+}
+
+// ensureDirectoryAllowed пропускает свою запись из профиля всем, а чужую - только по
+// праву. Возвращает 403 до проверки существования записи, чтобы перебором id нельзя
+// было выяснить состав чужого справочника.
+func ensureDirectoryAllowed(ref directoryRef, scope applicantScope, target int) error {
+	if scope.canOverride {
+		return nil
+	}
+	if own := ref.own(scope); own != nil && *own == target {
+		return nil
+	}
+	return echo.NewHTTPError(http.StatusForbidden, ref.overrideMsg)
 }
 
 func (s *applicationService) resolveDirectoryRef(
 	ctx context.Context, tx *gorm.DB, ref directoryRef,
-	auditEntity, auditAction string, senderID int, id *int, rawName string,
+	auditEntity, auditAction string, scope applicantScope, id *int, rawName string,
 ) (*int, error) {
 	if id != nil {
+		if err := ensureDirectoryAllowed(ref, scope, *id); err != nil {
+			return nil, err
+		}
 		var found int
 		if err := tx.Raw("SELECT id FROM "+ref.table+" WHERE id = ? AND is_active = true", *id).Scan(&found).Error; err != nil {
 			slog.Error("не удалось проверить запись справочника", "table", ref.table, "id", *id, "error", err)
@@ -131,6 +169,9 @@ func (s *applicationService) resolveDirectoryRef(
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка проверки справочника")
 	}
 	if existing != 0 {
+		if err := ensureDirectoryAllowed(ref, scope, existing); err != nil {
+			return nil, err
+		}
 		return &existing, nil
 	}
 
@@ -140,13 +181,20 @@ func (s *applicationService) resolveDirectoryRef(
 		return nil, echo.NewHTTPError(http.StatusBadRequest, ref.degenerateMsg)
 	}
 
-	newID, err := ref.create(tx, name, senderID)
+	// Наименования нет в справочнике - значит это заведомо не своя запись из профиля,
+	// и завести её может только тот, кому разрешена чужая организация.
+	if !scope.canOverride {
+		return nil, echo.NewHTTPError(http.StatusForbidden, ref.overrideMsg)
+	}
+
+	newID, err := ref.create(tx, name, scope.userID)
 	if err != nil {
 		slog.Error("не удалось создать запись справочника из заявки", "table", ref.table, "name", name, "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка создания записи справочника")
 	}
-	slog.Info("запись справочника создана из заявки", "table", ref.table, "id", newID, "name", name, "author", senderID)
-	s.recorder.Log(ctx, tx, auditEntity, &newID, auditAction, &senderID, map[string]any{
+	slog.Info("запись справочника создана из заявки", "table", ref.table, "id", newID, "name", name, "author", scope.userID)
+	author := scope.userID
+	s.recorder.Log(ctx, tx, auditEntity, &newID, auditAction, &author, map[string]any{
 		"name":              name,
 		"type":              models.OrgTypeContractor,
 		"moderation_status": models.ModerationPending,

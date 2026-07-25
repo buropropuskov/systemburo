@@ -85,6 +85,17 @@ func TestApplicationOrgResolve(t *testing.T) {
 	var sender models.User
 	require.NoError(t, db.Where("username = ?", "orgresolve").First(&sender).Error)
 
+	// Секции резолва подают заявки от чужих организаций, а это послабление гейтится
+	// правом (#1437, срез 3): без него автор подачи привязан к своей записи из профиля.
+	require.NoError(t, db.Create(&models.UserPermissionOverride{
+		UserID:        sender.ID,
+		PermissionKey: services.KeyApplicationOrganizationOverride,
+		Value:         "allow",
+	}).Error)
+
+	// Админский юзер заводится с фиксированным username, поэтому один на весь тест.
+	adminToken := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
 	orgType := models.OrgTypeContractor
 	existing := models.Organization{Name: `ООО "Петрушка"`, Type: &orgType, IsActive: true}
 	require.NoError(t, db.Create(&existing).Error)
@@ -184,6 +195,61 @@ func TestApplicationOrgResolve(t *testing.T) {
 		assert.Equal(t, sender.ID, *created.CreatedByUserID)
 	})
 
+	// Подмена организации закрыта правом: без него подача видит только запись из
+	// профиля. Токен заводится один на все секции - права резолвер кэширует на 30 секунд,
+	// и повторный логин их не сбросил бы.
+	t.Run("подача без права ограничена своей организацией", func(t *testing.T) {
+		plainToken := testutil.RegisterAndLogin(t, e, "orgresolveplain", "pass123", 1, td.OrgID, td.CompanyID)
+
+		t.Run("своя организация по id проходит", func(t *testing.T) {
+			appID := submittedAppID(t, submitWithRefs(t, e, plainToken, uaID, "A101AA777",
+				fmt.Sprintf(`"organization_id":%d`, td.OrgID)))
+
+			refs := readAppOrgRefs(t, db, appID)
+			require.NotNil(t, refs.OrganizationID)
+			assert.Equal(t, td.OrgID, *refs.OrganizationID)
+		})
+
+		// Ключ дедупликации из среза 2 продолжает работать и без права: своя организация,
+		// набранная иначе, остаётся своей, иначе фикс «заявки-сироты» упёрся бы в гейт.
+		t.Run("своё наименование в другом написании проходит", func(t *testing.T) {
+			appID := submittedAppID(t, submitWithRefs(t, e, plainToken, uaID, "A102AA777",
+				`"organization_name":"test   organization"`))
+
+			refs := readAppOrgRefs(t, db, appID)
+			require.NotNil(t, refs.OrganizationID)
+			assert.Equal(t, td.OrgID, *refs.OrganizationID)
+		})
+
+		t.Run("чужая организация по id отклоняется", func(t *testing.T) {
+			rec := submitWithRefs(t, e, plainToken, uaID, "A103AA777", fmt.Sprintf(`"organization_id":%d`, existing.ID))
+			assert.Equal(t, http.StatusForbidden, rec.Code, "чужая организация: %s", rec.Body.String())
+		})
+
+		t.Run("чужое наименование не заводит запись", func(t *testing.T) {
+			rec := submitWithRefs(t, e, plainToken, uaID, "A104AA777", `"organization_name":"ООО \"Без Права\""`)
+			assert.Equal(t, http.StatusForbidden, rec.Code, "новое наименование: %s", rec.Body.String())
+			assert.Equal(t, int64(0), countOrganizations(t, db, "ооо без права"),
+				"отказ не должен оставлять черновик в справочнике")
+		})
+
+		t.Run("чужая компания отклоняется", func(t *testing.T) {
+			rec := submitWithRefs(t, e, plainToken, uaID, "A105AA777",
+				`"organization":"","company_name":"ЗАО \"Чужая\""`)
+			assert.Equal(t, http.StatusForbidden, rec.Code, "чужая компания: %s", rec.Body.String())
+		})
+	})
+
+	// Администратор получает право через allowAll резолвера, отдельный грант ему не нужен.
+	t.Run("администратор подаёт от чужой организации", func(t *testing.T) {
+		appID := submittedAppID(t, submitWithRefs(t, e, adminToken, uaID, "A106AA777",
+			fmt.Sprintf(`"organization_id":%d`, existing.ID)))
+
+		refs := readAppOrgRefs(t, db, appID)
+		require.NotNil(t, refs.OrganizationID)
+		assert.Equal(t, existing.ID, *refs.OrganizationID)
+	})
+
 	t.Run("запись справочника проверена по умолчанию", func(t *testing.T) {
 		var seeded models.Organization
 		require.NoError(t, db.First(&seeded, td.OrgID).Error)
@@ -192,7 +258,7 @@ func TestApplicationOrgResolve(t *testing.T) {
 
 		require.Equal(t, http.StatusOK,
 			testutil.POST(t, e, "/organizations", `{"name":"ООО \"Из справочника\"","type":"Подрядчик"}`,
-				testutil.AuthHeader(testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID))).Code)
+				testutil.AuthHeader(adminToken)).Code)
 
 		var fromDirectory models.Organization
 		require.NoError(t, db.Where("name_normalized = ?", "ооо из справочника").First(&fromDirectory).Error)

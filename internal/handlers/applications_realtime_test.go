@@ -87,7 +87,7 @@ func TestSubmitCompleteApplication_CenterAudienceIncludesReader(t *testing.T) {
 		}},
 	}
 
-	_, err := svc.SubmitCompleteApplication(context.Background(), "rtsender", req)
+	_, err := svc.SubmitCompleteApplication(context.Background(), "rtsender", req, true)
 	require.NoError(t, err)
 
 	require.NotEmpty(t, fake.audiences, "PublishMany должен быть вызван при создании заявки")

@@ -59,7 +59,7 @@ func TestUpdateApplication_ApprovedFiresAvailableNew(t *testing.T) {
 			},
 		}},
 	}
-	created, err := svc.SubmitCompleteApplication(context.Background(), "testadmin", req)
+	created, err := svc.SubmitCompleteApplication(context.Background(), "testadmin", req, true)
 	require.NoError(t, err)
 
 	fake.reset() // отбрасываем сигналы submit

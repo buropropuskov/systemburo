@@ -35,7 +35,7 @@ func submitCarAppForCenter(t *testing.T, svc services.ApplicationService, userna
 			},
 		}},
 	}
-	created, err := svc.SubmitCompleteApplication(context.Background(), username, req)
+	created, err := svc.SubmitCompleteApplication(context.Background(), username, req, true)
 	require.NoError(t, err)
 	return created.ApplicationID
 }
