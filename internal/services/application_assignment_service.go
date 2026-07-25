@@ -119,23 +119,49 @@ func (s *applicationService) elementsOfApplication(ctx context.Context, applicat
 	return own, nil
 }
 
-// activeIDs оставляет из запрошенных только существующие и работающие записи:
-// назначить машину на отключённый пост или место на обслуживании нельзя.
-func (s *applicationService) activeIDs(ctx context.Context, table string, ids []int) ([]int, error) {
-	unique := uniqueInts(ids)
+// validateAssignable проверяет пригодность выбранного набора. Активность
+// требуется только от НОВЫХ привязок: пост или место могли отключить уже после
+// подачи заявки, и это не повод запрещать правку соседних - иначе окно
+// сохранить невозможно, пока такая привязка висит.
+func (s *applicationService) validateAssignable(ctx context.Context, table string, requested, alreadyLinked []int) ([]int, error) {
+	unique := uniqueInts(requested)
 	if len(unique) == 0 {
 		return []int{}, nil
 	}
 
-	var active []int
-	query := fmt.Sprintf("SELECT id FROM %s WHERE id IN ? AND is_active = true AND status = 'active'", table)
-	if err := s.db.WithContext(ctx).Raw(query, unique).Scan(&active).Error; err != nil {
+	var existing []int
+	query := fmt.Sprintf("SELECT id FROM %s WHERE id IN ?", table)
+	if err := s.db.WithContext(ctx).Raw(query, unique).Scan(&existing).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка чтения справочника")
 	}
-	if len(active) != len(unique) {
-		return nil, echo.NewHTTPError(http.StatusBadRequest, "Среди выбранного есть недоступные записи")
+	if len(existing) != len(unique) {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Среди выбранного есть несуществующие записи")
 	}
-	return active, nil
+
+	fresh := diffInts(unique, alreadyLinked)
+	if len(fresh) == 0 {
+		return unique, nil
+	}
+
+	var active []int
+	activeQuery := fmt.Sprintf("SELECT id FROM %s WHERE id IN ? AND is_active = true AND status = 'active'", table)
+	if err := s.db.WithContext(ctx).Raw(activeQuery, fresh).Scan(&active).Error; err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка чтения справочника")
+	}
+	if len(active) != len(fresh) {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Нельзя назначить отключённое место или пост")
+	}
+	return unique, nil
+}
+
+// linkedIDs возвращает всё, что уже привязано к перечисленным элементам.
+func (s *applicationService) linkedIDs(ctx context.Context, linkTable, linkColumn, valueColumn string, elementIDs []int) ([]int, error) {
+	var ids []int
+	query := fmt.Sprintf("SELECT DISTINCT %s FROM %s WHERE %s IN ?", valueColumn, linkTable, linkColumn)
+	if err := s.db.WithContext(ctx).Raw(query, elementIDs).Scan(&ids).Error; err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка чтения текущих привязок")
+	}
+	return ids, nil
 }
 
 // AssignElementTables добавляет или снимает посты у машин и сотрудников заявки.
@@ -157,7 +183,11 @@ func (s *applicationService) AssignElementTables(ctx context.Context, username s
 	if err != nil {
 		return err
 	}
-	tableIDs, err := s.activeIDs(ctx, "system_tables", req.TableIDs)
+	linked, err := s.linkedIDs(ctx, linkTable, linkColumn, "table_id", elementIDs)
+	if err != nil {
+		return err
+	}
+	tableIDs, err := s.validateAssignable(ctx, "system_tables", req.TableIDs, linked)
 	if err != nil {
 		return err
 	}
@@ -216,7 +246,11 @@ func (s *applicationService) AssignCarUnloadPlaces(ctx context.Context, username
 	if err != nil {
 		return err
 	}
-	placeIDs, err := s.activeIDs(ctx, "unload_places", req.PlaceIDs)
+	linked, err := s.linkedIDs(ctx, "car_unload_places", "car_id", "unload_place_id", carIDs)
+	if err != nil {
+		return err
+	}
+	placeIDs, err := s.validateAssignable(ctx, "unload_places", req.PlaceIDs, linked)
 	if err != nil {
 		return err
 	}

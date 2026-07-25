@@ -278,9 +278,12 @@
               :items="attachmentItems"
               :loading="loadingAttachmentDetails"
               :can-override="isResponsibleUser"
+              :can-assign="canAssignPlaces"
+              :application-id="applicationData.id"
               @open-vehicle="openVehicleModal"
               @open-employee="openEmployeeModal"
               @override-element="openOverrideModal"
+              @assignments-changed="loadAttachmentDetails(selectedAttachment.id)"
             />
           </div>
         </div>
@@ -701,6 +704,16 @@ export default {
         isApprover() {
             if (!this.currentUserId || !this.approvers.length) return false;
             return this.approvers.some(approver => approver.user_id === this.currentUserId);
+        },
+
+        /**
+         * Доназначать посты и места может принимающий, пока заявка не закрыта.
+         * Набор статусов - зеркало серверного гейта (#1393): белый список, а не
+         * «всё кроме терминальных», иначе новый терминальный статус молча пройдёт.
+         */
+        canAssignPlaces() {
+            const editable = ['Непрочитано', 'В обработке', 'В работе'];
+            return this.isApprover && editable.includes(this.applicationData?.status);
         },
 
         isViewer() {
