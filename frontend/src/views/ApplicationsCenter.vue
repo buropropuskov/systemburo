@@ -3361,6 +3361,9 @@ export default {
 
 .application-item.unread {
     background-color: #fff5e0;
+    /* Жёлтая полоса-акцент слева, как фиолетовая у status-updated - единый язык
+       "требует внимания" (inset - без reflow). */
+    box-shadow: inset 3px 0 0 0 #f59e0b;
 }
 
 /* Заявка с обновлённым статусом (#1349): мягкий фиолетовый фон + пульс-точка на бейдже.
@@ -3793,6 +3796,9 @@ export default {
        #fff !important}` (responsive-tables.css). Синяя дата + красная точка остаются. */
     .applications-table .application-item.unread .application-row.rt-row {
         background-color: #fff5e0 !important;
+        /* Жёлтая полоса слева на мобильной карточке (фиолетовая перекрывалась белым
+           фоном rt-row - здесь та же схема для жёлтой). */
+        box-shadow: inset 3px 0 0 0 #f59e0b !important;
     }
 
     /* Заявка с обновлённым статусом на мобилке - фиолетовый фон карточки + левая
