@@ -254,6 +254,59 @@ func TestUnloadPlaces_DetachAll_Forbidden(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, rec.Code)
 }
 
+// TestUnloadPlaces_DetachOneOrgAndCompany: точечная отвязка снимает ОДНУ
+// конкретную привязку (org или company), остальные остаются; аудит на затронутую
+// сущность; повтор по уже снятой - идемпотентен (detached:false, 200).
+func TestUnloadPlaces_DetachOneOrgAndCompany(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	h := testutil.AuthHeader(testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID))
+
+	placeID := int(testutil.ParseMap(t, testutil.POST(t, e, "/unload-places", `{"name":"Точ-Место"}`, h))["id"].(float64))
+	require.NoError(t, db.Create(&models.OrganizationUnloadPlace{OrganizationID: td.OrgID, UnloadPlaceID: placeID}).Error)
+	require.NoError(t, db.Create(&models.CompaniesUnloadPlace{CompanyID: td.CompanyID, UnloadPlaceID: placeID}).Error)
+
+	// Отвязываем ТОЛЬКО организацию - компания остаётся.
+	detach := testutil.ParseMap(t, testutil.DELETE(t, e, fmt.Sprintf("/unload-places/%d/organizations/%d", placeID, td.OrgID), h))
+	assert.Equal(t, true, detach["detached"])
+	assert.Contains(t, auditDetails(t, db, models.AuditEntityOrganization, td.OrgID, models.OrganizationActionUnloadPlacesChanged), "Точ-Место")
+
+	usage := testutil.ParseMap(t, testutil.GET(t, e, fmt.Sprintf("/unload-places/%d/usage", placeID), h))
+	assert.Empty(t, usage["organizations"].([]interface{}), "организация снята")
+	require.Len(t, usage["companies"].([]interface{}), 1, "компания осталась")
+
+	// Повтор по уже снятой организации идемпотентен (detached:false, 200).
+	detach = testutil.ParseMap(t, testutil.DELETE(t, e, fmt.Sprintf("/unload-places/%d/organizations/%d", placeID, td.OrgID), h))
+	assert.Equal(t, false, detach["detached"])
+
+	// Отвязываем компанию - место свободно, архивируется.
+	detach = testutil.ParseMap(t, testutil.DELETE(t, e, fmt.Sprintf("/unload-places/%d/companies/%d", placeID, td.CompanyID), h))
+	assert.Equal(t, true, detach["detached"])
+	usage = testutil.ParseMap(t, testutil.GET(t, e, fmt.Sprintf("/unload-places/%d/usage", placeID), h))
+	assert.Empty(t, usage["companies"].([]interface{}))
+	assert.Equal(t, http.StatusOK, testutil.DELETE(t, e, fmt.Sprintf("/unload-places/%d", placeID), h).Code)
+}
+
+// TestUnloadPlaces_DetachOne_ForbiddenAndNotFound: точечная отвязка под admin-
+// гейтом (403 обычному), место/таблица не найдены -> 404.
+func TestUnloadPlaces_DetachOne_ForbiddenAndNotFound(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	adminH := testutil.AuthHeader(testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID))
+	placeID := int(testutil.ParseMap(t, testutil.POST(t, e, "/unload-places", `{"name":"Гейт-Точ"}`, adminH))["id"].(float64))
+	require.NoError(t, db.Create(&models.OrganizationUnloadPlace{OrganizationID: td.OrgID, UnloadPlaceID: placeID}).Error)
+
+	userH := testutil.AuthHeader(testutil.RegisterAndLogin(t, e, "detachoneuser", "pass123", 1, td.OrgID, td.CompanyID))
+	assert.Equal(t, http.StatusForbidden, testutil.DELETE(t, e, fmt.Sprintf("/unload-places/%d/organizations/%d", placeID, td.OrgID), userH).Code)
+
+	assert.Equal(t, http.StatusNotFound, testutil.DELETE(t, e, fmt.Sprintf("/unload-places/99999/organizations/%d", td.OrgID), adminH).Code)
+	assert.Equal(t, http.StatusNotFound, testutil.DELETE(t, e, fmt.Sprintf("/unload-places/99999/companies/%d", td.CompanyID), adminH).Code)
+}
+
 // auditDetails - JSON деталей (как строка) последней записи audit_log для
 // сущности/действия.
 func auditDetails(t *testing.T, db *gorm.DB, entityType string, entityID int, action string) string {

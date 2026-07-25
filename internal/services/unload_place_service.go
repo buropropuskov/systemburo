@@ -108,9 +108,13 @@ type UnloadPlaceService interface {
 	BulkRestore(ctx context.Context, callerUserID int, ids []int) (*BulkOpResult, error)
 
 	// GetUsage возвращает организации и компании, привязанные к месту разгрузки
-	// (те же, что блокируют Delete). DetachAll снимает все эти привязки разом.
+	// (те же, что блокируют Delete). DetachAll снимает все эти привязки разом,
+	// DetachOrganization/DetachCompany - по одной. Все возвращают detached=false
+	// без ошибки, если привязки уже нет (идемпотентно).
 	GetUsage(ctx context.Context, id int) (*UnloadPlaceUsage, error)
 	DetachAll(ctx context.Context, callerUserID, id int) (*UnloadPlaceDetachResult, error)
+	DetachOrganization(ctx context.Context, callerUserID, id, organizationID int) (bool, error)
+	DetachCompany(ctx context.Context, callerUserID, id, companyID int) (bool, error)
 
 	// GetHistory возвращает историю изменений места разгрузки (новые сверху).
 	GetHistory(ctx context.Context, id int) ([]models.UnloadPlaceHistoryItem, error)
@@ -511,6 +515,54 @@ func (s *unloadPlaceService) DetachAll(ctx context.Context, callerUserID, id int
 		OrganizationsDetached: len(orgIDs),
 		CompaniesDetached:     len(companyIDs),
 	}, nil
+}
+
+// DetachOrganization снимает привязку места разгрузки к ОДНОЙ организации.
+// Идемпотентно: если привязки уже нет, возвращает false без ошибки (двойной
+// клик/гонка не должны падать). Аудит на организацию пишем только при реальном
+// удалении строки (RowsAffected>0), removed = имя места.
+func (s *unloadPlaceService) DetachOrganization(ctx context.Context, callerUserID, id, organizationID int) (bool, error) {
+	place, ok := s.loadUnloadPlace(ctx, id)
+	if !ok {
+		return false, echo.NewHTTPError(http.StatusNotFound, "Место разгрузки не найдено")
+	}
+	res := s.db.WithContext(ctx).
+		Where("unload_place_id = ? AND organization_id = ?", id, organizationID).
+		Delete(&models.OrganizationUnloadPlace{})
+	if res.Error != nil {
+		slog.Error("не удалось отвязать организацию от места разгрузки", "id", id, "organization_id", organizationID, "error", res.Error)
+		return false, echo.NewHTTPError(http.StatusInternalServerError, "Error detaching organization")
+	}
+	if res.RowsAffected == 0 {
+		return false, nil
+	}
+	oid := organizationID
+	s.recorder.Log(ctx, nil, models.AuditEntityOrganization, &oid, models.OrganizationActionUnloadPlacesChanged, &callerUserID, auditNameDiff{Removed: []string{place.Name}})
+	slog.Info("место разгрузки отвязано от организации", "id", id, "organization_id", organizationID)
+	return true, nil
+}
+
+// DetachCompany снимает привязку места разгрузки к ОДНОЙ компании (зеркало
+// DetachOrganization, см. его комментарий).
+func (s *unloadPlaceService) DetachCompany(ctx context.Context, callerUserID, id, companyID int) (bool, error) {
+	place, ok := s.loadUnloadPlace(ctx, id)
+	if !ok {
+		return false, echo.NewHTTPError(http.StatusNotFound, "Место разгрузки не найдено")
+	}
+	res := s.db.WithContext(ctx).
+		Where("unload_place_id = ? AND company_id = ?", id, companyID).
+		Delete(&models.CompaniesUnloadPlace{})
+	if res.Error != nil {
+		slog.Error("не удалось отвязать компанию от места разгрузки", "id", id, "company_id", companyID, "error", res.Error)
+		return false, echo.NewHTTPError(http.StatusInternalServerError, "Error detaching company")
+	}
+	if res.RowsAffected == 0 {
+		return false, nil
+	}
+	cid := companyID
+	s.recorder.Log(ctx, nil, models.AuditEntityCompany, &cid, models.CompanyActionUnloadPlacesChanged, &callerUserID, auditNameDiff{Removed: []string{place.Name}})
+	slog.Info("место разгрузки отвязано от компании", "id", id, "company_id", companyID)
+	return true, nil
 }
 
 // loadUnloadPlace подгружает место разгрузки без сборки полного набора

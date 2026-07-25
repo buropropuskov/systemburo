@@ -30,9 +30,13 @@ type SystemTableService interface {
 	BulkRestore(ctx context.Context, ids []int) (*BulkOpResult, error)
 
 	// GetUsage возвращает организации и компании, привязанные к таблице (те же,
-	// что блокируют Delete). DetachAll снимает все эти привязки разом.
+	// что блокируют Delete). DetachAll снимает все эти привязки разом,
+	// DetachOrganization/DetachCompany - по одной. Все возвращают detached=false
+	// без ошибки, если привязки уже нет (идемпотентно).
 	GetUsage(ctx context.Context, id int) (*SystemTableUsage, error)
 	DetachAll(ctx context.Context, callerUserID, id int) (*SystemTableDetachResult, error)
+	DetachOrganization(ctx context.Context, callerUserID, id, organizationID int) (bool, error)
+	DetachCompany(ctx context.Context, callerUserID, id, companyID int) (bool, error)
 
 	// Временные слоты
 	GetTimeSlots(ctx context.Context, tableID int) ([]models.SystemTableTimeSlot, error)
@@ -829,6 +833,53 @@ func (s *systemTableService) DetachAll(ctx context.Context, callerUserID, id int
 		OrganizationsDetached: len(orgIDs),
 		CompaniesDetached:     len(companyIDs),
 	}, nil
+}
+
+// DetachOrganization снимает привязку таблицы к ОДНОЙ организации. Идемпотентно:
+// если привязки уже нет, возвращает false без ошибки. Аудит на организацию
+// пишем только при реальном удалении строки, removed = имя таблицы.
+func (s *systemTableService) DetachOrganization(ctx context.Context, callerUserID, id, organizationID int) (bool, error) {
+	name, ok := s.loadTableNameForBinding(ctx, id)
+	if !ok {
+		return false, echo.NewHTTPError(http.StatusNotFound, "Системная таблица не найдена")
+	}
+	res := s.db.WithContext(ctx).
+		Where("table_id = ? AND organization_id = ?", id, organizationID).
+		Delete(&models.OrganizationTable{})
+	if res.Error != nil {
+		slog.Error("не удалось отвязать организацию от таблицы", "id", id, "organization_id", organizationID, "error", res.Error)
+		return false, echo.NewHTTPError(http.StatusInternalServerError, "Error detaching organization")
+	}
+	if res.RowsAffected == 0 {
+		return false, nil
+	}
+	oid := organizationID
+	s.recorder.Log(ctx, nil, models.AuditEntityOrganization, &oid, models.OrganizationActionTablesChanged, &callerUserID, auditNameDiff{Removed: []string{name}})
+	slog.Info("таблица отвязана от организации", "id", id, "organization_id", organizationID)
+	return true, nil
+}
+
+// DetachCompany снимает привязку таблицы к ОДНОЙ компании (зеркало
+// DetachOrganization, см. его комментарий).
+func (s *systemTableService) DetachCompany(ctx context.Context, callerUserID, id, companyID int) (bool, error) {
+	name, ok := s.loadTableNameForBinding(ctx, id)
+	if !ok {
+		return false, echo.NewHTTPError(http.StatusNotFound, "Системная таблица не найдена")
+	}
+	res := s.db.WithContext(ctx).
+		Where("table_id = ? AND company_id = ?", id, companyID).
+		Delete(&models.CompaniesTable{})
+	if res.Error != nil {
+		slog.Error("не удалось отвязать компанию от таблицы", "id", id, "company_id", companyID, "error", res.Error)
+		return false, echo.NewHTTPError(http.StatusInternalServerError, "Error detaching company")
+	}
+	if res.RowsAffected == 0 {
+		return false, nil
+	}
+	cid := companyID
+	s.recorder.Log(ctx, nil, models.AuditEntityCompany, &cid, models.CompanyActionTablesChanged, &callerUserID, auditNameDiff{Removed: []string{name}})
+	slog.Info("таблица отвязана от компании", "id", id, "company_id", companyID)
+	return true, nil
 }
 
 // Restore восстанавливает мягко удалённую системную таблицу (is_active=false -> true).

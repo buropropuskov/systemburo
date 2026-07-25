@@ -239,6 +239,68 @@ func (h *UnloadPlaceHandler) DetachAll(c echo.Context) error {
 	return RespondSuccess(c, res)
 }
 
+// DetachOrganization снимает привязку места разгрузки к одной организации.
+// @Summary      Отвязать место разгрузки от организации
+// @Description  Снимает привязку места к конкретной организации (с записью в её историю). Идемпотентно
+// @Tags         unload-places
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID места разгрузки"
+// @Param        org_id path int true "ID организации"
+// @Success      200 {object} map[string]bool
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /unload-places/{id}/organizations/{org_id} [delete]
+func (h *UnloadPlaceHandler) DetachOrganization(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	orgID, err := strconv.Atoi(c.Param("org_id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid organization id")
+	}
+	userID, _ := c.Get("user_id").(int)
+	detached, err := h.service.DetachOrganization(c.Request().Context(), userID, id, orgID)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, echo.Map{"detached": detached})
+}
+
+// DetachCompany снимает привязку места разгрузки к одной компании.
+// @Summary      Отвязать место разгрузки от компании
+// @Description  Снимает привязку места к конкретной компании (с записью в её историю). Идемпотентно
+// @Tags         unload-places
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID места разгрузки"
+// @Param        company_id path int true "ID компании"
+// @Success      200 {object} map[string]bool
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /unload-places/{id}/companies/{company_id} [delete]
+func (h *UnloadPlaceHandler) DetachCompany(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	companyID, err := strconv.Atoi(c.Param("company_id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid company id")
+	}
+	userID, _ := c.Get("user_id").(int)
+	detached, err := h.service.DetachCompany(c.Request().Context(), userID, id, companyID)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, echo.Map{"detached": detached})
+}
+
 // BulkArchive godoc
 // @Summary      Групповая архивация мест разгрузки
 // @Description  Архивирует набор мест разгрузки. Привязанные к организациям/компаниям попадают в Errors (частичный успех)
