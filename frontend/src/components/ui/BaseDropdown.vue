@@ -79,7 +79,11 @@
           >
             {{ selectedValues.length > 0 ? `Сбросить выбор (${selectedValues.length})` : 'Ничего не выбрано' }}
           </button>
-          <div class="base-dropdown__options">
+          <div
+            ref="options"
+            class="base-dropdown__options"
+            :style="optionsStyle"
+          >
             <div
               v-for="option in filteredOptions"
               :key="option[valueKey]"
@@ -118,6 +122,10 @@
 
 <script>
 import { getViewportZoom } from '@/utils/viewportScale';
+import { applyWholeItemsHeight } from '@/utils/dropdownMetrics';
+
+// Минимум пунктов в списке: даже в тесном месте должно быть видно, что он прокручивается.
+const MIN_VISIBLE_OPTIONS = 2;
 
 export default {
   name: 'BaseDropdown',
@@ -183,6 +191,9 @@ export default {
       isOpen: false,
       searchQuery: '',
       menuStyle: {},
+      // Высота списка опций, кратная высоте пункта: иначе список обрывается на
+      // половине строки и непонятно, есть ли под ней ещё варианты.
+      optionsMaxHeight: null,
     };
   },
   computed: {
@@ -218,6 +229,9 @@ export default {
         String(opt[this.labelKey]).toLowerCase().includes(query)
       );
     },
+    optionsStyle() {
+      return this.optionsMaxHeight ? { maxHeight: `${this.optionsMaxHeight}px` } : null;
+    },
   },
   watch: {
     isOpen(open) {
@@ -228,6 +242,11 @@ export default {
       } else {
         this.removeRepositionListeners();
       }
+    },
+    // Поиск меняет длину списка: пока пунктов не было («Ничего не найдено»),
+    // высоту пункта измерить нечем - пересчитываем, когда они появились снова.
+    'filteredOptions.length': function filteredOptionsLength() {
+      if (this.isOpen) this.$nextTick(this.updateOptionsHeight);
     },
   },
   mounted() {
@@ -249,8 +268,32 @@ export default {
         // Поле поиска НЕ фокусируем: на мобилке автофокус выбрасывает клавиатуру
         // поверх списка, и выбрать значение мышью/пальцем сразу нельзя.
         this.searchQuery = '';
+        this.$nextTick(this.updateOptionsHeight);
+      } else {
+        this.optionsMaxHeight = null;
       }
     },
+
+    /**
+     * Ограничивает список целым числом пунктов: с произвольной max-height последний
+     * пункт обрывался по середине строки. Считаем в два прохода - сначала снимаем
+     * своё ограничение и ждём кадр, чтобы браузер разложил меню и стало видно,
+     * сколько места реально досталось списку (высота поиска и строки сброса
+     * доезжает позже первого nextTick).
+     */
+    updateOptionsHeight() {
+      if (!this.isOpen) return;
+      // Снимаем прежнее ограничение: замер должен видеть, сколько места есть на самом
+      // деле, а не сколько мы отмерили в прошлый раз.
+      this.optionsMaxHeight = null;
+      applyWholeItemsHeight(
+        () => (this.isOpen ? this.$refs.options : null),
+        () => Array.from((this.$refs.options || { querySelectorAll: () => [] }).querySelectorAll('.base-dropdown__item')),
+        (h) => { if (this.isOpen) this.optionsMaxHeight = h; },
+        MIN_VISIBLE_OPTIONS,
+      );
+    },
+
     select(option) {
       const value = option[this.valueKey];
       if (this.multiple) {
@@ -266,13 +309,16 @@ export default {
       this.isOpen = false;
       this.searchQuery = '';
     },
+
     clearSelection() {
       this.$emit('update:modelValue', []);
     },
+
     isSelected(option) {
       if (this.multiple) return this.selectedValues.includes(option[this.valueKey]);
       return option[this.valueKey] === this.modelValue;
     },
+
     handleClickOutside(e) {
       const inTrigger = this.$refs.dropdown && this.$refs.dropdown.contains(e.target);
       const inMenu = this.$refs.menu && this.$refs.menu.contains(e.target);
@@ -323,6 +369,9 @@ export default {
         // Настраивается пропом menuZIndex для модалок с высоким overlay z-index.
         zIndex: this.menuZIndex,
       };
+      // Доступное место изменилось (скролл/ресайз сдвинули триггер) - пересчитываем,
+      // сколько целых пунктов теперь помещается.
+      if (this.isOpen) this.$nextTick(this.updateOptionsHeight);
     },
     addRepositionListeners() {
       window.addEventListener('scroll', this.updateMenuPosition, true);

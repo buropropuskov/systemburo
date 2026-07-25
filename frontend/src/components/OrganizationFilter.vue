@@ -41,6 +41,7 @@
         <div
           ref="listContainer"
           class="dropdown-list"
+          :style="listMaxHeight ? { maxHeight: `${listMaxHeight}px` } : null"
         >
           <div
             class="dropdown-item"
@@ -81,6 +82,7 @@
 
 <script>
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
+import { applyWholeItemsHeight } from '@/utils/dropdownMetrics';
 
 export default {
     name: 'OrganizationFilter',
@@ -112,7 +114,9 @@ export default {
             searchQuery: '',
             internalValue: null,
             selectedName: '',
-            clickOutsideHandler: null
+            clickOutsideHandler: null,
+            // Высота списка, кратная высоте пункта: иначе последний виден наполовину.
+            listMaxHeight: null
         };
     },
     computed: {
@@ -168,8 +172,31 @@ export default {
     methods: {
         toggleDropdown() {
             this.isOpen = !this.isOpen;
+            if (this.isOpen) {
+                this.$nextTick(this.updateListHeight);
+            } else {
+                this.listMaxHeight = null;
+            }
         },
-        
+
+        /**
+         * Ограничивает список целым числом пунктов: с фиксированной max-height последний
+         * обрывался по середине строки. Меряем в два прохода - своё ограничение снимаем
+         * и ждём кадр, чтобы стало видно, сколько места реально досталось списку
+         * (его зажимает ещё и высота всплывающего блока со строкой поиска).
+         */
+        updateListHeight() {
+            if (!this.isOpen) return;
+            // Снимаем прежнее ограничение: замер должен видеть реальное место, а не
+            // прошлый результат.
+            this.listMaxHeight = null;
+            applyWholeItemsHeight(
+                () => (this.isOpen ? this.$refs.listContainer : null),
+                () => Array.from((this.$refs.listContainer || { querySelectorAll: () => [] }).querySelectorAll('.dropdown-item')),
+                (h) => { if (this.isOpen) this.listMaxHeight = h; },
+            );
+        },
+
         setupClickOutside() {
             this.clickOutsideHandler = (e) => {
                 if (!this.$el.contains(e.target)) {
@@ -193,6 +220,9 @@ export default {
                 if (this.$refs.listContainer) {
                     this.$refs.listContainer.scrollTop = 0;
                 }
+                // Пока поиск ничего не нашёл, мерить нечего - пересчитываем, когда
+                // пункты вернулись.
+                this.updateListHeight();
             });
         },
         
