@@ -221,22 +221,25 @@ export default {
 </script>
 
 <style scoped>
+/* Цвета берём из переменных темы (#1415): захардкоженный белый фон и тёмный
+   текст делали плитки нечитаемыми в тёмной теме. */
 .assign {
+  padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
 .assign__summary {
   margin: 0;
-  font-size: 13.5px;
-  color: var(--color-text-muted);
+  font-size: 14px;
+  color: var(--text-muted, #5f6672);
 }
 
 .assign__state {
   padding: 24px 0;
   text-align: center;
-  color: var(--color-text-muted);
+  color: var(--text-muted, #5f6672);
   font-size: 14px;
 }
 
@@ -251,29 +254,29 @@ export default {
 
 .assign__item {
   padding: 8px 14px;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border, #e6e6e6);
   border-radius: var(--radius-md);
-  background: #fff;
+  background: var(--surface-2, #f9f9f9);
+  color: var(--text, #333);
   font-size: 13.5px;
-  color: var(--color-text);
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
-.assign__item:hover {
+.assign__item:not(.assign__item--active):not(.assign__item--inactive):hover {
   border-color: var(--color-primary);
-  background: var(--color-bg);
+  color: var(--color-primary);
 }
 
 .assign__item--active {
   border-color: var(--color-primary);
-  background: var(--color-primary-tint);
-  color: var(--color-primary);
+  background: var(--color-primary);
+  color: #fff;
   font-weight: 600;
 }
 
 .assign__item--inactive {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
@@ -281,8 +284,8 @@ export default {
   margin: 0;
   padding: 9px 12px;
   border-radius: var(--radius-sm);
-  background: rgba(255, 193, 7, 0.14);
-  color: #8a6d00;
+  background: rgba(255, 193, 7, 0.16);
+  color: #b98900;
   font-size: 13px;
 }
 </style>
