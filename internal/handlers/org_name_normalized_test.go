@@ -76,6 +76,51 @@ func TestOrgNameNormalized_UpdateRecalculates(t *testing.T) {
 	assert.Equal(t, "зао новое", org.NameNormalized)
 }
 
+// TestCompanyNameNormalized_RejectsOtherWriting - у компаний дедупликация работает
+// так же, как у организаций. Сервисы зеркальны, и расхождение между ними тихое:
+// компанию с другим написанием заводит тот же экран справочника.
+func TestCompanyNameNormalized_RejectsOtherWriting(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	require.Equal(t, http.StatusOK,
+		testutil.POST(t, e, "/companies", `{"name":"ООО \"Ромашка\"","type":"Подрядчик"}`, testutil.AuthHeader(token)).Code)
+
+	rec := testutil.POST(t, e, "/companies", `{"name":"ооо ромашка","type":"Подрядчик"}`, testutil.AuthHeader(token))
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+	var company models.Company
+	require.NoError(t, db.Where("name = ?", `ООО "Ромашка"`).First(&company).Error)
+	assert.Equal(t, "ооо ромашка", company.NameNormalized)
+}
+
+// TestOrgNameNormalized_DegenerateNameStillGuarded - наименование, от которого после
+// нормализации не остаётся ничего (одни кавычки), не должно схлопывать несвязанные
+// записи в общий пустой ключ. Для таких имён проверка дубля идёт по точной строке,
+// поэтому защита не слабее той, что была до введения ключа.
+func TestOrgNameNormalized_DegenerateNameStillGuarded(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	require.Equal(t, http.StatusOK,
+		testutil.POST(t, e, "/organizations", `{"name":"\"","type":"Подрядчик"}`, testutil.AuthHeader(token)).Code)
+
+	// То же вырожденное имя - дубль, отбиваем.
+	assert.Equal(t, http.StatusBadRequest,
+		testutil.POST(t, e, "/organizations", `{"name":"\"","type":"Подрядчик"}`, testutil.AuthHeader(token)).Code)
+
+	// Другое вырожденное имя с таким же пустым ключом - это отдельная запись,
+	// пустой ключ не повод считать её дублем.
+	assert.Equal(t, http.StatusOK,
+		testutil.POST(t, e, "/organizations", `{"name":"--","type":"Подрядчик"}`, testutil.AuthHeader(token)).Code)
+}
+
 // TestOrgNameNormalized_Backfill - бэкфилл заполняет ключ у записей, созданных в
 // обход хука (прямая вставка), и не трогает уже согласованные строки при повторном
 // прогоне. Второе свойство важно: функция вызывается на каждом старте.

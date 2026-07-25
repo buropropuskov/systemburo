@@ -281,8 +281,10 @@ func (s *companyService) Create(ctx context.Context, callerUserID int, req Creat
 
 	// Сверяем по ключу дедупликации, а не по точному name (#1437), см. organizationService.Create.
 	var active int64
-	if err := s.db.WithContext(ctx).Model(&models.Company{}).
-		Where("name_normalized = ? AND is_active = ?", normalize.OrgName(req.Name), true).Count(&active).Error; err != nil {
+	if err := applyNameDuplicateFilter(
+		s.db.WithContext(ctx).Model(&models.Company{}).Where("is_active = ?", true),
+		req.Name, normalize.OrgName(req.Name),
+	).Count(&active).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error checking company")
 	}
 	if active > 0 {
@@ -319,8 +321,10 @@ func (s *companyService) Update(ctx context.Context, callerUserID, companyID int
 
 	normalized := normalize.OrgName(req.Name)
 	var dup int64
-	if err := s.db.WithContext(ctx).Model(&models.Company{}).
-		Where("name_normalized = ? AND is_active = ? AND id <> ?", normalized, true, companyID).Count(&dup).Error; err != nil {
+	if err := applyNameDuplicateFilter(
+		s.db.WithContext(ctx).Model(&models.Company{}).Where("is_active = ? AND id <> ?", true, companyID),
+		req.Name, normalized,
+	).Count(&dup).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error checking company")
 	}
 	if dup > 0 {
@@ -412,8 +416,10 @@ func (s *companyService) Restore(ctx context.Context, callerUserID, companyID in
 	}
 
 	var active int64
-	if err := s.db.WithContext(ctx).Model(&models.Company{}).
-		Where("name_normalized = ? AND is_active = ? AND id <> ?", normalize.OrgName(company.Name), true, companyID).Count(&active).Error; err != nil {
+	if err := applyNameDuplicateFilter(
+		s.db.WithContext(ctx).Model(&models.Company{}).Where("is_active = ? AND id <> ?", true, companyID),
+		company.Name, normalize.OrgName(company.Name),
+	).Count(&active).Error; err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error checking company")
 	}
 	if active > 0 {
