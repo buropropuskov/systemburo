@@ -87,6 +87,48 @@ export async function getCompanyMembers(id) {
   return res.json();
 }
 
+// --- Блокеры архивации: перенос всех участников (#1379 delete-blockers) ---
+// Список блокеров = активные участники, их уже даёт getOrganizationMembers/
+// getCompanyMembers (тот же набор, что /:id/blocking-users). Здесь только
+// действие переноса. unwrap бросает на !res.ok с сообщением бэка (эталон
+// api/approvers.js), чтобы 4xx (target архивный/== источнику/404) не прошёл
+// молчаливым успехом, а показался в notify.
+
+async function unwrap(res, fallback) {
+  const body = await res.json();
+  if (!res.ok) throw new Error(body?.message || fallback);
+  return body;
+}
+
+/**
+ * Перенести всех активных участников организации id в целевую targetId,
+ * освобождая исходную для архивации. Идемпотентно (0 блокеров -> reassigned:0).
+ * @param {number} id исходная организация
+ * @param {number} targetId целевая организация
+ * @returns {Promise<{reassigned: number}>}
+ */
+export async function reassignOrganizationUsers(id, targetId) {
+  const res = await apiRequest(`/organizations/${id}/reassign-users`, {
+    method: 'POST',
+    body: JSON.stringify({ target_id: targetId }),
+  });
+  return unwrap(res, 'Не удалось перенести пользователей');
+}
+
+/**
+ * Перенести всех активных участников компании id в целевую targetId.
+ * @param {number} id исходная компания
+ * @param {number} targetId целевая компания
+ * @returns {Promise<{reassigned: number}>}
+ */
+export async function reassignCompanyUsers(id, targetId) {
+  const res = await apiRequest(`/companies/${id}/reassign-users`, {
+    method: 'POST',
+    body: JSON.stringify({ target_id: targetId }),
+  });
+  return unwrap(res, 'Не удалось перенести пользователей');
+}
+
 // --- Групповые операции (bulk-ops, #1046) --------------------------------
 // Обёртки для организаций и компаний живут в одном файле (как весь company-API
 // выше). Все возвращают BulkOpResult { success_count, error_count, errors:[{id,

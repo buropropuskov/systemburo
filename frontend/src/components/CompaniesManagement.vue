@@ -438,6 +438,24 @@
               <span class="count-badge">{{ members.length }}</span>
             </div>
             <div
+              v-if="selectedCompany.is_active && members.length"
+              class="blocking-notice"
+              data-testid="companies-blocking-notice"
+            >
+              <span class="blocking-notice__text">
+                Пока эти пользователи привязаны, компанию нельзя архивировать.
+              </span>
+              <button
+                v-if="canReassign"
+                type="button"
+                class="lk-button lk-button--secondary blocking-notice__btn"
+                data-testid="companies-reassign-open"
+                @click="openReassign"
+              >
+                Перенести всех в другую компанию
+              </button>
+            </div>
+            <div
               v-if="membersLoading"
               class="members-loading"
             >
@@ -602,6 +620,63 @@
       :current-user-name="currentUserName"
       @close="historyComp = null"
     />
+
+    <!-- Перенос всех блокирующих участников в другую компанию -->
+    <BaseModal
+      :show="reassignVisible"
+      title="Перенести всех пользователей"
+      width="460px"
+      radius="30px"
+      @close="closeReassign"
+    >
+      <div
+        class="reassign-body"
+        data-testid="companies-reassign-modal"
+      >
+        <p class="reassign-intro">
+          Пользователи компании «{{ originalSelectedName }}»
+          ({{ members.length }}) будут перенесены в выбранную. После этого её
+          можно будет архивировать.
+        </p>
+        <label class="field-label">Целевая компания</label>
+        <BaseDropdown
+          :model-value="reassignTargetId"
+          :options="reassignTargetOptions"
+          label-key="label"
+          value-key="value"
+          :searchable="true"
+          :teleport="true"
+          placeholder="Выберите компанию"
+          data-testid="companies-reassign-target"
+          @update:model-value="reassignTargetId = $event"
+        />
+        <p
+          v-if="!reassignTargetOptions.length"
+          class="reassign-empty"
+        >
+          Нет других активных компаний для переноса.
+        </p>
+      </div>
+      <template #actions>
+        <button
+          type="button"
+          class="lk-button lk-button--ghost"
+          data-testid="companies-reassign-cancel"
+          @click="closeReassign"
+        >
+          Отмена
+        </button>
+        <button
+          type="button"
+          class="lk-button lk-button--primary"
+          :disabled="!reassignTargetId || reassignSubmitting"
+          data-testid="companies-reassign-submit"
+          @click="performReassign"
+        >
+          Перенести
+        </button>
+      </template>
+    </BaseModal>
   </div>
 </template>
 
@@ -610,6 +685,7 @@ import { mapState, mapActions } from 'pinia';
 import { apiRequest } from '@/api/client';
 import {
   getCompanyMembers,
+  reassignCompanyUsers,
   bulkUpdateCompanyType,
   bulkAssignCompanyUnloadPlaces,
   bulkAssignCompanyTables,
@@ -628,6 +704,7 @@ import {
 } from '@/constants/orgTypes';
 import { useCompaniesStore } from '@/stores/companies';
 import { useDeletionsStore } from '@/stores/deletions';
+import { usePermissionsStore } from '@/stores/permissions';
 import { registerDirtyTracker, confirmIfAnyDirty } from '@/utils/dirtyTracker';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import RefreshButton from './RefreshButton.vue';
@@ -637,6 +714,7 @@ import SelectUnloadPlaces from './SelectUnloadPlaces.vue';
 import SelectTables from './SelectTables.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
+import BaseModal from './ui/BaseModal.vue';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
 import CompanyHistoryModal from './CompanyHistoryModal.vue';
 import BulkOperationsModal from './directories/BulkOperationsModal.vue';
@@ -651,6 +729,7 @@ export default {
     SelectTables,
     ConfirmationModal,
     BaseDropdown,
+    BaseModal,
     LoaderSpinner,
     CompanyHistoryModal,
     BulkOperationsModal,
@@ -693,6 +772,9 @@ export default {
       detailError: '',
       isSavingName: false,
       archiveConfirmComp: null,
+      reassignVisible: false,
+      reassignTargetId: null,
+      reassignSubmitting: false,
       historyComp: null,
       currentUserName: '',
       sortField: null,
@@ -708,6 +790,22 @@ export default {
     };
   },
   computed: {
+    // Гейт кнопки «Перенести» зеркалит BE requireAdmin (page.admin): экран открыт
+    // по page.admin.directories, а reassign-эндпоинт - по page.admin, поэтому
+    // directories-админ без page.admin видит блокеров, но переносить не может
+    // (иначе «видно, но 403», уроки #976/#1083).
+    canReassign() {
+      return usePermissionsStore().hasPermission('page.admin');
+    },
+    // Цели переноса - активные компании, кроме исходной (BE отвергает архивную
+    // и == источнику). Архивных в списке нет by design.
+    reassignTargetOptions() {
+      if (!this.selectedCompany) return [];
+      const srcId = this.selectedCompany.id;
+      return this.companiesWithUsers
+        .filter(comp => comp.is_active && comp.id !== srcId)
+        .map(comp => ({ label: comp.name, value: comp.id }));
+    },
     ...mapState(useCompaniesStore, {
       companiesWithUsers: 'itemsWithUsers',
       isLoading: 'isLoading',
@@ -1197,6 +1295,52 @@ export default {
       } finally {
         if (seq === this.membersSeq) this.membersLoading = false;
       }
+    },
+
+    openReassign() {
+      this.reassignTargetId = null;
+      this.reassignVisible = true;
+    },
+
+    closeReassign() {
+      // Пока перенос летит, модалку не закрываем (её оверлей блокирует список -
+      // иначе смена компании дала бы гонку loadMembers, как у closeBulkModal).
+      if (this.reassignSubmitting) return;
+      this.reassignVisible = false;
+    },
+
+    async performReassign() {
+      if (!this.reassignTargetId || this.reassignSubmitting || !this.selectedCompany) return;
+      const source = this.selectedCompany;
+      const target = this.reassignTargetOptions.find(o => o.value === this.reassignTargetId);
+      this.reassignSubmitting = true;
+      try {
+        const data = await reassignCompanyUsers(source.id, this.reassignTargetId);
+        const n = data?.reassigned ?? 0;
+        this.reassignVisible = false;
+        useDeletionsStore().notify({
+          prefix: 'Перенесено ',
+          bold: `${n} ${this.usersPlural(n)}`,
+          suffix: ` в «${target ? target.label : ''}»`,
+        });
+        // Перечитываем блокеров: источник освобождён, список пуст -> компанию
+        // можно архивировать. И обновляем user_count в списке: у источника он упал,
+        // у цели вырос (тот же предикат активных участников).
+        this.loadMembers(source.id);
+        this.fetchCompaniesWithUsers(true);
+      } catch (e) {
+        useDeletionsStore().notify({ prefix: 'Не удалось перенести: ', bold: e.message || 'ошибка', type: 'error' });
+      } finally {
+        this.reassignSubmitting = false;
+      }
+    },
+
+    usersPlural(n) {
+      const mod10 = n % 10;
+      const mod100 = n % 100;
+      if (mod10 === 1 && mod100 !== 11) return 'пользователь';
+      if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'пользователя';
+      return 'пользователей';
     },
 
     memberFullName(m) {
@@ -1901,6 +2045,46 @@ export default {
   margin: 0;
   font-size: 0.85em;
   color: #a2a2a2;
+}
+
+/* блокеры архивации: уведомление + кнопка переноса */
+.blocking-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-primary-tint);
+  border-radius: var(--radius-md);
+}
+
+.blocking-notice__text {
+  flex: 1 1 220px;
+  min-width: 0;
+  font-size: 0.85em;
+  color: #5a6472;
+  line-height: 1.45;
+}
+
+.blocking-notice__btn {
+  flex-shrink: 0;
+}
+
+/* модалка переноса блокеров */
+.reassign-intro {
+  margin: 0 0 14px;
+  font-size: 0.9em;
+  color: #5a6472;
+  line-height: 1.5;
+}
+
+.reassign-empty {
+  margin: 10px 0 0;
+  font-size: 0.85em;
+  color: var(--color-danger);
 }
 
 .no-selection-message {
