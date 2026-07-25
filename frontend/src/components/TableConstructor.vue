@@ -75,8 +75,8 @@
           class="table-section"
           :class="{'with-details': selectedTable}"
         >
-          <div class="table-container">
-            <div class="table-header">
+          <div class="table-container rt-table">
+            <div class="table-header rt-head-row">
               <div
                 class="header-col check-col"
                 @click.stop
@@ -148,7 +148,7 @@
               <div
                 v-for="(table, index) in sortedTables"
                 :key="table.table.id"
-                class="table-row"
+                class="table-row rt-row"
                 :class="{
                   'selected': selectedTable && selectedTable.table.id === table.table.id,
                   'inactive': !table.table.is_active,
@@ -168,10 +168,16 @@
                     @click="onRowCheck(table.table, index, $event)"
                   >
                 </div>
-                <div class="table-col id-col">
+                <div
+                  class="table-col id-col"
+                  data-label="ID"
+                >
                   <span class="cell-content id-value">{{ table.table.id }}</span>
                 </div>
-                <div class="table-col name-col">
+                <div
+                  class="table-col name-col"
+                  data-label="Наименование"
+                >
                   <span
                     class="truncate-text"
                     :title="table.table.display_name"
@@ -183,7 +189,10 @@
                     >(архив)</span>
                   </span>
                 </div>
-                <div class="table-col type-col">
+                <div
+                  class="table-col type-col"
+                  data-label="Тип"
+                >
                   <span
                     class="type-badge"
                     :class="table.table.table_type"
@@ -191,7 +200,10 @@
                     {{ getTableTypeLabel(table.table.table_type) }}
                   </span>
                 </div>
-                <div class="table-col status-col">
+                <div
+                  class="table-col status-col"
+                  data-label="Статус"
+                >
                   <span
                     class="status-badge"
                     :class="getTableStatusClass(table)"
@@ -2912,7 +2924,7 @@ export default {
   background: #a8a8a8;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .form-row {
     flex-direction: column;
   }
@@ -2967,6 +2979,34 @@ export default {
 
   .check-col {
     min-height: 44px;
+  }
+
+  /* Master-detail стек на мобилке (эталон CitizenshipManagement/#1097 S9):
+     список и панель деталей ужимались бок о бок (40%/60%) в 390px - заголовок
+     ID/Наименование обрезался, поля деталей нечитаемы. Складываем в колонку:
+     список карточками сверху (rt-* конверсия из responsive-tables.css скрывает
+     desktop-шапку и рендерит строки карточками), панель деталей полной ширины
+     снизу при выборе. */
+  .content-container {
+    flex-direction: column;
+    height: auto;
+  }
+
+  .table-section,
+  .table-section.with-details,
+  .details-section,
+  .no-selection-message {
+    width: 100%;
+  }
+
+  .table-section {
+    border-right: none;
+    border-bottom: 1px solid #e6e6e6;
+  }
+
+  /* Список не занимает весь экран - панель деталей достижима скроллом ниже. */
+  .table-body {
+    max-height: 300px;
   }
 
   @keyframes slideDown {
