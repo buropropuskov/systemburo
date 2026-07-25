@@ -72,7 +72,15 @@
             v-if="!loading && rows.length"
             class="el-count"
             data-testid="attachment-elements-count"
-          >{{ rows.length }}</span>
+          >{{ visibleRows.length }}</span>
+          <SearchComponent
+            v-if="!loading && rows.length"
+            v-model="searchQuery"
+            class="el-search"
+            :title="searchPlaceholder"
+            data-testid="attachment-elements-search"
+            @search="searchVariants = $event"
+          />
         </div>
 
         <div
@@ -88,6 +96,14 @@
           class="no-data"
         >
           {{ emptyText }}
+        </div>
+
+        <div
+          v-else-if="!visibleRows.length"
+          class="no-data"
+          data-testid="attachment-elements-nothing-found"
+        >
+          Ничего не найдено по запросу «{{ searchQuery }}»
         </div>
 
         <div
@@ -124,7 +140,7 @@
               </div>
 
               <div
-                v-for="(row, index) in rows"
+                v-for="(row, index) in visibleRows"
                 :key="row.id"
                 class="el-row rt-row"
                 :class="{
@@ -230,6 +246,8 @@
 
 <script>
 import Badge from '@/components/ui/Badge.vue'
+import SearchComponent from '@/components/SearchComponent.vue'
+import { matchesSearch } from '@/utils/searchVariants'
 
 /** Ширины служебных частей строки: порядковый номер, колонка действий, отступы. */
 const NUM_COLUMN_WIDTH = 22;
@@ -257,7 +275,7 @@ const TEXT_SIDE_SPACE = 6;
 
 export default {
     name: 'ApplicationAttachmentDetail',
-    components: { Badge },
+    components: { Badge, SearchComponent },
     props: {
         attachment: {
             type: Object,
@@ -301,7 +319,9 @@ export default {
             // Ширина колонок с чипами: по ней считаем, сколько названий влезает
             // целиком. Пусто до первого замера - тогда работает запасной расчёт.
             chipColumnWidths: {},
-            textMeasureContext: null
+            textMeasureContext: null,
+            searchQuery: '',
+            searchVariants: []
         };
     },
     computed: {
@@ -485,16 +505,38 @@ export default {
             return !!this.containerWidth && this.containerWidth < this.minInnerWidth;
         },
 
+        /**
+         * Поиск идёт по всем видимым полям строки, включая названия мест и
+         * постов: пользователь ищет и по номеру, и по месту разгрузки.
+         */
+        visibleRows() {
+            if (!this.searchVariants.length) return this.rows;
+            return this.rows.filter(row => matchesSearch(this.searchText(row), this.searchVariants));
+        },
+
+        searchPlaceholder() {
+            if (this.type === 'cars') return 'Номер, марка, место';
+            if (this.type === 'people') return 'ФИО, должность, место';
+            return 'Наименование';
+        },
+
+        isFiltered() {
+            return this.searchVariants.length > 0 && this.visibleRows.length !== this.rows.length;
+        },
+
         totalText() {
             if (this.type === 'items') {
-                const units = this.items.reduce((sum, item) => sum + (Number(item.count) || 0), 0);
-                return `Всего позиций: ${this.rows.length}, единиц: ${units}`;
+                const units = this.visibleRows.reduce((sum, item) => sum + (Number(item.count) || 0), 0);
+                const base = `Всего позиций: ${this.visibleRows.length}, единиц: ${units}`;
+                return this.isFiltered ? `${base} (найдено из ${this.rows.length})` : base;
             }
-            return `Всего: ${this.rows.length}`;
+            return this.isFiltered
+                ? `Найдено: ${this.visibleRows.length} из ${this.rows.length}`
+                : `Всего: ${this.rows.length}`;
         },
 
         flaggedCount() {
-            return this.rows.filter(row => this.isFlagged(row)).length;
+            return this.visibleRows.filter(row => this.isFlagged(row)).length;
         }
     },
     watch: {
@@ -505,6 +547,9 @@ export default {
             this.$nextTick(this.measureChipColumns);
         },
         rows() {
+            this.$nextTick(this.measureChipColumns);
+        },
+        visibleRows() {
             this.$nextTick(this.measureChipColumns);
         }
     },
@@ -573,6 +618,21 @@ export default {
             const state = this.hasStateColumn ? STATE_COLUMN_WIDTH : 0;
             const gaps = CELL_GAP * columns.length;
             return NUM_COLUMN_WIDTH + cells + state + gaps + ROW_PADDING;
+        },
+
+        /** Склейка всех показываемых полей строки - по ней и ищем. */
+        searchText(row) {
+            const parts = [];
+            for (const col of this.allColumns) {
+                if (col.type === 'chips') {
+                    parts.push(...this.chipItems(row, col).map(item => this.chipName(item, col)));
+                } else if (col.type === 'qty') {
+                    parts.push(row[col.field]);
+                } else if (typeof col.value === 'function') {
+                    parts.push(col.value(row));
+                }
+            }
+            return parts.filter(Boolean).join(' ');
         },
 
         chipItems(row, col) {
@@ -910,6 +970,11 @@ export default {
     gap: 10px;
 }
 
+.el-search {
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
 .el-section__head h5 {
     margin: 0;
     font-size: 16px;
@@ -1095,7 +1160,6 @@ export default {
     background: var(--color-primary-tint);
     color: var(--color-primary);
     font-weight: 600;
-    cursor: help;
 }
 
 .chip--empty {
@@ -1236,6 +1300,18 @@ export default {
 @media (max-width: 767.98px) {
     .attachment-data-section {
         min-height: 0;
+    }
+
+    /* Поиск фиксированной ширины не помещается рядом с заголовком - уводим
+       его отдельной строкой на всю ширину. Селектор специфичнее собственного
+       `.search{width:220px}` компонента поиска, порядок чанков тут не решает. */
+    .el-section__head {
+        flex-wrap: wrap;
+    }
+
+    .el-section__head .el-search {
+        width: 100%;
+        margin-left: 0;
     }
 
     /* Строку разворачивает в карточку глобальный responsive-tables.css:

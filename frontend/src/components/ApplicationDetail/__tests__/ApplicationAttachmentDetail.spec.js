@@ -381,3 +381,111 @@ describe('ApplicationAttachmentDetail — состояния списка (#1392
     expect(wrapper.find('[data-testid="attachment-elements-total"]').text()).toBe('Всего: 2');
   });
 });
+
+describe('ApplicationAttachmentDetail — поиск по списку (#1392)', () => {
+  const fleet = [
+    car({ id: 1, car_number: 'К 050 УА 902', car_brand: 'BMW X5', unload_places: [{ id: 1, name: 'Склад №1' }] }),
+    car({ id: 2, car_number: 'М 234 ОО 123', car_brand: 'Шкода', unload_places: [{ id: 2, name: 'Рампа А' }] }),
+    car({ id: 3, car_number: 'У 456 АУ 964', car_brand: 'Мерседес', target_tables: [{ id: 7, display_name: 'ПОСТ №72 (АВТО)' }] }),
+  ];
+
+  async function search(wrapper, query) {
+    await wrapper.find('[data-testid="attachment-elements-search"] input').setValue(query);
+    return wrapper;
+  }
+
+  function numbers(wrapper) {
+    return wrapper.findAll('[data-testid="attachment-element-key"]').map(el => el.text());
+  }
+
+  it('поле поиска стоит в шапке рядом с заголовком списка', () => {
+    const wrapper = mountCars(fleet);
+    const head = wrapper.find('.el-section__head');
+    expect(head.find('[data-testid="attachment-elements-search"]').exists()).toBe(true);
+    expect(head.find('h5').text()).toBe('Автомобили');
+  });
+
+  it('ищет по гос. номеру, в том числе без пробелов', async () => {
+    const wrapper = mountCars(fleet);
+    await search(wrapper, 'м234оо');
+    expect(numbers(wrapper)).toEqual(['М 234 ОО 123']);
+  });
+
+  it('ищет по марке независимо от регистра', async () => {
+    const wrapper = mountCars(fleet);
+    await search(wrapper, 'мерс');
+    expect(numbers(wrapper)).toEqual(['У 456 АУ 964']);
+  });
+
+  it('ищет по месту разгрузки — не только по своим колонкам', async () => {
+    const wrapper = mountCars(fleet);
+    await search(wrapper, 'рампа');
+    expect(numbers(wrapper)).toEqual(['М 234 ОО 123']);
+  });
+
+  it('ищет по посту проезда', async () => {
+    const wrapper = mountCars(fleet);
+    await search(wrapper, 'пост №72');
+    expect(numbers(wrapper)).toEqual(['У 456 АУ 964']);
+  });
+
+  it('переживает неправильную раскладку клавиатуры', async () => {
+    const wrapper = mountCars(fleet);
+    // "irjlf" на английской раскладке даёт "шкода"
+    await search(wrapper, 'irjlf');
+    expect(numbers(wrapper)).toEqual(['М 234 ОО 123']);
+  });
+
+  it('счётчик и футер показывают, сколько нашлось из скольких', async () => {
+    const wrapper = mountCars(fleet);
+    await search(wrapper, 'рампа');
+    expect(wrapper.find('[data-testid="attachment-elements-count"]').text()).toBe('1');
+    expect(wrapper.find('[data-testid="attachment-elements-total"]').text()).toBe('Найдено: 1 из 3');
+  });
+
+  it('пустой запрос возвращает весь список', async () => {
+    const wrapper = mountCars(fleet);
+    await search(wrapper, 'рампа');
+    await search(wrapper, '');
+    expect(numbers(wrapper)).toHaveLength(3);
+    expect(wrapper.find('[data-testid="attachment-elements-total"]').text()).toBe('Всего: 3');
+  });
+
+  it('ничего не нашлось — понятное сообщение вместо пустой таблицы', async () => {
+    const wrapper = mountCars(fleet);
+    await search(wrapper, 'камаз');
+    expect(wrapper.find('[data-testid="attachment-elements"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="attachment-elements-nothing-found"]').text()).toContain('камаз');
+  });
+
+  it('сотрудники ищутся по ФИО и должности', async () => {
+    const wrapper = mountEmployees([
+      employee({ id: 1, last_name: 'Иванов', first_name: 'Иван', position: 'Водитель' }),
+      employee({ id: 2, last_name: 'Сидоров', first_name: 'Алексей', middle_name: 'Сергеевич', position: 'Инженер' }),
+    ]);
+    await search(wrapper, 'сидор');
+    expect(numbers(wrapper)).toEqual(['Сидоров Алексей Сергеевич']);
+    await search(wrapper, 'водитель');
+    expect(numbers(wrapper)).toEqual(['Иванов Иван Иванович']);
+  });
+
+  it('ТМЦ ищутся по наименованию, счётчик единиц считает только найденное', async () => {
+    const wrapper = mountItems([
+      { id: 1, name: 'Ноутбук Lenovo', count: 2 },
+      { id: 2, name: 'Стеллаж металлический', count: 12 },
+    ]);
+    await search(wrapper, 'ноут');
+    expect(numbers(wrapper)).toEqual(['Ноутбук Lenovo']);
+    expect(wrapper.find('[data-testid="attachment-elements-total"]').text()).toContain('Всего позиций: 1, единиц: 2');
+  });
+
+  it('счётчик ЧС в футере считает только найденные строки', async () => {
+    const wrapper = mountCars([
+      car({ id: 1, car_number: 'К 050 УА 902', blacklist_similar: flag() }),
+      car({ id: 2, car_number: 'М 234 ОО 123', blacklist_similar: flag() }),
+    ]);
+    expect(wrapper.find('[data-testid="attachment-flagged-summary"]').text()).toBe('2 похоже на ЧС');
+    await search(wrapper, 'к050');
+    expect(wrapper.find('[data-testid="attachment-flagged-summary"]').text()).toBe('1 похоже на ЧС');
+  });
+});
