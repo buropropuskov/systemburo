@@ -8,12 +8,13 @@ import "strings"
 // БД (AutoGenerateForTable) и доклеиваются к ответу /permissions/catalog.
 //
 // Именование новых ключей продолжает конвенцию permission_keys.go:
-//   page.*    -- пункты навигации,
-//   header.*  -- кнопки шапки,
-//   center.*  -- разделы/кнопки центра заявок,
-//   detail.*  -- кнопки/разделы карточек авто/сотрудника (общие для контекстов),
-//   section.* -- разделы внутри страниц (владельческие вкладки реестров),
-//   guide.*   -- вкладки руководства.
+//   page.*        -- пункты навигации,
+//   header.*      -- кнопки шапки,
+//   center.*      -- разделы/кнопки центра заявок,
+//   detail.*      -- кнопки/разделы карточек авто/сотрудника (общие для контекстов),
+//   section.*     -- разделы внутри страниц (владельческие вкладки реестров),
+//   application.* -- послабления в правилах подачи заявки,
+//   guide.*       -- вкладки руководства.
 
 // Новые ключи каталога (существующие переиспользуются из permission_keys.go).
 const (
@@ -39,6 +40,13 @@ const (
 	KeySectionRegistryOrganization = "section.registry.organization"
 	KeySectionRegistryCompany      = "section.registry.company"
 	KeySectionRegistryAllSystem    = "section.registry.all_system"
+
+	// KeyApplicationOrganizationOverride разрешает подать заявку от организации или
+	// компании, которая не указана в профиле подающего (#1437): выбрать чужую запись
+	// справочника или ввести наименование, которого в нём ещё нет. Без права поля
+	// организации и компании в форме заявки остаются нередактируемыми, и подмена,
+	// сделанная в обход формы, отклоняется на бэкенде.
+	KeyApplicationOrganizationOverride = "application.organization.override"
 
 	KeyActionGrantAdmin = "action.grant.admin"
 
@@ -100,6 +108,7 @@ func staticCatalog() []CatalogNode {
 		{Key: KeyActionForwardApplication, DisplayName: "Переслать заявку", Category: CatCenter},
 		{Key: KeyActionApproveApplication, DisplayName: "Согласовать заявку", Category: CatCenter},
 		{Key: KeyActionExportApplications, DisplayName: "Экспорт заявок", Category: CatCenter},
+		{Key: KeyApplicationOrganizationOverride, DisplayName: "Подача заявки от другой организации", Category: CatCenter},
 
 		// Карточка авто/сотрудника (общие действия; где кнопка уместна -- определяет контекст на фронте)
 		{Key: KeyDetailFullHistory, DisplayName: "Кнопка «Полная история»", Category: CatDetail},

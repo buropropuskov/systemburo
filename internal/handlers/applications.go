@@ -22,6 +22,18 @@ func NewApplicationHandler(service services.ApplicationService, resolver *servic
 	return &ApplicationHandler{service: service, resolver: resolver}
 }
 
+// canOverrideOrganization сообщает, вправе ли подающий указать организацию или компанию,
+// отличную от своей (#1437). Резолвер истинен для супер-админа (allowAll), администратора
+// (adminAll, включая руководителей: миграция перенесла тип manager на is_admin) и для
+// явного гранта роли, группы или личного override; бан и личные deny он учитывает.
+func (h *ApplicationHandler) canOverrideOrganization(c echo.Context) (bool, error) {
+	set, err := h.resolver.Resolve(c.Request().Context(), GetUserID(c))
+	if err != nil {
+		return false, err
+	}
+	return set.Has(services.KeyApplicationOrganizationOverride), nil
+}
+
 // GetApplications godoc
 // @Summary      Список заявок для Центра заявок
 // @Description  Возвращает заявки с фильтрацией. Принимающие видят все, обычные пользователи -- только свои.
@@ -246,6 +258,7 @@ func (h *ApplicationHandler) GetApplicationDetails(c echo.Context) error {
 // @Success      200 {object} services.ApplicationCreateResponse
 // @Failure      400 {object} models.HTTPError
 // @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications [post]
 func (h *ApplicationHandler) CreateApplication(c echo.Context) error {
@@ -256,7 +269,12 @@ func (h *ApplicationHandler) CreateApplication(c echo.Context) error {
 		return err
 	}
 
-	resp, err := h.service.CreateApplication(c.Request().Context(), username, req)
+	canOverride, err := h.canOverrideOrganization(c)
+	if err != nil {
+		return err
+	}
+
+	resp, err := h.service.CreateApplication(c.Request().Context(), username, req, canOverride)
 	if err != nil {
 		return err
 	}
@@ -266,6 +284,7 @@ func (h *ApplicationHandler) CreateApplication(c echo.Context) error {
 // SubmitCompleteApplication godoc
 // @Summary      Создание полной заявки с вложениями
 // @Description  Создаёт заявку вместе с вложениями (машины, сотрудники, ТМЦ) в одной транзакции.
+// @Description  Организация и компания, отличные от указанных в профиле, требуют права application.organization.override.
 // @Tags         applications
 // @Accept       json
 // @Produce      json
@@ -274,6 +293,7 @@ func (h *ApplicationHandler) CreateApplication(c echo.Context) error {
 // @Success      200 {object} services.CompleteApplicationResponse
 // @Failure      400 {object} models.HTTPError
 // @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError
 // @Router       /applications/submit-complete-application [post]
 func (h *ApplicationHandler) SubmitCompleteApplication(c echo.Context) error {
@@ -284,7 +304,12 @@ func (h *ApplicationHandler) SubmitCompleteApplication(c echo.Context) error {
 		return err
 	}
 
-	resp, err := h.service.SubmitCompleteApplication(c.Request().Context(), username, req)
+	canOverride, err := h.canOverrideOrganization(c)
+	if err != nil {
+		return err
+	}
+
+	resp, err := h.service.SubmitCompleteApplication(c.Request().Context(), username, req, canOverride)
 	if err != nil {
 		return err
 	}

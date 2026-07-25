@@ -109,7 +109,7 @@ func TestTablesRefresh_AcceptanceAndCarEntry(t *testing.T) {
 			},
 		}},
 	}
-	created, err := appSvc.SubmitCompleteApplication(context.Background(), "trtsender", req)
+	created, err := appSvc.SubmitCompleteApplication(context.Background(), "trtsender", req, true)
 	require.NoError(t, err)
 
 	// Принятие: активирует машину -> сигнал cars-таблице.

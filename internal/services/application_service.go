@@ -113,11 +113,15 @@ type ApplicationService interface {
 	// GetApplicationDetails возвращает расширенную информацию о заявке.
 	GetApplicationDetails(ctx context.Context, applicationID int) (map[string]interface{}, error)
 
-	// CreateApplication создаёт новую заявку.
-	CreateApplication(ctx context.Context, username string, req ApplicationCreateRequest) (*ApplicationCreateResponse, error)
+	// CreateApplication создаёт новую заявку. canOverrideOrganization - результат проверки
+	// права KeyApplicationOrganizationOverride, см. SubmitCompleteApplication.
+	CreateApplication(ctx context.Context, username string, req ApplicationCreateRequest, canOverrideOrganization bool) (*ApplicationCreateResponse, error)
 
 	// SubmitCompleteApplication создаёт полную заявку с вложениями.
-	SubmitCompleteApplication(ctx context.Context, username string, req CompleteApplicationRequest) (*CompleteApplicationResponse, error)
+	// canOverrideOrganization - разрешено ли подающему указывать организацию и компанию,
+	// отличные от своих (право KeyApplicationOrganizationOverride, проверяется в handler).
+	// Флаг передаётся параметром, а не читается из тела: тело правит клиент.
+	SubmitCompleteApplication(ctx context.Context, username string, req CompleteApplicationRequest, canOverrideOrganization bool) (*CompleteApplicationResponse, error)
 
 	// UpdateApplication обновляет данные заявки.
 	UpdateApplication(ctx context.Context, username string, applicationID int, req ApplicationUpdateRequest) (*ApplicationUpdateResponse, error)
@@ -1233,7 +1237,7 @@ func (s *applicationService) GetApplicationDetails(ctx context.Context, applicat
 }
 
 // CreateApplication создаёт новую заявку с назначением ответственных.
-func (s *applicationService) CreateApplication(ctx context.Context, username string, req ApplicationCreateRequest) (*ApplicationCreateResponse, error) {
+func (s *applicationService) CreateApplication(ctx context.Context, username string, req ApplicationCreateRequest, canOverrideOrganization bool) (*ApplicationCreateResponse, error) {
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
 		return nil, err
@@ -1241,6 +1245,25 @@ func (s *applicationService) CreateApplication(ctx context.Context, username str
 
 	if !req.DataApproval {
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Data approval is required")
+	}
+
+	// Организация и компания приходят готовыми id, поэтому право override сверяем прямо
+	// здесь - тем же гейтом, что и в подаче полной заявки (#1437).
+	scope := applicantScope{
+		userID:         user.ID,
+		organizationID: user.OrganizationID,
+		companyID:      user.CompanyID,
+		canOverride:    canOverrideOrganization,
+	}
+	if req.OrganizationID != nil {
+		if err := ensureDirectoryAllowed(organizationRef, scope, *req.OrganizationID); err != nil {
+			return nil, err
+		}
+	}
+	if req.CompanyID != nil {
+		if err := ensureDirectoryAllowed(companyRef, scope, *req.CompanyID); err != nil {
+			return nil, err
+		}
 	}
 
 	now := time.Now().UTC()
@@ -1623,7 +1646,7 @@ func (s *applicationService) isBlacklistSuppressed(ctx context.Context, elementT
 }
 
 // SubmitCompleteApplication создаёт полную заявку с вложениями, машинами и сотрудниками.
-func (s *applicationService) SubmitCompleteApplication(ctx context.Context, username string, req CompleteApplicationRequest) (*CompleteApplicationResponse, error) {
+func (s *applicationService) SubmitCompleteApplication(ctx context.Context, username string, req CompleteApplicationRequest, canOverrideOrganization bool) (*CompleteApplicationResponse, error) {
 	user, err := s.getUserByUsername(ctx, username)
 	if err != nil {
 		return nil, err
@@ -1674,12 +1697,19 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 	// Организация и компания заявки: выбранная по id либо найденная по ключу
 	// дедупликации наименования, а незнакомое наименование заводит запись «на
 	// проверке» (#1437). NULL остаётся только там, где сущность не указана вовсе.
-	organizationID, err := s.resolveOrganizationRef(ctx, tx, user.ID, req.OrganizationID, req.OrganizationTitle())
+	// Чужую организацию пропускает только право override, свою из профиля - всегда.
+	scope := applicantScope{
+		userID:         user.ID,
+		organizationID: user.OrganizationID,
+		companyID:      user.CompanyID,
+		canOverride:    canOverrideOrganization,
+	}
+	organizationID, err := s.resolveOrganizationRef(ctx, tx, scope, req.OrganizationID, req.OrganizationTitle())
 	if err != nil {
 		tx.Rollback()
 		return nil, err
 	}
-	companyID, err := s.resolveCompanyRef(ctx, tx, user.ID, req.CompanyID, req.CompanyTitle())
+	companyID, err := s.resolveCompanyRef(ctx, tx, scope, req.CompanyID, req.CompanyTitle())
 	if err != nil {
 		tx.Rollback()
 		return nil, err

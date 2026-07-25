@@ -59,7 +59,7 @@ func TestApplicationUpdated_OnWithdraw(t *testing.T) {
 			},
 		}},
 	}
-	created, err := svc.SubmitCompleteApplication(context.Background(), "aupdsender", req)
+	created, err := svc.SubmitCompleteApplication(context.Background(), "aupdsender", req, true)
 	require.NoError(t, err)
 
 	fake.reset() // отбрасываем applications.refresh от submit
