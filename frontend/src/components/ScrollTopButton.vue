@@ -72,11 +72,11 @@ export default {
   align-items: center;
   justify-content: center;
   background-color: var(--color-primary);
-  color: #fff;
+  color: var(--accent-contrast);
   border: none;
   border-radius: 50%;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(79, 91, 223, 0.35);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 35%, transparent);
   transition: background-color 0.2s, transform 0.2s, box-shadow 0.2s;
   z-index: 900;
 }
@@ -84,7 +84,7 @@ export default {
 .scroll-top-btn:hover {
   background-color: var(--color-primary-hover);
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(79, 91, 223, 0.4);
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
 .scroll-top-btn:active {

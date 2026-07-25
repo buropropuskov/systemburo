@@ -96,9 +96,9 @@
     width: 100% !important;
     height: auto !important;
     padding: 10px 14px !important;
-    border: 1px solid var(--color-border, #e6e6e6) !important;
+    border: 1px solid var(--border) !important;
     border-radius: var(--radius-md, 15px) !important;
-    background: #fff !important;
+    background: var(--surface) !important;
   }
 
   .rt-table .rt-row + .rt-row {
@@ -113,7 +113,7 @@
     width: 100% !important;
     min-width: 0 !important;
     padding: 5px 0;
-    border-bottom: 1px dashed #f0f0f0;
+    border-bottom: 1px dashed color-mix(in srgb, var(--border) 60%, var(--surface));
     text-align: right;
   }
 
@@ -126,7 +126,7 @@
     flex-shrink: 0;
     font-size: 12px;
     font-weight: 600;
-    color: #a2a2a2;
+    color: var(--text-muted);
     text-align: left;
   }
 

@@ -1385,24 +1385,31 @@ export default {
 
 <style scoped>
 /*
- * Палитра навигации (#510) - точные хексы мокапа, scoped на корне навигации
- * (.nav-root). И рельс, и колонка Админки, и кнопка возврата наследуют отсюда;
- * глобальный tokens.css не трогаем, чтобы цвета мокапа не утекли на весь сайт.
- * Радиусы/шрифт - из проектных токенов.
+ * Палитра навигации (#510), scoped на корне навигации (.nav-root): и рельс, и
+ * колонка Админки, и кнопка возврата наследуют отсюда. Свои имена оставлены -
+ * это слой смысла ИМЕННО навигации, но значения теперь берутся из темы (#1415),
+ * а не из хексов мокапа, иначе меню оставалось бы светлым в тёмной теме.
+ *
+ * Акцент разведён на две роли: --nav-primary для ТЕКСТА (активный пункт, hover)
+ * и --nav-accent для ЗАЛИВОК (бейджи, логотип) с подписью --nav-on-accent.
+ * Слить их нельзя: в тёмной теме заливка светлая, и белая цифра на бейдже
+ * стала бы нечитаемой.
  */
 .nav-root {
-  --nav-primary: #4F5BDF;
-  --nav-primary-hover: #3d49c7;
-  --nav-primary-soft: rgba(79, 91, 223, .10);
-  --nav-primary-soft-strong: rgba(79, 91, 223, .16);
-  --nav-text: #1f2330;
-  --nav-text-muted: #8a90a2;
-  --nav-text-faint: #aab0c0;
-  --nav-border: #e9eaf0;
-  --nav-border-soft: #f0f1f6;
-  --nav-bg: #ffffff;
-  --nav-hover: #f4f5fb;
-  --nav-scrollbar: #e0e2ee;
+  --nav-primary: var(--accent-text);
+  --nav-accent: var(--accent);
+  --nav-on-accent: var(--accent-contrast);
+  --nav-primary-hover: var(--accent-hover);
+  --nav-primary-soft: var(--accent-tint);
+  --nav-primary-soft-strong: color-mix(in srgb, var(--accent) 16%, transparent);
+  --nav-text: var(--text);
+  --nav-text-muted: var(--text-muted);
+  --nav-text-faint: color-mix(in srgb, var(--text-muted) 80%, var(--surface));
+  --nav-border: var(--border);
+  --nav-border-soft: color-mix(in srgb, var(--border) 55%, var(--surface));
+  --nav-bg: var(--surface);
+  --nav-hover: var(--row-hover);
+  --nav-scrollbar: var(--border);
 }
 
 .nav-menu {
@@ -1474,8 +1481,8 @@ export default {
   border-radius: 10px;
   display: grid;
   place-items: center;
-  color: #fff;
-  background: linear-gradient(135deg, #6470ff, var(--nav-primary));
+  color: var(--nav-on-accent);
+  background: linear-gradient(135deg, var(--nav-primary-hover), var(--nav-accent));
 }
 
 .nav-brand__name {
@@ -1676,7 +1683,10 @@ export default {
   font-size: 10px;
   line-height: 10px;
   letter-spacing: 0.04em;
-  color: var(--nav-text-faint);
+  /* Подпись секции - текст, а не выключенный контрол: faint-тон оставлен
+     заблокированным пунктам (для них контраст не нормируется), здесь нужен
+     читаемый muted (замер faint: 3.72 в светлой теме, ниже нормы AA). */
+  color: var(--nav-text-muted);
   text-transform: uppercase;
   height: 10px;
   margin: 14px 0 6px 24px;
@@ -1773,7 +1783,7 @@ export default {
 }
 
 .nav-item:hover .exit {
-  color: #e5484d;
+  color: var(--danger);
 }
 
 .nav-icon-wrapper {
@@ -1941,8 +1951,8 @@ export default {
   position: absolute;
   top: -6px;
   right: -6px;
-  background-color: var(--nav-primary);
-  color: #fff;
+  background-color: var(--nav-accent);
+  color: var(--nav-on-accent);
   font-size: 10px;
   font-weight: 600;
   min-width: 16px;
@@ -1968,8 +1978,8 @@ export default {
 .notification-badge {
   position: absolute;
   right: 15px;
-  background-color: var(--nav-primary);
-  color: #fff;
+  background-color: var(--nav-accent);
+  color: var(--nav-on-accent);
   font-size: 10px;
   font-weight: 600;
   min-width: 16px;
@@ -2172,8 +2182,8 @@ export default {
 
 .admin-link__badge {
   margin-left: auto;
-  background-color: var(--nav-primary);
-  color: #fff;
+  background-color: var(--nav-accent);
+  color: var(--nav-on-accent);
   font-size: 10px;
   font-weight: 600;
   min-width: 16px;
@@ -2387,7 +2397,7 @@ export default {
     display: block;
     position: fixed;
     inset: 0;
-    background: rgba(15, 17, 41, 0.5);
+    background: var(--overlay);
     z-index: 9999;
   }
 

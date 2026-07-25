@@ -85,9 +85,9 @@ export default {
         width: 100px;
         height: 25px;
         border-radius: 50px;
-        border: 1px solid #e6e6e6;
+        border: 1px solid var(--border);
         outline: none;
-        background-color: #FFF;
+        background-color: var(--surface);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -97,7 +97,7 @@ export default {
     }
 
     .refresh-btn:hover {
-        background-color: #f2f2f2;
+        background-color: var(--surface-2);
     }
 
     /* Во время перезарядки: без курсора-лоадера, фон не меняется */
@@ -106,7 +106,7 @@ export default {
     }
 
     .refresh-btn--charging:hover {
-        background-color: #FFF;
+        background-color: var(--surface);
     }
 
     .refresh-btn__content {
@@ -127,7 +127,7 @@ export default {
     }
 
     .refresh-btn__text {
-        color: #4F5BDF;
+        color: var(--accent-text);
         font-size: 12px;
         font-weight: 500;
     }
@@ -142,11 +142,11 @@ export default {
         width: 5px;
         height: 5px;
         border-radius: 50%;
-        background-color: #d9deff;
+        background-color: var(--accent-tint);
         transition: background-color 0.2s ease;
     }
 
     .refresh-btn__dot.is-lit {
-        background-color: #4F5BDF;
+        background-color: var(--accent-text);
     }
 </style>

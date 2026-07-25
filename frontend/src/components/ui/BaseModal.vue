@@ -219,7 +219,7 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -229,9 +229,9 @@ export default {
 }
 
 .base-modal {
-  background: #fff;
+  background: var(--surface);
   border-radius: var(--base-modal-radius, var(--radius-md));
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 8px 30px var(--shadow-drop);
   /* Не голый 92vh: на >1440 корень зумлен (viewportScale.js), vh считается от
      НЕзумленной высоты и завышает кап в zoom раз - на 2500px окно вылезало за
      экран (#1359). --app-vh = innerHeight/zoom/100, нормирован на zoom; на <=1440
@@ -248,7 +248,7 @@ export default {
   width: 40px;
   height: 4px;
   border-radius: 2px;
-  background: #d5d5db;
+  background: var(--border);
   margin: 10px auto 0;
   flex-shrink: 0;
 }
@@ -258,14 +258,14 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 12px 20px;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--border);
 }
 
 .base-modal__title {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
-  color: var(--color-text);
+  color: var(--text);
 }
 
 .base-modal__close {
@@ -276,7 +276,7 @@ export default {
   justify-content: center;
   font-size: 24px;
   line-height: 1;
-  color: #999;
+  color: var(--text-muted);
   background: none;
   border: none;
   cursor: pointer;
@@ -286,8 +286,8 @@ export default {
 }
 
 .base-modal__close:hover {
-  color: var(--color-text);
-  background: #f5f5f5;
+  color: var(--text);
+  background: var(--surface-2);
 }
 
 .base-modal__body {

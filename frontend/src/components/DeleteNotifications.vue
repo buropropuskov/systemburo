@@ -58,9 +58,12 @@ onMounted(() => {
 // Цвет прогресс-бара: 100% (только удалили) - зелёный, 0% (вот-вот исчезнет) - красный.
 // Для error/warning/info бар статичного цвета - нет семантики "истекает".
 function barColorFor(item) {
-  if (item.type === 'error') return 'rgb(255, 102, 104)';
-  if (item.type === 'warning') return 'rgb(245, 158, 11)';
-  if (item.type === 'info') return 'rgb(59, 130, 246)';
+  if (item.type === 'error') return 'var(--danger)';
+  if (item.type === 'warning') return 'var(--warning)';
+  if (item.type === 'info') return 'var(--info)';
+  // Успех - не статичный цвет, а плавный переход зелёный->красный по остатку
+  // времени, поэтому считается числами, а не переменной темы. Оба конца
+  // читаются и на светлом, и на тёмном фоне - это заливка, а не текст.
   const t = Math.min(1, Math.max(0, (100 - item.progress) / 100));
   const green = [52, 199, 89];
   const red = [255, 102, 104];
@@ -83,11 +86,11 @@ function barColorFor(item) {
 }
 
 .del-card {
-  background: #fff;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 15px;
   padding: 14px 16px;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 3px 10px var(--shadow-drop);
   font-family: 'Montserrat', sans-serif;
   width: max-content;
   min-width: 300px;
@@ -98,21 +101,21 @@ function barColorFor(item) {
 .del-title {
   font-size: 11px;
   font-weight: 500;
-  color: #15803d;
+  color: var(--success-text);
   margin-bottom: 4px;
   letter-spacing: 0.02em;
 }
 
 .del-title--error {
-  color: #b91c1c;
+  color: var(--danger-text);
 }
 
 .del-title--warning {
-  color: #b45309;
+  color: var(--warning-text);
 }
 
 .del-title--info {
-  color: #1d4ed8;
+  color: var(--info-text);
 }
 
 .del-row {
@@ -125,7 +128,7 @@ function barColorFor(item) {
 .del-text {
   flex: 1;
   font-size: 14px;
-  color: #000;
+  color: var(--text);
   white-space: nowrap;
 }
 
@@ -135,8 +138,8 @@ function barColorFor(item) {
 
 .del-undo {
   flex-shrink: 0;
-  background: #4F5BDF;
-  color: #fff;
+  background: var(--accent);
+  color: var(--accent-contrast);
   border: none;
   padding: 6px 16px;
   border-radius: 50px;
@@ -148,16 +151,16 @@ function barColorFor(item) {
 }
 
 .del-undo:hover {
-  background: #3a45b2;
+  background: var(--accent-hover);
 }
 
 .del-track {
   margin-top: 10px;
   height: 10px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 50px;
   overflow: hidden;
-  background: #f5f5f5;
+  background: var(--surface-2);
 }
 
 .del-fill {

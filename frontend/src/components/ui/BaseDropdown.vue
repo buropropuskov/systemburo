@@ -400,8 +400,8 @@ export default {
   justify-content: space-between;
   gap: 10px;
   padding: 0 15px;
-  border: 1px solid #e6e6e6;
-  background-color: #fff;
+  border: 1px solid var(--border);
+  background-color: var(--surface);
   border-radius: 50px;
   outline: none;
   cursor: pointer;
@@ -409,18 +409,18 @@ export default {
 }
 
 .base-dropdown__button:hover:not(:disabled) {
-  border-color: #4F5BDF;
+  border-color: var(--accent);
 }
 
 .base-dropdown__button--disabled {
-  background-color: #f5f5f5;
+  background-color: var(--surface-2);
   cursor: not-allowed;
   opacity: 0.6;
 }
 
 .base-dropdown__text {
   font-size: 14px;
-  color: #000;
+  color: var(--text);
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
@@ -428,7 +428,7 @@ export default {
 }
 
 .base-dropdown__text--placeholder {
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 400;
 }
 
@@ -436,7 +436,7 @@ export default {
   width: 10px;
   height: 10px;
   flex-shrink: 0;
-  color: #666;
+  color: var(--text-muted);
   transition: transform 0.2s;
 }
 
@@ -449,10 +449,10 @@ export default {
   top: calc(100% + 5px);
   left: 0;
   width: 100%;
-  background: #fff;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 20px;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 3px 10px var(--shadow-drop);
   z-index: 1000;
   overflow: hidden;
   /* flex-column, чтобы inline maxHeight (teleport-режим) ужимал прокручиваемый
@@ -463,14 +463,16 @@ export default {
 
 .base-dropdown__search {
   padding: 8px 12px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
 }
 
 .base-dropdown__search-input {
   width: 100%;
   padding: 6px 12px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
   font-size: 13px;
   outline: none;
   transition: border-color 0.2s;
@@ -478,7 +480,7 @@ export default {
 }
 
 .base-dropdown__search-input:focus {
-  border-color: #4F5BDF;
+  border-color: var(--accent);
 }
 
 .base-dropdown__options {
@@ -499,16 +501,16 @@ export default {
 }
 
 .base-dropdown__item:hover {
-  background-color: #f5f5f5;
+  background-color: var(--row-hover);
 }
 
 .base-dropdown__item--selected {
-  background-color: #f0f1ff;
-  color: #4F5BDF;
+  background-color: var(--accent-tint);
+  color: var(--accent-text);
 }
 
 .base-dropdown__item--selected .base-dropdown__item-text {
-  color: #4F5BDF;
+  color: var(--accent-text);
 }
 
 .base-dropdown__item:first-child {
@@ -521,7 +523,7 @@ export default {
 
 .base-dropdown__item-text {
   font-size: 13px;
-  color: #333;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -530,7 +532,7 @@ export default {
 .base-dropdown__empty {
   padding: 12px 15px;
   font-size: 13px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   text-align: center;
 }
 
@@ -545,16 +547,16 @@ export default {
   flex-shrink: 0;
   width: 15px;
   height: 15px;
-  border: 1px solid #cfcfcf;
+  border: 1px solid var(--border);
   border-radius: 4px;
-  background: #fff;
+  background: var(--surface);
   position: relative;
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .base-dropdown__check--on {
-  background: #4F5BDF;
-  border-color: #4F5BDF;
+  background: var(--accent);
+  border-color: var(--accent);
 }
 
 .base-dropdown__check--on::after {
@@ -564,7 +566,7 @@ export default {
   top: 1px;
   width: 4px;
   height: 8px;
-  border: solid #fff;
+  border: solid var(--accent-contrast);
   border-width: 0 2px 2px 0;
   transform: rotate(45deg);
 }
@@ -573,9 +575,9 @@ export default {
   width: 100%;
   padding: 8px 15px;
   border: none;
-  border-bottom: 1px solid #e6e6e6;
-  background: #fff;
-  color: #4F5BDF;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--accent-text);
   font-size: 12px;
   font-weight: 500;
   text-align: left;
@@ -583,13 +585,13 @@ export default {
 }
 
 .base-dropdown__clear:hover:not(:disabled) {
-  background: #f5f5f5;
+  background: var(--row-hover);
 }
 
 /* Пустой выбор: строка остаётся на месте (высота зарезервирована), но гаснет
    и не кликается - иначе её появление дёргало бы список при первом выборе. */
 .base-dropdown__clear--disabled {
-  color: #a2a2a2;
+  color: var(--text-muted);
   cursor: default;
 }
 

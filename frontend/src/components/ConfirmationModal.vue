@@ -99,7 +99,7 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -114,19 +114,19 @@ export default {
     border-radius: 15px;
     padding: 20px;
     width: 300px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 6px var(--shadow-drop);
 }
 
 .modal-header {
     font-size: 14px;
     font-weight: bold;
     margin-bottom: 10px;
-    color: #333;
+    color: var(--text);
 }
 
 .modal-message {
     font-size: 12px;
-    color: #666;
+    color: var(--text-muted);
     margin-bottom: 20px;
     line-height: 1.4;
 }
@@ -139,7 +139,7 @@ export default {
 
 .cancel-btn, .confirm-btn {
     padding: 8px 16px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     border-radius: 8px;
     font-size: 12px;
     cursor: pointer;
@@ -149,23 +149,23 @@ export default {
 
 .cancel-btn {
     background: white;
-    color: #666;
+    color: var(--text-muted);
 }
 
 .cancel-btn:hover {
-    background: #f5f5f5;
-    border-color: #d4d4d4;
+    background: var(--surface-2);
+    border-color: var(--border);
 }
 
 .confirm-btn {
-    background: #4F5BDF;
+    background: var(--accent);
     color: white;
-    border-color: #4F5BDF;
+    border-color: var(--accent);
 }
 
 .confirm-btn:hover {
-    background: #3a45c4;
-    border-color: #3a45c4;
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
 }
 
 /* Анимации: фон overlay и .modal анимируются и на открытие, и на закрытие.

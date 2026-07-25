@@ -57,21 +57,21 @@ export default {
   flex-shrink: 0;
 }
 
-.badge--neutral { background: #f1f3f5; color: #475569; border-color: #e2e8f0; }
-.badge--neutral .badge__dot { background: #94a3b8; }
+.badge--neutral { background: var(--surface-2); color: var(--text-muted); border-color: var(--border); }
+.badge--neutral .badge__dot { background: var(--text-muted); }
 
-.badge--primary { background: #eef0ff; color: #3a45c0; border-color: #d9deff; }
-.badge--primary .badge__dot { background: var(--color-primary, #4F5BDF); }
+.badge--primary { background: var(--accent-tint); color: var(--accent-text); border-color: color-mix(in srgb, var(--accent) 25%, var(--surface)); }
+.badge--primary .badge__dot { background: var(--accent); }
 
-.badge--success { background: #dcfce7; color: #166534; border-color: #bbf7d0; }
-.badge--success .badge__dot { background: #22c55e; }
+.badge--success { background: var(--success-bg); color: var(--success-text); border-color: color-mix(in srgb, var(--success) 30%, var(--surface)); }
+.badge--success .badge__dot { background: var(--success); }
 
-.badge--warning { background: #fef3c7; color: #92400e; border-color: #fde68a; }
-.badge--warning .badge__dot { background: #f59e0b; }
+.badge--warning { background: var(--warning-bg); color: var(--warning-text); border-color: color-mix(in srgb, var(--warning) 30%, var(--surface)); }
+.badge--warning .badge__dot { background: var(--warning); }
 
-.badge--danger { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
-.badge--danger .badge__dot { background: #ef4444; }
+.badge--danger { background: var(--danger-bg); color: var(--danger-text); border-color: color-mix(in srgb, var(--danger) 30%, var(--surface)); }
+.badge--danger .badge__dot { background: var(--danger); }
 
-.badge--info { background: #dbeafe; color: #1e40af; border-color: #bfdbfe; }
-.badge--info .badge__dot { background: #3b82f6; }
+.badge--info { background: var(--info-bg); color: var(--info-text); border-color: color-mix(in srgb, var(--info) 30%, var(--surface)); }
+.badge--info .badge__dot { background: var(--info); }
 </style>
