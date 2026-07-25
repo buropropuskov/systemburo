@@ -619,64 +619,68 @@
             <h4 class="panel-title">
               Топ эндпоинтов
             </h4>
-            <table class="hist-table">
-              <thead>
-                <tr>
-                  <th>Endpoint</th><th>Запросов</th><th>Avg</th><th>p95</th><th>Ошибки</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="e in history.top_endpoints"
-                  :key="e.endpoint"
-                >
-                  <td class="mono">
-                    {{ e.endpoint }}
-                  </td>
-                  <td>{{ formatNum(e.requests) }}</td>
-                  <td>{{ e.avg_duration_ms }}мс</td>
-                  <td>{{ e.p95_duration_ms }}мс</td>
-                  <td>{{ e.error_rate }}%</td>
-                </tr>
-                <tr v-if="!history.top_endpoints.length">
-                  <td
-                    colspan="5"
-                    class="empty-hint"
+            <div class="hist-table-wrap">
+              <table class="hist-table">
+                <thead>
+                  <tr>
+                    <th>Endpoint</th><th>Запросов</th><th>Avg</th><th>p95</th><th>Ошибки</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="e in history.top_endpoints"
+                    :key="e.endpoint"
                   >
-                    Нет данных
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                    <td class="mono">
+                      {{ e.endpoint }}
+                    </td>
+                    <td>{{ formatNum(e.requests) }}</td>
+                    <td>{{ e.avg_duration_ms }}мс</td>
+                    <td>{{ e.p95_duration_ms }}мс</td>
+                    <td>{{ e.error_rate }}%</td>
+                  </tr>
+                  <tr v-if="!history.top_endpoints.length">
+                    <td
+                      colspan="5"
+                      class="empty-hint"
+                    >
+                      Нет данных
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
           <div class="analytics-panel">
             <h4 class="panel-title">
               Топ пользователей
             </h4>
-            <table class="hist-table">
-              <thead>
-                <tr>
-                  <th>Пользователь</th><th>Запросов</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="u in history.top_users"
-                  :key="u.user_id"
-                >
-                  <td>{{ u.username }}</td>
-                  <td>{{ formatNum(u.requests) }}</td>
-                </tr>
-                <tr v-if="!history.top_users.length">
-                  <td
-                    colspan="2"
-                    class="empty-hint"
+            <div class="hist-table-wrap">
+              <table class="hist-table">
+                <thead>
+                  <tr>
+                    <th>Пользователь</th><th>Запросов</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="u in history.top_users"
+                    :key="u.user_id"
                   >
-                    Нет данных
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                    <td>{{ u.username }}</td>
+                    <td>{{ formatNum(u.requests) }}</td>
+                  </tr>
+                  <tr v-if="!history.top_users.length">
+                    <td
+                      colspan="2"
+                      class="empty-hint"
+                    >
+                      Нет данных
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
@@ -1840,6 +1844,9 @@ export default {
   padding: 14px;
   margin-bottom: 16px;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  /* grid-элемент: без этого min-width:auto распирает панель под min-content
+     таблицы и обрезает правые колонки за кромкой экрана на мобилке */
+  min-width: 0;
 }
 .panel-title {
   margin: 0 0 12px;
@@ -1877,6 +1884,12 @@ export default {
   display: grid;
   grid-template-columns: 1.5fr 1fr;
   gap: 16px;
+}
+/* Обёртка с горизонтальным скроллом: узкая таблица (Топ пользователей) влезает
+   целиком, широкая (Топ эндпоинтов, 5 колонок) честно скроллится вместо тихого
+   клипа правых колонок. Образец - ReportResult.rr__table-wrap. */
+.hist-table-wrap {
+  overflow-x: auto;
 }
 .hist-table {
   width: 100%;
