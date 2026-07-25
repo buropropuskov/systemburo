@@ -407,6 +407,8 @@ func Setup(e *echo.Echo, d Dependencies) {
 	upg.POST("/:id/restore", up.Restore)
 	upg.GET("/:id/usage", up.GetUsage)
 	upg.POST("/:id/detach-all", up.DetachAll, requireAdmin)
+	upg.DELETE("/:id/organizations/:org_id", up.DetachOrganization, requireAdmin)
+	upg.DELETE("/:id/companies/:company_id", up.DetachCompany, requireAdmin)
 	// Групповые операции (статический bulk приоритетнее param :id в Echo).
 	upg.POST("/bulk/archive", up.BulkArchive)
 	upg.POST("/bulk/restore", up.BulkRestore)
@@ -526,6 +528,8 @@ func Setup(e *echo.Echo, d Dependencies) {
 	stg.POST("/:id/restore", st.Restore)
 	stg.GET("/:id/usage", st.GetUsage)
 	stg.POST("/:id/detach-all", st.DetachAll, requireAdmin)
+	stg.DELETE("/:id/organizations/:org_id", st.DetachOrganization, requireAdmin)
+	stg.DELETE("/:id/companies/:company_id", st.DetachCompany, requireAdmin)
 	// param :id в Echo, поэтому /bulk/archive и /bulk/restore не конфликтуют с /:id/restore.
 	stg.POST("/bulk/archive", st.BulkArchive)
 	stg.POST("/bulk/restore", st.BulkRestore)

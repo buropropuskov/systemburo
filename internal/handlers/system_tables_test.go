@@ -250,6 +250,59 @@ func TestSystemTables_DetachAll_Forbidden(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, rec.Code)
 }
 
+// TestSystemTables_DetachOneOrgAndCompany: точечная отвязка снимает ОДНУ
+// конкретную привязку, остальные остаются; аудит на затронутую сущность; повтор
+// по уже снятой идемпотентен (detached:false, 200).
+func TestSystemTables_DetachOneOrgAndCompany(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	h := testutil.AuthHeader(testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID))
+
+	body := `{"name":"tochtable","display_name":"Точ-Таблица","table_type":"cars"}`
+	tableID := int(testutil.ParseMap(t, testutil.POST(t, e, "/system-tables", body, h))["id"].(float64))
+	require.NoError(t, db.Create(&models.OrganizationTable{OrganizationID: td.OrgID, TableID: tableID}).Error)
+	require.NoError(t, db.Create(&models.CompaniesTable{CompanyID: td.CompanyID, TableID: tableID}).Error)
+
+	// Отвязываем ТОЛЬКО организацию - компания остаётся.
+	detach := testutil.ParseMap(t, testutil.DELETE(t, e, fmt.Sprintf("/system-tables/%d/organizations/%d", tableID, td.OrgID), h))
+	assert.Equal(t, true, detach["detached"])
+	assert.Contains(t, auditDetails(t, db, models.AuditEntityOrganization, td.OrgID, models.OrganizationActionTablesChanged), "Точ-Таблица")
+
+	usage := testutil.ParseMap(t, testutil.GET(t, e, fmt.Sprintf("/system-tables/%d/usage", tableID), h))
+	assert.Empty(t, usage["organizations"].([]interface{}), "организация снята")
+	require.Len(t, usage["companies"].([]interface{}), 1, "компания осталась")
+
+	// Повтор по уже снятой организации идемпотентен.
+	detach = testutil.ParseMap(t, testutil.DELETE(t, e, fmt.Sprintf("/system-tables/%d/organizations/%d", tableID, td.OrgID), h))
+	assert.Equal(t, false, detach["detached"])
+
+	// Отвязываем компанию - таблица свободна, архивируется.
+	detach = testutil.ParseMap(t, testutil.DELETE(t, e, fmt.Sprintf("/system-tables/%d/companies/%d", tableID, td.CompanyID), h))
+	assert.Equal(t, true, detach["detached"])
+	assert.Equal(t, http.StatusOK, testutil.DELETE(t, e, fmt.Sprintf("/system-tables/%d", tableID), h).Code)
+}
+
+// TestSystemTables_DetachOne_ForbiddenAndNotFound: точечная отвязка под admin-
+// гейтом (403 обычному), несуществующая таблица -> 404.
+func TestSystemTables_DetachOne_ForbiddenAndNotFound(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	adminH := testutil.AuthHeader(testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID))
+	body := `{"name":"gatetochtable","display_name":"Гейт-Точ-Табл","table_type":"cars"}`
+	tableID := int(testutil.ParseMap(t, testutil.POST(t, e, "/system-tables", body, adminH))["id"].(float64))
+	require.NoError(t, db.Create(&models.OrganizationTable{OrganizationID: td.OrgID, TableID: tableID}).Error)
+
+	userH := testutil.AuthHeader(testutil.RegisterAndLogin(t, e, "tabledetachoneuser", "pass123", 1, td.OrgID, td.CompanyID))
+	assert.Equal(t, http.StatusForbidden, testutil.DELETE(t, e, fmt.Sprintf("/system-tables/%d/organizations/%d", tableID, td.OrgID), userH).Code)
+
+	assert.Equal(t, http.StatusNotFound, testutil.DELETE(t, e, fmt.Sprintf("/system-tables/99999/organizations/%d", td.OrgID), adminH).Code)
+	assert.Equal(t, http.StatusNotFound, testutil.DELETE(t, e, fmt.Sprintf("/system-tables/99999/companies/%d", td.CompanyID), adminH).Code)
+}
+
 func TestSystemTables_History(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()

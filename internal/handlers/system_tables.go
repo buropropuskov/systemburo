@@ -328,6 +328,68 @@ func (h *SystemTableHandler) DetachAll(c echo.Context) error {
 	return RespondSuccess(c, res)
 }
 
+// DetachOrganization снимает привязку таблицы к одной организации.
+// @Summary      Отвязать таблицу от организации
+// @Description  Снимает привязку таблицы к конкретной организации (с записью в её историю). Идемпотентно
+// @Tags         system-tables
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID таблицы"
+// @Param        org_id path int true "ID организации"
+// @Success      200 {object} map[string]bool
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /system-tables/{id}/organizations/{org_id} [delete]
+func (h *SystemTableHandler) DetachOrganization(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	orgID, err := strconv.Atoi(c.Param("org_id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid organization id")
+	}
+	userID, _ := c.Get("user_id").(int)
+	detached, err := h.service.DetachOrganization(c.Request().Context(), userID, id, orgID)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, echo.Map{"detached": detached})
+}
+
+// DetachCompany снимает привязку таблицы к одной компании.
+// @Summary      Отвязать таблицу от компании
+// @Description  Снимает привязку таблицы к конкретной компании (с записью в её историю). Идемпотентно
+// @Tags         system-tables
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID таблицы"
+// @Param        company_id path int true "ID компании"
+// @Success      200 {object} map[string]bool
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /system-tables/{id}/companies/{company_id} [delete]
+func (h *SystemTableHandler) DetachCompany(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	companyID, err := strconv.Atoi(c.Param("company_id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid company id")
+	}
+	userID, _ := c.Get("user_id").(int)
+	detached, err := h.service.DetachCompany(c.Request().Context(), userID, id, companyID)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, echo.Map{"detached": detached})
+}
+
 // logBulkResult пишет запись аудита для каждого id из запроса, для которого
 // групповая операция реально прошла успешно (нет в res.Errors). Аудит для
 // системных таблиц живёт в handler-слое (см. logAction), а не в сервисе (как
