@@ -1640,7 +1640,7 @@ export default {
   width: 15px;
   height: 15px;
   cursor: pointer;
-  accent-color: var(--accent);
+  accent-color: var(--accent-text);
   margin: 0;
 }
 

@@ -543,7 +543,7 @@ export default {
   padding: 0 6px;
   border-radius: var(--radius-pill);
   background: var(--accent-tint);
-  color: var(--color-primary);
+  color: var(--accent-text);
   font-size: 11px;
   font-weight: 700;
   display: inline-flex;
@@ -606,7 +606,7 @@ export default {
   flex-shrink: 0;
   border-radius: 11px;
   background: var(--accent-tint);
-  color: var(--color-primary);
+  color: var(--accent-text);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -723,7 +723,7 @@ export default {
 }
 
 .week__row--today .week__day {
-  color: var(--color-primary);
+  color: var(--accent-text);
 }
 
 .week__time {

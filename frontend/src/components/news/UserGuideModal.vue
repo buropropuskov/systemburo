@@ -429,12 +429,12 @@ export default {
 
 .role-pill:hover:not(.role-pill--active) {
   border-color: color-mix(in srgb, var(--accent) 25%, var(--surface));
-  color: var(--color-primary);
+  color: var(--accent-text);
 }
 
 .role-pill--active {
   background: var(--color-primary);
-  border-color: var(--color-primary);
+  border-color: var(--accent);
   color: var(--accent-contrast);
 }
 

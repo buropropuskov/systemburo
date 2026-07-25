@@ -587,7 +587,7 @@ function formatCell(value, type) {
 }
 
 .rr__seg-btn:hover:not(:disabled) {
-  color: var(--color-primary);
+  color: var(--accent-text);
 }
 
 .rr__seg-btn--active {

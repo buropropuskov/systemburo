@@ -26,7 +26,8 @@
  * Значения лежат и на голом :root: неизвестный или потерянный data-theme тогда
  * деградирует в светлую тему, а не в пустые переменные. */
 :root,
-:root[data-theme="light"] {
+:root[data-theme="light"],
+[data-theme="light"] {
   --accent: #4F5BDF;
   --accent-text: #4F5BDF;
   --accent-hover: #3d49c7;
@@ -70,21 +71,22 @@
 }
 
 /* --- Тёмная ----------------------------------------------------------------- */
-:root[data-theme="dark"] {
+:root[data-theme="dark"],
+[data-theme="dark"] {
   /* Заливка светлее исходного #4F5BDF: тёмно-синяя кнопка на тёмном фоне
      отделялась всего на 3.35. Светлая заливка с тёмной подписью даёт 7.74. */
   --accent: #9AA2FF;
   --accent-text: #9AA2FF;
   --accent-hover: #B0B6FF;
-  --accent-contrast: #14161c;
+  --accent-contrast: #1f2229;
   --accent-tint: rgba(154, 162, 255, 0.16);
 
-  --bg: #14161c;
-  --surface: #1c1f27;
-  --surface-2: #232733;
-  --text: #e8eaf0;
-  --text-muted: #9aa0ae;
-  --border: #2a2f3a;
+  --bg: #1f2229;
+  --surface: #272b33;
+  --surface-2: #30343d;
+  --text: #c9ced8;
+  --text-muted: #9aa2b1;
+  --border: #3a3f4a;
   --shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
   --shadow-drop: rgba(0, 0, 0, 0.6);
@@ -100,22 +102,23 @@
   --unread-accent: #fbbf24;
   --updated-bg: #241a33;
   --updated-accent: #c084fc;
-  --row-hover: #232733;
+  --row-hover: #30343d;
 
   --tag-chs-bg: #2d1618;       --tag-chs-text: #fca5a5;
   --tag-roof-bg: #14202f;      --tag-roof-text: #93c5fd;
   --tag-parking-bg: #10291f;   --tag-parking-text: #6ee7b7;
   --tag-important-bg: #2b2113; --tag-important-text: #fcd34d;
 
-  --hint-bg: #0c0e14;
-  --hint-text: #e8eaf0;
+  --hint-bg: #14171d;
+  --hint-text: #c9ced8;
   --skeleton: #262a35;
   --skeleton-shine: #313644;
   --overlay: rgba(0, 0, 0, 0.65);
 }
 
 /* --- Корпоративная оранжевая (по мотивам dreamisland.ru) --------------------- */
-:root[data-theme="corporate-orange"] {
+:root[data-theme="corporate-orange"],
+[data-theme="corporate-orange"] {
   /* Оранжевый остаётся оранжевым, а не краснеет: чистый оранжевый светлый, поэтому
      подпись на заливке тёмная (6.51) - белая дала бы 2.8. */
   --accent: #F97316;
@@ -160,7 +163,8 @@
 }
 
 /* --- Деловая графитовая: сдержанная, без ярких акцентов ---------------------- */
-:root[data-theme="business-graphite"] {
+:root[data-theme="business-graphite"],
+[data-theme="business-graphite"] {
   --accent: #4A5568;
   --accent-text: #4A5568;
   --accent-hover: #3a4553;
@@ -202,7 +206,8 @@
 }
 
 /* --- Официальная синяя: гос-стиль -------------------------------------------- */
-:root[data-theme="official-blue"] {
+:root[data-theme="official-blue"],
+[data-theme="official-blue"] {
   --accent: #1B4F9C;
   --accent-text: #1B4F9C;
   --accent-hover: #143d7a;
@@ -244,19 +249,20 @@
 }
 
 /* --- Тёмная оранжевая: корпоративная ночная ---------------------------------- */
-:root[data-theme="dark-orange"] {
+:root[data-theme="dark-orange"],
+[data-theme="dark-orange"] {
   --accent: #FFA033;
   --accent-text: #FFA033;
   --accent-hover: #FFB55C;
-  --accent-contrast: #1a1005;
+  --accent-contrast: #221c18;
   --accent-tint: rgba(255, 160, 51, 0.16);
 
-  --bg: #17120f;
-  --surface: #211a15;
-  --surface-2: #2b221c;
-  --text: #f2e9e4;
-  --text-muted: #a89a90;
-  --border: #3a2c24;
+  --bg: #221c18;
+  --surface: #2b241e;
+  --surface-2: #362d26;
+  --text: #d8cec7;
+  --text-muted: #a89b92;
+  --border: #453931;
   --shadow: 0 2px 12px rgba(0, 0, 0, 0.55);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.45);
   --shadow-drop: rgba(0, 0, 0, 0.65);
@@ -271,15 +277,15 @@
   --unread-accent: #FFA033;
   --updated-bg: #2a1d2e;
   --updated-accent: #c084fc;
-  --row-hover: #2b221c;
+  --row-hover: #362d26;
 
   --tag-chs-bg: #2e1519;       --tag-chs-text: #fda4af;
   --tag-roof-bg: #12242e;      --tag-roof-text: #bae6fd;
   --tag-parking-bg: #14261a;   --tag-parking-text: #86efac;
   --tag-important-bg: #2c2012; --tag-important-text: #fcd34d;
 
-  --hint-bg: #0d0906;
-  --hint-text: #f2e9e4;
+  --hint-bg: #191410;
+  --hint-text: #d8cec7;
   --skeleton: #2b221c;
   --skeleton-shine: #372c24;
   --overlay: rgba(0, 0, 0, 0.7);
@@ -309,7 +315,14 @@ textarea {
   color: inherit;
 }
 
-:root {
+/* Островок темы заново якорит наследуемый цвет: переменные он переопределяет, а
+   сам color наследуется от body и остался бы от корневой темы. */
+[data-theme] {
+  color: var(--text);
+}
+
+:root,
+[data-theme] {
   /* Легаси-имена цветов: ссылаются на переменные темы, поэтому компоненты,
    * уже использующие --color-*, следуют за темой без правок. Новый код берёт
    * имена темы напрямую (--accent/--text/--surface), эти алиасы не расширять. */

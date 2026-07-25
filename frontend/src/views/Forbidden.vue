@@ -71,7 +71,7 @@ export default {
   margin: 0;
   font-size: 64px;
   font-weight: 700;
-  color: var(--color-primary);
+  color: var(--accent-text);
   line-height: 1;
 }
 

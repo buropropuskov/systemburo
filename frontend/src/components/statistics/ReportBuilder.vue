@@ -804,7 +804,7 @@ function run() {
 }
 
 .rb__metric--on {
-  border-color: var(--color-primary);
+  border-color: var(--accent);
   background: var(--color-primary-tint);
 }
 
@@ -837,7 +837,7 @@ function run() {
 
 .rb__metric--on .rb__metric-box {
   background: var(--color-primary);
-  border-color: var(--color-primary);
+  border-color: var(--accent);
 }
 
 .rb__metric--on .rb__metric-box svg {
@@ -888,9 +888,9 @@ function run() {
 }
 
 .rb__dim--on {
-  border-color: var(--color-primary);
+  border-color: var(--accent);
   background: var(--color-primary-tint);
-  color: var(--color-primary);
+  color: var(--accent-text);
 }
 
 .rb__dim-input {
@@ -910,7 +910,7 @@ function run() {
 }
 
 .rb__dim--on .rb__dim-dot {
-  border-color: var(--color-primary);
+  border-color: var(--accent);
 }
 
 .rb__dim--on .rb__dim-dot::after {
@@ -973,13 +973,13 @@ function run() {
 }
 
 .rb__pill:hover {
-  border-color: var(--color-primary);
+  border-color: var(--accent);
 }
 
 .rb__pill--on {
   background: var(--color-primary);
   color: var(--accent-contrast);
-  border-color: var(--color-primary);
+  border-color: var(--accent);
 }
 
 .rb__pills-empty {
@@ -1067,7 +1067,7 @@ function run() {
 /* Pivot-колонки динамические (значения оси) -> пунктир + многоточие-маркер. */
 .rb__skel-col--pivot {
   border-style: dashed;
-  border-color: var(--color-primary);
+  border-color: var(--accent);
   background: var(--surface);
 }
 
@@ -1081,7 +1081,7 @@ function run() {
 }
 
 .rb__skel-more {
-  color: var(--color-primary);
+  color: var(--accent-text);
   font-weight: 700;
 }
 

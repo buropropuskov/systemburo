@@ -1012,7 +1012,7 @@ export default {
   border-color: var(--border);
 }
 .copy-target input {
-  accent-color: var(--accent);
+  accent-color: var(--accent-text);
   cursor: inherit;
 }
 .copy-target__name {

@@ -201,7 +201,7 @@ defineExpose({ render });
   border: 1px solid var(--color-primary);
   border-radius: var(--radius-pill);
   background: transparent;
-  color: var(--color-primary);
+  color: var(--accent-text);
   font-family: 'Montserrat', sans-serif;
   font-size: 14px;
   font-weight: 600;

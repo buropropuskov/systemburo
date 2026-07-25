@@ -1529,7 +1529,7 @@ export default {
 }
 
 .te-dropzone--active {
-  border-color: var(--color-primary);
+  border-color: var(--accent);
   background: var(--accent-tint);
 }
 
@@ -1631,14 +1631,14 @@ export default {
 }
 
 .te-cat-btn:hover {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
+  border-color: var(--accent);
+  color: var(--accent-text);
 }
 
 .te-cat-btn.active {
   background: var(--color-primary);
   color: var(--accent-contrast);
-  border-color: var(--color-primary);
+  border-color: var(--accent);
 }
 
 /* ---- Field picker ---- */
@@ -1690,7 +1690,7 @@ export default {
 
 .te-pick-hint {
   font-size: 11px;
-  color: var(--color-primary);
+  color: var(--accent-text);
   font-weight: 500;
   animation: te-pulse 1.5s ease-in-out infinite;
 }
@@ -1746,14 +1746,14 @@ export default {
 }
 
 .te-field-chip:hover {
-  border-color: var(--color-primary);
+  border-color: var(--accent);
   background: var(--accent-tint);
 }
 
 .te-field-chip.active {
   background: var(--color-primary);
   color: var(--accent-contrast);
-  border-color: var(--color-primary);
+  border-color: var(--accent);
 }
 
 .te-field-chip.used {
@@ -1933,7 +1933,7 @@ export default {
 .te-mapping-cell {
   font-weight: 600;
   min-width: 30px;
-  color: var(--color-primary);
+  color: var(--accent-text);
 }
 
 .te-mapping-field {
@@ -2005,7 +2005,7 @@ export default {
   width: 28px;
   height: 28px;
   border: 3px solid var(--color-border);
-  border-top-color: var(--color-primary);
+  border-top-color: var(--accent);
   border-radius: 50%;
   animation: te-spin 0.7s linear infinite;
 }
@@ -2072,7 +2072,7 @@ export default {
 }
 
 .te-template-dropdown-trigger:hover {
-  border-color: var(--color-primary);
+  border-color: var(--accent);
 }
 
 .te-dropdown-filename {

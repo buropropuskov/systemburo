@@ -604,7 +604,7 @@ h3 {
 @media (hover: hover) {
   .header__burger:hover {
     background: var(--color-primary-tint);
-    border-color: var(--color-primary);
+    border-color: var(--accent);
   }
 }
 

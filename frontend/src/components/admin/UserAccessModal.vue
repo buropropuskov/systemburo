@@ -777,7 +777,7 @@ export default {
 
 .lk-select:focus {
   outline: none;
-  border-color: var(--color-primary);
+  border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(79, 91, 223, 0.18);
 }
 
@@ -795,7 +795,7 @@ export default {
 
 .lk-textarea:focus {
   outline: none;
-  border-color: var(--color-primary);
+  border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(79, 91, 223, 0.18);
 }
 
@@ -813,7 +813,7 @@ export default {
   padding: 6px 12px;
   border-radius: var(--radius-pill);
   background: var(--color-primary-tint);
-  color: var(--color-primary);
+  color: var(--accent-text);
   font-size: 12.5px;
   font-weight: 600;
   border: none;
@@ -838,8 +838,8 @@ export default {
 }
 
 .chip--add:hover {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
+  border-color: var(--accent);
+  color: var(--accent-text);
 }
 
 .add-groups {
@@ -938,7 +938,7 @@ export default {
 }
 
 .src--role { background: #eef0f6; color: #6b7280; }
-.src--group { background: var(--color-primary-tint); color: var(--color-primary); }
+.src--group { background: var(--color-primary-tint); color: var(--accent-text); }
 .src--override { background: #fff4e3; color: #e8870c; }
 
 /* --- Тумблер (флаг Администратор) --- */
@@ -999,9 +999,9 @@ export default {
 .lk-button--primary { background: var(--color-primary); color: #fff; }
 .lk-button--primary:not(:disabled):hover { background: var(--color-primary-hover); }
 .lk-button--ghost { background: transparent; color: var(--color-text); border-color: var(--color-border); }
-.lk-button--ghost:not(:disabled):hover { border-color: var(--color-primary); color: var(--color-primary); }
+.lk-button--ghost:not(:disabled):hover { border-color: var(--accent); color: var(--accent-text); }
 .lk-button--secondary { background: #fff; color: var(--color-text); border-color: var(--color-border); }
-.lk-button--secondary:not(:disabled):hover { border-color: var(--color-primary); color: var(--color-primary); }
+.lk-button--secondary:not(:disabled):hover { border-color: var(--accent); color: var(--accent-text); }
 .lk-button--danger { background: #fff; color: var(--color-danger); border-color: #fecaca; }
 .lk-button--danger:not(:disabled):hover { background: var(--color-danger); color: #fff; border-color: var(--color-danger); }
 

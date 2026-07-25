@@ -154,7 +154,7 @@ onBeforeUnmount(() => {
 
 .reb__item:hover {
   background: var(--color-primary-tint);
-  color: var(--color-primary);
+  color: var(--accent-text);
 }
 
 .reb-menu-enter-active,

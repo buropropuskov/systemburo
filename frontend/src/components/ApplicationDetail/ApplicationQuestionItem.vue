@@ -294,7 +294,7 @@ export default {
 }
 
 .qi-init {
-    color: var(--color-primary);
+    color: var(--accent-text);
     font-weight: 500;
 }
 
@@ -320,7 +320,7 @@ export default {
 .qi-chip {
     font-size: 11px;
     font-weight: 600;
-    color: var(--color-primary);
+    color: var(--accent-text);
     background: var(--color-primary-tint, color-mix(in srgb, var(--accent) 8%, var(--surface)));
     padding: 2px 9px;
     border-radius: 8px;
@@ -338,7 +338,7 @@ export default {
 .qi-toggle {
     background: none;
     border: none;
-    color: var(--color-primary);
+    color: var(--accent-text);
     font-family: inherit;
     font-weight: 600;
     font-size: 13px;
@@ -400,7 +400,7 @@ export default {
 
 .qi-reply-input:focus {
     outline: none;
-    border-color: var(--color-primary);
+    border-color: var(--accent);
     box-shadow: 0 0 0 3px var(--color-primary-tint, rgba(79, 91, 223, 0.08));
 }
 

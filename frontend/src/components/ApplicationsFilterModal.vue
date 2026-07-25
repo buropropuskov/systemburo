@@ -290,7 +290,7 @@ export default {
 }
 
 .filter-modal__body .field:focus-within {
-  border-color: var(--color-primary);
+  border-color: var(--accent);
   box-shadow: var(--shadow-focus);
 }
 
@@ -333,14 +333,14 @@ export default {
 .status-btn:hover:not(.status-btn--active),
 .reset-sort-btn:hover:not(:disabled) {
   background: var(--color-bg);
-  border-color: var(--color-primary);
-  color: var(--color-primary);
+  border-color: var(--accent);
+  color: var(--accent-text);
 }
 
 .status-btn--active {
   background: var(--color-primary);
   color: var(--accent-contrast);
-  border-color: var(--color-primary);
+  border-color: var(--accent);
 }
 
 .status-btn--active:hover {

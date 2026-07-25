@@ -413,7 +413,7 @@ async function onRun(request) {
 }
 
 .tpl-item:hover {
-  border-color: var(--color-primary);
+  border-color: var(--accent);
 }
 
 .tpl-apply {

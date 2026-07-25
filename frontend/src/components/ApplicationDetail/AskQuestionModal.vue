@@ -305,7 +305,7 @@ export default {
 }
 
 .setting-checkbox:checked + .toggle-slider {
-    background-color: var(--color-primary);
+    background-color: var(--accent);
 }
 
 .setting-checkbox:checked + .toggle-slider:before {

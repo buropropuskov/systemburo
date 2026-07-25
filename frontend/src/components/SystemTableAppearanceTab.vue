@@ -357,7 +357,7 @@ export default {
 
 .appearance-tab__slider {
   flex: 1;
-  accent-color: var(--accent);
+  accent-color: var(--accent-text);
   cursor: grab;
 }
 

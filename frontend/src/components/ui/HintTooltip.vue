@@ -142,8 +142,8 @@ onBeforeUnmount(close);
 
 .hint-tooltip:hover,
 .hint-tooltip:focus {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
+  border-color: var(--accent);
+  color: var(--accent-text);
   outline: none;
 }
 </style>

@@ -277,12 +277,12 @@ export default {
 .grp-pill--active {
   background: var(--accent-tint);
   border-color: color-mix(in srgb, var(--accent) 25%, var(--surface));
-  color: var(--color-primary);
+  color: var(--accent-text);
 }
 
 .grp-pill:hover:not(.grp-pill--active) {
   border-color: color-mix(in srgb, var(--accent) 25%, var(--surface));
-  color: var(--color-primary);
+  color: var(--accent-text);
 }
 
 /* --- Дропдаун «Ещё» --- */
@@ -329,7 +329,7 @@ export default {
 
 .grp-more__item:hover {
   background: var(--accent-tint);
-  color: var(--color-primary);
+  color: var(--accent-text);
 }
 
 .grp-more__cnt {
@@ -412,7 +412,7 @@ export default {
 }
 
 .doc-row__main:hover .doc-row__name {
-  color: var(--color-primary);
+  color: var(--accent-text);
 }
 
 .doc-row__desc {
@@ -436,7 +436,7 @@ export default {
   border-radius: var(--radius-pill);
   border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
   background: var(--accent-tint);
-  color: var(--color-primary);
+  color: var(--accent-text);
   font-weight: 600;
   font-size: 12px;
   font-family: inherit;
@@ -448,6 +448,6 @@ export default {
 
 .doc-row__dl:hover {
   background: color-mix(in srgb, var(--accent) 18%, var(--surface));
-  border-color: var(--color-primary);
+  border-color: var(--accent);
 }
 </style>
