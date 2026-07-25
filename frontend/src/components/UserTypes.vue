@@ -91,6 +91,7 @@
               :key="type.id"
               class="table-row rt-row"
               :class="{'selected': selectedType && selectedType.id === type.id}"
+              :data-testid="'utype-row-' + type.id"
               @click="selectType(type)"
             >
               <div
@@ -192,14 +193,72 @@
                 </div>
                 <div class="form-group compact">
                   <label class="detail-label">Системное имя:</label>
-                  <input 
-                    v-model="selectedType.code" 
+                  <input
+                    v-model="selectedType.code"
                     class="lk-input"
                     disabled
                     placeholder="Системное имя"
                   >
                 </div>
               </div>
+            </div>
+
+            <!-- Пользователи типа: блокеры удаления (#1379) -->
+            <div class="type-users">
+              <div class="type-users__title">
+                Пользователи типа
+                <span class="count-badge">{{ typeUsers.length }}</span>
+              </div>
+              <div
+                v-if="!selectedType.is_system && typeUsers.length"
+                class="blocking-notice"
+                data-testid="utype-blocking-notice"
+              >
+                <span class="blocking-notice__text">
+                  Пока эти пользователи привязаны к типу, его нельзя удалить.
+                </span>
+                <button
+                  v-if="canReassign"
+                  type="button"
+                  class="lk-button lk-button--secondary blocking-notice__btn"
+                  data-testid="utype-reassign-open"
+                  @click="openReassign"
+                >
+                  Перенести всех в другой тип
+                </button>
+              </div>
+              <div
+                v-if="typeUsersLoading"
+                class="type-users__loading"
+              >
+                Загрузка пользователей...
+              </div>
+              <div
+                v-else-if="typeUsers.length"
+                class="type-users__list"
+              >
+                <div
+                  v-for="u in typeUsers"
+                  :key="u.id"
+                  class="type-user"
+                  :class="{ 'type-user--archived': !u.is_active }"
+                >
+                  <div class="type-user__who">
+                    <b>{{ userFullName(u) }}</b>
+                    <small v-if="u.position">{{ u.position }}</small>
+                  </div>
+                  <span
+                    v-if="!u.is_active"
+                    class="archived-badge"
+                  >архив</span>
+                </div>
+              </div>
+              <p
+                v-else
+                class="type-users__empty"
+              >
+                Нет пользователей этого типа
+              </p>
             </div>
           </div>
         </div>
@@ -323,17 +382,77 @@
       :current-user-name="currentUserName"
       @close="historyForType = null"
     />
+
+    <!-- Перенос всех пользователей в другой тип (#1379) -->
+    <BaseModal
+      :show="reassignVisible"
+      title="Перенести всех пользователей"
+      width="460px"
+      radius="30px"
+      @close="closeReassign"
+    >
+      <div
+        class="reassign-body"
+        data-testid="utype-reassign-modal"
+      >
+        <p class="reassign-intro">
+          Пользователи типа «{{ reassignSourceName }}» ({{ typeUsers.length }})
+          будут перенесены в выбранный тип. После этого исходный тип можно будет удалить.
+        </p>
+        <label class="field-label">Целевой тип</label>
+        <BaseDropdown
+          :model-value="reassignTargetId"
+          :options="reassignTargetOptions"
+          label-key="label"
+          value-key="value"
+          :searchable="true"
+          :teleport="true"
+          placeholder="Выберите тип"
+          data-testid="utype-reassign-target"
+          @update:model-value="reassignTargetId = $event"
+        />
+        <p
+          v-if="!reassignTargetOptions.length"
+          class="reassign-empty"
+        >
+          Нет других типов для переноса.
+        </p>
+      </div>
+      <template #actions>
+        <button
+          type="button"
+          class="lk-button lk-button--ghost"
+          data-testid="utype-reassign-cancel"
+          @click="closeReassign"
+        >
+          Отмена
+        </button>
+        <button
+          type="button"
+          class="lk-button lk-button--primary"
+          :disabled="!reassignTargetId || reassignSubmitting"
+          data-testid="utype-reassign-submit"
+          @click="performReassign"
+        >
+          Перенести
+        </button>
+      </template>
+    </BaseModal>
   </div>
 </template>
 
 <script>
 import { apiRequest } from '@/api/client'
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
+import { getUserTypeBlockingUsers, reassignUserTypeUsers } from '@/api/user-types';
 import RefreshButton from './RefreshButton.vue';
 import SearchComponent from './SearchComponent.vue';
 import ConfirmationModal from './ConfirmationModal.vue';
 import UserTypeHistoryModal from './UserTypeHistoryModal.vue';
+import BaseModal from './ui/BaseModal.vue';
+import BaseDropdown from './ui/BaseDropdown.vue';
 import { useDeletionsStore } from '@/stores/deletions';
+import { usePermissionsStore } from '@/stores/permissions';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import { registerDirtyTracker } from '@/utils/dirtyTracker';
 
@@ -342,7 +461,9 @@ export default {
     SearchComponent,
     RefreshButton,
     ConfirmationModal,
-    UserTypeHistoryModal
+    UserTypeHistoryModal,
+    BaseModal,
+    BaseDropdown
   },
   setup() {
     // Holder: useOverlayClose требует колбэк в setup, а closeModal - метод
@@ -369,10 +490,34 @@ export default {
       nameError: '',
       isLoading: false,
       historyForType: null,
-      currentUserName: ''
+      currentUserName: '',
+      // Блокеры удаления типа (#1379): ВСЕ пользователи типа, вкл. архивных.
+      typeUsers: [],
+      typeUsersLoading: false,
+      typeUsersSeq: 0,
+      reassignVisible: false,
+      reassignTargetId: null,
+      reassignSubmitting: false,
+      reassignSourceName: ''
     };
   },
   computed: {
+    // Гейт кнопки «Перенести» зеркалит BE requireAdmin (page.admin): список
+    // блокеров видит любой, кто открыл экран, а reassign-эндпоинт - только
+    // page.admin, иначе «видно, но 403» (уроки #976/#1083).
+    canReassign() {
+      return usePermissionsStore().hasPermission('page.admin');
+    },
+    // Цели переноса - все типы, кроме источника. Системные НЕ исключаем: перенос
+    // в дефолтный (системный) тип допустим, BE это принимает. Источник-системный
+    // сюда не попадёт: у него блок и кнопка не рисуются (систему не удаляют).
+    reassignTargetOptions() {
+      if (!this.selectedType) return [];
+      const srcId = this.selectedType.id;
+      return this.types
+        .filter(t => t.id !== srcId)
+        .map(t => ({ label: t.name, value: t.id }));
+    },
     emptyText() {
       return this.searchQuery.trim() ? 'Ничего не найдено по запросу' : 'Типов пока нет';
     },
@@ -600,6 +745,76 @@ export default {
     },
     selectType(type) {
       this.selectedType = JSON.parse(JSON.stringify(type));
+      this.loadTypeUsers(type.id);
+    },
+    async loadTypeUsers(typeId) {
+      // seq-guard: быстрое переключение типов не даёт устаревшему ответу затереть
+      // актуальный список блокеров (урок #632).
+      const seq = ++this.typeUsersSeq;
+      this.typeUsersLoading = true;
+      this.typeUsers = [];
+      try {
+        const users = await getUserTypeBlockingUsers(typeId);
+        if (seq === this.typeUsersSeq) this.typeUsers = Array.isArray(users) ? users : [];
+      } catch {
+        if (seq === this.typeUsersSeq) {
+          this.typeUsers = [];
+          useDeletionsStore().notify({ prefix: 'Не удалось загрузить ', bold: 'пользователей типа', type: 'error' });
+        }
+      } finally {
+        if (seq === this.typeUsersSeq) this.typeUsersLoading = false;
+      }
+    },
+    openReassign() {
+      this.reassignTargetId = null;
+      this.reassignSourceName = this.selectedType ? this.selectedType.name : '';
+      this.reassignVisible = true;
+    },
+    closeReassign() {
+      // Пока перенос летит, окно не закрываем: его оверлей блокирует список -
+      // иначе смена типа дала бы гонку loadTypeUsers.
+      if (this.reassignSubmitting) return;
+      this.reassignVisible = false;
+    },
+    async performReassign() {
+      if (!this.reassignTargetId || this.reassignSubmitting || !this.selectedType) return;
+      const source = this.selectedType;
+      const target = this.reassignTargetOptions.find(o => o.value === this.reassignTargetId);
+      this.reassignSubmitting = true;
+      try {
+        const data = await reassignUserTypeUsers(source.id, this.reassignTargetId);
+        const n = data?.reassigned ?? 0;
+        this.reassignVisible = false;
+        // Источник освобождён (все перенесены) - счётчик детали в 0, чтобы шапка не
+        // врала до перечитывания списка.
+        if (this.selectedType && this.selectedType.id === source.id) {
+          this.selectedType.users_count = 0;
+        }
+        useDeletionsStore().notify({
+          prefix: 'Перенесено ',
+          bold: `${n} ${this.usersPlural(n)}`,
+          suffix: ` в «${target ? target.label : ''}»`,
+        });
+        // Перечитываем блокеров источника (пусто -> тип можно удалить) и список
+        // типов (users_count упал у источника, вырос у цели).
+        this.loadTypeUsers(source.id);
+        await this.refreshData();
+      } catch (error) {
+        useDeletionsStore().notify({ prefix: 'Не удалось перенести: ', bold: error.message || 'ошибка', type: 'error' });
+      } finally {
+        this.reassignSubmitting = false;
+      }
+    },
+    usersPlural(n) {
+      const mod10 = n % 10;
+      const mod100 = n % 100;
+      if (mod10 === 1 && mod100 !== 11) return 'пользователь';
+      if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'пользователя';
+      return 'пользователей';
+    },
+    userFullName(u) {
+      const parts = [u.last_name, u.first_name, u.middle_name].filter(Boolean);
+      return parts.join(' ') || u.username || '—';
     },
     sortBy(field) {
       if (this.sortField === field) {
@@ -998,6 +1213,135 @@ export default {
   padding: 40px 20px;
   color: #a2a2a2;
   width: 100%;
+}
+
+/* Блокеры удаления типа: пользователи + перенос (#1379) */
+.type-users {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.type-users__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9em;
+  font-weight: 600;
+  color: #000;
+}
+
+.count-badge {
+  font-size: 0.75em;
+  font-weight: 600;
+  color: #4f5bdf;
+  background: #f0f4ff;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.blocking-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-primary-tint);
+  border-radius: var(--radius-md);
+}
+
+.blocking-notice__text {
+  flex: 1 1 200px;
+  min-width: 0;
+  font-size: 0.82em;
+  color: #5a6472;
+  line-height: 1.45;
+}
+
+.blocking-notice__btn {
+  flex-shrink: 0;
+}
+
+.type-users__loading,
+.type-users__empty {
+  font-size: 0.85em;
+  color: #a2a2a2;
+  margin: 0;
+}
+
+.type-users__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.type-user {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  background: #fff;
+  border: 1px solid #eef0f4;
+  border-radius: var(--radius-md);
+}
+
+.type-user__who {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.type-user__who b {
+  font-size: 0.85em;
+  color: #1a1a1a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.type-user__who small {
+  font-size: 0.75em;
+  color: #a2a2a2;
+}
+
+.type-user--archived {
+  opacity: 0.7;
+}
+
+.archived-badge {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 500;
+  color: #6b7280;
+  background: #f1f2f4;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+/* Модалка переноса блокеров */
+.reassign-intro {
+  margin: 0 0 14px;
+  font-size: 0.9em;
+  color: #5a6472;
+  line-height: 1.5;
+}
+
+.field-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.85em;
+  font-weight: 500;
+  color: #555;
+}
+
+.reassign-empty {
+  margin: 10px 0 0;
+  font-size: 0.85em;
+  color: var(--color-danger);
 }
 
 /* Стили для улучшенного модального окна */
