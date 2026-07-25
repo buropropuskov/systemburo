@@ -182,11 +182,12 @@
                         v-if="canAssign && col.assignKind"
                         type="button"
                         class="chip chip--assign"
-                        :data-hint="`Изменить: ${col.label.toLowerCase()}`"
+                        :class="{ 'chip--assign-empty': !chipItems(row, col).length }"
+                        :data-hint="assignHint(row, col)"
                         data-testid="attachment-assign-open"
                         @click.stop="openAssign(row, col)"
                       >
-                        +
+                        {{ chipItems(row, col).length ? '+' : 'Добавить' }}
                       </button>
                     </div>
                   </template>
@@ -317,7 +318,7 @@ const FONTS = {
     text: '13.5px Montserrat, sans-serif',
     chip: '12.5px Montserrat, sans-serif'
 };
-/** Кнопка «+» с промежутком: столько ширины ячейки чипам недоступно. */
+/** Кнопка назначения с промежутком: столько ширины ячейки чипам недоступно. */
 const ASSIGN_BUTTON_SPACE = 34;
 
 /** Запас, чтобы значение не упиралось вплотную в край колонки. */
@@ -852,6 +853,14 @@ export default {
             return many;
         },
 
+        /** Подсказка кнопки: пустой набор объясняем иначе, чем добавление к существующему. */
+        assignHint(row, col) {
+            const what = col.label.toLowerCase();
+            return this.chipItems(row, col).length
+                ? `Изменить ${what}`
+                : `Назначить ${what}`;
+        },
+
         /** Открывает выбор для одной строки: текущий набор показывается отмеченным. */
         openAssign(row, col) {
             this.assign = {
@@ -1296,7 +1305,7 @@ export default {
 }
 
 .cell-chips .chips {
-    flex: 1 1 auto;
+    flex: 0 1 auto;
 }
 
 .chips {
@@ -1344,6 +1353,12 @@ export default {
 
 .chip--assign:hover {
     background: var(--color-primary-tint);
+}
+
+/* Пустая колонка: вместо «+» пишем словом - иначе непонятно, что кнопка делает */
+.chip--assign-empty {
+    font-weight: 600;
+    padding: 3px 12px;
 }
 
 .chip--empty {

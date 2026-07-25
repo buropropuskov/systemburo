@@ -4,6 +4,7 @@
     :title="title"
     width="560px"
     content-class="application-assign-modal"
+    :z-index="10006"
     @close="$emit('close')"
   >
     <div
@@ -192,19 +193,18 @@ export default {
     async load() {
       this.loading = true;
       try {
-        if (this.kind === 'places') {
-          const res = await apiRequest('/unload-places');
-          if (res.ok) {
-            const data = await res.json();
-            this.allPlaces = Array.isArray(data) ? data : [];
-          }
-        } else {
-          const res = await apiRequest('/system-tables');
-          if (res.ok) {
-            const data = await res.json();
-            this.allTables = Array.isArray(data) ? data : [];
-          }
-        }
+        const path = this.kind === 'places' ? '/unload-places' : '/system-tables';
+        const res = await apiRequest(path);
+        if (!res?.ok) return;
+
+        const data = await res.json();
+        const list = Array.isArray(data) ? data : [];
+        if (this.kind === 'places') this.allPlaces = list;
+        else this.allTables = list;
+      } catch (error) {
+        // Справочник не загрузился - окно покажет «нет доступных», а не упадёт
+        // необработанным промисом.
+        console.error('Не удалось загрузить справочник для назначения:', error);
       } finally {
         this.loading = false;
       }
