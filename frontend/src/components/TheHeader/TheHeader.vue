@@ -37,11 +37,11 @@
     </div>
 
     <div class="header__info">
-      <!-- Текущее время ЧЧ:ММ - только на десктопе (мобильную шапку не грузим). -->
+      <!-- Дата и время - только на десктопе (мобильную шапку не грузим). -->
       <span
         class="header__time"
         data-testid="header-time"
-      >{{ currentTime }}</span>
+      >{{ currentDateTime }}</span>
 
       <!-- Объявление: текстовый pill на всех ширинах, включая мобилку (правка волны 3) -->
       <button
@@ -165,8 +165,9 @@ export default {
       showNotifications: false,
       unreadCount: 0,
       currentHour: new Date().getHours(),
-      // Текущее время ЧЧ:ММ в шапке - только на десктопе (на мобилке шапка тесная).
-      currentTime: '',
+      // Дата и время (ДД.ММ.ГГГГ ЧЧ:ММ:СС) в шапке - только на десктопе, как было
+      // до правки волны 3 (на мобилке шапка тесная).
+      currentDateTime: '',
       // <768: кнопка «Сообщить о проблеме» живёт в бургер-drawer, не в шапке (W3.3).
       isMobileHeader: false,
     };
@@ -296,21 +297,27 @@ export default {
         this.loading = false;
       }
     },
-    // Текущий час нужен приветствию («Доброе утро/день/вечер»), а ЧЧ:ММ - часам
-    // в шапке (только десктоп) - обновляем лёгким минутным таймером.
-    updateHour() {
+    // Дата и время в шапке (ДД.ММ.ГГГГ ЧЧ:ММ:СС, только десктоп) + текущий час для
+    // приветствия («Доброе утро/день/вечер») - секундный таймер, как было до W3.
+    updateDateTime() {
       const now = new Date();
       const h = now.getHours();
       if (h !== this.currentHour) {
         this.currentHour = h;
       }
-      this.currentTime = now.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+      const day = String(now.getDate()).padStart(2, '0');
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const year = now.getFullYear();
+      const hours = String(h).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+      this.currentDateTime = `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
     },
     startDateTimeTimer() {
-      this.updateHour();
+      this.updateDateTime();
       this.timer = setInterval(() => {
-        this.updateHour();
-      }, 30000);
+        this.updateDateTime();
+      }, 1000);
     },
     initIntersectionObserver() {
       this.observer = new IntersectionObserver(
@@ -389,9 +396,11 @@ h3 {
 .user__notifications { order: 4; }
 .appl-btn__container { order: 5; }
 
-/* Часы в шапке (только десктоп): моноширинные цифры, чтобы не дёргалась ширина. */
+/* Дата и время в шапке (только десктоп): min-width как в оригинале, чтобы секунды
+   не дёргали ширину; моноширинные цифры. */
 .header__time {
-  font-size: 15px;
+  min-width: 140px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--color-text, #333);
   font-variant-numeric: tabular-nums;
