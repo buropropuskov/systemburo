@@ -646,6 +646,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	apg.DELETE("/:id/blacklist-overrides", app.DeleteBlacklistOverride) // #481 - отмена подтверждения (срез C)
 	apg.GET("/:id/check-approval-status", app.CheckApprovalStatus)
 	apg.POST("/:id/take-to-work", app.TakeApplicationToWork)
+	// #1393 - принимающий доназначает посты и места элементам заявки
+	apg.PUT("/:id/elements/tables", app.AssignElementTables)
+	apg.PUT("/:id/elements/unload-places", app.AssignCarUnloadPlaces)
 	apg.POST("/:id/revoke-from-work", app.RevokeApplicationFromWork)
 	apg.POST("/:id/restore-to-work", app.RestoreApplicationToWork)
 	apg.POST("/:id/withdraw", app.WithdrawApplication)

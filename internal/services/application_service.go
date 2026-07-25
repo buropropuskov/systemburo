@@ -185,6 +185,11 @@ type ApplicationService interface {
 	// GetAttachmentItems возвращает ТМЦ вложения.
 	GetAttachmentItems(ctx context.Context, attachmentID int) ([]ItemInfo, error)
 
+	// AssignElementTables назначает или снимает посты проезда/прохода у машин и
+	// сотрудников заявки; доступно принимающему, пока заявка не закрыта (#1393).
+	AssignElementTables(ctx context.Context, username string, applicationID int, req AssignElementTablesRequest) error
+	// AssignCarUnloadPlaces назначает или снимает места разгрузки у машин заявки (#1393).
+	AssignCarUnloadPlaces(ctx context.Context, username string, applicationID int, req AssignCarUnloadPlacesRequest) error
 	// UpdateApplicationItemsStatus активирует все машины и сотрудников заявки (status->1) и
 	// пишет историю попадания в таблицу проходной. username - актор истории.
 	UpdateApplicationItemsStatus(ctx context.Context, applicationID int, username string) error
