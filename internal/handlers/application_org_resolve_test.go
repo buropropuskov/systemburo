@@ -238,6 +238,24 @@ func TestApplicationOrgResolve(t *testing.T) {
 				`"organization":"","company_name":"ЗАО \"Чужая\""`)
 			assert.Equal(t, http.StatusForbidden, rec.Code, "чужая компания: %s", rec.Body.String())
 		})
+
+		// Организация в профиле есть не у всех: такая заявка держится на компании, и гейт
+		// не должен мешать - организация просто не указана.
+		t.Run("без организации в профиле заявка идёт по своей компании", func(t *testing.T) {
+			noOrgToken := testutil.RegisterAndLogin(t, e, "orgresolvenoorg", "pass123", 1, 0, td.CompanyID)
+
+			appID := submittedAppID(t, submitWithRefs(t, e, noOrgToken, uaID, "A107AA777",
+				fmt.Sprintf(`"organization":"","company_id":%d`, td.CompanyID)))
+
+			refs := readAppOrgRefs(t, db, appID)
+			assert.Nil(t, refs.OrganizationID)
+			require.NotNil(t, refs.CompanyID)
+			assert.Equal(t, td.CompanyID, *refs.CompanyID)
+
+			rec := submitWithRefs(t, e, noOrgToken, uaID, "A108AA777", fmt.Sprintf(`"organization_id":%d`, td.OrgID))
+			assert.Equal(t, http.StatusForbidden, rec.Code,
+				"без организации в профиле любая организация чужая: %s", rec.Body.String())
+		})
 	})
 
 	// Администратор получает право через allowAll резолвера, отдельный грант ему не нужен.

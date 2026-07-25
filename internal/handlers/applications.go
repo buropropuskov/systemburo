@@ -23,8 +23,9 @@ func NewApplicationHandler(service services.ApplicationService, resolver *servic
 }
 
 // canOverrideOrganization сообщает, вправе ли подающий указать организацию или компанию,
-// отличную от своей (#1437). Резолвер истинен для супер-админа и администратора (allowAll)
-// и для явного гранта роли, группы или личного override; бан и личные deny он учитывает.
+// отличную от своей (#1437). Резолвер истинен для супер-админа (allowAll), администратора
+// (adminAll, включая руководителей: миграция перенесла тип manager на is_admin) и для
+// явного гранта роли, группы или личного override; бан и личные deny он учитывает.
 func (h *ApplicationHandler) canOverrideOrganization(c echo.Context) (bool, error) {
 	set, err := h.resolver.Resolve(c.Request().Context(), GetUserID(c))
 	if err != nil {
