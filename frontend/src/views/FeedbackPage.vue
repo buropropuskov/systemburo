@@ -25,9 +25,9 @@
       </div>
 
       <div class="content-container">
-        <!-- Список обращений -->
-        <div class="list-section">
-          <div class="list-header">
+        <!-- Список обращений (на мобилке rt-* сворачивает строки в карточки) -->
+        <div class="list-section rt-table">
+          <div class="list-header rt-head-row">
             <div
               class="header-col col-id"
               :class="{ 'active-sort': sortKey === 'id' }"
@@ -77,22 +77,30 @@
                 <div
                   v-for="f in filteredFeedbacks"
                   :key="f.id"
-                  class="ticket-row"
+                  class="ticket-row rt-row"
                   data-testid="fb-row"
                   :class="{ unread: !f.is_read, selected: f.id === selectedId }"
                   @click="selectRow(f.id)"
                 >
+                  <!-- col-id без data-label: в карточке это строка-заголовок "· 14"
+                       (dot+id вместе), rt-* её не трогает (правит только [data-label]). -->
                   <div class="cell col-id">
                     <span class="unread-dot" />
                     <span class="id-value">{{ f.id }}</span>
                   </div>
-                  <div class="cell col-author">
+                  <div
+                    class="cell col-author"
+                    data-label="Автор"
+                  >
                     <span
                       class="author"
                       :title="f.user_name"
                     >{{ f.user_name || 'Неизвестный пользователь' }}</span>
                   </div>
-                  <div class="cell col-status">
+                  <div
+                    class="cell col-status"
+                    data-label="Статус"
+                  >
                     <span
                       class="status-badge"
                       :class="f.status === STATUS.RESOLVED ? 'status-resolved' : 'status-open'"
@@ -100,10 +108,16 @@
                       {{ statusLabel(f.status) }}
                     </span>
                   </div>
-                  <div class="cell col-date cell-date">
+                  <div
+                    class="cell col-date cell-date"
+                    data-label="Дата"
+                  >
                     {{ formatShortDate(f.created_at) }}
                   </div>
-                  <div class="cell col-flag">
+                  <div
+                    class="cell col-flag"
+                    data-label="Важное"
+                  >
                     <button
                       class="flag-btn"
                       :class="{ 'is-flagged': f.flagged }"
@@ -823,18 +837,87 @@ onMounted(refresh);
   flex-wrap: wrap;
 }
 
-@media (max-width: 768px) {
+/* Брейкпоинт 767.98 = card-правила responsive-tables.css (на 768 rt-* не включён,
+   был бы гибрид "шапка стек, а список ещё таблица"). */
+@media (max-width: 767.98px) {
+  /* Шапка в столбик: заголовок над строкой "поиск + обновить". В строке (десктоп
+     space-between) заголовок "Обратная связь" переносится и налезает на поиск -
+     стекаем вертикально. */
+  .management-header {
+    flex-direction: column;
+    align-items: stretch;
+    height: auto;
+    gap: 10px;
+    padding: 12px var(--gutter, 16px);
+  }
+
+  .header-controls {
+    width: 100%;
+  }
+
+  /* Поиск занимает всю оставшуюся ширину строки (десктоп фиксирует .search 220px). */
+  .header-controls :deep(.search) {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+  }
+
+  /* Master-detail -> вертикальный стек: список сверху, деталь снизу. */
   .content-container {
     flex-direction: column;
   }
+
   .list-section,
   .detail-section {
     width: 100%;
   }
+
   .list-section {
     border-right: none;
     border-bottom: 1px solid var(--border);
-    max-height: 320px;
+    max-height: 360px;
+  }
+
+  /* Отступ, чтобы карточки не липли к краям скролл-контейнера. */
+  .list-body {
+    padding: 10px;
+  }
+
+  /* Строка -> карточка (rt-* responsive-tables.css красит .rt-row
+     background:var(--surface) !important; unread/selected фон возвращаем с большей
+     специфичностью + !important, иначе подсветка обращений пропадёт).
+     Порядок как на десктопе (см. .ticket-row.unread после .selected выше): при
+     равной специфичности .unread идёт ПОСЛЕ .selected, чтобы жёлтая подсветка
+     непрочитанного держалась и у выбранной строки (на время async autoMarkRead
+     строка бывает одновременно unread+selected). */
+  .list-body .ticket-row.selected {
+    background: var(--accent-tint) !important;
+  }
+
+  .list-body .ticket-row.unread {
+    background: var(--unread-bg) !important;
+  }
+
+  /* Флажок "важное": на тач-экране ховера нет, показываем всегда (иначе строка
+     "Важное" в карточке пустая и кнопка недоступна). */
+  .flag-btn {
+    opacity: 1;
+  }
+
+  /* col-id (без data-label) - строка-заголовок карточки: слева, на всю ширину
+     (десктопные 14% в карточке дают узкий центрированный блок). */
+  .list-body .col-id {
+    width: 100%;
+    justify-content: flex-start;
+    padding-bottom: 4px;
+  }
+
+  /* Длинное ФИО показываем целиком переносом, а не обрезаем: ради этого список и
+     разворачиваем в карточки (в таблице автор жёстко ellipsis). */
+  .list-body .author {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
   }
 }
 </style>
