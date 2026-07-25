@@ -317,9 +317,21 @@ type ApplicationCreateRequest struct {
 
 // CompleteApplicationRequest тело запроса на создание полной заявки с вложениями.
 type CompleteApplicationRequest struct {
-	Message           *string              `json:"message"`
-	Organization      string               `json:"organization"`
-	Company           *string              `json:"company"`
+	Message *string `json:"message"`
+	// Organization и Company - наименования организации и компании в прежнем контракте
+	// подачи. Оставлены рядом с organization_name/company_name (#1437), потому что
+	// бандл, уже загруженный в браузере пользователя, продолжает слать именно их:
+	// читать значение следует через OrganizationTitle и CompanyTitle.
+	Organization string  `json:"organization"`
+	Company      *string `json:"company"`
+	// OrganizationID и OrganizationName - контракт подачи после #1437: id, когда
+	// организация выбрана (своя или из подсказок), наименование - когда введена руками.
+	// Заполнять оба не нужно: при заданном id наименование не смотрится.
+	OrganizationID   *int    `json:"organization_id"`
+	OrganizationName *string `json:"organization_name"`
+	// CompanyID и CompanyName - то же для компании.
+	CompanyID         *int                 `json:"company_id"`
+	CompanyName       *string              `json:"company_name"`
 	ResponsiblePerson string               `json:"responsible_person" validate:"required"`
 	ContactPhone      string               `json:"contact_phone" validate:"required"`
 	DataApproval      bool                 `json:"data_approval"`
@@ -328,6 +340,26 @@ type CompleteApplicationRequest struct {
 	// Readers - получатели-читатели заявки (#884): доступ только на просмотр.
 	// Кладутся в application_viewers (как форвард-флоу), без права согласования.
 	Readers *[]int `json:"readers"`
+}
+
+// OrganizationTitle - введённое наименование организации: поле нового контракта, а при
+// его отсутствии - прежнее organization (#1437).
+func (r CompleteApplicationRequest) OrganizationTitle() string {
+	if r.OrganizationName != nil {
+		return *r.OrganizationName
+	}
+	return r.Organization
+}
+
+// CompanyTitle - введённое наименование компании, см. OrganizationTitle.
+func (r CompleteApplicationRequest) CompanyTitle() string {
+	if r.CompanyName != nil {
+		return *r.CompanyName
+	}
+	if r.Company != nil {
+		return *r.Company
+	}
+	return ""
 }
 
 // AttachmentData данные вложения при создании заявки.
@@ -1603,9 +1635,10 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 	if len(req.Attachments) == 0 {
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "At least one attachment is required")
 	}
-	// Организация и компания взаимозаменяемы: для отправки достаточно одной из двух.
-	if strings.TrimSpace(req.Organization) == "" &&
-		(req.Company == nil || strings.TrimSpace(*req.Company) == "") {
+	// Организация и компания взаимозаменяемы: для отправки достаточно одной из двух -
+	// выбранной по id либо введённой наименованием (#1437).
+	if req.OrganizationID == nil && strings.TrimSpace(req.OrganizationTitle()) == "" &&
+		req.CompanyID == nil && strings.TrimSpace(req.CompanyTitle()) == "" {
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Укажите организацию или компанию")
 	}
 
@@ -1638,20 +1671,22 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 	tx.Raw("SELECT COUNT(*) FROM applications WHERE DATE(sending_datetime AT TIME ZONE 'UTC') = ?", baseTime.Format("2006-01-02")).Scan(&count)
 	applicationNumber := fmt.Sprintf("№ %s/%03d", datePart, count+1)
 
-	// Получаем ID организации по имени
-	var organizationID *int
-	var orgRow struct{ ID int }
-	if err := tx.Raw("SELECT id FROM organizations WHERE name = ?", req.Organization).Scan(&orgRow).Error; err == nil && orgRow.ID != 0 {
-		organizationID = &orgRow.ID
+	// Организация и компания заявки: выбранная по id либо найденная по ключу
+	// дедупликации наименования, а незнакомое наименование заводит запись «на
+	// проверке» (#1437). NULL остаётся только там, где сущность не указана вовсе.
+	organizationID, err := s.resolveOrganizationRef(ctx, tx, user.ID, req.OrganizationID, req.OrganizationTitle())
+	if err != nil {
+		tx.Rollback()
+		return nil, err
 	}
-
-	// Получаем ID компании по имени
-	var companyID *int
-	if req.Company != nil {
-		var compRow struct{ ID int }
-		if err := tx.Raw("SELECT id FROM companies WHERE name = ?", *req.Company).Scan(&compRow).Error; err == nil && compRow.ID != 0 {
-			companyID = &compRow.ID
-		}
+	companyID, err := s.resolveCompanyRef(ctx, tx, user.ID, req.CompanyID, req.CompanyTitle())
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+	if organizationID == nil && companyID == nil {
+		tx.Rollback()
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Укажите организацию или компанию")
 	}
 
 	// Создаём заявку

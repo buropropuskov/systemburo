@@ -291,7 +291,8 @@ func (s *companyService) Create(ctx context.Context, callerUserID int, req Creat
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Компания с таким названием уже существует")
 	}
 
-	company := models.Company{Name: req.Name, Type: req.Type, IsActive: true}
+	// Запись из справочника сразу проверена, см. organizationService.Create (#1437).
+	company := models.Company{Name: req.Name, Type: req.Type, IsActive: true, ModerationStatus: models.ModerationApproved}
 	if err := s.db.WithContext(ctx).Create(&company).Error; err != nil {
 		slog.Error("не удалось создать компанию", "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating company")

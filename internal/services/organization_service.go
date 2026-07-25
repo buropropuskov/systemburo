@@ -251,7 +251,9 @@ func (s *organizationService) Create(ctx context.Context, callerUserID int, req 
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Организация с таким названием уже существует")
 	}
 
-	org := models.Organization{Name: req.Name, Type: req.Type, IsActive: true}
+	// Запись из справочника проверена по определению: модерация (#1437) касается только
+	// наименований, пришедших из формы подачи заявки.
+	org := models.Organization{Name: req.Name, Type: req.Type, IsActive: true, ModerationStatus: models.ModerationApproved}
 	if err := s.db.WithContext(ctx).Create(&org).Error; err != nil {
 		slog.Error("Не удалось создать организацию", "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating organization")
