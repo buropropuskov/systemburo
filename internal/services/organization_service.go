@@ -12,6 +12,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // OrganizationService определяет интерфейс бизнес-логики организаций.
@@ -49,6 +50,12 @@ type OrganizationService interface {
 	// GetMembers возвращает пользователей, привязанных к организации через
 	// users.organization_id (участники), не ответственных из junction-таблицы.
 	GetMembers(ctx context.Context, orgID int) ([]MemberResponse, error)
+
+	// ReassignMembers переносит всех активных участников организации (те, что
+	// блокируют её архивацию) в целевую организацию targetID, освобождая исходную.
+	// Возвращает число перенесённых. callerUserID - актор для аудита смены org у
+	// каждого пользователя (models.UserActionOrgChanged).
+	ReassignMembers(ctx context.Context, callerUserID, id, targetID int) (int, error)
 
 	// UpdateOrganizationUsers обновляет ответственных пользователей организации
 	// (replace-стратегия). callerUserID - актор для аудита «кто был -> кто стал».
@@ -153,6 +160,14 @@ type MemberResponse struct {
 	FirstName  *string `json:"first_name"`
 	MiddleName *string `json:"middle_name"`
 	Position   *string `json:"position"`
+}
+
+// ReassignUsersRequest - тело запроса переноса всех блокирующих участников
+// организации/компании в целевую сущность target_id. Общий DTO для org и company
+// (одинаковая форма). Для типов пользователей (s3) - отдельный запрос с
+// target_type_id, чтобы не путать семантику.
+type ReassignUsersRequest struct {
+	TargetID int `json:"target_id"`
 }
 
 // OrganizationUserResponse — ответственный пользователь организации.
@@ -532,6 +547,69 @@ func (s *organizationService) GetMembers(ctx context.Context, orgID int) ([]Memb
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching organization members")
 	}
 	return members, nil
+}
+
+// ReassignMembers переносит активных участников организации id (набор, блокирующий
+// её архивацию: users.organization_id=id AND is_active) в целевую организацию
+// targetID. Освобождает исходную, чтобы её можно было архивировать. Целевая должна
+// существовать, быть активной и отличаться от исходной. Идемпотентно: если
+// блокеров нет, возвращает 0 без ошибки. Аудит смены org пишется на каждого
+// пользователя (UserActionOrgChanged) в той же транзакции - провал записи
+// откатывает перенос.
+func (s *organizationService) ReassignMembers(ctx context.Context, callerUserID, id, targetID int) (int, error) {
+	var src models.Organization
+	if err := s.db.WithContext(ctx).First(&src, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, echo.NewHTTPError(http.StatusNotFound, "Organization not found")
+		}
+		return 0, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching organization")
+	}
+	if targetID == id {
+		return 0, echo.NewHTTPError(http.StatusBadRequest, "Нельзя перенести пользователей в ту же организацию")
+	}
+
+	var count int
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Целевую проверяем ВНУТРИ транзакции с блокировкой строки (FOR UPDATE):
+		// закрывает окно TOCTOU, когда параллельная архивация target прошла бы между
+		// проверкой активности и переносом - иначе пользователи ушли бы в архивную.
+		var target models.Organization
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&target, targetID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return echo.NewHTTPError(http.StatusBadRequest, "Целевая организация не найдена")
+			}
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error fetching target organization")
+		}
+		if !target.IsActive {
+			return echo.NewHTTPError(http.StatusBadRequest, "Нельзя перенести в архивную организацию")
+		}
+		var ids []int
+		if err := tx.Model(&models.User{}).
+			Where("organization_id = ? AND is_active = ?", id, true).
+			Pluck("id", &ids).Error; err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error fetching users")
+		}
+		if len(ids) == 0 {
+			return nil
+		}
+		if err := tx.Model(&models.User{}).
+			Where("id IN ?", ids).
+			Update("organization_id", targetID).Error; err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error reassigning users")
+		}
+		for _, uid := range ids {
+			u := uid
+			if err := s.recorder.Record(ctx, tx, models.AuditEntityUser, &u, models.UserActionOrgChanged, &callerUserID, map[string]any{"old": id, "new": targetID}); err != nil {
+				return err
+			}
+		}
+		count = len(ids)
+		return nil
+	}); err != nil {
+		return 0, err
+	}
+	slog.Info("участники перенесены между организациями", "from", id, "to", targetID, "count", count)
+	return count, nil
 }
 
 // UpdateOrganizationUsers заменяет ответственных пользователей организации.

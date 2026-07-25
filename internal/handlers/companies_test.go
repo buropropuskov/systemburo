@@ -8,6 +8,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/testutil"
 
+	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -944,4 +945,62 @@ func TestCompanies_BulkAudit(t *testing.T) {
 		require.NotNil(t, from)
 		assert.Equal(t, "Организация", from["type"])
 	})
+}
+
+// createCompany заводит компанию через API и возвращает её ID (helper для reassign-тестов).
+func createCompany(t *testing.T, e *echo.Echo, token, name string) int {
+	t.Helper()
+	rec := testutil.POST(t, e, "/companies", fmt.Sprintf(`{"name":%q,"type":"Отдел"}`, name), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, "create company: %s", rec.Body.String())
+	return int(testutil.ParseMap(t, rec)["id"].(float64))
+}
+
+// TestCompanies_BlockingUsersAndReassign - зеркало org-теста: список блокеров,
+// перенос освобождает исходную, идемпотентность, аудит company_changed.
+func TestCompanies_BlockingUsersAndReassign(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	srcID := createCompany(t, e, token, "Источник-К")
+	tgtID := createCompany(t, e, token, "Цель-К")
+
+	testutil.RegisterUser(t, e, "cblocker1", "pass123", 1, td.OrgID, srcID)
+	testutil.RegisterUser(t, e, "cblocker2", "pass123", 1, td.OrgID, srcID)
+	srcRef := srcID
+	inactive := models.User{Username: "cblockerarchived", Password: "x", CompanyID: &srcRef, TypeID: 1}
+	require.NoError(t, db.Create(&inactive).Error)
+	require.NoError(t, db.Model(&models.User{}).Where("id = ?", inactive.ID).Update("is_active", false).Error)
+
+	blockers := testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/companies/%d/blocking-users", srcID), testutil.AuthHeader(token)))
+	assert.Len(t, blockers, 2, "только активные участники блокируют")
+
+	// Пока есть активные - архивация запрещена.
+	assert.Equal(t, http.StatusBadRequest, testutil.DELETE(t, e, fmt.Sprintf("/companies/%d", srcID), testutil.AuthHeader(token)).Code)
+
+	rec := testutil.POST(t, e, fmt.Sprintf("/companies/%d/reassign-users", srcID), fmt.Sprintf(`{"target_id":%d}`, tgtID), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, float64(2), testutil.ParseMap(t, rec)["reassigned"])
+
+	tgtMembers := testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/companies/%d/members", tgtID), testutil.AuthHeader(token)))
+	assert.Len(t, tgtMembers, 2, "оба перенесены в целевую")
+
+	var auditCount int64
+	require.NoError(t, db.Model(&models.AuditLog{}).
+		Where("entity_type = ? AND action = ?", models.AuditEntityUser, models.UserActionCompanyChanged).
+		Count(&auditCount).Error)
+	assert.EqualValues(t, 2, auditCount, "company_changed аудит на каждого перенесённого")
+
+	// Исходную теперь можно архивировать.
+	assert.Equal(t, http.StatusOK, testutil.DELETE(t, e, fmt.Sprintf("/companies/%d", srcID), testutil.AuthHeader(token)).Code)
+
+	// Валидация: цель=источнику, несуществующая, несуществующий источник, гейт для не-админа.
+	assert.Equal(t, http.StatusBadRequest, testutil.POST(t, e, fmt.Sprintf("/companies/%d/reassign-users", tgtID), fmt.Sprintf(`{"target_id":%d}`, tgtID), testutil.AuthHeader(token)).Code)
+	assert.Equal(t, http.StatusBadRequest, testutil.POST(t, e, fmt.Sprintf("/companies/%d/reassign-users", tgtID), `{"target_id":999999}`, testutil.AuthHeader(token)).Code)
+	assert.Equal(t, http.StatusNotFound, testutil.POST(t, e, "/companies/999999/reassign-users", fmt.Sprintf(`{"target_id":%d}`, tgtID), testutil.AuthHeader(token)).Code)
+	userToken := testutil.RegisterAndLogin(t, e, "cplainuser", "pass123", 1, td.OrgID, td.CompanyID)
+	assert.Equal(t, http.StatusForbidden, testutil.POST(t, e, fmt.Sprintf("/companies/%d/reassign-users", tgtID), fmt.Sprintf(`{"target_id":%d}`, srcID), testutil.AuthHeader(userToken)).Code)
+	assert.Equal(t, http.StatusForbidden, testutil.GET(t, e, fmt.Sprintf("/companies/%d/blocking-users", tgtID), testutil.AuthHeader(userToken)).Code)
 }

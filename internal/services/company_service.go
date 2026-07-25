@@ -12,6 +12,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // CompanyService определяет интерфейс бизнес-логики для работы с компаниями.
@@ -46,6 +47,12 @@ type CompanyService interface {
 	// GetMembers возвращает пользователей, привязанных к компании через
 	// users.company_id (участники), не ответственных из junction-таблицы.
 	GetMembers(ctx context.Context, companyID int) ([]MemberResponse, error)
+
+	// ReassignMembers переносит всех активных участников компании (те, что
+	// блокируют её архивацию) в целевую компанию targetID, освобождая исходную.
+	// Возвращает число перенесённых. callerUserID - актор для аудита смены company
+	// у каждого пользователя (models.UserActionCompanyChanged).
+	ReassignMembers(ctx context.Context, callerUserID, id, targetID int) (int, error)
 
 	// UpdateUsers обновляет ответственных пользователей компании с поддержкой
 	// обязательного согласования. callerUserID - актор для аудита «кто был -> кто стал».
@@ -493,6 +500,69 @@ func (s *companyService) GetMembers(ctx context.Context, companyID int) ([]Membe
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching company members")
 	}
 	return members, nil
+}
+
+// ReassignMembers переносит активных участников компании id (набор, блокирующий её
+// архивацию: users.company_id=id AND is_active) в целевую компанию targetID.
+// Освобождает исходную, чтобы её можно было архивировать. Целевая должна
+// существовать, быть активной и отличаться от исходной. Идемпотентно: если
+// блокеров нет, возвращает 0 без ошибки. Аудит смены company пишется на каждого
+// пользователя (UserActionCompanyChanged) в той же транзакции - провал записи
+// откатывает перенос. Зеркало organizationService.ReassignMembers.
+func (s *companyService) ReassignMembers(ctx context.Context, callerUserID, id, targetID int) (int, error) {
+	var src models.Company
+	if err := s.db.WithContext(ctx).First(&src, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, echo.NewHTTPError(http.StatusNotFound, "Company not found")
+		}
+		return 0, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching company")
+	}
+	if targetID == id {
+		return 0, echo.NewHTTPError(http.StatusBadRequest, "Нельзя перенести пользователей в ту же компанию")
+	}
+
+	var count int
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Целевую проверяем ВНУТРИ транзакции с блокировкой строки (FOR UPDATE):
+		// закрывает окно TOCTOU, когда параллельная архивация target прошла бы между
+		// проверкой активности и переносом - иначе пользователи ушли бы в архивную.
+		var target models.Company
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&target, targetID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return echo.NewHTTPError(http.StatusBadRequest, "Целевая компания не найдена")
+			}
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error fetching target company")
+		}
+		if !target.IsActive {
+			return echo.NewHTTPError(http.StatusBadRequest, "Нельзя перенести в архивную компанию")
+		}
+		var ids []int
+		if err := tx.Model(&models.User{}).
+			Where("company_id = ? AND is_active = ?", id, true).
+			Pluck("id", &ids).Error; err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error fetching users")
+		}
+		if len(ids) == 0 {
+			return nil
+		}
+		if err := tx.Model(&models.User{}).
+			Where("id IN ?", ids).
+			Update("company_id", targetID).Error; err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Error reassigning users")
+		}
+		for _, uid := range ids {
+			u := uid
+			if err := s.recorder.Record(ctx, tx, models.AuditEntityUser, &u, models.UserActionCompanyChanged, &callerUserID, map[string]any{"old": id, "new": targetID}); err != nil {
+				return err
+			}
+		}
+		count = len(ids)
+		return nil
+	}); err != nil {
+		return 0, err
+	}
+	slog.Info("участники перенесены между компаниями", "from", id, "to", targetID, "count", count)
+	return count, nil
 }
 
 // UpdateUsers заменяет ответственных пользователей компании.

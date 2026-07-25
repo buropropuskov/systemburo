@@ -8,6 +8,7 @@ import (
 	"systemburo/internal/models"
 	"systemburo/internal/testutil"
 
+	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -922,4 +923,112 @@ func TestOrganizations_WithUsers_MultipleUsers(t *testing.T) {
 		}
 	}
 	t.Error("Test organization not found")
+}
+
+// createOrg заводит организацию через API и возвращает её ID (helper для reassign-тестов).
+func createOrg(t *testing.T, e *echo.Echo, token, name string) int {
+	t.Helper()
+	rec := testutil.POST(t, e, "/organizations", fmt.Sprintf(`{"name":%q,"type":"Отдел"}`, name), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, "create org: %s", rec.Body.String())
+	return int(testutil.ParseMap(t, rec)["id"].(float64))
+}
+
+// TestOrganizations_BlockingUsersAndReassign проверяет полный флоу: список блокеров,
+// перенос всех в другую организацию освобождает исходную (её можно архивировать),
+// повторный перенос идемпотентен, аудит смены org пишется на каждого.
+func TestOrganizations_BlockingUsersAndReassign(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	srcID := createOrg(t, e, token, "Источник")
+	tgtID := createOrg(t, e, token, "Цель")
+
+	// Два активных участника исходной организации - они блокируют архивацию.
+	testutil.RegisterUser(t, e, "blocker1", "pass123", 1, srcID, td.CompanyID)
+	testutil.RegisterUser(t, e, "blocker2", "pass123", 1, srcID, td.CompanyID)
+	// Неактивный участник: не блокирует и НЕ должен переноситься.
+	srcRef := srcID
+	inactive := models.User{Username: "blockerarchived", Password: "x", OrganizationID: &srcRef, TypeID: 1}
+	require.NoError(t, db.Create(&inactive).Error)
+	require.NoError(t, db.Model(&models.User{}).Where("id = ?", inactive.ID).Update("is_active", false).Error)
+
+	// Список блокеров = только активные участники.
+	blockers := testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/organizations/%d/blocking-users", srcID), testutil.AuthHeader(token)))
+	names := map[string]bool{}
+	for _, b := range blockers {
+		names[b["username"].(string)] = true
+	}
+	assert.True(t, names["blocker1"] && names["blocker2"], "оба активных участника в блокерах")
+	assert.False(t, names["blockerarchived"], "неактивный участник не блокер")
+	assert.Len(t, blockers, 2)
+
+	// Пока есть активные - архивация запрещена.
+	assert.Equal(t, http.StatusBadRequest, testutil.DELETE(t, e, fmt.Sprintf("/organizations/%d", srcID), testutil.AuthHeader(token)).Code)
+
+	// Перенос всех блокеров в целевую.
+	rec := testutil.POST(t, e, fmt.Sprintf("/organizations/%d/reassign-users", srcID), fmt.Sprintf(`{"target_id":%d}`, tgtID), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, float64(2), testutil.ParseMap(t, rec)["reassigned"])
+
+	// Блокеры теперь в целевой, исходная свободна.
+	tgtMembers := testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/organizations/%d/members", tgtID), testutil.AuthHeader(token)))
+	tgtNames := map[string]bool{}
+	for _, m := range tgtMembers {
+		tgtNames[m["username"].(string)] = true
+	}
+	assert.True(t, tgtNames["blocker1"] && tgtNames["blocker2"], "оба перенесены в целевую")
+	assert.Empty(t, testutil.ParseSlice(t, testutil.GET(t, e, fmt.Sprintf("/organizations/%d/blocking-users", srcID), testutil.AuthHeader(token))), "исходная без блокеров")
+
+	// Аудит смены организации записан на каждого перенесённого.
+	var auditCount int64
+	require.NoError(t, db.Model(&models.AuditLog{}).
+		Where("entity_type = ? AND action = ?", models.AuditEntityUser, models.UserActionOrgChanged).
+		Count(&auditCount).Error)
+	assert.EqualValues(t, 2, auditCount, "org_changed аудит на каждого перенесённого")
+
+	// Теперь исходную можно архивировать.
+	assert.Equal(t, http.StatusOK, testutil.DELETE(t, e, fmt.Sprintf("/organizations/%d", srcID), testutil.AuthHeader(token)).Code)
+
+	// Идемпотентность: повторный перенос без блокеров - 200, reassigned:0.
+	again := testutil.POST(t, e, fmt.Sprintf("/organizations/%d/reassign-users", srcID), fmt.Sprintf(`{"target_id":%d}`, tgtID), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, again.Code, again.Body.String())
+	assert.Equal(t, float64(0), testutil.ParseMap(t, again)["reassigned"])
+}
+
+// TestOrganizations_ReassignUsers_Validation проверяет гейт и валидацию цели.
+func TestOrganizations_ReassignUsers_Validation(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	srcID := createOrg(t, e, token, "Источник-В")
+	tgtID := createOrg(t, e, token, "Цель-В")
+	archivedID := createOrg(t, e, token, "Архив-В")
+	require.Equal(t, http.StatusOK, testutil.DELETE(t, e, fmt.Sprintf("/organizations/%d", archivedID), testutil.AuthHeader(token)).Code)
+
+	reassign := func(id int, body string) int {
+		return testutil.POST(t, e, fmt.Sprintf("/organizations/%d/reassign-users", id), body, testutil.AuthHeader(token)).Code
+	}
+
+	// Не указана цель / нулевая цель.
+	assert.Equal(t, http.StatusBadRequest, reassign(srcID, `{}`))
+	assert.Equal(t, http.StatusBadRequest, reassign(srcID, `{"target_id":0}`))
+	// Цель = источнику.
+	assert.Equal(t, http.StatusBadRequest, reassign(srcID, fmt.Sprintf(`{"target_id":%d}`, srcID)))
+	// Несуществующая цель.
+	assert.Equal(t, http.StatusBadRequest, reassign(srcID, `{"target_id":999999}`))
+	// Архивная цель.
+	assert.Equal(t, http.StatusBadRequest, reassign(srcID, fmt.Sprintf(`{"target_id":%d}`, archivedID)))
+	// Несуществующий источник.
+	assert.Equal(t, http.StatusNotFound, reassign(999999, fmt.Sprintf(`{"target_id":%d}`, tgtID)))
+
+	// Обычный пользователь (не админ) не имеет доступа к обоим endpoint-ам.
+	userToken := testutil.RegisterAndLogin(t, e, "plainuser", "pass123", 1, td.OrgID, td.CompanyID)
+	assert.Equal(t, http.StatusForbidden, testutil.GET(t, e, fmt.Sprintf("/organizations/%d/blocking-users", srcID), testutil.AuthHeader(userToken)).Code)
+	assert.Equal(t, http.StatusForbidden, testutil.POST(t, e, fmt.Sprintf("/organizations/%d/reassign-users", srcID), fmt.Sprintf(`{"target_id":%d}`, tgtID), testutil.AuthHeader(userToken)).Code)
 }
