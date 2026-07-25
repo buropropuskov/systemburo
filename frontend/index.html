@@ -1,8 +1,25 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" data-theme="light">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <script>
+      // Тема до первого кадра (#1415): CSS грузится <link>-ом в <head>, поэтому
+      // при выборе тёмной темы браузер успел бы отрисовать светлый фон, пока
+      // подтянется бандл. Список id дублирует frontend/src/utils/theme.js -
+      // дубль закреплён тестом src/utils/__tests__/theme.spec.js.
+      (function () {
+        try {
+          var stored = localStorage.getItem('app-theme');
+          var known = ['light', 'dark', 'corporate-orange', 'business-graphite', 'official-blue', 'dark-orange'];
+          if (known.indexOf(stored) !== -1) {
+            document.documentElement.setAttribute('data-theme', stored);
+          }
+        } catch (e) {
+          // localStorage недоступен - остаётся светлая из атрибута на <html>.
+        }
+      })();
+    </script>
     <link rel="icon" href="/icon.jpg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

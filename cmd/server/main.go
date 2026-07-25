@@ -172,6 +172,7 @@ func main() {
 	notificationServiceEarly := services.NewNotificationService(db, services.WithNotificationRealtimePublisher(eventsHub))
 	userService := services.NewUserService(db, notificationServiceEarly)
 	onboardingService := services.NewOnboardingService(db)
+	themeService := services.NewThemeService(db)
 	unloadPlaceService := services.NewUnloadPlaceService(db)
 	bureauService := services.NewBureauService(db)
 	auditRecorder := services.NewAuditRecorder(db)
@@ -250,6 +251,7 @@ func main() {
 	companyHandler := handlers.NewCompanyHandler(companyService)
 	usersHandler := handlers.NewUsersHandler(userService)
 	onboardingHandler := handlers.NewOnboardingHandler(onboardingService)
+	themeHandler := handlers.NewThemeHandler(themeService)
 	unloadPlaceHandler := handlers.NewUnloadPlaceHandler(unloadPlaceService, cfg.UploadMaxFileSize, cfg.UploadPath)
 	bureauHandler := handlers.NewBureauHandler(bureauService)
 	workModesHandler := handlers.NewWorkModesHandler(workModesService)
@@ -358,6 +360,7 @@ func main() {
 		Statistics:          statisticsHandler,
 		Reminder:            reminderHandler,
 		Onboarding:          onboardingHandler,
+		Theme:               themeHandler,
 		Audit:               auditHandler,
 		AuthEvents:          authEventHandler,
 		Events:              eventsHandler,

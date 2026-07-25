@@ -60,7 +60,8 @@ describe('NavMenu: список таблиц по типам (#1307)', () => {
     expect(groups[0].tables.map((t) => t.display_name)).toEqual(['КПП №4', 'ПОСТ №72 (АВТО)']);
     expect(groups[1].tables.map((t) => t.display_name)).toEqual(['ПОСТ №72']);
 
-    const rendered = wrapper.findAll('.dropdown-below__inner > *').map((el) => el.text());
+    // Скоуп по списку таблиц: в меню есть второй дропдаун (выбор темы, #1415).
+    const rendered = wrapper.findAll('[data-testid="nav-tables-list"] > *').map((el) => el.text());
     expect(rendered).toEqual(['Автомобили', 'КПП №4', 'ПОСТ №72 (АВТО)', 'Люди', 'ПОСТ №72']);
   });
 
@@ -71,7 +72,7 @@ describe('NavMenu: список таблиц по типам (#1307)', () => {
 
     expect(wrapper.vm.groupedTables).toHaveLength(1);
     expect(wrapper.findAll('.dropdown-group-title')).toHaveLength(0);
-    expect(wrapper.findAll('.dropdown-item').map((el) => el.text()))
+    expect(wrapper.findAll('[data-testid="nav-tables-list"] .dropdown-item').map((el) => el.text()))
       .toEqual(['КПП №4', 'ПОСТ №72 (АВТО)']);
   });
 

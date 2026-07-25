@@ -70,8 +70,8 @@ export default {
 .status-badge--gray { background: #f5f5f5; color: #616161; border: 1px solid #e0e0e0; }
 .status-badge--gray .status-badge__dot { background: #9ca3af; }
 
-/* Yellow */
-.status-badge--yellow { background: #fff3e0; color: #ef6c00; border: 1px solid #ffe0b2; }
+/* Yellow. Текст #92400e: прежний #ef6c00 на своей подложке давал 2.81 - ниже нормы AA (#1415). */
+.status-badge--yellow { background: #fff3e0; color: #92400e; border: 1px solid #ffe0b2; }
 .status-badge--yellow .status-badge__dot { background: #f59e0b; }
 
 /* Red */

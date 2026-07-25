@@ -26,6 +26,7 @@ vi.mock('@/stores/permissions', () => ({
   usePermissionsStore: () => ({ banned: false, fetchPermissions, clearPermissions: vi.fn() }),
 }));
 vi.mock('@/stores/onboarding', () => ({ useOnboardingStore: () => ({ reset: vi.fn() }) }));
+vi.mock('@/stores/theme', () => ({ useThemeStore: () => ({ syncFromServer: vi.fn() }) }));
 vi.mock('@/services/eventStream', () => ({
   default: {
     connect: vi.fn(),
