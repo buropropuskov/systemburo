@@ -21,6 +21,10 @@ type OrganizationService interface {
 	// GetAll возвращает список активных организаций (id, name) - для выпадающих списков.
 	GetAll(ctx context.Context) ([]OrganizationInfoResponse, error)
 
+	// Suggest возвращает близкие к query проверенные организации (максимум пять) для
+	// ручного ввода наименования в заявке.
+	Suggest(ctx context.Context, query string) ([]DirectorySuggestion, error)
+
 	// Create создаёт новую организацию. callerUserID - актор для аудита.
 	Create(ctx context.Context, callerUserID int, req CreateOrganizationRequest) (*OrganizationInfoResponse, error)
 
@@ -230,6 +234,11 @@ func (s *organizationService) GetAll(ctx context.Context) ([]OrganizationInfoRes
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching organizations")
 	}
 	return orgs, nil
+}
+
+// Suggest подбирает близкие организации по наименованию, см. suggestDirectory.
+func (s *organizationService) Suggest(ctx context.Context, query string) ([]DirectorySuggestion, error) {
+	return suggestDirectory(ctx, s.db, "organizations", query)
 }
 
 // Create создаёт новую организацию. Тип обязателен и должен быть валидным.

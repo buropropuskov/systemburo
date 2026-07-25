@@ -38,6 +38,27 @@ func (h *CompanyHandler) GetAll(c echo.Context) error {
 	return RespondSuccess(c, companies)
 }
 
+// Suggest godoc
+// @Summary      Подсказки компаний по наименованию
+// @Description  Близкие к запросу проверенные компании (максимум 5) для ручного ввода наименования в заявке. Требует права application.organization.override. Запрос короче трёх символов даёт пустой список.
+// @Tags         companies
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        q query string false "Наименование или его часть; короче трёх символов - пустой список"
+// @Success      200 {array} services.DirectorySuggestion
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /companies/suggest [get]
+func (h *CompanyHandler) Suggest(c echo.Context) error {
+	suggestions, err := h.service.Suggest(c.Request().Context(), c.QueryParam("q"))
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, suggestions)
+}
+
 // GetWithUsers godoc
 // @Summary      Получить компании с количеством пользователей
 // @Description  Возвращает список компаний с количеством привязанных пользователей
