@@ -1049,6 +1049,12 @@ onMounted(async () => {
   .versions-filter__date {
     width: 100%;
   }
+
+  /* «Ещё» (появляется при >100 версий) - интринзик-пилюля: при stretch-группе
+     иначе растянулась бы во всю ширину. */
+  .versions-load-more {
+    align-self: flex-start;
+  }
 }
 
 @media (max-width: 480px) {
