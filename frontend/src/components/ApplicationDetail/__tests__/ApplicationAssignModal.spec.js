@@ -32,6 +32,15 @@ function mountModal(props = {}) {
 describe('ApplicationAssignModal (#1393)', () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it('окно поднято над деталью заявки: с дефолтным слоем оно открывалось за ней', () => {
+    const wrapper = mount(ApplicationAssignModal, {
+      props: { show: true, kind: 'tables', elementType: 'cars' },
+      global: { stubs: { BaseModal: { props: ['zIndex'], template: '<div :data-z="zIndex"><slot /></div>' } } },
+    });
+    // деталь заявки - 10002, карточки из неё - 10003 и 10005
+    expect(Number(wrapper.find('[data-z]').attributes('data-z'))).toBeGreaterThan(10005);
+  });
+
   it('показывает посты только своего типа элемента', async () => {
     apiRequest.mockResolvedValue(okJson(TABLES));
     const wrapper = mountModal();

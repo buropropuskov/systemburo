@@ -4,6 +4,7 @@
     :title="title"
     width="560px"
     content-class="application-assign-modal"
+    :z-index="10006"
     @close="$emit('close')"
   >
     <div

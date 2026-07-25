@@ -162,6 +162,23 @@ describe('ApplicationAttachmentDetail — доназначение мест пр
     });
   });
 
+  it('в пустой колонке кнопка подписана словом, а не значком', () => {
+    const wrapper = mountList({
+      canAssign: true,
+      cars: [car({ id: 1, unload_places: [], target_tables: [] })],
+    });
+    const buttons = wrapper.findAll('[data-testid="attachment-assign-open"]');
+    expect(buttons[0].text()).toBe('Добавить');
+    expect(buttons[0].attributes('data-hint')).toBe('Назначить места разгрузки');
+  });
+
+  it('когда что-то назначено, кнопка компактная и подсказка про изменение', () => {
+    const wrapper = mountList({ canAssign: true });
+    const buttons = wrapper.findAll('[data-testid="attachment-assign-open"]');
+    expect(buttons[0].text()).toBe('+');
+    expect(buttons[0].attributes('data-hint')).toBe('Изменить места разгрузки');
+  });
+
   it('у сотрудников кнопка только в колонке мест прохода', () => {
     const wrapper = mount(ApplicationAttachmentDetail, {
       props: {
