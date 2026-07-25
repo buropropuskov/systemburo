@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Темы оформления - Бюро пропусков</title>
+<style>
+/* ============================================================================
+   МОКАП ТЕМ ОФОРМЛЕНИЯ
+
+   Файл самодостаточен: ни одной внешней ссылки (шрифты системные, иконки -
+   символы). Открывается с диска.
+
+   Устройство совпадает с целевой архитектурой: тема - это набор CSS-переменных
+   на :root[data-theme], компоненты не знают конкретных цветов. Именно так
+   предстоит переписать проект, где сейчас 6725 хардкод-цветов в 284 файлах.
+
+   Переменные разделены на два слоя:
+     1) базовые    - фон, поверхности, текст, границы, акцент;
+     2) смысловые  - непрочитанное, обновление статуса, статусы, теги, тосты.
+   Второй слой обязателен: если перекрасить только акцент, жёлтая подложка
+   непрочитанной заявки на тёмном фоне будет слепить.
+   ========================================================================= */
+
+/* --- 1. Светлая: текущая тема системы ---------------------------------- */
+:root[data-theme="light"] {
+  --accent: #4F5BDF;
+  --accent-hover: #3d49c7;
+  --accent-contrast: #ffffff;
+  --accent-tint: rgba(79, 91, 223, 0.08);
+
+  --bg: #f8f9ff;
+  --surface: #ffffff;
+  --surface-2: #f9f9f9;
+  --text: #333333;
+  --text-muted: #6b7280;   /* 4.83:1 - прежний #999 давал 2.85 и не проходил AA */
+  --border: #e6e6e6;
+  --shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+
+  --success: #28a745;  --success-bg: #e8f5e8;  --success-text: #2e7d32;
+  --danger:  #dc3545;  --danger-bg:  #ffebee;  --danger-text:  #c62828;
+  --warning: #f59e0b;  --warning-bg: #fff3e0;  --warning-text: #ef6c00;
+  --info:    #3b82f6;  --info-bg:    #e3f2fd;  --info-text:    #1565c0;
+
+  --unread-bg: #fff5e0;        /* подложка непрочитанной заявки */
+  --unread-accent: #f59e0b;    /* левая полоса строки */
+  --updated-bg: #f3e8ff;       /* заявка с обновлением статуса */
+  --row-hover: #f5f6ff;
+
+  --tag-chs-bg: #ffebee;       --tag-chs-text: #c62828;
+  --tag-roof-bg: #e3f2fd;      --tag-roof-text: #1565c0;
+  --tag-parking-bg: #e8f5e8;   --tag-parking-text: #2e7d32;
+  --tag-important-bg: #fff3e0; --tag-important-text: #ef6c00;
+
+  --hint-bg: #333333;
+  --hint-text: #ffffff;
+  --skeleton: #e9eaef;
+  --skeleton-shine: #f4f5f9;
+  --overlay: rgba(15, 23, 42, 0.45);
+}
+
+/* --- 2. Тёмная ---------------------------------------------------------- */
+:root[data-theme="dark"] {
+  --accent: #6E79F0;           /* осветлён: #4F5BDF на тёмном не читается */
+  --accent-hover: #838CF5;
+  --accent-contrast: #10121a;
+  --accent-tint: rgba(110, 121, 240, 0.16);
+
+  --bg: #14161c;
+  --surface: #1c1f27;
+  --surface-2: #232733;
+  --text: #e8eaf0;
+  --text-muted: #9aa0ae;
+  --border: #2a2f3a;
+  --shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+
+  --success: #34d399;  --success-bg: #10291f;  --success-text: #6ee7b7;
+  --danger:  #f87171;  --danger-bg:  #2d1618;  --danger-text:  #fca5a5;
+  --warning: #fbbf24;  --warning-bg: #2b2113;  --warning-text: #fcd34d;
+  --info:    #60a5fa;  --info-bg:    #14202f;  --info-text:    #93c5fd;
+
+  --unread-bg: #2b2113;        /* тот же смысл, затемнённая подложка */
+  --unread-accent: #fbbf24;
+  --updated-bg: #241a33;
+  --row-hover: #232733;
+
+  --tag-chs-bg: #2d1618;       --tag-chs-text: #fca5a5;
+  --tag-roof-bg: #14202f;      --tag-roof-text: #93c5fd;
+  --tag-parking-bg: #10291f;   --tag-parking-text: #6ee7b7;
+  --tag-important-bg: #2b2113; --tag-important-text: #fcd34d;
+
+  --hint-bg: #0c0e14;
+  --hint-text: #e8eaf0;
+  --skeleton: #262a35;
+  --skeleton-shine: #313644;
+  --overlay: rgba(0, 0, 0, 0.65);
+}
+
+/* --- 3. Корпоративная оранжевая (по мотивам dreamisland.ru) -------------- */
+:root[data-theme="corporate-orange"] {
+  --accent: #FF4718;           /* фирменный цвет сайта - акценты, полосы, выделения */
+  --accent-strong: #D6330A;    /* заливка под мелкий текст: белый на фирменном даёт 3.41, здесь 4.84 */
+  --accent-hover: #C62D08;
+  --accent-contrast: #ffffff;
+  --accent-tint: rgba(255, 71, 24, 0.09);
+
+  --bg: #F5F6FB;
+  --surface: #ffffff;
+  --surface-2: #F5F6FB;
+  --text: #18232E;
+  --text-muted: #6E7681;   /* 4.59:1 - фирменный #979DA5 дал бы 2.73 */
+  --border: rgba(151, 157, 165, 0.32);
+  --shadow: 0 2px 10px rgba(24, 35, 46, 0.07);
+
+  --success: #1fa971;  --success-bg: #e6f6ef;  --success-text: #12784f;
+  --danger:  #e5342a;  --danger-bg:  #fdeceb;  --danger-text:  #b3221a;
+  --warning: #f59e0b;  --warning-bg: #fff4e3;  --warning-text: #b26a00;
+  --info:    #2a6df4;  --info-bg:    #e9f0fe;  --info-text:    #1b4bb0;
+
+  --unread-bg: #fff1e8;
+  --unread-accent: #FF4718;
+  --updated-bg: #f0ecfb;
+  --row-hover: #fbf7f5;
+
+  --tag-chs-bg: #fdeceb;       --tag-chs-text: #b3221a;
+  --tag-roof-bg: #e9f0fe;      --tag-roof-text: #1b4bb0;
+  --tag-parking-bg: #e6f6ef;   --tag-parking-text: #12784f;
+  --tag-important-bg: #fff1e8; --tag-important-text: #c23a12;
+
+  --hint-bg: #18232E;
+  --hint-text: #ffffff;
+  --skeleton: #eceef5;
+  --skeleton-shine: #f6f7fb;
+  --overlay: rgba(24, 35, 46, 0.45);
+}
+
+/* --- 4. Деловая графитовая: сдержанная, без ярких акцентов --------------- */
+:root[data-theme="business-graphite"] {
+  --accent: #4A5568;
+  --accent-hover: #3a4553;
+  --accent-contrast: #ffffff;
+  --accent-tint: rgba(74, 85, 104, 0.08);
+
+  --bg: #f7f8fa;
+  --surface: #ffffff;
+  --surface-2: #f2f4f7;
+  --text: #1f2430;
+  --text-muted: #6b7280;   /* 4.83:1 */
+  --border: #dfe3e8;
+  --shadow: 0 1px 4px rgba(31, 36, 48, 0.08);
+
+  --success: #2f855a;  --success-bg: #eaf5ef;  --success-text: #276749;
+  --danger:  #9b2c2c;  --danger-bg:  #f7eaea;  --danger-text:  #822727;
+  --warning: #975a16;  --warning-bg: #f8f1e4;  --warning-text: #7b4a12;
+  --info:    #2c5282;  --info-bg:    #eaf0f7;  --info-text:    #2a4365;
+
+  --unread-bg: #f6f0e2;
+  --unread-accent: #975a16;
+  --updated-bg: #eeecf6;
+  --row-hover: #f2f4f7;
+
+  --tag-chs-bg: #f7eaea;       --tag-chs-text: #822727;
+  --tag-roof-bg: #eaf0f7;      --tag-roof-text: #2a4365;
+  --tag-parking-bg: #eaf5ef;   --tag-parking-text: #276749;
+  --tag-important-bg: #f8f1e4; --tag-important-text: #7b4a12;
+
+  --hint-bg: #1f2430;
+  --hint-text: #ffffff;
+  --skeleton: #e8eaee;
+  --skeleton-shine: #f3f4f7;
+  --overlay: rgba(31, 36, 48, 0.45);
+}
+
+/* --- 5. Официальная синяя: гос-стиль ------------------------------------- */
+:root[data-theme="official-blue"] {
+  --accent: #1B4F9C;
+  --accent-hover: #143d7a;
+  --accent-contrast: #ffffff;
+  --accent-tint: rgba(27, 79, 156, 0.08);
+
+  --bg: #f4f7fb;
+  --surface: #ffffff;
+  --surface-2: #eef3f9;
+  --text: #16233a;
+  --text-muted: #667488;   /* 4.53:1 */
+  --border: #d6e0ee;
+  --shadow: 0 1px 4px rgba(22, 35, 58, 0.08);
+
+  --success: #1d7a4c;  --success-bg: #e7f4ed;  --success-text: #14603a;
+  --danger:  #b3261e;  --danger-bg:  #fbeae9;  --danger-text:  #8c1d17;
+  --warning: #a86a00;  --warning-bg: #fdf3e2;  --warning-text: #8a5600;
+  --info:    #1B4F9C;  --info-bg:    #e8effa;  --info-text:    #143d7a;
+
+  --unread-bg: #fdf3e2;
+  --unread-accent: #a86a00;
+  --updated-bg: #ebe9f7;
+  --row-hover: #eef3f9;
+
+  --tag-chs-bg: #fbeae9;       --tag-chs-text: #8c1d17;
+  --tag-roof-bg: #e8effa;      --tag-roof-text: #143d7a;
+  --tag-parking-bg: #e7f4ed;   --tag-parking-text: #14603a;
+  --tag-important-bg: #fdf3e2; --tag-important-text: #8a5600;
+
+  --hint-bg: #16233a;
+  --hint-text: #ffffff;
+  --skeleton: #e5ebf3;
+  --skeleton-shine: #f1f5fa;
+  --overlay: rgba(22, 35, 58, 0.5);
+}
+
+/* --- 6. Тёмная оранжевая: корпоративная ночная --------------------------- */
+:root[data-theme="dark-orange"] {
+  --accent: #FF6A3D;
+  --accent-hover: #ff8460;
+  --accent-contrast: #1a1005;
+  --accent-tint: rgba(255, 106, 61, 0.16);
+
+  --bg: #17120f;
+  --surface: #211a15;
+  --surface-2: #2b221c;
+  --text: #f2e9e4;
+  --text-muted: #a89a90;
+  --border: #3a2c24;
+  --shadow: 0 2px 12px rgba(0, 0, 0, 0.55);
+
+  --success: #4ade80;  --success-bg: #14261a;  --success-text: #86efac;
+  --danger:  #fb7185;  --danger-bg:  #2e1519;  --danger-text:  #fda4af;
+  --warning: #fbbf24;  --warning-bg: #2c2012;  --warning-text: #fcd34d;
+  --info:    #7dd3fc;  --info-bg:    #12242e;  --info-text:    #bae6fd;
+
+  --unread-bg: #2c2012;
+  --unread-accent: #FF6A3D;
+  --updated-bg: #2a1d2e;
+  --row-hover: #2b221c;
+
+  --tag-chs-bg: #2e1519;       --tag-chs-text: #fda4af;
+  --tag-roof-bg: #12242e;      --tag-roof-text: #bae6fd;
+  --tag-parking-bg: #14261a;   --tag-parking-text: #86efac;
+  --tag-important-bg: #2c2012; --tag-important-text: #fcd34d;
+
+  --hint-bg: #0d0906;
+  --hint-text: #f2e9e4;
+  --skeleton: #2b221c;
+  --skeleton-shine: #372c24;
+  --overlay: rgba(0, 0, 0, 0.7);
+}
+
+/* ============================================================================
+   Компоненты. Ни одного цветового литерала - только переменные темы.
+   Скругления и размеры взяты из токенов проекта: инпут 15px, модалка 30px,
+   кнопки pill, карточка 20px.
+   ========================================================================= */
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 0 0 60px;
+  font-family: 'Montserrat', -apple-system, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  transition: background-color .2s ease, color .2s ease;
+}
+
+.wrap { max-width: 1360px; margin: 0 auto; padding: 0 20px; }
+
+/* --- Шапка мокапа с переключателем тем --- */
+.topbar {
+  position: sticky; top: 0; z-index: 50;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 0;
+  margin-bottom: 28px;
+}
+.topbar__inner { max-width: 1360px; margin: 0 auto; padding: 0 20px; display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.topbar__title { font-size: 15px; font-weight: 700; margin: 0; white-space: nowrap; }
+.topbar__title small { display: block; font-weight: 400; font-size: 12px; color: var(--text-muted); }
+.theme-switch { display: flex; gap: 8px; flex-wrap: wrap; }
+.theme-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 7px 14px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--text); font: inherit; font-size: 12px; font-weight: 500;
+  transition: border-color .15s ease, background .15s ease;
+}
+.theme-btn:hover { border-color: var(--accent); }
+.theme-btn[aria-pressed="true"] { background: var(--accent-strong, var(--accent)); color: var(--accent-contrast); border-color: var(--accent-strong, var(--accent)); }
+.theme-btn__dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; border: 1px solid rgba(128,128,128,.35); }
+
+/* --- Секции --- */
+section { margin-bottom: 40px; }
+.section-title { font-size: 18px; font-weight: 700; margin: 0 0 4px; }
+.section-note { font-size: 13px; color: var(--text-muted); margin: 0 0 18px; max-width: 780px; line-height: 1.5; }
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 20px; padding: 22px; box-shadow: var(--shadow);
+}
+.card + .card { margin-top: 16px; }
+.card-title { font-size: 14px; font-weight: 600; margin: 0 0 14px; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.row + .row { margin-top: 14px; }
+.stack { display: flex; flex-direction: column; gap: 14px; }
+.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+
+/* --- Палитра --- */
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.swatch { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.swatch__color { height: 52px; }
+.swatch__meta { padding: 7px 9px; background: var(--surface); }
+.swatch__name { font-size: 11px; font-weight: 600; }
+.swatch__value { font-size: 10px; color: var(--text-muted); font-family: ui-monospace, Menlo, Consolas, monospace; }
+
+/* --- Кнопки проекта (.lk-button) --- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  height: 36px; padding: 0 18px; border-radius: 999px; cursor: pointer;
+  font: inherit; font-size: 13px; font-weight: 500; white-space: nowrap;
+  border: 1px solid transparent; transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+.btn--primary { background: var(--accent-strong, var(--accent)); color: var(--accent-contrast); }
+.btn--primary:hover { background: var(--accent-hover); }
+.btn--secondary { background: var(--surface); color: var(--text); border-color: var(--border); }
+.btn--secondary:hover { border-color: var(--accent); color: var(--accent); }
+.btn--ghost { background: transparent; color: var(--accent); }
+.btn--ghost:hover { background: var(--accent-tint); }
+.btn--danger { background: var(--surface); color: var(--danger); border-color: var(--danger); }
+.btn--danger:hover { background: var(--danger); color: var(--surface); }
+.btn:disabled, .btn[disabled] { opacity: .5; cursor: not-allowed; }
+
+/* --- Поля ввода (radius 15px по эталону) --- */
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 200px; flex: 1 1 200px; }
+.field__label { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+.input, .select {
+  height: 38px; padding: 0 14px; border-radius: 15px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  font: inherit; font-size: 13px; outline: none;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.input:focus, .select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-tint); }
+.input--invalid { border-color: var(--danger); }
+.input:disabled { background: var(--surface-2); color: var(--text-muted); cursor: not-allowed; }
+.select { appearance: none; cursor: pointer; }
+
+/* --- Выпадающее меню с мультивыбором --- */
+.dd { position: relative; min-width: 210px; }
+.dd__button {
+  width: 100%; height: 34px; padding: 0 14px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  font: inherit; font-size: 13px; display: flex; align-items: center; justify-content: space-between; cursor: pointer;
+}
+.dd__menu {
+  margin-top: 6px; border: 1px solid var(--border); border-radius: 20px; overflow: hidden;
+  background: var(--surface); box-shadow: var(--shadow);
+}
+.dd__clear { width: 100%; padding: 8px 15px; border: none; border-bottom: 1px solid var(--border); background: var(--surface); color: var(--accent); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.dd__item { display: flex; align-items: center; gap: 8px; padding: 9px 15px; font-size: 13px; cursor: pointer; }
+.dd__item:hover { background: var(--row-hover); }
+.dd__item--selected { background: var(--accent-tint); color: var(--accent); }
+.dd__check { width: 15px; height: 15px; border-radius: 4px; border: 1px solid var(--border); background: var(--surface); position: relative; flex-shrink: 0; }
+.dd__check--on { background: var(--accent); border-color: var(--accent); }
+.dd__check--on::after { content: ''; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px; border: solid var(--accent-contrast); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+
+/* --- Статусные бейджи (5 вариантов StatusBadge) --- */
+.badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 999px; font-size: 12px; font-weight: 500; border: 1px solid transparent; }
+.badge__dot { width: 7px; height: 7px; border-radius: 50%; }
+.badge--green  { background: var(--success-bg); color: var(--success-text); border-color: var(--success); }
+.badge--green .badge__dot { background: var(--success); }
+.badge--red    { background: var(--danger-bg);  color: var(--danger-text);  border-color: var(--danger); }
+.badge--red .badge__dot { background: var(--danger); }
+.badge--yellow { background: var(--warning-bg); color: var(--warning-text); border-color: var(--warning); }
+.badge--yellow .badge__dot { background: var(--warning); }
+.badge--blue   { background: var(--info-bg);    color: var(--info-text);    border-color: var(--info); }
+.badge--blue .badge__dot { background: var(--info); }
+.badge--gray   { background: var(--surface-2);  color: var(--text-muted);   border-color: var(--border); }
+.badge--gray .badge__dot { background: var(--text-muted); }
+
+/* --- Теги Центра --- */
+.tag { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+.tag--chs { background: var(--tag-chs-bg); color: var(--tag-chs-text); }
+.tag--roof { background: var(--tag-roof-bg); color: var(--tag-roof-text); }
+.tag--parking { background: var(--tag-parking-bg); color: var(--tag-parking-text); }
+.tag--important { background: var(--tag-important-bg); color: var(--tag-important-text); }
+.tag--questions { background: var(--accent-tint); color: var(--accent); }
+.tag--awaiting { background: var(--warning-bg); color: var(--warning-text); }
+
+/* --- Уведомления (notify) --- */
+.toast { display: flex; gap: 10px; align-items: flex-start; padding: 12px 15px; border-radius: 15px; background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--border); box-shadow: var(--shadow); max-width: 340px; }
+.toast--success { border-left-color: var(--success); }
+.toast--error   { border-left-color: var(--danger); }
+.toast--warning { border-left-color: var(--warning); }
+.toast--info    { border-left-color: var(--info); }
+.toast__icon { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; color: var(--surface); flex-shrink: 0; }
+.toast--success .toast__icon { background: var(--success); }
+.toast--error .toast__icon   { background: var(--danger); }
+.toast--warning .toast__icon { background: var(--warning); }
+.toast--info .toast__icon    { background: var(--info); }
+.toast__title { font-size: 13px; font-weight: 600; }
+.toast__text { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+/* --- Модалка (radius 30px) --- */
+.modal-demo { position: relative; border-radius: 20px; overflow: hidden; background: var(--overlay); padding: 26px; }
+.modal {
+  background: var(--surface); border-radius: 30px; border: 1px solid var(--border);
+  box-shadow: var(--shadow); max-width: 440px; margin: 0 auto; overflow: hidden;
+}
+.modal__header { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px; border-bottom: 1px solid var(--border); }
+.modal__title { font-size: 15px; font-weight: 600; }
+.modal__close { border: none; background: transparent; color: var(--text-muted); font-size: 20px; line-height: 1; cursor: pointer; }
+.modal__body { padding: 20px 22px; font-size: 13px; color: var(--text); line-height: 1.55; }
+.modal__actions { display: flex; gap: 10px; justify-content: flex-end; padding: 0 22px 20px; }
+
+/* --- Скелетон и подсказка --- */
+.skeleton { height: 14px; border-radius: 8px; background: linear-gradient(90deg, var(--skeleton) 25%, var(--skeleton-shine) 50%, var(--skeleton) 75%); background-size: 200% 100%; animation: shine 1.4s linear infinite; }
+@keyframes shine { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+.hint-demo { position: relative; display: inline-flex; }
+.hint-bubble { padding: 7px 11px; border-radius: 10px; background: var(--hint-bg); color: var(--hint-text); font-size: 12px; }
+
+/* ============================================================================
+   Экран Центра заявок
+   ========================================================================= */
+.screen { border: 1px solid var(--border); border-radius: 20px; overflow: hidden; background: var(--surface); box-shadow: var(--shadow); }
+.screen__header { padding: 16px 18px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.screen__title { font-size: 16px; font-weight: 700; margin: 0 0 14px; display: flex; align-items: center; gap: 10px; }
+.screen__counter { font-size: 12px; font-weight: 500; color: var(--accent-contrast); background: var(--accent-strong, var(--accent)); border-radius: 999px; padding: 2px 9px; }
+.filters-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.filters-row + .filters-row { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border); }
+.filter-control { flex: 1 1 0; min-width: 150px; max-width: 210px; }
+.chip { height: 32px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; }
+.chip--active { background: var(--accent-strong, var(--accent)); color: var(--accent-contrast); border-color: var(--accent-strong, var(--accent)); }
+.chip--reset { color: var(--danger); border-color: var(--danger); }
+
+.table { width: 100%; }
+.table__head, .table__row { display: grid; grid-template-columns: 150px 1fr 130px 1fr 110px 150px; gap: 12px; align-items: center; padding: 11px 18px; }
+.table__head { background: var(--surface-2); border-bottom: 1px solid var(--border); font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.table__row { border-bottom: 1px solid var(--border); font-size: 13px; }
+.table__row:hover { background: var(--row-hover); }
+.table__row--unread { background: var(--unread-bg); box-shadow: inset 3px 0 0 0 var(--unread-accent); }
+.table__row--updated { background: var(--updated-bg); }
+.table__num { font-weight: 600; }
+.table__muted { color: var(--text-muted); font-size: 12px; }
+.table__tags { display: flex; gap: 5px; flex-wrap: wrap; }
+.screen__footer { padding: 12px 18px; font-size: 12px; color: var(--text-muted); background: var(--surface-2); }
+
+.legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 12px; color: var(--text-muted); margin-top: 12px; }
+.legend__item { display: inline-flex; align-items: center; gap: 7px; }
+.legend__box { width: 26px; height: 14px; border-radius: 5px; border: 1px solid var(--border); }
+
+.contrast-note { font-size: 12px; color: var(--text-muted); margin-top: 10px; }
+.contrast-note b { color: var(--text); }
+
+@media (max-width: 900px) {
+  .table__head { display: none; }
+  .table__row { grid-template-columns: 1fr 1fr; gap: 6px; }
+}
+@media (max-width: 560px) {
+  .wrap { padding: 0 12px; }
+  .card { padding: 16px; border-radius: 16px; }
+  .table__row { grid-template-columns: 1fr; }
+  .topbar__inner { gap: 12px; }
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar__inner">
+    <h1 class="topbar__title">Темы оформления<small>Бюро пропусков - мокап для обсуждения</small></h1>
+    <div class="theme-switch" id="switch"></div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <section>
+    <h2 class="section-title">Палитра текущей темы</h2>
+    <p class="section-note">
+      Тема - это набор CSS-переменных на корне документа; компоненты ниже не знают ни одного
+      конкретного цвета. Сейчас в проекте наоборот: 6725 цветовых литералов в 284 файлах, и
+      переключение тем невозможно, пока они не переедут в переменные.
+    </p>
+    <div class="card">
+      <div class="card-title">Базовые</div>
+      <div class="swatches" id="swatches-base"></div>
+      <div class="card-title" style="margin-top:20px">Смысловые: состояния строк, статусы, теги</div>
+      <div class="swatches" id="swatches-semantic"></div>
+      <p class="contrast-note" id="contrast"></p>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="section-title">Элементы интерфейса</h2>
+    <p class="section-note">
+      Всё, что придётся перекрасить помимо общей палитры. Каждый элемент берёт цвета только из
+      переменных темы - при переключении меняется весь набор, включая смысловые состояния.
+    </p>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Кнопки</div>
+        <div class="row">
+          <button class="btn btn--primary">Подать заявку</button>
+          <button class="btn btn--secondary">Обновить</button>
+          <button class="btn btn--ghost">Подробнее</button>
+          <button class="btn btn--danger">Удалить</button>
+          <button class="btn btn--secondary" disabled>Недоступно</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Поля ввода</div>
+        <div class="row">
+          <div class="field">
+            <span class="field__label">Обычное</span>
+            <input class="input" value="Иванов И. И.">
+          </div>
+          <div class="field">
+            <span class="field__label">С ошибкой</span>
+            <input class="input input--invalid" value="А000АА">
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <span class="field__label">Заблокировано</span>
+            <input class="input" value="Заполняется системой" disabled>
+          </div>
+          <div class="field">
+            <span class="field__label">Выбор</span>
+            <select class="select"><option>Все организации</option></select>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Выпадающее меню с мультивыбором</div>
+        <div class="dd">
+          <div class="dd__button"><span>Организация: 2</span><span>&#9662;</span></div>
+          <div class="dd__menu">
+            <button class="dd__clear">Сбросить выбор (2)</button>
+            <div class="dd__item dd__item--selected"><span class="dd__check dd__check--on"></span>АО Демо-Логистика</div>
+            <div class="dd__item dd__item--selected"><span class="dd__check dd__check--on"></span>ООО Демо-Партнёр</div>
+            <div class="dd__item"><span class="dd__check"></span>ИП Иванов И. И.</div>
+            <div class="dd__item"><span class="dd__check"></span>Бюро пропусков</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Статусы заявки</div>
+        <div class="row">
+          <span class="badge badge--green"><span class="badge__dot"></span>Согласовано</span>
+          <span class="badge badge--yellow"><span class="badge__dot"></span>На согласовании</span>
+          <span class="badge badge--red"><span class="badge__dot"></span>Отказано</span>
+          <span class="badge badge--blue"><span class="badge__dot"></span>В работе</span>
+          <span class="badge badge--gray"><span class="badge__dot"></span>Завершено</span>
+        </div>
+        <div class="card-title" style="margin:18px 0 10px">Теги</div>
+        <div class="row">
+          <span class="tag tag--chs">ЧС</span>
+          <span class="tag tag--roof">Крыша</span>
+          <span class="tag tag--parking">Парковка</span>
+          <span class="tag tag--important">Важный</span>
+          <span class="tag tag--questions">Вопросы</span>
+          <span class="tag tag--awaiting">Ждёт согласования: 3 дн.</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Уведомления</div>
+        <div class="stack">
+          <div class="toast toast--success"><span class="toast__icon">&#10003;</span><div><div class="toast__title">Заявка подана</div><div class="toast__text">№ 20260725/004 отправлена на согласование</div></div></div>
+          <div class="toast toast--error"><span class="toast__icon">!</span><div><div class="toast__title">Недостаточно прав</div><div class="toast__text">Действие доступно принимающему</div></div></div>
+          <div class="toast toast--warning"><span class="toast__icon">!</span><div><div class="toast__title">Место на обслуживании</div><div class="toast__text">Ворота 3 закрыты до 14:00</div></div></div>
+          <div class="toast toast--info"><span class="toast__icon">i</span><div><div class="toast__title">Список обновлён</div><div class="toast__text">Добавлены 2 новые заявки</div></div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Загрузка и подсказка</div>
+        <div class="stack">
+          <div class="skeleton" style="width:70%"></div>
+          <div class="skeleton" style="width:90%"></div>
+          <div class="skeleton" style="width:45%"></div>
+        </div>
+        <div class="row" style="margin-top:16px">
+          <span class="hint-bubble">Машина в чёрном списке</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <div class="card-title">Модальное окно</div>
+      <div class="modal-demo">
+        <div class="modal">
+          <div class="modal__header"><span class="modal__title">Отозвать заявку?</span><button class="modal__close">&times;</button></div>
+          <div class="modal__body">Заявка № 20260725/004 перестанет действовать: охрана не пропустит транспорт и сотрудников по ней.</div>
+          <div class="modal__actions"><button class="btn btn--secondary">Отмена</button><button class="btn btn--danger">Отозвать</button></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="section-title">Экран: Центр заявок</h2>
+    <p class="section-note">
+      Главный экран системы целиком: шапка с фильтрами в два ряда, таблица со смысловой
+      подсветкой строк и футер. Именно здесь видно, почему тему нельзя свести к смене акцента -
+      жёлтая подложка непрочитанной заявки и фиолетовая подложка обновления должны меняться
+      вместе с фоном.
+    </p>
+
+    <div class="screen">
+      <div class="screen__header">
+        <h3 class="screen__title">Центр заявок <span class="screen__counter">38</span></h3>
+        <div class="filters-row">
+          <div class="filter-control"><input class="input" style="width:100%" placeholder="Поиск заявок..."></div>
+          <div class="filter-control"><div class="dd__button"><span>Организация: 2</span><span>&#9662;</span></div></div>
+          <div class="filter-control"><div class="dd__button"><span>Все компании</span><span>&#9662;</span></div></div>
+          <div class="filter-control"><div class="dd__button"><span>Места разгрузки</span><span>&#9662;</span></div></div>
+          <div class="filter-control"><div class="dd__button"><span>Все проходы</span><span>&#9662;</span></div></div>
+          <button class="chip chip--reset">Сбросить фильтры</button>
+        </div>
+        <div class="filters-row">
+          <div class="filter-control"><div class="dd__button"><span>Дата подачи</span><span>&#9662;</span></div></div>
+          <div class="filter-control"><div class="dd__button"><span>Подтверждение: 2</span><span>&#9662;</span></div></div>
+          <div class="filter-control"><div class="dd__button"><span>Все статусы</span><span>&#9662;</span></div></div>
+          <div class="filter-control"><div class="dd__button"><span>Все теги</span><span>&#9662;</span></div></div>
+          <button class="chip">Заявки на сегодня</button>
+          <button class="chip chip--active">Обновления: 3</button>
+        </div>
+      </div>
+
+      <div class="table">
+        <div class="table__head">
+          <div>Подтверждение</div><div>Номер заявки</div><div>Дата и время</div><div>Организация</div><div>Статус</div><div>Теги</div>
+        </div>
+
+        <div class="table__row table__row--unread">
+          <div><span class="badge badge--yellow"><span class="badge__dot"></span>Согласование</span></div>
+          <div class="table__num">№ 20260725/006</div>
+          <div class="table__muted">25.07.2026, 09:14</div>
+          <div>АО Демо-Логистика</div>
+          <div><span class="badge badge--gray"><span class="badge__dot"></span>Непрочитано</span></div>
+          <div class="table__tags"><span class="tag tag--chs">ЧС</span><span class="tag tag--important">Важный</span></div>
+        </div>
+
+        <div class="table__row table__row--updated">
+          <div><span class="badge badge--green"><span class="badge__dot"></span>Согласовано</span></div>
+          <div class="table__num">№ 20260725/005</div>
+          <div class="table__muted">25.07.2026, 08:41</div>
+          <div>ООО Демо-Партнёр</div>
+          <div><span class="badge badge--blue"><span class="badge__dot"></span>В работе</span></div>
+          <div class="table__tags"><span class="tag tag--roof">Крыша</span></div>
+        </div>
+
+        <div class="table__row">
+          <div><span class="badge badge--green"><span class="badge__dot"></span>Согласовано</span></div>
+          <div class="table__num">№ 20260724/012</div>
+          <div class="table__muted">24.07.2026, 17:02</div>
+          <div>ИП Иванов И. И.</div>
+          <div><span class="badge badge--gray"><span class="badge__dot"></span>Завершено</span></div>
+          <div class="table__tags"><span class="tag tag--parking">Парковка</span></div>
+        </div>
+
+        <div class="table__row">
+          <div><span class="badge badge--red"><span class="badge__dot"></span>Не согласовано</span></div>
+          <div class="table__num">№ 20260724/009</div>
+          <div class="table__muted">24.07.2026, 12:35</div>
+          <div>Отдел контроля доступа</div>
+          <div><span class="badge badge--red"><span class="badge__dot"></span>Отказано</span></div>
+          <div class="table__tags"><span class="tag tag--questions">Вопросы</span></div>
+        </div>
+      </div>
+
+      <div class="screen__footer">Показано 4 из 38</div>
+    </div>
+
+    <div class="legend">
+      <span class="legend__item"><span class="legend__box" style="background:var(--unread-bg);box-shadow:inset 3px 0 0 0 var(--unread-accent)"></span>непрочитанная заявка</span>
+      <span class="legend__item"><span class="legend__box" style="background:var(--updated-bg)"></span>обновился статус</span>
+      <span class="legend__item"><span class="legend__box" style="background:var(--row-hover)"></span>наведение курсора</span>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="section-title">Что ещё меняет тема</h2>
+    <p class="section-note">
+      Не попало в мокап, но входит в объём работ и перечислено в issue: таблицы проходной
+      (сетка, кнопки въезда и выезда, увеличенный режим, карточная раскладка на мобилке),
+      графики аналитики, оверлей онбординга, страница входа, PDF-просмотрщик и 65 растровых
+      иконок - CSS их не перекрасит, нужен отдельный подход.
+    </p>
+  </section>
+
+</div>
+
+<script>
+const THEMES = [
+  { id: 'light',             name: 'Светлая',       dot: '#4F5BDF' },
+  { id: 'dark',              name: 'Тёмная',        dot: '#14161c' },
+  { id: 'corporate-orange',  name: 'Корпоративная', dot: '#FF4718' },
+  { id: 'business-graphite', name: 'Деловая',       dot: '#4A5568' },
+  { id: 'official-blue',     name: 'Официальная',   dot: '#1B4F9C' },
+  { id: 'dark-orange',       name: 'Тёмная оранж.', dot: '#FF6A3D' },
+];
+
+const BASE_VARS = ['--accent', '--accent-hover', '--bg', '--surface', '--surface-2', '--text', '--text-muted', '--border'];
+const SEMANTIC_VARS = ['--unread-bg', '--unread-accent', '--updated-bg', '--row-hover', '--success', '--danger', '--warning', '--info', '--tag-chs-bg', '--tag-roof-bg', '--tag-parking-bg', '--hint-bg'];
+
+const root = document.documentElement;
+
+function renderSwitch() {
+  document.getElementById('switch').innerHTML = THEMES.map(t =>
+    `<button class="theme-btn" data-id="${t.id}" aria-pressed="false">
+       <span class="theme-btn__dot" style="background:${t.dot}"></span>${t.name}
+     </button>`).join('');
+  document.querySelectorAll('.theme-btn').forEach(b => b.onclick = () => setTheme(b.dataset.id));
+}
+
+function swatchHTML(name) {
+  const value = getComputedStyle(root).getPropertyValue(name).trim();
+  return `<div class="swatch">
+      <div class="swatch__color" style="background:${value}"></div>
+      <div class="swatch__meta"><div class="swatch__name">${name.replace('--', '')}</div><div class="swatch__value">${value}</div></div>
+    </div>`;
+}
+
+// Контраст по WCAG: тему нельзя принимать на глаз, у текста должно быть >= 4.5:1.
+function luminance(rgb) {
+  const [r, g, b] = rgb.map(v => {
+    const s = v / 255;
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+function parseColor(str) {
+  const probe = document.createElement('div');
+  probe.style.color = str; document.body.appendChild(probe);
+  const m = getComputedStyle(probe).color.match(/\d+/g);
+  probe.remove();
+  return m ? m.slice(0, 3).map(Number) : [0, 0, 0];
+}
+function contrast(a, b) {
+  const l1 = luminance(parseColor(a)), l2 = luminance(parseColor(b));
+  const [hi, lo] = l1 > l2 ? [l1, l2] : [l2, l1];
+  return ((hi + 0.05) / (lo + 0.05)).toFixed(2);
+}
+
+function renderPalette() {
+  document.getElementById('swatches-base').innerHTML = BASE_VARS.map(swatchHTML).join('');
+  document.getElementById('swatches-semantic').innerHTML = SEMANTIC_VARS.map(swatchHTML).join('');
+
+  const cs = getComputedStyle(root);
+  const text = cs.getPropertyValue('--text').trim();
+  const surface = cs.getPropertyValue('--surface').trim();
+  const muted = cs.getPropertyValue('--text-muted').trim();
+  const accent = (cs.getPropertyValue('--accent-strong').trim() || cs.getPropertyValue('--accent').trim());
+  const accentContrast = cs.getPropertyValue('--accent-contrast').trim();
+  document.getElementById('contrast').innerHTML =
+    `Контраст (WCAG AA требует 4.5:1 для текста): текст на поверхности <b>${contrast(text, surface)}:1</b>, ` +
+    `приглушённый текст <b>${contrast(muted, surface)}:1</b>, подпись на кнопке <b>${contrast(accentContrast, accent)}:1</b>.`;
+}
+
+function setTheme(id) {
+  root.setAttribute('data-theme', id);
+  document.querySelectorAll('.theme-btn').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.id === id)));
+  renderPalette();
+}
+
+renderSwitch();
+setTheme('light');
+</script>
+</body>
+</html>
