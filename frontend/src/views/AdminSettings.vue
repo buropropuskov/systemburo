@@ -13,76 +13,29 @@
         aria-label="Разделы настроек"
       >
         <div
+          v-for="section in sections"
+          :key="section.value"
           class="sidebar-item"
-          :class="{ 'sidebar-item--active': activeSection === 'upload' }"
+          :class="{ 'sidebar-item--active': activeSection === section.value }"
           role="button"
           tabindex="0"
-          @click="activeSection = 'upload'"
-          @keydown.enter="activeSection = 'upload'"
+          @click="activeSection = section.value"
+          @keydown.enter="activeSection = section.value"
         >
-          Загрузка файлов
-        </div>
-        <div
-          class="sidebar-item"
-          :class="{ 'sidebar-item--active': activeSection === 'pagination' }"
-          role="button"
-          tabindex="0"
-          @click="activeSection = 'pagination'"
-          @keydown.enter="activeSection = 'pagination'"
-        >
-          Пагинация
-        </div>
-        <div
-          class="sidebar-item"
-          :class="{ 'sidebar-item--active': activeSection === 'notifications' }"
-          role="button"
-          tabindex="0"
-          @click="activeSection = 'notifications'"
-          @keydown.enter="activeSection = 'notifications'"
-        >
-          Уведомления
-        </div>
-        <div
-          class="sidebar-item"
-          :class="{ 'sidebar-item--active': activeSection === 'security' }"
-          role="button"
-          tabindex="0"
-          @click="activeSection = 'security'"
-          @keydown.enter="activeSection = 'security'"
-        >
-          Безопасность
-        </div>
-        <div
-          class="sidebar-item"
-          :class="{ 'sidebar-item--active': activeSection === 'data-processing' }"
-          role="button"
-          tabindex="0"
-          @click="activeSection = 'data-processing'"
-          @keydown.enter="activeSection = 'data-processing'"
-        >
-          Обработка данных
-        </div>
-        <div
-          class="sidebar-item"
-          :class="{ 'sidebar-item--active': activeSection === 'contacts' }"
-          role="button"
-          tabindex="0"
-          @click="activeSection = 'contacts'"
-          @keydown.enter="activeSection = 'contacts'"
-        >
-          Информация Бюро
-        </div>
-        <div
-          class="sidebar-item"
-          :class="{ 'sidebar-item--active': activeSection === 'approvals' }"
-          role="button"
-          tabindex="0"
-          @click="activeSection = 'approvals'"
-          @keydown.enter="activeSection = 'approvals'"
-        >
-          Напоминания
+          {{ section.label }}
         </div>
       </nav>
+
+      <div class="admin-settings__section-select">
+        <BaseDropdown
+          :model-value="activeSection"
+          :options="sections"
+          label-key="label"
+          value-key="value"
+          aria-label="Раздел настроек"
+          @update:model-value="activeSection = $event"
+        />
+      </div>
 
       <div class="admin-settings__content">
         <SkeletonTransition :loading="loading">
@@ -644,6 +597,7 @@ import {
   downloadDataProcessingDoc,
 } from '@/api/dataProcessing';
 import { SkeletonTransition, SkeletonLine, SkeletonBlock } from '@/components/ui';
+import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
 import { useContactsStore } from '@/stores/contacts';
@@ -657,10 +611,20 @@ export default {
     SkeletonLine,
     SkeletonBlock,
     WorkScheduleTab,
+    BaseDropdown,
   },
   data() {
     return {
       activeSection: 'upload',
+      sections: [
+        { value: 'upload', label: 'Загрузка файлов' },
+        { value: 'pagination', label: 'Пагинация' },
+        { value: 'notifications', label: 'Уведомления' },
+        { value: 'security', label: 'Безопасность' },
+        { value: 'data-processing', label: 'Обработка данных' },
+        { value: 'contacts', label: 'Информация Бюро' },
+        { value: 'approvals', label: 'Напоминания' },
+      ],
       loading: false,
       saving: false,
       loadError: null,
@@ -1114,6 +1078,11 @@ export default {
   overflow: hidden;
 }
 
+/* Мобильный селектор раздела вместо тесной полосы табов (#1208). */
+.admin-settings__section-select {
+  display: none;
+}
+
 .sidebar-item {
   padding: 10px 16px;
   font-size: 13px;
@@ -1494,28 +1463,12 @@ export default {
   }
 
   .admin-settings__sidebar {
+    display: none;
+  }
+
+  .admin-settings__section-select {
+    display: block;
     width: 100%;
-    display: flex;
-    border-radius: 50px;
-  }
-
-  .sidebar-item {
-    flex: 1;
-    text-align: center;
-    border-left: none;
-    border-bottom: 3px solid transparent;
-    padding: 8px 12px;
-    font-size: 12px;
-  }
-
-  .sidebar-item--active {
-    border-left-color: transparent;
-    border-bottom-color: #4F5BDF;
-  }
-
-  .sidebar-item + .sidebar-item {
-    border-top: none;
-    border-left: 1px solid #f0f0f0;
   }
 
   .admin-settings__content {
@@ -1545,11 +1498,6 @@ export default {
 @media (max-width: 480px) {
   .admin-settings__content {
     padding: 16px;
-  }
-
-  .sidebar-item {
-    font-size: 11px;
-    padding: 8px 6px;
   }
 }
 </style>
