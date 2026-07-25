@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"systemburo/internal/models"
@@ -522,6 +523,24 @@ func ilikePatternsArgs(cols []string, variants []string) (string, []interface{})
 	return strings.Join(parts, " OR "), args
 }
 
+// parseIDList разбирает comma-список id из query-параметра мультивыбора (#1398).
+// Нечисловые элементы отбрасываются, и параметр целиком из мусора даёт пустой список -
+// такой фильтр не применяется вовсе. Пустой слайс в IN дал бы "ничего не найдено", то
+// есть опечатка в параметре выглядела бы как "заявок нет"; лучше проигнорировать.
+func parseIDList(raw *string) []int {
+	if raw == nil || *raw == "" {
+		return nil
+	}
+	parts := strings.Split(*raw, ",")
+	ids := make([]int, 0, len(parts))
+	for _, p := range parts {
+		if id, err := strconv.Atoi(strings.TrimSpace(p)); err == nil {
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
 // applyApplicationFilters навешивает фильтры из ApplicationFilter. userID нужен для
 // псевдо-фильтра "Непрочитано" (filter.Unread) - предикат по application_reads текущего
 // пользователя; для остальных фильтров он не используется.
@@ -658,6 +677,41 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 	}
 	if filter.CompanyID != nil {
 		query = query.Where("a.company_id = ?", *filter.CompanyID)
+	}
+	if ids := parseIDList(filter.OrganizationIDs); len(ids) > 0 {
+		query = query.Where("a.organization_id IN ?", ids)
+	}
+	if ids := parseIDList(filter.CompanyIDs); len(ids) > 0 {
+		query = query.Where("a.company_id IN ?", ids)
+	}
+	// Места разгрузки (#1398). EXISTS, а не JOIN: джойн размножил бы строку заявки по
+	// числу подходящих вложений.
+	if ids := parseIDList(filter.UnloadPlaceIDs); len(ids) > 0 {
+		query = query.Where(`
+			EXISTS(
+				SELECT 1 FROM attachments att_up
+				JOIN attachment_unload_places aup ON aup.attachment_id = att_up.id
+				WHERE att_up.application_id = a.id AND aup.unload_place_id IN ?
+			)
+		`, ids)
+	}
+	// Таблицы проходной (#1398): машина через car_target_tables ИЛИ сотрудник через
+	// employee_target_tables - привязки живут на элементах вложения, не на заявке.
+	if ids := parseIDList(filter.PassageTableIDs); len(ids) > 0 {
+		query = query.Where(`(
+			EXISTS(
+				SELECT 1 FROM attachments att_ct
+				JOIN cars c_ct ON c_ct.attachment_id = att_ct.id
+				JOIN car_target_tables ctt ON ctt.car_id = c_ct.id
+				WHERE att_ct.application_id = a.id AND ctt.table_id IN ?
+			)
+			OR EXISTS(
+				SELECT 1 FROM attachments att_et
+				JOIN employees e_et ON e_et.attachment_id = att_et.id
+				JOIN employee_target_tables ett ON ett.employee_id = e_et.id
+				WHERE att_et.application_id = a.id AND ett.table_id IN ?
+			)
+		)`, ids, ids)
 	}
 	if filter.SenderUserID != nil {
 		query = query.Where("a.sender_user_id = ?", *filter.SenderUserID)

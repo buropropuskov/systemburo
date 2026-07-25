@@ -127,6 +127,27 @@ describe('ApplicationsCenter — бесшовная подгрузка порц�
     expect(p.confirmation).toBe('Согласовано,Не согласовано');
   });
 
+  it('мультивыбор справочников -> *_ids comma-joined (#1398)', async () => {
+    const p = await paramsFor((vm) => {
+      vm.selectedOrganizationIds = [1, 2];
+      vm.selectedCompanyIds = [5];
+      vm.selectedUnloadPlaceIds = [3, 4];
+      vm.selectedPassageTableIds = [9];
+    });
+    expect(p.organization_ids).toBe('1,2');
+    expect(p.company_ids).toBe('5');
+    expect(p.unload_place_ids).toBe('3,4');
+    expect(p.passage_table_ids).toBe('9');
+  });
+
+  it('пустые справочные фильтры не шлются в запрос (#1398)', async () => {
+    const p = await paramsFor(() => {});
+    expect(p.organization_ids).toBeUndefined();
+    expect(p.company_ids).toBeUndefined();
+    expect(p.unload_place_ids).toBeUndefined();
+    expect(p.passage_table_ids).toBeUndefined();
+  });
+
   it('вторая порция дописывается в конец, не затирая первую', async () => {
     getApplicationsPaginated.mockResolvedValueOnce({
       items: [makeApp(1), makeApp(2)],
@@ -205,15 +226,15 @@ describe('ApplicationsCenter — бесшовная подгрузка порц�
     await flushPromises();
     expect(wrapper.vm.applications).toHaveLength(4);
 
-    // До пагинации toggleConfirmation фильтровал уже загруженный applications клиентски,
-    // без сети. После #1158 applications - лишь порция, поэтому toggle обязан
-    // сбросить и перезапросить с бэка (см. applyFilters), иначе результат ограничится
-    // тем, что уже подгружено, а не полным набором по новому фильтру.
+    // До пагинации смена подтверждения фильтровала уже загруженный applications
+    // клиентски, без сети. После #1158 applications - лишь порция, поэтому смена
+    // фильтра обязана сбросить и перезапросить с бэка (см. applyFilters), иначе
+    // результат ограничится подгруженным, а не полным набором по новому фильтру.
     getApplicationsPaginated.mockResolvedValueOnce({
       items: [makeApp(7)],
       meta: { total: 1, page: 1, per_page: 30 },
     });
-    wrapper.vm.toggleConfirmation('Согласовано');
+    wrapper.vm.setMultiFilter('selectedConfirmations', ['Согласовано']);
     await flushPromises();
 
     expect(getApplicationsPaginated).toHaveBeenCalledTimes(3);
@@ -314,7 +335,7 @@ describe('ApplicationsCenter — бесшовная подгрузка порц�
     // Без тега (клиент не урезает) - "Показано 2 из 2".
     expect(wrapper.find('[data-testid="center-table-footer"]').text()).toContain('Показано 2 из 2');
 
-    wrapper.vm.toggleTag('roof');
+    wrapper.vm.setMultiFilter('selectedTags', ['roof']);
     await flushPromises();
     await wrapper.vm.$nextTick();
 
@@ -373,7 +394,7 @@ describe('ApplicationsCenter — бесшовная подгрузка порц�
     getApplicationsPaginated
       .mockResolvedValueOnce({ items: [makeApp(1, { has_roof_access: true })], meta: { total: 2, page: 1, per_page: 30 } })
       .mockResolvedValueOnce({ items: [makeApp(2)], meta: { total: 2, page: 2, per_page: 30 } });
-    wrapper.vm.toggleTag('roof');
+    wrapper.vm.setMultiFilter('selectedTags', ['roof']);
     await vi.waitFor(() => expect(getApplicationsPaginated).toHaveBeenCalledTimes(3));
     await flushPromises();
 

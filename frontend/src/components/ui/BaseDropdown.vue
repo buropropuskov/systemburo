@@ -12,10 +12,11 @@
     >
       <span
         class="base-dropdown__text"
-        :class="{ 'base-dropdown__text--placeholder': !selectedOption }"
+        :class="{ 'base-dropdown__text--placeholder': isEmptySelection }"
       >
+        <template v-if="multiple">{{ multipleText }}</template>
         <slot
-          v-if="selectedOption"
+          v-else-if="selectedOption"
           name="selected"
           :option="selectedOption"
         >
@@ -64,14 +65,32 @@
               @click.stop
             >
           </div>
+          <button
+            v-if="multiple && selectedValues.length > 0"
+            type="button"
+            class="base-dropdown__clear"
+            data-testid="base-dropdown-clear"
+            @click="clearSelection"
+          >
+            Сбросить выбор
+          </button>
           <div class="base-dropdown__options">
             <div
               v-for="option in filteredOptions"
               :key="option[valueKey]"
               class="base-dropdown__item"
-              :class="{ 'base-dropdown__item--selected': isSelected(option) }"
+              :class="{
+                'base-dropdown__item--selected': isSelected(option),
+                'base-dropdown__item--multi': multiple,
+              }"
               @click="select(option)"
             >
+              <span
+                v-if="multiple"
+                class="base-dropdown__check"
+                :class="{ 'base-dropdown__check--on': isSelected(option) }"
+                aria-hidden="true"
+              />
               <slot
                 name="option"
                 :option="option"
@@ -126,6 +145,19 @@ export default {
       type: Boolean,
       default: false,
     },
+    // Множественный выбор (#1398): modelValue - массив значений, выбор пункта тоглит
+    // его и НЕ закрывает меню. Одиночная ветка (multiple=false) не меняется.
+    multiple: {
+      type: Boolean,
+      default: false,
+    },
+    // Подпись кнопки при нескольких выбранных: "<summaryLabel>: N". По умолчанию
+    // берётся placeholder - отдельный проп нужен, когда placeholder длинный
+    // ("Все организации" -> summaryLabel "Организация").
+    summaryLabel: {
+      type: String,
+      default: '',
+    },
     // Рендерить меню в <Teleport to="body"> с position:fixed - чтобы его не
     // обрезал overflow предка (напр. прокручиваемое тело модалки).
     teleport: {
@@ -152,6 +184,27 @@ export default {
     selectedOption() {
       if (this.modelValue === null || this.modelValue === undefined) return null;
       return this.options.find((opt) => opt[this.valueKey] === this.modelValue) || null;
+    },
+    // Множественный выбор (#1398). modelValue может прийти null/скаляром (родитель ещё
+    // не инициализировал массив) - приводим к массиву, чтобы шаблон не падал.
+    selectedValues() {
+      return Array.isArray(this.modelValue) ? this.modelValue : [];
+    },
+    isEmptySelection() {
+      return this.multiple ? this.selectedValues.length === 0 : !this.selectedOption;
+    },
+    // Пусто - placeholder; один выбранный - его имя (полезнее счётчика "1");
+    // несколько - "<summaryLabel>: N". Значение без своей опции (справочник ещё
+    // грузится) не должно схлопывать подпись в пустоту - показываем счётчик.
+    multipleText() {
+      const count = this.selectedValues.length;
+      if (count === 0) return this.placeholder;
+      const label = this.summaryLabel || this.placeholder;
+      if (count === 1) {
+        const only = this.options.find((opt) => opt[this.valueKey] === this.selectedValues[0]);
+        return only ? String(only[this.labelKey]) : `${label}: 1`;
+      }
+      return `${label}: ${count}`;
     },
     filteredOptions() {
       if (!this.searchable || !this.searchQuery) return this.options;
@@ -194,11 +247,25 @@ export default {
       }
     },
     select(option) {
-      this.$emit('update:modelValue', option[this.valueKey]);
+      const value = option[this.valueKey];
+      if (this.multiple) {
+        // Меню оставляем открытым: смысл мультивыбора - отметить несколько подряд.
+        // Эмитим новый массив, не мутируя проп.
+        const next = this.selectedValues.includes(value)
+          ? this.selectedValues.filter((v) => v !== value)
+          : [...this.selectedValues, value];
+        this.$emit('update:modelValue', next);
+        return;
+      }
+      this.$emit('update:modelValue', value);
       this.isOpen = false;
       this.searchQuery = '';
     },
+    clearSelection() {
+      this.$emit('update:modelValue', []);
+    },
     isSelected(option) {
+      if (this.multiple) return this.selectedValues.includes(option[this.valueKey]);
       return option[this.valueKey] === this.modelValue;
     },
     handleClickOutside(e) {
@@ -409,6 +476,58 @@ export default {
   font-size: 13px;
   color: #a2a2a2;
   text-align: center;
+}
+
+/* Множественный выбор (#1398): чекбокс слева, подпись прижата к нему -
+   space-between одиночного режима развёл бы их по краям пункта. */
+.base-dropdown__item--multi {
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.base-dropdown__check {
+  flex-shrink: 0;
+  width: 15px;
+  height: 15px;
+  border: 1px solid #cfcfcf;
+  border-radius: 4px;
+  background: #fff;
+  position: relative;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.base-dropdown__check--on {
+  background: #4F5BDF;
+  border-color: #4F5BDF;
+}
+
+.base-dropdown__check--on::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.base-dropdown__clear {
+  width: 100%;
+  padding: 8px 15px;
+  border: none;
+  border-bottom: 1px solid #e6e6e6;
+  background: #fff;
+  color: #4F5BDF;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.base-dropdown__clear:hover {
+  background: #f5f5f5;
 }
 
 /* Transition */

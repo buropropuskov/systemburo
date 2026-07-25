@@ -29,13 +29,17 @@ func NewApplicationHandler(service services.ApplicationService, resolver *servic
 // @Accept       json
 // @Produce      json
 // @Security     BearerAuth
-// @Param        search_query    query string false "Поисковый запрос"
-// @Param        organization_id query int    false "ID организации"
-// @Param        company_id      query int    false "ID компании"
-// @Param        confirmation    query string false "Статус согласования"
-// @Param        status          query string false "Статус заявки"
-// @Param        date_from       query string false "Дата от (YYYY-MM-DD)"
-// @Param        date_to         query string false "Дата до (YYYY-MM-DD)"
+// @Param        search_query      query string false "Поисковый запрос"
+// @Param        organization_id   query int    false "ID организации"
+// @Param        company_id        query int    false "ID компании"
+// @Param        organization_ids  query string false "ID организаций через запятую (мультивыбор)"
+// @Param        company_ids       query string false "ID компаний через запятую (мультивыбор)"
+// @Param        unload_place_ids  query string false "ID мест разгрузки через запятую (мультивыбор)"
+// @Param        passage_table_ids query string false "ID таблиц проходной через запятую (мультивыбор)"
+// @Param        confirmation      query string false "Статус согласования"
+// @Param        status            query string false "Статус заявки"
+// @Param        date_from         query string false "Дата от (YYYY-MM-DD)"
+// @Param        date_to           query string false "Дата до (YYYY-MM-DD)"
 // @Success      200 {array}  services.ApplicationWithDetails
 // @Failure      401 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError

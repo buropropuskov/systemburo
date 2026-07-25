@@ -264,8 +264,23 @@ type ApplicationFilter struct {
 	SearchQuery    *string `query:"search_query"`
 	OrganizationID *int    `query:"organization_id"`
 	CompanyID      *int    `query:"company_id"`
-	Confirmation   *string `query:"confirmation"`
-	Status         *string `query:"status"`
+	// OrganizationIDs/CompanyIDs - мультивыбор справочников в Центре (#1398): comma-список
+	// id -> IN. Живут рядом с одиночными OrganizationID/CompanyID, а не вместо них: те
+	// по-прежнему шлёт ЛК (организация пользователя из профиля). Заданные одновременно
+	// комбинируются по AND - каждый сужает выборку независимо.
+	OrganizationIDs *string `query:"organization_ids"`
+	CompanyIDs      *string `query:"company_ids"`
+	// UnloadPlaceIDs - мультивыбор мест разгрузки (#1398): заявка проходит, если место
+	// хотя бы одного её вложения попало в список. Источник - attachment_unload_places
+	// (уровень вложения): для items это единственная привязка, для cars - дедуп-union
+	// мест всех машин вложения (#706).
+	UnloadPlaceIDs *string `query:"unload_place_ids"`
+	// PassageTableIDs - мультивыбор таблиц проходной (#1398, фильтр "Проход"): заявка
+	// проходит, если к таблице привязана хотя бы одна её машина (car_target_tables,
+	// "Проезд") или сотрудник (employee_target_tables, "Места прохода").
+	PassageTableIDs *string `query:"passage_table_ids"`
+	Confirmation    *string `query:"confirmation"`
+	Status          *string `query:"status"`
 	// Unread - псевдо-фильтр "Непрочитано": заявки без записи в application_reads для
 	// текущего пользователя (непрочитанность живёт там, а не в колонке a.status). В UI
 	// комбинируется со статусами по OR. userID для предиката берётся не отсюда, а из

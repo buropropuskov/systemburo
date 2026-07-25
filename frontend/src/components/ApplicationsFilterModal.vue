@@ -9,27 +9,26 @@
     @close="$emit('close')"
   >
     <div class="filter-modal__body">
-      <div class="filter-section">
+      <!-- Справочники мультивыбором (#1398): те же конфиги, что в шапке десктопа,
+           поэтому набор фильтров не расходится между раскладками. -->
+      <div
+        v-for="filter in directoryFilters"
+        :key="filter.field"
+        class="filter-section"
+      >
         <div class="filter-section__header">
-          <span class="filter-label">Организация</span>
+          <span class="filter-label">{{ filter.summaryLabel }}</span>
         </div>
-        <OrganizationFilter
-          :value="selectedOrganizationId"
-          :organizations="organizations"
-          @change="$emit('organization-change', $event)"
-        />
-      </div>
-
-      <div class="filter-section">
-        <div class="filter-section__header">
-          <span class="filter-label">Компания</span>
-        </div>
-        <OrganizationFilter
-          :value="selectedCompanyId"
-          :organizations="companies"
-          all-label="Все компании"
-          placeholder-text="Компания"
-          @change="$emit('company-change', $event)"
+        <BaseDropdown
+          :model-value="filter.values"
+          :options="filter.options"
+          :placeholder="filter.allLabel"
+          :summary-label="filter.summaryLabel"
+          :data-testid="filter.testid"
+          multiple
+          searchable
+          teleport
+          @update:model-value="values => $emit('set-filter', filter.field, values)"
         />
       </div>
 
@@ -75,58 +74,26 @@
         </div>
       </div>
 
-      <div class="filter-section">
+      <div
+        v-for="filter in stateFilters"
+        :key="filter.field"
+        class="filter-section"
+      >
         <div class="filter-section__header">
-          <span class="filter-label">Подтверждение</span>
+          <span class="filter-label">{{ filter.summaryLabel }}</span>
         </div>
-        <div class="status-buttons">
-          <button
-            v-for="confirmation in confirmations"
-            :key="confirmation.value"
-            class="status-btn"
-            :class="{ 'status-btn--active': selectedConfirmations.includes(confirmation.value) }"
-            :data-testid="`center-button-confirmation-${confirmation.value}`"
-            @click="$emit('toggle-confirmation', confirmation.value)"
-          >
-            {{ confirmation.label }}
-          </button>
-        </div>
-      </div>
-
-      <div class="filter-section">
-        <div class="filter-section__header">
-          <span class="filter-label">Статус заявки</span>
-        </div>
-        <div class="status-buttons">
-          <button
-            v-for="status in applicationStatuses"
-            :key="status.value"
-            class="status-btn"
-            :class="{ 'status-btn--active': selectedApplicationStatuses.includes(status.value) }"
-            :data-testid="`center-button-status-${status.value}`"
-            @click="$emit('toggle-status', status.value)"
-          >
-            {{ status.label }}
-          </button>
-        </div>
-      </div>
-
-      <div class="filter-section">
-        <div class="filter-section__header">
-          <span class="filter-label">Теги</span>
-        </div>
-        <div class="status-buttons">
-          <button
-            v-for="tag in tags"
-            :key="tag.value"
-            class="status-btn"
-            :class="{ 'status-btn--active': selectedTags.includes(tag.value) }"
-            :data-testid="`center-button-tag-${tag.value}`"
-            @click="$emit('toggle-tag', tag.value)"
-          >
-            {{ tag.label }}
-          </button>
-        </div>
+        <BaseDropdown
+          :model-value="filter.values"
+          :options="filter.options"
+          :placeholder="filter.allLabel"
+          :summary-label="filter.summaryLabel"
+          label-key="label"
+          value-key="value"
+          :data-testid="filter.testid"
+          multiple
+          teleport
+          @update:model-value="values => $emit('set-filter', filter.field, values)"
+        />
       </div>
 
       <!-- Сортировка: на мобилке шапка-таблицы скрыта (rt-head-row display:none),
@@ -179,7 +146,7 @@
 <script>
 import BaseModal from '@/components/ui/BaseModal.vue';
 import DateFilter from '@/components/DateFilter.vue';
-import OrganizationFilter from '@/components/OrganizationFilter.vue';
+import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 
 /**
  * Вторичные фильтры Центра заявок, вынесенные из шапки в модалку (#1097 W3.6).
@@ -188,27 +155,22 @@ import OrganizationFilter from '@/components/OrganizationFilter.vue';
  */
 export default {
   name: 'ApplicationsFilterModal',
-  components: { BaseModal, DateFilter, OrganizationFilter },
+  components: { BaseModal, DateFilter, BaseDropdown },
   props: {
     show: {
       type: Boolean,
       default: false,
     },
-    organizations: {
+    // Конфиги мультивыборных фильтров приходят готовыми из ApplicationsCenter (#1398):
+    // {field, values, options, allLabel, summaryLabel, testid}. Модалка остаётся dumb view
+    // и не знает, что именно фильтруется - меняется только в одном месте.
+    directoryFilters: {
       type: Array,
       default: () => [],
     },
-    selectedOrganizationId: {
-      type: [Number, String],
-      default: null,
-    },
-    companies: {
+    stateFilters: {
       type: Array,
       default: () => [],
-    },
-    selectedCompanyId: {
-      type: [Number, String],
-      default: null,
     },
     selectedDate: {
       type: Date,
@@ -234,30 +196,6 @@ export default {
       type: Number,
       default: 0,
     },
-    confirmations: {
-      type: Array,
-      default: () => [],
-    },
-    selectedConfirmations: {
-      type: Array,
-      default: () => [],
-    },
-    applicationStatuses: {
-      type: Array,
-      default: () => [],
-    },
-    selectedApplicationStatuses: {
-      type: Array,
-      default: () => [],
-    },
-    tags: {
-      type: Array,
-      default: () => [],
-    },
-    selectedTags: {
-      type: Array,
-      default: () => [],
-    },
     sortField: {
       type: String,
       default: null,
@@ -273,8 +211,7 @@ export default {
   },
   emits: [
     'close',
-    'organization-change',
-    'company-change',
+    'set-filter',
     'update:selected-date',
     'update:date-range-start',
     'update:date-range-end',
@@ -282,9 +219,6 @@ export default {
     'clear-date',
     'toggle-today',
     'toggle-status-updated',
-    'toggle-confirmation',
-    'toggle-status',
-    'toggle-tag',
     'sort-by',
     'reset-sort',
     'reset-filters',

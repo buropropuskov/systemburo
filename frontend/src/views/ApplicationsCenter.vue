@@ -189,6 +189,7 @@
         class="center__filters"
       >
         <div class="filters__main">
+          <!-- Ряд 1 - «кто и куда»: поиск и справочники мультивыбором (#1398). -->
           <div class="filters-row">
             <div class="field search">
               <input
@@ -206,20 +207,37 @@
               >
             </div>
 
-            <OrganizationFilter
-              :value="selectedOrganizationId"
-              :organizations="organizations"
-              @change="handleOrganizationChange"
-            />
+            <div
+              v-for="filter in directoryFilters"
+              :key="filter.field"
+              class="filters-row__control"
+            >
+              <BaseDropdown
+                :model-value="filter.values"
+                :options="filter.options"
+                :placeholder="filter.allLabel"
+                :summary-label="filter.summaryLabel"
+                :label-key="filter.labelKey || 'name'"
+                :data-testid="filter.testid"
+                multiple
+                searchable
+                teleport
+                @update:model-value="ids => setMultiFilter(filter.field, ids)"
+              />
+            </div>
 
-            <OrganizationFilter
-              :value="selectedCompanyId"
-              :organizations="companies"
-              all-label="Все компании"
-              placeholder-text="Компания"
-              @change="handleCompanyChange"
-            />
+            <button
+              class="reset-filters-btn"
+              data-testid="center-button-reset-filters"
+              :disabled="!hasActiveFilters"
+              @click="resetFilters"
+            >
+              Сбросить фильтры
+            </button>
+          </div>
 
+          <!-- Ряд 2 - «когда и в каком состоянии»: дата, состояния заявки, теги. -->
+          <div class="filters-row filters-row--secondary">
             <DateFilter
               ref="dateFilter"
               mode="range"
@@ -233,135 +251,52 @@
               @clear="clearDateRange"
             />
 
+            <div
+              v-for="filter in stateFilters"
+              :key="filter.field"
+              class="filters-row__control"
+            >
+              <BaseDropdown
+                :model-value="filter.values"
+                :options="filter.options"
+                :placeholder="filter.allLabel"
+                :summary-label="filter.summaryLabel"
+                label-key="label"
+                value-key="value"
+                :data-testid="filter.testid"
+                multiple
+                teleport
+                @update:model-value="values => setMultiFilter(filter.field, values)"
+              />
+            </div>
+
             <button
+              class="status-btn"
+              :class="{ 'status-btn--active': activeToday }"
+              data-testid="center-button-today"
+              @click="toggleActiveToday"
+            >
+              Заявки на сегодня
+            </button>
+            <button
+              class="status-btn status-btn--updates"
+              :class="{ 'status-btn--active': statusUpdatedOnly }"
+              data-testid="center-button-updates"
+              @click="toggleStatusUpdated"
+            >
+              Обновления<template v-if="statusUpdateCount > 0">: {{ statusUpdateCount }}</template>
+            </button>
+
+            <!-- Кнопка появляется только при активной сортировке: постоянно висящая
+                 disabled-кнопка занимала 167px и выдавливала ряд на вторую строку
+                 при ширине окна около 1150 (#1398). -->
+            <button
+              v-if="sortField"
               class="reset-sort-btn"
-              :disabled="!sortField"
               @click="resetSort"
             >
               Сбросить сортировку
             </button>
-
-            <button
-              class="reset-filters-btn"
-              data-testid="center-button-reset-filters"
-              :disabled="!hasActiveFilters"
-              @click="resetFilters"
-            >
-              Сбросить фильтры
-            </button>
-          </div>
-
-          <div class="filters-row filters-row--secondary">
-            <div class="filter-section">
-              <div class="filter-section__header">
-                <span class="filter-label">Заявки</span>
-              </div>
-              <div class="status-buttons">
-                <button
-                  class="status-btn"
-                  :class="{ 'status-btn--active': activeToday }"
-                  data-testid="center-button-today"
-                  @click="toggleActiveToday"
-                >
-                  Заявки на сегодня
-                </button>
-                <button
-                  class="status-btn status-btn--updates"
-                  :class="{ 'status-btn--active': statusUpdatedOnly }"
-                  data-testid="center-button-updates"
-                  @click="toggleStatusUpdated"
-                >
-                  Обновления<template v-if="statusUpdateCount > 0">: {{ statusUpdateCount }}</template>
-                </button>
-              </div>
-            </div>
-
-            <div class="filter-section">
-              <div class="filter-section__header">
-                <span class="filter-label">Подтверждение</span>
-              </div>
-              <div class="status-buttons">
-                <button
-                  v-for="confirmation in confirmations"
-                  :key="confirmation.value"
-                  class="status-btn"
-                  :class="{ 'status-btn--active': selectedConfirmations.includes(confirmation.value) }"
-                  :data-testid="`center-button-confirmation-${confirmation.value}`"
-                  @click="toggleConfirmation(confirmation.value)"
-                >
-                  {{ confirmation.label }}
-                </button>
-              </div>
-            </div>
-
-            <div class="filter-section">
-              <div class="filter-section__header">
-                <span class="filter-label">Статус заявки</span>
-              </div>
-              <div class="status-buttons">
-                <button
-                  v-for="status in applicationStatuses"
-                  :key="status.value"
-                  class="status-btn"
-                  :class="{ 'status-btn--active': selectedApplicationStatuses.includes(status.value) }"
-                  :data-testid="`center-button-status-${status.value}`"
-                  @click="toggleApplicationStatus(status.value)"
-                >
-                  {{ status.label }}
-                </button>
-              </div>
-            </div>
-
-            <div class="filter-section">
-              <div class="filter-section__header">
-                <span class="filter-label">Теги</span>
-              </div>
-              <div class="tags-dropdown">
-                <button
-                  class="tags-dropdown__btn"
-                  :class="{ 'tags-dropdown__btn--active': selectedTags.length > 0 }"
-                  @click="tagsDropdownOpen = !tagsDropdownOpen"
-                >
-                  {{ selectedTags.length ? `Выбрано: ${selectedTags.length}` : 'Все теги' }}
-                  <svg
-                    class="tags-dropdown__arrow"
-                    :class="{ 'tags-dropdown__arrow--open': tagsDropdownOpen }"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      d="M6 9L12 15L18 9"
-                      stroke="currentColor"
-                      stroke-width="2.5"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                  </svg>
-                </button>
-                <div
-                  v-if="tagsDropdownOpen"
-                  class="tags-dropdown__backdrop"
-                  @click="tagsDropdownOpen = false"
-                />
-                <transition name="tags-dd">
-                  <div
-                    v-if="tagsDropdownOpen"
-                    class="tags-dropdown__panel"
-                  >
-                    <button
-                      v-for="tag in tags"
-                      :key="tag.value"
-                      class="status-btn tags-dropdown__item"
-                      :class="{ 'status-btn--active': selectedTags.includes(tag.value) }"
-                      @click="toggleTag(tag.value)"
-                    >
-                      {{ tag.label }}
-                    </button>
-                  </div>
-                </transition>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -429,28 +364,19 @@
       v-if="isMobileHeader"
       ref="filterModal"
       :show="showFilterModal"
-      :organizations="organizations"
-      :selected-organization-id="selectedOrganizationId"
-      :companies="companies"
-      :selected-company-id="selectedCompanyId"
+      :directory-filters="directoryFilters"
+      :state-filters="stateFilters"
       :selected-date="selectedDate"
       :date-range-start="dateRangeStart"
       :date-range-end="dateRangeEnd"
       :active-today="activeToday"
       :status-updated-only="statusUpdatedOnly"
       :status-update-count="statusUpdateCount"
-      :confirmations="confirmations"
-      :selected-confirmations="selectedConfirmations"
-      :application-statuses="applicationStatuses"
-      :selected-application-statuses="selectedApplicationStatuses"
-      :tags="tags"
-      :selected-tags="selectedTags"
       :sort-field="sortField"
       :sort-direction="sortDirection"
       :has-active-filters="hasActiveFilters"
       @close="showFilterModal = false"
-      @organization-change="handleOrganizationChange"
-      @company-change="handleCompanyChange"
+      @set-filter="setMultiFilter"
       @update:selected-date="updateSelectedDate"
       @update:date-range-start="updateDateRangeStart"
       @update:date-range-end="updateDateRangeEnd"
@@ -458,9 +384,6 @@
       @clear-date="clearDateRange"
       @toggle-today="toggleActiveToday"
       @toggle-status-updated="toggleStatusUpdated"
-      @toggle-confirmation="toggleConfirmation"
-      @toggle-status="toggleApplicationStatus"
-      @toggle-tag="toggleTag"
       @sort-by="sortBy"
       @reset-sort="resetSort"
       @reset-filters="resetFilters"
@@ -961,7 +884,6 @@ import { useInfiniteList } from '@/composables/useInfiniteList'
 import { getViewportZoom } from '@/utils/viewportScale'
 import { playPreset, SOUND_PRESETS } from '@/utils/notificationSound'
 import { groupApplicationsByPeriod } from '@/utils/applicationPeriod'
-import OrganizationFilter from '@/components/OrganizationFilter.vue';
 import DateFilter from '@/components/DateFilter.vue';
 import RefreshButton from '../components/RefreshButton.vue';
 import ApplicationDetail from '../components/ApplicationDetail/ApplicationDetail.vue';
@@ -985,7 +907,6 @@ const APPLICATIONS_PER_PAGE = 30;
 export default {
     name: 'ApplicationsCenter',
     components: {
-        OrganizationFilter,
         DateFilter,
         RefreshButton,
         ApplicationDetail,
@@ -1040,21 +961,24 @@ export default {
             // поиск раскрывается по иконке. Десктоп - инлайн-фильтры (как до волны 3).
             isMobileHeader: false,
             showMobileSearch: false,
-            tagsDropdownOpen: false,
             soundPresets: SOUND_PRESETS,
             downloadAppId: 0,
             downloadAppInfo: null,
             searchQuery: '',
             searchDebounceTimer: null,
-            selectedOrganizationId: null,
-            selectedOrganizationName: '',
-            selectedCompanyId: null,
-            selectedCompanyName: '',
+            // Справочные фильтры - мультивыбор (#1398): массив выбранных id уезжает
+            // на бэк comma-списком (organization_ids и соседи).
+            selectedOrganizationIds: [],
+            selectedCompanyIds: [],
+            selectedUnloadPlaceIds: [],
+            selectedPassageTableIds: [],
             selectedConfirmations: [],
             selectedApplicationStatuses: [],
             selectedTags: [],
             organizations: [],
             companies: [],
+            unloadPlaces: [],
+            passageTables: [],
             sortField: null,
             sortDirection: 'desc',
             shouldShake: false,
@@ -1124,22 +1048,92 @@ export default {
         canViewArchive() {
             return this.permissionsStore.hasPermission('center.archive');
         },
+
+        // Конфиг мультивыборных фильтров (#1398): описание вместо пяти почти одинаковых
+        // блоков разметки. values держим здесь же - шаблон не лезет в $data по имени.
+        directoryFilters() {
+            return [
+                {
+                    field: 'selectedOrganizationIds',
+                    values: this.selectedOrganizationIds,
+                    options: this.organizations,
+                    allLabel: 'Все организации',
+                    summaryLabel: 'Организация',
+                    testid: 'center-filter-organizations',
+                },
+                {
+                    field: 'selectedCompanyIds',
+                    values: this.selectedCompanyIds,
+                    options: this.companies,
+                    allLabel: 'Все компании',
+                    summaryLabel: 'Компания',
+                    testid: 'center-filter-companies',
+                },
+                {
+                    field: 'selectedUnloadPlaceIds',
+                    values: this.selectedUnloadPlaceIds,
+                    options: this.unloadPlaces,
+                    allLabel: 'Все места разгрузки',
+                    summaryLabel: 'Места разгрузки',
+                    testid: 'center-filter-unload-places',
+                },
+                {
+                    field: 'selectedPassageTableIds',
+                    values: this.selectedPassageTableIds,
+                    options: this.passageTables,
+                    allLabel: 'Все проходы',
+                    summaryLabel: 'Проход',
+                    testid: 'center-filter-passage-tables',
+                },
+            ];
+        },
+
+        stateFilters() {
+            return [
+                {
+                    field: 'selectedConfirmations',
+                    values: this.selectedConfirmations,
+                    options: this.confirmations,
+                    allLabel: 'Всё подтверждение',
+                    summaryLabel: 'Подтверждение',
+                    testid: 'center-filter-confirmations',
+                },
+                {
+                    field: 'selectedApplicationStatuses',
+                    values: this.selectedApplicationStatuses,
+                    options: this.applicationStatuses,
+                    allLabel: 'Все статусы',
+                    summaryLabel: 'Статус',
+                    testid: 'center-filter-statuses',
+                },
+                {
+                    field: 'selectedTags',
+                    values: this.selectedTags,
+                    options: this.tags,
+                    allLabel: 'Все теги',
+                    summaryLabel: 'Теги',
+                    testid: 'center-filter-tags',
+                },
+            ];
+        },
         filteredApplications() {
             let filtered = this.applications;
 
             // Поиск по тексту выполняется на бэке через search_query — здесь не дублируем.
 
-            // Фильтр по организации
-            if (this.selectedOrganizationId) {
+            // Организация и компания - мультивыбор (#1398): клиентский предикат дублирует
+            // серверный, чтобы уже загруженные порции не показывали лишнего до ответа.
+            // Места разгрузки и проходы клиентского дубля НЕ имеют - этих полей в строке
+            // списка нет, их фильтрует только бэк.
+            if (this.selectedOrganizationIds.length > 0) {
                 filtered = filtered.filter(app =>
-                    app.organization_id === this.selectedOrganizationId
+                    this.selectedOrganizationIds.includes(app.organization_id)
                 );
             }
 
-            // Фильтр по компании
-            if (this.selectedCompanyId) {
+            if (this.selectedCompanyIds.length > 0) {
                 filtered = filtered.filter(app =>
-                    app.company_id === this.selectedCompanyId
+                    this.selectedCompanyIds.includes(app.company_id)
                 );
             }
 
@@ -1265,10 +1259,7 @@ export default {
         },
         
         hasActiveFilters() {
-            return !!this.searchQuery.trim() ||
-                   !!this.selectedOrganizationId ||
-                   !!this.selectedCompanyId ||
-                   this.hasModalFilters;
+            return !!this.searchQuery.trim() || this.hasModalFilters;
         },
 
         // Только фильтры ВНУТРИ модалки «Фильтр» - для точки-индикатора на кнопке
@@ -1283,8 +1274,10 @@ export default {
                    !!(this.dateRangeStart && this.dateRangeEnd) ||
                    this.activeToday ||
                    this.statusUpdatedOnly ||
-                   !!this.selectedOrganizationId ||
-                   !!this.selectedCompanyId;
+                   this.selectedOrganizationIds.length > 0 ||
+                   this.selectedCompanyIds.length > 0 ||
+                   this.selectedUnloadPlaceIds.length > 0 ||
+                   this.selectedPassageTableIds.length > 0;
         },
 
         // Известное ограничение (#1158 срез 1): applications - только загруженные
@@ -1359,6 +1352,8 @@ export default {
 
         this.fetchOrganizations();
         this.fetchCompanies();
+        this.fetchUnloadPlaces();
+        this.fetchPassageTables();
         this.fetchApplications().then(() => this.openFromDeepLink());
         this.getCurrentUser();
 
@@ -1559,17 +1554,10 @@ export default {
             return 'Не указана';
         },
         
-        handleOrganizationChange({ id, name }) {
-            this.selectedOrganizationId = id;
-            this.selectedOrganizationName = name;
-            this.applyFilters();
-        },
-
-        // Компания фильтруется зеркально организации: server-параметр в buildApplicationsPage
-        // + клиентский предикат в filteredApplications, applyFilters перезапрашивает список.
-        handleCompanyChange({ id, name }) {
-            this.selectedCompanyId = id;
-            this.selectedCompanyName = name;
+        // Единая точка для всех мультивыборных фильтров (#1398): справочники ряда 1 и
+        // состояния ряда 2 меняются одинаково - записать массив и перезапросить список.
+        setMultiFilter(field, values) {
+            this[field] = Array.isArray(values) ? values : [];
             this.applyFilters();
         },
 
@@ -1612,16 +1600,6 @@ export default {
         },
 
         // Фильтры
-        toggleConfirmation(status) {
-            const index = this.selectedConfirmations.indexOf(status);
-            if (index > -1) {
-                this.selectedConfirmations.splice(index, 1);
-            } else {
-                this.selectedConfirmations.push(status);
-            }
-            this.applyFilters();
-        },
-        
         toggleActiveToday() {
             this.activeToday = !this.activeToday;
             this.isInitialLoad = false;
@@ -1634,33 +1612,13 @@ export default {
             this.fetchApplications();
         },
 
-        toggleApplicationStatus(status) {
-            const index = this.selectedApplicationStatuses.indexOf(status);
-            if (index > -1) {
-                this.selectedApplicationStatuses.splice(index, 1);
-            } else {
-                this.selectedApplicationStatuses.push(status);
-            }
-            this.applyFilters();
-        },
-
-        toggleTag(tag) {
-            const index = this.selectedTags.indexOf(tag);
-            if (index > -1) {
-                this.selectedTags.splice(index, 1);
-            } else {
-                this.selectedTags.push(tag);
-            }
-            this.applyFilters();
-        },
-        
         resetFilters() {
             this.searchQuery = '';
             clearTimeout(this.searchDebounceTimer);
-            this.selectedOrganizationId = null;
-            this.selectedOrganizationName = '';
-            this.selectedCompanyId = null;
-            this.selectedCompanyName = '';
+            this.selectedOrganizationIds = [];
+            this.selectedCompanyIds = [];
+            this.selectedUnloadPlaceIds = [];
+            this.selectedPassageTableIds = [];
             this.selectedConfirmations = [];
             this.selectedApplicationStatuses = [];
             this.selectedTags = [];
@@ -1671,11 +1629,9 @@ export default {
             this.statusUpdatedOnly = false;
 
             this.resetSort();
-            this.tagsDropdownOpen = false;
 
-            // Организация: OrganizationFilter привязан через :value к selectedOrganizationId
-            // (и в шапке десктопа, и в модалке), поэтому обнуление выше уже гасит её отображение
-            // через immediate-watcher компонента - ref.reset() не нужен.
+            // Справочные дропдауны читают выбор из пропа (directoryFilters), поэтому
+            // обнуления массивов выше достаточно - сбрасывать их через ref не нужно.
 
             // DateFilter: сброс date-пропсов в null гасит отображение через его watcher'ы,
             // а clearDateFilter/clearSelection добивают activeQuickDate-подсветку. На десктопе
@@ -1906,8 +1862,10 @@ export default {
                 // судьбу решит явное действие/следующий reset).
                 const hasFilters = !!(
                     this.searchQuery ||
-                    this.selectedOrganizationId ||
-                    this.selectedCompanyId ||
+                    this.selectedOrganizationIds.length ||
+                    this.selectedCompanyIds.length ||
+                    this.selectedUnloadPlaceIds.length ||
+                    this.selectedPassageTableIds.length ||
                     this.selectedConfirmations.length ||
                     this.selectedApplicationStatuses.length ||
                     this.selectedTags.length ||
@@ -1955,11 +1913,19 @@ export default {
             if (this.searchQuery) {
                 params.search_query = this.searchQuery;
             }
-            if (this.selectedOrganizationId) {
-                params.organization_id = this.selectedOrganizationId;
+            // Справочники мультивыбором (#1398): бэк матчит IN по comma-списку id
+            // (organization_ids/company_ids/unload_place_ids/passage_table_ids).
+            if (this.selectedOrganizationIds.length > 0) {
+                params.organization_ids = this.selectedOrganizationIds.join(',');
             }
-            if (this.selectedCompanyId) {
-                params.company_id = this.selectedCompanyId;
+            if (this.selectedCompanyIds.length > 0) {
+                params.company_ids = this.selectedCompanyIds.join(',');
+            }
+            if (this.selectedUnloadPlaceIds.length > 0) {
+                params.unload_place_ids = this.selectedUnloadPlaceIds.join(',');
+            }
+            if (this.selectedPassageTableIds.length > 0) {
+                params.passage_table_ids = this.selectedPassageTableIds.join(',');
             }
             // Мультивыбор чипов = OR: шлём ВСЕ выбранные (бэк матчит IN), а не только
             // первый - иначе при выборе нескольких статусов/подтверждений сервер отдавал
@@ -2141,6 +2107,44 @@ export default {
                 }
             } catch (error) {
                 console.error("Ошибка сети при загрузке компаний:", error);
+            }
+        },
+
+        // Справочники фильтров «Места разгрузки» и «Проход» (#1398). Архивные записи
+        // отсеиваем: фильтровать по выведенному из работы месту смысла нет. У таблиц
+        // проходной подпись - display_name, но он необязательный, поэтому нормализуем
+        // в name (BaseDropdown читает labelKey='name').
+        async fetchUnloadPlaces() {
+            try {
+                const response = await apiRequest("/unload-places", { method: "GET" });
+                if (!response.ok) {
+                    console.error("Ошибка при загрузке мест разгрузки");
+                    return;
+                }
+                const data = await response.json();
+                this.unloadPlaces = (Array.isArray(data) ? data : []).filter(p => p.is_active !== false);
+            } catch (error) {
+                console.error("Ошибка сети при загрузке мест разгрузки:", error);
+            }
+        },
+
+        async fetchPassageTables() {
+            try {
+                const response = await apiRequest("/system-tables", { method: "GET" });
+                if (!response.ok) {
+                    console.error("Ошибка при загрузке таблиц проходной");
+                    return;
+                }
+                const data = await response.json();
+                // Эндпоинт отдаёт SystemTableWithDetails: сама таблица лежит во вложенном
+                // поле table, рядом с ним fields/photos/time_slots. Без разворачивания
+                // подписи пунктов пустые - id и name живут уровнем ниже.
+                this.passageTables = (Array.isArray(data) ? data : [])
+                    .map(row => row.table || row)
+                    .filter(t => t && t.is_active !== false)
+                    .map(t => ({ ...t, name: t.display_name || t.name }));
+            } catch (error) {
+                console.error("Ошибка сети при загрузке таблиц проходной:", error);
             }
         },
 
@@ -2501,37 +2505,26 @@ export default {
 }
 
 .filters-row--secondary {
-    gap: 20px;
+    gap: 10px;
     margin-bottom: 0;
     padding-top: 12px;
     border-top: 1px dashed var(--color-border);
-    align-items: flex-end;
     flex-wrap: wrap;
 }
 
-.filter-section {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    justify-content: flex-end;
+/* Мультивыборные дропдауны делят свободную ширину поровну и ужимаются сами (#1398):
+   с фиксированной шириной ряд из пяти контролов переносился уже на 1280. Минимум
+   держит подпись «Места разгрузки: 2» читаемой, максимум не даёт им растянуться на
+   полряда, когда соседей мало. */
+.filters-row__control {
+    flex: 1 1 0;
+    min-width: 150px;
+    max-width: 210px;
 }
 
-.filter-section__header {
-    display: flex;
-    align-items: center;
-}
-
-.filter-label {
-    font-size: 12px;
-    color: #666;
-    font-weight: 500;
-    white-space: nowrap;
-}
-
-.status-buttons {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
+.filters-row--secondary .filters-row__control {
+    min-width: 140px;
+    max-width: 190px;
 }
 
 .status-btn,
@@ -2589,68 +2582,6 @@ export default {
 }
 
 /* Дропдаун тегов (десктоп) */
-.tags-dropdown {
-    position: relative;
-}
-.tags-dropdown__btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 12px;
-    border: 1px solid #e0e0e0;
-    border-radius: 12px;
-    background: #fff;
-    cursor: pointer;
-    font-size: 13px;
-    white-space: nowrap;
-}
-.tags-dropdown__btn--active {
-    border-color: var(--color-primary, #4F5BDF);
-    color: var(--color-primary, #4F5BDF);
-}
-.tags-dropdown__arrow {
-    width: 9px;
-    height: 9px;
-    flex-shrink: 0;
-    color: #555;
-    transition: transform 0.2s;
-}
-.tags-dropdown__arrow--open {
-    transform: rotate(180deg);
-}
-.tags-dropdown__backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 40;
-}
-.tags-dd-enter-active {
-    transition: opacity 0.2s ease, transform 0.2s ease;
-}
-.tags-dd-leave-active {
-    transition: opacity 0.15s ease, transform 0.15s ease;
-}
-.tags-dd-enter-from,
-.tags-dd-leave-to {
-    opacity: 0;
-    transform: translateY(-4px);
-}
-.tags-dropdown__panel {
-    transform-origin: top left;
-    position: absolute;
-    top: calc(100% + 6px);
-    left: 0;
-    z-index: 50;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    min-width: 170px;
-    padding: 10px;
-    background: #fff;
-    border: 1px solid #e0e0e0;
-    border-radius: 12px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-}
-
 /* Кнопка «Фильтр» (мобилка) открывает модалку вторичных фильтров. Точка-индикатор -
    когда есть активные фильтры. Pill-стиль под высоту переключателя. */
 .filter-btn {
