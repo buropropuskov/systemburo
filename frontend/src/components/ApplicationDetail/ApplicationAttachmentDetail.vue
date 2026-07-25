@@ -240,15 +240,35 @@
 
           <div class="el-foot">
             <span data-testid="attachment-elements-total">{{ totalText }}</span>
-            <Badge
-              v-if="flaggedCount"
-              variant="danger"
-              size="sm"
-              dot
-              data-testid="attachment-flagged-summary"
-            >
-              {{ flaggedCount }} похоже на ЧС
-            </Badge>
+
+            <div class="el-foot__right">
+              <Badge
+                v-if="flaggedCount"
+                variant="danger"
+                size="sm"
+                dot
+                data-testid="attachment-flagged-summary"
+              >
+                {{ flaggedCount }} похоже на ЧС
+              </Badge>
+
+              <div
+                v-if="canAssign && bulkColumns.length"
+                class="el-foot__bulk"
+              >
+                <span class="el-foot__bulk-label">Назначить всем:</span>
+                <button
+                  v-for="col in bulkColumns"
+                  :key="col.key"
+                  type="button"
+                  class="lk-button lk-button--ghost el-foot__bulk-btn"
+                  :data-testid="`attachment-assign-all-${col.assignKind}`"
+                  @click="openAssignAll(col)"
+                >
+                  {{ col.label.toLowerCase() }}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -515,6 +535,15 @@ export default {
             return this.allColumns
                 .filter(col => !col.wideOnly)
                 .map(col => (col.compactLabel ? { ...col, label: col.compactLabel } : col));
+        },
+
+        /**
+         * Колонки, по которым можно назначить всем сразу. Берём из полного набора,
+         * а не из видимых: в узком режиме часть колонок схлопнута, но назначать
+         * по ним всё равно нужно.
+         */
+        bulkColumns() {
+            return this.allColumns.filter(col => col.assignKind);
         },
 
         /** ТМЦ не несут флага ЧС и не открывают карточку - колонка действий им не нужна. */
@@ -830,6 +859,27 @@ export default {
                 kind: col.assignKind,
                 elementIds: [row.id],
                 currentIds: this.chipItems(row, col).map(item => item.id),
+                submitting: false
+            };
+        },
+
+        /**
+         * Массовое назначение: отмеченным показываем то, что есть у всех строк
+         * сразу - остальное принимающий добавит сам. Применяется к найденным
+         * строкам, поэтому поиск заодно работает как фильтр «кому назначить».
+         */
+        openAssignAll(col) {
+            const rows = this.visibleRows;
+            const perRow = rows.map(row => this.chipItems(row, col).map(item => item.id));
+            const common = perRow.length
+                ? perRow.reduce((acc, ids) => acc.filter(id => ids.includes(id)))
+                : [];
+
+            this.assign = {
+                open: true,
+                kind: col.assignKind,
+                elementIds: rows.map(row => row.id),
+                currentIds: common,
                 submitting: false
             };
         },
@@ -1376,6 +1426,29 @@ export default {
     padding: 5px 12px;
     font-size: 12px;
     white-space: nowrap;
+}
+
+.el-foot__right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.el-foot__bulk {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.el-foot__bulk-label {
+    color: #8a8fa3;
+}
+
+.el-foot__bulk-btn {
+    padding: 3px 12px;
+    font-size: 12.5px;
 }
 
 .el-foot {
