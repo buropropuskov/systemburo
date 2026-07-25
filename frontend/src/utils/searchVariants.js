@@ -79,3 +79,75 @@ export function matchesSearch(haystack, variants) {
     const hayNoSpace = hay.replace(/\s+/g, '');
     return variants.some((v) => hay.includes(v) || hayNoSpace.includes(v));
 }
+
+
+/**
+ * Расстояние Левенштейна с ранним выходом: как только минимум по строке
+ * превысил лимит, считать дальше незачем.
+ */
+function editDistance(a, b, limit) {
+    if (Math.abs(a.length - b.length) > limit) return limit + 1;
+
+    let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+    for (let i = 1; i <= a.length; i++) {
+        const cur = [i];
+        let rowMin = i;
+        for (let j = 1; j <= b.length; j++) {
+            const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+            cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+            if (cur[j] < rowMin) rowMin = cur[j];
+        }
+        if (rowMin > limit) return limit + 1;
+        prev = cur;
+    }
+    return prev[b.length];
+}
+
+/**
+ * Порог близости для фрагмента запроса.
+ *
+ * Метрика та же, что у серверной проверки обхода ЧС по номеру машины
+ * (`vehicleBlacklistService.FindSimilar`): `1 - levenshtein / max(len)`. Порог
+ * там 0.7 и сравниваются номера целиком, а здесь пользователь вводит фрагмент:
+ * на трёх символах одна опечатка даёт ровно 0.667, поэтому берём чуть мягче,
+ * иначе «942» не нашло бы «952» - ровно тот случай, с которого фича началась.
+ */
+const FRAGMENT_SIMILARITY_THRESHOLD = 0.65;
+
+/** Минимальная длина фрагмента: на двух символах «похожим» окажется что угодно. */
+const MIN_FUZZY_LENGTH = 3;
+
+/** Сколько правок укладывается в порог для фрагмента такой длины. */
+function allowedTypos(length) {
+    if (length < MIN_FUZZY_LENGTH) return 0;
+    return Math.floor(length * (1 - FRAGMENT_SIMILARITY_THRESHOLD));
+}
+
+/**
+ * Поиск, устойчивый к опечатке: «942» находит «У 952 ЕУ 935», «мерсдес» -
+ * «Мерседес». Сначала обычное вхождение, нечёткое сравнение подключается,
+ * только когда точного совпадения не нашлось.
+ *
+ * Сравниваем ПОСЛОВНО, как серверный поиск заявок (`strict_word_similarity`
+ * в application_helpers.go), а не с произвольными кусками строки: на склейке
+ * «У 465 КУ 423» нашлось бы окно «у42», отличающееся от «942» одной буквой,
+ * и запрос вытаскивал бы половину таблицы.
+ *
+ * @param {string} haystack - искомый текст (склейка полей сущности)
+ * @param {string[]} variants - результат buildSearchVariants
+ * @returns {boolean}
+ */
+export function matchesSearchFuzzy(haystack, variants) {
+    if (matchesSearch(haystack, variants)) return true;
+    if (!variants || variants.length === 0) return false;
+
+    const words = (haystack ?? '').toString().toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+    if (!words.length) return false;
+
+    return variants.some((variant) => {
+        const needle = variant.replace(/\s+/g, '');
+        const limit = allowedTypos(needle.length);
+        if (!limit) return false;
+        return words.some((word) => editDistance(word, needle, limit) <= limit);
+    });
+}
