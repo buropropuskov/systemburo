@@ -112,9 +112,9 @@
           </div>
         </div>
                 
-        <div class="card-content">
-          <!-- Заголовок таблицы всегда отображается -->
-          <div class="employees-header">
+        <div class="card-content rt-table">
+          <!-- Заголовок таблицы всегда отображается (на мобилке скрыт rt-head-row, строки -> карточки) -->
+          <div class="employees-header rt-head-row">
             <div class="header-row">
               <div
                 class="header-col number-col"
@@ -240,26 +240,34 @@
                   class="employee-item"
                 >
                   <div
-                    class="employee-row"
+                    class="employee-row rt-row"
                     title="Открыть детали сотрудника"
                     @click="openEmployeeDetails(employee)"
                   >
-                    <div class="employee-col number-col">
+                    <div
+                      class="employee-col number-col"
+                      data-label="№"
+                    >
                       {{ employee.id }}
                     </div>
                     <div
                       class="employee-col name-col"
+                      data-label="ФИО"
                       :title="formatFullName(employee)"
                     >
                       <span class="cell-text">{{ formatFullName(employee) }}</span>
                     </div>
                     <div
                       class="employee-col position-col"
+                      data-label="Должность"
                       :title="employee.position || 'Не указана'"
                     >
                       <span class="cell-text">{{ employee.position || 'Не указана' }}</span>
                     </div>
-                    <div class="employee-col status-col">
+                    <div
+                      class="employee-col status-col"
+                      data-label="Статус"
+                    >
                       <StatusBadge
                         v-if="isEmployeeBlacklisted(employee)"
                         status="Чёрный список"
@@ -272,6 +280,7 @@
                     <div
                       v-if="currentFilter === 'organization' || currentFilter === 'all_system'"
                       class="employee-col org-col"
+                      data-label="Организация"
                       :title="employee.organization_name || ''"
                     >
                       {{ employee.organization_name || '—' }}
@@ -279,6 +288,7 @@
                     <div
                       v-if="currentFilter === 'company' || currentFilter === 'all_system'"
                       class="employee-col company-col"
+                      data-label="Компания"
                       :title="employee.company_name || ''"
                     >
                       {{ employee.company_name || '—' }}
@@ -1474,36 +1484,12 @@ export default {
         flex: none;
     }
 
-    /* Синхронный horizontal scroll: scroll на .card-content */
-    .card-content {
-        overflow-x: auto !important;
-        overflow-y: visible !important;
-    }
+    /* Таблица сотрудников -> карточки через rt-* (responsive-tables.css, брейкпоинт 767.98).
+       Прежний горизонтальный скролл 700px убран: строки собираются в карточки, заголовок
+       скрыт (rt-head-row). Зазор между карточками - ниже, в блоке 767.98 (сиблинг
+       .rt-row+.rt-row не сработает: rt-row на .employee-row, вложенном в .employee-item). */
 
-    .employees-header,
-    .employees-body {
-        overflow: visible !important;
-        min-width: 700px;
-    }
-
-    .header-row,
-    .employee-row {
-        flex-wrap: nowrap !important;
-        min-width: 700px;
-    }
-
-    .header-col,
-    .employee-col {
-        width: auto !important;
-        min-width: 110px !important;
-        flex: 1 1 auto !important;
-        margin-bottom: 0;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    /* filter-tabs не помещаются в 1 строку - горизонтальный scroll */
+    /* filter-tabs: перенос на строки вместо горизонтального скролла (юзер не любит h-scroll #1307) */
     .filters-container {
         flex-direction: column;
         align-items: stretch;
@@ -1511,18 +1497,15 @@ export default {
     }
 
     .filter-tabs {
-        overflow-x: auto;
-        scrollbar-width: none;
-        -webkit-overflow-scrolling: touch;
+        flex-wrap: wrap;
+        gap: 10px;
     }
 
-    .filter-tabs::-webkit-scrollbar {
-        display: none;
-    }
-
+    /* Каждый таб на всю ширину строкой - единый ровный вид на любой ширине телефона. */
     .filter-tab {
+        flex: 1 1 100%;
         white-space: nowrap;
-        flex-shrink: 0;
+        text-align: center;
     }
 
     .card-header {
@@ -1544,6 +1527,26 @@ export default {
 
     .employeesview__right-side {
         width: 100%;
+    }
+}
+
+/* Зазор между карточками сотрудников + колонка действий на всю ширину в card-режиме.
+   Отдельным правилом (не через .rt-row+.rt-row): rt-row на .employee-row, вложенном в
+   .employee-item (v-for-обёртку). actions-col без data-label держала бы desktop-ширину. */
+@media (max-width: 767.98px) {
+    .employees-body .employee-item + .employee-item {
+        margin-top: 8px;
+    }
+
+    .employee-row.rt-row > .actions-col {
+        width: 100% !important;
+        min-width: 0 !important;
+        justify-content: center;
+        padding-top: 8px;
+    }
+
+    .employee-row.rt-row > .actions-col .read-only-text {
+        white-space: normal;
     }
 }
 </style>
