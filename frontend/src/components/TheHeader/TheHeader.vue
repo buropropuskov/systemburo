@@ -37,6 +37,12 @@
     </div>
 
     <div class="header__info">
+      <!-- Текущее время ЧЧ:ММ - только на десктопе (мобильную шапку не грузим). -->
+      <span
+        class="header__time"
+        data-testid="header-time"
+      >{{ currentTime }}</span>
+
       <!-- Объявление: текстовый pill на всех ширинах, включая мобилку (правка волны 3) -->
       <button
         v-if="activeAnnouncement"
@@ -159,6 +165,8 @@ export default {
       showNotifications: false,
       unreadCount: 0,
       currentHour: new Date().getHours(),
+      // Текущее время ЧЧ:ММ в шапке - только на десктопе (на мобилке шапка тесная).
+      currentTime: '',
       // <768: кнопка «Сообщить о проблеме» живёт в бургер-drawer, не в шапке (W3.3).
       isMobileHeader: false,
     };
@@ -288,19 +296,21 @@ export default {
         this.loading = false;
       }
     },
-    // Часы из шапки убраны (правка волны 3), но текущий час нужен приветствию
-    // («Доброе утро/день/вечер») - отслеживаем его лёгким минутным таймером.
+    // Текущий час нужен приветствию («Доброе утро/день/вечер»), а ЧЧ:ММ - часам
+    // в шапке (только десктоп) - обновляем лёгким минутным таймером.
     updateHour() {
-      const h = new Date().getHours();
+      const now = new Date();
+      const h = now.getHours();
       if (h !== this.currentHour) {
         this.currentHour = h;
       }
+      this.currentTime = now.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
     },
     startDateTimeTimer() {
       this.updateHour();
       this.timer = setInterval(() => {
         this.updateHour();
-      }, 60000);
+      }, 30000);
     },
     initIntersectionObserver() {
       this.observer = new IntersectionObserver(
@@ -372,11 +382,21 @@ h3 {
   justify-content: flex-end;
 }
 
-/* Порядок на десктопе: «Сообщить о проблеме», объявление, колокольчик, «Подать заявку». */
+/* Порядок на десктопе: время, «Сообщить о проблеме», объявление, колокольчик, «Подать заявку». */
+.header__time { order: 0; }
 .feedback-btn { order: 1; }
 .broadcast { order: 2; }
 .user__notifications { order: 4; }
 .appl-btn__container { order: 5; }
+
+/* Часы в шапке (только десктоп): моноширинные цифры, чтобы не дёргалась ширина. */
+.header__time {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text, #333);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 
 .feedback-btn {
   height: 35px;
@@ -633,6 +653,11 @@ h3 {
 
   .header__info {
     gap: 8px;
+  }
+
+  /* Часы только на десктопе - мобильная шапка тесная (там их и убирали). */
+  .header__time {
+    display: none;
   }
 
   /* На мобилке порядок в строке: объявление, колокольчик, "Подать заявку" */
