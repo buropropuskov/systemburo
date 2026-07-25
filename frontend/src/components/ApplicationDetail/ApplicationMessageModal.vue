@@ -53,14 +53,14 @@ const sanitizedMessage = computed(() => sanitizeHtml(props.message));
   font-size: 18px;
   font-weight: 600;
   line-height: 1.2;
-  color: var(--color-text, #1a1a1a);
+  color: var(--color-text, var(--text));
 }
 
 .msg-modal-title__num {
   font-size: 13px;
   font-weight: 500;
   line-height: 1.2;
-  color: #888;
+  color: var(--text-muted);
 }
 
 /* Безопасный рендер форматированного сообщения (render-safety) */
@@ -68,7 +68,7 @@ const sanitizedMessage = computed(() => sanitizeHtml(props.message));
   padding: 25px;
   font-size: 15px;
   line-height: 1.5;
-  color: #000;
+  color: var(--text);
   word-break: break-word;
 }
 

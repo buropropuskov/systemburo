@@ -1701,9 +1701,9 @@ async uploadPhotoFiles(files) {
 
 <style scoped>
 .unload-places-container {
-  background: #fff;
+  background: var(--surface);
   border-radius: 16px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   overflow: hidden;
   width: 100%;
   height: 550px;
@@ -1723,15 +1723,15 @@ async uploadPhotoFiles(files) {
   gap: 14px;
   height: 50px;
   padding: 0 20px;
-  border-bottom: 1px solid #e6e6e6;
-  background: #f0f2ff;
+  border-bottom: 1px solid var(--border);
+  background: var(--accent-tint);
   overflow-x: auto;
   overflow-y: hidden;
 }
 .bulk-count {
   font-size: 14px;
   font-weight: 600;
-  color: #4F5BDF;
+  color: var(--accent-text);
   white-space: nowrap;
 }
 .bulk-actions {
@@ -1760,35 +1760,35 @@ async uploadPhotoFiles(files) {
   transition: background 0.2s, border-color 0.2s;
 }
 .pill-ghost {
-  background: #fff;
-  color: #4F5BDF;
-  border: 1px solid #4F5BDF;
+  background: var(--surface);
+  color: var(--accent-text);
+  border: 1px solid var(--accent);
 }
 .pill-ghost:hover {
-  background: #eef0ff;
+  background: var(--accent-tint);
 }
 .bulk-clear {
-  color: #6b7280;
-  border-color: #d5d9e0;
+  color: var(--text-muted);
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--surface));
 }
 .bulk-clear:hover {
-  background: #f5f5f5;
+  background: var(--surface-2);
 }
 .pill-danger {
-  background: #fff;
-  color: #dc3545;
-  border: 1px solid #fecaca;
+  background: var(--surface);
+  color: var(--danger-text);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
 }
 .pill-danger:hover {
-  background: #fff1f2;
-  border-color: #dc3545;
+  background: var(--danger-bg);
+  border-color: var(--danger);
 }
 .pill-restore {
-  background: #10b981;
-  color: #fff;
+  background: var(--success);
+  color: var(--surface);
 }
 .pill-restore:hover {
-  background: #0da271;
+  background: color-mix(in srgb, var(--success) 85%, var(--text));
 }
 .check-col {
   width: 8%;
@@ -1803,7 +1803,7 @@ async uploadPhotoFiles(files) {
   width: 15px;
   height: 15px;
   cursor: pointer;
-  accent-color: #4F5BDF;
+  accent-color: var(--accent);
   margin: 0;
 }
 
@@ -1812,7 +1812,7 @@ async uploadPhotoFiles(files) {
   justify-content: space-between;
   align-items: center;
   padding: 0 20px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
   height: 50px;
 }
 
@@ -1820,7 +1820,7 @@ async uploadPhotoFiles(files) {
   font-size: 1.2em;
   margin: 0;
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .header-controls {
@@ -1835,8 +1835,8 @@ async uploadPhotoFiles(files) {
 
 .add-header-button {
   padding: 8px 16px;
-  background: #4F5BDF;
-  color: white;
+  background: var(--accent);
+  color: var(--accent-contrast);
   border: none;
   border-radius: 50px;
   cursor: pointer;
@@ -1849,7 +1849,7 @@ async uploadPhotoFiles(files) {
 }
 
 .add-header-button:hover {
-  background: #3a45b2;
+  background: var(--accent-hover);
 }
 
 .content-container {
@@ -1863,8 +1863,8 @@ async uploadPhotoFiles(files) {
   width: 35%;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid #e6e6e6;
-  background: #fff;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
 }
 
 .table-section.with-details {
@@ -1872,7 +1872,7 @@ async uploadPhotoFiles(files) {
 }
 
 .table-container {
-  background: #fff;
+  background: var(--surface);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -1882,8 +1882,8 @@ async uploadPhotoFiles(files) {
 .table-header {
   display: flex;
   padding: 0 20px;
-  border-bottom: 1px solid #e6e6e6;
-  background: #fff;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
   height: 43px;
   align-items: center;
 }
@@ -1891,7 +1891,7 @@ async uploadPhotoFiles(files) {
 .header-col {
   padding: 0 8px;
   font-size: 14px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 600;
   text-align: left;
   display: flex;
@@ -1903,7 +1903,7 @@ async uploadPhotoFiles(files) {
 }
 
 .header-col:hover {
-  color: #000;
+  color: var(--text);
 }
 
 .header-col:hover .sort-icon {
@@ -1925,7 +1925,7 @@ async uploadPhotoFiles(files) {
 }
 
 .active-sort {
-  color: #000 !important;
+  color: var(--text) !important;
   font-weight: 600 !important;
 }
 
@@ -1953,7 +1953,7 @@ async uploadPhotoFiles(files) {
 .table-row {
   display: flex;
   padding: 0 20px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
   align-items: center;
   transition: background-color 0.2s ease;
   cursor: pointer;
@@ -1962,26 +1962,26 @@ async uploadPhotoFiles(files) {
 }
 
 .table-row:hover {
-  background-color: #fafafa;
+  background-color: var(--surface-2);
 }
 
 .table-row.selected {
-  background-color: #f8f9ff;
+  background-color: var(--accent-tint);
 }
 
 .table-row.inactive {
-  background: #fafafa;
-  color: #6b7280;
+  background: var(--surface-2);
+  color: var(--text-muted);
 }
 
 .table-row.inactive .id-value {
-  color: #6b7280;
+  color: var(--text-muted);
 }
 
 .inactive-badge {
   margin-left: 6px;
   font-size: 0.75em;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-style: italic;
 }
 
@@ -1996,7 +1996,7 @@ async uploadPhotoFiles(files) {
 
 .id-value {
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .truncate-text {
@@ -2018,33 +2018,33 @@ async uploadPhotoFiles(files) {
 }
 
 .status-open {
-  background-color: #e6f7e6;
-  color: #2e7d32;
-  border: 1px solid #a5d6a7;
+  background-color: var(--success-bg);
+  color: var(--success-text);
+  border: 1px solid var(--success);
 }
 
 .status-closed {
-  background-color: #fff3e0;
-  color: #ef6c00;
-  border: 1px solid #ffcc80;
+  background-color: var(--warning-bg);
+  color: var(--warning-text);
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, var(--surface));
 }
 
 .status-inactive {
-  background-color: #ffebee;
-  color: #c62828;
-  border: 1px solid #ef9a9a;
+  background-color: var(--danger-bg);
+  color: var(--danger-text);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
 }
 
 .table-footer {
   padding: 6px 20px;
-  border-top: 1px solid #e6e6e6;
+  border-top: 1px solid var(--border);
   text-align: right;
-  background: #f8fafc;
+  background: var(--accent-tint);
 }
 
 .items-count {
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -2053,7 +2053,7 @@ async uploadPhotoFiles(files) {
   width: 65%;
   display: flex;
   flex-direction: column;
-  background: #fff;
+  background: var(--surface);
   overflow: hidden;
 }
 
@@ -2061,8 +2061,8 @@ async uploadPhotoFiles(files) {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  border-bottom: 1px solid #e6e6e6;
-  background: #f8f9fa;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
   padding: 10px 16px;
 }
 
@@ -2075,12 +2075,12 @@ async uploadPhotoFiles(files) {
 
 .tab-btn {
   padding: 8px 18px;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid transparent;
   cursor: pointer;
   font-size: 13px;
   font-weight: 600;
-  color: #6b7280;
+  color: var(--text-muted);
   transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease;
   border-radius: 50px;
   white-space: nowrap;
@@ -2088,21 +2088,21 @@ async uploadPhotoFiles(files) {
 }
 
 .tab-btn:hover {
-  color: #4F5BDF;
-  background: #eef0ff;
+  color: var(--accent-text);
+  background: var(--accent-tint);
 }
 
 .tab-btn.active {
-  color: #4F5BDF;
-  border-color: #4F5BDF;
-  background: #fff;
+  color: var(--accent-text);
+  border-color: var(--accent);
+  background: var(--surface);
 }
 
 .tab-content {
   flex: 1;
   overflow-y: auto;
   padding: 20px;
-  background: #fff;
+  background: var(--surface);
 }
 
 .details-header {
@@ -2122,7 +2122,7 @@ async uploadPhotoFiles(files) {
 
 .details-title {
   margin: 0;
-  color: #000;
+  color: var(--text);
   font-size: 1.2em;
   font-weight: 600;
 }
@@ -2136,21 +2136,21 @@ async uploadPhotoFiles(files) {
 }
 
 .status-open-badge {
-  background-color: #e6f7e6;
-  color: #2e7d32;
-  border: 1px solid #a5d6a7;
+  background-color: var(--success-bg);
+  color: var(--success-text);
+  border: 1px solid var(--success);
 }
 
 .status-closed-badge {
-  background-color: #fff3e0;
-  color: #ef6c00;
-  border: 1px solid #ffcc80;
+  background-color: var(--warning-bg);
+  color: var(--warning-text);
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, var(--surface));
 }
 
 .status-inactive-badge {
-  background-color: #ffebee;
-  color: #c62828;
-  border: 1px solid #ef9a9a;
+  background-color: var(--danger-bg);
+  color: var(--danger-text);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
 }
 
 .details-header-actions {
@@ -2160,8 +2160,8 @@ async uploadPhotoFiles(files) {
 }
 
 .archive-badge {
-  background: #6b7280;
-  color: #fff;
+  background: var(--text-muted);
+  color: var(--surface);
   padding: 4px 10px;
   border-radius: 50px;
   font-size: 0.75em;
@@ -2184,33 +2184,33 @@ async uploadPhotoFiles(files) {
 }
 
 .history-btn {
-  background: #fff;
-  color: #4F5BDF;
-  border: 1px solid #4F5BDF;
+  background: var(--surface);
+  color: var(--accent-text);
+  border: 1px solid var(--accent);
 }
 
 .history-btn:hover {
-  background: #eef0ff;
+  background: var(--accent-tint);
 }
 
 .archive-action-btn {
-  background: #fff;
-  color: #dc3545;
-  border: 1px solid #fecaca;
+  background: var(--surface);
+  color: var(--danger-text);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
 }
 
 .archive-action-btn:hover {
-  background: #fff1f2;
-  border-color: #dc3545;
+  background: var(--danger-bg);
+  border-color: var(--danger);
 }
 
 .restore-btn {
-  background: #10b981;
-  color: #fff;
+  background: var(--success);
+  color: var(--surface);
 }
 
 .restore-btn:hover {
-  background: #0da271;
+  background: color-mix(in srgb, var(--success) 85%, var(--text));
 }
 
 .details-body {
@@ -2227,29 +2227,29 @@ async uploadPhotoFiles(files) {
 
 .detail-label {
   font-size: 0.85em;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight:400;
 }
 
 .form-input {
   padding: 8px 12px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 15px;
   font-size: 14px;
   width: 100%;
   transition: border-color 0.2s ease;
-  background: #fff;
+  background: var(--surface);
 }
 
 .form-input:focus {
-  border-color: #4F5BDF;
+  border-color: var(--accent);
   outline: none;
 }
 
 .form-input:disabled,
 .form-textarea:disabled {
-  background: #f8fafc;
-  color: #6b7280;
+  background: var(--accent-tint);
+  color: var(--text-muted);
   cursor: not-allowed;
 }
 
@@ -2260,18 +2260,18 @@ async uploadPhotoFiles(files) {
 
 .form-textarea {
   padding: 8px 12px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 15px;
   font-size: 14px;
   width: 100%;
   transition: border-color 0.2s ease;
-  background: #fff;
+  background: var(--surface);
   resize: vertical;
   font-family: inherit;
 }
 
 .form-textarea:focus {
-  border-color: #4F5BDF;
+  border-color: var(--accent);
   outline: none;
 }
 
@@ -2284,24 +2284,24 @@ async uploadPhotoFiles(files) {
 
 .status-btn {
   padding: 6px 16px;
-  border: 1px solid #e6e6e6;
-  background: #fff;
+  border: 1px solid var(--border);
+  background: var(--surface);
   border-radius: 30px;
   font-size: 13px;
   cursor: pointer;
   transition: all 0.2s ease;
-  color: #666;
+  color: var(--text-muted);
 }
 
 .status-btn:hover:not(:disabled) {
-  border-color: #4F5BDF;
-  color: #4F5BDF;
+  border-color: var(--accent);
+  color: var(--accent-text);
 }
 
 .status-btn.active {
-  background: #4F5BDF;
-  border-color: #4F5BDF;
-  color: white;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
 }
 
 /* Стили для маршрута */
@@ -2317,7 +2317,7 @@ async uploadPhotoFiles(files) {
   margin: 0 0 12px 0;
   font-size: 1em;
   font-weight: 600;
-  color: #333;
+  color: var(--text);
 }
 
 .map-link-group {
@@ -2332,19 +2332,19 @@ async uploadPhotoFiles(files) {
 
 .map-link-btn {
   padding: 8px 16px;
-  background: #f0f3ff;
-  color: #4F5BDF;
+  background: var(--accent-tint);
+  color: var(--accent-text);
   text-decoration: none;
   border-radius: 30px;
   font-size: 13px;
   white-space: nowrap;
   transition: background-color 0.2s ease;
-  border: 1px solid #4F5BDF;
+  border: 1px solid var(--accent);
 }
 
 .map-link-btn:hover {
-  background: #4F5BDF;
-  color: white;
+  background: var(--accent);
+  color: var(--accent-contrast);
 }
 
 .photos-header {
@@ -2359,9 +2359,9 @@ async uploadPhotoFiles(files) {
 
 .upload-photo-btn {
   padding: 4px 12px;
-  background: #f0f3ff;
-  color: #4F5BDF;
-  border: 1px solid #4F5BDF;
+  background: var(--accent-tint);
+  color: var(--accent-text);
+  border: 1px solid var(--accent);
   border-radius: 20px;
   cursor: pointer;
   font-size: 12px;
@@ -2369,15 +2369,15 @@ async uploadPhotoFiles(files) {
 }
 
 .upload-photo-btn:hover {
-  background: #4F5BDF;
-  color: white;
+  background: var(--accent);
+  color: var(--accent-contrast);
 }
 
 /* Подсказка под полем настройки. */
 .field-hint {
   margin: 4px 0 8px;
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   line-height: 1.5;
 }
 
@@ -2392,7 +2392,7 @@ async uploadPhotoFiles(files) {
 .usage-section--inline {
   margin-top: 24px;
   padding-top: 24px;
-  border-top: 1px solid #e6e6e6;
+  border-top: 1px solid var(--border);
 }
 
 .usage-header {
@@ -2416,15 +2416,15 @@ async uploadPhotoFiles(files) {
 }
 
 .detach-all-btn {
-  background: #fff;
-  color: #dc3545;
-  border: 1px solid #fecaca;
+  background: var(--surface);
+  color: var(--danger-text);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
   white-space: nowrap;
 }
 
 .detach-all-btn:hover:not(:disabled) {
-  background: #fff1f2;
-  border-color: #dc3545;
+  background: var(--danger-bg);
+  border-color: var(--danger);
 }
 
 .detach-all-btn:disabled {
@@ -2441,7 +2441,7 @@ async uploadPhotoFiles(files) {
 .usage-group__title {
   font-size: 0.9em;
   font-weight: 600;
-  color: #333;
+  color: var(--text);
 }
 
 .usage-list {
@@ -2458,18 +2458,18 @@ async uploadPhotoFiles(files) {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: #f7f8fa;
-  border: 1px solid #e6e6e6;
+  background: var(--accent-tint);
+  border: 1px solid var(--border);
   border-radius: 15px;
   font-size: 14px;
 }
 
 .usage-item__name {
-  color: #1a1a1a;
+  color: var(--text);
 }
 
 .usage-item__archived {
-  color: #6b7280;
+  color: var(--text-muted);
   font-size: 0.8em;
   font-weight: 500;
 }
@@ -2485,7 +2485,7 @@ async uploadPhotoFiles(files) {
   justify-content: center;
   border: none;
   background: transparent;
-  color: #b0b0b0;
+  color: var(--text-muted);
   font-size: 20px;
   line-height: 1;
   border-radius: 8px;
@@ -2495,8 +2495,8 @@ async uploadPhotoFiles(files) {
 }
 
 .usage-item__detach:hover:not(:disabled) {
-  color: #dc3545;
-  background: #fff1f2;
+  color: var(--danger-text);
+  background: var(--danger-bg);
 }
 
 .usage-item__detach:disabled {
@@ -2510,8 +2510,8 @@ async uploadPhotoFiles(files) {
   position: absolute;
   bottom: calc(100% + 6px);
   right: 0;
-  background: #333;
-  color: #fff;
+  background: var(--hint-bg);
+  color: var(--hint-text);
   font-size: 12px;
   white-space: nowrap;
   padding: 4px 8px;
@@ -2529,16 +2529,16 @@ async uploadPhotoFiles(files) {
 .usage-empty {
   margin: 0;
   font-size: 13px;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 .usage-state {
   font-size: 14px;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 .usage-state--error {
-  color: #c62828;
+  color: var(--danger-text);
 }
 
 /* Drag&drop zone (как в TableConstructorPhotoSection). */
@@ -2550,25 +2550,25 @@ async uploadPhotoFiles(files) {
   gap: 8px;
   padding: 20px;
   margin-bottom: 12px;
-  border: 2px dashed #c0c4d8;
+  border: 2px dashed var(--accent);
   border-radius: 50px;
-  background: #fafbff;
-  color: #6b7280;
+  background: var(--accent-tint);
+  color: var(--text-muted);
   cursor: pointer;
   text-align: center;
   transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
 }
 
 .photo-dropzone:hover {
-  border-color: #4F5BDF;
-  background: #f0f3ff;
-  color: #4F5BDF;
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+  color: var(--accent-text);
 }
 
 .photo-dropzone--active {
-  border-color: #4F5BDF;
-  background: #e6ebff;
-  color: #4F5BDF;
+  border-color: var(--accent);
+  background: var(--accent-tint);
+  color: var(--accent-text);
 }
 
 .photo-dropzone__input {
@@ -2588,13 +2588,13 @@ async uploadPhotoFiles(files) {
 }
 
 .photo-dropzone__text strong {
-  color: #333;
+  color: var(--text);
   font-weight: 600;
 }
 
 .photo-dropzone:hover .photo-dropzone__text strong,
 .photo-dropzone--active .photo-dropzone__text strong {
-  color: #4F5BDF;
+  color: var(--accent-text);
 }
 
 .photo-dropzone__text span {
@@ -2612,16 +2612,16 @@ async uploadPhotoFiles(files) {
 
 .photo-item {
   position: relative;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 8px;
   overflow: hidden;
   aspect-ratio: 1;
-  background: #f8f9fa;
+  background: var(--surface-2);
   
 }
 
 .photo-item.main-photo {
-  border: 2px solid #4F5BDF;
+  border: 2px solid var(--accent);
 }
 
 .photo-preview {
@@ -2667,18 +2667,18 @@ async uploadPhotoFiles(files) {
 }
 
 .photo-main-btn:hover {
-  background: #4F5BDF;
-  color: white;
+  background: var(--accent);
+  color: var(--accent-contrast);
 }
 
 .photo-main-badge {
-  background: #4F5BDF;
-  color: white;
+  background: var(--accent);
+  color: var(--accent-contrast);
   cursor: default;
 }
 
 .photo-delete-btn:hover {
-  background: #c62828;
+  background: var(--danger);
 }
 
 .photo-delete-btn:hover .action-icon-small {
@@ -2694,9 +2694,9 @@ async uploadPhotoFiles(files) {
   grid-column: 1 / -1;
   text-align: center;
   padding: 20px;
-  color: #a2a2a2;
-  background: #f8f9fa;
-  border: 1px dashed #e6e6e6;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border: 1px dashed var(--border);
   border-radius: 25px;
   font-size: 15px;
 }
@@ -2706,7 +2706,7 @@ async uploadPhotoFiles(files) {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 400;
   font-size: 14px;
 }
@@ -2714,7 +2714,7 @@ async uploadPhotoFiles(files) {
 .no-results {
   text-align: center;
   padding: 40px 20px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   width: 100%;
 }
 
@@ -2725,7 +2725,7 @@ async uploadPhotoFiles(files) {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2737,22 +2737,22 @@ async uploadPhotoFiles(files) {
 
 @keyframes overlayAppear {
   from {
-    background: rgba(0, 0, 0, 0);
+    background: var(--overlay);
     backdrop-filter: blur(0px);
   }
   to {
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--overlay);
     backdrop-filter: blur(0.1px);
   }
 }
 
 .modal-content {
-  background: #fff;
+  background: var(--surface);
   border-radius: 30px;
   padding: 0;
   width: 420px;
   max-width: 90vw;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 20px 60px var(--shadow-drop);
   animation: modalAppear 0.3s ease-out;
 }
 
@@ -2777,14 +2777,14 @@ async uploadPhotoFiles(files) {
   justify-content: space-between;
   align-items: center;
   padding: 20px 24px 16px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
 }
 
 .modal-title {
   margin: 0;
   font-size: 1.1em;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text);
 }
 
 .modal-close {
@@ -2800,7 +2800,7 @@ async uploadPhotoFiles(files) {
 }
 
 .modal-close:hover {
-  background-color: #f5f5f5;
+  background-color: var(--surface-2);
 }
 
 .modal-body {
@@ -2814,7 +2814,7 @@ async uploadPhotoFiles(files) {
   align-items: center;
   justify-content: center;
   padding: 0;
-  background: #f0f0f0;
+  background: var(--border);
 }
 
 .full-photo {
@@ -2833,7 +2833,7 @@ async uploadPhotoFiles(files) {
 .input-label {
   font-size: 0.85em;
   font-weight: 500;
-  color: #555;
+  color: var(--text);
   margin-bottom: 2px;
 }
 
@@ -2841,17 +2841,17 @@ async uploadPhotoFiles(files) {
 .modal-textarea {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--border);
   border-radius: 15px;
   font-size: 0.9em;
   transition: border-color 0.2s ease;
-  background: #fff;
+  background: var(--surface);
   font-family: inherit;
 }
 
 .modal-input:focus,
 .modal-textarea:focus {
-  border-color: #4F5BDF;
+  border-color: var(--accent);
   outline: none;
 }
 
@@ -2864,7 +2864,7 @@ async uploadPhotoFiles(files) {
   justify-content: flex-end;
   gap: 10px;
   padding: 16px 24px 20px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--border);
 }
 
 .modal-btn {
@@ -2879,26 +2879,26 @@ async uploadPhotoFiles(files) {
 }
 
 .modal-btn--cancel {
-  background: #f8f9fa;
-  color: #666;
-  border: 1px solid #e0e0e0;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
 }
 
 .modal-btn--cancel:hover {
-  background: #e9ecef;
+  background: var(--accent-tint);
 }
 
 .modal-btn--confirm {
-  background: #4F5BDF;
-  color: white;
+  background: var(--accent);
+  color: var(--accent-contrast);
 }
 
 .modal-btn--confirm:hover:not(.modal-btn--disabled) {
-  background: #3a45b2;
+  background: var(--accent-hover);
 }
 
 .modal-btn--disabled {
-  background: #ccc;
+  background: var(--border);
   cursor: not-allowed;
 }
 
@@ -2925,7 +2925,7 @@ async uploadPhotoFiles(files) {
 
 .modal-fade-enter-from .modal-overlay,
 .modal-fade-leave-to .modal-overlay {
-  background: rgba(0, 0, 0, 0);
+  background: transparent;
   backdrop-filter: blur(0px);
 }
 
@@ -2945,21 +2945,21 @@ async uploadPhotoFiles(files) {
 .table-body::-webkit-scrollbar-track,
 .photos-grid::-webkit-scrollbar-track,
 .modal-body::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: var(--surface-2);
   border-radius: 3px;
 }
 
 .table-body::-webkit-scrollbar-thumb,
 .photos-grid::-webkit-scrollbar-thumb,
 .modal-body::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
+  background: var(--border);
   border-radius: 3px;
 }
 
 .table-body::-webkit-scrollbar-thumb:hover,
 .photos-grid::-webkit-scrollbar-thumb:hover,
 .modal-body::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+  background: var(--text-muted);
 }
 
 @media (max-width: 968px) {
@@ -2976,7 +2976,7 @@ async uploadPhotoFiles(files) {
   
   .table-section.with-details {
     border-right: none;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
     height: 255px;
   }
   

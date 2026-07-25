@@ -276,13 +276,13 @@ export default {
 .assign__summary {
   margin: 0;
   font-size: 14px;
-  color: var(--text-muted, #5f6672);
+  color: var(--text-muted, var(--text-muted));
 }
 
 .assign__state {
   padding: 24px 0;
   text-align: center;
-  color: var(--text-muted, #5f6672);
+  color: var(--text-muted, var(--text-muted));
   font-size: 14px;
 }
 
@@ -323,10 +323,10 @@ export default {
 
 .assign__item {
   padding: 8px 14px;
-  border: 1px solid var(--border, #e6e6e6);
+  border: 1px solid var(--border, var(--border));
   border-radius: var(--radius-md);
-  background: var(--surface-2, #f9f9f9);
-  color: var(--text, #333);
+  background: var(--surface-2, var(--surface-2));
+  color: var(--text, var(--text));
   font-size: 13.5px;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
@@ -340,7 +340,7 @@ export default {
 .assign__item--active {
   border-color: var(--color-primary);
   background: var(--color-primary);
-  color: #fff;
+  color: var(--accent-contrast);
   font-weight: 600;
 }
 
@@ -353,8 +353,8 @@ export default {
   margin: 0;
   padding: 9px 12px;
   border-radius: var(--radius-sm);
-  background: rgba(255, 193, 7, 0.16);
-  color: #b98900;
+  background: color-mix(in srgb, var(--warning) 16%, var(--surface));
+  color: var(--warning-text);
   font-size: 13px;
 }
 </style>

@@ -646,8 +646,8 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .accessible-attachments {
-  background: #fff;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 16px;
   overflow: hidden;
 }
@@ -657,14 +657,14 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   padding: 15px 20px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
 }
 
 .management-title {
   margin: 0;
   font-size: 1.2em;
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .header-controls {
@@ -679,7 +679,7 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
   gap: 10px;
   padding: 12px 20px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
 }
 
 /* Раскладка как в Центре заявок: поиск фикс. ширины + дропдауны фикс. ширины в
@@ -733,12 +733,12 @@ onBeforeUnmount(() => {
   width: 100%;
   display: flex;
   flex-direction: column;
-  background: #fff;
+  background: var(--surface);
 }
 
 .list-section.with-details {
   width: 40%;
-  border-right: 1px solid #e6e6e6;
+  border-right: 1px solid var(--border);
 }
 
 .cards-list {
@@ -758,8 +758,8 @@ onBeforeUnmount(() => {
   width: 100%;
   text-align: left;
   padding: 12px 14px;
-  background: #fff;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 15px;
   box-shadow: var(--shadow-sm, 0 1px 2px rgba(16, 24, 40, 0.06));
   cursor: pointer;
@@ -775,13 +775,13 @@ onBeforeUnmount(() => {
 }
 
 .attachment-card:hover {
-  border-color: #4F5BDF;
+  border-color: var(--accent);
   box-shadow: 0 3px 10px rgba(79, 91, 223, 0.15);
 }
 
 .attachment-card--active {
-  border-color: #4F5BDF;
-  background: #f5f6ff;
+  border-color: var(--accent);
+  background: var(--accent-tint);
   box-shadow: 0 3px 10px rgba(79, 91, 223, 0.18);
 }
 
@@ -799,7 +799,7 @@ onBeforeUnmount(() => {
   min-width: 90px;
   font-weight: 700;
   font-size: 14.5px;
-  color: #1a1a1a;
+  color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -813,9 +813,9 @@ onBeforeUnmount(() => {
   align-items: center;
   padding: 3px 9px;
   border-radius: 999px;
-  background: #fff;
-  border: 1px solid #d0d0d0;
-  color: #1a1a1a;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
   font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
@@ -829,7 +829,7 @@ onBeforeUnmount(() => {
 .attachment-card__name {
   font-weight: 600;
   font-size: 14px;
-  color: #4F5BDF;
+  color: var(--accent-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -837,7 +837,7 @@ onBeforeUnmount(() => {
 
 .attachment-card__meta {
   font-size: 12.5px;
-  color: #8a8a8a;
+  color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -845,12 +845,12 @@ onBeforeUnmount(() => {
 
 .attachment-card__places {
   font-size: 12.5px;
-  color: #555;
+  color: var(--text);
   line-height: 1.35;
 }
 
 .attachment-card__places-label {
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 .load-more {
@@ -874,21 +874,21 @@ onBeforeUnmount(() => {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  color: #333;
+  color: var(--text);
 }
 
 .empty-state__hint {
   font-size: 13px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   max-width: 320px;
 }
 
 .list-footer {
   flex-shrink: 0;
   padding: 12px 20px;
-  border-top: 1px solid #e6e6e6;
+  border-top: 1px solid var(--border);
   font-size: 14px;
-  color: #666;
+  color: var(--text-muted);
 }
 
 .detail-section {
@@ -896,14 +896,14 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 15px;
-  background: #fff;
+  background: var(--surface);
   overflow-y: auto;
   padding: 15px;
 }
 
 .application-block {
-  background: #fff;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 16px;
   padding: 16px 18px;
   box-shadow: var(--shadow-sm, 0 1px 2px rgba(16, 24, 40, 0.06));
@@ -916,10 +916,10 @@ onBeforeUnmount(() => {
   gap: 8px;
   margin: 0 0 14px 0;
   padding-bottom: 10px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--border);
   font-size: 15px;
   font-weight: 700;
-  color: #4F5BDF;
+  color: var(--accent-text);
 }
 
 .application-block__grid {
@@ -937,13 +937,13 @@ onBeforeUnmount(() => {
 }
 
 .application-block__label {
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 400;
   font-size: 12.5px;
 }
 
 .application-block__value {
-  color: #1a1a1a;
+  color: var(--text);
   font-size: 14.5px;
   font-weight: 500;
   word-break: break-word;
@@ -967,12 +967,12 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   min-height: 200px;
-  color: #888;
+  color: var(--text-muted);
   font-size: 14px;
 }
 
 .blank-preview__state--error {
-  color: #d73a3a;
+  color: var(--danger-text);
 }
 
 @media (max-width: 900px) {
@@ -989,7 +989,7 @@ onBeforeUnmount(() => {
 
   .list-section.with-details {
     border-right: none;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
   }
 }
 </style>

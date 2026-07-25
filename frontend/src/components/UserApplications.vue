@@ -1271,9 +1271,9 @@ export default {
 
 <style scoped>
 .applications-card {
-  background-color: #fff;
+  background-color: var(--surface);
   border-radius: 30px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   overflow: hidden;
   width: 100%;
   /* Тянемся на всю высоту flex-обёртки кабинета (desktop). На <=1200px высоту
@@ -1287,7 +1287,7 @@ export default {
 }
 
 .card-header {
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1312,7 +1312,7 @@ export default {
 
 .card-title {
   margin: 0;
-  color: #000;
+  color: var(--text);
   font-weight: 600;
   font-size: 1.1em;
 }
@@ -1326,31 +1326,31 @@ export default {
 
 .filter-tab {
   padding: 4px 12px;
-  border: 1px solid #e6e6e6;
-  background: white;
+  border: 1px solid var(--border);
+  background: var(--surface);
   border-radius: 16px;
   cursor: pointer;
   font-size: 13px;
   transition: all 0.2s;
-  color: #333;
+  color: var(--text);
   white-space: nowrap;
   flex-shrink: 0;
 }
 
 .filter-tab:hover:not(.filter-tab--active) {
-  background: #f5f5f5;
-  border-color: #d9d9d9;
+  background: var(--surface-2);
+  border-color: var(--border);
 }
 
 .filter-tab--active {
-  background: #4F5BDF;
-  color: white;
-  border-color: #4F5BDF;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
 }
 
 .filter-tab--active:hover {
-  background: #3a45c0;
-  border-color: #3a45c0;
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
 }
 
 .card-content {
@@ -1372,9 +1372,9 @@ export default {
    Первый разделитель без верхней линии - граница шапки уже есть. */
 .applications-day-separator {
   padding: 8px 16px;
-  border-top: 1px solid #e2e2e6;
-  border-bottom: 1px solid #e2e2e6;
-  background: #FAFAFA;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
   display: flex;
   align-items: center;
 }
@@ -1386,7 +1386,7 @@ export default {
 .applications-day-label {
   font-size: 12px;
   font-weight: 600;
-  color: #9a9aae;
+  color: var(--text-muted);
 }
 
 /* Левая часть - таблица заявок */
@@ -1400,7 +1400,7 @@ export default {
 
 /* Заголовок таблицы */
 .applications-header {
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
   padding: 12px 0;
   flex-shrink: 0;
   height: 44px;
@@ -1414,7 +1414,7 @@ export default {
 
 .header-col {
   font-weight: 500;
-  color: #a2a2a2;
+  color: var(--text-muted);
   text-align: left;
   font-size: 14px;
   display: flex;
@@ -1429,7 +1429,7 @@ export default {
 }
 
 .header-col:hover {
-  color: #333;
+  color: var(--text);
 }
 
 .header-col:hover .sort-icon {
@@ -1452,7 +1452,7 @@ export default {
 }
 
 .active-sort {
-  color: #333 !important;
+  color: var(--text) !important;
   font-weight: 500 !important;
 }
 
@@ -1527,7 +1527,7 @@ export default {
 }
 
 .header-col.tags-col:hover {
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 .tags-col .application-tags {
@@ -1560,8 +1560,8 @@ export default {
   transform: translateX(-50%);
   width: max-content;
   max-width: 200px;
-  background: #333;
-  color: #fff;
+  background: var(--hint-bg);
+  color: var(--hint-text);
   padding: 5px 9px;
   border-radius: 6px;
   font-size: 11px;
@@ -1572,7 +1572,7 @@ export default {
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.15s;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 8px var(--shadow-drop);
 }
 
 .tag-hint::before {
@@ -1582,7 +1582,7 @@ export default {
   left: 50%;
   transform: translateX(-50%);
   border: 5px solid transparent;
-  border-bottom-color: #333;
+  border-bottom-color: var(--hint-bg);
   z-index: 1001;
   pointer-events: none;
   opacity: 0;
@@ -1625,7 +1625,7 @@ export default {
   height: 8px;
   border-radius: 50%;
   background: var(--color-danger);
-  border: 1.5px solid #fff;
+  border: 1.5px solid var(--surface);
   pointer-events: none;
 }
 
@@ -1675,13 +1675,13 @@ export default {
 }
 
 .header-col.actions-col:hover {
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 .download-btn {
   height: 25px;
-  background-color: #fff;
-  color: #000;
+  background-color: var(--surface);
+  color: var(--text);
   border-radius: 50px;
   border: 1px solid var(--color-border);
   font-size: 12px;
@@ -1697,8 +1697,8 @@ export default {
 }
 
 .download-btn:hover {
-  background-color: #f5f5f5;
-  border-color: #d0d0d0;
+  background-color: var(--surface-2);
+  border-color: var(--border);
 }
 
 /* Тело таблицы */
@@ -1762,9 +1762,9 @@ export default {
 .user-applications-footer {
   flex-shrink: 0;
   padding: 10px 20px;
-  border-top: 1px solid #e6e6e6;
+  border-top: 1px solid var(--border);
   font-size: 13px;
-  color: #8a8a8a;
+  color: var(--text-muted);
 }
 
 .applications-transition-group {
@@ -1773,7 +1773,7 @@ export default {
 }
 
 .application-item {
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
   cursor: pointer;
   transition: background-color 0.2s ease;
   flex-shrink: 0;
@@ -1781,17 +1781,17 @@ export default {
 }
 
 .application-item:hover {
-  background-color: #fafafa;
+  background-color: var(--surface-2);
 }
 
 /* Заявка с обновлённым статусом (#1349): мягкий фиолетовый фон + пульс-точка на бейдже.
    В ЛК гейта прочтения нет (у отправителя нет строк application_reads) - фон по одному
    флагу has_status_update. Ставим после hover, чтобы подсветка держалась при наведении. */
 .application-item.status-updated {
-  background-color: #f3e8ff;
+  background-color: var(--accent-tint);
   /* Левая полоса-акцент (inset - без reflow): заметный сигнал "обновление" даже там,
      где мягкого фона мало (мобильная карточка, где точка статуса скрыта). */
-  box-shadow: inset 3px 0 0 0 #9333ea;
+  box-shadow: inset 3px 0 0 0 var(--accent-text);
 }
 
 .status-badge-wrap {
@@ -1806,7 +1806,7 @@ export default {
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background-color: #9333ea;
+  background-color: var(--accent);
   box-shadow: 0 0 0 2px #fff;
 }
 
@@ -1815,7 +1815,7 @@ export default {
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  background-color: #9333ea;
+  background-color: var(--accent);
   animation: statusUpdatePulse 1.6s ease-out infinite;
 }
 
@@ -1860,7 +1860,7 @@ export default {
 }
 
 .application-id {
-  color: #4F5BDF;
+  color: var(--accent-text);
   font-weight: 600;
 }
 
@@ -1875,7 +1875,7 @@ export default {
 
 .application-number--copyable:hover,
 .application-number--copyable:focus-visible {
-  color: #3a45c0;
+  color: var(--accent-hover);
 }
 
 .application-number--copyable:focus-visible {
@@ -1888,8 +1888,8 @@ export default {
   top: calc(100% + 6px);
   left: 50%;
   transform: translateX(-50%);
-  background: #333;
-  color: #fff;
+  background: var(--hint-bg);
+  color: var(--hint-text);
   padding: 4px 8px;
   border-radius: 6px;
   font-size: 11px;
@@ -1898,7 +1898,7 @@ export default {
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.15s;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 8px var(--shadow-drop);
 }
 
 .application-number--copyable:hover::after {
@@ -1919,27 +1919,27 @@ export default {
 }
 
 .confirmation-approved {
-  background-color: #f0f9ff;
-  color: #059669;
-  border: 1px solid #a7f3d0;
+  background-color: var(--success-bg);
+  color: var(--success-text);
+  border: 1px solid color-mix(in srgb, var(--success) 30%, var(--surface));
 }
 
 .confirmation-pending {
-  background-color: #fffbeb;
-  color: #d97706;
-  border: 1px solid #fcd34d;
+  background-color: var(--warning-bg);
+  color: var(--warning-text);
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, var(--surface));
 }
 
 .confirmation-rejected {
-  background-color: #fef2f2;
-  color: #dc2626;
-  border: 1px solid #fecaca;
+  background-color: var(--danger-bg);
+  color: var(--danger-text);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
 }
 
 .confirmation-default {
-  background-color: #f5f5f5;
-  color: #616161;
-  border: 1px solid #e0e0e0;
+  background-color: var(--surface-2);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
 }
 
 /* Бейджи статуса */
@@ -1957,45 +1957,45 @@ export default {
 
 /* Статусы */
 .status-unread {
-  background-color: #fff7ed;
-  color: #ea580c;
-  border: 1px solid #fed7aa;
+  background-color: var(--warning-bg);
+  color: var(--warning-text);
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, var(--surface));
 }
 
 .status-processing {
-  background-color: #fff3e0;
-  color: #ef6c00;
-  border: 1px solid #ffe0b2;
+  background-color: var(--warning-bg);
+  color: var(--warning-text);
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, var(--surface));
 }
 
 .status-in-progress {
-  background-color: #e3f2fd;
-  color: #1565c0;
-  border: 1px solid #bbdefb;
+  background-color: var(--info-bg);
+  color: var(--info-text);
+  border: 1px solid color-mix(in srgb, var(--info) 30%, var(--surface));
 }
 
 .status-completed {
-  background-color: #e8f5e8;
-  color: #2e7d32;
-  border: 1px solid #c8e6c9;
+  background-color: var(--success-bg);
+  color: var(--success-text);
+  border: 1px solid color-mix(in srgb, var(--success) 30%, var(--surface));
 }
 
 .status-rejected {
-  background-color: #ffebee;
-  color: #c62828;
-  border: 1px solid #ffcdd2;
+  background-color: var(--danger-bg);
+  color: var(--danger-text);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
 }
 
 .status-default {
-  background-color: #f5f5f5;
-  color: #616161;
-  border: 1px solid #e0e0e0;
+  background-color: var(--surface-2);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
 }
 
 /* Сообщения о загрузке и отсутствии данных */
 .no-data-message {
   text-align: center;
-  color: #a2a2a2;
+  color: var(--text-muted);
   padding: 40px 20px;
   margin: 0;
   font-size: 14px;
@@ -2009,13 +2009,13 @@ export default {
 
 .hint {
   font-size: 12px;
-  color: #999;
+  color: var(--text-muted);
   margin-top: 8px;
 }
 
 .loading-message {
   text-align: center;
-  color: #4F5BDF;
+  color: var(--accent-text);
   padding: 40px 20px;
   margin: 0;
   font-size: 14px;
@@ -2031,8 +2031,8 @@ export default {
 .loader {
   width: 30px;
   height: 30px;
-  border: 3px solid #f3f3f3;
-  border-top: 3px solid #4F5BDF;
+  border: 3px solid var(--surface-2);
+  border-top: 3px solid var(--accent);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -2081,7 +2081,7 @@ export default {
 }
 
 .applications-body::-webkit-scrollbar-thumb {
-  background: #D9E2FF;
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface));
   border-radius: 3px;
   border: 1px solid transparent;
   background-clip: content-box;
@@ -2089,14 +2089,14 @@ export default {
 }
 
 .applications-body::-webkit-scrollbar-thumb:hover {
-  background: #C5D1FF;
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface));
   border: 1px solid transparent;
   background-clip: content-box;
 }
 
 .applications-body {
   scrollbar-width: thin;
-  scrollbar-color: #D9E2FF transparent;
+  scrollbar-color: color-mix(in srgb, var(--accent) 22%, var(--surface)) transparent;
 }
 
 @media (max-width: 1200px) {
@@ -2239,7 +2239,7 @@ export default {
     z-index: 20;
     /* Компактнее и фон #FAFAFA - как шапка Центра (зеркалим правки Центра). Гасит
        щедрый padding:16px/gap:12px из блока 992px -> шапка ниже и опрятнее. */
-    background: #FAFAFA;
+    background: var(--surface-2);
     padding: 8px 12px 12px;
     gap: 8px;
   }
@@ -2259,7 +2259,7 @@ export default {
     z-index: 1;
     display: flex;
     align-items: center;
-    background: #fff;
+    background: var(--surface);
     /* Скруглить фон под скруглённое поле (15px) - иначе белые квадратные углы
        оверлея торчат за pill-полем рядом с круглой иконкой поиска (#1097 R3-3). */
     border-radius: var(--radius-md);
@@ -2270,7 +2270,7 @@ export default {
     align-items: center;
     width: 100%;
     height: 40px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     border-radius: 15px;
     padding: 0 12px;
     box-sizing: border-box;
@@ -2283,7 +2283,7 @@ export default {
     outline: none;
     background: transparent;
     font-size: 14px;
-    color: #333;
+    color: var(--text);
   }
 
   /* Крестик очистки внутри поля (появляется при вводе): сбрасывает и закрывает поиск. */
@@ -2296,7 +2296,7 @@ export default {
     padding: 0;
     border: none;
     background: transparent;
-    color: #888;
+    color: var(--text-muted);
     font-size: 20px;
     line-height: 1;
     cursor: pointer;
@@ -2304,7 +2304,7 @@ export default {
   }
 
   .cabinet__search-clear:hover {
-    color: #4F5BDF;
+    color: var(--accent-text);
   }
 
   /* Раскрытие влево - clip-path (композитится, не двигает ряд). */
@@ -2330,9 +2330,9 @@ export default {
     justify-content: center;
     width: 40px;
     height: 40px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     border-radius: 50%;
-    background: #fff;
+    background: var(--surface);
     cursor: pointer;
     flex-shrink: 0;
     transition: background 0.15s ease, border-color 0.15s ease;
@@ -2340,8 +2340,8 @@ export default {
 
   .search-icon-btn:hover,
   .search-icon-btn--active {
-    background: #f5f5f7;
-    border-color: #4F5BDF;
+    background: var(--surface-2);
+    border-color: var(--accent);
   }
 
   .search-icon-btn__img {
@@ -2450,7 +2450,7 @@ export default {
     max-width: 55% !important;
     padding: 0;
     font-size: 14px;
-    color: #9a9aae;
+    color: var(--text-muted);
     white-space: nowrap;
     text-align: right;
   }
@@ -2480,21 +2480,21 @@ export default {
   /* Типографика строк карточки. */
   .application-col.id-col .application-id {
     font-size: 12px;
-    color: #9a9aae;
+    color: var(--text-muted);
     font-weight: 500;
   }
   .application-col.organization-col {
     font-size: 15px;
     font-weight: 700;
-    color: #1a1a2e;
+    color: var(--text);
   }
   .application-col.sender-col {
     font-size: 13px;
-    color: #555;
+    color: var(--text);
   }
   .application-col.message-col {
     font-size: 13px;
-    color: #7a7a8c;
+    color: var(--text-muted);
   }
 
 

@@ -742,7 +742,7 @@ export default {
     flex-shrink: 0;
     height: 490px;
     border-radius: 30px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     padding: 15px;
     display: flex;
     flex-direction: column;
@@ -757,7 +757,7 @@ export default {
     scrollbar-width: none;
     -ms-overflow-style: none;
     margin-bottom: 10px;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
 }
 
 .categories-container::-webkit-scrollbar {
@@ -770,7 +770,7 @@ export default {
     gap: 8px;
     flex-direction: column;
     margin-top: 10px;
-    background: white;
+    background: var(--surface);
     z-index: 10;
 }
 
@@ -782,16 +782,16 @@ export default {
     font-weight: 500;
     cursor: pointer;
     transition: all 0.3s ease;
-    border: 1px solid #e6e6e6;
-    background: white;
-    color: #333;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
 }
 
 .action-btn.delete-selected:hover:not(:disabled),
 .action-btn.delete-all:hover:not(:disabled) {
-    background: #ff4444;
-    color: white;
-    border-color: #ff4444;
+    background: var(--danger);
+    color: var(--surface);
+    border-color: var(--danger);
 }
 
 .action-btn:disabled {
@@ -817,13 +817,13 @@ export default {
 .category-title {
     font-size: 10px;
     font-weight: 700;
-    color: #a2a2a2;
+    color: var(--text-muted);
     text-transform: uppercase;
 }
 
 .attachment-count {
     font-size: 9px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .attachments-list {
@@ -863,12 +863,12 @@ export default {
 .add-btn {
     width: 85px;
     height: 25px;
-    background: rgba(79, 91, 223, 0.4);
-    border: 1px solid #e6e6e6;
+    background: color-mix(in srgb, var(--accent) 40%, var(--surface));
+    border: 1px solid var(--border);
     border-radius: 10px;
     font-size: 12px;
     font-weight: 500;
-    color: #fff;
+    color: var(--text);
     cursor: pointer;
     transition: 0.4s ease;
     margin-top: 8px;
@@ -876,7 +876,7 @@ export default {
 }
 
 .add-btn:hover:not(:disabled) {
-    background: rgba(79, 91, 223, 1);
+    background: var(--accent);
 }
 
 .add-btn:disabled {
@@ -887,11 +887,11 @@ export default {
 .attachment {
     max-width: 130px;
     min-height: 25px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     border-radius: 10px;
     font-size: 12px;
     font-weight: 500;
-    color: #000;
+    color: var(--text);
     display: flex;
     align-items: center;
     gap: 4px;
@@ -903,12 +903,12 @@ export default {
 }
 
 .attachment:hover {
-    border-color: #4F5BDF;
+    border-color: var(--accent);
 }
 
 .attachment.selected {
-    border-color: #4F5BDF;
-    background-color: rgba(79, 91, 223, 0.1);
+    border-color: var(--accent);
+    background-color: color-mix(in srgb, var(--accent) 10%, var(--surface));
 }
 
 .attachment-checkbox {
@@ -930,7 +930,7 @@ export default {
     background: none;
     border: none;
     font-size: 16px;
-    color: #ff4444;
+    color: var(--danger-text);
     cursor: pointer;
     padding: 0;
     width: 16px;
@@ -944,14 +944,14 @@ export default {
 }
 
 .delete-btn:hover {
-    background-color: rgba(255, 68, 68, 0.1);
+    background-color: color-mix(in srgb, var(--danger) 10%, var(--surface));
 }
 
 .edit-btn {
     background: none;
     border: none;
     font-size: 11px;
-    color: #4F5BDF;
+    color: var(--accent-text);
     cursor: pointer;
     padding: 0;
     width: 16px;
@@ -965,7 +965,7 @@ export default {
 }
 
 .edit-btn:hover {
-    background-color: rgba(79, 91, 223, 0.1);
+    background-color: color-mix(in srgb, var(--accent) 10%, var(--surface));
 }
 
 /* В режиме переименования чип занимает всю ширину панели - чтобы инпут был удобным. */
@@ -976,20 +976,20 @@ export default {
 .attachment-name-input {
     flex: 1;
     min-width: 0;
-    border: 1px solid #4F5BDF;
+    border: 1px solid var(--accent);
     border-radius: 8px;
     padding: 2px 6px;
     font-size: 12px;
     font-weight: 500;
-    color: #000;
+    color: var(--text);
     outline: none;
-    background: #fff;
+    background: var(--surface);
 }
 
 .tooltip {
     position: fixed;
-    background: rgba(0, 0, 0, 0.8);
-    color: white;
+    background: var(--hint-bg);
+    color: var(--hint-text);
     padding: 6px 10px;
     border-radius: 15px;
     font-size: 11px;
@@ -1009,7 +1009,7 @@ export default {
     height: 0;
     border-left: 5px solid transparent;
     border-right: 5px solid transparent;
-    border-bottom: 5px solid rgba(0, 0, 0, 0.8);
+    border-bottom: 5px solid var(--overlay);
 }
 
 @keyframes fadeIn {
@@ -1040,7 +1040,7 @@ export default {
     .created-caption {
         font-size: 10px;
         font-weight: 700;
-        color: #a2a2a2;
+        color: var(--text-muted);
         text-transform: uppercase;
         letter-spacing: 0.03em;
         margin-bottom: 8px;
@@ -1048,7 +1048,7 @@ export default {
 
     /* Пустой тип - обычная фраза, не рубрика. */
     .created-caption--empty {
-        color: #c4c4c4;
+        color: var(--text-muted);
         text-transform: none;
         font-weight: 500;
         font-size: 12px;
@@ -1072,7 +1072,7 @@ export default {
         border: none;
         border-radius: var(--radius-pill);
         background: var(--color-primary);
-        color: #fff;
+        color: var(--accent-contrast);
         font-size: 16px;
         font-weight: 600;
         cursor: pointer;
@@ -1097,10 +1097,10 @@ export default {
         display: flex;
         flex-direction: column;
         overflow: hidden;
-        background: #fff;
-        border: 1px solid #e6e6e6;
+        background: var(--surface);
+        border: 1px solid var(--border);
         border-radius: var(--radius-lg);
-        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+        box-shadow: 0 6px 20px var(--shadow-drop);
     }
 
     .picker-add-menu__item {
@@ -1112,9 +1112,9 @@ export default {
         min-height: 48px;
         padding: 12px 16px;
         border: none;
-        border-bottom: 1px solid #f0f0f0;
+        border-bottom: 1px solid var(--border);
         background: transparent;
-        color: var(--color-text, #333);
+        color: var(--color-text, var(--text));
         font-size: 15px;
         font-weight: 500;
         text-align: left;
@@ -1128,11 +1128,11 @@ export default {
 
     .picker-add-menu__item:hover:not(:disabled),
     .picker-add-menu__item:active:not(:disabled) {
-        background: #f5f5f5;
+        background: var(--surface-2);
     }
 
     .picker-add-menu__item:disabled {
-        color: #c4c4c4;
+        color: var(--text-muted);
         cursor: not-allowed;
     }
 
@@ -1145,7 +1145,7 @@ export default {
         height: 20px;
         padding: 0 6px;
         border-radius: var(--radius-pill);
-        background: rgba(79, 91, 223, 0.14);
+        background: color-mix(in srgb, var(--accent) 14%, var(--surface));
         color: var(--color-primary);
         font-size: 12px;
         font-weight: 600;
@@ -1175,14 +1175,14 @@ export default {
     .category-title {
         font-size: 11px;
         font-weight: 700;
-        color: #a2a2a2;
+        color: var(--text-muted);
         text-transform: uppercase;
         letter-spacing: 0.03em;
     }
 
     .attachment-count {
         font-size: 11px;
-        color: #c4c4c4;
+        color: var(--text-muted);
         font-weight: 600;
     }
 
@@ -1237,13 +1237,13 @@ export default {
         min-height: 36px;
         border: 1px solid var(--color-border);
         border-radius: var(--radius-sm);
-        background: #fff;
+        background: var(--surface);
         cursor: pointer;
         flex-shrink: 0;
     }
 
     .rename-confirm {
-        color: #2e9e5b;
+        color: var(--success-text);
     }
 
     .rename-cancel {

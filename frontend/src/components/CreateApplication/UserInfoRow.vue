@@ -115,7 +115,7 @@ export default {
     display: flex;
     gap: 30px;
     padding: 15px;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
 }
 
 .user__input {
@@ -128,35 +128,35 @@ export default {
 
 .input__label {
     font-size: 13px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .input__hint {
     font-size: 11px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .required {
-    color: #ff4444;
+    color: var(--danger-text);
 }
 
 .input {
     width: 100%;
     height: 40px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     outline: none;
-    background: #FFF;
+    background: var(--surface);
     border-radius: 15px;
     padding: 5px 10px;
 }
 
 .input--error {
-    border-color: #ff4444;
+    border-color: var(--danger);
 }
 
 .error-message {
     font-size: 11px;
-    color: #ff4444;
+    color: var(--danger-text);
     position: absolute;
     bottom: -15px;
     left: 0;

@@ -218,7 +218,7 @@ export default {
 .dbm-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.35);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -229,7 +229,7 @@ export default {
 }
 
 .dbm-modal {
-  background: #fff;
+  background: var(--surface);
   border-radius: 30px;
   padding: 0;
   width: 480px;
@@ -238,7 +238,7 @@ export default {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 8px 32px var(--shadow-drop);
 }
 
 .dbm-header {
@@ -320,17 +320,17 @@ export default {
   border-radius: var(--radius-pill);
   cursor: pointer;
   transition: all 0.15s;
-  background: #fff;
+  background: var(--surface);
 }
 
 .dbm-item:hover {
   border-color: var(--color-primary);
-  background: #f8faff;
+  background: var(--accent-tint);
 }
 
 .dbm-item.selected {
   border-color: var(--color-primary);
-  background: #eef4ff;
+  background: var(--accent-tint);
 }
 
 .dbm-checkbox {
@@ -376,7 +376,7 @@ export default {
 }
 
 .dbm-item-download:hover {
-  background: #eef4ff;
+  background: var(--accent-tint);
 }
 
 .dbm-item-download:disabled {
@@ -408,7 +408,7 @@ export default {
 
 .dbm-btn--primary {
   background: var(--color-primary);
-  color: #fff;
+  color: var(--accent-contrast);
 }
 
 .dbm-btn--primary:hover:not(:disabled) {

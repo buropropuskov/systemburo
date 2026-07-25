@@ -217,12 +217,12 @@ export default {
 
 <style scoped>
 .confirmation-section {
-    background: white;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 20px;
     padding: 15px;
     margin-bottom: 10px;
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    box-shadow: 0 2px 12px var(--shadow-drop);
     position: relative;
 }
 
@@ -235,7 +235,7 @@ export default {
 
 .confirmation-header h4 {
     font-size: 18px;
-    color: #4F5BDF;
+    color: var(--accent-text);
     font-weight: 700;
     margin: 0;
 }
@@ -248,8 +248,8 @@ export default {
 .confirmation-loading .loader {
     width: 20px;
     height: 20px;
-    border: 3px solid #f3f3f3;
-    border-top: 3px solid #4F5BDF;
+    border: 3px solid var(--surface-2);
+    border-top: 3px solid var(--accent);
     border-radius: 50%;
     animation: spin 1s linear infinite;
 }
@@ -270,7 +270,7 @@ export default {
 }
 
 .info-label {
-    color: #a2a2a2;
+    color: var(--text-muted);
     font-size: 14px;
     font-weight: 400;
     min-width: 120px;
@@ -287,26 +287,26 @@ export default {
 }
 
 .confirmation-badge.confirmation-approved {
-    background-color: #f0f9ff;
-    color: #059669;
-    border-color: #a7f3d0;
+    background-color: var(--success-bg);
+    color: var(--success-text);
+    border-color: color-mix(in srgb, var(--success) 30%, var(--surface));
 }
 
 .confirmation-badge.confirmation-pending {
-    background-color: #fffbeb;
-    color: #d97706;
-    border-color: #fcd34d;
+    background-color: var(--warning-bg);
+    color: var(--warning-text);
+    border-color: color-mix(in srgb, var(--warning) 30%, var(--surface));
 }
 
 .confirmation-badge.confirmation-rejected {
-    background-color: #fef2f2;
-    color: #dc2626;
-    border-color: #fecaca;
+    background-color: var(--danger-bg);
+    color: var(--danger-text);
+    border-color: color-mix(in srgb, var(--danger) 30%, var(--surface));
 }
 
 .responsible-users-section h5 {
     font-size: 14px;
-    color: #a2a2a2;
+    color: var(--text-muted);
     margin: 0 0 10px 0;
     font-weight: 400;
 }
@@ -321,28 +321,28 @@ export default {
     display: flex;
     flex-direction: column;
     padding: 12px;
-    background: #f9f9f9;
+    background: var(--surface-2);
     border-radius: 15px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     transition: all 0.2s ease;
     gap: 3px;
     position: relative;
 }
 
 .user-item:hover {
-    border-color: #4F5BDF;
-    background: #f8f9ff;
+    border-color: var(--accent);
+    background: var(--accent-tint);
 }
 
 .user-name-block {
     font-weight: 600;
-    color: #333;
+    color: var(--text);
     font-size: 14px;
     line-height: 1.4;
 }
 
 .user-position-block {
-    color: #666;
+    color: var(--text-muted);
     font-size: 12px;
     font-style: italic;
     line-height: 1.4;
@@ -364,8 +364,8 @@ export default {
 }
 
 .required-badge {
-    background: #4F5BDF;
-    color: #fff;
+    background: var(--accent);
+    color: var(--accent-contrast);
     padding: 3px 10px;
     border-radius: 20px;
     font-size: 11px;
@@ -380,8 +380,8 @@ export default {
     position: absolute;
     top: calc(100% + 6px);
     left: 0;
-    background: #333;
-    color: white;
+    background: var(--hint-bg);
+    color: var(--hint-text);
     font-size: 10px;
     line-height: 1.4;
     padding: 6px 10px;
@@ -391,7 +391,7 @@ export default {
     visibility: hidden;
     transition: opacity 0.15s ease;
     z-index: 10;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 2px 8px var(--shadow-drop);
     
     width: 250px;
     font-weight: 400;
@@ -405,7 +405,7 @@ export default {
     left: 12px;
     width: 8px;
     height: 8px;
-    background: #333;
+    background: var(--hint-bg);
     transform: rotate(45deg);
     border-radius: 2px;
 }
@@ -419,9 +419,9 @@ export default {
 .user-silence-block {
     font-size: 11px;
     font-weight: 500;
-    color: #b45309;
-    background: #fffbeb;
-    border: 1px solid #fde68a;
+    color: var(--warning-text);
+    background: var(--warning-bg);
+    border: 1px solid color-mix(in srgb, var(--warning) 30%, var(--surface));
     padding: 4px 10px;
     border-radius: 8px;
     align-self: flex-start;
@@ -430,17 +430,17 @@ export default {
 
 .user-comment-block {
     font-size: 11px;
-    color: #4b5563;
-    background: #f3f4f6;
+    color: var(--text-muted);
+    background: var(--accent-tint);
     padding: 6px 10px;
     border-radius: 10px;
     margin-top: 4px;
-    border-left: 3px solid #4F5BDF;
+    border-left: 3px solid var(--accent);
 }
 
 .user-time-block {
     font-size: 11px;
-    color: #8f8f8f;
+    color: var(--text-muted);
     border-radius: 6px;
     display: inline-block;
     align-self: flex-start;
@@ -457,27 +457,27 @@ export default {
 }
 
 .status-approved {
-    background-color: #f0f9ff;
-    color: #059669;
-    border: 1px solid #a7f3d0;
+    background-color: var(--success-bg);
+    color: var(--success-text);
+    border: 1px solid color-mix(in srgb, var(--success) 30%, var(--surface));
 }
 
 .status-rejected {
-    background-color: #fef2f2;
-    color: #dc2626;
-    border: 1px solid #fecaca;
+    background-color: var(--danger-bg);
+    color: var(--danger-text);
+    border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
 }
 
 .status-pending {
-    background-color: #fffbeb;
-    color: #d97706;
-    border: 1px solid #fcd34d;
+    background-color: var(--warning-bg);
+    color: var(--warning-text);
+    border: 1px solid color-mix(in srgb, var(--warning) 30%, var(--surface));
 }
 
 .status-default {
-    background-color: #f0f0f0;
-    color: #666;
-    border: 1px solid #ddd;
+    background-color: var(--border);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
 }
 
 .badge {
@@ -490,13 +490,13 @@ export default {
 }
 
 .comment-label {
-    color: #6b7280;
+    color: var(--text-muted);
     font-size: 11px;
     margin-right: 4px;
 }
 
 .comment-text {
-    color: #1f2937;
+    color: var(--text);
     font-size: 12px;
 }
 </style>

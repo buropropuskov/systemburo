@@ -44,7 +44,7 @@ export default {
 .search {
   width: 220px;
   height: 35px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   outline: none;
   border-radius: 15px;
   display: flex;

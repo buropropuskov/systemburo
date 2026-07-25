@@ -212,7 +212,7 @@ watch(
 
 .dp-modal__btn--primary {
   background: var(--color-primary);
-  color: #fff;
+  color: var(--accent-contrast);
 }
 
 .dp-modal__btn--primary:disabled {

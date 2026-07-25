@@ -853,9 +853,9 @@ export default {
 
 <style scoped>
 .user-types-container {
-  background: #fff;
+  background: var(--surface);
   border-radius: 16px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   overflow: hidden;
   width: 100%;
   height: 450px;
@@ -867,7 +867,7 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 0 20px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
   height: 50px;
 }
 
@@ -875,7 +875,7 @@ export default {
   font-size: 1.2em;
   margin: 0;
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .header-controls {
@@ -886,8 +886,8 @@ export default {
 
 .add-header-button {
   padding: 8px 16px;
-  background: #4F5BDF;
-  color: white;
+  background: var(--accent);
+  color: var(--accent-contrast);
   border: none;
   border-radius: 50px;
   cursor: pointer;
@@ -900,7 +900,7 @@ export default {
 }
 
 .add-header-button:hover {
-  background: #3a45b2;
+  background: var(--accent-hover);
 }
 
 .content-container {
@@ -913,7 +913,7 @@ export default {
   width: 40%;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid #e6e6e6;
+  border-right: 1px solid var(--border);
 }
 
 .types-section.with-details {
@@ -921,7 +921,7 @@ export default {
 }
 
 .table-container {
-  background: #fff;
+  background: var(--surface);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -931,8 +931,8 @@ export default {
 .table-header {
   display: flex;
   padding: 0 20px;
-  border-bottom: 1px solid #e6e6e6;
-  background: #fff;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
   height: 43px;
   align-items: center;
 }
@@ -940,7 +940,7 @@ export default {
 .header-col {
   padding: 0 8px;
   font-size: 14px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 600;
   text-align: left;
   display: flex;
@@ -952,7 +952,7 @@ export default {
 }
 
 .header-col:hover {
-  color: #000;
+  color: var(--text);
 }
 
 .header-col:hover .sort-icon {
@@ -974,7 +974,7 @@ export default {
 }
 
 .active-sort {
-  color: #000 !important;
+  color: var(--text) !important;
   font-weight: 600 !important;
 }
 
@@ -1001,7 +1001,7 @@ export default {
 .table-row {
   display: flex;
   padding: 0 20px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
   align-items: center;
   transition: background-color 0.2s ease;
   cursor: pointer;
@@ -1010,11 +1010,11 @@ export default {
 }
 
 .table-row:hover {
-  background-color: #fafafa;
+  background-color: var(--surface-2);
 }
 
 .table-row.selected {
-  background-color: #f8f9ff;
+  background-color: var(--accent-tint);
 }
 
 .table-row:last-child {
@@ -1032,7 +1032,7 @@ export default {
 
 .id-value {
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .truncate-text {
@@ -1046,20 +1046,20 @@ export default {
 .users-count {
   font-size: 14px;
   font-weight: bold;
-  color: #000;
+  color: var(--text);
 }
 
 .table-footer {
   margin-top: auto;
   padding: 6px 20px;
-  border-top: 1px solid #e6e6e6;
+  border-top: 1px solid var(--border);
   text-align: end;
-  background: #f8fafc;
+  background: var(--accent-tint);
 }
 
 .items-count {
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -1067,7 +1067,7 @@ export default {
   width: 60%;
   padding: 15px;
   overflow-y: auto;
-  background: #fafafa;
+  background: var(--surface-2);
 }
 
 .details-content {
@@ -1089,7 +1089,7 @@ export default {
 
 .details-title {
   margin: 0;
-  color: #000;
+  color: var(--text);
   font-size: 1.2em;
   font-weight: 600;
 }
@@ -1102,15 +1102,15 @@ export default {
 
 .system-name {
   font-size: 0.85em;
-  color: #666;
-  background: #f5f5f5;
+  color: var(--text-muted);
+  background: var(--surface-2);
   border-radius: 6px;
 }
 
 .users-count-badge {
   font-size: 0.8em;
-  color: #666;
-  background: #f0f4ff;
+  color: var(--text-muted);
+  background: var(--accent-tint);
   padding: 4px 8px;
   border-radius: 999px;
 }
@@ -1120,8 +1120,8 @@ export default {
   margin-left: 8px;
   font-size: 11px;
   font-weight: 500;
-  color: #b45309;
-  background: #fef3c7;
+  color: var(--warning-text);
+  background: var(--warning-bg);
   padding: 2px 8px;
   border-radius: 999px;
   vertical-align: middle;
@@ -1152,7 +1152,7 @@ export default {
 }
 
 .delete-icon-btn:hover {
-  background-color: #e6e6e6;
+  background-color: var(--border);
   cursor:pointer;
 }
 
@@ -1182,19 +1182,19 @@ export default {
 
 .detail-label {
   font-size: 0.85em;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight:400;
 }
 
 .form-hint {
   font-size: 0.7em;
-  color: #999;
+  color: var(--text-muted);
   margin-top: 4px;
 }
 
 .form-error {
   font-size: 0.7em;
-  color: #ef4444;
+  color: var(--danger-text);
   margin-top: 4px;
 }
 
@@ -1203,7 +1203,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 400;
   font-size: 14px;
 }
@@ -1211,7 +1211,7 @@ export default {
 .no-results {
   text-align: center;
   padding: 40px 20px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   width: 100%;
 }
 
@@ -1228,14 +1228,14 @@ export default {
   gap: 8px;
   font-size: 0.9em;
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .count-badge {
   font-size: 0.75em;
   font-weight: 600;
-  color: #4f5bdf;
-  background: #f0f4ff;
+  color: var(--accent-text);
+  background: var(--accent-tint);
   padding: 2px 8px;
   border-radius: 999px;
 }
@@ -1256,7 +1256,7 @@ export default {
   flex: 1 1 200px;
   min-width: 0;
   font-size: 0.82em;
-  color: #5a6472;
+  color: var(--text-muted);
   line-height: 1.45;
 }
 
@@ -1267,7 +1267,7 @@ export default {
 .type-users__loading,
 .type-users__empty {
   font-size: 0.85em;
-  color: #a2a2a2;
+  color: var(--text-muted);
   margin: 0;
 }
 
@@ -1283,8 +1283,8 @@ export default {
   justify-content: space-between;
   gap: 10px;
   padding: 8px 10px;
-  background: #fff;
-  border: 1px solid #eef0f4;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
   border-radius: var(--radius-md);
 }
 
@@ -1297,7 +1297,7 @@ export default {
 
 .type-user__who b {
   font-size: 0.85em;
-  color: #1a1a1a;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1305,7 +1305,7 @@ export default {
 
 .type-user__who small {
   font-size: 0.75em;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 .type-user--archived {
@@ -1316,8 +1316,8 @@ export default {
   flex-shrink: 0;
   font-size: 11px;
   font-weight: 500;
-  color: #6b7280;
-  background: #f1f2f4;
+  color: var(--text-muted);
+  background: var(--surface-2);
   padding: 2px 8px;
   border-radius: 999px;
 }
@@ -1326,7 +1326,7 @@ export default {
 .reassign-intro {
   margin: 0 0 14px;
   font-size: 0.9em;
-  color: #5a6472;
+  color: var(--text-muted);
   line-height: 1.5;
 }
 
@@ -1335,7 +1335,7 @@ export default {
   margin-bottom: 6px;
   font-size: 0.85em;
   font-weight: 500;
-  color: #555;
+  color: var(--text);
 }
 
 .reassign-empty {
@@ -1351,7 +1351,7 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1363,22 +1363,22 @@ export default {
 
 @keyframes overlayAppear {
   from {
-    background: rgba(0, 0, 0, 0);
+    background: var(--overlay);
     backdrop-filter: blur(0px);
   }
   to {
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--overlay);
     backdrop-filter: blur(0.1px);
   }
 }
 
 .modal-content {
-  background: #fff;
+  background: var(--surface);
   border-radius: 30px;
   padding: 0;
   width: 420px;
   max-width: 90vw;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 20px 60px var(--shadow-drop);
   animation: modalAppear 0.3s ease-out;
 }
 
@@ -1398,14 +1398,14 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 20px 24px 16px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
 }
 
 .modal-title {
   margin: 0;
   font-size: 1.1em;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text);
 }
 
 .modal-close {
@@ -1421,7 +1421,7 @@ export default {
 }
 
 .modal-close:hover {
-  background-color: #f5f5f5;
+  background-color: var(--surface-2);
   transform: rotate(90deg);
 }
 
@@ -1439,33 +1439,33 @@ export default {
 .input-label {
   font-size: 0.85em;
   font-weight: 500;
-  color: #555;
+  color: var(--text);
   margin-bottom: 2px;
 }
 
 .modal-input {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   font-size: 0.9em;
   transition: all 0.2s ease;
-  background: #fff;
+  background: var(--surface);
 }
 
 .modal-input:focus {
-  border-color: #4F5BDF;
+  border-color: var(--accent);
   outline: none;
   box-shadow: 0 0 0 3px rgba(79, 91, 223, 0.1);
 }
 
 .modal-input::placeholder {
-  color: #aaa;
+  color: var(--text-muted);
 }
 
 .input-hint {
   font-size: 0.75em;
-  color: #888;
+  color: var(--text-muted);
   margin-top: 2px;
 }
 
@@ -1474,7 +1474,7 @@ export default {
   justify-content: flex-end;
   gap: 10px;
   padding: 16px 24px 20px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--border);
 }
 
 
@@ -1501,7 +1501,7 @@ export default {
 
 .modal-fade-enter-from .modal-overlay,
 .modal-fade-leave-to .modal-overlay {
-  background: rgba(0, 0, 0, 0);
+  background: transparent;
   backdrop-filter: blur(0px);
 }
 
@@ -1537,7 +1537,7 @@ export default {
   
   .types-section.with-details {
     border-right: none;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
     height: 255px;
   }
   

@@ -166,7 +166,7 @@ export default {
 .ban-modal {
   width: 480px;
   max-width: 95vw;
-  background: #fff;
+  background: var(--surface);
   border-radius: 30px;
   overflow: hidden;
   box-shadow: 0 30px 80px rgba(70, 6, 12, 0.5);
@@ -175,8 +175,8 @@ export default {
 
 .ban-modal__top {
   padding: 30px 28px 26px;
-  color: #fff;
-  background: linear-gradient(135deg, #dc3545, #b21f2d);
+  color: var(--accent-contrast);
+  background: linear-gradient(135deg, var(--danger), color-mix(in srgb, var(--danger) 75%, var(--text)));
 }
 
 .ban-modal__icon {
@@ -209,9 +209,9 @@ export default {
 .ban-reason {
   text-align: left;
   padding: 14px 16px;
-  border: 1px solid #f2d4d8;
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
   border-radius: var(--radius-md, 15px);
-  background: #fdecee;
+  background: var(--danger-bg);
 }
 
 .ban-reason__label {
@@ -220,13 +220,13 @@ export default {
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--color-danger, #dc3545);
+  color: var(--color-danger, var(--danger-text));
 }
 
 .ban-reason__text {
   font-size: 14px;
   line-height: 1.5;
-  color: var(--color-text, #333);
+  color: var(--color-text, var(--text));
   overflow-wrap: anywhere;
 }
 
@@ -234,13 +234,13 @@ export default {
   margin-top: 18px;
   font-size: 13px;
   line-height: 1.6;
-  color: var(--color-text-muted, #999);
+  color: var(--color-text-muted, var(--text-muted));
 }
 
 .ban-contacts {
   margin-top: 16px;
   padding: 14px 16px;
-  border: 1px solid var(--color-border, #e6e6e6);
+  border: 1px solid var(--color-border, var(--border));
   border-radius: var(--radius-md, 15px);
   text-align: left;
   display: flex;
@@ -253,14 +253,14 @@ export default {
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--color-text-muted, #999);
+  color: var(--color-text-muted, var(--text-muted));
   margin-bottom: 2px;
 }
 
 .ban-contacts__item {
   font-size: 14px;
   font-weight: 500;
-  color: var(--color-primary, #4f5bdf);
+  color: var(--color-primary, var(--accent-text));
   text-decoration: none;
   overflow-wrap: anywhere;
 }
@@ -276,10 +276,10 @@ export default {
 .ban-modal__logout {
   width: 100%;
   padding: 11px 20px;
-  border: 1px solid var(--color-border, #e6e6e6);
+  border: 1px solid var(--color-border, var(--border));
   border-radius: var(--radius-pill, 999px);
   background: transparent;
-  color: var(--color-text, #333);
+  color: var(--color-text, var(--text));
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -287,8 +287,8 @@ export default {
 }
 
 .ban-modal__logout:hover {
-  background: #f7f7f9;
-  border-color: #d6d6dd;
+  background: var(--accent-tint);
+  border-color: var(--border);
 }
 
 /* Анимация: только transform/opacity (rules/web). */

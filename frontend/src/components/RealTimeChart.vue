@@ -302,28 +302,28 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 13px;
 }
 
 .chart-tooltip {
   position: absolute;
   transform: translate(-50%, -100%);
-  background: #1a1a1a;
-  color: #fff;
+  background: var(--hint-bg);
+  color: var(--hint-text);
   padding: 8px 12px;
   border-radius: 8px;
   font-size: 12px;
   line-height: 1.3;
   white-space: nowrap;
   pointer-events: none;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 8px 20px var(--shadow-drop);
   z-index: 10;
 }
 
 .chart-tooltip__time {
   font-weight: 500;
-  color: #d0d0d0;
+  color: var(--border);
   margin-bottom: 2px;
   font-size: 11px;
 }

@@ -1032,10 +1032,10 @@ export default {
 
 <style scoped>
 .attachment-details {
-    background: white;
+    background: var(--surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    box-shadow: 0 2px 12px var(--shadow-drop);
 }
 
 .attachment-header-section {
@@ -1081,14 +1081,14 @@ export default {
 }
 
 .date-label, .time-label {
-    color: #a2a2a2;
+    color: var(--text-muted);
     font-weight: 400;
     min-width: 110px;
     font-size: 14px;
 }
 
 .date-value, .time-value {
-    color: #000;
+    color: var(--text);
     font-weight: 400;
     font-size: 15px;
 }
@@ -1108,12 +1108,12 @@ export default {
 }
 
 .custom-value-label {
-    color: #a2a2a2;
+    color: var(--text-muted);
     font-weight: 400;
 }
 
 .custom-value-text {
-    color: #000;
+    color: var(--text);
     font-weight: 400;
     font-size: 15px;
 }
@@ -1162,7 +1162,7 @@ export default {
 .el-table {
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
-    background: #fff;
+    background: var(--surface);
 }
 
 /* Ниже суммы минимальных ширин колонок лента прокручивается по горизонтали,
@@ -1183,18 +1183,18 @@ export default {
 .el-head {
     height: 38px;
     border-radius: var(--radius-md) var(--radius-md) 0 0;
-    background: #fbfbfd;
+    background: var(--accent-tint);
     border-bottom: 1px solid var(--color-border);
     font-size: 12px;
     font-weight: 600;
-    color: #8a8fa3;
+    color: var(--text-muted);
 }
 
 .el-row {
     min-height: 46px;
     padding-top: 8px;
     padding-bottom: 8px;
-    border-bottom: 1px solid #f2f2f5;
+    border-bottom: 1px solid var(--border);
     transition: background 0.15s ease;
     animation: slideIn 0.3s ease-out forwards;
     opacity: 0;
@@ -1214,12 +1214,12 @@ export default {
 }
 
 .el-row--flagged {
-    background: #fffafa;
+    background: var(--danger-bg);
     box-shadow: inset 3px 0 0 var(--color-danger);
 }
 
 .el-row--flagged.el-row--clickable:hover {
-    background: #fff4f4;
+    background: var(--danger-bg);
 }
 
 @keyframes slideIn {
@@ -1238,7 +1238,7 @@ export default {
 .c-num {
     width: 22px;
     flex-shrink: 0;
-    color: #b0b3c2;
+    color: var(--text-muted);
     font-size: 13px;
     font-variant-numeric: tabular-nums;
     user-select: none;
@@ -1271,26 +1271,26 @@ export default {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: #6b6f80;
+    color: var(--text-muted);
     font-size: 13.5px;
 }
 
 .el-row .c-key .val {
     font-weight: 600;
-    color: #222;
+    color: var(--text);
     font-size: 14.5px;
 }
 
 .el-row .c-places .val {
     font-weight: 600;
-    color: #222;
+    color: var(--text);
     font-size: 14.5px;
 }
 
 .val-sub {
     display: block;
     margin-top: 1px;
-    color: #6b6f80;
+    color: var(--text-muted);
     font-size: 12.5px;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1324,9 +1324,9 @@ export default {
     padding: 3px 10px;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-pill);
-    background: #fff;
+    background: var(--surface);
     font-size: 12.5px;
-    color: #444;
+    color: var(--text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1343,7 +1343,7 @@ export default {
 .chip--assign {
     border-style: dashed;
     border-color: rgba(79, 91, 223, 0.45);
-    background: #fff;
+    background: var(--surface);
     color: var(--color-primary);
     font-weight: 700;
     line-height: 1;
@@ -1364,7 +1364,7 @@ export default {
 .chip--empty {
     border: none;
     background: none;
-    color: #c2c5d2;
+    color: var(--accent-text);
     padding-left: 0;
 }
 
@@ -1384,8 +1384,8 @@ export default {
     left: 50%;
     transform: translateX(-50%);
     padding: 7px 11px;
-    background: #333;
-    color: #fff;
+    background: var(--hint-bg);
+    color: var(--hint-text);
     font-size: 12px;
     font-weight: 500;
     white-space: nowrap;
@@ -1405,7 +1405,7 @@ export default {
     left: 50%;
     transform: translateX(-50%);
     border: 6px solid transparent;
-    border-top-color: #333;
+    border-top-color: var(--hint-bg);
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.15s ease;
@@ -1458,7 +1458,7 @@ export default {
 }
 
 .el-foot__bulk-label {
-    color: #8a8fa3;
+    color: var(--text-muted);
 }
 
 .el-foot__bulk-btn {
@@ -1474,9 +1474,9 @@ export default {
     gap: 10px;
     padding: 9px 12px;
     border-top: 1px solid var(--color-border);
-    background: #fbfbfd;
+    background: var(--accent-tint);
     font-size: 12.5px;
-    color: #8a8fa3;
+    color: var(--text-muted);
     font-variant-numeric: tabular-nums;
 }
 
@@ -1492,21 +1492,21 @@ export default {
 .loading-spinner {
     width: 40px;
     height: 40px;
-    border: 3px solid #f3f3f3;
+    border: 3px solid var(--surface-2);
     border-top: 3px solid var(--color-primary);
     border-radius: 50%;
     animation: spin 1s linear infinite;
 }
 
 .loading-text {
-    color: #666;
+    color: var(--text-muted);
     font-size: 14px;
     font-weight: 500;
 }
 
 .no-data {
     text-align: center;
-    color: #a2a2a2;
+    color: var(--text-muted);
     padding: 40px 20px;
     font-size: 14px;
     font-style: italic;

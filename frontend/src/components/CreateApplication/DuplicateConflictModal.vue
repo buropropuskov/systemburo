@@ -102,7 +102,7 @@ onBeforeUnmount(() => { releaseBodyScrollLock(scrollLockOwner); });
 .dup-conflict-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -115,9 +115,9 @@ onBeforeUnmount(() => { releaseBodyScrollLock(scrollLockOwner); });
 .dup-conflict-dialog {
   width: 100%;
   max-width: 440px;
-  background: #ffffff;
+  background: var(--surface);
   border-radius: 30px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 10px 30px var(--shadow-drop);
   /* без overflow:hidden - иначе всплывающая подсказка над кнопкой обрезается по краю диалога */
   font-family: 'Montserrat', sans-serif;
 }
@@ -127,7 +127,7 @@ onBeforeUnmount(() => { releaseBodyScrollLock(scrollLockOwner); });
   width: 40px;
   height: 4px;
   border-radius: 2px;
-  background: #d5d5d5;
+  background: var(--border);
   margin: 10px auto 2px;
   flex-shrink: 0;
 }
@@ -137,14 +137,14 @@ onBeforeUnmount(() => { releaseBodyScrollLock(scrollLockOwner); });
   justify-content: space-between;
   align-items: center;
   padding: 16px 20px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
 }
 
 .dup-conflict-dialog__title {
   margin: 0;
   font-size: 1.1em;
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .dup-conflict-dialog__close {
@@ -152,7 +152,7 @@ onBeforeUnmount(() => { releaseBodyScrollLock(scrollLockOwner); });
   border: none;
   font-size: 18px;
   cursor: pointer;
-  color: #999;
+  color: var(--text-muted);
   padding: 0;
   width: 24px;
   height: 24px;
@@ -162,12 +162,12 @@ onBeforeUnmount(() => { releaseBodyScrollLock(scrollLockOwner); });
 }
 
 .dup-conflict-dialog__close:hover {
-  color: #333;
+  color: var(--text);
 }
 
 .dup-conflict-dialog__body {
   padding: 20px;
-  color: #333;
+  color: var(--text);
   font-size: 14px;
   line-height: 1.5;
 }
@@ -177,7 +177,7 @@ onBeforeUnmount(() => { releaseBodyScrollLock(scrollLockOwner); });
   justify-content: flex-end;
   gap: 10px;
   padding: 16px 20px;
-  border-top: 1px solid #e6e6e6;
+  border-top: 1px solid var(--border);
   flex-wrap: wrap;
 }
 
@@ -203,8 +203,8 @@ onBeforeUnmount(() => { releaseBodyScrollLock(scrollLockOwner); });
   transform: translateX(-50%);
   width: max-content;
   max-width: 220px;
-  background: #333;
-  color: #fff;
+  background: var(--hint-bg);
+  color: var(--hint-text);
   padding: 6px 10px;
   border-radius: 6px;
   font-size: 11px;
@@ -216,7 +216,7 @@ onBeforeUnmount(() => { releaseBodyScrollLock(scrollLockOwner); });
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.15s;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 8px var(--shadow-drop);
 }
 
 .dup-conflict-dialog__btn[data-hint]::before {
@@ -226,7 +226,7 @@ onBeforeUnmount(() => { releaseBodyScrollLock(scrollLockOwner); });
   left: 50%;
   transform: translateX(-50%);
   border: 5px solid transparent;
-  border-top-color: #333;
+  border-top-color: var(--hint-bg);
   z-index: 11;
   pointer-events: none;
   opacity: 0;
@@ -239,31 +239,31 @@ onBeforeUnmount(() => { releaseBodyScrollLock(scrollLockOwner); });
 }
 
 .dup-conflict-dialog__btn--cancel {
-  background: #f8f9fa;
-  color: #666;
-  border-color: #e6e6e6;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  border-color: var(--border);
 }
 
 .dup-conflict-dialog__btn--cancel:hover {
-  background: #e9ecef;
+  background: var(--accent-tint);
 }
 
 .dup-conflict-dialog__btn--primary {
-  background: #4f5bdf;
-  color: #ffffff;
+  background: var(--accent);
+  color: var(--accent-contrast);
 }
 
 .dup-conflict-dialog__btn--primary:hover {
-  background: #3a45b2;
+  background: var(--accent-hover);
 }
 
 .dup-conflict-dialog__btn--danger {
-  background: #ff6668;
-  color: #ffffff;
+  background: var(--danger);
+  color: var(--surface);
 }
 
 .dup-conflict-dialog__btn--danger:hover {
-  background: #e54e50;
+  background: color-mix(in srgb, var(--danger) 85%, var(--text));
 }
 
 .dup-conflict-fade-enter-active,

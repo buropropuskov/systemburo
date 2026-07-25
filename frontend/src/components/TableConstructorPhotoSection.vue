@@ -295,7 +295,7 @@ export default {
   margin: 0 0 12px 0;
   font-size: 14px;
   font-weight: 600;
-  color: #333;
+  color: var(--text);
 }
 
 .photos-header {
@@ -307,9 +307,9 @@ export default {
 
 .upload-photo-btn {
   padding: 4px 12px;
-  background: #f0f3ff;
-  color: #4F5BDF;
-  border: 1px solid #4F5BDF;
+  background: var(--accent-tint);
+  color: var(--accent-text);
+  border: 1px solid var(--accent);
   border-radius: 20px;
   cursor: pointer;
   font-size: 12px;
@@ -317,8 +317,8 @@ export default {
 }
 
 .upload-photo-btn:hover {
-  background: #4F5BDF;
-  color: white;
+  background: var(--accent);
+  color: var(--accent-contrast);
 }
 
 /* Drop-zone для перетаскивания файлов из проводника. Также служит обычной
@@ -331,25 +331,25 @@ export default {
   gap: 8px;
   padding: 20px;
   margin-bottom: 12px;
-  border: 2px dashed #c0c4d8;
+  border: 2px dashed var(--accent);
   border-radius: 50px;
-  background: #fafbff;
-  color: #6b7280;
+  background: var(--accent-tint);
+  color: var(--text-muted);
   cursor: pointer;
   text-align: center;
   transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
 }
 
 .photo-dropzone:hover {
-  border-color: #4F5BDF;
-  background: #f0f3ff;
-  color: #4F5BDF;
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+  color: var(--accent-text);
 }
 
 .photo-dropzone--active {
-  border-color: #4F5BDF;
-  background: #e6ebff;
-  color: #4F5BDF;
+  border-color: var(--accent);
+  background: var(--accent-tint);
+  color: var(--accent-text);
 }
 
 .photo-dropzone__input {
@@ -369,13 +369,13 @@ export default {
 }
 
 .photo-dropzone__text strong {
-  color: #333;
+  color: var(--text);
   font-weight: 600;
 }
 
 .photo-dropzone:hover .photo-dropzone__text strong,
 .photo-dropzone--active .photo-dropzone__text strong {
-  color: #4F5BDF;
+  color: var(--accent-text);
 }
 
 .photo-dropzone__text span {
@@ -396,30 +396,30 @@ export default {
 }
 
 .photos-grid::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: var(--surface-2);
   border-radius: 3px;
 }
 
 .photos-grid::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
+  background: var(--border);
   border-radius: 3px;
 }
 
 .photos-grid::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+  background: var(--text-muted);
 }
 
 .photo-item {
   position: relative;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 8px;
   overflow: hidden;
   aspect-ratio: 1;
-  background: #f8f9fa;
+  background: var(--surface-2);
 }
 
 .photo-item.main-photo {
-  border: 2px solid #4F5BDF;
+  border: 2px solid var(--accent);
 }
 
 .photo-preview {
@@ -465,18 +465,18 @@ export default {
 }
 
 .photo-main-btn:hover {
-  background: #4F5BDF;
-  color: white;
+  background: var(--accent);
+  color: var(--accent-contrast);
 }
 
 .photo-main-badge {
-  background: #4F5BDF;
-  color: white;
+  background: var(--accent);
+  color: var(--accent-contrast);
   cursor: default;
 }
 
 .photo-delete-btn:hover {
-  background: #c62828;
+  background: var(--danger);
 }
 
 .photo-delete-btn:hover .action-icon-small {
@@ -492,9 +492,9 @@ export default {
   grid-column: 1 / -1;
   text-align: center;
   padding: 20px;
-  color: #a2a2a2;
-  background: #f8f9fa;
-  border: 1px dashed #e6e6e6;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border: 1px dashed var(--border);
   border-radius: 25px;
   font-size: 15px;
 }
@@ -506,7 +506,7 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -518,20 +518,20 @@ export default {
 
 @keyframes overlayAppear {
   from {
-    background: rgba(0, 0, 0, 0);
+    background: var(--overlay);
     backdrop-filter: blur(0px);
   }
   to {
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--overlay);
     backdrop-filter: blur(0.1px);
   }
 }
 
 .modal-content {
-  background: #fff;
+  background: var(--surface);
   border-radius: 12px;
   padding: 0;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 20px 60px var(--shadow-drop);
   animation: modalAppear 0.3s ease-out;
 }
 
@@ -556,14 +556,14 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 16px 20px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
 }
 
 .modal-header h3 {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  color: #333;
+  color: var(--text);
 }
 
 .modal-close {
@@ -579,7 +579,7 @@ export default {
 }
 
 .modal-close:hover {
-  background-color: #f5f5f5;
+  background-color: var(--surface-2);
 }
 
 .photo-view-body {
@@ -587,7 +587,7 @@ export default {
   align-items: center;
   justify-content: center;
   padding: 0;
-  background: #f0f0f0;
+  background: var(--border);
 }
 
 .full-photo {
@@ -618,7 +618,7 @@ export default {
 
 .modal-fade-enter-from .modal-overlay,
 .modal-fade-leave-to .modal-overlay {
-  background: rgba(0, 0, 0, 0);
+  background: transparent;
   backdrop-filter: blur(0px);
 }
 

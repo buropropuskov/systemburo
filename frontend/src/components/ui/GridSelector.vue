@@ -120,13 +120,13 @@ export default {
 
 .grid-selector__item {
   padding: 12px 16px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 8px;
   cursor: pointer;
   text-align: center;
   font-size: 13px;
-  color: #333;
-  background: #fff;
+  color: var(--text);
+  background: var(--surface);
   transition: all 0.2s;
   white-space: nowrap;
   overflow: hidden;
@@ -134,43 +134,43 @@ export default {
 }
 
 .grid-selector__item:hover:not(.grid-selector__item--active):not(.grid-selector__item--inactive) {
-  border-color: #4F5BDF;
-  background: #f0f2ff;
+  border-color: var(--accent);
+  background: var(--accent-tint);
 }
 
 .grid-selector__item--active {
-  background: #4F5BDF;
-  color: #fff;
-  border-color: #4F5BDF;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
 }
 
 .grid-selector__item--attached {
-  border-left: 3px solid #4F5BDF;
+  border-left: 3px solid var(--accent);
 }
 
 .grid-selector__item--inactive {
   opacity: 0.5;
   cursor: not-allowed;
-  background: #f5f5f5;
+  background: var(--surface-2);
 }
 
 .grid-selector__loading {
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   text-align: center;
   padding: 20px;
 }
 
 .grid-selector__error {
-  color: #ef4444;
+  color: var(--danger-text);
   font-size: 12px;
   margin-top: 8px;
 }
 
 .grid-selector__tooltip {
   position: fixed;
-  background: #333;
-  color: #fff;
+  background: var(--hint-bg);
+  color: var(--hint-text);
   padding: 8px 12px;
   border-radius: 8px;
   font-size: 12px;
@@ -178,6 +178,6 @@ export default {
   pointer-events: none;
   max-width: 250px;
   line-height: 1.4;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 12px var(--shadow-drop);
 }
 </style>

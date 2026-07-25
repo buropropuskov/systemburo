@@ -680,7 +680,7 @@ defineExpose({ editor });
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   margin-bottom: 10px;
-  background: #fff;
+  background: var(--surface);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -723,8 +723,8 @@ defineExpose({ editor });
   padding: 0 8px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: #fff;
-  color: #1a1a1a;
+  background: var(--surface);
+  color: var(--text);
   font-size: 14px;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
@@ -734,7 +734,7 @@ defineExpose({ editor });
    и кнопка выглядит зажатой, а подсказка повисает. */
 @media (hover: hover) {
   .toolbar-btn:hover:not(:disabled) {
-    background: #f4f5ff;
+    background: var(--accent-tint);
     border-color: var(--color-primary);
   }
 }
@@ -742,7 +742,7 @@ defineExpose({ editor });
 .toolbar-btn.active {
   background: var(--color-primary);
   border-color: var(--color-primary);
-  color: #fff;
+  color: var(--accent-contrast);
 }
 
 .toolbar-btn:disabled {
@@ -781,8 +781,8 @@ defineExpose({ editor });
     left: 50%;
     transform: translateX(-50%);
     padding: 4px 8px;
-    background: #1a1a1a;
-    color: #fff;
+    background: var(--hint-bg);
+    color: var(--hint-text);
     font-size: 11px;
     white-space: nowrap;
     border-radius: 6px;
@@ -813,7 +813,7 @@ defineExpose({ editor });
   padding: 0 10px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: #fff;
+  background: var(--surface);
   cursor: pointer;
   font-size: 13px;
   transition: border-color 0.15s ease;
@@ -829,7 +829,7 @@ defineExpose({ editor });
   width: 10px;
   height: 10px;
   flex-shrink: 0;
-  color: #666;
+  color: var(--text-muted);
   transition: transform 0.2s ease;
 }
 
@@ -845,7 +845,7 @@ defineExpose({ editor });
   z-index: 20;
   max-height: 220px;
   overflow-y: auto;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.12);
@@ -873,13 +873,13 @@ defineExpose({ editor });
 }
 
 .select-option.active {
-  background: #f4f5ff;
+  background: var(--accent-tint);
   color: var(--color-primary);
 }
 
 @media (hover: hover) {
   .select-option:hover {
-    background: #f4f5ff;
+    background: var(--accent-tint);
     color: var(--color-primary);
   }
 }
@@ -908,13 +908,13 @@ defineExpose({ editor });
   content: attr(data-placeholder);
   float: left;
   height: 0;
-  color: #9aa0aa;
+  color: var(--text-muted);
   pointer-events: none;
 }
 
 .constructor-error {
   padding: 6px 14px 10px;
-  color: #d92d20;
+  color: var(--danger-text);
   font-size: 12px;
 }
 
@@ -924,7 +924,7 @@ defineExpose({ editor });
   overflow-y: auto;
   font-size: 15px;
   line-height: 1.6;
-  color: #1a1a1a;
+  color: var(--text);
   word-break: break-word;
 }
 

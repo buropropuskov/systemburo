@@ -1710,7 +1710,7 @@ export default {
 }
 
 .carsview__help {
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     border-radius: 15px;
     padding: 16px 20px;
 }
@@ -1731,14 +1731,14 @@ export default {
 
 .carsview__subtitle {
     font-size: 13px;
-    color: var(--color-text-muted, #6b7280);
+    color: var(--color-text-muted, var(--text-muted));
     margin: 0;
 }
 
 .carsview__filters {
     padding-bottom: 15px;
     width: 100%;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
 }
 
 .filters-container {
@@ -1754,8 +1754,8 @@ export default {
 
 .filter-tab {
     padding: 0px 16px;
-    border: 1px solid #e6e6e6;
-    background: white;
+    border: 1px solid var(--border);
+    background: var(--surface);
     border-radius: 50px;
     cursor: pointer;
     font-size: 14px;
@@ -1764,35 +1764,35 @@ export default {
 }
 
 .filter-tab:hover {
-    border-color: #4F5BDF;
+    border-color: var(--accent);
 }
 
 .filter-tab--active {
-    background: #4F5BDF;
-    color: white;
-    border-color: #4F5BDF;
+    background: var(--accent);
+    color: var(--accent-contrast);
+    border-color: var(--accent);
 }
 
 .blue {
-    color: #4F5BDF;
+    color: var(--accent-text);
 }
 
 /* Стили для таблицы */
 .cars-card {
-    background-color: #fff;
+    background-color: var(--surface);
     border-radius: 30px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     overflow: hidden;
     width: 75%;
     flex: 1;
     min-height: 0;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.05);
+    box-shadow: 0 3px 10px var(--shadow-drop);
 }
 
 .card-header {
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -1814,8 +1814,8 @@ export default {
 }
 
 .add-button {
-    background: #4F5BDF;
-    color: white;
+    background: var(--accent);
+    color: var(--accent-contrast);
     border: none;
     border-radius: 15px;
     padding: 6px 12px;
@@ -1825,24 +1825,24 @@ export default {
 }
 
 .add-button:hover:not(:disabled) {
-    background: #3a45c0;
+    background: var(--accent-hover);
 }
 
 .add-button:disabled {
-    background: #a2a2a2;
+    background: var(--text-muted);
     cursor: not-allowed;
     opacity: 0.6;
 }
 
 .card-title {
     margin: 0;
-    color: #000;
+    color: var(--text);
     font-weight: 600;
     font-size: 1.0em;
 }
 
 .highlight-text {
-    color: #000;
+    color: var(--text);
 }
 
 .card-content {
@@ -1864,7 +1864,7 @@ export default {
 /* cars-header повторяет геометрию cars-body (padding-right + margin-right 4px),
    чтобы доступная ширина колонок совпала и заголовки выровнялись с данными. */
 .cars-header {
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
     flex-shrink: 0;
     padding-right: 4px;
     margin-right: 4px;
@@ -1880,7 +1880,7 @@ export default {
 
 .header-col {
     font-weight: 500;
-    color: #a2a2a2;
+    color: var(--text-muted);
     text-align: left;
     padding: 0 8px;
     font-size: 14px;
@@ -1893,7 +1893,7 @@ export default {
 }
 
 .header-col:hover {
-    color: #333;
+    color: var(--text);
 }
 
 .header-col:hover .sort-icon {
@@ -1915,7 +1915,7 @@ export default {
 }
 
 .active-sort {
-    color: #333 !important;
+    color: var(--text) !important;
     font-weight: 500 !important;
 }
 
@@ -1981,7 +1981,7 @@ export default {
 }
 
 .car-item:hover {
-    background-color: #fafafa;
+    background-color: var(--surface-2);
 }
 
 .car-row {
@@ -1989,7 +1989,7 @@ export default {
     width: 100%;
     padding: 10px 16px;
     align-items: center;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid var(--border);
     cursor: pointer;
 }
 
@@ -2023,7 +2023,7 @@ export default {
 }
 
 .cars-body::-webkit-scrollbar-thumb {
-    background: #D9E2FF;
+    background: color-mix(in srgb, var(--accent) 22%, var(--surface));
     border-radius: 3px;
     border: 1px solid transparent;
     background-clip: content-box;
@@ -2031,7 +2031,7 @@ export default {
 }
 
 .cars-body::-webkit-scrollbar-thumb:hover {
-    background: #C5D1FF;
+    background: color-mix(in srgb, var(--accent) 22%, var(--surface));
     border: 1px solid transparent;
     background-clip: content-box;
     transform: scale(1.1);
@@ -2039,7 +2039,7 @@ export default {
 
 .cars-body {
     scrollbar-width: thin;
-    scrollbar-color: #D9E2FF transparent;
+    scrollbar-color: color-mix(in srgb, var(--accent) 22%, var(--surface)) transparent;
     scroll-behavior: smooth;
     overscroll-behavior: contain;
 }
@@ -2059,11 +2059,11 @@ export default {
 }
 
 .edit-btn:hover {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
 }
 
 .delete-btn:hover {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
 }
 
 .edit-icon, .delete-icon {
@@ -2080,13 +2080,13 @@ export default {
 
 .read-only-text {
     font-size: 12px;
-    color: #a2a2a2;
+    color: var(--text-muted);
     font-style: italic;
 }
 
 .no-data-message {
     text-align: center;
-    color: #a2a2a2;
+    color: var(--text-muted);
     padding: 40px 20px;
     margin: 0;
     font-size: 14px;
@@ -2146,14 +2146,14 @@ export default {
 .table-footer {
     flex-shrink: 0;
     padding: 10px 20px;
-    border-top: 1px solid #e6e6e6;
+    border-top: 1px solid var(--border);
     font-size: 13px;
-    color: #8a8a8a;
+    color: var(--text-muted);
 }
 
 .loading-message {
     text-align: center;
-    color: #a2a2a2;
+    color: var(--text-muted);
     padding: 40px 20px;
     font-size: 14px;
     flex-grow: 1;
@@ -2175,7 +2175,7 @@ export default {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--overlay);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2204,7 +2204,7 @@ export default {
 }
 
 .modal-content {
-    background: white;
+    background: var(--surface);
     border-radius: 20px;
     padding: 0;
     width: 500px;
@@ -2218,7 +2218,7 @@ export default {
     justify-content: space-between;
     align-items: flex-start;
     padding: 20px;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
 }
 
 .modal-header__top {
@@ -2231,7 +2231,7 @@ export default {
 
 .modal-header h3 {
     margin: 0;
-    color: #333;
+    color: var(--text);
     font-size: 18px;
 }
 
@@ -2240,7 +2240,7 @@ export default {
     border: none;
     font-size: 24px;
     cursor: pointer;
-    color: #a2a2a2;
+    color: var(--text-muted);
     padding: 0;
     width: 30px;
     height: 30px;
@@ -2251,7 +2251,7 @@ export default {
 }
 
 .modal-close:hover {
-    color: #333;
+    color: var(--text);
 }
 
 .modal-body {
@@ -2267,11 +2267,11 @@ export default {
 
 .input__label {
     font-size: 13px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .required {
-    color: #ff4444;
+    color: var(--danger-text);
 }
 
 .completion__format {
@@ -2290,7 +2290,7 @@ export default {
 
 .format__label {
     font-size: 13px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .format__dropdown {
@@ -2300,8 +2300,8 @@ export default {
 .dropdown__button {
     width: 100%;
     height: 30px;
-    border: 1px solid #e6e6e6;
-    background-color: #FFF;
+    border: 1px solid var(--border);
+    background-color: var(--surface);
     border-radius: 50px;
     outline: none;
     cursor: pointer;
@@ -2310,7 +2310,7 @@ export default {
 }
 
 .dropdown__button:hover {
-    border-color: #4F5BDF;
+    border-color: var(--accent);
 }
 
 .button__content {
@@ -2323,7 +2323,7 @@ export default {
 
 .button__text {
     font-size: 14px;
-    color: #000;
+    color: var(--text);
     font-weight: 500;
 }
 
@@ -2343,11 +2343,11 @@ export default {
     top: 100%;
     left: 0;
     width: 100%;
-    background: #FFF;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 20px;
     margin-top: 5px;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+    box-shadow: 0 3px 10px var(--shadow-drop);
     z-index: 1000;
     max-height: 300px;
     overflow-y: auto;
@@ -2363,7 +2363,7 @@ export default {
 }
 
 .dropdown__item:hover {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
 }
 
 .dropdown__item:first-child {
@@ -2376,7 +2376,7 @@ export default {
 
 .item__text {
     font-size: 13px;
-    color: #333;
+    color: var(--text);
 }
 
 .completion__fields {
@@ -2404,18 +2404,18 @@ export default {
     min-width: 100%;
     height: 40px;
     display: flex;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     border-radius: 15px;
     overflow: hidden;
-    background: #FFF;
+    background: var(--surface);
 }
 
 .no-format-message {
     font-size: 12px;
-    color: #a2a2a2;
+    color: var(--text-muted);
     text-align: center;
     padding: 10px;
-    background: #f8f8f8;
+    background: var(--surface-2);
     border-radius: 10px;
 }
 
@@ -2431,7 +2431,7 @@ export default {
 }
 
 .number__input:not(:last-child) {
-    border-right: 1px solid #e6e6e6;
+    border-right: 1px solid var(--border);
 }
 
 .number__input:first-child {
@@ -2443,12 +2443,12 @@ export default {
 }
 
 .number__input::placeholder {
-    color: #a2a2a2;
+    color: var(--text-muted);
     font-size: 12px;
 }
 
 .number__input:focus {
-    background-color: #f8f8f8;
+    background-color: var(--surface-2);
 }
 
 /* Mark dropdown styles */
@@ -2466,8 +2466,8 @@ export default {
 .mark__dropdown-button {
     width: 100%;
     height: 100%;
-    border: 1px solid #e6e6e6;
-    background-color: #FFF;
+    border: 1px solid var(--border);
+    background-color: var(--surface);
     border-radius: 15px;
     outline: none;
     cursor: pointer;
@@ -2476,7 +2476,7 @@ export default {
 }
 
 .mark__dropdown-button:hover {
-    border-color: #4F5BDF;
+    border-color: var(--accent);
 }
 
 .mark__button-content {
@@ -2489,7 +2489,7 @@ export default {
 
 .mark__button-text {
     font-size: 14px;
-    color: #000;
+    color: var(--text);
 }
 
 .mark__button-arrow {
@@ -2508,11 +2508,11 @@ export default {
     top: 100%;
     left: 0;
     width: 100%;
-    background: #FFF;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 20px;
     margin-top: 5px;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+    box-shadow: 0 3px 10px var(--shadow-drop);
     z-index: 1000;
     max-height: 220px;
     overflow: hidden;
@@ -2520,12 +2520,12 @@ export default {
 
 .mark__search {
     padding: 10px;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
 }
 
 .mark__search-input {
     width: 100%;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     border-radius: 15px;
     padding: 5px 10px;
     outline: none;
@@ -2541,11 +2541,11 @@ export default {
     padding: 8px 15px;
     cursor: pointer;
     transition: background-color 0.2s;
-    border-bottom: 1px solid #f5f5f5;
+    border-bottom: 1px solid var(--surface-2);
 }
 
 .mark__dropdown-item:hover {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
 }
 
 .mark__dropdown-item:last-child {
@@ -2554,7 +2554,7 @@ export default {
 
 .mark__item-text {
     font-size: 14px;
-    color: #333;
+    color: var(--text);
 }
 
 /* Анимации для dropdown */
@@ -2573,7 +2573,7 @@ export default {
 .completion__binding {
     margin-top: 15px;
     padding-top: 15px;
-    border-top: 1px solid #e6e6e6;
+    border-top: 1px solid var(--border);
 }
 
 .binding-info {
@@ -2583,7 +2583,7 @@ export default {
 
 .binding-note {
     font-size: 12px;
-    color: #666;
+    color: var(--text-muted);
     line-height: 1.4;
     margin: 0 0 10px 0;
 }
@@ -2617,12 +2617,12 @@ export default {
 
 .user-binding-text {
     font-size: 10px;
-    color: #000;
+    color: var(--text);
     font-weight: 400;
 }
 
 .red {
-    color: #ff4444;
+    color: var(--danger-text);
 }
 
 @media (max-width: 768px) {

@@ -58,7 +58,7 @@ export default {
   width: 36px;
   height: 20px;
   border-radius: 10px;
-  background: #ccc;
+  background: var(--border);
   transition: background 0.2s ease;
   flex-shrink: 0;
 }
@@ -74,8 +74,8 @@ export default {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  background: var(--surface);
+  box-shadow: 0 1px 3px var(--shadow-drop);
   transition: transform 0.2s ease;
 }
 

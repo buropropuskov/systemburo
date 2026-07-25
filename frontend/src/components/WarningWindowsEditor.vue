@@ -517,30 +517,30 @@ export default {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .ww-editor__hint {
   margin: 0;
   font-size: 12px;
-  color: #6b7280;
+  color: var(--text-muted);
   line-height: 1.5;
 }
 
 .ww-editor__empty {
   text-align: center;
-  color: #aaa;
+  color: var(--text-muted);
   font-size: 12px;
   font-style: italic;
   padding: 18px 0;
-  border: 1px dashed #e0e0e0;
+  border: 1px dashed var(--border);
   border-radius: 14px;
 }
 
 .add-btn {
   padding: 6px 14px;
-  background: #4F5BDF;
-  color: white;
+  background: var(--accent);
+  color: var(--accent-contrast);
   border: none;
   border-radius: 20px;
   font-size: 12px;
@@ -548,10 +548,10 @@ export default {
   transition: background 0.2s;
 }
 .add-btn:hover:not(:disabled) {
-  background: #3a45b2;
+  background: var(--accent-hover);
 }
 .add-btn:disabled {
-  background: #ccc;
+  background: var(--border);
   cursor: not-allowed;
 }
 
@@ -566,13 +566,13 @@ export default {
   align-items: center;
   gap: 12px;
   padding: 10px 12px;
-  background: #fff;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 14px;
   flex-wrap: wrap;
 }
 .ww-card--inactive {
-  background: #fafafa;
+  background: var(--surface-2);
   opacity: 0.75;
 }
 
@@ -592,25 +592,25 @@ export default {
   white-space: nowrap;
 }
 .ww-badge--day {
-  background: #f0f3ff;
-  color: #4F5BDF;
+  background: var(--accent-tint);
+  color: var(--accent-text);
 }
 .ww-badge--time {
-  background: #f8f9fa;
-  color: #333;
-  border: 1px solid #e6e6e6;
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
   display: inline-flex;
   align-items: center;
   gap: 4px;
 }
 .ww-badge--off {
-  background: #f0f0f0;
-  color: #999;
+  background: var(--border);
+  color: var(--text-muted);
 }
 
 .ww-nextday {
-  background: #4F5BDF;
-  color: #fff;
+  background: var(--accent);
+  color: var(--accent-contrast);
   padding: 0 5px;
   border-radius: 8px;
   font-size: 9px;
@@ -621,7 +621,7 @@ export default {
   flex: 1;
   min-width: 140px;
   font-size: 12.5px;
-  color: #333;
+  color: var(--text);
   word-break: break-word;
 }
 
@@ -657,7 +657,7 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: #ccc;
+  background-color: var(--border);
   border-radius: 22px;
   transition: 0.2s;
 }
@@ -668,12 +668,12 @@ export default {
   width: 14px;
   left: 2px;
   bottom: 2px;
-  background-color: white;
+  background-color: var(--surface);
   border-radius: 50%;
   transition: 0.2s;
 }
 .ww-switch input:checked + .switch-slider {
-  background-color: #4F5BDF;
+  background-color: var(--accent);
 }
 .ww-switch input:checked + .switch-slider:before {
   transform: translateX(16px);
@@ -691,7 +691,7 @@ export default {
   transition: background 0.2s;
 }
 .icon-btn:hover {
-  background-color: #e6e6e6;
+  background-color: var(--border);
 }
 .icon {
   width: 13px;
@@ -706,7 +706,7 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0,0,0,0.5);
+  background: var(--overlay);
   backdrop-filter: blur(0.1px);
   -webkit-backdrop-filter: blur(0.1px);
   display: flex;
@@ -721,11 +721,11 @@ export default {
 }
 
 .modal-content {
-  background: white;
+  background: var(--surface);
   border-radius: 20px;
   width: 440px;
   max-width: 90vw;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  box-shadow: 0 20px 60px var(--shadow-drop);
   animation: modalAppear 0.3s ease-out;
   margin-top: -50px;
 }
@@ -739,13 +739,13 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 18px 22px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
 }
 .modal-title {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text);
 }
 .modal-close {
   background: none;
@@ -759,7 +759,7 @@ export default {
   transition: background 0.2s;
 }
 .modal-close:hover {
-  background-color: #f5f5f5;
+  background-color: var(--surface-2);
 }
 
 .modal-body {
@@ -773,7 +773,7 @@ export default {
   justify-content: flex-end;
   gap: 10px;
   padding: 16px 22px 20px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--border);
 }
 
 .field {
@@ -783,7 +783,7 @@ export default {
   display: block;
   font-size: 12px;
   font-weight: 500;
-  color: #555;
+  color: var(--text);
   margin-bottom: 5px;
 }
 
@@ -792,14 +792,14 @@ export default {
   align-items: center;
   gap: 8px;
   font-size: 13px;
-  color: #333;
+  color: var(--text);
   cursor: pointer;
   margin-bottom: 16px;
 }
 .checkbox-row input {
   width: 16px;
   height: 16px;
-  accent-color: #4F5BDF;
+  accent-color: var(--accent);
   cursor: pointer;
 }
 
@@ -814,15 +814,15 @@ export default {
 .modal-input {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--border);
   border-radius: 15px;
   font-size: 14px;
   transition: border-color 0.2s;
-  background: white;
+  background: var(--surface);
   box-sizing: border-box;
 }
 .modal-input:focus {
-  border-color: #4F5BDF;
+  border-color: var(--accent);
   outline: none;
 }
 .modal-textarea {
@@ -840,13 +840,13 @@ export default {
   align-items: center;
   justify-content: space-between;
   padding: 10px 12px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--border);
   border-radius: 15px;
-  background: white;
+  background: var(--surface);
   transition: border-color 0.2s;
 }
 .select-trigger:hover {
-  border-color: #4F5BDF;
+  border-color: var(--accent);
 }
 .select-arrow {
   transition: transform 0.2s ease;
@@ -859,10 +859,10 @@ export default {
   top: calc(100% + 4px);
   left: 0;
   right: 0;
-  background: white;
-  border: 1px solid #e0e0e0;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 12px;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 15px var(--shadow-drop);
   z-index: 10;
   max-height: 200px;
   overflow-y: auto;
@@ -870,7 +870,7 @@ export default {
 .select-option {
   padding: 10px 14px;
   cursor: pointer;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
   transition: background 0.2s;
   font-size: 13px;
 }
@@ -878,19 +878,19 @@ export default {
   border-bottom: none;
 }
 .select-option:hover {
-  background: #f5f7ff;
-  color: #4F5BDF;
+  background: var(--accent-tint);
+  color: var(--accent-text);
 }
 .select-option.selected {
-  background: #f0f3ff;
-  color: #4F5BDF;
+  background: var(--accent-tint);
+  color: var(--accent-text);
   font-weight: 500;
 }
 
 .next-day-hint {
   font-size: 12px;
-  color: #f39c12;
-  background: #fff8e7;
+  color: var(--warning-text);
+  background: var(--warning-bg);
   padding: 8px 12px;
   border-radius: 15px;
   margin-bottom: 16px;
@@ -908,21 +908,21 @@ export default {
   min-width: 90px;
 }
 .modal-btn.cancel {
-  background: #f5f5f5;
-  color: #666;
+  background: var(--surface-2);
+  color: var(--text-muted);
 }
 .modal-btn.cancel:hover {
-  background: #e9e9e9;
+  background: var(--row-hover);
 }
 .modal-btn.confirm {
-  background: #4F5BDF;
-  color: white;
+  background: var(--accent);
+  color: var(--accent-contrast);
 }
 .modal-btn.confirm:hover:not(:disabled) {
-  background: #3a45b2;
+  background: var(--accent-hover);
 }
 .modal-btn.confirm:disabled {
-  background: #ccc;
+  background: var(--border);
   cursor: not-allowed;
 }
 

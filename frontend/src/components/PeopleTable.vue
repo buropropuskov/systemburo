@@ -1825,9 +1825,9 @@ export default {
 <style scoped>
 .selected-table-card {
   position: relative; /* контекст для оверлей-панели .bulk-bar поверх .card-header (#1194) */
-  background-color: #fff;
+  background-color: var(--surface);
   border-radius: 30px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   overflow: hidden;
   width: 100%;
   max-height: 575px;
@@ -1836,7 +1836,7 @@ export default {
 }
 
 .card-header {
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1860,14 +1860,14 @@ export default {
   gap: 14px;
   height: 50px;
   padding: 0 20px;
-  border-bottom: 1px solid #e6e6e6;
-  background: #f0f2ff;
+  border-bottom: 1px solid var(--border);
+  background: var(--accent-tint);
 }
 
 .bulk-count {
   font-size: 14px;
   font-weight: 600;
-  color: #4F5BDF;
+  color: var(--accent-text);
   white-space: nowrap;
 }
 
@@ -1904,7 +1904,7 @@ export default {
 
 .card-title {
   margin: 0;
-  color: #000;
+  color: var(--text);
   font-weight: 600;
   font-size: 1.1em;
   white-space: nowrap;
@@ -1913,11 +1913,11 @@ export default {
 }
 
 .blue {
-  color: #4F5BDF;
+  color: var(--accent-text);
 }
 
 .items-count {
-  color: #4F5BDF;
+  color: var(--accent-text);
   font-weight: 500;
   font-size: 0.9em;
   display: flex;
@@ -1955,18 +1955,18 @@ export default {
 
 .history-btn {
   padding: 4px 12px;
-  background: white;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 15px;
   font-size: 12px;
-  color: #333;
+  color: var(--text);
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .history-btn:hover {
-  background: #f5f5f5;
-  border-color: #4F5BDF;
+  background: var(--surface-2);
+  border-color: var(--accent);
 }
 
 .card-content {
@@ -1980,7 +1980,7 @@ export default {
 /* items-header повторяет геометрию items-body (padding-right + margin-right 4px),
    чтобы доступная ширина для колонок совпала и заголовки выровнялись с данными. */
 .items-header {
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   padding-right: 4px;
   margin-right: 4px;
@@ -2038,14 +2038,14 @@ export default {
   font-size: 11px;
   font-weight: 500;
   line-height: 1.4;
-  color: #4f5bdf;
-  background: rgba(79, 91, 223, 0.1);
+  color: var(--accent-text);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
   white-space: nowrap;
 }
 
 .header-row .col {
   font-weight: 500;
-  color: #a2a2a2;
+  color: var(--text-muted);
   cursor: pointer;
   user-select: none;
   display: flex;
@@ -2069,7 +2069,7 @@ export default {
 }
 
 .header-row .col:hover {
-  color: #333;
+  color: var(--text);
 }
 
 .header-row .col:hover .sort-icon {
@@ -2091,7 +2091,7 @@ export default {
 }
 
 .active-sort {
-  color: #333 !important;
+  color: var(--text) !important;
   font-weight: 500 !important;
 }
 
@@ -2142,17 +2142,17 @@ export default {
 }
 
 .item-row:hover {
-  background-color: #f5f5f5;
+  background-color: var(--surface-2);
 }
 
 /* Подсветка ctrl/shift-выделенной строки (#1194) - тот же тон, что фон
    .bulk-bar, чтобы связь выбора с панелью читалась визуально. */
 .item-row--selected {
-  background-color: #eef0ff;
+  background-color: var(--accent-tint);
 }
 
 .item-row--selected:hover {
-  background-color: #e4e7fd;
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface));
 }
 
 @keyframes fadeInUp {
@@ -2171,7 +2171,7 @@ export default {
   width: 100%;
   padding: 10px 10px;
   align-items: center;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
   gap: 4px;
 }
 
@@ -2183,9 +2183,9 @@ export default {
   width: 70px;
   height: 30px;
   border-radius: 50px;
-  border: 1px solid #e6e6e6;
-  background: white;
-  color: #000;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -2197,8 +2197,8 @@ export default {
 }
 
 .action-btn:hover:not(:disabled) {
-  background: #f5f5f5;
-  border-color: #a2a2a2;
+  background: var(--surface-2);
+  border-color: var(--text-muted);
 }
 
 .action-btn:disabled {
@@ -2207,21 +2207,21 @@ export default {
 }
 
 .action-btn.entry-btn.active {
-  background: #e6f7e6;
-  color: #2e7d32;
-  border-color: #a5d6a7;
+  background: var(--success-bg);
+  color: var(--success-text);
+  border-color: var(--success);
   font-weight: 600;
 }
 
 .action-btn.exit-btn.active {
-  background: #ffebee;
-  color: #c62828;
-  border-color: #ef9a9a;
+  background: var(--danger-bg);
+  color: var(--danger-text);
+  border-color: color-mix(in srgb, var(--danger) 30%, var(--surface));
   font-weight: 600;
 }
 
 .status-text {
-  color: #079D1D;
+  color: var(--success-text);
   font-weight: 500;
 }
 
@@ -2257,7 +2257,7 @@ export default {
 
 .no-data-message {
   text-align: center;
-  color: #a2a2a2;
+  color: var(--text-muted);
   padding: 40px 20px;
   margin: 0;
   font-size: 14px;
@@ -2269,7 +2269,7 @@ export default {
 
 .loading-message {
   text-align: center;
-  color: #a2a2a2;
+  color: var(--text-muted);
   padding: 40px 20px;
   margin: 0;
   font-size: 14px;
@@ -2504,7 +2504,7 @@ export default {
     right: 0;
     bottom: -200px;
     width: 1px;
-    background: #e6e6e6;
+    background: var(--border);
   }
 
   /* У схлопнутой колонки (увеличенный режим, приоритет) нулевая ширина - её
@@ -2532,22 +2532,22 @@ export default {
   align-items: center;
   justify-content: center;
   background: transparent;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 6px;
-  color: #6b7280;
+  color: var(--text-muted);
   cursor: pointer;
   transition: transform 0.2s ease, color 0.15s ease, background 0.15s ease;
 }
 
 .expand-btn:hover {
-  background: #f5f5f5;
-  color: #4F5BDF;
+  background: var(--surface-2);
+  color: var(--accent-text);
 }
 
 .expand-btn--open {
   transform: rotate(180deg);
-  color: #4F5BDF;
-  background: #eef0ff;
+  color: var(--accent-text);
+  background: var(--accent-tint);
 }
 
 /* Раскрытие "Подробнее" - стиль карточек label/value как в EmployeeDetailsModal.
@@ -2557,8 +2557,8 @@ export default {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 10px;
-  background: #fafafa;
-  border-top: 1px dashed #e6e6e6;
+  background: var(--surface-2);
+  border-top: 1px dashed var(--border);
 }
 
 .detail-item {
@@ -2568,13 +2568,13 @@ export default {
   gap: 4px;
   min-width: 0;
   padding: 10px 14px;
-  background: #fff;
+  background: var(--surface);
   border-radius: 20px;
-  border: 1px solid #ececec;
+  border: 1px solid var(--border);
 }
 
 .detail-item__label {
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 11px;
   font-weight: 400;
   letter-spacing: 0.3px;
@@ -2582,7 +2582,7 @@ export default {
 }
 
 .detail-item__value {
-  color: #333;
+  color: var(--text);
   font-size: 14px;
   font-weight: 500;
   word-break: break-word;

@@ -433,7 +433,7 @@ export default {
 }
 
 .pr-section--history {
-  border-top: 1px solid #e6e6e6;
+  border-top: 1px solid var(--border);
   padding-top: 14px;
 }
 
@@ -449,12 +449,12 @@ export default {
 .pr-today__title {
   font-size: 22px;
   font-weight: 700;
-  color: #1a1a1a;
+  color: var(--text);
 }
 
 .pr-today__hint {
   font-size: 14px;
-  color: #777;
+  color: var(--text-muted);
   margin-top: 2px;
 }
 
@@ -467,7 +467,7 @@ export default {
 .pr-card {
   flex: 1 1 260px;
   min-width: 0;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 20px;
   padding: 16px 18px;
   display: flex;
@@ -481,7 +481,7 @@ export default {
   gap: 10px;
   font-size: 19px;
   font-weight: 700;
-  color: #1a1a1a;
+  color: var(--text);
 }
 
 .pr-card__icon {
@@ -501,50 +501,50 @@ export default {
 /* Гамма сайта (primary #4f5bdf): «заехало» - мягкий синий с акцентным числом,
    «выехало» - нейтральный серо-синий. Без зелёного. */
 .pr-card__stat--in {
-  background: #eef0ff;
+  background: var(--accent-tint);
 }
 
 .pr-card__stat--out {
-  background: #eef0f4;
+  background: var(--surface-2);
 }
 
 .pr-card__label {
   font-size: 18px;
-  color: #333;
+  color: var(--text);
 }
 
 .pr-card__num {
   font-size: 44px;
   font-weight: 800;
   line-height: 1;
-  color: #1a1a1a;
+  color: var(--text);
 }
 
 .pr-card__stat--in .pr-card__num {
-  color: #4f5bdf;
+  color: var(--accent-text);
 }
 
 .pr-hint {
   margin-top: 16px;
   padding: 12px 16px;
-  background: #eef0ff;
-  border: 1px solid #e0e3f5;
-  border-left: 4px solid #4f5bdf;
+  background: var(--accent-tint);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
+  border-left: 4px solid var(--accent);
   border-radius: 14px;
   font-size: 15px;
   line-height: 1.5;
-  color: #333;
+  color: var(--text);
 }
 
 .pr-breakdown {
   margin-top: 16px;
   padding-top: 12px;
-  border-top: 1px dashed #e0e0e0;
+  border-top: 1px dashed var(--border);
 }
 
 .pr-breakdown__title {
   font-size: 14px;
-  color: #777;
+  color: var(--text-muted);
   margin-bottom: 8px;
 }
 
@@ -559,16 +559,16 @@ export default {
 
 .pr-breakdown__name {
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text);
 }
 
 .pr-breakdown__nums {
-  color: #444;
+  color: var(--text);
 }
 
 .pr-empty {
   font-size: 16px;
-  color: #888;
+  color: var(--text-muted);
   padding: 12px 0;
   text-align: center;
 }
@@ -580,19 +580,19 @@ export default {
   justify-content: center;
   gap: 8px;
   width: 100%;
-  background: #f5f6ff;
-  border: 1px solid #e0e3f5;
+  background: var(--accent-tint);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
   border-radius: 999px;
   padding: 12px 18px;
   font-size: 16px;
   font-weight: 600;
-  color: #4f5bdf;
+  color: var(--accent-text);
   cursor: pointer;
   transition: background-color 0.2s ease;
 }
 
 .pr-history-toggle:hover {
-  background: #eceeff;
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface));
 }
 
 .pr-history-toggle__arrow {
@@ -624,10 +624,10 @@ export default {
 /* «Прошлые дни» - отдельный обведённый блок под кнопкой. */
 .pr-history {
   margin-top: 12px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 16px;
   padding: 16px;
-  background: #fafbff;
+  background: var(--accent-tint);
 }
 
 .pr-history__head {
@@ -642,7 +642,7 @@ export default {
 .pr-history__title {
   font-size: 16px;
   font-weight: 700;
-  color: #1a1a1a;
+  color: var(--text);
 }
 
 .pr-history__filter {
@@ -654,7 +654,7 @@ export default {
 
 .pr-history__filter-label {
   font-size: 15px;
-  color: #555;
+  color: var(--text);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -677,19 +677,19 @@ export default {
 }
 
 .pr-day:not(:last-child) {
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--border);
 }
 
 .pr-day__date {
   font-size: 16px;
   font-weight: 700;
-  color: #1a1a1a;
+  color: var(--text);
   margin-bottom: 4px;
 }
 
 .pr-day__total {
   font-size: 15px;
-  color: #333;
+  color: var(--text);
 }
 
 .pr-day__people {
@@ -704,7 +704,7 @@ export default {
   flex-wrap: wrap;
   padding: 2px 0;
   font-size: 14px;
-  color: #666;
+  color: var(--text-muted);
 }
 
 .pr-day__person-name {
@@ -716,8 +716,8 @@ export default {
   align-items: center;
   gap: 8px;
   margin-top: 14px;
-  border: 1px solid #e6e6e6;
-  background: #fff;
+  border: 1px solid var(--border);
+  background: var(--surface);
   border-radius: 999px;
   padding: 10px 18px;
   font-size: 15px;
@@ -726,7 +726,7 @@ export default {
 }
 
 .pr-export:hover:not(:disabled) {
-  background: #f5f6ff;
+  background: var(--accent-tint);
 }
 
 .pr-export:disabled {

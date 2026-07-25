@@ -905,8 +905,8 @@ export default {
 
 .add-btn {
   padding: 6px 14px;
-  background: #4F5BDF;
-  color: white;
+  background: var(--accent);
+  color: var(--accent-contrast);
   border: none;
   border-radius: 20px;
   font-size: 12px;
@@ -914,10 +914,10 @@ export default {
   transition: background 0.2s;
 }
 .add-btn:hover:not(:disabled) {
-  background: #3a45b2;
+  background: var(--accent-hover);
 }
 .add-btn:disabled {
-  background: #ccc;
+  background: var(--border);
   cursor: not-allowed;
 }
 
@@ -930,20 +930,20 @@ export default {
 
 .copy-btn {
   padding: 6px 14px;
-  background: #fff;
-  color: #4F5BDF;
-  border: 1px solid #4F5BDF;
+  background: var(--surface);
+  color: var(--accent-text);
+  border: 1px solid var(--accent);
   border-radius: 20px;
   font-size: 12px;
   cursor: pointer;
   transition: background 0.2s, color 0.2s;
 }
 .copy-btn:hover:not(:disabled) {
-  background: #f0f3ff;
+  background: var(--accent-tint);
 }
 .copy-btn:disabled {
-  border-color: #ccc;
-  color: #aaa;
+  border-color: var(--border);
+  color: var(--text-muted);
   cursor: not-allowed;
 }
 
@@ -953,26 +953,26 @@ export default {
   flex-direction: column;
   gap: 4px;
   padding: 10px 12px;
-  background: #f8f9fa;
-  border: 1px solid #e6e6e6;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
   border-radius: 15px;
   margin-bottom: 18px;
 }
 .copy-preview__label {
   font-size: 12px;
   font-weight: 500;
-  color: #6b7280;
+  color: var(--text-muted);
 }
 .copy-preview__value {
   font-size: 13px;
   font-weight: 500;
-  color: #333;
+  color: var(--text);
 }
 .copy-preview__value--round {
-  color: #4F5BDF;
+  color: var(--accent-text);
 }
 .copy-preview__value--empty {
-  color: #aaa;
+  color: var(--text-muted);
   font-style: italic;
   font-weight: 400;
 }
@@ -980,7 +980,7 @@ export default {
   margin-left: 6px;
   font-size: 10px;
   font-weight: 500;
-  color: #6b7280;
+  color: var(--text-muted);
 }
 
 /* Дни-цели в модалке копирования */
@@ -994,41 +994,41 @@ export default {
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--border);
   border-radius: 12px;
   cursor: pointer;
   transition: border-color 0.2s, background 0.2s;
 }
 .copy-target:hover {
-  border-color: #4F5BDF;
+  border-color: var(--accent);
 }
 .copy-target--checked {
-  border-color: #4F5BDF;
-  background: #f0f3ff;
+  border-color: var(--accent);
+  background: var(--accent-tint);
 }
 .copy-target--source {
   cursor: not-allowed;
-  background: #f5f5f5;
-  border-color: #e6e6e6;
+  background: var(--surface-2);
+  border-color: var(--border);
 }
 .copy-target input {
-  accent-color: #4F5BDF;
+  accent-color: var(--accent);
   cursor: inherit;
 }
 .copy-target__name {
   font-size: 13px;
-  color: #333;
+  color: var(--text);
 }
 .copy-target__badge {
   margin-left: auto;
   font-size: 10px;
-  color: #aaa;
+  color: var(--text-muted);
 }
 
 .copy-warning {
   font-size: 12px;
-  color: #f39c12;
-  background: #fff8e7;
+  color: var(--warning-text);
+  background: var(--warning-bg);
   padding: 8px 12px;
   border-radius: 15px;
   margin-top: 4px;
@@ -1046,13 +1046,13 @@ export default {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .schedule-tab__hint {
   margin: 0;
   font-size: 12px;
-  color: #6b7280;
+  color: var(--text-muted);
   line-height: 1.5;
 }
 
@@ -1066,8 +1066,8 @@ export default {
 }
 
 .schedule-day-card {
-  background: #fff;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 14px;
   overflow: hidden;
   display: flex;
@@ -1075,9 +1075,9 @@ export default {
 }
 
 .schedule-day-card__head {
-  background: #f0f3ff;
+  background: var(--accent-tint);
   padding: 8px 10px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1096,7 +1096,7 @@ export default {
 
 .schedule-day-card__empty {
   text-align: center;
-  color: #aaa;
+  color: var(--text-muted);
   font-size: 11px;
   font-style: italic;
   padding: 6px 0;
@@ -1104,7 +1104,7 @@ export default {
 
 .day-name {
   font-weight: 600;
-  color: #333;
+  color: var(--text);
   font-size: 13px;
 }
 
@@ -1118,7 +1118,7 @@ export default {
 .round-switch-label {
   font-size: 10px;
   font-weight: 600;
-  color: #6b7280;
+  color: var(--text-muted);
   letter-spacing: 0.4px;
 }
 
@@ -1141,7 +1141,7 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: #ccc;
+  background-color: var(--border);
   border-radius: 22px;
   transition: 0.2s;
 }
@@ -1152,12 +1152,12 @@ export default {
   width: 14px;
   left: 2px;
   bottom: 2px;
-  background-color: white;
+  background-color: var(--surface);
   border-radius: 50%;
   transition: 0.2s;
 }
 input:checked + .switch-slider {
-  background-color: #4F5BDF;
+  background-color: var(--accent);
 }
 input:checked + .switch-slider:before {
   transform: translateX(16px);
@@ -1166,9 +1166,9 @@ input:checked + .switch-slider:before {
 .slot-badge {
   position: relative;
   padding: 6px 8px;
-  background: #f8f9fa;
+  background: var(--surface-2);
   border-radius: 12px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   font-size: 11px;
   display: flex;
   flex-direction: row;
@@ -1179,19 +1179,19 @@ input:checked + .switch-slider:before {
 }
 
 .slot-badge--round {
-  background: #eef0ff;
-  border-color: #c7caf5;
+  background: var(--accent-tint);
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--surface));
 }
 
 .round-clock-text {
   font-weight: 500;
-  color: #4F5BDF;
+  color: var(--accent-text);
   font-size: 11px;
 }
 
 .slot-time {
   font-size: 12px;
-  color: #333;
+  color: var(--text);
   font-weight: 500;
 }
 
@@ -1201,8 +1201,8 @@ input:checked + .switch-slider:before {
 }
 
 .next-day-badge {
-  background: #4F5BDF;
-  color: #fff;
+  background: var(--accent);
+  color: var(--accent-contrast);
   padding: 1px 6px;
   border-radius: 10px;
   font-size: 9px;
@@ -1227,7 +1227,7 @@ input:checked + .switch-slider:before {
   transition: background 0.2s;
 }
 .icon-btn:hover {
-  background-color: #e6e6e6;
+  background-color: var(--border);
 }
 .icon {
   width: 12px;
@@ -1242,7 +1242,7 @@ input:checked + .switch-slider:before {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0,0,0,0.5);
+  background: var(--overlay);
   backdrop-filter: blur(0.1px);
   -webkit-backdrop-filter: blur(0.1px);
   display: flex;
@@ -1257,11 +1257,11 @@ input:checked + .switch-slider:before {
 }
 
 .modal-content {
-  background: white;
+  background: var(--surface);
   border-radius: 20px;
   width: 420px;
   max-width: 90vw;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  box-shadow: 0 20px 60px var(--shadow-drop);
   animation: modalAppear 0.3s ease-out;
   margin-top: -50px; /* Поднимаем выше на 100px (50px вверх от центра) */
 }
@@ -1276,13 +1276,13 @@ input:checked + .switch-slider:before {
   justify-content: space-between;
   align-items: center;
   padding: 18px 22px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
 }
 .modal-title {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text);
 }
 .modal-close {
   background: none;
@@ -1296,7 +1296,7 @@ input:checked + .switch-slider:before {
   transition: background 0.2s;
 }
 .modal-close:hover {
-  background-color: #f5f5f5;
+  background-color: var(--surface-2);
 }
 
 .modal-body {
@@ -1318,7 +1318,7 @@ input:checked + .switch-slider:before {
   justify-content: flex-end;
   gap: 10px;
   padding: 16px 22px 20px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--border);
 }
 
 /* Поля формы */
@@ -1329,7 +1329,7 @@ input:checked + .switch-slider:before {
   display: block;
   font-size: 12px;
   font-weight: 500;
-  color: #555;
+  color: var(--text);
   margin-bottom: 5px;
 }
 
@@ -1344,14 +1344,14 @@ input:checked + .switch-slider:before {
 .modal-input {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--border);
   border-radius: 15px;
   font-size: 14px;
   transition: border-color 0.2s;
-  background: white;
+  background: var(--surface);
 }
 .modal-input:focus {
-  border-color: #4F5BDF;
+  border-color: var(--accent);
   outline: none;
 }
 
@@ -1365,13 +1365,13 @@ input:checked + .switch-slider:before {
   align-items: center;
   justify-content: space-between;
   padding: 10px 12px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--border);
   border-radius: 15px;
-  background: white;
+  background: var(--surface);
   transition: border-color 0.2s;
 }
 .select-trigger:hover {
-  border-color: #4F5BDF;
+  border-color: var(--accent);
 }
 .select-arrow {
   transition: transform 0.2s ease;
@@ -1384,10 +1384,10 @@ input:checked + .switch-slider:before {
   top: calc(100% + 4px);
   left: 0;
   right: 0;
-  background: white;
-  border: 1px solid #e0e0e0;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 12px;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 15px var(--shadow-drop);
   z-index: 10;
   max-height: 150px;
   overflow-y: auto;
@@ -1395,7 +1395,7 @@ input:checked + .switch-slider:before {
 .select-option {
   padding: 10px 14px;
   cursor: pointer;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
   transition: background 0.2s;
   font-size: 13px;
 }
@@ -1403,20 +1403,20 @@ input:checked + .switch-slider:before {
   border-bottom: none;
 }
 .select-option:hover {
-  background: #f5f7ff;
-  color: #4F5BDF;
+  background: var(--accent-tint);
+  color: var(--accent-text);
 }
 .select-option.selected {
-  background: #f0f3ff;
-  color: #4F5BDF;
+  background: var(--accent-tint);
+  color: var(--accent-text);
   font-weight: 500;
 }
 
 /* Сообщение об ошибке */
 .error-hint {
   font-size: 12px;
-  color: #d32f2f;
-  background: #ffebee;
+  color: var(--danger-text);
+  background: var(--danger-bg);
   padding: 8px 12px;
   border-radius: 20px;
   margin: 8px 0;
@@ -1428,8 +1428,8 @@ input:checked + .switch-slider:before {
 /* Подсказка о следующем дне */
 .next-day-hint {
   font-size: 12px;
-  color: #f39c12;
-  background: #fff8e7;
+  color: var(--warning-text);
+  background: var(--warning-bg);
   padding: 8px 12px;
   border-radius: 20px;
   margin: 8px 0;
@@ -1449,21 +1449,21 @@ input:checked + .switch-slider:before {
   min-width: 90px;
 }
 .modal-btn.cancel {
-  background: #f5f5f5;
-  color: #666;
+  background: var(--surface-2);
+  color: var(--text-muted);
 }
 .modal-btn.cancel:hover {
-  background: #e9e9e9;
+  background: var(--row-hover);
 }
 .modal-btn.confirm {
-  background: #4F5BDF;
-  color: white;
+  background: var(--accent);
+  color: var(--accent-contrast);
 }
 .modal-btn.confirm:hover:not(:disabled) {
-  background: #3a45b2;
+  background: var(--accent-hover);
 }
 .modal-btn.confirm:disabled {
-  background: #ccc;
+  background: var(--border);
   cursor: not-allowed;
 }
 
@@ -1498,17 +1498,17 @@ input:checked + .switch-slider:before {
 }
 .days-list::-webkit-scrollbar-track,
 .select-dropdown::-webkit-scrollbar-track {
-  background: #f5f5f5;
+  background: var(--surface-2);
   border-radius: 4px;
 }
 .days-list::-webkit-scrollbar-thumb,
 .select-dropdown::-webkit-scrollbar-thumb {
-  background: #ccc;
+  background: var(--border);
   border-radius: 4px;
 }
 .days-list::-webkit-scrollbar-thumb:hover,
 .select-dropdown::-webkit-scrollbar-thumb:hover {
-  background: #aaa;
+  background: var(--text-muted);
 }
 
 @media (max-width: 768px) {

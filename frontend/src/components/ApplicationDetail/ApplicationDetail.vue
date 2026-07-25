@@ -1618,12 +1618,12 @@ export default {
 <style scoped>
 /* Стили остаются без изменений, как в вашем коде */
 .application-status-section {
-    background: white;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 20px;
     padding: 15px;
     margin-bottom: 10px;
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    box-shadow: 0 2px 12px var(--shadow-drop);
 }
 
 .status-header {
@@ -1635,7 +1635,7 @@ export default {
 
 .status-header h4 {
     font-size: 18px;
-    color: #4F5BDF;
+    color: var(--accent-text);
     font-weight: 700;
     margin: 0;
 }
@@ -1650,20 +1650,20 @@ export default {
 }
 
 .status-mini-work {
-    background-color: rgba(79, 91, 223, 0.1);
-    color: #4F5BDF;
+    background-color: color-mix(in srgb, var(--accent) 10%, var(--surface));
+    color: var(--accent-text);
     border-color: rgba(79, 91, 223, 0.3);
 }
 
 .status-mini-rejected {
-    background-color: rgba(220, 38, 38, 0.1);
-    color: #dc2626;
+    background-color: color-mix(in srgb, var(--danger) 10%, var(--surface));
+    color: var(--danger-text);
     border-color: rgba(220, 38, 38, 0.3);
 }
 
 .status-mini-completed {
-    background-color: rgba(5, 150, 105, 0.1);
-    color: #059669;
+    background-color: color-mix(in srgb, var(--success) 10%, var(--surface));
+    color: var(--success-text);
     border-color: rgba(5, 150, 105, 0.3);
 }
 
@@ -1686,14 +1686,14 @@ export default {
 }
 
 .status-info-label {
-    color: #a2a2a2;
+    color: var(--text-muted);
     font-size: 14px;
     font-weight: 400;
     min-width: 120px;
 }
 
 .status-info-value {
-    color: #000;
+    color: var(--text);
     font-size: 15px;
     font-weight: 400;
     text-align: end;
@@ -1707,22 +1707,22 @@ export default {
     line-height: 1.5;
     font-size: 13px;
     text-align: start;
-    color: #333;
+    color: var(--text);
     
 }
 
 .comment-action-section {
-    background: white;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 20px;
     padding: 15px;
     margin-bottom: 10px;
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    box-shadow: 0 2px 12px var(--shadow-drop);
 }
 
 .comment-action-section h4 {
     font-size: 18px;
-    color: #4F5BDF;
+    color: var(--accent-text);
     font-weight: 700;
     margin-bottom: 10px;
 }
@@ -1730,18 +1730,18 @@ export default {
 .comment-action-textarea {
     width: 100%;
     padding: 12px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     border-radius: 15px;
     font-size: 14px;
     font-family: inherit;
     resize: none;
     transition: all 0.2s ease;
-    background-color: #fff;
+    background-color: var(--surface);
 }
 
 .comment-action-textarea:focus {
     outline: none;
-    border-color: #4F5BDF;
+    border-color: var(--accent);
     box-shadow: 0 0 0 3px rgba(79, 91, 223, 0.1);
 }
 
@@ -1752,7 +1752,7 @@ export default {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--overlay);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -1781,7 +1781,7 @@ export default {
 }
 
 .application-detail {
-    background: white;
+    background: var(--surface);
     border-radius: 30px;
     width: 1600px;
     max-width: 95%;
@@ -1791,7 +1791,7 @@ export default {
     height: calc(var(--app-vh, 1vh) * 90);
     display: flex;
     flex-direction: column;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 20px var(--shadow-drop);
     overflow: hidden;
 }
 
@@ -1800,8 +1800,8 @@ export default {
     justify-content: space-between;
     align-items: center;
     padding: 15px 20px;
-    border-bottom: 1px solid #e6e6e6;
-    background: #fafafa;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-2);
     min-height: 40px;
 }
 
@@ -1822,14 +1822,14 @@ export default {
 .detail-title {
     font-size: 20px;
     font-weight: 700;
-    color: #000;
+    color: var(--text);
     margin: 0;
     line-height: 1.2;
 }
 
 .detail-datetime {
     font-size: 15px;
-    color: #a2a2a2;
+    color: var(--text-muted);
     line-height: 1.2;
     font-weight: 500;
     display: flex;
@@ -1839,7 +1839,7 @@ export default {
 
 .weekday {
     font-size: 15px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .forward-btn {
@@ -1851,14 +1851,14 @@ export default {
     cursor: pointer;
     transition: all 0.2s ease;
     min-width: 120px;
-    border: 1px solid #e6e6e6;
-    background: #4F5BDF;
-    color: white;
+    border: 1px solid var(--border);
+    background: var(--accent);
+    color: var(--accent-contrast);
     margin-left: 10px;
 }
 
 .forward-btn:hover:not(:disabled) {
-    background: #3a45c0;
+    background: var(--accent-hover);
 }
 
 .detail-header-right {
@@ -1878,7 +1878,7 @@ export default {
     height: 16px;
     border: 2px solid rgba(255, 255, 255, 0.3);
     border-radius: 50%;
-    border-top-color: white;
+    border-top-color: var(--surface);
     animation: spin 0.8s linear infinite;
 }
 
@@ -1891,7 +1891,7 @@ export default {
     background: none;
     border: none;
     font-size: 24px;
-    color: #a2a2a2;
+    color: var(--text-muted);
     cursor: pointer;
     width: 24px;
     height: 24px;
@@ -1903,8 +1903,8 @@ export default {
 }
 
 .close-detail-btn:hover {
-    background: #f0f0f0;
-    color: #333;
+    background: var(--border);
+    color: var(--text);
 }
 
 .detail-content {
@@ -1915,9 +1915,9 @@ export default {
 
 .detail-left-column {
     width: 240px;
-    border-right: 1px solid #e6e6e6;
+    border-right: 1px solid var(--border);
     overflow-y: auto;
-    background: #fafafa;
+    background: var(--surface-2);
     padding: 15px;
     transition: width 0.3s ease;
 }
@@ -1944,18 +1944,18 @@ export default {
 
 .detail-right-column {
     width: 360px;
-    border-left: 1px solid #e6e6e6;
+    border-left: 1px solid var(--border);
     overflow-y: auto;
     padding: 15px;
-    background: #fafafa;
+    background: var(--surface-2);
 }
 
 .message-section {
-    background: white;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 20px;
     padding: 15px;
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    box-shadow: 0 2px 12px var(--shadow-drop);
     overflow: hidden;
 }
 
@@ -1966,13 +1966,13 @@ export default {
     gap: 10px;
     margin: -15px -15px 12px;
     padding: 12px 15px;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
 }
 
 .message-section h4 {
     margin: 0;
     font-size: 14px;
-    color: #a2a2a2;
+    color: var(--text-muted);
     font-weight: 400;
 }
 
@@ -1985,25 +1985,25 @@ export default {
     padding: 0;
     border: none;
     background: none;
-    color: #a2a2a2;
+    color: var(--text-muted);
     font-size: 13px;
     cursor: pointer;
     transition: color 0.15s ease;
 }
 
 .message-open-hint:hover {
-    color: #4F5BDF;
+    color: var(--accent-text);
 }
 
 .message-content {
     font-size: 15px;
     line-height: 150%;
-    color: #000;
+    color: var(--text);
 }
 
 .message-empty {
     white-space: pre-wrap;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .message-preview {
@@ -2021,7 +2021,7 @@ export default {
     right: 0;
     bottom: 0;
     height: 46px;
-    background: linear-gradient(to bottom, rgba(255, 255, 255, 0), #fff);
+    background: linear-gradient(to bottom, rgba(255, 255, 255, 0), var(--surface));
     pointer-events: none;
 }
 
@@ -2075,17 +2075,17 @@ export default {
 .message-preview :deep(.text-align-right) { text-align: right !important; }
 
 .basic-info-section {
-    background: white;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 20px;
     padding: 15px;
     margin-bottom: 10px;
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    box-shadow: 0 2px 12px var(--shadow-drop);
 }
 
 .basic-info-section h4 {
     font-size: 18px;
-    color: #4F5BDF;
+    color: var(--accent-text);
     font-weight: 700;
     margin-bottom: 15px;
 }
@@ -2103,7 +2103,7 @@ export default {
 }
 
 .info-label {
-    color: #a2a2a2;
+    color: var(--text-muted);
     font-size: 14px;
     font-weight: 400;
     min-width: 140px;
@@ -2111,7 +2111,7 @@ export default {
 }
 
 .info-value {
-    color: #000;
+    color: var(--text);
     font-size: 15px;
     text-align: left;
     flex: 1;
@@ -2147,40 +2147,40 @@ export default {
     min-height: 34px;
     justify-content: center;
     gap: 8px;
-    border-color: #4F5BDF;
-    background: #4F5BDF;
+    border-color: var(--accent);
+    background: var(--accent);
 }
 
 .duplicate-dropdown :deep(.base-dropdown__button:hover:not(:disabled)) {
-    border-color: #3a45c0;
-    background: #3a45c0;
+    border-color: var(--accent-hover);
+    background: var(--accent-hover);
 }
 
 .duplicate-dropdown :deep(.base-dropdown__text),
 .duplicate-dropdown :deep(.base-dropdown__text--placeholder) {
-    color: #fff;
+    color: var(--accent-contrast);
     font-weight: 600;
 }
 
 .duplicate-dropdown :deep(.base-dropdown__arrow) {
-    color: #fff;
+    color: var(--accent-contrast);
 }
 
 .withdraw-btn {
     padding: 6px 24px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     border-radius: 50px;
     font-size: 14px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s ease;
     min-width: 140px;
-    background: #e53935;
-    color: white;
+    background: var(--danger);
+    color: var(--surface);
 }
 
 .withdraw-btn:hover {
-    background: #c62828;
+    background: color-mix(in srgb, var(--danger) 85%, var(--text));
 }
 
 .revoke-btn, .restore-btn {
@@ -2192,21 +2192,21 @@ export default {
     cursor: pointer;
     transition: all 0.2s ease;
     min-width: 140px;
-    border: 1px solid #e6e6e6;
-    background: #FFA500;
-    color: white;
+    border: 1px solid var(--border);
+    background: var(--warning);
+    color: var(--surface);
 }
 
 .revoke-btn:hover:not(:disabled) {
-    background: #e69500;
+    background: var(--warning);
 }
 
 .restore-btn {
-    background: #4CAF50;
+    background: var(--success);
 }
 
 .restore-btn:hover:not(:disabled) {
-    background: #45a049;
+    background: color-mix(in srgb, var(--success) 85%, var(--text));
 }
 
 .revoke-btn:disabled,
@@ -2254,7 +2254,7 @@ export default {
 
     .detail-left-column {
         border-right: none;
-        border-bottom: 1px solid #e6e6e6;
+        border-bottom: 1px solid var(--border);
     }
 
     .detail-left-column.collapsed {
@@ -2264,7 +2264,7 @@ export default {
 
     .detail-right-column {
         border-left: none;
-        border-top: 1px solid #e6e6e6;
+        border-top: 1px solid var(--border);
     }
 
     .detail-main-column {
@@ -2303,7 +2303,7 @@ export default {
         height: 4px;
         margin: 10px auto 2px;
         border-radius: 2px;
-        background: #d5d5d5;
+        background: var(--border);
         flex-shrink: 0;
     }
 
@@ -2321,7 +2321,7 @@ export default {
         /* На мобилке колонки промоутнуты (display:contents) и теряют серый фон,
            а шапка оставалась #fafafa - единственный серый блок на белом листе.
            Приводим к белому, чтобы лист был однотонным. */
-        background: #fff;
+        background: var(--surface);
     }
 
     .detail-header-left {
@@ -2365,16 +2365,16 @@ export default {
         padding: 0;
         margin-left: 0;
         border-radius: 50%;
-        border: 1px solid #4F5BDF;
-        background: #fff;
-        color: #4F5BDF;
+        border: 1px solid var(--accent);
+        background: var(--surface);
+        color: var(--accent-text);
         display: inline-flex;
         align-items: center;
         justify-content: center;
     }
 
     .forward-btn:hover:not(:disabled) {
-        background: #eef0ff;
+        background: var(--accent-tint);
     }
 
     .forward-btn__text {
@@ -2415,11 +2415,11 @@ export default {
        секция пикера вложений рендерилась бы "голой" рядом с карточными соседями -
        возвращаем ей карточный стиль (как у .message-section и др.). */
     .detail-order-picker {
-        background: #fff;
-        border: 1px solid #e6e6e6;
+        background: var(--surface);
+        border: 1px solid var(--border);
         border-radius: 20px;
         padding: 15px;
-        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+        box-shadow: 0 2px 12px var(--shadow-drop);
     }
     /* Комментарий - к кнопкам действия (Принять/Отказать в шапке): поднимаем его
        в самый верх контента, сразу под шапку, чтобы поле не было оторвано от
@@ -2467,10 +2467,10 @@ export default {
         height: 30px;
         min-width: 30px;
         padding: 0;
-        border: 1px solid #4F5BDF;
+        border: 1px solid var(--accent);
         border-radius: 50%;
-        background: #fff;
-        color: #4F5BDF;
+        background: var(--surface);
+        color: var(--accent-text);
         cursor: pointer;
         transition: background 0.2s ease, color 0.2s ease;
     }
@@ -2480,7 +2480,7 @@ export default {
     }
 
     .detail-download-btn:hover {
-        background: #eef0ff;
+        background: var(--accent-tint);
     }
 }
 </style>

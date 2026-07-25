@@ -739,11 +739,11 @@ export default {
 .tables__title {
     font-size: 18px;
     font-weight: bold;
-    color: #000;
+    color: var(--text);
 }
 
 .table-name {
-    color: #4F5BDF;
+    color: var(--accent-text);
 }
 
 .tables__header {
@@ -767,15 +767,15 @@ export default {
     width: fit-content;
     font-size: 14px;
     font-weight: 500;
-    color: #4F5BDF;
+    color: var(--accent-text);
     padding: 0 10px;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 5px;
     border-radius: 50px;
-    background: #FFF;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     outline: none;
     cursor: pointer;
     height: 25px;
@@ -783,8 +783,8 @@ export default {
 }
 
 .tables__instruction:hover {
-    background-color: #f2f2f2;
-    border-color: #4F5BDF;
+    background-color: var(--surface-2);
+    border-color: var(--accent);
 }
 
 .tables__icon {
@@ -797,7 +797,7 @@ export default {
     align-items: center;
     justify-content: space-between;
     padding-bottom: 15px;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
     gap: clamp(6px, 0.8vw, 10px);
     min-width: 0;
     flex-wrap: nowrap;
@@ -820,9 +820,9 @@ export default {
 .field {
     width: clamp(120px, 14vw, 200px);
     height: clamp(28px, 3vw, 35px);
-    background-color: #FFF;
+    background-color: var(--surface);
     border-radius: 15px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     padding: 0 clamp(6px, 0.8vw, 10px);
     display: flex;
     align-items: center;
@@ -850,7 +850,7 @@ export default {
 
 .select-text {
     font-size: clamp(11px, 1.1vw, 14px);
-    color: #000;
+    color: var(--text);
     flex: 1;
     min-width: 0;
     overflow: hidden;
@@ -881,8 +881,8 @@ export default {
 .options__export {
     width: clamp(70px, 8vw, 100px);
     height: clamp(22px, 2.4vw, 25px);
-    background: #FFF;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     outline: none;
     cursor: pointer;
     display: flex;
@@ -894,15 +894,15 @@ export default {
 }
 
 .options__export:hover {
-    background: #f2f2f2;
+    background: var(--surface-2);
 }
 
 .options__manual-add {
     height: clamp(22px, 2.4vw, 25px);
     padding: 0 clamp(8px, 1vw, 14px);
-    background: #fff;
-    color: #333;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
     outline: none;
     cursor: pointer;
     display: flex;
@@ -916,7 +916,7 @@ export default {
 }
 
 .options__manual-add:hover {
-    background: #f2f2f2;
+    background: var(--surface-2);
 }
 
 .options__manual-add-icon {
@@ -944,7 +944,7 @@ export default {
 
 .fact-hint-card {
     flex: 0 0 35%;
-    background-color: #4F5BDF;
+    background-color: var(--accent);
     border-radius: 30px;
     padding: 20px;
     display: flex;
@@ -956,36 +956,36 @@ export default {
 
 .hint-content {
     flex: 1;
-    color: #FFF;
+    color: var(--accent-contrast);
 }
 
 .reset-filters-btn {
     padding: 6px 12px;
-    border: 1px solid #e6e6e6;
-    background: #fff5f5;
+    border: 1px solid var(--border);
+    background: var(--danger-bg);
     border-radius: 15px;
     cursor: pointer;
     font-size: 12px;
     transition: all 0.2s;
     height: 35px;
-    color: #c53030;
+    color: var(--danger-text);
     white-space: nowrap;
     display: flex;
     align-items: center;
     gap: 5px;
-    border-color: #fed7d7;
+    border-color: color-mix(in srgb, var(--danger) 30%, var(--surface));
 }
 
 .reset-filters-btn:hover:not(:disabled) {
-    background: #fed7d7;
+    background: color-mix(in srgb, var(--danger) 22%, var(--surface));
 }
 
 .reset-filters-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
-    background: #f5f5f5;
-    color: #999;
-    border-color: #e6e6e6;
+    background: var(--surface-2);
+    color: var(--text-muted);
+    border-color: var(--border);
 }
 
 .reset-filters-btn:disabled .options__icon {
@@ -1073,7 +1073,7 @@ export default {
 .text-constructor-content :deep(.font-weight-900) { font-weight: 900 !important; }
 
 .text-constructor-content :deep(.heading-h1) { 
-    font-size: 24px !important; 
+    font-size: 24px !important;
     font-weight: 700 !important;
     margin: 0 0 8px 0 !important;
     line-height: 1.2 !important;
@@ -1092,7 +1092,7 @@ export default {
 
 /* Hint specific styles */
 .hint-content :deep(*) {
-    color: #FFF !important;
+    color: var(--accent-contrast) !important;
 }
 
 .hint-content :deep(.black-text) { color: #FFF !important; }
@@ -1111,7 +1111,7 @@ export default {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--overlay);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1122,13 +1122,13 @@ export default {
 }
 
 .instruction-modal-large {
-    background: #fff;
+    background: var(--surface);
     border-radius: 30px;
     padding: 0;
     max-width: 700px;
     width: 100%;
     max-height: calc(var(--app-vh, 1vh) * 80);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 10px 30px var(--shadow-drop);
     display: flex;
     flex-direction: column;
 }
@@ -1159,14 +1159,14 @@ export default {
     justify-content: space-between;
     align-items: center;
     padding: 16px 20px;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
 }
 
 .modal-header h3 {
     margin: 0;
     font-size: 1.2em;
     font-weight: 600;
-    color: #000;
+    color: var(--text);
 }
 
 .modal-close {
@@ -1174,7 +1174,7 @@ export default {
     border: none;
     font-size: 20px;
     cursor: pointer;
-    color: #999;
+    color: var(--text-muted);
     padding: 0;
     width: 24px;
     height: 24px;
@@ -1185,7 +1185,7 @@ export default {
 }
 
 .modal-close:hover {
-    color: #000;
+    color: var(--text);
 }
 
 .instruction-content {
@@ -1195,29 +1195,29 @@ export default {
 }
 
 .instruction-content .text-constructor-content :deep(h1) {
-    color: #000 !important;
+    color: var(--text) !important;
 }
 
 .instruction-content .text-constructor-content :deep(h2) {
-    color: #000 !important;
+    color: var(--text) !important;
 }
 
 .instruction-content .text-constructor-content :deep(h3) {
-    color: #000 !important;
+    color: var(--text) !important;
 }
 
 .instruction-content .text-constructor-content :deep(p) {
-    color: #000 !important;
+    color: var(--text) !important;
 }
 
 .instruction-content .text-constructor-content :deep(li) {
-    color: #000 !important;
+    color: var(--text) !important;
 }
 
 .no-instruction {
     text-align: center;
     padding: 40px 20px;
-    color: #666;
+    color: var(--text-muted);
 }
 
 .no-instruction-icon {
@@ -1228,7 +1228,7 @@ export default {
 
 .no-instruction h4 {
     margin: 0 0 12px 0;
-    color: #000;
+    color: var(--text);
     font-size: 1.2em;
 }
 
@@ -1238,7 +1238,7 @@ export default {
 }
 
 .blue {
-    color: #4F5BDF;
+    color: var(--accent-text);
 }
 
 @media (max-width: 768px) {

@@ -306,7 +306,7 @@ export default {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--overlay);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -315,12 +315,12 @@ export default {
 }
 
 .modal-content {
-    background: #fff;
+    background: var(--surface);
     border-radius: 50px;
     width: 540px;
     max-width: 90vw;
     max-height: calc(var(--app-vh, 1vh) * 91);
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 20px 60px var(--shadow-drop);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -347,7 +347,7 @@ export default {
 }
 
 .modal-close:hover {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
 }
 
 .modal-body {
@@ -365,30 +365,30 @@ export default {
 .modal-title {
     font-size: 24px;
     font-weight: 700;
-    color: #1a1a1a;
+    color: var(--text);
     text-align: center;
     margin: 0 0 20px 0;
 }
 
 .application-number {
-    background: #f8f9fa;
+    background: var(--surface-2);
     border-radius: 20px;
     padding: 12px 20px;
     text-align: center;
     margin-bottom: 20px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
 }
 
 .application-number .label {
     font-size: 13px;
-    color: #666;
+    color: var(--text-muted);
     margin-right: 8px;
 }
 
 .application-number .number {
     font-size: 18px;
     font-weight: 700;
-    color: #4F5BDF;
+    color: var(--accent-text);
     letter-spacing: 0.5px;
 }
 
@@ -403,7 +403,7 @@ export default {
 }
 
 .application-number .number--copyable:hover {
-    background-color: rgba(79, 91, 223, 0.1);
+    background-color: color-mix(in srgb, var(--accent) 10%, var(--surface));
 }
 
 .application-number .number--copyable:focus-visible {
@@ -416,8 +416,8 @@ export default {
     top: calc(100% + 6px);
     left: 50%;
     transform: translateX(-50%);
-    background: #333;
-    color: #fff;
+    background: var(--hint-bg);
+    color: var(--hint-text);
     padding: 4px 8px;
     border-radius: 6px;
     font-size: 11px;
@@ -427,7 +427,7 @@ export default {
     pointer-events: none;
     opacity: 0;
     transition: opacity 0.15s;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 2px 8px var(--shadow-drop);
 }
 
 .application-number .number--copyable:hover::after {
@@ -439,11 +439,11 @@ export default {
     align-items: center;
     justify-content: center;
     gap: 8px;
-    background: #f0f4ff;
+    background: var(--accent-tint);
     border-radius: 20px;
     padding: 10px 16px;
     margin-bottom: 28px;
-    color: #4F5BDF;
+    color: var(--accent-text);
     font-size: 13px;
 }
 
@@ -494,9 +494,9 @@ export default {
 }
 
 .step-number {
-    background: white;
-    border: 2px solid #e6e6e6;
-    color: #a2a2a2;
+    background: var(--surface);
+    border: 2px solid var(--border);
+    color: var(--text-muted);
     width: 100%;
     height: 100%;
     border-radius: 50%;
@@ -507,8 +507,8 @@ export default {
 }
 
 .check-icon {
-    background: #4F5BDF;
-    color: white;
+    background: var(--accent);
+    color: var(--accent-contrast);
     width: 100%;
     height: 100%;
     border-radius: 50%;
@@ -529,7 +529,7 @@ export default {
     width: 100%;
     height: 100%;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(79, 91, 223, 0.3) 0%, rgba(79, 91, 223, 0) 70%);
+    background: radial-gradient(circle, color-mix(in srgb, var(--accent) 30%, var(--surface)) 0%, color-mix(in srgb, var(--accent) 8%, var(--surface)) 70%);
     opacity: 0;
     transition: opacity 0.3s ease;
     pointer-events: none;
@@ -563,16 +563,16 @@ export default {
 }
 
 .progress-step.completed .step-number {
-    border-color: #4F5BDF;
-    background: #4F5BDF;
-    color: white;
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--accent-contrast);
     transform: scale(1.05);
 }
 
 .progress-step.active .step-number {
-    border-color: #4F5BDF;
-    color: #4F5BDF;
-    background: white;
+    border-color: var(--accent);
+    color: var(--accent-text);
+    background: var(--surface);
     animation: pulseBorder 1.5s ease-in-out infinite;
     box-shadow: 0 0 0 3px rgba(79, 91, 223, 0.2);
 }
@@ -591,19 +591,19 @@ export default {
 .step-label {
     font-size: 11px;
     font-weight: 500;
-    color: #a2a2a2;
+    color: var(--text-muted);
     text-align: center;
     transition: all 0.3s ease;
     white-space: nowrap;
 }
 
 .progress-step.completed .step-label {
-    color: #4F5BDF;
+    color: var(--accent-text);
     font-weight: 600;
 }
 
 .progress-step.active .step-label {
-    color: #4F5BDF;
+    color: var(--accent-text);
     font-weight: 600;
 }
 
@@ -613,7 +613,7 @@ export default {
     left: 0;
     right: 0;
     height: 3px;
-    background: #e6e6e6;
+    background: var(--border);
     border-radius: 2px;
     z-index: 1;
 }
@@ -623,7 +623,7 @@ export default {
     left: 0;
     top: 0;
     height: 100%;
-    background: linear-gradient(90deg, #4F5BDF, #8B9AFF);
+    background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 55%, var(--surface)));
     border-radius: 2px;
     transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
     overflow: hidden;
@@ -668,16 +668,16 @@ export default {
 .section-title {
     font-size: 14px;
     font-weight: 600;
-    color: #333;
+    color: var(--text);
     margin: 0;
 }
 
 .attachments-count {
-    background: #e6e6e6;
+    background: var(--border);
     padding: 2px 8px;
     border-radius: 20px;
     font-size: 12px;
-    color: #666;
+    color: var(--text-muted);
 }
 
 .attachments-list {
@@ -691,8 +691,8 @@ export default {
 
 .attachment-item {
     padding: 12px 16px;
-    background: #fafafa;
-    border: 1px solid #e6e6e6;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
     border-radius: 20px;
     transition: all 0.2s ease;
 }
@@ -704,7 +704,7 @@ export default {
 .attachment-name {
     font-weight: 600;
     font-size: 14px;
-    color: #333;
+    color: var(--text);
     margin-bottom: 6px;
 }
 
@@ -720,7 +720,7 @@ export default {
     align-items: center;
     gap: 4px;
     font-size: 11px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .attachment-period svg,
@@ -731,20 +731,20 @@ export default {
 .no-attachments {
     text-align: center;
     padding: 40px 20px;
-    background: #fafafa;
+    background: var(--surface-2);
     border-radius: 20px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
 }
 
 .no-attachments p {
     margin: 0;
     font-size: 13px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .modal-footer {
     padding: 16px 30px 24px;
-    border-top: 1px solid #f0f0f0;
+    border-top: 1px solid var(--border);
     display: flex;
     justify-content: center;
     flex-shrink: 0;
@@ -761,15 +761,15 @@ export default {
 }
 
 .close-btn {
-    background: #4F5BDF;
-    color: white;
-    border-color: #4F5BDF;
+    background: var(--accent);
+    color: var(--accent-contrast);
+    border-color: var(--accent);
     min-width: 140px;
 }
 
 .close-btn:hover {
-    background: #3a45c0;
-    border-color: #3a45c0;
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
 }
 
 @media (max-width: 768px) {
@@ -838,7 +838,7 @@ export default {
     width: 40px;
     height: 4px;
     border-radius: 2px;
-    background: #d5d5d5;
+    background: var(--border);
     margin: 10px auto 2px;
     flex-shrink: 0;
 }

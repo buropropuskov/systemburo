@@ -568,7 +568,7 @@ export default {
   align-items: center;
   padding: 0 20px;
   height: 50px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
   gap: 12px;
 }
 
@@ -619,8 +619,8 @@ export default {
   gap: 14px;
   height: 50px;
   padding: 0 20px;
-  border-bottom: 1px solid #e6e6e6;
-  background: #f0f2ff;
+  border-bottom: 1px solid var(--border);
+  background: var(--accent-tint);
   overflow-x: auto;
   overflow-y: hidden;
 }
@@ -628,7 +628,7 @@ export default {
 .bl-bulk-count {
   font-size: 14px;
   font-weight: 600;
-  color: #4F5BDF;
+  color: var(--accent-text);
   white-space: nowrap;
 }
 
@@ -661,42 +661,42 @@ export default {
 }
 
 .pill-ghost {
-  background: #fff;
-  color: #4F5BDF;
-  border: 1px solid #4F5BDF;
+  background: var(--surface);
+  color: var(--accent-text);
+  border: 1px solid var(--accent);
 }
 
 .pill-ghost:hover {
-  background: #eef0ff;
+  background: var(--accent-tint);
 }
 
 .bl-bulk-clear {
-  color: #6b7280;
-  border-color: #d5d9e0;
+  color: var(--text-muted);
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--surface));
 }
 
 .bl-bulk-clear:hover {
-  background: #f5f5f5;
+  background: var(--surface-2);
 }
 
 .pill-danger {
-  background: #fff;
-  color: #dc3545;
-  border: 1px solid #fecaca;
+  background: var(--surface);
+  color: var(--danger-text);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
 }
 
 .pill-danger:hover {
-  background: #fff1f2;
-  border-color: #dc3545;
+  background: var(--danger-bg);
+  border-color: var(--danger);
 }
 
 .pill-restore {
-  background: #10b981;
-  color: #fff;
+  background: var(--success);
+  color: var(--surface);
 }
 
 .pill-restore:hover {
-  background: #0da271;
+  background: color-mix(in srgb, var(--success) 85%, var(--text));
 }
 
 /* Тулбар "Выбрать все" - над списком, не скроллится вместе с ним (список - без
@@ -705,8 +705,8 @@ export default {
   display: flex;
   align-items: center;
   padding: 8px 20px;
-  border-bottom: 1px solid #f0f0f0;
-  background: #fff;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
 }
 
 .bl-select-all {
@@ -714,7 +714,7 @@ export default {
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  color: #6b7280;
+  color: var(--text-muted);
   font-weight: 500;
   cursor: pointer;
   user-select: none;
@@ -730,7 +730,7 @@ export default {
   width: 15px;
   height: 15px;
   cursor: pointer;
-  accent-color: #4F5BDF;
+  accent-color: var(--accent);
   margin: 0;
 }
 
@@ -745,8 +745,8 @@ export default {
   width: 40%;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid #e6e6e6;
-  background: #fff;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
 }
 
 .bl-list {
@@ -760,28 +760,28 @@ export default {
   gap: 14px;
   padding: 0 20px;
   height: 42px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
   cursor: pointer;
   font-size: 14px;
   transition: background-color 0.2s ease;
 }
 
 .bl-row:hover {
-  background-color: #fafafa;
+  background-color: var(--surface-2);
 }
 
 .bl-row.selected {
-  background-color: #f8f9ff;
+  background-color: var(--accent-tint);
 }
 
 .bl-row.inactive {
-  background: #fafafa;
-  color: #6b7280;
+  background: var(--surface-2);
+  color: var(--text-muted);
 }
 
 .bl-row-id {
   min-width: 32px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 13px;
 }
 
@@ -794,7 +794,7 @@ export default {
 .bl-inactive-badge {
   margin-left: 6px;
   font-size: 0.75em;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-style: italic;
 }
 
@@ -804,7 +804,7 @@ export default {
   align-items: center;
   justify-content: center;
   padding: 32px 16px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 14px;
 }
 
@@ -813,8 +813,8 @@ export default {
   display: flex;
   align-items: center;
   padding: 0 20px;
-  border-top: 1px solid #e6e6e6;
-  color: #6b7280;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
   font-size: 13px;
 }
 
@@ -822,7 +822,7 @@ export default {
   width: 60%;
   display: flex;
   flex-direction: column;
-  background: #fff;
+  background: var(--surface);
   overflow-y: auto;
 }
 
@@ -832,7 +832,7 @@ export default {
   justify-content: space-between;
   gap: 12px;
   padding: 16px 20px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
 }
 
 .bl-details-heading {
@@ -863,7 +863,7 @@ export default {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  color: #000;
+  color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -900,13 +900,13 @@ export default {
 }
 
 .bl-status-banner.is-active {
-  background: #fdeaea;
-  color: #b91c1c;
+  background: var(--danger-bg);
+  color: var(--danger-text);
 }
 
 .bl-status-banner.is-archived {
-  background: #f1f3f5;
-  color: #475569;
+  background: var(--accent-tint);
+  color: var(--text-muted);
 }
 
 .bl-status-dot {
@@ -920,12 +920,12 @@ export default {
 }
 
 .bl-status-banner.is-archived .bl-status-dot {
-  background: #94a3b8;
+  background: var(--accent);
 }
 
 .bl-reason {
   padding: 12px 16px;
-  background: #fdf3f3;
+  background: var(--danger-bg);
   border-radius: var(--radius-md);
 }
 
@@ -934,7 +934,7 @@ export default {
   margin-bottom: 4px;
   font-size: 12px;
   font-weight: 600;
-  color: #b91c1c;
+  color: var(--danger-text);
 }
 
 .bl-reason-text {
@@ -961,7 +961,7 @@ export default {
 }
 
 .bl-def-row:not(:last-child) {
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
 }
 
 .bl-def-label {
@@ -982,7 +982,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 14px;
 }
 
@@ -1031,7 +1031,7 @@ export default {
 
   .bl-list-section {
     border-right: none;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
   }
 
   .bl-list {
@@ -1042,7 +1042,7 @@ export default {
   .bl-row {
     height: auto;
     min-height: 44px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     border-radius: var(--radius-md, 15px);
     margin-bottom: 8px;
   }

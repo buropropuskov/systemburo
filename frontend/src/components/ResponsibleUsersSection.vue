@@ -537,16 +537,16 @@ export default {
 
 /* карточка-секция (эталон мокапа .card) */
 .card {
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 16px;
   padding: 16px;
-  background: #fbfbfd;
+  background: var(--accent-tint);
 }
 
 .sec-title {
   font-size: 0.82em;
   font-weight: 700;
-  color: #2a2f39;
+  color: var(--accent-text);
   letter-spacing: 0.02em;
   text-transform: uppercase;
   margin: 0 0 12px;
@@ -566,8 +566,8 @@ export default {
   height: 20px;
   padding: 0 7px;
   border-radius: 50px;
-  background: #eef0ff;
-  color: #4F5BDF;
+  background: var(--accent-tint);
+  color: var(--accent-text);
   font-size: 11px;
   font-weight: 700;
 }
@@ -582,8 +582,8 @@ export default {
 
 .save-hint {
   font-size: 11px;
-  color: #b26a00;
-  background: #fff4e5;
+  color: var(--warning-text);
+  background: var(--warning-bg);
   border-radius: 8px;
   padding: 3px 9px;
   display: inline-flex;
@@ -596,7 +596,7 @@ export default {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #f0a020;
+  background: var(--warning);
   display: inline-block;
 }
 
@@ -608,16 +608,16 @@ export default {
   font-weight: 600;
   cursor: pointer;
   font-family: inherit;
-  border: 1px solid #e6e6e6;
-  background: #fff;
-  color: #4a5361;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
   white-space: nowrap;
 }
 
 .btn-mini.primary {
-  background: #4F5BDF;
-  color: #fff;
-  border-color: #4F5BDF;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
 }
 
 .btn-mini:hover:not(:disabled) {
@@ -643,24 +643,24 @@ export default {
 .add-input {
   width: 100%;
   height: 36px;
-  border: 1px dashed #d5d9e0;
+  border: 1px dashed color-mix(in srgb, var(--accent) 25%, var(--surface));
   border-radius: 12px;
   padding: 0 14px;
   font-size: 13px;
-  color: #3a3f49;
-  background: #fff;
+  color: var(--text);
+  background: var(--surface);
   outline: none;
   box-sizing: border-box;
   transition: border-color 0.2s ease;
 }
 
 .add-input::placeholder {
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 .add-input:focus {
   border-style: solid;
-  border-color: #4F5BDF;
+  border-color: var(--accent);
 }
 
 .user-dropdown {
@@ -668,8 +668,8 @@ export default {
   top: calc(100% + 6px);
   left: 0;
   right: 0;
-  background: white;
-  border: 1px solid #e2e8f0;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 12px;
   max-height: 300px;
   overflow-y: auto;
@@ -684,13 +684,13 @@ export default {
 
 .user-dropdown-item {
   padding: 8px 12px;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
   cursor: pointer;
   transition: background-color 0.2s ease;
 }
 
 .user-dropdown-item:hover {
-  background-color: #f8fafc;
+  background-color: var(--accent-tint);
 }
 
 .user-dropdown-item:last-child {
@@ -712,7 +712,7 @@ export default {
 .user-name {
   font-weight: 600;
   font-size: 0.78rem;
-  color: #1e293b;
+  color: var(--accent-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -720,7 +720,7 @@ export default {
 
 .user-username {
   font-size: 0.68rem;
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 
 .user-details {
@@ -733,41 +733,41 @@ export default {
   font-size: 0.65rem;
   padding: 1px 6px;
   border-radius: 6px;
-  background: #f1f5f9;
-  color: #475569;
+  background: var(--accent-tint);
+  color: var(--text-muted);
   white-space: nowrap;
 }
 
 .no-users-dropdown {
   padding: 12px;
   text-align: center;
-  color: #94a3b8;
+  color: var(--text-muted);
   font-style: italic;
   font-size: 0.72rem;
 }
 
 /* карточка ответственного (эталон мокапа .resp-item) */
 .resp-item {
-  border: 1px solid #eef0f3;
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
   border-radius: 12px;
   padding: 10px 12px;
-  background: #fff;
+  background: var(--surface);
   display: flex;
   gap: 10px;
   align-items: flex-start;
 }
 
 .resp-item.primary {
-  border-color: #bfe6cf;
-  background: #f4fbf7;
+  border-color: color-mix(in srgb, var(--success) 30%, var(--surface));
+  background: var(--success-bg);
 }
 
 .avatar {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: #e7e9ff;
-  color: #4F5BDF;
+  background: var(--accent-tint);
+  color: var(--accent-text);
   font-weight: 700;
   font-size: 12px;
   display: flex;
@@ -791,12 +791,12 @@ export default {
 .resp-name {
   font-size: 13px;
   font-weight: 600;
-  color: #111318;
+  color: var(--accent-text);
 }
 
 .resp-user {
   font-size: 11px;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 .resp-tags {
@@ -815,18 +815,18 @@ export default {
 }
 
 .tag-pos {
-  background: #eef1f6;
-  color: #4a5361;
+  background: var(--accent-tint);
+  color: var(--text);
 }
 
 .tag-neutral {
-  background: #f1f5f9;
-  color: #475569;
+  background: var(--accent-tint);
+  color: var(--text-muted);
 }
 
 .tag-main {
-  background: #e7f8ee;
-  color: #12854a;
+  background: var(--success-bg);
+  color: var(--success-text);
 }
 
 .toggle-row {
@@ -850,7 +850,7 @@ export default {
 .slider {
   position: absolute;
   inset: 0;
-  background: #d3d7de;
+  background: var(--accent);
   border-radius: 20px;
   transition: 0.2s;
   cursor: pointer;
@@ -863,13 +863,13 @@ export default {
   height: 15px;
   left: 2px;
   top: 2px;
-  background: #fff;
+  background: var(--surface);
   border-radius: 50%;
   transition: 0.2s;
 }
 
 .switch input:checked + .slider {
-  background: #4F5BDF;
+  background: var(--accent);
 }
 
 .switch input:checked + .slider::before {
@@ -878,7 +878,7 @@ export default {
 
 .toggle-txt {
   font-size: 11px;
-  color: #5a6472;
+  color: var(--text-muted);
 }
 
 .resp-acts {
@@ -892,12 +892,12 @@ export default {
   width: 26px;
   height: 26px;
   border-radius: 8px;
-  border: 1px solid #e6e6e6;
-  background: #fff;
+  border: 1px solid var(--border);
+  background: var(--surface);
   cursor: pointer;
   font-size: 14px;
   line-height: 1;
-  color: #5a6472;
+  color: var(--text-muted);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -905,23 +905,23 @@ export default {
 }
 
 .icon-btn.danger:hover {
-  border-color: #fecaca;
-  color: #dc3545;
+  border-color: color-mix(in srgb, var(--danger) 30%, var(--surface));
+  color: var(--danger-text);
 }
 
 .icon-btn.up:hover {
-  border-color: #4F5BDF;
-  color: #4F5BDF;
+  border-color: var(--accent);
+  color: var(--accent-text);
 }
 
 .no-selected-users {
   text-align: center;
   padding: 16px 8px;
-  color: #94a3b8;
+  color: var(--text-muted);
   font-size: 0.75rem;
-  border: 1px dashed #e2e8f0;
+  border: 1px dashed var(--border);
   border-radius: 12px;
-  background: #f8fafc;
+  background: var(--accent-tint);
 }
 
 .no-selected-users p {

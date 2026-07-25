@@ -219,7 +219,7 @@ export default {
 
 <style scoped>
 .docs-block {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--color-border);
   border-radius: 22px;
   overflow: hidden;
@@ -236,7 +236,7 @@ export default {
 .docs-block__title {
   font-size: 14px;
   font-weight: 700;
-  color: #1a1a1a;
+  color: var(--text);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -261,11 +261,11 @@ export default {
   padding: 0 13px;
   border-radius: var(--radius-pill);
   border: 1px solid var(--color-border);
-  background: #fff;
+  background: var(--surface);
   font-family: inherit;
   font-size: 11.5px;
   font-weight: 600;
-  color: #6a6a7d;
+  color: var(--text-muted);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -275,13 +275,13 @@ export default {
 }
 
 .grp-pill--active {
-  background: #f0f4ff;
-  border-color: #cfd4ff;
+  background: var(--accent-tint);
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--surface));
   color: var(--color-primary);
 }
 
 .grp-pill:hover:not(.grp-pill--active) {
-  border-color: #cfd4ff;
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--surface));
   color: var(--color-primary);
 }
 
@@ -296,10 +296,10 @@ export default {
   top: 32px;
   right: 0;
   z-index: 5;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--color-border);
   border-radius: 14px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8px 24px var(--shadow-drop);
   padding: 6px;
   min-width: 170px;
   display: none;
@@ -317,7 +317,7 @@ export default {
   background: none;
   font-family: inherit;
   font-size: 12px;
-  color: #444;
+  color: var(--text);
   padding: 8px 10px;
   border-radius: 9px;
   cursor: pointer;
@@ -328,12 +328,12 @@ export default {
 }
 
 .grp-more__item:hover {
-  background: #eef0ff;
+  background: var(--accent-tint);
   color: var(--color-primary);
 }
 
 .grp-more__cnt {
-  color: #b3b3c2;
+  color: var(--text-muted);
   font-size: 10px;
 }
 
@@ -352,7 +352,7 @@ export default {
 }
 
 .docs-block__list::-webkit-scrollbar-thumb {
-  background: #d9e2ff;
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface));
   border-radius: 4px;
 }
 
@@ -366,7 +366,7 @@ export default {
   justify-content: center;
   padding: 24px;
   text-align: center;
-  color: #b9b9c6;
+  color: var(--text-muted);
   font-size: 12px;
 }
 
@@ -378,7 +378,7 @@ export default {
   height: 57px;
   box-sizing: border-box;
   padding: 0 14px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
   transition: background 0.15s ease;
 }
 
@@ -387,7 +387,7 @@ export default {
 }
 
 .doc-row:hover {
-  background: #fafbff;
+  background: var(--accent-tint);
 }
 
 .doc-row__icon {
@@ -404,7 +404,7 @@ export default {
 .doc-row__name {
   font-size: 13.5px;
   font-weight: 600;
-  color: #1a1a2e;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -417,7 +417,7 @@ export default {
 
 .doc-row__desc {
   font-size: 11px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   margin-top: 2px;
   white-space: nowrap;
   overflow: hidden;
@@ -425,7 +425,7 @@ export default {
 }
 
 .doc-row__date {
-  color: #b3b6cf;
+  color: var(--accent-text);
 }
 
 .doc-row__dl {
@@ -434,8 +434,8 @@ export default {
   height: 30px;
   padding: 0 14px;
   border-radius: var(--radius-pill);
-  border: 1px solid #cfd4ff;
-  background: #f6f7ff;
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
+  background: var(--accent-tint);
   color: var(--color-primary);
   font-weight: 600;
   font-size: 12px;
@@ -447,7 +447,7 @@ export default {
 }
 
 .doc-row__dl:hover {
-  background: #eef0ff;
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface));
   border-color: var(--color-primary);
 }
 </style>

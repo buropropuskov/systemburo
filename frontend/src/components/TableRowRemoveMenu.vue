@@ -186,10 +186,10 @@ export default {
 }
 
 .row-remove-menu__list {
-  background: #fff;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 14px;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 3px 10px var(--shadow-drop);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -201,17 +201,17 @@ export default {
   text-align: left;
   padding: 10px 15px;
   font-size: 13px;
-  color: #333;
+  color: var(--text);
   cursor: pointer;
   transition: background-color 0.2s;
 }
 
 .row-remove-menu__item:hover {
-  background-color: #f5f5f5;
+  background-color: var(--surface-2);
 }
 
 .row-remove-menu__item--danger {
-  color: #c62828;
+  color: var(--danger-text);
 }
 
 .dropdown-enter-active {

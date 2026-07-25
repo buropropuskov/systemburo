@@ -1234,17 +1234,17 @@ export default {
 <style scoped>
 .input__label {
     font-size: 13px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .required {
-    color: #ff4444;
+    color: var(--danger-text);
 }
 
 .data__completion {
     padding: 15px;
     width: 450px;
-    border-right: 1px solid #e6e6e6;
+    border-right: 1px solid var(--border);
 }
 
 .data__completion--locked {
@@ -1268,7 +1268,7 @@ export default {
 .citizenship__label {
     order: -1;
     font-size: 13px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .citizenship-actions {
@@ -1279,9 +1279,9 @@ export default {
 }
 
 .cancel-edit-btn {
-    background: #f8f8f8;
-    color: #333;
-    border: 1px solid #e6e6e6;
+    background: var(--surface-2);
+    color: var(--text);
+    border: 1px solid var(--border);
     border-radius: 15px;
     padding: 8px 15px;
     font-size: 12px;
@@ -1290,12 +1290,12 @@ export default {
 }
 
 .cancel-edit-btn:hover {
-    background: #e8e8e8;
+    background: var(--row-hover);
 }
 
 .add-button {
-    background: #4F5BDF;
-    color: white;
+    background: var(--accent);
+    color: var(--accent-contrast);
     border: none;
     border-radius: 15px;
     padding: 8px 15px;
@@ -1307,11 +1307,11 @@ export default {
 }
 
 .add-button:hover:not(:disabled) {
-    background: #3a45c0;
+    background: var(--accent-hover);
 }
 
 .add-button:disabled {
-    background: #a2a2a2;
+    background: var(--text-muted);
     cursor: not-allowed;
     opacity: 0.6;
 }
@@ -1326,14 +1326,14 @@ export default {
 }
 
 .tooltip-content {
-    background: #333;
-    color: white;
+    background: var(--hint-bg);
+    color: var(--hint-text);
     padding: 10px 12px;
     border-radius: 8px;
     font-size: 12px;
     max-width: 420px;
     min-width: 420px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 8px var(--shadow-drop);
 }
 
 .tooltip-content::before {
@@ -1342,7 +1342,7 @@ export default {
     bottom: 100%;
     right: 40px;
     border: 5px solid transparent;
-    border-bottom-color: #333;
+    border-bottom-color: var(--hint-bg);
 }
 
 .citizenship__dropdown {
@@ -1352,8 +1352,8 @@ export default {
 .dropdown__button {
     width: 100%;
     height: 30px;
-    border: 1px solid #e6e6e6;
-    background-color: #FFF;
+    border: 1px solid var(--border);
+    background-color: var(--surface);
     border-radius: 50px;
     outline: none;
     cursor: pointer;
@@ -1362,11 +1362,11 @@ export default {
 }
 
 .dropdown__button:hover:not(:disabled) {
-    border-color: #4F5BDF;
+    border-color: var(--accent);
 }
 
 .dropdown__button:disabled {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
     cursor: not-allowed;
     opacity: 0.6;
 }
@@ -1387,7 +1387,7 @@ export default {
 
 .button__text {
     font-size: 14px;
-    color: #000;
+    color: var(--text);
     font-weight: 500;
     white-space: nowrap;
     overflow: hidden;
@@ -1413,11 +1413,11 @@ export default {
     top: 100%;
     left: 0;
     width: 100%;
-    background: #FFF;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 20px;
     margin-top: 5px;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+    box-shadow: 0 3px 10px var(--shadow-drop);
     z-index: 1000;
     max-height: 300px;
     overflow-y: auto;
@@ -1434,7 +1434,7 @@ export default {
 }
 
 .dropdown__item:hover {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
 }
 
 .dropdown__item:first-child {
@@ -1447,15 +1447,15 @@ export default {
 
 .item__text {
     font-size: 13px;
-    color: #333;
+    color: var(--text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
 .patent-required-badge {
-    background: #ffebee;
-    color: #c62828;
+    background: var(--danger-bg);
+    color: var(--danger-text);
     padding: 2px 6px;
     border-radius: 8px;
     font-size: 10px;
@@ -1500,20 +1500,20 @@ export default {
 .name__input {
     width: 100%;
     height: 40px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     border-radius: 15px;
     padding: 0 15px;
     outline: none;
     font-size: 14px;
-    background: #FFF;
+    background: var(--surface);
 }
 
 .name__input:focus {
-    border-color: #4F5BDF;
+    border-color: var(--accent);
 }
 
 .name__input:disabled {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
     cursor: not-allowed;
 }
 
@@ -1524,7 +1524,7 @@ export default {
 
 .disabled-field .name__input,
 .disabled-field .permission__dropdown-button {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
     cursor: not-allowed;
 }
 
@@ -1542,8 +1542,8 @@ export default {
 .permission__dropdown-button {
     width: 100%;
     height: 100%;
-    border: 1px solid #e6e6e6;
-    background-color: #FFF;
+    border: 1px solid var(--border);
+    background-color: var(--surface);
     border-radius: 15px;
     outline: none;
     cursor: pointer;
@@ -1552,11 +1552,11 @@ export default {
 }
 
 .permission__dropdown-button:hover:not(:disabled) {
-    border-color: #4F5BDF;
+    border-color: var(--accent);
 }
 
 .permission__dropdown-button:disabled {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
     cursor: not-allowed;
     opacity: 0.6;
 }
@@ -1571,7 +1571,7 @@ export default {
 
 .permission__button-text {
     font-size: 14px;
-    color: #000;
+    color: var(--text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1596,11 +1596,11 @@ export default {
     top: 100%;
     left: 0;
     width: 100%;
-    background: #FFF;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 20px;
     margin-top: 5px;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+    box-shadow: 0 3px 10px var(--shadow-drop);
     z-index: 1000;
     max-height: 220px;
     overflow: hidden;
@@ -1610,12 +1610,12 @@ export default {
     padding: 8px 15px;
     cursor: pointer;
     transition: background-color 0.2s;
-    border-bottom: 1px solid #f5f5f5;
+    border-bottom: 1px solid var(--surface-2);
     font-size: 12px;
 }
 
 .permission__dropdown-item:hover {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
 }
 
 .permission__dropdown-item:last-child {
@@ -1624,7 +1624,7 @@ export default {
 
 .permission__item-text {
     font-size: 12px;
-    color: #333;
+    color: var(--text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1646,8 +1646,8 @@ export default {
 }
 
 .upload-button {
-    background: #4F5BDF;
-    color: white;
+    background: var(--accent);
+    color: var(--accent-contrast);
     border: none;
     border-radius: 15px;
     padding: 8px 15px;
@@ -1657,11 +1657,11 @@ export default {
 }
 
 .upload-button:hover:not(:disabled) {
-    background: #3a45c0;
+    background: var(--accent-hover);
 }
 
 .upload-button:disabled {
-    background: #a2a2a2;
+    background: var(--text-muted);
     cursor: not-allowed;
     opacity: 0.6;
 }
@@ -1677,9 +1677,9 @@ export default {
     display: flex;
     align-items: center;
     padding: 8px 10px;
-    background: #f8f9fa;
+    background: var(--surface-2);
     border-radius: 8px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     gap: 10px;
 }
 
@@ -1706,14 +1706,14 @@ export default {
 
 .file-name {
     font-size: 12px;
-    color: #333;
+    color: var(--text);
     flex: 1;
 }
 
 .remove-file-btn {
     background: none;
     border: none;
-    color: #ff4444;
+    color: var(--danger-text);
     cursor: pointer;
     font-size: 16px;
     padding: 0;
@@ -1726,7 +1726,7 @@ export default {
 }
 
 .remove-file-btn:hover:not(:disabled) {
-    background: #ffebee;
+    background: var(--danger-bg);
     border-radius: 50%;
 }
 
@@ -1742,23 +1742,23 @@ export default {
 
 .error-message {
     font-size: 11px;
-    color: #ff4444;
+    color: var(--danger-text);
     margin-top: 5px;
 }
 
 .loading-message {
     font-size: 12px;
-    color: #a2a2a2;
+    color: var(--text-muted);
     text-align: center;
     padding: 20px;
 }
 
 .no-tables-message {
     font-size: 12px;
-    color: #ff6b6b;
+    color: var(--danger-text);
     text-align: center;
     padding: 20px;
-    background: #fff5f5;
+    background: var(--danger-bg);
     border-radius: 8px;
     margin-top: 10px;
 }
@@ -1768,26 +1768,26 @@ export default {
     height: 25px;
     padding: 0 15px;
     border-radius: 50px;
-    background: #FFF;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     outline: none;
     font-size: 11px;
-    color: #4F5BDF;
+    color: var(--accent-text);
     font-weight: 600;
     cursor: pointer;
 }
 
 .completion__button:hover {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
 }
 
 /* Стили для существующих сотрудников */
 .existing-employees-info {
     margin-bottom: 15px;
     padding: 10px;
-    background: #f8f9fa;
+    background: var(--surface-2);
     border-radius: 10px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
 }
 
 .existing-employees-header {
@@ -1799,7 +1799,7 @@ export default {
 .existing-employees-count {
     font-size: 14px;
     font-weight: 500;
-    color: #333;
+    color: var(--text);
 }
 
 .existing-employees-actions {
@@ -1808,9 +1808,9 @@ export default {
 }
 
 .view-employees-btn {
-    background: white;
-    color: #4F5BDF;
-    border: 1px solid #4F5BDF;
+    background: var(--surface);
+    color: var(--accent-text);
+    border: 1px solid var(--accent);
     border-radius: 15px;
     padding: 5px 10px;
     font-size: 11px;
@@ -1818,12 +1818,12 @@ export default {
 }
 
 .view-employees-btn:hover {
-    background: #f0f2ff;
+    background: var(--accent-tint);
 }
 
 .add-existing-btn {
-    background: #4F5BDF;
-    color: white;
+    background: var(--accent);
+    color: var(--accent-contrast);
     border: none;
     border-radius: 15px;
     padding: 5px 10px;
@@ -1832,11 +1832,11 @@ export default {
 }
 
 .add-existing-btn:hover:not(:disabled) {
-    background: #3a45c0;
+    background: var(--accent-hover);
 }
 
 .add-existing-btn:disabled {
-    background: #a2a2a2;
+    background: var(--text-muted);
     cursor: not-allowed;
     opacity: 0.6;
 }
@@ -1857,20 +1857,20 @@ export default {
     width: 100%;
     margin-top: 12px;
     padding: 12px;
-    background: #fff5f5;
-    border: 1px solid #f5c2c7;
+    background: var(--danger-bg);
+    border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
     border-radius: 10px;
 }
 
 .blacklist-warning .warning-title {
     font-weight: 600;
-    color: #b02a37;
+    color: var(--danger-text);
     margin: 0 0 5px 0;
     font-size: 14px;
 }
 
 .blacklist-warning .warning-details {
-    color: #b02a37;
+    color: var(--danger-text);
     margin: 0;
     font-size: 12px;
     line-height: 1.5;
@@ -1882,7 +1882,7 @@ export default {
     .data__completion {
         width: 100%;
         border-right: none;
-        border-bottom: 1px solid #e6e6e6;
+        border-bottom: 1px solid var(--border);
     }
 }
 

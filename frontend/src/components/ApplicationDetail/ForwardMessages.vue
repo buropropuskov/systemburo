@@ -165,10 +165,10 @@ export default {
 
 <style scoped>
 .forward-messages-section {
-    background: white;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 20px;
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    box-shadow: 0 2px 12px var(--shadow-drop);
     overflow: hidden;
 }
 
@@ -180,7 +180,7 @@ export default {
     padding: 12px 15px;
     background: none;
     border: none;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
     cursor: pointer;
     font-family: inherit;
     text-align: left;
@@ -192,7 +192,7 @@ export default {
 }
 
 .fm-chevron {
-    color: #a2a2a2;
+    color: var(--text-muted);
     font-size: 12px;
     transition: transform 0.2s ease;
 }
@@ -205,14 +205,14 @@ export default {
     margin: 0;
     flex: 1;
     font-size: 14px;
-    color: #a2a2a2;
+    color: var(--text-muted);
     font-weight: 400;
 }
 
 .fm-count {
     font-size: 12px;
-    color: var(--color-primary, #4F5BDF);
-    background: rgba(79, 91, 223, 0.08);
+    color: var(--color-primary, var(--accent-text));
+    background: color-mix(in srgb, var(--accent) 8%, var(--surface));
     padding: 2px 9px;
     border-radius: 999px;
     font-weight: 600;
@@ -245,7 +245,7 @@ export default {
 /* Плоская ветка (как переписка): разделители между пунктами, без карточек/фона. */
 .forward-message-item {
     padding: 12px 0;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid var(--border);
 }
 
 .forward-message-item:first-child {
@@ -268,12 +268,12 @@ export default {
 .forward-message-author {
     font-size: 14px;
     font-weight: 600;
-    color: #000;
+    color: var(--text);
 }
 
 .forward-message-date {
     font-size: 12px;
-    color: #a2a2a2;
+    color: var(--text-muted);
     flex-shrink: 0;
 }
 
@@ -281,7 +281,7 @@ export default {
     margin: 0 0 4px;
     font-size: 13px;
     font-weight: 500;
-    color: #333;
+    color: var(--text);
     line-height: 140%;
     word-break: break-word;
 }
@@ -289,20 +289,20 @@ export default {
 .forward-message-recipients {
     margin: 0 0 4px;
     font-size: 13px;
-    color: #666;
+    color: var(--text-muted);
     line-height: 140%;
     word-break: break-word;
 }
 
 .forward-message-recipients-label {
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .forward-message-text {
     margin: 4px 0 0;
     font-size: 14px;
     line-height: 150%;
-    color: #333;
+    color: var(--text);
     white-space: pre-wrap;
     word-break: break-word;
 }

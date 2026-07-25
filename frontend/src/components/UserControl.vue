@@ -1885,15 +1885,15 @@ export default {
   gap: 14px;
   height: 50px;
   padding: 0 20px;
-  border-bottom: 1px solid #e6e6e6;
-  background: #f0f2ff;
+  border-bottom: 1px solid var(--border);
+  background: var(--accent-tint);
   overflow-x: auto;
   overflow-y: hidden;
 }
 .bulk-count {
   font-size: 14px;
   font-weight: 600;
-  color: #4F5BDF;
+  color: var(--accent-text);
   white-space: nowrap;
 }
 .bulk-actions {
@@ -1908,11 +1908,11 @@ export default {
   white-space: nowrap;
 }
 .bulk-clear {
-  color: #6b7280;
-  border-color: #d5d9e0;
+  color: var(--text-muted);
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--surface));
 }
 .bulk-clear:hover {
-  background: #f5f5f5;
+  background: var(--surface-2);
 }
 .check-col {
   width: 6%;
@@ -1927,7 +1927,7 @@ export default {
   width: 15px;
   height: 15px;
   cursor: pointer;
-  accent-color: #4F5BDF;
+  accent-color: var(--accent);
   margin: 0;
 }
 .bulk-ban-body {
@@ -1939,15 +1939,15 @@ export default {
 .bulk-ban-warn {
   margin: 0;
   font-size: 14px;
-  color: #5a6472;
+  color: var(--text-muted);
   line-height: 1.5;
 }
 .bulk-ban-warn b {
-  color: #dc3545;
+  color: var(--danger-text);
 }
 .bulk-ban-label {
   font-size: 0.78em;
-  color: #5a6472;
+  color: var(--text-muted);
   font-weight: 600;
   letter-spacing: 0.02em;
   text-transform: uppercase;
@@ -1967,41 +1967,41 @@ export default {
   transition: background 0.2s, border-color 0.2s;
 }
 .pill-ghost {
-  background: #fff;
-  color: #4F5BDF;
-  border: 1px solid #4F5BDF;
+  background: var(--surface);
+  color: var(--accent-text);
+  border: 1px solid var(--accent);
 }
 .pill-ghost:hover {
-  background: #eef0ff;
+  background: var(--accent-tint);
 }
 .pill-danger {
-  background: #fff;
-  color: #dc3545;
-  border: 1px solid #fecaca;
+  background: var(--surface);
+  color: var(--danger-text);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
 }
 .pill-danger:hover {
-  background: #fff1f2;
-  border-color: #dc3545;
+  background: var(--danger-bg);
+  border-color: var(--danger);
 }
 .pill-restore {
-  background: #10b981;
-  color: #fff;
+  background: var(--success);
+  color: var(--surface);
 }
 .pill-restore:hover {
-  background: #0da271;
+  background: color-mix(in srgb, var(--success) 85%, var(--text));
 }
 
 .user-management {
   position: relative; /* контекст для оверлей-панели .bulk-bar (top:0 поверх шапки) */
-  background-color: #fff;
+  background-color: var(--surface);
   border-radius: 30px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   overflow: hidden;
   width: 100%;
 }
 
 .management-header {
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -2013,7 +2013,7 @@ export default {
   font-size: 1.1em;
   margin: 0;
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .search-container {
@@ -2037,15 +2037,15 @@ export default {
 
 .users-footer {
   padding: 6px 16px;
-  border-top: 1px solid #e6e6e6;
+  border-top: 1px solid var(--border);
   text-align: right;
-  background: #f8fafc;
+  background: var(--accent-tint);
   flex-shrink: 0;
 }
 
 .users-footer .items-count {
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -2055,8 +2055,8 @@ export default {
   border-radius: 999px;
   font-size: 12px;
   font-weight: 500;
-  background: #e8eafe;
-  color: #4F5BDF;
+  background: var(--accent-tint);
+  color: var(--accent-text);
 }
 
 .archive-dropdown {
@@ -2064,20 +2064,20 @@ export default {
 }
 
 .user-item.inactive {
-  background: #fafafa;
-  color: #9aa0a6;
+  background: var(--surface-2);
+  color: var(--text-muted);
 }
 
 .inactive-badge {
   margin-left: 6px;
   font-size: 11px;
-  color: #9aa0a6;
+  color: var(--text-muted);
   font-style: italic;
 }
 
 .archive-badge {
-  background: #6b7280;
-  color: #fff;
+  background: var(--text-muted);
+  color: var(--surface);
   padding: 4px 12px;
   border-radius: 999px;
   font-size: 12px;
@@ -2087,7 +2087,7 @@ export default {
 
 /* Заголовок таблицы */
 .users-header {
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
   padding: 12px 16px;
   flex-shrink: 0;
 }
@@ -2099,7 +2099,7 @@ export default {
 
 .header-col {
   font-weight: 500;
-  color: #a2a2a2;
+  color: var(--text-muted);
   text-align: left;
   padding: 0 4px;
   font-size: 14px;
@@ -2112,7 +2112,7 @@ export default {
 }
 
 .header-col:hover {
-  color: #333;
+  color: var(--text);
 }
 
 .header-col:hover .sort-icon {
@@ -2134,7 +2134,7 @@ export default {
 }
 
 .active-sort {
-  color: #333 !important;
+  color: var(--text) !important;
   font-weight: 500 !important;
 }
 
@@ -2156,13 +2156,13 @@ export default {
 }
 
 .user-item {
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
   cursor: pointer;
   transition: background-color 0.2s ease;
 }
 
 .user-item:hover {
-  background-color: #fafafa;
+  background-color: var(--surface-2);
 }
 
 .user-row {
@@ -2179,7 +2179,7 @@ export default {
 }
 
 .user-login {
-  color: #4F5BDF;
+  color: var(--accent-text);
   font-weight: 600;
   white-space: nowrap;
   overflow: visible;
@@ -2248,7 +2248,7 @@ export default {
 
 .detail-label {
   font-size: 0.85em;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 /* Значения дропдаунов (Организация/Компания/Тип) в деталях - как обычный текст,
@@ -2276,13 +2276,13 @@ export default {
 
 .password-checklist__item {
   font-size: 11px;
-  color: #999;
+  color: var(--text-muted);
   font-family: 'Montserrat', sans-serif;
   transition: color 0.15s ease;
 }
 
 .password-checklist__item--ok {
-  color: #28a745;
+  color: var(--success-text);
 }
 
 .password-input-container {
@@ -2293,7 +2293,7 @@ export default {
 
 .password-input-sm {
   padding: 6px 10px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border);
   border-radius: 15px;
   font-size: 14px;
   height: 32px;
@@ -2302,7 +2302,7 @@ export default {
 }
 
 .password-input-sm:focus {
-  border-color: #4F5BDF;
+  border-color: var(--accent);
   outline: none;
 }
 
@@ -2314,15 +2314,15 @@ export default {
 
 .generate-password-btn {
   padding: 6px 10px;
-  background-color: #fff;
-  border: 1px solid #ddd;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 50px;
   cursor: pointer;
   white-space: nowrap;
   font-size: 13px;
   height: 30px;
   transition: background-color 0.2s;
-  color: #4F5BDF;
+  color: var(--accent-text);
   font-weight: 500;
   display: flex;
   align-items: center;
@@ -2330,7 +2330,7 @@ export default {
 }
 
 .generate-password-btn:hover {
-  background: #eee;
+  background: var(--border);
 }
 
 .generate-icon {
@@ -2344,8 +2344,8 @@ export default {
   justify-content: center;
   width: 32px;
   height: 32px;
-  background-color: #4F5BDF;
-  color: white;
+  background-color: var(--accent);
+  color: var(--accent-contrast);
   border: none;
   border-radius: 6px;
   cursor: pointer;
@@ -2353,12 +2353,12 @@ export default {
 }
 
 .save-password-btn:disabled {
-  background-color: #e6e6e6;
+  background-color: var(--border);
   cursor: not-allowed;
 }
 
 .save-password-btn:hover:not(:disabled) {
-  background-color: #3a45b2;
+  background-color: var(--accent-hover);
 }
 
 .save-icon {
@@ -2372,18 +2372,18 @@ export default {
 }
 
 .language-hint {
-  color: #666;
+  color: var(--text-muted);
 }
 
 .language-hint.warning {
-  color: #e74c3c;
+  color: var(--danger-text);
   font-weight: bold;
 }
 
 .no-users {
   text-align: center;
   padding: 15px;
-  color: #666;
+  color: var(--text-muted);
 }
 
 /* Шапка модалки редактирования */
@@ -2397,13 +2397,13 @@ export default {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text);
 }
 
 .modal-subtitle {
   margin: 0;
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 .modal-header-actions {
@@ -2418,7 +2418,7 @@ export default {
 .modal-tabs {
   display: flex;
   gap: 4px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
   margin-bottom: 20px;
 }
 
@@ -2428,7 +2428,7 @@ export default {
   font: inherit;
   font-size: 14px;
   font-weight: 600;
-  color: #a2a2a2;
+  color: var(--text-muted);
   padding: 8px 16px 12px;
   cursor: pointer;
   position: relative;
@@ -2436,11 +2436,11 @@ export default {
 }
 
 .modal-tab:hover {
-  color: #333;
+  color: var(--text);
 }
 
 .modal-tab--active {
-  color: #4F5BDF;
+  color: var(--accent-text);
 }
 
 .modal-tab--active::after {
@@ -2451,7 +2451,7 @@ export default {
   bottom: -1px;
   height: 3px;
   border-radius: 3px 3px 0 0;
-  background: #4F5BDF;
+  background: var(--accent);
 }
 
 .tab-panel {
@@ -2484,12 +2484,12 @@ export default {
   gap: 12px;
   margin-top: 20px;
   padding-top: 16px;
-  border-top: 1px dashed #e0e0e0;
+  border-top: 1px dashed var(--border);
 }
 
 .danger-zone__hint {
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 /* Тело модалки редактирования */
@@ -2510,16 +2510,16 @@ export default {
 
 .form-hint {
   font-size: 13px;
-  color: #555;
+  color: var(--text);
   margin-bottom: 12px;
   padding: 8px 12px;
   border-radius: 8px;
-  background: #f3f3fb;
+  background: var(--accent-tint);
 }
 
 .form-hint--warning {
-  background: #FFE0B2;
-  color: #9A3412;
+  background: var(--warning);
+  color: var(--danger-text);
 }
 
 .input-group {
@@ -2540,32 +2540,32 @@ export default {
 .input-label {
   font-size: 14px;
   font-weight: 500;
-  color: #555;
+  color: var(--text);
 }
 
 .required {
-  color: #ff4444;
+  color: var(--danger-text);
 }
 
 .modal-input {
   width: 100%;
   padding: 8px 12px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--border);
   border-radius: 15px;
   font-size: 14px;
   transition: border-color 0.2s ease;
-  background: #fff;
+  background: var(--surface);
 }
 
 
 .modal-input:focus {
-  border-color: #4F5BDF;
+  border-color: var(--accent);
   outline: none;
 }
 
 .input-hint {
   font-size: 12px;
-  color: #999;
+  color: var(--text-muted);
   margin-top: 2px;
 }
 
@@ -2581,26 +2581,26 @@ export default {
 }
 
 .modal-btn--cancel {
-  background: #f5f5f5;
-  color: #666;
-  border: 1px solid #e0e0e0;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
 }
 
 .modal-btn--cancel:hover {
-  background: #e9e9e9;
+  background: var(--row-hover);
 }
 
 .modal-btn--confirm {
-  background: #4F5BDF;
-  color: white;
+  background: var(--accent);
+  color: var(--accent-contrast);
 }
 
 .modal-btn--confirm:hover:not(.modal-btn--disabled) {
-  background: #3a45b2;
+  background: var(--accent-hover);
 }
 
 .modal-btn--disabled {
-  background: #ccc;
+  background: var(--border);
   cursor: not-allowed;
 }
 
@@ -2612,19 +2612,19 @@ export default {
 
 .select-dropdown::-webkit-scrollbar-track,
 .users-body::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: var(--surface-2);
   border-radius: 3px;
 }
 
 .select-dropdown::-webkit-scrollbar-thumb,
 .users-body::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
+  background: var(--border);
   border-radius: 3px;
 }
 
 .select-dropdown::-webkit-scrollbar-thumb:hover,
 .users-body::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+  background: var(--text-muted);
 }
 
 @media (max-width: 767.98px) {

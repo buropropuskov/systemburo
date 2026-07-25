@@ -230,7 +230,7 @@ export default {
 .sc {
   /* zoom-safe (#1097): vh под корневым zoom меряется от НЕзумленной высоты. */
   min-height: calc(var(--app-vh, 1vh) * 100 - 80px);
-  background: #f5f6fa;
+  background: var(--accent-tint);
   padding: 40px 24px;
   display: flex;
   justify-content: center;
@@ -238,26 +238,26 @@ export default {
 .sc__card {
   width: 100%;
   max-width: 720px;
-  background: #fff;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 30px;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 3px 10px var(--shadow-drop);
   padding: 36px 40px 32px;
 }
 .sc__header h1 {
   margin: 0 0 10px;
   font-weight: 700;
   font-size: 24px;
-  color: #1a1a1a;
+  color: var(--text);
 }
 .sc__lede {
   margin: 0 0 28px;
   font-size: 14px;
   line-height: 1.55;
-  color: #6b7280;
+  color: var(--text-muted);
 }
 .sc__lede code {
-  background: #f3f4f9;
+  background: var(--accent-tint);
   padding: 1px 6px;
   border-radius: 6px;
   font-family: 'JetBrains Mono', ui-monospace, monospace;
@@ -265,8 +265,8 @@ export default {
 }
 .sc__status {
   padding: 16px 20px;
-  background: #f7f7fb;
-  border: 1px solid #e6e6e6;
+  background: var(--accent-tint);
+  border: 1px solid var(--border);
   border-radius: 20px;
   margin-bottom: 28px;
 }
@@ -278,7 +278,7 @@ export default {
 }
 .sc__status-label {
   font-size: 13px;
-  color: #6b7280;
+  color: var(--text-muted);
   font-weight: 500;
 }
 .sc__status-pill {
@@ -288,17 +288,17 @@ export default {
   text-transform: uppercase;
   padding: 6px 14px;
   border-radius: 999px;
-  background: #d1fae5;
-  color: #047857;
+  background: var(--success-bg);
+  color: var(--success-text);
 }
 .sc__status-pill--on {
-  background: #ffb3b3;
-  color: #c62828;
+  background: var(--danger-bg);
+  color: var(--danger-text);
 }
 .sc__status-meta {
   margin: 10px 0 0;
   font-size: 12px;
-  color: #6b7280;
+  color: var(--text-muted);
 }
 .sc__form {
   display: flex;
@@ -311,25 +311,25 @@ export default {
   display: block;
   font-size: 13px;
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--text);
   margin-bottom: 8px;
 }
 .sc__textarea,
 .sc__input {
   width: 100%;
   padding: 12px 16px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   font-family: 'Montserrat', sans-serif;
   font-size: 14px;
-  color: #1a1a1a;
-  background: #fff;
+  color: var(--text);
+  background: var(--surface);
   resize: vertical;
 }
 .sc__textarea:focus,
 .sc__input:focus {
   outline: none;
-  border-color: #4F5BDF;
+  border-color: var(--accent);
 }
 .sc__actions {
   display: flex;
@@ -342,40 +342,40 @@ export default {
   font-weight: 500;
   padding: 12px 28px;
   border-radius: 30px;
-  border: 1px solid #e6e6e6;
-  background: #fff;
-  color: #1a1a1a;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
   cursor: pointer;
   transition: all 0.2s ease;
 }
 .sc__btn:hover:not(:disabled) { background: #f3f4f9; }
 .sc__btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .sc__btn--primary {
-  background: #4F5BDF;
-  color: #fff;
-  border-color: #4F5BDF;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
 }
 .sc__btn--primary:hover:not(:disabled) {
-  background: #3d49c7;
-  border-color: #3d49c7;
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
 }
 .sc__btn--danger {
-  background: #c62828;
-  color: #fff;
-  border-color: #c62828;
+  background: var(--danger);
+  color: var(--surface);
+  border-color: var(--danger);
 }
 .sc__btn--danger:hover:not(:disabled) {
-  background: #a02020;
-  border-color: #a02020;
+  background: color-mix(in srgb, var(--danger) 85%, var(--text));
+  border-color: var(--danger);
 }
 .sc__hint {
   margin: 0;
   font-size: 12px;
   line-height: 1.55;
-  color: #6b7280;
+  color: var(--text-muted);
 }
 .sc__hint code {
-  background: #f3f4f9;
+  background: var(--accent-tint);
   padding: 1px 4px;
   border-radius: 4px;
   font-family: 'JetBrains Mono', ui-monospace, monospace;
@@ -385,15 +385,15 @@ export default {
   margin-top: 20px;
   padding: 12px 16px;
   border-radius: 12px;
-  background: #fee2e2;
-  color: #c62828;
+  background: var(--danger-bg);
+  color: var(--danger-text);
   font-size: 13px;
 }
 
 .sc__modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -403,12 +403,12 @@ export default {
   -webkit-backdrop-filter: blur(0.1px);
 }
 .sc__modal {
-  background: #fff;
+  background: var(--surface);
   border-radius: 30px;
   padding: 32px 36px 28px;
   max-width: 480px;
   width: 100%;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 20px 60px var(--shadow-drop);
 }
 .sc__modal h2 {
   margin: 0 0 14px;
@@ -419,7 +419,7 @@ export default {
   margin: 0 0 24px;
   font-size: 14px;
   line-height: 1.55;
-  color: #6b7280;
+  color: var(--text-muted);
 }
 .sc__modal-actions {
   display: flex;

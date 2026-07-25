@@ -156,11 +156,11 @@ export default {
 .bulk-op__summary {
   margin: 0;
   font-size: 14px;
-  color: #5a6472;
+  color: var(--text-muted);
 }
 
 .bulk-op__summary b {
-  color: #4F5BDF;
+  color: var(--accent-text);
 }
 
 .bulk-op__section {
@@ -171,7 +171,7 @@ export default {
 
 .bulk-op__label {
   font-size: 0.78em;
-  color: #5a6472;
+  color: var(--text-muted);
   font-weight: 600;
   letter-spacing: 0.02em;
   text-transform: uppercase;
@@ -180,8 +180,8 @@ export default {
 /* кнопки действий (эталон BulkOperationsModal actions) */
 .bulk-op__cancel {
   padding: 10px 20px;
-  border: 1px solid #e6e6e6;
-  background: #fff;
+  border: 1px solid var(--border);
+  background: var(--surface);
   border-radius: 8px;
   cursor: pointer;
   font-size: 14px;
@@ -189,13 +189,13 @@ export default {
 }
 
 .bulk-op__cancel:hover {
-  background: #f5f5f5;
+  background: var(--surface-2);
 }
 
 .bulk-op__apply {
   padding: 10px 20px;
-  background: #4F5BDF;
-  color: #fff;
+  background: var(--accent);
+  color: var(--accent-contrast);
   border: none;
   border-radius: 8px;
   cursor: pointer;

@@ -71,7 +71,7 @@ const availablePresets = computed(() =>
   gap: 7px;
   padding: 16px 18px;
   text-align: left;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   cursor: pointer;

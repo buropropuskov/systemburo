@@ -1165,20 +1165,20 @@ export default {
     height: 24px;
     padding: 0 10px;
     border-radius: 50px;
-    border: 1px solid #cfd4ff;
-    background: #f6f7ff;
+    border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
+    background: var(--accent-tint);
     font-family: inherit;
     font-size: 11px;
     font-weight: 600;
-    color: #4F5BDF;
+    color: var(--accent-text);
     cursor: pointer;
     white-space: nowrap;
     transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .qd-trigger:hover {
-    background: #eef0ff;
-    border-color: #b9c0ff;
+    background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+    border-color: color-mix(in srgb, var(--accent) 25%, var(--surface));
 }
 
 .qd-caret {
@@ -1199,10 +1199,10 @@ export default {
     flex-direction: column;
     gap: 2px;
     padding: 6px;
-    background: #fff;
-    border: 1px solid var(--border, #e6e6e6);
+    background: var(--surface);
+    border: 1px solid var(--border, var(--border));
     border-radius: 14px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 8px 24px var(--shadow-drop);
 }
 
 .qd-item {
@@ -1221,24 +1221,24 @@ export default {
 }
 
 .qd-item:hover {
-    background: #eef0ff;
+    background: var(--accent-tint);
 }
 
 .qd-item__label {
     font-size: 13px;
-    color: #333;
+    color: var(--text);
     white-space: nowrap;
 }
 
 .qd-item__date {
     font-size: 11px;
-    color: #a2a2a2;
+    color: var(--text-muted);
     white-space: nowrap;
 }
 
 .qd-sep {
     height: 1px;
-    background: #e2e4ec;
+    background: var(--accent-tint);
     margin: 4px 6px;
 }
 
@@ -1263,9 +1263,9 @@ export default {
 .input__date {
     width: 105px;
     height: 40px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     outline: none;
-    background: #FFF;
+    background: var(--surface);
     border-radius: 15px;
     padding: 5px 10px;
     font-family: inherit;
@@ -1274,11 +1274,11 @@ export default {
 }
 
 .input__date:focus {
-    border-color: #4F5BDF;
+    border-color: var(--accent);
 }
 
 .date__text {
-    color: #4F5BDF;
+    color: var(--accent-text);
     font-weight: 600;
     white-space: nowrap;
 }
@@ -1329,7 +1329,7 @@ export default {
     width: 42px;
     height: 24px;
     border-radius: var(--radius-pill, 999px);
-    background: #d4d7e3;
+    background: var(--accent);
     transition: background 0.22s ease;
     flex-shrink: 0;
 }
@@ -1342,13 +1342,13 @@ export default {
     width: 18px;
     height: 18px;
     border-radius: 50%;
-    background: #fff;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+    background: var(--surface);
+    box-shadow: 0 1px 3px var(--shadow-drop);
     transition: transform 0.22s cubic-bezier(0.3, 1.3, 0.5, 1);
 }
 
 .option-toggle__input:checked + .option-toggle__switch {
-    background: var(--color-primary, #4F5BDF);
+    background: var(--color-primary, var(--accent));
 }
 
 .option-toggle__input:checked + .option-toggle__switch::after {
@@ -1360,7 +1360,7 @@ export default {
 }
 
 .option-text {
-    color: #333;
+    color: var(--text);
     font-size: 13px;
     white-space: nowrap;
 }
@@ -1381,17 +1381,17 @@ export default {
     width: 40px;
     height: 4px;
     border-radius: 2px;
-    background: #d5d5db;
+    background: var(--border);
     margin: 0 auto 8px;
     flex-shrink: 0;
 }
 
 .datepicker {
     /* Позиционирование через datepickerStyle (position:fixed + координаты от инпута). */
-    background: white;
+    background: var(--surface);
     border-radius: 16px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-    border: 1px solid #e6e6e6;
+    box-shadow: 0 8px 24px var(--shadow-drop);
+    border: 1px solid var(--border);
     padding: 16px;
     min-width: 260px;
     z-index: 1000;
@@ -1418,7 +1418,7 @@ export default {
 }
 
 .datepicker__nav:hover {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
 }
 
 .datepicker__nav svg {
@@ -1429,7 +1429,7 @@ export default {
 .datepicker__month {
     font-weight: 600;
     font-size: 14px;
-    color: #1a1a1a;
+    color: var(--text);
 }
 
 .datepicker__weekdays {
@@ -1443,7 +1443,7 @@ export default {
     text-align: center;
     font-size: 12px;
     font-weight: 500;
-    color: #8c8c8c;
+    color: var(--text-muted);
     padding: 6px 0;
 }
 
@@ -1461,21 +1461,21 @@ export default {
     cursor: pointer;
     border-radius: 8px;
     transition: background-color 0.2s ease;
-    color: #333;
+    color: var(--text);
 }
 
 .datepicker__day:hover:not(.datepicker__day--disabled):not(.datepicker__day--selected) {
-    background-color: #e8ebff;
+    background-color: var(--accent-tint);
 }
 
 .datepicker__day--selected {
-    background-color: #4F5BDF;
-    color: white;
+    background-color: var(--accent);
+    color: var(--accent-contrast);
     font-weight: 600;
 }
 
 .datepicker__day--other-month {
-    color: #ccc;
+    color: var(--text-muted);
 }
 
 .datepicker__day--today {
@@ -1491,16 +1491,16 @@ export default {
     transform: translateX(-50%);
     width: 4px;
     height: 4px;
-    background-color: #4F5BDF;
+    background-color: var(--accent);
     border-radius: 50%;
 }
 
 .datepicker__day--today.datepicker__day--selected::after {
-    background-color: white;
+    background-color: var(--surface);
 }
 
 .datepicker__day--disabled {
-    color: #e0e0e0;
+    color: var(--border);
     cursor: not-allowed;
     pointer-events: none;
 }
@@ -1531,19 +1531,19 @@ export default {
 .input__time {
     width: 65px;
     height: 40px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     border-radius: 15px;
     padding: 5px 10px;
     font-family: inherit;
     font-size: 13px;
     outline: none;
     transition: border-color 0.2s ease;
-    background: #FFF;
+    background: var(--surface);
     text-align: center;
 }
 
 .input__time:focus {
-    border-color: #4F5BDF;
+    border-color: var(--accent);
 }
 
 .time-message {
@@ -1552,12 +1552,12 @@ export default {
 }
 
 .input--error {
-    border-color: #ff4444;
+    border-color: var(--danger);
 }
 
 .error-message {
-    background: rgba(255, 45, 45, 0.4);
-    color: #fff;
+    background: color-mix(in srgb, var(--danger) 40%, var(--surface));
+    color: var(--danger-text);
     padding: 8px 16px;
     border-radius: 24px;
     font-size: 13px;
@@ -1617,11 +1617,11 @@ export default {
 
 .input__label {
     font-size: 13px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .required {
-    color: #ff4444;
+    color: var(--danger-text);
 }
 
 /* Дата (250px) + время + доп.опции в ряд не влезают на узком - стекаем в колонку,
@@ -1635,7 +1635,7 @@ export default {
         position: fixed;
         inset: 0;
         z-index: 11999;
-        background: rgba(0, 0, 0, 0.45);
+        background: var(--overlay);
     }
 
     .datepicker {
@@ -1652,7 +1652,7 @@ export default {
         padding: 8px 12px 12px;
         border: none;
         border-radius: 16px 16px 0 0;
-        box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.18);
+        box-shadow: 0 -8px 30px var(--shadow-drop);
     }
 
     /* Лист тянется за пальцем 1:1 - без transition во время жеста. */

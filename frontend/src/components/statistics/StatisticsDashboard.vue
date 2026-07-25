@@ -1057,7 +1057,7 @@ onUnmounted(() => {
 }
 
 .dashboard__attach-chart {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   padding: 12px 14px;
@@ -1085,7 +1085,7 @@ onUnmounted(() => {
 }
 
 .dashboard__tile {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   padding: 12px 14px;
@@ -1162,13 +1162,13 @@ onUnmounted(() => {
 }
 
 .dashboard__delta--up {
-  background: rgba(40, 167, 69, 0.12);
-  color: var(--color-success);
+  background: color-mix(in srgb, var(--success) 12%, var(--surface));
+  color: var(--success-text);
 }
 
 .dashboard__delta--down {
-  background: rgba(220, 53, 69, 0.12);
-  color: var(--color-danger);
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+  color: var(--danger-text);
 }
 
 .dashboard__delta--flat {
@@ -1216,7 +1216,7 @@ onUnmounted(() => {
   border: 1px solid var(--color-primary);
   border-radius: var(--radius-lg);
   padding: 18px 20px;
-  background: #fff;
+  background: var(--surface);
   margin-top: 4px;
 }
 
@@ -1299,7 +1299,7 @@ onUnmounted(() => {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   padding: 20px 22px;
-  background: #fff;
+  background: var(--surface);
 }
 
 .dashboard__chart-head {
@@ -1358,12 +1358,12 @@ onUnmounted(() => {
 
 .dashboard__seg-btn--active {
   background: var(--color-primary);
-  color: #fff;
+  color: var(--accent-contrast);
 }
 
 /* На активной сегмент-кнопке hover не должен перекрашивать текст в синий. */
 .dashboard__seg-btn--active:hover {
-  color: #fff;
+  color: var(--accent-contrast);
 }
 
 .dashboard__chart-skeleton {
@@ -1390,7 +1390,7 @@ onUnmounted(() => {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   overflow: hidden;
-  background: #fff;
+  background: var(--surface);
   display: flex;
   flex-direction: column;
 }
@@ -1441,7 +1441,7 @@ onUnmounted(() => {
 }
 
 .dashboard__feed-list::-webkit-scrollbar-thumb {
-  background: #e1e3f0;
+  background: var(--accent-tint);
   border-radius: var(--radius-pill);
 }
 
@@ -1450,7 +1450,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 12px;
   padding: 11px 18px;
-  border-bottom: 1px solid #f2f3fa;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
   animation: row-in 0.3s ease;
 }
 
@@ -1462,7 +1462,7 @@ onUnmounted(() => {
 .dashboard__feed-row--skeleton {
   min-height: 56px;
   background: var(--color-skeleton);
-  border-bottom: 1px solid #fff;
+  border-bottom: 1px solid var(--surface);
   animation: skeleton-pulse 1.4s ease-in-out infinite;
 }
 
@@ -1535,13 +1535,15 @@ onUnmounted(() => {
 }
 
 .dashboard__dir-badge--in {
-  background: rgba(40, 167, 69, 0.12);
-  color: var(--color-success);
+  background: color-mix(in srgb, var(--success) 12%, var(--surface));
+  /* Текстовый тон семьи, а не сплошной: сплошной на своей же бледной подложке
+     давал 2.75 - так было и до перевода на переменные. */
+  color: var(--success-text);
 }
 
 .dashboard__dir-badge--out {
-  background: rgba(220, 53, 69, 0.12);
-  color: var(--color-danger);
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+  color: var(--danger-text);
 }
 
 /* Номерной знак машины */
@@ -1558,7 +1560,7 @@ onUnmounted(() => {
   font-weight: 700;
   color: var(--color-text);
   letter-spacing: 0.04em;
-  background: #fff;
+  background: var(--surface);
   text-transform: uppercase;
 }
 

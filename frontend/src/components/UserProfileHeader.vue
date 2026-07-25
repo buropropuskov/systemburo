@@ -308,7 +308,7 @@ export default {
   gap: 20px;
   padding: 20px 45px;
   border-radius: 30px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   height: 200px;
   position: relative;
   overflow: hidden;
@@ -325,7 +325,7 @@ export default {
   left: 0;
   width: 20px;
   height: 100%;
-  background: #4F5BDF;
+  background: var(--accent);
 }
 
 .user-avatar {
@@ -340,15 +340,15 @@ export default {
   width: 80px;
   height: 80px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #4a6fa5 0%, #3a5a80 100%);
-  color: white;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 70%, var(--surface)) 0%, var(--accent) 100%);
+  color: var(--accent-contrast);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 1.8em;
   font-weight: bold;
   box-shadow: 0 1px 6px rgba(74, 111, 165, 0.3);
-  border: 3px solid white;
+  border: 3px solid var(--surface);
 }
 
 .user-info {
@@ -361,7 +361,7 @@ export default {
 
 .main-info {
   padding-bottom: 12px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  border-bottom: 1px solid var(--shadow-drop);
 }
 
 .name-and-type {
@@ -375,7 +375,7 @@ export default {
 .user-name {
   font-size: 1.6em;
   margin: 0;
-  color: #000000;
+  color: var(--text);
   font-weight: 700;
   line-height: 1.3;
   opacity: 0;
@@ -405,14 +405,14 @@ export default {
 
 .user-organization {
   font-size: 1.2em;
-  color: #333;
+  color: var(--text);
   font-weight: 600;
   animation: fadeInRight 0.4s ease-out 0.35s forwards;
 }
 
 .user-company {
   font-size: 1em;
-  color: #666;
+  color: var(--text-muted);
   animation: fadeInRight 0.4s ease-out 0.4s forwards;
 }
 
@@ -457,8 +457,8 @@ export default {
   min-width: 0;
   cursor: pointer;
   border: 1px solid transparent;
-  background: #f1f3f5;
-  color: #475569;
+  background: var(--accent-tint);
+  color: var(--text-muted);
 }
 
 .badge-content {
@@ -483,23 +483,23 @@ export default {
 }
 
 .position-badge {
-  background: #eef0ff;
-  color: #3a45c0;
-  border-color: #d9deff;
+  background: var(--accent-tint);
+  color: var(--accent-hover);
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--surface));
   cursor: default;
   gap: 6px;
 }
 
 .email-badge {
-  background: #dcfce7;
-  color: #166534;
-  border-color: #bbf7d0;
+  background: var(--success-bg);
+  color: var(--success-text);
+  border-color: color-mix(in srgb, var(--success) 30%, var(--surface));
 }
 
 .phone-badge {
-  background: #fef3c7;
-  color: #92400e;
-  border-color: #fde68a;
+  background: var(--warning-bg);
+  color: var(--warning-text);
+  border-color: color-mix(in srgb, var(--warning) 30%, var(--surface));
 }
 
 .detail-badge .icon {
@@ -513,8 +513,8 @@ export default {
 .user-type-badge {
   display: inline-block;
   padding: 5px 12px;
-  background: var(--color-primary, #4F5BDF);
-  color: white;
+  background: var(--color-primary, var(--accent));
+  color: var(--accent-contrast);
   border-radius: 999px;
   font-size: 0.85em;
   font-weight: 500;

@@ -181,7 +181,7 @@ onBeforeUnmount(() => {
 }
 
 .ci-image.is-selected .ci-image-frame img {
-  outline: 2px solid #4f5bdf;
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
   cursor: move;
 }
@@ -190,8 +190,8 @@ onBeforeUnmount(() => {
   position: absolute;
   width: 12px;
   height: 12px;
-  background: #4f5bdf;
-  border: 2px solid #fff;
+  background: var(--accent);
+  border: 2px solid var(--surface);
   border-radius: 50%;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.25);
   z-index: 1;

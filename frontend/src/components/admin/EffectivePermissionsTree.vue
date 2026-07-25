@@ -173,7 +173,7 @@ export default {
 
 .ep-row--child .ep-row__label {
   font-size: 13px;
-  color: #4b5168;
+  color: var(--accent-text);
 }
 
 .ep-row--locked {
@@ -217,7 +217,7 @@ export default {
   height: var(--h);
   flex: none;
   border-radius: var(--radius-pill);
-  background: #d3d6e4;
+  background: var(--border);
   position: relative;
   cursor: pointer;
   border: none;
@@ -233,8 +233,8 @@ export default {
   width: var(--d);
   height: var(--d);
   border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  background: var(--surface);
+  box-shadow: 0 1px 3px var(--shadow-drop);
   transition: left 0.2s ease;
 }
 
@@ -242,7 +242,7 @@ export default {
 .tgl.on::after { left: calc(var(--w) - var(--d) - 3px); }
 
 .tgl.locked {
-  background: #e7e8ef;
+  background: var(--accent-tint);
   cursor: not-allowed;
   opacity: 0.7;
 }

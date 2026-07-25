@@ -145,8 +145,8 @@ export default {
 
 .passage__item {
     height: 30px;
-    background: #F2F2F2;
-    color: #a2a2a2;
+    background: var(--surface-2);
+    color: var(--text-muted);
     border-radius: 50px;
     display: flex;
     align-items: center;
@@ -165,25 +165,25 @@ export default {
 }
 
 .passage__item:hover:not(.passage__item--active):not(.passage__item--inactive) {
-    background: #e8e8e8;
+    background: var(--row-hover);
 }
 
 .passage__item--active {
-    background: #4F5BDF;
-    color: #fff;
-    border-color: #4F5BDF;
+    background: var(--accent);
+    color: var(--accent-contrast);
+    border-color: var(--accent);
 }
 
 .passage__item--inactive {
-    background: #ffe6e6;
-    color: #ff6b6b;
-    border-color: #ffcccc;
+    background: var(--danger-bg);
+    color: var(--danger-text);
+    border-color: color-mix(in srgb, var(--danger) 30%, var(--surface));
     cursor: not-allowed;
     opacity: 0.7;
 }
 
 .passage__item--attached {
-    border-left: 3px solid #4F5BDF;
+    border-left: 3px solid var(--accent);
 }
 
 .inactive-tooltip {
@@ -194,13 +194,13 @@ export default {
 }
 
 .inactive-tooltip-content {
-    background: #333;
-    color: white;
+    background: var(--hint-bg);
+    color: var(--hint-text);
     padding: 8px 12px;
     border-radius: 8px;
     font-size: 12px;
     max-width: 300px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 8px var(--shadow-drop);
 }
 
 .inactive-tooltip-content::before {
@@ -210,7 +210,7 @@ export default {
     left: 50%;
     transform: translateX(-50%);
     border: 5px solid transparent;
-    border-top-color: #333;
+    border-top-color: var(--hint-bg);
 }
 
 @media (max-width: 768px) {

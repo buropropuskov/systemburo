@@ -281,11 +281,11 @@ export default {
 .bulk-op__summary {
   margin: 0;
   font-size: 14px;
-  color: #5a6472;
+  color: var(--text-muted);
 }
 
 .bulk-op__summary b {
-  color: #4F5BDF;
+  color: var(--accent-text);
 }
 
 .bulk-op__section {
@@ -296,7 +296,7 @@ export default {
 
 .bulk-op__label {
   font-size: 0.78em;
-  color: #5a6472;
+  color: var(--text-muted);
   font-weight: 600;
   letter-spacing: 0.02em;
   text-transform: uppercase;
@@ -310,17 +310,17 @@ export default {
 
 .bulk-op__mode-label {
   font-size: 13px;
-  color: #5a6472;
+  color: var(--text-muted);
   font-weight: 600;
 }
 
 /* сегментированный переключатель Заменить/Добавить */
 .seg {
   display: inline-flex;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 50px;
   padding: 3px;
-  background: #f5f6fa;
+  background: var(--accent-tint);
 }
 
 .seg__btn {
@@ -330,28 +330,28 @@ export default {
   padding: 5px 16px;
   font-size: 13px;
   font-weight: 600;
-  color: #5a6472;
+  color: var(--text-muted);
   cursor: pointer;
   font-family: inherit;
   transition: background 0.2s, color 0.2s;
 }
 
 .seg__btn--active {
-  background: #4F5BDF;
-  color: #fff;
+  background: var(--accent);
+  color: var(--accent-contrast);
 }
 
 .bulk-op__hint {
   margin: 0;
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 /* кнопки действий (эталон SelectionModal actions) */
 .bulk-op__cancel {
   padding: 10px 20px;
-  border: 1px solid #e6e6e6;
-  background: #fff;
+  border: 1px solid var(--border);
+  background: var(--surface);
   border-radius: 8px;
   cursor: pointer;
   font-size: 14px;
@@ -359,13 +359,13 @@ export default {
 }
 
 .bulk-op__cancel:hover {
-  background: #f5f5f5;
+  background: var(--surface-2);
 }
 
 .bulk-op__apply {
   padding: 10px 20px;
-  background: #4F5BDF;
-  color: #fff;
+  background: var(--accent);
+  color: var(--accent-contrast);
   border: none;
   border-radius: 8px;
   cursor: pointer;

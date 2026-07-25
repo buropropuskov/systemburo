@@ -181,7 +181,7 @@ export default {
 .gpm-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.5);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -190,7 +190,7 @@ export default {
 }
 
 .gpm-modal {
-  background: #fff;
+  background: var(--surface);
   border-radius: 30px;
   width: 100%;
   max-width: 640px;
@@ -297,7 +297,7 @@ export default {
 
 .lk-button--primary {
   background: var(--color-primary);
-  color: #fff;
+  color: var(--accent-contrast);
 }
 
 .lk-button--primary:hover {

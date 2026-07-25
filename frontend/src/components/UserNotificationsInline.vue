@@ -302,9 +302,9 @@ export default {
   flex: 1;
   min-height: 200px;
   max-height: 200px;
-  background-color: #fff;
+  background-color: var(--surface);
   border-radius: 30px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -313,7 +313,7 @@ export default {
 .notifications__header {
   min-height: 48px;
   width: 100%;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
   display: flex;
   justify-content: space-between;
   /* flex-start, а не center: на узком экране фильтры (Все/Непрочитанные) переносятся
@@ -322,7 +322,7 @@ export default {
   align-items: flex-start;
   padding: 10px 20px;
   flex-shrink: 0;
-  background: #fff;
+  background: var(--surface);
   gap: 12px;
 }
 
@@ -337,12 +337,12 @@ export default {
   font-size: 14px;
   font-weight: 600;
   margin: 0;
-  color: #1a1a1a;
+  color: var(--text);
 }
 
 .notification-badge {
-  background: var(--color-danger, #f44336);
-  color: white;
+  background: var(--color-danger, var(--danger));
+  color: var(--accent-contrast);
   border-radius: 30px;
   padding: 2px 8px;
   font-size: 11px;
@@ -360,7 +360,7 @@ export default {
   background: none;
   border: none;
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   cursor: pointer;
   padding: 4px 12px;
   border-radius: 30px;
@@ -371,18 +371,18 @@ export default {
 
 .filter-btn.active {
   color: var(--color-primary);
-  background: rgba(79, 91, 223, 0.08);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
 }
 
 .filter-btn:hover:not(.active) {
-  color: #666;
-  background: #f5f5f5;
+  color: var(--text-muted);
+  background: var(--surface-2);
 }
 
 .notifications__clear {
   background: none;
   border: none;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 12px;
   cursor: pointer;
   transition: color 0.2s ease;
@@ -394,7 +394,7 @@ export default {
 
 .notifications__clear:hover {
   color: var(--color-text);
-  background: #f5f5f5;
+  background: var(--surface-2);
 }
 
 .notifications__list {
@@ -414,7 +414,7 @@ export default {
   width: 4px;
 }
 .notifications__list::-webkit-scrollbar-thumb {
-  background: #d9e2ff;
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface));
   border-radius: 2px;
 }
 
@@ -429,7 +429,7 @@ export default {
   align-items: flex-start;
   padding: 10px 20px;
   gap: 10px;
-  border-bottom: 1px solid #f5f5f5;
+  border-bottom: 1px solid var(--surface-2);
   transition: background-color 0.15s;
 }
 
@@ -438,7 +438,7 @@ export default {
 }
 
 .notification-item.unread {
-  background: rgba(79, 91, 223, 0.03);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
 }
 
 .notification-dot-wrapper {
@@ -509,7 +509,7 @@ export default {
 
 .notification-date {
   font-size: 11px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -517,7 +517,7 @@ export default {
 .notification-message {
   margin: 4px 0 0;
   font-size: 12px;
-  color: #666;
+  color: var(--text-muted);
   line-height: 1.4;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -540,11 +540,11 @@ export default {
 }
 
 .delete-btn:hover {
-  background: #fde8e8;
+  background: var(--danger-bg);
 }
 
 .delete-btn:hover svg path {
-  stroke: var(--color-danger, #dc2626);
+  stroke: var(--color-danger, var(--danger-text));
 }
 
 .notifications__loading {
@@ -556,7 +556,7 @@ export default {
 
 .notifications__empty {
   padding: 40px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 13px;
   text-align: center;
 }

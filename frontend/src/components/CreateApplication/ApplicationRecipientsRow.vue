@@ -415,7 +415,7 @@ export default {
 .recipients-label {
   font-size: 0.8rem;
   font-weight: 600;
-  color: #64748b;
+  color: var(--accent-text);
   flex-shrink: 0;
 }
 
@@ -433,16 +433,16 @@ export default {
   gap: 6px;
   padding: 4px 10px;
   border-radius: 999px;
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
+  border: 1px solid var(--border);
+  background: var(--accent-tint);
   font-size: 0.78rem;
-  color: #1e293b;
+  color: var(--accent-text);
   white-space: nowrap;
 }
 
 /* Согласующих выделяем синим border (без текста роли). */
 .recipient-chip.is-approver {
-  border-color: #4F5BDF;
+  border-color: var(--accent);
 }
 
 .recipient-chip__name {
@@ -458,8 +458,8 @@ export default {
   transform: translateX(-50%);
   width: max-content;
   max-width: 240px;
-  background: #333;
-  color: #fff;
+  background: var(--hint-bg);
+  color: var(--hint-text);
   padding: 5px 9px;
   border-radius: 6px;
   font-size: 11px;
@@ -471,7 +471,7 @@ export default {
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.15s;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 8px var(--shadow-drop);
 }
 
 .recipient-chip[data-hint]::before {
@@ -481,7 +481,7 @@ export default {
   left: 50%;
   transform: translateX(-50%);
   border: 5px solid transparent;
-  border-bottom-color: #333;
+  border-bottom-color: var(--hint-bg);
   z-index: 61;
   pointer-events: none;
   opacity: 0;
@@ -504,7 +504,7 @@ export default {
   border: none;
   border-radius: 50%;
   background: none;
-  color: #94a3b8;
+  color: var(--text-muted);
   font-size: 0.95rem;
   line-height: 1;
   cursor: pointer;
@@ -512,13 +512,13 @@ export default {
 }
 
 .recipient-chip__remove:hover {
-  background: rgba(239, 68, 68, 0.12);
-  color: #ef4444;
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+  color: var(--danger-text);
 }
 
 .recipients-empty {
   font-size: 0.75rem;
-  color: #94a3b8;
+  color: var(--text-muted);
   font-style: italic;
 }
 
@@ -535,19 +535,19 @@ export default {
   gap: 4px;
   padding: 4px 12px;
   border-radius: 999px;
-  border: 1px dashed #cbd5e1;
-  background: #fff;
+  border: 1px dashed color-mix(in srgb, var(--accent) 25%, var(--surface));
+  background: var(--surface);
   font-size: 0.76rem;
   font-weight: 500;
-  color: #4F5BDF;
+  color: var(--accent-text);
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .recipients-extra__btn:hover,
 .recipients-add__btn:hover {
-  border-color: #4F5BDF;
-  background: rgba(79, 91, 223, 0.06);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
 }
 
 /* Векторная стрелка: png-иконка на телефоне мылилась. currentColor - в цвет текста. */
@@ -567,8 +567,8 @@ export default {
   top: calc(100% + 8px);
   left: 0;
   z-index: 50;
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 14px;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
   padding: 10px;
@@ -591,7 +591,7 @@ export default {
   width: 100%;
   box-sizing: border-box;
   padding: 6px 10px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   border-radius: var(--radius-md, 15px);
   font-size: 0.78rem;
   margin-bottom: 8px;
@@ -599,7 +599,7 @@ export default {
 }
 
 .recipients-search:focus {
-  border-color: #4F5BDF;
+  border-color: var(--accent);
 }
 
 .recipients-add-list {
@@ -626,24 +626,24 @@ export default {
 }
 
 .recipients-add-item:hover {
-  background: #f1f5f9;
+  background: var(--accent-tint);
 }
 
 .recipients-add-item__name {
   font-size: 0.78rem;
-  color: #1e293b;
+  color: var(--accent-text);
   font-weight: 500;
 }
 
 .recipients-add-item__pos {
   font-size: 0.65rem;
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 
 .recipients-add-empty {
   padding: 10px 8px;
   text-align: center;
-  color: #94a3b8;
+  color: var(--text-muted);
   font-size: 0.72rem;
   font-style: italic;
 }

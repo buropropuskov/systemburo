@@ -57,7 +57,7 @@ export default {
 }
 
 .forbidden__card {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);

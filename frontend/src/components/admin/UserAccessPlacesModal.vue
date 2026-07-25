@@ -306,7 +306,7 @@ export default {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -339,7 +339,7 @@ export default {
 }
 
 .access-places-modal {
-  background: #fff;
+  background: var(--surface);
   border-radius: 45px;
   width: 100%;
   max-width: 640px;
@@ -347,7 +347,7 @@ export default {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 10px 30px var(--shadow-drop);
   animation: slideUp 0.2s ease-out;
 }
 
@@ -368,7 +368,7 @@ export default {
   margin: 0;
   font-size: 1.1em;
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .close-btn {
@@ -379,7 +379,7 @@ export default {
   justify-content: center;
   font-size: 24px;
   line-height: 1;
-  color: #999;
+  color: var(--text-muted);
   background: none;
   border: none;
   cursor: pointer;
@@ -388,8 +388,8 @@ export default {
 }
 
 .close-btn:hover {
-  color: #333;
-  background: #f5f5f5;
+  color: var(--text);
+  background: var(--surface-2);
 }
 
 .access-places-modal__body {
@@ -414,15 +414,15 @@ export default {
 
 .block-label {
   font-size: 0.85em;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 400;
 }
 
 .places-container {
   width: fit-content;
-  background: #fff;
+  background: var(--surface);
   border-radius: 15px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   padding: 12px;
 }
 
@@ -436,10 +436,10 @@ export default {
 .place-item {
   height: 30px;
   border-radius: 50px;
-  background: #f2f2f2;
+  background: var(--surface-2);
   font-size: 12px;
   font-weight: 500;
-  color: #a2a2a2;
+  color: var(--text-muted);
   width: 140px;
   min-width: 80px;
   padding: 0 12px;
@@ -454,18 +454,18 @@ export default {
 }
 
 .place-item:hover {
-  background: #e8e8e8;
+  background: var(--row-hover);
 }
 
 .place-item.selected {
-  background: #4F5BDF;
-  color: #fff;
+  background: var(--accent);
+  color: var(--accent-contrast);
 }
 
 .no-places-message {
   text-align: center;
   padding: 20px;
-  color: #6b7280;
+  color: var(--text-muted);
   font-style: italic;
 }
 

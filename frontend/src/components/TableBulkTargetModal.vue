@@ -176,16 +176,16 @@ export default {
 .tbt__summary {
   margin: 0;
   font-size: 14px;
-  color: #5a6472;
+  color: var(--text-muted);
 }
 
 .tbt__summary b {
-  color: #4F5BDF;
+  color: var(--accent-text);
 }
 
 .tbt__state {
   font-size: 13px;
-  color: #8a8f98;
+  color: var(--text-muted);
   text-align: center;
   padding: 20px 0;
 }

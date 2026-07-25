@@ -999,9 +999,9 @@ export default {
 .documents-container {
   display: flex;
   flex-direction: column;
-  background: #fff;
+  background: var(--surface);
   border-radius: 35px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   overflow: hidden;
 }
 
@@ -1020,7 +1020,7 @@ export default {
   margin: 0;
   font-size: 1.2em;
   font-weight: 600;
-  color: #000;
+  color: var(--text);
   flex-shrink: 0;
 }
 
@@ -1079,8 +1079,8 @@ export default {
   padding: 10px 16px;
   border-top: 1px solid var(--color-border);
   font-size: 12px;
-  color: #8a8a9a;
-  background: #fafbfd;
+  color: var(--text-muted);
+  background: var(--accent-tint);
   flex-shrink: 0;
 }
 
@@ -1095,7 +1095,7 @@ export default {
   gap: 10px;
   padding: 10px 16px;
   cursor: pointer;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
   transition: background 0.15s ease;
 }
 
@@ -1104,15 +1104,15 @@ export default {
 }
 
 .docs-row:hover {
-  background: #fafbff;
+  background: var(--accent-tint);
 }
 
 .docs-row.selected {
-  background: #f0f4ff;
+  background: var(--accent-tint);
 }
 
 .docs-drag-handle {
-  color: #cdd0e0;
+  color: var(--accent-text);
   cursor: grab;
   font-size: 14px;
   user-select: none;
@@ -1127,7 +1127,7 @@ export default {
 .docs-row-name {
   font-size: 13px;
   font-weight: 600;
-  color: #1a1a2e;
+  color: var(--text);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1136,7 +1136,7 @@ export default {
 
 .docs-row-meta {
   font-size: 10.5px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   margin-top: 3px;
 }
 
@@ -1148,12 +1148,12 @@ export default {
 }
 
 .docs-badge--hidden {
-  background: #f0f0f4;
-  color: #8a8a9a;
+  background: var(--accent-tint);
+  color: var(--text-muted);
 }
 
 .docs-badge--group {
-  background: #eef0ff;
+  background: var(--accent-tint);
   color: var(--color-primary);
 }
 
@@ -1174,12 +1174,12 @@ export default {
 .doc-detail-filename {
   font-size: 15px;
   font-weight: 700;
-  color: #1a1a2e;
+  color: var(--text);
 }
 
 .doc-detail-meta {
   font-size: 11px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   margin-top: 3px;
 }
 
@@ -1191,7 +1191,7 @@ export default {
   display: block;
   font-size: 12px;
   font-weight: 600;
-  color: #555;
+  color: var(--text);
   margin-bottom: 6px;
 }
 
@@ -1213,19 +1213,19 @@ export default {
   align-items: center;
   justify-content: space-between;
   padding: 11px 0;
-  border-top: 1px solid #f2f2f7;
+  border-top: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
   margin-bottom: 4px;
 }
 
 .switch-label {
   font-size: 12.5px;
   font-weight: 600;
-  color: #444;
+  color: var(--text);
 }
 
 .switch-desc {
   font-size: 10.5px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   margin-top: 2px;
 }
 
@@ -1233,7 +1233,7 @@ export default {
   width: 42px;
   height: 24px;
   border-radius: 50px;
-  background: #d4d7e3;
+  background: var(--accent);
   position: relative;
   flex-shrink: 0;
   cursor: pointer;
@@ -1252,7 +1252,7 @@ export default {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--surface);
   top: 3px;
   left: 3px;
   transition: transform 0.18s ease;
@@ -1268,7 +1268,7 @@ export default {
   gap: 8px;
   margin-top: 18px;
   padding-top: 16px;
-  border-top: 1px solid #f2f2f7;
+  border-top: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
   flex-wrap: wrap;
 }
 
@@ -1278,14 +1278,14 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #b3b3c2;
+  color: var(--text-muted);
   font-size: 13px;
 }
 
 .no-results {
   padding: 30px;
   text-align: center;
-  color: #b9b9c6;
+  color: var(--text-muted);
   font-size: 12px;
 }
 
@@ -1297,7 +1297,7 @@ export default {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1308,10 +1308,10 @@ export default {
   width: 560px;
   max-width: 95vw;
   max-height: calc(var(--app-vh, 1vh) * 90);
-  background: #fff;
+  background: var(--surface);
   border-radius: 30px;
   box-shadow: 0 20px 60px rgba(20, 22, 60, 0.18);
-  border: 1px solid #edeef5;
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1329,14 +1329,14 @@ export default {
   margin: 0;
   font-size: 16px;
   font-weight: 700;
-  color: #1a1a2e;
+  color: var(--text);
 }
 
 .modal-close {
   background: none;
   border: none;
   font-size: 20px;
-  color: #b3b3c2;
+  color: var(--text-muted);
   cursor: pointer;
   padding: 0 4px;
   line-height: 1;
@@ -1358,12 +1358,12 @@ export default {
 
 /* --- Dropzone --- */
 .dropzone {
-  border: 2px dashed #cfd4ff;
+  border: 2px dashed color-mix(in srgb, var(--accent) 25%, var(--surface));
   border-radius: 16px;
-  background: #f8f9ff;
+  background: var(--accent-tint);
   padding: 26px;
   text-align: center;
-  color: #8a8fb5;
+  color: var(--accent-text);
   font-size: 12.5px;
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease;
@@ -1371,7 +1371,7 @@ export default {
 
 .dropzone--over {
   border-color: var(--color-primary);
-  background: #eef0ff;
+  background: var(--accent-tint);
 }
 
 .dropzone-text {
@@ -1380,7 +1380,7 @@ export default {
 
 .dropzone-hint {
   font-size: 11px;
-  color: #b3b6cf;
+  color: var(--accent-text);
   margin-top: 6px;
 }
 
@@ -1402,11 +1402,11 @@ export default {
   border: 1px solid var(--color-border);
   border-radius: 14px;
   margin-bottom: 8px;
-  background: #fff;
+  background: var(--surface);
 }
 
 .uq-drag {
-  color: #cdd0e0;
+  color: var(--accent-text);
   cursor: grab;
   font-size: 13px;
   margin-top: 3px;
@@ -1418,7 +1418,7 @@ export default {
   width: 20px;
   height: 20px;
   border-radius: 6px;
-  background: #eef0ff;
+  background: var(--accent-tint);
   color: var(--color-primary);
   font-size: 11px;
   font-weight: 700;
@@ -1440,18 +1440,18 @@ export default {
 .uq-filename {
   font-size: 12px;
   font-weight: 600;
-  color: #1a1a2e;
+  color: var(--text);
 }
 
 .uq-size {
-  color: #b3b6cf;
+  color: var(--accent-text);
   font-weight: 400;
 }
 
 .uq-remove {
   background: none;
   border: none;
-  color: #cdaeb0;
+  color: var(--danger-text);
   cursor: pointer;
   font-size: 16px;
   margin-top: 2px;
@@ -1482,7 +1482,7 @@ export default {
 }
 
 .grp-drag {
-  color: #cdd0e0;
+  color: var(--accent-text);
   cursor: grab;
   user-select: none;
   font-size: 14px;
@@ -1496,12 +1496,12 @@ export default {
 .grp-name {
   font-size: 12.5px;
   font-weight: 600;
-  color: #1a1a2e;
+  color: var(--text);
 }
 
 .grp-cnt {
   font-size: 10.5px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   margin-top: 2px;
 }
 

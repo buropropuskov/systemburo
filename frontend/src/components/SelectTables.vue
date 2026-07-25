@@ -297,16 +297,16 @@ export default {
 
 /* карточка-секция (эталон мокапа .card) */
 .card {
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 16px;
   padding: 16px;
-  background: #fbfbfd;
+  background: var(--accent-tint);
 }
 
 .sec-title {
   font-size: 0.82em;
   font-weight: 700;
-  color: #2a2f39;
+  color: var(--accent-text);
   letter-spacing: 0.02em;
   text-transform: uppercase;
   margin: 0 0 12px;
@@ -321,7 +321,7 @@ export default {
 .sec-note {
   text-transform: none;
   font-weight: 500;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 .sec-actions {
@@ -334,8 +334,8 @@ export default {
 
 .save-hint {
   font-size: 11px;
-  color: #b26a00;
-  background: #fff4e5;
+  color: var(--warning-text);
+  background: var(--warning-bg);
   border-radius: 8px;
   padding: 3px 9px;
   display: inline-flex;
@@ -348,7 +348,7 @@ export default {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #f0a020;
+  background: var(--warning);
   display: inline-block;
 }
 
@@ -360,16 +360,16 @@ export default {
   font-weight: 600;
   cursor: pointer;
   font-family: inherit;
-  border: 1px solid #e6e6e6;
-  background: #fff;
-  color: #4a5361;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
   white-space: nowrap;
 }
 
 .btn-mini.primary {
-  background: #4F5BDF;
-  color: #fff;
-  border-color: #4F5BDF;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
 }
 
 .btn-mini:hover:not(:disabled) {
@@ -383,9 +383,9 @@ export default {
 
 .select-tables-container {
   width: fit-content;
-  background: #FFF;
+  background: var(--surface);
   border-radius: 15px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   padding: 12px;
 }
 
@@ -399,10 +399,10 @@ export default {
 .table-item {
   height: 30px;
   border-radius: 50px;
-  background: #f2f2f2;
+  background: var(--surface-2);
   font-size: 12px;
   font-weight: 500;
-  color: #a2a2a2;
+  color: var(--text-muted);
   width: 140px;
   min-width: 80px;
   padding: 0 12px;
@@ -417,18 +417,18 @@ export default {
 }
 
 .table-item:hover {
-  background: #e8e8e8;
+  background: var(--row-hover);
 }
 
 .table-item.selected {
-  background: #4F5BDF;
-  color: #FFF;
+  background: var(--accent);
+  color: var(--accent-contrast);
 }
 
 .no-tables-message {
   text-align: center;
   padding: 20px;
-  color: #6b7280;
+  color: var(--text-muted);
   font-style: italic;
 }
 

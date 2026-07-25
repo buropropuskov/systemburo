@@ -385,7 +385,7 @@ export default {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--overlay);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -397,22 +397,22 @@ export default {
 
 @keyframes overlayAppear {
     from {
-        background: rgba(0, 0, 0, 0);
+        background: var(--overlay);
         backdrop-filter: blur(0px);
     }
     to {
-        background: rgba(0, 0, 0, 0.5);
+        background: var(--overlay);
         backdrop-filter: blur(0.1px);
     }
 }
 
 .modal-content {
-    background: #fff;
+    background: var(--surface);
     border-radius: 50px;
     width: 540px;
     max-width: 90vw;
     max-height: calc(var(--app-vh, 1vh) * 80);
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 20px 60px var(--shadow-drop);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -435,7 +435,7 @@ export default {
     justify-content: space-between;
     align-items: center;
     padding: 20px 30px 16px;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid var(--border);
     flex-shrink: 0;
 }
 
@@ -443,7 +443,7 @@ export default {
     margin: 0;
     font-size: 16px;
     font-weight: 600;
-    color: #1a1a1a;
+    color: var(--text);
 }
 
 .modal-close {
@@ -459,7 +459,7 @@ export default {
 }
 
 .modal-close:hover {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
 }
 
 .modal-body {
@@ -477,21 +477,21 @@ export default {
 .binding-description {
     font-size: 14px;
     line-height: 1.5;
-    color: #595959;
+    color: var(--text);
     margin-bottom: 20px;
     padding-bottom: 12px;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid var(--border);
 }
 
 .binding-description strong {
-    color: #1a1a1a;
+    color: var(--text);
     font-weight: 600;
 }
 
 .data-section {
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     border-radius: 20px;
-    background: #fafafa;
+    background: var(--surface-2);
     margin-bottom: 20px;
     overflow: hidden;
 }
@@ -502,7 +502,7 @@ export default {
 
 .section-header {
     padding: 12px 20px;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -512,15 +512,15 @@ export default {
     margin: 0;
     font-size: 14px;
     font-weight: 600;
-    color: #333;
+    color: var(--text);
 }
 
 .count-badge {
-    background: #e6e6e6;
+    background: var(--border);
     padding: 2px 8px;
     border-radius: 20px;
     font-size: 12px;
-    color: #666;
+    color: var(--text-muted);
 }
 
 .section-body {
@@ -536,15 +536,15 @@ export default {
 
 .item {
     padding: 10px 14px;
-    background: white;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 20px;
     transition: all 0.2s ease;
 }
 
 .item-fact {
-    background: #fff8e6;
-    border-color: #ffc107;
+    background: var(--warning-bg);
+    border-color: var(--warning);
 }
 
 .item-info {
@@ -558,20 +558,20 @@ export default {
 .item-number,
 .item-name {
     font-weight: 500;
-    color: #333;
+    color: var(--text);
 }
 
 .item-detail {
-    color: #666;
-    background: #f0f0f0;
+    color: var(--text-muted);
+    background: var(--border);
     padding: 2px 8px;
     border-radius: 20px;
     font-size: 12px;
 }
 
 .fact-badge {
-    background: #ff9800;
-    color: white;
+    background: var(--warning);
+    color: var(--surface);
     font-size: 11px;
     font-weight: 500;
     padding: 2px 8px;
@@ -582,13 +582,13 @@ export default {
 .binding-options {
     margin-top: 12px;
     padding-top: 12px;
-    border-top: 1px solid #e6e6e6;
+    border-top: 1px solid var(--border);
 }
 
 .options-title {
     font-size: 13px;
     font-weight: 500;
-    color: #333;
+    color: var(--text);
     margin-bottom: 8px;
 }
 
@@ -610,34 +610,34 @@ export default {
 }
 
 .binding-option:hover {
-    background: #f0f0f0;
+    background: var(--border);
 }
 
 .binding-option input {
     width: 16px;
     height: 16px;
     cursor: pointer;
-    accent-color: #4F5BDF;
+    accent-color: var(--accent);
 }
 
 .binding-option span {
-    color: #333;
+    color: var(--text);
 }
 
 .no-binding-message {
     font-size: 12px;
-    color: #666;
+    color: var(--text-muted);
     font-style: italic;
     padding: 8px 12px;
-    background: #f8f9fa;
+    background: var(--surface-2);
     border-radius: 20px;
-    border-left: 3px solid #ff9800;
+    border-left: 3px solid var(--warning);
     margin-top: 8px;
 }
 
 .warning-section {
-    background: #fff3cd;
-    border: 1px solid #ffeeba;
+    background: var(--warning-bg);
+    border: 1px solid color-mix(in srgb, var(--warning) 30%, var(--surface));
     border-radius: 20px;
     padding: 12px 20px;
     margin: 8px 0 20px;
@@ -647,7 +647,7 @@ export default {
     margin: 0;
     font-size: 12px;
     line-height: 1.5;
-    color: #856404;
+    color: var(--warning-text);
 }
 
 .warning-strong {
@@ -672,21 +672,21 @@ export default {
 }
 
 .skip-btn {
-    background: white;
-    color: #666;
-    border-color: #e6e6e6;
+    background: var(--surface);
+    color: var(--text-muted);
+    border-color: var(--border);
 }
 
 .skip-btn:hover {
-    background: #f5f5f5;
-    border-color: #ccc;
-    color: #333;
+    background: var(--surface-2);
+    border-color: var(--border);
+    color: var(--text);
 }
 
 .confirm-btn {
-    background: #4F5BDF;
-    color: white;
-    border-color: #4F5BDF;
+    background: var(--accent);
+    color: var(--accent-contrast);
+    border-color: var(--accent);
     width: 205px;
     min-width: 200px;
     position: relative;
@@ -694,8 +694,8 @@ export default {
 }
 
 .confirm-btn:hover {
-    background: #3a45c0;
-    border-color: #3a45c0;
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
 }
 
 .button-text {
@@ -764,7 +764,7 @@ export default {
     width: 40px;
     height: 4px;
     border-radius: 2px;
-    background: #d5d5d5;
+    background: var(--border);
     margin: 10px auto 2px;
     flex-shrink: 0;
 }

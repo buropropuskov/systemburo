@@ -334,9 +334,9 @@ export default {
   margin: 0 auto;
   margin-top: 50px;
   padding: 20px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background-color: #f9f9f9;
+  background-color: var(--surface-2);
 }
 
 .notification {
@@ -346,10 +346,10 @@ export default {
   width: 450px;
   transform: translateX(-50%);
   padding: 15px;
-  background-color: #fff;
-  color: #000;
-  border: 2px solid #ddd;
-  box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.2);
+  background-color: var(--surface);
+  color: var(--text);
+  border: 2px solid var(--border);
+  box-shadow: 0px 4px 6px var(--shadow-drop);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -371,7 +371,7 @@ export default {
 
 .notification button {
   background: red;
-  color: #fff;
+  color: var(--surface);
   border: none;
   margin: 0;
   padding: 5px;
@@ -402,7 +402,7 @@ export default {
   font-size: 14px;
   margin-right: 25px;
   border-radius: var(--radius-md);
-  border: 2px solid #ddd;
+  border: 2px solid var(--border);
 }
 
 table {
@@ -412,7 +412,7 @@ table {
 
 th, td {
   padding: 5px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border);
   text-align: center;
   font-size: 14px;
 }
@@ -431,7 +431,7 @@ input {
 button {
   padding: 5px 10px;
   background-color: red;
-  color: white;
+  color: var(--surface);
   border: none;
   cursor: pointer;
   border-radius: 4px;
@@ -440,12 +440,12 @@ button {
 }
 
 button:disabled {
-  background-color: #ccc;
+  background-color: var(--border);
   cursor: not-allowed;
 }
 
 button:hover:not(:disabled) {
-  background-color: rgb(135, 20, 20);
+  background-color: var(--danger);
 }
 
 .delete-all {
@@ -455,7 +455,7 @@ button:hover:not(:disabled) {
 }
 
 .overdue {
-  background-color: rgba(255, 0, 0, 0.089);
+  background-color: color-mix(in srgb, var(--danger) 9%, var(--surface));
 }
 
 @keyframes slide-down {
