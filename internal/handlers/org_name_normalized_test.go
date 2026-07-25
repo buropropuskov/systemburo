@@ -13,143 +13,103 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestOrgNameNormalized_FilledOnCreate - ключ дедупликации проставляется хуком модели
-// при создании через API, без явной записи поля в сервисе (#1437).
-func TestOrgNameNormalized_FilledOnCreate(t *testing.T) {
+// TestOrgNameNormalized покрывает ключ дедупликации наименований (#1437) целиком.
+// Секции живут на одном SetupTestApp: пакет handlers идёт в CI под -race у самой
+// границы go test -timeout, и шесть отдельных тестов с собственными CleanDB и Seed
+// уже перебивали её (#1437, следом за уроком про таймаут handlers).
+func TestOrgNameNormalized(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
 	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	auth := testutil.AuthHeader(token)
 
-	rec := testutil.POST(t, e, "/organizations", `{"name":"ООО \"Петрушка\"","type":"Подрядчик"}`, testutil.AuthHeader(token))
-	require.Equal(t, http.StatusOK, rec.Code)
+	t.Run("ключ проставляется при создании", func(t *testing.T) {
+		rec := testutil.POST(t, e, "/organizations", `{"name":"ООО \"Петрушка\"","type":"Подрядчик"}`, auth)
+		require.Equal(t, http.StatusOK, rec.Code)
 
-	var org models.Organization
-	require.NoError(t, db.Where("name = ?", `ООО "Петрушка"`).First(&org).Error)
-	assert.Equal(t, "ооо петрушка", org.NameNormalized)
-}
+		var org models.Organization
+		require.NoError(t, db.Where("name = ?", `ООО "Петрушка"`).First(&org).Error)
+		assert.Equal(t, "ооо петрушка", org.NameNormalized)
+	})
 
-// TestOrgNameNormalized_RejectsOtherWriting - второе написание того же юрлица не
-// создаёт вторую запись. Это и есть защита от «ооо петрушка» рядом с «ООО "Петрушка"».
-func TestOrgNameNormalized_RejectsOtherWriting(t *testing.T) {
-	e, db, cleanup := testutil.SetupTestApp(t)
-	defer cleanup()
-	testutil.CleanDB(t, db)
-	td := testutil.SeedTestData(t, db)
-	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	t.Run("другое написание не создаёт вторую запись", func(t *testing.T) {
+		for _, writing := range []string{`ооо петрушка`, `ООО Петрушка`, `Общество с ограниченной ответственностью "Петрушка"`} {
+			rec := testutil.POST(t, e, "/organizations", `{"name":"`+writing+`","type":"Подрядчик"}`, auth)
+			assert.Equal(t, http.StatusBadRequest, rec.Code, "написание %q должно упереться в существующую запись", writing)
+		}
 
-	require.Equal(t, http.StatusOK,
-		testutil.POST(t, e, "/organizations", `{"name":"ООО \"Петрушка\"","type":"Подрядчик"}`, testutil.AuthHeader(token)).Code)
+		var count int64
+		require.NoError(t, db.Model(&models.Organization{}).Where("name_normalized = ?", "ооо петрушка").Count(&count).Error)
+		assert.Equal(t, int64(1), count)
+	})
 
-	for _, writing := range []string{`ооо петрушка`, `ООО Петрушка`, `Общество с ограниченной ответственностью "Петрушка"`} {
-		body := `{"name":"` + writing + `","type":"Подрядчик"}`
-		rec := testutil.POST(t, e, "/organizations", body, testutil.AuthHeader(token))
-		assert.Equal(t, http.StatusBadRequest, rec.Code, "написание %q должно упереться в существующую запись", writing)
-	}
+	// Update идёт map-обновлением, куда хук модели не достаёт: если не записать поле
+	// явно, ключ останется от старого имени и дедупликация начнёт врать.
+	t.Run("переименование пересчитывает ключ", func(t *testing.T) {
+		rec := testutil.POST(t, e, "/organizations", `{"name":"ООО \"Старое\"","type":"Подрядчик"}`, auth)
+		require.Equal(t, http.StatusOK, rec.Code)
+		id := int(testutil.ParseMap(t, rec)["id"].(float64))
 
-	var count int64
-	require.NoError(t, db.Model(&models.Organization{}).Where("name_normalized = ?", "ооо петрушка").Count(&count).Error)
-	assert.Equal(t, int64(1), count)
-}
+		require.Equal(t, http.StatusOK,
+			testutil.PUT(t, e, "/organizations/"+strconv.Itoa(id), `{"name":"ЗАО \"Новое\"","type":"Подрядчик"}`, auth).Code)
 
-// TestOrgNameNormalized_UpdateRecalculates - переименование пересчитывает ключ.
-// Update идёт map-обновлением, куда хук модели не достаёт: если поле не записать
-// явно, ключ останется от старого имени и дедупликация начнёт врать.
-func TestOrgNameNormalized_UpdateRecalculates(t *testing.T) {
-	e, db, cleanup := testutil.SetupTestApp(t)
-	defer cleanup()
-	testutil.CleanDB(t, db)
-	td := testutil.SeedTestData(t, db)
-	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+		var org models.Organization
+		require.NoError(t, db.First(&org, id).Error)
+		assert.Equal(t, "зао новое", org.NameNormalized)
+	})
 
-	rec := testutil.POST(t, e, "/organizations", `{"name":"ООО \"Старое\"","type":"Подрядчик"}`, testutil.AuthHeader(token))
-	require.Equal(t, http.StatusOK, rec.Code)
-	created := testutil.ParseMap(t, rec)
-	id := int(created["id"].(float64))
+	// Сервисы организаций и компаний зеркальны, и расхождение между ними тихое:
+	// компанию с другим написанием заводит тот же экран справочника.
+	t.Run("у компаний дедупликация работает так же", func(t *testing.T) {
+		require.Equal(t, http.StatusOK,
+			testutil.POST(t, e, "/companies", `{"name":"ООО \"Ромашка\"","type":"Подрядчик"}`, auth).Code)
+		assert.Equal(t, http.StatusBadRequest,
+			testutil.POST(t, e, "/companies", `{"name":"ооо ромашка","type":"Подрядчик"}`, auth).Code)
 
-	require.Equal(t, http.StatusOK,
-		testutil.PUT(t, e, "/organizations/"+strconv.Itoa(id), `{"name":"ЗАО \"Новое\"","type":"Подрядчик"}`, testutil.AuthHeader(token)).Code)
+		var company models.Company
+		require.NoError(t, db.Where("name = ?", `ООО "Ромашка"`).First(&company).Error)
+		assert.Equal(t, "ооо ромашка", company.NameNormalized)
+	})
 
-	var org models.Organization
-	require.NoError(t, db.First(&org, id).Error)
-	assert.Equal(t, "зао новое", org.NameNormalized)
-}
+	// Наименование, от которого после нормализации ничего не остаётся, даёт пустой
+	// ключ. По нему несвязанные записи схлопнулись бы в одну, поэтому для них сверка
+	// идёт по точной строке - защита не слабее той, что была до введения ключа.
+	t.Run("вырожденное наименование сверяется по точной строке", func(t *testing.T) {
+		require.Equal(t, http.StatusOK,
+			testutil.POST(t, e, "/organizations", `{"name":"\"","type":"Подрядчик"}`, auth).Code)
+		assert.Equal(t, http.StatusBadRequest,
+			testutil.POST(t, e, "/organizations", `{"name":"\"","type":"Подрядчик"}`, auth).Code,
+			"то же вырожденное имя - дубль")
+		assert.Equal(t, http.StatusOK,
+			testutil.POST(t, e, "/organizations", `{"name":"--","type":"Подрядчик"}`, auth).Code,
+			"другое вырожденное имя с тем же пустым ключом - отдельная запись")
+	})
 
-// TestCompanyNameNormalized_RejectsOtherWriting - у компаний дедупликация работает
-// так же, как у организаций. Сервисы зеркальны, и расхождение между ними тихое:
-// компанию с другим написанием заводит тот же экран справочника.
-func TestCompanyNameNormalized_RejectsOtherWriting(t *testing.T) {
-	e, db, cleanup := testutil.SetupTestApp(t)
-	defer cleanup()
-	testutil.CleanDB(t, db)
-	td := testutil.SeedTestData(t, db)
-	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	// Бэкфилл нужен записям, созданным в обход хука, и прогоняется на каждом старте,
+	// поэтому повторный проход обязан быть безобидным.
+	t.Run("бэкфилл заполняет ключ и идемпотентен", func(t *testing.T) {
+		require.NoError(t, db.Exec(
+			`INSERT INTO organizations (name, type, is_active, name_normalized) VALUES (?, ?, true, '')`,
+			`ООО "Без ключа"`, models.OrgTypeContractor).Error)
+		require.NoError(t, db.Exec(
+			`INSERT INTO companies (name, type, is_active, name_normalized) VALUES (?, ?, true, '')`,
+			`ЗАО «Тоже без ключа»`, models.OrgTypeContractor).Error)
 
-	require.Equal(t, http.StatusOK,
-		testutil.POST(t, e, "/companies", `{"name":"ООО \"Ромашка\"","type":"Подрядчик"}`, testutil.AuthHeader(token)).Code)
+		require.NoError(t, database.BackfillOrgNameNormalized(db))
 
-	rec := testutil.POST(t, e, "/companies", `{"name":"ооо ромашка","type":"Подрядчик"}`, testutil.AuthHeader(token))
-	assert.Equal(t, http.StatusBadRequest, rec.Code)
+		var org models.Organization
+		require.NoError(t, db.Where("name = ?", `ООО "Без ключа"`).First(&org).Error)
+		assert.Equal(t, "ооо без ключа", org.NameNormalized)
 
-	var company models.Company
-	require.NoError(t, db.Where("name = ?", `ООО "Ромашка"`).First(&company).Error)
-	assert.Equal(t, "ооо ромашка", company.NameNormalized)
-}
+		var company models.Company
+		require.NoError(t, db.Where("name = ?", `ЗАО «Тоже без ключа»`).First(&company).Error)
+		assert.Equal(t, "зао тоже без ключа", company.NameNormalized)
 
-// TestOrgNameNormalized_DegenerateNameStillGuarded - наименование, от которого после
-// нормализации не остаётся ничего (одни кавычки), не должно схлопывать несвязанные
-// записи в общий пустой ключ. Для таких имён проверка дубля идёт по точной строке,
-// поэтому защита не слабее той, что была до введения ключа.
-func TestOrgNameNormalized_DegenerateNameStillGuarded(t *testing.T) {
-	e, db, cleanup := testutil.SetupTestApp(t)
-	defer cleanup()
-	testutil.CleanDB(t, db)
-	td := testutil.SeedTestData(t, db)
-	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
-
-	require.Equal(t, http.StatusOK,
-		testutil.POST(t, e, "/organizations", `{"name":"\"","type":"Подрядчик"}`, testutil.AuthHeader(token)).Code)
-
-	// То же вырожденное имя - дубль, отбиваем.
-	assert.Equal(t, http.StatusBadRequest,
-		testutil.POST(t, e, "/organizations", `{"name":"\"","type":"Подрядчик"}`, testutil.AuthHeader(token)).Code)
-
-	// Другое вырожденное имя с таким же пустым ключом - это отдельная запись,
-	// пустой ключ не повод считать её дублем.
-	assert.Equal(t, http.StatusOK,
-		testutil.POST(t, e, "/organizations", `{"name":"--","type":"Подрядчик"}`, testutil.AuthHeader(token)).Code)
-}
-
-// TestOrgNameNormalized_Backfill - бэкфилл заполняет ключ у записей, созданных в
-// обход хука (прямая вставка), и не трогает уже согласованные строки при повторном
-// прогоне. Второе свойство важно: функция вызывается на каждом старте.
-func TestOrgNameNormalized_Backfill(t *testing.T) {
-	_, db, cleanup := testutil.SetupTestApp(t)
-	defer cleanup()
-	testutil.CleanDB(t, db)
-	testutil.SeedTestData(t, db)
-
-	require.NoError(t, db.Exec(
-		`INSERT INTO organizations (name, type, is_active, name_normalized) VALUES (?, ?, true, '')`,
-		`ООО "Без ключа"`, models.OrgTypeContractor).Error)
-	require.NoError(t, db.Exec(
-		`INSERT INTO companies (name, type, is_active, name_normalized) VALUES (?, ?, true, '')`,
-		`ЗАО «Тоже без ключа»`, models.OrgTypeContractor).Error)
-
-	require.NoError(t, database.BackfillOrgNameNormalized(db))
-
-	var org models.Organization
-	require.NoError(t, db.Where("name = ?", `ООО "Без ключа"`).First(&org).Error)
-	assert.Equal(t, "ооо без ключа", org.NameNormalized)
-
-	var company models.Company
-	require.NoError(t, db.Where("name = ?", `ЗАО «Тоже без ключа»`).First(&company).Error)
-	assert.Equal(t, "зао тоже без ключа", company.NameNormalized)
-
-	// Повторный прогон идемпотентен: ключи те же, ошибок нет.
-	require.NoError(t, database.BackfillOrgNameNormalized(db))
-	var again models.Organization
-	require.NoError(t, db.Where("name = ?", `ООО "Без ключа"`).First(&again).Error)
-	assert.Equal(t, org.NameNormalized, again.NameNormalized)
+		require.NoError(t, database.BackfillOrgNameNormalized(db))
+		var again models.Organization
+		require.NoError(t, db.Where("name = ?", `ООО "Без ключа"`).First(&again).Error)
+		assert.Equal(t, org.NameNormalized, again.NameNormalized)
+	})
 }
