@@ -433,7 +433,7 @@ export default {
 /* Добавляем стили для лоадера */
 .loading-message {
   text-align: center;
-  color: #a2a2a2;
+  color: var(--text-muted);
   padding: 40px 20px;
   margin: 0;
   font-size: 14px;
@@ -448,8 +448,8 @@ export default {
 .loader {
   width: 30px;
   height: 30px;
-  border: 3px solid #f3f3f3;
-  border-top: 3px solid #4F5BDF;
+  border: 3px solid var(--surface-2);
+  border-top: 3px solid var(--accent);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -462,7 +462,7 @@ export default {
 .news {
     padding: 20px;
     font-family: 'Montserrat', sans-serif;
-    background: linear-gradient(135deg, #f8f9ff 0%, #ffffff 100%);
+    background: linear-gradient(135deg, var(--accent-tint) 0%, var(--surface) 100%);
 }
 
 .content-wrapper {
@@ -476,9 +476,9 @@ export default {
 }
 
 .news-container {
-    background: #FFFFFF;
-    border: 1px solid #E6E6E6;
-    box-shadow: 0px 3px 10px rgba(0, 0, 0, 0.05);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: 0px 3px 10px var(--shadow-drop);
     border-radius: 30px;
     overflow: hidden;
     /* var(--app-vh) = зумленная высота вьюпорта (viewportScale.js); чистый vh
@@ -502,7 +502,7 @@ export default {
     font-weight: 700;
     font-size: 18px;
     line-height: 22px;
-    color: #1a1a1a;
+    color: var(--text);
 }
 
 .header-actions {
@@ -512,7 +512,7 @@ export default {
 
 .divider {
     height: 1px;
-    background: #E6E6E6;
+    background: var(--border);
     margin: 0;
 }
 
@@ -528,7 +528,7 @@ export default {
     opacity: 0;
     transform: translateY(20px);
     animation: slideInUp 0.5s ease forwards;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
 }
 
 @keyframes slideInUp {
@@ -547,17 +547,17 @@ export default {
 }
 
 .news-list::-webkit-scrollbar-thumb {
-    background: #D9E2FF;
+    background: color-mix(in srgb, var(--accent) 22%, var(--surface));
     border-radius: 4px;
 }
 
 .news-list::-webkit-scrollbar-thumb:hover {
-    background: #4F5BDF;
+    background: var(--accent);
 }
 
 .news-list {
     scrollbar-width: thin;
-    scrollbar-color: #D9E2FF transparent;
+    scrollbar-color: color-mix(in srgb, var(--accent) 22%, var(--surface)) transparent;
 }
 
 .item-header {
@@ -571,7 +571,7 @@ export default {
     font-weight: 500;
     font-size: 12px;
     line-height: 15px;
-    color: #A2A2A2;
+    color: var(--text-muted);
 }
 
 .item-type {
@@ -579,8 +579,8 @@ export default {
     font-weight: 500;
     padding: 2px 8px;
     border-radius: 20px;
-    background: #f0f4ff;
-    color: #4F5BDF;
+    background: var(--accent-tint);
+    color: var(--accent-text);
 }
 
 .news-item-title {
@@ -588,7 +588,7 @@ export default {
     font-weight: 700;
     font-size: 16px;
     line-height: 20px;
-    color: #1a1a1a;
+    color: var(--text);
 }
 
 .news-item-description {
@@ -596,7 +596,7 @@ export default {
     font-weight: 400;
     font-size: 14px;
     line-height: 17px;
-    color: #666;
+    color: var(--text-muted);
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
@@ -605,7 +605,7 @@ export default {
 
 .news-details-button {
     height: 25px;
-    background: #4F5BDF;
+    background: var(--accent);
     border: none;
     border-radius: 30px;
     cursor: pointer;
@@ -614,18 +614,18 @@ export default {
     font-weight: 500;
     font-size: 12px;
     line-height: 25px;
-    color: #FFFFFF;
+    color: var(--accent-contrast);
     transition: background-color 0.2s ease;
 }
 
 .news-details-button:hover {
-    background: #3a45c5;
+    background: var(--accent-hover);
 }
 
 .empty-state {
     text-align: center;
     padding: 48px 20px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .empty-state p {
@@ -642,8 +642,8 @@ export default {
 }
 
 .news-card {
-    background: white;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 24px;
     padding: 20px;
     cursor: pointer;
@@ -655,8 +655,8 @@ export default {
 
 .news-card:hover {
     transform: translateY(-3px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    border-color: #4F5BDF;
+    box-shadow: 0 4px 12px var(--shadow-drop);
+    border-color: var(--accent);
 }
 
 .card-header {
@@ -671,18 +671,18 @@ export default {
     font-weight: 500;
     padding: 2px 8px;
     border-radius: 20px;
-    background: #fff3cd;
-    color: #856404;
+    background: var(--warning-bg);
+    color: var(--warning-text);
 }
 
 .card-type.important {
-    background: #ffb3b3;
-    color: #c62828;
+    background: var(--danger-bg);
+    color: var(--danger-text);
 }
 
 .card-date {
     font-size: 11px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .card-title {
@@ -690,7 +690,7 @@ export default {
     font-weight: 700;
     font-size: 16px;
     line-height: 20px;
-    color: #1a1a1a;
+    color: var(--text);
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
@@ -701,7 +701,7 @@ export default {
     margin: 0 0 16px 0;
     font-size: 13px;
     line-height: 1.4;
-    color: #666;
+    color: var(--text-muted);
     display: -webkit-box;
     -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
@@ -715,7 +715,7 @@ export default {
     font-family: 'Montserrat', sans-serif;
     font-size: 12px;
     font-weight: 500;
-    color: #4F5BDF;
+    color: var(--accent-text);
     cursor: pointer;
     transition: transform 0.2s ease;
 }
@@ -725,8 +725,8 @@ export default {
 }
 
 .guide-card {
-    background: white;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 24px;
     padding: 20px;
     width: 450px;
@@ -741,8 +741,8 @@ export default {
 
 .guide-card:hover {
     transform: translateY(-3px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    border: 1px solid #4F5BDF;
+    box-shadow: 0 4px 12px var(--shadow-drop);
+    border: 1px solid var(--accent);
 }
 
 .modes-trigger {
@@ -751,7 +751,7 @@ export default {
     align-items: center;
     gap: 14px;
     padding: 16px 18px;
-    background: #fff;
+    background: var(--surface);
     border: 1px solid var(--color-border);
     border-radius: 22px;
     font-family: 'Montserrat', sans-serif;
@@ -761,7 +761,7 @@ export default {
 }
 
 .modes-trigger:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 4px 12px var(--shadow-drop);
     border-color: var(--color-primary);
 }
 
@@ -770,7 +770,7 @@ export default {
     height: 42px;
     flex-shrink: 0;
     border-radius: 12px;
-    background: #eef0ff;
+    background: var(--accent-tint);
     color: var(--color-primary);
     display: inline-flex;
     align-items: center;
@@ -788,18 +788,18 @@ export default {
 .modes-trigger__title {
     font-size: 15px;
     font-weight: 700;
-    color: #1a1a1a;
+    color: var(--text);
 }
 
 .modes-trigger__sub {
     font-size: 12px;
-    color: #8a8a9e;
+    color: var(--text-muted);
     font-weight: 500;
 }
 
 .modes-trigger__chev {
     flex-shrink: 0;
-    color: #b3b6cf;
+    color: var(--text-muted);
     transition: transform 0.2s ease, color 0.2s ease;
 }
 
@@ -827,27 +827,27 @@ export default {
     font-weight: 700;
     font-size: 20px;
     line-height: 1.2;
-    color: #1a1a1a;
+    color: var(--text);
     display: flex;
     gap: 10px;
     align-items: center;
 }
 
 .guide-title-blue {
-    color: #4F5BDF;
+    color: var(--accent-text);
 }
 
 .guide-description {
     margin: 0;
     font-size: 12px;
     line-height: 1.4;
-    color: #a2a2a2;
+    color: var(--text-muted);
     width: 320px;
 }
 
 .guide-description strong {
     font-weight: 700;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .modal-overlay {
@@ -856,7 +856,7 @@ export default {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--overlay);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -882,12 +882,12 @@ export default {
 }
 
 .modal-content {
-    background: #fff;
+    background: var(--surface);
     border-radius: 50px;
     width: 540px;
     max-width: 90vw;
     max-height: calc(var(--app-vh, 1vh) * 80);
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 20px 60px var(--shadow-drop);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -906,7 +906,7 @@ export default {
     padding-bottom: 8px;
     font-size: 18px;
     font-weight: 600;
-    color: #1a1a1a;
+    color: var(--text);
 }
 
 .modal-body {
@@ -924,7 +924,7 @@ export default {
 
 .modal-date {
     font-size: 12px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .modal-type {
@@ -932,29 +932,29 @@ export default {
     font-weight: 500;
     padding: 2px 8px;
     border-radius: 20px;
-    background: #f0f4ff;
-    color: #4F5BDF;
+    background: var(--accent-tint);
+    color: var(--accent-text);
 }
 
 .modal-description {
     font-size: 14px;
     line-height: 1.5;
-    color: #333;
+    color: var(--text);
     margin: 0 0 20px 0;
 }
 
 .modal-full-text {
     font-size: 14px;
     line-height: 1.6;
-    color: #666;
+    color: var(--text-muted);
     padding-top: 16px;
-    border-top: 1px solid #f0f0f0;
+    border-top: 1px solid var(--border);
     margin-top: 8px;
 }
 
 .modal-footer {
     padding: 16px 30px 24px;
-    border-top: 1px solid #f0f0f0;
+    border-top: 1px solid var(--border);
     display: flex;
     justify-content: flex-end;
     gap: 12px;
@@ -972,13 +972,13 @@ export default {
 }
 
 .close-btn {
-    background: #4F5BDF;
-    color: white;
-    border-color: #4F5BDF;
+    background: var(--accent);
+    color: var(--accent-contrast);
+    border-color: var(--accent);
 }
 
 .close-btn:hover {
-    background: #3a45c0;
+    background: var(--accent-hover);
 }
 
 /* Ползунок bottom-sheet и короткий заголовок - только на мобилке (@media768). */
@@ -1102,7 +1102,7 @@ export default {
         height: 4px;
         margin: 10px auto 2px;
         border-radius: 2px;
-        background: #d5d5d5;
+        background: var(--border);
         flex-shrink: 0;
     }
 

@@ -331,7 +331,7 @@ async function onRun(request) {
 }
 
 .reports__state--error {
-  color: #c0392b;
+  color: var(--danger-text);
 }
 
 .reports-layout {
@@ -461,12 +461,12 @@ async function onRun(request) {
 
 .tpl-del:hover {
   background: var(--color-danger);
-  color: #fff;
+  color: var(--surface);
 }
 
 .wizard {
   min-width: 0;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   padding: 20px;

@@ -528,18 +528,18 @@ export default {
 
 <style scoped>
 .cars-fact-card {
-  background-color: #fff;
+  background-color: var(--surface);
   border-radius: 30px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   overflow: hidden;
   width: 65%;
   min-height: 222px;
   max-height: 222px;
-  box-shadow: 0 3px 10px rgba(0,0,0,0.05);
+  box-shadow: 0 3px 10px var(--shadow-drop);
 }
 
 .card-header {
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -561,13 +561,13 @@ export default {
 
 .card-title {
   margin: 0;
-  color: #000;
+  color: var(--text);
   font-weight: 600;
   font-size: 1.1em;
 }
 
 .highlight-text {
-  color: #4F5BDF;
+  color: var(--accent-text);
 }
 
 .card-content {
@@ -587,7 +587,7 @@ export default {
 /* cars-header повторяет геометрию cars-body (padding-right + margin-right 4px),
    чтобы доступная ширина колонок совпала и заголовки выровнялись с данными. */
 .cars-header {
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   padding-right: 4px;
   margin-right: 4px;
@@ -603,7 +603,7 @@ export default {
 
 .header-col {
   font-weight: 500;
-  color: #a2a2a2;
+  color: var(--text-muted);
   text-align: left;
   padding: 0 0px;
   font-size: 14px;
@@ -618,7 +618,7 @@ export default {
 }
 
 .header-col:hover {
-  color: #333;
+  color: var(--text);
 }
 
 .header-col:hover .sort-icon {
@@ -640,7 +640,7 @@ export default {
 }
 
 .active-sort {
-  color: #333 !important;
+  color: var(--text) !important;
   font-weight: 500 !important;
 }
 
@@ -710,7 +710,7 @@ export default {
 }
 
 .car-item:hover {
-  background-color: #fafafa;
+  background-color: var(--surface-2);
 }
 
 .car-row {
@@ -718,7 +718,7 @@ export default {
   width: 100%;
   padding: 10px 16px;
   align-items: center;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--border);
 }
 
 .car-col {
@@ -747,7 +747,7 @@ export default {
 }
 
 .status-text {
-  color: #079D1D;
+  color: var(--success-text);
   font-weight: 500;
 }
 
@@ -764,7 +764,7 @@ export default {
 }
 
 .delete-btn:hover {
-  background-color: #f5f5f5;
+  background-color: var(--surface-2);
 }
 
 .delete-icon {
@@ -780,7 +780,7 @@ export default {
 
 .no-data-message {
   text-align: center;
-  color: #a2a2a2;
+  color: var(--text-muted);
   padding: 40px 20px;
   margin: 0;
   font-size: 14px;
@@ -802,7 +802,7 @@ export default {
 }
 
 .cars-body::-webkit-scrollbar-thumb {
-  background: #D9E2FF;
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface));
   border-radius: 3px;
   border: 1px solid transparent;
   background-clip: content-box;
@@ -810,7 +810,7 @@ export default {
 }
 
 .cars-body::-webkit-scrollbar-thumb:hover {
-  background: #C5D1FF;
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface));
   border: 1px solid transparent;
   background-clip: content-box;
   transform: scale(1.1);
@@ -818,7 +818,7 @@ export default {
 
 .cars-body {
   scrollbar-width: thin;
-  scrollbar-color: #D9E2FF transparent;
+  scrollbar-color: color-mix(in srgb, var(--accent) 22%, var(--surface)) transparent;
   scroll-behavior: smooth;
   overscroll-behavior: contain;
 }

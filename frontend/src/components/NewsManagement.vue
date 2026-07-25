@@ -723,8 +723,8 @@ export default {
   flex-direction: column;
   height: 100%;
   font-family: 'Montserrat', sans-serif;
-  background: #fff;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 35px;
   overflow: hidden;
 }
@@ -736,7 +736,7 @@ export default {
   align-items: center;
   padding: 0 24px;
   height: 50px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 
@@ -744,7 +744,7 @@ export default {
   margin: 0;
   font-size: 1.2em;
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .management-header__actions {
@@ -757,7 +757,7 @@ export default {
 .tab-group {
   display: flex;
   gap: 4px;
-  background: #f5f5f5;
+  background: var(--surface-2);
   border-radius: 20px;
   padding: 3px;
 }
@@ -769,20 +769,20 @@ export default {
   font-family: 'Montserrat', sans-serif;
   font-size: 13px;
   font-weight: 500;
-  color: #a2a2a2;
+  color: var(--text-muted);
   cursor: pointer;
   border-radius: 17px;
   transition: all 0.2s ease;
 }
 
 .tab-btn:hover {
-  color: #4F5BDF;
+  color: var(--accent-text);
 }
 
 .tab-btn.active {
-  background: #fff;
-  color: #4F5BDF;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  background: var(--surface);
+  color: var(--accent-text);
+  box-shadow: 0 1px 3px var(--shadow-drop);
 }
 
 /* Тело: список + детали */
@@ -796,7 +796,7 @@ export default {
 .items-list {
   width: 360px;
   flex-shrink: 0;
-  border-right: 1px solid #e6e6e6;
+  border-right: 1px solid var(--border);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -807,7 +807,7 @@ export default {
 }
 
 .items-list::-webkit-scrollbar-thumb {
-  background: #D9E2FF;
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface));
   border-radius: 4px;
 }
 
@@ -817,38 +817,38 @@ export default {
   align-items: center;
   justify-content: center;
   padding: 40px 20px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 13px;
 }
 
 .info-note {
   margin: 10px 12px 0;
   padding: 8px 12px;
-  background: #f0f4ff;
+  background: var(--accent-tint);
   border-radius: 10px;
   font-size: 12px;
-  color: #4F5BDF;
+  color: var(--accent-text);
 }
 
 .manage-item {
   padding: 14px 16px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
   cursor: pointer;
   transition: background 0.15s ease;
 }
 
 .manage-item:hover {
-  background: #fafafa;
+  background: var(--surface-2);
 }
 
 .manage-item.selected {
-  background: #f0f4ff;
+  background: var(--accent-tint);
 }
 
 .item-title {
   font-weight: 500;
   font-size: 13px;
-  color: #333;
+  color: var(--text);
   margin-bottom: 4px;
   display: flex;
   align-items: center;
@@ -861,7 +861,7 @@ export default {
   flex-wrap: wrap;
   gap: 8px;
   font-size: 11px;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 .badge {
@@ -874,18 +874,18 @@ export default {
 }
 
 .badge--archive {
-  background: #f5f5f5;
-  color: #999;
+  background: var(--surface-2);
+  color: var(--text-muted);
 }
 
 .badge--active {
-  background: #4F5BDF;
-  color: #fff;
+  background: var(--accent);
+  color: var(--accent-contrast);
 }
 
 .badge--important {
-  background: #ff9800;
-  color: #fff;
+  background: var(--warning);
+  color: var(--surface);
 }
 
 .status-chip {
@@ -896,20 +896,20 @@ export default {
 }
 
 .status-chip--active {
-  background: #e8f5e9;
-  color: #2e7d32;
+  background: var(--success-bg);
+  color: var(--success-text);
 }
 
 .status-chip--hidden {
-  background: #f5f5f5;
-  color: #999;
+  background: var(--surface-2);
+  color: var(--text-muted);
 }
 
 .items-footer {
   padding: 10px 16px;
   font-size: 12px;
-  color: #a2a2a2;
-  border-top: 1px solid #f0f0f0;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
   margin-top: auto;
 }
 
@@ -924,7 +924,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 13px;
 }
 
@@ -940,7 +940,7 @@ export default {
   margin: 0;
   font-size: 18px;
   font-weight: 700;
-  color: #1a1a1a;
+  color: var(--text);
   flex: 1;
 }
 
@@ -955,23 +955,23 @@ export default {
   display: flex;
   gap: 16px;
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   margin-bottom: 12px;
 }
 
 .detail-description {
   font-size: 14px;
   line-height: 1.5;
-  color: #333;
+  color: var(--text);
   margin: 0 0 16px;
 }
 
 .detail-full-text {
   font-size: 14px;
   line-height: 1.6;
-  color: #666;
+  color: var(--text-muted);
   padding-top: 16px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--border);
 }
 
 /* Анимация переключения вкладок */
@@ -1007,34 +1007,34 @@ export default {
 }
 
 .lk-button--primary {
-  background: #4F5BDF;
-  color: #fff;
-  border-color: #4F5BDF;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
 }
 
 .lk-button--primary:hover {
-  background: #3a45c0;
-  border-color: #3a45c0;
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
 }
 
 .lk-button--secondary {
-  background: #fff;
-  color: #333;
-  border-color: #e6e6e6;
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
 }
 
 .lk-button--secondary:hover {
-  background: #f5f5f5;
+  background: var(--surface-2);
 }
 
 .lk-button--danger {
-  background: #fff;
-  color: #dc2626;
-  border-color: #fca5a5;
+  background: var(--surface);
+  color: var(--danger-text);
+  border-color: color-mix(in srgb, var(--danger) 30%, var(--surface));
 }
 
 .lk-button--danger:hover {
-  background: #ffebee;
+  background: var(--danger-bg);
 }
 
 /* Инпуты */
@@ -1042,7 +1042,7 @@ export default {
 .lk-textarea {
   width: 100%;
   padding: 10px 14px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: var(--radius-md, 15px);
   font-family: 'Montserrat', sans-serif;
   font-size: 13px;
@@ -1054,14 +1054,14 @@ export default {
 .lk-input:focus,
 .lk-textarea:focus {
   outline: none;
-  border-color: #4F5BDF;
+  border-color: var(--accent);
 }
 
 /* Модалки */
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1086,12 +1086,12 @@ export default {
 }
 
 .modal-content {
-  background: #fff;
+  background: var(--surface);
   border-radius: 30px;
   width: 560px;
   max-width: 92vw;
   max-height: calc(var(--app-vh, 1vh) * 82);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 20px 60px var(--shadow-drop);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1109,7 +1109,7 @@ export default {
   margin: 0;
   font-size: 17px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text);
 }
 
 .modal-close {
@@ -1125,7 +1125,7 @@ export default {
 }
 
 .modal-close:hover {
-  background-color: #f5f5f5;
+  background-color: var(--surface-2);
 }
 
 .modal-body {
@@ -1136,7 +1136,7 @@ export default {
 
 .modal-footer {
   padding: 14px 28px 22px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--border);
   display: flex;
   justify-content: flex-end;
   gap: 10px;
@@ -1151,7 +1151,7 @@ export default {
   display: block;
   font-size: 13px;
   font-weight: 500;
-  color: #333;
+  color: var(--text);
   margin-bottom: 6px;
 }
 
@@ -1161,14 +1161,14 @@ export default {
   gap: 8px;
   cursor: pointer;
   font-size: 13px;
-  color: #333;
+  color: var(--text);
 }
 
 .checkbox-label input {
   width: 16px;
   height: 16px;
   cursor: pointer;
-  accent-color: #4F5BDF;
+  accent-color: var(--accent);
 }
 
 /* news-body-html от NewsAndReview */
@@ -1214,7 +1214,7 @@ export default {
     width: 100%;
     max-height: 320px;
     border-right: none;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
   }
 
   .detail-panel {
@@ -1222,7 +1222,7 @@ export default {
   }
 
   .manage-item {
-    border: 1px solid var(--color-border, #e6e6e6);
+    border: 1px solid var(--color-border, var(--border));
     border-radius: var(--radius-md, 15px);
     margin: 0 10px 8px;
   }

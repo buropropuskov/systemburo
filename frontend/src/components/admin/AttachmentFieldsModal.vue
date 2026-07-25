@@ -425,7 +425,7 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -435,14 +435,14 @@ export default {
 }
 
 .fields-modal {
-  background: white;
+  background: var(--surface);
   border-radius: 30px;
   width: 960px;
   max-width: 95%;
   max-height: calc(var(--app-vh, 1vh) * 85);
   display: flex;
   flex-direction: column;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 10px 30px var(--shadow-drop);
 }
 
 /* Анимация открытия/закрытия (паттерн BaseModal): overlay fade + контент scale */
@@ -482,21 +482,21 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 15px 25px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
 }
 
 .modal-header h3 {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
-  color: #333;
+  color: var(--text);
 }
 
 .close-btn {
   background: none;
   border: none;
   font-size: 24px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   cursor: pointer;
   width: 32px;
   height: 32px;
@@ -508,8 +508,8 @@ export default {
 }
 
 .close-btn:hover {
-  background: #f5f5f5;
-  color: #333;
+  background: var(--surface-2);
+  color: var(--text);
 }
 
 .modal-content {
@@ -522,14 +522,14 @@ export default {
   align-items: center;
   justify-content: center;
   padding: 40px;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 .fields-hint {
   margin: 0 0 16px;
   font-size: 12px;
   line-height: 1.5;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 /* Группы - явные блоки-карточки, тайлятся горизонтально; узко -> в столбец. */
@@ -543,9 +543,9 @@ export default {
 .gcard {
   flex: 1 1 300px;
   min-width: 280px;
-  border: 1px solid #e6e9f0;
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
   border-radius: var(--radius-md);
-  background: #fff;
+  background: var(--surface);
   overflow: hidden;
   box-shadow: 0 1px 2px rgba(20, 24, 40, 0.04);
 }
@@ -562,8 +562,8 @@ export default {
   align-items: center;
   gap: 9px;
   padding: 11px 16px;
-  background: #fafbfc;
-  border-bottom: 1px solid #e6e9f0;
+  background: var(--accent-tint);
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
 }
 
 .ghead-dot {
@@ -578,13 +578,13 @@ export default {
   margin: 0;
   font-size: 13px;
   font-weight: 700;
-  color: #333;
+  color: var(--text);
 }
 
 .ghead-count {
   margin-left: auto;
   font-size: 11px;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 /* Матрица: Поле | Показывать | Обязательно - колонки чётко разделены. */
@@ -596,8 +596,8 @@ export default {
 }
 
 .matrix-head {
-  background: #f3f4fb;
-  border-bottom: 1px solid #e6e9f0;
+  background: var(--accent-tint);
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
 }
 
 .matrix-head span {
@@ -605,7 +605,7 @@ export default {
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: #7c8190;
+  color: var(--text-muted);
   text-align: center;
   padding: 9px 6px;
 }
@@ -617,15 +617,15 @@ export default {
 
 .matrix-head span:nth-child(2),
 .matrix-head span:nth-child(3) {
-  border-left: 1px solid #e6e9f0;
+  border-left: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
 }
 
 .matrix-head span:nth-child(3) {
-  background: #f6f7fe;
+  background: var(--accent-tint);
 }
 
 .matrix-row {
-  border-bottom: 1px solid #f1f3f6;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
 }
 
 .matrix-row:last-child {
@@ -635,7 +635,7 @@ export default {
 .matrix-name {
   font-size: 13.5px;
   font-weight: 600;
-  color: #333;
+  color: var(--text);
   padding: 11px 8px 11px 16px;
 }
 
@@ -644,16 +644,16 @@ export default {
   align-items: center;
   justify-content: center;
   align-self: stretch;
-  border-left: 1px solid #eef1f4;
+  border-left: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
   padding: 9px 0;
 }
 
 .matrix-cell--req {
-  background: #f6f7fe;
+  background: var(--accent-tint);
 }
 
 .matrix-dash {
-  color: #cfd3dc;
+  color: var(--accent-text);
   font-size: 16px;
 }
 
@@ -662,19 +662,19 @@ export default {
   justify-content: flex-end;
   gap: 10px;
   padding: 15px 25px;
-  border-top: 1px solid #e6e6e6;
+  border-top: 1px solid var(--border);
 }
 
 .custom-hint {
   margin: 0 0 12px;
   font-size: 12px;
   line-height: 1.5;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 .custom-empty {
   font-size: 13px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   padding: 8px 0 12px;
 }
 
@@ -684,7 +684,7 @@ export default {
 
 /* Доп. поля - компактная таблица со скроллом (масштабируется при многих). */
 .ctable {
-  border: 1px solid #e6e9f0;
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
   border-radius: 12px;
   overflow: hidden;
 }
@@ -698,7 +698,7 @@ export default {
 }
 
 .ctable-head {
-  background: #f3f4fb;
+  background: var(--accent-tint);
   padding: 8px 12px;
 }
 
@@ -707,7 +707,7 @@ export default {
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #7c8190;
+  color: var(--text-muted);
 }
 
 .ctable-head--c {
@@ -721,11 +721,11 @@ export default {
 
 .ctable-row {
   padding: 7px 12px;
-  border-top: 1px solid #f1f3f6;
+  border-top: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
 }
 
 .ctable-grip {
-  color: #c4c8d2;
+  color: var(--text-muted);
   cursor: grab;
   text-align: center;
   font-size: 13px;
@@ -754,18 +754,18 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f5f6f8;
-  border: 1px solid #e6e6e6;
+  background: var(--accent-tint);
+  border: 1px solid var(--border);
   border-radius: 8px;
-  color: #555;
+  color: var(--text);
   font-size: 14px;
   cursor: pointer;
   transition: background 0.2s ease, color 0.2s ease;
 }
 
 .order-btn:hover:not(:disabled) {
-  background: #e9ebef;
-  color: #333;
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+  color: var(--text);
 }
 
 .order-btn:disabled {
@@ -782,14 +782,14 @@ export default {
   background: none;
   border: none;
   border-radius: 50%;
-  color: #c0392b;
+  color: var(--danger-text);
   font-size: 20px;
   cursor: pointer;
   transition: background 0.2s ease;
 }
 
 .custom-delete:hover {
-  background: #fdecea;
+  background: var(--danger-bg);
 }
 
 .custom-add {

@@ -518,7 +518,7 @@ function formatCell(value, type) {
 }
 
 .rr__state--error {
-  color: #c0392b;
+  color: var(--danger-text);
 }
 
 .rr__empty svg {
@@ -592,7 +592,7 @@ function formatCell(value, type) {
 
 .rr__seg-btn--active {
   background: var(--color-primary);
-  color: #fff;
+  color: var(--accent-contrast);
 }
 
 .rr__seg-btn:disabled {

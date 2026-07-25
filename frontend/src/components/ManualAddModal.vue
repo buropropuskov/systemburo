@@ -817,7 +817,7 @@ export default {
 .manual-modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--overlay);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -826,14 +826,14 @@ export default {
 }
 
 .manual-modal {
-    background: #fff;
+    background: var(--surface);
     border-radius: 30px;
     width: 840px;
     max-width: 95%;
     max-height: calc(var(--app-vh, 1vh) * 90);
     display: flex;
     flex-direction: column;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 10px 30px var(--shadow-drop);
 }
 
 /* VehicleForm/EmployeeForm в CreateApplication - левая колонка двухколоночной
@@ -844,7 +844,7 @@ export default {
     width: 100%;
     box-sizing: border-box;
     border-right: none;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     border-radius: var(--radius-md, 15px);
     padding: 16px 18px;
 }
@@ -895,14 +895,14 @@ export default {
     align-items: center;
     justify-content: space-between;
     padding: 24px 28px 16px;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid var(--border);
 }
 
 .manual-modal__header h3 {
     margin: 0;
     font-size: 20px;
     font-weight: 700;
-    color: #1a1a1a;
+    color: var(--text);
 }
 
 .manual-modal__close {
@@ -911,12 +911,12 @@ export default {
     font-size: 28px;
     line-height: 1;
     cursor: pointer;
-    color: #888;
+    color: var(--text-muted);
     padding: 0 4px;
 }
 
 .manual-modal__close:hover {
-    color: #1a1a1a;
+    color: var(--text);
 }
 
 .manual-modal__body {
@@ -928,7 +928,7 @@ export default {
 .manual-modal__hint {
     margin: 0 0 18px;
     font-size: 13px;
-    color: #666;
+    color: var(--text-muted);
 }
 
 .manual-modal__mode {
@@ -941,14 +941,14 @@ export default {
     gap: 14px;
     padding: 16px;
     margin-bottom: 18px;
-    background: #f7f7f9;
+    background: var(--accent-tint);
     border-radius: var(--radius-md, 15px);
 }
 
 .manual-modal__note {
     margin: 6px 0 0;
     font-size: 12px;
-    color: #d14343;
+    color: var(--danger-text);
 }
 
 .manual-modal__target {
@@ -962,7 +962,7 @@ export default {
     align-items: center;
     gap: 8px;
     font-size: 13px;
-    color: #333;
+    color: var(--text);
     cursor: pointer;
 }
 
@@ -971,7 +971,7 @@ export default {
 }
 
 .manual-modal__radio input[disabled] + span {
-    color: #aaa;
+    color: var(--text-muted);
 }
 
 .manual-modal__grid {
@@ -986,11 +986,11 @@ export default {
     margin-bottom: 6px;
     font-size: 13px;
     font-weight: 500;
-    color: #333;
+    color: var(--text);
 }
 
 .manual-modal__req {
-    color: var(--color-primary, #4f5bdf);
+    color: var(--color-primary, var(--accent-text));
 }
 
 .manual-modal__dates {
@@ -1015,28 +1015,28 @@ export default {
     transform: translateX(-50%);
     z-index: 2;
     pointer-events: none;
-    background: var(--color-primary, #4f5bdf);
-    color: #fff;
+    background: var(--color-primary, var(--accent));
+    color: var(--accent-contrast);
     padding: 9px 18px;
     border-radius: 20px;
     font-size: 13px;
     font-weight: 500;
     text-align: center;
     max-width: calc(100% - 32px);
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+    box-shadow: 0 2px 10px var(--shadow-drop);
 }
 
 .manual-modal__added {
     margin-top: 18px;
     padding-top: 16px;
-    border-top: 1px solid #eee;
+    border-top: 1px solid var(--border);
 }
 
 .manual-modal__added-title {
     font-size: 14px;
     font-weight: 600;
     margin-bottom: 10px;
-    color: #1a1a1a;
+    color: var(--text);
 }
 
 .manual-added-list {
@@ -1054,13 +1054,13 @@ export default {
     justify-content: space-between;
     gap: 12px;
     padding: 10px 14px;
-    background: #f7f7f9;
+    background: var(--accent-tint);
     border-radius: var(--radius-md, 15px);
 }
 
 .manual-added-name {
     font-size: 14px;
-    color: #1a1a1a;
+    color: var(--text);
 }
 
 .manual-added-actions {
@@ -1074,11 +1074,11 @@ export default {
     background: transparent;
     cursor: pointer;
     font-size: 13px;
-    color: var(--color-primary, #4f5bdf);
+    color: var(--color-primary, var(--accent-text));
 }
 
 .manual-added-btn--danger {
-    color: #d14343;
+    color: var(--danger-text);
 }
 
 .manual-added-btn:hover {
@@ -1090,7 +1090,7 @@ export default {
     justify-content: flex-end;
     gap: 12px;
     padding: 16px 28px 24px;
-    border-top: 1px solid #eee;
+    border-top: 1px solid var(--border);
 }
 
 .manual-btn {
@@ -1104,22 +1104,22 @@ export default {
 }
 
 .manual-btn--ghost {
-    background: #fff;
-    border-color: #e0e0e0;
-    color: #333;
+    background: var(--surface);
+    border-color: var(--border);
+    color: var(--text);
 }
 
 .manual-btn--ghost:hover {
-    background: #f2f2f2;
+    background: var(--surface-2);
 }
 
 .manual-btn--primary {
-    background: var(--color-primary, #4f5bdf);
-    color: #fff;
+    background: var(--color-primary, var(--accent));
+    color: var(--accent-contrast);
 }
 
 .manual-btn--primary:hover:not(:disabled) {
-    background: var(--color-primary-hover, #3d49c7);
+    background: var(--color-primary-hover, var(--accent-hover));
 }
 
 .manual-btn--primary:disabled {

@@ -1132,7 +1132,7 @@ defineExpose({ refresh: reload });
 }
 
 .proc__tile {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   padding: 12px 14px;
@@ -1237,8 +1237,8 @@ defineExpose({ refresh: reload });
 }
 
 .proc__basis--work {
-  background: rgba(40, 167, 69, 0.1);
-  color: var(--color-success);
+  background: color-mix(in srgb, var(--success) 10%, var(--surface));
+  color: var(--success-text);
 }
 
 .proc__basis--calendar {
@@ -1264,13 +1264,13 @@ defineExpose({ refresh: reload });
    Стрелка (DirIcon) показывает направление, цвет — смысл: время могло упасть
    (стрелка вниз) и это хорошо -> зелёный. */
 .proc__delta--good {
-  background: rgba(40, 167, 69, 0.12);
-  color: var(--color-success);
+  background: color-mix(in srgb, var(--success) 12%, var(--surface));
+  color: var(--success-text);
 }
 
 .proc__delta--bad {
-  background: rgba(220, 53, 69, 0.12);
-  color: var(--color-danger);
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+  color: var(--danger-text);
 }
 
 .proc__delta--neutral {
@@ -1281,7 +1281,7 @@ defineExpose({ refresh: reload });
 
 /* ===== КАРТОЧКИ ===== */
 .proc__card {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   padding: 18px 20px;
@@ -1308,7 +1308,7 @@ defineExpose({ refresh: reload });
 .proc__card--scroll .proc__table thead th {
   position: sticky;
   top: 0;
-  background: #fff;
+  background: var(--surface);
   z-index: 1;
 }
 
@@ -1518,7 +1518,7 @@ defineExpose({ refresh: reload });
   position: sticky;
   top: 0;
   z-index: 1;
-  background: #fff;
+  background: var(--surface);
   border-bottom: 1px solid var(--color-border);
   font-size: 11px;
   font-weight: 600;
@@ -1557,23 +1557,23 @@ defineExpose({ refresh: reload });
 }
 
 .proc__journal-role--acceptance {
-  background: rgba(40, 167, 69, 0.12);
-  color: var(--color-success);
+  background: color-mix(in srgb, var(--success) 12%, var(--surface));
+  color: var(--success-text);
 }
 
 .proc__journal-role--not_approved {
-  background: rgba(230, 126, 34, 0.14);
-  color: #b45309;
+  background: color-mix(in srgb, var(--warning) 14%, var(--surface));
+  color: var(--warning-text);
 }
 
 .proc__journal-role--rejection {
-  background: rgba(192, 57, 43, 0.12);
-  color: #c0392b;
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+  color: var(--danger-text);
 }
 
 .proc__journal-role--withdrawal {
   background: rgba(120, 120, 120, 0.14);
-  color: #5a5a5a;
+  color: var(--text);
 }
 
 .proc__journal-actor {

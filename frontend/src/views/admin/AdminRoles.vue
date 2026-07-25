@@ -706,9 +706,9 @@ export default {
 
 <style scoped>
 .roles-container {
-  background: #fff;
+  background: var(--surface);
   border-radius: 16px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   overflow: hidden;
 }
 
@@ -717,7 +717,7 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 0 20px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
   height: 50px;
   gap: 12px;
 }
@@ -726,7 +726,7 @@ export default {
   margin: 0;
   font-size: 1.2em;
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .header-controls {
@@ -737,8 +737,8 @@ export default {
 
 .add-header-button {
   padding: 8px 16px;
-  background: #4F5BDF;
-  color: white;
+  background: var(--accent);
+  color: var(--accent-contrast);
   border: none;
   border-radius: 50px;
   cursor: pointer;
@@ -751,7 +751,7 @@ export default {
 }
 
 .add-header-button:hover {
-  background: #3a45b2;
+  background: var(--accent-hover);
 }
 
 /* Master-detail layout (эталон TableConstructor) */
@@ -766,12 +766,12 @@ export default {
   width: 40%;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid #e6e6e6;
-  background: #fff;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
 }
 
 .table-container {
-  background: #fff;
+  background: var(--surface);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -781,8 +781,8 @@ export default {
 .table-header {
   display: flex;
   padding: 0 20px;
-  border-bottom: 1px solid #e6e6e6;
-  background: #fff;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
   height: 43px;
   align-items: center;
 }
@@ -790,7 +790,7 @@ export default {
 .header-col {
   padding: 0 8px;
   font-size: 14px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 600;
   text-align: left;
   display: flex;
@@ -806,7 +806,7 @@ export default {
 }
 
 .header-col:hover {
-  color: #000;
+  color: var(--text);
 }
 
 .header-col:hover .sort-icon {
@@ -828,7 +828,7 @@ export default {
 }
 
 .active-sort {
-  color: #000 !important;
+  color: var(--text) !important;
   font-weight: 600 !important;
 }
 
@@ -850,7 +850,7 @@ export default {
 }
 
 .groups-col:hover {
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 .table-body {
@@ -862,7 +862,7 @@ export default {
 .table-row {
   display: flex;
   padding: 0 20px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
   align-items: center;
   transition: background-color 0.2s ease;
   cursor: pointer;
@@ -871,11 +871,11 @@ export default {
 }
 
 .table-row:hover {
-  background-color: #fafafa;
+  background-color: var(--surface-2);
 }
 
 .table-row.selected {
-  background-color: #f8f9ff;
+  background-color: var(--accent-tint);
 }
 
 .table-row:last-child {
@@ -893,7 +893,7 @@ export default {
 
 .id-value {
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .truncate-text {
@@ -907,8 +907,8 @@ export default {
 .role-code {
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.75em;
-  color: #6b7280;
-  background: #f1f3f9;
+  color: var(--text-muted);
+  background: var(--accent-tint);
   padding: 1px 6px;
   border-radius: 6px;
   margin-left: 6px;
@@ -917,14 +917,14 @@ export default {
 
 .groups-count {
   font-size: 13px;
-  color: #6b7280;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
 .no-results {
   text-align: center;
   padding: 40px 20px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   width: 100%;
 }
 
@@ -937,14 +937,14 @@ export default {
 
 .table-footer {
   padding: 6px 20px;
-  border-top: 1px solid #e6e6e6;
+  border-top: 1px solid var(--border);
   text-align: right;
-  background: #f8fafc;
+  background: var(--accent-tint);
 }
 
 .items-count {
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -953,7 +953,7 @@ export default {
   width: 60%;
   display: flex;
   flex-direction: column;
-  background: #fff;
+  background: var(--surface);
   overflow: hidden;
 }
 
@@ -961,7 +961,7 @@ export default {
   flex: 1;
   overflow-y: auto;
   padding: 20px;
-  background: #fff;
+  background: var(--surface);
   line-height: 1.5;
 }
 
@@ -983,7 +983,7 @@ export default {
 
 .details-title {
   margin: 0;
-  color: #000;
+  color: var(--text);
   font-size: 1.2em;
   font-weight: 600;
   word-break: break-word;
@@ -1021,24 +1021,24 @@ export default {
 }
 
 .copy-btn {
-  background: #fff;
-  color: #4F5BDF;
-  border: 1px solid #4F5BDF;
+  background: var(--surface);
+  color: var(--accent-text);
+  border: 1px solid var(--accent);
 }
 
 .copy-btn:hover {
-  background: #eef0ff;
+  background: var(--accent-tint);
 }
 
 .delete-btn {
-  background: #fff;
-  color: #dc3545;
-  border: 1px solid #fecaca;
+  background: var(--surface);
+  color: var(--danger-text);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
 }
 
 .delete-btn:hover {
-  background: #fff1f2;
-  border-color: #dc3545;
+  background: var(--danger-bg);
+  border-color: var(--danger);
 }
 
 .details-body {
@@ -1049,14 +1049,14 @@ export default {
 
 .field-label {
   font-size: 0.85em;
-  color: #666;
+  color: var(--text-muted);
   font-weight: 500;
   margin-top: 4px;
 }
 
 .field-hint {
   font-size: 0.8em;
-  color: #999;
+  color: var(--text-muted);
   line-height: 1.4;
 }
 
@@ -1065,8 +1065,8 @@ export default {
 }
 
 .details-body .lk-input:disabled {
-  background: #f8f9ff;
-  color: #6b7280;
+  background: var(--accent-tint);
+  color: var(--text-muted);
 }
 
 .details-body .lk-textarea {
@@ -1088,9 +1088,9 @@ export default {
   align-items: center;
   gap: 10px;
   padding: 9px 18px;
-  background: #fff;
-  color: #4F5BDF;
-  border: 1px solid #4F5BDF;
+  background: var(--surface);
+  color: var(--accent-text);
+  border: 1px solid var(--accent);
   border-radius: 30px;
   cursor: pointer;
   font-size: 13px;
@@ -1099,12 +1099,12 @@ export default {
 }
 
 .manage-perms-btn:hover {
-  background: #eef0ff;
+  background: var(--accent-tint);
 }
 
 .manage-perms-btn__meta {
   font-size: 11px;
-  color: #6b7280;
+  color: var(--text-muted);
   font-weight: 400;
 }
 
@@ -1119,11 +1119,11 @@ export default {
   gap: 16px;
   margin-top: 12px;
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 .form-error {
-  color: #d73a3a;
+  color: var(--danger-text);
   font-size: 0.85em;
 }
 
@@ -1132,7 +1132,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 400;
   font-size: 14px;
 }
@@ -1144,7 +1144,7 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1157,9 +1157,9 @@ export default {
 .role-modal {
   width: 100%;
   max-width: 460px;
-  background: #fff;
+  background: var(--surface);
   border-radius: 30px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 10px 30px var(--shadow-drop);
   overflow: hidden;
 }
 
@@ -1168,14 +1168,14 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 18px 24px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
 }
 
 .modal-header h3 {
   margin: 0;
   font-size: 1.1em;
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .modal-close {
@@ -1186,7 +1186,7 @@ export default {
   justify-content: center;
   font-size: 24px;
   line-height: 1;
-  color: #999;
+  color: var(--text-muted);
   background: none;
   border: none;
   cursor: pointer;
@@ -1195,8 +1195,8 @@ export default {
 }
 
 .modal-close:hover {
-  color: #333;
-  background: #f5f5f5;
+  color: var(--text);
+  background: var(--surface-2);
 }
 
 .modal-body {
@@ -1214,14 +1214,14 @@ export default {
 
 .form-label {
   font-size: 0.85em;
-  color: #666;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
 .copy-hint {
   margin: 0;
   font-size: 0.8em;
-  color: #4F5BDF;
+  color: var(--accent-text);
 }
 
 .modal-footer {
@@ -1229,7 +1229,7 @@ export default {
   justify-content: flex-end;
   gap: 10px;
   padding: 16px 24px;
-  border-top: 1px solid #e6e6e6;
+  border-top: 1px solid var(--border);
 }
 
 /* Анимация открытия/закрытия */
@@ -1245,7 +1245,7 @@ export default {
 
 .modal-fade-enter-from,
 .modal-fade-leave-to {
-  background: rgba(0, 0, 0, 0);
+  background: transparent;
 }
 
 .modal-fade-enter-from .role-modal,
@@ -1276,7 +1276,7 @@ export default {
   }
   .table-section {
     border-right: none;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
   }
   .table-body {
     max-height: 300px;

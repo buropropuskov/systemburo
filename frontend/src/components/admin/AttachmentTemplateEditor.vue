@@ -1286,15 +1286,15 @@ export default {
 }
 
 .te-action-banner--warning {
-  background: #fff3cd;
-  border-bottom: 1px solid #ffc107;
-  color: #856404;
+  background: var(--warning-bg);
+  border-bottom: 1px solid var(--warning);
+  color: var(--warning-text);
 }
 
 .te-action-banner--info {
-  background: #e8f4fd;
+  background: var(--accent-tint);
   border-bottom: 1px solid var(--color-primary);
-  color: #1a4a7a;
+  color: var(--accent-text);
 }
 
 .te-banner-fade-enter-active {
@@ -1403,7 +1403,7 @@ export default {
   width: 100%;
   padding: 4px 8px;
   background: var(--color-danger);
-  color: #fff;
+  color: var(--surface);
   border: none;
   border-radius: 4px;
   font-size: 11px;
@@ -1413,7 +1413,7 @@ export default {
 }
 
 .te-path-delete-btn:hover {
-  background: #c82333;
+  background: var(--danger);
 }
 
 .te-popup-faded {
@@ -1439,7 +1439,7 @@ export default {
   border: 1px solid var(--color-border);
   border-radius: 30px;
   padding: 10px 16px;
-  background: #fff;
+  background: var(--surface);
 }
 
 .te-section--compact {
@@ -1451,7 +1451,7 @@ export default {
 /* ---- Templates block ---- */
 .te-templates-block {
   padding: 0;
-  background: #fff;
+  background: var(--surface);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1525,18 +1525,18 @@ export default {
   padding: 16px;
   text-align: center;
   transition: all 0.2s ease;
-  background: #fff;
+  background: var(--surface);
 }
 
 .te-dropzone--active {
   border-color: var(--color-primary);
-  background: #f0f4ff;
+  background: var(--accent-tint);
 }
 
 .te-dropzone--has-file {
   border-style: solid;
   border-color: var(--color-success);
-  background: #f0fdf4;
+  background: var(--success-bg);
 }
 
 .te-dropzone__file {
@@ -1575,7 +1575,7 @@ export default {
 
 .te-dropzone__or {
   font-size: 11px;
-  color: #bbb;
+  color: var(--text-muted);
 }
 
 .te-dropzone__browse {
@@ -1597,7 +1597,7 @@ export default {
 .te-form-field label {
   font-size: 11px;
   font-weight: 500;
-  color: #888;
+  color: var(--text-muted);
 }
 
 .te-compact-input {
@@ -1622,7 +1622,7 @@ export default {
   padding: 3px 10px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-pill);
-  background: #fff;
+  background: var(--surface);
   font-size: 11px;
   cursor: pointer;
   transition: all 0.15s;
@@ -1637,7 +1637,7 @@ export default {
 
 .te-cat-btn.active {
   background: var(--color-primary);
-  color: #fff;
+  color: var(--accent-contrast);
   border-color: var(--color-primary);
 }
 
@@ -1645,7 +1645,7 @@ export default {
 .te-field-picker {
   border: 1px solid var(--color-border);
   border-radius: 30px;
-  background: #fff;
+  background: var(--surface);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1739,7 +1739,7 @@ export default {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-pill);
   font-size: 11px;
-  background: #fff;
+  background: var(--surface);
   cursor: pointer;
   transition: all 0.15s;
   color: var(--color-text);
@@ -1747,23 +1747,23 @@ export default {
 
 .te-field-chip:hover {
   border-color: var(--color-primary);
-  background: #f0f4ff;
+  background: var(--accent-tint);
 }
 
 .te-field-chip.active {
   background: var(--color-primary);
-  color: #fff;
+  color: var(--accent-contrast);
   border-color: var(--color-primary);
 }
 
 .te-field-chip.used {
-  background: #e8f8e8;
+  background: var(--success-bg);
   border-color: var(--color-success);
-  color: #1a6e2e;
+  color: var(--success-text);
 }
 
 .te-field-chip.used:hover {
-  background: #d4f0d4;
+  background: color-mix(in srgb, var(--success) 22%, var(--surface));
 }
 
 .te-chip-label {
@@ -1786,13 +1786,13 @@ export default {
   font-size: 13px;
   line-height: 1;
   color: var(--color-danger);
-  background: rgba(220, 53, 69, 0.1);
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
   transition: all 0.15s;
 }
 
 .te-chip-remove:hover {
   background: var(--color-danger);
-  color: #fff;
+  color: var(--surface);
 }
 
 /* Remove popup */
@@ -1804,7 +1804,7 @@ export default {
   position: absolute;
   top: calc(100% + 4px);
   right: 0;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--color-border);
   border-radius: 6px;
   box-shadow: var(--shadow-md);
@@ -1824,7 +1824,7 @@ export default {
 }
 
 .te-remove-popup__item:hover {
-  background: #fef2f2;
+  background: var(--danger-bg);
 }
 
 .te-remove-popup__x {
@@ -1842,7 +1842,7 @@ export default {
 }
 
 .te-remove-popup__all:hover {
-  background: #fef2f2;
+  background: var(--danger-bg);
 }
 
 .te-no-results {
@@ -1856,7 +1856,7 @@ export default {
 .te-mappings-section {
   border: 1px solid var(--color-border);
   border-radius: 30px;
-  background: #fff;
+  background: var(--surface);
   flex-shrink: 0;
   overflow: hidden;
 }
@@ -1882,7 +1882,7 @@ export default {
 .te-mappings-count {
   font-size: 10px;
   background: var(--color-primary);
-  color: #fff;
+  color: var(--accent-contrast);
   padding: 1px 6px;
   border-radius: var(--radius-pill);
   font-weight: 600;
@@ -1927,7 +1927,7 @@ export default {
 }
 
 .te-mapping-row.highlight {
-  background: #e8f4fd;
+  background: var(--accent-tint);
 }
 
 .te-mapping-cell {
@@ -1946,8 +1946,8 @@ export default {
 
 .te-list-badge {
   font-size: 9px;
-  background: #e3f2fd;
-  color: #1565c0;
+  background: var(--info-bg);
+  color: var(--info-text);
   padding: 1px 5px;
   border-radius: var(--radius-pill);
   font-weight: 500;
@@ -1970,7 +1970,7 @@ export default {
 }
 
 .te-mapping-remove:hover {
-  background: rgba(220, 53, 69, 0.1);
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
   color: var(--color-danger);
 }
 
@@ -2065,7 +2065,7 @@ export default {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-pill);
   font-size: 12px;
-  background: #fff;
+  background: var(--surface);
   cursor: pointer;
   transition: border-color 0.15s;
   color: var(--color-text);
@@ -2097,7 +2097,7 @@ export default {
   top: calc(100% + 4px);
   left: 0;
   right: 0;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--color-border);
   border-radius: 20px;
   box-shadow: var(--shadow-md);
@@ -2114,7 +2114,7 @@ export default {
   font-size: 12px;
   text-align: left;
   cursor: pointer;
-  color: #000;
+  color: var(--text);
   transition: background 0.1s;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2126,14 +2126,14 @@ export default {
 }
 
 .te-dropdown-item.active {
-  background: #e8f4fd;
-  color: #000;
+  background: var(--accent-tint);
+  color: var(--text);
   font-weight: 500;
 }
 
 .te-dropdown-add {
   border-top: 1px solid var(--color-border);
-  color: #000;
+  color: var(--text);
   font-weight: 500;
 }
 

@@ -1216,9 +1216,9 @@ export default {
 
 <style scoped>
 .fact-table-card {
-  background-color: #fff;
+  background-color: var(--surface);
   border-radius: 30px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   overflow: hidden;
   width: 100%;
   min-height: 222px;
@@ -1226,7 +1226,7 @@ export default {
 }
 
 .card-header {
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1248,13 +1248,13 @@ export default {
 
 .card-title {
   margin: 0;
-  color: #000;
+  color: var(--text);
   font-weight: 600;
   font-size: 1.1em;
 }
 
 .highlight-text {
-  color: #4F5BDF;
+  color: var(--accent-text);
 }
 
 .card-content {
@@ -1267,7 +1267,7 @@ export default {
 /* fact-header повторяет геометрию fact-body (padding-right + margin-right 4px),
    чтобы доступная ширина колонок совпала и заголовки выровнялись с данными. */
 .fact-header {
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   padding-right: 4px;
   margin-right: 4px;
@@ -1315,8 +1315,8 @@ export default {
   font-size: 11px;
   font-weight: 500;
   line-height: 1.4;
-  color: #4f5bdf;
-  background: rgba(79, 91, 223, 0.1);
+  color: var(--accent-text);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
   white-space: nowrap;
 }
 
@@ -1333,7 +1333,7 @@ export default {
 
 .header-row .col {
   font-weight: 500;
-  color: #a2a2a2;
+  color: var(--text-muted);
   cursor: pointer;
   user-select: none;
   display: flex;
@@ -1357,7 +1357,7 @@ export default {
 }
 
 .header-row .col:hover {
-  color: #333;
+  color: var(--text);
 }
 
 .header-row .col:hover .sort-icon {
@@ -1379,7 +1379,7 @@ export default {
 }
 
 .active-sort {
-  color: #333 !important;
+  color: var(--text) !important;
   font-weight: 500 !important;
 }
 
@@ -1407,7 +1407,7 @@ export default {
 }
 
 .fact-item:hover {
-  background-color: #fafafa;
+  background-color: var(--surface-2);
 }
 
 @keyframes fadeInUp {
@@ -1426,7 +1426,7 @@ export default {
   width: 100%;
   padding: 10px 10px;
   align-items: center;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
   gap: 4px;
 }
 
@@ -1438,9 +1438,9 @@ export default {
   width: 70px;
   height: 30px;
   border-radius: 50px;
-  border: 1px solid #e6e6e6;
-  background: white;
-  color: #000;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -1452,8 +1452,8 @@ export default {
 }
 
 .action-btn:hover:not(:disabled) {
-  background: #f5f5f5;
-  border-color: #a2a2a2;
+  background: var(--surface-2);
+  border-color: var(--text-muted);
 }
 
 .action-btn:disabled {
@@ -1462,21 +1462,21 @@ export default {
 }
 
 .action-btn.entry-btn.active {
-  background: #e6f7e6;
-  color: #2e7d32;
-  border-color: #a5d6a7;
+  background: var(--success-bg);
+  color: var(--success-text);
+  border-color: var(--success);
   font-weight: 600;
 }
 
 .action-btn.exit-btn.active {
-  background: #ffebee;
-  color: #c62828;
-  border-color: #ef9a9a;
+  background: var(--danger-bg);
+  color: var(--danger-text);
+  border-color: color-mix(in srgb, var(--danger) 30%, var(--surface));
   font-weight: 600;
 }
 
 .status-text {
-  color: #079D1D;
+  color: var(--success-text);
   font-weight: 500;
 }
 
@@ -1512,7 +1512,7 @@ export default {
 
 .no-data-message {
   text-align: center;
-  color: #a2a2a2;
+  color: var(--text-muted);
   padding: 40px 20px;
   margin: 0;
   font-size: 14px;
@@ -1533,7 +1533,7 @@ export default {
 }
 
 .fact-body::-webkit-scrollbar-thumb {
-  background: #D9E2FF;
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface));
   border-radius: 3px;
   border: 1px solid transparent;
   background-clip: content-box;
@@ -1541,7 +1541,7 @@ export default {
 }
 
 .fact-body::-webkit-scrollbar-thumb:hover {
-  background: #C5D1FF;
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface));
   border: 1px solid transparent;
   background-clip: content-box;
   transform: scale(1.1);
@@ -1549,7 +1549,7 @@ export default {
 
 .fact-body {
   scrollbar-width: thin;
-  scrollbar-color: #D9E2FF transparent;
+  scrollbar-color: color-mix(in srgb, var(--accent) 22%, var(--surface)) transparent;
   scroll-behavior: smooth;
   overscroll-behavior: contain;
 }
@@ -1619,7 +1619,7 @@ export default {
 
 .loading-message {
   text-align: center;
-  color: #a2a2a2;
+  color: var(--text-muted);
   padding: 40px 20px;
   font-size: 14px;
   display: flex;
@@ -1687,7 +1687,7 @@ export default {
     right: 0;
     bottom: -200px;
     width: 1px;
-    background: #e6e6e6;
+    background: var(--border);
   }
 
   /* У схлопнутой колонки (увеличенный режим, приоритет) нулевая ширина - её

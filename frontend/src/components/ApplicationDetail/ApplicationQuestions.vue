@@ -261,10 +261,10 @@ export default {
 
 <style scoped>
 .questions-section {
-    background: white;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 20px;
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    box-shadow: 0 2px 12px var(--shadow-drop);
     overflow: hidden;
 }
 
@@ -273,7 +273,7 @@ export default {
     align-items: center;
     gap: 10px;
     padding: 12px 15px;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
     transition: border-color 0.2s ease;
 }
 
@@ -296,7 +296,7 @@ export default {
 }
 
 .q-chevron {
-    color: #a2a2a2;
+    color: var(--text-muted);
     font-size: 12px;
     transition: transform 0.2s ease;
 }
@@ -308,14 +308,14 @@ export default {
 .questions-header h4 {
     margin: 0;
     font-size: 14px;
-    color: #a2a2a2;
+    color: var(--text-muted);
     font-weight: 400;
 }
 
 .q-count {
     font-size: 12px;
-    color: var(--color-primary, #4F5BDF);
-    background: rgba(79, 91, 223, 0.08);
+    color: var(--color-primary, var(--accent-text));
+    background: color-mix(in srgb, var(--accent) 8%, var(--surface));
     padding: 2px 9px;
     border-radius: 999px;
     font-weight: 600;
@@ -326,8 +326,8 @@ export default {
 .q-new-dot {
     font-size: 11px;
     line-height: 1;
-    color: #856404;
-    background: #ffeeba;
+    color: var(--warning-text);
+    background: var(--warning-bg);
     padding: 3px 8px;
     border-radius: 999px;
     font-weight: 600;
@@ -385,7 +385,7 @@ export default {
 /* Разделитель между топиками - на уровне li (не внутри .qi, где :last-child ловил бы
    каждый топик). Линия идёт по центру симметричного padding соседних .qi. */
 .questions-list li:not(:last-child) {
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
 }
 
 .questions-list li:first-child :deep(.qi) {

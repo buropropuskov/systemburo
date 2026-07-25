@@ -503,12 +503,12 @@ export default {
     top: 100%;
     left: 0;
     right: 0;
-    background: #fff;
+    background: var(--surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
     overflow: hidden;
     z-index: 1000;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 12px var(--shadow-drop);
     margin-top: 5px;
 }
 
@@ -519,13 +519,13 @@ export default {
 
 .forward-user-item {
     padding: 10px;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid var(--border);
     cursor: pointer;
     transition: background-color 0.2s ease;
 }
 
 .forward-user-item:hover {
-    background-color: #f0f0f0;
+    background-color: var(--border);
 }
 
 .forward-user-info {
@@ -543,12 +543,12 @@ export default {
 .forward-user-name {
     font-weight: 600;
     font-size: 14px;
-    color: #000;
+    color: var(--text);
 }
 
 .forward-user-username {
     font-size: 12px;
-    color: #6b7280;
+    color: var(--text-muted);
 }
 
 .forward-user-details {
@@ -559,7 +559,7 @@ export default {
 .forward-user-position,
 .forward-user-organization {
     font-size: 12px;
-    color: #6b7280;
+    color: var(--text-muted);
 }
 
 .no-results {
@@ -568,7 +568,7 @@ export default {
 
 .no-results-message {
     text-align: center;
-    color: #6b7280;
+    color: var(--text-muted);
     font-size: 14px;
     padding: 15px;
 }
@@ -629,12 +629,12 @@ export default {
 .forward-selected-user-name {
     font-weight: 600;
     font-size: 15px;
-    color: #000;
+    color: var(--text);
 }
 
 .forward-selected-user-username {
     font-size: 13px;
-    color: #6b7280;
+    color: var(--text-muted);
 }
 
 .forward-selected-user-details {
@@ -646,8 +646,8 @@ export default {
 .forward-selected-user-position,
 .forward-selected-user-organization {
     font-size: 12px;
-    color: #6b7280;
-    background: #e8e8e8;
+    color: var(--text-muted);
+    background: var(--surface-2);
     padding: 2px 8px;
     border-radius: 12px;
     display: inline-block;
@@ -665,7 +665,7 @@ export default {
     align-items: center;
     cursor: pointer;
     font-size: 13px;
-    color: #666;
+    color: var(--text-muted);
     gap: 8px;
     width: fit-content;
 }
@@ -683,7 +683,7 @@ export default {
     position: relative;
     width: 34px;
     height: 18px;
-    background-color: #ccc;
+    background-color: var(--border);
     border-radius: 9px;
     transition: background-color 0.3s;
     display: inline-block;
@@ -695,7 +695,7 @@ export default {
     width: 14px;
     height: 14px;
     border-radius: 50%;
-    background-color: white;
+    background-color: var(--surface);
     top: 2px;
     left: 2px;
     transition: transform 0.3s;
@@ -710,7 +710,7 @@ export default {
 }
 
 .setting-checkbox:disabled + .toggle-slider {
-    background-color: #e0e0e0;
+    background-color: var(--border);
     cursor: not-allowed;
 }
 
@@ -732,17 +732,17 @@ export default {
 }
 
 .remove-forward-user-btn:hover {
-    background-color: #fee;
+    background-color: var(--danger-bg);
 }
 
 .no-forward-users {
     text-align: center;
     padding: 40px;
-    color: #6b7280;
+    color: var(--text-muted);
     font-size: 15px;
     border: 1px dashed var(--color-border);
     border-radius: 12px;
-    background: #fafafa;
+    background: var(--surface-2);
 }
 
 .forward-attachments {
@@ -797,7 +797,7 @@ export default {
 }
 
 .forward-attachment-item:hover {
-    background: #f5f7ff;
+    background: var(--accent-tint);
 }
 
 .forward-attachment-info {
@@ -821,7 +821,7 @@ export default {
     font-size: 11px;
     font-weight: 500;
     color: var(--color-primary);
-    background: #eef1ff;
+    background: var(--accent-tint);
     padding: 1px 8px;
     border-radius: 8px;
 }
@@ -841,21 +841,21 @@ export default {
 .forward-user-dropdown-content::-webkit-scrollbar-track,
 .forward-users-list-container::-webkit-scrollbar-track,
 .forward-attachments-list::-webkit-scrollbar-track {
-    background: #f1f1f1;
+    background: var(--surface-2);
     border-radius: 10px;
 }
 
 .forward-user-dropdown-content::-webkit-scrollbar-thumb,
 .forward-users-list-container::-webkit-scrollbar-thumb,
 .forward-attachments-list::-webkit-scrollbar-thumb {
-    background: #c1c1c1;
+    background: var(--border);
     border-radius: 10px;
 }
 
 .forward-user-dropdown-content::-webkit-scrollbar-thumb:hover,
 .forward-users-list-container::-webkit-scrollbar-thumb:hover,
 .forward-attachments-list::-webkit-scrollbar-thumb:hover {
-    background: #a8a8a8;
+    background: var(--text-muted);
 }
 
 .forward-message-field {
@@ -890,7 +890,7 @@ export default {
     align-items: flex-start;
     gap: 8px;
     padding: 10px 12px;
-    background: #fff8e6;
+    background: var(--warning-bg);
     border: 1px solid var(--color-warning);
     border-radius: var(--radius-md);
     font-size: 13px;

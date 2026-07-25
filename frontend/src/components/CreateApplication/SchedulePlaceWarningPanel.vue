@@ -214,8 +214,8 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
   max-height: calc(var(--app-vh, 1vh) * 60);
   display: flex;
   flex-direction: column;
-  background: #fff;
-  border: 1px solid var(--color-border, #e6e6e6);
+  background: var(--surface);
+  border: 1px solid var(--color-border, var(--border));
   border-radius: var(--radius-lg, 20px);
   box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
   overflow: hidden;
@@ -228,8 +228,8 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
   justify-content: space-between;
   gap: 12px;
   padding: 14px 16px;
-  background: #fff8ee;
-  border-bottom: 1px solid #f4e3c8;
+  background: var(--warning-bg);
+  border-bottom: 1px solid color-mix(in srgb, var(--warning) 30%, var(--surface));
 }
 
 .warn-panel__title {
@@ -238,7 +238,7 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
   gap: 8px;
   font-size: 14px;
   font-weight: 600;
-  color: #8a5a10;
+  color: var(--warning-text);
 }
 
 .warn-panel__count {
@@ -249,8 +249,8 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
   height: 20px;
   padding: 0 6px;
   border-radius: var(--radius-pill, 999px);
-  background: rgba(243, 156, 18, 0.18);
-  color: #8a5a10;
+  background: color-mix(in srgb, var(--warning) 18%, var(--surface));
+  color: var(--warning-text);
   font-size: 11px;
   font-weight: 700;
 }
@@ -278,7 +278,7 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
 .warn-panel__chevron {
   flex-shrink: 0;
   margin-left: auto;
-  color: #a06a17;
+  color: var(--warning-text);
   transition: transform 0.2s ease;
 }
 
@@ -296,13 +296,13 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
   border: none;
   border-radius: var(--radius-pill, 999px);
   background: transparent;
-  color: #a06a17;
+  color: var(--warning-text);
   cursor: pointer;
   transition: background-color 0.15s ease;
 }
 
 .warn-panel__close:hover {
-  background: rgba(243, 156, 18, 0.14);
+  background: color-mix(in srgb, var(--warning) 14%, var(--surface));
 }
 
 .warn-panel__body {
@@ -315,7 +315,7 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
 
 .warn-group {
   padding: 12px 0;
-  border-bottom: 1px solid var(--color-border, #e6e6e6);
+  border-bottom: 1px solid var(--color-border, var(--border));
 }
 
 .warn-group:last-child {
@@ -326,20 +326,20 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
   margin: 0 0 8px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--color-text, #333);
+  color: var(--color-text, var(--text));
 }
 
 .warn-schedule {
   padding: 8px 10px;
-  background: #fff3e0;
-  border-left: 3px solid #f39c12;
+  background: var(--warning-bg);
+  border-left: 3px solid var(--warning);
   border-radius: var(--radius-sm, 8px);
 }
 
 .warn-schedule__lead {
   margin: 0 0 6px;
   font-size: 12px;
-  color: #8a5a10;
+  color: var(--warning-text);
 }
 
 .warn-schedule__days {
@@ -356,7 +356,7 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
   align-items: baseline;
   gap: 8px;
   font-size: 12px;
-  color: var(--color-text, #333);
+  color: var(--color-text, var(--text));
 }
 
 .warn-day__name {
@@ -369,7 +369,7 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
   display: flex;
   flex-direction: column;
   gap: 2px;
-  color: #555;
+  color: var(--text);
 }
 
 .warn-day__hour {
@@ -377,15 +377,15 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
 }
 
 .warn-day--closed .warn-day__hours {
-  color: #a94100;
+  color: var(--warning-text);
 }
 
 .warn-day__badge {
   flex-shrink: 0;
   padding: 1px 8px;
   border-radius: var(--radius-pill, 999px);
-  background: #ffe0d3;
-  color: #c0392b;
+  background: var(--danger-bg);
+  color: var(--danger-text);
   font-size: 10px;
   font-weight: 600;
 }
@@ -393,7 +393,7 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
 .warn-note {
   margin: 8px 0 0;
   font-size: 12px;
-  color: #555;
+  color: var(--text);
   line-height: 1.4;
 }
 
@@ -444,7 +444,7 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
   }
 
   .warn-panel__body {
-    border-top: 1px solid #f4e3c8;
+    border-top: 1px solid color-mix(in srgb, var(--warning) 30%, var(--surface));
   }
 
   .warn-panel__reveal {

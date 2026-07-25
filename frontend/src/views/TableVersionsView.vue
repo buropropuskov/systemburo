@@ -685,7 +685,7 @@ onMounted(async () => {
 
 .versions-title__prefix,
 .versions-title__name {
-  color: #a2a2a2;
+  color: var(--text-muted);
   transition: color 0.2s ease;
 }
 
@@ -695,15 +695,15 @@ onMounted(async () => {
 
 .versions-title__sep {
   margin-left: 0.35em;
-  color: #000;
+  color: var(--text);
 }
 
 .versions-title__link:hover .versions-title__prefix {
-  color: #000;
+  color: var(--text);
 }
 
 .versions-title__link:hover .versions-title__name {
-  color: #4f5bdf;
+  color: var(--accent-text);
 }
 
 .versions-back-btn {
@@ -712,20 +712,20 @@ onMounted(async () => {
   gap: 5px;
   height: 25px;
   padding: 0 12px;
-  background: #fff;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 50px;
   font-weight: 500;
   font-size: 14px;
-  color: #4f5bdf;
+  color: var(--accent-text);
   text-decoration: none;
   white-space: nowrap;
   transition: all 0.2s ease;
 }
 
 .versions-back-btn:hover {
-  background: #f2f2f2;
-  border-color: #4f5bdf;
+  background: var(--surface-2);
+  border-color: var(--accent);
 }
 
 .versions-back-btn__icon {
@@ -734,8 +734,8 @@ onMounted(async () => {
 }
 
 .versions-card {
-  background: #fff;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 30px;
   /* overflow: visible - иначе выпадающее меню версии (BaseDropdown, position:
      absolute, z-index 1000, без Teleport) обрезается краем низкой карточки.
@@ -749,8 +749,8 @@ onMounted(async () => {
 /* Сама таблица снимка - отдельной карточкой под карточкой версий. */
 .versions-table-card {
   margin-top: 15px;
-  background: #fff;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 30px;
   overflow: hidden;
   display: flex;
@@ -763,7 +763,7 @@ onMounted(async () => {
   justify-content: space-between;
   gap: 12px 16px;
   padding: 14px 20px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
   flex-wrap: wrap;
 }
 
@@ -771,7 +771,7 @@ onMounted(async () => {
   margin: 0;
   font-weight: 700;
   font-size: 16px;
-  color: #1a1a1a;
+  color: var(--text);
 }
 
 .versions-toolbar__actions {
@@ -786,7 +786,7 @@ onMounted(async () => {
   align-items: center;
   gap: 12px 28px;
   padding: 12px 20px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
   flex-wrap: wrap;
 }
 
@@ -799,7 +799,7 @@ onMounted(async () => {
 .versions-filter__label {
   font-weight: 600;
   font-size: 14px;
-  color: #555;
+  color: var(--text);
   white-space: nowrap;
 }
 
@@ -814,7 +814,7 @@ onMounted(async () => {
 
 .versions-filter__none {
   font-size: 14px;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 .versions-action {
@@ -833,32 +833,32 @@ onMounted(async () => {
 .cleanup-dialog__label {
   font-weight: 600;
   font-size: 15px;
-  color: #1a1a1a;
+  color: var(--text);
 }
 
 .cleanup-dialog__hint {
   margin: 0;
   font-size: 13px;
   line-height: 1.5;
-  color: #8a8a8a;
+  color: var(--text-muted);
 }
 
 .versions-load-more {
   height: 30px;
   padding: 0 14px;
-  background: #fff;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 50px;
   font-family: 'Montserrat', sans-serif;
   font-size: 13px;
   font-weight: 500;
-  color: #4f5bdf;
+  color: var(--accent-text);
   cursor: pointer;
   transition: background 0.2s ease;
 }
 
 .versions-load-more:hover:not(:disabled) {
-  background: #f2f2f2;
+  background: var(--surface-2);
 }
 
 .versions-load-more:disabled {
@@ -876,7 +876,7 @@ onMounted(async () => {
   flex-direction: column;
   gap: 8px;
   padding: 14px 20px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
 }
 
 .versions-meta__head {
@@ -888,12 +888,12 @@ onMounted(async () => {
 .versions-meta__date {
   font-weight: 600;
   font-size: 15px;
-  color: #1a1a1a;
+  color: var(--text);
 }
 
 .versions-meta__actor {
   font-size: 13px;
-  color: #8a8a8a;
+  color: var(--text-muted);
 }
 
 .versions-meta__counts {
@@ -909,19 +909,19 @@ onMounted(async () => {
 }
 
 .versions-count--on {
-  color: #1f9d55;
+  color: var(--success-text);
 }
 
 .versions-count--exit {
-  color: #8a8a8a;
+  color: var(--text-muted);
 }
 
 .versions-count--not {
-  color: #a2792b;
+  color: var(--warning-text);
 }
 
 .versions-count--total {
-  color: #555;
+  color: var(--text);
 }
 
 /* Preview-таблица занимает всю ширину как основная страница; её собственные
@@ -941,9 +941,9 @@ onMounted(async () => {
 .versions-footer {
   flex-shrink: 0;
   padding: 12px 20px;
-  border-top: 1px solid #e6e6e6;
+  border-top: 1px solid var(--border);
   font-size: 14px;
-  color: #666;
+  color: var(--text-muted);
 }
 
 .versions-state {
@@ -955,32 +955,32 @@ onMounted(async () => {
   gap: 12px;
   padding: 40px 24px;
   text-align: center;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 14px;
 }
 
 .versions-state--error {
-  color: #ff6668;
+  color: var(--danger-text);
 }
 
 .versions-empty p {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  color: #333;
+  color: var(--text);
 }
 
 .versions-empty__hint {
   font-size: 13px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   max-width: 360px;
 }
 
 .versions-spinner {
   width: 28px;
   height: 28px;
-  border: 3px solid #e6e6e6;
-  border-top-color: #4f5bdf;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
   border-radius: 50%;
   animation: versions-spin 0.8s linear infinite;
 }

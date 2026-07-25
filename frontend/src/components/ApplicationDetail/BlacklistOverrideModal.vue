@@ -123,13 +123,13 @@ export default {
     margin: 0 0 16px;
     font-size: 13.5px;
     line-height: 1.5;
-    color: #666;
+    color: var(--text-muted);
 }
 
 /* красная палитра зеркалит Badge danger и подсветку строки (#481, срез 5) - семантических токенов под неё нет */
 .override-matched {
-    border: 1px solid #fecaca;
-    background: #fff5f5;
+    border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
+    background: var(--danger-bg);
     border-radius: var(--radius-md);
     padding: 12px 14px;
     margin-bottom: 16px;
@@ -140,19 +140,19 @@ export default {
     text-transform: uppercase;
     letter-spacing: 0.06em;
     font-weight: 700;
-    color: #991b1b;
+    color: var(--danger-text);
 }
 
 .override-matched__value {
     font-size: 14px;
     font-weight: 600;
-    color: #1f2330;
+    color: var(--accent-text);
     margin-top: 4px;
 }
 
 .override-matched__reason {
     font-size: 12.5px;
-    color: #7f1d1d;
+    color: var(--danger-text);
     margin-top: 2px;
 }
 </style>

@@ -356,7 +356,7 @@ export default {
 }
 
 .table-wrap {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   overflow: auto;
@@ -410,13 +410,13 @@ code {
 }
 
 .badge--warning {
-  background: #fef3c7;
-  color: #92400e;
+  background: var(--warning-bg);
+  color: var(--warning-text);
 }
 
 .badge--danger {
-  background: #fee2e2;
-  color: #991b1b;
+  background: var(--danger-bg);
+  color: var(--danger-text);
 }
 
 .empty-cell {

@@ -131,7 +131,7 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -151,7 +151,7 @@ export default {
      каскадит на .modal-content и заставляет лист гаснуть вместе с подложкой (на мобилке
      тогда виден фейд поверх выезда снизу). Десктопный fade+scale самого листа остаётся
      через .modal-content-правило ниже. */
-  background-color: rgba(0, 0, 0, 0);
+  background-color: var(--overlay);
 }
 
 .modal-fade-enter-from .modal-content,
@@ -161,12 +161,12 @@ export default {
 }
 
 .modal-content {
-  background: #fff;
+  background: var(--surface);
   border-radius: 50px;
   width: 600px;
   max-width: 90vw;
   max-height: calc(var(--app-vh, 1vh) * 80);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 20px 60px var(--shadow-drop);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -182,7 +182,7 @@ export default {
   width: 40px;
   height: 4px;
   border-radius: 2px;
-  background: #d5d5db;
+  background: var(--border);
   margin: 10px auto 2px;
   flex-shrink: 0;
 }
@@ -199,7 +199,7 @@ export default {
   margin: 0;
   font-size: 20px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text);
   flex: 1;
   padding-bottom: 26px;
 }
@@ -208,7 +208,7 @@ export default {
   margin: 0 0 10px 0;
   font-size: 18px;
   font-weight: 600;
-  color: #4F5BDF;
+  color: var(--accent-text);
 }
 
 .modal-close {
@@ -224,7 +224,7 @@ export default {
 }
 
 .modal-close:hover {
-  background-color: #f5f5f5;
+  background-color: var(--surface-2);
 }
 
 .modal-body {
@@ -242,7 +242,7 @@ export default {
 
 .modal-date {
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 .modal-type {
@@ -250,37 +250,37 @@ export default {
   font-weight: 500;
   padding: 2px 8px;
   border-radius: 20px;
-  background: #fff3cd;
-  color: #856404;
+  background: var(--warning-bg);
+  color: var(--warning-text);
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
 
 .modal-type.important {
-  background: #ffb3b3;
-  color: #c62828;
+  background: var(--danger-bg);
+  color: var(--danger-text);
 }
 
 .modal-description {
   font-size: 14px;
   line-height: 1.5;
-  color: #333;
+  color: var(--text);
   margin: 0 0 20px 0;
 }
 
 .modal-full-text {
   font-size: 14px;
   line-height: 1.6;
-  color: #666;
+  color: var(--text-muted);
   padding-top: 16px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--border);
   margin-top: 8px;
 }
 
 .modal-footer {
   padding: 16px 30px 24px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--border);
   display: flex;
   justify-content: flex-end;
   gap: 12px;
@@ -298,13 +298,13 @@ export default {
 }
 
 .close-modal-btn {
-  background: #4F5BDF;
-  color: white;
-  border-color: #4F5BDF;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
 }
 
 .close-modal-btn:hover {
-  background: #3a45c0;
+  background: var(--accent-hover);
 }
 
 @media (max-width: 768px) {

@@ -184,13 +184,13 @@ export default {
 }
 
 .granted-by {
-  color: #999;
+  color: var(--text-muted);
   font-size: 12px;
   margin-left: 4px;
 }
 
 .empty-message {
-  color: #999;
+  color: var(--text-muted);
   font-style: italic;
 }
 </style>

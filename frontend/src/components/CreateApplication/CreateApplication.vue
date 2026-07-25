@@ -2648,15 +2648,15 @@ export default {
         width: fit-content;
         font-size: 14px;
         font-weight: 500;
-        color: #4F5BDF;
+        color: var(--accent-text);
         padding: 0 10px;
         display: flex;
         align-items: center;
         justify-content: center;
         gap: 5px;
         border-radius: 50px;
-        background: #FFF;
-        border: 1px solid #e6e6e6;
+        background: var(--surface);
+        border: 1px solid var(--border);
         outline: none;
         cursor: pointer;
         height: 25px;
@@ -2668,22 +2668,22 @@ export default {
     }
 
     .tables__instruction:hover {
-        background-color: #f2f2f2;
+        background-color: var(--surface-2);
     }
 
     .create__form {
         width: 100%;
         height: fit-content;
-        background-color: #FFF;
-        border: 1px solid #e6e6e6;
+        background-color: var(--surface);
+        border: 1px solid var(--border);
         border-radius: 30px;
-        box-shadow: 0 3px 10px rgba(0,0,0,0.05);
+        box-shadow: 0 3px 10px var(--shadow-drop);
     }
 
     /* Шапка - две колонки: поле сообщения слева, согласие + отправка справа */
     .form__header {
         width: 100%;
-        border-bottom: 1px solid #e6e6e6;
+        border-bottom: 1px solid var(--border);
         padding: 15px;
         display: flex;
         align-items: flex-start;
@@ -2716,8 +2716,8 @@ export default {
         flex-direction: column;
         gap: 12px;
         padding: 14px;
-        background: #fafafa;
-        border: 1px solid #e6e6e6;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
         border-radius: 15px;
     }
 
@@ -2743,7 +2743,7 @@ export default {
 
     .consent-checkbox label {
         font-size: 12px;
-        color: #333;
+        color: var(--text);
         cursor: pointer;
         line-height: 1.2;
     }
@@ -2760,8 +2760,8 @@ export default {
         right: 100%;
         margin-right: 8px;
         top: 0;
-        background: #333;
-        color: white;
+        background: var(--hint-bg);
+        color: var(--hint-text);
         padding: 12px;
         border-radius: 8px;
         font-size: 12px;
@@ -2770,7 +2770,7 @@ export default {
         overflow-y: auto;
         z-index: 1000;
         pointer-events: auto;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        box-shadow: 0 2px 8px var(--shadow-drop);
         white-space: normal;
     }
 
@@ -2780,7 +2780,7 @@ export default {
         top: 8px;
         left: 100%;
         border: 5px solid transparent;
-        border-left-color: #333;
+        border-left-color: var(--hint-bg);
     }
 
     .tooltip-content {
@@ -2798,13 +2798,13 @@ export default {
     .tooltip-section-title {
         font-weight: 600;
         margin-bottom: 6px;
-        color: #fff;
+        color: var(--accent-contrast);
     }
 
     .tooltip-attachment-title {
         font-weight: 600;
         margin-bottom: 6px;
-        color: #d4d4d4;
+        color: var(--border);
     }
 
     .attachment-clickable {
@@ -2828,8 +2828,8 @@ export default {
     }
 
     .send-all-btn {
-        background: #4F5BDF;
-        color: white;
+        background: var(--accent);
+        color: var(--accent-contrast);
         border: none;
         border-radius: 15px;
         padding: 8px 15px;
@@ -2843,11 +2843,11 @@ export default {
     }
 
     .send-all-btn:hover:not(:disabled) {
-        background: #3a45c0;
+        background: var(--accent-hover);
     }
 
     .send-all-btn:disabled {
-        background: #a2a2a2;
+        background: var(--text-muted);
         cursor: not-allowed;
         opacity: 0.6;
     }
@@ -2856,7 +2856,7 @@ export default {
         padding: 15px;
         display: flex;
         gap: 50px;
-        border-bottom: 1px solid #e6e6e6;
+        border-bottom: 1px solid var(--border);
         /* Поднимаем ряд дат над form__data: иначе выпадающее меню "Быстрый выбор"
            (открывается вниз) уходит под серый гейт-оверлей и кнопки формы ниже. */
         position: relative;
@@ -2881,8 +2881,8 @@ export default {
     h4 {
         font-size: 22px;
         font-weight: 800;
-        color: #4F5BDF;
-        border: 1px solid #e6e6e6;
+        color: var(--accent-text);
+        border: 1px solid var(--border);
         border-radius: 50px;
         padding: 5px 20px;
         width: fit-content;
@@ -2903,7 +2903,7 @@ export default {
     }
 
     .blue {
-        color: #4F5BDF;
+        color: var(--accent-text);
     }
 
     .consent-link {
@@ -2912,17 +2912,17 @@ export default {
     }
 
     .consent-link:hover {
-        color: #3d49c7;
+        color: var(--accent-hover);
     }
 
     .form-placeholder {
         width: 100%;
         height: fit-content;
         min-height: 490px;
-        background-color: #FFF;
-        border: 1px solid #e6e6e6;
+        background-color: var(--surface);
+        border: 1px solid var(--border);
         border-radius: 30px;
-        box-shadow: 0 3px 10px rgba(0,0,0,0.05);
+        box-shadow: 0 3px 10px var(--shadow-drop);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -2930,7 +2930,7 @@ export default {
 
     .placeholder-content {
         text-align: center;
-        color: #a2a2a2;
+        color: var(--text-muted);
     }
 
     .placeholder-content p {
@@ -3005,7 +3005,7 @@ export default {
             background: rgba(255, 255, 255, 0.82);
             backdrop-filter: blur(6px);
             -webkit-backdrop-filter: blur(6px);
-            border-bottom-color: #e6e6e6;
+            border-bottom-color: var(--border);
         }
 
         .create__blank-title--inline {
@@ -3017,7 +3017,7 @@ export default {
             padding: 8px 24px;
             /* Сама пилюля - плотный белый: при закреплении она выделяется на
                полупрозрачной подложке обёртки, а не сливается/просвечивает. */
-            background: #fff;
+            background: var(--surface);
         }
 
         .create__container {
@@ -3052,7 +3052,7 @@ export default {
             overflow-x: auto;
             gap: 2px;
             padding: 6px 18px;
-            background: #fafafa;
+            background: var(--surface-2);
             border-radius: 29px 29px 0 0;
             scrollbar-width: none;
         }
@@ -3066,7 +3066,7 @@ export default {
             gap: 2px;
             padding-right: 8px;
             margin-right: 6px;
-            border-right: 1px solid #ececec;
+            border-right: 1px solid var(--border);
         }
 
         .create__form :deep(.toolbar-group:last-child) {
@@ -3161,7 +3161,7 @@ export default {
             top: 100%;
             left: 24px;
             border-color: transparent;
-            border-top-color: #333;
+            border-top-color: var(--text);
         }
 
         .form__textarea {

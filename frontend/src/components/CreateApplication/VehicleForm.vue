@@ -1542,17 +1542,17 @@ export default {
 <style scoped>
 .input__label {
     font-size: 13px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .required {
-    color: #ff4444;
+    color: var(--danger-text);
 }
 
 .data__completion {
     padding: 15px;
     width: 450px;
-    border-right: 1px solid #e6e6e6;
+    border-right: 1px solid var(--border);
 }
 
 .data__completion--locked {
@@ -1576,7 +1576,7 @@ export default {
 .format__label {
     order: -1;
     font-size: 13px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .format-actions {
@@ -1587,9 +1587,9 @@ export default {
 }
 
 .cancel-edit-btn {
-    background: #f8f8f8;
-    color: #333;
-    border: 1px solid #e6e6e6;
+    background: var(--surface-2);
+    color: var(--text);
+    border: 1px solid var(--border);
     border-radius: 15px;
     padding: 8px 15px;
     font-size: 12px;
@@ -1598,12 +1598,12 @@ export default {
 }
 
 .cancel-edit-btn:hover {
-    background: #e8e8e8;
+    background: var(--row-hover);
 }
 
 .add-button {
-    background: #4F5BDF;
-    color: white;
+    background: var(--accent);
+    color: var(--accent-contrast);
     border: none;
     border-radius: 15px;
     padding: 8px 15px;
@@ -1615,11 +1615,11 @@ export default {
 }
 
 .add-button:hover:not(:disabled) {
-    background: #3a45c0;
+    background: var(--accent-hover);
 }
 
 .add-button:disabled {
-    background: #a2a2a2;
+    background: var(--text-muted);
     cursor: not-allowed;
     opacity: 0.6;
 }
@@ -1633,14 +1633,14 @@ export default {
 }
 
 .tooltip-content {
-    background: #333;
-    color: white;
+    background: var(--hint-bg);
+    color: var(--hint-text);
     padding: 10px 12px;
     border-radius: 8px;
     font-size: 12px;
     max-width: 420px;
     min-width: 420px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 8px var(--shadow-drop);
 }
 
 .tooltip-content::before {
@@ -1649,7 +1649,7 @@ export default {
     bottom: 100%;
     right: 40px;
     border: 5px solid transparent;
-    border-bottom-color: #333;
+    border-bottom-color: var(--hint-bg);
 }
 
 .inactive-tooltip {
@@ -1660,13 +1660,13 @@ export default {
 }
 
 .inactive-tooltip-content {
-    background: #333;
-    color: white;
+    background: var(--hint-bg);
+    color: var(--hint-text);
     padding: 8px 12px;
     border-radius: 8px;
     font-size: 12px;
     max-width: 300px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 8px var(--shadow-drop);
 }
 
 .inactive-tooltip-content::before {
@@ -1676,15 +1676,15 @@ export default {
     left: 50%;
     transform: translateX(-50%);
     border: 5px solid transparent;
-    border-top-color: #333;
+    border-top-color: var(--hint-bg);
 }
 
 .active-warning {
     width: 100%;
     margin-top: 10px;
     padding: 12px;
-    background: #fff3cd;
-    border: 1px solid #ffeeba;
+    background: var(--warning-bg);
+    border: 1px solid color-mix(in srgb, var(--warning) 30%, var(--surface));
     border-radius: 10px;
     display: flex;
     gap: 12px;
@@ -1702,13 +1702,13 @@ export default {
 
 .warning-title {
     font-weight: 600;
-    color: #856404;
+    color: var(--warning-text);
     margin: 0 0 5px 0;
     font-size: 14px;
 }
 
 .warning-details {
-    color: #856404;
+    color: var(--warning-text);
     margin: 0;
     font-size: 12px;
     line-height: 1.5;
@@ -1718,8 +1718,8 @@ export default {
     width: 100%;
     margin-top: 10px;
     padding: 12px;
-    background: #fff5f5;
-    border: 1px solid #f5c2c7;
+    background: var(--danger-bg);
+    border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
     border-radius: 10px;
     display: flex;
     gap: 12px;
@@ -1728,7 +1728,7 @@ export default {
 
 .blacklist-warning .warning-title,
 .blacklist-warning .warning-details {
-    color: #b02a37;
+    color: var(--danger-text);
 }
 
 .format__dropdown {
@@ -1738,8 +1738,8 @@ export default {
 .dropdown__button {
     width: 100%;
     height: 30px;
-    border: 1px solid #e6e6e6;
-    background-color: #FFF;
+    border: 1px solid var(--border);
+    background-color: var(--surface);
     border-radius: 50px;
     outline: none;
     cursor: pointer;
@@ -1748,11 +1748,11 @@ export default {
 }
 
 .dropdown__button:hover:not(:disabled) {
-    border-color: #4F5BDF;
+    border-color: var(--accent);
 }
 
 .dropdown__button:disabled {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
     cursor: not-allowed;
     opacity: 0.6;
 }
@@ -1773,7 +1773,7 @@ export default {
 
 .button__text {
     font-size: 14px;
-    color: #000;
+    color: var(--text);
     font-weight: 500;
     display: block;
 }
@@ -1795,11 +1795,11 @@ export default {
     top: 100%;
     left: 0;
     width: 100%;
-    background: #FFF;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 20px;
     margin-top: 5px;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+    box-shadow: 0 3px 10px var(--shadow-drop);
     z-index: 1000;
     max-height: 300px;
     overflow-y: auto;
@@ -1815,7 +1815,7 @@ export default {
 }
 
 .dropdown__item:hover {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
 }
 
 .dropdown__item:first-child {
@@ -1828,7 +1828,7 @@ export default {
 
 .item__text {
     font-size: 13px;
-    color: #333;
+    color: var(--text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1883,7 +1883,7 @@ export default {
     width: 34px;
     height: 20px;
     border-radius: var(--radius-pill);
-    background: #d5d5d5;
+    background: var(--border);
     transition: background-color 0.2s ease;
     flex-shrink: 0;
 }
@@ -1896,8 +1896,8 @@ export default {
     width: 16px;
     height: 16px;
     border-radius: 50%;
-    background: #fff;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    background: var(--surface);
+    box-shadow: 0 1px 2px var(--shadow-drop);
     transition: transform 0.2s ease;
 }
 
@@ -1931,10 +1931,10 @@ export default {
     min-width: 202px;
     height: 40px;
     display: flex;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     border-radius: 15px;
     overflow: hidden;
-    background: #FFF;
+    background: var(--surface);
 }
 
 .number__field--fact {
@@ -1953,7 +1953,7 @@ export default {
 }
 
 .number__input:disabled {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
     cursor: not-allowed;
 }
 
@@ -1961,11 +1961,11 @@ export default {
     width: 100%;
     text-align: left;
     padding: 0 15px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .number__input:not(:last-child) {
-    border-right: 1px solid #e6e6e6;
+    border-right: 1px solid var(--border);
 }
 
 .number__input:first-child {
@@ -1977,22 +1977,22 @@ export default {
 }
 
 .number__input::placeholder {
-    color: #a2a2a2;
+    color: var(--text-muted);
     font-size: 12px;
 }
 
 .number__input:focus {
-    background-color: #f8f8f8;
+    background-color: var(--surface-2);
 }
 
 .no-format-message {
     font-size: 12px;
-    color: #a2a2a2;
+    color: var(--text-muted);
     text-align: center;
     padding: 10px;
-    background: #f8f8f8;
+    background: var(--surface-2);
     border-radius: 10px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
 }
 
 .mark__field {
@@ -2002,7 +2002,7 @@ export default {
 }
 
 .mark__field--fact {
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     border-radius: 15px;
     overflow: hidden;
 }
@@ -2015,8 +2015,8 @@ export default {
 .mark__dropdown-button {
     width: 100%;
     height: 100%;
-    border: 1px solid #e6e6e6;
-    background-color: #FFF;
+    border: 1px solid var(--border);
+    background-color: var(--surface);
     border-radius: 15px;
     outline: none;
     cursor: pointer;
@@ -2025,7 +2025,7 @@ export default {
 }
 
 .mark__dropdown-button:hover {
-    border-color: #4F5BDF;
+    border-color: var(--accent);
 }
 
 .mark__button-content {
@@ -2038,7 +2038,7 @@ export default {
 
 .mark__button-text {
     font-size: 14px;
-    color: #000;
+    color: var(--text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -2063,11 +2063,11 @@ export default {
     top: 0;
     left: 100%;
     width: 220px;
-    background: #FFF;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 20px;
     margin-left: 5px;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+    box-shadow: 0 3px 10px var(--shadow-drop);
     z-index: 1000;
     max-height: 220px;
     overflow: hidden;
@@ -2075,12 +2075,12 @@ export default {
 
 .mark__search {
     padding: 10px;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
 }
 
 .mark__search-input {
     width: 100%;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     border-radius: 15px;
     padding: 5px 10px;
     outline: none;
@@ -2096,11 +2096,11 @@ export default {
     padding: 8px 15px;
     cursor: pointer;
     transition: background-color 0.2s;
-    border-bottom: 1px solid #f5f5f5;
+    border-bottom: 1px solid var(--surface-2);
 }
 
 .mark__dropdown-item:hover {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
 }
 
 .mark__dropdown-item:last-child {
@@ -2109,7 +2109,7 @@ export default {
 
 .mark__item-text {
     font-size: 14px;
-    color: #333;
+    color: var(--text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -2123,11 +2123,11 @@ export default {
     background: transparent;
     padding: 0 15px;
     font-size: 14px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .mark__input--fact::placeholder {
-    color: #a2a2a2;
+    color: var(--text-muted);
     font-size: 12px;
 }
 
@@ -2141,9 +2141,9 @@ export default {
 
 .unloading-source {
     font-size: 12px;
-    color: #4F5BDF;
+    color: var(--accent-text);
     font-weight: 500;
-    background: #f0f2ff;
+    background: var(--accent-tint);
     padding: 5px 10px;
     border-radius: 8px;
     display: inline-block;
@@ -2151,7 +2151,7 @@ export default {
 
 .attached-count {
     font-size: 11px;
-    color: #666;
+    color: var(--text-muted);
     font-weight: normal;
 }
 
@@ -2159,8 +2159,8 @@ export default {
     position: absolute;
     top: 2px;
     right: 2px;
-    background: #4F5BDF;
-    color: white;
+    background: var(--accent);
+    color: var(--accent-contrast);
     border-radius: 50%;
     width: 16px;
     height: 16px;
@@ -2182,8 +2182,8 @@ export default {
 
 .unloading__item {
     height: 30px;
-    background: #F2F2F2;
-    color: #a2a2a2;
+    background: var(--surface-2);
+    color: var(--text-muted);
     border-radius: 50px;
     display: flex;
     align-items: center;
@@ -2202,42 +2202,42 @@ export default {
 }
 
 .unloading__item:hover:not(.unloading__item--active):not(.unloading__item--inactive) {
-    background: #e8e8e8;
+    background: var(--row-hover);
 }
 
 .unloading__item--active {
-    background: #4F5BDF;
-    color: #fff;
-    border-color: #4F5BDF;
+    background: var(--accent);
+    color: var(--accent-contrast);
+    border-color: var(--accent);
 }
 
 .unloading__item--inactive {
-    background: #ffe6e6;
-    color: #ff6b6b;
-    border-color: #ffcccc;
+    background: var(--danger-bg);
+    color: var(--danger-text);
+    border-color: color-mix(in srgb, var(--danger) 30%, var(--surface));
     cursor: not-allowed;
     opacity: 0.7;
 }
 
 .error-message {
     font-size: 11px;
-    color: #ff4444;
+    color: var(--danger-text);
     margin-top: 5px;
 }
 
 .loading-message {
     font-size: 12px;
-    color: #a2a2a2;
+    color: var(--text-muted);
     text-align: center;
     padding: 20px;
 }
 
 .no-places-message {
     font-size: 12px;
-    color: #ff6b6b;
+    color: var(--danger-text);
     text-align: center;
     padding: 20px;
-    background: #fff5f5;
+    background: var(--danger-bg);
     border-radius: 8px;
     margin-top: 10px;
 }
@@ -2248,10 +2248,10 @@ export default {
 
 .no-tables-message {
     font-size: 12px;
-    color: #ff6b6b;
+    color: var(--danger-text);
     text-align: center;
     padding: 20px;
-    background: #fff5f5;
+    background: var(--danger-bg);
     border-radius: 8px;
     margin-top: 10px;
 }
@@ -2261,25 +2261,25 @@ export default {
     height: 25px;
     padding: 0 15px;
     border-radius: 50px;
-    background: #FFF;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     outline: none;
     font-size: 11px;
-    color: #4F5BDF;
+    color: var(--accent-text);
     font-weight: 600;
     cursor: pointer;
 }
 
 .completion__button:hover {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
 }
 
 .existing-cars-info {
     margin-bottom: 15px;
     padding: 10px;
-    background: #f8f9fa;
+    background: var(--surface-2);
     border-radius: 15px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
 }
 
 .existing-cars-header {
@@ -2291,7 +2291,7 @@ export default {
 .existing-cars-count {
     font-size: 14px;
     font-weight: 500;
-    color: #333;
+    color: var(--text);
 }
 
 .existing-cars-actions {
@@ -2300,9 +2300,9 @@ export default {
 }
 
 .view-cars-btn {
-    background: white;
-    color: #4F5BDF;
-    border: 1px solid #4F5BDF;
+    background: var(--surface);
+    color: var(--accent-text);
+    border: 1px solid var(--accent);
     border-radius: 15px;
     padding: 5px 10px;
     font-size: 11px;
@@ -2310,12 +2310,12 @@ export default {
 }
 
 .view-cars-btn:hover {
-    background: #f0f2ff;
+    background: var(--accent-tint);
 }
 
 .add-existing-btn {
-    background: #4F5BDF;
-    color: white;
+    background: var(--accent);
+    color: var(--accent-contrast);
     border: none;
     border-radius: 15px;
     padding: 5px 10px;
@@ -2324,11 +2324,11 @@ export default {
 }
 
 .add-existing-btn:hover:not(:disabled) {
-    background: #3a45c0;
+    background: var(--accent-hover);
 }
 
 .add-existing-btn:disabled {
-    background: #a2a2a2;
+    background: var(--text-muted);
     cursor: not-allowed;
     opacity: 0.6;
 }
@@ -2346,11 +2346,11 @@ export default {
     justify-content: space-between;
     gap: 8px;
     font-size: 12px;
-    color: #555;
+    color: var(--text);
     padding: 3px 6px;
-    background: #fff;
+    background: var(--surface);
     border-radius: 8px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
 }
 
 .existing-car-remove {
@@ -2360,16 +2360,16 @@ export default {
     line-height: 1;
     border: none;
     border-radius: 50%;
-    background: #f1f1f4;
-    color: #888;
+    background: var(--surface-2);
+    color: var(--text-muted);
     font-size: 14px;
     cursor: pointer;
     transition: background 0.15s, color 0.15s;
 }
 
 .existing-car-remove:hover {
-    background: #ffe0e0;
-    color: #d33;
+    background: var(--danger-bg);
+    color: var(--danger-text);
 }
 
 .add-existing-wrap {
@@ -2383,7 +2383,7 @@ export default {
     margin-top: 2px;
     background: none;
     border: none;
-    color: #4F5BDF;
+    color: var(--accent-text);
     font-size: 11px;
     cursor: pointer;
     padding: 2px 6px;
@@ -2411,7 +2411,7 @@ export default {
     .data__completion {
         width: 100%;
         border-right: none;
-        border-bottom: 1px solid #e6e6e6;
+        border-bottom: 1px solid var(--border);
     }
 }
 

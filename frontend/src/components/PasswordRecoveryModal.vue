@@ -182,7 +182,7 @@ export default {
   margin: 0;
   font-size: 28px;
   font-weight: 800;
-  color: #333;
+  color: var(--text);
   text-align: center;
   width: 100%;
 }
@@ -191,7 +191,7 @@ export default {
   margin: 0 0 20px;
   font-size: 14px;
   line-height: 1.5;
-  color: #000;
+  color: var(--text);
   text-align: center;
 }
 
@@ -248,9 +248,9 @@ export default {
   transform: translateX(-50%);
   padding: 12px 26px;
   border-radius: 40px;
-  background: var(--color-primary, #4F5BDF);
+  background: var(--color-primary, var(--accent));
   font-size: 14px;
-  color: #fff;
+  color: var(--accent-contrast);
   font-weight: 600;
   box-shadow: 0 12px 32px rgba(79, 91, 223, 0.4);
   min-width: 220px;
@@ -278,7 +278,7 @@ export default {
 
 .recovery-button {
   background: var(--color-primary);
-  color: #fff;
+  color: var(--accent-contrast);
   border: none;
   border-radius: 40px;
   padding: 12px 40px;
@@ -291,6 +291,6 @@ export default {
 }
 
 .recovery-button:hover {
-  background-color: #3f4bc9;
+  background-color: var(--accent);
 }
 </style>

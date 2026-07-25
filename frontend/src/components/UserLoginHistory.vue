@@ -631,7 +631,7 @@ function thinBorder() {
 }
 
 .lh-table-wrap {
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 15px;
   overflow: auto;
   /* Резервируем место под вертикальный скроллбар всегда: иначе его появление при
@@ -669,19 +669,19 @@ function thinBorder() {
   z-index: 1;
   text-align: left;
   padding: 11px 14px;
-  background: #f8fafc;
-  border-bottom: 1px solid #e6e6e6;
+  background: var(--accent-tint);
+  border-bottom: 1px solid var(--border);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #a2a2a2;
+  color: var(--text-muted);
   white-space: nowrap;
 }
 
 .lh-table tbody td {
   padding: 10px 14px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
   vertical-align: middle;
 }
 
@@ -690,7 +690,7 @@ function thinBorder() {
 }
 
 .lh-table tbody tr:hover {
-  background: #fafbff;
+  background: var(--accent-tint);
 }
 
 .lh-when {
@@ -698,41 +698,41 @@ function thinBorder() {
   overflow: hidden;
   text-overflow: ellipsis;
   font-variant-numeric: tabular-nums;
-  color: #333;
+  color: var(--text);
 }
 
 .lh-when__more {
   display: block;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 11px;
 }
 
 .lh-ip {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 12px;
-  color: #6b6f8a;
+  color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .lh-device__browser {
-  color: #333;
+  color: var(--text);
 }
 
 .lh-device__os {
   display: block;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 11px;
 }
 
 .lh-detail {
-  color: #6b6f8a;
+  color: var(--text-muted);
   font-size: 12.5px;
 }
 
 .lh-muted {
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 .lh-badge {
@@ -766,7 +766,7 @@ function thinBorder() {
 }
 
 .lh-group-row:hover {
-  background: #f4f6ff;
+  background: var(--accent-tint);
 }
 
 /* Бейдж и счётчик ×N держим одним неразрывным блоком - иначе при 2+ значном N
@@ -781,11 +781,11 @@ function thinBorder() {
   margin-left: 6px;
   font-size: 12px;
   font-weight: 700;
-  color: #6366f1;
+  color: var(--accent-text);
 }
 
 .lh-group-toggle {
-  color: #6366f1;
+  color: var(--accent-text);
   font-weight: 600;
   font-size: 12px;
   white-space: nowrap;
@@ -802,18 +802,18 @@ function thinBorder() {
 }
 
 .lh-subrow td {
-  background: #fbfcff;
+  background: var(--accent-tint);
   font-size: 12.5px;
 }
 
 .lh-subrow .lh-when {
-  color: #6b6f8a;
+  color: var(--text-muted);
 }
 
 .lh-empty {
   text-align: center;
   padding: 36px 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 .lh-footer {
@@ -829,7 +829,7 @@ function thinBorder() {
   flex-wrap: wrap;
   gap: 6px 14px;
   font-size: 11.5px;
-  color: #6b6f8a;
+  color: var(--text-muted);
 }
 
 .lh-legend span {
@@ -851,7 +851,7 @@ function thinBorder() {
 .lh-dot--warn { background: #92400e; }
 
 .lh-pager {
-  color: #6b6f8a;
+  color: var(--text-muted);
 }
 
 .lh-live {
@@ -859,14 +859,14 @@ function thinBorder() {
   align-items: center;
   gap: 6px;
   font-size: 11.5px;
-  color: #15803d;
+  color: var(--success-text);
 }
 
 .lh-live__dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #15803d;
+  background: var(--success);
   animation: lh-pulse 1.8s ease-in-out infinite;
 }
 

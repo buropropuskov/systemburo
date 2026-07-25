@@ -780,11 +780,11 @@ export default {
 <style scoped>
 .history-toggle {
     background: none;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     border-radius: 50px;
     padding: 6px 12px;
     font-size: 13px;
-    color: #666;
+    color: var(--text-muted);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -793,8 +793,8 @@ export default {
 }
 
 .history-toggle:hover {
-    background: #f5f5f5;
-    border-color: #4F5BDF;
+    background: var(--surface-2);
+    border-color: var(--accent);
 }
 
 .history-modal-overlay {
@@ -803,7 +803,7 @@ export default {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--overlay);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -819,14 +819,14 @@ export default {
 }
 
 .history-modal {
-    background: white;
+    background: var(--surface);
     border-radius: 30px;
     width: 580px;
     max-width: 95%;
     max-height: calc(var(--app-vh, 1vh) * 80);
     display: flex;
     flex-direction: column;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 10px 30px var(--shadow-drop);
     animation: slideUp 0.2s ease-out;
 }
 
@@ -851,14 +851,14 @@ export default {
     justify-content: space-between;
     align-items: center;
     padding: 10px 25px;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
 }
 
 .modal-header h3 {
     margin: 0;
     font-size: 16px;
     font-weight: 600;
-    color: #333;
+    color: var(--text);
 }
 
 .header-actions {
@@ -871,7 +871,7 @@ export default {
     background: none;
     border: none;
     font-size: 20px;
-    color: #a2a2a2;
+    color: var(--text-muted);
     cursor: pointer;
     width: 24px;
     height: 24px;
@@ -883,8 +883,8 @@ export default {
 }
 
 .close-btn:hover {
-    background: #f5f5f5;
-    border-color: #4F5BDF;
+    background: var(--surface-2);
+    border-color: var(--accent);
 }
 
 /* Кнопка экспорта в шапке */
@@ -894,11 +894,11 @@ export default {
     justify-content: center;
     gap: 8px;
     padding: 4px 12px;
-    background: white;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 20px;
     font-size: 12px;
-    color: #000;
+    color: var(--text);
     cursor: pointer;
     transition: all 0.2s ease;
     width: 100px;
@@ -906,8 +906,8 @@ export default {
 }
 
 .export-btn:hover:not(:disabled) {
-    background: #f5f5f5;
-    border-color: #4F5BDF;
+    background: var(--surface-2);
+    border-color: var(--accent);
 }
 
 .export-btn:disabled {
@@ -923,8 +923,8 @@ export default {
 .export-loader {
     width: 16px;
     height: 16px;
-    border: 2px solid #e6e6e6;
-    border-top: 2px solid #4F5BDF;
+    border: 2px solid var(--border);
+    border-top: 2px solid var(--accent);
     border-radius: 50%;
     animation: spin 1s linear infinite;
 }
@@ -932,8 +932,8 @@ export default {
 /* Фильтры */
 .history-filters {
     padding: 10px 25px;
-    border-bottom: 1px solid #e6e6e6;
-    background-color: #fafafa;
+    border-bottom: 1px solid var(--border);
+    background-color: var(--surface-2);
 }
 
 .filter-row {
@@ -952,7 +952,7 @@ export default {
 
 .filter-label {
     font-size: 12px;
-    color: #a2a2a2;
+    color: var(--text-muted);
     white-space: nowrap;
 }
 
@@ -968,20 +968,20 @@ export default {
     align-items: center;
     justify-content: space-between;
     padding: 6px 12px;
-    background: white;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 20px;
     transition: all 0.2s ease;
 }
 
 .select-trigger:hover {
-    border-color: #4F5BDF;
-    background: #f5f5f5;
+    border-color: var(--accent);
+    background: var(--surface-2);
 }
 
 .selected-value {
     font-size: 12px;
-    color: #000;
+    color: var(--text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1016,10 +1016,10 @@ export default {
     height: auto;
     max-height: 300px;
     overflow-y: auto;
-    background: white;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 15px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 12px var(--shadow-drop);
     z-index: 1000;
 }
 
@@ -1032,17 +1032,17 @@ export default {
 }
 
 .select-dropdown::-webkit-scrollbar-thumb {
-    background: #D9E2FF;
+    background: color-mix(in srgb, var(--accent) 22%, var(--surface));
     border-radius: 2px;
 }
 
 .select-option {
     padding: 8px 12px;
     font-size: 12px;
-    color: #333;
+    color: var(--text);
     cursor: pointer;
     transition: all 0.2s ease;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid var(--border);
 }
 
 .select-option:last-child {
@@ -1050,11 +1050,11 @@ export default {
 }
 
 .select-option:hover {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
 }
 
 .select-option.selected {
-    background-color: #f0f3ff;
+    background-color: var(--accent-tint);
     font-weight: 500;
 }
 
@@ -1063,19 +1063,19 @@ export default {
     align-items: center;
     gap: 6px;
     padding: 6px 12px;
-    background: white;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 20px;
     font-size: 12px;
-    color: #000;
+    color: var(--text);
     cursor: pointer;
     transition: all 0.2s ease;
     width: 150px;
 }
 
 .sort-btn:hover {
-    background: #f5f5f5;
-    border-color: #4F5BDF;
+    background: var(--surface-2);
+    border-color: var(--accent);
 }
 
 .sort-icon {
@@ -1110,14 +1110,14 @@ export default {
     align-items: center;
     justify-content: center;
     padding: 40px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .loader {
     width: 30px;
     height: 30px;
-    border: 2px solid #f3f3f3;
-    border-top: 2px solid #4F5BDF;
+    border: 2px solid var(--surface-2);
+    border-top: 2px solid var(--accent);
     border-radius: 50%;
     animation: spin 1s linear infinite;
 }
@@ -1134,10 +1134,10 @@ export default {
 .history-date-separator {
     font-size: 11px;
     font-weight: 600;
-    color: #4F5BDF;
+    color: var(--accent-text);
     padding: 8px 0 4px;
     margin-bottom: 8px;
-    border-bottom: 1px solid #e6f0ff;
+    border-bottom: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
     letter-spacing: 0.02em;
 }
 
@@ -1167,7 +1167,7 @@ export default {
     top: 18px;
     width: 2px;
     height: calc(100% + 2px);
-    background: #e6e6e6;
+    background: var(--border);
 }
 
 .dot-create { background: #4F5BDF; }
@@ -1196,37 +1196,37 @@ export default {
 
 .user-name {
     font-weight: 500;
-    color: #333;
+    color: var(--text);
     font-size: 13px;
 }
 
 .system-name {
-    color: #8b5cf6;
+    color: var(--accent-text);
     font-style: italic;
 }
 
 .action-time {
-    color: #a2a2a2;
+    color: var(--text-muted);
     font-size: 11px;
 }
 
 .action-text {
-    color: #666;
+    color: var(--text-muted);
     font-size: 12px;
     margin-bottom: 4px;
 }
 
 .forward-info {
     font-size: 11px;
-    color: #8b5cf6;
+    color: var(--accent-text);
     font-style: italic;
     margin-bottom: 4px;
 }
 
 .required-badge {
     display: inline-block;
-    background: #4F5BDF;
-    color: white;
+    background: var(--accent);
+    color: var(--accent-contrast);
     font-size: 10px;
     padding: 2px 8px;
     border-radius: 12px;
@@ -1238,7 +1238,7 @@ export default {
     align-items: center;
     gap: 6px;
     font-size: 11px;
-    background: #f9f9f9;
+    background: var(--surface-2);
     padding: 3px 8px;
     border-radius: 16px;
     display: inline-flex;
@@ -1246,29 +1246,29 @@ export default {
 }
 
 .old-status {
-    color: #dc2626;
+    color: var(--danger-text);
     text-decoration: line-through;
     font-size: 11px;
 }
 
 .arrow {
-    color: #a2a2a2;
+    color: var(--text-muted);
     font-size: 10px;
 }
 
 .new-status {
-    color: #059669;
+    color: var(--success-text);
     font-weight: 500;
     font-size: 11px;
 }
 
 .action-comment {
     font-size: 11px;
-    color: #666;
+    color: var(--text-muted);
     font-style: italic;
     margin-top: 4px;
     padding-left: 6px;
-    border-left: 2px solid #e6e6e6;
+    border-left: 2px solid var(--border);
 }
 
 @media (max-width: 768px) {
@@ -1333,7 +1333,7 @@ export default {
         height: 4px;
         margin: 10px auto 2px;
         border-radius: 2px;
-        background: #d5d5d5;
+        background: var(--border);
         flex-shrink: 0;
     }
 
@@ -1351,12 +1351,12 @@ export default {
         padding: 0;
         gap: 0;
         border-radius: 50%;
-        border: 1px solid #000;
-        background: #fff;
+        border: 1px solid var(--text);
+        background: var(--surface);
     }
 
     .export-btn:hover:not(:disabled) {
-        background: #eef0ff;
+        background: var(--accent-tint);
     }
 
     .export-btn-text {

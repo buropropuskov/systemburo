@@ -406,7 +406,7 @@ export default {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--overlay);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -415,7 +415,7 @@ export default {
 }
 
 .modal-content {
-    background: white;
+    background: var(--surface);
     border-radius: 30px;
     width: 100%;
     max-width: 900px;
@@ -423,7 +423,7 @@ export default {
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 8px 32px var(--shadow-drop);
 }
 
 .sheet-handle {
@@ -431,7 +431,7 @@ export default {
     width: 40px;
     height: 4px;
     border-radius: 2px;
-    background: #d5d5d5;
+    background: var(--border);
     margin: 10px auto 2px;
     flex-shrink: 0;
 }
@@ -441,8 +441,8 @@ export default {
     justify-content: space-between;
     align-items: center;
     padding: 16px 20px;
-    border-bottom: 1px solid #e6e6e6;
-    background: white;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
     flex-shrink: 0;
     gap: 20px;
 }
@@ -451,7 +451,7 @@ export default {
     margin: 0;
     font-size: 16px;
     font-weight: 600;
-    color: #333;
+    color: var(--text);
     flex-shrink: 0;
 }
 
@@ -468,7 +468,7 @@ export default {
     border: none;
     font-size: 24px;
     cursor: pointer;
-    color: #a2a2a2;
+    color: var(--text-muted);
     padding: 0;
     width: 32px;
     height: 32px;
@@ -481,14 +481,14 @@ export default {
 }
 
 .modal-close:hover {
-    background: #f5f5f5;
-    color: #333;
+    background: var(--surface-2);
+    color: var(--text);
 }
 
 .filter-section {
     padding: 12px 20px;
-    border-bottom: 1px solid #f0f0f0;
-    background: #fafafa;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-2);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -504,13 +504,13 @@ export default {
 
 .filter-tab {
     padding: 6px 12px;
-    border: 1px solid #e6e6e6;
-    background: white;
+    border: 1px solid var(--border);
+    background: var(--surface);
     border-radius: 16px;
     cursor: pointer;
     font-size: 12px;
     font-weight: 500;
-    color: #666;
+    color: var(--text-muted);
     transition: all 0.2s;
     outline: none;
     min-height: 32px;
@@ -518,14 +518,14 @@ export default {
 }
 
 .filter-tab:hover:not(.filter-tab--active) {
-    border-color: #4F5BDF;
-    color: #4F5BDF;
+    border-color: var(--accent);
+    color: var(--accent-text);
 }
 
 .filter-tab--active {
-    background: #4F5BDF;
-    color: white;
-    border-color: #4F5BDF;
+    background: var(--accent);
+    color: var(--accent-contrast);
+    border-color: var(--accent);
     pointer-events: none;
 }
 
@@ -536,7 +536,7 @@ export default {
 
 .selected-counter {
     font-size: 12px;
-    color: #666;
+    color: var(--text-muted);
     display: flex;
     align-items: center;
     gap: 4px;
@@ -545,7 +545,7 @@ export default {
 
 .selected-count {
     font-weight: 600;
-    color: #4F5BDF;
+    color: var(--accent-text);
 }
 
 .employees-table-container {
@@ -566,14 +566,14 @@ export default {
 
 .table-header {
     display: flex;
-    background: #f8f8f8;
-    border-bottom: 1px solid #e6e6e6;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
     padding: 0 20px;
     height: 40px;
     min-height: 40px;
     font-size: 14px;
     font-weight: 500;
-    color: #a2a2a2;
+    color: var(--text-muted);
     flex-shrink: 0;
     align-items: center;
 }
@@ -631,7 +631,7 @@ export default {
     display: flex;
     align-items: center;
     padding: 0 20px;
-    border-bottom: 1px solid #f5f5f5;
+    border-bottom: 1px solid var(--surface-2);
     cursor: pointer;
     transition: background-color 0.2s;
     height: 40px;
@@ -639,19 +639,19 @@ export default {
 }
 
 .table-row:hover:not(.table-row--disabled) {
-    background-color: #fafafa;
+    background-color: var(--surface-2);
 }
 
 .table-row--selected {
-    background-color: #f0f9ff;
+    background-color: var(--success-bg);
 }
 
 .table-row--selected:hover {
-    background-color: #e0f2fe;
+    background-color: var(--accent-tint);
 }
 
 .table-row--disabled {
-    background-color: #f9f9f9;
+    background-color: var(--surface-2);
     opacity: 0.5;
     cursor: not-allowed;
 }
@@ -659,20 +659,20 @@ export default {
 .table-cell {
     padding: 0 8px;
     font-size: 14px;
-    color: #000;
+    color: var(--text);
     display: flex;
     align-items: center;
 }
 
 .table-row--disabled .table-cell {
-    color: #999;
+    color: var(--text-muted);
 }
 
 .table-cell input[type="checkbox"] {
     width: 16px;
     height: 16px;
     cursor: pointer;
-    accent-color: #4F5BDF;
+    accent-color: var(--accent);
     margin: 0;
 }
 
@@ -692,21 +692,21 @@ export default {
 }
 
 .status-active {
-    background-color: #f0f9ff;
-    color: #0369a1;
-    border: 1px solid #bae6fd;
+    background-color: var(--success-bg);
+    color: var(--accent-text);
+    border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
 }
 
 .status-inactive {
-    background-color: #fef2f2;
-    color: #991b1b;
-    border: 1px solid #fecaca;
+    background-color: var(--danger-bg);
+    color: var(--danger-text);
+    border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
 }
 
 .status-blacklisted {
-    background-color: #fee2e2;
-    color: #991b1b;
-    border: 1px solid #fecaca;
+    background-color: var(--danger-bg);
+    color: var(--danger-text);
+    border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
     font-weight: 700;
 }
 
@@ -725,7 +725,7 @@ export default {
     justify-content: center;
     height: 100%;
     min-height: 200px;
-    color: #999;
+    color: var(--text-muted);
     font-size: 14px;
     text-align: center;
 }
@@ -737,7 +737,7 @@ export default {
 
 .empty-state {
     font-style: italic;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .modal-actions {
@@ -745,8 +745,8 @@ export default {
     justify-content: flex-end;
     gap: 12px;
     padding: 16px 20px;
-    border-top: 1px solid #e6e6e6;
-    background: white;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
     flex-shrink: 0;
 }
 
@@ -799,16 +799,16 @@ export default {
 }
 
 .table-body::-webkit-scrollbar-track {
-    background: #f1f1f1;
+    background: var(--surface-2);
 }
 
 .table-body::-webkit-scrollbar-thumb {
-    background: #c1c1c1;
+    background: var(--border);
     border-radius: 3px;
 }
 
 .table-body::-webkit-scrollbar-thumb:hover {
-    background: #a8a8a8;
+    background: var(--text-muted);
 }
 
 @media (max-width: 768px) {
@@ -1016,7 +1016,7 @@ export default {
        режется гражданство, а не должность. */
     .position-col {
         flex: 0 0 auto;
-        color: #666;
+        color: var(--text-muted);
         font-size: 13px;
     }
 
@@ -1028,7 +1028,7 @@ export default {
         overflow: hidden;
         white-space: nowrap;
         text-overflow: ellipsis;
-        color: #666;
+        color: var(--text-muted);
         font-size: 13px;
     }
 

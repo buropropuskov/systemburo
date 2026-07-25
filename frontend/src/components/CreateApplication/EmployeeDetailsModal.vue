@@ -1071,7 +1071,7 @@ export default {
 /* Все стили остаются без изменений, как в предыдущей версии */
 .place-name {
     font-size: 10px;
-    color: #4F5BDF;
+    color: var(--accent-text);
     margin-top: 2px;
 }
 
@@ -1081,7 +1081,7 @@ export default {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--overlay);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1091,11 +1091,11 @@ export default {
 
 @keyframes overlayAppear {
     from {
-        background: rgba(0, 0, 0, 0);
+        background: var(--overlay);
     
     }
     to {
-        background: rgba(0, 0, 0, 0.5);
+        background: var(--overlay);
        
     }
 }
@@ -1111,13 +1111,13 @@ export default {
 }
 
 .modal-content {
-    background: #fff;
+    background: var(--surface);
     border-radius: 50px;
     padding: 0;
     padding-bottom: 15px;
     width: 550px;
     height: 450px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 20px 60px var(--shadow-drop);
     display: flex;
     flex-direction: column;
     position: absolute;
@@ -1158,7 +1158,7 @@ export default {
     justify-content: space-between;
     align-items: center;
     padding: 20px 30px 16px;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid var(--border);
     flex-shrink: 0;
     height: 70px;
     box-sizing: border-box;
@@ -1173,43 +1173,43 @@ export default {
 
 .history-btn, .application-btn {
     padding: 6px 12px;
-    background: white;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 20px;
     font-size: 12px;
-    color: #333;
+    color: var(--text);
     cursor: pointer;
     transition: all 0.2s ease;
     white-space: nowrap;
 }
 
 .history-btn:hover, .application-btn:hover {
-    background: #f5f5f5;
-    border-color: #4F5BDF;
+    background: var(--surface-2);
+    border-color: var(--accent);
 }
 
 .blacklist-add-btn {
     padding: 6px 12px;
-    background: white;
-    border: 1px solid #fecaca;
+    background: var(--surface);
+    border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
     border-radius: 20px;
     font-size: 12px;
-    color: #dc2626;
+    color: var(--danger-text);
     cursor: pointer;
     transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
     white-space: nowrap;
 }
 
 .blacklist-add-btn:hover {
-    background: #fee2e2;
-    border-color: #dc2626;
+    background: var(--danger-bg);
+    border-color: var(--danger);
 }
 
 .bl-section {
     margin-bottom: 16px;
     padding: 12px 16px;
-    background: #fdeaea;
-    border: 1px solid #f5b5b5;
+    background: var(--danger-bg);
+    border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
     border-radius: 20px;
 }
 
@@ -1219,14 +1219,14 @@ export default {
     gap: 8px;
     font-size: 14px;
     font-weight: 600;
-    color: #b91c1c;
+    color: var(--danger-text);
 }
 
 .bl-section-dot {
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: #dc2626;
+    background: var(--danger);
     flex-shrink: 0;
 }
 
@@ -1234,7 +1234,7 @@ export default {
     margin-top: 6px;
     font-size: 13px;
     line-height: 1.5;
-    color: #7f1d1d;
+    color: var(--danger-text);
     word-break: break-word;
 }
 
@@ -1246,8 +1246,8 @@ export default {
 .bl-suspicion-section {
     margin-bottom: 16px;
     padding: 12px 16px;
-    background: #fdeaea;
-    border: 1px solid #f5b5b5;
+    background: var(--danger-bg);
+    border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
     border-radius: 20px;
 }
 
@@ -1257,14 +1257,14 @@ export default {
     gap: 8px;
     font-size: 14px;
     font-weight: 600;
-    color: #b91c1c;
+    color: var(--danger-text);
 }
 
 .bl-suspicion-dot {
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: #dc2626;
+    background: var(--danger);
     flex-shrink: 0;
 }
 
@@ -1272,7 +1272,7 @@ export default {
     margin-top: 6px;
     font-size: 13px;
     line-height: 1.5;
-    color: #7f1d1d;
+    color: var(--danger-text);
     word-break: break-word;
 }
 
@@ -1291,13 +1291,13 @@ export default {
 
 .bl-suspicion-blocked {
     font-size: 12px;
-    color: #7f1d1d;
+    color: var(--danger-text);
 }
 
 .bl-suspicion-confirmed {
     font-size: 13px;
     font-weight: 600;
-    color: #047857;
+    color: var(--success-text);
 }
 
 .bl-suspicion-btn {
@@ -1310,49 +1310,49 @@ export default {
 }
 
 .bl-suspicion-btn--allow {
-    background: #fff;
-    border: 1px solid #fecaca;
-    color: #dc2626;
+    background: var(--surface);
+    border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
+    color: var(--danger-text);
 }
 
 .bl-suspicion-btn--allow:hover {
-    background: #fee2e2;
-    border-color: #dc2626;
+    background: var(--danger-bg);
+    border-color: var(--danger);
 }
 
 .bl-suspicion-btn--cancel {
-    background: #fff;
-    border: 1px solid #cbd5e1;
-    color: #475569;
+    background: var(--surface);
+    border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
+    color: var(--text-muted);
 }
 
 .bl-suspicion-btn--cancel:hover {
-    background: #f1f5f9;
-    border-color: #94a3b8;
+    background: var(--accent-tint);
+    border-color: var(--text-muted);
 }
 
 .bl-suspicion-section.is-resolved {
-    background: #ecfdf5;
-    border-color: #a7f3d0;
+    background: var(--success-bg);
+    border-color: color-mix(in srgb, var(--success) 30%, var(--surface));
 }
 
 .bl-suspicion-section.is-resolved .bl-suspicion-head {
-    color: #047857;
+    color: var(--success-text);
 }
 
 .bl-suspicion-section.is-resolved .bl-suspicion-dot {
-    background: #10b981;
+    background: var(--success);
 }
 
 .bl-suspicion-section.is-resolved .bl-suspicion-row {
-    color: #065f46;
+    color: var(--success-text);
 }
 
 .modal-title {
     margin: 0;
     font-size: 16px;
     font-weight: 600;
-    color: #1a1a1a;
+    color: var(--text);
 }
 
 .modal-close {
@@ -1368,7 +1368,7 @@ export default {
 }
 
 .modal-close:hover {
-    background-color: #f5f5f5;
+    background-color: var(--surface-2);
 }
 
 .modal-body {
@@ -1384,15 +1384,15 @@ export default {
 }
 
 .details-section {
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     border-radius: 20px;
-    background: #fafafa;
+    background: var(--surface-2);
     overflow: hidden;
 }
 
 .section-header {
     padding: 12px 20px;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -1402,7 +1402,7 @@ export default {
     margin: 0;
     font-size: 14px;
     font-weight: 600;
-    color: #333;
+    color: var(--text);
 }
 
 .section-body {
@@ -1427,14 +1427,14 @@ export default {
 
 .detail-label {
     font-size: 11px;
-    color: #a2a2a2;
+    color: var(--text-muted);
     font-weight: 400;
     letter-spacing: 0.3px;
 }
 
 .detail-value {
     font-size: 14px;
-    color: #333;
+    color: var(--text);
     font-weight: 500;
     word-break: break-word;
 }
@@ -1447,7 +1447,7 @@ export default {
 
 .data-text {
     font-size: 13px;
-    color: #333;
+    color: var(--text);
     font-weight: 500;
     letter-spacing: 0.5px;
     transition: all 0.3s ease;
@@ -1460,9 +1460,9 @@ export default {
 }
 
 .show-more-btn {
-    background: #f8f9fa;
-    border: 1px solid #e0e0e0;
-    color: #4F5BDF;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--accent-text);
     font-size: 11px;
     cursor: pointer;
     padding: 4px 8px;
@@ -1475,9 +1475,9 @@ export default {
 }
 
 .show-more-btn:hover {
-    background: #4F5BDF;
-    color: white;
-    border-color: #4F5BDF;
+    background: var(--accent);
+    color: var(--accent-contrast);
+    border-color: var(--accent);
 }
 
 .places-list {
@@ -1487,11 +1487,11 @@ export default {
 }
 
 .place-item {
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     border-radius: 50px;
     padding: 6px 12px;
     font-size: 12px;
-    color: #333;
+    color: var(--text);
     transition: all 0.2s ease;
     display: inline-flex;
     align-items: center;
@@ -1500,33 +1500,33 @@ export default {
 }
 
 .place-item:hover {
-    background: #f0f0f0;
-    border-color: #4F5BDF;
+    background: var(--border);
+    border-color: var(--accent);
 }
 
 .place-item.active {
-    background: #4F5BDF;
-    color: white;
-    border-color: #4F5BDF;
+    background: var(--accent);
+    color: var(--accent-contrast);
+    border-color: var(--accent);
 }
 
 /* Снятая/перенесённая таблица (#1227 P3): не кликабельна, зачёркнута как .old-status
    в ApplicationHistory.vue - "проход был, но сейчас не действует". */
 .place-item--removed {
     cursor: default;
-    color: #dc2626;
+    color: var(--danger-text);
     text-decoration: line-through;
     border-style: dashed;
 }
 
 .place-item--removed:hover {
     background: transparent;
-    border-color: #e6e6e6;
+    border-color: var(--border);
 }
 
 .no-places {
     text-align: center;
-    color: #a2a2a2;
+    color: var(--text-muted);
     font-size: 13px;
     font-style: italic;
     padding: 10px;
@@ -1541,21 +1541,21 @@ export default {
 }
 
 .status-on-territory {
-    background: rgba(79, 91, 223, 0.1);
-    color: #4F5BDF;
+    background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+    color: var(--accent-text);
     border: 1px solid rgba(79, 91, 223, 0.3);
 }
 
 .status-exited {
-    background: rgba(220, 38, 38, 0.1);
-    color: #dc2626;
+    background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+    color: var(--danger-text);
     border: 1px solid rgba(220, 38, 38, 0.3);
 }
 
 .status-not-entered {
-    background: #f5f5f5;
-    color: #9ca3af;
-    border: 1px solid #e6e6e6;
+    background: var(--surface-2);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
 }
 
 .export-btn {
@@ -1563,19 +1563,19 @@ export default {
     align-items: center;
     gap: 6px;
     padding: 4px 12px;
-    background: white;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 20px;
     font-size: 12px;
-    color: #333;
+    color: var(--text);
     cursor: pointer;
     transition: all 0.2s ease;
     height: 28px;
 }
 
 .export-btn:hover:not(:disabled) {
-    background: #f5f5f5;
-    border-color: #4F5BDF;
+    background: var(--surface-2);
+    border-color: var(--accent);
 }
 
 .export-btn:disabled {
@@ -1591,8 +1591,8 @@ export default {
 .export-loader {
     width: 14px;
     height: 14px;
-    border: 2px solid #e6e6e6;
-    border-top: 2px solid #4F5BDF;
+    border: 2px solid var(--border);
+    border-top: 2px solid var(--accent);
     border-radius: 50%;
     animation: spin 1s linear infinite;
 }
@@ -1634,7 +1634,7 @@ export default {
     top: 16px;
     width: 2px;
     height: calc(100% + 2px);
-    background: #e6e6e6;
+    background: var(--border);
 }
 
 .dot-system { background: #8b5cf6; }
@@ -1655,28 +1655,28 @@ export default {
 
 .user-name {
     font-weight: 500;
-    color: #333;
+    color: var(--text);
     font-size: 12px;
 }
 
 .action-time {
-    color: #a2a2a2;
+    color: var(--text-muted);
     font-size: 10px;
 }
 
 .action-text {
-    color: #666;
+    color: var(--text-muted);
     font-size: 11px;
     margin-bottom: 2px;
 }
 
 .action-comment {
     font-size: 10px;
-    color: #666;
+    color: var(--text-muted);
     font-style: italic;
     margin-top: 2px;
     padding-left: 6px;
-    border-left: 2px solid #e6e6e6;
+    border-left: 2px solid var(--border);
 }
 
 .loading-container {
@@ -1694,8 +1694,8 @@ export default {
 .loader {
     width: 30px;
     height: 30px;
-    border: 3px solid #f3f3f3;
-    border-top: 3px solid #4F5BDF;
+    border: 3px solid var(--surface-2);
+    border-top: 3px solid var(--accent);
     border-radius: 50%;
     animation: spin 1s linear infinite;
 }
@@ -1705,7 +1705,7 @@ export default {
     align-items: center;
     justify-content: center;
     text-align: center;
-    color: #a2a2a2;
+    color: var(--text-muted);
     padding: 20px;
     font-size: 13px;
     font-style: italic;
@@ -1735,7 +1735,7 @@ export default {
 
 .modal-fade-enter-from .modal-overlay,
 .modal-fade-leave-to .modal-overlay {
-    background: rgba(0, 0, 0, 0);
+    background: transparent;
  
 }
 
@@ -1797,7 +1797,7 @@ export default {
         width: 40px;
         height: 4px;
         border-radius: 2px;
-        background: #d5d5db;
+        background: var(--border);
         margin: 8px auto 0;
         flex-shrink: 0;
     }

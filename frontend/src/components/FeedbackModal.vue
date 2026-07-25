@@ -491,7 +491,7 @@ export default {
   /* Затемнение через класс is-visible (по showContent), transition background-color -
      фейд подложки идёт синхронно со слайдом листа и НЕ каскадит opacity на лист
      (opacity на оверлее гасила бы и лист -> slide не виден). */
-  background-color: rgba(0, 0, 0, 0);
+  background-color: var(--overlay);
   transition: background-color 0.3s ease;
   display: flex;
   align-items: center;
@@ -503,15 +503,15 @@ export default {
 }
 
 .modal-overlay.is-visible {
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: var(--overlay);
 }
 
 .modal {
-  background: #ffffff;
+  background: var(--surface);
   border-radius: 25px;
   width: 100%;
   max-width: 500px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 20px 60px var(--shadow-drop);
   overflow: hidden;
   position: relative;
   max-height: calc(var(--app-vh, 1vh) * 90);
@@ -525,7 +525,7 @@ export default {
   width: 40px;
   height: 4px;
   border-radius: 2px;
-  background: #d5d5db;
+  background: var(--border);
   margin: 10px auto 0;
   flex-shrink: 0;
 }
@@ -535,8 +535,8 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 15px 20px;
-  border-bottom: 1px solid #f0f0f0;
-  background: #fff;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
   flex-shrink: 0;
 }
 
@@ -544,7 +544,7 @@ export default {
   margin: 0;
   font-size: 20px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text);
   line-height: 1.3;
 }
 
@@ -561,12 +561,12 @@ export default {
   justify-content: center;
   width: 40px;
   height: 40px;
-  color: #666;
+  color: var(--text-muted);
 }
 
 .modal__close:hover:not(:disabled) {
-  background-color: #f5f5f5;
-  color: #333;
+  background-color: var(--surface-2);
+  color: var(--text);
 }
 
 .modal__close:disabled {
@@ -593,7 +593,7 @@ export default {
 .textarea-label {
   display: block;
   font-size: 13px;
-  color: #666;
+  color: var(--text-muted);
   padding-bottom: 20px;
   font-weight: 500;
 }
@@ -606,7 +606,7 @@ export default {
 .feedback-textarea {
   width: 100%;
   padding: 16px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 15px;
   font-size: 15px;
   font-family: inherit;
@@ -617,38 +617,38 @@ export default {
   transition: all 0.2s ease;
   box-sizing: border-box;
   outline: none;
-  background: #fff;
-  color: #1a1a1a;
+  background: var(--surface);
+  color: var(--text);
   display: block;
   padding-bottom: 30px; /* Добавляем отступ снизу для счетчика */
 }
 
 .feedback-textarea:focus {
-  border-color: #4F5BDF;
+  border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(79, 91, 223, 0.1);
 }
 
 .feedback-textarea:hover:not(:disabled) {
-  border-color: #b0b0b0;
+  border-color: var(--border);
 }
 
 .feedback-textarea:disabled {
-  background-color: #f9f9f9;
+  background-color: var(--surface-2);
   cursor: not-allowed;
   opacity: 0.7;
 }
 
 .feedback-textarea::placeholder {
-  color: #999;
+  color: var(--text-muted);
 }
 
 .feedback-textarea--error {
-  border-color: #dc3545;
-  background-color: #fffafa;
+  border-color: var(--danger);
+  background-color: var(--danger-bg);
 }
 
 .feedback-textarea--error:focus {
-  border-color: #dc3545;
+  border-color: var(--danger);
   box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.1);
 }
 
@@ -657,7 +657,7 @@ export default {
   bottom: 8px;
   right: 12px;
   font-size: 12px;
-  color: #999;
+  color: var(--text-muted);
   background-color: rgba(255, 255, 255, 0.8);
   padding: 2px 6px;
   border-radius: 8px;
@@ -669,24 +669,24 @@ export default {
 }
 
 .textarea-counter-wrapper--warning {
-  color: #ff9800;
-  background-color: rgba(255, 248, 225, 0.9);
+  color: var(--warning-text);
+  background-color: color-mix(in srgb, var(--warning) 60%, var(--surface));
 }
 
 .textarea-counter-wrapper--error {
-  color: #dc3545;
+  color: var(--danger-text);
   background-color: rgba(255, 245, 245, 0.9);
   font-weight: 600;
 }
 
 .error-message {
-  color: #dc3545;
+  color: var(--danger-text);
   font-size: 14px;
   margin-top: 12px;
   padding: 10px 12px;
-  background-color: #fff5f5;
+  background-color: var(--danger-bg);
   border-radius: 6px;
-  border-left: 3px solid #dc3545;
+  border-left: 3px solid var(--danger);
   animation: error-shake 0.4s ease;
   display: flex;
   align-items: flex-start;
@@ -703,8 +703,8 @@ export default {
   justify-content: flex-end;
   gap: 12px;
   padding: 15px 20px;
-  border-top: 1px solid #f0f0f0;
-  background: #fff;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
   flex-shrink: 0;
 }
 
@@ -726,14 +726,14 @@ export default {
 }
 
 .modal-btn--cancel {
-  background-color: #f5f5f5;
-  color: #666;
-  border: 1px solid #e0e0e0;
+  background-color: var(--surface-2);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
 }
 
 .modal-btn--cancel:hover:not(:disabled) {
-  background-color: #e8e8e8;
-  color: #333;
+  background: var(--row-hover);
+  color: var(--text);
 }
 
 .modal-btn--cancel:disabled {
@@ -742,15 +742,15 @@ export default {
 }
 
 .modal-btn--submit {
-  background-color: #4F5BDF;
-  color: white;
-  border: 1px solid #4F5BDF;
+  background-color: var(--accent);
+  color: var(--accent-contrast);
+  border: 1px solid var(--accent);
   width: 240px;
 }
 
 .modal-btn--submit:hover:not(.modal-btn--disabled):not(:disabled) {
-  background-color: #3a45c5;
-  border-color: #3a45c5;
+  background: var(--accent-hover);
+  border-color: var(--accent);
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(79, 91, 223, 0.3);
 }
@@ -761,8 +761,8 @@ export default {
 }
 
 .modal-btn--disabled {
-  background-color: #a0a5e8 !important;
-  border-color: #a0a5e8 !important;
+  background-color: var(--accent) !important;
+  border-color: var(--accent) !important;
   color: rgba(255, 255, 255, 0.7) !important;
   cursor: not-allowed !important;
   transform: none !important;
@@ -779,7 +779,7 @@ export default {
   height: 18px;
   border: 2px solid rgba(255, 255, 255, 0.3);
   border-radius: 50%;
-  border-top-color: white;
+  border-top-color: var(--surface);
   animation: spinner-rotate 0.8s linear infinite;
   position: absolute;
 }

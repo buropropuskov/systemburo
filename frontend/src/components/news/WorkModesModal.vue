@@ -415,7 +415,7 @@ export default {
 .modes-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -428,7 +428,7 @@ export default {
   /* Фиксированная высота: список едет скроллом в .modes__body, модалка не прыгает
      при смене вкладок Бюро пропусков/Места разгрузки/Места прохода. */
   height: min(620px, 88vh);
-  background: #fff;
+  background: var(--surface);
   border-radius: 30px;
   display: flex;
   flex-direction: column;
@@ -454,13 +454,13 @@ export default {
   font-size: 20px;
   font-weight: 700;
   letter-spacing: -0.01em;
-  color: #1a1a1a;
+  color: var(--text);
 }
 
 .modes__sub {
   margin: 3px 0 0;
   font-size: 12.5px;
-  color: #9a9aae;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -477,19 +477,19 @@ export default {
   border-radius: 50%;
   font-size: 24px;
   line-height: 1;
-  color: #999;
+  color: var(--text-muted);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
   flex-shrink: 0;
 }
 .modes__close:hover {
-  background: #f3f4fa;
-  color: #666;
+  background: var(--accent-tint);
+  color: var(--text-muted);
 }
 
 .modes__close:hover {
-  background: #e9eaf4;
-  color: #1a1a1a;
+  background: var(--accent-tint);
+  color: var(--text);
 }
 
 .modes__state {
@@ -497,7 +497,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #9a9aae;
+  color: var(--text-muted);
   font-size: 14px;
   flex: 1 1 auto;
 }
@@ -542,7 +542,7 @@ export default {
   height: 20px;
   padding: 0 6px;
   border-radius: var(--radius-pill);
-  background: #eef0ff;
+  background: var(--accent-tint);
   color: var(--color-primary);
   font-size: 11px;
   font-weight: 700;
@@ -574,21 +574,21 @@ export default {
 }
 
 .modes__body::-webkit-scrollbar-thumb {
-  background: #d9e2ff;
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface));
   border-radius: 4px;
 }
 
 .obj {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: #fafbff;
+  background: var(--accent-tint);
   margin-bottom: 12px;
   overflow: hidden;
   transition: border-color 0.15s ease;
 }
 
 .obj:hover {
-  border-color: #cfd4ff;
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--surface));
 }
 
 .obj__head {
@@ -605,7 +605,7 @@ export default {
   height: 38px;
   flex-shrink: 0;
   border-radius: 11px;
-  background: #eef0ff;
+  background: var(--accent-tint);
   color: var(--color-primary);
   display: inline-flex;
   align-items: center;
@@ -620,7 +620,7 @@ export default {
 .obj__name {
   font-size: 14.5px;
   font-weight: 700;
-  color: #1a1a2e;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -629,14 +629,14 @@ export default {
 .obj__today {
   margin-top: 3px;
   font-size: 12px;
-  color: #8a8a9e;
+  color: var(--text-muted);
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
 .obj__today b {
-  color: #3a3a4a;
+  color: var(--text);
   font-weight: 600;
 }
 
@@ -653,26 +653,26 @@ export default {
 }
 
 .status--open {
-  background: #e6f7e6;
-  color: #2e7d32;
-  border: 1px solid #a5d6a7;
+  background: var(--success-bg);
+  color: var(--success-text);
+  border: 1px solid var(--success);
 }
 
 .status--closed {
-  background: #fff3e0;
-  color: #ef6c00;
-  border: 1px solid #ffcc80;
+  background: var(--warning-bg);
+  color: var(--warning-text);
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, var(--surface));
 }
 
 .status--inactive {
-  background: #ffebee;
-  color: #c62828;
-  border: 1px solid #ef9a9a;
+  background: var(--danger-bg);
+  color: var(--danger-text);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
 }
 
 .obj__chev {
   flex-shrink: 0;
-  color: #b3b6cf;
+  color: var(--accent-text);
   transition: transform 0.2s ease;
 }
 
@@ -697,7 +697,7 @@ export default {
 
 .week {
   padding: 4px 16px 14px;
-  border-top: 1px solid #eef0f6;
+  border-top: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
 }
 
 .week__row {
@@ -714,11 +714,11 @@ export default {
 }
 
 .week__row--today {
-  background: #f0f4ff;
+  background: var(--accent-tint);
 }
 
 .week__day {
-  color: #6a6a7d;
+  color: var(--text-muted);
   font-weight: 600;
 }
 
@@ -727,24 +727,24 @@ export default {
 }
 
 .week__time {
-  color: #2a2a38;
+  color: var(--accent-text);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
 .week__time.is-off {
-  color: #b9b9c6;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
 .week__time.is-24 {
-  color: #2e7d32;
+  color: var(--success-text);
 }
 
 .modes__empty {
   padding: 30px;
   text-align: center;
-  color: #b9b9c6;
+  color: var(--text-muted);
   font-size: 13px;
 }
 
@@ -761,7 +761,7 @@ export default {
   display: flex;
   gap: 14px;
   font-size: 11px;
-  color: #9a9aae;
+  color: var(--text-muted);
 }
 
 .modes__legend span {
@@ -782,19 +782,19 @@ export default {
   height: 34px;
   padding: 0 18px;
   border: 1px solid var(--color-border);
-  background: #fff;
+  background: var(--surface);
   border-radius: var(--radius-pill);
   font-family: inherit;
   font-size: 13px;
   font-weight: 500;
-  color: #6a6a7d;
+  color: var(--text-muted);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
 .modes__done:hover {
-  background: #f3f4fa;
-  color: #1a1a1a;
+  background: var(--accent-tint);
+  color: var(--text);
 }
 
 /* Ползунок скрыт на десктопе, показывается только в bottom-sheet @560. */
@@ -833,7 +833,7 @@ export default {
     width: 40px;
     height: 4px;
     border-radius: 2px;
-    background: #d5d5db;
+    background: var(--border);
     margin: 8px auto 0;
     flex-shrink: 0;
   }

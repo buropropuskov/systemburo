@@ -184,7 +184,7 @@ export default {
 
 .modal-fade-enter-from,
 .modal-fade-leave-to {
-    background: rgba(0, 0, 0, 0);
+    background: transparent;
 }
 
 .modal-fade-enter-from .modal,

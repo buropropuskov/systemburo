@@ -480,7 +480,7 @@ export default {
 .data__completion {
     padding: 15px;
     width: 450px;
-    border-right: 1px solid #e6e6e6;
+    border-right: 1px solid var(--border);
 }
 
 .data__completion--locked {
@@ -502,7 +502,7 @@ export default {
     margin: 0;
     font-size: 16px;
     font-weight: 600;
-    color: #333;
+    color: var(--text);
 }
 
 .completion__actions {
@@ -513,9 +513,9 @@ export default {
 }
 
 .cancel-edit-btn {
-    background: #f8f8f8;
-    color: #333;
-    border: 1px solid #e6e6e6;
+    background: var(--surface-2);
+    color: var(--text);
+    border: 1px solid var(--border);
     border-radius: 15px;
     padding: 8px 15px;
     font-size: 12px;
@@ -524,12 +524,12 @@ export default {
 }
 
 .cancel-edit-btn:hover {
-    background: #e8e8e8;
+    background: var(--row-hover);
 }
 
 .add-button {
-    background: #4F5BDF;
-    color: white;
+    background: var(--accent);
+    color: var(--accent-contrast);
     border: none;
     border-radius: 15px;
     padding: 8px 15px;
@@ -540,11 +540,11 @@ export default {
 }
 
 .add-button:hover:not(:disabled) {
-    background: #3a45c0;
+    background: var(--accent-hover);
 }
 
 .add-button:disabled {
-    background: #a2a2a2;
+    background: var(--text-muted);
     cursor: not-allowed;
     opacity: 0.6;
 }
@@ -569,7 +569,7 @@ export default {
     border-bottom: none;
     padding: 0;
     font-weight: normal;
-    color: #a2a2a2;
+    color: var(--text-muted);
     font-size: 13px;
     margin-bottom: 10px;
 }
@@ -608,11 +608,11 @@ export default {
 
 .input__label {
     font-size: 13px;
-    color: #a2a2a2;
+    color: var(--text-muted);
 }
 
 .required {
-    color: #ff4444;
+    color: var(--danger-text);
 }
 
 .table-body {
@@ -627,16 +627,16 @@ export default {
 }
 
 .table-body::-webkit-scrollbar-track {
-    background: #f1f1f1;
+    background: var(--surface-2);
 }
 
 .table-body::-webkit-scrollbar-thumb {
-    background: #c1c1c1;
+    background: var(--border);
     border-radius: 2px;
 }
 
 .table-body::-webkit-scrollbar-thumb:hover {
-    background: #a8a8a8;
+    background: var(--text-muted);
 }
 
 .table-row {
@@ -710,8 +710,8 @@ export default {
 .item-number {
     font-size: 13px;
     font-weight: 500;
-    color: #666;
-    background: #f8f9fa;
+    color: var(--text-muted);
+    background: var(--surface-2);
     width: 24px;
     height: 24px;
     border-radius: 50%;
@@ -724,21 +724,21 @@ export default {
 .name__input {
     width: 100%;
     height: 40px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     border-radius: 15px;
     padding: 0 15px;
     outline: none;
     font-size: 14px;
-    background: #FFF;
+    background: var(--surface);
     transition: all 0.3s ease;
 }
 
 .name__input:focus {
-    border-color: #4F5BDF;
+    border-color: var(--accent);
 }
 
 .name__input.input--error {
-    border-color: #ff4444;
+    border-color: var(--danger);
 }
 
 .name__input[type="number"] {
@@ -755,9 +755,9 @@ export default {
 }
 
 .add-row-btn {
-    background: white;
-    color: #4F5BDF;
-    border: 1px solid #4F5BDF;
+    background: var(--surface);
+    color: var(--accent-text);
+    border: 1px solid var(--accent);
     border-radius: 15px;
     padding: 6px 12px;
     font-size: 12px;
@@ -766,19 +766,19 @@ export default {
 }
 
 .add-row-btn:hover {
-    background: #f0f2ff;
+    background: var(--accent-tint);
 }
 
 .total-items {
     font-size: 12px;
-    color: #666;
+    color: var(--text-muted);
     font-weight: 500;
 }
 
 .remove-row-btn {
     background: none;
     border: none;
-    color: #ff4444;
+    color: var(--danger-text);
     cursor: pointer;
     font-size: 18px;
     width: 24px;
@@ -791,11 +791,11 @@ export default {
 }
 
 .remove-row-btn:hover:not(:disabled) {
-    background: #ffebee;
+    background: var(--danger-bg);
 }
 
 .remove-row-btn:disabled {
-    color: #ccc;
+    color: var(--text-muted);
     cursor: not-allowed;
 }
 
@@ -809,14 +809,14 @@ export default {
 }
 
 .tooltip-content {
-    background: #333;
-    color: white;
+    background: var(--hint-bg);
+    color: var(--hint-text);
     padding: 10px 12px;
     border-radius: 8px;
     font-size: 12px;
     max-width: 420px;
     min-width: 420px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 8px var(--shadow-drop);
 }
 
 .tooltip-content::before {
@@ -825,7 +825,7 @@ export default {
     bottom: 100%;
     right: 40px;
     border: 5px solid transparent;
-    border-bottom-color: #333;
+    border-bottom-color: var(--hint-bg);
 }
 
 /* Места разгрузки (#706): грид 1:1 из VehicleForm (completion__unloading). */
@@ -845,8 +845,8 @@ export default {
 
 .unloading__item {
     height: 30px;
-    background: #F2F2F2;
-    color: #a2a2a2;
+    background: var(--surface-2);
+    color: var(--text-muted);
     border-radius: 50px;
     display: flex;
     align-items: center;
@@ -865,29 +865,29 @@ export default {
 }
 
 .unloading__item:hover:not(.unloading__item--active):not(.unloading__item--inactive) {
-    background: #e8e8e8;
+    background: var(--row-hover);
 }
 
 .unloading__item--active {
-    background: #4F5BDF;
-    color: #fff;
-    border-color: #4F5BDF;
+    background: var(--accent);
+    color: var(--accent-contrast);
+    border-color: var(--accent);
 }
 
 .unloading__item--inactive {
-    background: #ffe6e6;
-    color: #ff6b6b;
-    border-color: #ffcccc;
+    background: var(--danger-bg);
+    color: var(--danger-text);
+    border-color: color-mix(in srgb, var(--danger) 30%, var(--surface));
     cursor: not-allowed;
     opacity: 0.7;
 }
 
 .no-places-message {
     font-size: 12px;
-    color: #ff6b6b;
+    color: var(--danger-text);
     text-align: center;
     padding: 20px;
-    background: #fff5f5;
+    background: var(--danger-bg);
     border-radius: 8px;
     margin-top: 10px;
 }
@@ -900,13 +900,13 @@ export default {
 }
 
 .inactive-tooltip-content {
-    background: #333;
-    color: white;
+    background: var(--hint-bg);
+    color: var(--hint-text);
     padding: 8px 12px;
     border-radius: 8px;
     font-size: 12px;
     max-width: 300px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 8px var(--shadow-drop);
 }
 
 .inactive-tooltip-content::before {
@@ -916,7 +916,7 @@ export default {
     left: 50%;
     transform: translateX(-50%);
     border: 5px solid transparent;
-    border-top-color: #333;
+    border-top-color: var(--hint-bg);
 }
 
 /* Форма (450px) + список ТМЦ рядом не влезают на планшете - стекаем в колонку
@@ -925,7 +925,7 @@ export default {
     .data__completion {
         width: 100%;
         border-right: none;
-        border-bottom: 1px solid #e6e6e6;
+        border-bottom: 1px solid var(--border);
     }
 }
 

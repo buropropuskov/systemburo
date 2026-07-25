@@ -137,7 +137,7 @@ onUnmounted(() => {
 .ou-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -148,14 +148,14 @@ onUnmounted(() => {
 }
 
 .ou-modal {
-  background: #fff;
+  background: var(--surface);
   border-radius: 30px;
   width: 460px;
   max-width: 100%;
   max-height: calc(var(--app-vh, 1vh) * 80);
   display: flex;
   flex-direction: column;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 10px 30px var(--shadow-drop);
   overflow: hidden;
 }
 

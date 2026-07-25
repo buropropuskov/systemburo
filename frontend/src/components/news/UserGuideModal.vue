@@ -316,7 +316,7 @@ export default {
 .guide-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -329,7 +329,7 @@ export default {
   /* Фиксированная высота: контент вкладок едет скроллом в .guide__body, модалка
      не меняет высоту при смене роли Пользователь/Охранник/Администратор. */
   height: min(560px, 88vh);
-  background: #fff;
+  background: var(--surface);
   border-radius: 30px;
   display: flex;
   flex-direction: column;
@@ -355,13 +355,13 @@ export default {
   font-size: 20px;
   font-weight: 700;
   letter-spacing: -0.01em;
-  color: #1a1a1a;
+  color: var(--text);
 }
 
 .guide__sub {
   margin: 3px 0 0;
   font-size: 12.5px;
-  color: #9a9aae;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -378,19 +378,19 @@ export default {
   border-radius: 50%;
   font-size: 24px;
   line-height: 1;
-  color: #999;
+  color: var(--text-muted);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
   flex-shrink: 0;
 }
 .guide__close:hover {
-  background: #f3f4fa;
-  color: #666;
+  background: var(--accent-tint);
+  color: var(--text-muted);
 }
 
 .guide__close:hover {
-  background: #e9eaf4;
-  color: #1a1a1a;
+  background: var(--accent-tint);
+  color: var(--text);
 }
 
 .guide__state {
@@ -398,7 +398,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #9a9aae;
+  color: var(--text-muted);
   font-size: 14px;
   flex: 1 1 auto;
 }
@@ -417,25 +417,25 @@ export default {
   gap: 8px;
   height: 42px;
   border: 1px solid var(--color-border);
-  background: #fff;
+  background: var(--surface);
   border-radius: var(--radius-pill);
   font-family: inherit;
   font-size: 13.5px;
   font-weight: 600;
-  color: #6a6a7d;
+  color: var(--text-muted);
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
 .role-pill:hover:not(.role-pill--active) {
-  border-color: #cfd4ff;
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--surface));
   color: var(--color-primary);
 }
 
 .role-pill--active {
   background: var(--color-primary);
   border-color: var(--color-primary);
-  color: #fff;
+  color: var(--accent-contrast);
 }
 
 .role-pill__dot {
@@ -460,21 +460,21 @@ export default {
   padding: 16px 18px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: #fafbff;
+  background: var(--accent-tint);
   transition: border-color 0.15s ease, background 0.15s ease;
 }
 
 .file-card:not(.file-card--empty):hover {
-  border-color: #cfd4ff;
-  background: #f6f7ff;
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--surface));
+  background: var(--accent-tint);
 }
 
 .file-card--empty {
-  background: #f6f6f9;
+  background: var(--accent-tint);
 }
 
 .file-card--empty .file-card__name {
-  color: #6a6a7d;
+  color: var(--text-muted);
 }
 
 .file-card__icon {
@@ -494,7 +494,7 @@ export default {
 .file-card__name {
   font-size: 14.5px;
   font-weight: 700;
-  color: #1a1a2e;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -503,14 +503,14 @@ export default {
 .file-card__meta {
   margin-top: 4px;
   font-size: 12px;
-  color: #a2a2b4;
+  color: var(--text-muted);
   display: flex;
   align-items: center;
   gap: 7px;
 }
 
 .file-card__meta .sep {
-  color: #d7d9e8;
+  color: var(--accent-text);
 }
 
 .file-card__dl {
@@ -522,7 +522,7 @@ export default {
   border-radius: var(--radius-pill);
   border: none;
   background: var(--color-primary);
-  color: #fff;
+  color: var(--accent-contrast);
   font-weight: 600;
   font-size: 13px;
   font-family: inherit;
@@ -550,7 +550,7 @@ export default {
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #b3b6cf;
+  color: var(--accent-text);
   margin: 0 0 8px;
 }
 
@@ -558,7 +558,7 @@ export default {
   margin: 0 0 11px;
   font-size: 14px;
   line-height: 1.62;
-  color: #3a3a4a;
+  color: var(--text);
 }
 
 .descr__list {
@@ -573,7 +573,7 @@ export default {
   margin-bottom: 7px;
   font-size: 13.5px;
   line-height: 1.5;
-  color: #3a3a4a;
+  color: var(--text);
 }
 
 .descr__list li::before {
@@ -601,19 +601,19 @@ export default {
   height: 34px;
   padding: 0 18px;
   border: 1px solid var(--color-border);
-  background: #fff;
+  background: var(--surface);
   border-radius: var(--radius-pill);
   font-family: inherit;
   font-size: 13px;
   font-weight: 500;
-  color: #6a6a7d;
+  color: var(--text-muted);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
 .guide__done:hover {
-  background: #f3f4fa;
-  color: #1a1a1a;
+  background: var(--accent-tint);
+  color: var(--text);
 }
 
 /* Ползунок скрыт на десктопе, показывается только в bottom-sheet @560. */
@@ -652,7 +652,7 @@ export default {
     width: 40px;
     height: 4px;
     border-radius: 2px;
-    background: #d5d5db;
+    background: var(--border);
     margin: 8px auto 0;
     flex-shrink: 0;
   }

@@ -844,7 +844,7 @@ export default {
 
 .trash-title__prefix,
 .trash-title__name {
-  color: #A2A2A2;
+  color: var(--text-muted);
   transition: color 0.2s ease;
 }
 
@@ -857,15 +857,15 @@ export default {
 }
 
 .trash-title__link:hover .trash-title__prefix {
-  color: #000;
+  color: var(--text);
 }
 
 .trash-title__link:hover .trash-title__name {
-  color: #4F5BDF;
+  color: var(--accent-text);
 }
 
 .trash-title__sep {
-  color: #000;
+  color: var(--text);
 }
 
 .trash-back-btn {
@@ -874,21 +874,21 @@ export default {
   gap: 5px;
   height: 25px;
   padding: 0 12px;
-  background: #FFF;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 50px;
   font-family: 'Montserrat', sans-serif;
   font-weight: 500;
   font-size: 14px;
-  color: #4F5BDF;
+  color: var(--accent-text);
   text-decoration: none;
   white-space: nowrap;
   transition: all 0.2s ease;
 }
 
 .trash-back-btn:hover {
-  background: #f2f2f2;
-  border-color: #4F5BDF;
+  background: var(--surface-2);
+  border-color: var(--accent);
 }
 
 .trash-back-btn__icon {
@@ -903,7 +903,7 @@ export default {
   justify-content: space-between;
   gap: 12px;
   padding-bottom: 15px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
 }
 
 .trash-filters__group {
@@ -924,8 +924,8 @@ export default {
 .trash-filters :deep(.field) {
   width: 200px;
   height: 35px;
-  background-color: #fff;
-  border: 1px solid #e6e6e6;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 15px;
   padding: 0 10px;
   display: flex;
@@ -943,20 +943,20 @@ export default {
   gap: 5px;
   height: 25px;
   padding: 0 12px;
-  background: #FFF;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 10px;
   font-family: 'Montserrat', sans-serif;
   font-size: 13px;
   font-weight: 500;
-  color: #000;
+  color: var(--text);
   cursor: pointer;
   white-space: nowrap;
   transition: background 0.2s ease;
 }
 
 .trash-tool-btn:hover:not(:disabled) {
-  background: #f2f2f2;
+  background: var(--surface-2);
 }
 
 .trash-tool-btn:disabled {
@@ -970,9 +970,9 @@ export default {
 }
 
 .trash-card {
-  background: #FFFFFF;
-  border: 1px solid #E6E6E6;
-  box-shadow: 0px 3px 10px rgba(0, 0, 0, 0.05);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0px 3px 10px var(--shadow-drop);
   border-radius: 30px;
   overflow: hidden;
   max-height: 600px;
@@ -987,7 +987,7 @@ export default {
   gap: 12px;
   padding: 0 20px;
   height: 50px;
-  border-bottom: 1px solid #E6E6E6;
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 
@@ -996,24 +996,24 @@ export default {
   font-family: 'Montserrat', sans-serif;
   font-weight: 600;
   font-size: 16px;
-  color: #000000;
+  color: var(--text);
 }
 
 .trash-history-btn {
   padding: 4px 12px;
-  background: #fff;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 15px;
   font-family: 'Montserrat', sans-serif;
   font-size: 12px;
-  color: #333;
+  color: var(--text);
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .trash-history-btn:hover {
-  background: #f5f5f5;
-  border-color: #4F5BDF;
+  background: var(--surface-2);
+  border-color: var(--accent);
 }
 
 .trash-card__spacer {
@@ -1022,15 +1022,15 @@ export default {
 
 .trash-card__selected {
   font-size: 13px;
-  color: #A2A2A2;
+  color: var(--text-muted);
 }
 
 .trash-restore-btn {
   height: 25px;
   padding: 0 18px;
-  background: #4F5BDF;
-  border: 1px solid #4F5BDF;
-  color: #FFFFFF;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: var(--accent-contrast);
   border-radius: 50px;
   font-family: 'Montserrat', sans-serif;
   font-size: 13px;
@@ -1040,7 +1040,7 @@ export default {
 }
 
 .trash-restore-btn:hover:not(:disabled) {
-  background: #3a45b2;
+  background: var(--accent-hover);
 }
 
 .trash-restore-btn:disabled {
@@ -1069,7 +1069,7 @@ export default {
   padding: 60px 24px;
   text-align: center;
   font-family: 'Montserrat', sans-serif;
-  color: #A2A2A2;
+  color: var(--text-muted);
   font-size: 14px;
   display: flex;
   flex-direction: column;
@@ -1078,14 +1078,14 @@ export default {
 }
 
 .trash-state--error {
-  color: #FF6668;
+  color: var(--danger-text);
 }
 
 .trash-spinner {
   width: 28px;
   height: 28px;
-  border: 3px solid #E6E6E6;
-  border-top-color: #4F5BDF;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
   border-radius: 50%;
   animation: trash-spin 0.8s linear infinite;
 }
@@ -1106,7 +1106,7 @@ export default {
   font-weight: 500;
   font-size: 14px;
   line-height: 17px;
-  color: #A2A2A2;
+  color: var(--text-muted);
   white-space: nowrap;
   user-select: none;
 }
@@ -1124,7 +1124,7 @@ export default {
 }
 
 .trash-table__th--sortable:hover {
-  color: #333;
+  color: var(--text);
 }
 
 .trash-table__th--sortable:hover .trash-table__sort {
@@ -1132,7 +1132,7 @@ export default {
 }
 
 .trash-table__th--active {
-  color: #333;
+  color: var(--text);
 }
 
 .trash-table__sort {
@@ -1163,7 +1163,7 @@ export default {
 }
 
 .trash-table__row:hover {
-  background: #f8f9ff;
+  background: var(--accent-tint);
 }
 
 .trash-table__td {
@@ -1171,12 +1171,12 @@ export default {
   font-weight: 400;
   font-size: 14px;
   line-height: 17px;
-  color: #000000;
-  border-top: 1px solid #F0F0F0;
+  color: var(--text);
+  border-top: 1px solid var(--border);
 }
 
 .trash-table__td--muted {
-  color: #A2A2A2;
+  color: var(--text-muted);
 }
 
 .trash-table__td--actions {
@@ -1196,16 +1196,16 @@ export default {
 }
 
 .trash-badge--deleted {
-  background-color: #ffebee;
-  color: #c62828;
-  border-color: #ffcdd2;
+  background-color: var(--danger-bg);
+  color: var(--danger-text);
+  border-color: color-mix(in srgb, var(--danger) 30%, var(--surface));
 }
 
 .trash-check {
   width: 16px;
   height: 16px;
   cursor: pointer;
-  accent-color: #4F5BDF;
+  accent-color: var(--accent);
   display: block;
 }
 
@@ -1222,7 +1222,7 @@ export default {
 }
 
 .trash-icon-btn:hover {
-  background: #f0f0f0;
+  background: var(--border);
 }
 
 .trash-icon-btn img {

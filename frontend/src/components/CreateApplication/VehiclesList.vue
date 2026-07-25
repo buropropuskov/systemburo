@@ -343,8 +343,8 @@ export default {
 }
 
 .vehicles-badge {
-    background: #1976d2;
-    color: white;
+    background: var(--accent);
+    color: var(--accent-contrast);
     padding: 2px 6px;
     border-radius: 10px;
     font-size: 11px;
@@ -363,10 +363,10 @@ export default {
     flex: 1;
     min-height: 180px;
     overflow-y: auto;
-    background: #fff;
-    border: 1px solid #e0e0e0;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 20px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 1px 3px var(--shadow-drop);
     scrollbar-width: thin;
 }
 
@@ -410,10 +410,10 @@ export default {
     height: 40px;
     padding: 0 12px;
     box-sizing: border-box;
-    background: #f5f5f5;
-    border-bottom: 1px solid #e0e0e0;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
     font-weight: 500;
-    color: #666;
+    color: var(--text-muted);
     font-size: 13px;
     cursor: pointer;
     user-select: none;
@@ -435,7 +435,7 @@ export default {
 
 .vcol__head:hover:not(.vcol__head--actions) p,
 .vcol__head p.active-sort {
-    color: #333;
+    color: var(--text);
 }
 
 .sort-icon {
@@ -462,7 +462,7 @@ export default {
     box-sizing: border-box;
     line-height: 38px;
     font-size: 13px;
-    border-bottom: 1px solid #f5f5f5;
+    border-bottom: 1px solid var(--surface-2);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -474,7 +474,7 @@ export default {
 }
 
 .vcol__cell--muted {
-    color: #a2a2a2;
+    color: var(--text-muted);
     text-align: center;
 }
 
@@ -488,33 +488,33 @@ export default {
 }
 
 .vcol__cell--hover {
-    background: #f8f9fa;
+    background: var(--surface-2);
 }
 
 .vcol__cell--active {
-    background: #fff3cd;
+    background: var(--warning-bg);
 }
 
 .vcol__cell--active.vcol__cell--hover {
-    background: #ffe69b;
+    background: var(--warning);
 }
 
 /* --- Строковая раскладка (мобильные карточки) --- */
 .vehicles-table {
     width: 100%;
-    border: 1px solid #e0e0e0;
+    border: 1px solid var(--border);
     border-radius:20px;
     overflow: hidden;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 1px 3px var(--shadow-drop);
 }
 
 .table-header {
     display: flex;
-    background: #f5f5f5;
-    border-bottom: 1px solid #e0e0e0;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
     padding: 10px 12px;
     font-weight: 500;
-    color: #666;
+    color: var(--text-muted);
     font-size: 13px;
 }
 
@@ -529,13 +529,13 @@ export default {
 
 .header-col:hover,
 .header-col.active-sort {
-    color: #333;
+    color: var(--text);
 }
 
 .table-body {
     max-height: 180px;
     overflow-y: auto;
-    background: #fff;
+    background: var(--surface);
     scrollbar-width: none;
     -ms-overflow-style: none;
 }
@@ -547,7 +547,7 @@ export default {
 .table-row {
     display: flex;
     padding: 8px 12px;
-    border-bottom: 1px solid #f5f5f5;
+    border-bottom: 1px solid var(--surface-2);
     align-items: center;
     font-size: 13px;
     transition: background-color 0.2s ease;
@@ -558,15 +558,15 @@ export default {
 }
 
 .table-row:hover {
-    background: #f8f9fa;
+    background: var(--surface-2);
 }
 
 .table-row.has-active {
-    background-color: #fff3cd;
+    background-color: var(--warning-bg);
 }
 
 .table-row.has-active:hover {
-    background-color: #ffe69b;
+    background-color: var(--warning);
 }
 
 .header-col, .table-col {
@@ -613,15 +613,15 @@ export default {
 }
 
 .details-btn:hover {
-    background: #e3f2fd;
+    background: var(--info-bg);
 }
 
 .edit-btn:hover {
-    background: #e8f5e8;
+    background: var(--success-bg);
 }
 
 .delete-btn:hover {
-    background: #ffebee;
+    background: var(--danger-bg);
 }
 
 .details-icon, .edit-icon, .delete-icon {
@@ -632,12 +632,12 @@ export default {
 }
 
 .details-btn .details-icon {
-    color: #4a4a4a;
+    color: var(--text);
 }
 
 .details-btn:hover .details-icon {
     opacity: 1;
-    color: var(--color-primary, #4F5BDF);
+    color: var(--color-primary, var(--accent-text));
 }
 
 .edit-btn:hover .edit-icon {
@@ -651,14 +651,14 @@ export default {
 .no-vehicles {
     text-align: center;
     padding: 16px;
-    color: #666;
+    color: var(--text-muted);
     font-size: 13px;
     font-style: italic;
 }
 
 h4 {
     font-size: 16px;
-    color: #333;
+    color: var(--text);
     font-weight: 600;
     margin: 0;
 }
@@ -697,7 +697,7 @@ h4 {
     /* Подсветку уже заведённой машины возвращаем: карточный фон приходит
        из инфраструктуры с !important и иначе её съедает. */
     .table-row.rt-row.has-active {
-        background: #fff3cd !important;
+        background: var(--warning-bg) !important;
     }
 
     .table-col {
@@ -706,7 +706,7 @@ h4 {
     }
 
     .number-col {
-        color: #a2a2a2;
+        color: var(--text-muted);
         font-size: 12px;
     }
 
@@ -718,7 +718,7 @@ h4 {
     /* Марка уходит на вторую строку карточки. */
     .mark-col {
         flex-basis: 100%;
-        color: #666;
+        color: var(--text-muted);
         font-size: 13px;
     }
 

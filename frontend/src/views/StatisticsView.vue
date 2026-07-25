@@ -284,7 +284,7 @@ function onRefresh() {
 <style scoped>
 .statistics {
   border: 1px solid var(--color-border);
-  background: #fff;
+  background: var(--surface);
   border-radius: 35px;
   display: flex;
   flex-direction: column;
@@ -371,7 +371,7 @@ function onRefresh() {
 .period-preset--active,
 /* На активной кнопке hover не должен перекрашивать текст в синий — он сливается с подложкой. */
 .period-preset--active:hover {
-  color: #fff;
+  color: var(--accent-contrast);
 }
 
 /* Кнопка «Инструкция» в стиле проекта */
@@ -455,9 +455,9 @@ function onRefresh() {
 }
 
 .statistics__body::-webkit-scrollbar-thumb {
-  background: #e1e3f0;
+  background: var(--accent-tint);
   border-radius: var(--radius-pill);
-  border: 2px solid #fff;
+  border: 2px solid var(--surface);
 }
 
 .statistics__panel {
@@ -468,7 +468,7 @@ function onRefresh() {
 .management-title {
   font-size: 1.2em;
   font-weight: 600;
-  color: #000;
+  color: var(--text);
   margin: 0;
 }
 </style>

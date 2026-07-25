@@ -824,27 +824,27 @@ export default {
     cursor: pointer;
     transition: all 0.2s ease;
     min-width: 120px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     position: relative;
     overflow: hidden;
 }
 
 .confirm-btn, .accept-btn {
-    background: rgba(9, 136, 0, 1);
-    color: white;
+    background: var(--success);
+    color: var(--surface);
 }
 
 .confirm-btn:hover:not(:disabled), .accept-btn:hover:not(:disabled) {
-    background: #45b371;
+    background: var(--success);
 }
 
 .reject-btn {
-    background: #FF6668;
-    color: white;
+    background: var(--danger);
+    color: var(--surface);
 }
 
 .reject-btn:hover:not(:disabled) {
-    background: #ff4d4f;
+    background: color-mix(in srgb, var(--danger) 85%, var(--text));
 }
 
 .subtle-btn {
@@ -857,13 +857,13 @@ export default {
     transition: all 0.2s ease;
     min-width: 140px;
     background: transparent;
-    color: #a2a2a2;
-    border: 1px solid #e6e6e6;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
 }
 
 .subtle-btn:hover:not(:disabled) {
-    background: #f5f5f5;
-    color: #666;
+    background: var(--surface-2);
+    color: var(--text-muted);
 }
 
 .subtle-btn:disabled {
@@ -872,13 +872,13 @@ export default {
 }
 
 .revoke-approval-btn {
-    border-color: #f59e0b;
-    color: #f59e0b;
+    border-color: var(--warning);
+    color: var(--warning-text);
 }
 
 .revoke-approval-btn:hover:not(:disabled) {
-    background: #fef3c7;
-    color: #d97706;
+    background: var(--warning-bg);
+    color: var(--warning-text);
 }
 
 .vote-status-badge {
@@ -892,14 +892,14 @@ export default {
 }
 
 .vote-status-badge.vote-approved {
-    background: rgba(9, 136, 0, 0.1);
-    color: rgba(9, 136, 0, 1);
+    background: color-mix(in srgb, var(--success) 10%, var(--surface));
+    color: var(--success-text);
     border-color: rgba(9, 136, 0, 0.3);
 }
 
 .vote-status-badge.vote-rejected {
-    background: rgba(255, 102, 104, 0.1);
-    color: #FF6668;
+    background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+    color: var(--danger-text);
     border-color: rgba(255, 102, 104, 0.3);
 }
 
@@ -910,9 +910,9 @@ export default {
     font-weight: 500;
     min-width: 200px;
     text-align: center;
-    background: #f0f0f0;
-    color: #666;
-    border: 1px solid #e6e6e6;
+    background: var(--border);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
 }
 
 .blacklist-gate-hint {
@@ -922,8 +922,8 @@ export default {
     font-weight: 500;
     text-align: center;
     max-width: 240px;
-    background: rgba(245, 158, 11, 0.1);
-    color: #b45309;
+    background: color-mix(in srgb, var(--warning) 10%, var(--surface));
+    color: var(--warning-text);
     border: 1px solid rgba(245, 158, 11, 0.35);
     cursor: help;
 }
@@ -938,32 +938,32 @@ export default {
 }
 
 .status-in-work-badge {
-    background: rgba(79, 91, 223, 0.1);
-    color: #4F5BDF;
+    background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+    color: var(--accent-text);
     border: 1px solid rgba(79, 91, 223, 0.3);
 }
 
 .status-rejected-badge {
-    background: rgba(220, 38, 38, 0.1);
-    color: #dc2626;
+    background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+    color: var(--danger-text);
     border: 1px solid rgba(220, 38, 38, 0.3);
 }
 
 .status-approved-badge {
-    background: rgba(5, 150, 105, 0.1);
-    color: #059669;
+    background: color-mix(in srgb, var(--success) 10%, var(--surface));
+    color: var(--success-text);
     border: 1px solid rgba(5, 150, 105, 0.3);
 }
 
 .status-pending-badge {
-    background: rgba(217, 119, 6, 0.1);
-    color: #d97706;
+    background: color-mix(in srgb, var(--warning) 10%, var(--surface));
+    color: var(--warning-text);
     border: 1px solid rgba(217, 119, 6, 0.3);
 }
 
 .status-completed-badge {
-    background: rgba(5, 150, 105, 0.1);
-    color: #059669;
+    background: color-mix(in srgb, var(--success) 10%, var(--surface));
+    color: var(--success-text);
     border: 1px solid rgba(5, 150, 105, 0.3);
 }
 
@@ -981,15 +981,15 @@ export default {
     height: 16px;
     border: 2px solid rgba(255, 255, 255, 0.3);
     border-radius: 50%;
-    border-top-color: white;
+    border-top-color: var(--surface);
     animation: spin 0.8s linear infinite;
 }
 
 /* П.46: лоадер готовности кнопок стоит на светлом фоне (не внутри цветной кнопки),
    поэтому белый спиннер не виден - перекрашиваем в серый + primary. */
 .actions-ready-loader {
-    border-color: rgba(0, 0, 0, 0.15);
-    border-top-color: #4F5BDF;
+    border-color: var(--shadow-drop);
+    border-top-color: var(--accent);
 }
 
 @keyframes spin {

@@ -257,7 +257,7 @@ export default {
     padding-right: 62px;
     font-size: 15px;
     font-weight: 700;
-    color: #111;
+    color: var(--text);
     margin-bottom: 4px;
     word-break: break-word;
     cursor: pointer;
@@ -273,8 +273,8 @@ export default {
     line-height: 1;
     font-weight: 600;
     letter-spacing: 0.2px;
-    color: #856404;
-    background: #ffeeba;
+    color: var(--warning-text);
+    background: var(--warning-bg);
     padding: 3px 8px;
     border-radius: 999px;
 }
@@ -290,7 +290,7 @@ export default {
 .qi-author {
     font-size: 13px;
     font-weight: 500;
-    color: #555;
+    color: var(--text);
 }
 
 .qi-init {
@@ -321,7 +321,7 @@ export default {
     font-size: 11px;
     font-weight: 600;
     color: var(--color-primary);
-    background: var(--color-primary-tint, rgba(79, 91, 223, 0.08));
+    background: var(--color-primary-tint, color-mix(in srgb, var(--accent) 8%, var(--surface)));
     padding: 2px 9px;
     border-radius: 8px;
 }
@@ -330,7 +330,7 @@ export default {
     margin: 0 0 8px;
     font-size: 14px;
     line-height: 150%;
-    color: #222;
+    color: var(--text);
     white-space: pre-wrap;
     word-break: break-word;
 }
@@ -361,7 +361,7 @@ export default {
 .qi-thread {
     margin: 8px 0 0 14px;
     padding-left: 14px;
-    border-left: 2px solid #eef0ff;
+    border-left: 2px solid var(--accent-tint);
 }
 
 .qi-answer {
@@ -369,14 +369,14 @@ export default {
 }
 
 .qi-answer + .qi-answer {
-    border-top: 1px solid #f2f2f2;
+    border-top: 1px solid var(--surface-2);
 }
 
 .qi-answer-text {
     margin: 0;
     font-size: 13.5px;
     line-height: 150%;
-    color: #333;
+    color: var(--text);
     white-space: pre-wrap;
     word-break: break-word;
 }
@@ -411,7 +411,7 @@ export default {
     font-family: inherit;
     font-size: 12px;
     font-weight: 600;
-    color: #fff;
+    color: var(--accent-contrast);
     background: var(--color-primary);
     border: none;
     border-radius: var(--radius-pill, 999px);
@@ -421,7 +421,7 @@ export default {
 }
 
 .qi-reply-send:hover:not(:disabled) {
-    background: var(--color-primary-hover, #3d49c7);
+    background: var(--color-primary-hover, var(--accent-hover));
 }
 
 .qi-reply-send:disabled {

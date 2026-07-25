@@ -1059,7 +1059,7 @@ export default {
 .admin-settings__title {
   font-size: 16px;
   font-weight: 600;
-  color: #000;
+  color: var(--text);
   margin: 0;
 }
 
@@ -1072,8 +1072,8 @@ export default {
 .admin-settings__sidebar {
   width: 200px;
   flex-shrink: 0;
-  background: #fff;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 20px;
   overflow: hidden;
 }
@@ -1087,7 +1087,7 @@ export default {
   padding: 10px 16px;
   font-size: 13px;
   font-weight: 500;
-  color: #333;
+  color: var(--text);
   cursor: pointer;
   transition: all 0.2s ease;
   border-left: 3px solid transparent;
@@ -1095,25 +1095,25 @@ export default {
 }
 
 .sidebar-item:hover {
-  background: #f5f5f5;
+  background: var(--surface-2);
 }
 
 .sidebar-item--active {
-  background: #f0f1ff;
-  color: #4F5BDF;
-  border-left-color: #4F5BDF;
+  background: var(--accent-tint);
+  color: var(--accent-text);
+  border-left-color: var(--accent);
   font-weight: 600;
 }
 
 .sidebar-item + .sidebar-item {
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--border);
 }
 
 .admin-settings__content {
   flex: 1;
   min-width: 0;
-  background: #fff;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 20px;
   padding: 16px 20px;
 }
@@ -1130,10 +1130,10 @@ export default {
 .section-title {
   font-size: 14px;
   font-weight: 600;
-  color: #333;
+  color: var(--text);
   margin: 0 0 16px 0;
   padding-bottom: 8px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
 }
 
 .form-group {
@@ -1144,7 +1144,7 @@ export default {
   display: block;
   font-size: 12px;
   font-weight: 500;
-  color: #333;
+  color: var(--text);
   margin-bottom: 6px;
   font-family: 'Montserrat', sans-serif;
 }
@@ -1152,29 +1152,29 @@ export default {
 .form-input {
   width: 140px;
   padding: 6px 10px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   font-size: 13px;
   font-family: 'Montserrat', sans-serif;
-  color: #333;
+  color: var(--text);
   transition: border-color 0.2s;
   outline: none;
 }
 
 .form-input:focus {
-  border-color: #4F5BDF;
+  border-color: var(--accent);
 }
 
 .form-input:disabled {
-  background: #f9f9f9;
-  color: #999;
+  background: var(--surface-2);
+  color: var(--text-muted);
   cursor: not-allowed;
 }
 
 .form-hint {
   display: block;
   font-size: 11px;
-  color: #888;
+  color: var(--text-muted);
   margin-top: 4px;
 }
 
@@ -1187,20 +1187,20 @@ export default {
   margin: 0 0 8px;
   font-size: 16px;
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .bureau-schedule {
   margin-top: 24px;
   padding-top: 20px;
-  border-top: 1px solid #e6e6e6;
+  border-top: 1px solid var(--border);
 }
 
 .form-range {
   width: 100%;
   max-width: 300px;
   margin-top: 4px;
-  accent-color: #4F5BDF;
+  accent-color: var(--accent);
   cursor: pointer;
 }
 
@@ -1209,7 +1209,7 @@ export default {
   justify-content: space-between;
   max-width: 300px;
   font-size: 11px;
-  color: #888;
+  color: var(--text-muted);
   margin-top: 2px;
 }
 
@@ -1225,26 +1225,26 @@ export default {
   gap: 6px;
   cursor: pointer;
   padding: 4px 10px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 50px;
   transition: all 0.2s;
   font-size: 12px;
 }
 
 .checkbox-label:hover {
-  border-color: #4F5BDF;
-  background: #fafaff;
+  border-color: var(--accent);
+  background: var(--accent-tint);
 }
 
 .checkbox-label input[type="checkbox"] {
-  accent-color: #4F5BDF;
+  accent-color: var(--accent);
   cursor: pointer;
 }
 
 .checkbox-text {
   font-family: 'Montserrat', sans-serif;
   font-size: 12px;
-  color: #333;
+  color: var(--text);
   white-space: nowrap;
 }
 
@@ -1259,7 +1259,7 @@ export default {
 .switch-text {
   font-size: 12px;
   font-weight: 500;
-  color: #333;
+  color: var(--text);
   font-family: 'Montserrat', sans-serif;
 }
 
@@ -1267,7 +1267,7 @@ export default {
   position: relative;
   width: 40px;
   height: 22px;
-  background: #ccc;
+  background: var(--border);
   border-radius: 11px;
   transition: background 0.2s ease;
   flex-shrink: 0;
@@ -1279,7 +1279,7 @@ export default {
 }
 
 .switch--on {
-  background: #4F5BDF;
+  background: var(--accent);
 }
 
 .switch__thumb {
@@ -1288,10 +1288,10 @@ export default {
   left: 2px;
   width: 18px;
   height: 18px;
-  background: #fff;
+  background: var(--surface);
   border-radius: 50%;
   transition: transform 0.2s ease;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 1px 3px var(--shadow-drop);
 }
 
 .switch--on .switch__thumb {
@@ -1316,13 +1316,13 @@ export default {
 }
 
 .btn--primary {
-  background: #4F5BDF;
-  color: #fff;
-  border-color: #4F5BDF;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
 }
 
 .btn--primary:hover:not(:disabled) {
-  background: #3d49c7;
+  background: var(--accent-hover);
 }
 
 .btn--primary:disabled {
@@ -1331,24 +1331,24 @@ export default {
 }
 
 .btn--ghost {
-  background: #fff;
-  color: #4F5BDF;
-  border-color: #4F5BDF;
+  background: var(--surface);
+  color: var(--accent-text);
+  border-color: var(--accent);
   text-decoration: none;
 }
 
 .btn--ghost:hover:not(:disabled):not(.btn--disabled) {
-  background: #f0f1ff;
+  background: var(--accent-tint);
 }
 
 .btn--danger {
-  background: #fff;
-  color: #dc3545;
-  border-color: #dc3545;
+  background: var(--surface);
+  color: var(--danger-text);
+  border-color: var(--danger);
 }
 
 .btn--danger:hover:not(:disabled) {
-  background: #fdf0f1;
+  background: var(--danger-bg);
 }
 
 .btn--danger:disabled {
@@ -1365,14 +1365,14 @@ export default {
 /* Обработка данных */
 .dp-desc {
   font-size: 12px;
-  color: #555;
+  color: var(--text);
   line-height: 1.5;
   margin: 0 0 16px 0;
 }
 
 .dp-desc code {
-  background: #f0f1ff;
-  color: #4F5BDF;
+  background: var(--accent-tint);
+  color: var(--accent-text);
   padding: 1px 6px;
   border-radius: var(--radius-sm);
   font-size: 11px;
@@ -1385,7 +1385,7 @@ export default {
   gap: 16px;
   flex-wrap: wrap;
   padding: 14px 16px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
 }
 
@@ -1399,13 +1399,13 @@ export default {
 .dp-card__name {
   font-size: 13px;
   font-weight: 600;
-  color: #333;
+  color: var(--text);
   word-break: break-word;
 }
 
 .dp-card__meta {
   font-size: 11px;
-  color: #888;
+  color: var(--text-muted);
 }
 
 .dp-card__actions {
@@ -1436,8 +1436,8 @@ export default {
 .spinner {
   width: 24px;
   height: 24px;
-  border: 2px solid #e6e6e6;
-  border-top-color: #4F5BDF;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
   border-radius: 50%;
   animation: spinner-rotate 1s linear infinite;
 }
@@ -1452,7 +1452,7 @@ export default {
 }
 
 .error-message {
-  color: #dc3545;
+  color: var(--danger-text);
   font-size: 13px;
   margin: 0 0 12px 0;
 }

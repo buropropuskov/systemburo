@@ -152,8 +152,8 @@ export default {
 }
 
 .items-badge {
-    background: #1976d2;
-    color: white;
+    background: var(--accent);
+    color: var(--accent-contrast);
     padding: 2px 6px;
     border-radius: 10px;
     font-size: 11px;
@@ -166,19 +166,19 @@ export default {
 /* Items table styles */
 .items-table {
     width: 100%;
-    border: 1px solid #e0e0e0;
+    border: 1px solid var(--border);
     border-radius: 12px;
     overflow: hidden;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 1px 3px var(--shadow-drop);
 }
 
 .table-header {
     display: flex;
-    background: #f5f5f5;
-    border-bottom: 1px solid #e0e0e0;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
     padding: 10px 12px;
     font-weight: 500;
-    color: #666;
+    color: var(--text-muted);
     font-size: 13px;
 }
 
@@ -193,7 +193,7 @@ export default {
 
 .header-col:hover,
 .header-col.active-sort {
-    color: #333;
+    color: var(--text);
 }
 
 .header-col:hover .sort-icon,
@@ -217,7 +217,7 @@ export default {
 .table-body {
     max-height: 300px;
     overflow-y: auto;
-    background: #fff;
+    background: var(--surface);
     position: relative;
 }
 
@@ -263,7 +263,7 @@ export default {
 .table-row {
     display: flex;
     padding: 8px 12px;
-    border-bottom: 1px solid #f5f5f5;
+    border-bottom: 1px solid var(--surface-2);
     align-items: center;
     font-size: 13px;
     transition: all 0.2s ease;
@@ -275,7 +275,7 @@ export default {
 }
 
 .table-row:hover {
-    background: #f8f9fa;
+    background: var(--surface-2);
 }
 
 .header-col, .table-col {
@@ -317,11 +317,11 @@ export default {
 }
 
 .edit-btn:hover {
-    background: #e8f5e8;
+    background: var(--success-bg);
 }
 
 .delete-btn:hover {
-    background: #ffebee;
+    background: var(--danger-bg);
 }
 
 .edit-icon, .delete-icon {
@@ -342,14 +342,14 @@ export default {
 .no-items {
     text-align: center;
     padding: 16px;
-    color: #666;
+    color: var(--text-muted);
     font-size: 13px;
     font-style: italic;
 }
 
 h4 {
     font-size: 16px;
-    color: #333;
+    color: var(--text);
     font-weight: 600;
     margin: 0;
 }
@@ -360,16 +360,16 @@ h4 {
 }
 
 .table-body::-webkit-scrollbar-track {
-    background: #f1f1f1;
+    background: var(--surface-2);
 }
 
 .table-body::-webkit-scrollbar-thumb {
-    background: #c1c1c1;
+    background: var(--border);
     border-radius: 2px;
 }
 
 .table-body::-webkit-scrollbar-thumb:hover {
-    background: #a8a8a8;
+    background: var(--text-muted);
 }
 /* Мобилка: строки становятся карточками (rt-* из responsive-tables.css). Подписи
    полей не выводим - решение по эпику: карточки без лейблов, как в Центре; голое
@@ -410,7 +410,7 @@ h4 {
     }
 
     .number-col {
-        color: #a2a2a2;
+        color: var(--text-muted);
         font-size: 12px;
     }
 
@@ -421,7 +421,7 @@ h4 {
 
     .quantity-col {
         flex-basis: 100%;
-        color: #666;
+        color: var(--text-muted);
         font-size: 13px;
     }
 

@@ -2146,7 +2146,7 @@ export default {
   font-size: 10px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--nav-text-faint);
+  color: var(--nav-text-muted);
   margin: 14px 0 6px 24px;
 }
 

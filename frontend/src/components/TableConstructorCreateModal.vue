@@ -347,7 +347,7 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -359,22 +359,22 @@ export default {
 
 @keyframes overlayAppear {
   from {
-    background: rgba(0, 0, 0, 0);
+    background: var(--overlay);
     backdrop-filter: blur(0px);
   }
   to {
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--overlay);
     backdrop-filter: blur(0.1px);
   }
 }
 
 .modal-content {
-  background: #fff;
+  background: var(--surface);
   border-radius: 35px;
   padding: 0;
   width: 420px;
   max-width: 90vw;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 20px 60px var(--shadow-drop);
   animation: modalAppear 0.3s ease-out;
   overflow: hidden;
 }
@@ -400,14 +400,14 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 16px 20px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
 }
 
 .modal-header h3 {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  color: #333;
+  color: var(--text);
 }
 
 .modal-close {
@@ -423,7 +423,7 @@ export default {
 }
 
 .modal-close:hover {
-  background-color: #f5f5f5;
+  background-color: var(--surface-2);
 }
 
 .modal-body-horizontal {
@@ -434,8 +434,8 @@ export default {
 .modal-main-info {
   width: 25%;
   padding: 20px;
-  border-right: 1px solid #e6e6e6;
-  background: #fafafa;
+  border-right: 1px solid var(--border);
+  background: var(--surface-2);
   /* visible нужен чтобы выпадающий список "Тип таблицы" не клиппился
      scroll-контекстом панели и был кликабелен. */
   overflow: visible;
@@ -458,50 +458,50 @@ export default {
 .form-label-compact {
   font-size: 12px;
   font-weight: 500;
-  color: #555;
+  color: var(--text);
 }
 
 .input-compact {
   padding: 8px 10px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 15px;
   font-size: 13px;
-  background: #fff;
+  background: var(--surface);
   transition: border-color 0.2s;
   height: 35px;
 }
 
 .input-compact:focus {
-  border-color: #4F5BDF;
+  border-color: var(--accent);
   outline: none;
 }
 
 .warning-textarea {
   width: 100%;
   padding: 8px 10px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 15px;
   font-size: 13px;
   font-family: inherit;
-  background: #fff;
+  background: var(--surface);
   transition: border-color 0.2s;
   resize: vertical;
   box-sizing: border-box;
 }
 .warning-textarea:focus {
-  border-color: #4F5BDF;
+  border-color: var(--accent);
   outline: none;
 }
 
 .form-hint {
   font-size: 11px;
-  color: #999;
+  color: var(--text-muted);
   margin-top: 2px;
 }
 
 .form-error {
   font-size: 11px;
-  color: #ef4444;
+  color: var(--danger-text);
   margin-top: 2px;
 }
 
@@ -515,9 +515,9 @@ export default {
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 15px;
-  background: white;
+  background: var(--surface);
   cursor: pointer;
   font-size: 13px;
   height: 35px;
@@ -525,12 +525,12 @@ export default {
 }
 
 .select-header:hover {
-  border-color: #ccc;
-  background: #f8f9fa;
+  border-color: var(--border);
+  background: var(--surface-2);
 }
 
 .select-value {
-  color: #000;
+  color: var(--text);
 }
 
 .select-arrow {
@@ -549,10 +549,10 @@ export default {
   top: 100%;
   left: 0;
   right: 0;
-  background: white;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 12px var(--shadow-drop);
   z-index: 10;
   margin-top: 4px;
   overflow: hidden;
@@ -563,7 +563,7 @@ export default {
   font-size: 13px;
   cursor: pointer;
   transition: background 0.2s;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
 }
 
 .select-option:last-child {
@@ -571,13 +571,13 @@ export default {
 }
 
 .select-option:hover {
-  background: #f5f7ff;
-  color: #4F5BDF;
+  background: var(--accent-tint);
+  color: var(--accent-text);
 }
 
 .select-option.active {
-  background: #f0f3ff;
-  color: #4F5BDF;
+  background: var(--accent-tint);
+  color: var(--accent-text);
   font-weight: 500;
 }
 
@@ -601,15 +601,15 @@ export default {
 
 .cells-header-compact {
   padding: 16px 20px;
-  border-bottom: 1px solid #e6e6e6;
-  background: #fff;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
 }
 
 .cells-title-compact {
   margin: 0;
   font-size: 14px;
   font-weight: 600;
-  color: #333;
+  color: var(--text);
 }
 
 .cells-scroll-container {
@@ -635,9 +635,9 @@ export default {
    и до создания таблицы, и при редактировании после. */
 .checkbox-group {
   padding: 12px;
-  background: #f8f9ff;
+  background: var(--accent-tint);
   border-radius: 20px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
 }
 
 .checkbox-label {
@@ -651,19 +651,19 @@ export default {
   width: 16px;
   height: 16px;
   cursor: pointer;
-  accent-color: #4F5BDF;
+  accent-color: var(--accent);
 }
 
 .checkbox-text {
   font-size: 13px;
   font-weight: 500;
-  color: #333;
+  color: var(--text);
 }
 
 .field-hint {
   margin: 4px 0 0;
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   line-height: 1.5;
 }
 
@@ -672,7 +672,7 @@ export default {
   justify-content: flex-end;
   gap: 10px;
   padding: 16px 20px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--border);
 }
 
 .modal-btn {
@@ -687,22 +687,22 @@ export default {
 }
 
 .modal-btn--cancel {
-  background: #f8f9fa;
-  color: #666;
-  border: 1px solid #e0e0e0;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
 }
 
 .modal-btn--cancel:hover {
-  background: #e9ecef;
+  background: var(--accent-tint);
 }
 
 .modal-btn--confirm {
-  background: #4F5BDF;
-  color: white;
+  background: var(--accent);
+  color: var(--accent-contrast);
 }
 
 .modal-btn--confirm:hover:not(:disabled) {
-  background: #3a45b2;
+  background: var(--accent-hover);
 }
 
 /* Анимации */
@@ -728,7 +728,7 @@ export default {
 
 .modal-fade-enter-from .modal-overlay,
 .modal-fade-leave-to .modal-overlay {
-  background: rgba(0, 0, 0, 0);
+  background: transparent;
   backdrop-filter: blur(0px);
 }
 
@@ -744,17 +744,17 @@ export default {
 }
 
 .cells-scroll-container::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: var(--surface-2);
   border-radius: 3px;
 }
 
 .cells-scroll-container::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
+  background: var(--border);
   border-radius: 3px;
 }
 
 .cells-scroll-container::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+  background: var(--text-muted);
 }
 
 @media (max-width: 768px) {
@@ -770,7 +770,7 @@ export default {
 
   .modal-main-info {
     border-right: none;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
   }
 }
 </style>

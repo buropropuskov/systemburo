@@ -212,7 +212,7 @@ export default {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--overlay);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -222,7 +222,7 @@ export default {
 }
 
 .modal-content {
-    background: white;
+    background: var(--surface);
     border-radius: 20px;
     padding: 0;
     width: 500px;
@@ -236,7 +236,7 @@ export default {
     justify-content: space-between;
     align-items: flex-start;
     padding: 15px;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
 }
 
 .modal-header__top {
@@ -249,7 +249,7 @@ export default {
 
 .modal-header h3 {
     margin: 0;
-    color: #333;
+    color: var(--text);
     font-size: 18px;
 }
 
@@ -258,7 +258,7 @@ export default {
     border: none;
     font-size: 24px;
     cursor: pointer;
-    color: #a2a2a2;
+    color: var(--text-muted);
     padding: 0;
     width: 30px;
     height: 30px;
@@ -269,7 +269,7 @@ export default {
 }
 
 .modal-close:hover {
-    color: #333;
+    color: var(--text);
 }
 
 .modal-body {
@@ -285,7 +285,7 @@ export default {
 .binding-description {
     font-size: 14px;
     line-height: 1.5;
-    color: #666;
+    color: var(--text-muted);
     margin-bottom: 20px;
     text-align: left;
 }
@@ -293,7 +293,7 @@ export default {
 .section-title {
     font-size: 14px;
     font-weight: 600;
-    color: #333;
+    color: var(--text);
     margin-bottom: 10px;
 }
 
@@ -312,19 +312,19 @@ export default {
     justify-content: space-between;
     align-items: center;
     padding: 12px 15px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     border-radius: 10px;
     transition: all 0.2s;
     cursor: pointer;
 }
 
 .car-item:hover {
-    border-color: #4F5BDF;
+    border-color: var(--accent);
 }
 
 .car-item--shared {
-    background: #f8f9ff;
-    border-color: #4F5BDF;
+    background: var(--accent-tint);
+    border-color: var(--accent);
 }
 
 .car-selector {
@@ -342,15 +342,15 @@ export default {
 .checkbox {
     width: 18px;
     height: 18px;
-    border: 2px solid #e6e6e6;
+    border: 2px solid var(--border);
     border-radius: 4px;
     transition: all 0.2s;
     position: relative;
 }
 
 .checkbox--checked {
-    background: #4F5BDF;
-    border-color: #4F5BDF;
+    background: var(--accent);
+    border-color: var(--accent);
 }
 
 .checkbox--checked::after {
@@ -359,7 +359,7 @@ export default {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    color: white;
+    color: var(--accent-contrast);
     font-size: 12px;
     font-weight: bold;
 }
@@ -372,12 +372,12 @@ export default {
 
 .car-number {
     font-weight: 600;
-    color: #333;
+    color: var(--text);
     font-size: 14px;
 }
 
 .car-mark {
-    color: #666;
+    color: var(--text-muted);
     font-size: 13px;
 }
 
@@ -387,14 +387,14 @@ export default {
 }
 
 .status-shared {
-    color: #4F5BDF;
+    color: var(--accent-text);
     display: flex;
     align-items: center;
     gap: 5px;
 }
 
 .status-private {
-    color: #666;
+    color: var(--text-muted);
     display: flex;
     align-items: center;
     gap: 5px;
@@ -407,7 +407,7 @@ export default {
 .binding-options-section {
     margin-bottom: 20px;
     padding-top: 20px;
-    border-top: 1px solid #e6e6e6;
+    border-top: 1px solid var(--border);
 }
 
 .binding-options {
@@ -432,7 +432,7 @@ export default {
 }
 
 .option-text {
-    color: #333;
+    color: var(--text);
 }
 
 .warning-section {
@@ -442,7 +442,7 @@ export default {
 .warning-text {
     font-size: 11px;
     line-height: 1.5;
-    color: #666;
+    color: var(--text-muted);
     margin: 0;
     text-align: left;
 }
@@ -452,13 +452,13 @@ export default {
     justify-content: flex-end;
     gap: 12px;
     padding-top: 20px;
-    border-top: 1px solid #e6e6e6;
+    border-top: 1px solid var(--border);
 }
 
 .cancel-btn {
-    background: white;
-    color: #666;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
     border-radius: 12px;
     padding: 10px 20px;
     font-size: 14px;
@@ -467,13 +467,13 @@ export default {
 }
 
 .cancel-btn:hover {
-    background: #f5f5f5;
-    border-color: #ccc;
+    background: var(--surface-2);
+    border-color: var(--border);
 }
 
 .confirm-btn {
-    background: #4F5BDF;
-    color: white;
+    background: var(--accent);
+    color: var(--accent-contrast);
     border: none;
     border-radius: 12px;
     padding: 10px 20px;
@@ -483,15 +483,15 @@ export default {
 }
 
 .confirm-btn:hover {
-    background: #3a45c0;
+    background: var(--accent-hover);
 }
 
 .blue {
-    color: #4F5BDF;
+    color: var(--accent-text);
 }
 
 .red {
-    color: #ff4444;
+    color: var(--danger-text);
 }
 
 @media (max-width: 768px) {
@@ -524,7 +524,7 @@ export default {
     width: 40px;
     height: 4px;
     border-radius: 2px;
-    background: #d5d5d5;
+    background: var(--border);
     margin: 10px auto 2px;
     flex-shrink: 0;
 }

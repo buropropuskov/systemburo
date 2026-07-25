@@ -232,7 +232,7 @@ watch(
   margin: 0;
   font-size: 13px;
   line-height: 1.4;
-  color: var(--color-text-secondary, #666);
+  color: var(--color-text-secondary, var(--text-muted));
 }
 
 .fact-pass__field {
@@ -244,11 +244,11 @@ watch(
 .fact-pass__label {
   font-size: 14px;
   font-weight: 600;
-  color: var(--color-text-primary, #1a1a1a);
+  color: var(--color-text-primary, var(--text));
 }
 
 .fact-pass__req {
-  color: var(--color-danger, #d73a4a);
+  color: var(--color-danger, var(--danger-text));
 }
 
 /* Ввод номера 1:1 как в VehicleForm: один bordered-контейнер (radius 15) с
@@ -258,10 +258,10 @@ watch(
   min-width: 202px;
   height: 40px;
   display: flex;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 15px;
   overflow: hidden;
-  background: #fff;
+  background: var(--surface);
 }
 
 .fpm-cell {
@@ -277,28 +277,28 @@ watch(
 }
 
 .fpm-cell:not(:last-child) {
-  border-right: 1px solid #e6e6e6;
+  border-right: 1px solid var(--border);
 }
 
 .fpm-cell::placeholder {
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 12px;
 }
 
 .fpm-cell:focus {
-  background-color: #f8f8f8;
+  background-color: var(--surface-2);
 }
 
 .fact-pass__hint {
   margin: 0;
   font-size: 13px;
-  color: var(--color-text-secondary, #888);
+  color: var(--color-text-secondary, var(--text-muted));
 }
 
 .fact-pass__error {
   margin: 0;
   font-size: 13px;
-  color: var(--color-danger, #d73a4a);
+  color: var(--color-danger, var(--danger-text));
 }
 
 .fact-pass__actions {

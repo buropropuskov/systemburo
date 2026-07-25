@@ -97,29 +97,29 @@ function onInput(event) {
 .password-input__field {
   width: 100%;
   padding: 10px 38px 10px 12px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   font-size: 14px;
   font-family: inherit;
-  background: #fff;
+  background: var(--surface);
   color: inherit;
   transition: border-color 0.2s ease;
   box-sizing: border-box;
 }
 
 .password-input__field:focus {
-  border-color: var(--color-primary, #4F5BDF);
+  border-color: var(--color-primary, var(--accent));
   outline: none;
 }
 
 .password-input__field:disabled {
-  background: #f7f7f9;
-  color: #6b7280;
+  background: var(--accent-tint);
+  color: var(--text-muted);
   cursor: not-allowed;
 }
 
 .password-input__field::placeholder {
-  color: #9aa0a6;
+  color: var(--text-muted);
 }
 
 .password-input__toggle {
@@ -135,15 +135,15 @@ function onInput(event) {
   padding: 0;
   border: none;
   background: transparent;
-  color: #6e7280;
+  color: var(--text-muted);
   cursor: pointer;
   border-radius: 6px;
   transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .password-input__toggle:hover:not(:disabled) {
-  background: #eef0ff;
-  color: var(--color-primary, #4F5BDF);
+  background: var(--accent-tint);
+  color: var(--color-primary, var(--accent-text));
 }
 
 .password-input__toggle:focus-visible {

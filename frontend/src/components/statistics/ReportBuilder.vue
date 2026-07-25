@@ -747,7 +747,7 @@ function run() {
   height: 24px;
   border-radius: 50%;
   background: var(--color-primary);
-  color: #fff;
+  color: var(--accent-contrast);
   font-size: 13px;
   font-weight: 700;
   display: grid;
@@ -793,14 +793,14 @@ function run() {
   padding: 12px 14px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: #fff;
+  background: var(--surface);
   cursor: pointer;
   transition: border-color 0.18s ease, background 0.18s ease;
 }
 
 .rb__metric:hover {
-  border-color: #c9cdf0;
-  background: #fcfcff;
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--surface));
+  background: var(--accent-tint);
 }
 
 .rb__metric--on {
@@ -821,10 +821,10 @@ function run() {
   margin-top: 1px;
   border: 2px solid var(--color-border);
   border-radius: 6px;
-  background: #fff;
+  background: var(--surface);
   display: grid;
   place-items: center;
-  color: #fff;
+  color: var(--accent-contrast);
   transition: background 0.18s ease, border-color 0.18s ease;
 }
 
@@ -876,7 +876,7 @@ function run() {
   padding: 10px 12px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: #fff;
+  background: var(--surface);
   font-size: 13px;
   color: var(--color-text);
   cursor: pointer;
@@ -884,7 +884,7 @@ function run() {
 }
 
 .rb__dim:hover {
-  border-color: #c9cdf0;
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--surface));
 }
 
 .rb__dim--on {
@@ -963,7 +963,7 @@ function run() {
 .rb__pill {
   padding: 5px 13px;
   border: 1px solid var(--color-border);
-  background: #fff;
+  background: var(--surface);
   border-radius: var(--radius-pill);
   font-size: 13px;
   font-family: inherit;
@@ -978,7 +978,7 @@ function run() {
 
 .rb__pill--on {
   background: var(--color-primary);
-  color: #fff;
+  color: var(--accent-contrast);
   border-color: var(--color-primary);
 }
 
@@ -1051,16 +1051,16 @@ function run() {
   padding: 8px 10px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm, 10px);
-  background: #fff;
+  background: var(--surface);
 }
 
 .rb__skel-col--dim {
   background: var(--color-bg);
-  border-color: #d7daf0;
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--surface));
 }
 
 .rb__skel-col--metric {
-  border-color: #c9cdf0;
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--surface));
   background: var(--color-primary-tint);
 }
 
@@ -1068,7 +1068,7 @@ function run() {
 .rb__skel-col--pivot {
   border-style: dashed;
   border-color: var(--color-primary);
-  background: #fff;
+  background: var(--surface);
 }
 
 .rb__skel-head {
@@ -1098,7 +1098,7 @@ function run() {
 }
 
 .rb__skel-col--metric .rb__skel-cell {
-  background: #c9cdf0;
+  background: var(--accent);
 }
 
 .rb__pivot-label {

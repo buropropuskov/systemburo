@@ -41,7 +41,7 @@ export default {
 
 <style scoped>
 .skeleton-card {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   padding: var(--spacing-md);

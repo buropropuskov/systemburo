@@ -113,8 +113,8 @@ export default {
 }
 
 .blacklist-card {
-  background: #fff;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg, 20px);
   overflow: hidden;
 }

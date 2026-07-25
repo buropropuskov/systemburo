@@ -512,9 +512,9 @@ export default {
 .date-field {
     width: 200px;
     height: 35px;
-    background-color: #FFF;
+    background-color: var(--surface);
     border-radius: var(--radius-md);
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     padding: 0 10px;
     display: flex;
     align-items: center;
@@ -526,12 +526,12 @@ export default {
 }
 
 .date-field:hover {
-    border-color: #c5c5c5;
+    border-color: var(--border);
 }
 
 .select-text {
     font-size: 13px;
-    color: #000;
+    color: var(--text);
     flex: 1;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -574,12 +574,12 @@ export default {
     top: calc(100% + 5px);
     left: 0;
     width: 320px;
-    background: white;
-    border: 1px solid #e6e6e6;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 10px;
     padding: 15px;
     z-index: 1001;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 12px var(--shadow-drop);
 }
 
 .datepicker-header {
@@ -593,7 +593,7 @@ export default {
     margin: 0;
     font-size: 14px;
     font-weight: 600;
-    color: #333;
+    color: var(--text);
 }
 
 .datepicker-close {
@@ -601,7 +601,7 @@ export default {
     border: none;
     font-size: 20px;
     cursor: pointer;
-    color: #a2a2a2;
+    color: var(--text-muted);
     padding: 0;
     width: 24px;
     height: 24px;
@@ -612,7 +612,7 @@ export default {
 }
 
 .datepicker-close:hover {
-    color: #333;
+    color: var(--text);
 }
 
 .quick-buttons {
@@ -624,13 +624,13 @@ export default {
 
 .quick-btn {
     padding: 6px 8px;
-    border: 1px solid #e6e6e6;
-    background: white;
+    border: 1px solid var(--border);
+    background: var(--surface);
     border-radius: 6px;
     cursor: pointer;
     font-size: 11px;
     transition: all 0.2s;
-    color: #333;
+    color: var(--text);
     height: 28px;
     white-space: nowrap;
     overflow: hidden;
@@ -638,8 +638,8 @@ export default {
 }
 
 .quick-btn:hover {
-    background: #f5f5f5;
-    border-color: #c5c5c5;
+    background: var(--surface-2);
+    border-color: var(--border);
 }
 
 .date-range-section {
@@ -657,24 +657,24 @@ export default {
 
 .date-input-group label {
     font-size: 12px;
-    color: #666;
+    color: var(--text-muted);
     font-weight: 500;
 }
 
 .date-input {
     padding: 8px 10px;
-    border: 1px solid #e6e6e6;
+    border: 1px solid var(--border);
     border-radius: var(--radius-md);
     font-size: 13px;
     outline: none;
     height: 32px;
-    background: #fafafa;
+    background: var(--surface-2);
     transition: all 0.2s;
 }
 
 .date-input:focus {
-    border-color: #4F5BDF;
-    background: white;
+    border-color: var(--accent);
+    background: var(--surface);
     box-shadow: 0 0 0 2px rgba(79, 91, 223, 0.1);
 }
 
@@ -694,21 +694,21 @@ export default {
     border: none;
     font-size: 16px;
     cursor: pointer;
-    color: #666;
+    color: var(--text-muted);
     padding: 4px 8px;
     border-radius: 4px;
     transition: all 0.2s;
 }
 
 .calendar-nav-btn:hover {
-    background: #f5f5f5;
-    color: #333;
+    background: var(--surface-2);
+    color: var(--text);
 }
 
 .current-month {
     font-size: 14px;
     font-weight: 600;
-    color: #333;
+    color: var(--text);
 }
 
 .calendar-weekdays {
@@ -721,7 +721,7 @@ export default {
 .weekday {
     text-align: center;
     font-size: 11px;
-    color: #999;
+    color: var(--text-muted);
     font-weight: 500;
     padding: 4px 0;
 }
@@ -741,34 +741,34 @@ export default {
     cursor: pointer;
     border-radius: 6px;
     transition: all 0.2s;
-    color: #333;
+    color: var(--text);
 }
 
 .calendar-day:hover:not(.other-month) {
-    background: #f0f2ff;
-    color: #4F5BDF;
+    background: var(--accent-tint);
+    color: var(--accent-text);
 }
 
 .calendar-day.other-month {
-    color: #ccc;
+    color: var(--text-muted);
     cursor: default;
 }
 
 .calendar-day.today {
-    background: #e6e6ff;
-    color: #4F5BDF;
+    background: var(--accent-tint);
+    color: var(--accent-text);
     font-weight: 600;
 }
 
 .calendar-day.selected {
-    background: #4F5BDF;
-    color: white;
+    background: var(--accent);
+    color: var(--accent-contrast);
     font-weight: 600;
 }
 
 .calendar-day.in-range {
-    background: #f0f2ff;
-    color: #4F5BDF;
+    background: var(--accent-tint);
+    color: var(--accent-text);
 }
 
 .datepicker-actions {
@@ -789,22 +789,22 @@ export default {
 }
 
 .apply-btn {
-    background: #4F5BDF;
-    color: white;
+    background: var(--accent);
+    color: var(--accent-contrast);
 }
 
 .apply-btn:hover {
-    background: #3a45c0;
+    background: var(--accent-hover);
 }
 
 .clear-btn {
-    background: #f5f5f5;
-    color: #666;
+    background: var(--surface-2);
+    color: var(--text-muted);
 }
 
 .clear-btn:hover {
-    background: #e5e5e5;
-    color: #333;
+    background: var(--border);
+    color: var(--text);
 }
 
 /* Адаптивность */

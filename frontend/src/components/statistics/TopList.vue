@@ -88,7 +88,7 @@ function fmt(val) {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   padding: 18px 20px;
-  background: #fff;
+  background: var(--surface);
 }
 
 .top__head {

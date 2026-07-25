@@ -265,7 +265,7 @@ export default {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  color: #1a1a1a;
+  color: var(--text);
 }
 .err500__grid {
   position: fixed;
@@ -292,7 +292,7 @@ export default {
   font-weight: 900;
   font-size: clamp(400px, calc(var(--app-vh, 1vh) * 82), 900px);
   line-height: 0.78;
-  color: #4F5BDF;
+  color: var(--accent-text);
   opacity: 0.08;
   letter-spacing: -0.08em;
   white-space: nowrap;
@@ -317,8 +317,8 @@ export default {
   gap: 10px;
   padding: 8px 16px;
   border-radius: 999px;
-  background: #fee2e2;
-  color: #dc2626;
+  background: var(--danger-bg);
+  color: var(--danger-text);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 2px;
@@ -329,7 +329,7 @@ export default {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #dc2626;
+  background: var(--danger);
   animation: err500_pulse 1.5s ease-in-out infinite;
 }
 @keyframes err500_pulse {
@@ -353,7 +353,7 @@ export default {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 4px;
-  color: #dc2626;
+  color: var(--danger-text);
   text-transform: uppercase;
   margin-bottom: 24px;
 }
@@ -361,7 +361,7 @@ export default {
   content: '';
   width: 36px;
   height: 2px;
-  background: #dc2626;
+  background: var(--danger);
 }
 .err500__title {
   font-family: 'Montserrat', sans-serif;
@@ -374,13 +374,13 @@ export default {
 }
 .err500__title em {
   font-style: normal;
-  color: #4F5BDF;
+  color: var(--accent-text);
   font-weight: 800;
 }
 .err500__lede {
   font-size: 17px;
   line-height: 1.6;
-  color: #6b7280;
+  color: var(--text-muted);
   margin: 0 0 36px;
   max-width: 540px;
 }
@@ -405,27 +405,27 @@ export default {
   gap: 10px;
 }
 .err500__btn--primary {
-  background: #4F5BDF;
-  color: #fff;
-  border-color: #4F5BDF;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
 }
 .err500__btn--primary:hover:not(:disabled) {
-  background: #3d49c7;
-  border-color: #3d49c7;
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
 }
 .err500__btn--primary:disabled {
-  background: #e5e7eb;
-  color: #9ca3af;
-  border-color: #e5e7eb;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  border-color: var(--border);
   cursor: not-allowed;
 }
 .err500__btn--outlined {
   background: transparent;
-  color: #4F5BDF;
-  border-color: #4F5BDF;
+  color: var(--accent-text);
+  border-color: var(--accent);
 }
 .err500__btn--outlined:hover {
-  background: #eef0ff;
+  background: var(--accent-tint);
 }
 .err500__actions-row {
   display: flex;
@@ -438,31 +438,31 @@ export default {
   margin: 0;
   font-size: 13px;
   line-height: 1.55;
-  color: #6b7280;
+  color: var(--text-muted);
 }
 .err500__hint--success {
-  color: #047857;
+  color: var(--success-text);
   font-weight: 500;
 }
 .err500__hint--error {
-  color: #dc2626;
+  color: var(--danger-text);
 }
 .err500__evidence {
   position: relative;
 }
 .err500__evidence-inner {
-  background: #fff;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 30px;
   padding: 36px;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 3px 10px var(--shadow-drop);
 }
 .err500__evidence-label {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 3px;
   text-transform: uppercase;
-  color: #6b7280;
+  color: var(--text-muted);
   margin-bottom: 14px;
   display: flex;
   justify-content: space-between;
@@ -470,6 +470,8 @@ export default {
 .err500__code {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 14.5px;
+  /* Панель намеренно тёмная в любой теме - это стилизованная консоль, а не
+     акцентная плашка. Литералы осознанные, тема их не красит. */
   background: #0f1129;
   color: #a5b4fc;
   padding: 22px 26px;
@@ -483,7 +485,7 @@ export default {
 .err500__meta {
   margin: 24px 0 0;
   padding-top: 20px;
-  border-top: 1px dashed #e6e6e6;
+  border-top: 1px dashed var(--border);
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 18px 24px;
@@ -496,12 +498,12 @@ export default {
   font-weight: 600;
   letter-spacing: 1.5px;
   text-transform: uppercase;
-  color: #9ca0b0;
+  color: var(--text-muted);
   margin-bottom: 6px;
 }
 .err500__meta dd {
   margin: 0 0 4px;
-  color: #1a1a1a;
+  color: var(--text);
   font-weight: 500;
 }
 

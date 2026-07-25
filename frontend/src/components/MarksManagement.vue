@@ -783,9 +783,9 @@ export default {
 <style scoped>
 .marks-container {
   position: relative; /* контекст для оверлей-панели .bulk-bar поверх шапки */
-  background: #fff;
+  background: var(--surface);
   border-radius: 16px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   overflow: hidden;
 }
 
@@ -802,15 +802,15 @@ export default {
   gap: 14px;
   height: 50px;
   padding: 0 20px;
-  border-bottom: 1px solid #e6e6e6;
-  background: #f0f2ff;
+  border-bottom: 1px solid var(--border);
+  background: var(--accent-tint);
   overflow-x: auto;
   overflow-y: hidden;
 }
 .bulk-count {
   font-size: 14px;
   font-weight: 600;
-  color: #4F5BDF;
+  color: var(--accent-text);
   white-space: nowrap;
 }
 .bulk-actions {
@@ -839,35 +839,35 @@ export default {
   transition: background 0.2s, border-color 0.2s;
 }
 .pill-ghost {
-  background: #fff;
-  color: #4F5BDF;
-  border: 1px solid #4F5BDF;
+  background: var(--surface);
+  color: var(--accent-text);
+  border: 1px solid var(--accent);
 }
 .pill-ghost:hover {
-  background: #eef0ff;
+  background: var(--accent-tint);
 }
 .bulk-clear {
-  color: #6b7280;
-  border-color: #d5d9e0;
+  color: var(--text-muted);
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--surface));
 }
 .bulk-clear:hover {
-  background: #f5f5f5;
+  background: var(--surface-2);
 }
 .pill-danger {
-  background: #fff;
-  color: #dc3545;
-  border: 1px solid #fecaca;
+  background: var(--surface);
+  color: var(--danger-text);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
 }
 .pill-danger:hover {
-  background: #fff1f2;
-  border-color: #dc3545;
+  background: var(--danger-bg);
+  border-color: var(--danger);
 }
 .pill-restore {
-  background: #10b981;
-  color: #fff;
+  background: var(--success);
+  color: var(--surface);
 }
 .pill-restore:hover {
-  background: #0da271;
+  background: color-mix(in srgb, var(--success) 85%, var(--text));
 }
 .check-col {
   width: 8%;
@@ -882,7 +882,7 @@ export default {
   width: 15px;
   height: 15px;
   cursor: pointer;
-  accent-color: #4F5BDF;
+  accent-color: var(--accent);
   margin: 0;
 }
 
@@ -891,7 +891,7 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 0 20px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
   height: 50px;
   gap: 12px;
 }
@@ -900,7 +900,7 @@ export default {
   margin: 0;
   font-size: 1.2em;
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .header-controls {
@@ -925,12 +925,12 @@ export default {
   width: 40%;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid #e6e6e6;
-  background: #fff;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
 }
 
 .table-container {
-  background: #fff;
+  background: var(--surface);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -940,8 +940,8 @@ export default {
 .table-header {
   display: flex;
   padding: 0 20px;
-  border-bottom: 1px solid #e6e6e6;
-  background: #fff;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
   height: 43px;
   align-items: center;
 }
@@ -949,7 +949,7 @@ export default {
 .header-col {
   padding: 0 8px;
   font-size: 14px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 600;
   text-align: left;
   display: flex;
@@ -965,7 +965,7 @@ export default {
 }
 
 .header-col:hover {
-  color: #000;
+  color: var(--text);
 }
 
 .header-col:hover .sort-icon {
@@ -987,7 +987,7 @@ export default {
 }
 
 .active-sort {
-  color: #000 !important;
+  color: var(--text) !important;
   font-weight: 600 !important;
 }
 
@@ -1010,7 +1010,7 @@ export default {
 .table-row {
   display: flex;
   padding: 0 20px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
   align-items: center;
   transition: background-color 0.2s ease;
   cursor: pointer;
@@ -1019,16 +1019,16 @@ export default {
 }
 
 .table-row:hover {
-  background-color: #fafafa;
+  background-color: var(--surface-2);
 }
 
 .table-row.selected {
-  background-color: #f8f9ff;
+  background-color: var(--accent-tint);
 }
 
 .table-row.inactive {
-  background: #fafafa;
-  color: #6b7280;
+  background: var(--surface-2);
+  color: var(--text-muted);
 }
 
 .table-row:last-child {
@@ -1046,11 +1046,11 @@ export default {
 
 .id-value {
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .table-row.inactive .id-value {
-  color: #6b7280;
+  color: var(--text-muted);
 }
 
 .truncate-text {
@@ -1064,14 +1064,14 @@ export default {
 .inactive-badge {
   margin-left: 6px;
   font-size: 0.75em;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-style: italic;
 }
 
 .no-results {
   text-align: center;
   padding: 40px 20px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   width: 100%;
 }
 
@@ -1084,14 +1084,14 @@ export default {
 
 .table-footer {
   padding: 6px 20px;
-  border-top: 1px solid #e6e6e6;
+  border-top: 1px solid var(--border);
   text-align: right;
-  background: #f8fafc;
+  background: var(--accent-tint);
 }
 
 .items-count {
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -1100,7 +1100,7 @@ export default {
   width: 60%;
   display: flex;
   flex-direction: column;
-  background: #fff;
+  background: var(--surface);
   overflow: hidden;
 }
 
@@ -1108,7 +1108,7 @@ export default {
   flex: 1;
   overflow-y: auto;
   padding: 20px;
-  background: #fff;
+  background: var(--surface);
   line-height: 1.5;
 }
 
@@ -1130,7 +1130,7 @@ export default {
 
 .details-title {
   margin: 0;
-  color: #000;
+  color: var(--text);
   font-size: 1.2em;
   font-weight: 600;
   word-break: break-word;
@@ -1144,8 +1144,8 @@ export default {
 }
 
 .archive-badge {
-  background: #6b7280;
-  color: #fff;
+  background: var(--text-muted);
+  color: var(--surface);
   padding: 4px 10px;
   border-radius: 50px;
   font-size: 0.75em;
@@ -1168,33 +1168,33 @@ export default {
 }
 
 .history-btn {
-  background: #fff;
-  color: #4F5BDF;
-  border: 1px solid #4F5BDF;
+  background: var(--surface);
+  color: var(--accent-text);
+  border: 1px solid var(--accent);
 }
 
 .history-btn:hover {
-  background: #eef0ff;
+  background: var(--accent-tint);
 }
 
 .archive-action-btn {
-  background: #fff;
-  color: #dc3545;
-  border: 1px solid #fecaca;
+  background: var(--surface);
+  color: var(--danger-text);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
 }
 
 .archive-action-btn:hover {
-  background: #fff1f2;
-  border-color: #dc3545;
+  background: var(--danger-bg);
+  border-color: var(--danger);
 }
 
 .restore-btn {
-  background: #10b981;
-  color: #fff;
+  background: var(--success);
+  color: var(--surface);
 }
 
 .restore-btn:hover {
-  background: #0da271;
+  background: color-mix(in srgb, var(--success) 85%, var(--text));
 }
 
 .details-body {
@@ -1205,7 +1205,7 @@ export default {
 
 .field-label {
   font-size: 0.85em;
-  color: #666;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -1224,11 +1224,11 @@ export default {
   gap: 16px;
   margin-top: 12px;
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 .form-error {
-  color: #d73a3a;
+  color: var(--danger-text);
   font-size: 0.85em;
 }
 
@@ -1237,15 +1237,15 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 400;
   font-size: 14px;
 }
 
 .add-header-button {
   padding: 8px 16px;
-  background: #4F5BDF;
-  color: white;
+  background: var(--accent);
+  color: var(--accent-contrast);
   border: none;
   border-radius: 50px;
   cursor: pointer;
@@ -1258,7 +1258,7 @@ export default {
 }
 
 .add-header-button:hover {
-  background: #3a45b2;
+  background: var(--accent-hover);
 }
 
 /* Модалка создания */
@@ -1268,7 +1268,7 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1281,9 +1281,9 @@ export default {
 .marks-modal {
   width: 100%;
   max-width: 440px;
-  background: #fff;
+  background: var(--surface);
   border-radius: 30px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 10px 30px var(--shadow-drop);
   overflow: hidden;
 }
 
@@ -1292,14 +1292,14 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 18px 24px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
 }
 
 .modal-header h3 {
   margin: 0;
   font-size: 1.1em;
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .modal-close {
@@ -1310,7 +1310,7 @@ export default {
   justify-content: center;
   font-size: 24px;
   line-height: 1;
-  color: #999;
+  color: var(--text-muted);
   background: none;
   border: none;
   cursor: pointer;
@@ -1319,8 +1319,8 @@ export default {
 }
 
 .modal-close:hover {
-  color: #333;
-  background: #f5f5f5;
+  color: var(--text);
+  background: var(--surface-2);
 }
 
 .modal-body {
@@ -1338,7 +1338,7 @@ export default {
 
 .form-label {
   font-size: 0.85em;
-  color: #666;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -1347,7 +1347,7 @@ export default {
   justify-content: flex-end;
   gap: 10px;
   padding: 16px 24px;
-  border-top: 1px solid #e6e6e6;
+  border-top: 1px solid var(--border);
 }
 
 /* Анимация открытия/закрытия */
@@ -1363,7 +1363,7 @@ export default {
 
 .modal-fade-enter-from,
 .modal-fade-leave-to {
-  background: rgba(0, 0, 0, 0);
+  background: transparent;
 }
 
 .modal-fade-enter-from .marks-modal,
@@ -1415,7 +1415,7 @@ export default {
   }
   .table-section {
     border-right: none;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
   }
   .table-body {
     max-height: 300px;

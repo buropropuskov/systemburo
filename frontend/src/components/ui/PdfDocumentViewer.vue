@@ -214,7 +214,8 @@ defineExpose({ render });
   align-items: center;
   gap: 12px;
   padding: 12px;
-  background: var(--color-bg, #f5f5f7);
+  /* Область просмотра всегда светлая: внутри лист документа, тема его не красит. */
+  background: #f5f5f7;
 }
 
 .pdf-viewer__pages :deep(.pdf-viewer__page) {

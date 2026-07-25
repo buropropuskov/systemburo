@@ -337,10 +337,10 @@ export default {
   top: calc(100% + 10px);
   right: 0;
   width: 360px;
-  background: #fff;
+  background: var(--surface);
   border-radius: 20px;
   border: 1px solid var(--color-border);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 8px 30px var(--shadow-drop);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -371,7 +371,7 @@ export default {
 .notifications__clear-btn {
   background: none;
   border: none;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -402,7 +402,7 @@ export default {
 }
 
 .notifications__list::-webkit-scrollbar-thumb {
-  background: #d9e2ff;
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface));
   border-radius: 2px;
 }
 
@@ -413,7 +413,7 @@ export default {
   padding: 10px 16px;
   cursor: pointer;
   transition: background-color 0.15s;
-  border-bottom: 1px solid #f5f5f5;
+  border-bottom: 1px solid var(--surface-2);
 }
 
 .notification-item:last-child {
@@ -421,15 +421,15 @@ export default {
 }
 
 .notification-item:hover {
-  background: #fafafa;
+  background: var(--surface-2);
 }
 
 .notification-item--unread {
-  background: #f0f1ff;
+  background: var(--accent-tint);
 }
 
 .notification-item--unread:hover {
-  background: #e8e9ff;
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface));
 }
 
 .notification-item__content {
@@ -458,7 +458,7 @@ export default {
 
 .notification-item__time {
   font-size: 11px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -466,7 +466,7 @@ export default {
 .notification-item__message {
   margin: 4px 0 0;
   font-size: 12px;
-  color: #666;
+  color: var(--text-muted);
   line-height: 1.4;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -483,7 +483,7 @@ export default {
   justify-content: center;
   background: none;
   border: none;
-  color: #ccc;
+  color: var(--text-muted);
   font-size: 18px;
   cursor: pointer;
   border-radius: 50%;
@@ -494,7 +494,7 @@ export default {
 
 .notification-item__delete:hover {
   color: var(--color-danger);
-  background: #fde8e8;
+  background: var(--danger-bg);
 }
 
 /* Empty and loading states */
@@ -526,7 +526,7 @@ export default {
 }
 
 .notifications__empty-text {
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 13px;
 }
 
@@ -552,7 +552,7 @@ export default {
 .notifications-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--overlay);
   z-index: 10000;
 }
 
@@ -577,7 +577,7 @@ export default {
   max-height: calc(var(--app-vh, 1vh) * 90);
   border: none;
   border-radius: 16px 16px 0 0;
-  box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 -8px 30px var(--shadow-drop);
   z-index: 10001;
   transition: transform 0.3s ease;
 }
@@ -591,7 +591,7 @@ export default {
   width: 40px;
   height: 4px;
   border-radius: 2px;
-  background: #d5d5db;
+  background: var(--border);
   margin: 10px auto 4px;
   flex-shrink: 0;
 }

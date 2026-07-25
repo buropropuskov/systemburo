@@ -47,7 +47,7 @@ export default {
   cursor: pointer;
   user-select: none;
   font-size: 12px;
-  color: #333;
+  color: var(--text);
 }
 
 .switch-toggle__input {
@@ -65,7 +65,7 @@ export default {
   position: relative;
   width: 32px;
   height: 18px;
-  background: #e6e6e6;
+  background: var(--border);
   border-radius: 50px;
   transition: background-color 0.2s ease;
   flex-shrink: 0;
@@ -77,14 +77,14 @@ export default {
   left: 2px;
   width: 14px;
   height: 14px;
-  background: #fff;
+  background: var(--surface);
   border-radius: 50%;
   transition: transform 0.2s ease;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 1px 2px var(--shadow-drop);
 }
 
 .switch-toggle--active .switch-toggle__switch {
-  background: #4F5BDF;
+  background: var(--accent);
 }
 
 .switch-toggle--active .switch-toggle__thumb {
@@ -100,7 +100,7 @@ export default {
 }
 
 .switch-toggle__input:focus-visible + .switch-toggle__switch {
-  outline: 2px solid #4F5BDF;
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 </style>

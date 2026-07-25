@@ -642,7 +642,7 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -658,14 +658,14 @@ export default {
 }
 
 .blacklist-history-modal {
-  background: white;
+  background: var(--surface);
   border-radius: 30px;
   width: 900px;
   max-width: 95%;
   max-height: calc(var(--app-vh, 1vh) * 80);
   display: flex;
   flex-direction: column;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 10px 30px var(--shadow-drop);
   animation: slideUp 0.2s ease-out;
 }
 
@@ -679,14 +679,14 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 15px 25px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
 }
 
 .modal-header h3 {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
-  color: #333;
+  color: var(--text);
 }
 
 .header-actions {
@@ -701,19 +701,19 @@ export default {
   justify-content: center;
   gap: 8px;
   padding: 6px 16px;
-  background: white;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 20px;
   font-size: 13px;
-  color: #000;
+  color: var(--text);
   cursor: pointer;
   transition: all 0.2s ease;
   height: 32px;
 }
 
 .export-btn:hover:not(:disabled) {
-  background: #f5f5f5;
-  border-color: #4F5BDF;
+  background: var(--surface-2);
+  border-color: var(--accent);
 }
 
 .export-btn:disabled {
@@ -729,8 +729,8 @@ export default {
 .export-loader {
   width: 16px;
   height: 16px;
-  border: 2px solid #e6e6e6;
-  border-top: 2px solid #4F5BDF;
+  border: 2px solid var(--border);
+  border-top: 2px solid var(--accent);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -739,7 +739,7 @@ export default {
   background: none;
   border: none;
   font-size: 24px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   cursor: pointer;
   width: 32px;
   height: 32px;
@@ -751,14 +751,14 @@ export default {
 }
 
 .close-btn:hover {
-  background: #f5f5f5;
-  color: #333;
+  background: var(--surface-2);
+  color: var(--text);
 }
 
 .history-filters {
   padding: 15px 25px;
-  border-bottom: 1px solid #e6e6e6;
-  background-color: #fafafa;
+  border-bottom: 1px solid var(--border);
+  background-color: var(--surface-2);
 }
 
 .filter-row {
@@ -779,13 +779,13 @@ export default {
 
 .filter-label {
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   white-space: nowrap;
 }
 
 .search-input {
   padding: 6px 12px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 20px;
   font-size: 12px;
   width: 200px;
@@ -795,7 +795,7 @@ export default {
 
 .search-input:focus {
   outline: none;
-  border-color: #4F5BDF;
+  border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(79, 91, 223, 0.1);
 }
 
@@ -810,21 +810,21 @@ export default {
   align-items: center;
   justify-content: space-between;
   padding: 6px 12px;
-  background: white;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 20px;
   transition: all 0.2s ease;
   height: 32px;
 }
 
 .select-trigger:hover {
-  border-color: #4F5BDF;
-  background: #f5f5f5;
+  border-color: var(--accent);
+  background: var(--surface-2);
 }
 
 .selected-value {
   font-size: 12px;
-  color: #000;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -857,33 +857,33 @@ export default {
   right: 0;
   max-height: 300px;
   overflow-y: auto;
-  background: white;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 15px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px var(--shadow-drop);
   z-index: 1000;
 }
 
 .select-option {
   padding: 10px 14px;
   font-size: 12px;
-  color: #000;
+  color: var(--text);
   cursor: pointer;
   transition: background-color 0.15s ease;
 }
 
 .select-option:hover {
-  background-color: #f0f3ff;
+  background-color: var(--accent-tint);
 }
 
 .select-option.selected {
-  background-color: #f0f3ff;
+  background-color: var(--accent-tint);
   font-weight: 500;
 }
 
 .date-input {
   padding: 6px 8px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 15px;
   font-size: 12px;
   width: 120px;
@@ -891,7 +891,7 @@ export default {
 }
 
 .date-separator {
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 12px;
 }
 
@@ -900,11 +900,11 @@ export default {
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  background: white;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 20px;
   font-size: 12px;
-  color: #000;
+  color: var(--text);
   cursor: pointer;
   transition: all 0.2s ease;
   height: 32px;
@@ -912,8 +912,8 @@ export default {
 }
 
 .sort-btn:hover {
-  background: #f5f5f5;
-  border-color: #4F5BDF;
+  background: var(--surface-2);
+  border-color: var(--accent);
 }
 
 .sort-icon {
@@ -939,7 +939,7 @@ export default {
   align-items: center;
   justify-content: center;
   padding: 40px;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 @keyframes spin {
@@ -956,10 +956,10 @@ export default {
 .history-date-separator {
   font-size: 11px;
   font-weight: 600;
-  color: #4F5BDF;
+  color: var(--accent-text);
   padding: 8px 0 4px;
   margin-bottom: 8px;
-  border-bottom: 1px solid #e6f0ff;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
   letter-spacing: 0.02em;
 }
 
@@ -990,7 +990,7 @@ export default {
   top: 18px;
   width: 2px;
   height: calc(100% + 2px);
-  background: #e6e6e6;
+  background: var(--border);
 }
 
 .dot-create { background: #4F5BDF; }
@@ -1008,7 +1008,7 @@ export default {
 .history-entity {
   font-size: 13px;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--text);
   margin-bottom: 4px;
   word-break: break-word;
 }
@@ -1022,28 +1022,28 @@ export default {
 
 .user-name {
   font-weight: 500;
-  color: #333;
+  color: var(--text);
   font-size: 13px;
 }
 
 .action-time {
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 11px;
 }
 
 .action-text {
-  color: #666;
+  color: var(--text-muted);
   font-size: 12px;
   margin-bottom: 2px;
 }
 
 .action-comment {
   font-size: 11px;
-  color: #666;
+  color: var(--text-muted);
   font-style: italic;
   margin-top: 4px;
   padding-left: 6px;
-  border-left: 2px solid #e6e6e6;
+  border-left: 2px solid var(--border);
   word-break: break-word;
 }
 
@@ -1064,20 +1064,20 @@ export default {
 }
 
 .diff-old {
-  background: #f1f3f5;
-  color: #6b7280;
+  background: var(--accent-tint);
+  color: var(--text-muted);
   text-decoration: line-through;
 }
 
 .diff-new {
-  background: #e7f6ec;
-  color: #15803d;
+  background: var(--success-bg);
+  color: var(--success-text);
   font-weight: 500;
 }
 
 .diff-arrow {
   flex-shrink: 0;
-  color: #9ca3af;
+  color: var(--text-muted);
 }
 
 @media (max-width: 768px) {

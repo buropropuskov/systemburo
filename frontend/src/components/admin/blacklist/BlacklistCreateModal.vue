@@ -405,11 +405,11 @@ export default {
 /* Формат номера + номер + марка - визуально идентично VehicleForm */
 .input__label {
   font-size: 13px;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 .required {
-  color: #ff4444;
+  color: var(--danger-text);
 }
 
 .completion__format {
@@ -428,7 +428,7 @@ export default {
 
 .format__label {
   font-size: 13px;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 .format__dropdown {
@@ -438,8 +438,8 @@ export default {
 .dropdown__button {
   width: 100%;
   height: 40px;
-  border: 1px solid #e6e6e6;
-  background-color: #fff;
+  border: 1px solid var(--border);
+  background-color: var(--surface);
   border-radius: 15px;
   outline: none;
   cursor: pointer;
@@ -448,7 +448,7 @@ export default {
 }
 
 .dropdown__button:hover {
-  border-color: #4f5bdf;
+  border-color: var(--accent);
 }
 
 .button__content {
@@ -461,7 +461,7 @@ export default {
 
 .button__text {
   font-size: 14px;
-  color: #000;
+  color: var(--text);
   font-weight: 500;
   display: block;
 }
@@ -483,11 +483,11 @@ export default {
   top: 100%;
   left: 0;
   width: 100%;
-  background: #fff;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 20px;
   margin-top: 5px;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 3px 10px var(--shadow-drop);
   z-index: 1000;
   max-height: 300px;
   overflow-y: auto;
@@ -503,7 +503,7 @@ export default {
 }
 
 .dropdown__item:hover {
-  background-color: #f5f5f5;
+  background-color: var(--surface-2);
 }
 
 .dropdown__item:first-child {
@@ -516,7 +516,7 @@ export default {
 
 .item__text {
   font-size: 13px;
-  color: #333;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -547,10 +547,10 @@ export default {
   min-width: 202px;
   height: 40px;
   display: flex;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 15px;
   overflow: hidden;
-  background: #fff;
+  background: var(--surface);
 }
 
 .number__input {
@@ -566,27 +566,27 @@ export default {
 }
 
 .number__input:not(:last-child) {
-  border-right: 1px solid #e6e6e6;
+  border-right: 1px solid var(--border);
 }
 
 .number__input::placeholder {
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 12px;
   text-transform: none;
 }
 
 .number__input:focus {
-  background-color: #f8f8f8;
+  background-color: var(--surface-2);
 }
 
 .no-format-message {
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   text-align: center;
   padding: 10px;
-  background: #f8f8f8;
+  background: var(--surface-2);
   border-radius: 10px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
 }
 
 .mark__field {
@@ -603,8 +603,8 @@ export default {
 .mark__dropdown-button {
   width: 100%;
   height: 100%;
-  border: 1px solid #e6e6e6;
-  background-color: #fff;
+  border: 1px solid var(--border);
+  background-color: var(--surface);
   border-radius: 15px;
   outline: none;
   cursor: pointer;
@@ -613,7 +613,7 @@ export default {
 }
 
 .mark__dropdown-button:hover {
-  border-color: #4f5bdf;
+  border-color: var(--accent);
 }
 
 .mark__button-content {
@@ -626,7 +626,7 @@ export default {
 
 .mark__button-text {
   font-size: 14px;
-  color: #000;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -651,11 +651,11 @@ export default {
   top: 100%;
   left: 0;
   width: 100%;
-  background: #fff;
-  border: 1px solid #e6e6e6;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 20px;
   margin-top: 5px;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 3px 10px var(--shadow-drop);
   z-index: 1000;
   max-height: 220px;
   overflow: hidden;
@@ -663,12 +663,12 @@ export default {
 
 .mark__search {
   padding: 10px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
 }
 
 .mark__search-input {
   width: 100%;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 15px;
   padding: 5px 10px;
   outline: none;
@@ -684,11 +684,11 @@ export default {
   padding: 8px 15px;
   cursor: pointer;
   transition: background-color 0.2s;
-  border-bottom: 1px solid #f5f5f5;
+  border-bottom: 1px solid var(--surface-2);
 }
 
 .mark__dropdown-item:hover {
-  background-color: #f5f5f5;
+  background-color: var(--surface-2);
 }
 
 .mark__dropdown-item:last-child {
@@ -697,7 +697,7 @@ export default {
 
 .mark__item-text {
   font-size: 14px;
-  color: #333;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -706,12 +706,12 @@ export default {
 .mark__dropdown-empty {
   padding: 10px 15px;
   font-size: 13px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   text-align: center;
 }
 
 .bl-form-error {
-  color: var(--color-danger, #dc3545);
+  color: var(--color-danger, var(--danger-text));
   font-size: 13px;
   margin-top: 4px;
 }

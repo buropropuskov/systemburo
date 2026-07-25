@@ -277,7 +277,7 @@ export default {
 .filter-modal__body .field {
   width: 100%;
   height: 40px;
-  background-color: #fff;
+  background-color: var(--surface);
   border-radius: var(--radius-md);
   border: 1px solid var(--color-border);
   padding: 0 12px;
@@ -301,7 +301,7 @@ export default {
 
 .filter-label {
   font-size: 12px;
-  color: #666;
+  color: var(--text-muted);
   font-weight: 500;
   white-space: nowrap;
 }
@@ -317,7 +317,7 @@ export default {
 .reset-filters-btn {
   padding: 7px 14px;
   border: 1px solid var(--color-border);
-  background: white;
+  background: var(--surface);
   border-radius: var(--radius-pill);
   cursor: pointer;
   font-size: 12px;
@@ -339,7 +339,7 @@ export default {
 
 .status-btn--active {
   background: var(--color-primary);
-  color: white;
+  color: var(--accent-contrast);
   border-color: var(--color-primary);
 }
 
@@ -355,14 +355,14 @@ export default {
 }
 
 .reset-filters-btn {
-  background: #fff;
-  border-color: #fecaca;
+  background: var(--surface);
+  border-color: color-mix(in srgb, var(--danger) 30%, var(--surface));
   color: var(--color-danger);
 }
 
 .reset-filters-btn:hover:not(:disabled) {
   background: var(--color-danger);
   border-color: var(--color-danger);
-  color: #fff;
+  color: var(--surface);
 }
 </style>

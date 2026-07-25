@@ -200,6 +200,8 @@ onBeforeUnmount(() => {
   min-height: 70vh;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
+  /* Под документом всегда белый лист: PDF рисует нативный просмотрщик, тема его
+     не перекрашивает - тёмная плашка просвечивала бы в проёмах страницы. */
   background: #fff;
 }
 
@@ -223,7 +225,7 @@ onBeforeUnmount(() => {
   padding: 48px 24px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  background: #fff;
+  background: var(--surface);
   color: var(--color-text-muted);
 }
 
@@ -258,7 +260,7 @@ onBeforeUnmount(() => {
 
 .dp-button--primary {
   background: var(--color-primary);
-  color: #fff;
+  color: var(--accent-contrast);
 }
 
 .dp-button--primary:hover:not(:disabled) {

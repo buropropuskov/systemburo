@@ -152,15 +152,15 @@ onBeforeUnmount(close);
 /* Пузырёк живёт в <body> (Teleport) - scoped-хэш до него не достаёт. */
 .hint-tooltip__bubble {
   padding: 8px 10px;
-  background: #333;
-  color: #fff;
+  background: var(--hint-bg);
+  color: var(--hint-text);
   font-size: 11px;
   font-weight: 400;
   line-height: 1.4;
   text-align: left;
   white-space: normal;
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 4px 12px var(--shadow-drop);
   pointer-events: none;
 }
 </style>

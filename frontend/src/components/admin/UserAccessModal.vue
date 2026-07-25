@@ -592,7 +592,7 @@ export default {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(18, 22, 55, 0.45);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -625,7 +625,7 @@ export default {
 }
 
 .access-modal {
-  background: #fff;
+  background: var(--surface);
   border-radius: 45px;
   width: 980px;
   max-width: 96vw;
@@ -657,7 +657,7 @@ export default {
 .access-modal__title {
   font-size: 18px;
   font-weight: 700;
-  color: #000;
+  color: var(--text);
 }
 
 .access-modal__sub {
@@ -686,7 +686,7 @@ export default {
 
 .close-btn:hover {
   color: var(--color-text);
-  background: #f5f5f5;
+  background: var(--surface-2);
 }
 
 .access-modal__body {
@@ -718,8 +718,8 @@ export default {
   gap: 14px;
   padding: 16px 18px;
   border-radius: var(--radius-md);
-  background: linear-gradient(120deg, #f4f6ff, #eef0ff);
-  border: 1px solid #dfe3ff;
+  background: linear-gradient(120deg, var(--accent-tint), var(--accent-tint));
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
 }
 
 .admin-toggle__txt {
@@ -766,7 +766,7 @@ export default {
   font-size: 14px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: #fff;
+  background: var(--surface);
   cursor: pointer;
   color: var(--color-text);
   appearance: none;
@@ -830,7 +830,7 @@ export default {
 }
 
 .chip--add {
-  background: #fff;
+  background: var(--surface);
   border: 1px dashed var(--color-border);
   color: var(--color-text-muted);
   cursor: pointer;
@@ -888,8 +888,8 @@ export default {
 
 /* --- Блок блокировки --- */
 .ban-box {
-  border: 1px solid #f2d4d8;
-  background: #fdecee;
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
+  background: var(--danger-bg);
   border-radius: var(--radius-md);
   padding: 16px 18px;
   display: flex;
@@ -950,7 +950,7 @@ export default {
   height: var(--h);
   flex: none;
   border-radius: var(--radius-pill);
-  background: #d3d6e4;
+  background: var(--border);
   position: relative;
   cursor: pointer;
   border: none;
@@ -966,8 +966,8 @@ export default {
   width: var(--d);
   height: var(--d);
   border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  background: var(--surface);
+  box-shadow: 0 1px 3px var(--shadow-drop);
   transition: left 0.2s ease;
 }
 
@@ -1013,7 +1013,7 @@ export default {
   gap: 12px;
   padding: 18px 28px;
   border-top: 1px solid var(--color-border);
-  background: #fff;
+  background: var(--surface);
 }
 
 .access-modal__foot-hint {

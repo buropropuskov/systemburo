@@ -268,7 +268,7 @@ export default {
 }
 
 .ask-attachment-item:hover {
-    background: #f5f7ff;
+    background: var(--accent-tint);
 }
 
 .ask-attachment-name {
@@ -285,7 +285,7 @@ export default {
     position: relative;
     width: 34px;
     height: 18px;
-    background-color: #ccc;
+    background-color: var(--border);
     border-radius: 9px;
     transition: background-color 0.3s;
     display: inline-block;
@@ -298,7 +298,7 @@ export default {
     width: 14px;
     height: 14px;
     border-radius: 50%;
-    background-color: white;
+    background-color: var(--surface);
     top: 2px;
     left: 2px;
     transition: transform 0.3s;

@@ -163,7 +163,7 @@ const options = computed(() => ({
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 13px;
 }
 </style>

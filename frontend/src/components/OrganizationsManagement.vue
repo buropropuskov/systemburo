@@ -1439,9 +1439,9 @@ export default {
 <style scoped>
 .organizations-management {
   position: relative;
-  background: #fff;
+  background: var(--surface);
   border-radius: 16px;
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   overflow: hidden;
 }
 
@@ -1450,7 +1450,7 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 0 20px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
   height: 50px;
 }
 
@@ -1458,7 +1458,7 @@ export default {
   font-size: 1.2em;
   margin: 0;
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .header-controls {
@@ -1473,8 +1473,8 @@ export default {
 
 .add-header-button {
   padding: 8px 16px;
-  background: #4F5BDF;
-  color: white;
+  background: var(--accent);
+  color: var(--accent-contrast);
   border: none;
   border-radius: 50px;
   cursor: pointer;
@@ -1487,7 +1487,7 @@ export default {
 }
 
 .add-header-button:hover {
-  background: #3a45b2;
+  background: var(--accent-hover);
 }
 
 /* Панель групповых операций - оверлей поверх шапки, не двигает контент (reflow).
@@ -1503,8 +1503,8 @@ export default {
   align-items: center;
   gap: 14px;
   padding: 0 20px;
-  border-bottom: 1px solid #e6e6e6;
-  background: #f0f2ff;
+  border-bottom: 1px solid var(--border);
+  background: var(--accent-tint);
   /* фиксированная высота оверлея + перенос кнопок = наезд на таблицу на узкой
      карточке (expanded-nav ~800-965px). Держим одну строку, узко - горизонтальный скролл. */
   overflow-x: auto;
@@ -1514,7 +1514,7 @@ export default {
 .bulk-count {
   font-size: 14px;
   font-weight: 600;
-  color: #4F5BDF;
+  color: var(--accent-text);
   white-space: nowrap;
 }
 
@@ -1532,12 +1532,12 @@ export default {
 }
 
 .bulk-clear {
-  color: #6b7280;
-  border-color: #d5d9e0;
+  color: var(--text-muted);
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--surface));
 }
 
 .bulk-clear:hover {
-  background: #f5f5f5;
+  background: var(--surface-2);
 }
 
 .bulk-slide-enter-active,
@@ -1561,11 +1561,11 @@ export default {
   width: 40%;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid #e6e6e6;
+  border-right: 1px solid var(--border);
 }
 
 .table-container {
-  background: #fff;
+  background: var(--surface);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -1575,8 +1575,8 @@ export default {
 .table-header {
   display: flex;
   padding: 0 20px;
-  border-bottom: 1px solid #e6e6e6;
-  background: #fff;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
   height: 43px;
   align-items: center;
 }
@@ -1584,7 +1584,7 @@ export default {
 .header-col {
   padding: 0 8px;
   font-size: 14px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 600;
   text-align: left;
   display: flex;
@@ -1596,7 +1596,7 @@ export default {
 }
 
 .header-col:hover {
-  color: #333;
+  color: var(--text);
 }
 
 .header-col:hover .sort-icon {
@@ -1618,7 +1618,7 @@ export default {
 }
 
 .active-sort {
-  color: #333 !important;
+  color: var(--text) !important;
   font-weight: 600 !important;
 }
 
@@ -1633,14 +1633,14 @@ export default {
 }
 
 .header-col.check-col:hover {
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 .bulk-check {
   width: 15px;
   height: 15px;
   cursor: pointer;
-  accent-color: #4F5BDF;
+  accent-color: var(--accent);
   margin: 0;
 }
 
@@ -1666,16 +1666,16 @@ export default {
 
 .type-value {
   font-size: 13px;
-  color: #333;
+  color: var(--text);
 }
 
 .type-unspecified {
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-style: italic;
 }
 
 .table-row.inactive .type-value {
-  color: #6b7280;
+  color: var(--text-muted);
 }
 
 .table-body {
@@ -1686,7 +1686,7 @@ export default {
 .table-row {
   display: flex;
   padding: 0 20px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
   align-items: center;
   transition: background-color 0.2s ease;
   cursor: pointer;
@@ -1695,21 +1695,21 @@ export default {
 }
 
 .table-row:hover {
-  background-color: #fafafa;
+  background-color: var(--surface-2);
 }
 
 .table-row.selected {
-  background-color: #f0f2ff;
+  background-color: var(--accent-tint);
 }
 
 .table-row.inactive {
-  background: #fafafa;
-  color: #6b7280;
+  background: var(--surface-2);
+  color: var(--text-muted);
 }
 
 .table-row.inactive .id-value,
 .table-row.inactive .count-value {
-  color: #6b7280;
+  color: var(--text-muted);
 }
 
 .table-row:last-child {
@@ -1727,7 +1727,7 @@ export default {
 
 .id-value {
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .user-count {
@@ -1738,7 +1738,7 @@ export default {
 
 .count-value {
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .truncate-text {
@@ -1752,14 +1752,14 @@ export default {
 .inactive-badge {
   margin-left: 6px;
   font-size: 0.75em;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-style: italic;
 }
 
 .no-results-inline {
   text-align: center;
   padding: 40px 20px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   width: 100%;
 }
 
@@ -1773,14 +1773,14 @@ export default {
 .table-footer {
   margin-top: auto;
   padding: 6px 20px;
-  border-top: 1px solid #e6e6e6;
+  border-top: 1px solid var(--border);
   text-align: end;
-  background: #f8fafc;
+  background: var(--accent-tint);
 }
 
 .items-count {
   font-size: 12px;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -1788,7 +1788,7 @@ export default {
 .details-column {
   flex: 1;
   min-width: 0;
-  background: #fff;
+  background: var(--surface);
   display: flex;
   flex-direction: column;
 }
@@ -1819,7 +1819,7 @@ export default {
   margin: 0;
   font-size: 1.3em;
   font-weight: 700;
-  color: #111318;
+  color: var(--accent-text);
   word-break: break-word;
 }
 
@@ -1839,13 +1839,13 @@ export default {
 }
 
 .muted-hint {
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 0.82em;
 }
 
 .archive-badge {
-  background: #6b7280;
-  color: #fff;
+  background: var(--text-muted);
+  color: var(--surface);
   padding: 4px 10px;
   border-radius: 50px;
   font-size: 0.75em;
@@ -1870,53 +1870,53 @@ export default {
 }
 
 .pill-type {
-  background: #eef0ff;
-  color: #4F5BDF;
+  background: var(--accent-tint);
+  color: var(--accent-text);
   cursor: default;
 }
 
 .pill-ghost {
-  background: #fff;
-  color: #4F5BDF;
-  border: 1px solid #4F5BDF;
+  background: var(--surface);
+  color: var(--accent-text);
+  border: 1px solid var(--accent);
 }
 
 .pill-ghost:hover {
-  background: #eef0ff;
+  background: var(--accent-tint);
 }
 
 .pill-danger {
-  background: #fff;
-  color: #dc3545;
-  border: 1px solid #fecaca;
+  background: var(--surface);
+  color: var(--danger-text);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
 }
 
 .pill-danger:hover {
-  background: #fff1f2;
-  border-color: #dc3545;
+  background: var(--danger-bg);
+  border-color: var(--danger);
 }
 
 .pill-restore {
-  background: #10b981;
-  color: #fff;
+  background: var(--success);
+  color: var(--surface);
 }
 
 .pill-restore:hover {
-  background: #0da271;
+  background: color-mix(in srgb, var(--success) 85%, var(--text));
 }
 
 /* карточка-секция */
 .card {
-  border: 1px solid #e6e6e6;
+  border: 1px solid var(--border);
   border-radius: 16px;
   padding: 16px;
-  background: #fbfbfd;
+  background: var(--accent-tint);
 }
 
 .sec-title {
   font-size: 0.82em;
   font-weight: 700;
-  color: #2a2f39;
+  color: var(--accent-text);
   letter-spacing: 0.02em;
   text-transform: uppercase;
   margin: 0 0 12px;
@@ -1936,8 +1936,8 @@ export default {
   height: 20px;
   padding: 0 7px;
   border-radius: 50px;
-  background: #eef0ff;
-  color: #4F5BDF;
+  background: var(--accent-tint);
+  color: var(--accent-text);
   font-size: 11px;
   font-weight: 700;
 }
@@ -1956,7 +1956,7 @@ export default {
 
 .field-label {
   font-size: 0.78em;
-  color: #5a6472;
+  color: var(--text-muted);
   font-weight: 600;
   letter-spacing: 0.02em;
   text-transform: uppercase;
@@ -1972,14 +1972,14 @@ export default {
 }
 
 .form-error {
-  color: #d73a3a;
+  color: var(--danger-text);
   font-size: 0.85em;
   margin-top: 10px;
 }
 
 .archive-hint {
   margin: 0;
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-size: 0.9em;
   line-height: 1.5;
 }
@@ -1996,17 +1996,17 @@ export default {
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  border: 1px solid #eef0f3;
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--surface));
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface);
 }
 
 .avatar {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: #e7e9ff;
-  color: #4F5BDF;
+  background: var(--accent-tint);
+  color: var(--accent-text);
   font-weight: 700;
   font-size: 12px;
   display: flex;
@@ -2024,7 +2024,7 @@ export default {
 .who b {
   font-size: 13px;
   font-weight: 600;
-  color: #111318;
+  color: var(--accent-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2032,7 +2032,7 @@ export default {
 
 .who small {
   font-size: 11px;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 .members-loading {
@@ -2044,7 +2044,7 @@ export default {
 .members-empty {
   margin: 0;
   font-size: 0.85em;
-  color: #a2a2a2;
+  color: var(--text-muted);
 }
 
 /* блокеры архивации: уведомление + кнопка переноса */
@@ -2065,7 +2065,7 @@ export default {
   flex: 1 1 220px;
   min-width: 0;
   font-size: 0.85em;
-  color: #5a6472;
+  color: var(--text-muted);
   line-height: 1.45;
 }
 
@@ -2077,7 +2077,7 @@ export default {
 .reassign-intro {
   margin: 0 0 14px;
   font-size: 0.9em;
-  color: #5a6472;
+  color: var(--text-muted);
   line-height: 1.5;
 }
 
@@ -2088,7 +2088,7 @@ export default {
 }
 
 .no-selection-message {
-  color: #a2a2a2;
+  color: var(--text-muted);
   font-weight: 400;
   font-size: 14px;
   text-align: center;
@@ -2106,7 +2106,7 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2119,9 +2119,9 @@ export default {
 .orgs-modal {
   width: 100%;
   max-width: 440px;
-  background: #fff;
+  background: var(--surface);
   border-radius: 30px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 10px 30px var(--shadow-drop);
   /* без overflow:hidden - иначе выпадающее меню дропдауна «Тип» обрезается краем модалки */
 }
 
@@ -2130,14 +2130,14 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 18px 24px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--border);
 }
 
 .modal-header h3 {
   margin: 0;
   font-size: 1.1em;
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .modal-close {
@@ -2148,7 +2148,7 @@ export default {
   justify-content: center;
   font-size: 24px;
   line-height: 1;
-  color: #999;
+  color: var(--text-muted);
   background: none;
   border: none;
   cursor: pointer;
@@ -2157,8 +2157,8 @@ export default {
 }
 
 .modal-close:hover {
-  color: #333;
-  background: #f5f5f5;
+  color: var(--text);
+  background: var(--surface-2);
 }
 
 .modal-body {
@@ -2176,7 +2176,7 @@ export default {
 
 .form-label {
   font-size: 0.85em;
-  color: #666;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -2185,7 +2185,7 @@ export default {
   justify-content: flex-end;
   gap: 10px;
   padding: 16px 24px;
-  border-top: 1px solid #e6e6e6;
+  border-top: 1px solid var(--border);
 }
 
 /* Анимация открытия/закрытия */
@@ -2201,7 +2201,7 @@ export default {
 
 .modal-fade-enter-from,
 .modal-fade-leave-to {
-  background: rgba(0, 0, 0, 0);
+  background: transparent;
 }
 
 .modal-fade-enter-from .orgs-modal,
@@ -2223,7 +2223,7 @@ export default {
 
   .table-section {
     border-right: none;
-    border-bottom: 1px solid #e6e6e6;
+    border-bottom: 1px solid var(--border);
     height: 255px;
   }
 
