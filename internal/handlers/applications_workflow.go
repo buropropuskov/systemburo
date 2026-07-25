@@ -396,3 +396,71 @@ func (h *ApplicationHandler) UpdateApplicationItemsStatus(c echo.Context) error 
 	}
 	return RespondMessage(c, "All items statuses updated successfully")
 }
+
+// AssignElementTables godoc
+// @Summary      Назначение постов элементам заявки
+// @Description  Принимающий добавляет или снимает посты проезда/прохода у машин и сотрудников заявки (#1393).
+// @Tags         applications
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id      path int                                    true "ID заявки"
+// @Param        request body services.AssignElementTablesRequest    true "Элементы, посты и режим"
+// @Success      200 {object} map[string]interface{} "success + message"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /applications/{id}/elements/tables [put]
+func (h *ApplicationHandler) AssignElementTables(c echo.Context) error {
+	username := c.Get("username").(string)
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
+	}
+
+	var req services.AssignElementTablesRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+
+	if err := h.service.AssignElementTables(c.Request().Context(), username, id, req); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Посты обновлены")
+}
+
+// AssignCarUnloadPlaces godoc
+// @Summary      Назначение мест разгрузки машинам заявки
+// @Description  Принимающий добавляет или снимает места разгрузки у машин заявки (#1393).
+// @Tags         applications
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id      path int                                     true "ID заявки"
+// @Param        request body services.AssignCarUnloadPlacesRequest    true "Машины, места и режим"
+// @Success      200 {object} map[string]interface{} "success + message"
+// @Failure      400 {object} models.HTTPError
+// @Failure      401 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Failure      500 {object} models.HTTPError
+// @Router       /applications/{id}/elements/unload-places [put]
+func (h *ApplicationHandler) AssignCarUnloadPlaces(c echo.Context) error {
+	username := c.Get("username").(string)
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
+	}
+
+	var req services.AssignCarUnloadPlacesRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+
+	if err := h.service.AssignCarUnloadPlaces(c.Request().Context(), username, id, req); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Места разгрузки обновлены")
+}
