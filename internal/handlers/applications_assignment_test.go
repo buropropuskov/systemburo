@@ -290,6 +290,30 @@ func TestAssignUnloadPlaces_AddAndHistory(t *testing.T) {
 	assert.True(t, found, "смена мест разгрузки попала в историю машины")
 }
 
+// Пост, отключённый уже после подачи заявки, не мешает править соседние: он
+// приходит в наборе как есть, а запрещено только назначать отключённое заново.
+func TestAssignTables_KeepsAlreadyLinkedInactiveTable(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	makeApprover(t, db, "testadmin")
+
+	stale := seedCarsTable(t, db, "assign_stale", "Отключённый после подачи")
+	fresh := seedCarsTable(t, db, "assign_fresh", "Рабочий пост")
+	senderID := seedAttachSender(t, db, td.OrgID)
+	appID, carID := seedAssignApp(t, db, td.OrgID, senderID, models.StatusInWork, "E111EE777")
+	require.NoError(t, db.Create(&models.CarTargetTable{CarID: carID, TableID: stale, Source: "application"}).Error)
+	require.NoError(t, db.Exec("UPDATE system_tables SET is_active = false WHERE id = ?", stale).Error)
+
+	body := fmt.Sprintf(`{"element_type":"cars","element_ids":[%d],"table_ids":[%d,%d],"mode":"replace"}`, carID, stale, fresh)
+	rec := testutil.PUT(t, e, fmt.Sprintf("/applications/%d/elements/tables", appID), body, testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, "уже привязанный отключённый пост не блокирует правку: %s", rec.Body.String())
+
+	assert.ElementsMatch(t, []int{stale, fresh}, carTableIDs(t, db, carID), "старая привязка осталась, новая добавилась")
+}
+
 // Отключённый пост назначить нельзя - иначе машина уедет туда, где не пропустят.
 func TestAssignTables_RejectsInactiveTable(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)

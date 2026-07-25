@@ -163,19 +163,31 @@
                   :data-label="col.label"
                 >
                   <template v-if="col.type === 'chips'">
-                    <div class="chips">
-                      <span
-                        v-for="chip in visibleChips(row, col)"
-                        :key="chip.key"
-                        class="chip"
-                        :class="{ 'chip--more': chip.isMore }"
-                        :data-hint="chip.hint"
-                        :data-testid="chip.isMore ? 'attachment-chip-more' : 'attachment-chip'"
-                      >{{ chip.text }}</span>
-                      <span
-                        v-if="!chipItems(row, col).length"
-                        class="chip chip--empty"
-                      >—</span>
+                    <div class="cell-chips">
+                      <div class="chips">
+                        <span
+                          v-for="chip in visibleChips(row, col)"
+                          :key="chip.key"
+                          class="chip"
+                          :class="{ 'chip--more': chip.isMore }"
+                          :data-hint="chip.hint"
+                          :data-testid="chip.isMore ? 'attachment-chip-more' : 'attachment-chip'"
+                        >{{ chip.text }}</span>
+                        <span
+                          v-if="!chipItems(row, col).length && !canAssign"
+                          class="chip chip--empty"
+                        >—</span>
+                      </div>
+                      <button
+                        v-if="canAssign && col.assignKind"
+                        type="button"
+                        class="chip chip--assign"
+                        :data-hint="`Изменить: ${col.label.toLowerCase()}`"
+                        data-testid="attachment-assign-open"
+                        @click.stop="openAssign(row, col)"
+                      >
+                        +
+                      </button>
                     </div>
                   </template>
 
@@ -241,12 +253,27 @@
         </div>
       </div>
     </div>
+
+    <ApplicationAssignModal
+      v-if="assign.open"
+      :show="assign.open"
+      :kind="assign.kind"
+      :element-type="type === 'people' ? 'people' : 'cars'"
+      :current-ids="assign.currentIds"
+      :target-count="assign.elementIds.length"
+      :submitting="assign.submitting"
+      @close="closeAssign"
+      @apply="applyAssign"
+    />
   </div>
 </template>
 
 <script>
 import Badge from '@/components/ui/Badge.vue'
+import ApplicationAssignModal from './ApplicationAssignModal.vue'
 import SearchComponent from '@/components/SearchComponent.vue'
+import { assignElementTables, assignCarUnloadPlaces } from '@/api/applicationAssignments'
+import { useDeletionsStore } from '@/stores/deletions'
 import { matchesSearchFuzzy } from '@/utils/searchVariants'
 
 /** Ширины служебных частей строки: порядковый номер, колонка действий, отступы. */
@@ -270,12 +297,15 @@ const FONTS = {
     text: '13.5px Montserrat, sans-serif',
     chip: '12.5px Montserrat, sans-serif'
 };
+/** Кнопка «+» с промежутком: столько ширины ячейки чипам недоступно. */
+const ASSIGN_BUTTON_SPACE = 34;
+
 /** Запас, чтобы значение не упиралось вплотную в край колонки. */
 const TEXT_SIDE_SPACE = 6;
 
 export default {
     name: 'ApplicationAttachmentDetail',
-    components: { Badge, SearchComponent },
+    components: { ApplicationAssignModal, Badge, SearchComponent },
     props: {
         attachment: {
             type: Object,
@@ -307,9 +337,18 @@ export default {
         interactive: {
             type: Boolean,
             default: true
+        },
+        // Принимающий может доназначить посты и места, пока заявка не закрыта (#1393).
+        canAssign: {
+            type: Boolean,
+            default: false
+        },
+        applicationId: {
+            type: Number,
+            default: null
         }
     },
-    emits: ['open-vehicle', 'open-employee', 'override-element'],
+    emits: ['open-vehicle', 'open-employee', 'override-element', 'assignments-changed'],
     data() {
         return {
             containerWidth: 0,
@@ -321,7 +360,14 @@ export default {
             chipColumnWidths: {},
             textMeasureContext: null,
             searchQuery: '',
-            searchVariants: []
+            searchVariants: [],
+            assign: {
+                open: false,
+                kind: 'tables',
+                elementIds: [],
+                currentIds: [],
+                submitting: false
+            }
         };
     },
     computed: {
@@ -383,6 +429,7 @@ export default {
                         type: 'chips',
                         cls: 'c-places',
                         label: 'Места разгрузки',
+                        assignKind: 'places',
                         grow: 30, min: 100,
                         growCompact: 36, minCompact: 124,
                         field: 'unload_places',
@@ -394,6 +441,7 @@ export default {
                         type: 'chips',
                         cls: 'c-tables',
                         label: 'Проезд',
+                        assignKind: 'tables',
                         grow: 26, min: 92,
                         growCompact: 26, minCompact: 96,
                         field: 'target_tables',
@@ -431,6 +479,7 @@ export default {
                         type: 'chips',
                         cls: 'c-places',
                         label: 'Места прохода',
+                        assignKind: 'tables',
                         grow: 28, min: 124,
                         growCompact: 30, minCompact: 124,
                         field: 'target_tables',
@@ -663,10 +712,15 @@ export default {
          * измерена (первый кадр, jsdom), берём запасное количество по режиму.
          */
         fittingChipCount(names, col) {
-            const available = this.chipColumnWidths[col.key];
-            if (!available) {
+            const measured = this.chipColumnWidths[col.key];
+            if (!measured) {
                 return this.isCompact ? CHIPS_VISIBLE_COMPACT : CHIPS_VISIBLE_WIDE;
             }
+            // Кнопка назначения стоит в той же ячейке - её ширину чипам не отдаём.
+            const available = this.canAssign && col.assignKind
+                ? measured - ASSIGN_BUTTON_SPACE
+                : measured;
+            if (available <= 0) return 0;
 
             const moreWidth = this.chipWidth(`+${names.length}`);
             let used = 0;
@@ -767,6 +821,57 @@ export default {
             if (mod10 === 1) return one;
             if (mod10 >= 2 && mod10 <= 4) return few;
             return many;
+        },
+
+        /** Открывает выбор для одной строки: текущий набор показывается отмеченным. */
+        openAssign(row, col) {
+            this.assign = {
+                open: true,
+                kind: col.assignKind,
+                elementIds: [row.id],
+                currentIds: this.chipItems(row, col).map(item => item.id),
+                submitting: false
+            };
+        },
+
+        closeAssign() {
+            this.assign.open = false;
+        },
+
+        /**
+         * Сохраняет выбор режимом replace: окно показывало полный набор, значит
+         * итог и есть желаемое состояние - так одно действие и добавляет, и снимает.
+         */
+        async applyAssign(selectedIds) {
+            if (!this.applicationId) return;
+            const notify = useDeletionsStore().notify;
+            this.assign.submitting = true;
+            try {
+                if (this.assign.kind === 'places') {
+                    await assignCarUnloadPlaces(this.applicationId, {
+                        carIds: this.assign.elementIds,
+                        placeIds: selectedIds,
+                        mode: 'replace'
+                    });
+                } else {
+                    await assignElementTables(this.applicationId, {
+                        elementType: this.type === 'people' ? 'people' : 'cars',
+                        elementIds: this.assign.elementIds,
+                        tableIds: selectedIds,
+                        mode: 'replace'
+                    });
+                }
+                notify({
+                    type: 'success',
+                    message: this.assign.kind === 'places' ? 'Места разгрузки обновлены' : 'Посты обновлены'
+                });
+                this.assign.open = false;
+                this.$emit('assignments-changed');
+            } catch (error) {
+                notify({ type: 'error', message: error.message || 'Не удалось сохранить' });
+            } finally {
+                this.assign.submitting = false;
+            }
         },
 
         openRow(row) {
@@ -1133,6 +1238,17 @@ export default {
     white-space: nowrap;
 }
 
+.cell-chips {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.cell-chips .chips {
+    flex: 1 1 auto;
+}
+
 .chips {
     display: flex;
     flex-wrap: nowrap;
@@ -1163,6 +1279,21 @@ export default {
     background: var(--color-primary-tint);
     color: var(--color-primary);
     font-weight: 600;
+}
+
+.chip--assign {
+    border-style: dashed;
+    border-color: rgba(79, 91, 223, 0.45);
+    background: #fff;
+    color: var(--color-primary);
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    padding: 3px 9px;
+}
+
+.chip--assign:hover {
+    background: var(--color-primary-tint);
 }
 
 .chip--empty {

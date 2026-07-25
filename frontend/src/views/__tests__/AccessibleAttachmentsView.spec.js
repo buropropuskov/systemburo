@@ -43,9 +43,13 @@ const { routeState, replace } = vi.hoisted(() => ({
   routeState: { query: {} },
   replace: vi.fn(() => Promise.resolve()),
 }));
+// createRouter/createWebHistory нужны из-за цепочки импортов: список элементов
+// вложения ходит в api/client, а тот тянет router (#1393).
 vi.mock('vue-router', () => ({
   useRoute: () => ({ query: routeState.query }),
   useRouter: () => ({ replace }),
+  createRouter: () => ({ beforeEach: vi.fn(), afterEach: vi.fn(), push: vi.fn(), replace: vi.fn() }),
+  createWebHistory: () => ({}),
 }));
 
 import AccessibleAttachmentsView from '@/views/AccessibleAttachmentsView.vue';
