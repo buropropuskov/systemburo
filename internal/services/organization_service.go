@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"systemburo/internal/models"
+	"systemburo/internal/normalize"
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
@@ -237,9 +238,11 @@ func (s *organizationService) Create(ctx context.Context, callerUserID int, req 
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Некорректный тип организации")
 	}
 
+	// Сверяем по ключу дедупликации, а не по точному name: иначе рядом с
+	// «ООО "Ромашка"» заводится «ооо ромашка» как отдельная организация (#1437).
 	var active int64
 	if err := s.db.WithContext(ctx).Model(&models.Organization{}).
-		Where("name = ? AND is_active = ?", req.Name, true).Count(&active).Error; err != nil {
+		Where("name_normalized = ? AND is_active = ?", normalize.OrgName(req.Name), true).Count(&active).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error checking organization")
 	}
 	if active > 0 {
@@ -274,10 +277,12 @@ func (s *organizationService) Update(ctx context.Context, callerUserID, id int, 
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Нельзя переименовать архивную организацию")
 	}
 
-	// Конфликт с другой активной организацией по имени (partial unique).
+	// Конфликт с другой активной организацией по ключу дедупликации (#1437):
+	// переименование в другое написание существующего наименования - тот же дубль.
+	normalized := normalize.OrgName(req.Name)
 	var dup int64
 	if err := s.db.WithContext(ctx).Model(&models.Organization{}).
-		Where("name = ? AND is_active = ? AND id <> ?", req.Name, true, id).Count(&dup).Error; err != nil {
+		Where("name_normalized = ? AND is_active = ? AND id <> ?", normalized, true, id).Count(&dup).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error checking organization")
 	}
 	if dup > 0 {
@@ -285,8 +290,9 @@ func (s *organizationService) Update(ctx context.Context, callerUserID, id int, 
 	}
 
 	// map-обновление (а не struct) - чтобы явно записать type=NULL при снятии типа.
+	// name_normalized пишем явно: BeforeSave до map-обновления не достаёт.
 	if err := s.db.WithContext(ctx).Model(&models.Organization{}).
-		Where("id = ?", id).Updates(map[string]any{"name": req.Name, "type": req.Type}).Error; err != nil {
+		Where("id = ?", id).Updates(map[string]any{"name": req.Name, "type": req.Type, "name_normalized": normalized}).Error; err != nil {
 		slog.Error("Не удалось обновить организацию", "id", id, "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error updating organization")
 	}
@@ -379,7 +385,7 @@ func (s *organizationService) Restore(ctx context.Context, callerUserID, id int)
 
 	var active int64
 	if err := s.db.WithContext(ctx).Model(&models.Organization{}).
-		Where("name = ? AND is_active = ? AND id <> ?", org.Name, true, id).Count(&active).Error; err != nil {
+		Where("name_normalized = ? AND is_active = ? AND id <> ?", normalize.OrgName(org.Name), true, id).Count(&active).Error; err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Error checking organization")
 	}
 	if active > 0 {

@@ -1,6 +1,12 @@
 package models
 
-import "time"
+import (
+	"time"
+
+	"gorm.io/gorm"
+
+	"systemburo/internal/normalize"
+)
 
 type User struct {
 	ID             int          `json:"id"`
@@ -60,6 +66,20 @@ type Organization struct {
 	// partial unique index (WHERE is_active=true) в migrate.go, а не gorm-тегом,
 	// чтобы архивная запись не блокировала создание новой активной с тем же именем.
 	IsActive bool `gorm:"default:true;index" json:"is_active"`
+	// NameNormalized - ключ дедупликации наименования (#1437): normalize.OrgName(Name).
+	// По нему ищется существующая запись при подаче заявки, поэтому три написания
+	// одного юрлица не могут создать три строки. Наружу не отдаётся - служебное поле.
+	NameNormalized string `gorm:"size:150;index" json:"-"`
+}
+
+// BeforeSave держит ключ дедупликации в согласии с наименованием. Ловит Create и
+// Save структурой; map-обновления (organizationService.Update) пишут name_normalized
+// явно - хук туда не достаёт, поскольку в UPDATE попадают только ключи map.
+func (o *Organization) BeforeSave(*gorm.DB) error {
+	if o.Name != "" {
+		o.NameNormalized = normalize.OrgName(o.Name)
+	}
+	return nil
 }
 
 type Company struct {
@@ -70,6 +90,17 @@ type Company struct {
 	// IsActive - архивный флаг (soft-delete). Уникальность name - partial unique
 	// index (WHERE is_active=true) в migrate.go, см. Organization.
 	IsActive bool `gorm:"default:true;index" json:"is_active"`
+	// NameNormalized - ключ дедупликации наименования, см. Organization.NameNormalized.
+	NameNormalized string `gorm:"size:150;index" json:"-"`
+}
+
+// BeforeSave держит ключ дедупликации в согласии с наименованием, см.
+// Organization.BeforeSave.
+func (c *Company) BeforeSave(*gorm.DB) error {
+	if c.Name != "" {
+		c.NameNormalized = normalize.OrgName(c.Name)
+	}
+	return nil
 }
 
 type UserType struct {
