@@ -2256,6 +2256,20 @@ export default {
   .table-body {
     max-height: 300px;
   }
+  /* Card-режим: у ячейки имени есть вертикаль - снимаем усечение
+     .truncate-text, иначе бейдж "по умолчанию"/"(архив)" в конце строки
+     режется (ellipsis прячет всё, что после него). Сам бейдж-пилюля остаётся
+     цельной строкой - переносится на новую строку как единое целое, а не
+     разрывается по словам. #1097 polish */
+  .name-col .truncate-text {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+  .name-col .default-badge,
+  .name-col .inactive-badge {
+    white-space: nowrap;
+  }
   .form-row {
     flex-direction: column;
   }
