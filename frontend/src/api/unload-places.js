@@ -40,3 +40,22 @@ export async function detachAllUnloadPlace(id) {
   const res = await apiRequest(`/unload-places/${id}/detach-all`, { method: 'POST' });
   return unwrap(res, 'Не удалось отвязать место разгрузки');
 }
+
+/**
+ * Снять привязку места разгрузки к ОДНОЙ организации. Идемпотентно (повтор по
+ * уже снятой -> {detached:false}).
+ * @returns {Promise<{detached: boolean}>}
+ */
+export async function detachOrganizationFromUnloadPlace(id, organizationId) {
+  const res = await apiRequest(`/unload-places/${id}/organizations/${organizationId}`, { method: 'DELETE' });
+  return unwrap(res, 'Не удалось отвязать организацию');
+}
+
+/**
+ * Снять привязку места разгрузки к ОДНОЙ компании. Идемпотентно.
+ * @returns {Promise<{detached: boolean}>}
+ */
+export async function detachCompanyFromUnloadPlace(id, companyId) {
+  const res = await apiRequest(`/unload-places/${id}/companies/${companyId}`, { method: 'DELETE' });
+  return unwrap(res, 'Не удалось отвязать компанию');
+}

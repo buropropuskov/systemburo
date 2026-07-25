@@ -75,6 +75,25 @@ export async function detachAllSystemTable(id) {
   return unwrap(res, 'Не удалось отвязать таблицу');
 }
 
+/**
+ * Снять привязку таблицы к ОДНОЙ организации. Идемпотентно (повтор по уже
+ * снятой -> {detached:false}).
+ * @returns {Promise<{detached: boolean}>}
+ */
+export async function detachOrganizationFromSystemTable(id, organizationId) {
+  const res = await apiRequest(`/system-tables/${id}/organizations/${organizationId}`, { method: 'DELETE' });
+  return unwrap(res, 'Не удалось отвязать организацию');
+}
+
+/**
+ * Снять привязку таблицы к ОДНОЙ компании. Идемпотентно.
+ * @returns {Promise<{detached: boolean}>}
+ */
+export async function detachCompanyFromSystemTable(id, companyId) {
+  const res = await apiRequest(`/system-tables/${id}/companies/${companyId}`, { method: 'DELETE' });
+  return unwrap(res, 'Не удалось отвязать компанию');
+}
+
 export async function uploadTablePhotos(tableId, formData) {
   const res = await apiRequest(`/system-tables/${tableId}/photos`, {
     method: 'POST',

@@ -13,6 +13,8 @@ const systemTablesApi = vi.hoisted(() => ({
   bulkRestoreSystemTables: vi.fn(),
   getSystemTableUsage: vi.fn(),
   detachAllSystemTable: vi.fn(),
+  detachOrganizationFromSystemTable: vi.fn(),
+  detachCompanyFromSystemTable: vi.fn(),
 }))
 vi.mock('@/api/system-tables', () => systemTablesApi)
 
@@ -225,5 +227,77 @@ describe('TableConstructor — блок «Привязки» на вкладке
     expect(wrapper.find('.usage-state--error').exists()).toBe(true)
     expect(wrapper.find('.usage-state--error').text()).toBe('Сервер недоступен')
     expect(wrapper.findAll('.usage-item')).toHaveLength(0)
+  })
+
+  it('крестик точечной отвязки: скрыт без права page.admin, виден с ним', async () => {
+    systemTablesApi.getSystemTableUsage.mockResolvedValue({
+      organizations: [{ id: 1, name: 'ООО Ромашка', is_active: true }],
+      companies: [],
+    })
+    wrapper = mountConstructor()
+    await flushPromises()
+    await selectTableWithUsage(wrapper) // mode 'normal' -> нет page.admin
+    expect(wrapper.findAll('.usage-item__detach')).toHaveLength(0)
+
+    usePermissionsStore().mode = 'super'
+    await flushPromises()
+    expect(wrapper.findAll('.usage-item__detach')).toHaveLength(1)
+  })
+
+  it('точечная отвязка: клик по крестику -> подтверждение -> API + reload + notify', async () => {
+    systemTablesApi.getSystemTableUsage
+      .mockResolvedValueOnce({
+        organizations: [{ id: 1, name: 'ООО Ромашка', is_active: true }],
+        companies: [{ id: 5, name: 'Компания-5', is_active: true }],
+      })
+      .mockResolvedValueOnce({
+        organizations: [],
+        companies: [{ id: 5, name: 'Компания-5', is_active: true }],
+      })
+    systemTablesApi.detachOrganizationFromSystemTable.mockResolvedValue({ detached: true })
+    wrapper = mountConstructor()
+    await flushPromises()
+    usePermissionsStore().mode = 'super'
+    await selectTableWithUsage(wrapper)
+    const notify = vi.spyOn(useDeletionsStore(), 'notify')
+
+    const btns = wrapper.findAll('.usage-item__detach')
+    expect(btns).toHaveLength(2) // org + company
+    // Клик по крестику организации открывает подтверждение (target проставлен).
+    await btns[0].trigger('click')
+    expect(wrapper.vm.detachOneTarget).toEqual({ kind: 'organization', id: 1, name: 'ООО Ромашка' })
+
+    await wrapper.vm.performDetachOne()
+    await flushPromises()
+
+    expect(systemTablesApi.detachOrganizationFromSystemTable).toHaveBeenCalledWith(7, 1)
+    expect(systemTablesApi.getSystemTableUsage).toHaveBeenCalledTimes(2) // первичная + reload
+    expect(notify).toHaveBeenCalledWith(
+      expect.objectContaining({ bold: 'ООО Ромашка', suffix: expect.stringContaining('отвязана') }),
+    )
+    // Организация ушла, компания осталась.
+    expect(wrapper.findAll('.usage-item')).toHaveLength(1)
+    expect(wrapper.text()).toContain('Компания-5')
+  })
+
+  it('точечная отвязка: ошибка -> error-notify, привязка на месте', async () => {
+    systemTablesApi.getSystemTableUsage.mockResolvedValue({
+      organizations: [{ id: 1, name: 'ООО Ромашка', is_active: true }],
+      companies: [],
+    })
+    systemTablesApi.detachOrganizationFromSystemTable.mockRejectedValue(new Error('Недостаточно прав'))
+    wrapper = mountConstructor()
+    await flushPromises()
+    usePermissionsStore().mode = 'super'
+    await selectTableWithUsage(wrapper)
+    const notify = vi.spyOn(useDeletionsStore(), 'notify')
+
+    wrapper.vm.confirmDetachOne('organization', { id: 1, name: 'ООО Ромашка' })
+    await wrapper.vm.performDetachOne()
+    await flushPromises()
+
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'error', bold: 'Недостаточно прав' }))
+    expect(wrapper.vm.detachingOne).toBe(false)
+    expect(wrapper.findAll('.usage-item')).toHaveLength(1) // ошибка не зовёт reload
   })
 })

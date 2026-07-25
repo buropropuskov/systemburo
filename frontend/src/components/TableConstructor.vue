@@ -565,7 +565,7 @@
                     <button
                       v-if="canDetachTable && !usageLoading && !usageError && usageHasBindings"
                       class="action-btn detach-all-btn"
-                      :disabled="detaching"
+                      :disabled="detaching || detachingOne"
                       @click="confirmDetachAll"
                     >
                       {{ detaching ? 'Отвязываем...' : 'Отвязать всё' }}
@@ -603,6 +603,15 @@
                             v-if="!org.is_active"
                             class="usage-item__archived"
                           >(архив)</span>
+                          <button
+                            v-if="canDetachTable"
+                            class="usage-item__detach"
+                            data-hint="Отвязать"
+                            :disabled="detaching || detachingOne"
+                            @click="confirmDetachOne('organization', org)"
+                          >
+                            &times;
+                          </button>
                         </li>
                       </ul>
                       <p
@@ -631,6 +640,15 @@
                             v-if="!comp.is_active"
                             class="usage-item__archived"
                           >(архив)</span>
+                          <button
+                            v-if="canDetachTable"
+                            class="usage-item__detach"
+                            data-hint="Отвязать"
+                            :disabled="detaching || detachingOne"
+                            @click="confirmDetachOne('company', comp)"
+                          >
+                            &times;
+                          </button>
                         </li>
                       </ul>
                       <p
@@ -852,13 +870,25 @@
         @confirm="performDetachAll"
         @cancel="detachConfirmVisible = false"
       />
+
+      <!-- Подтверждение отвязки одной организации/компании -->
+      <ConfirmationModal
+        :show="!!detachOneTarget"
+        title="Отвязать привязку"
+        :message="detachOneConfirmMessage"
+        confirm-text="Отвязать"
+        cancel-text="Отмена"
+        :confirm-button-style="{ background: '#c62828', borderColor: '#c62828' }"
+        @confirm="performDetachOne"
+        @cancel="detachOneTarget = null"
+      />
     </div>
   </AdminPageShell>
 </template>
 
 <script>
 import { apiRequest } from '@/api/client'
-import { bulkArchiveSystemTables, bulkRestoreSystemTables, getSystemTableUsage, detachAllSystemTable } from '@/api/system-tables'
+import { bulkArchiveSystemTables, bulkRestoreSystemTables, getSystemTableUsage, detachAllSystemTable, detachOrganizationFromSystemTable, detachCompanyFromSystemTable } from '@/api/system-tables'
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import { confirmIfAnyDirty } from '@/utils/dirtyTracker';
 import { useDeletionsStore } from '@/stores/deletions';
@@ -931,6 +961,9 @@ export default {
       usageSeq: 0,
       detaching: false,
       detachConfirmVisible: false,
+      // Точечная отвязка: { kind: 'organization'|'company', id, name } | null.
+      detachOneTarget: null,
+      detachingOne: false,
     };
   },
   computed: {
@@ -1024,6 +1057,11 @@ export default {
       const o = this.usage.organizations.length;
       const c = this.usage.companies.length;
       return `Отвязать таблицу «${this.selectedTable.table.display_name}» от всех организаций (${o}) и компаний (${c})? Это освободит таблицу, чтобы её можно было удалить.`;
+    },
+    detachOneConfirmMessage() {
+      if (!this.detachOneTarget || !this.selectedTable) return '';
+      const kind = this.detachOneTarget.kind === 'organization' ? 'организацию' : 'компанию';
+      return `Отвязать ${kind} «${this.detachOneTarget.name}» от таблицы «${this.selectedTable.table.display_name}»?`;
     },
   },
   watch: {
@@ -1406,6 +1444,39 @@ export default {
         useDeletionsStore().notify({ prefix: 'Не удалось отвязать: ', bold: msg, type: 'error' });
       } finally {
         this.detaching = false;
+      }
+    },
+
+    confirmDetachOne(kind, item) {
+      this.detachOneTarget = { kind, id: item.id, name: item.name };
+    },
+
+    async performDetachOne() {
+      const target = this.detachOneTarget;
+      const table = this.selectedTable;
+      this.detachOneTarget = null;
+      if (!target || !table) return;
+      this.detachingOne = true;
+      try {
+        if (target.kind === 'organization') {
+          await detachOrganizationFromSystemTable(table.table.id, target.id);
+        } else {
+          await detachCompanyFromSystemTable(table.table.id, target.id);
+        }
+        // Перезагружаем привязки, только если не ушли на другую таблицу.
+        if (this.selectedTable && this.selectedTable.table.id === table.table.id) {
+          await this.loadUsage();
+        }
+        useDeletionsStore().notify({
+          prefix: target.kind === 'organization' ? 'Организация ' : 'Компания ',
+          bold: target.name,
+          suffix: ' отвязана от таблицы',
+        });
+      } catch (err) {
+        const msg = err instanceof TypeError ? 'ошибка сети' : (err.message || 'ошибка');
+        useDeletionsStore().notify({ prefix: 'Не удалось отвязать: ', bold: msg, type: 'error' });
+      } finally {
+        this.detachingOne = false;
       }
     },
 
@@ -2999,6 +3070,58 @@ export default {
   color: #6b7280;
   font-size: 0.8em;
   font-weight: 500;
+}
+
+/* Крестик «Отвязать» на строке привязки (виден админу). */
+.usage-item__detach {
+  margin-left: auto;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: #b0b0b0;
+  font-size: 20px;
+  line-height: 1;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+  position: relative;
+}
+
+.usage-item__detach:hover:not(:disabled) {
+  color: #dc3545;
+  background: #fff1f2;
+}
+
+.usage-item__detach:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Всплывающая подсказка #333 как у прочих hint проекта (не native title). */
+.usage-item__detach::after {
+  content: attr(data-hint);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  background: #333;
+  color: #fff;
+  font-size: 12px;
+  white-space: nowrap;
+  padding: 4px 8px;
+  border-radius: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+  z-index: 1;
+}
+
+.usage-item__detach:hover:not(:disabled)::after {
+  opacity: 1;
 }
 
 .usage-empty {

@@ -360,7 +360,7 @@
                 <button
                   v-if="canDetachUnloadPlace && !usageLoading && !usageError && usageHasBindings"
                   class="action-btn detach-all-btn"
-                  :disabled="detaching"
+                  :disabled="detaching || detachingOne"
                   @click="confirmDetachAll"
                 >
                   {{ detaching ? 'Отвязываем...' : 'Отвязать всё' }}
@@ -398,6 +398,15 @@
                         v-if="!org.is_active"
                         class="usage-item__archived"
                       >(архив)</span>
+                      <button
+                        v-if="canDetachUnloadPlace"
+                        class="usage-item__detach"
+                        data-hint="Отвязать"
+                        :disabled="detaching || detachingOne"
+                        @click="confirmDetachOne('organization', org)"
+                      >
+                        &times;
+                      </button>
                     </li>
                   </ul>
                   <p
@@ -426,6 +435,15 @@
                         v-if="!comp.is_active"
                         class="usage-item__archived"
                       >(архив)</span>
+                      <button
+                        v-if="canDetachUnloadPlace"
+                        class="usage-item__detach"
+                        data-hint="Отвязать"
+                        :disabled="detaching || detachingOne"
+                        @click="confirmDetachOne('company', comp)"
+                      >
+                        &times;
+                      </button>
                     </li>
                   </ul>
                   <p
@@ -829,6 +847,17 @@
       @cancel="detachConfirmVisible = false"
     />
 
+    <ConfirmationModal
+      :show="!!detachOneTarget"
+      title="Отвязать привязку"
+      :message="detachOneConfirmMessage"
+      confirm-text="Отвязать"
+      cancel-text="Отмена"
+      :confirm-button-style="{ background: '#c62828', borderColor: '#c62828' }"
+      @confirm="performDetachOne"
+      @cancel="detachOneTarget = null"
+    />
+
     <UnloadPlaceHistoryModal
       v-if="historyPlace"
       :unload-place="historyPlace"
@@ -852,7 +881,7 @@ import BaseDropdown from '../ui/BaseDropdown.vue';
 import WorkScheduleTab from '../WorkScheduleTab.vue';
 import WarningWindowsEditor from '../WarningWindowsEditor.vue';
 import UnloadPlaceHistoryModal from './UnloadPlaceHistoryModal.vue';
-import { bulkArchiveUnloadPlaces, bulkRestoreUnloadPlaces, getUnloadPlaceUsage, detachAllUnloadPlace } from '@/api/unload-places';
+import { bulkArchiveUnloadPlaces, bulkRestoreUnloadPlaces, getUnloadPlaceUsage, detachAllUnloadPlace, detachOrganizationFromUnloadPlace, detachCompanyFromUnloadPlace } from '@/api/unload-places';
 
 export default {
   components: {
@@ -917,6 +946,9 @@ export default {
       usageSeq: 0,
       detaching: false,
       detachConfirmVisible: false,
+      // Точечная отвязка: { kind: 'organization'|'company', id, name } | null.
+      detachOneTarget: null,
+      detachingOne: false,
     };
   },
   computed: {
@@ -936,6 +968,11 @@ export default {
       const o = this.usage.organizations.length;
       const c = this.usage.companies.length;
       return `Отвязать место разгрузки «${this.selectedPlace.name}» от всех организаций (${o}) и компаний (${c})? Это освободит место, чтобы его можно было удалить.`;
+    },
+    detachOneConfirmMessage() {
+      if (!this.detachOneTarget || !this.selectedPlace) return '';
+      const kind = this.detachOneTarget.kind === 'organization' ? 'организацию' : 'компанию';
+      return `Отвязать ${kind} «${this.detachOneTarget.name}» от места разгрузки «${this.selectedPlace.name}»?`;
     },
     allSelected() {
       return this.sortedUnloadPlaces.length > 0 && this.selectedIds.length === this.sortedUnloadPlaces.length;
@@ -1360,6 +1397,39 @@ export default {
         useDeletionsStore().notify({ prefix: 'Не удалось отвязать: ', bold: msg, type: 'error' });
       } finally {
         this.detaching = false;
+      }
+    },
+
+    confirmDetachOne(kind, item) {
+      this.detachOneTarget = { kind, id: item.id, name: item.name };
+    },
+
+    async performDetachOne() {
+      const target = this.detachOneTarget;
+      const place = this.selectedPlace;
+      this.detachOneTarget = null;
+      if (!target || !place) return;
+      this.detachingOne = true;
+      try {
+        if (target.kind === 'organization') {
+          await detachOrganizationFromUnloadPlace(place.id, target.id);
+        } else {
+          await detachCompanyFromUnloadPlace(place.id, target.id);
+        }
+        // Перезагружаем привязки, только если не ушли на другое место.
+        if (this.selectedPlace && this.selectedPlace.id === place.id) {
+          await this.loadUsage();
+        }
+        useDeletionsStore().notify({
+          prefix: target.kind === 'organization' ? 'Организация ' : 'Компания ',
+          bold: target.name,
+          suffix: ' отвязана от места разгрузки',
+        });
+      } catch (err) {
+        const msg = err instanceof TypeError ? 'ошибка сети' : (err.message || 'ошибка');
+        useDeletionsStore().notify({ prefix: 'Не удалось отвязать: ', bold: msg, type: 'error' });
+      } finally {
+        this.detachingOne = false;
       }
     },
 
@@ -2402,6 +2472,58 @@ async uploadPhotoFiles(files) {
   color: #6b7280;
   font-size: 0.8em;
   font-weight: 500;
+}
+
+/* Крестик «Отвязать» на строке привязки (виден админу). */
+.usage-item__detach {
+  margin-left: auto;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: #b0b0b0;
+  font-size: 20px;
+  line-height: 1;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+  position: relative;
+}
+
+.usage-item__detach:hover:not(:disabled) {
+  color: #dc3545;
+  background: #fff1f2;
+}
+
+.usage-item__detach:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Всплывающая подсказка #333 как у прочих hint проекта (не native title). */
+.usage-item__detach::after {
+  content: attr(data-hint);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  background: #333;
+  color: #fff;
+  font-size: 12px;
+  white-space: nowrap;
+  padding: 4px 8px;
+  border-radius: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+  z-index: 1;
+}
+
+.usage-item__detach:hover:not(:disabled)::after {
+  opacity: 1;
 }
 
 .usage-empty {
