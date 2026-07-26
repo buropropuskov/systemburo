@@ -51,10 +51,17 @@
         </div>
         <div
           v-else-if="pendingFieldPath"
-          class="te-action-banner te-action-banner--info"
+          class="te-action-banner"
+          :class="pendingIsForeignList ? 'te-action-banner--warning' : 'te-action-banner--info'"
         >
           <span>
             Привязка: <strong>{{ pendingFieldLabel }}</strong> - кликните на ячейку в документе
+            <template v-if="pendingIsForeignList">
+              . Это поле другого типа вложения, в бланке оно останется пустым
+            </template>
+            <template v-else-if="pendingIsListField">
+              . Поле списка: строки берутся из диапазона списка, важна только колонка ячейки
+            </template>
           </span>
           <button
             class="lk-button lk-button--ghost te-btn-sm"
@@ -353,6 +360,54 @@
             </div>
           </div>
 
+          <!-- Границы строк списка: правятся без перезагрузки файла -->
+          <div
+            v-if="template && template.file_path && !showUpload"
+            class="te-params-block"
+          >
+            <div class="te-params-fields">
+              <div class="te-form-field">
+                <label>Начало списка</label>
+                <input
+                  v-model.number="form.listStartRow"
+                  type="number"
+                  min="1"
+                  class="lk-input te-compact-input"
+                  data-testid="template-list-start"
+                >
+              </div>
+              <div class="te-form-field">
+                <label>Конец списка</label>
+                <input
+                  v-model.number="form.listEndRow"
+                  type="number"
+                  min="1"
+                  class="lk-input te-compact-input"
+                  data-testid="template-list-end"
+                >
+              </div>
+              <div class="te-form-field">
+                <label>Макс. записей</label>
+                <input
+                  v-model.number="form.maxListRows"
+                  type="number"
+                  min="0"
+                  class="lk-input te-compact-input"
+                  placeholder="авто"
+                  data-testid="template-list-max"
+                >
+              </div>
+            </div>
+            <button
+              class="lk-button lk-button--ghost te-btn-sm"
+              :disabled="savingParams || !listRangeChanged"
+              data-testid="template-params-save"
+              @click="saveParams"
+            >
+              {{ savingParams ? 'Сохранение...' : 'Сохранить границы' }}
+            </button>
+          </div>
+
           <!-- Настройка разделителя (для совмещения полей) -->
           <div
             v-if="template && template.file_path && !showUpload && hasCombinedCells"
@@ -466,6 +521,14 @@
           v-if="enabled && template && template.file_path"
           class="te-mappings-section"
         >
+          <div
+            v-if="foreignListMappings.length"
+            class="te-foreign-warning"
+          >
+            В списке есть {{ foreignListMappings.length }} привязк{{ foreignListMappings.length === 1 ? 'а' : 'и' }}
+            из другой группы полей ({{ foreignListMappings.map(m => getFieldLabel(m.field_path)).join(', ') }}).
+            У этого типа вложения такие данные не заполняются - ячейки останутся пустыми.
+          </div>
           <button
             class="te-section-toggle"
             @click="showMappings = !showMappings"
@@ -531,7 +594,7 @@
 <script>
 import { useDeletionsStore } from '@/stores/deletions';
 import {
-  getTemplate, uploadTemplate, updateMappings, deleteTemplate,
+  getTemplate, uploadTemplate, updateMappings, updateTemplateParams, deleteTemplate,
   getTemplateFields, getTemplateFile, saveBlobAs,
   listTemplates, setActiveTemplate, deleteTemplateByID, getTemplateFileByID,
   deactivateAllTemplates,
@@ -564,6 +627,9 @@ export default {
   props: {
     show: { type: Boolean, required: true },
     uniqueAttachmentId: { type: Number, required: true },
+    // Тип вложения задаёт, какая группа полей попадает в строки списка: у бланка
+    // имущества привязка car.* останется пустой (#1454).
+    attachmentType: { type: String, default: '' },
   },
   emits: ['close'],
   data() {
@@ -578,6 +644,7 @@ export default {
       form: { file: null, listStartRow: 1, listEndRow: 1, maxListRows: 0 },
       uploading: false,
       savingMappings: false,
+      savingParams: false,
       concatSeparator: ', ',
       loadingTemplate: false,
       loadingFields: false,
@@ -646,6 +713,32 @@ export default {
         cellCounts[m.cell_ref] = (cellCounts[m.cell_ref] || 0) + 1;
       }
       return Object.values(cellCounts).some(c => c > 1);
+    },
+    // Группа полей, которая реально попадает в строки списка этого бланка.
+    listGroupForType() {
+      return { cars: 'car', people: 'employee', items: 'item' }[this.attachmentType] || '';
+    },
+    // Привязка поля-списка из чужой группы: значений у неё не будет, потому что
+    // источник (машины/сотрудники/ТМЦ) принадлежит другому типу вложения.
+    foreignListMappings() {
+      if (!this.listGroupForType) return [];
+      return this.mappings.filter(
+        m => m.is_list_field && !m.field_path.startsWith(`${this.listGroupForType}.`)
+      );
+    },
+    pendingIsForeignList() {
+      if (!this.pendingFieldPath || !this.listGroupForType) return false;
+      return this.isListField(this.pendingFieldPath)
+        && !this.pendingFieldPath.startsWith(`${this.listGroupForType}.`);
+    },
+    listRangeChanged() {
+      if (!this.template) return false;
+      return this.form.listStartRow !== this.template.list_start_row
+        || this.form.listEndRow !== this.template.list_end_row
+        || this.form.maxListRows !== (this.template.max_list_rows || 0);
+    },
+    pendingIsListField() {
+      return !!this.pendingFieldPath && this.isListField(this.pendingFieldPath);
     },
     cellColorMap() {
       if (!this.showPaths) return new Map();
@@ -991,6 +1084,27 @@ export default {
     chipStyle(fieldPath) {
       if (!this.showPaths || !this.fieldPathUsed(fieldPath)) return {};
       return { borderColor: this.getFieldColor(fieldPath) };
+    },
+    async saveParams() {
+      if (this.savingParams) return;
+      this.savingParams = true;
+      try {
+        await updateTemplateParams(this.uniqueAttachmentId, {
+          listStartRow: this.form.listStartRow,
+          listEndRow: this.form.listEndRow,
+          maxListRows: this.form.maxListRows,
+        });
+        useDeletionsStore().notify({ bold: 'Границы списка сохранены' });
+        await this.loadTemplate();
+      } catch (err) {
+        useDeletionsStore().notify({
+          prefix: 'Не удалось сохранить границы: ',
+          bold: err.message || 'ошибка сервера',
+          type: 'error',
+        });
+      } finally {
+        this.savingParams = false;
+      }
     },
     async saveMappings() {
       this.savingMappings = true;
@@ -1459,6 +1573,31 @@ export default {
 
 
 /* ---- Separator ---- */
+.te-params-block {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.te-params-fields {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.te-foreign-warning {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md, 15px);
+  background: rgba(232, 163, 23, 0.12);
+  color: #8a5a00;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .te-separator-block {
   display: flex;
   align-items: center;

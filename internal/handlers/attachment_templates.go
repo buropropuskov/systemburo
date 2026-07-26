@@ -178,6 +178,31 @@ func (h *AttachmentTemplateHandler) UpdateMappings(c echo.Context) error {
 	return RespondMessage(c, "Маппинги обновлены")
 }
 
+// UpdateParams godoc
+// @Summary      Изменить границы строк списка без перезагрузки файла
+// @Tags         attachment-templates
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID UniqueAttachment"
+// @Param        request body models.UpdateTemplateParamsRequest true "Границы строк списка"
+// @Success      200 {string} string "Параметры списка сохранены"
+// @Router       /attachments/{id}/template/params [put]
+func (h *AttachmentTemplateHandler) UpdateParams(c echo.Context) error {
+	uaID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	var req models.UpdateTemplateParamsRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	if err := h.service.UpdateParams(c.Request().Context(), uaID, req); err != nil {
+		return err
+	}
+	return RespondMessage(c, "Параметры списка сохранены")
+}
+
 // Delete godoc
 // @Summary      Удалить шаблон бланка
 // @Tags         attachment-templates
