@@ -113,25 +113,51 @@ describe('revealThemeChange', () => {
     expect(start).not.toHaveBeenCalled();
   });
 
-  it('ведёт контур и маску одним таймингом', async () => {
+  it('ведёт одну анимацию контура на новом кадре', async () => {
     const { animate, start } = stubViewTransitions();
 
     await revealThemeChange(vi.fn(), origin);
 
     expect(start).toHaveBeenCalledTimes(1);
+    // Одна анимация: маску убрали - размытая кромка читалась как смазанное пятно.
+    expect(animate).toHaveBeenCalledTimes(1);
     const contour = framesOf(animate, 'clipPath');
-    const mask = framesOf(animate, 'maskImage');
     expect(contour).not.toBeNull();
-    expect(mask).not.toBeNull();
-    for (const anim of [contour, mask]) {
-      expect(anim.options).toMatchObject({
-        duration: REVEAL_DURATION,
-        pseudoElement: '::view-transition-new(root)',
-      });
-    }
-    expect(contour.frames.length).toBe(mask.frames.length);
+    expect(contour.options).toMatchObject({
+      duration: REVEAL_DURATION,
+      pseudoElement: '::view-transition-new(root)',
+    });
     expect(contour.frames[0].startsWith('polygon(')).toBe(true);
-    expect(mask.frames[0].startsWith('radial-gradient(')).toBe(true);
+  });
+
+  it('поднимает поверхность снизу вверх, не откатывая её', async () => {
+    const { animate } = stubViewTransitions();
+
+    await revealThemeChange(vi.fn(), origin);
+
+    // Верхняя граница области - первая половина точек кадра.
+    const surfaces = framesOf(animate, 'clipPath').frames.map((f) => {
+      const pts = pointsOf(f);
+      const top = pts.slice(0, pts.length / 2);
+      return top.reduce((sum, p) => sum + p.y, 0) / top.length;
+    });
+    expect(surfaces.every((y, i) => i === 0 || y < surfaces[i - 1])).toBe(true);
+    // Стартует у точки клика, заканчивается выше верхнего края экрана.
+    expect(Math.abs(surfaces[0] - origin.y)).toBeLessThan(40);
+    expect(surfaces.at(-1)).toBeLessThan(0);
+  });
+
+  it('держит на поверхности волну, а не прямую линию', async () => {
+    const { animate } = stubViewTransitions();
+
+    await revealThemeChange(vi.fn(), origin);
+
+    const frames = framesOf(animate, 'clipPath').frames;
+    // Середина заливки: поверхность уже во всю ширину, волна должна быть заметной.
+    const pts = pointsOf(frames[Math.round(frames.length * 0.6)]);
+    const top = pts.slice(0, pts.length / 2).map((p) => p.y);
+    const swing = Math.max(...top) - Math.min(...top);
+    expect(swing, 'поверхность плоская - волны не видно').toBeGreaterThan(20);
   });
 
   it('стартует каплей под курсором, а не точкой', async () => {
@@ -141,9 +167,9 @@ describe('revealThemeChange', () => {
 
     const first = pointsOf(framesOf(animate, 'clipPath').frames[0]);
     const r = maxRadius(first, origin);
-    // Затравка ~22px: заметная капля, но ещё не заливка.
+    // Затравка ~24px: заметная капля, но ещё не заливка.
     expect(r).toBeGreaterThan(10);
-    expect(r).toBeLessThan(40);
+    expect(r).toBeLessThan(60);
   });
 
   it('последним кадром накрывает все четыре угла вьюпорта', async () => {
@@ -158,7 +184,7 @@ describe('revealThemeChange', () => {
     }
   });
 
-  it('фронт только растёт - заливка не откатывается назад', async () => {
+  it('область заливки только растёт - назад не отступает', async () => {
     const { animate } = stubViewTransitions();
 
     await revealThemeChange(vi.fn(), origin);

@@ -2,96 +2,86 @@
  * Заливка новой темы от точки клика (#1415).
  *
  * View Transitions API снимает кадр «до», применяет тему и отдаёт оба кадра
- * псевдоэлементами: старый лежит неподвижно, новый открывается растущим от
- * курсора пятном. Штатный кроссфейд гасит assets/theme-transition.css.
+ * псевдоэлементами: старый лежит неподвижно, новый открывается растущей областью.
+ * Штатный кроссфейд гасит assets/theme-transition.css.
  *
- * Жидкость получается из четырёх вещей, и все четыре важны:
- *   1. РОВНОЕ ПО ОЩУЩЕНИЮ ЗАПОЛНЕНИЕ. Площадь пятна растёт как r², поэтому
- *      кривая радиуса - степень 0.75 (`radiusAt`): фронт идёт от курсора сразу и
- *      тормозит у краёв. Проверено замером покрытия экрана по кадрам.
- *   2. НЕРОВНАЯ КРОМКА. Радиус по углу гуляет суммой трёх НИЗКОЧАСТОТНЫХ волн,
- *      они медленно проворачиваются, амплитуда гаснет к концу - контур дышит, как
- *      поверхность натёкшей лужи, и приходит к кругу, накрывающему экран.
- *   3. ПЕРЕКОС ПО ГРАВИТАЦИИ. Вниз пятно растекается охотнее, чем вверх
- *      (`gravityFactor`) - без этого симметричный круг читается как циркуль.
- *   4. РАЗМЫТЫЙ КРАЙ. Поверх клипа идёт радиальная маска: кромка размывается на
- *      долю радиуса (не на фиксированные пиксели - на пятне во весь экран их не
- *      видно) и перед прозрачностью идёт полупрозрачная полоса, поэтому фронт
- *      читается как смоченная граница, а не как вырезанная ножницами дуга.
+ * ЖИДКОСТЬ - ЭТО НЕ РАСТУЩИЙ КРУГ. Две прошлые версии росли радиусом от курсора,
+ * и обе читались как надувающийся шар: у круга нет ни низа, ни поверхности, а
+ * добирая остаток площади у дальнего угла, он в конце «взрывается». Здесь форма
+ * описана как настоящая жидкость - тремя стадиями, которые идут внахлёст:
+ *
+ *   1. КАПЛЯ. Из точки клика расходится линза: вниз охотнее, чем вверх
+ *      (`DROP_UP_RATIO`), потому что вниз тянет вес.
+ *   2. ЛУЖА. Дно линзы досаживается на низ экрана (`floorMix`) - жидкость
+ *      доливается до пола и растекается по нему во всю ширину.
+ *   3. УРОВЕНЬ. Дальше поднимается поверхность (`levelAt`) с длинной волной,
+ *      которая гаснет к концу (`WAVES`, `waveAmplitude`). Экран заполняется
+ *      снизу вверх, последним закрывается верхний край - ровно, без рывка.
+ *
+ * Кромка намеренно РЕЗКАЯ: размытие маской читалось как смазанное пятно, а у
+ * жидкости граница чёткая. Заодно это дешевле на кадр - маску не растрируем.
  *
  * Без поддержки API (или при prefers-reduced-motion) тема применяется мгновенно:
  * эффект украшение, а не условие работы.
  */
 
 /**
- * Длительность заливки = сколько жидкость течёт через экран: ниже ~600мс жест
- * смазывается, выше ~1100 начинает тянуться.
+ * Длительность. Заливка снизу вверх читается как течение, ей нужно время:
+ * ниже ~800мс уровень взлетает, выше ~1300 начинает тянуться.
  */
 export const REVEAL_DURATION = 880;
 
+/** Кадров интерполяции: WAAPI тянет между ними линейно. */
+const STEPS = 26;
+/** Столбцов выборки по X: по ним считаются верхняя и нижняя границы области. */
+const COLUMNS = 56;
+/** Вверх капля идёт вдвое неохотнее, чем вниз - это и читается как вес. */
+const DROP_UP_RATIO = 0.5;
+/** Стартовые полуоси капли, px: под курсором сразу видно каплю, а не точку. */
+const DROP_SEED = 24;
 /**
- * Кадров интерполяции: WAAPI тянет между ними линейно. 22 хватает на всю
- * заливку, а каждый лишний кадр - это лишний пересчёт контура на 56 точек.
+ * Запас за верхний край. Нужен, чтобы впадина волны не оставила полоску у верха,
+ * но большим быть не должен: уровень тогда уходит за экран задолго до конца, и
+ * последние кадры уже нечего заливать (замер: 90px давали 90мс пустого хвоста).
  */
-const STEPS = 22;
+const OVERSHOOT = 26;
 /**
- * Точек контура. 56 - компромисс: волны читаются гладкими, а клип остаётся
- * дешёвым (замер стоимости кадра против пустой opacity-анимации: +2мс).
+ * Амплитуда волны на поверхности, px. Это главная примета жидкости: на 900px
+ * экране 30px читаются как лёгкая рябь, поэтому берём заметные 46.
  */
-const POINTS = 56;
+const WAVE_AMPLITUDE = 46;
 /**
- * Размытие кромки берём долей радиуса, а не фиксированными пикселями: на пятне
- * в 900px 44px не видно вовсе, и кромка снова читается как вырезанная дуга.
- */
-const FEATHER_RATIO = 0.075;
-const FEATHER_MIN = 26;
-const FEATHER_MAX = 110;
-/** Амплитуда волн на кромке в долях радиуса (на старте; к концу гаснет до нуля). */
-const WAVE_AMPLITUDE = 0.07;
-/**
- * Волны НИЗКОЧАСТОТНЫЕ: два-три лепестка на весь контур. Мелкая рябь на пятне
- * во весь экран не видна, а крупные наплывы читаются как растекающаяся лужа.
+ * Волны поверхности: длина в экранах, вес, фаза, скорость бега. Длинные (1.1 и
+ * 2.3 периода на ширину) и с разным знаком скорости - гребни расходятся, и
+ * поверхность живёт, а не колеблется симметрично.
  */
 const WAVES = [
-  { lobes: 2, weight: 0.5, phase: 0.6, spin: 0.9 },
-  { lobes: 3, weight: 0.34, phase: 2.4, spin: -0.7 },
-  { lobes: 5, weight: 0.16, phase: 4.2, spin: 0.45 },
+  { periods: 1.1, weight: 0.62, phase: 0.4, speed: 2.4 },
+  { periods: 2.3, weight: 0.38, phase: 2.1, speed: -1.7 },
 ];
-/** Насколько пятно тянет вниз (по гравитации) и придерживает верх. */
-const GRAVITY_DOWN = 0.13;
-const GRAVITY_UP = 0.06;
 
+/** Падение капли: вниз она уходит быстро - вес. */
+const DROP_FALL = (t) => 1 - Math.pow(1 - Math.min(1, t / 0.22), 2.6);
+/** Растекание в стороны отстаёт от падения: сперва лужа, потом разлив. */
+const DROP_SPREAD = (t) => 1 - Math.pow(1 - Math.min(1, t / 0.36), 2.2);
+/** Досадка дна на низ экрана - позже растекания, поэтому лужа сперва провисает. */
+const FLOOR_MIX = (t) => Math.min(1, Math.max(0, (t - 0.14) / 0.3));
 /**
- * Ход фронта. Мерил покрытие экрана по кадрам: у симметричной кривой
- * (easeInOutSine) первые 150мс не видно ничего, а после 660мс уже нечего
- * заливать - клик отвечает с задержкой, а хвост анимации пустой. Пятно растёт
- * по площади ~ r², поэтому ровное по ощущению заполнение даёт степень 0.75:
- * фронт сразу идёт от курсора и замедляется к краям, как растекающаяся лужа.
- * Затравка в 22px - чтобы под курсором мгновенно появилась капля, а не точка.
+ * Подъём уровня. Стартует сразу, как капля коснулась дна, и идёт ПОЧТИ ЛИНЕЙНО:
+ * у smoothstep разгон был такой ленивый, что между лужей и подъёмом получалась
+ * пауза (замер заполнения: +9%, потом +2% за кадр - на экране это ступор), а к
+ * концу заполнение упиралось в 99% задолго до финала. Степень 0.9 даёт ровный
+ * ход с мягким торможением: экран заполняется равномерно и до самого конца.
  */
-const RADIUS_POWER = 0.75;
-const SEED_RADIUS = 22;
-const radiusAt = (t, rMax) => SEED_RADIUS + (rMax - SEED_RADIUS) * Math.pow(t, RADIUS_POWER);
-/**
- * Затухание волн: гаснут медленно (иначе к середине контур снова круг), но к
- * самому концу обязаны сойти в ноль - последний кадр должен накрыть экран без
- * зазоров во впадинах.
- */
-const WAVE_DECAY = (t) => Math.pow(1 - t, 0.85);
-/**
- * Ранняя сплюснутость: жидкость сперва расплывается в стороны, поэтому по
- * вертикали пятно на старте короче, к середине разница уходит.
- */
-const SQUASH = (t) => 0.82 + 0.18 * Math.min(1, t * 1.6);
-/**
- * Смещение по гравитации: вниз пятно уходит охотнее, чем вверх. Нарастает за
- * первую треть (иначе капля стартует уже перекошенной) и тоже гаснет к концу.
- */
-function gravityFactor(angle, t) {
-  const ramp = Math.min(1, t * 3) * WAVE_DECAY(t);
-  const down = Math.sin(angle); // y вниз: sin>0 - нижняя половина контура
-  return 1 + ramp * (down > 0 ? GRAVITY_DOWN * down : GRAVITY_UP * down);
+function levelProgress(t) {
+  const u = Math.min(1, Math.max(0, (t - 0.1) / 0.9));
+  return Math.pow(u, 0.9);
 }
+/**
+ * Волна гаснет к концу (иначе в последнем кадре у верхнего края останется
+ * зазор), но гаснет ПОЗДНО: при быстром затухании волну видно только в начале.
+ */
+const WAVE_DECAY = (p) => Math.pow(1 - p, 0.7);
 
 /**
  * @typedef {{ x: number, y: number }} RevealOrigin Точка в координатах вьюпорта.
@@ -123,78 +113,66 @@ export function canReveal() {
   return !window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
 }
 
+/** Смещение поверхности в точке x (доля ширины) в момент t. */
+function surfaceWave(ratio, t) {
+  let sum = 0;
+  for (const w of WAVES) {
+    sum += w.weight * Math.sin(ratio * w.periods * Math.PI * 2 + w.phase + w.speed * t);
+  }
+  return sum;
+}
+
 /**
- * Радиус, накрывающий вьюпорт из точки: до самого дальнего угла. С запасом на
- * сплюснутость и на впадины волн, иначе в последний кадр останется щель.
+ * Кадры области заливки. Каждый кадр - многоугольник: сверху идёт граница
+ * жидкости слева направо, снизу возвращаемся справа налево. Число точек во всех
+ * кадрах одинаковое - только тогда браузер интерполирует polygon() плавно.
  *
  * @param {RevealOrigin} origin
  * @param {number} width
  * @param {number} height
  */
-function coverRadius({ x, y }, width, height) {
-  const dx = Math.max(x, width - x);
-  const dy = Math.max(y, height - y);
-  // Запас 1%: к последнему кадру волны и перекос уже погасли, поэтому радиуса
-  // до дальнего угла достаточно - большой запас лишь съедал бы конец анимации.
-  return Math.hypot(dx, dy) * 1.01;
-}
-
-/** Смещение волн для угла: сумма трёх лепестковых гармоник в момент t. */
-function waveOffset(angle, t) {
-  let sum = 0;
-  for (const w of WAVES) sum += w.weight * Math.sin(w.lobes * angle + w.phase + w.spin * t);
-  return sum;
-}
-
-/**
- * Кадры контура: многоугольник по POINTS точкам вокруг точки клика. Число точек в
- * кадрах одинаковое - только тогда браузер интерполирует polygon() плавно.
- */
-function polygonFrames(origin, width, height) {
-  const rMax = coverRadius(origin, width, height);
+function fillFrames(origin, width, height) {
+  // Полуось капли по горизонтали должна дотянуться до дальнего края экрана.
+  const spanMax = Math.max(origin.x, width - origin.x) * 1.15;
+  const downMax = height - origin.y + 40;
   const frames = [];
+
   for (let i = 0; i <= STEPS; i += 1) {
     const t = i / STEPS;
-    const radius = radiusAt(t, rMax);
-    const amp = WAVE_AMPLITUDE * WAVE_DECAY(t);
-    const squash = SQUASH(t);
-    const points = [];
-    for (let p = 0; p < POINTS; p += 1) {
-      const angle = (p / POINTS) * Math.PI * 2;
-      const r = radius * (1 + amp * waveOffset(angle, t)) * gravityFactor(angle, t);
-      const px = origin.x + r * Math.cos(angle);
-      const py = origin.y + r * Math.sin(angle) * squash;
-      points.push(`${px.toFixed(1)}px ${py.toFixed(1)}px`);
+    const spread = DROP_SPREAD(t);
+    const fall = DROP_FALL(t);
+    const floor = FLOOR_MIX(t);
+    const level = levelProgress(t);
+    const rx = DROP_SEED + spanMax * spread;
+    const ryDown = DROP_SEED + downMax * fall;
+    const ryUp = ryDown * DROP_UP_RATIO;
+    // Поверхность идёт от точки клика вверх за край экрана.
+    const surface = origin.y - (origin.y + OVERSHOOT) * level;
+    const amp = WAVE_AMPLITUDE * WAVE_DECAY(level);
+
+    const left = Math.max(0, origin.x - rx);
+    const right = Math.min(width, origin.x + rx);
+    const top = [];
+    const bottom = [];
+    for (let c = 0; c < COLUMNS; c += 1) {
+      const x = left + ((right - left) * c) / (COLUMNS - 1);
+      const dx = (x - origin.x) / rx;
+      // Профиль линзы: 0 у краёв капли, 1 под курсором.
+      const lens = Math.sqrt(Math.max(0, 1 - dx * dx));
+      const lensTop = origin.y - ryUp * lens;
+      const lensBottom = origin.y + ryDown * lens;
+      const waved = surface + amp * surfaceWave(x / width, t);
+      // Выше - то, что раньше добралось: линза капли или поднявшийся уровень.
+      top.push({ x, y: Math.min(lensTop, waved) });
+      // Дно линзы досаживается на низ экрана, пока лужа растекается по полу.
+      bottom.push({ x, y: lensBottom + (height - lensBottom) * floor });
     }
-    frames.push(`polygon(${points.join(',')})`);
-  }
-  return frames;
-}
 
-/**
- * Кадры маски: радиальный градиент того же радиуса с размытой кромкой. Перед
- * прозрачностью идёт полоса неполной непрозрачности - через неё просвечивает
- * старая тема, и фронт читается как смоченная граница, а не как срез.
- * Держим много кадров: тогда даже без интерполяции градиентов ход гладкий.
- */
-function maskFrames(origin, width, height) {
-  const rMax = coverRadius(origin, width, height);
-  const at = `at ${origin.x}px ${origin.y}px`;
-  const frames = [];
-  for (let i = 0; i <= STEPS; i += 1) {
-    const t = i / STEPS;
-    // Маску растим с запасом: она обязана обгонять контур, иначе размытие
-    // съедало бы кромку многоугольника и пятно отставало бы от расчёта.
-    const front = radiusAt(t, rMax);
-    const feather = Math.min(FEATHER_MAX, Math.max(FEATHER_MIN, front * FEATHER_RATIO));
-    const radius = Math.max(1, front * (1 + WAVE_AMPLITUDE + GRAVITY_DOWN) + feather);
-    const solid = Math.max(0, 100 - (feather / radius) * 100);
-    const wet = solid + (100 - solid) * 0.45;
-    frames.push(
-      `radial-gradient(${radius.toFixed(1)}px ${radius.toFixed(1)}px ${at}, `
-        + `#000 ${solid.toFixed(1)}%, rgba(0, 0, 0, 0.72) ${wet.toFixed(1)}%, `
-        + `rgba(0, 0, 0, 0) 100%)`,
-    );
+    const points = [
+      ...top.map((p) => `${p.x.toFixed(1)}px ${p.y.toFixed(1)}px`),
+      ...bottom.reverse().map((p) => `${p.x.toFixed(1)}px ${p.y.toFixed(1)}px`),
+    ];
+    frames.push(`polygon(${points.join(',')})`);
   }
   return frames;
 }
@@ -241,18 +219,15 @@ export async function revealThemeChange(apply, origin) {
   running = transition;
   try {
     await transition.ready;
-    const { innerWidth: w, innerHeight: h } = window;
-    const timing = {
-      duration: REVEAL_DURATION,
-      // Кривые уже разложены по кадрам, здесь линейно - иначе наложатся.
-      easing: 'linear',
-      pseudoElement: '::view-transition-new(root)',
-    };
-    const contour = root.animate({ clipPath: polygonFrames(origin, w, h) }, timing);
-    // Маска идёт отдельной анимацией того же тайминга: одна анимация не может
-    // вести два свойства с разными наборами кадров.
-    root.animate({ maskImage: maskFrames(origin, w, h) }, timing);
-    await contour.finished;
+    await root.animate(
+      { clipPath: fillFrames(origin, window.innerWidth, window.innerHeight) },
+      {
+        duration: REVEAL_DURATION,
+        // Кривые стадий уже разложены по кадрам, здесь линейно - иначе наложатся.
+        easing: 'linear',
+        pseudoElement: '::view-transition-new(root)',
+      },
+    ).finished;
   } catch {
     // Прерванный или неподдержанный переход: тема уже применена коллбэком,
     // экран останется в новой теме без анимации.
