@@ -130,35 +130,45 @@ func (s *attachmentBlankService) GenerateBlank(ctx context.Context, applicationI
 	return buf, filename, nil
 }
 
+// listSource возвращает префикс field_path списочной части и число записей для типа
+// вложения. Пустой префикс - у вложения нет списка (неизвестный тип).
+func listSource(bctx *BlankContext) (string, int) {
+	if bctx.Attachment == nil {
+		return "", 0
+	}
+	switch bctx.Attachment.AttachmentType {
+	case "cars":
+		return "car.", len(bctx.Cars)
+	case "people":
+		return "employee.", len(bctx.Employees)
+	case "items":
+		return "item.", len(bctx.Items)
+	}
+	return "", 0
+}
+
 // fillListSection заполняет строки списка (cars/employees/items), при необходимости
 // расширяя шаблон через InsertRows + копирование стилей последней шаблонной строки.
 func (s *attachmentBlankService) fillListSection(f *excelize.File, sheet string, t *models.AttachmentTemplate, mappings []models.AttachmentTemplateMapping, bctx *BlankContext) {
-	// Определяем тип списка по первому list field_path.
-	listType := ""
-	for _, m := range mappings {
-		if strings.HasPrefix(m.FieldPath, "car.") {
-			listType = "car"
-		} else if strings.HasPrefix(m.FieldPath, "employee.") {
-			listType = "employee"
-		} else if strings.HasPrefix(m.FieldPath, "item.") {
-			listType = "item"
-		}
-		if listType != "" {
-			break
-		}
-	}
-	var count int
-	switch listType {
-	case "car":
-		count = len(bctx.Cars)
-	case "employee":
-		count = len(bctx.Employees)
-	case "item":
-		count = len(bctx.Items)
-	}
+	// Список задаёт тип вложения, а не порядок привязок (#1454): у items-вложения нет
+	// машин, и привязка car.* не должна отменять заполнение ТМЦ. Раньше тип брался по
+	// первому list-маппингу, из-за чего боевой бланк "Заявка на ввоз" с привязками к
+	// номеру машины отдавал пустую таблицу имущества.
+	prefix, count := listSource(bctx)
 	if count == 0 {
 		return
 	}
+	// Привязки чужих групп заполнять нечем: их источник у этого вложения пуст.
+	own := make([]models.AttachmentTemplateMapping, 0, len(mappings))
+	for _, m := range mappings {
+		if strings.HasPrefix(m.FieldPath, prefix) {
+			own = append(own, m)
+		}
+	}
+	if len(own) == 0 {
+		return
+	}
+	mappings = own
 
 	// Если записей больше max - вставляем доп. строки сразу после ListEndRow.
 	if count > t.MaxListRows && t.MaxListRows > 0 {
