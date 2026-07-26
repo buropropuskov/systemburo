@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"log/slog"
@@ -131,8 +132,9 @@ func (s *attachmentBlankService) GenerateBlank(ctx context.Context, applicationI
 	}
 
 	// 5. List-fields с авторасширением.
+	insertedRows := 0
 	if len(listMappings) > 0 {
-		s.fillListSection(f, sheet, &template, listMappings, staticCells, bctx)
+		insertedRows = s.fillListSection(f, sheet, &template, listMappings, staticCells, bctx)
 	}
 
 	// 6. Записать в buffer.
@@ -141,8 +143,22 @@ func (s *attachmentBlankService) GenerateBlank(ctx context.Context, applicationI
 		return nil, "", echo.NewHTTPError(http.StatusInternalServerError, "Ошибка генерации файла")
 	}
 
+	// 7. Добавленные строки сдвинули диапазоны условного форматирования, но не формулы
+	// внутри правил - дошиваем их сами. Сбой здесь бланк не отменяет: отдаём файл со
+	// старыми формулами правил, но громко пишем в лог.
+	out := buf.Bytes()
+	if insertedRows > 0 {
+		shifted, shiftErr := shiftConditionalFormatFormulas(out, template.ListEndRow+1, insertedRows)
+		if shiftErr != nil {
+			slog.Error("не удалось сдвинуть формулы условного форматирования бланка",
+				"error", shiftErr, "template", template.ID, "inserted", insertedRows)
+		} else {
+			out = shifted
+		}
+	}
+
 	filename := formatBlankFilename(bctx)
-	return buf, filename, nil
+	return bytes.NewReader(out), filename, nil
 }
 
 // listSource возвращает префикс field_path списочной части и число записей для типа
@@ -194,14 +210,16 @@ func repeatedListCells(t *models.AttachmentTemplate, staticCells map[string]stri
 // расширяя шаблон через InsertRows + копирование стилей последней шаблонной строки.
 // staticCells - уже записанные значения обычных полей: те из них, что попали в строки
 // списка, повторяются по строкам вместе со списочными.
-func (s *attachmentBlankService) fillListSection(f *excelize.File, sheet string, t *models.AttachmentTemplate, mappings []models.AttachmentTemplateMapping, staticCells map[string]string, bctx *BlankContext) {
+// Возвращает число реально добавленных строк: на него потом сдвигаются формулы правил
+// условного форматирования.
+func (s *attachmentBlankService) fillListSection(f *excelize.File, sheet string, t *models.AttachmentTemplate, mappings []models.AttachmentTemplateMapping, staticCells map[string]string, bctx *BlankContext) int {
 	// Список задаёт тип вложения, а не порядок привязок (#1454): у items-вложения нет
 	// машин, и привязка car.* не должна отменять заполнение ТМЦ. Раньше тип брался по
 	// первому list-маппингу, из-за чего боевой бланк "Заявка на ввоз" с привязками к
 	// номеру машины отдавал пустую таблицу имущества.
 	prefix, count := listSource(bctx)
 	if count == 0 {
-		return
+		return 0
 	}
 	// Привязки чужих групп заполнять нечем: их источник у этого вложения пуст.
 	own := make([]models.AttachmentTemplateMapping, 0, len(mappings))
@@ -211,7 +229,7 @@ func (s *attachmentBlankService) fillListSection(f *excelize.File, sheet string,
 		}
 	}
 	if len(own) == 0 {
-		return
+		return 0
 	}
 	mappings = own
 
@@ -220,6 +238,7 @@ func (s *attachmentBlankService) fillListSection(f *excelize.File, sheet string,
 	// здесь не нужен и вреден - DuplicateRowTo сам вставляет строку со сдвигом, и
 	// вдвоём они добавляли вдвое больше строк, оставляя в бланке пустоты, а разметку
 	// под таблицей уводя ниже, чем нужно (#1480).
+	inserted := 0
 	if count > t.MaxListRows && t.MaxListRows > 0 {
 		extra := count - t.MaxListRows
 		for i := 0; i < extra; i++ {
@@ -227,6 +246,7 @@ func (s *attachmentBlankService) fillListSection(f *excelize.File, sheet string,
 				slog.Error("не удалось расширить список бланка", "error", err, "row", t.ListEndRow+1+i)
 				break
 			}
+			inserted++
 		}
 	}
 
@@ -263,6 +283,7 @@ func (s *attachmentBlankService) fillListSection(f *excelize.File, sheet string,
 			_ = f.SetCellValue(sheet, cell, r.value)
 		}
 	}
+	return inserted
 }
 
 func (s *attachmentBlankService) buildContext(ctx context.Context, appID int, att *models.Attachment) (*BlankContext, error) {
