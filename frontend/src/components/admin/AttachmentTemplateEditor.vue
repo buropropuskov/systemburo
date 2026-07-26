@@ -1588,12 +1588,15 @@ export default {
   min-width: 0;
 }
 
+/* Цвета те же, что у te-action-banner--warning выше: непрозрачная светлая плашка
+   с тёмным текстом читается в обеих темах, полупрозрачный фон в тёмной сливался. */
 .te-foreign-warning {
   margin: 0 0 8px;
   padding: 8px 10px;
   border-radius: var(--radius-md, 15px);
-  background: rgba(232, 163, 23, 0.12);
-  color: #8a5a00;
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  color: #856404;
   font-size: 12px;
   line-height: 1.4;
 }
