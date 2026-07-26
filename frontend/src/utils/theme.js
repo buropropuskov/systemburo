@@ -58,8 +58,40 @@ export function findTheme(id) {
  */
 export function applyTheme(id) {
   const theme = isValidTheme(id) ? id : DEFAULT_THEME;
-  document.documentElement.setAttribute('data-theme', theme);
+  const root = document.documentElement;
+  suppressTransitions(root);
+  root.setAttribute('data-theme', theme);
   return theme;
+}
+
+/**
+ * Класс, гасящий CSS-переходы на время смены темы (правило - в tokens.css).
+ *
+ * Без него смена выглядит рвано: часть элементов держит свой transition на цвет
+ * (пункты меню - background-color 0.2s, таблица заявок - all 0.3s), остальное
+ * перекрашивается в тот же кадр. Замер: фон страницы, шапка и поля встают на
+ * 31мс одним шагом, а меню доезжает к 262мс за 7 шагов, таблица - к 327мс за 8.
+ * На экране это читается как «одни элементы прокрашиваются, другие следуют».
+ */
+const SWITCH_CLASS = 'theme-switching';
+
+/**
+ * Ставит класс, снимает после отрисовки нового кадра. Два кадра, потому что
+ * снятие в том же кадре переходы всё ещё подхватывают. Таймер - страховка для
+ * фоновой вкладки, где rAF не приходит: иначе класс завис бы и переходы
+ * остались бы выключенными до перезагрузки.
+ *
+ * @param {HTMLElement} root
+ */
+function suppressTransitions(root) {
+  root.classList.add(SWITCH_CLASS);
+  const release = () => root.classList.remove(SWITCH_CLASS);
+  if (typeof requestAnimationFrame !== 'function') {
+    release();
+    return;
+  }
+  requestAnimationFrame(() => requestAnimationFrame(release));
+  if (typeof setTimeout === 'function') setTimeout(release, 300);
 }
 
 /**

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
   THEMES,
   THEME_STORAGE_KEY,
@@ -107,5 +107,41 @@ describe('utils/theme', () => {
       ['--accent:', '--accent-text:', '--accent-contrast:', '--text-muted:', '--unread-bg:']
         .forEach((v) => expect(block).toContain(v))
     })
+  })
+
+  // Смена темы должна ложиться одним кадром: у меню и таблицы свой transition на
+  // цвет, и без гашения они доезжают вразнобой (#1415).
+  it('гасит CSS-переходы на время смены и снимает класс после кадра', () => {
+    const frames = []
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame')
+      .mockImplementation((cb) => { frames.push(cb); return frames.length })
+
+    applyTheme('dark')
+
+    expect(document.documentElement.classList.contains('theme-switching'),
+      'на момент смены переходы должны быть выключены').toBe(true)
+    frames.shift()()   // первый кадр - браузер применил новые цвета
+    frames.shift()()   // второй - снимаем запрет
+    expect(document.documentElement.classList.contains('theme-switching')).toBe(false)
+    rafSpy.mockRestore()
+  })
+
+  it('снимает гашение по таймеру, если кадры не приходят (фоновая вкладка)', () => {
+    vi.useFakeTimers()
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 1)
+
+    applyTheme('dark')
+    expect(document.documentElement.classList.contains('theme-switching')).toBe(true)
+    vi.advanceTimersByTime(300)
+
+    expect(document.documentElement.classList.contains('theme-switching'),
+      'класс не должен зависать - иначе переходы останутся выключенными').toBe(false)
+    rafSpy.mockRestore()
+    vi.useRealTimers()
+  })
+
+  it('tokens.css выключает переходы под этим классом', () => {
+    const tokens = readFileSync(resolve(__dirname, '../../assets/tokens.css'), 'utf8')
+    expect(tokens).toMatch(/html\.theme-switching[\s\S]{0,200}transition:\s*none\s*!important/)
   })
 })
