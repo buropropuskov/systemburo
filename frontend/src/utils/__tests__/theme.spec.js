@@ -125,6 +125,35 @@ describe('utils/theme', () => {
     })
   })
 
+  // Подложки строк «непрочитано» и «обновлено» обязаны нести ЦВЕТ роли: нейтральные
+  // серые отличались от карточки на 5% яркости, и на телефоне (там от подсветки
+  // остаётся полоса слева) роли было не различить.
+  it('в тёмных темах подложки строк тонированы и различимы между собой', () => {
+    const css = readFileSync(resolve(__dirname, '../../assets/tokens.css'), 'utf8')
+    const rgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16))
+    // Отрыв от поверхности считаем по всем каналам, а не по светлоте: глаз ловит
+    // именно тон, и нейтральный серый на 5% светлее карточки визуально не читался.
+    const shift = (a, b) => a.reduce((s, v, i) => s + Math.abs(v - b[i]), 0)
+
+    css.split(/:root(?:,\s*:root)?\[data-theme="/).slice(1)
+      .filter((block) => block.startsWith('dark'))
+      .forEach((block) => {
+        const id = block.slice(0, block.indexOf('"'))
+        const val = (name) => rgb(block.match(new RegExp(`${name}:\\s*(#[0-9a-fA-F]{6});`))[1])
+        const [unread, updated, surface] = ['--unread-bg', '--updated-bg', '--surface'].map(val)
+
+        // Тёплая роль краснее синего канала, лиловая - наоборот.
+        expect(unread[0], `${id}: «непрочитано» должно быть тёплым`).toBeGreaterThan(unread[2])
+        expect(updated[2], `${id}: «обновлено» должно быть лиловым`).toBeGreaterThan(updated[0])
+        ;[['--unread-bg', unread], ['--updated-bg', updated]].forEach(([name, c]) => {
+          expect(shift(c, surface), `${id}: ${name} почти не отличается от --surface`)
+            .toBeGreaterThan(30)
+        })
+        // И роли не путаются между собой.
+        expect(shift(unread, updated), `${id}: роли строк слишком похожи`).toBeGreaterThan(30)
+      })
+  })
+
   // Карточка-подсказка в тёмных темах - утопленная панель в тон темы, не акцентная
   // заливка: сплошной синий блок на тёмном фоне читался плохо.
   it('в тёмных темах подсказка темнее поверхности карточки', () => {

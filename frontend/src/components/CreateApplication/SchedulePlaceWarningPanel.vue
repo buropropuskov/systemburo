@@ -63,6 +63,7 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
       <aside
         v-if="shown"
         class="warn-panel"
+        :class="{ 'warn-panel--collapsed': !expanded }"
         data-testid="schedule-warning-panel"
         role="status"
         aria-live="polite"
@@ -217,9 +218,15 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
   background: var(--surface);
   border: 1px solid var(--color-border, var(--border));
   border-radius: var(--radius-lg, 20px);
-  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
+  box-shadow: 0 12px 32px var(--shadow-drop);
   overflow: hidden;
   font-family: inherit;
+}
+
+/* Свёрнутая плашка - это ТОЛЬКО жёлтая шапка, поэтому рамка панели уходит в тот же
+   тон: с нейтральной рамкой жёлтый блок выглядел вставленным в чужую серую рамку. */
+.warn-panel--collapsed {
+  border-color: color-mix(in srgb, var(--warning) 42%, var(--surface));
 }
 
 .warn-panel__head {
@@ -229,7 +236,8 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
   gap: 12px;
   padding: 14px 16px;
   background: var(--warning-bg);
-  border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--surface));
+  /* Только нижняя граница: собственная рамка по всем сторонам дублировала рамку
+     панели по бокам, а сверху срезалась её закруглением (overflow: hidden). */
   border-bottom: 1px solid color-mix(in srgb, var(--warning) 30%, var(--surface));
 }
 

@@ -102,6 +102,23 @@ describe('компоненты не перекрашивают иконки в �
     expect(bad, 'используйте filter: var(--icon-ink-filter)').toEqual([]);
   });
 
+  it('пелена загрузки поверх контента - поверхность темы, а не белый литерал', () => {
+    // Оверлей на всю ширину блока (position + inset/top:0) с белым фоном в тёмной
+    // теме светится белым поверх тёмной таблицы (#1415). Кнопки поверх ФОТОГРАФИЙ
+    // белые намеренно - у них нет растяжки на весь блок.
+    const bad = [];
+    for (const f of files) {
+      const txt = fs.readFileSync(f, 'utf8');
+      for (const m of txt.matchAll(/\{([^{}]*)\}/g)) {
+        const body = m[1];
+        if (!/background(-color)?:\s*rgba\(\s*255,\s*255,\s*255/.test(body)) continue;
+        const stretched = /inset:\s*0/.test(body) || (/top:\s*0/.test(body) && /bottom:\s*0/.test(body));
+        if (stretched) bad.push(path.relative(ROOT, f));
+      }
+    }
+    expect([...new Set(bad)], 'используйте color-mix(in srgb, var(--surface) N%, transparent)').toEqual([]);
+  });
+
   it('состояния колокольчика не подменяют filter иконки', () => {
     // filter у иконки занят темой: локальные grayscale/contrast делали колокольчик
     // то серым, то чёрным. Состояния выражаются подложкой и прозрачностью.

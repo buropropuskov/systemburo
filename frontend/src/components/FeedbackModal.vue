@@ -658,7 +658,7 @@ export default {
   right: 12px;
   font-size: 12px;
   color: var(--text-muted);
-  background-color: rgba(255, 255, 255, 0.8);
+  background-color: color-mix(in srgb, var(--surface) 80%, transparent);
   padding: 2px 6px;
   border-radius: 8px;
   pointer-events: none;
