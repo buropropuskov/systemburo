@@ -79,7 +79,7 @@
                 v-show="!cell.hidden"
                 :key="cell.ref"
                 :data-cell-ref="cell.ref"
-                :data-tooltip="cell.ref"
+                :data-tooltip="cellTooltip(cell.ref)"
                 class="xv-cell"
                 :class="{
                   selected: selectedCell === cell.ref,
@@ -104,8 +104,18 @@
                 <span
                   v-if="mappedCells.has(cell.ref)"
                   class="xv-mapped-badge"
+                  :class="{ 'xv-mapped-badge--multi': mappedCells.get(cell.ref).length > 1 }"
                 >
-                  {{ mappedCells.get(cell.ref) }}
+                  <span
+                    v-for="(label, i) in mappedCells.get(cell.ref)"
+                    :key="i"
+                    class="xv-mapped-part"
+                  >
+                    <span
+                      v-if="mappedCells.get(cell.ref).length > 1"
+                      class="xv-mapped-order"
+                    >{{ i + 1 }}</span>{{ label }}
+                  </span>
                 </span>
               </td>
             </tr>
@@ -138,6 +148,8 @@ export default {
     mappings: { type: Array, default: () => [] },
     selectedCell: { type: String, default: '' },
     cellColors: { type: Map, default: () => new Map() },
+    // Разделитель совмещённых полей: подсказка показывает, как склеится ячейка.
+    concatSeparator: { type: String, default: ', ' },
   },
   emits: ['cell-click', 'cell-hover'],
   data() {
@@ -152,13 +164,17 @@ export default {
     currentSheet() {
       return this.sheets[this.activeSheet] || { cols: [], rows: [], colWidths: [], tableWidth: 0 };
     },
+    // Ячейка -> подписи ВСЕХ привязанных к ней полей в том порядке, в котором бланк
+    // их склеит. Раньше в Map лежала одна подпись, и у совмещённой ячейки было видно
+    // только последнее поле - сколько их и в каком порядке, из превью не читалось.
     mappedCells() {
       const map = new Map();
       for (const m of this.mappings) {
-        if (m.cell_ref) {
-          const label = m.fieldLabel || m.field_path || '';
-          map.set(m.cell_ref.toUpperCase(), label);
-        }
+        if (!m.cell_ref) continue;
+        const ref = m.cell_ref.toUpperCase();
+        const label = m.fieldLabel || m.field_path || '';
+        if (!map.has(ref)) map.set(ref, []);
+        map.get(ref).push(label);
       }
       return map;
     },
@@ -173,6 +189,13 @@ export default {
     },
   },
   methods: {
+    // Тултип ячейки: адрес, а у совмещённой - сколько полей и как они склеятся.
+    // Переиспользуем существующий тултип, свой пузырёк на бейдже обрезала бы ячейка.
+    cellTooltip(ref) {
+      const labels = this.mappedCells.get(ref) || [];
+      if (labels.length < 2) return ref;
+      return `${ref}: полей ${labels.length}, склеятся так - ${labels.join(this.concatSeparator)}`;
+    },
     async parseWorkbook(buffer) {
       this.loading = true;
       this.error = '';
@@ -597,6 +620,10 @@ export default {
   position: absolute;
   top: 0;
   right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
   background: var(--color-primary);
   color: var(--accent-contrast);
   font-size: 8px;
@@ -604,7 +631,26 @@ export default {
   border-radius: 0 0 0 4px;
   max-width: 60px;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.xv-mapped-part {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* Номер = порядок склейки в ячейке: первым в бланк пойдёт поле с единицей. */
+.xv-mapped-order {
+  display: inline-block;
+  min-width: 8px;
+  margin-right: 2px;
+  padding: 0 1px;
+  border-radius: 2px;
+  background: var(--accent-contrast);
+  color: var(--color-primary);
+  font-weight: 700;
+  text-align: center;
+}
+
 </style>

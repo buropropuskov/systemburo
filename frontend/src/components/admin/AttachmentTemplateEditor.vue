@@ -166,6 +166,7 @@
             :mappings="enrichedMappings"
             :selected-cell="activeCellRef"
             :cell-colors="cellColorMap"
+            :concat-separator="concatSeparator"
             @cell-click="onCellClick"
             @cell-hover="onCellHover"
           />
@@ -557,7 +558,31 @@
               :class="{ highlight: activeCellRef === m.cell_ref }"
             >
               <span class="te-mapping-cell">{{ m.cell_ref }}</span>
+              <span
+                v-if="m.cellTotal > 1"
+                class="te-mapping-order"
+                :data-hint="`Порядок склейки в ${m.cell_ref}: ${m.cellIndex} из ${m.cellTotal}`"
+              >{{ m.cellIndex }}/{{ m.cellTotal }}</span>
               <span class="te-mapping-field">{{ m.fieldLabel || m.field_path }}</span>
+              <span
+                v-if="m.cellTotal > 1"
+                class="te-mapping-move"
+              >
+                <button
+                  class="te-mapping-move-btn"
+                  :disabled="m.cellIndex === 1"
+                  title="Раньше в склейке"
+                  data-testid="mapping-move-up"
+                  @click="moveMappingInCell(idx, -1)"
+                >&#9650;</button>
+                <button
+                  class="te-mapping-move-btn"
+                  :disabled="m.cellIndex === m.cellTotal"
+                  title="Позже в склейке"
+                  data-testid="mapping-move-down"
+                  @click="moveMappingInCell(idx, 1)"
+                >&#9660;</button>
+              </span>
               <span
                 v-if="m.is_list_field"
                 class="te-list-badge"
@@ -702,11 +727,20 @@ export default {
   },
   computed: {
     enrichedMappings() {
-      return this.mappings.map(m => ({
-        ...m,
-        fieldLabel: this.getFieldLabel(m.field_path),
-        repeatsInList: this.repeatsInList(m),
-      }));
+      const seen = {};
+      const total = {};
+      for (const m of this.mappings) total[m.cell_ref] = (total[m.cell_ref] || 0) + 1;
+      return this.mappings.map(m => {
+        seen[m.cell_ref] = (seen[m.cell_ref] || 0) + 1;
+        return {
+          ...m,
+          fieldLabel: this.getFieldLabel(m.field_path),
+          repeatsInList: this.repeatsInList(m),
+          // Позиция в ячейке = порядок склейки: бланк соединяет поля в этом порядке.
+          cellIndex: seen[m.cell_ref],
+          cellTotal: total[m.cell_ref],
+        };
+      });
     },
     filteredFieldGroups() {
       let groups = this.fieldGroups.map(g => ({
@@ -1074,6 +1108,20 @@ export default {
       this.rebindMapping = null;
     },
 
+    // Меняет порядок склейки внутри ячейки: переставляем привязку с соседней по той же
+    // ячейке, остальные привязки не двигаем.
+    moveMappingInCell(idx, dir) {
+      const cell = this.mappings[idx] && this.mappings[idx].cell_ref;
+      if (!cell) return;
+      const step = dir > 0 ? 1 : -1;
+      for (let i = idx + step; i >= 0 && i < this.mappings.length; i += step) {
+        if (this.mappings[i].cell_ref !== cell) continue;
+        const next = [...this.mappings];
+        [next[idx], next[i]] = [next[i], next[idx]];
+        this.mappings = next;
+        return;
+      }
+    },
     removeMapping(idx) {
       this.mappings.splice(idx, 1);
     },
@@ -2165,6 +2213,37 @@ export default {
   padding: 1px 5px;
   border-radius: var(--radius-pill);
   font-weight: 500;
+}
+
+.te-mapping-order {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary);
+  color: var(--accent-contrast);
+  position: relative;
+}
+
+.te-mapping-move {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.te-mapping-move-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary, #666);
+  font-size: 9px;
+  line-height: 1;
+  padding: 2px 3px;
+  cursor: pointer;
+}
+
+.te-mapping-move-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
 }
 
 .te-list-badge--repeat {
