@@ -330,6 +330,17 @@
                 </span>
               </div>
             </div>
+
+            <!-- Разбор наименования, заведённого подачей (#1437): плашка видна только
+                 тому, у кого есть право разбора, и только пока запись на проверке. -->
+            <ApplicationOrgModeration
+              v-for="entry in pendingDirectoryEntries"
+              :key="entry.kind"
+              :kind="entry.kind"
+              :entry-id="entry.id"
+              :entry-name="entry.name"
+              @resolved="onDirectoryResolved"
+            />
           </div>
 
           <!-- Блок статуса заявки (для принятых/отказанных/завершенных/отозванных).
@@ -574,6 +585,7 @@ import Badge from '@/components/ui/Badge.vue'
 import BaseDropdown from '@/components/ui/BaseDropdown.vue'
 import { sanitizeHtml } from '@/utils/sanitize'
 import ApplicationMessageModal from './ApplicationMessageModal.vue'
+import ApplicationOrgModeration from './ApplicationOrgModeration.vue'
 import eventStream from '@/services/eventStream'
 import { ref } from 'vue'
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
@@ -594,7 +606,8 @@ export default {
         EmployeeDetailsModal,
         Badge,
         BaseDropdown,
-        ApplicationMessageModal
+        ApplicationMessageModal,
+        ApplicationOrgModeration
     },
     props: {
         application: {
@@ -719,6 +732,28 @@ export default {
         isViewer() {
             if (!this.currentUserId || !this.viewers.length) return false;
             return this.viewers.some(viewer => viewer.user_id === this.currentUserId);
+        },
+
+        /**
+         * Наименования заявки, заведённые самой подачей и ждущие разбора (#1437).
+         * Гейт - право разбора: заявителю показывать нечего, действия ему всё равно
+         * закрыты серверным middleware.
+         *
+         * organization_name у заявки без организации содержит имя компании
+         * (COALESCE на бэке), поэтому имя компании берём из company_name.
+         */
+        pendingDirectoryEntries() {
+            if (!this.can('application.organization.moderate')) return [];
+            const a = this.applicationData;
+            if (!a) return [];
+            const entries = [];
+            if (a.organization_id && a.organization_moderation_status === 'pending') {
+                entries.push({ kind: 'organization', id: a.organization_id, name: a.organization_name || '' });
+            }
+            if (a.company_id && a.company_moderation_status === 'pending') {
+                entries.push({ kind: 'company', id: a.company_id, name: a.company_name || '' });
+            }
+            return entries;
         },
 
         canAskQuestion() {
@@ -854,6 +889,25 @@ export default {
     methods: {
         can(key) {
             return this.permissionsStore.hasPermission(key);
+        },
+
+        /**
+         * Запись справочника разобрана (#1437): плашка гаснет сразу, наименование в
+         * шапке заявки становится итоговым. Тот же объект уходит наверх - список Центра
+         * держит свою копию заявки и без эмита показывал бы старое наименование.
+         *
+         * При привязке id меняется на целевую запись: ссылки заявки бэк уже перевёл.
+         */
+        onDirectoryResolved({ kind, id, name }) {
+            const patch = kind === 'company'
+                ? { company_id: id ?? this.applicationData.company_id, company_name: name, company_moderation_status: 'approved' }
+                : { organization_id: id ?? this.applicationData.organization_id, organization_name: name, organization_moderation_status: 'approved' };
+            // Заявка без организации показывает в шапке имя компании (COALESCE на бэке).
+            if (kind === 'company' && !this.applicationData.organization_id) {
+                patch.organization_name = name;
+            }
+            this.applicationData = { ...this.applicationData, ...patch };
+            this.$emit('application-changed', this.applicationData);
         },
         // Подписка на real-time обновления конкретной заявки (#840 V4): снимает
         // старую подписку, подписывается на scope application:<id>.

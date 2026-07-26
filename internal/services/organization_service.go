@@ -153,6 +153,10 @@ type OrganizationInfoResponse struct {
 	ID   int     `json:"id"`
 	Name string  `json:"name"`
 	Type *string `json:"type"`
+	// ModerationStatus - approved у обычной записи, pending у заведённой подачей и
+	// ещё не разобранной (#1437). Нужен разбору: привязывать черновик можно только
+	// к проверенной записи, и список выбора обязан отсеять непроверенные.
+	ModerationStatus string `json:"moderation_status"`
 }
 
 // OrganizationWithUsersResponse — организация с количеством пользователей.
@@ -235,7 +239,7 @@ func (s *organizationService) GetAll(ctx context.Context) ([]OrganizationInfoRes
 	orgs := make([]OrganizationInfoResponse, 0)
 	err := s.db.WithContext(ctx).
 		Table("organizations").
-		Select("id, name").
+		Select("id, name, moderation_status").
 		Where("is_active = ?", true).
 		Order("name").
 		Scan(&orgs).Error
@@ -294,7 +298,7 @@ func (s *organizationService) Create(ctx context.Context, callerUserID int, req 
 	}
 	slog.Info("организация создана", "id", org.ID, "name", org.Name)
 	s.recorder.Log(ctx, nil, models.AuditEntityOrganization, &org.ID, models.OrganizationActionCreated, &callerUserID, map[string]any{"name": org.Name, "type": org.Type})
-	return &OrganizationInfoResponse{ID: org.ID, Name: org.Name, Type: org.Type}, nil
+	return &OrganizationInfoResponse{ID: org.ID, Name: org.Name, Type: org.Type, ModerationStatus: org.ModerationStatus}, nil
 }
 
 // Update обновляет название и тип организации по ID. Тип опционален: nil снимает
@@ -345,7 +349,7 @@ func (s *organizationService) Update(ctx context.Context, callerUserID, id int, 
 	if !nameChanged && !typeChanged {
 		// Ничего не поменялось (PUT с теми же значениями) - не пишем ложную
 		// «переименована» в историю (как no-op в BulkUpdateType).
-		return &OrganizationInfoResponse{ID: id, Name: req.Name, Type: req.Type}, nil
+		return &OrganizationInfoResponse{ID: id, Name: req.Name, Type: req.Type, ModerationStatus: org.ModerationStatus}, nil
 	}
 	action := models.OrganizationActionRenamed
 	switch {
@@ -360,7 +364,7 @@ func (s *organizationService) Update(ctx context.Context, callerUserID, id int, 
 		"name": req.Name, "type": req.Type,
 		"from": map[string]any{"name": org.Name, "type": org.Type},
 	})
-	return &OrganizationInfoResponse{ID: id, Name: req.Name, Type: req.Type}, nil
+	return &OrganizationInfoResponse{ID: id, Name: req.Name, Type: req.Type, ModerationStatus: org.ModerationStatus}, nil
 }
 
 // applyNameDuplicateFilter добавляет к запросу условие поиска дубля наименования.
