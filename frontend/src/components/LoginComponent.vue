@@ -882,7 +882,9 @@ export default {
     .time {
         margin-top: 5px;
         font-size: 13px;
-        color: #a2a2a2;
+        /* 5.74 на белой карточке; прежний #a2a2a2 давал 2.55 - ниже нормы AA.
+           Островок здесь светлый, значение берётся из светлой палитры. */
+        color: var(--text-muted);
     }
 
     .info__text {
