@@ -32,60 +32,138 @@
             @input="onSearchInput"
           >
         </div>
-        <BaseDropdown
-          :model-value="typeFilter"
-          :options="typeOptions"
-          class="filters__dropdown"
-          data-testid="aa-filter-type"
-          @update:model-value="setType"
+        <!-- Десктоп: вторичные фильтры инлайн в строке (как было). -->
+        <template v-if="!isNarrow">
+          <BaseDropdown
+            :model-value="typeFilter"
+            :options="typeOptions"
+            class="filters__dropdown"
+            data-testid="aa-filter-type"
+            @update:model-value="setType"
+          />
+          <BaseDropdown
+            :model-value="orgFilter"
+            :options="orgOptions"
+            searchable
+            class="filters__dropdown"
+            data-testid="aa-filter-org"
+            @update:model-value="setOrg"
+          />
+          <BaseDropdown
+            :model-value="companyFilter"
+            :options="companyOptions"
+            searchable
+            class="filters__dropdown"
+            data-testid="aa-filter-company"
+            @update:model-value="setCompany"
+          />
+          <button
+            type="button"
+            class="lk-button filters__toggle"
+            :class="completedFilter ? 'lk-button--primary' : 'lk-button--ghost'"
+            :aria-pressed="completedFilter"
+            data-testid="aa-filter-completed"
+            @click="toggleCompleted"
+          >
+            Завершённые
+          </button>
+          <button
+            type="button"
+            class="lk-button filters__toggle"
+            :class="nightFilter ? 'lk-button--primary' : 'lk-button--ghost'"
+            :aria-pressed="nightFilter"
+            title="Окно въезда пересекает ночь (22:00-06:00)"
+            data-testid="aa-filter-night"
+            @click="toggleNight"
+          >
+            Ночь
+          </button>
+          <button
+            type="button"
+            class="lk-button lk-button--danger filters__reset"
+            :disabled="!hasActiveFilters"
+            data-testid="aa-filter-reset"
+            @click="resetFilters"
+          >
+            Сбросить
+          </button>
+        </template>
+
+        <!-- Мобилка: вторичные фильтры свёрнуты в кнопку «Фильтр» (поиск - снаружи). -->
+        <FilterButton
+          v-else
+          :active="secondaryFiltersActive"
+          data-testid="aa-filter-btn"
+          @click="showFilterSheet = true"
         />
-        <BaseDropdown
-          :model-value="orgFilter"
-          :options="orgOptions"
-          searchable
-          class="filters__dropdown"
-          data-testid="aa-filter-org"
-          @update:model-value="setOrg"
-        />
-        <BaseDropdown
-          :model-value="companyFilter"
-          :options="companyOptions"
-          searchable
-          class="filters__dropdown"
-          data-testid="aa-filter-company"
-          @update:model-value="setCompany"
-        />
-        <button
-          type="button"
-          class="lk-button filters__toggle"
-          :class="completedFilter ? 'lk-button--primary' : 'lk-button--ghost'"
-          :aria-pressed="completedFilter"
-          data-testid="aa-filter-completed"
-          @click="toggleCompleted"
-        >
-          Завершённые
-        </button>
-        <button
-          type="button"
-          class="lk-button filters__toggle"
-          :class="nightFilter ? 'lk-button--primary' : 'lk-button--ghost'"
-          :aria-pressed="nightFilter"
-          title="Окно въезда пересекает ночь (22:00-06:00)"
-          data-testid="aa-filter-night"
-          @click="toggleNight"
-        >
-          Ночь
-        </button>
-        <button
-          type="button"
-          class="lk-button lk-button--danger filters__reset"
-          :disabled="!hasActiveFilters"
-          data-testid="aa-filter-reset"
-          @click="resetFilters"
-        >
-          Сбросить
-        </button>
       </div>
+
+      <!-- Мобилка: вторичные фильтры в bottom-sheet. -->
+      <FilterSheet
+        v-if="isNarrow"
+        :show="showFilterSheet"
+        :has-active-filters="hasActiveFilters"
+        @close="showFilterSheet = false"
+        @reset="resetFilters"
+      >
+        <div class="filter-section">
+          <span class="filter-label">Тип</span>
+          <BaseDropdown
+            :model-value="typeFilter"
+            :options="typeOptions"
+            teleport
+            data-testid="aa-sheet-type"
+            @update:model-value="setType"
+          />
+        </div>
+        <div class="filter-section">
+          <span class="filter-label">Организация</span>
+          <BaseDropdown
+            :model-value="orgFilter"
+            :options="orgOptions"
+            searchable
+            teleport
+            data-testid="aa-sheet-org"
+            @update:model-value="setOrg"
+          />
+        </div>
+        <div class="filter-section">
+          <span class="filter-label">Компания</span>
+          <BaseDropdown
+            :model-value="companyFilter"
+            :options="companyOptions"
+            searchable
+            teleport
+            data-testid="aa-sheet-company"
+            @update:model-value="setCompany"
+          />
+        </div>
+        <div class="filter-section">
+          <span class="filter-label">Допуск</span>
+          <div class="filter-sheet-toggles">
+            <button
+              type="button"
+              class="lk-button filters__toggle"
+              :class="completedFilter ? 'lk-button--primary' : 'lk-button--ghost'"
+              :aria-pressed="completedFilter"
+              data-testid="aa-sheet-completed"
+              @click="toggleCompleted"
+            >
+              Завершённые
+            </button>
+            <button
+              type="button"
+              class="lk-button filters__toggle"
+              :class="nightFilter ? 'lk-button--primary' : 'lk-button--ghost'"
+              :aria-pressed="nightFilter"
+              data-testid="aa-sheet-night"
+              @click="toggleNight"
+            >
+              Ночь
+            </button>
+          </div>
+        </div>
+      </FilterSheet>
 
       <div class="content-container">
         <!-- Список вложений -->
@@ -325,7 +403,10 @@ import StatusBadge from '@/components/ui/StatusBadge.vue';
 import SkeletonCard from '@/components/ui/SkeletonCard.vue';
 import ApplicationAttachmentDetail from '@/components/ApplicationDetail/ApplicationAttachmentDetail.vue';
 import BaseModal from '@/components/ui/BaseModal.vue';
+import FilterSheet from '@/components/ui/FilterSheet.vue';
+import FilterButton from '@/components/ui/FilterButton.vue';
 import XlsxViewer from '@/components/admin/XlsxViewer.vue';
+import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import { getAccessibleAttachments, getAccessibleAttachmentDetail } from '@/api/applications';
 import { previewBlank } from '@/api/attachment-templates';
 import { getOrganizations, getCompanies } from '@/api/organizations';
@@ -365,14 +446,23 @@ const typeOptions = [
 const orgOptions = ref([{ id: 0, name: 'Все организации' }]);
 const companyOptions = ref([{ id: 0, name: 'Все компании' }]);
 
-const hasActiveFilters = computed(
-  () => !!search.value.trim()
-    || !!typeFilter.value
+// Вторичные фильтры (без поиска) - один источник для точки-индикатора кнопки
+// «Фильтр» и sheet; hasActiveFilters добавляет к ним поиск. Новый фильтр правится
+// в ОДНОМ месте (плюс buildParams/resetFilters), а не в двух списках.
+const secondaryFiltersActive = computed(
+  () => !!typeFilter.value
     || orgFilter.value !== 0
     || companyFilter.value !== 0
     || completedFilter.value
     || nightFilter.value,
 );
+const hasActiveFilters = computed(() => !!search.value.trim() || secondaryFiltersActive.value);
+
+// Мобилка: вторичные фильтры сворачиваются в кнопку «Фильтр» + FilterSheet; поиск
+// остаётся снаружи. Точка-индикатор на кнопке - по secondaryFiltersActive, БЕЗ
+// поиска (он виден отдельно), как hasModalFilters в Центре.
+const { isNarrow } = useNarrowScreen();
+const showFilterSheet = ref(false);
 
 const items = ref([]);
 const total = ref(0);
@@ -715,10 +805,26 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
+/* Кнопка «Фильтр» на мобилке - общий FilterButton (стиль из него). Здесь только
+   раскладка тумблеров внутри sheet. */
+.filter-sheet-toggles {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Десктоп >640: дропдауны в ряд с переносом (на мобилке они не рендерятся). */
 @media (max-width: 640px) {
-  .filters__search,
   .filters__dropdown {
     flex: 1 1 100%;
+  }
+}
+
+/* Мобилка (<=768, инлайн-фильтры скрыты): поиск тянется, кнопка «Фильтр» рядом. */
+@media (max-width: 768px) {
+  .filters__search {
+    flex: 1 1 auto;
+    min-width: 0;
   }
 }
 
