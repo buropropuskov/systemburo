@@ -331,6 +331,8 @@ func (s *companyService) Create(ctx context.Context, callerUserID int, req Creat
 	if req.Type == nil || !models.IsValidOrgType(*req.Type) {
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Некорректный тип компании")
 	}
+	// Оформление наименования - к канону (#1437), см. organizationService.Create.
+	req.Name = normalize.OrgNameDisplay(req.Name)
 
 	// Сверяем по ключу дедупликации, а не по точному name (#1437), см. organizationService.Create.
 	var active int64
@@ -361,6 +363,7 @@ func (s *companyService) Update(ctx context.Context, callerUserID, companyID int
 	if req.Type != nil && !models.IsValidOrgType(*req.Type) {
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Некорректный тип компании")
 	}
+	req.Name = normalize.OrgNameDisplay(req.Name)
 
 	var company models.Company
 	if err := s.db.WithContext(ctx).First(&company, companyID).Error; err != nil {

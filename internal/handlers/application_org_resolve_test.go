@@ -359,6 +359,28 @@ func TestApplicationOrgResolve(t *testing.T) {
 		assert.Contains(t, *notes[1].Message, `ООО "Заря-Компания"`)
 	})
 
+	// Ровно тот ввод, с которого правило и потребовали: строчная ОПФ, строчное название,
+	// незакрытая кавычка. В справочник обязана уехать аккуратная строка, а не набранная.
+	t.Run("оформление наименования из заявки канонизируется", func(t *testing.T) {
+		appID := submittedAppID(t, submitWithRefs(t, e, token, uaID, "A113AA777", `"organization_name":"ооо \"братишк"`))
+
+		refs := readAppOrgRefs(t, db, appID)
+		require.NotNil(t, refs.OrganizationID)
+		var created models.Organization
+		require.NoError(t, db.First(&created, *refs.OrganizationID).Error)
+		assert.Equal(t, `ООО "Братишк"`, created.Name)
+		assert.Equal(t, "ооо братишк", created.NameNormalized)
+		assert.Equal(t, models.ModerationPending, created.ModerationStatus)
+
+		// Тот же ключ в другом написании ложится на уже заведённую запись: канонизация
+		// оформления не должна плодить второй вариант той же организации.
+		second := submittedAppID(t, submitWithRefs(t, e, token, uaID, "A114AA777", `"organization_name":"ООО Братишк"`))
+		secondRefs := readAppOrgRefs(t, db, second)
+		require.NotNil(t, secondRefs.OrganizationID)
+		assert.Equal(t, created.ID, *secondRefs.OrganizationID)
+		assert.Equal(t, int64(1), countOrganizations(t, db, "ооо братишк"))
+	})
+
 	// Гонка двух подач с одним новым наименованием: partial unique index по ключу (#1437,
 	// срез 9) отбивает второй INSERT, и подача обязана лечь на запись соперника, а не
 	// упасть пятисоткой. Соперник эмулируется отдельной транзакцией, которая держит свою

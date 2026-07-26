@@ -296,6 +296,10 @@ func (s *organizationService) Create(ctx context.Context, callerUserID int, req 
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Некорректный тип организации")
 	}
 
+	// Оформление наименования приводим к канону (#1437): в справочник не должны попадать
+	// строчная ОПФ и незакрытая кавычка независимо от того, откуда пришла запись.
+	req.Name = normalize.OrgNameDisplay(req.Name)
+
 	// Сверяем по ключу дедупликации, а не по точному name: иначе рядом с
 	// «ООО "Ромашка"» заводится «ооо ромашка» как отдельная организация (#1437).
 	var active int64
@@ -327,6 +331,7 @@ func (s *organizationService) Update(ctx context.Context, callerUserID, id int, 
 	if req.Type != nil && !models.IsValidOrgType(*req.Type) {
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Некорректный тип организации")
 	}
+	req.Name = normalize.OrgNameDisplay(req.Name)
 
 	var org models.Organization
 	if err := s.db.WithContext(ctx).First(&org, id).Error; err != nil {

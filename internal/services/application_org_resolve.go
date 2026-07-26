@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strings"
 
 	"systemburo/internal/models"
 	"systemburo/internal/normalize"
@@ -151,7 +150,10 @@ func (s *applicationService) resolveDirectoryRef(
 		return directoryResolution{ID: &found}, nil
 	}
 
-	name := strings.TrimSpace(rawName)
+	// Канонизируем оформление сразу: дальше это наименование и ищется, и пишется в
+	// справочник, и уходит принимающим в уведомление о разборе. Ключ дедупликации от
+	// канонизации не меняется, поэтому поиск от неё не зависит (#1437).
+	name := normalize.OrgNameDisplay(rawName)
 	if name == "" {
 		return directoryResolution{}, nil
 	}

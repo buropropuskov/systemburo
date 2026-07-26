@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strings"
 
 	"systemburo/internal/models"
 	"systemburo/internal/normalize"
@@ -280,7 +279,9 @@ func renameDirectoryEntry(ctx context.Context, db *gorm.DB, rec AuditRecorder, n
 		return DirectoryModerationResult{}, err
 	}
 
-	name := strings.TrimSpace(rawName)
+	// Исправленное принимающим наименование тоже канонизируем: он правит опечатку, а
+	// оформление (ОПФ, заглавная, кавычки) держит система (#1437).
+	name := normalize.OrgNameDisplay(rawName)
 	if name == "" || normalize.OrgName(name) == "" {
 		// Вырожденное наименование (одни кавычки или дефисы) не даёт ключа, по нему не
 		// работает дедупликация - такое же ограничение, как при подаче.
