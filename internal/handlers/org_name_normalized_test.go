@@ -2,6 +2,7 @@ package handlers_test
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"testing"
 
@@ -74,18 +75,24 @@ func TestOrgNameNormalized(t *testing.T) {
 		assert.Equal(t, "ооо ромашка", company.NameNormalized)
 	})
 
-	// Наименование, от которого после нормализации ничего не остаётся, даёт пустой
-	// ключ. По нему несвязанные записи схлопнулись бы в одну, поэтому для них сверка
-	// идёт по точной строке - защита не слабее той, что была до введения ключа.
-	t.Run("вырожденное наименование сверяется по точной строке", func(t *testing.T) {
-		require.Equal(t, http.StatusOK,
-			testutil.POST(t, e, "/organizations", `{"name":"\"","type":"Подрядчик"}`, auth).Code)
+	// Наименование без букв и цифр не заводится нигде: ни подачей, ни разбором, ни из
+	// админского справочника. Раньше кавычки отклонялись пустым ключом, а «--» проходило
+	// и оставалось в справочнике мусором, с которым потом ничего не сделать.
+	t.Run("наименование без букв и цифр не создаётся", func(t *testing.T) {
+		for _, junk := range []string{`\"`, "--", "...", "!!!"} {
+			rec := testutil.POST(t, e, "/organizations", `{"name":"`+junk+`","type":"Подрядчик"}`, auth)
+			assert.Equal(t, http.StatusBadRequest, rec.Code, "наименование %q: %s", junk, rec.Body.String())
+		}
 		assert.Equal(t, http.StatusBadRequest,
-			testutil.POST(t, e, "/organizations", `{"name":"\"","type":"Подрядчик"}`, auth).Code,
-			"то же вырожденное имя - дубль")
-		assert.Equal(t, http.StatusOK,
-			testutil.POST(t, e, "/organizations", `{"name":"--","type":"Подрядчик"}`, auth).Code,
-			"другое вырожденное имя с тем же пустым ключом - отдельная запись")
+			testutil.POST(t, e, "/companies", `{"name":"---","type":"Подрядчик"}`, auth).Code,
+			"у компаний правило то же")
+
+		// Переименование в такое наименование тоже не проходит.
+		rec := testutil.POST(t, e, "/organizations", `{"name":"ООО Переименуемая","type":"Подрядчик"}`, auth)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		id := int(testutil.ParseMap(t, rec)["id"].(float64))
+		assert.Equal(t, http.StatusBadRequest,
+			testutil.PUT(t, e, "/organizations/"+strconv.Itoa(id), `{"name":"---","type":"Подрядчик"}`, auth).Code)
 	})
 
 	// Бэкфилл нужен записям, созданным в обход хука, и прогоняется на каждом старте,
@@ -139,6 +146,45 @@ func TestOrgNameNormalized(t *testing.T) {
 		var company models.Company
 		require.NoError(t, db.Where("name_normalized = ?", "м-н летуаль-два").First(&company).Error)
 		assert.Equal(t, "м-н Летуаль-два", company.Name)
+	})
+
+	// Дубль сервис ищет запросом перед записью, но между проверкой и записью блокировки
+	// нет: два админа, правящих одно наименование одновременно, проходят проверку оба, и
+	// второго отбивает уникальный индекс. Пользователь должен увидеть тот же понятный
+	// текст, что и при обычной проверке, а не 500.
+	t.Run("конфликт индекса отдаётся понятной ошибкой, а не пятисоткой", func(t *testing.T) {
+		t.Run("создание", func(t *testing.T) {
+			rec := underRivalKey(t, db, `ООО "Гонка создания"`, "ооо гонка создания", func() *httptest.ResponseRecorder {
+				return testutil.POST(t, e, "/organizations", `{"name":"ООО Гонка создания","type":"Подрядчик"}`, auth)
+			})
+			assert.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+			assert.Contains(t, rec.Body.String(), "уже существует")
+		})
+
+		t.Run("переименование", func(t *testing.T) {
+			rec := testutil.POST(t, e, "/organizations", `{"name":"ООО Гонка до переименования","type":"Подрядчик"}`, auth)
+			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+			id := int(testutil.ParseMap(t, rec)["id"].(float64))
+
+			got := underRivalKey(t, db, `ООО "Гонка переименования"`, "ооо гонка переименования", func() *httptest.ResponseRecorder {
+				return testutil.PUT(t, e, "/organizations/"+strconv.Itoa(id),
+					`{"name":"ООО Гонка переименования","type":"Подрядчик"}`, auth)
+			})
+			assert.Equal(t, http.StatusBadRequest, got.Code, got.Body.String())
+			assert.Contains(t, got.Body.String(), "уже существует")
+		})
+
+		t.Run("восстановление из архива", func(t *testing.T) {
+			require.NoError(t, insertOrgRaw(db, "ООО Гонка восстановления", "ооо гонка восстановления", false))
+			var archived models.Organization
+			require.NoError(t, db.Where("name = ?", "ООО Гонка восстановления").First(&archived).Error)
+
+			got := underRivalKey(t, db, `ООО "Гонка восстановления"`, "ооо гонка восстановления", func() *httptest.ResponseRecorder {
+				return testutil.POST(t, e, "/organizations/"+strconv.Itoa(archived.ID)+"/restore", ``, auth)
+			})
+			assert.Equal(t, http.StatusBadRequest, got.Code, got.Body.String())
+			assert.Contains(t, got.Body.String(), "уже существует")
+		})
 	})
 
 	// Канонизация трогает наименование только когда его РЕАЛЬНО меняют. Групповая смена
@@ -258,6 +304,28 @@ func indexExists(t *testing.T, db *gorm.DB, name string) bool {
 	var cnt int64
 	require.NoError(t, db.Raw("SELECT COUNT(*) FROM pg_indexes WHERE indexname = ?", name).Scan(&cnt).Error)
 	return cnt > 0
+}
+
+// underRivalKey воспроизводит гонку двух правок одного наименования: соперник держит
+// незакоммиченную запись с ключом key, поэтому проверка дубля в сервисе её не видит, а
+// уникальный индекс отбивает запись. Запрос уходит в горутине и виснет на блокировке,
+// коммит соперника его отпускает - без этого ожидания гонка не воспроизводится, и тест
+// зеленел бы, ничего не проверив.
+func underRivalKey(t *testing.T, db *gorm.DB, rivalName, key string, request func() *httptest.ResponseRecorder) *httptest.ResponseRecorder {
+	t.Helper()
+	rival := db.Begin()
+	require.NoError(t, rival.Error)
+	defer rival.Rollback()
+	require.NoError(t, rival.Exec(
+		`INSERT INTO organizations (name, type, is_active, name_normalized, moderation_status) VALUES (?, ?, true, ?, ?)`,
+		rivalName, models.OrgTypeContractor, key, models.ModerationApproved).Error)
+
+	done := make(chan *httptest.ResponseRecorder, 1)
+	go func() { done <- request() }()
+
+	waitForIndexLock(t, db)
+	require.NoError(t, rival.Commit().Error)
+	return <-done
 }
 
 // insertOrgRaw вставляет организацию напрямую, минуя сервис и хук модели: только так

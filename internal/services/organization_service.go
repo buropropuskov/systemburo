@@ -299,6 +299,11 @@ func (s *organizationService) Create(ctx context.Context, callerUserID int, req 
 	// Оформление наименования приводим к канону (#1437): в справочник не должны попадать
 	// строчная ОПФ и незакрытая кавычка независимо от того, откуда пришла запись.
 	req.Name = normalize.OrgNameDisplay(req.Name)
+	// Наименование без букв и цифр («---», «"""») - мусор, с которым в справочнике
+	// потом ничего не сделать: правило то же, что при подаче и при разборе (#1437).
+	if normalize.OrgNameMeaningless(req.Name) {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Укажите наименование организации")
+	}
 
 	// Сверяем по ключу дедупликации, а не по точному name: иначе рядом с
 	// «ООО "Ромашка"» заводится «ооо ромашка» как отдельная организация (#1437).
@@ -318,7 +323,7 @@ func (s *organizationService) Create(ctx context.Context, callerUserID int, req 
 	org := models.Organization{Name: req.Name, Type: req.Type, IsActive: true, ModerationStatus: models.ModerationApproved}
 	if err := s.db.WithContext(ctx).Create(&org).Error; err != nil {
 		slog.Error("Не удалось создать организацию", "error", err)
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating organization")
+		return nil, directoryWriteError(err, "Организация с таким названием уже существует", "Error creating organization")
 	}
 	slog.Info("организация создана", "id", org.ID, "name", org.Name)
 	s.recorder.Log(ctx, nil, models.AuditEntityOrganization, &org.ID, models.OrganizationActionCreated, &callerUserID, map[string]any{"name": org.Name, "type": org.Type})
@@ -350,6 +355,9 @@ func (s *organizationService) Update(ctx context.Context, callerUserID, id int, 
 	if req.Name != org.Name {
 		req.Name = normalize.OrgNameDisplay(req.Name)
 	}
+	if normalize.OrgNameMeaningless(req.Name) {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Укажите наименование организации")
+	}
 
 	// Конфликт с другой активной организацией по ключу дедупликации (#1437):
 	// переименование в другое написание существующего наименования - тот же дубль.
@@ -370,7 +378,7 @@ func (s *organizationService) Update(ctx context.Context, callerUserID, id int, 
 	if err := s.db.WithContext(ctx).Model(&models.Organization{}).
 		Where("id = ?", id).Updates(map[string]any{"name": req.Name, "type": req.Type, "name_normalized": normalized}).Error; err != nil {
 		slog.Error("Не удалось обновить организацию", "id", id, "error", err)
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error updating organization")
+		return nil, directoryWriteError(err, "Организация с таким названием уже существует", "Error updating organization")
 	}
 	slog.Info("организация обновлена", "id", id, "name", req.Name)
 	// org.* - старые значения (map-обновление структуру не трогает), req.* - новые.
@@ -486,7 +494,9 @@ func (s *organizationService) Restore(ctx context.Context, callerUserID, id int)
 	if err := s.db.WithContext(ctx).Model(&models.Organization{}).
 		Where("id = ?", id).Update("is_active", true).Error; err != nil {
 		slog.Error("Не удалось восстановить организацию", "id", id, "error", err)
-		return echo.NewHTTPError(http.StatusInternalServerError, "Error restoring organization")
+		return directoryWriteError(err,
+			"Активная организация с таким названием уже существует - переименуйте перед восстановлением",
+			"Error restoring organization")
 	}
 	slog.Info("организация восстановлена", "id", id)
 	s.recorder.Log(ctx, nil, models.AuditEntityOrganization, &id, models.OrganizationActionRestored, &callerUserID, nil)

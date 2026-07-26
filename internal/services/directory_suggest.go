@@ -68,14 +68,16 @@ type DirectorySuggestion struct {
 //	Matched    - есть ли в справочнике активная запись с тем же ключом дедупликации. False
 //	             значит, что подача заведёт новую запись «на проверке», и форма об этом
 //	             предупреждает. Статус разбора существующей записи не важен: заявка ляжет
-//	             и на чужой черновик, новой записи не появится.
-//	Degenerate - у наименования нет ключа дедупликации (одни кавычки или точки). Подача
-//	             такое отклоняет, запись из него не заводится, поэтому форма обязана
-//	             сказать «укажите наименование», а не обещать проверку.
+//	             и на чужой черновик, новой записи не появится. NULL - не проверяли: на
+//	             коротком вводе и на бессодержательном наименовании запрос в базу не идёт,
+//	             и форма молчит вместо того, чтобы утверждать «такого нет».
+//	Degenerate - в наименовании нет ни буквы, ни цифры. Подача такое отклоняет, запись из
+//	             него не заводится, поэтому форма обязана сказать «укажите наименование»,
+//	             а не обещать проверку.
 type DirectorySuggestAnswer struct {
 	Items      []DirectorySuggestion `json:"items"`
 	Canonical  string                `json:"canonical"`
-	Matched    bool                  `json:"matched"`
+	Matched    *bool                 `json:"matched"`
 	Degenerate bool                  `json:"degenerate"`
 }
 
@@ -111,24 +113,28 @@ func suggestDirectory(ctx context.Context, db *gorm.DB, table, rawQuery string) 
 		Items:     []DirectorySuggestion{},
 		Canonical: normalize.OrgNameDisplay(rawQuery),
 	}
-	// Канон и признаки считаем от любого непустого ввода: поле подставляет оформление и
-	// предупреждает ещё до того, как наберётся достаточно символов для самих подсказок.
-	// Пустой ключ - вырожденное наименование (одни кавычки или точки): записи из него не
-	// будет, поэтому «есть ли совпадение» тут не вопрос, отвечаем отдельным признаком.
-	if key := normalize.OrgName(rawQuery); key != "" {
-		matched, err := activeDirectoryKeyExists(ctx, db, table, key)
-		if err != nil {
-			return DirectorySuggestAnswer{}, err
-		}
-		answer.Matched = matched
-	} else if strings.TrimSpace(rawQuery) != "" {
-		answer.Degenerate = true
-	}
+	// Канон считается локально и нужен от любого ввода: поле подставляет оформление ещё до
+	// того, как наберётся достаточно символов для подсказок.
+	trimmed := strings.TrimSpace(rawQuery)
+	// Наименование без букв и цифр записи не даёт - подача его отклоняет, и форма обязана
+	// сказать это, а не обещать проверку. Условие то же, что в резолве подачи: пустого
+	// ключа мало, «---» его имеет, а содержания в нём столько же, сколько в «"""».
+	key := normalize.OrgName(rawQuery)
+	answer.Degenerate = trimmed != "" && (key == "" || normalize.OrgNameMeaningless(trimmed))
 
 	runes := []rune(normalize.OrgNameCore(rawQuery))
-	if len(runes) < directorySuggestMinQuery {
+	if answer.Degenerate || len(runes) < directorySuggestMinQuery {
+		// Короткий ввод в базу не ходит: «есть ли такое наименование» по двум буквам
+		// вопрос бессмысленный, а поле дёргает подсказки на каждый символ.
 		return answer, nil
 	}
+
+	matched, err := activeDirectoryKeyExists(ctx, db, table, key)
+	if err != nil {
+		return DirectorySuggestAnswer{}, err
+	}
+	answer.Matched = &matched
+
 	if len(runes) > directorySuggestMaxQuery {
 		runes = runes[:directorySuggestMaxQuery]
 	}
@@ -155,7 +161,7 @@ func suggestDirectory(ctx context.Context, db *gorm.DB, table, rawQuery string) 
 		ORDER BY (core LIKE @like || '%') DESC, sim DESC, name
 		LIMIT @limit`
 
-	err := db.WithContext(ctx).Raw(query, map[string]any{
+	err = db.WithContext(ctx).Raw(query, map[string]any{
 		"q":         core,
 		"like":      escapeLikePattern(core),
 		"opf":       normalize.OrgLegalFormPattern(),

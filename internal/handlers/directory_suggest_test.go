@@ -198,11 +198,13 @@ func TestDirectorySuggest(t *testing.T) {
 
 		answer := suggestAnswer(t, e, token, "/organizations/suggest", `ооо "братишк`)
 		assert.Equal(t, `ООО "Братишк"`, answer.Canonical, "канон оформления считает бэк")
-		assert.False(t, answer.Matched, "такого наименования в справочнике нет")
+		require.NotNil(t, answer.Matched)
+		assert.False(t, *answer.Matched, "такого наименования в справочнике нет")
 
 		// Другое написание существующей записи - тот же ключ, значит подача ляжет на неё.
 		answer = suggestAnswer(t, e, token, "/organizations/suggest", "ооо совпадение")
-		assert.True(t, answer.Matched)
+		require.NotNil(t, answer.Matched)
+		assert.True(t, *answer.Matched)
 		assert.Equal(t, "ООО Совпадение", answer.Canonical)
 		assert.Contains(t, namesOf(answer.Items), existing.Name)
 
@@ -211,18 +213,26 @@ func TestDirectorySuggest(t *testing.T) {
 		answer = suggestAnswer(t, e, token, "/organizations/suggest", "ип")
 		assert.Equal(t, "ИП", answer.Canonical)
 		assert.Empty(t, answer.Items)
+		assert.Nil(t, answer.Matched, "по двум буквам в базу не ходим и «такого нет» не утверждаем")
 
 		// Вырожденное наименование (одни кавычки): ключа нет, запись из него не заведётся,
 		// и форма обязана сказать это, а не обещать проверку.
 		answer = suggestAnswer(t, e, token, "/organizations/suggest", `""`)
 		assert.True(t, answer.Degenerate)
-		assert.False(t, answer.Matched)
+		assert.Nil(t, answer.Matched)
+
+		// Дефисы ключ имеют, но содержания в них столько же: подача такое наименование
+		// отклоняет, значит и форма обещать создание не должна.
+		answer = suggestAnswer(t, e, token, "/organizations/suggest", "---")
+		assert.True(t, answer.Degenerate, "наименование без букв и цифр")
+		assert.Nil(t, answer.Matched)
 
 		// Черновик чужой заявки в подсказки не идёт, но ключ занимает: подача ляжет на
 		// него, новой записи не появится - предупреждать не о чем.
 		draft := seedOrg(t, db, `ООО "Черновик ключа"`, models.ModerationPending, true)
 		answer = suggestAnswer(t, e, token, "/organizations/suggest", "ооо черновик ключа")
-		assert.True(t, answer.Matched, "ключ занят черновиком")
+		require.NotNil(t, answer.Matched)
+		assert.True(t, *answer.Matched, "ключ занят черновиком")
 		assert.NotContains(t, namesOf(answer.Items), draft.Name)
 	})
 }

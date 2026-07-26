@@ -192,3 +192,28 @@ func TestOrgNameIdempotent(t *testing.T) {
 		}
 	}
 }
+
+// Наименование без букв и цифр записи справочника не даёт: из него не выйдет ни ключа
+// дедупликации, ни осмысленного имени. Проверка живёт отдельно от OrgName, потому что тот
+// выбрасывает кавычки и точки, но оставляет дефисы - «---» приходит с непустым ключом.
+func TestOrgNameMeaningless(t *testing.T) {
+	meaningless := []string{
+		"", "   ", `"`, `""`, "--", "---", "- - -", "...", "!!!", `«»`, "?!", " ", "—", "–",
+		`" "`, ".,;:", "***",
+	}
+	for _, in := range meaningless {
+		if !OrgNameMeaningless(in) {
+			t.Errorf("OrgNameMeaningless(%q) = false, а содержания в нём нет", in)
+		}
+	}
+
+	meaningful := []string{
+		"ООО Ромашка", `ооо "братишк`, "585", "ООО 585 Золото", "м-н Летуаль", "ОРППиПдБиРОП",
+		"Acme Ltd", "北京公司", "ИП Иванов И.И.", "А", "1", "ООО \"ЭФКО-ЦР\"", "-1-",
+	}
+	for _, in := range meaningful {
+		if OrgNameMeaningless(in) {
+			t.Errorf("OrgNameMeaningless(%q) = true, хотя буква или цифра в нём есть", in)
+		}
+	}
+}
