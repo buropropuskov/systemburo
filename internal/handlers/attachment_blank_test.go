@@ -80,8 +80,17 @@ func setupBlankWorld(t *testing.T) blankWorld {
 	}
 }
 
-func TestBlankDownload_AccessGate(t *testing.T) {
+// Гейты и параметры шаблона живут секциями на одном поднятом приложении: отдельные
+// SetupTestApp с CleanDB перебивали границу go test -timeout у пакета handlers.
+func TestBlankAccessAndTemplateRoutes(t *testing.T) {
 	w := setupBlankWorld(t)
+	t.Run("скачивание бланка", func(t *testing.T) { blankDownloadGateSection(t, w) })
+	t.Run("настройка шаблона под правом", func(t *testing.T) { templateRoutesSection(t, w) })
+	t.Run("границы списка", func(t *testing.T) { templateParamsSection(t, w) })
+	t.Run("журнал доступа к персональным данным", func(t *testing.T) { pdAuditSection(t, w) })
+}
+
+func blankDownloadGateSection(t *testing.T, w blankWorld) {
 	userTypeID := secUserTypeIDByCode(t, w.h.w.db, "user")
 	outsider := testutil.RegisterAndLogin(t, w.h.e, "blankoutsider", blankTestPassword, userTypeID, w.h.w.orgID, 0)
 
@@ -117,8 +126,7 @@ func TestBlankDownload_AccessGate(t *testing.T) {
 
 // Настройка бланка - инструмент справочника: правку шаблона и полей вложения
 // пускаем только по page.admin.directories (#1454).
-func TestAttachmentTemplateRoutes_RequireDirectories(t *testing.T) {
-	w := setupBlankWorld(t)
+func templateRoutesSection(t *testing.T, w blankWorld) {
 	userTypeID := secUserTypeIDByCode(t, w.h.w.db, "user")
 	plain := testutil.RegisterAndLogin(t, w.h.e, "blankplainuser", blankTestPassword, userTypeID, w.h.w.orgID, 0)
 
@@ -164,11 +172,19 @@ func TestAttachmentTemplateRoutes_RequireDirectories(t *testing.T) {
 // Список бланка заполняется по типу вложения (#1454). Боевой шаблон "Заявка на ввоз"
 // (items) несёт привязки car.* к номеру машины: раньше они перехватывали определение
 // типа списка, и таблица ТМЦ уезжала пустой.
-func TestBlankGenerate_ListTypeFromAttachmentType(t *testing.T) {
+func TestBlankGenerate(t *testing.T) {
 	_, db, cleanup := testutil.SetupTestApp(t)
 	t.Cleanup(cleanup)
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
+
+	t.Run("список по типу вложения", func(t *testing.T) { listTypeSection(t, db, td) })
+	t.Run("разделитель совмещённых полей", func(t *testing.T) { concatSeparatorSection(t, db, td) })
+	t.Run("места разгрузки вложения", func(t *testing.T) { attachmentPlacesSection(t, db, td) })
+	t.Run("привязки машины", func(t *testing.T) { carBindingsSection(t, db, td) })
+}
+
+func listTypeSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
 
 	userTypeID := secUserTypeIDByCode(t, db, "user")
 	sender := models.User{Username: "blanklistsender", Password: "x", TypeID: userTypeID, OrganizationID: secPtrInt(td.OrgID)}
@@ -235,11 +251,7 @@ func TestBlankGenerate_ListTypeFromAttachmentType(t *testing.T) {
 
 // Разделитель совмещённых полей (#1454): nil - настройки нет, берём ", ";
 // заданная пустая строка - осознанный выбор склеивать без разделителя.
-func TestBlankGenerate_ConcatSeparator(t *testing.T) {
-	_, db, cleanup := testutil.SetupTestApp(t)
-	t.Cleanup(cleanup)
-	testutil.CleanDB(t, db)
-	td := testutil.SeedTestData(t, db)
+func concatSeparatorSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
 
 	userTypeID := secUserTypeIDByCode(t, db, "user")
 	phone := "89100530055"
@@ -313,11 +325,7 @@ func TestBlankGenerate_ConcatSeparator(t *testing.T) {
 
 // Места разгрузки вложения в бланке (#1454): для имущества это единственный источник
 // мест, у ТМЦ своих машин нет.
-func TestBlankGenerate_AttachmentUnloadPlaces(t *testing.T) {
-	_, db, cleanup := testutil.SetupTestApp(t)
-	t.Cleanup(cleanup)
-	testutil.CleanDB(t, db)
-	td := testutil.SeedTestData(t, db)
+func attachmentPlacesSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
 
 	userTypeID := secUserTypeIDByCode(t, db, "user")
 	sender := models.User{Username: "blankplacessender", Password: "x", TypeID: userTypeID, OrganizationID: secPtrInt(td.OrgID)}
@@ -390,11 +398,7 @@ func TestBlankGenerate_AttachmentUnloadPlaces(t *testing.T) {
 // Полный список мест разгрузки машины в бланке (#1454). Форма подачи кладёт в
 // cars.unload_place строку "Первое место и др.", поэтому раньше в бланке видно
 // было только первое место.
-func TestBlankGenerate_CarBindings(t *testing.T) {
-	_, db, cleanup := testutil.SetupTestApp(t)
-	t.Cleanup(cleanup)
-	testutil.CleanDB(t, db)
-	td := testutil.SeedTestData(t, db)
+func carBindingsSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
 
 	userTypeID := secUserTypeIDByCode(t, db, "user")
 	sender := models.User{Username: "blankcarsender", Password: "x", TypeID: userTypeID, OrganizationID: secPtrInt(td.OrgID)}
@@ -470,8 +474,7 @@ func TestBlankGenerate_CarBindings(t *testing.T) {
 
 // Границы строк списка правятся без перезагрузки файла (#1454): раньше их задавали
 // только вместе с загрузкой .xlsx, и подвинуть диапазон значило перезалить тот же файл.
-func TestTemplateParams_UpdateWithoutReupload(t *testing.T) {
-	w := setupBlankWorld(t)
+func templateParamsSection(t *testing.T, w blankWorld) {
 	db := w.h.w.db
 
 	var uaID int

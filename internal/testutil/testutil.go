@@ -257,6 +257,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 		PermGroups:          permissionGroupHandler,
 		Roles:               roleHandler,
 		AccessDenials:       accessDenialHandler,
+		PDAudit:             handlers.NewPDAuditHandler(services.NewPDAuditService(db)),
 		UserBan:             userBanHandler,
 		Consent:             consentHandler,
 		Settings:            settingsHandler,

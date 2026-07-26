@@ -23,6 +23,9 @@ const (
 	KeyPageTables         = "page.tables"
 
 	KeyPageAdminMonitoring  = "page.admin.monitoring"
+	// Журнал доступа к персональным данным (152-ФЗ). Отдельно от permission.audit.read:
+	// тот про отказы в доступе, а здесь видно, кто и когда смотрел паспорта (#1472).
+	KeyPageAdminPDAudit     = "page.admin.pd_audit"
 	KeyPageAdminDirectories = "page.admin.directories"
 	KeyPageAdminTablesCtor  = "page.admin.tables_constructor"
 
@@ -141,6 +144,7 @@ func staticCatalog() []CatalogNode {
 		// Администрирование
 		{Key: KeyPageAdminUsers, DisplayName: "Раздел «Пользователи»", Category: CatAdmin},
 		{Key: KeyPageAdminMonitoring, DisplayName: "Раздел «Мониторинг запросов»", Category: CatAdmin},
+		{Key: KeyPageAdminPDAudit, DisplayName: "Журнал доступа к персональным данным", Category: CatAdmin},
 		{Key: KeyPageAdminFeedback, DisplayName: "Раздел «Обратная связь»", Category: CatAdmin},
 		{Key: KeyPageBlacklist, DisplayName: "Раздел «Чёрный список»", Category: CatAdmin},
 		{Key: KeyPageAdminDirectories, DisplayName: "Раздел «Справочники»", Category: CatAdmin},

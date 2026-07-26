@@ -41,6 +41,7 @@ type Dependencies struct {
 	PermGroups          *handlers.PermissionGroupHandler
 	Roles               *handlers.RoleHandler
 	AccessDenials       *handlers.AccessDenialHandler
+	PDAudit             *handlers.PDAuditHandler
 	UserBan             *handlers.UserBanHandler
 	Consent             *handlers.ConsentHandler
 	Settings            *handlers.SettingsHandler
@@ -761,6 +762,11 @@ func Setup(e *echo.Echo, d Dependencies) {
 	rolesGroup.DELETE("/:id", roles.Delete, auditManage)
 	rolesGroup.PUT("/:id/default-groups", roles.SetDefaultGroups, auditManage)
 	rolesGroup.PUT("/:id/permissions", roles.SetPermissions, auditManage)
+
+	// Журнал доступа к персональным данным (152-ФЗ, #1472). Только чтение: записи
+	// по закону не удаляются, сроком хранения занимаются партиции таблицы.
+	pdAuditRead := mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageAdminPDAudit)
+	protected.GET("/pd-audit", d.PDAudit.List, pdAuditRead)
 
 	// Журнал отказов в доступе (#230).
 	denialsGroup := protected.Group("/access-denials")
