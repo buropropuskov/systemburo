@@ -224,12 +224,21 @@
 }
 
 /* "Пропустить" - подчёркнуто-вторичная, слева, по центру высоты кнопок */
+/* driver.css рисует кнопки футера в своей манере - в том числе белой тенью текста
+   (.driver-popover-footer button { text-shadow: 1px 1px #fff }). На тёмной подложке
+   она читается как обводка, поэтому гасим её для всех кнопок попапа разом: прежний
+   точечный text-shadow: none стоял только у «Назад»/«Далее». */
+.driver-popover.ob-popover .driver-popover-footer button {
+  text-shadow: none;
+}
+
 .driver-popover.ob-popover .ob-popover__skip {
   height: 34px;
   display: inline-flex;
   align-items: center;
   background: none;
   border: none;
+  text-shadow: none;
   /* Нативную отрисовку гасим явно: под color-scheme: dark браузер рисует <button>
      тёмной кнопкой с рельефной рамкой, и «Пропустить обучение» выглядела выпуклой. */
   appearance: none;
