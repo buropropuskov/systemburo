@@ -274,3 +274,32 @@ describe('оформление: кнопки и теги', () => {
     }
   })
 })
+
+/*
+ * Страницы-заглушки (500, обслуживание) рисуют собственный фон с декоративными
+ * пятнами. Литералы держали их светлыми при любой теме - в тёмной получался
+ * светло-серый текст на почти белом фоне (#1415).
+ */
+describe('страницы-заглушки следуют теме', () => {
+  const pages = ['../../views/Error500.vue', '../../views/Maintenance.vue']
+
+  it('фон страницы и пятна берутся от токенов, а не от литералов', () => {
+    for (const rel of pages) {
+      const css = readFileSync(resolve(__dirname, rel), 'utf8')
+      const bg = css.match(/background:\s*\n?\s*radial-gradient[\s\S]*?;/)
+      expect(bg, `${rel}: не найден фон страницы`).not.toBeNull()
+      expect(bg[0], `${rel}: фон должен идти от --bg`).toContain('var(--bg)')
+      expect(bg[0], `${rel}: в фоне остался литерал цвета`).not.toMatch(/#[0-9a-fA-F]{3,6}/)
+    }
+  })
+
+  it('декоративная сетка тонируется акцентом темы', () => {
+    for (const rel of pages) {
+      const css = readFileSync(resolve(__dirname, rel), 'utf8')
+      const grid = css.match(/background-image:\s*\n?\s*linear-gradient[\s\S]*?;/)
+      expect(grid, `${rel}: не найдена сетка`).not.toBeNull()
+      expect(grid[0], `${rel}: сетка прошита синим литералом`).not.toMatch(/rgba?\(\s*79/)
+      expect(grid[0]).toContain('var(--accent)')
+    }
+  })
+})

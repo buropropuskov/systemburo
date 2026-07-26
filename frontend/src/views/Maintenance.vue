@@ -272,10 +272,12 @@ export default {
   min-height: calc(var(--app-vh, 1vh) * 100);
   /* B.3 (#1097): svh стабилизирует высоту на мобилке, min() держит zoom-корректность, см. Error500. */
   min-height: min(calc(var(--app-vh, 1vh) * 100), 100svh);
+  /* Подложка от темы (как на Error500): литералы держали страницу светлой независимо
+     от выбранной темы. */
   background:
-    radial-gradient(1200px 700px at 15% 0%, #eef0ff 0%, transparent 55%),
-    radial-gradient(900px 600px at 100% 100%, #ccfbf1 0%, transparent 50%),
-    #f5f6fa;
+    radial-gradient(1200px 700px at 15% 0%, color-mix(in srgb, var(--accent) 12%, var(--bg)) 0%, transparent 55%),
+    radial-gradient(900px 600px at 100% 100%, color-mix(in srgb, var(--success) 12%, var(--bg)) 0%, transparent 50%),
+    var(--bg);
   position: relative;
   overflow: hidden;
   display: flex;
@@ -286,8 +288,8 @@ export default {
   position: fixed;
   inset: 0;
   background-image:
-    linear-gradient(rgba(79, 91, 223, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(79, 91, 223, 0.06) 1px, transparent 1px);
+    linear-gradient(color-mix(in srgb, var(--accent) 12%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 12%, transparent) 1px, transparent 1px);
   background-size: 60px 60px;
   pointer-events: none;
   z-index: 0;
