@@ -1669,7 +1669,7 @@ export default {
 .te-section {
   border: 1px solid var(--color-border);
   border-radius: 30px;
-  padding: 10px 16px;
+  padding: 16px 20px;
   background: var(--surface);
 }
 
@@ -1681,11 +1681,11 @@ export default {
 
 /* ---- Templates block ---- */
 .te-templates-block {
-  padding: 0;
+  padding: 0 0 4px;
   background: var(--surface);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
 
@@ -1693,14 +1693,14 @@ export default {
 .te-params-block {
   display: flex;
   align-items: flex-end;
-  gap: 10px;
+  gap: 14px;
   flex-wrap: wrap;
-  margin-bottom: 10px;
+  margin-bottom: 14px;
 }
 
 .te-params-fields {
   display: flex;
-  gap: 8px;
+  gap: 14px;
   flex: 1;
   min-width: 0;
 }
@@ -1732,19 +1732,19 @@ export default {
 .te-separator-block {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
 
 .te-separator-label {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--color-text-muted);
   white-space: nowrap;
 }
 
 .te-separator-input {
-  width: 60px;
-  padding: 4px 8px !important;
-  font-size: 12px !important;
+  width: 72px;
+  padding: 8px 12px !important;
+  font-size: 14px !important;
   text-align: center;
 }
 
@@ -1778,7 +1778,7 @@ export default {
 
 .te-file-actions {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
@@ -1861,18 +1861,18 @@ export default {
 .te-form-field {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 5px;
 }
 
 .te-form-field label {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--text-muted);
 }
 
 .te-compact-input {
-  padding: 5px 8px !important;
-  font-size: 12px !important;
+  padding: 8px 12px !important;
+  font-size: 14px !important;
 }
 
 .te-upload-actions {

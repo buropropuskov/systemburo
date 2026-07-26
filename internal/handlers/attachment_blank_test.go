@@ -90,6 +90,60 @@ func TestBlankAccessAndTemplateRoutes(t *testing.T) {
 	t.Run("границы списка", func(t *testing.T) { templateParamsSection(t, w) })
 	t.Run("журнал доступа к персональным данным", func(t *testing.T) { pdAuditSection(t, w) })
 	t.Run("копирование привязок", func(t *testing.T) { copyMappingsSection(t, w) })
+	t.Run("удаление бланка", func(t *testing.T) { deleteTemplateSection(t, w) })
+}
+
+// Удалив бланк, админ ждёт, что генерация выключится. Раньше сервис молча активировал
+// следующий файл того же вложения, и вместо выключения открывался соседний шаблон.
+func deleteTemplateSection(t *testing.T, w blankWorld) {
+	db := w.h.w.db
+	admin := testutil.AuthHeader(w.h.adminToken)
+
+	uaID, oldTpl := copySeedTemplate(t, db, "delete_blank", "cars", 5, 8)
+	// Второй файл того же вложения: он станет активным, первый уйдёт в неактивные.
+	f := excelize.NewFile()
+	defer func() { require.NoError(t, f.Close()) }()
+	path := filepath.Join(t.TempDir(), "delete_blank_2.xlsx")
+	require.NoError(t, f.SaveAs(path))
+	require.NoError(t, db.Model(&models.AttachmentTemplate{}).Where("id = ?", oldTpl).
+		Update("is_active", false).Error)
+	newTpl := models.AttachmentTemplate{
+		UniqueAttachmentID: uaID, IsActive: true, FilePath: path,
+		OriginalFileName: "delete_blank_2.xlsx", ListStartRow: 5, ListEndRow: 8, MaxListRows: 4,
+	}
+	require.NoError(t, db.Create(&newTpl).Error)
+
+	t.Run("удаление неактивного файла активный не трогает", func(t *testing.T) {
+		rec := testutil.DELETE(t, w.h.e, fmt.Sprintf("/attachments/%d/template/%d", uaID, oldTpl), admin)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+		got := testutil.GET(t, w.h.e, fmt.Sprintf("/attachments/%d/template", uaID), admin)
+		require.Equal(t, http.StatusOK, got.Code, "активный шаблон должен остаться")
+		require.Contains(t, got.Body.String(), "delete_blank_2.xlsx")
+	})
+
+	t.Run("удаление активного файла выключает генерацию", func(t *testing.T) {
+		// Ещё один файл рядом: раньше именно он подхватывался вместо выключения.
+		spare := models.AttachmentTemplate{
+			UniqueAttachmentID: uaID, FilePath: path,
+			OriginalFileName: "delete_blank_spare.xlsx", ListStartRow: 5, ListEndRow: 8, MaxListRows: 4,
+		}
+		require.NoError(t, db.Create(&spare).Error)
+		// is_active в модели с default:true, поэтому нулевое значение при Create не
+		// сохраняется - гасим флаг явным апдейтом.
+		require.NoError(t, db.Model(&models.AttachmentTemplate{}).Where("id = ?", spare.ID).
+			Update("is_active", false).Error)
+
+		rec := testutil.DELETE(t, w.h.e, fmt.Sprintf("/attachments/%d/template/%d", uaID, newTpl.ID), admin)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+		got := testutil.GET(t, w.h.e, fmt.Sprintf("/attachments/%d/template", uaID), admin)
+		require.Equal(t, http.StatusNotFound, got.Code, "активного шаблона быть не должно - генерация выключена")
+
+		list := testutil.GET(t, w.h.e, fmt.Sprintf("/attachments/%d/templates", uaID), admin)
+		require.Equal(t, http.StatusOK, list.Code)
+		require.Contains(t, list.Body.String(), "delete_blank_spare.xlsx", "остальные файлы остаются в списке")
+	})
 }
 
 // copySeedTemplate создаёт тип вложения с активным шаблоном и возвращает их id.
