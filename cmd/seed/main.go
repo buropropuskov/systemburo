@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"systemburo/internal/database"
+	"systemburo/internal/normalize"
 
 	"golang.org/x/crypto/argon2"
 	"gorm.io/driver/postgres"
@@ -39,9 +40,16 @@ func main() {
 	// Убедимся что организация и компания существуют.
 	// У organizations теперь partial unique по name (WHERE is_active=true) - в
 	// ON CONFLICT нужно указать тот же предикат, иначе арбитр-индекс не найдётся.
+	// name_normalized заполняем здесь же: raw INSERT идёт в обход gorm-модели, её хук
+	// BeforeSave не срабатывает, а без ключа запись не участвует в дедупликации
+	// наименований (#1437) до следующего запуска сервера с бэкфиллом.
+	const seedDirectoryName = "Бюро пропусков"
+	seedDirectoryKey := normalize.OrgName(seedDirectoryName)
 	var orgID, compID int
-	db.Raw("INSERT INTO organizations (name) VALUES ('Бюро пропусков') ON CONFLICT (name) WHERE is_active = true DO UPDATE SET name = EXCLUDED.name RETURNING id").Scan(&orgID)
-	db.Raw("INSERT INTO companies (name) VALUES ('Бюро пропусков') ON CONFLICT (name) WHERE is_active = true DO UPDATE SET name = EXCLUDED.name RETURNING id").Scan(&compID)
+	db.Raw("INSERT INTO organizations (name, name_normalized) VALUES (?, ?) ON CONFLICT (name) WHERE is_active = true DO UPDATE SET name_normalized = EXCLUDED.name_normalized RETURNING id",
+		seedDirectoryName, seedDirectoryKey).Scan(&orgID)
+	db.Raw("INSERT INTO companies (name, name_normalized) VALUES (?, ?) ON CONFLICT (name) WHERE is_active = true DO UPDATE SET name_normalized = EXCLUDED.name_normalized RETURNING id",
+		seedDirectoryName, seedDirectoryKey).Scan(&compID)
 
 	// type_id=6 = buropropuskov
 	var typeID int

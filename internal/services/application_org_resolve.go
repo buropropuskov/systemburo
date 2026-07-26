@@ -157,26 +157,9 @@ func (s *applicationService) resolveDirectoryRef(
 	}
 
 	key := normalize.OrgName(name)
-	// Вырожденное наименование (одни кавычки или дефисы) даёт пустой ключ, по которому
-	// несвязанные записи схлопнулись бы в одну - для них сверяем точную строку, как
-	// applyNameDuplicateFilter в справочниках.
-	condition := "name_normalized = ?"
-	arg := key
-	if key == "" {
-		condition = "name = ?"
-		arg = name
-	}
-	// Partial unique index по ключу появится последним срезом эпика, поэтому одному ключу
-	// пока могут отвечать несколько записей: берём проверенную и самую старую, чтобы
-	// резолв был детерминирован и не цеплялся к свежему черновику.
-	query := fmt.Sprintf(
-		"SELECT id FROM %s WHERE is_active = true AND %s ORDER BY (moderation_status = ?) DESC, id ASC LIMIT 1",
-		ref.table, condition,
-	)
-	var existing int
-	if err := tx.Raw(query, arg, models.ModerationApproved).Scan(&existing).Error; err != nil {
-		slog.Error("не удалось найти запись справочника по наименованию", "table", ref.table, "error", err)
-		return directoryResolution{}, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка проверки справочника")
+	existing, err := findActiveDirectoryEntry(tx, ref, name, key)
+	if err != nil {
+		return directoryResolution{}, err
 	}
 	if existing != 0 {
 		if err := ensureDirectoryAllowed(ref, scope, existing); err != nil {
@@ -197,10 +180,16 @@ func (s *applicationService) resolveDirectoryRef(
 		return directoryResolution{}, echo.NewHTTPError(http.StatusForbidden, ref.overrideMsg)
 	}
 
-	newID, err := ref.create(tx, name, scope.userID)
+	newID, created, err := createDirectoryEntry(tx, ref, name, key, scope.userID)
 	if err != nil {
-		slog.Error("не удалось создать запись справочника из заявки", "table", ref.table, "name", name, "error", err)
-		return directoryResolution{}, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка создания записи справочника")
+		return directoryResolution{}, err
+	}
+	if !created {
+		// Ключ заняла параллельная подача - заявка легла на её запись. Разбор той записи
+		// уже назначен, второй раз принимающих не зовём (PendingName остаётся пустым).
+		// Прав не перепроверяем: до сюда доходит только тот, у кого есть override (гейт
+		// выше), а он разрешает любую запись справочника.
+		return directoryResolution{ID: &newID}, nil
 	}
 	slog.Info("запись справочника создана из заявки", "table", ref.table, "id", newID, "name", name, "author", scope.userID)
 	author := scope.userID
@@ -211,4 +200,71 @@ func (s *applicationService) resolveDirectoryRef(
 		"source":            "application",
 	})
 	return directoryResolution{ID: &newID, PendingName: name}, nil
+}
+
+// findActiveDirectoryEntry ищет активную запись справочника по наименованию.
+//
+// Вырожденное наименование (одни кавычки или дефисы) даёт пустой ключ, по которому
+// несвязанные записи схлопнулись бы в одну - для них сверяем точную строку, как
+// applyNameDuplicateFilter в справочниках.
+//
+// Partial unique index по ключу (срез 9) оставляет одному ключу не более одной активной
+// записи, поэтому выборка однозначна. Порядок «проверенная, затем самая старая» сохранён
+// для баз, где индекс ещё не встал из-за неслитых дублей: резолв должен быть
+// детерминирован и не цепляться к свежему черновику.
+func findActiveDirectoryEntry(tx *gorm.DB, ref directoryRef, name, key string) (int, error) {
+	condition, arg := "name_normalized = ?", key
+	if key == "" {
+		condition, arg = "name = ?", name
+	}
+	query := fmt.Sprintf(
+		"SELECT id FROM %s WHERE is_active = true AND %s ORDER BY (moderation_status = ?) DESC, id ASC LIMIT 1",
+		ref.table, condition,
+	)
+	var existing int
+	if err := tx.Raw(query, arg, models.ModerationApproved).Scan(&existing).Error; err != nil {
+		slog.Error("не удалось найти запись справочника по наименованию", "table", ref.table, "error", err)
+		return 0, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка проверки справочника")
+	}
+	return existing, nil
+}
+
+// createDirectoryEntry заводит запись «на проверке» и возвращает её id. created=false
+// значит, что запись завела параллельная подача с тем же наименованием, а эта
+// привязалась к её строке.
+//
+// INSERT идёт под SAVEPOINT: partial unique index по ключу отбивает второй INSERT в
+// гонке, а нарушение уникальности аварийно завершает всю транзакцию Postgres - без
+// точки возврата подача упала бы целиком, хотя нужная запись уже существует.
+func createDirectoryEntry(tx *gorm.DB, ref directoryRef, name, key string, senderID int) (int, bool, error) {
+	const savepoint = "directory_entry_create"
+	if err := tx.SavePoint(savepoint).Error; err != nil {
+		slog.Error("не удалось поставить точку возврата перед созданием записи справочника", "table", ref.table, "error", err)
+		return 0, false, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка создания записи справочника")
+	}
+	newID, err := ref.create(tx, name, senderID)
+	if err == nil {
+		return newID, true, nil
+	}
+	if !isUniqueViolation(err) {
+		slog.Error("не удалось создать запись справочника из заявки", "table", ref.table, "name", name, "error", err)
+		return 0, false, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка создания записи справочника")
+	}
+	if rbErr := tx.RollbackTo(savepoint).Error; rbErr != nil {
+		slog.Error("не удалось вернуться к точке возврата после конфликта наименований", "table", ref.table, "error", rbErr)
+		return 0, false, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка создания записи справочника")
+	}
+	existing, err := findActiveDirectoryEntry(tx, ref, name, key)
+	if err != nil {
+		return 0, false, err
+	}
+	if existing == 0 {
+		// Ключ занят, но активной записи по нему нет - модель дедупликации разошлась с
+		// предикатом индекса. Молчать нельзя: наименование не привязать ни к чему.
+		slog.Error("ключ наименования занят, но активная запись не найдена", "table", ref.table, "name", name, "key", key)
+		return 0, false, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка создания записи справочника")
+	}
+	slog.Info("наименование завела параллельная подача - привязались к её записи",
+		"table", ref.table, "id", existing, "name", name)
+	return existing, false, nil
 }
