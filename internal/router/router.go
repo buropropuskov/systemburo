@@ -368,9 +368,16 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// подсказывать нечего. Статический сегмент suggest в Echo приоритетнее :id.
 	requireOrgOverride := mw.RequirePermissionV2(permResolver, denialLog, services.KeyApplicationOrganizationOverride)
 
+	// Разбор записей «на проверке», заведённых из заявки (#1437). Право отдельное от
+	// администрирования справочника: разбирает принимающий, а не только админ.
+	requireOrgModerate := mw.RequirePermissionV2(permResolver, denialLog, services.KeyApplicationOrganizationModerate)
+
 	orgg := protected.Group("/organizations")
 	orgg.GET("", org.GetAll)
 	orgg.GET("/suggest", org.Suggest, requireOrgOverride)
+	orgg.POST("/:id/moderation/approve", org.ApproveModeration, requireOrgModerate)
+	orgg.PATCH("/:id/moderation/rename", org.RenameModeration, requireOrgModerate)
+	orgg.POST("/:id/moderation/merge", org.MergeModeration, requireOrgModerate)
 	orgg.POST("", org.Create, requireAdmin)
 	orgg.PUT("/:id", org.Update, requireAdmin)
 	orgg.DELETE("/:id", org.Delete, requireAdmin)
@@ -403,6 +410,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	cg := protected.Group("/companies")
 	cg.GET("", comp.GetAll)
 	cg.GET("/suggest", comp.Suggest, requireOrgOverride)
+	cg.POST("/:id/moderation/approve", comp.ApproveModeration, requireOrgModerate)
+	cg.PATCH("/:id/moderation/rename", comp.RenameModeration, requireOrgModerate)
+	cg.POST("/:id/moderation/merge", comp.MergeModeration, requireOrgModerate)
 	cg.POST("", comp.Create, requireAdmin)
 	cg.PUT("/:id", comp.Update, requireAdmin)
 	cg.DELETE("/:id", comp.Delete, requireAdmin)

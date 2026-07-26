@@ -61,6 +61,93 @@ func (h *OrganizationHandler) Suggest(c echo.Context) error {
 	return RespondSuccess(c, suggestions)
 }
 
+// ApproveModeration godoc
+// @Summary      Подтвердить организацию «на проверке»
+// @Description  Разбор записи, заведённой из заявки (#1437). Требует права application.organization.moderate. Если наименование столкнулось с уже существующей записью, ответ приходит со status=conflict и самой записью - её предлагают выбрать вместо черновика.
+// @Tags         organizations
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID организации"
+// @Success      200 {object} services.DirectoryModerationResult
+// @Failure      400 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Router       /organizations/{id}/moderation/approve [post]
+func (h *OrganizationHandler) ApproveModeration(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid organization ID")
+	}
+	userID, _ := c.Get("user_id").(int)
+	result, err := h.service.ApproveModeration(c.Request().Context(), userID, id)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, result)
+}
+
+// RenameModeration godoc
+// @Summary      Исправить наименование организации «на проверке»
+// @Description  Правит наименование черновика и считает запись разобранной. Требует права application.organization.moderate. При совпадении с существующей записью возвращает status=conflict.
+// @Tags         organizations
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID организации"
+// @Param        request body services.DirectoryRenameRequest true "Новое наименование"
+// @Success      200 {object} services.DirectoryModerationResult
+// @Failure      400 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Router       /organizations/{id}/moderation/rename [patch]
+func (h *OrganizationHandler) RenameModeration(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid organization ID")
+	}
+	var req services.DirectoryRenameRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	userID, _ := c.Get("user_id").(int)
+	result, err := h.service.RenameModeration(c.Request().Context(), userID, id, req.Name)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, result)
+}
+
+// MergeModeration godoc
+// @Summary      Привязать организацию «на проверке» к существующей
+// @Description  Переносит заявки, вложения, машины, сотрудников и привязки черновика на выбранную проверенную организацию и удаляет черновик. Требует права application.organization.moderate.
+// @Tags         organizations
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID организации «на проверке»"
+// @Param        request body services.DirectoryMergeRequest true "ID целевой организации"
+// @Success      200 {object} services.DirectoryMergeResult
+// @Failure      400 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Router       /organizations/{id}/moderation/merge [post]
+func (h *OrganizationHandler) MergeModeration(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid organization ID")
+	}
+	var req services.DirectoryMergeRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	userID, _ := c.Get("user_id").(int)
+	result, err := h.service.MergeModeration(c.Request().Context(), userID, id, req.TargetID)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, result)
+}
+
 // Create godoc
 // @Summary      Создать организацию
 // @Description  Создаёт новую организацию. Требует права buropropuskov

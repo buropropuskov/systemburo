@@ -48,6 +48,14 @@ const (
 	// сделанная в обход формы, отклоняется на бэкенде.
 	KeyApplicationOrganizationOverride = "application.organization.override"
 
+	// KeyApplicationOrganizationModerate разрешает разбирать организации и компании,
+	// заведённые из заявки со статусом «на проверке» (#1437): подтвердить запись,
+	// исправить её наименование или привязать заявки к уже существующей записи.
+	// Право рассчитано на принимающих: администраторы получают его через adminAll.
+	// Неймспейс общий с override: разбор идёт из детали заявки, а не из админки
+	// справочника, и права этой пары назначают вместе.
+	KeyApplicationOrganizationModerate = "application.organization.moderate"
+
 	KeyActionGrantAdmin = "action.grant.admin"
 
 	KeyGuideUser  = "guide.user"
@@ -109,6 +117,7 @@ func staticCatalog() []CatalogNode {
 		{Key: KeyActionApproveApplication, DisplayName: "Согласовать заявку", Category: CatCenter},
 		{Key: KeyActionExportApplications, DisplayName: "Экспорт заявок", Category: CatCenter},
 		{Key: KeyApplicationOrganizationOverride, DisplayName: "Подача заявки от другой организации", Category: CatCenter},
+		{Key: KeyApplicationOrganizationModerate, DisplayName: "Разбор организаций на проверке", Category: CatCenter},
 
 		// Карточка авто/сотрудника (общие действия; где кнопка уместна -- определяет контекст на фронте)
 		{Key: KeyDetailFullHistory, DisplayName: "Кнопка «Полная история»", Category: CatDetail},

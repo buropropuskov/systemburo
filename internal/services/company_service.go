@@ -25,6 +25,16 @@ type CompanyService interface {
 	// ручного ввода наименования в заявке.
 	Suggest(ctx context.Context, query string) ([]DirectorySuggestion, error)
 
+	// ApproveModeration подтверждает компанию «на проверке», заведённую из заявки.
+	ApproveModeration(ctx context.Context, callerUserID, id int) (DirectoryModerationResult, error)
+
+	// RenameModeration исправляет наименование компании «на проверке» и разбирает её.
+	RenameModeration(ctx context.Context, callerUserID, id int, name string) (DirectoryModerationResult, error)
+
+	// MergeModeration переносит ссылки компании «на проверке» на существующую запись
+	// справочника и удаляет черновик.
+	MergeModeration(ctx context.Context, callerUserID, id, targetID int) (DirectoryMergeResult, error)
+
 	// GetWithUsers возвращает компании с количеством пользователей. includeArchived добавляет архивные.
 	GetWithUsers(ctx context.Context, includeArchived bool) ([]CompanyWithUsersResponse, error)
 
@@ -207,6 +217,21 @@ func (s *companyService) GetAll(ctx context.Context) ([]models.Company, error) {
 // Suggest подбирает близкие компании по наименованию, см. suggestDirectory.
 func (s *companyService) Suggest(ctx context.Context, query string) ([]DirectorySuggestion, error) {
 	return suggestDirectory(ctx, s.db, "companies", query)
+}
+
+// ApproveModeration - разбор компании «на проверке», см. approveDirectoryEntry.
+func (s *companyService) ApproveModeration(ctx context.Context, callerUserID, id int) (DirectoryModerationResult, error) {
+	return approveDirectoryEntry(ctx, s.db, s.recorder, companyModeration, id, callerUserID)
+}
+
+// RenameModeration - исправление наименования при разборе, см. renameDirectoryEntry.
+func (s *companyService) RenameModeration(ctx context.Context, callerUserID, id int, name string) (DirectoryModerationResult, error) {
+	return renameDirectoryEntry(ctx, s.db, s.recorder, companyModeration, id, name, callerUserID)
+}
+
+// MergeModeration - привязка черновика к существующей компании, см. mergeDirectoryEntry.
+func (s *companyService) MergeModeration(ctx context.Context, callerUserID, id, targetID int) (DirectoryMergeResult, error) {
+	return mergeDirectoryEntry(ctx, s.db, s.recorder, companyModeration, id, targetID, callerUserID)
 }
 
 // GetWithUsers возвращает компании с количеством привязанных пользователей.
