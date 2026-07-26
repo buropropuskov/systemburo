@@ -58,6 +58,10 @@ func BuiltinTemplateFields() []TemplateFieldGroup {
 				{Path: "attachment.entry_time_from", Label: "Время с"},
 				{Path: "attachment.entry_time_to", Label: "Время по"},
 				{Path: "attachment.entry_time_range", Label: "Время пребывания (с - по)"},
+				{Path: "attachment.display_name", Label: "Название бланка"},
+				{Path: "attachment.unload_places", Label: "Места разгрузки"},
+				{Path: "attachment.roof_access", Label: "Доступ на крышу (Да/Нет)"},
+				{Path: "attachment.free_parking", Label: "Бесплатная парковка (Да/Нет)"},
 			},
 		},
 		{

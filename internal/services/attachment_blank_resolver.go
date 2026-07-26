@@ -154,8 +154,28 @@ func resolveAttachment(bctx *BlankContext, path string) string {
 			return from
 		}
 		return to
+	case "attachment.display_name":
+		if name := derefStr(a.AttachmentDisplayName); name != "" {
+			return name
+		}
+		return derefStr(a.AttachmentName)
+	case "attachment.unload_places":
+		return strings.Join(bctx.AttachmentUnloadPlaces, ", ")
+	case "attachment.roof_access":
+		return yesNo(a.RoofAccess)
+	case "attachment.free_parking":
+		return yesNo(a.FreeParking)
 	}
 	return ""
+}
+
+// yesNo печатает булев признак вложения словом: пустая ячейка в бланке читалась бы
+// как "поле не заполнено", а не как "нет".
+func yesNo(v bool) string {
+	if v {
+		return "Да"
+	}
+	return "Нет"
 }
 
 func resolveCar(c *models.Car, path string, rowIdx int) string {

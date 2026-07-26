@@ -310,3 +310,79 @@ func TestBlankGenerate_ConcatSeparator(t *testing.T) {
 		require.Equal(t, "89100530055 / Иванов П.", cellValue(t))
 	})
 }
+
+// Места разгрузки вложения в бланке (#1454): для имущества это единственный источник
+// мест, у ТМЦ своих машин нет.
+func TestBlankGenerate_AttachmentUnloadPlaces(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	t.Cleanup(cleanup)
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	userTypeID := secUserTypeIDByCode(t, db, "user")
+	sender := models.User{Username: "blankplacessender", Password: "x", TypeID: userTypeID, OrganizationID: secPtrInt(td.OrgID)}
+	require.NoError(t, db.Create(&sender).Error)
+
+	name := "places_blank"
+	ua := models.UniqueAttachment{AttachmentType: "items", Name: &name, IsActive: true}
+	require.NoError(t, db.Create(&ua).Error)
+
+	f := excelize.NewFile()
+	defer func() { require.NoError(t, f.Close()) }()
+	path := filepath.Join(t.TempDir(), "places.xlsx")
+	require.NoError(t, f.SaveAs(path))
+
+	tpl := models.AttachmentTemplate{
+		UniqueAttachmentID: ua.ID, IsActive: true, FilePath: path,
+		OriginalFileName: "places.xlsx", ListStartRow: 10, ListEndRow: 12, MaxListRows: 3,
+	}
+	require.NoError(t, db.Create(&tpl).Error)
+	require.NoError(t, db.Create(&[]models.AttachmentTemplateMapping{
+		{TemplateID: tpl.ID, CellRef: "C5", FieldPath: "attachment.unload_places"},
+		{TemplateID: tpl.ID, CellRef: "C6", FieldPath: "attachment.roof_access"},
+		{TemplateID: tpl.ID, CellRef: "C7", FieldPath: "attachment.display_name"},
+	}).Error)
+
+	now := time.Now()
+	conf, status := "Согласовано", models.StatusInWork
+	app := models.Application{
+		OrganizationID: td.OrgID, SenderUserID: sender.ID,
+		Confirmation: &conf, Status: &status, SendingDatetime: &now,
+	}
+	require.NoError(t, db.Create(&app).Error)
+
+	display := "Заявка на ввоз №1"
+	att := models.Attachment{
+		ApplicationID: &app.ID, AttachmentType: "items", UniqueAttachmentID: &ua.ID,
+		AttachmentDisplayName: &display, RoofAccess: true,
+	}
+	require.NoError(t, db.Create(&att).Error)
+
+	first := models.UnloadPlace{Name: "Ворота Черепашки", IsActive: true}
+	second := models.UnloadPlace{Name: "Склад 4", IsActive: true}
+	require.NoError(t, db.Create(&first).Error)
+	require.NoError(t, db.Create(&second).Error)
+	one, two := 1, 2
+	require.NoError(t, db.Create(&models.AttachmentUnloadPlace{AttachmentID: att.ID, UnloadPlaceID: first.ID, OrderIndex: &one}).Error)
+	require.NoError(t, db.Create(&models.AttachmentUnloadPlace{AttachmentID: att.ID, UnloadPlaceID: second.ID, OrderIndex: &two}).Error)
+
+	reader, _, err := services.NewAttachmentBlankService(db).
+		GenerateBlank(context.Background(), app.ID, att.ID)
+	require.NoError(t, err)
+	out, err := excelize.OpenReader(reader)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, out.Close()) }()
+	sheet := out.GetSheetName(0)
+
+	places, err := out.GetCellValue(sheet, "C5")
+	require.NoError(t, err)
+	require.Equal(t, "Ворота Черепашки, Склад 4", places, "места идут в порядке привязки")
+
+	roof, err := out.GetCellValue(sheet, "C6")
+	require.NoError(t, err)
+	require.Equal(t, "Да", roof)
+
+	title, err := out.GetCellValue(sheet, "C7")
+	require.NoError(t, err)
+	require.Equal(t, display, title)
+}
