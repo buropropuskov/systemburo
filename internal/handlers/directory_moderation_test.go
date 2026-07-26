@@ -24,6 +24,25 @@ func seedModerationOrg(t *testing.T, db *gorm.DB, name, moderation string) model
 	return org
 }
 
+// seedModerationOrgBy заводит черновик организации от имени authorID: разбор сообщает
+// исход именно автору наименования (created_by_user_id), у записи без него адресата нет.
+func seedModerationOrgBy(t *testing.T, db *gorm.DB, name, moderation string, authorID int) models.Organization {
+	t.Helper()
+	org := seedModerationOrg(t, db, name, moderation)
+	require.NoError(t, db.Model(&models.Organization{}).Where("id = ?", org.ID).
+		Update("created_by_user_id", authorID).Error)
+	org.CreatedByUserID = &authorID
+	return org
+}
+
+// notificationsFor - уведомления пользователя заданного типа, в порядке появления.
+func notificationsFor(t *testing.T, db *gorm.DB, userID int, notifType string) []models.Notification {
+	t.Helper()
+	var notes []models.Notification
+	require.NoError(t, db.Where("user_id = ? AND type = ?", userID, notifType).Order("id").Find(&notes).Error)
+	return notes
+}
+
 func orgByID(t *testing.T, db *gorm.DB, id int) models.Organization {
 	t.Helper()
 	var org models.Organization
@@ -337,6 +356,80 @@ func TestDirectoryModeration(t *testing.T) {
 		}
 		assert.Equal(t, models.ModerationPending, statuses[draft.ID], "черновик помечен и отсеивается из целей привязки")
 		assert.Equal(t, models.ModerationApproved, statuses[td.OrgID])
+	})
+
+	// Инициатор наименования узнаёт исход разбора, когда наименование поменялось:
+	// исправление и привязка меняют то, что он видит в своей заявке. Подтверждение
+	// уведомления не даёт - для него ничего не изменилось, бейдж просто гаснет.
+	t.Run("разбор сообщает инициатору наименования", func(t *testing.T) {
+		var plain models.User
+		require.NoError(t, db.Where("username = ?", "modplain").First(&plain).Error)
+
+		draft := seedModerationOrgBy(t, db, `ооо снежинка`, models.ModerationPending, plain.ID)
+		rec := testutil.PATCH(t, e, fmt.Sprintf("/organizations/%d/moderation/rename", draft.ID),
+			`{"name":"ООО \"Снежинка\""}`, testutil.AuthHeader(token))
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+		notes := notificationsFor(t, db, plain.ID, services.NotificationTypeDirectoryResolved)
+		require.Len(t, notes, 1, "исправление наименования обязано дойти до инициатора")
+		require.NotNil(t, notes[0].Message)
+		assert.Contains(t, *notes[0].Message, `ооо снежинка`, "в тексте должно быть исходное наименование")
+		assert.Contains(t, *notes[0].Message, `ООО "Снежинка"`, "и то, на которое его исправили")
+
+		// Привязка - тот же класс события; проверяем на компании, чтобы зеркальность
+		// справочников держалась тестом, а не только общим кодом.
+		compType := models.OrgTypeContractor
+		target := models.Company{Name: `ООО "Мороз"`, Type: &compType, IsActive: true, ModerationStatus: models.ModerationApproved}
+		require.NoError(t, db.Create(&target).Error)
+		companyDraft := models.Company{
+			Name: `ООО "Мороз-дубль"`, Type: &compType, IsActive: true,
+			ModerationStatus: models.ModerationPending, CreatedByUserID: &plain.ID,
+		}
+		require.NoError(t, db.Create(&companyDraft).Error)
+
+		code, body := post(fmt.Sprintf("/companies/%d/moderation/merge", companyDraft.ID),
+			fmt.Sprintf(`{"target_id":%d}`, target.ID), token)
+		require.Equal(t, http.StatusOK, code, body)
+
+		notes = notificationsFor(t, db, plain.ID, services.NotificationTypeDirectoryResolved)
+		require.Len(t, notes, 2, "привязка к существующей записи тоже доходит до инициатора")
+		require.NotNil(t, notes[1].Message)
+		assert.Contains(t, *notes[1].Message, `ООО "Мороз-дубль"`)
+		assert.Contains(t, *notes[1].Message, `ООО "Мороз"`)
+
+		// Подтверждение молчит: наименование осталось тем же, что ввёл инициатор.
+		approved := seedModerationOrgBy(t, db, `ООО "Тихая"`, models.ModerationPending, plain.ID)
+		code, body = post(fmt.Sprintf("/organizations/%d/moderation/approve", approved.ID), ``, token)
+		require.Equal(t, http.StatusOK, code, body)
+		assert.Len(t, notificationsFor(t, db, plain.ID, services.NotificationTypeDirectoryResolved), 2,
+			"подтверждение наименования не меняет - лишнее уведомление было бы шумом")
+	})
+
+	// Бейдж «на проверке» в админских справочниках рисуется по этому полю: расширенный
+	// список - единственный источник строк таблицы управления организациями и компаниями.
+	t.Run("расширенный список справочника отдаёт статус разбора", func(t *testing.T) {
+		draft := seedModerationOrg(t, db, `ООО "Бейджевая"`, models.ModerationPending)
+		compType := models.OrgTypeContractor
+		companyDraft := models.Company{Name: `ООО "Бейджевая компания"`, Type: &compType, IsActive: true, ModerationStatus: models.ModerationPending}
+		require.NoError(t, db.Create(&companyDraft).Error)
+
+		statuses := func(path string) map[int]interface{} {
+			out := map[int]interface{}{}
+			for _, row := range testutil.ParseSlice(t, testutil.GET(t, e, path, testutil.AuthHeader(token))) {
+				if id, ok := row["id"].(float64); ok {
+					out[int(id)] = row["moderation_status"]
+				}
+			}
+			return out
+		}
+
+		orgs := statuses("/organizations/with-users-extended")
+		assert.Equal(t, models.ModerationPending, orgs[draft.ID])
+		assert.Equal(t, models.ModerationApproved, orgs[td.OrgID], "обычная запись приходит проверенной, а не пустой")
+
+		companies := statuses("/companies/with-users-extended")
+		assert.Equal(t, models.ModerationPending, companies[companyDraft.ID])
+		assert.Equal(t, models.ModerationApproved, companies[td.CompanyID])
 	})
 
 	// Список ссылок задан в коде руками: новая таблица с organization_id или company_id,

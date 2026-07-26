@@ -163,13 +163,15 @@ func main() {
 	lpfService := services.NewLicensePlateFormatService(db)
 	attachmentService := services.NewAttachmentService(db)
 	citizenshipService := services.NewCitizenshipService(db)
-	organizationService := services.NewOrganizationService(db)
-	companyService := services.NewCompanyService(db)
 	// eventsHub создаётся до notificationService (#840 V1): паблишер real-time
 	// сигнала "notification.new" передаётся в конструктор опцией, поэтому хаб
 	// должен существовать раньше. Конструктор Hub ни от чего не зависит.
 	eventsHub := realtime.NewHub()
 	notificationServiceEarly := services.NewNotificationService(db, services.WithNotificationRealtimePublisher(eventsHub))
+	// Справочники создаются после уведомлений (#1437): разбор записи «на проверке»
+	// сообщает инициатору наименования, чем он кончился.
+	organizationService := services.NewOrganizationService(db, services.WithOrganizationNotifications(notificationServiceEarly))
+	companyService := services.NewCompanyService(db, services.WithCompanyNotifications(notificationServiceEarly))
 	userService := services.NewUserService(db, notificationServiceEarly)
 	onboardingService := services.NewOnboardingService(db)
 	themeService := services.NewThemeService(db)
@@ -227,7 +229,7 @@ func main() {
 	blacklistAuditRecorder := services.NewAuditRecorder(db)
 	vehicleBlacklistService := services.NewVehicleBlacklistService(db, blacklistAuditRecorder)
 	personBlacklistService := services.NewPersonBlacklistService(db, blacklistAuditRecorder)
-	applicationService := services.NewApplicationService(db, permissionService, notificationService, vehicleBlacklistService, personBlacklistService, auditRecorder, services.WithRealtimePublisher(eventsHub), services.WithApplicationTablesProducer(tablesRefreshProducer), services.WithApplicationAvailableProducer(availableRefreshProducer))
+	applicationService := services.NewApplicationService(db, permissionService, notificationService, vehicleBlacklistService, personBlacklistService, auditRecorder, services.WithRealtimePublisher(eventsHub), services.WithApplicationTablesProducer(tablesRefreshProducer), services.WithApplicationAvailableProducer(availableRefreshProducer), services.WithApplicationPermissionResolver(permissionResolver))
 	attachmentTemplateService := services.NewAttachmentTemplateService(db, cfg.UploadPath)
 	attachmentFieldConfigService := services.NewAttachmentFieldConfigService(db)
 	attachmentBlankService := services.NewAttachmentBlankService(db)

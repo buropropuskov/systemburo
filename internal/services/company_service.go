@@ -171,13 +171,16 @@ type CompanyTableResponse struct {
 }
 
 // CompanyWithUsersExtendedResponse расширенная информация о компании.
+// ModerationStatus отдаётся, чтобы админский список отличал запись, заведённую подачей
+// и ждущую разбора, от обычной (#1437) - по нему рисуется бейдж «на проверке».
 type CompanyWithUsersExtendedResponse struct {
-	ID           int                          `json:"id"`
-	Name         string                       `json:"name"`
-	Type         *string                      `json:"type"`
-	IsActive     bool                         `json:"is_active"`
-	UserCount    *int64                       `json:"user_count"`
-	UnloadPlaces []CompanyUnloadPlaceResponse `json:"unload_places"`
+	ID               int                          `json:"id"`
+	Name             string                       `json:"name"`
+	Type             *string                      `json:"type"`
+	IsActive         bool                         `json:"is_active"`
+	UserCount        *int64                       `json:"user_count"`
+	ModerationStatus string                       `json:"moderation_status"`
+	UnloadPlaces     []CompanyUnloadPlaceResponse `json:"unload_places"`
 }
 
 // CompanyUserResponse ответственный пользователь компании.
@@ -197,11 +200,25 @@ type CompanyUserResponse struct {
 type companyService struct {
 	db       *gorm.DB
 	recorder AuditRecorder
+	notifier NotificationService
+}
+
+// CompanyServiceOption конфигурирует companyService при создании.
+type CompanyServiceOption func(*companyService)
+
+// WithCompanyNotifications подключает уведомления инициатору о разборе заведённого им
+// наименования (#1437), зеркало WithOrganizationNotifications.
+func WithCompanyNotifications(n NotificationService) CompanyServiceOption {
+	return func(s *companyService) { s.notifier = n }
 }
 
 // NewCompanyService создаёт экземпляр сервиса компаний.
-func NewCompanyService(db *gorm.DB) CompanyService {
-	return &companyService{db: db, recorder: NewAuditRecorder(db)}
+func NewCompanyService(db *gorm.DB, opts ...CompanyServiceOption) CompanyService {
+	s := &companyService{db: db, recorder: NewAuditRecorder(db)}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 // GetAll возвращает список всех компаний.
@@ -226,12 +243,12 @@ func (s *companyService) ApproveModeration(ctx context.Context, callerUserID, id
 
 // RenameModeration - исправление наименования при разборе, см. renameDirectoryEntry.
 func (s *companyService) RenameModeration(ctx context.Context, callerUserID, id int, name string) (DirectoryModerationResult, error) {
-	return renameDirectoryEntry(ctx, s.db, s.recorder, companyModeration, id, name, callerUserID)
+	return renameDirectoryEntry(ctx, s.db, s.recorder, s.notifier, companyModeration, id, name, callerUserID)
 }
 
 // MergeModeration - привязка черновика к существующей компании, см. mergeDirectoryEntry.
 func (s *companyService) MergeModeration(ctx context.Context, callerUserID, id, targetID int) (DirectoryMergeResult, error) {
-	return mergeDirectoryEntry(ctx, s.db, s.recorder, companyModeration, id, targetID, callerUserID)
+	return mergeDirectoryEntry(ctx, s.db, s.recorder, s.notifier, companyModeration, id, targetID, callerUserID)
 }
 
 // GetWithUsers возвращает компании с количеством привязанных пользователей.
@@ -257,18 +274,19 @@ func (s *companyService) GetWithUsers(ctx context.Context, includeArchived bool)
 func (s *companyService) GetWithUsersExtended(ctx context.Context, includeArchived bool) ([]CompanyWithUsersExtendedResponse, error) {
 	// Получаем базовые данные компаний с количеством пользователей
 	type companyRow struct {
-		ID        int
-		Name      string
-		Type      *string
-		IsActive  bool
-		UserCount *int64
+		ID               int
+		Name             string
+		Type             *string
+		IsActive         bool
+		UserCount        *int64
+		ModerationStatus string
 	}
 	companies := make([]companyRow, 0)
 	q := s.db.WithContext(ctx).
 		Table("companies c").
-		Select("c.id, c.name, c.type, c.is_active, COUNT(u.id) FILTER (WHERE u.is_active = true) as user_count").
+		Select("c.id, c.name, c.type, c.is_active, c.moderation_status, COUNT(u.id) FILTER (WHERE u.is_active = true) as user_count").
 		Joins("LEFT JOIN users u ON u.company_id = c.id").
-		Group("c.id, c.name, c.type, c.is_active").
+		Group("c.id, c.name, c.type, c.is_active, c.moderation_status").
 		Order("c.name")
 	if !includeArchived {
 		q = q.Where("c.is_active = ?", true)
@@ -295,12 +313,13 @@ func (s *companyService) GetWithUsersExtended(ctx context.Context, includeArchiv
 		}
 
 		result = append(result, CompanyWithUsersExtendedResponse{
-			ID:           c.ID,
-			Name:         c.Name,
-			Type:         c.Type,
-			IsActive:     c.IsActive,
-			UserCount:    c.UserCount,
-			UnloadPlaces: places,
+			ID:               c.ID,
+			Name:             c.Name,
+			Type:             c.Type,
+			IsActive:         c.IsActive,
+			UserCount:        c.UserCount,
+			ModerationStatus: c.ModerationStatus,
+			UnloadPlaces:     places,
 		})
 	}
 

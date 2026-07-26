@@ -740,6 +740,7 @@ type applicationService struct {
 	realtimePublisher   realtime.Publisher
 	tablesProducer      *TablesRefreshPublisher
 	availableProducer   *AvailableRefreshPublisher
+	permissionResolver  *PermissionResolver
 }
 
 // ApplicationServiceOption конфигурирует applicationService при создании.
@@ -762,6 +763,13 @@ func WithApplicationTablesProducer(p *TablesRefreshPublisher) ApplicationService
 // заявки в "Согласовано" (#840 V3): её вложения появляются в "Доступные мне" охраны.
 func WithApplicationAvailableProducer(p *AvailableRefreshPublisher) ApplicationServiceOption {
 	return func(s *applicationService) { s.availableProducer = p }
+}
+
+// WithApplicationPermissionResolver подключает резолвер прав (#1437, срез 8): по нему
+// считается, кому из видящих заявку адресовано уведомление о новой записи справочника
+// «на проверке». Без него уведомление не уходит - разбор остаётся доступен через плашку.
+func WithApplicationPermissionResolver(r *PermissionResolver) ApplicationServiceOption {
+	return func(s *applicationService) { s.permissionResolver = r }
 }
 
 // NewApplicationService создаёт экземпляр сервиса заявок.
@@ -1721,16 +1729,17 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 		companyID:      user.CompanyID,
 		canOverride:    canOverrideOrganization,
 	}
-	organizationID, err := s.resolveOrganizationRef(ctx, tx, scope, req.OrganizationID, req.OrganizationTitle())
+	orgRef, err := s.resolveOrganizationRef(ctx, tx, scope, req.OrganizationID, req.OrganizationTitle())
 	if err != nil {
 		tx.Rollback()
 		return nil, err
 	}
-	companyID, err := s.resolveCompanyRef(ctx, tx, scope, req.CompanyID, req.CompanyTitle())
+	companyRefResult, err := s.resolveCompanyRef(ctx, tx, scope, req.CompanyID, req.CompanyTitle())
 	if err != nil {
 		tx.Rollback()
 		return nil, err
 	}
+	organizationID, companyID := orgRef.ID, companyRefResult.ID
 	// Backstop к гейту выше: при текущем резолве оба nil одновременно недостижимы, но
 	// заявка без организации И компании не должна создаваться ни при каком его изменении -
 	// именно такая сирота и была багом, который срез закрывает.
@@ -2048,6 +2057,18 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 			}
 		}
 	}
+
+	// Подача завела наименование, которого не было в справочнике (#1437): зовём тех,
+	// кто может его разобрать. Записи, легшие на существующую организацию или компанию,
+	// сюда не попадают - разбирать там нечего.
+	var pending []pendingDirectoryNotice
+	if orgRef.PendingName != "" {
+		pending = append(pending, pendingDirectoryNotice{label: organizationModeration.label, name: orgRef.PendingName})
+	}
+	if companyRefResult.PendingName != "" {
+		pending = append(pending, pendingDirectoryNotice{label: companyModeration.label, name: companyRefResult.PendingName})
+	}
+	s.notifyDirectoryPending(ctx, appID, applicationNumber, user.ID, pending)
 
 	// Real-time сигнал обновления Центра заявок (#840): тем, у кого новая заявка
 	// появляется в списке (автор, ответственные/согласующие, принимающие). Лёгкий

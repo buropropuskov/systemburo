@@ -1,6 +1,7 @@
 package handlers_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -282,5 +283,78 @@ func TestApplicationOrgResolve(t *testing.T) {
 		require.NoError(t, db.Where("name_normalized = ?", "ооо из справочника").First(&fromDirectory).Error)
 		assert.Equal(t, models.ModerationApproved, fromDirectory.ModerationStatus)
 		assert.Nil(t, fromDirectory.CreatedByUserID)
+	})
+
+	// Секция последняя: заводит принимающих, а принимающий видит ВСЕ заявки - в середине
+	// теста это поменяло бы видимость соседним секциям.
+	//
+	// Уведомление о новой записи справочника адресовано пересечению «видит заявку» и
+	// «имеет право разбора»: право без заявки разбирать нечего (плашка живёт в детали),
+	// заявка без права - призыв к действию, которое сервер всё равно отобьёт.
+	t.Run("новая запись справочника зовёт тех, кто может её разобрать", func(t *testing.T) {
+		newApprover := func(username string, canModerate bool) models.User {
+			t.Helper()
+			testutil.RegisterAndLogin(t, e, username, "pass123", 1, td.OrgID, td.CompanyID)
+			var user models.User
+			require.NoError(t, db.Where("username = ?", username).First(&user).Error)
+			require.NoError(t, db.Create(&models.ApplicationApprover{UserID: user.ID}).Error)
+			if canModerate {
+				require.NoError(t, db.Create(&models.UserPermissionOverride{
+					UserID:        user.ID,
+					PermissionKey: services.KeyApplicationOrganizationModerate,
+					Value:         "allow",
+				}).Error)
+			}
+			return user
+		}
+		moderator := newApprover("orgresolve_moder", true)
+		plainApprover := newApprover("orgresolve_appr", false)
+
+		// Право есть, но заявки не видит: не принимающий, не автор, не согласующий.
+		testutil.RegisterAndLogin(t, e, "orgresolve_outsider", "pass123", 1, td.OrgID, td.CompanyID)
+		var outsider models.User
+		require.NoError(t, db.Where("username = ?", "orgresolve_outsider").First(&outsider).Error)
+		require.NoError(t, db.Create(&models.UserPermissionOverride{
+			UserID:        outsider.ID,
+			PermissionKey: services.KeyApplicationOrganizationModerate,
+			Value:         "allow",
+		}).Error)
+
+		rec := submitWithRefs(t, e, token, uaID, "A109AA777", `"organization_name":"ООО \"Заря-Новая\""`)
+		appID := submittedAppID(t, rec)
+
+		notes := notificationsFor(t, db, moderator.ID, services.NotificationTypeDirectoryPending)
+		require.Len(t, notes, 1, "принимающий с правом разбора обязан узнать о новой записи")
+		require.NotNil(t, notes[0].Message)
+		assert.Contains(t, *notes[0].Message, `ООО "Заря-Новая"`)
+		require.NotNil(t, notes[0].Data)
+		// application_id в data - по нему уведомление ведёт в заявку, где стоит плашка
+		// разбора. Разбираем JSON, а не ищем подстроку: jsonb хранится переформатированным.
+		var payload struct {
+			ApplicationID int `json:"application_id"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(*notes[0].Data), &payload))
+		assert.Equal(t, appID, payload.ApplicationID)
+
+		assert.Empty(t, notificationsFor(t, db, plainApprover.ID, services.NotificationTypeDirectoryPending),
+			"без права разбора звать некуда - действия закрыты middleware")
+		assert.Empty(t, notificationsFor(t, db, outsider.ID, services.NotificationTypeDirectoryPending),
+			"право без доступа к заявке разбирать нечего")
+		assert.Empty(t, notificationsFor(t, db, sender.ID, services.NotificationTypeDirectoryPending),
+			"автор подачи сам ввёл это наименование")
+
+		// Повторная подача того же наименования ложится на уже заведённую запись -
+		// второй раз звать разбирать её незачем.
+		submittedAppID(t, submitWithRefs(t, e, token, uaID, "A110AA777", `"organization_name":"ооо заря-новая"`))
+		assert.Len(t, notificationsFor(t, db, moderator.ID, services.NotificationTypeDirectoryPending), 1)
+
+		// Компания идёт тем же кодом, но зеркальность должна держаться тестом, а не верой.
+		submittedAppID(t, submitWithRefs(t, e, token, uaID, "A111AA777", `"company_name":"ООО \"Заря-Компания\""`))
+		notes = notificationsFor(t, db, moderator.ID, services.NotificationTypeDirectoryPending)
+		require.Len(t, notes, 2)
+		require.NotNil(t, notes[1].Title)
+		assert.Equal(t, "Новая компания на проверке", *notes[1].Title)
+		require.NotNil(t, notes[1].Message)
+		assert.Contains(t, *notes[1].Message, `ООО "Заря-Компания"`)
 	})
 }

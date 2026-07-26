@@ -240,6 +240,15 @@
                     class="inactive-badge"
                   >(архив)</span>
                 </span>
+                <!-- Запись заведена подачей заявки и ждёт разбора (#1437): в справочнике
+                     она уже живая, поэтому её отличает бейдж, а не отдельный список.
+                     Бейдж - сосед усечённого наименования, а не его часть: внутри
+                     truncate-text его срезало бы многоточием вместе с длинным именем. -->
+                <span
+                  v-if="isPendingModeration(org)"
+                  class="moderation-badge"
+                  data-testid="orgs-row-pending"
+                >на проверке</span>
               </div>
               <div
                 class="table-col type-col"
@@ -304,6 +313,11 @@
               </div>
             </div>
             <div class="d-acts">
+              <span
+                v-if="isPendingModeration(selectedOrganization)"
+                class="moderation-badge"
+                data-testid="orgs-details-pending"
+              >На проверке</span>
               <span
                 v-if="!selectedOrganization.is_active"
                 class="archive-badge"
@@ -1358,6 +1372,17 @@ export default {
       return type || this.unspecifiedTypeLabel;
     },
 
+    /**
+     * Организация заведена подачей заявки и ещё не разобрана (#1437). Сверяем с
+     * реальным значением поля, а не с отсутствием approved: у записей, пришедших
+     * из выборок без moderation_status, поле пустое - «неизвестно» бейджа не даёт.
+     * @param {{ moderation_status?: string }} org
+     * @returns {boolean}
+     */
+    isPendingModeration(org) {
+      return org?.moderation_status === 'pending';
+    },
+
     onArchiveClick(org) {
       this.archiveConfirmOrg = org;
     },
@@ -1652,6 +1677,14 @@ export default {
 .name-col {
   width: 36%;
   min-width: 140px;
+  /* Наименование усекается, бейдж «на проверке» - нет: flex с min-width:0 у имени
+     отдаёт остаток бейджу, а не режет его многоточием вместе с именем (#1437). */
+  display: flex;
+  align-items: center;
+}
+
+.name-col .truncate-text {
+  min-width: 0;
 }
 
 .type-col {
@@ -1754,6 +1787,19 @@ export default {
   font-size: 0.75em;
   color: var(--text-muted);
   font-style: italic;
+}
+
+/* Бейдж записи «на проверке» (#1437) - тот же вид, что у плашки разбора в детали
+   заявки (ApplicationOrgModeration): тёплая подложка вместо серой архивной. */
+.moderation-badge {
+  flex: none;
+  margin-left: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--warning) 22%, var(--surface));
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .no-results-inline {
