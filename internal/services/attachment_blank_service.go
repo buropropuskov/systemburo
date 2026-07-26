@@ -137,13 +137,16 @@ func (s *attachmentBlankService) GenerateBlank(ctx context.Context, applicationI
 		insertedRows = s.fillListSection(f, sheet, &template, listMappings, staticCells, bctx)
 	}
 
-	// 6. Записать в buffer.
+	// 6. Шапка столбцов сквозная: на следующей странице таблица начинается с неё.
+	repeatHeaderOnEachPage(f, sheet, &template)
+
+	// 7. Записать в buffer.
 	buf, err := f.WriteToBuffer()
 	if err != nil {
 		return nil, "", echo.NewHTTPError(http.StatusInternalServerError, "Ошибка генерации файла")
 	}
 
-	// 7. Добавленные строки сдвинули диапазоны условного форматирования, но не формулы
+	// 8. Добавленные строки сдвинули диапазоны условного форматирования, но не формулы
 	// внутри правил - дошиваем их сами. Сбой здесь бланк не отменяет: отдаём файл со
 	// старыми формулами правил, но громко пишем в лог.
 	out := buf.Bytes()

@@ -34,15 +34,15 @@ const SOURCES = [
     mappings_count: 11,
     is_active: true,
   },
-  // шаблон самого вложения-цели и шаблон без привязок в источники не годятся
+  // второй файл ТОГО ЖЕ вложения: перенос между файлами - основной случай
   {
     template_id: 9,
     unique_attachment_id: 9,
-    attachment_name: 'Цель',
+    attachment_name: 'Автозаявка',
     attachment_type: 'cars',
-    original_file_name: 'Цель.xlsx',
-    mappings_count: 2,
-    is_active: true,
+    original_file_name: 'Автозаявка старая.xlsx',
+    mappings_count: 6,
+    is_active: false,
   },
   {
     template_id: 10,
@@ -58,7 +58,13 @@ const SOURCES = [
 async function mountModal(props = {}) {
   const wrapper = mount(AttachmentMappingCopyModal, {
     props: {
-      show: false, uniqueAttachmentId: 9, attachmentType: 'cars', currentMappingsCount: 2, ...props,
+      show: false,
+      uniqueAttachmentId: 9,
+      attachmentType: 'cars',
+      currentMappingsCount: 2,
+      currentTemplateId: 3,
+      targetFileName: 'Автозаявка.xlsx',
+      ...props,
     },
     global: { stubs: { Teleport: true, transition: false } },
   });
@@ -82,11 +88,24 @@ describe('AttachmentMappingCopyModal', () => {
     });
   });
 
-  it('в источники не берёт свой шаблон и шаблоны без привязок', async () => {
+  it('другие файлы этого же вложения идут первыми, пустые не берём', async () => {
     const wrapper = await mountModal();
     const options = wrapper.findComponent(BaseDropdown).props('options');
+    // 9 - второй файл этого вложения, дальше чужие типы; 10 без привязок отброшен
+    expect(options.map(o => o.template_id)).toEqual([9, 7, 8]);
+    expect(options[0].label).toBe('Автозаявка старая.xlsx - 6 прив.');
+    expect(options[1].label).toContain('Автозаявка (автомобили)');
+  });
+
+  it('активный шаблон источником не предлагает', async () => {
+    const wrapper = await mountModal({ currentTemplateId: 9 });
+    const options = wrapper.findComponent(BaseDropdown).props('options');
     expect(options.map(o => o.template_id)).toEqual([7, 8]);
-    expect(options[0].label).toContain('13 привязок');
+  });
+
+  it('показывает, в какой файл переносим', async () => {
+    const wrapper = await mountModal();
+    expect(wrapper.find('.mc-target').text()).toContain('Автозаявка.xlsx');
   });
 
   it('переносит привязки выбранного шаблона и сообщает о пропусках', async () => {

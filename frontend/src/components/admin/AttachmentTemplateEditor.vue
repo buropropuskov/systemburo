@@ -529,15 +529,6 @@
             из другой группы полей ({{ foreignListMappings.map(m => getFieldLabel(m.field_path)).join(', ') }}).
             У этого типа вложения такие данные не заполняются - ячейки останутся пустыми.
           </div>
-          <div
-            v-if="repeatedListMappings.length"
-            class="te-repeat-note"
-            data-testid="template-repeat-note"
-          >
-            Поля заявки, поставленные в строки списка
-            ({{ repeatedListMappings.map(m => `${m.cell_ref} ${getFieldLabel(m.field_path)}`).join(', ') }}),
-            заполняются в каждой строке списка: значение у них одно на всю заявку.
-          </div>
           <button
             class="te-section-toggle"
             @click="showMappings = !showMappings"
@@ -613,6 +604,8 @@
           :unique-attachment-id="uniqueAttachmentId"
           :attachment-type="attachmentType"
           :current-mappings-count="mappings.length"
+          :current-template-id="template.id"
+          :target-file-name="template.original_file_name"
           :unsaved-changes="hasUnsavedMappings"
           @close="showCopyModal = false"
           @copied="onMappingsCopied"
@@ -767,10 +760,6 @@ export default {
     // шаблона идёт по серверному состоянию, поэтому о них надо предупредить.
     hasUnsavedMappings() {
       return this.mappingsKey(this.mappings) !== this.savedMappingsKey;
-    },
-    // Обычные привязки, попавшие в строки списка: бланк повторяет их в каждой строке.
-    repeatedListMappings() {
-      return this.mappings.filter(m => this.repeatsInList(m));
     },
     pendingIsForeignList() {
       if (!this.pendingFieldPath || !this.listGroupForType) return false;
