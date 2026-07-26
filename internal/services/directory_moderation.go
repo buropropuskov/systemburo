@@ -192,13 +192,14 @@ func loadPendingEntry(ctx context.Context, db *gorm.DB, def directoryModeration,
 	return entry, nil
 }
 
-// findKeyConflict ищет ПРОВЕРЕННУЮ активную запись с тем же ключом дедупликации. Пустой
-// ключ (наименование из одних кавычек) сверяем точной строкой, как applyNameDuplicateFilter.
+// findKeyConflict ищет активную запись с тем же ключом дедупликации. Пустой ключ
+// (наименование из одних кавычек) сверяем точной строкой, как applyNameDuplicateFilter.
 //
-// Другие черновики намеренно не считаем конфликтом: привязывать к ним нельзя (цель обязана
-// быть проверенной), и принимающий упёрся бы в тупик «дубль есть, склеить нечем». Два
-// черновика с одним ключом разбираются по очереди: первый становится проверенным, второй
-// после этого получает конфликт уже с ним.
+// Ищутся записи в ЛЮБОМ статусе разбора, потому что ключ занимает и черновик: partial
+// unique index по name_normalized (срез 9) не различает статусы, и переименование в
+// наименование чужого черновика отбилось бы на уровне базы. Проверенная запись при этом
+// предпочтительнее - к ней принимающий может привязать черновик, к другому черновику нет
+// (см. conflictOutcome).
 func findKeyConflict(ctx context.Context, db *gorm.DB, def directoryModeration, name string, excludeID int) (DirectoryEntry, error) {
 	condition, arg := "name_normalized = ?", normalize.OrgName(name)
 	if arg == "" {
@@ -206,14 +207,33 @@ func findKeyConflict(ctx context.Context, db *gorm.DB, def directoryModeration, 
 	}
 	var existing DirectoryEntry
 	query := fmt.Sprintf(
-		"SELECT id, name, moderation_status FROM %s WHERE is_active = true AND moderation_status = ? AND id <> ? AND %s ORDER BY id ASC LIMIT 1",
+		"SELECT id, name, moderation_status FROM %s WHERE is_active = true AND id <> ? AND %s ORDER BY (moderation_status = ?) DESC, id ASC LIMIT 1",
 		def.table, condition,
 	)
-	if err := db.WithContext(ctx).Raw(query, models.ModerationApproved, excludeID, arg).Scan(&existing).Error; err != nil {
+	if err := db.WithContext(ctx).Raw(query, excludeID, arg, models.ModerationApproved).Scan(&existing).Error; err != nil {
 		slog.Error("не удалось проверить конфликт наименований", "table", def.table, "error", err)
 		return DirectoryEntry{}, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка проверки справочника")
 	}
 	return existing, nil
+}
+
+// conflictOutcome переводит найденный конфликт в ответ разбора.
+//
+// Столкновение с ПРОВЕРЕННОЙ записью - развилка: принимающий привязывает черновик к ней
+// (исход conflict несёт саму запись, по ней фронт предлагает слияние). Столкновение с
+// другим ЧЕРНОВИКОМ склеить нечем - цель слияния обязана быть проверенной, иначе выйдет
+// тупик «дубль есть, привязать некуда». Такой случай отдаётся ошибкой с объяснением
+// порядка: сначала разбирается тот черновик, потом этот получает конфликт уже с ним.
+func conflictOutcome(def directoryModeration, conflict DirectoryEntry) (DirectoryModerationResult, error) {
+	if conflict.ModerationStatus != models.ModerationApproved {
+		return DirectoryModerationResult{}, echo.NewHTTPError(http.StatusBadRequest,
+			def.label+" с таким наименованием уже ждёт разбора - сначала разберите её")
+	}
+	return DirectoryModerationResult{
+		Status:   DirectoryModerationConflict,
+		Existing: &conflict,
+		Message:  def.label + " с таким наименованием уже есть в справочнике",
+	}, nil
 }
 
 // approveDirectoryEntry подтверждает запись «на проверке».
@@ -223,18 +243,14 @@ func approveDirectoryEntry(ctx context.Context, db *gorm.DB, rec AuditRecorder, 
 		return DirectoryModerationResult{}, err
 	}
 
-	// Проверенная запись с тем же ключом могла появиться, пока черновик ждал разбора:
-	// подтверждать его нельзя, иначе в справочнике останутся два одинаковых наименования.
+	// Запись с тем же ключом могла появиться, пока черновик ждал разбора: подтверждать его
+	// нельзя, иначе в справочнике останутся два одинаковых наименования.
 	conflict, err := findKeyConflict(ctx, db, def, entry.Name, id)
 	if err != nil {
 		return DirectoryModerationResult{}, err
 	}
 	if conflict.ID != 0 {
-		return DirectoryModerationResult{
-			Status:   DirectoryModerationConflict,
-			Existing: &conflict,
-			Message:  def.label + " с таким наименованием уже есть в справочнике",
-		}, nil
+		return conflictOutcome(def, conflict)
 	}
 
 	actor := actorID
@@ -276,11 +292,7 @@ func renameDirectoryEntry(ctx context.Context, db *gorm.DB, rec AuditRecorder, n
 		return DirectoryModerationResult{}, err
 	}
 	if conflict.ID != 0 {
-		return DirectoryModerationResult{
-			Status:   DirectoryModerationConflict,
-			Existing: &conflict,
-			Message:  def.label + " с таким наименованием уже есть в справочнике",
-		}, nil
+		return conflictOutcome(def, conflict)
 	}
 
 	normalized := normalize.OrgName(name)
@@ -296,9 +308,9 @@ func renameDirectoryEntry(ctx context.Context, db *gorm.DB, rec AuditRecorder, n
 		}).Error; err != nil {
 			return err
 		}
-	// Контракт details тот же, что у переименования из админки (organization_service):
-	// name - новое значение, from.name - старое. Модалка истории рисует «было -> стало»
-	// именно по ним, свои ключи оставили бы запись без содержательной строки.
+		// Контракт details тот же, что у переименования из админки (organization_service):
+		// name - новое значение, from.name - старое. Модалка истории рисует «было -> стало»
+		// именно по ним, свои ключи оставили бы запись без содержательной строки.
 		return rec.Record(ctx, tx, def.auditEntity, &id, def.actionRenamed, &actor, map[string]any{
 			"name":   name,
 			"from":   map[string]any{"name": entry.Name},
@@ -306,6 +318,20 @@ func renameDirectoryEntry(ctx context.Context, db *gorm.DB, rec AuditRecorder, n
 		})
 	})
 	if err != nil {
+		// Ключ мог занять кто-то между проверкой конфликта и записью: наименование
+		// пришло параллельной подачей или другим разбором, и UPDATE отбил уникальный
+		// индекс. Транзакция откатилась, поэтому перечитываем справочник и отвечаем как
+		// при обычном конфликте, а не пятисоткой.
+		if isUniqueViolation(err) {
+			conflict, conflictErr := findKeyConflict(ctx, db, def, name, id)
+			if conflictErr != nil {
+				return DirectoryModerationResult{}, conflictErr
+			}
+			if conflict.ID != 0 {
+				slog.Info("наименование заняли во время разбора", "table", def.table, "id", id, "conflict", conflict.ID)
+				return conflictOutcome(def, conflict)
+			}
+		}
 		slog.Error("не удалось переименовать запись справочника", "table", def.table, "id", id, "error", err)
 		return DirectoryModerationResult{}, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка переименования записи")
 	}

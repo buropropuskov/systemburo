@@ -63,7 +63,7 @@ func (h *OrganizationHandler) Suggest(c echo.Context) error {
 
 // ApproveModeration godoc
 // @Summary      Подтвердить организацию «на проверке»
-// @Description  Разбор записи, заведённой из заявки (#1437). Требует права application.organization.moderate. Если наименование столкнулось с уже существующей записью, ответ приходит со status=conflict и самой записью - её предлагают выбрать вместо черновика.
+// @Description  Разбор записи, заведённой из заявки (#1437). Требует права application.organization.moderate. Если наименование столкнулось с уже проверенной записью, ответ приходит со status=conflict и самой записью - её предлагают выбрать вместо черновика; столкновение с другим черновиком даёт 400, его разбирают первым.
 // @Tags         organizations
 // @Produce      json
 // @Security     BearerAuth
@@ -88,7 +88,7 @@ func (h *OrganizationHandler) ApproveModeration(c echo.Context) error {
 
 // RenameModeration godoc
 // @Summary      Исправить наименование организации «на проверке»
-// @Description  Правит наименование черновика и считает запись разобранной. Требует права application.organization.moderate. При совпадении с существующей записью возвращает status=conflict.
+// @Description  Правит наименование черновика и считает запись разобранной. Требует права application.organization.moderate. При совпадении с проверенной записью возвращает status=conflict, при совпадении с другим черновиком - 400.
 // @Tags         organizations
 // @Accept       json
 // @Produce      json

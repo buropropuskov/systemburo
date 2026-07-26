@@ -466,8 +466,9 @@ func BackfillOrgNameNormalized(db *gorm.DB) error {
 			ID             int
 			Name           string
 			NameNormalized string
+			IsActive       bool
 		}
-		if err := db.Table(table).Select("id, name, name_normalized").Scan(&rows).Error; err != nil {
+		if err := db.Table(table).Select("id, name, name_normalized, is_active").Scan(&rows).Error; err != nil {
 			return fmt.Errorf("read %s for name_normalized backfill: %w", table, err)
 		}
 		updated := 0
@@ -475,6 +476,21 @@ func BackfillOrgNameNormalized(db *gorm.DB) error {
 			want := normalize.OrgName(r.Name)
 			if want == r.NameNormalized {
 				continue
+			}
+			// Пересчёт может привести запись к ключу, который уже занят другой активной
+			// записью: правила нормализации уточняются, и два прежде разных ключа
+			// схлопываются. Уникальный индекс отбил бы такой UPDATE и уронил запуск, так
+			// что запись остаётся с прежним ключом, а пара уходит в отчёт коллизий ниже.
+			if r.IsActive {
+				taken, err := activeNameKeyTaken(db, table, want, r.ID)
+				if err != nil {
+					return err
+				}
+				if taken {
+					slog.Warn("ключ дедупликации занят другой активной записью - наименование оставлено с прежним ключом",
+						"table", table, "id", r.ID, "name", r.Name, "key", want)
+					continue
+				}
 			}
 			if err := db.Table(table).Where("id = ?", r.ID).Update("name_normalized", want).Error; err != nil {
 				return fmt.Errorf("backfill %s.name_normalized id=%d: %w", table, r.ID, err)
@@ -484,23 +500,49 @@ func BackfillOrgNameNormalized(db *gorm.DB) error {
 		if updated > 0 {
 			slog.Info("ключ дедупликации наименований пересчитан", "table", table, "updated", updated)
 		}
-		if err := reportOrgNameCollisions(db, table); err != nil {
+		collisions, err := orgNameCollisions(db, table)
+		if err != nil {
+			return err
+		}
+		if len(collisions) > 0 {
+			logOrgNameCollisions(table, collisions)
+			continue
+		}
+		if err := ensureOrgNameKeyUnique(db, table); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// reportOrgNameCollisions логирует активные записи, схлопывающиеся в один ключ. Это
-// уже существующие дубли: до слияния вручную partial unique index по name_normalized
-// не создать (срез 9 эпика #1437). Отчёт не падает и ничего не меняет - он нужен, чтобы
-// снять список с боевой базы из логов, а не ходить в неё руками.
-func reportOrgNameCollisions(db *gorm.DB, table string) error {
-	var collisions []struct {
-		NameNormalized string
-		Cnt            int
-		Names          string
+// activeNameKeyTaken отвечает, занят ли ключ дедупликации другой АКТИВНОЙ записью.
+// Архивные не проверяются: уникальный индекс их не покрывает, и архивный тёзка не
+// должен мешать пересчёту. Пустой ключ не занимает ничего - у вырожденных наименований
+// (одни кавычки или дефисы) он общий, поэтому индекс их и не индексирует.
+func activeNameKeyTaken(db *gorm.DB, table, key string, exceptID int) (bool, error) {
+	if key == "" {
+		return false, nil
 	}
+	var cnt int64
+	q := fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE is_active = true AND name_normalized = ? AND id <> ?", table)
+	if err := db.Raw(q, key, exceptID).Scan(&cnt).Error; err != nil {
+		return false, fmt.Errorf("check %s name key %q: %w", table, key, err)
+	}
+	return cnt > 0, nil
+}
+
+// orgNameCollision - группа активных записей справочника, схлопывающихся в один ключ.
+type orgNameCollision struct {
+	NameNormalized string
+	Cnt            int
+	Names          string
+}
+
+// orgNameCollisions возвращает активные записи, схлопывающиеся в один ключ. Пока такие
+// есть, partial unique index по name_normalized не создать - группы уходят в лог, а
+// слияние делает принимающий через разбор справочника (срез 6 эпика #1437).
+func orgNameCollisions(db *gorm.DB, table string) ([]orgNameCollision, error) {
+	var collisions []orgNameCollision
 	q := fmt.Sprintf(`
 		SELECT name_normalized, COUNT(*) AS cnt, string_agg(name, ' | ' ORDER BY id) AS names
 		FROM %s
@@ -509,13 +551,16 @@ func reportOrgNameCollisions(db *gorm.DB, table string) error {
 		HAVING COUNT(*) > 1
 		ORDER BY cnt DESC, name_normalized`, table)
 	if err := db.Raw(q).Scan(&collisions).Error; err != nil {
-		return fmt.Errorf("collision report for %s: %w", table, err)
+		return nil, fmt.Errorf("collision report for %s: %w", table, err)
 	}
-	if len(collisions) == 0 {
-		return nil
-	}
-	slog.Warn("наименования схлопываются в один ключ - до слияния уникальный индекс не поставить",
-		"table", table, "groups", len(collisions))
+	return collisions, nil
+}
+
+// logOrgNameCollisions выводит список дублей: он нужен, чтобы снять объём ручного
+// слияния с боевой базы из логов, а не ходить в неё руками.
+func logOrgNameCollisions(table string, collisions []orgNameCollision) {
+	slog.Warn("наименования схлопываются в один ключ - уникальный индекс не поставлен, слейте дубли через разбор справочника",
+		"table", table, "groups", len(collisions), "index", OrgNameKeyIndexName(table))
 	for i, c := range collisions {
 		if i == orgCollisionLogLimit {
 			slog.Warn("остальные группы коллизий не выведены", "table", table, "skipped", len(collisions)-i)
@@ -523,7 +568,37 @@ func reportOrgNameCollisions(db *gorm.DB, table string) error {
 		}
 		slog.Warn("коллизия наименований", "table", table, "key", c.NameNormalized, "count", c.Cnt, "names", c.Names)
 	}
+}
+
+// ensureOrgNameKeyUnique ставит partial unique index по ключу дедупликации наименований
+// (#1437, срез 9): дальше одному ключу отвечает не более одной активной записи, и гонка
+// двух одновременных подач с одним новым наименованием больше не может завести дубль.
+//
+// Условия предиката повторяют модель дедупликации: архивные записи не считаются (иначе
+// архивный тёзка блокировал бы создание активного, #412), пустой ключ не индексируется
+// (вырожденные наименования из одних кавычек или дефисов схлопнулись бы между собой -
+// для них и код сверяется точной строкой, applyNameDuplicateFilter).
+//
+// Вызывается только когда коллизий нет: на базе с дублями CREATE UNIQUE INDEX упал бы, а
+// падать при запуске нельзя - слить дубли можно лишь через интерфейс разбора, и он
+// недоступен, пока сервер не поднялся. Индекс встанет сам при следующем запуске, как
+// только дубли слиты. Ошибку создания возвращаем громко: причина уже не в дублях.
+func ensureOrgNameKeyUnique(db *gorm.DB, table string) error {
+	q := fmt.Sprintf(
+		"CREATE UNIQUE INDEX IF NOT EXISTS %s ON %s (name_normalized) WHERE is_active = true AND name_normalized <> ''",
+		OrgNameKeyIndexName(table), table,
+	)
+	if err := db.Exec(q).Error; err != nil {
+		return fmt.Errorf("create unique index on %s.name_normalized: %w", table, err)
+	}
 	return nil
+}
+
+// OrgNameKeyIndexName - имя partial unique index по ключу дедупликации. Держится в одном
+// месте: его же читает отчёт коллизий (чтобы в логе было видно, какой индекс не встал).
+// Экспортировано ради handler-тестов (DB-тесты живут только там, #706).
+func OrgNameKeyIndexName(table string) string {
+	return "uidx_" + table + "_name_key_active"
 }
 
 // orgCollisionLogLimit ограничивает вывод отчёта коллизий: список нужен для оценки

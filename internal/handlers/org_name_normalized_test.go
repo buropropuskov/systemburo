@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 // TestOrgNameNormalized покрывает ключ дедупликации наименований (#1437) целиком.
@@ -112,4 +113,105 @@ func TestOrgNameNormalized(t *testing.T) {
 		require.NoError(t, db.Where("name = ?", `ООО "Без ключа"`).First(&again).Error)
 		assert.Equal(t, org.NameNormalized, again.NameNormalized)
 	})
+
+	// Индекс - последний рубеж дедупликации: проверки в сервисах гонку двух
+	// одновременных подач с одним новым наименованием не ловят, между их SELECT и INSERT
+	// никакой блокировки нет.
+	t.Run("уникальный индекс держит один ключ на одну активную запись", func(t *testing.T) {
+		require.True(t, indexExists(t, db, database.OrgNameKeyIndexName("organizations")))
+		require.True(t, indexExists(t, db, database.OrgNameKeyIndexName("companies")))
+
+		require.NoError(t, insertOrgRaw(db, `ООО "Индекс"`, "ооо индекс", true))
+		// INSERT в обход сервиса - именно то, чего проверки в коде не видят.
+		assert.Error(t, insertOrgRaw(db, "ООО Индекс", "ооо индекс", true),
+			"второй активной записи с тем же ключом быть не должно")
+
+		assert.NoError(t, insertOrgRaw(db, "ЗАО Индекс архивный", "ооо индекс", false),
+			"архивный тёзка индексу не мешает: иначе архив блокировал бы создание активной записи (#412)")
+		assert.NoError(t, insertOrgRaw(db, `"""`, "", true))
+		assert.NoError(t, insertOrgRaw(db, `---`, "", true),
+			"вырожденные наименования индекс не индексирует - их сверяет код по точной строке")
+	})
+
+	// На базе с неслитыми дублями индекс не создать, а падать при запуске нельзя: слить
+	// дубли можно только через разбор справочника, а он недоступен, пока сервер не поднялся.
+	t.Run("коллизии не роняют запуск, индекс встаёт после слияния", func(t *testing.T) {
+		withoutOrgNameKeyIndex(t, db)
+		index := database.OrgNameKeyIndexName("organizations")
+
+		require.NoError(t, insertOrgRaw(db, `ООО "Коллизия"`, "ооо коллизия", true))
+		require.NoError(t, insertOrgRaw(db, "ООО Коллизия", "ооо коллизия", true))
+
+		require.NoError(t, database.BackfillOrgNameNormalized(db), "запуск не должен падать из-за дублей")
+		assert.False(t, indexExists(t, db, index), "с дублями индекс не поставить")
+
+		require.NoError(t, db.Exec(`DELETE FROM organizations WHERE name = ?`, "ООО Коллизия").Error)
+		require.NoError(t, database.BackfillOrgNameNormalized(db))
+		assert.True(t, indexExists(t, db, index), "дубль слит - индекс должен встать сам")
+	})
+
+	// Правила нормализации уточняются, и пересчёт может привести запись к ключу, который
+	// уже занят: UPDATE отбился бы индексом и уронил запуск.
+	t.Run("пересчёт в занятый ключ не роняет бэкфилл", func(t *testing.T) {
+		require.NoError(t, insertOrgRaw(db, `ООО "Занятый"`, "ооо занятый", true))
+		// Ключ записан вручную «старым» значением, а нормализация даст тот же «ооо занятый».
+		require.NoError(t, insertOrgRaw(db, "ООО Занятый", "ооо занятый старый ключ", true))
+
+		require.NoError(t, database.BackfillOrgNameNormalized(db))
+
+		var kept models.Organization
+		require.NoError(t, db.Where("name = ?", "ООО Занятый").First(&kept).Error)
+		assert.Equal(t, "ооо занятый старый ключ", kept.NameNormalized,
+			"запись остаётся с прежним ключом, а пара уходит в отчёт коллизий")
+	})
+
+	// Конфликтом считается и черновик: ключ он занимает так же, и без этой проверки
+	// UPDATE упёрся бы в индекс, а пользователь получил бы 500 вместо объяснения.
+	t.Run("переименование в наименование другого черновика отбивается с объяснением", func(t *testing.T) {
+		first := seedModerationOrg(t, db, "Черновик Первый", models.ModerationPending)
+		second := seedModerationOrg(t, db, "Черновик Второй", models.ModerationPending)
+
+		rec := testutil.PATCH(t, e,
+			"/organizations/"+strconv.Itoa(second.ID)+"/moderation/rename",
+			`{"name":"`+first.Name+`"}`, auth)
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+		assert.Contains(t, rec.Body.String(), "ждёт разбора")
+
+		var unchanged models.Organization
+		require.NoError(t, db.First(&unchanged, second.ID).Error)
+		assert.Equal(t, "Черновик Второй", unchanged.Name)
+		assert.Equal(t, models.ModerationPending, unchanged.ModerationStatus)
+	})
+}
+
+// withoutOrgNameKeyIndex снимает partial unique index по ключу дедупликации на время
+// секции и возвращает его бэкфиллом после. Нужен тем проверкам, что описывают поведение
+// на базе с неслитыми дублями: с индексом такое состояние уже не создать.
+func withoutOrgNameKeyIndex(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	var lastID int
+	require.NoError(t, db.Raw("SELECT COALESCE(MAX(id), 0) FROM organizations").Scan(&lastID).Error)
+	require.NoError(t, db.Exec("DROP INDEX IF EXISTS "+database.OrgNameKeyIndexName("organizations")).Error)
+	t.Cleanup(func() {
+		// Записи секции удаляются целиком: среди них дубли по ключу, с которыми индекс
+		// не встанет, а следующим секциям он нужен.
+		require.NoError(t, db.Exec("DELETE FROM organizations WHERE id > ?", lastID).Error)
+		require.NoError(t, database.BackfillOrgNameNormalized(db))
+	})
+}
+
+// indexExists отвечает, есть ли индекс с таким именем в текущей схеме.
+func indexExists(t *testing.T, db *gorm.DB, name string) bool {
+	t.Helper()
+	var cnt int64
+	require.NoError(t, db.Raw("SELECT COUNT(*) FROM pg_indexes WHERE indexname = ?", name).Scan(&cnt).Error)
+	return cnt > 0
+}
+
+// insertOrgRaw вставляет организацию напрямую, минуя сервис и хук модели: только так
+// проверяется сам индекс, а не проверки в коде поверх него.
+func insertOrgRaw(db *gorm.DB, name, key string, active bool) error {
+	return db.Exec(
+		`INSERT INTO organizations (name, type, is_active, name_normalized, moderation_status) VALUES (?, ?, ?, ?, ?)`,
+		name, models.OrgTypeContractor, active, key, models.ModerationApproved).Error
 }

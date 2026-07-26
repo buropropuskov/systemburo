@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"systemburo/internal/models"
 	"systemburo/internal/services"
@@ -357,4 +358,58 @@ func TestApplicationOrgResolve(t *testing.T) {
 		require.NotNil(t, notes[1].Message)
 		assert.Contains(t, *notes[1].Message, `ООО "Заря-Компания"`)
 	})
+
+	// Гонка двух подач с одним новым наименованием: partial unique index по ключу (#1437,
+	// срез 9) отбивает второй INSERT, и подача обязана лечь на запись соперника, а не
+	// упасть пятисоткой. Соперник эмулируется отдельной транзакцией, которая держит свою
+	// вставку незакоммиченной: тогда подача упирается в блокировку индекса гарантированно,
+	// а не по прихоти планировщика.
+	t.Run("гонка подач привязывает заявку к записи соперника", func(t *testing.T) {
+		rival := db.Begin()
+		require.NoError(t, rival.Error)
+		defer rival.Rollback()
+
+		var rivalID int
+		require.NoError(t, rival.Raw(
+			`INSERT INTO organizations (name, type, is_active, name_normalized, moderation_status, created_by_user_id)
+			 VALUES (?, ?, true, ?, ?, ?) RETURNING id`,
+			`ООО "Гонка"`, models.OrgTypeContractor, "ооо гонка", models.ModerationPending, sender.ID).Scan(&rivalID).Error)
+		require.NotZero(t, rivalID)
+
+		// Наименование написано иначе, чем у соперника: по name конфликта нет, упереться
+		// подача должна именно в ключ дедупликации.
+		done := make(chan *httptest.ResponseRecorder, 1)
+		go func() {
+			done <- submitWithRefs(t, e, token, uaID, "A112AA777", `"organization_name":"ООО Гонка"`)
+		}()
+
+		waitForIndexLock(t, db)
+		require.NoError(t, rival.Commit().Error)
+
+		appID := submittedAppID(t, <-done)
+		refs := readAppOrgRefs(t, db, appID)
+		require.NotNil(t, refs.OrganizationID, "заявка без организации - тот самый баг, который закрывал эпик")
+		assert.Equal(t, rivalID, *refs.OrganizationID, "заявка должна лечь на запись соперника")
+		assert.Equal(t, int64(1), countOrganizations(t, db, "ооо гонка"), "второй записи с тем же ключом быть не должно")
+	})
+}
+
+// waitForIndexLock ждёт, пока чей-то INSERT повиснет на блокировке уникального индекса.
+// Без этого ожидания подача успела бы закоммититься до соперника, ветка восстановления
+// после конфликта не выполнилась бы, и тест зеленел бы, ничего не проверив.
+func waitForIndexLock(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		var waiting int64
+		require.NoError(t, db.Raw(`SELECT COUNT(*) FROM pg_stat_activity
+			WHERE wait_event_type = 'Lock' AND query ILIKE '%organizations%'`).Scan(&waiting).Error)
+		if waiting > 0 {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("подача не упёрлась в блокировку уникального индекса - гонка не воспроизведена")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 }

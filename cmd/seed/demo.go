@@ -5,6 +5,8 @@ import (
 	"log"
 	"time"
 
+	"systemburo/internal/normalize"
+
 	"gorm.io/gorm"
 )
 
@@ -46,7 +48,16 @@ func seedExtendedDictionaries(db *gorm.DB, defaultOrgID, defaultCompID int) ([]i
 		var id int
 		db.Raw(`SELECT id FROM organizations WHERE name = ? LIMIT 1`, name).Scan(&id)
 		if id == 0 {
-			db.Raw(`INSERT INTO organizations (name) VALUES (?) RETURNING id`, name).Scan(&id)
+			// name_normalized пишем сразу: INSERT в обход gorm-модели хук BeforeSave не
+			// зовёт, а без ключа запись не участвует в дедупликации наименований (#1437)
+			// до следующего запуска сервера с бэкфиллом.
+			if err := db.Raw(`INSERT INTO organizations (name, name_normalized) VALUES (?, ?) RETURNING id`,
+				name, normalize.OrgName(name)).Scan(&id).Error; err != nil {
+				// Наименование, схлопнувшееся по ключу с существующим, отобьёт уникальный
+				// индекс - молча пропускать такую организацию нельзя, дальше на неё
+				// ссылаются демо-заявки.
+				log.Printf("demo seed: организация %q не создана: %v", name, err)
+			}
 		}
 		if id != 0 {
 			orgIDs = append(orgIDs, id)
@@ -59,7 +70,10 @@ func seedExtendedDictionaries(db *gorm.DB, defaultOrgID, defaultCompID int) ([]i
 		var id int
 		db.Raw(`SELECT id FROM companies WHERE name = ? LIMIT 1`, name).Scan(&id)
 		if id == 0 {
-			db.Raw(`INSERT INTO companies (name) VALUES (?) RETURNING id`, name).Scan(&id)
+			if err := db.Raw(`INSERT INTO companies (name, name_normalized) VALUES (?, ?) RETURNING id`,
+				name, normalize.OrgName(name)).Scan(&id).Error; err != nil {
+				log.Printf("demo seed: компания %q не создана: %v", name, err)
+			}
 		}
 		if id != 0 {
 			compIDs = append(compIDs, id)

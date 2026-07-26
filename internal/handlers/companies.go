@@ -61,7 +61,7 @@ func (h *CompanyHandler) Suggest(c echo.Context) error {
 
 // ApproveModeration godoc
 // @Summary      Подтвердить компанию «на проверке»
-// @Description  Разбор записи, заведённой из заявки (#1437). Требует права application.organization.moderate. При совпадении наименования с существующей записью ответ приходит со status=conflict и самой записью.
+// @Description  Разбор записи, заведённой из заявки (#1437). Требует права application.organization.moderate. При совпадении наименования с проверенной записью ответ приходит со status=conflict и самой записью; столкновение с другим черновиком даёт 400, его разбирают первым.
 // @Tags         companies
 // @Produce      json
 // @Security     BearerAuth
@@ -86,7 +86,7 @@ func (h *CompanyHandler) ApproveModeration(c echo.Context) error {
 
 // RenameModeration godoc
 // @Summary      Исправить наименование компании «на проверке»
-// @Description  Правит наименование черновика и считает запись разобранной. Требует права application.organization.moderate. При совпадении с существующей записью возвращает status=conflict.
+// @Description  Правит наименование черновика и считает запись разобранной. Требует права application.organization.moderate. При совпадении с проверенной записью возвращает status=conflict, при совпадении с другим черновиком - 400.
 // @Tags         companies
 // @Accept       json
 // @Produce      json
