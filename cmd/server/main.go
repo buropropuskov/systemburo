@@ -339,6 +339,7 @@ func main() {
 		PermGroups:          permissionGroupHandler,
 		Roles:               roleHandler,
 		AccessDenials:       accessDenialHandler,
+		PDAudit:             handlers.NewPDAuditHandler(services.NewPDAuditService(db)),
 		UserBan:             userBanHandler,
 		Consent:             consentHandler,
 		Settings:            settingsHandler,

@@ -88,3 +88,78 @@ func TestPDAudit_WritesOnPersonalDataRequest(t *testing.T) {
 		require.Zero(t, count)
 	})
 }
+
+// Чтение журнала (#1472): страница с фильтрами под правом page.admin.pd_audit.
+func TestPDAudit_ListEndpoint(t *testing.T) {
+	w := setupBlankWorld(t)
+	db := w.h.w.db
+
+	// у автора обращений должно быть ФИО: на экране журнала показывается человек, а не логин
+	require.NoError(t, db.Table("users").Where("username = ?", "userhttp").
+		Updates(map[string]any{"last_name": "Петров", "first_name": "Игорь"}).Error)
+
+	// наполняем журнал реальными обращениями, а не фикстурами
+	empPath := fmt.Sprintf("/attachments/%d/employees", w.attID)
+	require.Equal(t, http.StatusOK,
+		testutil.GET(t, w.h.e, empPath, testutil.AuthHeader(w.h.userToken)).Code)
+	blankPath := fmt.Sprintf("/applications/%d/blank?attachment_id=%d", w.appID, w.attID)
+	require.Equal(t, http.StatusOK,
+		testutil.GET(t, w.h.e, blankPath, testutil.AuthHeader(w.h.userToken)).Code)
+	waitPDAuditRow(t, db, fmt.Sprintf("/api/applications/%d/blank", w.appID))
+
+	userTypeID := secUserTypeIDByCode(t, db, "user")
+	plain := testutil.RegisterAndLogin(t, w.h.e, "pdauditplain", pdAuditPassword, userTypeID, w.h.w.orgID, 0)
+
+	t.Run("без права журнал недоступен", func(t *testing.T) {
+		rec := testutil.GET(t, w.h.e, "/pd-audit", testutil.AuthHeader(plain))
+		require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+	})
+
+	t.Run("админ видит записи", func(t *testing.T) {
+		rec := testutil.GET(t, w.h.e, "/pd-audit", testutil.AuthHeader(w.h.adminToken))
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		page := testutil.ParseResponse[models.PDAuditPageResponse](t, rec)
+		require.NotZero(t, page.Total)
+		require.NotEmpty(t, page.Items)
+		require.Equal(t, "userhttp", page.Items[0].Username, "сортировка от свежих к старым")
+		require.Equal(t, "Петров Игорь", page.Items[0].UserName, "рядом с логином отдаём ФИО")
+	})
+
+	t.Run("фильтр по ресурсу", func(t *testing.T) {
+		rec := testutil.GET(t, w.h.e, "/pd-audit?resource=attachment_blank", testutil.AuthHeader(w.h.adminToken))
+		require.Equal(t, http.StatusOK, rec.Code)
+		page := testutil.ParseResponse[models.PDAuditPageResponse](t, rec)
+		require.NotEmpty(t, page.Items)
+		for _, it := range page.Items {
+			require.Equal(t, "attachment_blank", it.Resource)
+		}
+	})
+
+	t.Run("фильтр только отказы", func(t *testing.T) {
+		outsider := testutil.RegisterAndLogin(t, w.h.e, "pdauditdenied", pdAuditPassword, userTypeID, w.h.w.orgID, 0)
+		require.Equal(t, http.StatusForbidden,
+			testutil.GET(t, w.h.e, blankPath, testutil.AuthHeader(outsider)).Code)
+		require.Eventually(t, func() bool {
+			var n int64
+			db.Model(&models.PDAuditLog{}).Where("username = ?", "pdauditdenied").Count(&n)
+			return n > 0
+		}, 5*time.Second, 50*time.Millisecond)
+
+		rec := testutil.GET(t, w.h.e, "/pd-audit?only_denied=true", testutil.AuthHeader(w.h.adminToken))
+		require.Equal(t, http.StatusOK, rec.Code)
+		page := testutil.ParseResponse[models.PDAuditPageResponse](t, rec)
+		require.NotEmpty(t, page.Items)
+		for _, it := range page.Items {
+			require.GreaterOrEqual(t, it.StatusCode, http.StatusBadRequest)
+		}
+	})
+
+	t.Run("страница ограничена лимитом", func(t *testing.T) {
+		rec := testutil.GET(t, w.h.e, "/pd-audit?limit=1&page=1", testutil.AuthHeader(w.h.adminToken))
+		require.Equal(t, http.StatusOK, rec.Code)
+		page := testutil.ParseResponse[models.PDAuditPageResponse](t, rec)
+		require.Len(t, page.Items, 1)
+		require.Equal(t, 1, page.Limit)
+		require.Greater(t, page.Total, int64(1))
+	})
+}
