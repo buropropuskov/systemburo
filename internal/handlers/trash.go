@@ -49,9 +49,9 @@ func (h *TrashHandler) List(c echo.Context) error {
 		return err
 	}
 	filter := models.TrashFilter{
-		Search:         c.QueryParam("search"),
-		DateFrom:       c.QueryParam("date_from"),
-		DateTo:         c.QueryParam("date_to"),
+		Search:   c.QueryParam("search"),
+		DateFrom: c.QueryParam("date_from"),
+		DateTo:   c.QueryParam("date_to"),
 	}
 	if oid, _ := strconv.Atoi(c.QueryParam("organization_id")); oid > 0 {
 		filter.OrganizationID = oid
@@ -108,7 +108,7 @@ func (h *TrashHandler) Restore(c echo.Context) error {
 		return err
 	}
 	return RespondSuccess(c, map[string]any{
-		"restored": restored,
+		"restored":  restored,
 		"requested": len(req.IDs),
 	})
 }

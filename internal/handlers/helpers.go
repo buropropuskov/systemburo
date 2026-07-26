@@ -30,6 +30,7 @@ func ParseID(c echo.Context, param string) (int, error) {
 //   - бинд в слайс []T (валидатор работает по структурам);
 //   - доменная/условная валидация, не выражаемая статичным тегом (обязательность зависит от
 //     другого поля, напр. statistics.RunReport) - остаётся в хендлере/сервисе, но через явный 400.
+//
 // Подробнее - docs/BACKEND.md, раздел "Валидация входа (boundary)".
 func BindAndValidate(c echo.Context, dst interface{}) error {
 	if err := c.Bind(dst); err != nil {

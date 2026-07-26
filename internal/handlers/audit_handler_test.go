@@ -15,9 +15,9 @@ import (
 )
 
 type auditResp struct {
-	Success bool                   `json:"success"`
-	Data    []models.AuditLogItem  `json:"data"`
-	Meta    models.PaginationMeta  `json:"meta"`
+	Success bool                  `json:"success"`
+	Data    []models.AuditLogItem `json:"data"`
+	Meta    models.PaginationMeta `json:"meta"`
 }
 
 func parseAudit(t *testing.T, body []byte) auditResp {

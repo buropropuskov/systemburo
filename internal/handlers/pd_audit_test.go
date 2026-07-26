@@ -25,12 +25,13 @@ func waitPDAuditRow(t *testing.T, db *gorm.DB, path string) models.PDAuditLog {
 	var row models.PDAuditLog
 	require.Eventually(t, func() bool {
 		return db.Where("path = ?", path).Order("id DESC").First(&row).Error == nil
-	}, 5*time.Second, 50*time.Millisecond, "запись журнала ПДн для %s не появилась", path)
+	}, 3*time.Second, 20*time.Millisecond, "запись журнала ПДн для %s не появилась", path)
 	return row
 }
 
-func TestPDAudit_WritesOnPersonalDataRequest(t *testing.T) {
-	w := setupBlankWorld(t)
+// pdAuditSection - секция общего набора TestBlankAccessAndTemplateRoutes: свой
+// SetupTestApp приближал границу go test -timeout у пакета handlers в CI.
+func pdAuditSection(t *testing.T, w blankWorld) {
 	db := w.h.w.db
 
 	t.Run("просмотр сотрудников вложения попадает в журнал", func(t *testing.T) {
@@ -69,9 +70,11 @@ func TestPDAudit_WritesOnPersonalDataRequest(t *testing.T) {
 		require.Eventually(t, func() bool {
 			return db.Where("username = ? AND status_code = ?", "pdauditoutsider", http.StatusForbidden).
 				Order("id DESC").First(&row).Error == nil
-		}, 5*time.Second, 50*time.Millisecond, "отказ не попал в журнал")
+		}, 3*time.Second, 20*time.Millisecond, "отказ не попал в журнал")
 		require.Equal(t, "attachment_blank", row.Resource)
 	})
+
+	t.Run("чтение журнала", func(t *testing.T) { listEndpointSection(t, w) })
 
 	t.Run("обращение без персональных данных журнал не трогает", func(t *testing.T) {
 		var before int64
@@ -90,8 +93,9 @@ func TestPDAudit_WritesOnPersonalDataRequest(t *testing.T) {
 }
 
 // Чтение журнала (#1472): страница с фильтрами под правом page.admin.pd_audit.
-func TestPDAudit_ListEndpoint(t *testing.T) {
-	w := setupBlankWorld(t)
+// listEndpointSection живёт секцией внутри TestPDAudit: собственный SetupTestApp с
+// CleanDB перебивал границу go test -timeout у пакета handlers в CI.
+func listEndpointSection(t *testing.T, w blankWorld) {
 	db := w.h.w.db
 
 	// у автора обращений должно быть ФИО: на экране журнала показывается человек, а не логин
@@ -143,7 +147,7 @@ func TestPDAudit_ListEndpoint(t *testing.T) {
 			var n int64
 			db.Model(&models.PDAuditLog{}).Where("username = ?", "pdauditdenied").Count(&n)
 			return n > 0
-		}, 5*time.Second, 50*time.Millisecond)
+		}, 3*time.Second, 20*time.Millisecond)
 
 		rec := testutil.GET(t, w.h.e, "/pd-audit?only_denied=true", testutil.AuthHeader(w.h.adminToken))
 		require.Equal(t, http.StatusOK, rec.Code)
