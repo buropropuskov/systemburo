@@ -182,13 +182,18 @@ func (s *attachmentBlankService) fillListSection(f *excelize.File, sheet string,
 	}
 	mappings = own
 
-	// Если записей больше max - вставляем доп. строки сразу после ListEndRow.
+	// Записей больше, чем строк в шаблоне - добавляем недостающие копией последней
+	// строки списка: так новая строка получает её оформление. Отдельный InsertRows
+	// здесь не нужен и вреден - DuplicateRowTo сам вставляет строку со сдвигом, и
+	// вдвоём они добавляли вдвое больше строк, оставляя в бланке пустоты, а разметку
+	// под таблицей уводя ниже, чем нужно (#1480).
 	if count > t.MaxListRows && t.MaxListRows > 0 {
 		extra := count - t.MaxListRows
-		_ = f.InsertRows(sheet, t.ListEndRow+1, extra)
-		// Копируем стиль из последней шаблонной строки на новые.
-		for r := t.ListEndRow + 1; r <= t.ListEndRow+extra; r++ {
-			_ = f.DuplicateRowTo(sheet, t.ListEndRow, r)
+		for i := 0; i < extra; i++ {
+			if err := f.DuplicateRowTo(sheet, t.ListEndRow, t.ListEndRow+1+i); err != nil {
+				slog.Error("не удалось расширить список бланка", "error", err, "row", t.ListEndRow+1+i)
+				break
+			}
 		}
 	}
 

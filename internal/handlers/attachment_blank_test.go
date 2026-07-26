@@ -182,6 +182,7 @@ func TestBlankGenerate(t *testing.T) {
 	t.Run("разделитель совмещённых полей", func(t *testing.T) { concatSeparatorSection(t, db, td) })
 	t.Run("места разгрузки вложения", func(t *testing.T) { attachmentPlacesSection(t, db, td) })
 	t.Run("привязки машины", func(t *testing.T) { carBindingsSection(t, db, td) })
+	t.Run("переполнение списка", func(t *testing.T) { listOverflowSection(t, db, td) })
 }
 
 func listTypeSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
@@ -552,4 +553,85 @@ func TestSubmitApplication_StoresInitiatorAndPhone(t *testing.T) {
 	require.Equal(t, "Сидорова Анна Петровна", *stored.InitiatorName, "пробелы по краям снимаются")
 	require.NotNil(t, stored.ContactPhone)
 	require.Equal(t, "89100530055", *stored.ContactPhone, "храним как ввели, форматируем при выводе")
+}
+
+// Переполнение списка (#1480): машин больше, чем строк в шаблоне. Строки должны
+// добавляться ровно по недостаче, а разметка под таблицей - съезжать на столько же.
+func listOverflowSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
+	userTypeID := secUserTypeIDByCode(t, db, "user")
+	sender := models.User{Username: "blankoverflowsender", Password: "x", TypeID: userTypeID, OrganizationID: secPtrInt(td.OrgID)}
+	require.NoError(t, db.Create(&sender).Error)
+
+	name := "overflow_blank"
+	ua := models.UniqueAttachment{AttachmentType: "cars", Name: &name, IsActive: true}
+	require.NoError(t, db.Create(&ua).Error)
+
+	// список занимает строки 10-15 (шесть), сразу под ним подпись в двадцатой
+	f := excelize.NewFile()
+	defer func() { require.NoError(t, f.Close()) }()
+	sheet := f.GetSheetName(0)
+	require.NoError(t, f.SetCellValue(sheet, "A9", "ШАПКА"))
+	require.NoError(t, f.SetCellValue(sheet, "A20", "ПОДПИСЬ"))
+	path := filepath.Join(t.TempDir(), "overflow.xlsx")
+	require.NoError(t, f.SaveAs(path))
+
+	tpl := models.AttachmentTemplate{
+		UniqueAttachmentID: ua.ID, IsActive: true, FilePath: path,
+		OriginalFileName: "overflow.xlsx", ListStartRow: 10, ListEndRow: 15, MaxListRows: 6,
+	}
+	require.NoError(t, db.Create(&tpl).Error)
+	require.NoError(t, db.Create(&[]models.AttachmentTemplateMapping{
+		{TemplateID: tpl.ID, CellRef: "A10", FieldPath: "car.row_number", IsListField: true},
+		{TemplateID: tpl.ID, CellRef: "B10", FieldPath: "car.car_number", IsListField: true},
+	}).Error)
+
+	now := time.Now()
+	conf, status := "Согласовано", models.StatusInWork
+	app := models.Application{
+		OrganizationID: td.OrgID, SenderUserID: sender.ID,
+		Confirmation: &conf, Status: &status, SendingDatetime: &now,
+	}
+	require.NoError(t, db.Create(&app).Error)
+	att := models.Attachment{ApplicationID: &app.ID, AttachmentType: "cars", UniqueAttachmentID: &ua.ID}
+	require.NoError(t, db.Create(&att).Error)
+
+	const carCount = 8 // на две больше, чем строк в шаблоне
+	for i := 0; i < carCount; i++ {
+		number := fmt.Sprintf("Х %03d ХХ 777", 101+i)
+		require.NoError(t, db.Create(&models.Car{AttachmentID: att.ID, CarNumber: &number}).Error)
+	}
+
+	reader, _, err := services.NewAttachmentBlankService(db).
+		GenerateBlank(context.Background(), app.ID, att.ID)
+	require.NoError(t, err)
+	out, err := excelize.OpenReader(reader)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, out.Close()) }()
+	outSheet := out.GetSheetName(0)
+
+	for i := 0; i < carCount; i++ {
+		row := tpl.ListStartRow + i
+		got, err := out.GetCellValue(outSheet, fmt.Sprintf("B%d", row))
+		require.NoError(t, err)
+		require.Equal(t, fmt.Sprintf("Х %03d ХХ 777", 101+i), got, "строка %d списка", row)
+	}
+
+	// шапка над списком стоять остаётся
+	head, err := out.GetCellValue(outSheet, "A9")
+	require.NoError(t, err)
+	require.Equal(t, "ШАПКА", head)
+
+	// подпись съезжает ровно на недостающие строки: 20 + (8 - 6) = 22.
+	// До фикса вставка шла дважды (InsertRows плюс DuplicateRowTo, который сам
+	// вставляет строку), и подпись уезжала на 24, оставляя пустые строки в бланке.
+	signRow := 0
+	for r := tpl.ListEndRow; r <= 30; r++ {
+		v, err := out.GetCellValue(outSheet, fmt.Sprintf("A%d", r))
+		require.NoError(t, err)
+		if v == "ПОДПИСЬ" {
+			signRow = r
+			break
+		}
+	}
+	require.Equal(t, 22, signRow, "подпись должна съехать на две строки, а не на четыре")
 }
