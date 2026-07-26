@@ -1049,7 +1049,10 @@ export default {
     background-color: var(--hint-card-bg);
     border: 1px solid var(--hint-card-border);
     border-radius: 30px;
-    padding: 20px;
+    /* Отступы поджаты: высота карточки равна таблице «по факту» (у той жёсткие
+       222px), и на прежних 20px текущая подсказка не помещалась на десяток
+       пикселей - последняя строка уходила в прокрутку. */
+    padding: 14px 16px;
     display: flex;
     gap: 15px;
     align-items: flex-start;
@@ -1057,9 +1060,12 @@ export default {
 
 .hint-content {
     position: absolute;
-    inset: 20px;
+    inset: 14px 16px;
     overflow-y: auto;
     scrollbar-width: thin;
+    /* Плотнее строка - в ту же высоту входит больше текста. Прокрутка остаётся
+       на случай подсказки длиннее таблицы. */
+    line-height: 1.35;
     color: var(--hint-card-text);
 }
 
@@ -1197,6 +1203,13 @@ export default {
 /* Hint specific styles */
 .hint-content :deep(*) {
     color: var(--hint-card-text) !important;
+}
+
+/* Плотнее межстрочный интервал, чем общий 150% текстового конструктора: карточка
+   ограничена высотой таблицы «по факту», и на 150% текущая подсказка не помещалась.
+   Оба класса на одном элементе - специфичность выше общего правила. */
+.hint-content.text-constructor-content :deep(*) {
+    line-height: 1.35;
 }
 
 .hint-content :deep(.black-text) { color: var(--hint-card-text) !important; }
