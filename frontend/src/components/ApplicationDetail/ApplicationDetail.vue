@@ -1718,7 +1718,7 @@ export default {
 .status-mini-completed {
     background-color: color-mix(in srgb, var(--success) 10%, var(--surface));
     color: var(--success-text);
-    border-color: rgba(5, 150, 105, 0.3);
+    border-color: color-mix(in srgb, var(--success) 45%, transparent);
 }
 
 .status-info {
@@ -2230,7 +2230,7 @@ export default {
     transition: all 0.2s ease;
     min-width: 140px;
     background: var(--danger);
-    color: var(--surface);
+    color: var(--fill-text);
 }
 
 .withdraw-btn:hover {
@@ -2248,7 +2248,7 @@ export default {
     min-width: 140px;
     border: 1px solid var(--border);
     background: var(--warning);
-    color: var(--surface);
+    color: var(--fill-text);
 }
 
 .revoke-btn:hover:not(:disabled) {

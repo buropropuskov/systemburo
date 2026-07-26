@@ -402,7 +402,7 @@ export default {
 }
 
 .badge--ok {
-  background: rgba(46, 158, 90, 0.14);
+  background: var(--success-bg);
   color: #2e7d47;
 }
 

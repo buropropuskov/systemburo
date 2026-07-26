@@ -113,7 +113,7 @@
 .lk-button--danger:hover:not(:disabled) {
   background: var(--danger);
   border-color: var(--danger);
-  color: var(--surface);
+  color: var(--fill-text);
 }
 
 /* Компактный модификатор для inline-контекстов (retry у sentinel подгрузки #1173,

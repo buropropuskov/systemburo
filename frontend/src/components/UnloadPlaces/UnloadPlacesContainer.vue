@@ -1785,7 +1785,7 @@ async uploadPhotoFiles(files) {
 }
 .pill-restore {
   background: var(--success);
-  color: var(--surface);
+  color: var(--fill-text);
 }
 .pill-restore:hover {
   background: color-mix(in srgb, var(--success) 85%, var(--text));
@@ -2206,7 +2206,7 @@ async uploadPhotoFiles(files) {
 
 .restore-btn {
   background: var(--success);
-  color: var(--surface);
+  color: var(--fill-text);
 }
 
 .restore-btn:hover {

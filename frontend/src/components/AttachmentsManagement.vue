@@ -1261,7 +1261,7 @@ export default {
 
 .restore-btn {
   background: var(--success);
-  color: var(--surface);
+  color: var(--fill-text);
 }
 
 .restore-btn:hover {

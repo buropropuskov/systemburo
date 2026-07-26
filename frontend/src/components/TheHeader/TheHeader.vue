@@ -497,7 +497,7 @@ h3 {
   top: -4px;
   right: -4px;
   background-color: var(--danger);
-  color: var(--surface);
+  color: var(--fill-text);
   font-size: 11px;
   font-weight: 600;
   min-width: 18px;

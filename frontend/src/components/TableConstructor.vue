@@ -1860,7 +1860,7 @@ export default {
 
 .pill-restore {
   background: var(--success);
-  color: var(--surface);
+  color: var(--fill-text);
 }
 
 .pill-restore:hover {
@@ -1892,7 +1892,7 @@ export default {
 .restore-btn {
   padding: 8px 16px;
   background: var(--success);
-  color: var(--surface);
+  color: var(--fill-text);
   border: none;
   border-radius: 10px;
   font-size: 0.85em;

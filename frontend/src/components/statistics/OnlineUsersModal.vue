@@ -219,7 +219,7 @@ onUnmounted(() => {
 }
 
 .ou-modal__state--error {
-  color: var(--color-danger);
+  color: var(--danger-text);
 }
 
 .ou-list {
@@ -250,7 +250,7 @@ onUnmounted(() => {
   border-radius: 50%;
   background: var(--color-success);
   flex-shrink: 0;
-  box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.15);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 22%, transparent);
 }
 
 .ou-row__main {

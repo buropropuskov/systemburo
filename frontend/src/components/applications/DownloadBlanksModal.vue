@@ -286,7 +286,7 @@ export default {
 }
 
 .dbm-state--error {
-  color: var(--color-danger);
+  color: var(--danger-text);
 }
 
 .dbm-spinner {
@@ -294,7 +294,7 @@ export default {
   width: 28px;
   height: 28px;
   border: 3px solid var(--color-border);
-  border-top-color: var(--accent);
+  border-top-color: var(--accent-text);
   border-radius: 50%;
   animation: dbm-spin 0.7s linear infinite;
 }

@@ -361,7 +361,7 @@ export default {
 }
 .sc__btn--danger {
   background: var(--danger);
-  color: var(--surface);
+  color: var(--fill-text);
   border-color: var(--danger);
 }
 .sc__btn--danger:hover:not(:disabled) {

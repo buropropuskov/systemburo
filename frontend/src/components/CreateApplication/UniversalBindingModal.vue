@@ -571,7 +571,7 @@ export default {
 
 .fact-badge {
     background: var(--warning);
-    color: var(--surface);
+    color: var(--fill-text);
     font-size: 11px;
     font-weight: 500;
     padding: 2px 8px;

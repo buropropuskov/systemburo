@@ -342,7 +342,7 @@ export default {
 
 .notification-badge {
   background: var(--color-danger, var(--danger));
-  color: var(--surface);
+  color: var(--fill-text);
   border-radius: 30px;
   padding: 2px 8px;
   font-size: 11px;

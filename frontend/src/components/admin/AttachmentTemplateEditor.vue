@@ -1517,7 +1517,7 @@ export default {
   width: 100%;
   padding: 4px 8px;
   background: var(--color-danger);
-  color: var(--surface);
+  color: var(--fill-text);
   border: none;
   border-radius: 4px;
   font-size: 11px;
@@ -1697,7 +1697,7 @@ export default {
 .te-dropzone__clear {
   background: none;
   border: none;
-  color: var(--color-danger);
+  color: var(--danger-text);
   font-size: 18px;
   cursor: pointer;
   line-height: 1;
@@ -1927,14 +1927,14 @@ export default {
   border-radius: 50%;
   font-size: 13px;
   line-height: 1;
-  color: var(--color-danger);
+  color: var(--danger-text);
   background: color-mix(in srgb, var(--danger) 10%, var(--surface));
   transition: all 0.15s;
 }
 
 .te-chip-remove:hover {
   background: var(--color-danger);
-  color: var(--surface);
+  color: var(--fill-text);
 }
 
 /* Remove popup */
@@ -1970,7 +1970,7 @@ export default {
 }
 
 .te-remove-popup__x {
-  color: var(--color-danger);
+  color: var(--danger-text);
   font-size: 14px;
 }
 
@@ -1979,7 +1979,7 @@ export default {
   font-size: 11px;
   cursor: pointer;
   border-top: 1px solid var(--color-border);
-  color: var(--color-danger);
+  color: var(--danger-text);
   font-weight: 500;
 }
 
@@ -2113,7 +2113,7 @@ export default {
 
 .te-mapping-remove:hover {
   background: color-mix(in srgb, var(--danger) 10%, var(--surface));
-  color: var(--color-danger);
+  color: var(--danger-text);
 }
 
 /* ---- Save ---- */
@@ -2147,7 +2147,7 @@ export default {
   width: 28px;
   height: 28px;
   border: 3px solid var(--color-border);
-  border-top-color: var(--accent);
+  border-top-color: var(--accent-text);
   border-radius: 50%;
   animation: te-spin 0.7s linear infinite;
 }

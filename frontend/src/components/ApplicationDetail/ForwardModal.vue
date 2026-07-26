@@ -722,7 +722,7 @@ export default {
 .remove-forward-user-btn {
     background: none;
     border: none;
-    color: var(--color-danger);
+    color: var(--danger-text);
     font-size: 20px;
     cursor: pointer;
     padding: 6px 10px;
@@ -829,7 +829,7 @@ export default {
 .forward-attachments-hint {
     margin: 8px 0 0;
     font-size: 12px;
-    color: var(--color-danger);
+    color: var(--danger-text);
 }
 
 .forward-user-dropdown-content::-webkit-scrollbar,
@@ -882,7 +882,7 @@ export default {
 }
 
 .forward-message-counter--warning {
-    color: var(--color-danger);
+    color: var(--danger-text);
 }
 
 .forward-message-warning {

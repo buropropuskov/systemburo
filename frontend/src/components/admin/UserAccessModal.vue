@@ -900,7 +900,7 @@ export default {
 .ban-box__title {
   font-size: 13px;
   font-weight: 700;
-  color: var(--color-danger);
+  color: var(--danger-text);
   display: flex;
   align-items: center;
   gap: 7px;
@@ -1002,8 +1002,8 @@ export default {
 .lk-button--ghost:not(:disabled):hover { border-color: var(--accent); color: var(--accent-text); }
 .lk-button--secondary { background: #fff; color: var(--color-text); border-color: var(--color-border); }
 .lk-button--secondary:not(:disabled):hover { border-color: var(--accent); color: var(--accent-text); }
-.lk-button--danger { background: #fff; color: var(--color-danger); border-color: #fecaca; }
-.lk-button--danger:not(:disabled):hover { background: var(--color-danger); color: #fff; border-color: var(--color-danger); }
+.lk-button--danger { background: #fff; color: var(--danger-text); border-color: #fecaca; }
+.lk-button--danger:not(:disabled):hover { background: var(--color-danger); color: #fff; border-color: var(--danger); }
 
 /* --- Футер --- */
 .access-modal__foot {

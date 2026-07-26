@@ -1944,7 +1944,7 @@ export default {
 
 .pill-restore {
   background: var(--success);
-  color: var(--surface);
+  color: var(--fill-text);
 }
 
 .pill-restore:hover {
@@ -2130,7 +2130,7 @@ export default {
 .reassign-empty {
   margin: 10px 0 0;
   font-size: 0.85em;
-  color: var(--color-danger);
+  color: var(--danger-text);
 }
 
 .no-selection-message {

@@ -370,8 +370,8 @@ export default {
 }
 
 .notification button {
-  background: red;
-  color: var(--surface);
+  background: var(--danger);
+  color: var(--fill-text);
   border: none;
   margin: 0;
   padding: 5px;

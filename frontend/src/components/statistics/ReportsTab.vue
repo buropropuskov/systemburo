@@ -461,7 +461,7 @@ async function onRun(request) {
 
 .tpl-del:hover {
   background: var(--color-danger);
-  color: var(--surface);
+  color: var(--fill-text);
 }
 
 .wizard {

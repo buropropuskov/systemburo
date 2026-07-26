@@ -864,7 +864,7 @@ export default {
 }
 .pill-restore {
   background: var(--success);
-  color: var(--surface);
+  color: var(--fill-text);
 }
 .pill-restore:hover {
   background: color-mix(in srgb, var(--success) 85%, var(--text));
@@ -1190,7 +1190,7 @@ export default {
 
 .restore-btn {
   background: var(--success);
-  color: var(--surface);
+  color: var(--fill-text);
 }
 
 .restore-btn:hover {

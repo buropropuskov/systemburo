@@ -1119,7 +1119,7 @@ export default {
   width: 28px;
   height: 28px;
   border: 3px solid var(--border);
-  border-top-color: var(--accent);
+  border-top-color: var(--accent-text);
   border-radius: 50%;
   animation: trash-spin 0.8s linear infinite;
 }

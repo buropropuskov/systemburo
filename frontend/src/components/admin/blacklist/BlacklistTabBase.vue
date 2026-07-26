@@ -692,7 +692,7 @@ export default {
 
 .pill-restore {
   background: var(--success);
-  color: var(--surface);
+  color: var(--fill-text);
 }
 
 .pill-restore:hover {

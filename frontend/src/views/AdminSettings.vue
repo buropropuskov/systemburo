@@ -1101,7 +1101,7 @@ export default {
 .sidebar-item--active {
   background: var(--accent-tint);
   color: var(--accent-text);
-  border-left-color: var(--accent);
+  border-left-color: var(--accent-text);
   font-weight: 600;
 }
 
@@ -1437,7 +1437,7 @@ export default {
   width: 24px;
   height: 24px;
   border: 2px solid var(--border);
-  border-top-color: var(--accent);
+  border-top-color: var(--accent-text);
   border-radius: 50%;
   animation: spinner-rotate 1s linear infinite;
 }

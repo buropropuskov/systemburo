@@ -1196,7 +1196,7 @@ export default {
 }
 
 .form-error {
-  color: var(--color-danger);
+  color: var(--danger-text);
   font-size: 12px;
   margin-top: 6px;
 }
@@ -1461,7 +1461,7 @@ export default {
 }
 
 .uq-remove:hover {
-  color: var(--color-danger);
+  color: var(--danger-text);
 }
 
 /* --- Строки групп --- */

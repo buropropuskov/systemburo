@@ -2419,7 +2419,7 @@ export default {
 }
 
 .center__search-clear:hover {
-    color: var(--color-primary);
+    color: var(--accent-text);
 }
 
 /* Раскрытие влево - clip-path (композитится, не двигает ряд). */
@@ -2549,7 +2549,7 @@ export default {
 .reset-sort-btn:hover:not(:disabled) {
     background: var(--color-bg);
     border-color: var(--color-primary);
-    color: var(--color-primary);
+    color: var(--accent-text);
 }
 
 .status-btn--active {
@@ -2572,13 +2572,13 @@ export default {
 .reset-filters-btn {
     background: var(--surface);
     border-color: color-mix(in srgb, var(--danger) 30%, var(--surface));
-    color: var(--color-danger);
+    color: var(--danger-text);
 }
 
 .reset-filters-btn:hover:not(:disabled) {
     background: var(--danger);
     border-color: var(--danger);
-    color: var(--surface);
+    color: var(--fill-text);
 }
 
 /* Дропдаун тегов (десктоп) */
@@ -2604,13 +2604,13 @@ export default {
 
 .filter-btn:hover {
     background: var(--color-bg);
-    border-color: var(--color-primary);
-    color: var(--color-primary);
+    border-color: var(--accent);
+    color: var(--accent-text);
 }
 
 .filter-btn--active {
-    border-color: var(--color-primary);
-    color: var(--color-primary);
+    border-color: var(--accent);
+    color: var(--accent-text);
 }
 
 .filter-btn__icon {
@@ -2680,7 +2680,7 @@ export default {
 }
 
 .field:focus-within {
-    border-color: var(--color-primary);
+    border-color: var(--accent);
     box-shadow: var(--shadow-focus);
 }
 
@@ -3145,7 +3145,7 @@ export default {
    вместо "Заявок нет" показываем причину + retry. */
 .list-error-state {
     text-align: center;
-    color: var(--color-danger);
+    color: var(--danger-text);
     padding: 40px 20px;
     margin: 0;
     font-size: 14px;
@@ -3167,7 +3167,7 @@ export default {
     display: flex;
     align-items: center;
     gap: 10px;
-    color: var(--color-danger);
+    color: var(--danger-text);
     font-size: 13px;
 }
 
@@ -3702,7 +3702,7 @@ export default {
        обычным серым как у прочитанных. Специфичность 0,4,0 бьёт базовый цвет даты
        (0,2,0 ниже), не полагаясь на порядок источника. */
     .application-item.unread .application-col.date-col {
-        color: var(--color-primary);
+        color: var(--accent-text);
         font-weight: 600;
         font-size: 13px;
     }
@@ -3962,7 +3962,7 @@ export default {
 }
 
 .sound-icon-btn--active {
-    color: var(--color-primary);
+    color: var(--accent-text);
 }
 
 .sound-icon-btn--active:hover {
@@ -4066,7 +4066,7 @@ export default {
 
 .sound-volume {
     width: 100%;
-    accent-color: var(--color-primary);
+    accent-color: var(--accent-text);
     cursor: pointer;
     height: 4px;
     border-radius: 4px;

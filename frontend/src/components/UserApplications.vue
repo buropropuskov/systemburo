@@ -1733,7 +1733,7 @@ export default {
    вместо "Заявок нет" показываем причину + retry. */
 .list-error-state {
   text-align: center;
-  color: var(--color-danger);
+  color: var(--danger-text);
   padding: 40px 20px;
   margin: 0;
   font-size: 14px;
@@ -1755,7 +1755,7 @@ export default {
   display: flex;
   align-items: center;
   gap: 10px;
-  color: var(--color-danger);
+  color: var(--danger-text);
   font-size: 13px;
 }
 

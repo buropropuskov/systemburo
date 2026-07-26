@@ -1426,9 +1426,9 @@ onUnmounted(() => {
 }
 
 @keyframes live-pulse {
-  0%   { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.55); }
-  70%  { box-shadow: 0 0 0 8px rgba(40, 167, 69, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--success) 55%, transparent); }
+  70%  { box-shadow: 0 0 0 8px color-mix(in srgb, var(--success) 0%, transparent); }
+  100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--success) 0%, transparent); }
 }
 
 .dashboard__feed-list {
