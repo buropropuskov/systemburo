@@ -49,6 +49,10 @@ export const useThemeStore = defineStore('theme', () => {
    * не переедет) и НЕ откатываем выбор - переключение уже видно на экране.
    *
    * Заливку намеренно не ждём: запрос в профиль уходит параллельно анимации.
+   * Поэтому и сохраняем ЯВНЫЙ id, а не `current.value`: с заливкой тему ставит
+   * коллбэк View Transitions, который браузер зовёт после снятия кадра, и на
+   * момент запроса в `current` лежала бы ещё прошлая тема (id уже проверен
+   * `isValidTheme`, так что `applyTheme` его не переписывает).
    *
    * @param {string} id
    * @param {{x: number, y: number}|null} [origin] точка нажатия по пункту темы
@@ -58,7 +62,7 @@ export const useThemeStore = defineStore('theme', () => {
     choiceSeq += 1
     applyLocal(id, origin)
     try {
-      await saveTheme(current.value)
+      await saveTheme(id)
     } catch (e) {
       useDeletionsStore().notify({
         type: 'error',
