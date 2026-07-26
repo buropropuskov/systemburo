@@ -2715,6 +2715,14 @@ export default {
 
     .create__form {
         width: 100%;
+        /* Форма - flex-элемент .create__container рядом с панелью бланков. Без
+           min-width:0 у неё дефолтный min-width:auto = ширина по min-content
+           содержимого (после поля организации #1451 min-content вырос до ~1162px),
+           поэтому на узком слоте (1440 -> ~1120px) форма не сжимается и уезжает
+           за правый край, давая горизонтальный скролл страницы (ломает fixed-меню).
+           min-width:0 позволяет ужаться до доступной ширины; содержимое (message-tc,
+           info-row) само сжимается/переносится. */
+        min-width: 0;
         height: fit-content;
         background-color: var(--surface);
         border: 1px solid var(--border);
