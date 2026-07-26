@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"io"
+	"log/slog"
 	"net/http"
 	"sort"
 	"strings"
@@ -33,6 +34,12 @@ type BlankContext struct {
 	// AttachmentUnloadPlaces - имена мест разгрузки вложения в порядке привязки. Для
 	// вложения-имущества это единственный источник мест: у ТМЦ своих машин нет (#706).
 	AttachmentUnloadPlaces []string
+	// Привязки элементов, по одной записи на строку списка (#1454): полные места
+	// разгрузки машины (car_unload_places), её посты «Проезд» (car_target_tables) и
+	// места прохода сотрудника (employee_target_tables).
+	CarUnloadPlaces      map[int][]string // car_id → имена мест
+	CarPassageTables     map[int][]string // car_id → имена постов
+	EmployeeTargetTables map[int][]string // employee_id → имена постов
 }
 
 // AttachmentBlankService - генерация заполненных .xlsx-бланков на основе
@@ -214,6 +221,10 @@ func (s *attachmentBlankService) buildContext(ctx context.Context, appID int, at
 		UniqueAttachment: att.UniqueAttachment,
 		Citizenships:     make(map[int]string),
 		CustomValues:     make(map[int]string),
+
+		CarUnloadPlaces:      make(map[int][]string),
+		CarPassageTables:     make(map[int][]string),
+		EmployeeTargetTables: make(map[int][]string),
 	}
 
 	var app models.Application
@@ -245,6 +256,44 @@ func (s *attachmentBlankService) buildContext(ctx context.Context, appID int, at
 	s.db.WithContext(ctx).Where("attachment_id = ?", att.ID).Order("id").Find(&bctx.Cars)
 	s.db.WithContext(ctx).Where("attachment_id = ?", att.ID).Order("id").Find(&bctx.Employees)
 	s.db.WithContext(ctx).Where("attachment_id = ?", att.ID).Order("id").Find(&bctx.Items)
+
+	// Привязки машин: места разгрузки и посты «Проезд» - по одному запросу на список,
+	// иначе на каждой строке бланка был бы отдельный поход в базу.
+	if len(bctx.Cars) > 0 {
+		carIDs := make([]int, 0, len(bctx.Cars))
+		for _, c := range bctx.Cars {
+			carIDs = append(carIDs, c.ID)
+		}
+		bctx.CarUnloadPlaces = groupNamesByOwner(ctx, s.db, `
+			SELECT cup.car_id AS owner_id, up.name
+			FROM car_unload_places cup
+			JOIN unload_places up ON cup.unload_place_id = up.id
+			WHERE cup.car_id IN ?
+			ORDER BY cup.order_index NULLS LAST, up.name
+		`, carIDs)
+		bctx.CarPassageTables = groupNamesByOwner(ctx, s.db, `
+			SELECT ctt.car_id AS owner_id, COALESCE(NULLIF(st.display_name, ''), st.name) AS name
+			FROM car_target_tables ctt
+			JOIN system_tables st ON ctt.table_id = st.id
+			WHERE ctt.car_id IN ?
+			ORDER BY ctt.order_index NULLS LAST, name
+		`, carIDs)
+	}
+
+	// Места прохода сотрудников - тем же запросом на весь список.
+	if len(bctx.Employees) > 0 {
+		empIDs := make([]int, 0, len(bctx.Employees))
+		for _, e := range bctx.Employees {
+			empIDs = append(empIDs, e.ID)
+		}
+		bctx.EmployeeTargetTables = groupNamesByOwner(ctx, s.db, `
+			SELECT ett.employee_id AS owner_id, COALESCE(NULLIF(st.display_name, ''), st.name) AS name
+			FROM employee_target_tables ett
+			JOIN system_tables st ON ett.table_id = st.id
+			WHERE ett.employee_id IN ?
+			ORDER BY ett.order_index NULLS LAST, name
+		`, empIDs)
+	}
 
 	// Citizenships для employees.
 	if len(bctx.Employees) > 0 {
@@ -281,6 +330,27 @@ func (s *attachmentBlankService) buildContext(ctx context.Context, appID int, at
 	}
 
 	return bctx, nil
+}
+
+// groupNamesByOwner выполняет запрос вида (owner_id, name) и раскладывает имена по
+// владельцу с сохранением порядка сортировки запроса.
+func groupNamesByOwner(ctx context.Context, db *gorm.DB, query string, ids []int) map[int][]string {
+	out := make(map[int][]string, len(ids))
+	if len(ids) == 0 {
+		return out
+	}
+	var rows []struct {
+		OwnerID int    `gorm:"column:owner_id"`
+		Name    string `gorm:"column:name"`
+	}
+	if err := db.WithContext(ctx).Raw(query, ids).Scan(&rows).Error; err != nil {
+		slog.Error("не удалось загрузить привязки для бланка", "error", err)
+		return out
+	}
+	for _, r := range rows {
+		out[r.OwnerID] = append(out[r.OwnerID], r.Name)
+	}
+	return out
 }
 
 // resolveApproverName определяет ФИО согласовавшего заявку:

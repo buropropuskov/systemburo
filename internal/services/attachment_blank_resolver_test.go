@@ -100,3 +100,41 @@ func TestBuiltinTemplateFields_CoversNewAttachmentPaths(t *testing.T) {
 		require.True(t, IsValidFieldPath(path), "путь %s должен быть в словаре", path)
 	}
 }
+
+// Привязки элементов (#1454): полный список мест разгрузки машины вместо
+// собранной формой строки "Первое и др.", посты «Проезд» и места прохода.
+func TestResolveValue_ItemBindings(t *testing.T) {
+	strPtr := func(s string) *string { return &s }
+	bctx := &BlankContext{
+		Cars: []models.Car{{
+			ID:          7,
+			CarNumber:   strPtr("О 593 УЕ 325"),
+			UnloadPlace: strPtr("Ворота Черепашки и др."),
+		}},
+		Employees: []models.Employee{{ID: 11, LastName: strPtr("Иванов")}},
+		CarUnloadPlaces: map[int][]string{
+			7: {"Ворота Черепашки", "Склад 4"},
+		},
+		CarPassageTables: map[int][]string{
+			7: {"ПОСТ №72 (АВТО)"},
+		},
+		EmployeeTargetTables: map[int][]string{
+			11: {"ПОСТ №1", "ПОСТ №3"},
+		},
+	}
+
+	require.Equal(t, "Ворота Черепашки и др.", resolveValue(bctx, "car.unload_place", 0))
+	require.Equal(t, "Ворота Черепашки, Склад 4", resolveValue(bctx, "car.unload_places", 0))
+	require.Equal(t, "ПОСТ №72 (АВТО)", resolveValue(bctx, "car.passage_tables", 0))
+	require.Equal(t, "ПОСТ №1, ПОСТ №3", resolveValue(bctx, "employee.target_tables", 0))
+
+	// Элемент без привязок отдаёт пустую строку, а не панику по отсутствующему ключу.
+	bctx.Cars = append(bctx.Cars, models.Car{ID: 8})
+	require.Empty(t, resolveValue(bctx, "car.unload_places", 1))
+}
+
+func TestBuiltinTemplateFields_CoversItemBindings(t *testing.T) {
+	for _, path := range []string{"car.unload_places", "car.passage_tables", "employee.target_tables"} {
+		require.True(t, IsValidFieldPath(path), "путь %s должен быть в словаре", path)
+	}
+}

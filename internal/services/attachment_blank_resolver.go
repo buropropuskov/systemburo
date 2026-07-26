@@ -25,7 +25,7 @@ func resolveValue(bctx *BlankContext, path string, rowIdx int) string {
 		if rowIdx >= len(bctx.Cars) {
 			return ""
 		}
-		return resolveCar(&bctx.Cars[rowIdx], path, rowIdx)
+		return resolveCar(bctx, &bctx.Cars[rowIdx], path, rowIdx)
 	case strings.HasPrefix(path, "employee."):
 		if rowIdx >= len(bctx.Employees) {
 			return ""
@@ -178,7 +178,7 @@ func yesNo(v bool) string {
 	return "Нет"
 }
 
-func resolveCar(c *models.Car, path string, rowIdx int) string {
+func resolveCar(bctx *BlankContext, c *models.Car, path string, rowIdx int) string {
 	switch path {
 	case "car.row_number":
 		return strconv.Itoa(rowIdx + 1)
@@ -190,7 +190,13 @@ func resolveCar(c *models.Car, path string, rowIdx int) string {
 		}
 		return derefStr(c.CarBrand)
 	case "car.unload_place":
+		// Строка, собранная формой подачи: при нескольких местах это "Первое и др.".
+		// Полный перечень - в car.unload_places ниже (#1454).
 		return derefStr(c.UnloadPlace)
+	case "car.unload_places":
+		return strings.Join(bctx.CarUnloadPlaces[c.ID], ", ")
+	case "car.passage_tables":
+		return strings.Join(bctx.CarPassageTables[c.ID], ", ")
 	case "car.entry_date_from":
 		return formatDate(derefStr(c.EntryDateFrom))
 	case "car.entry_date_to":
@@ -227,6 +233,8 @@ func resolveEmployee(bctx *BlankContext, e *models.Employee, path string, rowIdx
 		return derefStr(e.PatentNumber)
 	case "employee.other_permission":
 		return derefStr(e.OtherPermission)
+	case "employee.target_tables":
+		return strings.Join(bctx.EmployeeTargetTables[e.ID], ", ")
 	}
 	return ""
 }

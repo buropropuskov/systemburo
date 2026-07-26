@@ -71,7 +71,9 @@ func BuiltinTemplateFields() []TemplateFieldGroup {
 				{Path: "car.row_number", Label: "Порядковый номер", IsList: true},
 				{Path: "car.car_number", Label: "Номер ТС", IsList: true},
 				{Path: "car.mark_name", Label: "Марка", IsList: true},
-				{Path: "car.unload_place", Label: "Место разгрузки", IsList: true},
+				{Path: "car.unload_place", Label: "Место разгрузки (кратко)", IsList: true},
+				{Path: "car.unload_places", Label: "Места разгрузки (все)", IsList: true},
+				{Path: "car.passage_tables", Label: "Проезд (посты)", IsList: true},
 				{Path: "car.entry_date_from", Label: "Дата с", IsList: true},
 				{Path: "car.entry_date_to", Label: "Дата по", IsList: true},
 				{Path: "car.entry_time_from", Label: "Время с", IsList: true},
@@ -92,6 +94,7 @@ func BuiltinTemplateFields() []TemplateFieldGroup {
 				{Path: "employee.passport_series_number", Label: "Серия и номер паспорта", IsList: true},
 				{Path: "employee.patent_number", Label: "Номер патента", IsList: true},
 				{Path: "employee.other_permission", Label: "Иное разрешение на работы", IsList: true},
+				{Path: "employee.target_tables", Label: "Места прохода", IsList: true},
 			},
 		},
 		{

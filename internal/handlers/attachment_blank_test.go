@@ -386,3 +386,84 @@ func TestBlankGenerate_AttachmentUnloadPlaces(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, display, title)
 }
+
+// Полный список мест разгрузки машины в бланке (#1454). Форма подачи кладёт в
+// cars.unload_place строку "Первое место и др.", поэтому раньше в бланке видно
+// было только первое место.
+func TestBlankGenerate_CarBindings(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	t.Cleanup(cleanup)
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	userTypeID := secUserTypeIDByCode(t, db, "user")
+	sender := models.User{Username: "blankcarsender", Password: "x", TypeID: userTypeID, OrganizationID: secPtrInt(td.OrgID)}
+	require.NoError(t, db.Create(&sender).Error)
+
+	name := "cars_blank"
+	ua := models.UniqueAttachment{AttachmentType: "cars", Name: &name, IsActive: true}
+	require.NoError(t, db.Create(&ua).Error)
+
+	f := excelize.NewFile()
+	defer func() { require.NoError(t, f.Close()) }()
+	path := filepath.Join(t.TempDir(), "cars.xlsx")
+	require.NoError(t, f.SaveAs(path))
+
+	tpl := models.AttachmentTemplate{
+		UniqueAttachmentID: ua.ID, IsActive: true, FilePath: path,
+		OriginalFileName: "cars.xlsx", ListStartRow: 19, ListEndRow: 24, MaxListRows: 6,
+	}
+	require.NoError(t, db.Create(&tpl).Error)
+	require.NoError(t, db.Create(&[]models.AttachmentTemplateMapping{
+		{TemplateID: tpl.ID, CellRef: "B19", FieldPath: "car.car_number", IsListField: true},
+		{TemplateID: tpl.ID, CellRef: "G19", FieldPath: "car.unload_place", IsListField: true},
+		{TemplateID: tpl.ID, CellRef: "H19", FieldPath: "car.unload_places", IsListField: true},
+		{TemplateID: tpl.ID, CellRef: "I19", FieldPath: "car.passage_tables", IsListField: true},
+	}).Error)
+
+	now := time.Now()
+	conf, status := "Согласовано", models.StatusInWork
+	app := models.Application{
+		OrganizationID: td.OrgID, SenderUserID: sender.ID,
+		Confirmation: &conf, Status: &status, SendingDatetime: &now,
+	}
+	require.NoError(t, db.Create(&app).Error)
+	att := models.Attachment{ApplicationID: &app.ID, AttachmentType: "cars", UniqueAttachmentID: &ua.ID}
+	require.NoError(t, db.Create(&att).Error)
+
+	number, short := "О 593 УЕ 325", "Ворота Черепашки и др."
+	car := models.Car{AttachmentID: att.ID, CarNumber: &number, UnloadPlace: &short}
+	require.NoError(t, db.Create(&car).Error)
+
+	first := models.UnloadPlace{Name: "Ворота Черепашки", IsActive: true}
+	second := models.UnloadPlace{Name: "Склад 4", IsActive: true}
+	require.NoError(t, db.Create(&first).Error)
+	require.NoError(t, db.Create(&second).Error)
+	one, two := 1, 2
+	require.NoError(t, db.Create(&models.CarUnloadPlace{CarID: car.ID, UnloadPlaceID: first.ID, OrderIndex: &one}).Error)
+	require.NoError(t, db.Create(&models.CarUnloadPlace{CarID: car.ID, UnloadPlaceID: second.ID, OrderIndex: &two}).Error)
+
+	post := models.SystemTable{Name: "post-72", TableType: "cars", IsActive: true}
+	require.NoError(t, db.Create(&post).Error)
+	require.NoError(t, db.Create(&models.CarTargetTable{CarID: car.ID, TableID: post.ID, OrderIndex: &one}).Error)
+
+	reader, _, err := services.NewAttachmentBlankService(db).
+		GenerateBlank(context.Background(), app.ID, att.ID)
+	require.NoError(t, err)
+	out, err := excelize.OpenReader(reader)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, out.Close()) }()
+	sheet := out.GetSheetName(0)
+
+	gotShort, err := out.GetCellValue(sheet, "G19")
+	require.NoError(t, err)
+	require.Equal(t, short, gotShort, "старое поле остаётся как было")
+
+	gotFull, err := out.GetCellValue(sheet, "H19")
+	require.NoError(t, err)
+	require.Equal(t, "Ворота Черепашки, Склад 4", gotFull, "новое поле показывает все места")
+
+	gotPost, err := out.GetCellValue(sheet, "I19")
+	require.NoError(t, err)
+	require.Equal(t, "post-72", gotPost)
+}
