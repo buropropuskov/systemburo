@@ -1,8 +1,5 @@
 <template>
-  <div
-    class="ds-field"
-    :class="{ 'ds-field--readonly': !editable }"
-  >
+  <div class="ds-field">
     <label class="input__label">
       {{ label }}
       <span
@@ -238,7 +235,7 @@ export default {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 15px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 3px 10px var(--shadow-drop);
     max-height: 200px;
     overflow-y: auto;
 }

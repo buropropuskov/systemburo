@@ -53,6 +53,27 @@ describe('UserInfoRow - гейт ручного ввода справочник�
     expect(w.get('[data-testid="create-organization"]').attributes('readonly')).toBeUndefined();
     expect(w.get('[data-testid="create-company"]').attributes('readonly')).toBeUndefined();
   });
+
+  // Замок на цепочку событий целиком: подсказка -> DirectorySuggestInput -> UserInfoRow ->
+  // CreateApplication. Прямой вызов applyOrganizationChoice в тесте ниже опечатку в имени
+  // события в шаблоне не поймает, а без неё выбор подсказки не доедет до id заявки.
+  it('выбор подсказки доходит наверх реальным событием', async () => {
+    const { suggestOrganizations } = await import('@/api/directory');
+    const item = { id: 42, name: 'ООО "Максима Групп"' };
+    suggestOrganizations.mockResolvedValueOnce([item]);
+
+    const w = mountRow(true);
+    const input = w.get('[data-testid="create-organization"]');
+    input.element.value = 'максима';
+    await input.trigger('input');
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await flushPromises();
+
+    await w.get('[data-testid="create-organization-option"]').trigger('mousedown');
+
+    expect(w.emitted('select-organization').at(-1)).toEqual([item]);
+    expect(w.emitted('update:organization').at(-1)).toEqual([item.name]);
+  });
 });
 
 describe('CreateApplication - организация и компания в подаче (#1437)', () => {
