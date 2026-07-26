@@ -107,8 +107,10 @@ func (s *attachmentBlankService) GenerateBlank(ctx context.Context, applicationI
 		}
 		cellValues[m.CellRef] = append(cellValues[m.CellRef], val)
 	}
+	// Разделитель совмещённых полей: nil - настройки нет, берём запятую с пробелом;
+	// заданная пустая строка - осознанный выбор "склеивать без разделителя" (#1454).
 	sep := ", "
-	if template.ConcatSeparator != nil && *template.ConcatSeparator != "" {
+	if template.ConcatSeparator != nil {
 		sep = *template.ConcatSeparator
 	}
 	for _, ref := range cellOrder {
