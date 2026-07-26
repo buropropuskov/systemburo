@@ -123,13 +123,16 @@ func (s *attachmentBlankService) GenerateBlank(ctx context.Context, applicationI
 	if template.ConcatSeparator != nil {
 		sep = *template.ConcatSeparator
 	}
+	staticCells := make(map[string]string, len(cellOrder))
 	for _, ref := range cellOrder {
-		_ = f.SetCellValue(sheet, ref, strings.Join(cellValues[ref], sep))
+		joined := strings.Join(cellValues[ref], sep)
+		_ = f.SetCellValue(sheet, ref, joined)
+		staticCells[ref] = joined
 	}
 
 	// 5. List-fields с авторасширением.
 	if len(listMappings) > 0 {
-		s.fillListSection(f, sheet, &template, listMappings, bctx)
+		s.fillListSection(f, sheet, &template, listMappings, staticCells, bctx)
 	}
 
 	// 6. Записать в buffer.
@@ -159,9 +162,38 @@ func listSource(bctx *BlankContext) (string, int) {
 	return "", 0
 }
 
+// repeatedCell - значение, которое повторяется в каждой строке списка: колонка и уже
+// собранная строка (со склейкой совмещённых полей).
+type repeatedCell struct {
+	col   int
+	value string
+}
+
+// repeatedListCells отбирает из обычных (не списочных) ячеек те, что админ поставил
+// внутрь строк списка. Такое поле относится ко всей заявке - организация, компания,
+// период, - и в разметке бланка живёт колонкой таблицы, поэтому его значение должно
+// стоять в каждой строке, а не только в первой.
+func repeatedListCells(t *models.AttachmentTemplate, staticCells map[string]string) []repeatedCell {
+	if t.ListStartRow < 1 || t.ListEndRow < t.ListStartRow {
+		return nil
+	}
+	out := make([]repeatedCell, 0, len(staticCells))
+	for ref, val := range staticCells {
+		col, row, err := excelize.CellNameToCoordinates(ref)
+		if err != nil || row < t.ListStartRow || row > t.ListEndRow {
+			continue
+		}
+		out = append(out, repeatedCell{col: col, value: val})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].col < out[j].col })
+	return out
+}
+
 // fillListSection заполняет строки списка (cars/employees/items), при необходимости
 // расширяя шаблон через InsertRows + копирование стилей последней шаблонной строки.
-func (s *attachmentBlankService) fillListSection(f *excelize.File, sheet string, t *models.AttachmentTemplate, mappings []models.AttachmentTemplateMapping, bctx *BlankContext) {
+// staticCells - уже записанные значения обычных полей: те из них, что попали в строки
+// списка, повторяются по строкам вместе со списочными.
+func (s *attachmentBlankService) fillListSection(f *excelize.File, sheet string, t *models.AttachmentTemplate, mappings []models.AttachmentTemplateMapping, staticCells map[string]string, bctx *BlankContext) {
 	// Список задаёт тип вложения, а не порядок привязок (#1454): у items-вложения нет
 	// машин, и привязка car.* не должна отменять заполнение ТМЦ. Раньше тип брался по
 	// первому list-маппингу, из-за чего боевой бланк "Заявка на ввоз" с привязками к
@@ -204,6 +236,8 @@ func (s *attachmentBlankService) fillListSection(f *excelize.File, sheet string,
 		return ci < cj
 	})
 
+	repeated := repeatedListCells(t, staticCells)
+
 	for idx := 0; idx < count; idx++ {
 		row := t.ListStartRow + idx
 		for _, m := range mappings {
@@ -216,6 +250,16 @@ func (s *attachmentBlankService) fillListSection(f *excelize.File, sheet string,
 			if val != "" {
 				_ = f.SetCellValue(sheet, cell, val)
 			}
+		}
+		for _, r := range repeated {
+			if r.value == "" {
+				continue
+			}
+			cell, err := excelize.CoordinatesToCellName(r.col, row)
+			if err != nil {
+				continue
+			}
+			_ = f.SetCellValue(sheet, cell, r.value)
 		}
 	}
 }

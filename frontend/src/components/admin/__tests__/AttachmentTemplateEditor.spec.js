@@ -99,6 +99,38 @@ describe('AttachmentTemplateEditor', () => {
     expect(wrapper.text()).not.toContain('другой группы полей');
   });
 
+  it('помечает поле заявки, попавшее в строки списка', async () => {
+    getTemplate.mockResolvedValue({
+      ...TEMPLATE,
+      mappings: [
+        { cell_ref: 'B30', field_path: 'item.name', is_list_field: true },
+        { cell_ref: 'F30', field_path: 'application.organization', is_list_field: false },
+        { cell_ref: 'F5', field_path: 'application.organization', is_list_field: false },
+      ],
+    });
+    const wrapper = await mountEditor({ attachmentType: 'items' });
+
+    const note = wrapper.find('[data-testid="template-repeat-note"]');
+    expect(note.exists()).toBe(true);
+    // в списке только F30, шапочная F5 туда попадать не должна
+    expect(note.text()).toContain('F30');
+    expect(note.text()).not.toContain('F5');
+    expect(wrapper.findAll('.te-list-badge--repeat')).toHaveLength(1);
+  });
+
+  it('не помечает поля заявки вне строк списка', async () => {
+    getTemplate.mockResolvedValue({
+      ...TEMPLATE,
+      mappings: [
+        { cell_ref: 'B30', field_path: 'item.name', is_list_field: true },
+        { cell_ref: 'F5', field_path: 'application.organization', is_list_field: false },
+      ],
+    });
+    const wrapper = await mountEditor({ attachmentType: 'items' });
+    expect(wrapper.find('[data-testid="template-repeat-note"]').exists()).toBe(false);
+    expect(wrapper.findAll('.te-list-badge--repeat')).toHaveLength(0);
+  });
+
   it('сохраняет границы списка без перезагрузки файла', async () => {
     const wrapper = await mountEditor();
     const save = wrapper.find('[data-testid="template-params-save"]');
