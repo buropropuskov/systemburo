@@ -1,39 +1,34 @@
 <template>
   <div class="user-info-row">
     <div class="user__input">
-      <label class="input__label">Организация / Отдел</label>
-      <input
-        class="input"
+      <DirectorySuggestInput
+        :model-value="organization"
+        label="Организация / Отдел"
         placeholder="Введите организацию"
-        :value="organization"
-        :class="{ 'input--error': errors.organization }"
-        @input="$emit('update:organization', $event.target.value)"
-        @blur="$emit('validate-field', 'organization')"
-      >
-      <span class="input__hint">Заполните организацию или компанию</span>
-      <div
-        v-if="errors.organization"
-        class="error-message"
-      >
-        {{ errors.organization }}
-      </div>
+        :hint="canOverrideDirectory ? 'Заполните организацию или компанию' : 'Организация из вашего профиля'"
+        :error="errors.organization"
+        :editable="canOverrideDirectory"
+        :fetcher="suggestOrganizations"
+        testid="create-organization"
+        @update:model-value="$emit('update:organization', $event)"
+        @select="$emit('select-organization', $event)"
+        @validate="$emit('validate-field', 'organization')"
+      />
     </div>
     <div class="user__input">
-      <label class="input__label">Компания</label>
-      <input 
-        class="input" 
-        placeholder="Введите компанию" 
-        :value="company"
-        :class="{ 'input--error': errors.company }"
-        @input="$emit('update:company', $event.target.value)"
-        @blur="$emit('validate-field', 'company')"
-      >
-      <div
-        v-if="errors.company"
-        class="error-message"
-      >
-        {{ errors.company }}
-      </div>
+      <DirectorySuggestInput
+        :model-value="company"
+        label="Компания"
+        placeholder="Введите компанию"
+        :hint="canOverrideDirectory ? '' : 'Компания из вашего профиля'"
+        :error="errors.company"
+        :editable="canOverrideDirectory"
+        :fetcher="suggestCompanies"
+        testid="create-company"
+        @update:model-value="$emit('update:company', $event)"
+        @select="$emit('select-company', $event)"
+        @validate="$emit('validate-field', 'company')"
+      />
     </div>
     <div class="user__input">
       <label class="input__label">Инициатор заявки <span class="required">*</span></label>
@@ -76,26 +71,37 @@
 
 <script>
 import { formatPhoneNumberImmediately } from '@/composables/usePhoneFormat'
+import { suggestCompanies, suggestOrganizations } from '@/api/directory'
+import DirectorySuggestInput from './DirectorySuggestInput.vue'
 
 export default {
     name: 'UserInfoRow',
+    components: { DirectorySuggestInput },
     props: {
         organization: { type: String, default: null },
         company: { type: String, default: null },
         responsiblePerson: { type: String, default: null },
         phoneNumber: { type: String, default: null },
-        errors: { type: Object, default: () => ({}) }
+        errors: { type: Object, default: () => ({}) },
+        // Право application.organization.override: без него организация и компания
+        // заявки берутся из профиля и правке не подлежат (#1437).
+        canOverrideDirectory: { type: Boolean, default: false }
     },
     emits: [
         'update:organization',
         'update:company',
         'update:responsible-person',
         'update:phone-number',
+        'select-organization',
+        'select-company',
         'validate-field',
         'format-phone',
         'clear-phone'
     ],
     methods: {
+        suggestOrganizations,
+        suggestCompanies,
+
         handlePhoneInput(event) {
             // Живое форматирование: не больше 11 цифр, маска +7 (XXX) XXX-XX-XX.
             const digits = event.target.value.replace(/\D/g, '').slice(0, 11);

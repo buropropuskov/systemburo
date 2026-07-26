@@ -165,10 +165,13 @@
           :responsible-person="responsiblePerson"
           :phone-number="phoneNumber"
           :errors="errors"
+          :can-override-directory="canOverrideDirectory"
           @update:organization="organization = $event"
           @update:company="company = $event"
           @update:responsible-person="responsiblePerson = $event"
           @update:phone-number="phoneNumber = $event"
+          @select-organization="applyOrganizationChoice($event)"
+          @select-company="applyCompanyChoice($event)"
           @validate-field="validateField"
           @format-phone="handleFormatPhoneNumber"
           @clear-phone="handleClearPhoneFormat"
@@ -363,6 +366,7 @@
 import { apiRequest } from '@/api/client'
 import { mapWithConcurrency } from '@/utils/mapWithConcurrency'
 import { useAuthStore } from '@/stores/auth'
+import { usePermissionsStore } from '@/stores/permissions'
 import { useDeletionsStore } from '@/stores/deletions'
 import { formatPhoneNumberImmediately, formatPhoneNumber, clearPhoneFormat } from '@/composables/usePhoneFormat'
 import BlankSelector from '../BlankSelector.vue';
@@ -478,8 +482,6 @@ export default {
             showBindingModal: false,
             newVehiclesToBind: [],
             newEmployeesToBind: [],
-            hasOrganization: false,
-            hasCompany: false,
             
             currentApplicationData: {},
 
@@ -500,6 +502,24 @@ export default {
         }
     },
     computed: {
+        // Право application.organization.override (#1437): открывает ручной ввод
+        // организации и компании и подсказки по справочнику. Без него поля показывают
+        // запись из профиля, а сервер всё равно привяжет заявку к ней.
+        canOverrideDirectory() {
+            return usePermissionsStore().hasPermission('application.organization.override');
+        },
+
+        // Привязка машин и сотрудников к организации возможна, только когда организация
+        // заявки есть в справочнике: у введённой руками новой записи id появится лишь
+        // после подачи, привязывать не к чему.
+        hasOrganization() {
+            return !!this.organizationId;
+        },
+
+        hasCompany() {
+            return !!this.companyId;
+        },
+
         currentFormTitle() {
             if (this.selectedAttachment) {
                 return this.selectedAttachment.display_name;
@@ -1165,9 +1185,6 @@ export default {
                     this.organizationId = userData.organization_id || null;
                     this.companyId = userData.company_id || null;
                     
-                    this.hasOrganization = !!this.organizationId;
-                    this.hasCompany = !!this.companyId;
-
                     this.loadDefaultApprovers();
 
                     const lastName = userData.last_name || '';
@@ -1725,6 +1742,17 @@ export default {
             }
         },
 
+        // Выбор подсказки связывает поле с записью справочника, ручная правка связь рвёт
+        // (компонент шлёт null). Без id подача уходит наименованием, и сервер сам решает:
+        // найдёт по ключу дедупликации - привяжет, не найдёт - заведёт запись на проверке.
+        applyOrganizationChoice(choice) {
+            this.organizationId = choice ? choice.id : null;
+        },
+
+        applyCompanyChoice(choice) {
+            this.companyId = choice ? choice.id : null;
+        },
+
         validateField(field) {
             let phoneRegex;
 
@@ -2051,8 +2079,13 @@ export default {
 
             const applicationData = {
                 message: this.message || null,
-                organization: this.organization,
-                company: this.company || null,
+                // Контракт подачи #1437: id, когда поле связано с записью справочника
+                // (профиль или выбранная подсказка), наименование - когда введено руками.
+                // Заполнять оба не нужно: при заданном id наименование не смотрится.
+                organization_id: this.organizationId || null,
+                organization_name: this.organizationId ? null : (this.organization || null),
+                company_id: this.companyId || null,
+                company_name: this.companyId ? null : (this.company || null),
                 responsible_person: this.responsiblePerson,
                 contact_phone: this.phoneNumber.replace(/\D/g, ''),
                 data_approval: this.consentGiven,
@@ -2354,6 +2387,11 @@ export default {
                     message: this.message,
                     organization: this.organization,
                     company: this.company,
+                    // id идут в черновик рядом с наименованиями, чтобы пара не разъехалась
+                    // при восстановлении: текст чужой организации с id профиля отправил бы
+                    // заявку не от той записи.
+                    organizationId: this.organizationId,
+                    companyId: this.companyId,
                     responsiblePerson: this.responsiblePerson,
                     phoneNumber: this.phoneNumber,
                     rawPhoneNumber: this.rawPhoneNumber,
@@ -2397,6 +2435,10 @@ export default {
                     this.message = parsedData.message || '';
                     this.organization = parsedData.organization || '';
                     this.company = parsedData.company || '';
+                    // Черновики, сохранённые до #1437, id не несут: у них поле было
+                    // нередактируемым, поэтому наименование отвечает записи профиля.
+                    if ('organizationId' in parsedData) this.organizationId = parsedData.organizationId || null;
+                    if ('companyId' in parsedData) this.companyId = parsedData.companyId || null;
                     this.responsiblePerson = parsedData.responsiblePerson || '';
                     this.phoneNumber = parsedData.phoneNumber || '';
                     this.rawPhoneNumber = parsedData.rawPhoneNumber || '';
