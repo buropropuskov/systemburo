@@ -45,6 +45,8 @@ const applicationsListSelect = `
 		a.*,
 		COALESCE(o.name, c.name) as organization_name,
 		c.name as company_name,
+		o.moderation_status as organization_moderation_status,
+		c.moderation_status as company_moderation_status,
 		format_full_name(u.last_name, u.first_name, u.middle_name) as sender_full_name,
 		format_short_name(u.last_name, u.first_name, u.middle_name) as sender_name,
 		u.is_important as sender_is_important,
@@ -507,24 +509,29 @@ type ApplicationWithDetails struct {
 	OrganizationName     string     `json:"organization_name"`
 	CompanyID            *int       `json:"company_id"`
 	CompanyName          string     `json:"company_name"`
-	SenderUserID         int        `json:"sender_user_id"`
-	SenderFullName       *string    `json:"sender_full_name"`
-	SenderName           string     `json:"sender_name"`
-	SenderIsImportant    bool       `json:"sender_is_important"`
-	Message              *string    `json:"message"`
-	Status               string     `json:"status"`
-	ResponsibleUserID    *int       `json:"responsible_user_id"`
-	ResponsibleFullName  *string    `json:"responsible_full_name"`
-	ResponsibleName      string     `json:"responsible_name"`
-	ResponsibleComment   *string    `json:"responsible_comment"`
-	DataApproval         bool       `json:"data_approval"`
-	HasBlankTemplate     bool       `json:"has_blank_template"`
-	IsRead               bool       `json:"is_read"`
-	BlacklistFlagsCount  int        `json:"blacklist_flags_count"`
-	HasRoofAccess        bool       `json:"has_roof_access"`
-	HasFreeParking       bool       `json:"has_free_parking"`
-	HasUnseenQuestions   bool       `json:"has_unseen_questions"`
-	HasStatusUpdate      bool       `json:"has_status_update"`
+	// Статус разбора организации и компании заявки (#1437). nil - записи нет (заявка
+	// без компании), pending - наименование заведено подачей и ждёт разбора: по нему
+	// деталь заявки показывает плашку принимающему.
+	OrganizationModerationStatus *string `json:"organization_moderation_status"`
+	CompanyModerationStatus      *string `json:"company_moderation_status"`
+	SenderUserID                 int     `json:"sender_user_id"`
+	SenderFullName               *string `json:"sender_full_name"`
+	SenderName                   string  `json:"sender_name"`
+	SenderIsImportant            bool    `json:"sender_is_important"`
+	Message                      *string `json:"message"`
+	Status                       string  `json:"status"`
+	ResponsibleUserID            *int    `json:"responsible_user_id"`
+	ResponsibleFullName          *string `json:"responsible_full_name"`
+	ResponsibleName              string  `json:"responsible_name"`
+	ResponsibleComment           *string `json:"responsible_comment"`
+	DataApproval                 bool    `json:"data_approval"`
+	HasBlankTemplate             bool    `json:"has_blank_template"`
+	IsRead                       bool    `json:"is_read"`
+	BlacklistFlagsCount          int     `json:"blacklist_flags_count"`
+	HasRoofAccess                bool    `json:"has_roof_access"`
+	HasFreeParking               bool    `json:"has_free_parking"`
+	HasUnseenQuestions           bool    `json:"has_unseen_questions"`
+	HasStatusUpdate              bool    `json:"has_status_update"`
 }
 
 // ApplicationCreateResponse ответ при создании заявки.
@@ -1140,13 +1147,17 @@ func (s *applicationService) GetApplicationByID(ctx context.Context, username st
 func (s *applicationService) GetApplicationDetails(ctx context.Context, applicationID int) (map[string]interface{}, error) {
 	var row struct {
 		models.Application
-		OrganizationName    *string `gorm:"column:organization_name"`
-		CompanyName         *string `gorm:"column:company_name"`
-		SenderFullName      *string `gorm:"column:sender_full_name"`
-		SenderName          *string `gorm:"column:sender_name"`
-		SenderIsImportant   bool    `gorm:"column:sender_is_important"`
-		ResponsibleFullName *string `gorm:"column:responsible_full_name"`
-		ResponsibleName     *string `gorm:"column:responsible_name"`
+		OrganizationName *string `gorm:"column:organization_name"`
+		CompanyName      *string `gorm:"column:company_name"`
+		// Статусы разбора (#1437) - те же, что в листингах: деталь перечитывается по
+		// live-сигналу, и без них плашка разбора висела бы после чужого решения.
+		OrganizationModerationStatus *string `gorm:"column:organization_moderation_status"`
+		CompanyModerationStatus      *string `gorm:"column:company_moderation_status"`
+		SenderFullName               *string `gorm:"column:sender_full_name"`
+		SenderName                   *string `gorm:"column:sender_name"`
+		SenderIsImportant            bool    `gorm:"column:sender_is_important"`
+		ResponsibleFullName          *string `gorm:"column:responsible_full_name"`
+		ResponsibleName              *string `gorm:"column:responsible_name"`
 	}
 
 	result := s.db.WithContext(ctx).Table("applications a").
@@ -1154,6 +1165,8 @@ func (s *applicationService) GetApplicationDetails(ctx context.Context, applicat
 			a.*,
 			COALESCE(o.name, c.name) as organization_name,
 			c.name as company_name,
+			o.moderation_status as organization_moderation_status,
+			c.moderation_status as company_moderation_status,
 			format_full_name(u.last_name, u.first_name, u.middle_name) as sender_full_name,
 			format_short_name(u.last_name, u.first_name, u.middle_name) as sender_name,
 			u.is_important as sender_is_important,
@@ -1229,6 +1242,10 @@ func (s *applicationService) GetApplicationDetails(ctx context.Context, applicat
 		"responsible_comment":   row.ResponsibleComment,
 		"data_approval":         row.DataApproval,
 		"responsible_users":     responsibles,
+
+		// Статус разбора наименования (#1437): по нему деталь показывает плашку разбора.
+		"organization_moderation_status": row.OrganizationModerationStatus,
+		"company_moderation_status":      row.CompanyModerationStatus,
 
 		"has_unoverridden_blacklist_flags": blacklistBlocked,
 	}

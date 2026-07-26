@@ -2,6 +2,7 @@ data[]
 data[].application_number
 data[].blacklist_flags_count
 data[].company_id
+data[].company_moderation_status
 data[].company_name
 data[].confirmation
 data[].confirmation_datetime
@@ -15,6 +16,7 @@ data[].id
 data[].is_read
 data[].message
 data[].organization_id
+data[].organization_moderation_status
 data[].organization_name
 data[].reading_datetime
 data[].responsible_comment

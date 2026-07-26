@@ -294,6 +294,51 @@ func TestDirectoryModeration(t *testing.T) {
 		assert.Equal(t, models.ModerationApproved, approved.ModerationStatus)
 	})
 
+	// Плашка разбора в детали заявки (#1437 срез 7) держится на этих двух полях: без них
+	// фронт не отличает заведённое подачей наименование от обычного, а список выбора цели
+	// привязки предложил бы черновик, к которому привязывать запрещено.
+	t.Run("статус разбора виден в заявке и в справочнике", func(t *testing.T) {
+		draft := seedModerationOrg(t, db, `ООО "Из заявки"`, models.ModerationPending)
+		number, confirmation, status := "MODERATION-1", models.ConfirmationApproved, models.StatusInWork
+		app := models.Application{
+			ApplicationNumber: &number,
+			Confirmation:      &confirmation,
+			Status:            &status,
+			OrganizationID:    draft.ID,
+			SenderUserID:      moderator.ID,
+		}
+		require.NoError(t, db.Create(&app).Error)
+
+		rows := testutil.ParseSlice(t, testutil.GET(t, e, "/applications", testutil.AuthHeader(token)))
+		var found map[string]interface{}
+		for _, row := range rows {
+			if id, ok := row["id"].(float64); ok && int(id) == app.ID {
+				found = row
+			}
+		}
+		require.NotNil(t, found, "заявка отправителя видна ему в списке")
+		assert.Equal(t, models.ModerationPending, found["organization_moderation_status"])
+		// Компании у заявки нет - поле приходит пустым, а не статусом чужой записи.
+		assert.Nil(t, found["company_moderation_status"])
+
+		// Деталь перечитывается по live-сигналу и после действий - статус обязан приходить
+		// и здесь, иначе разбор, сделанный другим принимающим, не погасит плашку.
+		details := testutil.ParseResponse[map[string]interface{}](t, testutil.GET(t,
+			e, fmt.Sprintf("/applications/%d/details", app.ID), testutil.AuthHeader(token)))
+		assert.Equal(t, models.ModerationPending, details["organization_moderation_status"])
+		assert.Nil(t, details["company_moderation_status"])
+
+		directory := testutil.ParseSlice(t, testutil.GET(t, e, "/organizations", testutil.AuthHeader(token)))
+		statuses := map[int]interface{}{}
+		for _, row := range directory {
+			if id, ok := row["id"].(float64); ok {
+				statuses[int(id)] = row["moderation_status"]
+			}
+		}
+		assert.Equal(t, models.ModerationPending, statuses[draft.ID], "черновик помечен и отсеивается из целей привязки")
+		assert.Equal(t, models.ModerationApproved, statuses[td.OrgID])
+	})
+
 	// Список ссылок задан в коде руками: новая таблица с organization_id или company_id,
 	// не попавшая в него, после привязки оставит осиротевшие строки, а FK не даст удалить
 	// черновик - тест ловит это раньше, чем прод.
