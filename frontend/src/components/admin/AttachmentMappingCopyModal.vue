@@ -216,10 +216,12 @@ export default {
 </script>
 
 <style scoped>
+/* base-modal__body идёт без padding - отступы несёт содержимое (как у соседних окон). */
 .mc-body {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  padding: 14px 20px 18px;
 }
 
 .mc-target {

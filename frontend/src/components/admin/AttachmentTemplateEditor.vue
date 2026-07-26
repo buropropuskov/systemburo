@@ -1451,16 +1451,24 @@ export default {
 }
 
 /* ---- Layout ---- */
+/* min-width:0 - иначе окно (flex-элемент оверлея) распирается минимальной шириной
+   отрисованного листа и вылезает за свой max-width, а раскладка прыгает. */
 .te-modal-body {
   display: flex;
   position: relative;
+  min-width: 0;
   height: calc(var(--app-vh, 1vh) * 92 - 100px);
   min-height: 400px;
   overflow: hidden;
 }
 
+/* Место под предпросмотр резервируем долей окна: раньше панель тянулась по ширине
+   отрисованного листа, поэтому при загрузке и смене шаблона раскладка прыгала.
+   Лист шире доли - прокручивается внутри панели. */
 .te-preview-panel {
-  flex: 0 0 auto;
+  flex: 0 0 62%;
+  max-width: 62%;
+  min-width: 0;
   overflow: auto;
   border-right: 1px solid var(--color-border);
 }
@@ -2327,7 +2335,9 @@ export default {
   }
 
   .te-preview-panel {
-    max-height: 50vh;
+    flex: 0 0 auto;
+    max-width: 100%;
+    height: 50vh;
     border-right: none;
     border-bottom: 1px solid var(--color-border);
   }
@@ -2341,6 +2351,12 @@ export default {
 <style>
 .te-modal-rounded.base-modal {
   border-radius: 40px;
+  /* Ширина окна задаётся явно и не зависит от содержимого: иначе окно тянулось за
+     шириной отрисованного листа, и раскладка прыгала между загрузкой и готовым
+     предпросмотром. Лист шире - прокручивается внутри своей панели. */
+  flex: 0 0 auto;
+  width: 95vw;
+  min-width: 0;
 }
 
 @media (max-width: 768px) {
