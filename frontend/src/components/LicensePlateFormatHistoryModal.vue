@@ -1027,7 +1027,7 @@ export default {
   background: var(--border);
 }
 
-.dot-create { background: #4F5BDF; }
+.dot-create { background: var(--accent-text); }
 .dot-update { background: #f59e0b; }
 .dot-activate { background: #10b981; }
 .dot-deactivate { background: #6b7280; }

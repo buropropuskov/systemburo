@@ -142,7 +142,14 @@ export default {
 
 .modal-fade-enter-active,
 .modal-fade-leave-active {
-  transition: all 0.4s ease;
+  transition: background-color 0.3s ease;
+}
+
+/* Лист анимируется СВОИМ transition: то, что стоит на оверлее, до потомка не достаёт,
+   и fade+scale отыгрывался за один кадр (эталон - ConfirmationModal). */
+.modal-fade-enter-active .modal-content,
+.modal-fade-leave-active .modal-content {
+  transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
 .modal-fade-enter-from,
@@ -150,8 +157,10 @@ export default {
   /* Фейдим ТОЛЬКО затемнение подложки (background-color), не opacity оверлея - opacity
      каскадит на .modal-content и заставляет лист гаснуть вместе с подложкой (на мобилке
      тогда виден фейд поверх выезда снизу). Десктопный fade+scale самого листа остаётся
-     через .modal-content-правило ниже. */
-  background-color: var(--overlay);
+     через .modal-content-правило ниже.
+     Старт именно transparent, а не var(--overlay): токен - это КОНЕЧНЫЙ цвет подложки,
+     между двумя равными значениями браузеру нечего анимировать. */
+  background-color: transparent;
 }
 
 .modal-fade-enter-from .modal-content,

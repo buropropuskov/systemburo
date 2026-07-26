@@ -905,7 +905,7 @@ export default {
   background: var(--border);
 }
 
-.dot-create { background: #4F5BDF; }
+.dot-create { background: var(--accent-text); }
 .dot-deactivate { background: #6b7280; }
 .dot-update { background: #f59e0b; }
 .dot-default { background: #9ca3af; }

@@ -109,6 +109,42 @@ describe('utils/theme', () => {
     })
   })
 
+  // Нативные контролы (индикатор календаря у input[type=date], скроллбары, попап
+  // select) рисует браузер, и наши переменные ему не видны - их перекрашивает
+  // только color-scheme. Без него в тёмной теме иконка календаря оставалась
+  // чёрной на тёмном поле.
+  it('каждая тема объявляет color-scheme, тёмные - dark', () => {
+    const css = readFileSync(resolve(__dirname, '../../assets/tokens.css'), 'utf8')
+    const blocks = css.split(/:root(?:,\s*:root)?\[data-theme="/).slice(1)
+
+    blocks.forEach((block) => {
+      const id = block.slice(0, block.indexOf('"'))
+      const scheme = block.match(/color-scheme:\s*(\w+);/)
+      expect(scheme, `тема ${id} не объявила color-scheme`).not.toBeNull()
+      expect(scheme[1], `тема ${id}`).toBe(id.startsWith('dark') ? 'dark' : 'light')
+    })
+  })
+
+  // Карточка-подсказка в тёмных темах - утопленная панель в тон темы, не акцентная
+  // заливка: сплошной синий блок на тёмном фоне читался плохо.
+  it('в тёмных темах подсказка темнее поверхности карточки', () => {
+    const css = readFileSync(resolve(__dirname, '../../assets/tokens.css'), 'utf8')
+    const lum = (hex) => {
+      const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b
+    }
+    css.split(/:root(?:,\s*:root)?\[data-theme="/).slice(1)
+      .filter((block) => block.startsWith('dark'))
+      .forEach((block) => {
+        const id = block.slice(0, block.indexOf('"'))
+        const hint = block.match(/--hint-card-bg:\s*(#[0-9a-fA-F]{6});/)
+        const surface = block.match(/--surface:\s*(#[0-9a-fA-F]{6});/)
+        expect(hint, `${id}: подсказка должна быть своим цветом, не var(--accent)`).not.toBeNull()
+        expect(lum(hint[1]), `${id}: ${hint[1]} не темнее поверхности ${surface[1]}`)
+          .toBeLessThan(lum(surface[1]))
+      })
+  })
+
   // Смена темы должна ложиться одним кадром: у меню и таблицы свой transition на
   // цвет, и без гашения они доезжают вразнобой (#1415).
   it('гасит CSS-переходы на время смены и снимает класс после кадра', () => {

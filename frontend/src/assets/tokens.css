@@ -28,6 +28,7 @@
 :root,
 :root[data-theme="light"],
 [data-theme="light"] {
+  color-scheme: light;
   --hint-card-bg: var(--accent);
   --hint-card-text: var(--accent-contrast);
   --hint-card-border: transparent;
@@ -78,9 +79,14 @@
 /* --- Тёмная ----------------------------------------------------------------- */
 :root[data-theme="dark"],
 [data-theme="dark"] {
+  /* Нативные контролы (индикатор календаря у input[type=date], скроллбары,
+     выпадашка select) рисуются браузером и о наших переменных не знают -
+     их перекрашивает только color-scheme. Без него в тёмной теме иконка
+     календаря оставалась чёрной на тёмном поле. */
+  color-scheme: dark;
   /* Карточка-подсказка (таблицы «по факту»): в тёмных темах не синий блок,
      а тёмная карточка в тон темы с акцентной рамкой. */
-  --hint-card-bg: #28304a;
+  --hint-card-bg: #232833;
   --hint-card-text: var(--text);
   --hint-card-border: color-mix(in srgb, var(--accent) 45%, var(--surface));
   /* Спокойная графитовая. Прошлая тёмная набиралась тонами Tailwind-400
@@ -140,6 +146,7 @@
 /* --- Корпоративная оранжевая (по мотивам dreamisland.ru) --------------------- */
 :root[data-theme="corporate-orange"],
 [data-theme="corporate-orange"] {
+  color-scheme: light;
   --hint-card-bg: var(--accent);
   --hint-card-text: var(--accent-contrast);
   --hint-card-border: transparent;
@@ -191,6 +198,7 @@
 /* --- Деловая графитовая: сдержанная, без ярких акцентов ---------------------- */
 :root[data-theme="business-graphite"],
 [data-theme="business-graphite"] {
+  color-scheme: light;
   --hint-card-bg: var(--accent);
   --hint-card-text: var(--accent-contrast);
   --hint-card-border: transparent;
@@ -239,6 +247,7 @@
 /* --- Официальная синяя: гос-стиль -------------------------------------------- */
 :root[data-theme="official-blue"],
 [data-theme="official-blue"] {
+  color-scheme: light;
   --hint-card-bg: var(--accent);
   --hint-card-text: var(--accent-contrast);
   --hint-card-border: transparent;
@@ -287,9 +296,14 @@
 /* --- Тёмная оранжевая: корпоративная ночная ---------------------------------- */
 :root[data-theme="dark-orange"],
 [data-theme="dark-orange"] {
+  /* Нативные контролы (индикатор календаря у input[type=date], скроллбары,
+     выпадашка select) рисуются браузером и о наших переменных не знают -
+     их перекрашивает только color-scheme. Без него в тёмной теме иконка
+     календаря оставалась чёрной на тёмном поле. */
+  color-scheme: dark;
   /* Карточка-подсказка (таблицы «по факту»): в тёмных темах не синий блок,
      а тёмная карточка в тон темы с акцентной рамкой. */
-  --hint-card-bg: #332a20;
+  --hint-card-bg: #272119;
   --hint-card-text: var(--text);
   --hint-card-border: color-mix(in srgb, var(--accent) 45%, var(--surface));
   /* Тот же принцип, что у тёмной (приглушённые тёмные заливки + светлая

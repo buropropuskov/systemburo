@@ -2972,7 +2972,6 @@ export default {
         background-color: var(--surface);
         border: 1px solid var(--border);
         border-radius: 30px;
-        box-shadow: 0 3px 10px var(--shadow-drop);
         display: flex;
         align-items: center;
         justify-content: center;

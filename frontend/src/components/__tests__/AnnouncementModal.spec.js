@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mount } from '@vue/test-utils';
 import AnnouncementModal from '../AnnouncementModal.vue';
@@ -50,5 +52,33 @@ describe('AnnouncementModal - bottom-sheet close-пути (#1097 W3)', () => {
     overlay.dispatchEvent(new Event('click', { bubbles: true }));
     expect(wrapper.emitted('close')).toBeTruthy();
     wrapper.unmount();
+  });
+});
+
+/*
+ * Анимацию открытия jsdom не воспроизводит (нет layout и transition), поэтому
+ * замок читает сам CSS компонента. Оба правила уже терялись: перевод цветов на
+ * токены поставил в enter-from конечный цвет подложки (анимировать стало нечего),
+ * а transition оверлея до листа не достаёт - лист прыгал за один кадр.
+ */
+describe('AnnouncementModal - анимация открытия (#1415)', () => {
+  const css = readFileSync(resolve(__dirname, '../AnnouncementModal.vue'), 'utf8');
+
+  it('стартовое состояние подложки прозрачное, а не конечный цвет', () => {
+    const enterFrom = css.match(/\.modal-fade-enter-from,\s*\n\.modal-fade-leave-to\s*\{([\s\S]*?)\}/);
+    expect(enterFrom, 'нет правила стартового состояния перехода').not.toBeNull();
+    const bg = enterFrom[1].match(/background-color:\s*([^;]+);/);
+    expect(bg, 'старт должен задавать цвет подложки').not.toBeNull();
+    expect(bg[1].trim()).toBe('transparent');
+    expect(bg[1], 'var(--overlay) - это КОНЕЧНЫЙ цвет, фейда не будет').not.toContain('--overlay');
+  });
+
+  it('у листа собственный transition: с оверлея он не наследуется', () => {
+    const contentTransition = css.match(
+      /\.modal-fade-enter-active\s+\.modal-content,\s*\n\.modal-fade-leave-active\s+\.modal-content\s*\{([\s\S]*?)\}/,
+    );
+    expect(contentTransition, 'лист остался без своего transition - fade+scale за один кадр').not.toBeNull();
+    expect(contentTransition[1]).toMatch(/transition:[^;]*opacity/);
+    expect(contentTransition[1]).toMatch(/transition:[^;]*transform/);
   });
 });

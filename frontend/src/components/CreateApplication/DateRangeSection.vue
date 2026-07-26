@@ -196,7 +196,7 @@
                   >
                     <path
                       d="M15 18L9 12L15 6"
-                      stroke="#4F5BDF"
+                      stroke="currentColor"
                       stroke-width="2"
                       stroke-linecap="round"
                       stroke-linejoin="round"
@@ -217,7 +217,7 @@
                   >
                     <path
                       d="M9 18L15 12L9 6"
-                      stroke="#4F5BDF"
+                      stroke="currentColor"
                       stroke-width="2"
                       stroke-linecap="round"
                       stroke-linejoin="round"
@@ -1405,6 +1405,8 @@ export default {
 }
 
 .datepicker__nav {
+    /* Стрелки нарисованы currentColor. */
+    color: var(--accent-text);
     background: none;
     border: none;
     cursor: pointer;

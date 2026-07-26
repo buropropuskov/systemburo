@@ -1788,7 +1788,6 @@ export default {
     min-height: 0;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 3px 10px var(--shadow-drop);
 }
 
 .card-header {
@@ -1897,7 +1896,7 @@ export default {
 }
 
 .header-col:hover .sort-icon {
-    filter: brightness(0);
+    filter: var(--icon-ink-filter);
 }
 
 .sort-icon {
@@ -1907,7 +1906,7 @@ export default {
 }
 
 .sort-icon.sorted {
-    filter: brightness(0);
+    filter: var(--icon-ink-filter);
 }
 
 .sort-icon.desc {

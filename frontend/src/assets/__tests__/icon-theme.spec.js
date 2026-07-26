@@ -16,10 +16,18 @@ const ROOT = path.resolve(__dirname, '../../..');
 const ICONS_DIR = path.join(ROOT, 'src/assets/icons');
 const CSS = fs.readFileSync(path.join(ROOT, 'src/assets/icon-theme.css'), 'utf8');
 
-/** Имена однотонных иконок из селекторов вида img[src*="/edit.png"]. */
-const monoNames = [...CSS.matchAll(/img\[src\*="\/([^"/]+)\.png"\]/g)].map((m) => m[1]);
+/** Имена из блока, применяющего указанный фильтр: mono-инверсия или акцентное осветление. */
+function namesFor(filterVar, pattern) {
+  const blocks = [...CSS.matchAll(/([^{}]+)\{\s*filter:\s*var\((--icon-[a-z-]+)\)[^}]*\}/g)];
+  const block = blocks.find((b) => b[2] === filterVar);
+  if (!block) return [];
+  return [...block[1].matchAll(pattern)].map((m) => m[1]);
+}
+const monoNames = namesFor('--icon-mono-filter', /img\[src\*="\/([^"/]+)\.png"\]/g);
 /** Парные селекторы под хэшированное имя: img[src*="/edit-"]. */
-const hashedNames = [...CSS.matchAll(/img\[src\*="\/([^"/]+)-"\]/g)].map((m) => m[1]);
+const hashedNames = namesFor('--icon-mono-filter', /img\[src\*="\/([^"/]+)-"\]/g);
+const accentNames = namesFor('--icon-accent-filter', /img\[src\*="\/([^"/]+)\.png"\]/g);
+const accentHashed = namesFor('--icon-accent-filter', /img\[src\*="\/([^"/]+)-"\]/g);
 
 describe('icon-theme.css', () => {
   it('перечисляет непустой список однотонных иконок', () => {
@@ -35,6 +43,34 @@ describe('icon-theme.css', () => {
     expect(missing, 'переименовали иконку - правило темы стало мёртвым').toEqual([]);
   });
 
+  it('акцентные иконки перечислены отдельно и не смешаны с однотонными', () => {
+    // Инверсия синий глиф испортит (станет оранжевым), поэтому фирменные иконки
+    // идут своим фильтром - осветлением.
+    expect([...accentNames].sort()).toEqual(['instruction', 'random', 'refresh']);
+    expect([...accentNames].sort()).toEqual([...accentHashed].sort());
+    expect(accentNames.filter((n) => monoNames.includes(n)),
+      'иконка не может быть одновременно однотонной и акцентной').toEqual([]);
+    const missing = accentNames.filter((n) => !fs.existsSync(path.join(ICONS_DIR, `${n}.png`)));
+    expect(missing).toEqual([]);
+  });
+
+  it('сине-голубые значки экрана входа темизацией не трогаются', () => {
+    // Они лежат на светлом островке формы входа: осветлять там нечего, а инверсия
+    // и вовсе поменяла бы им цвет.
+    ['email-blue', 'key-blue', 'phone-blue', 'right_arrow-blue'].forEach((n) => {
+      expect(monoNames, `${n} не должна инвертироваться`).not.toContain(n);
+      expect(accentNames, `${n} не должна осветляться`).not.toContain(n);
+    });
+  });
+
+  it('каждая роль фильтра объявлена и в светлой, и в тёмных темах', () => {
+    ['--icon-mono-filter', '--icon-ink-filter', '--icon-accent-filter'].forEach((v) => {
+      // Дважды: нейтральное значение на :root/[data-theme] и рабочее в тёмных.
+      expect(CSS.match(new RegExp(`${v}:`, 'g')) ?? [], `${v} объявлена не во всех темах`)
+        .toHaveLength(2);
+    });
+  });
+
   it('префиксным селектором не задевает цветных соседей', () => {
     // img[src*="/car-"] матчит и car-hash.png, и любой car-<что-то>.png:
     // цветной сосед с таким именем инвертировался бы вместе с однотонным.
@@ -44,6 +80,35 @@ describe('icon-theme.css', () => {
       .map((f) => f.replace(/\.png$/, ''))
       .filter((name) => !mono.has(name) && monoNames.some((m) => name.startsWith(`${m}-`)));
     expect(overmatched).toEqual([]);
+  });
+});
+
+describe('компоненты не перекрашивают иконки в обход темы', () => {
+  const files = [];
+  (function walk(dir) {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) walk(full);
+      else if (e.name.endsWith('.vue')) files.push(full);
+    }
+  })(path.join(ROOT, 'src'));
+
+  it('силуэт иконки задаётся токеном, а не голым brightness(0)', () => {
+    // brightness(0) красит глиф в чёрный при любой теме: в тёмной это чёрное на
+    // чёрном (сортировочные стрелки, #1415). Цвет силуэта даёт --icon-ink-filter.
+    // Исключение - brightness(0) invert(1): белый глиф на цветной кнопке.
+    const bad = files.filter((f) => /filter:\s*brightness\(0\)\s*;/.test(fs.readFileSync(f, 'utf8')))
+      .map((f) => path.relative(ROOT, f));
+    expect(bad, 'используйте filter: var(--icon-ink-filter)').toEqual([]);
+  });
+
+  it('состояния колокольчика не подменяют filter иконки', () => {
+    // filter у иконки занят темой: локальные grayscale/contrast делали колокольчик
+    // то серым, то чёрным. Состояния выражаются подложкой и прозрачностью.
+    const header = fs.readFileSync(path.join(ROOT, 'src/components/TheHeader/TheHeader.vue'), 'utf8');
+    const rules = [...header.matchAll(/\.notifications__icon[^{}]*\{([^{}]*)\}/g)].map((m) => m[1]);
+    expect(rules.length).toBeGreaterThan(0);
+    rules.forEach((body) => expect(body).not.toMatch(/filter:/));
   });
 });
 

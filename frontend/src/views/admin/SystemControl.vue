@@ -241,7 +241,6 @@ export default {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 30px;
-  box-shadow: 0 3px 10px var(--shadow-drop);
   padding: 36px 40px 32px;
 }
 .sc__header h1 {
