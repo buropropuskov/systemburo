@@ -142,4 +142,24 @@ describe('theme store', () => {
     expect(store.current).toBe('dark');
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
   });
+
+  // Заливка от клика (#1415): View Transitions зовёт коллбэк не сразу, а после
+  // снятия кадра. Профиль обязан получить ВЫБРАННУЮ тему - раньше сохранялся
+  // `current.value`, то есть прошлая тема, и выбор не переживал перезагрузку.
+  it('с заливкой сохраняет в профиль выбранную тему, а не прошлую', async () => {
+    document.startViewTransition = (callback) => {
+      setTimeout(callback, 0);
+      return { ready: Promise.resolve(), skipTransition: () => {} };
+    };
+    document.documentElement.animate = () => ({ finished: Promise.resolve() });
+    const store = useThemeStore();
+
+    await store.setTheme('dark-orange', { x: 10, y: 20 });
+
+    expect(saveTheme).toHaveBeenCalledWith('dark-orange');
+    await vi.waitFor(() => expect(store.current).toBe('dark-orange'));
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark-orange');
+    delete document.startViewTransition;
+    delete document.documentElement.animate;
+  });
 });
