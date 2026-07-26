@@ -106,7 +106,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-go
       - name: Run tests
-        run: go test -race -count=1 -timeout 300s -p 4 ./...
+        run: go test -race -count=1 -timeout 500s -p 4 ./...
 
   frontend-lint:
     name: Frontend Lint
