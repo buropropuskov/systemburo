@@ -4,7 +4,7 @@ import { REVEAL_DURATION, canReveal, originFromEvent, revealThemeChange } from '
 /**
  * Ставит заглушки View Transitions + WAAPI и отдаёт снятые аргументы.
  * jsdom не умеет ни того, ни другого, поэтому проверяем контракт вызовов:
- * что тема применяется внутри перехода, а клип открывается от нужной точки.
+ * что тема применяется внутри перехода, а кадры заливки геометрически верны.
  */
 function stubViewTransitions() {
   const finished = Promise.resolve();
@@ -19,6 +19,40 @@ function stubViewTransitions() {
   document.startViewTransition = start;
   document.documentElement.animate = animate;
   return { animate, start, transitions };
+}
+
+/** Кадры анимации по имени свойства - их две: контур и маска. */
+function framesOf(animate, prop) {
+  const call = animate.mock.calls.find(([kf]) => kf[prop]);
+  return call ? { frames: call[0][prop], options: call[1] } : null;
+}
+
+/** Точки одного кадра polygon() в виде [{x, y}]. */
+function pointsOf(frame) {
+  return frame
+    .replace(/^polygon\(|\)$/g, '')
+    .split(',')
+    .map((pair) => {
+      const [x, y] = pair.trim().split(/\s+/).map((v) => parseFloat(v));
+      return { x, y };
+    });
+}
+
+/** Лежит ли точка внутри контура (трассировка луча) - замок на покрытие углов. */
+function contains(points, x, y) {
+  let inside = false;
+  for (let i = 0, j = points.length - 1; i < points.length; j = i, i += 1) {
+    const a = points[i];
+    const b = points[j];
+    const crosses = a.y > y !== b.y > y;
+    if (crosses && x < ((b.x - a.x) * (y - a.y)) / (b.y - a.y) + a.x) inside = !inside;
+  }
+  return inside;
+}
+
+/** Наибольшее расстояние от точки клика до контура - «радиус» кадра. */
+function maxRadius(points, origin) {
+  return Math.max(...points.map((p) => Math.hypot(p.x - origin.x, p.y - origin.y)));
 }
 
 describe('originFromEvent', () => {
@@ -41,9 +75,12 @@ describe('originFromEvent', () => {
 });
 
 describe('revealThemeChange', () => {
+  const origin = { x: 200, y: 600 };
+
   beforeEach(() => {
     delete document.startViewTransition;
     delete document.documentElement.animate;
+    document.documentElement.className = '';
     window.innerWidth = 1000;
     window.innerHeight = 800;
   });
@@ -52,6 +89,7 @@ describe('revealThemeChange', () => {
     delete document.startViewTransition;
     delete document.documentElement.animate;
     delete window.matchMedia;
+    document.documentElement.className = '';
     vi.restoreAllMocks();
   });
 
@@ -59,9 +97,10 @@ describe('revealThemeChange', () => {
     const apply = vi.fn();
     expect(canReveal()).toBe(false);
 
-    revealThemeChange(apply, { x: 10, y: 10 });
+    revealThemeChange(apply, origin);
 
     expect(apply).toHaveBeenCalledTimes(1);
+    expect(document.documentElement.classList.contains('theme-reveal')).toBe(false);
   });
 
   it('без точки клика не поднимает переход', async () => {
@@ -74,31 +113,79 @@ describe('revealThemeChange', () => {
     expect(start).not.toHaveBeenCalled();
   });
 
-  it('заливает новый кадр от точки клика до дальнего угла', async () => {
+  it('ведёт контур и маску одним таймингом', async () => {
     const { animate, start } = stubViewTransitions();
-    const apply = vi.fn();
 
-    await revealThemeChange(apply, { x: 200, y: 600 });
+    await revealThemeChange(vi.fn(), origin);
 
     expect(start).toHaveBeenCalledTimes(1);
-    expect(apply).toHaveBeenCalledTimes(1);
+    const contour = framesOf(animate, 'clipPath');
+    const mask = framesOf(animate, 'maskImage');
+    expect(contour).not.toBeNull();
+    expect(mask).not.toBeNull();
+    for (const anim of [contour, mask]) {
+      expect(anim.options).toMatchObject({
+        duration: REVEAL_DURATION,
+        pseudoElement: '::view-transition-new(root)',
+      });
+    }
+    expect(contour.frames.length).toBe(mask.frames.length);
+    expect(contour.frames[0].startsWith('polygon(')).toBe(true);
+    expect(mask.frames[0].startsWith('radial-gradient(')).toBe(true);
+  });
 
-    const [keyframes, options] = animate.mock.calls[0];
-    expect(options).toMatchObject({
-      duration: REVEAL_DURATION,
-      pseudoElement: '::view-transition-new(root)',
-    });
-    // Дальний угол от (200, 600) при вьюпорте 1000x800: 800 по X, 600 по Y.
-    expect(keyframes.clipPath[0]).toBe('ellipse(0.0px 0.0px at 200px 600px)');
-    expect(keyframes.clipPath.at(-1)).toBe('ellipse(800.0px 600.0px at 200px 600px)');
-    // Промежуточные кадры строго растут - фронт не откатывается назад.
-    const radii = keyframes.clipPath.map((f) => parseFloat(f.slice('ellipse('.length)));
+  it('стартует каплей под курсором, а не точкой', async () => {
+    const { animate } = stubViewTransitions();
+
+    await revealThemeChange(vi.fn(), origin);
+
+    const first = pointsOf(framesOf(animate, 'clipPath').frames[0]);
+    const r = maxRadius(first, origin);
+    // Затравка ~22px: заметная капля, но ещё не заливка.
+    expect(r).toBeGreaterThan(10);
+    expect(r).toBeLessThan(40);
+  });
+
+  it('последним кадром накрывает все четыре угла вьюпорта', async () => {
+    const { animate } = stubViewTransitions();
+
+    await revealThemeChange(vi.fn(), origin);
+
+    const last = pointsOf(framesOf(animate, 'clipPath').frames.at(-1));
+    const corners = [[0, 0], [999, 0], [0, 799], [999, 799]];
+    for (const [x, y] of corners) {
+      expect(contains(last, x, y), `угол ${x},${y} остался незалитым`).toBe(true);
+    }
+  });
+
+  it('фронт только растёт - заливка не откатывается назад', async () => {
+    const { animate } = stubViewTransitions();
+
+    await revealThemeChange(vi.fn(), origin);
+
+    const radii = framesOf(animate, 'clipPath').frames.map((f) => maxRadius(pointsOf(f), origin));
     expect(radii.every((r, i) => i === 0 || r > radii[i - 1])).toBe(true);
+  });
+
+  it('на время заливки метит корень классом и снимает его после', async () => {
+    // Обе анимации (контур и маска) висят, пока их не отпустим.
+    const release = [];
+    stubViewTransitions();
+    document.documentElement.animate = vi.fn(() => ({
+      finished: new Promise((resolve) => { release.push(resolve); }),
+    }));
+
+    const pending = revealThemeChange(vi.fn(), origin);
+    await Promise.resolve();
+    expect(document.documentElement.classList.contains('theme-reveal')).toBe(true);
+
+    release.forEach((resolve) => resolve());
+    await pending;
+    expect(document.documentElement.classList.contains('theme-reveal')).toBe(false);
   });
 
   it('повторный выбор обрывает незакрытую заливку', async () => {
     const { transitions } = stubViewTransitions();
-    // Анимация «висит», пока её не отпустим: имитируем клик посреди заливки.
     const release = [];
     document.documentElement.animate = vi.fn(() => ({
       finished: new Promise((resolve) => { release.push(resolve); }),
@@ -119,9 +206,10 @@ describe('revealThemeChange', () => {
     document.startViewTransition = vi.fn(() => { throw new Error('hidden document'); });
     const apply = vi.fn();
 
-    await revealThemeChange(apply, { x: 10, y: 10 });
+    await revealThemeChange(apply, origin);
 
     expect(apply).toHaveBeenCalledTimes(1);
+    expect(document.documentElement.classList.contains('theme-reveal')).toBe(false);
   });
 
   it('при prefers-reduced-motion переключает без анимации', async () => {
@@ -129,7 +217,7 @@ describe('revealThemeChange', () => {
     window.matchMedia = vi.fn(() => ({ matches: true }));
     const apply = vi.fn();
 
-    await revealThemeChange(apply, { x: 10, y: 10 });
+    await revealThemeChange(apply, origin);
 
     expect(apply).toHaveBeenCalledTimes(1);
     expect(start).not.toHaveBeenCalled();

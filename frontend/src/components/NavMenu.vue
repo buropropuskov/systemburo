@@ -674,7 +674,7 @@ import { useSoundStore } from '@/stores/sound'
 import { usePermissionsStore } from '@/stores/permissions'
 import { useThemeStore } from '@/stores/theme'
 import { THEMES } from '@/utils/theme'
-import { originFromEvent } from '@/utils/themeTransition'
+import { REVEAL_DURATION, originFromEvent } from '@/utils/themeTransition'
 import { playPreset } from '@/utils/notificationSound'
 import eventStream from '@/services/eventStream'
 import NavIcon from '@/components/icons/NavIcon.vue'
@@ -703,6 +703,9 @@ export default {
   data() {
     return {
       isExpanded: false,
+      // Раскрытие рельса на время заливки темы (#1415) + таймер его снятия.
+      themeRevealHold: false,
+      themeRevealTimer: null,
       // Реестр тем оформления (#1415) - список и палитра кружков берутся из
       // utils/theme.js, тот же источник валидирует бэк.
       themes: THEMES,
@@ -804,7 +807,10 @@ export default {
       if (this.adminOpen) return false;
       // tourForceExpand - оверлейный разворот для онбординг-тура: расширяет рельс
       // как hover-превью, БЕЗ сдвига контента (--nav-ml зависит только от пина).
-      return this.uiStore.sidebarExpanded || this.isExpanded || this.uiStore.tourForceExpand;
+      // themeRevealHold - на время заливки темы: в кадре перехода рельс иначе
+      // рисуется свёрнутым, и меню «прыгает» под фронтом заливки.
+      return this.uiStore.sidebarExpanded || this.isExpanded || this.uiStore.tourForceExpand
+        || this.themeRevealHold;
     },
     // Множество путей Админки - по нему route-watcher решает, закрывать ли колонку
     // (переход на «РАБОТА»/кабинет закрывает, переключение между разделами - нет).
@@ -985,6 +991,9 @@ export default {
     if (this.hoverTimeout) {
       clearTimeout(this.hoverTimeout);
     }
+    if (this.themeRevealTimer) {
+      clearTimeout(this.themeRevealTimer);
+    }
 
     this.$bus.off('mobile-nav-toggle', this.toggleMobile);
     if (this._desktopMql && this._onDesktopChange) {
@@ -1137,7 +1146,17 @@ export default {
      * @param {MouseEvent} [event]
      */
     selectTheme(id, event) {
-      this.themeStore.setTheme(id, originFromEvent(event));
+      const origin = originFromEvent(event);
+      if (origin) {
+        // Держим рельс раскрытым, пока идёт заливка (см. railExpanded). Снимаем
+        // по таймеру от той же константы, что задаёт длительность анимации.
+        this.themeRevealHold = true;
+        window.clearTimeout(this.themeRevealTimer);
+        this.themeRevealTimer = window.setTimeout(() => {
+          this.themeRevealHold = false;
+        }, REVEAL_DURATION + 150);
+      }
+      this.themeStore.setTheme(id, origin);
     },
     closeAllDropdowns() {
       Object.keys(this.dropdowns).forEach(key => {
