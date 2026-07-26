@@ -142,6 +142,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// requireAdmin — гейт admin-страниц по page.admin (super/admin проходят,
 	// обычные — по гранту). Заменяет легаси type-code проверки в сервисах (Ф5).
 	requireAdmin := mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageAdmin)
+	// Справочники (типы вложений, настройка их полей и Excel-бланков). Ключ тот же, что
+	// у фронтовых страниц /admin/*: иначе носитель права видит раздел и ловит 403.
+	requireDirectories := mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageAdminDirectories)
 	maintenanceBlock := d.MaintenanceBlock
 	banCheck := d.BanCheck
 	loginLimiter := d.LoginLimiter
@@ -229,15 +232,17 @@ func Setup(e *echo.Echo, d Dependencies) {
 		protected.POST("/events/ticket", events.IssueTicket)
 	}
 
-	// Шаблоны вложений (unique_attachments)
+	// Шаблоны вложений (unique_attachments). Изменяющие операции и админ-выборки -
+	// page.admin.directories, тем же правом фронт открывает /admin/attachment-types.
+	// Активный список и карточка типа остаются всем: их читает форма подачи заявки.
 	att := protected.Group("/attachments")
 	att.GET("", attachments.GetActive)
-	att.GET("/all", attachments.GetAll)
-	att.POST("", attachments.Create)
-	att.PUT("/:id", attachments.Update)
-	att.DELETE("/:id", attachments.Delete)
-	att.PUT("/:id/restore", attachments.Restore)
-	att.GET("/:id/history", attachments.GetHistory)
+	att.GET("/all", attachments.GetAll, requireDirectories)
+	att.POST("", attachments.Create, requireDirectories)
+	att.PUT("/:id", attachments.Update, requireDirectories)
+	att.DELETE("/:id", attachments.Delete, requireDirectories)
+	att.PUT("/:id/restore", attachments.Restore, requireDirectories)
+	att.GET("/:id/history", attachments.GetHistory, requireDirectories)
 	att.GET("/:id", attachments.GetByID)
 	// Привязка ручного вложения-сироты к заявке (#1049 режим-2): только super/admin.
 	// Внимание: :id здесь = экземпляр attachments.id (ручная сирота), а НЕ unique_attachment
@@ -330,7 +335,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	pblGroup.POST("/bulk/restore", personBlacklist.BulkRestore, requireBlacklist)
 
 	// Attachment Excel-templates (#183) - вложенные ручки под /attachments/:id/...
-	attRoot := protected.Group("/attachments")
+	// Настройка бланка целиком админская (page.admin.directories): файл шаблона и привязки
+	// ячеек - инструмент справочника, а не форма подачи. Исключение ниже - GET field-config.
+	attRoot := protected.Group("/attachments", requireDirectories)
 	attRoot.GET("/:id/template", attachmentTemplates.Get)
 	attRoot.GET("/:id/templates", attachmentTemplates.ListTemplates)
 	attRoot.POST("/:id/template", attachmentTemplates.Upload)
@@ -348,8 +355,11 @@ func Setup(e *echo.Echo, d Dependencies) {
 	attRoot.DELETE("/custom-fields/:fid", attachmentTemplates.DeleteCustomField)
 	// Настройка полей вложения (feedback-0608-H / #529): видимость/обязательность
 	// базовых полей реестра + кастомные поля одним ответом.
-	attRoot.GET("/:id/field-config", attachmentTemplates.GetFieldConfig)
 	attRoot.PUT("/:id/field-config", attachmentTemplates.SaveFieldConfig)
+	// Чтение настройки полей - без права: по ней форма подачи решает, какие поля
+	// показывать и требовать (CreateApplication.loadFieldConfig). Регистрируем в группе
+	// без гейта, иначе заявитель не соберёт вложение.
+	att.GET("/:id/field-config", attachmentTemplates.GetFieldConfig)
 
 	// Организации. Изменяющие операции и история - page.admin (Ф5, ранее handler-level
 	// CheckAdminPermissions); списки и привязка пользователей - как было, без гейта.

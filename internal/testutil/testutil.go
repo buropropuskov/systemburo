@@ -56,6 +56,7 @@ var tables = []string{
 	"car_unload_places", "car_target_tables", "cars",
 	"vehicle_blacklists",
 	"person_blacklists",
+	"attachment_template_mappings", "attachment_templates",
 	"attachment_custom_values", "attachment_custom_fields", "attachment_field_configs",
 	"attachments",
 	"unique_employees", "unique_cars", "unique_attachments",
@@ -206,7 +207,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	vehicleBlacklistHandler := handlers.NewVehicleBlacklistHandler(vehicleBlacklistService)
 	personBlacklistHandler := handlers.NewPersonBlacklistHandler(personBlacklistService)
 	attachmentTemplateHandler := handlers.NewAttachmentTemplateHandler(attachmentTemplateService, attachmentFieldConfigService)
-	attachmentBlankHandler := handlers.NewAttachmentBlankHandler(attachmentBlankService)
+	attachmentBlankHandler := handlers.NewAttachmentBlankHandler(attachmentBlankService, applicationService, permissionResolver)
 	trashHandler := handlers.NewTrashHandler(trashService, trashDBRef)
 	documentGroupHandler := handlers.NewDocumentGroupHandler(documentGroupService)
 	documentHandler := handlers.NewDocumentHandler(documentService, documentFileService)
