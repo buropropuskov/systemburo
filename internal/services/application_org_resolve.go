@@ -170,9 +170,11 @@ func (s *applicationService) resolveDirectoryRef(
 		return directoryResolution{ID: &existing}, nil
 	}
 
-	// Из вырожденного наименования запись не заводим: ключа у неё нет, дедупликация по
-	// ней работать не будет, а в справочник уехал бы мусор от опечатки.
-	if key == "" {
+	// Из наименования без букв и цифр запись не заводим: в справочник уехал бы мусор от
+	// опечатки, с которым потом никто ничего не сделает. Пустого ключа для этой проверки
+	// недостаточно - «---» его имеет (дефис нормализация оставляет), но содержания в таком
+	// наименовании столько же, сколько в «"""».
+	if key == "" || normalize.OrgNameMeaningless(name) {
 		return directoryResolution{}, echo.NewHTTPError(http.StatusBadRequest, ref.degenerateMsg)
 	}
 

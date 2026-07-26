@@ -272,6 +272,19 @@ func approveDirectoryEntry(ctx context.Context, db *gorm.DB, rec AuditRecorder, 
 		return rec.Record(ctx, tx, def.auditEntity, &id, def.actionApproved, &actor, map[string]any{"name": display})
 	})
 	if err != nil {
+		// Подтверждение переписывает name, когда канонизирует легаси-черновик, а значит
+		// может упереться в уникальный индекс так же, как переименование: отвечаем
+		// конфликтом, а не пятисоткой.
+		if isUniqueViolation(err) {
+			conflict, conflictErr := findKeyConflict(ctx, db, def, entry.Name, id)
+			if conflictErr != nil {
+				return DirectoryModerationResult{}, conflictErr
+			}
+			if conflict.ID != 0 {
+				slog.Info("наименование заняли во время подтверждения", "table", def.table, "id", id, "conflict", conflict.ID)
+				return conflictOutcome(def, conflict)
+			}
+		}
 		slog.Error("не удалось подтвердить запись справочника", "table", def.table, "id", id, "error", err)
 		return DirectoryModerationResult{}, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка подтверждения записи")
 	}
@@ -294,9 +307,10 @@ func renameDirectoryEntry(ctx context.Context, db *gorm.DB, rec AuditRecorder, n
 	// Исправленное принимающим наименование тоже канонизируем: он правит опечатку, а
 	// оформление (ОПФ, заглавная, кавычки) держит система (#1437).
 	name := normalize.OrgNameDisplay(rawName)
-	if name == "" || normalize.OrgName(name) == "" {
-		// Вырожденное наименование (одни кавычки или дефисы) не даёт ключа, по нему не
-		// работает дедупликация - такое же ограничение, как при подаче.
+	if name == "" || normalize.OrgName(name) == "" || normalize.OrgNameMeaningless(name) {
+		// Наименование без букв и цифр («"""», «---») ключа либо не даёт, либо даёт
+		// бессмысленный: дедупликация по нему не работает, а в справочнике оно остаётся
+		// мусором. Правило то же, что в подаче и в админском справочнике (#1437).
 		return DirectoryModerationResult{}, echo.NewHTTPError(http.StatusBadRequest, def.emptyNameMsg)
 	}
 

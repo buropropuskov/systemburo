@@ -333,6 +333,11 @@ func (s *companyService) Create(ctx context.Context, callerUserID int, req Creat
 	}
 	// Оформление наименования - к канону (#1437), см. organizationService.Create.
 	req.Name = normalize.OrgNameDisplay(req.Name)
+	// Наименование без букв и цифр («---», «"""») - мусор, с которым в справочнике
+	// потом ничего не сделать: правило то же, что при подаче и при разборе (#1437).
+	if normalize.OrgNameMeaningless(req.Name) {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Укажите наименование компании")
+	}
 
 	// Сверяем по ключу дедупликации, а не по точному name (#1437), см. organizationService.Create.
 	var active int64
@@ -350,7 +355,7 @@ func (s *companyService) Create(ctx context.Context, callerUserID int, req Creat
 	company := models.Company{Name: req.Name, Type: req.Type, IsActive: true, ModerationStatus: models.ModerationApproved}
 	if err := s.db.WithContext(ctx).Create(&company).Error; err != nil {
 		slog.Error("не удалось создать компанию", "error", err)
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error creating company")
+		return nil, directoryWriteError(err, "Компания с таким названием уже существует", "Error creating company")
 	}
 	slog.Info("компания создана", "id", company.ID, "name", company.Name)
 	s.recorder.Log(ctx, nil, models.AuditEntityCompany, &company.ID, models.CompanyActionCreated, &callerUserID, map[string]any{"name": company.Name, "type": company.Type})
@@ -380,6 +385,9 @@ func (s *companyService) Update(ctx context.Context, callerUserID, companyID int
 	if req.Name != company.Name {
 		req.Name = normalize.OrgNameDisplay(req.Name)
 	}
+	if normalize.OrgNameMeaningless(req.Name) {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Укажите наименование компании")
+	}
 
 	normalized := normalize.OrgName(req.Name)
 	var dup int64
@@ -398,7 +406,7 @@ func (s *companyService) Update(ctx context.Context, callerUserID, companyID int
 	if err := s.db.WithContext(ctx).Model(&models.Company{}).
 		Where("id = ?", companyID).Updates(map[string]any{"name": req.Name, "type": req.Type, "name_normalized": normalized}).Error; err != nil {
 		slog.Error("не удалось обновить компанию", "id", companyID, "error", err)
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error updating company")
+		return nil, directoryWriteError(err, "Компания с таким названием уже существует", "Error updating company")
 	}
 	// Старые значения захватываем до перезаписи структуры - для определения,
 	// что именно изменилось (имя/тип/оба).
@@ -491,7 +499,9 @@ func (s *companyService) Restore(ctx context.Context, callerUserID, companyID in
 	if err := s.db.WithContext(ctx).Model(&models.Company{}).
 		Where("id = ?", companyID).Update("is_active", true).Error; err != nil {
 		slog.Error("не удалось восстановить компанию", "id", companyID, "error", err)
-		return echo.NewHTTPError(http.StatusInternalServerError, "Error restoring company")
+		return directoryWriteError(err,
+			"Активная компания с таким названием уже существует - переименуйте перед восстановлением",
+			"Error restoring company")
 	}
 	slog.Info("компания восстановлена", "id", companyID)
 	s.recorder.Log(ctx, nil, models.AuditEntityCompany, &companyID, models.CompanyActionRestored, &callerUserID, nil)

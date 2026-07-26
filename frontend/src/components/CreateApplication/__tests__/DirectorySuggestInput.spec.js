@@ -13,6 +13,8 @@ import DirectorySuggestInput from '../DirectorySuggestInput.vue'
  */
 
 // answer собирает ответ подсказок; по умолчанию наименования в справочнике нет.
+// matched = null значит «не проверяли»: так бэк отвечает на коротком вводе и на
+// наименовании без букв, и форма в этом случае молчит.
 function answer({ items = [], canonical = '', matched = false, degenerate = false } = {}) {
   return { items, canonical, matched, degenerate }
 }
@@ -188,6 +190,17 @@ describe('DirectorySuggestInput', () => {
     expect(notice.exists()).toBe(true)
     // Подача такой ввод отклоняет, поэтому обещать проверку нельзя.
     expect(notice.text()).toContain('Укажите наименование')
+  })
+
+  it('при неизвестном matched молчит, а не утверждает «такого нет»', async () => {
+    const wrapper = mountInput({
+      editable: true,
+      fetcher: vi.fn().mockResolvedValue(answer({ canonical: 'ИП', matched: null })),
+    })
+
+    await type(wrapper, 'ип')
+
+    expect(wrapper.find('[data-testid="create-organization-notice"]').exists()).toBe(false)
   })
 
   it('о существующем наименовании не предупреждает', async () => {

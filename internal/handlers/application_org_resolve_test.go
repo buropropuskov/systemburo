@@ -178,6 +178,15 @@ func TestApplicationOrgResolve(t *testing.T) {
 		var n int64
 		require.NoError(t, db.Model(&models.Organization{}).Where("name_normalized = ?", "").Count(&n).Error)
 		assert.Equal(t, int64(0), n)
+
+		// Дефисы и прочая пунктуация ключ имеют (нормализация их не выбрасывает), но
+		// содержания в таком наименовании столько же: запись из него тоже не заводим.
+		for _, junk := range []string{"---", "...", "- - -", "!!!"} {
+			rec = submitWithRefs(t, e, token, uaID, "A00"+junk[:1]+"AA111", `"organization_name":"`+junk+`"`)
+			assert.Equal(t, http.StatusBadRequest, rec.Code, "наименование без букв и цифр %q: %s", junk, rec.Body.String())
+		}
+		require.NoError(t, db.Model(&models.Organization{}).Where("name_normalized IN ?", []string{"---", "- - -", "!!!"}).Count(&n).Error)
+		assert.Equal(t, int64(0), n, "мусорных записей в справочнике быть не должно")
 	})
 
 	// Компании ведёт тот же код, и расхождение между зеркальными сущностями тихое.
