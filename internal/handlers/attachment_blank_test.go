@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
+	"sort"
 	"testing"
 	"time"
 
@@ -324,6 +325,97 @@ func TestBlankGenerate(t *testing.T) {
 	t.Run("привязки машины", func(t *testing.T) { carBindingsSection(t, db, td) })
 	t.Run("переполнение списка", func(t *testing.T) { listOverflowSection(t, db, td) })
 	t.Run("поле заявки в строках списка", func(t *testing.T) { listRepeatedFieldSection(t, db, td) })
+	t.Run("условное форматирование при переполнении", func(t *testing.T) { listOverflowConditionalSection(t, db, td) })
+}
+
+// Добавленные под список строки сдвигают диапазоны условного форматирования. Формулы
+// внутри правил excelize не правит (adjustConditionalFormats меняет только SQRef),
+// поэтому правило уезжало вниз, а условие читало прежнюю строку - подсветка работала
+// не по той ячейке.
+func listOverflowConditionalSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
+	userTypeID := secUserTypeIDByCode(t, db, "user")
+	sender := models.User{Username: "blankcfsender", Password: "x", TypeID: userTypeID, OrganizationID: secPtrInt(td.OrgID)}
+	require.NoError(t, db.Create(&sender).Error)
+
+	name := "cf_blank"
+	ua := models.UniqueAttachment{AttachmentType: "cars", Name: &name, IsActive: true}
+	require.NoError(t, db.Create(&ua).Error)
+
+	// Список 10-12, под ним подпись в 20-й строке с правилом «пусто - подсветить»,
+	// и такое же правило выше списка - оно двигаться не должно.
+	f := excelize.NewFile()
+	defer func() { require.NoError(t, f.Close()) }()
+	sheet := f.GetSheetName(0)
+	style, err := f.NewConditionalStyle(&excelize.Style{Fill: excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"FFC7CE"}}})
+	require.NoError(t, err)
+	require.NoError(t, f.SetConditionalFormat(sheet, "A20:D20", []excelize.ConditionalFormatOptions{
+		{Type: "formula", Criteria: `$A$20=""`, Format: &style},
+	}))
+	require.NoError(t, f.SetConditionalFormat(sheet, "A5", []excelize.ConditionalFormatOptions{
+		{Type: "formula", Criteria: `$A$5=""`, Format: &style},
+	}))
+	path := filepath.Join(t.TempDir(), "cf.xlsx")
+	require.NoError(t, f.SaveAs(path))
+
+	tpl := models.AttachmentTemplate{
+		UniqueAttachmentID: ua.ID, IsActive: true, FilePath: path,
+		OriginalFileName: "cf.xlsx", ListStartRow: 10, ListEndRow: 12, MaxListRows: 3,
+	}
+	require.NoError(t, db.Create(&tpl).Error)
+	require.NoError(t, db.Create(&[]models.AttachmentTemplateMapping{
+		{TemplateID: tpl.ID, CellRef: "B10", FieldPath: "car.car_number", IsListField: true},
+	}).Error)
+
+	now := time.Now()
+	conf, status := "Согласовано", models.StatusInWork
+	app := models.Application{
+		OrganizationID: td.OrgID, SenderUserID: sender.ID,
+		Confirmation: &conf, Status: &status, SendingDatetime: &now,
+	}
+	require.NoError(t, db.Create(&app).Error)
+	att := models.Attachment{ApplicationID: &app.ID, AttachmentType: "cars", UniqueAttachmentID: &ua.ID}
+	require.NoError(t, db.Create(&att).Error)
+
+	const carCount = 5 // на две больше, чем строк в шаблоне
+	for i := 0; i < carCount; i++ {
+		number := fmt.Sprintf("С %03d СС 777", 301+i)
+		require.NoError(t, db.Create(&models.Car{AttachmentID: att.ID, CarNumber: &number}).Error)
+	}
+
+	reader, _, err := services.NewAttachmentBlankService(db).
+		GenerateBlank(context.Background(), app.ID, att.ID)
+	require.NoError(t, err)
+	out, err := excelize.OpenReader(reader)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, out.Close()) }()
+
+	formats, err := out.GetConditionalFormats(out.GetSheetName(0))
+	require.NoError(t, err)
+
+	// Диапазон съехал на две строки (это делает excelize), формула обязана съехать так же.
+	moved, ok := formats["A22:D22"]
+	require.True(t, ok, "правило должно съехать в A22:D22, есть: %v", keysOf(formats))
+	require.Len(t, moved, 1)
+	require.Equal(t, `$A$22=""`, moved[0].Criteria,
+		"формула правила должна указывать на съехавшую строку, а не на прежнюю")
+
+	// Правило выше списка не двигается.
+	kept, ok := formats["A5:A5"]
+	if !ok {
+		kept, ok = formats["A5"]
+	}
+	require.True(t, ok, "правило над списком должно остаться, есть: %v", keysOf(formats))
+	require.Len(t, kept, 1)
+	require.Equal(t, `$A$5=""`, kept[0].Criteria)
+}
+
+func keysOf[V any](m map[string]V) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // Поле заявки, поставленное внутрь строк списка: значение у него одно на всю заявку
