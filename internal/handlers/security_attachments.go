@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 
 	"systemburo/internal/models"
@@ -25,13 +26,25 @@ type AvailableAttachmentDetail struct {
 // по местам, как супер), у охранника по типу - false (только его места прохода). Прочим - 403.
 // Набор совпадает с FE-гейтом canViewAccessibleAttachments; рассинхрон давал 403 при видимой вкладке.
 func (h *ApplicationHandler) requireSecurityOrAdmin(c echo.Context) (int, bool, error) {
+	return securityScope(c, h.service, h.resolver)
+}
+
+// securityUserChecker - минимум, нужный securityScope: проверка типа "Охранник".
+type securityUserChecker interface {
+	IsSecurityUser(ctx context.Context, userID int) (bool, error)
+}
+
+// securityScope - тело requireSecurityOrAdmin, вынесенное для повторного использования
+// вне ApplicationHandler (скачивание бланка вложения). Возвращает 403 тем, кто не охрана
+// и не носитель page.available.
+func securityScope(c echo.Context, svc securityUserChecker, resolver *services.PermissionResolver) (int, bool, error) {
 	userID := GetUserID(c)
 	if IsSuperAdmin(c) {
 		return userID, true, nil
 	}
 	// Has(page.available) истинно для админа (allowAll) и для явного гранта роли/группы/override.
 	// Резолвер учитывает бан (у забаненного Has=false) и личные deny-override.
-	set, err := h.resolver.Resolve(c.Request().Context(), userID)
+	set, err := resolver.Resolve(c.Request().Context(), userID)
 	if err != nil {
 		return 0, false, err
 	}
@@ -39,7 +52,7 @@ func (h *ApplicationHandler) requireSecurityOrAdmin(c echo.Context) (int, bool, 
 		return userID, true, nil
 	}
 	// Тип "Охранник" получает доступ по типу аккаунта (без права), но видит только по своим местам.
-	isSecurity, err := h.service.IsSecurityUser(c.Request().Context(), userID)
+	isSecurity, err := svc.IsSecurityUser(c.Request().Context(), userID)
 	if err != nil {
 		return 0, false, err
 	}
