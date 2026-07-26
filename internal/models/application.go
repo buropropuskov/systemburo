@@ -36,6 +36,12 @@ type Application struct {
 	ResponsibleUser    *User        `gorm:"foreignKey:ResponsibleUserID" json:"-"`
 	ResponsibleComment *string      `gorm:"type:text" json:"responsible_comment"`
 	DataApproval       *string      `gorm:"type:text" json:"data_approval"`
+	// InitiatorName и ContactPhone - «Инициатор заявки» и «Телефон» из шапки подачи
+	// (#1454). Раньше форма их требовала, а бэк отбрасывал: сохранять было некуда, и в
+	// бланк попадали только профильные данные отправителя, даже если заявитель указал
+	// другого человека.
+	InitiatorName *string `gorm:"size:255" json:"initiator_name"`
+	ContactPhone  *string `gorm:"size:50" json:"contact_phone"`
 	CompanyID          *int         `gorm:"index" json:"company_id"`
 	Company            *Company     `json:"-"`
 }

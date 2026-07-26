@@ -95,7 +95,7 @@ func resolveApplication(bctx *BlankContext, path string) string {
 		}
 	case "application.sender.phone":
 		if bctx.Sender != nil {
-			return derefStr(bctx.Sender.Phone)
+			return formatPhone(derefStr(bctx.Sender.Phone))
 		}
 	case "application.sender.email":
 		if bctx.Sender != nil {
@@ -108,6 +108,22 @@ func resolveApplication(bctx *BlankContext, path string) string {
 	case "application.confirmation_datetime":
 		if app.ConfirmationDatetime != nil {
 			return app.ConfirmationDatetime.Format("02.01.2006")
+		}
+	case "application.initiator_name":
+		// Инициатора указывают в шапке подачи; у заявок до появления поля берём
+		// отправителя - по умолчанию инициатор это он.
+		if name := derefStr(app.InitiatorName); name != "" {
+			return name
+		}
+		if bctx.Sender != nil {
+			return joinFullName(derefStr(bctx.Sender.LastName), derefStr(bctx.Sender.FirstName), derefStr(bctx.Sender.MiddleName))
+		}
+	case "application.contact_phone":
+		if phone := derefStr(app.ContactPhone); phone != "" {
+			return formatPhone(phone)
+		}
+		if bctx.Sender != nil {
+			return formatPhone(derefStr(bctx.Sender.Phone))
 		}
 	case "application.approver_name":
 		return bctx.ApproverName
@@ -262,6 +278,29 @@ func formatDate(s string) string {
 		return s
 	}
 	return t.Format("02.01.2006")
+}
+
+// formatPhone печатает номер так же, как интерфейс: +7 (XXX) XXX XX-XX.
+// Эталон - frontend/src/composables/usePhoneFormat.js. Номер, не похожий на
+// российский, возвращается без изменений: в бланке исходная строка полезнее пустоты.
+func formatPhone(s string) string {
+	digits := make([]rune, 0, len(s))
+	for _, r := range s {
+		if r >= '0' && r <= '9' {
+			digits = append(digits, r)
+		}
+	}
+	switch {
+	case len(digits) == 11 && digits[0] == '8':
+		digits[0] = '7'
+	case len(digits) == 10:
+		digits = append([]rune{'7'}, digits...)
+	}
+	if len(digits) != 11 || digits[0] != '7' {
+		return s
+	}
+	d := string(digits)
+	return "+" + d[0:1] + " (" + d[1:4] + ") " + d[4:7] + " " + d[7:9] + "-" + d[9:11]
 }
 
 func formatTime(s string) string {

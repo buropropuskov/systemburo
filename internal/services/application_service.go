@@ -1725,10 +1725,11 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 	// Создаём заявку
 	var appID int
 	err = tx.Raw(`
-		INSERT INTO applications (application_number, organization_id, company_id, sender_user_id, message, data_approval, status, confirmation, sending_datetime)
-		VALUES (?, ?, ?, ?, ?, ?, 'Непрочитано', 'Согласование', ?)
+		INSERT INTO applications (application_number, organization_id, company_id, sender_user_id, message, data_approval, status, confirmation, sending_datetime, initiator_name, contact_phone)
+		VALUES (?, ?, ?, ?, ?, ?, 'Непрочитано', 'Согласование', ?, NULLIF(?, ''), NULLIF(?, ''))
 		RETURNING id
-	`, applicationNumber, organizationID, companyID, user.ID, req.Message, fmt.Sprintf("%v", req.DataApproval), baseTime).Scan(&appID).Error
+	`, applicationNumber, organizationID, companyID, user.ID, req.Message, fmt.Sprintf("%v", req.DataApproval), baseTime,
+		strings.TrimSpace(req.ResponsiblePerson), strings.TrimSpace(req.ContactPhone)).Scan(&appID).Error
 	if err != nil {
 		tx.Rollback()
 		slog.Error("Ошибка создания заявки", "error", err)
