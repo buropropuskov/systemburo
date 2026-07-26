@@ -1773,7 +1773,7 @@ export default {
 }
 .rv-tab.active {
   color: var(--accent-text);
-  border-bottom-color: var(--accent);
+  border-bottom-color: var(--accent-text);
 }
 
 /* Вкладка аналитики */

@@ -1341,7 +1341,7 @@ export default {
 .reassign-empty {
   margin: 10px 0 0;
   font-size: 0.85em;
-  color: var(--color-danger);
+  color: var(--danger-text);
 }
 
 /* Стили для улучшенного модального окна */

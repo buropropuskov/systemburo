@@ -144,4 +144,35 @@ describe('utils/theme', () => {
     const tokens = readFileSync(resolve(__dirname, '../../assets/tokens.css'), 'utf8')
     expect(tokens).toMatch(/html\.theme-switching[\s\S]{0,200}transition:\s*none\s*!important/)
   })
+
+  // Подпись на цветной заливке (#1415): в тёмных темах заливка тёмная, подпись
+  // светлая - иначе получается «чёрный текст по красному/синему».
+  it('каждая тема задаёт подпись на заливке, и в тёмных она проходит AA', () => {
+    const tokens = readFileSync(resolve(__dirname, '../../assets/tokens.css'), 'utf8')
+    const lum = (hex) => {
+      const ch = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+        .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4))
+      return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2]
+    }
+    const ratio = (a, b) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05)
+    const blockOf = (theme) => {
+      const start = tokens.indexOf(`[data-theme="${theme}"] {`)
+      return tokens.slice(start, tokens.indexOf('\n}', start))
+    }
+    const value = (block, name) => block.match(new RegExp(`${name}:\\s*(#[0-9a-fA-F]{6})`))?.[1]
+
+    THEMES.forEach(({ id }) => {
+      const block = blockOf(id)
+      expect(value(block, '--fill-text'), `${id}: нет --fill-text`).toBeTruthy()
+    })
+
+    ;['dark', 'dark-orange'].forEach((id) => {
+      const block = blockOf(id)
+      const fill = value(block, '--fill-text')
+      ;['--accent', '--danger', '--success', '--warning', '--info'].forEach((name) => {
+        const bg = value(block, name)
+        expect(ratio(fill, bg), `${id}: подпись на ${name} даёт слабый контраст`).toBeGreaterThan(4.5)
+      })
+    })
+  })
 })

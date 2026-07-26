@@ -187,7 +187,7 @@ export default {
 
 .confirm-dialog__btn--danger {
   background: var(--danger);
-  color: var(--surface);
+  color: var(--fill-text);
 }
 
 .confirm-dialog__btn--danger:hover {

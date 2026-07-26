@@ -885,7 +885,7 @@ export default {
 
 .badge--important {
   background: var(--warning);
-  color: var(--surface);
+  color: var(--fill-text);
 }
 
 .status-chip {

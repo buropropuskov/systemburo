@@ -207,7 +207,7 @@ export default {
 .src--role { background: #eef0f6; color: #6b7280; }
 .src--group { background: var(--color-primary-tint); color: var(--accent-text); }
 .src--override { background: #fff4e3; color: #e8870c; }
-.src--admin { background: #e9f9ef; color: var(--color-success); }
+.src--admin { background: #e9f9ef; color: var(--success-text); }
 
 .tgl {
   --w: 40px;

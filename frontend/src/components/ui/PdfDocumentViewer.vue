@@ -196,7 +196,7 @@ defineExpose({ render });
 }
 
 .pdf-viewer__state--error {
-  color: var(--color-danger);
+  color: var(--danger-text);
 }
 
 .pdf-viewer__retry {

@@ -183,7 +183,7 @@ watch(
 }
 
 .dp-modal__state--error {
-  color: var(--color-danger);
+  color: var(--danger-text);
 }
 
 .dp-modal__title {

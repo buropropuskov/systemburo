@@ -1795,7 +1795,7 @@ export default {
 }
 
 .nav-item:hover .exit {
-  color: var(--danger);
+  color: var(--danger-text);
 }
 
 .nav-icon-wrapper {

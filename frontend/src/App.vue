@@ -302,7 +302,7 @@ body.nav-drawer-open {
 }
 
 .red {
-  color: var(--danger);
+  color: var(--danger-text);
 }
 
 .page-fade-enter-active {

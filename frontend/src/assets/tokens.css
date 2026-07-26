@@ -28,6 +28,8 @@
 :root,
 :root[data-theme="light"],
 [data-theme="light"] {
+  /* Подпись на насыщенной заливке (кнопки, бейджи статусов). */
+  --fill-text: #ffffff;
   --accent: #4F5BDF;
   --accent-text: #4F5BDF;
   --accent-hover: #3d49c7;
@@ -73,13 +75,18 @@
 /* --- Тёмная ----------------------------------------------------------------- */
 :root[data-theme="dark"],
 [data-theme="dark"] {
-  /* Заливка светлее исходного #4F5BDF: тёмно-синяя кнопка на тёмном фоне
-     отделялась всего на 3.35. Светлая заливка с тёмной подписью даёт 7.74. */
-  --accent: #9AA2FF;
-  --accent-text: #9AA2FF;
-  --accent-hover: #B0B6FF;
-  --accent-contrast: #1f2229;
-  --accent-tint: rgba(154, 162, 255, 0.16);
+  /* Спокойная графитовая. Прошлая тёмная набиралась тонами Tailwind-400
+     (#9AA2FF/#34d399/#fbbf24), и на тёмном фоне они читались неоном; заливки
+     были СВЕТЛЫЕ с тёмной подписью - «чёрный текст по синему/красному».
+     Здесь наоборот: заливка тёмная и приглушённая, подпись светлая
+     (--fill-text), цветной текст низкой насыщенности (28-42% против 60-85%).
+     Контраст подписи на каждой заливке 5.0-5.6, цветного текста на фоне 7.5+. */
+  --accent: #5561B8;
+  --accent-text: #A6AEE8;
+  --accent-hover: #616DC6;
+  --accent-contrast: #F2F4FF;
+  --accent-tint: rgba(85, 97, 184, 0.22);
+  --fill-text: #F2F4FF;
 
   --bg: #1f2229;
   --surface: #272b33;
@@ -90,24 +97,26 @@
   --shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
   --shadow-drop: rgba(0, 0, 0, 0.6);
-  --shadow-focus: 0 0 0 3px rgba(154, 162, 255, 0.3);
+  --shadow-focus: 0 0 0 3px rgba(85, 97, 184, 0.35);
 
-  --success: #34d399;  --success-bg: #10291f;  --success-text: #6ee7b7;
-  --danger:  #f87171;  --danger-bg:  #2d1618;  --danger-text:  #fca5a5;
-  --warning: #fbbf24;  --warning-bg: #2b2113;  --warning-text: #fcd34d;
-  --info:    #60a5fa;  --info-bg:    #14202f;  --info-text:    #93c5fd;
+  --success: #3A7359;  --success-bg: #1b2620;  --success-text: #8FC7AC;
+  --danger:  #9F4C54;  --danger-bg:  #2a1b1d;  --danger-text:  #E3A2A7;
+  --warning: #866326;  --warning-bg: #262019;  --warning-text: #D9B87C;
+  --info:    #416A94;  --info-bg:    #1b2430;  --info-text:    #9DC0E0;
 
-  /* Тот же смысл, затемнённая подложка: светлая #fff5e0 на тёмном фоне слепит. */
-  --unread-bg: #2b2113;
-  --unread-accent: #fbbf24;
-  --updated-bg: #241a33;
-  --updated-accent: #c084fc;
-  --row-hover: #30343d;
+  /* Непрочитанное больше не янтарное: тёплая подложка с янтарной полоской
+     читалась как золотое свечение. Подложка нейтральная, чуть светлее фона,
+     полоска - приглушённый охристый. */
+  --unread-bg: #2A2E37;
+  --unread-accent: #866326;
+  --updated-bg: #262433;
+  --updated-accent: #8E7BB5;
+  --row-hover: #2e323b;
 
-  --tag-chs-bg: #2d1618;       --tag-chs-text: #fca5a5;
-  --tag-roof-bg: #14202f;      --tag-roof-text: #93c5fd;
-  --tag-parking-bg: #10291f;   --tag-parking-text: #6ee7b7;
-  --tag-important-bg: #2b2113; --tag-important-text: #fcd34d;
+  --tag-chs-bg: #2a1b1d;       --tag-chs-text: #E3A2A7;
+  --tag-roof-bg: #1b2430;      --tag-roof-text: #9DC0E0;
+  --tag-parking-bg: #1b2620;   --tag-parking-text: #8FC7AC;
+  --tag-important-bg: #262019; --tag-important-text: #D9B87C;
 
   --hint-bg: #14171d;
   --hint-text: #c9ced8;
@@ -119,6 +128,8 @@
 /* --- Корпоративная оранжевая (по мотивам dreamisland.ru) --------------------- */
 :root[data-theme="corporate-orange"],
 [data-theme="corporate-orange"] {
+  /* Подпись на насыщенной заливке (кнопки, бейджи статусов). */
+  --fill-text: #ffffff;
   /* Оранжевый остаётся оранжевым, а не краснеет: чистый оранжевый светлый, поэтому
      подпись на заливке тёмная (6.51) - белая дала бы 2.8. */
   --accent: #F97316;
@@ -165,6 +176,8 @@
 /* --- Деловая графитовая: сдержанная, без ярких акцентов ---------------------- */
 :root[data-theme="business-graphite"],
 [data-theme="business-graphite"] {
+  /* Подпись на насыщенной заливке (кнопки, бейджи статусов). */
+  --fill-text: #ffffff;
   --accent: #4A5568;
   --accent-text: #4A5568;
   --accent-hover: #3a4553;
@@ -208,6 +221,8 @@
 /* --- Официальная синяя: гос-стиль -------------------------------------------- */
 :root[data-theme="official-blue"],
 [data-theme="official-blue"] {
+  /* Подпись на насыщенной заливке (кнопки, бейджи статусов). */
+  --fill-text: #ffffff;
   --accent: #1B4F9C;
   --accent-text: #1B4F9C;
   --accent-hover: #143d7a;
@@ -251,11 +266,16 @@
 /* --- Тёмная оранжевая: корпоративная ночная ---------------------------------- */
 :root[data-theme="dark-orange"],
 [data-theme="dark-orange"] {
-  --accent: #FFA033;
-  --accent-text: #FFA033;
-  --accent-hover: #FFB55C;
-  --accent-contrast: #221c18;
-  --accent-tint: rgba(255, 160, 51, 0.16);
+  /* Тот же принцип, что у тёмной (приглушённые тёмные заливки + светлая
+     подпись), тёплый характер темы сохранён - он тут намеренный. */
+  /* Заливка темнее «оранжевого» #B5722A: со светлой подписью тот давал 3.54,
+     ниже нормы AA. #94591A - 5.17, тёплый характер сохранён. */
+  --accent: #94591A;
+  --accent-text: #E0A263;
+  --accent-hover: #A5661F;
+  --accent-contrast: #FDF3E7;
+  --accent-tint: rgba(148, 89, 26, 0.24);
+  --fill-text: #FDF3E7;
 
   --bg: #221c18;
   --surface: #2b241e;
@@ -266,23 +286,23 @@
   --shadow: 0 2px 12px rgba(0, 0, 0, 0.55);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.45);
   --shadow-drop: rgba(0, 0, 0, 0.65);
-  --shadow-focus: 0 0 0 3px rgba(255, 160, 51, 0.3);
+  --shadow-focus: 0 0 0 3px rgba(148, 89, 26, 0.45);
 
-  --success: #4ade80;  --success-bg: #14261a;  --success-text: #86efac;
-  --danger:  #fb7185;  --danger-bg:  #2e1519;  --danger-text:  #fda4af;
-  --warning: #fbbf24;  --warning-bg: #2c2012;  --warning-text: #fcd34d;
-  --info:    #7dd3fc;  --info-bg:    #12242e;  --info-text:    #bae6fd;
+  --success: #3A7355;  --success-bg: #1e2620;  --success-text: #8FC7A8;
+  --danger:  #9F4C50;  --danger-bg:  #2c1d1c;  --danger-text:  #E3A2A0;
+  --warning: #866326;  --warning-bg: #2a2318;  --warning-text: #D9B87C;
+  --info:    #416A8A;  --info-bg:    #1d2630;  --info-text:    #9DC0D8;
 
-  --unread-bg: #2c2012;
-  --unread-accent: #FFA033;
-  --updated-bg: #2a1d2e;
-  --updated-accent: #c084fc;
+  --unread-bg: #2E2721;
+  --unread-accent: #866326;
+  --updated-bg: #2b2430;
+  --updated-accent: #A98BB0;
   --row-hover: #362d26;
 
-  --tag-chs-bg: #2e1519;       --tag-chs-text: #fda4af;
-  --tag-roof-bg: #12242e;      --tag-roof-text: #bae6fd;
-  --tag-parking-bg: #14261a;   --tag-parking-text: #86efac;
-  --tag-important-bg: #2c2012; --tag-important-text: #fcd34d;
+  --tag-chs-bg: #2c1d1c;       --tag-chs-text: #E3A2A0;
+  --tag-roof-bg: #1d2630;      --tag-roof-text: #9DC0D8;
+  --tag-parking-bg: #1e2620;   --tag-parking-text: #8FC7A8;
+  --tag-important-bg: #2a2318; --tag-important-text: #D9B87C;
 
   --hint-bg: #191410;
   --hint-text: #d8cec7;

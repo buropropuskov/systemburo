@@ -493,7 +493,7 @@ export default {
 }
 
 .notification-item__delete:hover {
-  color: var(--color-danger);
+  color: var(--danger-text);
   background: var(--danger-bg);
 }
 
@@ -509,7 +509,7 @@ export default {
   width: 20px;
   height: 20px;
   border: 2px solid var(--color-border);
-  border-top-color: var(--accent);
+  border-top-color: var(--accent-text);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }

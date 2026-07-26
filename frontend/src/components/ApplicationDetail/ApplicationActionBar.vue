@@ -831,7 +831,7 @@ export default {
 
 .confirm-btn, .accept-btn {
     background: var(--success);
-    color: var(--surface);
+    color: var(--fill-text);
 }
 
 .confirm-btn:hover:not(:disabled), .accept-btn:hover:not(:disabled) {
@@ -840,7 +840,7 @@ export default {
 
 .reject-btn {
     background: var(--danger);
-    color: var(--surface);
+    color: var(--fill-text);
 }
 
 .reject-btn:hover:not(:disabled) {
@@ -952,7 +952,7 @@ export default {
 .status-approved-badge {
     background: color-mix(in srgb, var(--success) 10%, var(--surface));
     color: var(--success-text);
-    border: 1px solid rgba(5, 150, 105, 0.3);
+    border: 1px solid color-mix(in srgb, var(--success) 45%, transparent);
 }
 
 .status-pending-badge {
@@ -964,7 +964,7 @@ export default {
 .status-completed-badge {
     background: color-mix(in srgb, var(--success) 10%, var(--surface));
     color: var(--success-text);
-    border: 1px solid rgba(5, 150, 105, 0.3);
+    border: 1px solid color-mix(in srgb, var(--success) 45%, transparent);
 }
 
 .confirm-btn:disabled,
@@ -989,7 +989,7 @@ export default {
    поэтому белый спиннер не виден - перекрашиваем в серый + primary. */
 .actions-ready-loader {
     border-color: var(--shadow-drop);
-    border-top-color: var(--accent);
+    border-top-color: var(--accent-text);
 }
 
 @keyframes spin {

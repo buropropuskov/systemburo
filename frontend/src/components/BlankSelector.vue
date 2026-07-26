@@ -790,7 +790,7 @@ export default {
 .action-btn.delete-selected:hover:not(:disabled),
 .action-btn.delete-all:hover:not(:disabled) {
     background: var(--danger);
-    color: var(--surface);
+    color: var(--fill-text);
     border-color: var(--danger);
 }
 
@@ -1247,7 +1247,7 @@ export default {
     }
 
     .rename-cancel {
-        color: var(--color-danger);
+        color: var(--danger-text);
         font-size: 20px;
     }
 

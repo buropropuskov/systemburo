@@ -223,7 +223,7 @@ export default {
 }
 
 .ask-text-counter--warning {
-    color: var(--color-danger);
+    color: var(--danger-text);
 }
 
 .ask-attachments {

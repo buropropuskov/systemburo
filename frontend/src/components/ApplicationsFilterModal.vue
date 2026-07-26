@@ -357,12 +357,12 @@ export default {
 .reset-filters-btn {
   background: var(--surface);
   border-color: color-mix(in srgb, var(--danger) 30%, var(--surface));
-  color: var(--color-danger);
+  color: var(--danger-text);
 }
 
 .reset-filters-btn:hover:not(:disabled) {
   background: var(--color-danger);
-  border-color: var(--color-danger);
-  color: var(--surface);
+  border-color: var(--danger);
+  color: var(--fill-text);
 }
 </style>

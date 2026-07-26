@@ -259,7 +259,7 @@ onBeforeUnmount(() => { releaseBodyScrollLock(scrollLockOwner); });
 
 .dup-conflict-dialog__btn--danger {
   background: var(--danger);
-  color: var(--surface);
+  color: var(--fill-text);
 }
 
 .dup-conflict-dialog__btn--danger:hover {
