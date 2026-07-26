@@ -7,7 +7,6 @@ import {
   readStoredTheme,
   storeTheme,
 } from '@/utils/theme'
-import { revealThemeChange } from '@/utils/themeTransition'
 import { getTheme, saveTheme } from '@/api/theme'
 import { useDeletionsStore } from '@/stores/deletions'
 
@@ -28,19 +27,10 @@ export const useThemeStore = defineStore('theme', () => {
   // не должен откатывать его выбор (last-resolve-wins на общий ref).
   let choiceSeq = 0
 
-  /**
-   * Применяет тему к DOM + localStorage, без обращения к бэку.
-   *
-   * @param {string} id
-   * @param {{x: number, y: number}|null} [origin] точка клика: с ней тема
-   *   заливает экран от курсора, без неё применяется мгновенно (загрузка,
-   *   синхронизация профиля - анимировать там нечего).
-   */
-  function applyLocal(id, origin) {
-    return revealThemeChange(() => {
-      current.value = applyTheme(id)
-      storeTheme(current.value)
-    }, origin)
+  /** Применяет тему к DOM + localStorage, без обращения к бэку. */
+  function applyLocal(id) {
+    current.value = applyTheme(id)
+    storeTheme(current.value)
   }
 
   /**
@@ -48,19 +38,16 @@ export const useThemeStore = defineStore('theme', () => {
    * сохранения показываем (тема на этом устройстве осталась, но на другое
    * не переедет) и НЕ откатываем выбор - переключение уже видно на экране.
    *
-   * Заливку намеренно не ждём: запрос в профиль уходит параллельно анимации.
-   * Поэтому и сохраняем ЯВНЫЙ id, а не `current.value`: с заливкой тему ставит
-   * коллбэк View Transitions, который браузер зовёт после снятия кадра, и на
-   * момент запроса в `current` лежала бы ещё прошлая тема (id уже проверен
-   * `isValidTheme`, так что `applyTheme` его не переписывает).
+   * Сохраняем ЯВНЫЙ id, а не `current.value`: id уже проверен `isValidTheme`,
+   * так что `applyTheme` его не переписывает, и запрос не зависит от того, что
+   * успело попасть в общий ref.
    *
    * @param {string} id
-   * @param {{x: number, y: number}|null} [origin] точка нажатия по пункту темы
    */
-  async function setTheme(id, origin) {
+  async function setTheme(id) {
     if (!isValidTheme(id) || id === current.value) return
     choiceSeq += 1
-    applyLocal(id, origin)
+    applyLocal(id)
     try {
       await saveTheme(id)
     } catch (e) {

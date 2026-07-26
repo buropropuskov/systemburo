@@ -143,23 +143,16 @@ describe('theme store', () => {
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
   });
 
-  // Заливка от клика (#1415): View Transitions зовёт коллбэк не сразу, а после
-  // снятия кадра. Профиль обязан получить ВЫБРАННУЮ тему - раньше сохранялся
-  // `current.value`, то есть прошлая тема, и выбор не переживал перезагрузку.
-  it('с заливкой сохраняет в профиль выбранную тему, а не прошлую', async () => {
-    document.startViewTransition = (callback) => {
-      setTimeout(callback, 0);
-      return { ready: Promise.resolve(), skipTransition: () => {} };
-    };
-    document.documentElement.animate = () => ({ finished: Promise.resolve() });
+  // Тема меняется сразу и целиком: никаких переходов и анимаций (#1415).
+  it('применяет тему мгновенно и сохраняет в профиль выбранную', async () => {
     const store = useThemeStore();
 
-    await store.setTheme('dark-orange', { x: 10, y: 20 });
+    await store.setTheme('dark-orange');
 
-    expect(saveTheme).toHaveBeenCalledWith('dark-orange');
-    await vi.waitFor(() => expect(store.current).toBe('dark-orange'));
+    expect(store.current).toBe('dark-orange');
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark-orange');
-    delete document.startViewTransition;
-    delete document.documentElement.animate;
+    expect(saveTheme).toHaveBeenCalledWith('dark-orange');
+    // View Transitions не поднимаем - в jsdom его нет, но и в браузере не зовём.
+    expect(document.startViewTransition).toBeUndefined();
   });
 });
