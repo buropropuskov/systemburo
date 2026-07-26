@@ -379,3 +379,19 @@ textarea {
 @media (max-width: 1024px) { :root { --gutter: 16px; } }
 @media (max-width: 768px)  { :root { --gutter: 12px; } }
 @media (max-width: 480px)  { :root { --gutter: 10px; } }
+
+/*
+ * Смена темы должна происходить одним кадром на всём сайте (#1415).
+ *
+ * У части элементов свой transition на цвет (пункты меню - background-color
+ * 0.2s, таблица заявок - all 0.3s), поэтому при смене data-theme они доезжали
+ * вразнобой: фон и шапка вставали сразу, меню и таблица догоняли ~300мс.
+ * Класс на <html> держится ровно два кадра - его ставит и снимает
+ * utils/theme.js. Анимации НЕ трогаем: спиннеры не должны прыгать.
+ */
+html.theme-switching,
+html.theme-switching *,
+html.theme-switching *::before,
+html.theme-switching *::after {
+  transition: none !important;
+}
