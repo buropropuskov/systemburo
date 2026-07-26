@@ -529,6 +529,15 @@
             из другой группы полей ({{ foreignListMappings.map(m => getFieldLabel(m.field_path)).join(', ') }}).
             У этого типа вложения такие данные не заполняются - ячейки останутся пустыми.
           </div>
+          <div
+            v-if="repeatedListMappings.length"
+            class="te-repeat-note"
+            data-testid="template-repeat-note"
+          >
+            Поля заявки, поставленные в строки списка
+            ({{ repeatedListMappings.map(m => `${m.cell_ref} ${getFieldLabel(m.field_path)}`).join(', ') }}),
+            заполняются в каждой строке списка: значение у них одно на всю заявку.
+          </div>
           <button
             class="te-section-toggle"
             @click="showMappings = !showMappings"
@@ -562,6 +571,10 @@
                 v-if="m.is_list_field"
                 class="te-list-badge"
               >список</span>
+              <span
+                v-else-if="m.repeatsInList"
+                class="te-list-badge te-list-badge--repeat"
+              >в каждой строке</span>
               <button
                 class="te-mapping-remove"
                 title="Удалить привязку"
@@ -676,6 +689,7 @@ export default {
       return this.mappings.map(m => ({
         ...m,
         fieldLabel: this.getFieldLabel(m.field_path),
+        repeatsInList: this.repeatsInList(m),
       }));
     },
     filteredFieldGroups() {
@@ -725,6 +739,10 @@ export default {
       return this.mappings.filter(
         m => m.is_list_field && !m.field_path.startsWith(`${this.listGroupForType}.`)
       );
+    },
+    // Обычные привязки, попавшие в строки списка: бланк повторяет их в каждой строке.
+    repeatedListMappings() {
+      return this.mappings.filter(m => this.repeatsInList(m));
     },
     pendingIsForeignList() {
       if (!this.pendingFieldPath || !this.listGroupForType) return false;
@@ -1053,6 +1071,18 @@ export default {
     },
     removeMappingsByPath(fieldPath) {
       this.mappings = this.mappings.filter(m => m.field_path !== fieldPath);
+    },
+    // Границы берём из сохранённого шаблона, а не из полей ввода: генерация бланка
+    // считает по сохранённым, пока админ не нажал «Сохранить границы».
+    repeatsInList(m) {
+      if (!m || m.is_list_field || !this.template) return false;
+      const start = this.template.list_start_row;
+      const end = this.template.list_end_row;
+      if (!start || !end || end < start) return false;
+      const parsed = /^[A-Za-z]+(\d+)$/.exec(String(m.cell_ref || '').trim());
+      if (!parsed) return false;
+      const row = Number(parsed[1]);
+      return row >= start && row <= end;
     },
     isListField(fieldPath) {
       for (const g of this.fieldGroups) {
@@ -1601,6 +1631,17 @@ export default {
   line-height: 1.4;
 }
 
+.te-repeat-note {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md, 15px);
+  background: var(--info-bg);
+  border: 1px solid var(--info);
+  color: var(--info-text);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .te-separator-block {
   display: flex;
   align-items: center;
@@ -2093,6 +2134,11 @@ export default {
   padding: 1px 5px;
   border-radius: var(--radius-pill);
   font-weight: 500;
+}
+
+.te-list-badge--repeat {
+  background: transparent;
+  border: 1px solid var(--info);
 }
 
 .te-mapping-remove {

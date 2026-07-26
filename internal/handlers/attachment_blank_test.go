@@ -183,6 +183,93 @@ func TestBlankGenerate(t *testing.T) {
 	t.Run("места разгрузки вложения", func(t *testing.T) { attachmentPlacesSection(t, db, td) })
 	t.Run("привязки машины", func(t *testing.T) { carBindingsSection(t, db, td) })
 	t.Run("переполнение списка", func(t *testing.T) { listOverflowSection(t, db, td) })
+	t.Run("поле заявки в строках списка", func(t *testing.T) { listRepeatedFieldSection(t, db, td) })
+}
+
+// Поле заявки, поставленное внутрь строк списка: значение у него одно на всю заявку
+// (организация, компания), но в разметке бланка это колонка таблицы - значит стоять
+// оно должно в каждой строке списка, а не только в первой. Так настроена боевая
+// «Автозаявка»: F19 = application.organization при списке 19-33.
+func listRepeatedFieldSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
+	userTypeID := secUserTypeIDByCode(t, db, "user")
+	last := "Петров"
+	sender := models.User{
+		Username: "blankrepeatsender", Password: "x", TypeID: userTypeID,
+		OrganizationID: secPtrInt(td.OrgID), LastName: &last,
+	}
+	require.NoError(t, db.Create(&sender).Error)
+
+	name := "repeat_blank"
+	ua := models.UniqueAttachment{AttachmentType: "cars", Name: &name, IsActive: true}
+	require.NoError(t, db.Create(&ua).Error)
+
+	f := excelize.NewFile()
+	defer func() { require.NoError(t, f.Close()) }()
+	path := filepath.Join(t.TempDir(), "repeat.xlsx")
+	require.NoError(t, f.SaveAs(path))
+
+	// Список на две строки, машин будет три - повтор обязан покрыть и добавленную строку.
+	tpl := models.AttachmentTemplate{
+		UniqueAttachmentID: ua.ID, IsActive: true, FilePath: path,
+		OriginalFileName: "repeat.xlsx", ListStartRow: 19, ListEndRow: 20, MaxListRows: 2,
+	}
+	require.NoError(t, db.Create(&tpl).Error)
+	require.NoError(t, db.Create(&[]models.AttachmentTemplateMapping{
+		{TemplateID: tpl.ID, CellRef: "A19", FieldPath: "car.row_number", IsListField: true},
+		{TemplateID: tpl.ID, CellRef: "B19", FieldPath: "car.car_number", IsListField: true},
+		{TemplateID: tpl.ID, CellRef: "F19", FieldPath: "application.organization"},
+		// Совмещённая ячейка внутри списка: повторяется склейка, а не первое поле.
+		{TemplateID: tpl.ID, CellRef: "G19", FieldPath: "application.organization"},
+		{TemplateID: tpl.ID, CellRef: "G19", FieldPath: "application.sender.last_name"},
+		// Та же организация в шапке: вне строк списка остаётся одной ячейкой.
+		{TemplateID: tpl.ID, CellRef: "H5", FieldPath: "application.organization"},
+	}).Error)
+
+	now := time.Now()
+	conf, status := "Согласовано", models.StatusInWork
+	app := models.Application{
+		OrganizationID: td.OrgID, SenderUserID: sender.ID,
+		Confirmation: &conf, Status: &status, SendingDatetime: &now,
+	}
+	require.NoError(t, db.Create(&app).Error)
+	att := models.Attachment{ApplicationID: &app.ID, AttachmentType: "cars", UniqueAttachmentID: &ua.ID}
+	require.NoError(t, db.Create(&att).Error)
+
+	const carCount = 3
+	for i := 0; i < carCount; i++ {
+		number := fmt.Sprintf("Р %03d РР 777", 201+i)
+		require.NoError(t, db.Create(&models.Car{AttachmentID: att.ID, CarNumber: &number}).Error)
+	}
+
+	reader, _, err := services.NewAttachmentBlankService(db).
+		GenerateBlank(context.Background(), app.ID, att.ID)
+	require.NoError(t, err)
+	out, err := excelize.OpenReader(reader)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, out.Close()) }()
+	outSheet := out.GetSheetName(0)
+
+	cell := func(ref string) string {
+		v, err := out.GetCellValue(outSheet, ref)
+		require.NoError(t, err)
+		return v
+	}
+
+	for i := 0; i < carCount; i++ {
+		row := tpl.ListStartRow + i
+		require.Equal(t, "Test Organization", cell(fmt.Sprintf("F%d", row)),
+			"организация должна стоять в строке %d списка", row)
+		require.Equal(t, "Test Organization, Петров", cell(fmt.Sprintf("G%d", row)),
+			"совмещённая ячейка повторяется склейкой в строке %d", row)
+	}
+
+	// Пустые строки списка не заполняем: записей три, четвёртой строки нет.
+	require.Empty(t, cell(fmt.Sprintf("F%d", tpl.ListStartRow+carCount)),
+		"под последней записью организация не пишется")
+
+	// Шапка не превращается в столбец.
+	require.Equal(t, "Test Organization", cell("H5"))
+	require.Empty(t, cell("H6"), "поле вне строк списка остаётся одной ячейкой")
 }
 
 func listTypeSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
