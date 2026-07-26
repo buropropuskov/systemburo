@@ -220,6 +220,10 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	e.HideBanner = true
 	e.HTTPErrorHandler = handlers.CustomHTTPErrorHandler
 	e.Validator = appvalidator.New()
+	// Журнал доступа к персональным данным (152-ФЗ) висит глобально и в проде, и здесь:
+	// без него сверка путей проверялась бы только юнитом, а именно она молча разъехалась
+	// с реальными адресами (#1472).
+	e.Use(mw.PDAudit(db))
 	// nil loginLimiter - в тестах rate-limit на /login не применяется,
 	// т.к. тесты делают много логинов подряд. Отдельный Test* покрывает сам лимитер.
 	router.Setup(e, router.Dependencies{
