@@ -989,7 +989,7 @@ export default {
 /* П.46: лоадер готовности кнопок стоит на светлом фоне (не внутри цветной кнопки),
    поэтому белый спиннер не виден - перекрашиваем в серый + primary. */
 .actions-ready-loader {
-    border-color: var(--shadow-drop);
+    border-color: var(--border);
     border-top-color: var(--accent-text);
 }
 
