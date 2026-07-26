@@ -165,44 +165,6 @@ describe('DirectorySuggestInput', () => {
     expect(wrapper.emitted('update:modelValue').at(-1)).toEqual(['зао ромашка'])
   })
 
-  it('предупреждает, что наименования нет в справочнике', async () => {
-    const wrapper = mountInput({
-      editable: true,
-      fetcher: vi.fn().mockResolvedValue(answer({ canonical: 'ООО "Братишк"', matched: false })),
-    })
-
-    await type(wrapper, 'ооо "братишк')
-
-    const notice = wrapper.find('[data-testid="create-organization-notice"]')
-    expect(notice.exists()).toBe(true)
-    expect(notice.text()).toContain('Нет в справочнике, уйдёт на проверку после подачи')
-  })
-
-  it('о вырожденном наименовании говорит, что запись не создать', async () => {
-    const wrapper = mountInput({
-      editable: true,
-      fetcher: vi.fn().mockResolvedValue(answer({ canonical: '""', degenerate: true })),
-    })
-
-    await type(wrapper, '""')
-
-    const notice = wrapper.find('[data-testid="create-organization-notice"]')
-    expect(notice.exists()).toBe(true)
-    // Подача такой ввод отклоняет, поэтому обещать проверку нельзя.
-    expect(notice.text()).toContain('Укажите наименование')
-  })
-
-  it('при неизвестном matched молчит, а не утверждает «такого нет»', async () => {
-    const wrapper = mountInput({
-      editable: true,
-      fetcher: vi.fn().mockResolvedValue(answer({ canonical: 'ИП', matched: null })),
-    })
-
-    await type(wrapper, 'ип')
-
-    expect(wrapper.find('[data-testid="create-organization-notice"]').exists()).toBe(false)
-  })
-
   it('окно с пунктом «Создать» вылезает, когда похожих записей нет', async () => {
     const wrapper = mountInput({
       editable: true,
@@ -216,8 +178,8 @@ describe('DirectorySuggestInput', () => {
     expect(wrapper.find('[data-testid="create-organization-list"]').exists()).toBe(true)
     const create = wrapper.find('[data-testid="create-organization-option-create"]')
     expect(create.exists()).toBe(true)
-    expect(create.text()).toContain('Создать: ООО "Бебра"')
-    expect(create.text()).toContain('уйдёт на проверку')
+    // Пункт выглядит как обычный вариант: только само наименование, без подписей.
+    expect(create.text()).toBe('ООО "Бебра"')
   })
 
   it('пункт «Создать» ставит каноничное написание, не привязывая запись', async () => {
@@ -320,25 +282,13 @@ describe('DirectorySuggestInput', () => {
     expect(wrapper.find('[data-testid="create-organization-option-create"]').exists()).toBe(false)
   })
 
-  it('о существующем наименовании не предупреждает', async () => {
-    const item = { id: 3, name: 'ООО Демо-Партнёр' }
-    const wrapper = mountInput({
-      editable: true,
-      fetcher: vi.fn().mockResolvedValue(answer({ items: [item], canonical: item.name, matched: true })),
-    })
-
-    await type(wrapper, 'демо-партнёр')
-
-    expect(wrapper.find('[data-testid="create-organization-notice"]').exists()).toBe(false)
-  })
-
-  it('без права ни канон, ни предупреждение не применяются', async () => {
+  it('без права канон не применяется и окно не открывается', async () => {
     const fetcher = vi.fn().mockResolvedValue(answer({ canonical: 'ООО "Братишк"' }))
     const wrapper = mountInput({ editable: false, modelValue: 'ооо "братишк', fetcher })
 
     await wrapper.get('input').trigger('blur')
 
     expect(wrapper.emitted('update:modelValue')).toBeUndefined()
-    expect(wrapper.find('[data-testid="create-organization-notice"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="create-organization-list"]').exists()).toBe(false)
   })
 })

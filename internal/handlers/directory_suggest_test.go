@@ -190,6 +190,27 @@ func TestDirectorySuggest(t *testing.T) {
 		assert.NotContains(t, names, pendingCompany.Name)
 	})
 
+	// Кавычку в наименовании ставят и опускают, а пробел после организационно-правовой
+	// формы часто пропускают. Все три написания одного юрлица обязаны находить одну запись,
+	// иначе форма предлагает завести дубль (репорт с боя: «ооо"демо-партнёр»).
+	t.Run("наименование находится и с кавычками, и без них, и слитно с формой", func(t *testing.T) {
+		existing := seedOrg(t, db, `ООО "Кавычки Групп"`, models.ModerationApproved, true)
+
+		for _, writing := range []string{
+			`ООО "Кавычки Групп"`, "ООО Кавычки Групп", "ооо кавычки групп",
+			`ооо"кавычки групп`, `ООО"Кавычки Групп"`, `ооо «кавычки групп»`,
+		} {
+			answer := suggestAnswer(t, e, token, "/organizations/suggest", writing)
+			require.NotNil(t, answer.Matched, "написание %q: признак совпадения должен быть посчитан", writing)
+			assert.True(t, *answer.Matched, "написание %q должно найти существующую запись", writing)
+			assert.Contains(t, namesOf(answer.Items), existing.Name, "написание %q", writing)
+		}
+
+		// Слитная форма ещё и оформляется как надо: раньше выходило «Ооо"кавычки групп».
+		answer := suggestAnswer(t, e, token, "/organizations/suggest", `ооо"кавычки групп`)
+		assert.Equal(t, `ООО "Кавычки групп"`, answer.Canonical)
+	})
+
 	// Канон оформления и признак «уже есть в справочнике» форма получает вместе с
 	// подсказками: правила оформления и ключ дедупликации живут в Go, второй копии на
 	// фронте быть не должно.
