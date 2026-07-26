@@ -59,6 +59,93 @@ func (h *CompanyHandler) Suggest(c echo.Context) error {
 	return RespondSuccess(c, suggestions)
 }
 
+// ApproveModeration godoc
+// @Summary      Подтвердить компанию «на проверке»
+// @Description  Разбор записи, заведённой из заявки (#1437). Требует права application.organization.moderate. При совпадении наименования с существующей записью ответ приходит со status=conflict и самой записью.
+// @Tags         companies
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID компании"
+// @Success      200 {object} services.DirectoryModerationResult
+// @Failure      400 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Router       /companies/{id}/moderation/approve [post]
+func (h *CompanyHandler) ApproveModeration(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid company ID")
+	}
+	userID, _ := c.Get("user_id").(int)
+	result, err := h.service.ApproveModeration(c.Request().Context(), userID, id)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, result)
+}
+
+// RenameModeration godoc
+// @Summary      Исправить наименование компании «на проверке»
+// @Description  Правит наименование черновика и считает запись разобранной. Требует права application.organization.moderate. При совпадении с существующей записью возвращает status=conflict.
+// @Tags         companies
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID компании"
+// @Param        request body services.DirectoryRenameRequest true "Новое наименование"
+// @Success      200 {object} services.DirectoryModerationResult
+// @Failure      400 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Router       /companies/{id}/moderation/rename [patch]
+func (h *CompanyHandler) RenameModeration(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid company ID")
+	}
+	var req services.DirectoryRenameRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	userID, _ := c.Get("user_id").(int)
+	result, err := h.service.RenameModeration(c.Request().Context(), userID, id, req.Name)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, result)
+}
+
+// MergeModeration godoc
+// @Summary      Привязать компанию «на проверке» к существующей
+// @Description  Переносит заявки, вложения, машины, сотрудников и привязки черновика на выбранную проверенную компанию и удаляет черновик. Требует права application.organization.moderate.
+// @Tags         companies
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID компании «на проверке»"
+// @Param        request body services.DirectoryMergeRequest true "ID целевой компании"
+// @Success      200 {object} services.DirectoryMergeResult
+// @Failure      400 {object} models.HTTPError
+// @Failure      403 {object} models.HTTPError
+// @Failure      404 {object} models.HTTPError
+// @Router       /companies/{id}/moderation/merge [post]
+func (h *CompanyHandler) MergeModeration(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid company ID")
+	}
+	var req services.DirectoryMergeRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	userID, _ := c.Get("user_id").(int)
+	result, err := h.service.MergeModeration(c.Request().Context(), userID, id, req.TargetID)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, result)
+}
+
 // GetWithUsers godoc
 // @Summary      Получить компании с количеством пользователей
 // @Description  Возвращает список компаний с количеством привязанных пользователей

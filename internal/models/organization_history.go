@@ -18,6 +18,11 @@ const (
 	OrganizationActionRestored = "restored"
 	// Групповые/одиночные изменения привязок пишут отдельные action с деталями
 	// «было -> стало» (added/removed, для ответственных ещё approval_changed).
+	// Разбор записи, заведённой из заявки (#1437): подтверждение и привязка к
+	// существующей организации. Переименование при разборе пишется как renamed.
+	OrganizationActionApproved = "moderation_approved"
+	OrganizationActionMerged   = "moderation_merged"
+
 	OrganizationActionResponsiblesChanged = "responsibles_changed"
 	OrganizationActionUnloadPlacesChanged = "unload_places_changed"
 	OrganizationActionTablesChanged       = "tables_changed"

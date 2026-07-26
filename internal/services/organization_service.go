@@ -25,6 +25,16 @@ type OrganizationService interface {
 	// ручного ввода наименования в заявке.
 	Suggest(ctx context.Context, query string) ([]DirectorySuggestion, error)
 
+	// ApproveModeration подтверждает организацию «на проверке», заведённую из заявки.
+	ApproveModeration(ctx context.Context, callerUserID, id int) (DirectoryModerationResult, error)
+
+	// RenameModeration исправляет наименование организации «на проверке» и разбирает её.
+	RenameModeration(ctx context.Context, callerUserID, id int, name string) (DirectoryModerationResult, error)
+
+	// MergeModeration переносит ссылки организации «на проверке» на существующую запись
+	// справочника и удаляет черновик.
+	MergeModeration(ctx context.Context, callerUserID, id, targetID int) (DirectoryMergeResult, error)
+
 	// Create создаёт новую организацию. callerUserID - актор для аудита.
 	Create(ctx context.Context, callerUserID int, req CreateOrganizationRequest) (*OrganizationInfoResponse, error)
 
@@ -239,6 +249,21 @@ func (s *organizationService) GetAll(ctx context.Context) ([]OrganizationInfoRes
 // Suggest подбирает близкие организации по наименованию, см. suggestDirectory.
 func (s *organizationService) Suggest(ctx context.Context, query string) ([]DirectorySuggestion, error) {
 	return suggestDirectory(ctx, s.db, "organizations", query)
+}
+
+// ApproveModeration - разбор организации «на проверке», см. approveDirectoryEntry.
+func (s *organizationService) ApproveModeration(ctx context.Context, callerUserID, id int) (DirectoryModerationResult, error) {
+	return approveDirectoryEntry(ctx, s.db, s.recorder, organizationModeration, id, callerUserID)
+}
+
+// RenameModeration - исправление наименования при разборе, см. renameDirectoryEntry.
+func (s *organizationService) RenameModeration(ctx context.Context, callerUserID, id int, name string) (DirectoryModerationResult, error) {
+	return renameDirectoryEntry(ctx, s.db, s.recorder, organizationModeration, id, name, callerUserID)
+}
+
+// MergeModeration - привязка черновика к существующей организации, см. mergeDirectoryEntry.
+func (s *organizationService) MergeModeration(ctx context.Context, callerUserID, id, targetID int) (DirectoryMergeResult, error) {
+	return mergeDirectoryEntry(ctx, s.db, s.recorder, organizationModeration, id, targetID, callerUserID)
 }
 
 // Create создаёт новую организацию. Тип обязателен и должен быть валидным.

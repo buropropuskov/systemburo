@@ -214,6 +214,9 @@ const ACTION_TEXTS = {
   responsibles_changed: 'Ответственные изменены',
   unload_places_changed: 'Места разгрузки изменены',
   tables_changed: 'Таблицы изменены',
+  // Разбор записи, заведённой из заявки (#1437).
+  moderation_approved: 'Организация подтверждена при разборе',
+  moderation_merged: 'Организации переданы записи дубля',
 };
 
 const ACTION_DOT_CLASS = {
@@ -226,6 +229,8 @@ const ACTION_DOT_CLASS = {
   responsibles_changed: 'dot-update',
   unload_places_changed: 'dot-update',
   tables_changed: 'dot-update',
+  moderation_approved: 'dot-activate',
+  moderation_merged: 'dot-update',
 };
 
 export default {
@@ -443,6 +448,9 @@ export default {
           }
           return parts.join(' · ');
         }
+        case 'moderation_merged':
+          // merged_name - наименование черновика, чьи заявки и привязки переехали сюда.
+          return d.merged_name ? `Присоединено наименование: ${d.merged_name}` : '';
         case 'renamed':
           if (!d.name) return '';
           return from && from.name ? `Наименование: ${from.name} → ${d.name}` : `Новое наименование: ${d.name}`;

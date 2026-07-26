@@ -17,6 +17,10 @@ const (
 	CompanyActionRestored = "restored"
 	// Групповые/одиночные изменения привязок пишут отдельные action с деталями
 	// «было -> стало» (added/removed, для ответственных ещё approval_changed).
+	// Разбор записи, заведённой из заявки (#1437), зеркально организациям.
+	CompanyActionApproved = "moderation_approved"
+	CompanyActionMerged   = "moderation_merged"
+
 	CompanyActionResponsiblesChanged = "responsibles_changed"
 	CompanyActionUnloadPlacesChanged = "unload_places_changed"
 	CompanyActionTablesChanged       = "tables_changed"
