@@ -757,11 +757,10 @@ export default {
     font-family: 'Montserrat', sans-serif;
     text-align: left;
     cursor: pointer;
-    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    transition: transform 0.2s ease, border-color 0.2s ease;
 }
 
 .modes-trigger:hover {
-    box-shadow: 0 4px 12px var(--shadow-drop);
     border-color: var(--accent);
 }
 

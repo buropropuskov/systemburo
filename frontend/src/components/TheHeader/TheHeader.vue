@@ -481,7 +481,6 @@ h3 {
   align-items: center;
   justify-content: center;
   border: 1px solid var(--border);
-  box-shadow: 0 2px 2px var(--shadow-drop);
   position: relative;
   cursor: pointer;
   transition: background-color 0.2s ease;
@@ -553,7 +552,6 @@ h3 {
   font-weight: 400;
   border-radius: 13px;
   transition: .2s;
-  box-shadow: 0 2px 2px var(--shadow-drop);
 }
 
 @media (hover: hover) {
@@ -609,7 +607,6 @@ h3 {
   justify-content: center;
   flex-shrink: 0;
   border-radius: 12px;
-  box-shadow: 0 2px 2px var(--shadow-drop);
   transition: background 0.2s, border-color 0.2s;
 }
 
