@@ -326,6 +326,100 @@ func TestBlankGenerate(t *testing.T) {
 	t.Run("переполнение списка", func(t *testing.T) { listOverflowSection(t, db, td) })
 	t.Run("поле заявки в строках списка", func(t *testing.T) { listRepeatedFieldSection(t, db, td) })
 	t.Run("условное форматирование при переполнении", func(t *testing.T) { listOverflowConditionalSection(t, db, td) })
+	t.Run("сквозная строка заголовков", func(t *testing.T) { printTitlesSection(t, db, td) })
+}
+
+// Шапка столбцов сквозная: когда таблица переходит на следующую страницу, она
+// начинается со строки заголовков, а не с середины списка.
+func printTitlesSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
+	userTypeID := secUserTypeIDByCode(t, db, "user")
+	sender := models.User{Username: "blanktitlesender", Password: "x", TypeID: userTypeID, OrganizationID: secPtrInt(td.OrgID)}
+	require.NoError(t, db.Create(&sender).Error)
+
+	makeApp := func(t *testing.T, uaID int) (int, int) {
+		t.Helper()
+		now := time.Now()
+		conf, status := "Согласовано", models.StatusInWork
+		app := models.Application{
+			OrganizationID: td.OrgID, SenderUserID: sender.ID,
+			Confirmation: &conf, Status: &status, SendingDatetime: &now,
+		}
+		require.NoError(t, db.Create(&app).Error)
+		att := models.Attachment{ApplicationID: &app.ID, AttachmentType: "cars", UniqueAttachmentID: &uaID}
+		require.NoError(t, db.Create(&att).Error)
+		number := "Т 100 ТТ 777"
+		require.NoError(t, db.Create(&models.Car{AttachmentID: att.ID, CarNumber: &number}).Error)
+		return app.ID, att.ID
+	}
+
+	seed := func(t *testing.T, name string, startRow int, withOwnTitles bool) int {
+		t.Helper()
+		nm := name
+		ua := models.UniqueAttachment{AttachmentType: "cars", Name: &nm, IsActive: true}
+		require.NoError(t, db.Create(&ua).Error)
+
+		f := excelize.NewFile()
+		defer func() { require.NoError(t, f.Close()) }()
+		if withOwnTitles {
+			require.NoError(t, f.SetDefinedName(&excelize.DefinedName{
+				Name:     "_xlnm.Print_Titles",
+				RefersTo: fmt.Sprintf("'%s'!$1:$2", f.GetSheetName(0)),
+				Scope:    f.GetSheetName(0),
+			}))
+		}
+		path := filepath.Join(t.TempDir(), name+".xlsx")
+		require.NoError(t, f.SaveAs(path))
+
+		tpl := models.AttachmentTemplate{
+			UniqueAttachmentID: ua.ID, IsActive: true, FilePath: path, OriginalFileName: name + ".xlsx",
+			ListStartRow: startRow, ListEndRow: startRow + 2, MaxListRows: 3,
+		}
+		require.NoError(t, db.Create(&tpl).Error)
+		require.NoError(t, db.Create(&models.AttachmentTemplateMapping{
+			TemplateID: tpl.ID, CellRef: fmt.Sprintf("B%d", startRow),
+			FieldPath: "car.car_number", IsListField: true,
+		}).Error)
+		return ua.ID
+	}
+
+	titlesOf := func(t *testing.T, appID, attID int) []excelize.DefinedName {
+		t.Helper()
+		reader, _, err := services.NewAttachmentBlankService(db).
+			GenerateBlank(context.Background(), appID, attID)
+		require.NoError(t, err)
+		out, err := excelize.OpenReader(reader)
+		require.NoError(t, err)
+		defer func() { require.NoError(t, out.Close()) }()
+		names := make([]excelize.DefinedName, 0)
+		for _, dn := range out.GetDefinedName() {
+			if dn.Name == "_xlnm.Print_Titles" {
+				names = append(names, dn)
+			}
+		}
+		return names
+	}
+
+	t.Run("строка над списком становится сквозной", func(t *testing.T) {
+		uaID := seed(t, "titles_blank", 19, false)
+		appID, attID := makeApp(t, uaID)
+		names := titlesOf(t, appID, attID)
+		require.Len(t, names, 1)
+		require.Contains(t, names[0].RefersTo, "$18:$18", "сквозной должна стать строка над списком")
+	})
+
+	t.Run("свою настройку шаблона не перебиваем", func(t *testing.T) {
+		uaID := seed(t, "titles_own", 19, true)
+		appID, attID := makeApp(t, uaID)
+		names := titlesOf(t, appID, attID)
+		require.Len(t, names, 1)
+		require.Contains(t, names[0].RefersTo, "$1:$2", "заданные в шаблоне сквозные строки должны остаться")
+	})
+
+	t.Run("список с первой строки - сквозной строки нет", func(t *testing.T) {
+		uaID := seed(t, "titles_top", 1, false)
+		appID, attID := makeApp(t, uaID)
+		require.Empty(t, titlesOf(t, appID, attID), "над списком нет строки заголовков - и сквозной быть не должно")
+	})
 }
 
 // Добавленные под список строки сдвигают диапазоны условного форматирования. Формулы

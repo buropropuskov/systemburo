@@ -102,7 +102,7 @@ describe('AttachmentTemplateEditor', () => {
     expect(wrapper.text()).not.toContain('другой группы полей');
   });
 
-  it('помечает поле заявки, попавшее в строки списка', async () => {
+  it('помечает бейджем поле заявки, попавшее в строки списка', async () => {
     getTemplate.mockResolvedValue({
       ...TEMPLATE,
       mappings: [
@@ -113,12 +113,9 @@ describe('AttachmentTemplateEditor', () => {
     });
     const wrapper = await mountEditor({ attachmentType: 'items' });
 
-    const note = wrapper.find('[data-testid="template-repeat-note"]');
-    expect(note.exists()).toBe(true);
-    // в списке только F30, шапочная F5 туда попадать не должна
-    expect(note.text()).toContain('F30');
-    expect(note.text()).not.toContain('F5');
+    // пометка только у привязки внутри строк списка, отдельной плашки-пояснения нет
     expect(wrapper.findAll('.te-list-badge--repeat')).toHaveLength(1);
+    expect(wrapper.find('[data-testid="template-repeat-note"]').exists()).toBe(false);
   });
 
   it('не помечает поля заявки вне строк списка', async () => {
@@ -130,7 +127,6 @@ describe('AttachmentTemplateEditor', () => {
       ],
     });
     const wrapper = await mountEditor({ attachmentType: 'items' });
-    expect(wrapper.find('[data-testid="template-repeat-note"]').exists()).toBe(false);
     expect(wrapper.findAll('.te-list-badge--repeat')).toHaveLength(0);
   });
 

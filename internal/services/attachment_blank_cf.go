@@ -5,10 +5,18 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log/slog"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"systemburo/internal/models"
+
+	"github.com/xuri/excelize/v2"
 )
+
+// printTitlesName - встроенное имя Excel для сквозных строк («Печатать заголовки»).
+const printTitlesName = "_xlnm.Print_Titles"
 
 // Вставка строк под список сдвигает диапазоны условного форматирования - это делает
 // сам excelize, - но формулы внутри правил остаются прежними: в v2.11
@@ -218,4 +226,33 @@ func shiftedRef(ref string, row int) string {
 		return r < '0' || r > '9'
 	})
 	return ref[:idx+1] + strconv.Itoa(row)
+}
+
+// repeatHeaderOnEachPage делает строку заголовков столбцов сквозной: при переходе
+// таблицы на следующую страницу шапка столбцов повторяется, и таблица не рвётся.
+// Строка заголовков - та, что над списком (list_start_row - 1): так размечены бланки.
+//
+// Физически вставлять копию шапки на разрыве нельзя: высота строк с переносом текста
+// (места разгрузки) считается при отрисовке, поэтому предсказать, где ляжет разрыв,
+// невозможно - вставленная шапка оказалась бы посреди страницы. Сквозная строка
+// повторяется там, где разрыв реально произошёл.
+func repeatHeaderOnEachPage(f *excelize.File, sheet string, t *models.AttachmentTemplate) {
+	if t.ListStartRow < 2 {
+		return
+	}
+	// Настройку админа не перебиваем: в шаблоне сквозные строки могли задать руками.
+	for _, dn := range f.GetDefinedName() {
+		if dn.Name == printTitlesName && (dn.Scope == sheet || dn.Scope == "") {
+			return
+		}
+	}
+	header := t.ListStartRow - 1
+	refersTo := fmt.Sprintf("'%s'!$%d:$%d", strings.ReplaceAll(sheet, "'", "''"), header, header)
+	if err := f.SetDefinedName(&excelize.DefinedName{
+		Name:     printTitlesName,
+		RefersTo: refersTo,
+		Scope:    sheet,
+	}); err != nil {
+		slog.Error("не удалось задать сквозную строку заголовков", "error", err, "sheet", sheet, "row", header)
+	}
 }

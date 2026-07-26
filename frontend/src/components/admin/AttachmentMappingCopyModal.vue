@@ -8,13 +8,12 @@
     @close="$emit('close')"
   >
     <div class="mc-body">
-      <p class="mc-hint">
-        Привязки шаблона-источника перенесутся в текущий бланк. После переноса их можно поправить,
-        как обычно.
-      </p>
+      <div class="mc-target">
+        Куда: <strong>{{ targetFileName || 'текущий бланк' }}</strong>
+      </div>
 
       <div class="mc-field">
-        <label class="mc-label">Шаблон-источник</label>
+        <label class="mc-label">Откуда взять привязки</label>
         <BaseDropdown
           v-model="selectedTemplateId"
           :options="options"
@@ -30,7 +29,7 @@
         <span
           v-if="!loading && !options.length"
           class="mc-empty"
-        >Других настроенных шаблонов нет</span>
+        >Настроенных бланков, кроме этого, нет</span>
       </div>
 
       <label class="mc-check">
@@ -41,9 +40,7 @@
         >
         <span>Заменить текущие привязки ({{ currentMappingsCount }})</span>
       </label>
-      <span class="mc-check-note">
-        {{ replace ? 'Текущие привязки будут удалены.' : 'Привязки добавятся к текущим, дубли пропустятся.' }}
-      </span>
+      <span class="mc-check-note">{{ replace ? 'Текущие удалятся.' : 'Добавятся к текущим, дубли пропустятся.' }}</span>
 
       <label class="mc-check">
         <input
@@ -108,6 +105,10 @@ export default {
     uniqueAttachmentId: { type: Number, required: true },
     attachmentType: { type: String, default: '' },
     currentMappingsCount: { type: Number, default: 0 },
+    // Исключаем из источников только САМ активный шаблон: у одного типа вложения
+    // несколько файлов, и перенос между ними - основной случай.
+    currentTemplateId: { type: Number, default: 0 },
+    targetFileName: { type: String, default: '' },
     // Перенос идёт по серверному состоянию шаблона, поэтому несохранённые правки
     // привязок после него потеряются - об этом честно предупреждаем.
     unsavedChanges: { type: Boolean, default: false },
@@ -124,16 +125,24 @@ export default {
     };
   },
   computed: {
-    // Свои шаблоны в источники не берём: копировать привязки в себя же нечего.
+    // Файлы этого же типа вложения - первыми: перенос между ними основной случай.
+    // Исключаем только активный шаблон, копировать привязки в себя же нечего.
     options() {
-      return this.sources
-        .filter(s => s.unique_attachment_id !== this.uniqueAttachmentId && s.mappings_count > 0)
-        .map(s => ({
-          ...s,
-          label: `${s.attachment_name || 'без названия'} (${this.typeLabel(s.attachment_type)})`
-            + ` - ${s.mappings_count} привязок`
-            + (s.is_active ? '' : ', неактивный'),
-        }));
+      const own = [];
+      const others = [];
+      for (const s of this.sources) {
+        if (s.template_id === this.currentTemplateId || !s.mappings_count) continue;
+        const count = `${s.mappings_count} прив.`;
+        if (s.unique_attachment_id === this.uniqueAttachmentId) {
+          own.push({ ...s, label: `${s.original_file_name || 'без имени'} - ${count}` });
+        } else {
+          others.push({
+            ...s,
+            label: `${s.attachment_name || 'без названия'} (${this.typeLabel(s.attachment_type)}) - ${count}`,
+          });
+        }
+      }
+      return [...own, ...others];
     },
     selectedSource() {
       return this.options.find(s => s.template_id === this.selectedTemplateId) || null;
@@ -213,11 +222,13 @@ export default {
   gap: 12px;
 }
 
-.mc-hint {
-  margin: 0;
+.mc-target {
   font-size: 13px;
   color: var(--text-secondary, #666);
-  line-height: 1.4;
+}
+
+.mc-target strong {
+  color: var(--text-primary, #1a1a1a);
 }
 
 .mc-field {
