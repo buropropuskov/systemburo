@@ -1748,7 +1748,7 @@ export default {
   align-items: center;
   gap: 12px;
   padding: 0 12px 0 9px;
-  margin: 2px 7px;
+  margin: 4px 7px;
   border-radius: 12px;
   cursor: pointer;
   position: relative;
@@ -2338,11 +2338,11 @@ export default {
    трогаем - основную высоту забираем из отступов между секциями (урок #510). */
 @media (min-width: 769px) and (max-height: 880px) {
   .nav-item {
-    min-height: 38px;
+    min-height: 36px;
   }
   .section-title {
-    margin-top: 8px;
-    margin-bottom: 4px;
+    margin-top: 6px;
+    margin-bottom: 3px;
   }
 }
 
