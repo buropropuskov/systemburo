@@ -247,3 +247,30 @@ describe('utils/theme', () => {
     })
   })
 })
+
+/*
+ * Контракт оформления, который легко потерять при правках CSS: нативная отрисовка
+ * кнопок и рамки тегов списков (#1415).
+ */
+describe('оформление: кнопки и теги', () => {
+  const read = (rel) => readFileSync(resolve(__dirname, rel), 'utf8')
+
+  it('кнопки не полагаются на нативную отрисовку', () => {
+    // Под color-scheme: dark браузер рисует <button> тёмным ButtonFace с рельефной
+    // рамкой - кнопка без своего фона выглядит выпуклой.
+    const css = read('../../assets/tokens.css')
+    const rule = css.match(/(^|\n)button\s*\{([^}]*)\}/)
+    expect(rule, 'нет правила button в tokens.css').not.toBeNull()
+    expect(rule[2]).toMatch(/appearance:\s*none/)
+  })
+
+  it('рамка тега списка - цвета его текста', () => {
+    // Приглушённая color-mix-рамка Badge в колонке тегов сливалась с подложкой.
+    for (const file of ['../../views/ApplicationsCenter.vue', '../../components/UserApplications.vue']) {
+      const rule = read(file).match(/\.rt-tag\s*\{([^}]*)\}/)
+      expect(rule, `${file}: нет правила .rt-tag`).not.toBeNull()
+      expect(rule[1], `${file}: рамка тега должна идти от currentColor`)
+        .toMatch(/border-color:\s*currentColor/)
+    }
+  })
+})
