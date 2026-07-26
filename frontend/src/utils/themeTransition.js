@@ -1,105 +1,87 @@
 /**
- * Заливка новой темы от точки клика (#1415).
+ * Заливка новой темы волной от точки клика (#1415).
  *
  * View Transitions API снимает кадр «до», применяет тему и отдаёт оба кадра
  * псевдоэлементами: старый лежит неподвижно, новый открывается растущей областью.
  * Штатный кроссфейд гасит assets/theme-transition.css.
  *
- * ЖИДКОСТЬ - ЭТО НЕ РАСТУЩИЙ КРУГ. Две прошлые версии росли радиусом от курсора,
- * и обе читались как надувающийся шар: у круга нет ни низа, ни поверхности, а
- * добирая остаток площади у дальнего угла, он в конце «взрывается». Здесь форма
- * описана как настоящая жидкость - тремя стадиями, которые идут внахлёст:
+ * ФОРМА - ВОЛНА, ИДУЩАЯ ПО ЭКРАНУ. Радиальные версии («растущий круг от
+ * курсора») юзер забраковал: круг раздувается, а в конце рывком добирает
+ * площадь у дальнего угла. Здесь фронт - вертикальная волнистая кромка: от
+ * точки клика она уходит вправо через весь экран (и коротким ходом влево, до
+ * левого края), профиль по вертикали - сумма двух синусов, которые бегут по
+ * высоте, поэтому кромка живёт, как поверхность бегущей волны.
  *
- *   1. КАПЛЯ. Из точки клика расходится линза: вниз охотнее, чем вверх
- *      (`DROP_UP_RATIO`), потому что вниз тянет вес.
- *   2. ЛУЖА. Дно линзы досаживается на низ экрана (`floorMix`) - жидкость
- *      доливается до пола и растекается по нему во всю ширину.
- *   3. УРОВЕНЬ. Дальше поднимается поверхность (`levelAt`) с длинной волной,
- *      которая гаснет к концу (`WAVES`, `waveAmplitude`). Экран заполняется
- *      снизу вверх, последним закрывается верхний край - ровно, без рывка.
+ * Кромка намеренно РЕЗКАЯ: размытие маской читалось как смазанное пятно, у
+ * жидкости граница чёткая. Заодно дешевле - маску не растрируем каждый кадр.
  *
- * Кромка намеренно РЕЗКАЯ: размытие маской читалось как смазанное пятно, а у
- * жидкости граница чёткая. Заодно это дешевле на кадр - маску не растрируем.
+ * КООРДИНАТЫ - LAYOUT-PX. На экранах шире 1440 приложение масштабирует корень
+ * через CSS `zoom` (utils/viewportScale.js), а clip-path внутри корня считается
+ * в layout-px, тогда как `clientX/clientY` и `innerWidth/innerHeight` отдают
+ * device-px. Без деления на zoom фигура выходит в zoom раз больше экрана: на
+ * 2880x1620 (zoom 1.8) волна пробегала экран за первые кадры, юзер видел
+ * заливку только у точки клика («занимает 1/4 экрана»).
  *
  * Без поддержки API (или при prefers-reduced-motion) тема применяется мгновенно:
  * эффект украшение, а не условие работы.
  */
+import { getViewportZoom } from '@/utils/viewportScale';
 
-/**
- * Длительность. Заливка снизу вверх читается как течение, ей нужно время:
- * ниже ~800мс уровень взлетает, выше ~1300 начинает тянуться.
- */
+/** Длительность прохода волны: ниже ~700мс смазывается, выше ~1100 тянется. */
 export const REVEAL_DURATION = 880;
 
 /** Кадров интерполяции: WAAPI тянет между ними линейно. */
 const STEPS = 26;
-/** Столбцов выборки по X: по ним считаются верхняя и нижняя границы области. */
-const COLUMNS = 56;
-/** Вверх капля идёт вдвое неохотнее, чем вниз - это и читается как вес. */
-const DROP_UP_RATIO = 0.5;
-/** Стартовые полуоси капли, px: под курсором сразу видно каплю, а не точку. */
-const DROP_SEED = 24;
+/** Строк выборки по Y: по ним считается волнистая кромка фронта. */
+const ROWS = 48;
 /**
- * Запас за верхний край. Нужен, чтобы впадина волны не оставила полоску у верха,
- * но большим быть не должен: уровень тогда уходит за экран задолго до конца, и
- * последние кадры уже нечего заливать (замер: 90px давали 90мс пустого хвоста).
+ * Амплитуда волны, px. Это главная примета: на весь экран 20px читаются как
+ * прямая линия, поэтому берём заметные 58.
  */
-const OVERSHOOT = 26;
+const WAVE_AMPLITUDE = 58;
+/** Запас за край экрана: последний кадр обязан накрыть экран целиком. */
+const OVERSHOOT = 24;
 /**
- * Амплитуда волны на поверхности, px. Это главная примета жидкости: на 900px
- * экране 30px читаются как лёгкая рябь, поэтому берём заметные 46.
- */
-const WAVE_AMPLITUDE = 46;
-/**
- * Волны поверхности: длина в экранах, вес, фаза, скорость бега. Длинные (1.1 и
- * 2.3 периода на ширину) и с разным знаком скорости - гребни расходятся, и
- * поверхность живёт, а не колеблется симметрично.
+ * Волны кромки: длина в высотах экрана, вес, фаза, скорость бега. Разные знаки
+ * скорости - гребни расходятся, и кромка не выглядит ровной гармошкой.
  */
 const WAVES = [
-  { periods: 1.1, weight: 0.62, phase: 0.4, speed: 2.4 },
-  { periods: 2.3, weight: 0.38, phase: 2.1, speed: -1.7 },
+  { periods: 1.3, weight: 0.62, phase: 0.5, speed: 2.2 },
+  { periods: 2.4, weight: 0.38, phase: 2.4, speed: -1.5 },
 ];
 
-/** Падение капли: вниз она уходит быстро - вес. */
-const DROP_FALL = (t) => 1 - Math.pow(1 - Math.min(1, t / 0.22), 2.6);
-/** Растекание в стороны отстаёт от падения: сперва лужа, потом разлив. */
-const DROP_SPREAD = (t) => 1 - Math.pow(1 - Math.min(1, t / 0.36), 2.2);
-/** Досадка дна на низ экрана - позже растекания, поэтому лужа сперва провисает. */
-const FLOOR_MIX = (t) => Math.min(1, Math.max(0, (t - 0.14) / 0.3));
 /**
- * Подъём уровня. Стартует сразу, как капля коснулась дна, и идёт ПОЧТИ ЛИНЕЙНО:
- * у smoothstep разгон был такой ленивый, что между лужей и подъёмом получалась
- * пауза (замер заполнения: +9%, потом +2% за кадр - на экране это ступор), а к
- * концу заполнение упиралось в 99% задолго до финала. Степень 0.9 даёт ровный
- * ход с мягким торможением: экран заполняется равномерно и до самого конца.
+ * Ход фронта вправо: почти линейный, с мягким торможением у края. Проверено
+ * замером покрытия по кадрам - прирост ровный от начала до конца.
  */
-function levelProgress(t) {
-  const u = Math.min(1, Math.max(0, (t - 0.1) / 0.9));
-  return Math.pow(u, 0.9);
+function sweepProgress(t) {
+  const u = Math.min(1, Math.max(0, t));
+  return Math.pow(u, 0.88);
 }
-/**
- * Волна гаснет к концу (иначе в последнем кадре у верхнего края останется
- * зазор), но гаснет ПОЗДНО: при быстром затухании волну видно только в начале.
- */
-const WAVE_DECAY = (p) => Math.pow(1 - p, 0.7);
+/** Ход влево: путь короткий (клик у левого края), поэтому закрываем его быстрее. */
+const BACK_PROGRESS = (t) => Math.min(1, sweepProgress(t) * 2.6);
+/** Волна гаснет только к самому концу, иначе её видно лишь в начале. */
+const WAVE_DECAY = (p) => Math.pow(1 - p, 0.75);
 
 /**
  * @typedef {{ x: number, y: number }} RevealOrigin Точка в координатах вьюпорта.
  */
 
 /**
- * Читает точку нажатия из события. У клика с клавиатуры координаты нулевые -
- * тогда берём центр самого пункта, иначе заливка пошла бы из угла экрана.
+ * Читает точку нажатия из события и переводит её в layout-px (см. заголовок
+ * файла про zoom). У клика с клавиатуры координаты нулевые - тогда берём центр
+ * самого пункта, иначе волна пошла бы от края экрана.
  *
  * @param {MouseEvent|undefined} event
  * @returns {RevealOrigin|null}
  */
 export function originFromEvent(event) {
   if (!event) return null;
-  if (event.clientX || event.clientY) return { x: event.clientX, y: event.clientY };
+  const z = getViewportZoom() || 1;
+  if (event.clientX || event.clientY) return { x: event.clientX / z, y: event.clientY / z };
   const rect = event.currentTarget?.getBoundingClientRect?.();
   if (!rect) return null;
-  return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  return { x: (rect.left + rect.width / 2) / z, y: (rect.top + rect.height / 2) / z };
 }
 
 /**
@@ -113,8 +95,8 @@ export function canReveal() {
   return !window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
 }
 
-/** Смещение поверхности в точке x (доля ширины) в момент t. */
-function surfaceWave(ratio, t) {
+/** Смещение кромки в строке y (доля высоты) в момент t. */
+function edgeWave(ratio, t) {
   let sum = 0;
   for (const w of WAVES) {
     sum += w.weight * Math.sin(ratio * w.periods * Math.PI * 2 + w.phase + w.speed * t);
@@ -123,56 +105,38 @@ function surfaceWave(ratio, t) {
 }
 
 /**
- * Кадры области заливки. Каждый кадр - многоугольник: сверху идёт граница
- * жидкости слева направо, снизу возвращаемся справа налево. Число точек во всех
- * кадрах одинаковое - только тогда браузер интерполирует polygon() плавно.
+ * Кадры области заливки. Каждый кадр - многоугольник: сверху вниз идёт правая
+ * (волнистая) кромка, снизу вверх - левая. Число точек во всех кадрах одинаковое,
+ * только тогда браузер интерполирует polygon() плавно.
  *
- * @param {RevealOrigin} origin
- * @param {number} width
- * @param {number} height
+ * @param {RevealOrigin} origin точка клика в layout-px
+ * @param {number} width ширина вьюпорта в layout-px
+ * @param {number} height высота вьюпорта в layout-px
  */
 function fillFrames(origin, width, height) {
-  // Полуось капли по горизонтали должна дотянуться до дальнего края экрана.
-  const spanMax = Math.max(origin.x, width - origin.x) * 1.15;
-  const downMax = height - origin.y + 40;
+  const toRight = width - origin.x + OVERSHOOT + WAVE_AMPLITUDE;
+  const toLeft = origin.x + OVERSHOOT + WAVE_AMPLITUDE;
   const frames = [];
 
   for (let i = 0; i <= STEPS; i += 1) {
     const t = i / STEPS;
-    const spread = DROP_SPREAD(t);
-    const fall = DROP_FALL(t);
-    const floor = FLOOR_MIX(t);
-    const level = levelProgress(t);
-    const rx = DROP_SEED + spanMax * spread;
-    const ryDown = DROP_SEED + downMax * fall;
-    const ryUp = ryDown * DROP_UP_RATIO;
-    // Поверхность идёт от точки клика вверх за край экрана.
-    const surface = origin.y - (origin.y + OVERSHOOT) * level;
-    const amp = WAVE_AMPLITUDE * WAVE_DECAY(level);
+    const forward = sweepProgress(t);
+    const back = BACK_PROGRESS(t);
+    const amp = WAVE_AMPLITUDE * WAVE_DECAY(forward);
+    const rightBase = origin.x + toRight * forward;
+    const leftBase = origin.x - toLeft * back;
 
-    const left = Math.max(0, origin.x - rx);
-    const right = Math.min(width, origin.x + rx);
-    const top = [];
-    const bottom = [];
-    for (let c = 0; c < COLUMNS; c += 1) {
-      const x = left + ((right - left) * c) / (COLUMNS - 1);
-      const dx = (x - origin.x) / rx;
-      // Профиль линзы: 0 у краёв капли, 1 под курсором.
-      const lens = Math.sqrt(Math.max(0, 1 - dx * dx));
-      const lensTop = origin.y - ryUp * lens;
-      const lensBottom = origin.y + ryDown * lens;
-      const waved = surface + amp * surfaceWave(x / width, t);
-      // Выше - то, что раньше добралось: линза капли или поднявшийся уровень.
-      top.push({ x, y: Math.min(lensTop, waved) });
-      // Дно линзы досаживается на низ экрана, пока лужа растекается по полу.
-      bottom.push({ x, y: lensBottom + (height - lensBottom) * floor });
+    const right = [];
+    const left = [];
+    for (let r = 0; r < ROWS; r += 1) {
+      const y = (height * r) / (ROWS - 1);
+      const ratio = y / height;
+      // Волна на правой кромке; на левой - в противофазе и слабее, чтобы обе жили.
+      right.push(`${(rightBase + amp * edgeWave(ratio, t)).toFixed(1)}px ${y.toFixed(1)}px`);
+      left.push(`${(leftBase - amp * edgeWave(ratio + 0.5, t) * 0.6).toFixed(1)}px ${y.toFixed(1)}px`);
     }
 
-    const points = [
-      ...top.map((p) => `${p.x.toFixed(1)}px ${p.y.toFixed(1)}px`),
-      ...bottom.reverse().map((p) => `${p.x.toFixed(1)}px ${p.y.toFixed(1)}px`),
-    ];
-    frames.push(`polygon(${points.join(',')})`);
+    frames.push(`polygon(${[...right, ...left.reverse()].join(',')})`);
   }
   return frames;
 }
@@ -189,10 +153,10 @@ let running = null;
 const REVEAL_CLASS = 'theme-reveal';
 
 /**
- * Применяет тему с заливкой от точки клика.
+ * Применяет тему с заливкой волной от точки клика.
  *
  * @param {() => void} apply синхронная смена темы (data-theme + хранилище)
- * @param {RevealOrigin|null} [origin] точка нажатия; без неё - мгновенно
+ * @param {RevealOrigin|null} [origin] точка нажатия в layout-px; без неё - мгновенно
  * @returns {Promise<void>} завершение анимации (сразу, если её не было)
  */
 export async function revealThemeChange(apply, origin) {
@@ -219,11 +183,13 @@ export async function revealThemeChange(apply, origin) {
   running = transition;
   try {
     await transition.ready;
+    const z = getViewportZoom() || 1;
+    const frames = fillFrames(origin, window.innerWidth / z, window.innerHeight / z);
     await root.animate(
-      { clipPath: fillFrames(origin, window.innerWidth, window.innerHeight) },
+      { clipPath: frames },
       {
         duration: REVEAL_DURATION,
-        // Кривые стадий уже разложены по кадрам, здесь линейно - иначе наложатся.
+        // Кривые уже разложены по кадрам, здесь линейно - иначе наложатся.
         easing: 'linear',
         pseudoElement: '::view-transition-new(root)',
       },

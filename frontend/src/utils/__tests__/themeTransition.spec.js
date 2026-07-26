@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { getViewportZoom } from '@/utils/viewportScale';
 import { REVEAL_DURATION, canReveal, originFromEvent, revealThemeChange } from '../themeTransition';
+
+// Корневой zoom на широких экранах меняет координатное пространство - подменяем.
+vi.mock('@/utils/viewportScale', () => ({ getViewportZoom: vi.fn(() => 1) }));
 
 /**
  * Ставит заглушки View Transitions + WAAPI и отдаёт снятые аргументы.
@@ -50,9 +54,15 @@ function contains(points, x, y) {
   return inside;
 }
 
-/** Наибольшее расстояние от точки клика до контура - «радиус» кадра. */
+/** Наибольшее расстояние от точки клика до контура - «размах» кадра. */
 function maxRadius(points, origin) {
   return Math.max(...points.map((p) => Math.hypot(p.x - origin.x, p.y - origin.y)));
+}
+
+/** Правая (ведущая) кромка кадра - первая половина точек. */
+function frontEdge(frame) {
+  const pts = pointsOf(frame);
+  return pts.slice(0, pts.length / 2);
 }
 
 describe('originFromEvent', () => {
@@ -86,6 +96,7 @@ describe('revealThemeChange', () => {
   });
 
   afterEach(() => {
+    getViewportZoom.mockReturnValue(1);
     delete document.startViewTransition;
     delete document.documentElement.animate;
     delete window.matchMedia;
@@ -130,46 +141,66 @@ describe('revealThemeChange', () => {
     expect(contour.frames[0].startsWith('polygon(')).toBe(true);
   });
 
-  it('поднимает поверхность снизу вверх, не откатывая её', async () => {
-    const { animate } = stubViewTransitions();
-
-    await revealThemeChange(vi.fn(), origin);
-
-    // Верхняя граница области - первая половина точек кадра.
-    const surfaces = framesOf(animate, 'clipPath').frames.map((f) => {
-      const pts = pointsOf(f);
-      const top = pts.slice(0, pts.length / 2);
-      return top.reduce((sum, p) => sum + p.y, 0) / top.length;
-    });
-    expect(surfaces.every((y, i) => i === 0 || y < surfaces[i - 1])).toBe(true);
-    // Стартует у точки клика, заканчивается выше верхнего края экрана.
-    expect(Math.abs(surfaces[0] - origin.y)).toBeLessThan(40);
-    expect(surfaces.at(-1)).toBeLessThan(0);
-  });
-
-  it('держит на поверхности волну, а не прямую линию', async () => {
-    const { animate } = stubViewTransitions();
-
-    await revealThemeChange(vi.fn(), origin);
-
-    const frames = framesOf(animate, 'clipPath').frames;
-    // Середина заливки: поверхность уже во всю ширину, волна должна быть заметной.
-    const pts = pointsOf(frames[Math.round(frames.length * 0.6)]);
-    const top = pts.slice(0, pts.length / 2).map((p) => p.y);
-    const swing = Math.max(...top) - Math.min(...top);
-    expect(swing, 'поверхность плоская - волны не видно').toBeGreaterThan(20);
-  });
-
-  it('стартует каплей под курсором, а не точкой', async () => {
+  it('стартует узкой полосой у курсора во всю высоту', async () => {
     const { animate } = stubViewTransitions();
 
     await revealThemeChange(vi.fn(), origin);
 
     const first = pointsOf(framesOf(animate, 'clipPath').frames[0]);
-    const r = maxRadius(first, origin);
-    // Затравка ~24px: заметная капля, но ещё не заливка.
-    expect(r).toBeGreaterThan(10);
-    expect(r).toBeLessThan(60);
+    const xs = first.map((p) => p.x);
+    const ys = first.map((p) => p.y);
+    // Полоса узкая (волна + запас), но сразу от верха до низа экрана.
+    expect(Math.max(...xs) - Math.min(...xs)).toBeLessThan(260);
+    expect(Math.min(...ys)).toBeCloseTo(0, 0);
+    expect(Math.max(...ys)).toBeCloseTo(800, 0);
+    expect(Math.abs((Math.max(...xs) + Math.min(...xs)) / 2 - origin.x)).toBeLessThan(120);
+  });
+
+  it('ведёт фронт слева направо через весь экран', async () => {
+    const { animate } = stubViewTransitions();
+
+    await revealThemeChange(vi.fn(), origin);
+
+    const frames = framesOf(animate, 'clipPath').frames;
+    const fronts = frames.map((f) => {
+      const edge = frontEdge(f);
+      return edge.reduce((sum, p) => sum + p.x, 0) / edge.length;
+    });
+    expect(fronts.every((x, i) => i === 0 || x > fronts[i - 1]), 'фронт должен только идти вперёд').toBe(true);
+    expect(Math.abs(fronts[0] - origin.x)).toBeLessThan(60);
+    expect(fronts.at(-1)).toBeGreaterThan(1000);
+  });
+
+  it('держит на кромке волну, а не прямую линию', async () => {
+    const { animate } = stubViewTransitions();
+
+    await revealThemeChange(vi.fn(), origin);
+
+    const frames = framesOf(animate, 'clipPath').frames;
+    const edge = frontEdge(frames[Math.round(frames.length * 0.4)]).map((p) => p.x);
+    const swing = Math.max(...edge) - Math.min(...edge);
+    expect(swing, 'кромка плоская - волны не видно').toBeGreaterThan(25);
+  });
+
+  it('считает кадры в layout-px, а не device-px (корневой zoom)', async () => {
+    // На широких экранах корень масштабируется CSS zoom: без деления фигура
+    // выходит в zoom раз больше экрана и волна пробегает его мгновенно.
+    getViewportZoom.mockReturnValue(2);
+    const { animate } = stubViewTransitions();
+
+    await revealThemeChange(vi.fn(), originFromEvent({ clientX: 400, clientY: 600 }));
+
+    const frames = framesOf(animate, 'clipPath').frames;
+    const first = pointsOf(frames[0]);
+    // clientX 400 при zoom 2 - это 200 в layout-px.
+    expect(Math.abs((Math.max(...first.map((p) => p.x)) + Math.min(...first.map((p) => p.x))) / 2 - 200))
+      .toBeLessThan(120);
+    // Экран 1000x800 device -> 500x400 layout: кадры не должны выходить далеко за 500.
+    const lastMax = Math.max(...pointsOf(frames.at(-1)).map((p) => p.x));
+    expect(lastMax).toBeGreaterThan(500);
+    expect(lastMax).toBeLessThan(700);
+    expect(Math.max(...first.map((p) => p.y))).toBeCloseTo(400, 0);
+    getViewportZoom.mockReturnValue(1);
   });
 
   it('последним кадром накрывает все четыре угла вьюпорта', async () => {
