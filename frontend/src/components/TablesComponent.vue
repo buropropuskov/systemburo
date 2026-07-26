@@ -944,19 +944,23 @@ export default {
 
 .fact-hint-card {
     flex: 0 0 35%;
-    background-color: var(--accent);
+    /* Через токены: в светлых темах акцентная плашка, в тёмных - тёмная карточка
+       в тон темы (сплошной синий блок на тёмном фоне читался плохо). Тень была
+       прошита синим литералом rgba(79,91,223,.2) - теперь общая тень темы. */
+    background-color: var(--hint-card-bg);
+    border: 1px solid var(--hint-card-border);
     border-radius: 30px;
     padding: 20px;
     display: flex;
     gap: 15px;
     align-items: flex-start;
     min-height: 205px;
-    box-shadow: 0 3px 10px rgba(79, 91, 223, 0.2);
+    box-shadow: var(--shadow);
 }
 
 .hint-content {
     flex: 1;
-    color: var(--accent-contrast);
+    color: var(--hint-card-text);
 }
 
 .reset-filters-btn {
@@ -1092,10 +1096,10 @@ export default {
 
 /* Hint specific styles */
 .hint-content :deep(*) {
-    color: var(--accent-contrast) !important;
+    color: var(--hint-card-text) !important;
 }
 
-.hint-content :deep(.black-text) { color: #FFF !important; }
+.hint-content :deep(.black-text) { color: var(--hint-card-text) !important; }
 .hint-content :deep(.red-text) { color: #FFB3B3 !important; }
 .hint-content :deep(.green-text) { color: #B3FFC6 !important; }
 .hint-content :deep(.blue-text) { color: #B3C6FF !important; }
