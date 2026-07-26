@@ -232,3 +232,81 @@ func TestBlankGenerate_ListTypeFromAttachmentType(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, gotCar, "привязка car.* не должна писать в строки списка ТМЦ")
 }
+
+// Разделитель совмещённых полей (#1454): nil - настройки нет, берём ", ";
+// заданная пустая строка - осознанный выбор склеивать без разделителя.
+func TestBlankGenerate_ConcatSeparator(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	t.Cleanup(cleanup)
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	userTypeID := secUserTypeIDByCode(t, db, "user")
+	phone := "89100530055"
+	last, first := "Иванов", "Пётр"
+	sender := models.User{
+		Username: "blankconcatsender", Password: "x", TypeID: userTypeID,
+		OrganizationID: secPtrInt(td.OrgID), Phone: &phone, LastName: &last, FirstName: &first,
+	}
+	require.NoError(t, db.Create(&sender).Error)
+
+	name := "concat_blank"
+	ua := models.UniqueAttachment{AttachmentType: "items", Name: &name, IsActive: true}
+	require.NoError(t, db.Create(&ua).Error)
+
+	f := excelize.NewFile()
+	defer func() { require.NoError(t, f.Close()) }()
+	path := filepath.Join(t.TempDir(), "concat.xlsx")
+	require.NoError(t, f.SaveAs(path))
+
+	tpl := models.AttachmentTemplate{
+		UniqueAttachmentID: ua.ID, IsActive: true, FilePath: path,
+		OriginalFileName: "concat.xlsx", ListStartRow: 10, ListEndRow: 12, MaxListRows: 3,
+	}
+	require.NoError(t, db.Create(&tpl).Error)
+	require.NoError(t, db.Create(&[]models.AttachmentTemplateMapping{
+		{TemplateID: tpl.ID, CellRef: "A43", FieldPath: "application.sender.phone"},
+		{TemplateID: tpl.ID, CellRef: "A43", FieldPath: "application.sender.short_name"},
+	}).Error)
+
+	now := time.Now()
+	conf, status := "Согласовано", models.StatusInWork
+	app := models.Application{
+		OrganizationID: td.OrgID, SenderUserID: sender.ID,
+		Confirmation: &conf, Status: &status, SendingDatetime: &now,
+	}
+	require.NoError(t, db.Create(&app).Error)
+	att := models.Attachment{ApplicationID: &app.ID, AttachmentType: "items", UniqueAttachmentID: &ua.ID}
+	require.NoError(t, db.Create(&att).Error)
+
+	cellValue := func(t *testing.T) string {
+		t.Helper()
+		reader, _, err := services.NewAttachmentBlankService(db).
+			GenerateBlank(context.Background(), app.ID, att.ID)
+		require.NoError(t, err)
+		out, err := excelize.OpenReader(reader)
+		require.NoError(t, err)
+		defer func() { require.NoError(t, out.Close()) }()
+		v, err := out.GetCellValue(out.GetSheetName(0), "A43")
+		require.NoError(t, err)
+		return v
+	}
+
+	t.Run("без настройки склеиваем запятой", func(t *testing.T) {
+		require.Equal(t, "89100530055, Иванов П.", cellValue(t))
+	})
+
+	t.Run("заданная пустая строка склеивает без разделителя", func(t *testing.T) {
+		empty := ""
+		require.NoError(t, db.Model(&models.AttachmentTemplate{}).Where("id = ?", tpl.ID).
+			Update("concat_separator", &empty).Error)
+		require.Equal(t, "89100530055Иванов П.", cellValue(t))
+	})
+
+	t.Run("свой разделитель уважается", func(t *testing.T) {
+		sep := " / "
+		require.NoError(t, db.Model(&models.AttachmentTemplate{}).Where("id = ?", tpl.ID).
+			Update("concat_separator", &sep).Error)
+		require.Equal(t, "89100530055 / Иванов П.", cellValue(t))
+	})
+}

@@ -122,15 +122,18 @@ func resolveAttachment(bctx *BlankContext, path string) string {
 	if a == nil {
 		return ""
 	}
+	// Одиночные дата и время форматируются так же, как диапазоны ниже (#1454): раньше
+	// они отдавались сырыми из БД, и в одном бланке соседствовали "2026-07-15" и
+	// "15.07.2026 - 17.07.2026", а время приезжало с секундами.
 	switch path {
 	case "attachment.entry_date_from":
-		return derefStr(a.EntryDateFrom)
+		return formatDate(derefStr(a.EntryDateFrom))
 	case "attachment.entry_date_to":
-		return derefStr(a.EntryDateTo)
+		return formatDate(derefStr(a.EntryDateTo))
 	case "attachment.entry_time_from":
-		return derefStr(a.EntryTimeFrom)
+		return formatTime(derefStr(a.EntryTimeFrom))
 	case "attachment.entry_time_to":
-		return derefStr(a.EntryTimeTo)
+		return formatTime(derefStr(a.EntryTimeTo))
 	case "attachment.entry_date_range":
 		from := formatDate(derefStr(a.EntryDateFrom))
 		to := formatDate(derefStr(a.EntryDateTo))
@@ -169,9 +172,9 @@ func resolveCar(c *models.Car, path string, rowIdx int) string {
 	case "car.unload_place":
 		return derefStr(c.UnloadPlace)
 	case "car.entry_date_from":
-		return derefStr(c.EntryDateFrom)
+		return formatDate(derefStr(c.EntryDateFrom))
 	case "car.entry_date_to":
-		return derefStr(c.EntryDateTo)
+		return formatDate(derefStr(c.EntryDateTo))
 	case "car.entry_time_from":
 		return formatTime(derefStr(c.EntryTimeFrom))
 	case "car.entry_time_to":
