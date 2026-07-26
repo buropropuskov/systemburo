@@ -6,6 +6,8 @@ import { vPermissionScope } from './directives/permission-scope'
 import bus from './eventBus'
 import { tryRestoreSession } from '@/api/client'
 import { useMaintenanceStore } from '@/stores/maintenance'
+import { useAuthStore } from '@/stores/auth'
+import { useThemeStore } from '@/stores/theme'
 import { installBeforeUnloadGuard } from '@/utils/dirtyTracker'
 import { initViewportScale } from '@/utils/viewportScale'
 import './assets/tokens.css'
@@ -27,7 +29,14 @@ app.directive('permission-scope', vPermissionScope)
 await tryRestoreSession()
 // Загружаем maintenance-статус до mount - чтобы router.beforeEach guard мог
 // сразу решать, пускать ли юзера на любую страницу или отправлять на /maintenance.
-await useMaintenanceStore().fetchStatus()
+// Тему профиля тянем ТУТ ЖЕ и параллельно (#1415): bootstrap-скрипт index.html
+// ставит только тему из localStorage, а её на новом устройстве нет - и юзер
+// пару секунд видел светлую, пока не приедет профиль. В одной пачке с
+// maintenance запрос ничего не удлиняет, зато интерфейс монтируется уже в
+// выбранной теме. Гость (нет токена) профиль не запрашивает - там 401.
+const boot = [useMaintenanceStore().fetchStatus()]
+if (useAuthStore().token) boot.push(useThemeStore().syncFromServer())
+await Promise.all(boot)
 
 app.use(router)
 await router.isReady()

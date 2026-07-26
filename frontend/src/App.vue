@@ -137,9 +137,8 @@ export default {
       const permissionsStore = usePermissionsStore()
       permissionsStore.fetchPermissions()
       authStore.loadUserTypeCode()
-      // Тема из профиля поверх локальной: на общем компьютере следующий человек
-      // не должен наследовать чужое оформление из localStorage (#1415).
-      useThemeStore().syncFromServer()
+      // Тему профиля здесь НЕ запрашиваем: её тянет main.js до mount, иначе
+      // интерфейс успевал отрисоваться в чужой/светлой теме (#1415).
     }
     // Подписка на бан для восстановленной при старте сессии; дальше её ведёт
     // watch(banScopeUserId) на смену токена.
