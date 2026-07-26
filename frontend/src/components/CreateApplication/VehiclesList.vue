@@ -493,6 +493,7 @@ export default {
 
 .vcol__cell--active {
     background: var(--warning-bg);
+    border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--surface));
 }
 
 .vcol__cell--active.vcol__cell--hover {
@@ -563,6 +564,7 @@ export default {
 
 .table-row.has-active {
     background-color: var(--warning-bg);
+    border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--surface));
 }
 
 .table-row.has-active:hover {
@@ -698,6 +700,7 @@ h4 {
        из инфраструктуры с !important и иначе её съедает. */
     .table-row.rt-row.has-active {
         background: var(--warning-bg) !important;
+        border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--surface)) !important;
     }
 
     .table-col {

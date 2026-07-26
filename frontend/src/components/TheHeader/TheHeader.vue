@@ -444,7 +444,7 @@ h3 {
   height: 35px;
   font-size: 14px;
   color: var(--warning-text);
-  border: 1px solid var(--warning-bg);
+  border: 1px solid color-mix(in srgb, var(--warning) 45%, var(--surface));
   outline: none;
   border-radius: 50px;
   font-weight: 500;

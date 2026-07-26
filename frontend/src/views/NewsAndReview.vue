@@ -462,7 +462,7 @@ export default {
 .news {
     padding: 20px;
     font-family: 'Montserrat', sans-serif;
-    background: linear-gradient(135deg, var(--accent-tint) 0%, var(--surface) 100%);
+    background: var(--surface);
 }
 
 .content-wrapper {
@@ -672,6 +672,7 @@ export default {
     padding: 2px 8px;
     border-radius: 20px;
     background: var(--warning-bg);
+    border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--surface));
     color: var(--warning-text);
 }
 

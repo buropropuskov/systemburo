@@ -863,12 +863,16 @@ export default {
 .add-btn {
     width: 85px;
     height: 25px;
-    background: color-mix(in srgb, var(--accent) 40%, var(--surface));
-    border: 1px solid var(--border);
+    /* Мягкая акцентная кнопка. Была заливка «акцент 40%» с обычным цветом текста -
+       тёмный текст по синему (в светлой теме 2.2 на hover). Теперь бледная
+       подложка + акцентный текст (4.6), а на hover полная заливка со светлой
+       подписью (5.4/5.1). */
+    background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--surface));
     border-radius: 10px;
     font-size: 12px;
     font-weight: 500;
-    color: var(--text);
+    color: var(--accent-text);
     cursor: pointer;
     transition: 0.4s ease;
     margin-top: 8px;
@@ -877,6 +881,8 @@ export default {
 
 .add-btn:hover:not(:disabled) {
     background: var(--accent);
+    border-color: var(--accent);
+    color: var(--fill-text);
 }
 
 .add-btn:disabled {

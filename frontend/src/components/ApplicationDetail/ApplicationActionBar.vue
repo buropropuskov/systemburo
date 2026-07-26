@@ -878,6 +878,7 @@ export default {
 
 .revoke-approval-btn:hover:not(:disabled) {
     background: var(--warning-bg);
+    border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--surface));
     color: var(--warning-text);
 }
 

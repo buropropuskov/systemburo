@@ -1516,6 +1516,7 @@ export default {
   margin-top: 8px;
   padding: 8px 12px;
   background: var(--warning-bg);
+  border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--surface));
   border-radius: 8px;
   border-left: 3px solid var(--warning);
 }

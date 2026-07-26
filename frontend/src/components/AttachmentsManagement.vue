@@ -1119,6 +1119,7 @@ export default {
 
 .type-badge.items {
   background: var(--warning-bg);
+  border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--surface));
   color: var(--warning-text);
 }
 

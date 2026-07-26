@@ -229,6 +229,7 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
   gap: 12px;
   padding: 14px 16px;
   background: var(--warning-bg);
+  border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--surface));
   border-bottom: 1px solid color-mix(in srgb, var(--warning) 30%, var(--surface));
 }
 
@@ -332,6 +333,7 @@ const shown = computed(() => visibleGroups.value.length > 0 && !dismissed.value)
 .warn-schedule {
   padding: 8px 10px;
   background: var(--warning-bg);
+  border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--surface));
   border-left: 3px solid var(--warning);
   border-radius: var(--radius-sm, 8px);
 }

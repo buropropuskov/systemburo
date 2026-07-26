@@ -484,8 +484,9 @@ export default {
 
 .position-badge {
   background: var(--accent-tint);
-  color: var(--accent-hover);
-  border-color: color-mix(in srgb, var(--accent) 25%, var(--surface));
+  /* accent-hover на бледной подложке давал ~2.4 - должность не читалась. */
+  color: var(--accent-text);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--surface));
   cursor: default;
   gap: 6px;
 }

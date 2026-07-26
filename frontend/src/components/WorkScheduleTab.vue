@@ -1029,6 +1029,7 @@ export default {
   font-size: 12px;
   color: var(--warning-text);
   background: var(--warning-bg);
+  border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--surface));
   padding: 8px 12px;
   border-radius: 15px;
   margin-top: 4px;
@@ -1430,6 +1431,7 @@ input:checked + .switch-slider:before {
   font-size: 12px;
   color: var(--warning-text);
   background: var(--warning-bg);
+  border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--surface));
   padding: 8px 12px;
   border-radius: 20px;
   margin: 8px 0;
