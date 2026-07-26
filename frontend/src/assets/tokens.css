@@ -99,24 +99,28 @@
   --shadow-drop: rgba(0, 0, 0, 0.6);
   --shadow-focus: 0 0 0 3px rgba(85, 97, 184, 0.35);
 
-  --success: #3A7359;  --success-bg: #1b2620;  --success-text: #8FC7AC;
-  --danger:  #9F4C54;  --danger-bg:  #2a1b1d;  --danger-text:  #E3A2A7;
-  --warning: #866326;  --warning-bg: #262019;  --warning-text: #D9B87C;
-  --info:    #416A94;  --info-bg:    #1b2430;  --info-text:    #9DC0E0;
+  /* Подложки чипов и панелей - от цвета карточки с лёгкой примесью роли (14%),
+     а не тёмная «грязь» вроде #262019: та читалась мутным коричневым пятном под
+     «Объявление»/«Предупреждение». Текст роли даёт на них 6.0-6.7. */
+  --success: #3A7359;  --success-bg: #2a3538;  --success-text: #8FC7AC;
+  --danger:  #9F4C54;  --danger-bg:  #383038;  --danger-text:  #E3A2A7;
+  --warning: #866326;  --warning-bg: #343331;  --warning-text: #D9B87C;
+  --info:    #416A94;  --info-bg:    #2b3441;  --info-text:    #9DC0E0;
 
   /* Непрочитанное больше не янтарное: тёплая подложка с янтарной полоской
      читалась как золотое свечение. Подложка нейтральная, чуть светлее фона,
      полоска - приглушённый охристый. */
   --unread-bg: #2A2E37;
   --unread-accent: #866326;
-  --updated-bg: #262433;
-  --updated-accent: #8E7BB5;
+  /* Маркер «обновлено» виден: было #8E7BB5 - всего 3.82 на карточке. */
+  --updated-bg: #2b2740;
+  --updated-accent: #B49CE8;
   --row-hover: #2e323b;
 
-  --tag-chs-bg: #2a1b1d;       --tag-chs-text: #E3A2A7;
-  --tag-roof-bg: #1b2430;      --tag-roof-text: #9DC0E0;
-  --tag-parking-bg: #1b2620;   --tag-parking-text: #8FC7AC;
-  --tag-important-bg: #262019; --tag-important-text: #D9B87C;
+  --tag-chs-bg: #383038;       --tag-chs-text: #E3A2A7;
+  --tag-roof-bg: #2b3441;      --tag-roof-text: #9DC0E0;
+  --tag-parking-bg: #2a3538;   --tag-parking-text: #8FC7AC;
+  --tag-important-bg: #343331; --tag-important-text: #D9B87C;
 
   --hint-bg: #14171d;
   --hint-text: #c9ced8;
@@ -288,21 +292,21 @@
   --shadow-drop: rgba(0, 0, 0, 0.65);
   --shadow-focus: 0 0 0 3px rgba(148, 89, 26, 0.45);
 
-  --success: #3A7355;  --success-bg: #1e2620;  --success-text: #8FC7A8;
-  --danger:  #9F4C50;  --danger-bg:  #2c1d1c;  --danger-text:  #E3A2A0;
-  --warning: #866326;  --warning-bg: #2a2318;  --warning-text: #D9B87C;
-  --info:    #416A8A;  --info-bg:    #1d2630;  --info-text:    #9DC0D8;
+  --success: #3A7355;  --success-bg: #2d2f26;  --success-text: #8FC7A8;
+  --danger:  #9F4C50;  --danger-bg:  #3b2a25;  --danger-text:  #E3A2A0;
+  --warning: #866326;  --warning-bg: #382d1f;  --warning-text: #D9B87C;
+  --info:    #416A8A;  --info-bg:    #2e2e2d;  --info-text:    #9DC0D8;
 
   --unread-bg: #2E2721;
   --unread-accent: #866326;
-  --updated-bg: #2b2430;
-  --updated-accent: #A98BB0;
+  --updated-bg: #302a3a;
+  --updated-accent: #C4A6E0;
   --row-hover: #362d26;
 
-  --tag-chs-bg: #2c1d1c;       --tag-chs-text: #E3A2A0;
-  --tag-roof-bg: #1d2630;      --tag-roof-text: #9DC0D8;
-  --tag-parking-bg: #1e2620;   --tag-parking-text: #8FC7A8;
-  --tag-important-bg: #2a2318; --tag-important-text: #D9B87C;
+  --tag-chs-bg: #3b2a25;       --tag-chs-text: #E3A2A0;
+  --tag-roof-bg: #2e2e2d;      --tag-roof-text: #9DC0D8;
+  --tag-parking-bg: #2d2f26;   --tag-parking-text: #8FC7A8;
+  --tag-important-bg: #382d1f; --tag-important-text: #D9B87C;
 
   --hint-bg: #191410;
   --hint-text: #d8cec7;
@@ -333,6 +337,17 @@ input,
 select,
 textarea {
   color: inherit;
+}
+
+/* И фон: у поля умолчание браузера - белое (`field`), поэтому инпуты, не
+   объявившие свой background, светились белыми прямоугольниками в тёмной теме
+   («Новый пароль» в управлении юзерами, поля фильтров в модалках истории).
+   Правило самое слабое по специфичности - компонент со своим фоном (в т.ч.
+   transparent) перебивает его; в светлой теме --surface это тот же #fff. */
+input,
+select,
+textarea {
+  background-color: var(--surface);
 }
 
 /* Островок темы заново якорит наследуемый цвет: переменные он переопределяет, а

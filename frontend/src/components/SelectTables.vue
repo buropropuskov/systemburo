@@ -336,6 +336,7 @@ export default {
   font-size: 11px;
   color: var(--warning-text);
   background: var(--warning-bg);
+  border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--surface));
   border-radius: 8px;
   padding: 3px 9px;
   display: inline-flex;

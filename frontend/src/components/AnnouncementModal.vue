@@ -251,6 +251,7 @@ export default {
   padding: 2px 8px;
   border-radius: 20px;
   background: var(--warning-bg);
+  border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--surface));
   color: var(--warning-text);
   display: inline-flex;
   align-items: center;

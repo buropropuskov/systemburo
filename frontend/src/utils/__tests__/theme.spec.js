@@ -172,6 +172,12 @@ describe('utils/theme', () => {
       ;['--accent', '--danger', '--success', '--warning', '--info'].forEach((name) => {
         const bg = value(block, name)
         expect(ratio(fill, bg), `${id}: подпись на ${name} даёт слабый контраст`).toBeGreaterThan(4.5)
+        // И текст роли на её подложке: чипы «Объявление»/«Предупреждение», теги.
+        const soft = value(block, `${name}-bg`)
+        const text = value(block, `${name}-text`)
+        if (soft && text) {
+          expect(ratio(text, soft), `${id}: ${name}-text на ${name}-bg слабый`).toBeGreaterThan(4.5)
+        }
       })
     })
   })

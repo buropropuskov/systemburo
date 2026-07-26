@@ -316,6 +316,7 @@ export default {
 
 .table-row.has-active {
     background-color: var(--warning-bg);
+    border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--surface));
 }
 
 .table-row.has-active:hover {

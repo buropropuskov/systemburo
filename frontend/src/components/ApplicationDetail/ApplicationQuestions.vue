@@ -328,6 +328,7 @@ export default {
     line-height: 1;
     color: var(--warning-text);
     background: var(--warning-bg);
+    border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--surface));
     padding: 3px 8px;
     border-radius: 999px;
     font-weight: 600;

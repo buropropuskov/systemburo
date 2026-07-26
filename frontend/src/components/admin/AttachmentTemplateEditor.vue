@@ -1431,6 +1431,7 @@ export default {
 
 .te-action-banner--warning {
   background: var(--warning-bg);
+  border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--surface));
   border-bottom: 1px solid var(--warning);
   color: var(--warning-text);
 }

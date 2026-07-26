@@ -1122,6 +1122,7 @@ export default {
   font-weight: 500;
   color: var(--warning-text);
   background: var(--warning-bg);
+  border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--surface));
   padding: 2px 8px;
   border-radius: 999px;
   vertical-align: middle;
