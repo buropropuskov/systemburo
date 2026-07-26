@@ -63,3 +63,40 @@ func TestResolveValue_DateFallback(t *testing.T) {
 	require.Equal(t, "не дата", resolveValue(withDate("не дата"), "attachment.entry_date_from", 0))
 	require.Empty(t, resolveValue(withDate(""), "attachment.entry_date_from", 0))
 }
+
+// Поля вложения, которые заявитель заполняет в форме, но привязать к бланку было
+// нельзя (#1454): название бланка, места разгрузки, крыша и парковка.
+func TestResolveValue_AttachmentFields(t *testing.T) {
+	strPtr := func(s string) *string { return &s }
+	bctx := &BlankContext{
+		Attachment: &models.Attachment{
+			AttachmentName:        strPtr("avtozayavka_2"),
+			AttachmentDisplayName: strPtr("Автозаявка №2"),
+			RoofAccess:            true,
+			FreeParking:           false,
+		},
+		AttachmentUnloadPlaces: []string{"Ворота Черепашки", "Склад 4"},
+	}
+
+	require.Equal(t, "Автозаявка №2", resolveValue(bctx, "attachment.display_name", 0))
+	require.Equal(t, "Ворота Черепашки, Склад 4", resolveValue(bctx, "attachment.unload_places", 0))
+	require.Equal(t, "Да", resolveValue(bctx, "attachment.roof_access", 0))
+	require.Equal(t, "Нет", resolveValue(bctx, "attachment.free_parking", 0))
+
+	// Без отображаемого имени показываем техническое - пустая ячейка хуже.
+	bctx.Attachment.AttachmentDisplayName = nil
+	require.Equal(t, "avtozayavka_2", resolveValue(bctx, "attachment.display_name", 0))
+}
+
+// Новые пути обязаны быть в словаре: иначе UpdateMappings отклонит привязку,
+// которую редактор дал создать.
+func TestBuiltinTemplateFields_CoversNewAttachmentPaths(t *testing.T) {
+	for _, path := range []string{
+		"attachment.display_name",
+		"attachment.unload_places",
+		"attachment.roof_access",
+		"attachment.free_parking",
+	} {
+		require.True(t, IsValidFieldPath(path), "путь %s должен быть в словаре", path)
+	}
+}

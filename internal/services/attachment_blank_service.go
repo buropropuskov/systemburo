@@ -30,6 +30,9 @@ type BlankContext struct {
 	Citizenships     map[int]string // citizenship_id → name
 	CustomValues     map[int]string // custom_field_id → value
 	ApproverName     string         // ФИО согласовавшего
+	// AttachmentUnloadPlaces - имена мест разгрузки вложения в порядке привязки. Для
+	// вложения-имущества это единственный источник мест: у ТМЦ своих машин нет (#706).
+	AttachmentUnloadPlaces []string
 }
 
 // AttachmentBlankService - генерация заполненных .xlsx-бланков на основе
@@ -259,6 +262,16 @@ func (s *attachmentBlankService) buildContext(ctx context.Context, appID int, at
 			}
 		}
 	}
+
+	// Места разгрузки вложения (attachment_unload_places): для items - единственный
+	// источник, для cars дублирует дедуп-union мест машин.
+	s.db.WithContext(ctx).Raw(`
+		SELECT up.name
+		FROM attachment_unload_places aup
+		JOIN unload_places up ON aup.unload_place_id = up.id
+		WHERE aup.attachment_id = ?
+		ORDER BY aup.order_index NULLS LAST, up.name
+	`, att.ID).Scan(&bctx.AttachmentUnloadPlaces)
 
 	// Custom values для этого attachment.
 	var values []models.AttachmentCustomValue
