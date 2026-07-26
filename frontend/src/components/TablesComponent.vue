@@ -945,8 +945,8 @@ export default {
 .fact-hint-card {
     flex: 0 0 35%;
     /* Через токены: в светлых темах акцентная плашка, в тёмных - тёмная карточка
-       в тон темы (сплошной синий блок на тёмном фоне читался плохо). Тень была
-       прошита синим литералом rgba(79,91,223,.2) - теперь общая тень темы. */
+       в тон темы (сплошной синий блок на тёмном фоне читался плохо). Тени нет:
+       крупные карточки страниц отделяет рамка, тень оставлена окнам и всплывающему. */
     background-color: var(--hint-card-bg);
     border: 1px solid var(--hint-card-border);
     border-radius: 30px;
@@ -955,7 +955,6 @@ export default {
     gap: 15px;
     align-items: flex-start;
     min-height: 205px;
-    box-shadow: var(--shadow);
 }
 
 .hint-content {
@@ -1061,7 +1060,7 @@ export default {
 .text-constructor-content :deep(.black-text) { color: #000 !important; }
 .text-constructor-content :deep(.red-text) { color: #FF0000 !important; }
 .text-constructor-content :deep(.green-text) { color: #079D1D !important; }
-.text-constructor-content :deep(.blue-text) { color: #4F5BDF !important; }
+.text-constructor-content :deep(.blue-text) { color: var(--accent-text) !important; }
 
 .text-constructor-content :deep(.font-size-10) { font-size: 10px !important; }
 .text-constructor-content :deep(.font-size-12) { font-size: 12px !important; }

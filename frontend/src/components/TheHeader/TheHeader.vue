@@ -487,9 +487,16 @@ h3 {
   transition: background-color 0.2s ease;
 }
 
+/* Состояния колокольчика выражены подложкой и прозрачностью, а НЕ подменой filter:
+   filter у иконки занят темой (--icon-mono-filter осветляет глиф в тёмных темах),
+   и локальное значение делало колокольчик то серым, то чёрным на тёмном фоне. */
+.user__notifications--active {
+  background-color: var(--surface-2);
+}
+
 .user__notifications--active .notifications__icon,
 .user__notifications--active .notifications__icon:hover {
-  filter: grayscale(100%) brightness(0.6);
+  opacity: 0.55;
 }
 
 .notifications__badge {
@@ -514,11 +521,16 @@ h3 {
   width: 20px;
   height: 20px;
   cursor: pointer;
+  transition: opacity 0.2s ease;
 }
 
 @media (hover: hover) {
+  .user__notifications:hover {
+    background-color: var(--surface-2);
+  }
+
   .notifications__icon:hover {
-    filter: contrast(0.01);
+    opacity: 0.7;
   }
 }
 

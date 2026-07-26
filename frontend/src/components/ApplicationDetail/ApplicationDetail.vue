@@ -2109,7 +2109,7 @@ export default {
 .message-preview :deep(.black-text) { color: #000 !important; }
 .message-preview :deep(.red-text) { color: #FF0000 !important; }
 .message-preview :deep(.green-text) { color: #079D1D !important; }
-.message-preview :deep(.blue-text) { color: #4F5BDF !important; }
+.message-preview :deep(.blue-text) { color: var(--accent-text) !important; }
 
 .message-preview :deep(.font-size-10) { font-size: 10px !important; }
 .message-preview :deep(.font-size-12) { font-size: 12px !important; }

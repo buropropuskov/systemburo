@@ -121,7 +121,7 @@ const sanitizedMessage = computed(() => sanitizeHtml(props.message));
 .text-constructor-content :deep(.black-text) { color: #000 !important; }
 .text-constructor-content :deep(.red-text) { color: #FF0000 !important; }
 .text-constructor-content :deep(.green-text) { color: #079D1D !important; }
-.text-constructor-content :deep(.blue-text) { color: #4F5BDF !important; }
+.text-constructor-content :deep(.blue-text) { color: var(--accent-text) !important; }
 
 .text-constructor-content :deep(.font-size-10) { font-size: 10px !important; }
 .text-constructor-content :deep(.font-size-12) { font-size: 12px !important; }

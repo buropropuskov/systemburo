@@ -86,7 +86,7 @@
                   >
                     <path
                       d="M12 6.5C10.4 5 7.8 4.5 4 4.5V18.5C7.8 18.5 10.4 19 12 20.5C13.6 19 16.2 18.5 20 18.5V4.5C16.2 4.5 13.6 5 12 6.5ZM12 6.5V20.5"
-                      stroke="#4F5BDF"
+                      stroke="currentColor"
                       stroke-width="1.6"
                       stroke-linecap="round"
                       stroke-linejoin="round"
@@ -478,7 +478,6 @@ export default {
 .news-container {
     background: var(--surface);
     border: 1px solid var(--border);
-    box-shadow: 0px 3px 10px var(--shadow-drop);
     border-radius: 30px;
     overflow: hidden;
     /* var(--app-vh) = зумленная высота вьюпорта (viewportScale.js); чистый vh
@@ -817,6 +816,8 @@ export default {
 
 .guide-icon {
     flex-shrink: 0;
+    /* Иконка нарисована currentColor - цвет берётся отсюда и следует за темой. */
+    color: var(--accent-text);
 }
 
 .guide-text {

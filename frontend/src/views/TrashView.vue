@@ -26,7 +26,7 @@
           >
             <path
               d="M15 18L9 12L15 6"
-              stroke="#4F5BDF"
+              stroke="currentColor"
               stroke-width="2.5"
               stroke-linecap="round"
               stroke-linejoin="round"
@@ -926,6 +926,7 @@ export default {
 }
 
 .trash-back-btn__icon {
+  color: var(--accent-text);
   width: 14px;
   height: 14px;
 }
@@ -1006,7 +1007,6 @@ export default {
 .trash-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  box-shadow: 0px 3px 10px var(--shadow-drop);
   border-radius: 30px;
   overflow: hidden;
   max-height: 600px;
@@ -1162,7 +1162,7 @@ export default {
 }
 
 .trash-table__th--sortable:hover .trash-table__sort {
-  filter: brightness(0);
+  filter: var(--icon-ink-filter);
 }
 
 .trash-table__th--active {
@@ -1179,7 +1179,7 @@ export default {
 }
 
 .trash-table__sort--sorted {
-  filter: brightness(0);
+  filter: var(--icon-ink-filter);
   opacity: 1;
 }
 

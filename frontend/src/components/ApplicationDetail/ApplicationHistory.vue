@@ -1170,7 +1170,7 @@ export default {
     background: var(--border);
 }
 
-.dot-create { background: #4F5BDF; }
+.dot-create { background: var(--accent-text); }
 .dot-read { background: #3b82f6; }
 .dot-approve { background: #059669; }
 .dot-reject { background: #dc2626; }

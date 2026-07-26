@@ -2493,7 +2493,6 @@ export default {
     background: var(--surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-sm);
 }
 
 .filters-row {
@@ -2807,7 +2806,7 @@ export default {
 }
 
 .header-col:hover .sort-icon {
-    filter: brightness(0);
+    filter: var(--icon-ink-filter);
 }
 
 .sort-icon {
@@ -2817,7 +2816,7 @@ export default {
 }
 
 .sort-icon.sorted {
-    filter: brightness(0);
+    filter: var(--icon-ink-filter);
 }
 
 .sort-icon.desc {

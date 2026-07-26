@@ -951,7 +951,7 @@ defineExpose({ editor });
 .editor-content :deep(.green-text),
 .preview-modal-content :deep(.green-text) { color: #079d1d; }
 .editor-content :deep(.blue-text),
-.preview-modal-content :deep(.blue-text) { color: #4f5bdf; }
+.preview-modal-content :deep(.blue-text) { color: var(--accent-text); }
 
 .editor-content :deep(.font-size-10),
 .preview-modal-content :deep(.font-size-10) { font-size: 10px; }

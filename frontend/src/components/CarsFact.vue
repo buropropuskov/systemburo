@@ -535,7 +535,6 @@ export default {
   width: 65%;
   min-height: 222px;
   max-height: 222px;
-  box-shadow: 0 3px 10px var(--shadow-drop);
 }
 
 .card-header {
@@ -622,7 +621,7 @@ export default {
 }
 
 .header-col:hover .sort-icon {
-  filter: brightness(0);
+  filter: var(--icon-ink-filter);
 }
 
 .sort-icon {
@@ -632,7 +631,7 @@ export default {
 }
 
 .sort-icon.sorted {
-  filter: brightness(0);
+  filter: var(--icon-ink-filter);
 }
 
 .sort-icon.desc {

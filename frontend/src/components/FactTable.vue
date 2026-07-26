@@ -1361,7 +1361,7 @@ export default {
 }
 
 .header-row .col:hover .sort-icon {
-  filter: brightness(0);
+  filter: var(--icon-ink-filter);
 }
 
 .sort-icon {
@@ -1371,7 +1371,7 @@ export default {
 }
 
 .sort-icon.sorted {
-  filter: brightness(0);
+  filter: var(--icon-ink-filter);
 }
 
 .sort-icon.desc {

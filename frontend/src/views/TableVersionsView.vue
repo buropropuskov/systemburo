@@ -26,7 +26,7 @@
           >
             <path
               d="M15 18L9 12L15 6"
-              stroke="#4F5BDF"
+              stroke="currentColor"
               stroke-width="2.5"
               stroke-linecap="round"
               stroke-linejoin="round"
@@ -729,6 +729,7 @@ onMounted(async () => {
 }
 
 .versions-back-btn__icon {
+  color: var(--accent-text);
   width: 14px;
   height: 14px;
 }
