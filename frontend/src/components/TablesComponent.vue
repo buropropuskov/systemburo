@@ -80,46 +80,57 @@
           >
         </div>
                 
-        <!-- Организация через компонент -->
-        <OrganizationFilter
-          v-if="showOrganizationFilter"
-          ref="organizationFilter"
-          v-model="selectedOrganizationId"
-          :organizations="organizations"
-          @change="handleOrganizationChange"
-        />
+        <!-- Десктоп: вторичные фильтры инлайн в строке (как было). -->
+        <template v-if="!isNarrow">
+          <!-- Организация через компонент -->
+          <OrganizationFilter
+            v-if="showOrganizationFilter"
+            ref="organizationFilter"
+            v-model="selectedOrganizationId"
+            :organizations="organizations"
+            @change="handleOrganizationChange"
+          />
 
-        <!-- Компания через тот же компонент (reuse OrganizationFilter) -->
-        <OrganizationFilter
-          v-if="showOrganizationFilter"
-          ref="companyFilter"
-          v-model="selectedCompanyId"
-          :organizations="companies"
-          all-label="Все компании"
-          placeholder-text="Компания"
-          @change="handleCompanyChange"
-        />
+          <!-- Компания через тот же компонент (reuse OrganizationFilter) -->
+          <OrganizationFilter
+            v-if="showOrganizationFilter"
+            ref="companyFilter"
+            v-model="selectedCompanyId"
+            :organizations="companies"
+            all-label="Все компании"
+            placeholder-text="Компания"
+            @change="handleCompanyChange"
+          />
 
-        <!-- Место разгрузки через компонент -->
-        <UnloadingPlaceFilter
-          v-if="showUnloadingFilter"
-          ref="unloadingPlaceFilter"
-          v-model="selectedUnloadingPlaceId"
-          @change="handleUnloadingPlaceChange"
-        />
+          <!-- Место разгрузки через компонент -->
+          <UnloadingPlaceFilter
+            v-if="showUnloadingFilter"
+            ref="unloadingPlaceFilter"
+            v-model="selectedUnloadingPlaceId"
+            @change="handleUnloadingPlaceChange"
+          />
 
-        <!-- Новый DateFilter -->
-        <DateFilter
-          ref="dateFilter"
-          :mode="'range'"
-          :selected-date="selectedDate"
-          :date-range-start="dateRangeStart"
-          :date-range-end="dateRangeEnd"
-          @update:selected-date="updateSelectedDate"
-          @update:date-range-start="updateDateRangeStart"
-          @update:date-range-end="updateDateRangeEnd"
-          @apply="applyDateFilters"
-          @clear="clearDate"
+          <!-- Новый DateFilter -->
+          <DateFilter
+            ref="dateFilter"
+            :mode="'range'"
+            :selected-date="selectedDate"
+            :date-range-start="dateRangeStart"
+            :date-range-end="dateRangeEnd"
+            @update:selected-date="updateSelectedDate"
+            @update:date-range-start="updateDateRangeStart"
+            @update:date-range-end="updateDateRangeEnd"
+            @apply="applyDateFilters"
+            @clear="clearDate"
+          />
+        </template>
+
+        <!-- Мобилка: вторичные фильтры свёрнуты в кнопку «Фильтр» (поиск - снаружи). -->
+        <FilterButton
+          v-else
+          :active="secondaryFiltersActive"
+          data-testid="table-filter-btn"
+          @click="showFilterSheet = true"
         />
       </div>
       <div class="filters__options">
@@ -189,6 +200,72 @@
         </button>
       </div>
     </div>
+
+    <!-- Мобилка: вторичные фильтры в bottom-sheet. -->
+    <FilterSheet
+      v-if="isNarrow"
+      :show="showFilterSheet"
+      :has-active-filters="hasActiveFilters"
+      @close="showFilterSheet = false"
+      @reset="clearFilters"
+    >
+      <div
+        v-if="showOrganizationFilter"
+        class="filter-section"
+      >
+        <span class="filter-label">Организация</span>
+        <OrganizationFilter
+          ref="organizationFilter"
+          v-model="selectedOrganizationId"
+          :organizations="organizations"
+          data-testid="table-sheet-org"
+          @change="handleOrganizationChange"
+        />
+      </div>
+      <div
+        v-if="showOrganizationFilter"
+        class="filter-section"
+      >
+        <span class="filter-label">Компания</span>
+        <OrganizationFilter
+          ref="companyFilter"
+          v-model="selectedCompanyId"
+          :organizations="companies"
+          all-label="Все компании"
+          placeholder-text="Компания"
+          data-testid="table-sheet-company"
+          @change="handleCompanyChange"
+        />
+      </div>
+      <div
+        v-if="showUnloadingFilter"
+        class="filter-section"
+      >
+        <span class="filter-label">Место разгрузки</span>
+        <UnloadingPlaceFilter
+          ref="unloadingPlaceFilter"
+          v-model="selectedUnloadingPlaceId"
+          data-testid="table-sheet-place"
+          @change="handleUnloadingPlaceChange"
+        />
+      </div>
+      <div class="filter-section">
+        <span class="filter-label">Период</span>
+        <DateFilter
+          ref="dateFilter"
+          :mode="'range'"
+          :selected-date="selectedDate"
+          :date-range-start="dateRangeStart"
+          :date-range-end="dateRangeEnd"
+          data-testid="table-sheet-date"
+          @update:selected-date="updateSelectedDate"
+          @update:date-range-start="updateDateRangeStart"
+          @update:date-range-end="updateDateRangeEnd"
+          @apply="applyDateFilters"
+          @clear="clearDate"
+        />
+      </div>
+    </FilterSheet>
 
     <div class="tables__content">
       <!-- Таблица по факту с подсказкой -->
@@ -320,6 +397,9 @@ import ApplicationDetail from './ApplicationDetail/ApplicationDetail.vue';
 import TableExportModal from './TableExportModal.vue';
 import ManualAddModal from './ManualAddModal.vue';
 import PassReportModal from './PassReportModal.vue';
+import FilterButton from '@/components/ui/FilterButton.vue';
+import FilterSheet from '@/components/ui/FilterSheet.vue';
+import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import { usePermissionsStore } from '@/stores/permissions';
 
 export default {
@@ -335,6 +415,8 @@ export default {
         TableExportModal,
         ManualAddModal,
         PassReportModal,
+        FilterButton,
+        FilterSheet,
     },
     emits: ['refresh-data'],
     setup() {
@@ -359,7 +441,11 @@ export default {
 
         const permissionsStore = usePermissionsStore();
 
-        return { showInstruction, openInstruction, closeInstruction, onOverlayMousedown, onOverlayMouseup, permissionsStore };
+        // Мобилка (<=768): вторичные фильтры сворачиваются в кнопку «Фильтр» + FilterSheet;
+        // поиск остаётся снаружи. Десктоп не трогаем - фильтры инлайн (эпик mobile-filter-collapse).
+        const { isNarrow } = useNarrowScreen();
+
+        return { showInstruction, openInstruction, closeInstruction, onOverlayMousedown, onOverlayMouseup, permissionsStore, isNarrow };
     },
     data() {
         return {
@@ -388,6 +474,9 @@ export default {
             showExportModal: false,
             showManualAdd: false,
             showPassReport: false,
+
+            // Мобилка: открыт ли bottom-sheet со вторичными фильтрами.
+            showFilterSheet: false,
 
             // Режим "Сетка" (#1289): один тумблер страницы на обе таблицы
             // (по факту + основная). Состояние своё у каждой таблицы.
@@ -444,13 +533,18 @@ export default {
             return this.sanitizeHtml(this.tableInstruction);
         },
         
-        hasActiveFilters() {
-            return !!this.searchQuery.trim() ||
-                   !!this.selectedOrganizationId ||
+        // Вторичные фильтры (без поиска) - для точки-индикатора на кнопке «Фильтр»
+        // на мобилке: поиск виден отдельно, точка отражает только свёрнутые фильтры.
+        secondaryFiltersActive() {
+            return !!this.selectedOrganizationId ||
                    !!this.selectedCompanyId ||
                    !!this.selectedUnloadingPlaceId ||
                    !!this.selectedDate ||
-                   (this.dateRangeStart && this.dateRangeEnd);
+                   !!(this.dateRangeStart && this.dateRangeEnd);
+        },
+
+        hasActiveFilters() {
+            return !!this.searchQuery.trim() || this.secondaryFiltersActive;
         }
     },
     watch: {
@@ -651,26 +745,26 @@ export default {
         
         clearFilters() {
             this.searchQuery = '';
-            
+
+            // Прямой сброс state - работает и когда sheet закрыт (на мобилке вторичные
+            // фильтры размонтированы, refs недоступны, а clearFilters зовётся ещё и при
+            // смене таблицы). Дочерние следят за v-model/selected-date и подхватят сброс.
+            this.selectedOrganizationId = null;
+            this.selectedOrganizationName = '';
+            this.selectedCompanyId = null;
+            this.selectedCompanyName = '';
+            this.selectedUnloadingPlaceId = null;
+            this.selectedUnloadingPlaceName = '';
             this.selectedDate = null;
             this.dateRangeStart = null;
             this.dateRangeEnd = null;
-            
-            if (this.$refs.organizationFilter && this.$refs.organizationFilter.reset) {
-                this.$refs.organizationFilter.reset();
-            }
 
-            if (this.$refs.companyFilter && this.$refs.companyFilter.reset) {
-                this.$refs.companyFilter.reset();
-            }
-
-            if (this.$refs.unloadingPlaceFilter && this.$refs.unloadingPlaceFilter.reset) {
-                this.$refs.unloadingPlaceFilter.reset();
-            }
-            
-            if (this.$refs.dateFilter && this.$refs.dateFilter.clearSelection) {
-                this.$refs.dateFilter.clearSelection();
-            }
+            // Сброс внутреннего состояния дочерних фильтров, если смонтированы
+            // (десктоп-инлайн или открытый sheet) - обнуляет их локальный поиск/выбор.
+            this.$refs.organizationFilter?.reset?.();
+            this.$refs.companyFilter?.reset?.();
+            this.$refs.unloadingPlaceFilter?.reset?.();
+            this.$refs.dateFilter?.clearSelection?.();
         },
 
         async handleOpenApplication(applicationId) {
@@ -1265,15 +1359,24 @@ export default {
         gap: 15px;
         align-items: flex-start;
     }
-    
+
     .filters__fields {
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
+        width: 100%;
+        gap: 10px;
     }
-    
+
     .field {
         width: 100%;
     }
-    
+
+    /* Поиск тянется на всю строку, кнопка «Фильтр» - компактная справа. */
+    .field.search {
+        flex: 1 1 auto;
+        width: auto;
+        min-width: 0;
+    }
+
     .instruction-modal-large {
         margin: 10px;
         max-height: 90vh;
