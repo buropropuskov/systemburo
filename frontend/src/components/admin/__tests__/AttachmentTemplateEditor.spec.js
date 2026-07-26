@@ -50,6 +50,14 @@ const TEMPLATE = {
 
 const FIELD_GROUPS = [
   {
+    group: 'application',
+    label: 'Заявка',
+    fields: [
+      { path: 'application.sender.phone', label: 'Телефон отправителя' },
+      { path: 'application.organization', label: 'Организация' },
+    ],
+  },
+  {
     group: 'car',
     label: 'Автомобиль (список)',
     fields: [{ path: 'car.car_number', label: 'Номер ТС', is_list: true }],
@@ -184,4 +192,32 @@ describe('AttachmentTemplateEditor', () => {
       type: 'error', bold: 'Некорректный диапазон строк',
     }));
   });
+  it('показывает порядок склейки у совмещённой ячейки и меняет его', async () => {
+    getTemplate.mockResolvedValue({
+      ...TEMPLATE,
+      mappings: [
+        { cell_ref: 'A43', field_path: 'application.sender.phone', is_list_field: false },
+        { cell_ref: 'A43', field_path: 'application.organization', is_list_field: false },
+        { cell_ref: 'B30', field_path: 'item.name', is_list_field: true },
+      ],
+    });
+    const wrapper = await mountEditor({ attachmentType: 'items' });
+
+    // позиция видна только у совмещённой ячейки
+    const orders = wrapper.findAll('.te-mapping-order').map(o => o.text());
+    expect(orders).toEqual(['1/2', '2/2']);
+
+    // порядок склейки = порядок привязок ячейки, он же уходит в предпросмотр
+    const cellOrder = () => wrapper.vm.mappings.filter(m => m.cell_ref === 'A43').map(m => m.field_path);
+    expect(cellOrder()).toEqual(['application.sender.phone', 'application.organization']);
+    expect(wrapper.findAll('.te-mapping-field').map(f => f.text())).toEqual([
+      'Телефон отправителя', 'Организация', 'Наименование',
+    ]);
+
+    // «позже в склейке» у первой привязки меняет её местами со второй
+    await wrapper.findAll('[data-testid="mapping-move-down"]')[0].trigger('click');
+    expect(cellOrder()).toEqual(['application.organization', 'application.sender.phone']);
+    expect(wrapper.findAll('.te-mapping-order').map(o => o.text())).toEqual(['1/2', '2/2']);
+  });
+
 });
