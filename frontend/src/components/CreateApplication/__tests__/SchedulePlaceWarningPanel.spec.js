@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import SchedulePlaceWarningPanel from '../SchedulePlaceWarningPanel.vue';
@@ -131,6 +133,18 @@ describe('SchedulePlaceWarningPanel', () => {
       expect(revealOpen()).toBe(false);
     });
 
+    it('свёрнутая плашка помечена классом - рамка панели уходит в тон предупреждения', async () => {
+      // В свёрнутом виде от панели видна ТОЛЬКО жёлтая шапка, и нейтральная рамка
+      // вокруг неё читалась как чужая обводка (#1415).
+      const w = mountPanel([scheduleGroup()]);
+      await w.vm.$nextTick();
+      expect(panel().classList.contains('warn-panel--collapsed')).toBe(true);
+
+      await document.querySelector('[data-testid="schedule-warning-head"]').click();
+      await w.vm.$nextTick();
+      expect(panel().classList.contains('warn-panel--collapsed')).toBe(false);
+    });
+
     it('тап по плашке разворачивает и сворачивает обратно', async () => {
       const w = mountPanel([scheduleGroup()]);
       await w.vm.$nextTick();
@@ -154,5 +168,27 @@ describe('SchedulePlaceWarningPanel', () => {
       await w.vm.$nextTick();
       expect(panel()).toBeNull();
     });
+  });
+});
+
+/*
+ * Обводку панели jsdom не считает (нет layout), поэтому замок читает CSS: шапка не
+ * должна задавать рамку по ВСЕМ сторонам - по бокам она дублировала рамку панели,
+ * а сверху срезалась её закруглением при overflow: hidden (#1415).
+ */
+describe('SchedulePlaceWarningPanel - обводка шапки', () => {
+  const css = readFileSync(resolve(__dirname, '../SchedulePlaceWarningPanel.vue'), 'utf8');
+
+  it('шапка задаёт только нижнюю границу', () => {
+    const head = css.match(/\.warn-panel__head\s*\{([\s\S]*?)\}/);
+    expect(head, 'нет правила .warn-panel__head').not.toBeNull();
+    expect(head[1], 'рамка по всем сторонам режется закруглением панели')
+      .not.toMatch(/^\s*border:\s/m);
+    expect(head[1]).toMatch(/border-bottom:/);
+  });
+
+  it('тень панели берётся из токена темы', () => {
+    const root = css.match(/\.warn-panel\s*\{([\s\S]*?)\}/);
+    expect(root[1]).toMatch(/box-shadow:[^;]*var\(--shadow-drop\)/);
   });
 });

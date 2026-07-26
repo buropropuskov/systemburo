@@ -1095,7 +1095,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.6);
+  background: color-mix(in srgb, var(--surface) 60%, transparent);
   z-index: 2;
 }
 

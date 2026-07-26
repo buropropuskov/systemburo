@@ -3031,8 +3031,8 @@ export default {
         }
 
         /* Обёртка заголовка закрепляется под шапкой приложения при скролле формы:
-           в потоке подложки нет, а закрепившись (blankStuck) - полупрозрачный
-           белый фон с размытием и нижняя граница, чтобы отделиться от контента. */
+           в потоке подложки нет, а закрепившись (blankStuck) - полупрозрачная
+           поверхность темы с размытием и нижняя граница, чтобы отделиться от контента. */
         .create__blank-sticky {
             position: sticky;
             top: var(--mobile-header-height, 55px);
@@ -3051,7 +3051,9 @@ export default {
         }
 
         .create__blank-sticky--stuck {
-            background: rgba(255, 255, 255, 0.82);
+            /* Поверхность темы, а не белый литерал: в тёмной теме закреплённая
+               плашка светилась белым поверх тёмной формы. */
+            background: color-mix(in srgb, var(--surface) 82%, transparent);
             backdrop-filter: blur(6px);
             -webkit-backdrop-filter: blur(6px);
             border-bottom-color: var(--border);

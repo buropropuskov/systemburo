@@ -2156,7 +2156,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.75);
+  background: color-mix(in srgb, var(--surface) 75%, transparent);
   backdrop-filter: blur(1px);
   z-index: 2;
   pointer-events: none;
