@@ -316,6 +316,7 @@
                 :key="`te-${selectedAttachment.id}`"
                 :show="showTemplateEditor"
                 :unique-attachment-id="selectedAttachment.id"
+                :attachment-type="selectedAttachment.attachment_type"
                 @close="showTemplateEditor = false"
               />
             </template>

@@ -70,6 +70,27 @@ export async function updateMappings(uniqueAttachmentID, mappings, concatSeparat
   return res.json();
 }
 
+/**
+ * Изменить границы строк списка у активного шаблона без перезагрузки файла.
+ * @param {number} uniqueAttachmentID
+ * @param {{ listStartRow: number, listEndRow: number, maxListRows?: number }} params
+ */
+export async function updateTemplateParams(uniqueAttachmentID, { listStartRow, listEndRow, maxListRows = 0 }) {
+  const res = await apiRequest(`/attachments/${uniqueAttachmentID}/template/params`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      list_start_row: listStartRow,
+      list_end_row: listEndRow,
+      max_list_rows: maxListRows,
+    }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data?.message || 'Не удалось сохранить параметры списка');
+  }
+  return res.json();
+}
+
 export async function deleteTemplate(uniqueAttachmentID) {
   const res = await apiRequest(`/attachments/${uniqueAttachmentID}/template`, {
     method: 'DELETE',

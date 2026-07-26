@@ -25,6 +25,7 @@ type AttachmentTemplateService interface {
 	ListTemplates(ctx context.Context, uniqueAttachmentID int) ([]models.AttachmentTemplate, error)
 	Upload(ctx context.Context, uniqueAttachmentID int, file *multipart.FileHeader, req models.CreateTemplateRequest, userID int) (*models.AttachmentTemplate, error)
 	UpdateMappings(ctx context.Context, uniqueAttachmentID int, req models.UpdateMappingsRequest) error
+	UpdateParams(ctx context.Context, uniqueAttachmentID int, req models.UpdateTemplateParamsRequest) error
 	Delete(ctx context.Context, uniqueAttachmentID int) error
 	DeleteByID(ctx context.Context, templateID int) error
 	SetActive(ctx context.Context, uniqueAttachmentID int, templateID int) error
@@ -176,6 +177,33 @@ func (s *attachmentTemplateService) UpdateMappings(ctx context.Context, uaID int
 		}
 		return tx.Create(&rows).Error
 	})
+}
+
+// UpdateParams меняет границы строк списка у активного шаблона. Раньше их задавали
+// только вместе с загрузкой файла, поэтому подвинуть диапазон значило перезалить
+// тот же .xlsx заново (#1454).
+func (s *attachmentTemplateService) UpdateParams(ctx context.Context, uaID int, req models.UpdateTemplateParamsRequest) error {
+	if req.ListStartRow < 1 || req.ListEndRow < req.ListStartRow {
+		return echo.NewHTTPError(http.StatusBadRequest, "Некорректный диапазон строк")
+	}
+	var t models.AttachmentTemplate
+	if err := s.db.WithContext(ctx).Where("unique_attachment_id = ? AND is_active = ?", uaID, true).First(&t).Error; err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "Шаблон не настроен")
+	}
+	maxRows := req.MaxListRows
+	if maxRows == 0 {
+		maxRows = req.ListEndRow - req.ListStartRow + 1
+	}
+	err := s.db.WithContext(ctx).Model(&models.AttachmentTemplate{}).Where("id = ?", t.ID).
+		Updates(map[string]any{
+			"list_start_row": req.ListStartRow,
+			"list_end_row":   req.ListEndRow,
+			"max_list_rows":  maxRows,
+		}).Error
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Не удалось сохранить параметры списка")
+	}
+	return nil
 }
 
 func (s *attachmentTemplateService) Delete(ctx context.Context, uaID int) error {

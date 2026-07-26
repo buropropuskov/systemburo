@@ -83,6 +83,14 @@ type CreateTemplateRequest struct {
 	MaxListRows  int `form:"max_list_rows" json:"max_list_rows" validate:"min=0"`
 }
 
+// UpdateTemplateParamsRequest - границы строк списка без перезагрузки файла.
+// MaxListRows=0 означает "посчитать по диапазону" (как при загрузке шаблона).
+type UpdateTemplateParamsRequest struct {
+	ListStartRow int `json:"list_start_row" validate:"min=1"`
+	ListEndRow   int `json:"list_end_row" validate:"min=1"`
+	MaxListRows  int `json:"max_list_rows" validate:"min=0"`
+}
+
 // UpdateMappingsRequest - bulk-обновление mappings одним запросом.
 type UpdateMappingsRequest struct {
 	Mappings        []MappingInput `json:"mappings" validate:"required,dive"`

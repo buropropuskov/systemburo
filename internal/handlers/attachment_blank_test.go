@@ -467,3 +467,41 @@ func TestBlankGenerate_CarBindings(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "post-72", gotPost)
 }
+
+// Границы строк списка правятся без перезагрузки файла (#1454): раньше их задавали
+// только вместе с загрузкой .xlsx, и подвинуть диапазон значило перезалить тот же файл.
+func TestTemplateParams_UpdateWithoutReupload(t *testing.T) {
+	w := setupBlankWorld(t)
+	db := w.h.w.db
+
+	var uaID int
+	require.NoError(t, db.Table("unique_attachments").Where("name = ?", "people_blank").
+		Select("id").Scan(&uaID).Error)
+	url := fmt.Sprintf("/attachments/%d/template/params", uaID)
+
+	userTypeID := secUserTypeIDByCode(t, db, "user")
+	plain := testutil.RegisterAndLogin(t, w.h.e, "blankparamsuser", blankTestPassword, userTypeID, w.h.w.orgID, 0)
+
+	t.Run("обычный пользователь не правит границы", func(t *testing.T) {
+		rec := testutil.PUT(t, w.h.e, url, `{"list_start_row":5,"list_end_row":20}`, testutil.AuthHeader(plain))
+		require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+	})
+
+	t.Run("админ двигает диапазон, максимум считается по нему", func(t *testing.T) {
+		rec := testutil.PUT(t, w.h.e, url, `{"list_start_row":7,"list_end_row":20,"max_list_rows":0}`,
+			testutil.AuthHeader(w.h.adminToken))
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+		var tpl models.AttachmentTemplate
+		require.NoError(t, db.Where("unique_attachment_id = ? AND is_active = ?", uaID, true).First(&tpl).Error)
+		require.Equal(t, 7, tpl.ListStartRow)
+		require.Equal(t, 20, tpl.ListEndRow)
+		require.Equal(t, 14, tpl.MaxListRows, "0 означает посчитать по диапазону")
+	})
+
+	t.Run("перевёрнутый диапазон отклоняется", func(t *testing.T) {
+		rec := testutil.PUT(t, w.h.e, url, `{"list_start_row":30,"list_end_row":10}`,
+			testutil.AuthHeader(w.h.adminToken))
+		require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	})
+}
