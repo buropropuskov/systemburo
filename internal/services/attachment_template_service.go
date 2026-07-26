@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	"systemburo/internal/models"
@@ -25,6 +27,8 @@ type AttachmentTemplateService interface {
 	ListTemplates(ctx context.Context, uniqueAttachmentID int) ([]models.AttachmentTemplate, error)
 	Upload(ctx context.Context, uniqueAttachmentID int, file *multipart.FileHeader, req models.CreateTemplateRequest, userID int) (*models.AttachmentTemplate, error)
 	UpdateMappings(ctx context.Context, uniqueAttachmentID int, req models.UpdateMappingsRequest) error
+	CopyMappings(ctx context.Context, uniqueAttachmentID int, req models.CopyMappingsRequest) (*models.CopyMappingsResult, error)
+	ListTemplateSources(ctx context.Context) ([]models.TemplateSource, error)
 	UpdateParams(ctx context.Context, uniqueAttachmentID int, req models.UpdateTemplateParamsRequest) error
 	Delete(ctx context.Context, uniqueAttachmentID int) error
 	DeleteByID(ctx context.Context, templateID int) error
@@ -177,6 +181,183 @@ func (s *attachmentTemplateService) UpdateMappings(ctx context.Context, uaID int
 		}
 		return tx.Create(&rows).Error
 	})
+}
+
+// ListTemplateSources - шаблоны, с которых можно перенести привязки. Отдаём все,
+// включая неактивные и шаблоны архивных типов: настраивая новый тип вложения, админ
+// чаще всего копирует именно со старого. Пустые шаблоны прячет интерфейс по счётчику.
+func (s *attachmentTemplateService) ListTemplateSources(ctx context.Context) ([]models.TemplateSource, error) {
+	rows := make([]models.TemplateSource, 0)
+	err := s.db.WithContext(ctx).Raw(`
+		SELECT t.id AS template_id,
+		       t.unique_attachment_id,
+		       t.is_active,
+		       t.original_file_name,
+		       ua.attachment_type,
+		       COALESCE(NULLIF(ua.display_name, ''), NULLIF(ua.title, ''), ua.name, '') AS attachment_name,
+		       (SELECT count(*) FROM attachment_template_mappings m WHERE m.template_id = t.id) AS mappings_count
+		FROM attachment_templates t
+		JOIN unique_attachments ua ON ua.id = t.unique_attachment_id
+		ORDER BY attachment_name, t.is_active DESC, t.created_at DESC
+	`).Scan(&rows).Error
+	if err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Не удалось получить список шаблонов")
+	}
+	return rows, nil
+}
+
+// CopyMappings переносит пары ячейка-поле с другого шаблона в активный шаблон цели.
+// Что не переносится: привязки списка чужой группы (у цели другой тип вложения, и
+// заполнять их нечем) и кастомные поля, которых у цели нет - id таких полей
+// принадлежат своему типу вложения, поэтому сопоставляем их по названию.
+func (s *attachmentTemplateService) CopyMappings(ctx context.Context, uaID int, req models.CopyMappingsRequest) (*models.CopyMappingsResult, error) {
+	var target models.AttachmentTemplate
+	if err := s.db.WithContext(ctx).Where("unique_attachment_id = ? AND is_active = ?", uaID, true).First(&target).Error; err != nil {
+		return nil, echo.NewHTTPError(http.StatusNotFound, "Шаблон не настроен")
+	}
+	var source models.AttachmentTemplate
+	if err := s.db.WithContext(ctx).Preload("Mappings").First(&source, req.SourceTemplateID).Error; err != nil {
+		return nil, echo.NewHTTPError(http.StatusNotFound, "Шаблон-источник не найден")
+	}
+	if source.ID == target.ID {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "Источник и цель - один и тот же шаблон")
+	}
+	var targetUA models.UniqueAttachment
+	if err := s.db.WithContext(ctx).First(&targetUA, uaID).Error; err != nil {
+		return nil, echo.NewHTTPError(http.StatusNotFound, "Вложение не найдено")
+	}
+
+	prefix := ListFieldPrefix(targetUA.AttachmentType)
+	targetCustom := s.customFieldsByLabel(ctx, uaID)
+	sourceCustom := s.customLabelsByID(ctx, source.UniqueAttachmentID)
+
+	// В режиме добавления уже существующие пары пропускаем, чтобы повторный перенос
+	// не удваивал привязки: совмещение полей задаётся разными field_path в одной
+	// ячейке, а полный дубль пары смысла не несёт.
+	taken := make(map[string]struct{})
+	if !req.Replace {
+		var current []models.AttachmentTemplateMapping
+		s.db.WithContext(ctx).Where("template_id = ?", target.ID).Find(&current)
+		for _, m := range current {
+			taken[m.CellRef+"|"+m.FieldPath] = struct{}{}
+		}
+	}
+
+	res := &models.CopyMappingsResult{}
+	rows := make([]models.AttachmentTemplateMapping, 0, len(source.Mappings))
+	for _, m := range source.Mappings {
+		fieldPath := m.FieldPath
+		remapped := false
+		switch {
+		case strings.HasPrefix(fieldPath, "custom."):
+			mapped, ok := remapCustomPath(fieldPath, sourceCustom, targetCustom)
+			if !ok {
+				res.SkippedCustom++
+				continue
+			}
+			fieldPath = mapped
+			remapped = true
+		case m.IsListField && (prefix == "" || !strings.HasPrefix(fieldPath, prefix)):
+			res.SkippedForeignList++
+			continue
+		}
+		key := m.CellRef + "|" + fieldPath
+		if _, dup := taken[key]; dup {
+			res.SkippedDuplicates++
+			continue
+		}
+		if remapped {
+			res.RemappedCustom++
+		}
+		taken[key] = struct{}{}
+		rows = append(rows, models.AttachmentTemplateMapping{
+			TemplateID:  target.ID,
+			CellRef:     m.CellRef,
+			FieldPath:   fieldPath,
+			IsListField: m.IsListField,
+		})
+	}
+	res.Copied = len(rows)
+
+	paramsCopied := req.CopyParams
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if req.Replace {
+			if err := tx.Where("template_id = ?", target.ID).Delete(&models.AttachmentTemplateMapping{}).Error; err != nil {
+				return fmt.Errorf("failed to clear target mappings: %w", err)
+			}
+		}
+		if len(rows) > 0 {
+			if err := tx.Create(&rows).Error; err != nil {
+				return fmt.Errorf("failed to copy mappings: %w", err)
+			}
+		}
+		// Границы переносим только осмысленные: копирование идёт мимо валидации
+		// UpdateParams, а нулевая строка начала списка сломала бы генерацию бланка.
+		if !req.CopyParams || source.ListStartRow < 1 || source.ListEndRow < source.ListStartRow {
+			paramsCopied = false
+			return nil
+		}
+		maxRows := source.MaxListRows
+		if maxRows == 0 && source.ListEndRow >= source.ListStartRow {
+			maxRows = source.ListEndRow - source.ListStartRow + 1
+		}
+		updates := map[string]any{
+			"list_start_row":   source.ListStartRow,
+			"list_end_row":     source.ListEndRow,
+			"max_list_rows":    maxRows,
+			"concat_separator": source.ConcatSeparator,
+		}
+		return tx.Model(&models.AttachmentTemplate{}).Where("id = ?", target.ID).Updates(updates).Error
+	})
+	if err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Не удалось перенести привязки")
+	}
+	res.ParamsCopied = paramsCopied
+	return res, nil
+}
+
+// customFieldsByLabel - активные кастомные поля вложения по нормализованному названию.
+func (s *attachmentTemplateService) customFieldsByLabel(ctx context.Context, uaID int) map[string]int {
+	var fields []models.AttachmentCustomField
+	s.db.WithContext(ctx).Where("unique_attachment_id = ? AND is_active = ?", uaID, true).Find(&fields)
+	out := make(map[string]int, len(fields))
+	for _, cf := range fields {
+		out[normalizeCustomLabel(cf.Label)] = cf.ID
+	}
+	return out
+}
+
+// customLabelsByID - названия кастомных полей вложения-источника по их id. Архивные
+// тоже нужны: привязка могла остаться с поля, которое потом выключили.
+func (s *attachmentTemplateService) customLabelsByID(ctx context.Context, uaID int) map[int]string {
+	var fields []models.AttachmentCustomField
+	s.db.WithContext(ctx).Where("unique_attachment_id = ?", uaID).Find(&fields)
+	out := make(map[int]string, len(fields))
+	for _, cf := range fields {
+		out[cf.ID] = normalizeCustomLabel(cf.Label)
+	}
+	return out
+}
+
+// remapCustomPath переводит custom.<id> источника в custom.<id> цели по названию поля.
+func remapCustomPath(path string, sourceLabels map[int]string, targetIDs map[string]int) (string, bool) {
+	id, err := strconv.Atoi(strings.TrimPrefix(path, "custom."))
+	if err != nil {
+		return "", false
+	}
+	label, ok := sourceLabels[id]
+	if !ok || label == "" {
+		return "", false
+	}
+	newID, ok := targetIDs[label]
+	if !ok {
+		return "", false
+	}
+	return fmt.Sprintf("custom.%d", newID), true
+}
+
+func normalizeCustomLabel(label string) string {
+	return strings.ToLower(strings.Join(strings.Fields(label), " "))
 }
 
 // UpdateParams меняет границы строк списка у активного шаблона. Раньше их задавали

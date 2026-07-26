@@ -151,13 +151,14 @@ func listSource(bctx *BlankContext) (string, int) {
 	if bctx.Attachment == nil {
 		return "", 0
 	}
-	switch bctx.Attachment.AttachmentType {
-	case "cars":
-		return "car.", len(bctx.Cars)
-	case "people":
-		return "employee.", len(bctx.Employees)
-	case "items":
-		return "item.", len(bctx.Items)
+	prefix := ListFieldPrefix(bctx.Attachment.AttachmentType)
+	switch prefix {
+	case "car.":
+		return prefix, len(bctx.Cars)
+	case "employee.":
+		return prefix, len(bctx.Employees)
+	case "item.":
+		return prefix, len(bctx.Items)
 	}
 	return "", 0
 }

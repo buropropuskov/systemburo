@@ -592,6 +592,13 @@
           class="te-save-area"
         >
           <button
+            class="lk-button lk-button--ghost"
+            data-testid="template-copy-open"
+            @click="showCopyModal = true"
+          >
+            Скопировать привязки
+          </button>
+          <button
             class="lk-button lk-button--primary"
             :disabled="savingMappings"
             @click="saveMappings"
@@ -599,6 +606,17 @@
             {{ savingMappings ? 'Сохранение...' : 'Сохранить привязки' }}
           </button>
         </div>
+
+        <AttachmentMappingCopyModal
+          v-if="template && template.file_path"
+          :show="showCopyModal"
+          :unique-attachment-id="uniqueAttachmentId"
+          :attachment-type="attachmentType"
+          :current-mappings-count="mappings.length"
+          :unsaved-changes="hasUnsavedMappings"
+          @close="showCopyModal = false"
+          @copied="onMappingsCopied"
+        />
       </div>
     </div>
   </BaseModal>
@@ -614,6 +632,7 @@ import {
 } from '@/api/attachment-templates';
 import BaseModal from '@/components/ui/BaseModal.vue';
 import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
+import AttachmentMappingCopyModal from './AttachmentMappingCopyModal.vue';
 import XlsxViewer from './XlsxViewer.vue';
 
 const PATH_COLORS = [
@@ -636,7 +655,9 @@ const GROUP_ORDER = [
 
 export default {
   name: 'AttachmentTemplateEditor',
-  components: { BaseModal, ToggleSwitch, XlsxViewer },
+  components: {
+    BaseModal, ToggleSwitch, XlsxViewer, AttachmentMappingCopyModal,
+  },
   props: {
     show: { type: Boolean, required: true },
     uniqueAttachmentId: { type: Number, required: true },
@@ -679,6 +700,8 @@ export default {
       hoveredPathIndex: null,
       hoveredCellRef: '',
       templateDropdownOpen: false,
+      showCopyModal: false,
+      savedMappingsKey: '',
       svgWidth: 0,
       svgHeight: 0,
       rafId: null,
@@ -739,6 +762,11 @@ export default {
       return this.mappings.filter(
         m => m.is_list_field && !m.field_path.startsWith(`${this.listGroupForType}.`)
       );
+    },
+    // Локальные правки привязок, ещё не отправленные на сервер: перенос с другого
+    // шаблона идёт по серверному состоянию, поэтому о них надо предупредить.
+    hasUnsavedMappings() {
+      return this.mappingsKey(this.mappings) !== this.savedMappingsKey;
     },
     // Обычные привязки, попавшие в строки списка: бланк повторяет их в каждой строке.
     repeatedListMappings() {
@@ -843,7 +871,10 @@ export default {
       try {
         const data = await getTemplate(this.uniqueAttachmentId);
         this.template = data;
-        this.mappings = (data && data.mappings) || [];
+        // Копия, а не сам массив ответа: правки привязок иначе мутируют
+        // template.mappings, и сохранённое состояние становится неотличимо от текущего.
+        this.mappings = ((data && data.mappings) || []).map(m => ({ ...m }));
+        this.savedMappingsKey = this.mappingsKey(this.mappings);
         this.enabled = !!(data && data.file_path);
         this.form.listStartRow = data && data.list_start_row || 1;
         this.form.listEndRow = data && data.list_end_row || 1;
@@ -853,6 +884,7 @@ export default {
       } catch {
         this.template = null;
         this.mappings = [];
+        this.savedMappingsKey = '';
         this.enabled = false;
         this.templateFileBuffer = null;
       } finally {
@@ -1135,6 +1167,15 @@ export default {
       } finally {
         this.savingParams = false;
       }
+    },
+    mappingsKey(list) {
+      return (list || [])
+        .map(m => `${m.cell_ref}|${m.field_path}`)
+        .sort()
+        .join(',');
+    },
+    async onMappingsCopied() {
+      await this.loadTemplate();
     },
     async saveMappings() {
       this.savingMappings = true;

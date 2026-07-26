@@ -91,6 +91,44 @@ export async function updateTemplateParams(uniqueAttachmentID, { listStartRow, l
   return res.json();
 }
 
+/**
+ * Шаблоны, с которых можно перенести привязки (все настроенные бланки системы).
+ * @returns {Promise<Array<{ template_id: number, unique_attachment_id: number,
+ *   attachment_name: string, attachment_type: string, original_file_name: string,
+ *   mappings_count: number, is_active: boolean }>>}
+ */
+export async function listTemplateSources() {
+  const res = await apiRequest('/attachments/template-sources');
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data?.message || 'Не удалось получить список шаблонов');
+  }
+  return res.json();
+}
+
+/**
+ * Перенести привязки с другого шаблона в активный шаблон вложения.
+ * @param {number} uniqueAttachmentID
+ * @param {{ sourceTemplateID: number, replace?: boolean, copyParams?: boolean }} params
+ * @returns {Promise<{ copied: number, skipped_foreign_list: number, skipped_custom: number,
+ *   remapped_custom: number, skipped_duplicates: number, params_copied: boolean }>}
+ */
+export async function copyMappings(uniqueAttachmentID, { sourceTemplateID, replace = true, copyParams = false }) {
+  const res = await apiRequest(`/attachments/${uniqueAttachmentID}/template/copy-mappings`, {
+    method: 'POST',
+    body: JSON.stringify({
+      source_template_id: sourceTemplateID,
+      replace,
+      copy_params: copyParams,
+    }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data?.message || 'Не удалось перенести привязки');
+  }
+  return res.json();
+}
+
 export async function deleteTemplate(uniqueAttachmentID) {
   const res = await apiRequest(`/attachments/${uniqueAttachmentID}/template`, {
     method: 'DELETE',

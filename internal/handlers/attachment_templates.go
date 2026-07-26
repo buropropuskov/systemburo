@@ -178,6 +178,47 @@ func (h *AttachmentTemplateHandler) UpdateMappings(c echo.Context) error {
 	return RespondMessage(c, "Маппинги обновлены")
 }
 
+// ListTemplateSources godoc
+// @Summary      Шаблоны-источники для переноса привязок
+// @Tags         attachment-templates
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200 {array} models.TemplateSource
+// @Router       /attachments/template-sources [get]
+func (h *AttachmentTemplateHandler) ListTemplateSources(c echo.Context) error {
+	sources, err := h.service.ListTemplateSources(c.Request().Context())
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, sources)
+}
+
+// CopyMappings godoc
+// @Summary      Перенести привязки с другого шаблона
+// @Tags         attachment-templates
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path int true "ID UniqueAttachment"
+// @Param        request body models.CopyMappingsRequest true "Шаблон-источник и режим переноса"
+// @Success      200 {object} models.CopyMappingsResult
+// @Router       /attachments/{id}/template/copy-mappings [post]
+func (h *AttachmentTemplateHandler) CopyMappings(c echo.Context) error {
+	uaID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+	var req models.CopyMappingsRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	res, err := h.service.CopyMappings(c.Request().Context(), uaID, req)
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, res)
+}
+
 // UpdateParams godoc
 // @Summary      Изменить границы строк списка без перезагрузки файла
 // @Tags         attachment-templates
