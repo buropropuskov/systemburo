@@ -107,9 +107,11 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	lpfService := services.NewLicensePlateFormatService(db)
 	attachmentService := services.NewAttachmentService(db)
 	citizenshipService := services.NewCitizenshipService(db)
-	organizationService := services.NewOrganizationService(db)
-	companyService := services.NewCompanyService(db)
 	notificationServiceEarly := services.NewNotificationService(db)
+	// Справочники создаются после уведомлений (#1437): разбор записи «на проверке»
+	// сообщает инициатору наименования, чем он кончился.
+	organizationService := services.NewOrganizationService(db, services.WithOrganizationNotifications(notificationServiceEarly))
+	companyService := services.NewCompanyService(db, services.WithCompanyNotifications(notificationServiceEarly))
 	userService := services.NewUserService(db, notificationServiceEarly)
 	onboardingService := services.NewOnboardingService(db)
 	themeService := services.NewThemeService(db)
@@ -150,7 +152,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	blacklistAuditRecorder := services.NewAuditRecorder(db)
 	vehicleBlacklistService := services.NewVehicleBlacklistService(db, blacklistAuditRecorder)
 	personBlacklistService := services.NewPersonBlacklistService(db, blacklistAuditRecorder)
-	applicationService := services.NewApplicationService(db, permissionService, notificationService, vehicleBlacklistService, personBlacklistService, auditRecorder)
+	applicationService := services.NewApplicationService(db, permissionService, notificationService, vehicleBlacklistService, personBlacklistService, auditRecorder, services.WithApplicationPermissionResolver(permissionResolver))
 	attachmentTemplateService := services.NewAttachmentTemplateService(db, "./uploads")
 	attachmentFieldConfigService := services.NewAttachmentFieldConfigService(db)
 	attachmentBlankService := services.NewAttachmentBlankService(db)

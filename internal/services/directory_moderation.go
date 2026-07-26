@@ -130,10 +130,15 @@ type DirectoryMergeRequest struct {
 }
 
 // DirectoryEntry - запись справочника в ответе разбора.
+//
+// CreatedByUserID наружу не отдаём (json:"-"): это внутренняя сторона разбора - кому
+// сообщить о его исходе. Заполняется только чтением черновика (loadPendingEntry), у
+// целевых и конфликтующих записей остаётся nil.
 type DirectoryEntry struct {
 	ID               int    `json:"id"`
 	Name             string `json:"name"`
 	ModerationStatus string `json:"moderation_status"`
+	CreatedByUserID  *int   `json:"-"`
 }
 
 // DirectoryMergeResult - итог слияния: сколько ссылок переехало на целевую запись и
@@ -172,7 +177,7 @@ type DirectoryModerationResult struct {
 func loadPendingEntry(ctx context.Context, db *gorm.DB, def directoryModeration, id int) (DirectoryEntry, error) {
 	var entry DirectoryEntry
 	err := db.WithContext(ctx).
-		Raw("SELECT id, name, moderation_status FROM "+def.table+" WHERE id = ? AND is_active = true", id).
+		Raw("SELECT id, name, moderation_status, created_by_user_id FROM "+def.table+" WHERE id = ? AND is_active = true", id).
 		Scan(&entry).Error
 	if err != nil {
 		slog.Error("не удалось прочитать запись справочника", "table", def.table, "id", id, "error", err)
@@ -252,7 +257,8 @@ func approveDirectoryEntry(ctx context.Context, db *gorm.DB, rec AuditRecorder, 
 
 // rename исправляет наименование записи «на проверке» и тем самым разбирает её:
 // принимающий, поправивший опечатку, уже подтвердил запись, второе действие не нужно.
-func renameDirectoryEntry(ctx context.Context, db *gorm.DB, rec AuditRecorder, def directoryModeration, id int, rawName string, actorID int) (DirectoryModerationResult, error) {
+// notifier - уведомления инициатору наименования, может быть nil (см. notifyDirectoryResolved).
+func renameDirectoryEntry(ctx context.Context, db *gorm.DB, rec AuditRecorder, notifier NotificationService, def directoryModeration, id int, rawName string, actorID int) (DirectoryModerationResult, error) {
 	entry, err := loadPendingEntry(ctx, db, def, id)
 	if err != nil {
 		return DirectoryModerationResult{}, err
@@ -305,6 +311,10 @@ func renameDirectoryEntry(ctx context.Context, db *gorm.DB, rec AuditRecorder, d
 	}
 	slog.Info("запись справочника переименована при разборе", "table", def.table, "id", id, "actor", actorID)
 
+	notifyDirectoryResolved(ctx, notifier, def.table, entry.CreatedByUserID, actorID,
+		def.label+" уточнена",
+		fmt.Sprintf("Указанное вами наименование «%s» исправлено на «%s».", entry.Name, name))
+
 	renamed := DirectoryEntry{ID: id, Name: name, ModerationStatus: models.ModerationApproved}
 	return DirectoryModerationResult{Status: DirectoryModerationRenamed, Entry: &renamed}, nil
 }
@@ -312,7 +322,8 @@ func renameDirectoryEntry(ctx context.Context, db *gorm.DB, rec AuditRecorder, d
 // merge переносит ссылки черновика на существующую запись и удаляет сам черновик.
 // Удаляем, а не архивируем: архив - это запись, которой пользовались, а черновик после
 // слияния не значит ничего и только засоряет справочник дублем.
-func mergeDirectoryEntry(ctx context.Context, db *gorm.DB, rec AuditRecorder, def directoryModeration, sourceID, targetID, actorID int) (DirectoryMergeResult, error) {
+// notifier - уведомления инициатору наименования, может быть nil.
+func mergeDirectoryEntry(ctx context.Context, db *gorm.DB, rec AuditRecorder, notifier NotificationService, def directoryModeration, sourceID, targetID, actorID int) (DirectoryMergeResult, error) {
 	if sourceID == targetID {
 		return DirectoryMergeResult{}, echo.NewHTTPError(http.StatusBadRequest, "Нельзя привязать запись к самой себе")
 	}
@@ -386,6 +397,10 @@ func mergeDirectoryEntry(ctx context.Context, db *gorm.DB, rec AuditRecorder, de
 		return DirectoryMergeResult{}, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка привязки записи")
 	}
 	slog.Info("запись справочника привязана к существующей", "table", def.table, "source", sourceID, "target", targetID, "actor", actorID)
+
+	notifyDirectoryResolved(ctx, notifier, def.table, source.CreatedByUserID, actorID,
+		def.label+" привязана к справочнику",
+		fmt.Sprintf("Указанное вами наименование «%s» привязано к записи справочника «%s».", source.Name, target.Name))
 
 	return DirectoryMergeResult{Target: target, Reassigned: reassigned, DroppedDup: dropped}, nil
 }

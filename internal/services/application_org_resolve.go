@@ -44,6 +44,16 @@ type directoryRef struct {
 	create func(tx *gorm.DB, name string, senderID int) (int, error)
 }
 
+// directoryResolution - итог резолва: id для заявки и наименование записи, заведённой
+// «на проверке». PendingName пуст, когда ссылка легла на существующую запись; непустой
+// он значит, что справочник пополнился и запись ждёт разбора - по нему подача зовёт
+// принимающих (см. directory_pending_notify.go). Возвращать один лишь id мало: заявка,
+// привязанная к чужому черновику из прошлой подачи, нового разбора не требует.
+type directoryResolution struct {
+	ID          *int
+	PendingName string
+}
+
 // applicantScope - кто подаёт заявку: сам пользователь, его организация и компания из
 // профиля и разрешено ли ему указывать чужие. Собирается в SubmitCompleteApplication
 // и CreateApplication, где известен и пользователь, и результат проверки права.
@@ -98,14 +108,14 @@ var companyRef = directoryRef{
 	},
 }
 
-// resolveOrganizationRef возвращает organization_id заявки. nil - организация не указана
-// (тогда заявка держится на компании, гейт «укажите одно из двух» проверяется выше).
-func (s *applicationService) resolveOrganizationRef(ctx context.Context, tx *gorm.DB, scope applicantScope, id *int, name string) (*int, error) {
+// resolveOrganizationRef возвращает organization_id заявки. ID = nil - организация не
+// указана (тогда заявка держится на компании, гейт «укажите одно из двух» проверяется выше).
+func (s *applicationService) resolveOrganizationRef(ctx context.Context, tx *gorm.DB, scope applicantScope, id *int, name string) (directoryResolution, error) {
 	return s.resolveDirectoryRef(ctx, tx, organizationRef, models.AuditEntityOrganization, models.OrganizationActionCreated, scope, id, name)
 }
 
 // resolveCompanyRef - зеркало resolveOrganizationRef для компаний.
-func (s *applicationService) resolveCompanyRef(ctx context.Context, tx *gorm.DB, scope applicantScope, id *int, name string) (*int, error) {
+func (s *applicationService) resolveCompanyRef(ctx context.Context, tx *gorm.DB, scope applicantScope, id *int, name string) (directoryResolution, error) {
 	return s.resolveDirectoryRef(ctx, tx, companyRef, models.AuditEntityCompany, models.CompanyActionCreated, scope, id, name)
 }
 
@@ -125,25 +135,25 @@ func ensureDirectoryAllowed(ref directoryRef, scope applicantScope, target int) 
 func (s *applicationService) resolveDirectoryRef(
 	ctx context.Context, tx *gorm.DB, ref directoryRef,
 	auditEntity, auditAction string, scope applicantScope, id *int, rawName string,
-) (*int, error) {
+) (directoryResolution, error) {
 	if id != nil {
 		if err := ensureDirectoryAllowed(ref, scope, *id); err != nil {
-			return nil, err
+			return directoryResolution{}, err
 		}
 		var found int
 		if err := tx.Raw("SELECT id FROM "+ref.table+" WHERE id = ? AND is_active = true", *id).Scan(&found).Error; err != nil {
 			slog.Error("не удалось проверить запись справочника", "table", ref.table, "id", *id, "error", err)
-			return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка проверки справочника")
+			return directoryResolution{}, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка проверки справочника")
 		}
 		if found == 0 {
-			return nil, echo.NewHTTPError(http.StatusBadRequest, ref.notFoundMsg)
+			return directoryResolution{}, echo.NewHTTPError(http.StatusBadRequest, ref.notFoundMsg)
 		}
-		return &found, nil
+		return directoryResolution{ID: &found}, nil
 	}
 
 	name := strings.TrimSpace(rawName)
 	if name == "" {
-		return nil, nil
+		return directoryResolution{}, nil
 	}
 
 	key := normalize.OrgName(name)
@@ -166,31 +176,31 @@ func (s *applicationService) resolveDirectoryRef(
 	var existing int
 	if err := tx.Raw(query, arg, models.ModerationApproved).Scan(&existing).Error; err != nil {
 		slog.Error("не удалось найти запись справочника по наименованию", "table", ref.table, "error", err)
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка проверки справочника")
+		return directoryResolution{}, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка проверки справочника")
 	}
 	if existing != 0 {
 		if err := ensureDirectoryAllowed(ref, scope, existing); err != nil {
-			return nil, err
+			return directoryResolution{}, err
 		}
-		return &existing, nil
+		return directoryResolution{ID: &existing}, nil
 	}
 
 	// Из вырожденного наименования запись не заводим: ключа у неё нет, дедупликация по
 	// ней работать не будет, а в справочник уехал бы мусор от опечатки.
 	if key == "" {
-		return nil, echo.NewHTTPError(http.StatusBadRequest, ref.degenerateMsg)
+		return directoryResolution{}, echo.NewHTTPError(http.StatusBadRequest, ref.degenerateMsg)
 	}
 
 	// Наименования нет в справочнике - значит это заведомо не своя запись из профиля,
 	// и завести её может только тот, кому разрешена чужая организация.
 	if !scope.canOverride {
-		return nil, echo.NewHTTPError(http.StatusForbidden, ref.overrideMsg)
+		return directoryResolution{}, echo.NewHTTPError(http.StatusForbidden, ref.overrideMsg)
 	}
 
 	newID, err := ref.create(tx, name, scope.userID)
 	if err != nil {
 		slog.Error("не удалось создать запись справочника из заявки", "table", ref.table, "name", name, "error", err)
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка создания записи справочника")
+		return directoryResolution{}, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка создания записи справочника")
 	}
 	slog.Info("запись справочника создана из заявки", "table", ref.table, "id", newID, "name", name, "author", scope.userID)
 	author := scope.userID
@@ -200,5 +210,5 @@ func (s *applicationService) resolveDirectoryRef(
 		"moderation_status": models.ModerationPending,
 		"source":            "application",
 	})
-	return &newID, nil
+	return directoryResolution{ID: &newID, PendingName: name}, nil
 }

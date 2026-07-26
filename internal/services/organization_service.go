@@ -160,12 +160,18 @@ type OrganizationInfoResponse struct {
 }
 
 // OrganizationWithUsersResponse — организация с количеством пользователей.
+// OrganizationWithUsersResponse - строка списка организаций для управления справочником.
+// ModerationStatus отдаётся вместе с остальными полями, чтобы админский список отличал
+// запись, заведённую подачей и ждущую разбора, от обычной (#1437): без него бейдж
+// «на проверке» рисовать не по чему. Оба запроса (GetWithUsers и GetWithUsersExtended)
+// обязаны селектить колонку - иначе поле молча приедет пустой строкой.
 type OrganizationWithUsersResponse struct {
-	ID        int     `json:"id"`
-	Name      string  `json:"name"`
-	Type      *string `json:"type"`
-	IsActive  bool    `json:"is_active"`
-	UserCount int64   `json:"user_count"`
+	ID               int     `json:"id"`
+	Name             string  `json:"name"`
+	Type             *string `json:"type"`
+	IsActive         bool    `json:"is_active"`
+	UserCount        int64   `json:"user_count"`
+	ModerationStatus string  `json:"moderation_status"`
 }
 
 // MemberResponse — пользователь, привязанный к организации/компании через
@@ -227,11 +233,25 @@ type MyOrganizationResponse struct {
 type organizationService struct {
 	db       *gorm.DB
 	recorder AuditRecorder
+	notifier NotificationService
+}
+
+// OrganizationServiceOption конфигурирует organizationService при создании.
+type OrganizationServiceOption func(*organizationService)
+
+// WithOrganizationNotifications подключает уведомления инициатору о разборе заведённого
+// им наименования (#1437). Опционально: без них разбор работает молча.
+func WithOrganizationNotifications(n NotificationService) OrganizationServiceOption {
+	return func(s *organizationService) { s.notifier = n }
 }
 
 // NewOrganizationService создаёт новый экземпляр сервиса организаций.
-func NewOrganizationService(db *gorm.DB) OrganizationService {
-	return &organizationService{db: db, recorder: NewAuditRecorder(db)}
+func NewOrganizationService(db *gorm.DB, opts ...OrganizationServiceOption) OrganizationService {
+	s := &organizationService{db: db, recorder: NewAuditRecorder(db)}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 // GetAll возвращает список всех организаций.
@@ -262,12 +282,12 @@ func (s *organizationService) ApproveModeration(ctx context.Context, callerUserI
 
 // RenameModeration - исправление наименования при разборе, см. renameDirectoryEntry.
 func (s *organizationService) RenameModeration(ctx context.Context, callerUserID, id int, name string) (DirectoryModerationResult, error) {
-	return renameDirectoryEntry(ctx, s.db, s.recorder, organizationModeration, id, name, callerUserID)
+	return renameDirectoryEntry(ctx, s.db, s.recorder, s.notifier, organizationModeration, id, name, callerUserID)
 }
 
 // MergeModeration - привязка черновика к существующей организации, см. mergeDirectoryEntry.
 func (s *organizationService) MergeModeration(ctx context.Context, callerUserID, id, targetID int) (DirectoryMergeResult, error) {
-	return mergeDirectoryEntry(ctx, s.db, s.recorder, organizationModeration, id, targetID, callerUserID)
+	return mergeDirectoryEntry(ctx, s.db, s.recorder, s.notifier, organizationModeration, id, targetID, callerUserID)
 }
 
 // Create создаёт новую организацию. Тип обязателен и должен быть валидным.
@@ -508,9 +528,9 @@ func (s *organizationService) GetWithUsers(ctx context.Context, includeArchived 
 	orgs := make([]OrganizationWithUsersResponse, 0)
 	q := s.db.WithContext(ctx).
 		Table("organizations o").
-		Select("o.id, o.name, o.type, o.is_active, COUNT(u.id) FILTER (WHERE u.is_active = true) as user_count").
+		Select("o.id, o.name, o.type, o.is_active, o.moderation_status, COUNT(u.id) FILTER (WHERE u.is_active = true) as user_count").
 		Joins("LEFT JOIN users u ON u.organization_id = o.id").
-		Group("o.id, o.name, o.type, o.is_active").
+		Group("o.id, o.name, o.type, o.is_active, o.moderation_status").
 		Order("o.name")
 	if !includeArchived {
 		q = q.Where("o.is_active = ?", true)
@@ -528,9 +548,9 @@ func (s *organizationService) GetWithUsersExtended(ctx context.Context, includeA
 	orgs := make([]OrganizationWithUsersResponse, 0)
 	q := s.db.WithContext(ctx).
 		Table("organizations o").
-		Select("o.id, o.name, o.type, o.is_active, COUNT(u.id) FILTER (WHERE u.is_active = true) as user_count").
+		Select("o.id, o.name, o.type, o.is_active, o.moderation_status, COUNT(u.id) FILTER (WHERE u.is_active = true) as user_count").
 		Joins("LEFT JOIN users u ON u.organization_id = o.id").
-		Group("o.id, o.name, o.type, o.is_active").
+		Group("o.id, o.name, o.type, o.is_active, o.moderation_status").
 		Order("o.name")
 	if !includeArchived {
 		q = q.Where("o.is_active = ?", true)
@@ -553,12 +573,13 @@ func (s *organizationService) GetWithUsersExtended(ctx context.Context, includeA
 			Scan(&places)
 
 		result = append(result, map[string]any{
-			"id":            org.ID,
-			"name":          org.Name,
-			"type":          org.Type,
-			"is_active":     org.IsActive,
-			"user_count":    org.UserCount,
-			"unload_places": places,
+			"id":                org.ID,
+			"name":              org.Name,
+			"type":              org.Type,
+			"is_active":         org.IsActive,
+			"user_count":        org.UserCount,
+			"moderation_status": org.ModerationStatus,
+			"unload_places":     places,
 		})
 	}
 	return result, nil
