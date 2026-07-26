@@ -158,6 +158,39 @@ func TestDirectoryModeration(t *testing.T) {
 		assert.Equal(t, models.ModerationPending, orgByID(t, db, draft.ID).ModerationStatus)
 	})
 
+	// Оформление наименования держит система, а не аккуратность принимающего (#1437):
+	// «подтвердить» - самое вероятное действие над записью с верным по смыслу, но криво
+	// набранным наименованием, и оставлять её в справочнике как есть нельзя.
+	t.Run("подтверждение приводит наименование к канону", func(t *testing.T) {
+		org := seedModerationOrg(t, db, `ооо "канон-подтверждение`, models.ModerationPending)
+
+		rec := testutil.POST(t, e, fmt.Sprintf("/organizations/%d/moderation/approve", org.ID), ``, testutil.AuthHeader(token))
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		result := testutil.ParseResponse[services.DirectoryModerationResult](t, rec)
+		require.Equal(t, services.DirectoryModerationApproved, result.Status)
+		require.NotNil(t, result.Entry)
+		assert.Equal(t, `ООО "Канон-подтверждение"`, result.Entry.Name)
+
+		stored := orgByID(t, db, org.ID)
+		assert.Equal(t, `ООО "Канон-подтверждение"`, stored.Name)
+		assert.Equal(t, models.ModerationApproved, stored.ModerationStatus)
+		assert.Equal(t, "ооо канон-подтверждение", stored.NameNormalized, "ключ дедупликации не меняется")
+	})
+
+	// Принимающий правит опечатку, оформление за ним доводит система.
+	t.Run("исправление наименования канонизируется", func(t *testing.T) {
+		org := seedModerationOrg(t, db, `ооо канон-ремашка`, models.ModerationPending)
+
+		rec := testutil.PATCH(t, e, fmt.Sprintf("/organizations/%d/moderation/rename", org.ID),
+			`{"name":"ооо \"канон-ромашка"}`, testutil.AuthHeader(token))
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		result := testutil.ParseResponse[services.DirectoryModerationResult](t, rec)
+		require.Equal(t, services.DirectoryModerationRenamed, result.Status)
+		require.NotNil(t, result.Entry)
+		assert.Equal(t, `ООО "Канон-ромашка"`, result.Entry.Name)
+		assert.Equal(t, `ООО "Канон-ромашка"`, orgByID(t, db, org.ID).Name)
+	})
+
 	t.Run("исправление наименования разбирает запись", func(t *testing.T) {
 		org := seedModerationOrg(t, db, `ооо рмашка`, models.ModerationPending)
 

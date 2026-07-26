@@ -141,6 +141,31 @@ func TestOrgNameNormalized(t *testing.T) {
 		assert.Equal(t, "м-н Летуаль-два", company.Name)
 	})
 
+	// Канонизация трогает наименование только когда его РЕАЛЬНО меняют. Групповая смена
+	// типа передаёт в Update текущее имя записи, и легаси-наименование из старых данных
+	// не должно от этого поехать, а история - получить ложное «переименована».
+	t.Run("групповая смена типа не переименовывает записи", func(t *testing.T) {
+		require.NoError(t, insertOrgRaw(db, `ооо "легаси`, "ооо легаси", true))
+		var legacy models.Organization
+		require.NoError(t, db.Where("name = ?", `ооо "легаси`).First(&legacy).Error)
+
+		rec := testutil.POST(t, e, "/organizations/bulk/type",
+			`{"ids":[`+strconv.Itoa(legacy.ID)+`],"type":"Арендатор"}`, auth)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+		var after models.Organization
+		require.NoError(t, db.First(&after, legacy.ID).Error)
+		assert.Equal(t, `ооо "легаси`, after.Name, "смена типа не должна переписывать наименование")
+		require.NotNil(t, after.Type)
+		assert.Equal(t, "Арендатор", *after.Type)
+
+		// Сохранение той же записи без правки имени тоже её не меняет.
+		require.Equal(t, http.StatusOK, testutil.PUT(t, e, "/organizations/"+strconv.Itoa(legacy.ID),
+			`{"name":"ооо \"легаси","type":"Подрядчик"}`, auth).Code)
+		require.NoError(t, db.First(&after, legacy.ID).Error)
+		assert.Equal(t, `ооо "легаси`, after.Name)
+	})
+
 	// Индекс - последний рубеж дедупликации: проверки в сервисах гонку двух
 	// одновременных подач с одним новым наименованием не ловят, между их SELECT и INSERT
 	// никакой блокировки нет.

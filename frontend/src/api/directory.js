@@ -13,15 +13,22 @@ async function unwrap(res, fallback) {
 }
 
 /**
- * Близкие к query проверенные организации (максимум пять). Эндпоинт закрыт правом
- * application.organization.override - вызывать только тем, кому разрешён ручной ввод.
+ * Подсказки по наименованию организации: близкие проверенные записи (максимум пять),
+ * каноничное оформление введённого текста и признак того, что такое наименование в
+ * справочнике уже есть. Эндпоинт закрыт правом application.organization.override -
+ * вызывать только тем, кому разрешён ручной ввод.
+ *
+ * Ответ - { items, canonical, matched }. Канон считает бэк: правила оформления (ОПФ
+ * заглавными, заглавная буква названия, парные кавычки) живут в Go, и фронт не должен
+ * держать их вторую копию. matched отвечает на «есть ли запись с таким же ключом
+ * дедупликации» - по нему форма предупреждает, что наименование уйдёт на проверку.
  */
 export async function suggestOrganizations(query) {
   const res = await apiRequest(`/organizations/suggest?q=${encodeURIComponent(query)}`);
   return unwrap(res, 'Не удалось загрузить подсказки организаций');
 }
 
-/** Близкие к query проверенные компании, зеркало suggestOrganizations. */
+/** Подсказки по наименованию компании, зеркало suggestOrganizations. */
 export async function suggestCompanies(query) {
   const res = await apiRequest(`/companies/suggest?q=${encodeURIComponent(query)}`);
   return unwrap(res, 'Не удалось загрузить подсказки компаний');

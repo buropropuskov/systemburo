@@ -53,8 +53,14 @@ func OrgNameDisplay(name string) string {
 		}
 		break
 	}
-	if idx < len(words) {
-		words[idx] = capitalizeFirstLetter(words[idx])
+	// Заглавную получает первое слово, в котором есть буква: у «ООО 585 золото» название
+	// начинается числом, и капитализировать в нём нечего.
+	for ; idx < len(words); idx++ {
+		capitalized, ok := capitalizeFirstLetter(words[idx])
+		words[idx] = capitalized
+		if ok {
+			break
+		}
 	}
 
 	return closeDanglingQuote(strings.Join(words, " "))
@@ -62,31 +68,81 @@ func OrgNameDisplay(name string) string {
 
 // capitalizeFirstLetter поднимает первую БУКВУ слова, а не первый символ: у названия в
 // кавычках первый символ - кавычка, и «"братишк» должно стать «"Братишк».
-func capitalizeFirstLetter(word string) string {
+// Пустой второй результат значит, что букв в слове нет вовсе - тогда заглавная достаётся
+// следующему слову («ооо 585 золото» -> «ООО 585 Золото»).
+func capitalizeFirstLetter(word string) (string, bool) {
 	runes := []rune(word)
 	for i, r := range runes {
 		if !unicode.IsLetter(r) {
 			continue
 		}
 		runes[i] = unicode.ToUpper(r)
-		break
+		return string(runes), true
 	}
-	return string(runes)
+	return word, false
 }
 
-// closeDanglingQuote дописывает недостающую закрывающую кавычку. Наименование в кавычках
-// набирают быстро и закрыть их забывают - «ООО "Братишк» выглядит как обрезанное имя.
-// Пары считаются по начертаниям: простые кавычки парны сами себе, типографские - парой.
+// orgClosingQuote - закрывающая кавычка для открывающей. Самопарные («"», «'») закрываются
+// собой, у типографских закрывающая своя.
+var orgClosingQuote = map[rune]rune{'«': '»', '„': '“', '“': '”', '‘': '’', '"': '"', '\'': '\''}
+
+// closeDanglingQuote дописывает закрывающую кавычку, когда наименование в кавычках
+// набрали и закрыть забыли: «ООО "Братишк» выглядит как обрезанное имя.
+//
+// Работает ТОЛЬКО в однозначном случае: во всей строке ровно одна кавычка любого
+// начертания и стоит она там, где стоит открывающая - после начала строки или пробела и
+// перед непробельным символом. Всё остальное остаётся как есть.
+//
+// Это осознанно узкое правило. Две попытки разобрать кавычки «по-умному» (сначала подсчёт
+// пар, потом стек с ролями) на каждом раунде ревью давали новый вход, который функция
+// ПОРТИЛА: то дописывала лишнюю кавычку к корректной русской вложенности, то удваивала
+// одиночный лишний символ, то теряла идемпотентность на «ООО «"». Наименование с двумя и
+// более кавычками почти всегда уже оформлено (в справочнике это «ООО "Максима Групп"»,
+// «АО "Регионы-Энтертейнмент"», «ЧОП "АРЕС"»), а неоформленное лучше оставить человеку,
+// чем испортить автоматом. Идемпотентность следует из правила структурно: сработало - в
+// строке стало две кавычки и второй проход её не тронет; не сработало - строка не
+// изменилась вовсе, и повторная проверка даст тот же ответ.
 func closeDanglingQuote(name string) string {
-	if strings.Count(name, `"`)%2 == 1 {
-		return name + `"`
-	}
-	for _, pair := range []struct{ open, close string }{
-		{`«`, `»`}, {`„`, `“`}, {`“`, `”`}, {`‘`, `’`},
-	} {
-		if missing := strings.Count(name, pair.open) - strings.Count(name, pair.close); missing > 0 {
-			return name + strings.Repeat(pair.close, missing)
+	runes := []rune(name)
+	quotes := 0
+	position := -1
+	for i, r := range runes {
+		if _, isQuote := orgClosingQuote[r]; isQuote {
+			quotes++
+			position = i
+			continue
+		}
+		// Закрывающая кавычка тоже считается: «ООО Братишка»» - не «одна кавычка».
+		if isClosingQuote(r) {
+			quotes++
+			position = i
 		}
 	}
-	return name
+	if quotes != 1 || !opensAt(runes, position) {
+		return name
+	}
+	return name + string(orgClosingQuote[runes[position]])
+}
+
+// isClosingQuote отвечает, является ли символ чьей-то закрывающей кавычкой.
+func isClosingQuote(r rune) bool {
+	for open, closing := range orgClosingQuote {
+		if closing == r && open != r {
+			return true
+		}
+	}
+	return false
+}
+
+// opensAt отвечает, стоит ли кавычка в позиции открывающей: перед ней начало строки или
+// пробел, после неё непробельный символ. «ООО "Братишк» - да; «ООО Братишка"» и
+// «ООО Бра"тишка» - нет, там лишний символ, и дописывать ему пару значит портить имя.
+func opensAt(runes []rune, i int) bool {
+	if i < 0 || i+1 >= len(runes) || unicode.IsSpace(runes[i+1]) {
+		return false
+	}
+	if _, isOpening := orgClosingQuote[runes[i]]; !isOpening {
+		return false // одинокая закрывающая кавычка открытием не считается
+	}
+	return i == 0 || unicode.IsSpace(runes[i-1])
 }

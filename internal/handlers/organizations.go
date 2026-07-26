@@ -48,7 +48,7 @@ func (h *OrganizationHandler) GetAll(c echo.Context) error {
 // @Produce      json
 // @Security     BearerAuth
 // @Param        q query string false "Наименование или его часть; короче трёх символов - пустой список"
-// @Success      200 {array} services.DirectorySuggestion
+// @Success      200 {object} services.DirectorySuggestAnswer
 // @Failure      401 {object} models.HTTPError
 // @Failure      403 {object} models.HTTPError
 // @Failure      500 {object} models.HTTPError

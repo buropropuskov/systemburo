@@ -27,7 +27,12 @@
     >
 
     <span
-      v-if="hint"
+      v-if="notice"
+      class="input__hint input__hint--notice"
+      :data-testid="`${testid}-notice`"
+    >{{ notice }}</span>
+    <span
+      v-else-if="hint"
       class="input__hint"
     >{{ hint }}</span>
 
@@ -93,8 +98,35 @@ export default {
             blurTimer: null,
             // Токен последовательности: набор быстрее ответа, и медленный ответ от
             // предыдущей буквы не должен затирать подсказки текущего запроса.
-            fetchSeq: 0
+            fetchSeq: 0,
+            // Каноничное оформление введённого текста и признак «такое наименование в
+            // справочнике уже есть» - оба приходят с подсказками (#1437). Канон
+            // подставляется в поле при потере фокуса, а не во время набора: иначе
+            // подстановка дёргала бы каретку на каждой букве.
+            canonical: '',
+            matched: null,
+            // Ключа дедупликации у наименования нет (одни кавычки или точки) - подача
+            // такое отклонит, поэтому предупреждение говорит другое.
+            degenerate: false,
+            // Текст, к которому относятся canonical и matched: пока пользователь
+            // печатает дальше, старый ответ уже ничего не описывает.
+            answeredFor: ''
         };
+    },
+    computed: {
+        /**
+         * Предупреждение под полем. Показывается, когда введённого наименования нет в
+         * справочнике: заявка пройдёт, но запись уйдёт принимающему на проверку - без
+         * этой строки пользователь узнаёт о таком только из детали заявки.
+         */
+        notice() {
+            if (!this.editable) return '';
+            const value = (this.modelValue || '').trim();
+            if (!value || value !== this.answeredFor) return '';
+            if (this.degenerate) return 'Укажите наименование: из такого ввода запись не создать';
+            if (this.matched !== false) return '';
+            return 'Нет в справочнике - будет создано и отправлено на проверку';
+        }
     },
     beforeUnmount() {
         clearTimeout(this.debounceTimer);
@@ -114,18 +146,36 @@ export default {
         },
 
         onBlur() {
+            this.applyCanonical();
             this.$emit('validate');
             // Закрытие откладываем: mousedown по подсказке приходит после blur, а
             // мгновенное закрытие съело бы выбор (порядок событий браузеро-зависим).
             this.blurTimer = setTimeout(() => { this.open = false; }, 200);
         },
 
+        /**
+         * Подставляет каноничное оформление в поле: «ооо "братишк» -> «ООО "Братишк"».
+         * Только при потере фокуса и только для того текста, на который канон и получен -
+         * иначе подстановка затирала бы то, что человек ещё печатает. Значение остаётся
+         * редактируемым: бэк применит те же правила повторно, поэтому правка руками
+         * ничего не ломает.
+         */
+        applyCanonical() {
+            const value = (this.modelValue || '').trim();
+            if (!this.editable || !value) return;
+            if (value !== this.answeredFor || !this.canonical || this.canonical === value) return;
+            this.$emit('update:modelValue', this.canonical);
+            this.answeredFor = this.canonical;
+        },
+
         scheduleFetch(value) {
             clearTimeout(this.debounceTimer);
             if (!this.editable) return;
             const query = (value || '').trim();
-            // Бэк отсекает короткий запрос сам, но лишний круг по сети не нужен.
-            if (query.length < 3) {
+            this.resetAnswer();
+            // Подсказки бэк отдаёт от трёх символов, но канон и признак совпадения нужны
+            // и на коротком наименовании: их считают из той же строки.
+            if (!query) {
                 this.suggestions = [];
                 this.open = false;
                 return;
@@ -136,9 +186,13 @@ export default {
         async fetchSuggestions(query) {
             const seq = ++this.fetchSeq;
             try {
-                const items = await this.fetcher(query);
+                const answer = await this.fetcher(query);
                 if (seq !== this.fetchSeq) return;
-                this.suggestions = Array.isArray(items) ? items : [];
+                this.suggestions = Array.isArray(answer?.items) ? answer.items : [];
+                this.canonical = answer?.canonical || '';
+                this.matched = answer?.matched ?? null;
+                this.degenerate = answer?.degenerate === true;
+                this.answeredFor = query;
                 this.activeIndex = -1;
                 this.open = this.suggestions.length > 0;
             } catch {
@@ -146,8 +200,19 @@ export default {
                 // сыпать уведомлениями поверх формы. Пользователь просто печатает дальше.
                 if (seq !== this.fetchSeq) return;
                 this.suggestions = [];
+                this.resetAnswer();
                 this.open = false;
             }
+        },
+
+        // Пока ответа на текущий текст нет, канон и признак совпадения относятся к
+        // прошлому вводу: держать их - значит подставить чужое оформление или показать
+        // предупреждение о наименовании, которого в поле уже нет.
+        resetAnswer() {
+            this.canonical = '';
+            this.matched = null;
+            this.degenerate = false;
+            this.answeredFor = '';
         },
 
         move(step) {
@@ -168,6 +233,12 @@ export default {
             clearTimeout(this.blurTimer);
             this.$emit('update:modelValue', item.name);
             this.$emit('select', item);
+            // Наименование из справочника уже аккуратное и заведомо существует:
+            // ни канонизировать его, ни предупреждать о проверке не нужно.
+            this.canonical = item.name;
+            this.matched = true;
+            this.degenerate = false;
+            this.answeredFor = item.name;
             this.close();
             this.$emit('validate');
         },
@@ -197,6 +268,12 @@ export default {
 .input__hint {
     font-size: 11px;
     color: var(--text-muted);
+}
+
+/* Предупреждение «наименования нет в справочнике» - тот же размер, что обычная подпись,
+   но акцентным цветом токенов: строка сообщает о последствии, а не поясняет поле. */
+.input__hint--notice {
+    color: var(--warning-text);
 }
 
 .required {

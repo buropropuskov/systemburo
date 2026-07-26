@@ -15,8 +15,8 @@ vi.mock('@/stores/auth', () => ({
   useAuthStore: vi.fn().mockReturnValue({ token: 'test-token' }),
 }));
 vi.mock('@/api/directory', () => ({
-  suggestOrganizations: vi.fn().mockResolvedValue([]),
-  suggestCompanies: vi.fn().mockResolvedValue([]),
+  suggestOrganizations: vi.fn().mockResolvedValue({ items: [], canonical: '', matched: false }),
+  suggestCompanies: vi.fn().mockResolvedValue({ items: [], canonical: '', matched: false }),
 }));
 
 const hasPermission = vi.fn().mockReturnValue(false);
@@ -60,7 +60,7 @@ describe('UserInfoRow - гейт ручного ввода справочник�
   it('выбор подсказки доходит наверх реальным событием', async () => {
     const { suggestOrganizations } = await import('@/api/directory');
     const item = { id: 42, name: 'ООО "Максима Групп"' };
-    suggestOrganizations.mockResolvedValueOnce([item]);
+    suggestOrganizations.mockResolvedValueOnce({ items: [item], canonical: item.name, matched: true });
 
     const w = mountRow(true);
     const input = w.get('[data-testid="create-organization"]');
