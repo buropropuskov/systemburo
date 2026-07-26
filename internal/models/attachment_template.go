@@ -97,6 +97,44 @@ type UpdateMappingsRequest struct {
 	ConcatSeparator *string        `json:"concat_separator,omitempty"`
 }
 
+// CopyMappingsRequest - перенос привязок с другого шаблона. Настраивая новый тип
+// вложения, админ набивал те же пары ячейка-поле заново.
+// Replace - заменить привязки цели (иначе добавить к текущим, дубли пропускаются).
+// CopyParams - перенести ещё и границы списка с разделителем совмещённых полей.
+type CopyMappingsRequest struct {
+	SourceTemplateID int  `json:"source_template_id" validate:"required,min=1"`
+	Replace          bool `json:"replace"`
+	CopyParams       bool `json:"copy_params"`
+}
+
+// CopyMappingsResult - что получилось перенести. Пропуски перечислены отдельно,
+// чтобы интерфейс объяснил, почему привязок стало меньше, чем у источника.
+type CopyMappingsResult struct {
+	Copied int `json:"copied"`
+	// SkippedForeignList - привязки списка чужой группы: у цели другой тип вложения,
+	// заполнять их нечем (см. fillListSection).
+	SkippedForeignList int `json:"skipped_foreign_list"`
+	// SkippedCustom - кастомные поля источника, которых нет у цели: id таких полей
+	// принадлежат своему типу вложения, переносить их некуда.
+	SkippedCustom int `json:"skipped_custom"`
+	// RemappedCustom - кастомные поля, сопоставленные по названию с полями цели.
+	RemappedCustom int `json:"remapped_custom"`
+	// SkippedDuplicates - пары ячейка-поле, которые у цели уже были (режим добавления).
+	SkippedDuplicates int  `json:"skipped_duplicates"`
+	ParamsCopied      bool `json:"params_copied"`
+}
+
+// TemplateSource - шаблон-кандидат в источники привязок для выпадающего списка.
+type TemplateSource struct {
+	TemplateID         int    `json:"template_id"`
+	UniqueAttachmentID int    `json:"unique_attachment_id"`
+	AttachmentName     string `json:"attachment_name"`
+	AttachmentType     string `json:"attachment_type"`
+	OriginalFileName   string `json:"original_file_name"`
+	MappingsCount      int    `json:"mappings_count"`
+	IsActive           bool   `json:"is_active"`
+}
+
 // MappingInput - элемент списка mappings (без ID, его выдаст БД).
 type MappingInput struct {
 	CellRef     string `json:"cell_ref" validate:"required,max=10"`

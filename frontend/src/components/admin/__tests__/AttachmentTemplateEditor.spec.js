@@ -24,12 +24,15 @@ vi.mock('@/api/attachment-templates', () => ({
   setActiveTemplate: vi.fn(),
   deactivateAllTemplates: vi.fn(),
   saveBlobAs: vi.fn(),
+  listTemplateSources: vi.fn().mockResolvedValue([]),
+  copyMappings: vi.fn(),
 }));
 const notify = vi.hoisted(() => vi.fn());
 vi.mock('@/stores/deletions', () => ({ useDeletionsStore: () => ({ notify }) }));
 vi.mock('../XlsxViewer.vue', () => ({ default: { name: 'XlsxViewer', template: '<div class="xlsx-stub" />' } }));
 
 import AttachmentTemplateEditor from '../AttachmentTemplateEditor.vue';
+import AttachmentMappingCopyModal from '../AttachmentMappingCopyModal.vue';
 
 const TEMPLATE = {
   id: 3,
@@ -129,6 +132,30 @@ describe('AttachmentTemplateEditor', () => {
     const wrapper = await mountEditor({ attachmentType: 'items' });
     expect(wrapper.find('[data-testid="template-repeat-note"]').exists()).toBe(false);
     expect(wrapper.findAll('.te-list-badge--repeat')).toHaveLength(0);
+  });
+
+  it('открывает перенос привязок и перечитывает шаблон после него', async () => {
+    const wrapper = await mountEditor();
+    const copyModal = wrapper.findComponent(AttachmentMappingCopyModal);
+    expect(copyModal.props('show')).toBe(false);
+    expect(copyModal.props('currentMappingsCount')).toBe(TEMPLATE.mappings.length);
+
+    await wrapper.find('[data-testid="template-copy-open"]').trigger('click');
+    expect(wrapper.findComponent(AttachmentMappingCopyModal).props('show')).toBe(true);
+
+    getTemplate.mockClear();
+    copyModal.vm.$emit('copied', { copied: 2 });
+    await flushPromises();
+    expect(getTemplate).toHaveBeenCalledWith(9);
+  });
+
+  it('предупреждает модалку о несохранённых привязках', async () => {
+    const wrapper = await mountEditor();
+    expect(wrapper.findComponent(AttachmentMappingCopyModal).props('unsavedChanges')).toBe(false);
+
+    wrapper.vm.mappings.push({ cell_ref: 'C40', field_path: 'application.status', is_list_field: false });
+    await wrapper.vm.$nextTick();
+    expect(wrapper.findComponent(AttachmentMappingCopyModal).props('unsavedChanges')).toBe(true);
   });
 
   it('сохраняет границы списка без перезагрузки файла', async () => {

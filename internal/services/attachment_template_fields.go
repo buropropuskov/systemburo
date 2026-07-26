@@ -111,6 +111,20 @@ func BuiltinTemplateFields() []TemplateFieldGroup {
 	}
 }
 
+// ListFieldPrefix - префикс field_path списочной части для типа вложения.
+// Пустая строка - у типа списка нет (неизвестный тип).
+func ListFieldPrefix(attachmentType string) string {
+	switch attachmentType {
+	case "cars":
+		return "car."
+	case "people":
+		return "employee."
+	case "items":
+		return "item."
+	}
+	return ""
+}
+
 // IsValidFieldPath проверяет принадлежит ли path встроенному словарю.
 // Кастомные поля проверяются отдельно (по uniqueAttachmentID).
 func IsValidFieldPath(path string) bool {

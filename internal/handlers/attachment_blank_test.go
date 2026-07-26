@@ -88,6 +88,146 @@ func TestBlankAccessAndTemplateRoutes(t *testing.T) {
 	t.Run("настройка шаблона под правом", func(t *testing.T) { templateRoutesSection(t, w) })
 	t.Run("границы списка", func(t *testing.T) { templateParamsSection(t, w) })
 	t.Run("журнал доступа к персональным данным", func(t *testing.T) { pdAuditSection(t, w) })
+	t.Run("копирование привязок", func(t *testing.T) { copyMappingsSection(t, w) })
+}
+
+// copySeedTemplate создаёт тип вложения с активным шаблоном и возвращает их id.
+func copySeedTemplate(t *testing.T, db *gorm.DB, name, attachmentType string, start, end int) (int, int) {
+	t.Helper()
+	nm := name
+	ua := models.UniqueAttachment{AttachmentType: attachmentType, Name: &nm, IsActive: true}
+	require.NoError(t, db.Create(&ua).Error)
+
+	f := excelize.NewFile()
+	defer func() { require.NoError(t, f.Close()) }()
+	path := filepath.Join(t.TempDir(), name+".xlsx")
+	require.NoError(t, f.SaveAs(path))
+
+	tpl := models.AttachmentTemplate{
+		UniqueAttachmentID: ua.ID, IsActive: true, FilePath: path,
+		OriginalFileName: name + ".xlsx",
+		ListStartRow:     start, ListEndRow: end, MaxListRows: end - start + 1,
+	}
+	require.NoError(t, db.Create(&tpl).Error)
+	return ua.ID, tpl.ID
+}
+
+// Перенос привязок с одного бланка на другой: настраивая новый тип вложения, админ
+// набивал те же пары ячейка-поле заново.
+func copyMappingsSection(t *testing.T, w blankWorld) {
+	db := w.h.w.db
+	admin := testutil.AuthHeader(w.h.adminToken)
+	userTypeID := secUserTypeIDByCode(t, db, "user")
+	plain := testutil.RegisterAndLogin(t, w.h.e, "blankcopyuser", blankTestPassword, userTypeID, w.h.w.orgID, 0)
+
+	srcUA, srcTpl := copySeedTemplate(t, db, "copy_source", "cars", 19, 33)
+	dstUA, dstTpl := copySeedTemplate(t, db, "copy_target", "cars", 1, 1)
+	itemsUA, itemsTpl := copySeedTemplate(t, db, "copy_items", "items", 4, 8)
+
+	// Кастомное поле есть у обоих типов, но со своими id: переносится по названию.
+	srcField := models.AttachmentCustomField{UniqueAttachmentID: srcUA, Label: "Номер договора", IsActive: true}
+	require.NoError(t, db.Create(&srcField).Error)
+	dstField := models.AttachmentCustomField{UniqueAttachmentID: dstUA, Label: "номер  договора", IsActive: true}
+	require.NoError(t, db.Create(&dstField).Error)
+	// Поле, которого у цели нет вовсе.
+	orphanField := models.AttachmentCustomField{UniqueAttachmentID: srcUA, Label: "Пропуск охраны", IsActive: true}
+	require.NoError(t, db.Create(&orphanField).Error)
+
+	sep := " / "
+	require.NoError(t, db.Model(&models.AttachmentTemplate{}).Where("id = ?", srcTpl).
+		Update("concat_separator", &sep).Error)
+	require.NoError(t, db.Create(&[]models.AttachmentTemplateMapping{
+		{TemplateID: srcTpl, CellRef: "A1", FieldPath: "application.application_number"},
+		{TemplateID: srcTpl, CellRef: "F19", FieldPath: "application.organization"},
+		{TemplateID: srcTpl, CellRef: "B19", FieldPath: "car.car_number", IsListField: true},
+		{TemplateID: srcTpl, CellRef: "C19", FieldPath: fmt.Sprintf("custom.%d", srcField.ID)},
+		{TemplateID: srcTpl, CellRef: "D19", FieldPath: fmt.Sprintf("custom.%d", orphanField.ID)},
+	}).Error)
+
+	mappingsOf := func(t *testing.T, tplID int) []models.AttachmentTemplateMapping {
+		t.Helper()
+		var out []models.AttachmentTemplateMapping
+		require.NoError(t, db.Where("template_id = ?", tplID).Order("cell_ref").Find(&out).Error)
+		return out
+	}
+	copyURL := func(uaID int) string {
+		return fmt.Sprintf("/attachments/%d/template/copy-mappings", uaID)
+	}
+
+	t.Run("обычный пользователь не копирует", func(t *testing.T) {
+		rec := testutil.POST(t, w.h.e, copyURL(dstUA),
+			fmt.Sprintf(`{"source_template_id":%d}`, srcTpl), testutil.AuthHeader(plain))
+		require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+	})
+
+	t.Run("обычный пользователь не видит список источников", func(t *testing.T) {
+		rec := testutil.GET(t, w.h.e, "/attachments/template-sources", testutil.AuthHeader(plain))
+		require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+	})
+
+	t.Run("список источников отдаёт шаблоны со счётчиком привязок", func(t *testing.T) {
+		rec := testutil.GET(t, w.h.e, "/attachments/template-sources", admin)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		require.Contains(t, rec.Body.String(), `"template_id":`+fmt.Sprint(srcTpl))
+		require.Contains(t, rec.Body.String(), `"mappings_count":5`)
+	})
+
+	t.Run("свой же шаблон источником не берём", func(t *testing.T) {
+		rec := testutil.POST(t, w.h.e, copyURL(dstUA),
+			fmt.Sprintf(`{"source_template_id":%d}`, dstTpl), admin)
+		require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	})
+
+	t.Run("перенос с заменой и границами списка", func(t *testing.T) {
+		rec := testutil.POST(t, w.h.e, copyURL(dstUA),
+			fmt.Sprintf(`{"source_template_id":%d,"replace":true,"copy_params":true}`, srcTpl), admin)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		require.Contains(t, rec.Body.String(), `"copied":4`)
+		require.Contains(t, rec.Body.String(), `"skipped_custom":1`)
+		require.Contains(t, rec.Body.String(), `"remapped_custom":1`)
+
+		got := mappingsOf(t, dstTpl)
+		require.Len(t, got, 4, "поле без пары у цели не переносится")
+		paths := map[string]bool{}
+		for _, m := range got {
+			paths[m.CellRef+"="+m.FieldPath] = true
+		}
+		require.True(t, paths["B19=car.car_number"], "привязка списка своей группы переносится")
+		require.True(t, paths["F19=application.organization"])
+		require.True(t, paths[fmt.Sprintf("C19=custom.%d", dstField.ID)],
+			"кастомное поле сопоставлено по названию с полем цели")
+
+		var updated models.AttachmentTemplate
+		require.NoError(t, db.First(&updated, dstTpl).Error)
+		require.Equal(t, 19, updated.ListStartRow)
+		require.Equal(t, 33, updated.ListEndRow)
+		require.Equal(t, 15, updated.MaxListRows)
+		require.NotNil(t, updated.ConcatSeparator)
+		require.Equal(t, " / ", *updated.ConcatSeparator)
+	})
+
+	t.Run("повторный перенос без замены пропускает дубли", func(t *testing.T) {
+		rec := testutil.POST(t, w.h.e, copyURL(dstUA),
+			fmt.Sprintf(`{"source_template_id":%d,"replace":false}`, srcTpl), admin)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		require.Contains(t, rec.Body.String(), `"copied":0`)
+		require.Contains(t, rec.Body.String(), `"skipped_duplicates":4`)
+		require.Len(t, mappingsOf(t, dstTpl), 4, "дубли не удваивают привязки")
+	})
+
+	t.Run("привязки списка чужого типа не переносятся", func(t *testing.T) {
+		rec := testutil.POST(t, w.h.e, copyURL(itemsUA),
+			fmt.Sprintf(`{"source_template_id":%d,"replace":true}`, srcTpl), admin)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		require.Contains(t, rec.Body.String(), `"skipped_foreign_list":1`)
+
+		for _, m := range mappingsOf(t, itemsTpl) {
+			require.False(t, m.IsListField, "у бланка имущества привязок car.* быть не должно")
+		}
+		var params models.AttachmentTemplate
+		require.NoError(t, db.First(&params, itemsTpl).Error)
+		require.Equal(t, 4, params.ListStartRow, "без copy_params границы цели не трогаем")
+	})
 }
 
 func blankDownloadGateSection(t *testing.T, w blankWorld) {
