@@ -40,6 +40,8 @@ func BuiltinTemplateFields() []TemplateFieldGroup {
 				{Path: "application.sender.last_name", Label: "Фамилия отправителя"},
 				{Path: "application.sender.first_name", Label: "Имя отправителя"},
 				{Path: "application.sender.middle_name", Label: "Отчество отправителя"},
+				{Path: "application.initiator_name", Label: "Инициатор заявки"},
+				{Path: "application.contact_phone", Label: "Контактный телефон"},
 				{Path: "application.sender.phone", Label: "Телефон отправителя"},
 				{Path: "application.sender.email", Label: "Email отправителя"},
 				{Path: "application.sender.position", Label: "Должность отправителя"},

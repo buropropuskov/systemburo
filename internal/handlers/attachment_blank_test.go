@@ -293,21 +293,21 @@ func TestBlankGenerate_ConcatSeparator(t *testing.T) {
 	}
 
 	t.Run("без настройки склеиваем запятой", func(t *testing.T) {
-		require.Equal(t, "89100530055, Иванов П.", cellValue(t))
+		require.Equal(t, "+7 (910) 053 00-55, Иванов П.", cellValue(t))
 	})
 
 	t.Run("заданная пустая строка склеивает без разделителя", func(t *testing.T) {
 		empty := ""
 		require.NoError(t, db.Model(&models.AttachmentTemplate{}).Where("id = ?", tpl.ID).
 			Update("concat_separator", &empty).Error)
-		require.Equal(t, "89100530055Иванов П.", cellValue(t))
+		require.Equal(t, "+7 (910) 053 00-55Иванов П.", cellValue(t))
 	})
 
 	t.Run("свой разделитель уважается", func(t *testing.T) {
 		sep := " / "
 		require.NoError(t, db.Model(&models.AttachmentTemplate{}).Where("id = ?", tpl.ID).
 			Update("concat_separator", &sep).Error)
-		require.Equal(t, "89100530055 / Иванов П.", cellValue(t))
+		require.Equal(t, "+7 (910) 053 00-55 / Иванов П.", cellValue(t))
 	})
 }
 
@@ -504,4 +504,49 @@ func TestTemplateParams_UpdateWithoutReupload(t *testing.T) {
 			testutil.AuthHeader(w.h.adminToken))
 		require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 	})
+}
+
+// «Инициатор заявки» и «Телефон» из шапки подачи сохраняются в заявке (#1454):
+// раньше форма их требовала, а бэк отбрасывал, и в бланк они попасть не могли.
+func TestSubmitApplication_StoresInitiatorAndPhone(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	t.Cleanup(cleanup)
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	uaID := seedUniqueAttachment(t, db, "cars", "initiator_cars", "Initiator Cars")
+	token := testutil.RegisterAndLogin(t, e, "initiatorsender", "pass123", 1, td.OrgID, td.CompanyID)
+
+	body := fmt.Sprintf(`{
+		"message": "initiator test",
+		"organization_id": %d,
+		"responsible_person": "  Сидорова Анна Петровна  ",
+		"contact_phone": "89100530055",
+		"data_approval": true,
+		"attachments": [{
+			"attachment_type": "cars",
+			"attachment_name": "initiator_cars",
+			"attachment_display_name": "Initiator Cars",
+			"unique_attachment_id": %d,
+			"entry_date_from": "2026-04-01",
+			"entry_date_to": "2099-12-31",
+			"entry_time_from": "08:00",
+			"entry_time_to": "18:00",
+			"data": {"vehicles": [{"car_number": "Т777ТТ777", "car_brand": "Toyota"}]}
+		}]
+	}`, td.OrgID, uaID)
+	rec := testutil.POST(t, e, "/applications/submit-complete-application", body, testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	appID := testutil.ParseResponse[services.CompleteApplicationResponse](t, rec).ApplicationID
+
+	var stored struct {
+		InitiatorName *string
+		ContactPhone  *string
+	}
+	require.NoError(t, db.Raw("SELECT initiator_name, contact_phone FROM applications WHERE id = ?", appID).
+		Scan(&stored).Error)
+	require.NotNil(t, stored.InitiatorName)
+	require.Equal(t, "Сидорова Анна Петровна", *stored.InitiatorName, "пробелы по краям снимаются")
+	require.NotNil(t, stored.ContactPhone)
+	require.Equal(t, "89100530055", *stored.ContactPhone, "храним как ввели, форматируем при выводе")
 }

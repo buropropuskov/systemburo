@@ -138,3 +138,51 @@ func TestBuiltinTemplateFields_CoversItemBindings(t *testing.T) {
 		require.True(t, IsValidFieldPath(path), "путь %s должен быть в словаре", path)
 	}
 }
+
+// Телефон в бланке печатается как в интерфейсе (#1454), эталон формата -
+// frontend/src/composables/usePhoneFormat.js.
+func TestFormatPhone(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"89100530055", "+7 (910) 053 00-55"},
+		{"79100530055", "+7 (910) 053 00-55"},
+		{"9100530055", "+7 (910) 053 00-55"},
+		{"+7 (910) 053 00-55", "+7 (910) 053 00-55"},
+		{"", ""},
+		{"123", "123"},                     // не похоже на номер - отдаём как есть
+		{"+380671234567", "+380671234567"}, // не российский - не трогаем
+	}
+	for _, tc := range cases {
+		require.Equal(t, tc.want, formatPhone(tc.in), "вход %q", tc.in)
+	}
+}
+
+// Инициатор и контактный телефон берутся из заявки, а у старых заявок (поля пустые) -
+// из профиля отправителя.
+func TestResolveValue_InitiatorFields(t *testing.T) {
+	strPtr := func(s string) *string { return &s }
+	sender := &models.User{
+		LastName: strPtr("Петров"), FirstName: strPtr("Игорь"), MiddleName: strPtr("Львович"),
+		Phone: strPtr("89990001122"),
+	}
+
+	withApp := func(app *models.Application) *BlankContext {
+		return &BlankContext{Application: app, Sender: sender}
+	}
+
+	filled := withApp(&models.Application{
+		InitiatorName: strPtr("Сидорова Анна"),
+		ContactPhone:  strPtr("89100530055"),
+	})
+	require.Equal(t, "Сидорова Анна", resolveValue(filled, "application.initiator_name", 0))
+	require.Equal(t, "+7 (910) 053 00-55", resolveValue(filled, "application.contact_phone", 0))
+
+	legacy := withApp(&models.Application{})
+	require.Equal(t, "Петров Игорь Львович", resolveValue(legacy, "application.initiator_name", 0))
+	require.Equal(t, "+7 (999) 000 11-22", resolveValue(legacy, "application.contact_phone", 0))
+	require.Equal(t, "+7 (999) 000 11-22", resolveValue(legacy, "application.sender.phone", 0))
+}
+
+func TestBuiltinTemplateFields_CoversInitiator(t *testing.T) {
+	require.True(t, IsValidFieldPath("application.initiator_name"))
+	require.True(t, IsValidFieldPath("application.contact_phone"))
+}
