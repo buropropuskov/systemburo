@@ -1,0 +1,40 @@
+/*
+ * Заливка новой темы от точки клика (#1415).
+ *
+ * Штатно View Transitions кроссфейдит старый кадр в новый - вместо этого старый
+ * лежит неподвижно, а новый открывается растущим клипом (кадры считает
+ * utils/themeTransition.js). Здесь только гасим дефолтные анимации и задаём
+ * порядок слоёв; всё остальное - в JS, потому что центр зависит от курсора.
+ *
+ * Псевдоэлементы перехода живут на корне документа, scoped-стилем их не достать -
+ * файл подключается глобально в main.js.
+ */
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  /* Без normal браузер смешивает кадры, и на границе клипа видно старую тему. */
+  mix-blend-mode: normal;
+}
+
+::view-transition-image-pair(root) {
+  isolation: auto;
+}
+
+::view-transition-old(root) {
+  z-index: 0;
+}
+
+/* Новый кадр поверх старого: заливка идёт по нему. */
+::view-transition-new(root) {
+  z-index: 1;
+}
+
+/* Уважаем системную настройку: без анимаций тема просто переключается. */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(root),
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+}

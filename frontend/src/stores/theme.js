@@ -7,6 +7,7 @@ import {
   readStoredTheme,
   storeTheme,
 } from '@/utils/theme'
+import { revealThemeChange } from '@/utils/themeTransition'
 import { getTheme, saveTheme } from '@/api/theme'
 import { useDeletionsStore } from '@/stores/deletions'
 
@@ -27,10 +28,19 @@ export const useThemeStore = defineStore('theme', () => {
   // не должен откатывать его выбор (last-resolve-wins на общий ref).
   let choiceSeq = 0
 
-  /** Применяет тему к DOM + localStorage, без обращения к бэку. */
-  function applyLocal(id) {
-    current.value = applyTheme(id)
-    storeTheme(current.value)
+  /**
+   * Применяет тему к DOM + localStorage, без обращения к бэку.
+   *
+   * @param {string} id
+   * @param {{x: number, y: number}|null} [origin] точка клика: с ней тема
+   *   заливает экран от курсора, без неё применяется мгновенно (загрузка,
+   *   синхронизация профиля - анимировать там нечего).
+   */
+  function applyLocal(id, origin) {
+    return revealThemeChange(() => {
+      current.value = applyTheme(id)
+      storeTheme(current.value)
+    }, origin)
   }
 
   /**
@@ -38,12 +48,15 @@ export const useThemeStore = defineStore('theme', () => {
    * сохранения показываем (тема на этом устройстве осталась, но на другое
    * не переедет) и НЕ откатываем выбор - переключение уже видно на экране.
    *
+   * Заливку намеренно не ждём: запрос в профиль уходит параллельно анимации.
+   *
    * @param {string} id
+   * @param {{x: number, y: number}|null} [origin] точка нажатия по пункту темы
    */
-  async function setTheme(id) {
+  async function setTheme(id, origin) {
     if (!isValidTheme(id) || id === current.value) return
     choiceSeq += 1
-    applyLocal(id)
+    applyLocal(id, origin)
     try {
       await saveTheme(current.value)
     } catch (e) {

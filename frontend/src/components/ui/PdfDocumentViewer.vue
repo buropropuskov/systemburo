@@ -24,11 +24,14 @@
       </button>
     </div>
 
-    <!-- Контейнер держим в DOM всегда (ref для canvas), прячем через v-show до готовности. -->
+    <!-- Контейнер держим в DOM всегда (ref для canvas), прячем через v-show до готовности.
+         data-theme="light" - светлый островок: внутри лист документа, он белый в
+         любой теме, а тема сюда пришла бы от корня (см. assets/tokens.css). -->
     <div
       v-show="status === 'ready'"
       ref="pagesEl"
       class="pdf-viewer__pages"
+      data-theme="light"
     />
   </div>
 </template>
@@ -214,15 +217,15 @@ defineExpose({ render });
   align-items: center;
   gap: 12px;
   padding: 12px;
-  /* Область просмотра всегда светлая: внутри лист документа, тема его не красит. */
-  background: #f5f5f7;
+  /* Подложка под листом - светлая палитра островка, не литерал. */
+  background: var(--surface-2);
 }
 
 .pdf-viewer__pages :deep(.pdf-viewer__page) {
   display: block;
   width: 100%;
   height: auto;
-  background: #fff;
+  background: var(--surface);
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.12);
   border-radius: 4px;
 }

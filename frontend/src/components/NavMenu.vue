@@ -482,7 +482,7 @@
                   class="dropdown-item theme-item"
                   :class="{ active: theme.id === themeStore.current }"
                   :data-testid="`nav-theme-${theme.id}`"
-                  @click="selectTheme(theme.id)"
+                  @click="selectTheme(theme.id, $event)"
                 >
                   <span
                     class="theme-dot"
@@ -674,6 +674,7 @@ import { useSoundStore } from '@/stores/sound'
 import { usePermissionsStore } from '@/stores/permissions'
 import { useThemeStore } from '@/stores/theme'
 import { THEMES } from '@/utils/theme'
+import { originFromEvent } from '@/utils/themeTransition'
 import { playPreset } from '@/utils/notificationSound'
 import eventStream from '@/services/eventStream'
 import NavIcon from '@/components/icons/NavIcon.vue'
@@ -1131,10 +1132,12 @@ export default {
     /**
      * Выбор темы оформления (#1415). Стор применяет её к <html> сразу и сохраняет
      * в профиль; список оставляем раскрытым - видно, какой пункт стал активным.
+     * Точку нажатия отдаём стору: от неё новая тема заливает экран.
      * @param {string} id
+     * @param {MouseEvent} [event]
      */
-    selectTheme(id) {
-      this.themeStore.setTheme(id);
+    selectTheme(id, event) {
+      this.themeStore.setTheme(id, originFromEvent(event));
     },
     closeAllDropdowns() {
       Object.keys(this.dropdowns).forEach(key => {
