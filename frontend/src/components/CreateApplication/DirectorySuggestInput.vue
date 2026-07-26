@@ -37,7 +37,7 @@
     >{{ hint }}</span>
 
     <ul
-      v-if="open && suggestions.length"
+      v-if="open && (suggestions.length || createOption)"
       class="ds-list"
       :data-testid="`${testid}-list`"
     >
@@ -52,6 +52,17 @@
       >
         {{ item.name }}
       </li>
+      <li
+        v-if="createOption"
+        class="ds-item ds-item--create"
+        :class="{ 'ds-item--active': activeIndex === suggestions.length }"
+        :data-testid="`${testid}-option-create`"
+        @mousedown.prevent="acceptCreateOption"
+        @mouseenter="activeIndex = suggestions.length"
+      >
+        <span class="ds-create__name">Создать: {{ createOption }}</span>
+        <span class="ds-create__note">уйдёт на проверку</span>
+      </li>
     </ul>
 
     <div
@@ -64,6 +75,14 @@
 </template>
 
 <script>
+/**
+ * Минимум символов для пункта «Создать». Тот же порог, что у поиска похожих записей на
+ * бэке: по одной-двум буквам предлагать «завести наименование» рано, человек ещё печатает.
+ * Держится здесь, а не выводится из ответа сервера - требование про порог должно читаться
+ * в коде компонента, а не следовать из того, с какого символа бэк считает признаки.
+ */
+const createOptionMinLength = 3;
+
 /**
  * Поле наименования справочника со подсказками (#1437).
  *
@@ -110,14 +129,36 @@ export default {
             degenerate: false,
             // Текст, к которому относятся canonical и matched: пока пользователь
             // печатает дальше, старый ответ уже ничего не описывает.
-            answeredFor: ''
+            answeredFor: '',
+            // Канон, который пользователь уже принял пунктом «Создать».
+            acceptedCanonical: ''
         };
     },
     computed: {
         /**
+         * Пункт «Создать» в выпадающем окне: каноничное написание введённого текста.
+         * Показывается, когда бэк ответил, что такого наименования в справочнике нет -
+         * тогда выбирать нечего, и единственное осмысленное действие это завести запись.
+         * Клик ставит аккуратное написание сразу, не дожидаясь ухода из поля.
+         *
+         * Не показывается, когда наименование уже есть (надо выбрать его из списка), когда
+         * из ввода записи не выйдет (одни кавычки или дефисы) и пока ответ не пришёл.
+         */
+        createOption() {
+            if (!this.editable || this.degenerate || this.matched !== false) return '';
+            const value = (this.modelValue || '').trim();
+            if (value.length < createOptionMinLength || value !== this.answeredFor) return '';
+            // Уже принятый канон второй раз не предлагаем: иначе каждый возврат в поле
+            // снова открывает окно с тем же пунктом, по которому человек только что кликнул.
+            if (value === this.acceptedCanonical) return '';
+            return this.canonical || value;
+        },
+
+        /**
          * Предупреждение под полем. Показывается, когда введённого наименования нет в
-         * справочнике: заявка пройдёт, но запись уйдёт принимающему на проверку - без
-         * этой строки пользователь узнаёт о таком только из детали заявки.
+         * справочнике: заявка пройдёт, но запись уйдёт принимающему на проверку. Дублирует
+         * пометку пункта «Создать» намеренно - окно закрывается по уходу из поля, а
+         * состояние должно оставаться на виду.
          */
         notice() {
             if (!this.editable) return '';
@@ -125,7 +166,7 @@ export default {
             if (!value || value !== this.answeredFor) return '';
             if (this.degenerate) return 'Укажите наименование: из такого ввода запись не создать';
             if (this.matched !== false) return '';
-            return 'Нет в справочнике - будет создано и отправлено на проверку';
+            return 'Нет в справочнике, уйдёт на проверку после подачи';
         }
     },
     beforeUnmount() {
@@ -142,7 +183,7 @@ export default {
 
         onFocus() {
             clearTimeout(this.blurTimer);
-            if (this.suggestions.length) this.open = true;
+            if (this.suggestions.length || this.createOption) this.open = true;
         },
 
         onBlur() {
@@ -194,7 +235,9 @@ export default {
                 this.degenerate = answer?.degenerate === true;
                 this.answeredFor = query;
                 this.activeIndex = -1;
-                this.open = this.suggestions.length > 0;
+                // Окно показываем и без похожих записей: в нём остаётся пункт «Создать»,
+                // по которому видно, что именно уйдёт в справочник.
+                this.open = this.suggestions.length > 0 || Boolean(this.createOption);
             } catch {
                 // Подсказка - вспомогательная: сбой сети не должен ни ломать ввод, ни
                 // сыпать уведомлениями поверх формы. Пользователь просто печатает дальше.
@@ -216,17 +259,42 @@ export default {
         },
 
         move(step) {
-            if (!this.open || !this.suggestions.length) return;
-            const last = this.suggestions.length - 1;
+            // Пункт «Создать» - последняя позиция списка, поэтому стрелки ходят по
+            // подсказкам И по нему: иначе с клавиатуры канон не принять.
+            const options = this.suggestions.length + (this.createOption ? 1 : 0);
+            if (!this.open || !options) return;
+            const last = options - 1;
             const next = this.activeIndex + step;
             this.activeIndex = next < 0 ? last : next > last ? 0 : next;
         },
 
         onEnter(event) {
             if (!this.open || this.activeIndex < 0) return;
-            // Enter выбирает подсказку, а не отправляет форму.
+            // Enter выбирает подсказку или принимает канон, а не отправляет форму.
             event.preventDefault();
-            this.select(this.suggestions[this.activeIndex]);
+            if (this.activeIndex < this.suggestions.length) {
+                this.select(this.suggestions[this.activeIndex]);
+                return;
+            }
+            this.acceptCreateOption();
+        },
+
+        /**
+         * Принимает пункт «Создать»: ставит каноничное написание в поле. Запись остаётся
+         * ненайденной, поэтому связь с id не появляется - подача уйдёт наименованием, и
+         * справочник пополнится «на проверке», как и раньше.
+         */
+        acceptCreateOption() {
+            clearTimeout(this.blurTimer);
+            const canonical = this.createOption;
+            if (!canonical) return;
+            this.$emit('update:modelValue', canonical);
+            this.$emit('select', null);
+            this.canonical = canonical;
+            this.answeredFor = canonical;
+            this.acceptedCanonical = canonical;
+            this.close();
+            this.$emit('validate');
         },
 
         select(item) {
@@ -273,6 +341,25 @@ export default {
 /* Предупреждение «наименования нет в справочнике» - тот же размер, что обычная подпись,
    но акцентным цветом токенов: строка сообщает о последствии, а не поясняет поле. */
 .input__hint--notice {
+    color: var(--warning-text);
+}
+
+/* Пункт «Создать» отделён от найденных записей: он не выбор из справочника, а согласие
+   завести новое наименование. */
+.ds-item--create {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    border-top: 1px solid var(--border-color, #e6e6e6);
+}
+
+.ds-create__name {
+    font-weight: 500;
+}
+
+.ds-create__note {
+    flex: none;
+    font-size: 11px;
     color: var(--warning-text);
 }
 

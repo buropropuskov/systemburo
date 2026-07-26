@@ -175,7 +175,7 @@ describe('DirectorySuggestInput', () => {
 
     const notice = wrapper.find('[data-testid="create-organization-notice"]')
     expect(notice.exists()).toBe(true)
-    expect(notice.text()).toContain('Нет в справочнике - будет создано и отправлено на проверку')
+    expect(notice.text()).toContain('Нет в справочнике, уйдёт на проверку после подачи')
   })
 
   it('о вырожденном наименовании говорит, что запись не создать', async () => {
@@ -201,6 +201,123 @@ describe('DirectorySuggestInput', () => {
     await type(wrapper, 'ип')
 
     expect(wrapper.find('[data-testid="create-organization-notice"]').exists()).toBe(false)
+  })
+
+  it('окно с пунктом «Создать» вылезает, когда похожих записей нет', async () => {
+    const wrapper = mountInput({
+      editable: true,
+      fetcher: vi.fn().mockResolvedValue(answer({ canonical: 'ООО "Бебра"', matched: false })),
+    })
+
+    await type(wrapper, 'ооо "бебра')
+
+    // Раньше при пустой выдаче окно не показывалось вовсе, и человек не видел ни вариантов,
+    // ни того, что именно уйдёт в справочник.
+    expect(wrapper.find('[data-testid="create-organization-list"]').exists()).toBe(true)
+    const create = wrapper.find('[data-testid="create-organization-option-create"]')
+    expect(create.exists()).toBe(true)
+    expect(create.text()).toContain('Создать: ООО "Бебра"')
+    expect(create.text()).toContain('уйдёт на проверку')
+  })
+
+  it('пункт «Создать» ставит каноничное написание, не привязывая запись', async () => {
+    const wrapper = mountInput({
+      editable: true,
+      fetcher: vi.fn().mockResolvedValue(answer({ canonical: 'ООО "Бебра"', matched: false })),
+    })
+
+    await type(wrapper, 'ооо "бебра')
+    await wrapper.get('[data-testid="create-organization-option-create"]').trigger('mousedown')
+
+    expect(wrapper.emitted('update:modelValue').at(-1)).toEqual(['ООО "Бебра"'])
+    // Записи в справочнике нет, значит и id нет: подача уйдёт наименованием.
+    expect(wrapper.emitted('select').at(-1)).toEqual([null])
+    expect(wrapper.find('[data-testid="create-organization-list"]').exists()).toBe(false)
+  })
+
+  it('пункт «Создать» соседствует с найденными записями и берётся с клавиатуры', async () => {
+    const item = { id: 4, name: 'ООО "Бебра Групп"' }
+    const wrapper = mountInput({
+      editable: true,
+      fetcher: vi.fn().mockResolvedValue(answer({ items: [item], canonical: 'ООО "Бебра"', matched: false })),
+    })
+
+    await type(wrapper, 'ооо "бебра')
+    expect(wrapper.findAll('[data-testid="create-organization-option"]')).toHaveLength(1)
+    expect(wrapper.find('[data-testid="create-organization-option-create"]').exists()).toBe(true)
+
+    // Стрелка вниз дважды: первая позиция - найденная запись, вторая - пункт создания.
+    const input = wrapper.get('input')
+    await input.trigger('keydown.down')
+    await input.trigger('keydown.down')
+    await input.trigger('keydown.enter')
+
+    expect(wrapper.emitted('update:modelValue').at(-1)).toEqual(['ООО "Бебра"'])
+    expect(wrapper.emitted('select').at(-1)).toEqual([null])
+  })
+
+  it('пункта «Создать» нет на одном-двух символах', async () => {
+    const wrapper = mountInput({
+      editable: true,
+      fetcher: vi.fn().mockResolvedValue(answer({ canonical: 'Ма', matched: false })),
+    })
+
+    await type(wrapper, 'м')
+    expect(wrapper.find('[data-testid="create-organization-option-create"]').exists()).toBe(false)
+
+    await type(wrapper, 'ма')
+    expect(wrapper.find('[data-testid="create-organization-option-create"]').exists()).toBe(false)
+  })
+
+  it('принятый пункт «Создать» не всплывает повторно при возврате в поле', async () => {
+    const wrapper = mountInput({
+      editable: true,
+      fetcher: vi.fn().mockResolvedValue(answer({ canonical: 'ООО "Бебра"', matched: false })),
+    })
+
+    await type(wrapper, 'ооо "бебра')
+    await wrapper.get('[data-testid="create-organization-option-create"]').trigger('mousedown')
+    await wrapper.setProps({ modelValue: 'ООО "Бебра"' })
+
+    await wrapper.get('input').trigger('focus')
+    expect(wrapper.find('[data-testid="create-organization-option-create"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="create-organization-list"]').exists()).toBe(false)
+  })
+
+  it('пункта «Создать» нет, когда наименование в справочнике уже есть', async () => {
+    const item = { id: 5, name: 'ООО Демо-Партнёр' }
+    const wrapper = mountInput({
+      editable: true,
+      fetcher: vi.fn().mockResolvedValue(answer({ items: [item], canonical: item.name, matched: true })),
+    })
+
+    await type(wrapper, 'демо-партнёр')
+
+    expect(wrapper.find('[data-testid="create-organization-option"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="create-organization-option-create"]').exists()).toBe(false)
+  })
+
+  it('пункта «Создать» нет у наименования, из которого запись не выйдет', async () => {
+    const wrapper = mountInput({
+      editable: true,
+      fetcher: vi.fn().mockResolvedValue(answer({ canonical: '---', degenerate: true, matched: null })),
+    })
+
+    await type(wrapper, '---')
+
+    expect(wrapper.find('[data-testid="create-organization-option-create"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="create-organization-list"]').exists()).toBe(false)
+  })
+
+  it('пункта «Создать» нет, пока ответ не пришёл', async () => {
+    const wrapper = mountInput({
+      editable: true,
+      fetcher: vi.fn().mockImplementation(() => new Promise(() => {})),
+    })
+
+    await type(wrapper, 'ооо "бебра')
+
+    expect(wrapper.find('[data-testid="create-organization-option-create"]').exists()).toBe(false)
   })
 
   it('о существующем наименовании не предупреждает', async () => {
