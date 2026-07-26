@@ -1594,6 +1594,13 @@ export default {
   opacity: 1;
 }
 
+/* Рамка тега - цвета его текста: приглушённая color-mix-рамка Badge в колонке тегов
+     сливалась с подложкой (#1415). currentColor держит пару текст/рамка согласованной
+     в любой теме и для любого варианта тега. */
+.rt-tag {
+  border-color: currentColor;
+}
+
 .tags-col .rt-tag__icon {
   display: none;
 }

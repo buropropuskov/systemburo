@@ -230,6 +230,10 @@
   align-items: center;
   background: none;
   border: none;
+  /* Нативную отрисовку гасим явно: под color-scheme: dark браузер рисует <button>
+     тёмной кнопкой с рельефной рамкой, и «Пропустить обучение» выглядела выпуклой. */
+  appearance: none;
+  -webkit-appearance: none;
   padding: 0 2px;
   font-family: inherit;
   font-size: 13px;
