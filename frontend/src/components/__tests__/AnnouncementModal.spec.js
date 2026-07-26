@@ -56,29 +56,38 @@ describe('AnnouncementModal - bottom-sheet close-пути (#1097 W3)', () => {
 });
 
 /*
- * Анимацию открытия jsdom не воспроизводит (нет layout и transition), поэтому
- * замок читает сам CSS компонента. Оба правила уже терялись: перевод цветов на
- * токены поставил в enter-from конечный цвет подложки (анимировать стало нечего),
- * а transition оверлея до листа не достаёт - лист прыгал за один кадр.
+ * Анимацию открытия jsdom не воспроизводит (нет layout и transition), поэтому замок
+ * сверяет CSS объявления с ЭТАЛОНОМ - окнами обзора (карточка новости, «Режимы работы»,
+ * «Руководство» в NewsAndReview). Открытие уже расходилось дважды: сначала перевод
+ * цветов на токены поставил в старт конечный цвет подложки (анимировать нечего), потом
+ * объявление фейдило одну подложку и открывалось иначе, чем соседние окна.
  */
-describe('AnnouncementModal - анимация открытия (#1415)', () => {
+describe('AnnouncementModal - открытие как у остальных окон обзора (#1415)', () => {
   const css = readFileSync(resolve(__dirname, '../AnnouncementModal.vue'), 'utf8');
+  const etalon = readFileSync(resolve(__dirname, '../../views/NewsAndReview.vue'), 'utf8');
 
-  it('стартовое состояние подложки прозрачное, а не конечный цвет', () => {
-    const enterFrom = css.match(/\.modal-fade-enter-from,\s*\n\.modal-fade-leave-to\s*\{([\s\S]*?)\}/);
-    expect(enterFrom, 'нет правила стартового состояния перехода').not.toBeNull();
-    const bg = enterFrom[1].match(/background-color:\s*([^;]+);/);
-    expect(bg, 'старт должен задавать цвет подложки').not.toBeNull();
-    expect(bg[1].trim()).toBe('transparent');
-    expect(bg[1], 'var(--overlay) - это КОНЕЧНЫЙ цвет, фейда не будет').not.toContain('--overlay');
+  const rule = (src, head) => {
+    const m = src.match(new RegExp(`${head}\\s*\\{([\\s\\S]*?)\\}`));
+    return m && m[1].replace(/\/\*[\s\S]*?\*\//g, '').replace(/\s+/g, ' ').trim();
+  };
+  const enterActive = (src) => rule(src, '\\.modal-fade-enter-active,\\s*\\n\\.modal-fade-leave-active');
+  const enterFrom = (src) => rule(src, '\\.modal-fade-enter-from,\\s*\\n\\.modal-fade-leave-to');
+  const contentFrom = (src) => rule(src, '\\.modal-fade-enter-from \\.modal-content,\\s*\\n\\.modal-fade-leave-to \\.modal-content');
+
+  it('переход и стартовое состояние совпадают с эталоном', () => {
+    expect(enterActive(css)).toBe(enterActive(etalon));
+    expect(enterFrom(css)).toBe(enterFrom(etalon));
   });
 
-  it('у листа собственный transition: с оверлея он не наследуется', () => {
-    const contentTransition = css.match(
-      /\.modal-fade-enter-active\s+\.modal-content,\s*\n\.modal-fade-leave-active\s+\.modal-content\s*\{([\s\S]*?)\}/,
-    );
-    expect(contentTransition, 'лист остался без своего transition - fade+scale за один кадр').not.toBeNull();
-    expect(contentTransition[1]).toMatch(/transition:[^;]*opacity/);
-    expect(contentTransition[1]).toMatch(/transition:[^;]*transform/);
+  it('фейдится весь оверлей по opacity, а не одна подложка', () => {
+    // background-color в старте = фейд одной подложки: у соседних окон так не делают,
+    // и открытие ощущалось иначе.
+    expect(enterFrom(css)).toContain('opacity: 0');
+    expect(enterFrom(css), 'подложку отдельно не фейдим').not.toContain('background-color');
+  });
+
+  it('лист приходит из scale, как у эталона', () => {
+    expect(contentFrom(css)).toBe(contentFrom(etalon));
+    expect(contentFrom(css)).toMatch(/scale\(0\.9\)/);
   });
 });

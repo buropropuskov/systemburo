@@ -140,27 +140,18 @@ export default {
      репэйнты, роняющие кадры при слайде листа на 120Hz (#1097 R3-4, как BaseModal). */
 }
 
+/* Открытие 1:1 как у остальных окон обзора («Сообщить о проблеме», «Режимы работы»,
+   «Руководство», карточка новости - modal-fade в NewsAndReview): фейдится ВЕСЬ оверлей
+   по opacity, лист дополнительно приходит из scale(0.9). Отдельный фейд одной подложки
+   (background-color) давал другое ощущение открытия, чем у соседних окон. */
 .modal-fade-enter-active,
 .modal-fade-leave-active {
-  transition: background-color 0.3s ease;
-}
-
-/* Лист анимируется СВОИМ transition: то, что стоит на оверлее, до потомка не достаёт,
-   и fade+scale отыгрывался за один кадр (эталон - ConfirmationModal). */
-.modal-fade-enter-active .modal-content,
-.modal-fade-leave-active .modal-content {
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  transition: all 0.4s ease;
 }
 
 .modal-fade-enter-from,
 .modal-fade-leave-to {
-  /* Фейдим ТОЛЬКО затемнение подложки (background-color), не opacity оверлея - opacity
-     каскадит на .modal-content и заставляет лист гаснуть вместе с подложкой (на мобилке
-     тогда виден фейд поверх выезда снизу). Десктопный fade+scale самого листа остаётся
-     через .modal-content-правило ниже.
-     Старт именно transparent, а не var(--overlay): токен - это КОНЕЧНЫЙ цвет подложки,
-     между двумя равными значениями браузеру нечего анимировать. */
-  background-color: transparent;
+  opacity: 0;
 }
 
 .modal-fade-enter-from .modal-content,
