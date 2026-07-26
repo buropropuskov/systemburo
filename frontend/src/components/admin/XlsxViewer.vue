@@ -33,7 +33,14 @@
           {{ sheet.name }}
         </button>
       </div>
-      <div class="xv-table-wrap">
+      <!-- data-theme="light" - светлый островок на область листа: цвета шрифта,
+           заливок и рамок приходят из самого xlsx литералами (чёрные рамки,
+           тёмный текст), они рассчитаны на белую бумагу. Рамка вьюера и
+           закладки листов остаются в выбранной теме. -->
+      <div
+        class="xv-table-wrap"
+        data-theme="light"
+      >
         <table
           class="xv-table"
           :style="{ tableLayout: 'fixed', width: currentSheet.tableWidth + 'px' }"
@@ -472,6 +479,9 @@ export default {
 .xv-table-wrap {
   overflow: auto;
   flex: 1;
+  /* Бумага под ячейками: без своей заливки островок не виден - ячейки
+     прозрачны, и сквозь них смотрел бы тёмный фон вьюера. */
+  background: var(--surface);
 }
 
 .xv-col-num {
