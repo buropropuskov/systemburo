@@ -161,6 +161,12 @@ const routes = [
     meta: { requiresAuth: true, permission: 'permission.audit.manage' }
   },
   {
+    path: '/admin/pd-audit',
+    name: 'PdAuditLog',
+    component: () => import('./views/admin/PdAuditLog.vue'),
+    meta: { requiresAuth: true, permission: 'page.admin.pd_audit' }
+  },
+  {
     path: '/admin/access-denials',
     name: 'AccessDenialsLog',
     component: () => import('./views/admin/AccessDenialsLog.vue'),

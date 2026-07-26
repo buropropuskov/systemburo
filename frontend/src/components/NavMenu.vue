@@ -756,6 +756,7 @@ export default {
             { label: 'Роли', icon: 'roles', path: '/admin/roles', permission: 'permission.audit.manage' },
             { label: 'Группы прав', icon: 'permission-groups', path: '/admin/permission-groups', permission: 'permission.audit.manage' },
             { label: 'Журнал отказов', icon: 'access-denials', path: '/admin/access-denials', permission: 'permission.audit.read' },
+            { label: 'Доступ к перс. данным', icon: 'access-denials', path: '/admin/pd-audit', permission: 'page.admin.pd_audit' },
             { label: 'Чёрный список', icon: 'blacklist', path: '/admin/blacklist', permission: 'page.admin.blacklist' },
           ],
         },
