@@ -23,7 +23,7 @@ type OrganizationService interface {
 
 	// Suggest возвращает близкие к query проверенные организации (максимум пять) для
 	// ручного ввода наименования в заявке.
-	Suggest(ctx context.Context, query string) ([]DirectorySuggestion, error)
+	Suggest(ctx context.Context, query string) (DirectorySuggestAnswer, error)
 
 	// ApproveModeration подтверждает организацию «на проверке», заведённую из заявки.
 	ApproveModeration(ctx context.Context, callerUserID, id int) (DirectoryModerationResult, error)
@@ -271,7 +271,7 @@ func (s *organizationService) GetAll(ctx context.Context) ([]OrganizationInfoRes
 }
 
 // Suggest подбирает близкие организации по наименованию, см. suggestDirectory.
-func (s *organizationService) Suggest(ctx context.Context, query string) ([]DirectorySuggestion, error) {
+func (s *organizationService) Suggest(ctx context.Context, query string) (DirectorySuggestAnswer, error) {
 	return suggestDirectory(ctx, s.db, "organizations", query)
 }
 
@@ -295,6 +295,10 @@ func (s *organizationService) Create(ctx context.Context, callerUserID int, req 
 	if req.Type == nil || !models.IsValidOrgType(*req.Type) {
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Некорректный тип организации")
 	}
+
+	// Оформление наименования приводим к канону (#1437): в справочник не должны попадать
+	// строчная ОПФ и незакрытая кавычка независимо от того, откуда пришла запись.
+	req.Name = normalize.OrgNameDisplay(req.Name)
 
 	// Сверяем по ключу дедупликации, а не по точному name: иначе рядом с
 	// «ООО "Ромашка"» заводится «ооо ромашка» как отдельная организация (#1437).
@@ -337,6 +341,14 @@ func (s *organizationService) Update(ctx context.Context, callerUserID, id int, 
 	}
 	if !org.IsActive {
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Нельзя переименовать архивную организацию")
+	}
+
+	// Канонизируем оформление ТОЛЬКО когда наименование реально меняют (#1437): иначе
+	// внутренние вызовы, передающие текущее имя ради смены одного лишь типа
+	// (BulkUpdateType), тихо переписали бы легаси-запись и оставили в истории ложную
+	// «переименована».
+	if req.Name != org.Name {
+		req.Name = normalize.OrgNameDisplay(req.Name)
 	}
 
 	// Конфликт с другой активной организацией по ключу дедупликации (#1437):

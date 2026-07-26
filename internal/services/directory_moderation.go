@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strings"
 
 	"systemburo/internal/models"
 	"systemburo/internal/normalize"
@@ -253,13 +252,24 @@ func approveDirectoryEntry(ctx context.Context, db *gorm.DB, rec AuditRecorder, 
 		return conflictOutcome(def, conflict)
 	}
 
+	// Подтверждение принимает наименование как верное, но не как попало набранное:
+	// оформление приводим к канону здесь же (#1437). Иначе «ооо "братишк» оставалось бы в
+	// справочнике навсегда - принимающему логично нажать «Добавить», а не «Исправить»,
+	// ведь само наименование правильное. Ключ дедупликации канон не меняет, поэтому
+	// name_normalized и проверка конфликта выше остаются в силе.
+	display := normalize.OrgNameDisplay(entry.Name)
+
 	actor := actorID
 	err = db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		updates := map[string]any{"moderation_status": models.ModerationApproved}
+		if display != entry.Name {
+			updates["name"] = display
+		}
 		if err := tx.Table(def.table).Where("id = ? AND moderation_status = ?", id, models.ModerationPending).
-			Update("moderation_status", models.ModerationApproved).Error; err != nil {
+			Updates(updates).Error; err != nil {
 			return err
 		}
-		return rec.Record(ctx, tx, def.auditEntity, &id, def.actionApproved, &actor, map[string]any{"name": entry.Name})
+		return rec.Record(ctx, tx, def.auditEntity, &id, def.actionApproved, &actor, map[string]any{"name": display})
 	})
 	if err != nil {
 		slog.Error("не удалось подтвердить запись справочника", "table", def.table, "id", id, "error", err)
@@ -267,6 +277,7 @@ func approveDirectoryEntry(ctx context.Context, db *gorm.DB, rec AuditRecorder, 
 	}
 	slog.Info("запись справочника подтверждена", "table", def.table, "id", id, "actor", actorID)
 
+	entry.Name = display
 	entry.ModerationStatus = models.ModerationApproved
 	return DirectoryModerationResult{Status: DirectoryModerationApproved, Entry: &entry}, nil
 }
@@ -280,7 +291,9 @@ func renameDirectoryEntry(ctx context.Context, db *gorm.DB, rec AuditRecorder, n
 		return DirectoryModerationResult{}, err
 	}
 
-	name := strings.TrimSpace(rawName)
+	// Исправленное принимающим наименование тоже канонизируем: он правит опечатку, а
+	// оформление (ОПФ, заглавная, кавычки) держит система (#1437).
+	name := normalize.OrgNameDisplay(rawName)
 	if name == "" || normalize.OrgName(name) == "" {
 		// Вырожденное наименование (одни кавычки или дефисы) не даёт ключа, по нему не
 		// работает дедупликация - такое же ограничение, как при подаче.

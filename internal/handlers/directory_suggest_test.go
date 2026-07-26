@@ -17,14 +17,21 @@ import (
 	"gorm.io/gorm"
 )
 
-// suggestNames возвращает наименования подсказок по запросу q.
-func suggestNames(t *testing.T, e *echo.Echo, token, path, q string) []string {
+// suggestAnswer возвращает ответ подсказок целиком: записи, канон оформления и признак
+// того, что наименование в справочнике уже есть.
+func suggestAnswer(t *testing.T, e *echo.Echo, token, path, q string) services.DirectorySuggestAnswer {
 	t.Helper()
 	rec := testutil.GET(t, e, path+"?q="+url.QueryEscape(q), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "подсказки по %q: %s", q, rec.Body.String())
-	suggestions := testutil.ParseResponse[[]services.DirectorySuggestion](t, rec)
-	names := make([]string, 0, len(suggestions))
-	for _, s := range suggestions {
+	return testutil.ParseResponse[services.DirectorySuggestAnswer](t, rec)
+}
+
+// suggestNames возвращает наименования подсказок по запросу q.
+func suggestNames(t *testing.T, e *echo.Echo, token, path, q string) []string {
+	t.Helper()
+	answer := suggestAnswer(t, e, token, path, q)
+	names := make([]string, 0, len(answer.Items))
+	for _, s := range answer.Items {
 		names = append(names, s.Name)
 	}
 	return names
@@ -182,4 +189,49 @@ func TestDirectorySuggest(t *testing.T) {
 		assert.Contains(t, names, company.Name)
 		assert.NotContains(t, names, pendingCompany.Name)
 	})
+
+	// Канон оформления и признак «уже есть в справочнике» форма получает вместе с
+	// подсказками: правила оформления и ключ дедупликации живут в Go, второй копии на
+	// фронте быть не должно.
+	t.Run("ответ несёт канон оформления и признак совпадения", func(t *testing.T) {
+		existing := seedOrg(t, db, `ООО "Совпадение"`, models.ModerationApproved, true)
+
+		answer := suggestAnswer(t, e, token, "/organizations/suggest", `ооо "братишк`)
+		assert.Equal(t, `ООО "Братишк"`, answer.Canonical, "канон оформления считает бэк")
+		assert.False(t, answer.Matched, "такого наименования в справочнике нет")
+
+		// Другое написание существующей записи - тот же ключ, значит подача ляжет на неё.
+		answer = suggestAnswer(t, e, token, "/organizations/suggest", "ооо совпадение")
+		assert.True(t, answer.Matched)
+		assert.Equal(t, "ООО Совпадение", answer.Canonical)
+		assert.Contains(t, namesOf(answer.Items), existing.Name)
+
+		// Канон нужен и на коротком вводе, где подсказок ещё нет: поле подставляет
+		// оформление независимо от порога выдачи.
+		answer = suggestAnswer(t, e, token, "/organizations/suggest", "ип")
+		assert.Equal(t, "ИП", answer.Canonical)
+		assert.Empty(t, answer.Items)
+
+		// Вырожденное наименование (одни кавычки): ключа нет, запись из него не заведётся,
+		// и форма обязана сказать это, а не обещать проверку.
+		answer = suggestAnswer(t, e, token, "/organizations/suggest", `""`)
+		assert.True(t, answer.Degenerate)
+		assert.False(t, answer.Matched)
+
+		// Черновик чужой заявки в подсказки не идёт, но ключ занимает: подача ляжет на
+		// него, новой записи не появится - предупреждать не о чем.
+		draft := seedOrg(t, db, `ООО "Черновик ключа"`, models.ModerationPending, true)
+		answer = suggestAnswer(t, e, token, "/organizations/suggest", "ооо черновик ключа")
+		assert.True(t, answer.Matched, "ключ занят черновиком")
+		assert.NotContains(t, namesOf(answer.Items), draft.Name)
+	})
+}
+
+// namesOf - наименования подсказок из ответа.
+func namesOf(items []services.DirectorySuggestion) []string {
+	names := make([]string, 0, len(items))
+	for _, s := range items {
+		names = append(names, s.Name)
+	}
+	return names
 }

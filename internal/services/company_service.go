@@ -23,7 +23,7 @@ type CompanyService interface {
 
 	// Suggest возвращает близкие к query проверенные компании (максимум пять) для
 	// ручного ввода наименования в заявке.
-	Suggest(ctx context.Context, query string) ([]DirectorySuggestion, error)
+	Suggest(ctx context.Context, query string) (DirectorySuggestAnswer, error)
 
 	// ApproveModeration подтверждает компанию «на проверке», заведённую из заявки.
 	ApproveModeration(ctx context.Context, callerUserID, id int) (DirectoryModerationResult, error)
@@ -232,7 +232,7 @@ func (s *companyService) GetAll(ctx context.Context) ([]models.Company, error) {
 }
 
 // Suggest подбирает близкие компании по наименованию, см. suggestDirectory.
-func (s *companyService) Suggest(ctx context.Context, query string) ([]DirectorySuggestion, error) {
+func (s *companyService) Suggest(ctx context.Context, query string) (DirectorySuggestAnswer, error) {
 	return suggestDirectory(ctx, s.db, "companies", query)
 }
 
@@ -331,6 +331,8 @@ func (s *companyService) Create(ctx context.Context, callerUserID int, req Creat
 	if req.Type == nil || !models.IsValidOrgType(*req.Type) {
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Некорректный тип компании")
 	}
+	// Оформление наименования - к канону (#1437), см. organizationService.Create.
+	req.Name = normalize.OrgNameDisplay(req.Name)
 
 	// Сверяем по ключу дедупликации, а не по точному name (#1437), см. organizationService.Create.
 	var active int64
@@ -371,6 +373,12 @@ func (s *companyService) Update(ctx context.Context, callerUserID, companyID int
 	}
 	if !company.IsActive {
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "Нельзя переименовать архивную компанию")
+	}
+
+	// Канонизируем оформление только при реальной смене наименования, см.
+	// organizationService.Update (#1437).
+	if req.Name != company.Name {
+		req.Name = normalize.OrgNameDisplay(req.Name)
 	}
 
 	normalized := normalize.OrgName(req.Name)

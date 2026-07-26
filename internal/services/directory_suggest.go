@@ -57,6 +57,28 @@ type DirectorySuggestion struct {
 	Name string `json:"name"`
 }
 
+// DirectorySuggestAnswer - ответ подсказок целиком.
+//
+// Кроме близких записей форма получает два поля, которые иначе пришлось бы вычислять на
+// фронте второй копией правил:
+//
+//	Canonical  - каноничное оформление введённого наименования (normalize.OrgNameDisplay).
+//	             Поле подставляет его вместо набранного текста, поэтому человек видит
+//	             заранее, что именно уйдёт в справочник.
+//	Matched    - есть ли в справочнике активная запись с тем же ключом дедупликации. False
+//	             значит, что подача заведёт новую запись «на проверке», и форма об этом
+//	             предупреждает. Статус разбора существующей записи не важен: заявка ляжет
+//	             и на чужой черновик, новой записи не появится.
+//	Degenerate - у наименования нет ключа дедупликации (одни кавычки или точки). Подача
+//	             такое отклоняет, запись из него не заводится, поэтому форма обязана
+//	             сказать «укажите наименование», а не обещать проверку.
+type DirectorySuggestAnswer struct {
+	Items      []DirectorySuggestion `json:"items"`
+	Canonical  string                `json:"canonical"`
+	Matched    bool                  `json:"matched"`
+	Degenerate bool                  `json:"degenerate"`
+}
+
 // DirectoryCoreSQL возвращает SQL-выражение смыслового ядра над source (колонкой ключа
 // или плейсхолдером). Паттерн ОПФ приходит именованным параметром @opf, список форм
 // остаётся в normalize. Наименование из одной ОПФ ядра не имеет - для него выражение
@@ -84,10 +106,28 @@ func escapeLikePattern(s string) string {
 // В выдачу идут только активные и уже проверенные записи: черновик «на проверке» -
 // частный ввод одного заявителя, предлагать его остальным нельзя, пока принимающий его
 // не разобрал.
-func suggestDirectory(ctx context.Context, db *gorm.DB, table, rawQuery string) ([]DirectorySuggestion, error) {
+func suggestDirectory(ctx context.Context, db *gorm.DB, table, rawQuery string) (DirectorySuggestAnswer, error) {
+	answer := DirectorySuggestAnswer{
+		Items:     []DirectorySuggestion{},
+		Canonical: normalize.OrgNameDisplay(rawQuery),
+	}
+	// Канон и признаки считаем от любого непустого ввода: поле подставляет оформление и
+	// предупреждает ещё до того, как наберётся достаточно символов для самих подсказок.
+	// Пустой ключ - вырожденное наименование (одни кавычки или точки): записи из него не
+	// будет, поэтому «есть ли совпадение» тут не вопрос, отвечаем отдельным признаком.
+	if key := normalize.OrgName(rawQuery); key != "" {
+		matched, err := activeDirectoryKeyExists(ctx, db, table, key)
+		if err != nil {
+			return DirectorySuggestAnswer{}, err
+		}
+		answer.Matched = matched
+	} else if strings.TrimSpace(rawQuery) != "" {
+		answer.Degenerate = true
+	}
+
 	runes := []rune(normalize.OrgNameCore(rawQuery))
 	if len(runes) < directorySuggestMinQuery {
-		return []DirectorySuggestion{}, nil
+		return answer, nil
 	}
 	if len(runes) > directorySuggestMaxQuery {
 		runes = runes[:directorySuggestMaxQuery]
@@ -125,7 +165,21 @@ func suggestDirectory(ctx context.Context, db *gorm.DB, table, rawQuery string) 
 	}).Scan(&suggestions).Error
 	if err != nil {
 		slog.Error("не удалось подобрать подсказки справочника", "table", table, "error", err)
-		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка поиска по справочнику")
+		return DirectorySuggestAnswer{}, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка поиска по справочнику")
 	}
-	return suggestions, nil
+	answer.Items = suggestions
+	return answer, nil
+}
+
+// activeDirectoryKeyExists отвечает, есть ли активная запись с таким ключом дедупликации.
+// Условие повторяет резолв подачи (findActiveDirectoryEntry): статус разбора не смотрим -
+// заявка ложится и на черновик, новой записи от этого не появляется.
+func activeDirectoryKeyExists(ctx context.Context, db *gorm.DB, table, key string) (bool, error) {
+	var exists bool
+	q := "SELECT EXISTS (SELECT 1 FROM " + table + " WHERE is_active = true AND name_normalized = ?)"
+	if err := db.WithContext(ctx).Raw(q, key).Scan(&exists).Error; err != nil {
+		slog.Error("не удалось проверить наличие наименования в справочнике", "table", table, "error", err)
+		return false, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка поиска по справочнику")
+	}
+	return exists, nil
 }
