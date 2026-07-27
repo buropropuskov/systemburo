@@ -405,7 +405,7 @@
               data-testid="template-params-save"
               @click="saveParams"
             >
-              {{ savingParams ? 'Сохранение...' : 'Сохранить границы' }}
+              {{ savingParams ? 'Сохранение...' : 'Сохранить' }}
             </button>
           </div>
 
@@ -1142,7 +1142,7 @@ export default {
       this.mappings = this.mappings.filter(m => m.field_path !== fieldPath);
     },
     // Границы берём из сохранённого шаблона, а не из полей ввода: генерация бланка
-    // считает по сохранённым, пока админ не нажал «Сохранить границы».
+    // считает по сохранённым, пока админ не нажал «Сохранить».
     repeatsInList(m) {
       if (!m || m.is_list_field || !this.template) return false;
       const start = this.template.list_start_row;
