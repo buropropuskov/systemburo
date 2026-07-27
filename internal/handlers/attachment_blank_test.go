@@ -386,6 +386,138 @@ func TestBlankGenerate(t *testing.T) {
 	t.Run("поле заявки в строках списка", func(t *testing.T) { listRepeatedFieldSection(t, db, td) })
 	t.Run("условное форматирование при переполнении", func(t *testing.T) { listOverflowConditionalSection(t, db, td) })
 	t.Run("сквозная строка заголовков", func(t *testing.T) { printTitlesSection(t, db, td) })
+	t.Run("ТМЦ соседних вложений заявки", func(t *testing.T) { crossAttachmentItemsSection(t, db, td) })
+}
+
+// ТМЦ «Заявок на ввоз» в бланке заявки на работы: списочная секция бланка занята
+// сотрудниками, поэтому ввозимый товар идёт перечнем в одной ячейке. Позиции берутся
+// из всех items-вложений заявки в порядке вложений.
+func crossAttachmentItemsSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
+	userTypeID := secUserTypeIDByCode(t, db, "user")
+	sender := models.User{Username: "blankcrosssender", Password: "x", TypeID: userTypeID, OrganizationID: secPtrInt(td.OrgID)}
+	require.NoError(t, db.Create(&sender).Error)
+
+	name := "works_blank"
+	ua := models.UniqueAttachment{AttachmentType: "people", Name: &name, IsActive: true}
+	require.NoError(t, db.Create(&ua).Error)
+
+	f := excelize.NewFile()
+	defer func() { require.NoError(t, f.Close()) }()
+	sheet := f.GetSheetName(0)
+	// Заглушка в ячейке перечня и заданная высота строки: на заявке без ввоза заглушка
+	// обязана остаться, на заявке с ввозом - высота уйти в авто.
+	require.NoError(t, f.SetCellValue(sheet, "C5", "заполняется бюро"))
+	require.NoError(t, f.SetRowHeight(sheet, 5, 12))
+	path := filepath.Join(t.TempDir(), "works.xlsx")
+	require.NoError(t, f.SaveAs(path))
+
+	tpl := models.AttachmentTemplate{
+		UniqueAttachmentID: ua.ID, IsActive: true, FilePath: path,
+		OriginalFileName: "works.xlsx", ListStartRow: 10, ListEndRow: 12, MaxListRows: 3,
+	}
+	require.NoError(t, db.Create(&tpl).Error)
+	require.NoError(t, db.Create(&[]models.AttachmentTemplateMapping{
+		{TemplateID: tpl.ID, CellRef: "C5", FieldPath: "app_items.names"},
+		{TemplateID: tpl.ID, CellRef: "C6", FieldPath: "app_items.names_with_count"},
+		{TemplateID: tpl.ID, CellRef: "C7", FieldPath: "app_items.total_count"},
+		{TemplateID: tpl.ID, CellRef: "C8", FieldPath: "app_items.positions_count"},
+		{TemplateID: tpl.ID, CellRef: "C9", FieldPath: "app_items.sources"},
+		{TemplateID: tpl.ID, CellRef: "B10", FieldPath: "employee.last_name", IsListField: true},
+	}).Error)
+
+	makeApp := func(t *testing.T) (int, int) {
+		t.Helper()
+		now := time.Now()
+		conf, status := "Согласовано", models.StatusInWork
+		app := models.Application{
+			OrganizationID: td.OrgID, SenderUserID: sender.ID,
+			Confirmation: &conf, Status: &status, SendingDatetime: &now,
+		}
+		require.NoError(t, db.Create(&app).Error)
+		works := models.Attachment{ApplicationID: &app.ID, AttachmentType: "people", UniqueAttachmentID: &ua.ID}
+		require.NoError(t, db.Create(&works).Error)
+		last := "Сидоров"
+		require.NoError(t, db.Create(&models.Employee{AttachmentID: &works.ID, LastName: &last}).Error)
+		return app.ID, works.ID
+	}
+
+	addImport := func(t *testing.T, appID int, display string, items ...models.Item) {
+		t.Helper()
+		nm := display
+		imp := models.Attachment{
+			ApplicationID: &appID, AttachmentType: "items", AttachmentDisplayName: &nm,
+		}
+		require.NoError(t, db.Create(&imp).Error)
+		for i := range items {
+			items[i].AttachmentID = imp.ID
+			require.NoError(t, db.Create(&items[i]).Error)
+		}
+	}
+
+	generate := func(t *testing.T, appID, attID int) *excelize.File {
+		t.Helper()
+		reader, _, err := services.NewAttachmentBlankService(db).
+			GenerateBlank(context.Background(), appID, attID)
+		require.NoError(t, err)
+		out, err := excelize.OpenReader(reader)
+		require.NoError(t, err)
+		return out
+	}
+	cell := func(t *testing.T, out *excelize.File, ref string) string {
+		t.Helper()
+		v, err := out.GetCellValue(out.GetSheetName(0), ref)
+		require.NoError(t, err)
+		return v
+	}
+
+	t.Run("перечень собирается из всех заявок на ввоз", func(t *testing.T) {
+		appID, attID := makeApp(t)
+		cable, cableCount := "Кабель ВВГнг 3х2.5", 200
+		shield, shieldCount := "Щит распределительный", 2
+		ladder := "Лестница-стремянка"
+		addImport(t, appID, "Заявка на ввоз",
+			models.Item{Name: &cable, Count: &cableCount},
+			models.Item{Name: &shield, Count: &shieldCount})
+		addImport(t, appID, "Заявка на ввоз №2", models.Item{Name: &ladder})
+
+		out := generate(t, appID, attID)
+		defer func() { require.NoError(t, out.Close()) }()
+
+		require.Equal(t, "Кабель ВВГнг 3х2.5\nЩит распределительный\nЛестница-стремянка",
+			cell(t, out, "C5"), "позиции идут в порядке вложений заявки")
+		require.Equal(t, "Кабель ВВГнг 3х2.5 - 200\nЩит распределительный - 2\nЛестница-стремянка",
+			cell(t, out, "C6"))
+		require.Equal(t, "202", cell(t, out, "C7"))
+		require.Equal(t, "3", cell(t, out, "C8"))
+		require.Equal(t, "Заявка на ввоз, Заявка на ввоз №2", cell(t, out, "C9"))
+
+		// Списочная секция осталась за сотрудниками: ТМЦ в её строки не лезут.
+		require.Equal(t, "Сидоров", cell(t, out, "B10"))
+		require.Empty(t, cell(t, out, "B11"))
+
+		// Перечень с переносами читается только при включённом переносе текста, а высота
+		// строки должна пересчитаться, а не остаться шаблонной.
+		styleID, err := out.GetCellStyle(out.GetSheetName(0), "C5")
+		require.NoError(t, err)
+		style, err := out.GetStyle(styleID)
+		require.NoError(t, err)
+		require.NotNil(t, style.Alignment)
+		require.True(t, style.Alignment.WrapText, "у ячейки перечня должен быть включён перенос текста")
+
+		height, err := out.GetRowHeight(out.GetSheetName(0), 5)
+		require.NoError(t, err)
+		require.NotEqual(t, 12.0, height, "заданная в шаблоне высота строки перечня должна смениться на авто")
+	})
+
+	t.Run("заявка без ввоза оставляет ячейку шаблона", func(t *testing.T) {
+		appID, attID := makeApp(t)
+		out := generate(t, appID, attID)
+		defer func() { require.NoError(t, out.Close()) }()
+
+		require.Equal(t, "заполняется бюро", cell(t, out, "C5"),
+			"без заявок на ввоз содержимое шаблона не затирается")
+		require.Empty(t, cell(t, out, "C8"))
+	})
 }
 
 // Шапка столбцов сквозная: когда таблица переходит на следующую страницу, она

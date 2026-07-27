@@ -17,6 +17,8 @@ import (
 // "custom.<id>" для кастомных полей.
 func resolveValue(bctx *BlankContext, path string, rowIdx int) string {
 	switch {
+	case strings.HasPrefix(path, "app_items."):
+		return resolveApplicationItems(bctx, path)
 	case strings.HasPrefix(path, "application."):
 		return resolveApplication(bctx, path)
 	case strings.HasPrefix(path, "attachment."):
@@ -129,6 +131,71 @@ func resolveApplication(bctx *BlankContext, path string) string {
 		return bctx.ApproverName
 	case "application.responsible_comment":
 		return derefStr(app.ResponsibleComment)
+	}
+	return ""
+}
+
+// resolveApplicationItems печатает ТМЦ «Заявок на ввоз» этой заявки в бланке любого
+// вложения. Перечни разделяются переносом строки: строки списка бланк рисует только для
+// собственного типа вложения, поэтому ввозимый товар идёт столбиком в одной ячейке.
+// Заявка без «Заявок на ввоз» оставляет ячейку такой, как её задал шаблон.
+func resolveApplicationItems(bctx *BlankContext, path string) string {
+	rows := bctx.ApplicationItems
+	if len(rows) == 0 {
+		return ""
+	}
+	switch path {
+	case "app_items.names":
+		names := make([]string, 0, len(rows))
+		for _, r := range rows {
+			if r.Name != "" {
+				names = append(names, r.Name)
+			}
+		}
+		return strings.Join(names, "\n")
+	case "app_items.names_with_count":
+		lines := make([]string, 0, len(rows))
+		for _, r := range rows {
+			if r.Name == "" {
+				continue
+			}
+			// Количество не указано - печатаем одно наименование: "Груз - " выглядело бы
+			// как потерянное значение.
+			if r.Count == nil {
+				lines = append(lines, r.Name)
+				continue
+			}
+			lines = append(lines, r.Name+" - "+strconv.Itoa(*r.Count))
+		}
+		return strings.Join(lines, "\n")
+	case "app_items.total_count":
+		total, filled := 0, false
+		for _, r := range rows {
+			if r.Count != nil {
+				total += *r.Count
+				filled = true
+			}
+		}
+		if !filled {
+			return ""
+		}
+		return strconv.Itoa(total)
+	case "app_items.positions_count":
+		return strconv.Itoa(len(rows))
+	case "app_items.sources":
+		seen := make(map[string]struct{}, len(rows))
+		names := make([]string, 0, len(rows))
+		for _, r := range rows {
+			if r.SourceName == "" {
+				continue
+			}
+			if _, dup := seen[r.SourceName]; dup {
+				continue
+			}
+			seen[r.SourceName] = struct{}{}
+			names = append(names, r.SourceName)
+		}
+		return strings.Join(names, ", ")
 	}
 	return ""
 }

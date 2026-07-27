@@ -67,6 +67,20 @@ func BuiltinTemplateFields() []TemplateFieldGroup {
 			},
 		},
 		{
+			// Списочная секция бланка одна и принадлежит его собственному типу, поэтому
+			// ТМЦ соседних вложений идут не строками, а перечнем в одной ячейке. Поля
+			// обычные (не IsList): их можно ставить в любое место бланка.
+			Group: "app_items",
+			Label: "ТМЦ заявки",
+			Fields: []TemplateField{
+				{Path: "app_items.names", Label: "Наименования (по строкам)"},
+				{Path: "app_items.names_with_count", Label: "Наименование и количество (по строкам)"},
+				{Path: "app_items.total_count", Label: "Общее количество"},
+				{Path: "app_items.positions_count", Label: "Число позиций"},
+				{Path: "app_items.sources", Label: "Вложения-источники"},
+			},
+		},
+		{
 			Group: "car",
 			Label: "Автомобиль (список)",
 			Fields: []TemplateField{
