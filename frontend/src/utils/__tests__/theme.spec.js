@@ -261,13 +261,20 @@ describe('оформление: кнопки и теги', () => {
     expect(rule[2]).toMatch(/appearance:\s*none/)
   })
 
-  it('рамка тега списка - цвета его текста', () => {
-    // Приглушённая color-mix-рамка Badge в колонке тегов сливалась с подложкой.
+  it('рамка тега цвета текста включается только в тёмной теме', () => {
+    // В тёмной приглушённая color-mix-рамка Badge сливалась с подложкой, в светлой
+    // она к месту - там вид остаётся прежним.
     for (const file of ['../../views/ApplicationsCenter.vue', '../../components/UserApplications.vue']) {
-      const rule = read(file).match(/\.rt-tag\s*\{([^}]*)\}/)
-      expect(rule, `${file}: нет правила .rt-tag`).not.toBeNull()
-      expect(rule[1], `${file}: рамка тега должна идти от currentColor`)
-        .toMatch(/border-color:\s*currentColor/)
+      const css = read(file)
+      const darkRule = css.match(/\[data-theme="dark"\]\s+\.rt-tag\s*\{([^}]*)\}/)
+      expect(darkRule, `${file}: нет правила рамки для тёмной темы`).not.toBeNull()
+      expect(darkRule[1]).toMatch(/border-color:\s*currentColor/)
+
+      const baseRule = css.match(/(?<!\]\s)\n\.rt-tag\s*\{([^}]*)\}/)
+      if (baseRule) {
+        expect(baseRule[1], `${file}: в светлой теме рамка должна остаться от Badge`)
+          .not.toMatch(/border-color:\s*currentColor/)
+      }
     }
   })
 })
