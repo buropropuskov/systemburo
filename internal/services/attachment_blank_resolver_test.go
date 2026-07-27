@@ -186,3 +186,66 @@ func TestBuiltinTemplateFields_CoversInitiator(t *testing.T) {
 	require.True(t, IsValidFieldPath("application.initiator_name"))
 	require.True(t, IsValidFieldPath("application.contact_phone"))
 }
+
+// ТМЦ «Заявок на ввоз» в бланке соседнего вложения: списочная секция бланка занята его
+// собственным типом, поэтому перечень идёт одной ячейкой построчно.
+func TestResolveValue_ApplicationItems(t *testing.T) {
+	intPtr := func(v int) *int { return &v }
+	bctx := &BlankContext{
+		ApplicationItems: []ApplicationItemRow{
+			{Name: "Кабель ВВГнг 3х2.5", Count: intPtr(200), SourceName: "Заявка на ввоз"},
+			{Name: "Щит распределительный", Count: intPtr(2), SourceName: "Заявка на ввоз"},
+			{Name: "Лестница-стремянка", SourceName: "Заявка на ввоз №2"},
+		},
+	}
+
+	require.Equal(t,
+		"Кабель ВВГнг 3х2.5\nЩит распределительный\nЛестница-стремянка",
+		resolveValue(bctx, "app_items.names", 0))
+	require.Equal(t,
+		"Кабель ВВГнг 3х2.5 - 200\nЩит распределительный - 2\nЛестница-стремянка",
+		resolveValue(bctx, "app_items.names_with_count", 0),
+		"позиция без количества печатается одним наименованием")
+	require.Equal(t, "202", resolveValue(bctx, "app_items.total_count", 0))
+	require.Equal(t, "3", resolveValue(bctx, "app_items.positions_count", 0))
+	require.Equal(t, "Заявка на ввоз, Заявка на ввоз №2", resolveValue(bctx, "app_items.sources", 0),
+		"вложения-источники перечисляются без повторов")
+
+	// rowIdx списочной строки на эти поля не влияет: они не списочные.
+	require.Equal(t, resolveValue(bctx, "app_items.names", 0), resolveValue(bctx, "app_items.names", 5))
+}
+
+// Заявка без «Заявок на ввоз» оставляет ячейку такой, как её задал шаблон: генератор
+// пустые значения не пишет.
+func TestResolveValue_ApplicationItemsEmpty(t *testing.T) {
+	empty := &BlankContext{}
+	for _, path := range []string{
+		"app_items.names", "app_items.names_with_count",
+		"app_items.total_count", "app_items.positions_count", "app_items.sources",
+	} {
+		require.Empty(t, resolveValue(empty, path, 0), "путь %s на пустом перечне", path)
+	}
+
+	// Позиции есть, а количество не заполнено ни у одной - сумма пустая, а не "0".
+	noCounts := &BlankContext{ApplicationItems: []ApplicationItemRow{{Name: "Груз"}}}
+	require.Empty(t, resolveValue(noCounts, "app_items.total_count", 0))
+	require.Equal(t, "1", resolveValue(noCounts, "app_items.positions_count", 0))
+}
+
+func TestBuiltinTemplateFields_CoversApplicationItems(t *testing.T) {
+	for _, path := range []string{
+		"app_items.names", "app_items.names_with_count",
+		"app_items.total_count", "app_items.positions_count", "app_items.sources",
+	} {
+		require.True(t, IsValidFieldPath(path), "путь %s должен быть в словаре", path)
+	}
+	// Поля обычные: списочная секция бланка принадлежит его собственному типу.
+	for _, g := range BuiltinTemplateFields() {
+		if g.Group != "app_items" {
+			continue
+		}
+		for _, f := range g.Fields {
+			require.False(t, f.IsList, "поле %s не должно быть списочным", f.Path)
+		}
+	}
+}

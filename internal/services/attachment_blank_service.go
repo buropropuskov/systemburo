@@ -41,6 +41,19 @@ type BlankContext struct {
 	CarUnloadPlaces      map[int][]string // car_id → имена мест
 	CarPassageTables     map[int][]string // car_id → имена постов
 	EmployeeTargetTables map[int][]string // employee_id → имена постов
+	// ApplicationItems - ТМЦ всех «Заявок на ввоз» этой заявки, в порядке вложений.
+	// Списочная секция бланка одна и занята его собственным типом (у заявки на работы -
+	// сотрудниками), поэтому чужие ТМЦ перечисляются одной ячейкой через app_items.*.
+	ApplicationItems []ApplicationItemRow
+}
+
+// ApplicationItemRow - позиция ТМЦ из вложения-соседа с названием вложения-источника:
+// при нескольких «Заявках на ввоз» перечень объединяется, и происхождение позиции
+// иначе теряется.
+type ApplicationItemRow struct {
+	Name       string
+	Count      *int
+	SourceName string
 }
 
 // AttachmentBlankService - генерация заполненных .xlsx-бланков на основе
@@ -128,6 +141,7 @@ func (s *attachmentBlankService) GenerateBlank(ctx context.Context, applicationI
 	for _, ref := range cellOrder {
 		joined := strings.Join(cellValues[ref], sep)
 		_ = f.SetCellValue(sheet, ref, joined)
+		applyWrapIfMultiline(f, sheet, ref, joined)
 		staticCells[ref] = joined
 	}
 
@@ -284,6 +298,7 @@ func (s *attachmentBlankService) fillListSection(f *excelize.File, sheet string,
 				continue
 			}
 			_ = f.SetCellValue(sheet, cell, r.value)
+			applyWrapIfMultiline(f, sheet, cell, r.value)
 		}
 	}
 	return inserted
@@ -396,6 +411,11 @@ func (s *attachmentBlankService) buildContext(ctx context.Context, appID int, at
 		ORDER BY aup.order_index NULLS LAST, up.name
 	`, att.ID).Scan(&bctx.AttachmentUnloadPlaces)
 
+	// ТМЦ соседних вложений заявки: бланк одного вложения перечисляет ввозимый товар
+	// из «Заявок на ввоз» той же заявки. Своё вложение тоже попадает сюда - для бланка
+	// самого ввоза это краткая сводка рядом с построчной таблицей.
+	bctx.ApplicationItems = loadApplicationItems(ctx, s.db, appID)
+
 	// Custom values для этого attachment.
 	var values []models.AttachmentCustomValue
 	s.db.WithContext(ctx).Where("attachment_id = ?", att.ID).Find(&values)
@@ -404,6 +424,77 @@ func (s *attachmentBlankService) buildContext(ctx context.Context, appID int, at
 	}
 
 	return bctx, nil
+}
+
+// applyWrapIfMultiline включает перенос текста ячейке, в которую легло значение с
+// переносами строк (перечень ТМЦ), и снимает заданную в шаблоне высоту строки. Без
+// первого Excel покажет перечень одной строкой, без второго - обрежет по старой высоте.
+// Оформление ячейки сохраняется: правим копию её собственного стиля.
+// Объединённые ячейки авто-высоту не считают - это ограничение Excel, там высоту
+// задаёт разметка шаблона.
+func applyWrapIfMultiline(f *excelize.File, sheet, ref, value string) {
+	if !strings.Contains(value, "\n") {
+		return
+	}
+	styleID, err := f.GetCellStyle(sheet, ref)
+	if err != nil {
+		slog.Error("не удалось прочитать стиль ячейки бланка", "error", err, "cell", ref)
+		return
+	}
+	style, err := f.GetStyle(styleID)
+	if err != nil || style == nil {
+		style = &excelize.Style{}
+	}
+	if style.Alignment == nil {
+		style.Alignment = &excelize.Alignment{}
+	}
+	style.Alignment.WrapText = true
+	newID, err := f.NewStyle(style)
+	if err != nil {
+		slog.Error("не удалось включить перенос текста в ячейке бланка", "error", err, "cell", ref)
+		return
+	}
+	if err := f.SetCellStyle(sheet, ref, ref, newID); err != nil {
+		slog.Error("не удалось применить стиль переноса текста", "error", err, "cell", ref)
+		return
+	}
+	if _, row, err := excelize.CellNameToCoordinates(ref); err == nil {
+		_ = f.SetRowHeight(sheet, row, -1)
+	}
+}
+
+// loadApplicationItems собирает ТМЦ всех вложений заявки типа items. Ручные вложения
+// (application_id NULL) сюда не попадают - они не принадлежат заявке.
+// Поля приёмника перечислены плоско: у анонимно встроенной структуры gorm молча не
+// маппит поля, и весь перечень пришёл бы пустым.
+func loadApplicationItems(ctx context.Context, db *gorm.DB, appID int) []ApplicationItemRow {
+	var rows []struct {
+		Name       *string `gorm:"column:name"`
+		Count      *int    `gorm:"column:count"`
+		SourceName string  `gorm:"column:source_name"`
+	}
+	err := db.WithContext(ctx).Raw(`
+		SELECT i.name AS name,
+		       i.count AS count,
+		       COALESCE(NULLIF(a.attachment_display_name, ''), NULLIF(a.attachment_name, ''), '') AS source_name
+		FROM items i
+		JOIN attachments a ON i.attachment_id = a.id
+		WHERE a.application_id = ? AND a.attachment_type = 'items'
+		ORDER BY a.id, i.id
+	`, appID).Scan(&rows).Error
+	if err != nil {
+		slog.Error("не удалось загрузить ТМЦ заявки для бланка", "error", err, "application", appID)
+		return nil
+	}
+	out := make([]ApplicationItemRow, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, ApplicationItemRow{
+			Name:       strings.TrimSpace(derefStr(r.Name)),
+			Count:      r.Count,
+			SourceName: strings.TrimSpace(r.SourceName),
+		})
+	}
+	return out
 }
 
 // groupNamesByOwner выполняет запрос вида (owner_id, name) и раскладывает имена по
