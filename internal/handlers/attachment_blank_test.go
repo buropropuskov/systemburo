@@ -93,14 +93,14 @@ func TestBlankAccessAndTemplateRoutes(t *testing.T) {
 	t.Run("удаление бланка", func(t *testing.T) { deleteTemplateSection(t, w) })
 }
 
-// Удалив бланк, админ ждёт, что генерация выключится. Раньше сервис молча активировал
-// следующий файл того же вложения, и вместо выключения открывался соседний шаблон.
+// Удаление активного бланка не выключает генерацию: у вложения обычно несколько
+// файлов, активным становится самый свежий из оставшихся, и настройка продолжает
+// работать. Удаление неактивного файла активный не трогает.
 func deleteTemplateSection(t *testing.T, w blankWorld) {
 	db := w.h.w.db
 	admin := testutil.AuthHeader(w.h.adminToken)
 
 	uaID, oldTpl := copySeedTemplate(t, db, "delete_blank", "cars", 5, 8)
-	// Второй файл того же вложения: он станет активным, первый уйдёт в неактивные.
 	f := excelize.NewFile()
 	defer func() { require.NoError(t, f.Close()) }()
 	path := filepath.Join(t.TempDir(), "delete_blank_2.xlsx")
@@ -122,8 +122,7 @@ func deleteTemplateSection(t *testing.T, w blankWorld) {
 		require.Contains(t, got.Body.String(), "delete_blank_2.xlsx")
 	})
 
-	t.Run("удаление активного файла выключает генерацию", func(t *testing.T) {
-		// Ещё один файл рядом: раньше именно он подхватывался вместо выключения.
+	t.Run("удаление активного файла оставляет генерацию на соседнем", func(t *testing.T) {
 		spare := models.AttachmentTemplate{
 			UniqueAttachmentID: uaID, FilePath: path,
 			OriginalFileName: "delete_blank_spare.xlsx", ListStartRow: 5, ListEndRow: 8, MaxListRows: 4,
@@ -138,11 +137,17 @@ func deleteTemplateSection(t *testing.T, w blankWorld) {
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 		got := testutil.GET(t, w.h.e, fmt.Sprintf("/attachments/%d/template", uaID), admin)
-		require.Equal(t, http.StatusNotFound, got.Code, "активного шаблона быть не должно - генерация выключена")
+		require.Equal(t, http.StatusOK, got.Code, "генерация должна остаться включённой")
+		require.Contains(t, got.Body.String(), "delete_blank_spare.xlsx", "активным становится оставшийся файл")
+	})
 
-		list := testutil.GET(t, w.h.e, fmt.Sprintf("/attachments/%d/templates", uaID), admin)
-		require.Equal(t, http.StatusOK, list.Code)
-		require.Contains(t, list.Body.String(), "delete_blank_spare.xlsx", "остальные файлы остаются в списке")
+	t.Run("удаление последнего файла оставляет вложение без шаблона", func(t *testing.T) {
+		uaOne, only := copySeedTemplate(t, db, "delete_blank_one", "cars", 5, 8)
+		rec := testutil.DELETE(t, w.h.e, fmt.Sprintf("/attachments/%d/template/%d", uaOne, only), admin)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+		got := testutil.GET(t, w.h.e, fmt.Sprintf("/attachments/%d/template", uaOne), admin)
+		require.Equal(t, http.StatusNotFound, got.Code, "активировать больше нечего")
 	})
 }
 
