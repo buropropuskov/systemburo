@@ -2765,7 +2765,9 @@ export default {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--overlay);
+    /* Поверхность темы, а НЕ var(--overlay): тот токен - затемнение под модалкой,
+       и таблица при поиске/обновлении уходила под чёрную пелену (#1415). */
+    background: color-mix(in srgb, var(--surface) 75%, transparent);
     backdrop-filter: blur(1px);
     z-index: 2;
     pointer-events: none;
