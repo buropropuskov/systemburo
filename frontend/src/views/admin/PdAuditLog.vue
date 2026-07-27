@@ -15,7 +15,9 @@
       просмотр доступных вложений. Записи хранятся по требованию 152-ФЗ и не удаляются.
     </p>
 
+    <!-- Десктоп: форма фильтров инлайн (как было). -->
     <form
+      v-if="!isNarrow"
       class="filters"
       @submit.prevent="applyFilters"
     >
@@ -75,6 +77,108 @@
         Сбросить
       </button>
     </form>
+
+    <!-- Мобилка: весь тулбар фильтров свёрнут в кнопку «Фильтр» (отдельного поиска
+         у журнала нет - вся форма это фильтры, применяемые по «Применить»). -->
+    <div
+      v-else
+      class="filters-mobile"
+    >
+      <FilterButton
+        :active="filtersActive"
+        data-testid="pda-filter-btn"
+        @click="openFilterSheet"
+      />
+    </div>
+
+    <!-- Мобилка: фильтры в bottom-sheet. Черновик формы откатывается при закрытии
+         без «Применить», чтобы пагинация не подхватила неприменённые значения. -->
+    <FilterSheet
+      v-if="isNarrow"
+      :show="showFilterSheet"
+      @close="closeFilterSheet"
+    >
+      <div class="filter-section">
+        <span class="filter-label">Логин пользователя</span>
+        <input
+          v-model="filters.username"
+          class="lk-input"
+          type="text"
+          placeholder="Логин пользователя"
+          data-testid="pda-sheet-username"
+        >
+      </div>
+      <div class="filter-section">
+        <span class="filter-label">Действие</span>
+        <BaseDropdown
+          v-model="filters.action"
+          :options="actionOptions"
+          value-key="value"
+          label-key="label"
+          placeholder="Действие - все"
+          teleport
+          data-testid="pda-sheet-action"
+        />
+      </div>
+      <div class="filter-section">
+        <span class="filter-label">Данные</span>
+        <BaseDropdown
+          v-model="filters.resource"
+          :options="resourceOptions"
+          value-key="value"
+          label-key="label"
+          placeholder="Данные - все"
+          teleport
+          data-testid="pda-sheet-resource"
+        />
+      </div>
+      <div class="filter-section">
+        <span class="filter-label">С даты</span>
+        <input
+          v-model="filters.from"
+          class="lk-input"
+          type="datetime-local"
+          data-testid="pda-sheet-from"
+        >
+      </div>
+      <div class="filter-section">
+        <span class="filter-label">По дату</span>
+        <input
+          v-model="filters.to"
+          class="lk-input"
+          type="datetime-local"
+          data-testid="pda-sheet-to"
+        >
+      </div>
+      <label class="pda__denied">
+        <input
+          v-model="filters.only_denied"
+          type="checkbox"
+          data-testid="pda-sheet-denied"
+        >
+        Только отказы
+      </label>
+
+      <template #actions>
+        <button
+          type="button"
+          class="lk-button lk-button--ghost"
+          :disabled="!filtersActive"
+          data-testid="pda-sheet-reset"
+          @click="resetFromSheet"
+        >
+          Сбросить
+        </button>
+        <button
+          type="button"
+          class="lk-button lk-button--primary"
+          data-testid="pda-sheet-apply"
+          @click="applyFromSheet"
+        >
+          Применить
+        </button>
+      </template>
+    </FilterSheet>
 
     <div class="table-wrap">
       <table class="data-table rt-table">
@@ -178,6 +282,9 @@
 import { listPDAudit } from '@/api/pd-audit';
 import RefreshButton from '@/components/RefreshButton.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
+import FilterButton from '@/components/ui/FilterButton.vue';
+import FilterSheet from '@/components/ui/FilterSheet.vue';
+import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import { useDeletionsStore } from '@/stores/deletions';
 
 // Подписи действий и видов данных: в журнале лежат технические значения,
@@ -203,7 +310,13 @@ const EMPTY_FILTERS = {
 
 export default {
   name: 'PdAuditLog',
-  components: { RefreshButton, BaseDropdown },
+  components: {
+    RefreshButton, BaseDropdown, FilterButton, FilterSheet,
+  },
+  setup() {
+    const { isNarrow } = useNarrowScreen();
+    return { isNarrow };
+  },
   data() {
     return {
       items: [],
@@ -212,6 +325,10 @@ export default {
       limit: 50,
       loading: false,
       filters: { ...EMPTY_FILTERS },
+      // Мобилка: фильтры свёрнуты в bottom-sheet; backup хранит применённое
+      // состояние для отката черновика при закрытии без «Применить».
+      showFilterSheet: false,
+      filtersBackup: { ...EMPTY_FILTERS },
       actionOptions: [
         { value: '', label: 'Действие - все' },
         ...Object.entries(ACTION_LABELS).map(([value, label]) => ({ value, label })),
@@ -226,6 +343,12 @@ export default {
     totalPages() {
       return Math.max(1, Math.ceil(this.total / this.limit));
     },
+    // Есть ли значимые фильтры (учитываем boolean-флаг «Только отказы»): точка на
+    // кнопке «Фильтр» и доступность «Сбросить». Пустой EMPTY_FILTERS -> false.
+    filtersActive() {
+      const f = this.filters;
+      return !!(f.username || f.action || f.resource || f.from || f.to || f.only_denied);
+    },
   },
   mounted() {
     this.fetch();
@@ -239,6 +362,24 @@ export default {
       this.filters = { ...EMPTY_FILTERS };
       this.page = 1;
       this.fetch();
+    },
+    openFilterSheet() {
+      this.filtersBackup = { ...this.filters };
+      this.showFilterSheet = true;
+    },
+    // Крестик/overlay/Escape/свайп: откатываем неприменённый черновик, чтобы вне
+    // sheet filters всегда равнялись применённому (пагинация шлёт именно filters).
+    closeFilterSheet() {
+      this.filters = { ...this.filtersBackup };
+      this.showFilterSheet = false;
+    },
+    applyFromSheet() {
+      this.showFilterSheet = false;
+      this.applyFilters();
+    },
+    resetFromSheet() {
+      this.showFilterSheet = false;
+      this.resetFilters();
     },
     goToPage(page) {
       this.page = page;
@@ -332,6 +473,10 @@ export default {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+}
+
+.filters-mobile {
+  display: flex;
 }
 
 .filter-input {
