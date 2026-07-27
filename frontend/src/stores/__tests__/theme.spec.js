@@ -47,12 +47,12 @@ describe('theme store', () => {
 
   it('setTheme применяет тему, пишет в localStorage и сохраняет в профиль', async () => {
     const store = useThemeStore();
-    await store.setTheme('corporate-orange');
+    await store.setTheme('dark');
 
-    expect(store.current).toBe('corporate-orange');
-    expect(document.documentElement.getAttribute('data-theme')).toBe('corporate-orange');
-    expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe('corporate-orange');
-    expect(saveTheme).toHaveBeenCalledWith('corporate-orange');
+    expect(store.current).toBe('dark');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+    expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe('dark');
+    expect(saveTheme).toHaveBeenCalledWith('dark');
   });
 
   it('setTheme игнорирует неизвестную тему и повторный выбор текущей', async () => {
@@ -83,14 +83,14 @@ describe('theme store', () => {
   });
 
   it('syncFromServer применяет тему из профиля', async () => {
-    getTheme.mockResolvedValue({ theme: 'official-blue' });
+    getTheme.mockResolvedValue({ theme: 'dark' });
     const store = useThemeStore();
 
     await store.syncFromServer();
 
-    expect(store.current).toBe('official-blue');
-    expect(document.documentElement.getAttribute('data-theme')).toBe('official-blue');
-    expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe('official-blue');
+    expect(store.current).toBe('dark');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+    expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe('dark');
   });
 
   // Пустая тема в профиле = юзер не выбирал. На общем компьютере он не должен
@@ -117,14 +117,14 @@ describe('theme store', () => {
   });
 
   it('syncFromServer при ошибке сети оставляет локальную тему', async () => {
-    localStorage.setItem(THEME_STORAGE_KEY, 'dark-orange');
+    localStorage.setItem(THEME_STORAGE_KEY, 'dark');
     getTheme.mockRejectedValue(new Error('offline'));
     const store = useThemeStore();
 
     await store.syncFromServer();
 
-    expect(store.current).toBe('dark-orange');
-    expect(document.documentElement.getAttribute('data-theme')).toBe('dark-orange');
+    expect(store.current).toBe('dark');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
   });
 
   // Гонка: юзер кликает тему, пока летит ответ /users/me/theme. Устаревший ответ
@@ -136,7 +136,7 @@ describe('theme store', () => {
 
     const sync = store.syncFromServer();
     await store.setTheme('dark');
-    pending.resolve({ theme: 'official-blue' });
+    pending.resolve({ theme: 'dark' });
     await sync;
 
     expect(store.current).toBe('dark');
@@ -147,11 +147,11 @@ describe('theme store', () => {
   it('применяет тему мгновенно и сохраняет в профиль выбранную', async () => {
     const store = useThemeStore();
 
-    await store.setTheme('dark-orange');
+    await store.setTheme('dark');
 
-    expect(store.current).toBe('dark-orange');
-    expect(document.documentElement.getAttribute('data-theme')).toBe('dark-orange');
-    expect(saveTheme).toHaveBeenCalledWith('dark-orange');
+    expect(store.current).toBe('dark');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+    expect(saveTheme).toHaveBeenCalledWith('dark');
     // View Transitions не поднимаем - в jsdom его нет, но и в браузере не зовём.
     expect(document.startViewTransition).toBeUndefined();
   });

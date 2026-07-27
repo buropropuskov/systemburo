@@ -436,62 +436,31 @@
             />
             <span class="nav-text">Личный кабинет</span>
           </div>
-          <!-- Оформление: выбор темы, дропдаун как у «Таблиц» (#1415) -->
+          <!-- Тёмная тема: тумблер, тем осталось две (#1415) -->
           <div
-            v-show="matches('Оформление')"
-            class="nav-item-container"
+            v-show="matches('Тёмная тема') || matches('Оформление')"
+            class="nav-item nav-item--theme"
+            data-testid="nav-theme-toggle"
+            role="switch"
+            :aria-checked="isDarkTheme ? 'true' : 'false'"
+            @click="toggleTheme"
           >
-            <div
-              class="nav-item has-dropdown"
-              data-testid="nav-link-theme"
-              @click="toggleDropdown('themes')"
-            >
-              <div class="nav-item-content">
-                <NavIcon
-                  name="theme"
-                  :size="18"
-                  class="nav-icon"
-                />
-                <span class="nav-text">Оформление</span>
-              </div>
-              <svg
-                class="dropdown-arrow"
-                :class="{ rotated: dropdowns.themes }"
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.7"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-              >
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
+            <div class="nav-item-content">
+              <NavIcon
+                name="theme"
+                :size="18"
+                class="nav-icon"
+              />
+              <span class="nav-text">Тёмная тема</span>
             </div>
-
-            <div
-              class="dropdown-below"
-              :class="{ open: dropdowns.themes && (railExpanded || mobileOpen) }"
-            >
-              <div class="dropdown-below__inner">
-                <div
-                  v-for="theme in themes"
-                  :key="theme.id"
-                  class="dropdown-item theme-item"
-                  :class="{ active: theme.id === themeStore.current }"
-                  :data-testid="`nav-theme-${theme.id}`"
-                  @click="selectTheme(theme.id)"
-                >
-                  <span
-                    class="theme-dot"
-                    :style="{ background: theme.dot }"
-                  />
-                  {{ theme.name }}
-                </div>
-              </div>
-            </div>
+            <!-- Индикатор: клик обрабатывает вся строка, поэтому сам тумблер
+                 события не ловит (иначе переключение сработало бы дважды). -->
+            <SwitchToggle
+              :model-value="isDarkTheme"
+              label=""
+              title="Переключить светлую и тёмную тему"
+              class="nav-theme-switch"
+            />
           </div>
 
           <div
@@ -673,10 +642,10 @@ import { useUiStore } from '@/stores/ui'
 import { useSoundStore } from '@/stores/sound'
 import { usePermissionsStore } from '@/stores/permissions'
 import { useThemeStore } from '@/stores/theme'
-import { THEMES } from '@/utils/theme'
 import { playPreset } from '@/utils/notificationSound'
 import eventStream from '@/services/eventStream'
 import NavIcon from '@/components/icons/NavIcon.vue'
+import SwitchToggle from '@/components/ui/SwitchToggle.vue'
 import FeedbackModal from '@/components/FeedbackModal.vue'
 
 // Длительность анимации ухода drawer'а (transform 0.28s) - ждём её перед показом
@@ -686,7 +655,7 @@ const DRAWER_CLOSE_MS = 300
 
 export default {
   name: 'NavMenu',
-  components: { NavIcon, FeedbackModal },
+  components: { NavIcon, FeedbackModal, SwitchToggle },
   emits: ['logout'],
   setup() {
     // Сторы берём в setup для реактивности в шаблоне: authStore - гейт
@@ -704,10 +673,8 @@ export default {
       isExpanded: false,
       // Реестр тем оформления (#1415) - список и палитра кружков берутся из
       // utils/theme.js, тот же источник валидирует бэк.
-      themes: THEMES,
       dropdowns: {
-        tables: false,
-        themes: false
+        tables: false
       },
       hoverTimeout: null,
       systemTables: [],
@@ -796,6 +763,10 @@ export default {
     };
   },
   computed: {
+    /** Тумблер в меню: включён на тёмной теме (#1415). */
+    isDarkTheme() {
+      return this.themeStore.current === 'dark';
+    },
     // Рельс раскрыт если закреплён (пин) или временно по hover. В full-hide
     // не раскрываем - рельс схлопнут в 0. При открытой Админке рельс
     // зафиксирован в иконках, чтобы не перекрывать колонку.
@@ -1130,12 +1101,11 @@ export default {
       this.dropdowns[type] = !this.dropdowns[type];
     },
     /**
-     * Выбор темы оформления (#1415). Стор применяет её к <html> сразу и сохраняет
-     * в профиль; список оставляем раскрытым - видно, какой пункт стал активным.
-     * @param {string} id
+     * Переключение светлой и тёмной темы (#1415). Стор применяет тему к <html>
+     * сразу и сохраняет в профиль.
      */
-    selectTheme(id) {
-      this.themeStore.setTheme(id);
+    toggleTheme() {
+      this.themeStore.setTheme(this.isDarkTheme ? 'light' : 'dark');
     },
     closeAllDropdowns() {
       Object.keys(this.dropdowns).forEach(key => {
@@ -1944,22 +1914,26 @@ export default {
   color: var(--nav-text-faint);
 }
 
-/* Пункт выбора темы: кружок палитры перед названием - по нему тема узнаётся
-   быстрее, чем по слову. */
-.theme-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+/* Пункт «Тёмная тема»: тумблер справа, как подпись - проявляется только на
+   раскрытом рельсе, в иконках остаётся один значок темы. */
+.nav-item--theme {
+  justify-content: space-between;
 }
 
-.theme-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
+.nav-theme-switch {
   flex-shrink: 0;
-  /* Обводка нейтральная: кружок тёмной темы иначе теряется на светлой панели,
-     а светлой - на тёмной. */
-  border: 1px solid rgba(128, 128, 128, 0.35);
+  /* Клик ловит вся строка: сам тумблер здесь индикатор, иначе клик по нему
+     переключал бы тему дважды. */
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(-5px);
+  transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.nav-menu.expanded .nav-theme-switch {
+  opacity: 1;
+  transform: translateX(0);
+  transition-delay: 0.1s;
 }
 
 .icon-badge {
