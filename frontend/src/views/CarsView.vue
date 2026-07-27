@@ -22,8 +22,9 @@
           v-model="searchQuery"
           :title="'Поиск машин...'"
         />
+        <!-- Десктоп: табы области инлайн в строке (как было). -->
         <div
-          v-if="ownershipInfo"
+          v-if="ownershipInfo && !isNarrow"
           class="filter-tabs"
         >
           <button
@@ -66,7 +67,68 @@
             Все машины системы
           </button>
         </div>
+
+        <!-- Мобилка (<=768): табы области свёрнуты в кнопку «Фильтр» (поиск - снаружи). -->
+        <FilterButton
+          v-if="isNarrow && ownershipInfo"
+          :active="scopeFilterActive"
+          data-testid="cars-filter-btn"
+          @click="showScopeSheet = true"
+        />
       </div>
+
+      <!-- Мобилка: табы области в bottom-sheet. -->
+      <FilterSheet
+        v-if="isNarrow"
+        :show="showScopeSheet"
+        :has-active-filters="scopeFilterActive"
+        @close="showScopeSheet = false"
+        @reset="resetScopeFilter"
+      >
+        <div
+          v-if="ownershipInfo"
+          class="filter-section"
+        >
+          <span class="filter-label">Область</span>
+          <div class="filter-tabs">
+            <button
+              v-if="ownershipInfo.has_organization && canSeeOrganization"
+              class="filter-tab"
+              data-testid="cars-scope-organization"
+              :class="{ 'filter-tab--active': currentFilter === 'organization' }"
+              @click="switchScopeFromSheet('organization')"
+            >
+              Машины организации
+            </button>
+            <button
+              v-if="ownershipInfo.has_company && canSeeCompany"
+              class="filter-tab"
+              data-testid="cars-scope-company"
+              :class="{ 'filter-tab--active': currentFilter === 'company' }"
+              @click="switchScopeFromSheet('company')"
+            >
+              Машины компании
+            </button>
+            <button
+              class="filter-tab"
+              data-testid="cars-scope-user"
+              :class="{ 'filter-tab--active': currentFilter === 'user' }"
+              @click="switchScopeFromSheet('user')"
+            >
+              Мои машины
+            </button>
+            <button
+              v-if="canSeeAllSystem"
+              class="filter-tab"
+              data-testid="cars-scope-all-system"
+              :class="{ 'filter-tab--active': currentFilter === 'all_system' }"
+              @click="switchScopeFromSheet('all_system')"
+            >
+              Все машины системы
+            </button>
+          </div>
+        </div>
+      </FilterSheet>
     </div>
 
     <div class="carsview__container">
@@ -707,6 +769,9 @@ import { useInfiniteList } from '@/composables/useInfiniteList'
 import { useDeletionsStore } from '@/stores/deletions';
 import { usePermissionsStore } from '@/stores/permissions';
 import SearchComponent from '@/components/SearchComponent.vue';
+import FilterButton from '@/components/ui/FilterButton.vue';
+import FilterSheet from '@/components/ui/FilterSheet.vue';
+import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import RefreshButton from '@/components/RefreshButton.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
@@ -722,6 +787,8 @@ const CARS_PER_PAGE = 30;
 export default {
     components: {
         SearchComponent,
+        FilterButton,
+        FilterSheet,
         RefreshButton,
         LoaderSpinner,
         StatusBadge,
@@ -736,7 +803,11 @@ export default {
         // pre-existing спека (CarsViewPermissionGating) пишет wrapper.vm.carsData
         // напрямую, переименование сломало бы её без пользы.
         const infiniteList = useInfiniteList({ perPage: CARS_PER_PAGE });
+        // Мобилка (<=768): табы области сворачиваются в кнопку «Фильтр» + FilterSheet
+        // (эпик mobile-filter-collapse, S3); десктоп-табы остаются инлайн.
+        const { isNarrow } = useNarrowScreen();
         return {
+            isNarrow,
             carsData: infiniteList.items,
             carsTotal: infiniteList.total,
             carsPage: infiniteList.page,
@@ -769,6 +840,8 @@ export default {
             // fetchCars не должна запускать/продолжать устаревший loadAllRemainingCars.
             fetchSeq: 0,
             currentFilter: 'user',
+            // Мобилка: bottom-sheet с табами области (S3 эпика mobile-filter-collapse).
+            showScopeSheet: false,
             ownershipInfo: null,
             showModal: false,
             showDeleteCarModal: false,
@@ -894,6 +967,13 @@ export default {
 
         hasActiveFilters() {
             return !!this.searchQuery.trim();
+        },
+
+        // Область отличается от дефолтной («Мои машины») - точка-индикатор на кнопке
+        // «Фильтр» и доступность «Сбросить» в мобильном bottom-sheet (S3). Поиск сюда
+        // не входит: он остаётся снаружи sheet (в шапке), как в S1/S2.
+        scopeFilterActive() {
+            return this.currentFilter !== 'user';
         },
 
         // Сортировка по колонкам - клиентская и должна идти по ВСЕМУ набору (как на
@@ -1396,6 +1476,20 @@ export default {
         switchFilter(filterType) {
             this.currentFilter = filterType;
             this.fetchCars();
+        },
+
+        // Мобильный bottom-sheet: выбор области применяется и закрывает лист (одиночный
+        // выбор, как пикер), поиск остаётся снаружи (S3 эпика mobile-filter-collapse).
+        switchScopeFromSheet(filterType) {
+            this.switchFilter(filterType);
+            this.showScopeSheet = false;
+        },
+
+        // «Сбросить фильтры» в sheet - вернуть дефолтную область «Мои машины» и закрыть
+        // лист. Кнопка активна только при scopeFilterActive, лишнего fetch на дефолте нет.
+        resetScopeFilter() {
+            this.switchFilter('user');
+            this.showScopeSheet = false;
         },
 
         showAddCarModal() {
@@ -2636,20 +2730,29 @@ export default {
        блоке 767.98 (сиблинг .rt-row+.rt-row не сработает: rt-row на .car-row,
        вложенном в .car-item - v-for-обёртку). */
 
-    /* filter-tabs: перенос на строки вместо горизонтального скролла (юзер не любит h-scroll #1307) */
+    /* Мобилка (S3): поиск + кнопка «Фильтр» в один ряд, поиск тянется на всю строку,
+       кнопка компактная справа (как S1/S2). Табы области ушли в bottom-sheet. */
     .filters-container {
-        flex-direction: column;
-        align-items: stretch;
+        flex-direction: row;
+        align-items: center;
         gap: 10px;
     }
 
+    .filters-container :deep(.search) {
+        flex: 1 1 auto;
+        width: auto;
+        min-width: 0;
+    }
+
+    /* .filter-tabs/.filter-tab на мобилке рендерятся ТОЛЬКО внутри FilterSheet
+       (десктоп-табы скрыты v-if="!isNarrow"). Правила через data-v достают до
+       телепортнутого контента sheet: каждый таб на всю ширину строкой - единый ровный
+       вид на любой ширине телефона (тексты табов разной длины). */
     .filter-tabs {
         flex-wrap: wrap;
         gap: 10px;
     }
 
-    /* Каждый таб на всю ширину строкой - единый ровный вид на любой ширине телефона
-       (тексты табов разной длины, 2x2-сетка давала бы неровные колонки). */
     .filter-tab {
         flex: 1 1 100%;
         white-space: nowrap;

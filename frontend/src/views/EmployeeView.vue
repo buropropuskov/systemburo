@@ -22,8 +22,9 @@
           v-model="searchQuery"
           :title="'Поиск сотрудников...'"
         />
+        <!-- Десктоп: табы области инлайн в строке (как было). -->
         <div
-          v-if="ownershipInfo"
+          v-if="ownershipInfo && !isNarrow"
           class="filter-tabs"
         >
           <button
@@ -66,7 +67,68 @@
             Все сотрудники системы
           </button>
         </div>
+
+        <!-- Мобилка (<=768): табы области свёрнуты в кнопку «Фильтр» (поиск - снаружи). -->
+        <FilterButton
+          v-if="isNarrow && ownershipInfo"
+          :active="scopeFilterActive"
+          data-testid="employees-filter-btn"
+          @click="showScopeSheet = true"
+        />
       </div>
+
+      <!-- Мобилка: табы области в bottom-sheet. -->
+      <FilterSheet
+        v-if="isNarrow"
+        :show="showScopeSheet"
+        :has-active-filters="scopeFilterActive"
+        @close="showScopeSheet = false"
+        @reset="resetScopeFilter"
+      >
+        <div
+          v-if="ownershipInfo"
+          class="filter-section"
+        >
+          <span class="filter-label">Область</span>
+          <div class="filter-tabs">
+            <button
+              v-if="ownershipInfo.has_organization && canSeeOrganization"
+              class="filter-tab"
+              data-testid="employees-scope-organization"
+              :class="{ 'filter-tab--active': currentFilter === 'organization' }"
+              @click="switchScopeFromSheet('organization')"
+            >
+              Сотрудники организации
+            </button>
+            <button
+              v-if="ownershipInfo.has_company && canSeeCompany"
+              class="filter-tab"
+              data-testid="employees-scope-company"
+              :class="{ 'filter-tab--active': currentFilter === 'company' }"
+              @click="switchScopeFromSheet('company')"
+            >
+              Сотрудники компании
+            </button>
+            <button
+              class="filter-tab"
+              data-testid="employees-scope-user"
+              :class="{ 'filter-tab--active': currentFilter === 'user' }"
+              @click="switchScopeFromSheet('user')"
+            >
+              Мои сотрудники
+            </button>
+            <button
+              v-if="canSeeAllSystem"
+              class="filter-tab"
+              data-testid="employees-scope-all-system"
+              :class="{ 'filter-tab--active': currentFilter === 'all_system' }"
+              @click="switchScopeFromSheet('all_system')"
+            >
+              Все сотрудники системы
+            </button>
+          </div>
+        </div>
+      </FilterSheet>
     </div>
 
     <div class="employeesview__container">
@@ -482,6 +544,9 @@ import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
 import { usePermissionsStore } from '@/stores/permissions';
 import SearchComponent from '@/components/SearchComponent.vue';
+import FilterButton from '@/components/ui/FilterButton.vue';
+import FilterSheet from '@/components/ui/FilterSheet.vue';
+import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import RefreshButton from '@/components/RefreshButton.vue';
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
@@ -497,6 +562,8 @@ const EMPLOYEES_PER_PAGE = 30;
 export default {
     components: {
         SearchComponent,
+        FilterButton,
+        FilterSheet,
         RefreshButton,
         LoaderSpinner,
         StatusBadge,
@@ -511,7 +578,11 @@ export default {
         // pre-existing спека (EmployeeViewPermissionGating) пишет wrapper.vm.employeesData
         // напрямую, переименование сломало бы её без пользы.
         const infiniteList = useInfiniteList({ perPage: EMPLOYEES_PER_PAGE });
+        // Мобилка (<=768): табы области сворачиваются в кнопку «Фильтр» + FilterSheet
+        // (эпик mobile-filter-collapse, S3); десктоп-табы остаются инлайн.
+        const { isNarrow } = useNarrowScreen();
         return {
+            isNarrow,
             employeesData: infiniteList.items,
             employeesTotal: infiniteList.total,
             employeesPage: infiniteList.page,
@@ -545,6 +616,8 @@ export default {
             // loadAllRemainingEmployees.
             fetchSeq: 0,
             currentFilter: 'user',
+            // Мобилка: bottom-sheet с табами области (S3 эпика mobile-filter-collapse).
+            showScopeSheet: false,
             ownershipInfo: null,
             showModal: false,
             availableCitizenships: [],
@@ -639,6 +712,13 @@ export default {
 
         hasActiveFilters() {
             return !!this.searchQuery.trim();
+        },
+
+        // Область отличается от дефолтной («Мои сотрудники») - точка-индикатор на кнопке
+        // «Фильтр» и доступность «Сбросить» в мобильном bottom-sheet (S3). Поиск сюда
+        // не входит: он остаётся снаружи sheet (в шапке), как в S1/S2.
+        scopeFilterActive() {
+            return this.currentFilter !== 'user';
         },
 
         // Сортировка по колонкам - клиентская и должна идти по ВСЕМУ набору (как на
@@ -924,6 +1004,20 @@ export default {
         switchFilter(filterType) {
             this.currentFilter = filterType;
             this.fetchEmployees();
+        },
+
+        // Мобильный bottom-sheet: выбор области применяется и закрывает лист (одиночный
+        // выбор, как пикер), поиск остаётся снаружи (S3 эпика mobile-filter-collapse).
+        switchScopeFromSheet(filterType) {
+            this.switchFilter(filterType);
+            this.showScopeSheet = false;
+        },
+
+        // «Сбросить фильтры» в sheet - вернуть дефолтную область «Мои сотрудники» и закрыть
+        // лист. Кнопка активна только при scopeFilterActive, лишнего fetch на дефолте нет.
+        resetScopeFilter() {
+            this.switchFilter('user');
+            this.showScopeSheet = false;
         },
 
         openEmployeeDetails(employee) {
@@ -1488,19 +1582,28 @@ export default {
        скрыт (rt-head-row). Зазор между карточками - ниже, в блоке 767.98 (сиблинг
        .rt-row+.rt-row не сработает: rt-row на .employee-row, вложенном в .employee-item). */
 
-    /* filter-tabs: перенос на строки вместо горизонтального скролла (юзер не любит h-scroll #1307) */
+    /* Мобилка (S3): поиск + кнопка «Фильтр» в один ряд, поиск тянется на всю строку,
+       кнопка компактная справа (как S1/S2). Табы области ушли в bottom-sheet. */
     .filters-container {
-        flex-direction: column;
-        align-items: stretch;
+        flex-direction: row;
+        align-items: center;
         gap: 10px;
     }
 
+    .filters-container :deep(.search) {
+        flex: 1 1 auto;
+        width: auto;
+        min-width: 0;
+    }
+
+    /* .filter-tabs/.filter-tab на мобилке рендерятся ТОЛЬКО внутри FilterSheet
+       (десктоп-табы скрыты v-if="!isNarrow"). Правила через data-v достают до
+       телепортнутого контента sheet: каждый таб на всю ширину строкой. */
     .filter-tabs {
         flex-wrap: wrap;
         gap: 10px;
     }
 
-    /* Каждый таб на всю ширину строкой - единый ровный вид на любой ширине телефона. */
     .filter-tab {
         flex: 1 1 100%;
         white-space: nowrap;
