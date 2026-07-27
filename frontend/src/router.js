@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { confirmIfAnyDirty } from '@/utils/dirtyTracker';
+import { isErrorPageReachable, closeIncidentOnLeave } from '@/utils/errorPageAccess';
 import { useAuthStore } from '@/stores/auth';
 import { useMaintenanceStore } from '@/stores/maintenance';
 import LoginComponent from './components/LoginComponent.vue';
@@ -309,6 +310,14 @@ router.beforeEach(async (to, from, next) => {
     && to.name !== 'Error500'
   ) {
     next({ name: 'Maintenance' });
+    return;
+  }
+
+  // Страницы-ошибки открываются только по факту события: прямой заход по URL
+  // на /500, /maintenance или /403 показал бы юзеру аварию, которой не было.
+  closeIncidentOnLeave(to, from);
+  if (!isErrorPageReachable(to)) {
+    next('/');
     return;
   }
 
