@@ -186,3 +186,44 @@ describe('ApplicationActionBar - принять можно только посл
     expect(urls.some(u => u.includes('/take-to-work'))).toBe(true);
   });
 });
+
+// Заявка от организации, которую завели из самой заявки, согласующих не имеет: брать их
+// неоткуда, пользователей у такой организации ещё нет. Сервер такую заявку принять
+// позволяет (application_workflow_service, ветка accept), а интерфейс показывал кнопки
+// только при confirmation='Согласовано' - и заявка застревала навсегда.
+describe('ApplicationActionBar - приём заявки без согласующих', () => {
+  const TAKE = '[data-testid="app-detail-button-take-to-work"]';
+
+  it('без согласующих кнопки принять и отказать показываются при confirmation=Согласование', () => {
+    const wrapper = mountBar({
+      application: { id: 1, confirmation: 'Согласование', status: 'Непрочитано' },
+      responsibleUsers: [],
+      approvers: [{ user_id: 1 }],
+    });
+
+    expect(wrapper.find(TAKE).exists()).toBe(true);
+    expect(wrapper.find(REJECT).exists()).toBe(true);
+  });
+
+  it('с согласующими, которые ещё не проголосовали, кнопки принять нет', () => {
+    const wrapper = mountBar({
+      application: { id: 1, confirmation: 'Согласование', status: 'Непрочитано' },
+      responsibleUsers: [{ id: 7, approval_status: 'pending' }],
+      approvers: [{ user_id: 1 }],
+      currentUserId: 1,
+    });
+
+    expect(wrapper.find(TAKE).exists()).toBe(false);
+  });
+
+  it('после завершённого согласования кнопка принять есть и с согласующими', () => {
+    const wrapper = mountBar({
+      application: { id: 1, confirmation: 'Согласовано', status: 'Непрочитано' },
+      responsibleUsers: [{ id: 7, approval_status: 'approved' }],
+      approvers: [{ user_id: 1 }],
+      currentUserId: 1,
+    });
+
+    expect(wrapper.find(TAKE).exists()).toBe(true);
+  });
+});

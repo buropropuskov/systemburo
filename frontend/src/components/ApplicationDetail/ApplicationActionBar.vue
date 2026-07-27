@@ -105,8 +105,9 @@
                   Завершено
                 </div>
               </template>
-              <!-- Если заявка не в работе, не отказана и не завершена, но согласована - показываем кнопки принять/отказать -->
-              <template v-else-if="application.confirmation === 'Согласовано'">
+              <!-- Заявка не в работе, не отказана и не завершена: принять её можно, когда
+                   согласование завершено ИЛИ согласовывать нечего (согласующих нет). -->
+              <template v-else-if="canTakeToWork">
                 <button
                   class="accept-btn"
                   data-testid="app-detail-button-take-to-work"
@@ -185,8 +186,8 @@
                 Завершено
               </div>
             </template>
-            <!-- Если заявка не в работе и согласована - показываем кнопки принять/отказать -->
-            <template v-else-if="application.confirmation === 'Согласовано'">
+            <!-- Принять можно при завершённом согласовании либо когда согласующих нет. -->
+            <template v-else-if="canTakeToWork">
               <button
                 class="accept-btn"
                 data-testid="app-detail-button-take-to-work"
@@ -449,6 +450,7 @@ export default {
                 this.isResponsibleUser,
                 this.hasUserVoted,
                 this.canUserApprove,
+                this.canTakeToWork,
                 this.application.status,
                 this.application.confirmation
             ].join('|');
@@ -480,6 +482,20 @@ export default {
                 return { text: 'Вы отказали', class: 'vote-rejected' };
             }
             return null;
+        },
+
+        /**
+         * Можно ли принимать заявку в работу прямо сейчас. Зеркало серверного гейта
+         * (application_workflow_service, action=accept): согласование завершено либо
+         * согласующих у заявки нет вовсе - тогда согласовывать нечего.
+         *
+         * Без второй половины условия заявка от организации, у которой ещё нет
+         * привязанных пользователей (а такая организация и заводится из самой заявки),
+         * навсегда оставалась в «Согласование»: сервер принять её позволял, а кнопки в
+         * интерфейсе не появлялись.
+         */
+        canTakeToWork() {
+            return this.application.confirmation === 'Согласовано' || this.responsibleUsers.length === 0;
         },
 
         canUserApprove() {
