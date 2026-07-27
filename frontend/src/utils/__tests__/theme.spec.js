@@ -261,6 +261,16 @@ describe('оформление: кнопки и теги', () => {
     expect(rule[2]).toMatch(/appearance:\s*none/)
   })
 
+  it('пелена загрузки не красится токеном затемнения', () => {
+    // --overlay это подложка ПОД модалкой (полупрозрачный чёрный). Для пелены
+    // поверх таблицы он даёт затемнение всего списка при поиске и обновлении.
+    const css = read('../../views/ApplicationsCenter.vue')
+    const rule = css.match(/\.refresh-overlay\s*\{([^}]*)\}/)
+    expect(rule, 'нет правила .refresh-overlay').not.toBeNull()
+    expect(rule[1], 'пелена должна идти от --surface').not.toMatch(/background:[^;]*var\(--overlay\)/)
+    expect(rule[1]).toMatch(/background:[^;]*var\(--surface\)/)
+  })
+
   it('рамка тега цвета текста включается только в тёмной теме', () => {
     // В тёмной приглушённая color-mix-рамка Badge сливалась с подложкой, в светлой
     // она к месту - там вид остаётся прежним.
