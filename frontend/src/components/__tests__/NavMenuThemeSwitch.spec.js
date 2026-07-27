@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
@@ -5,6 +7,7 @@ import NavMenu from '../NavMenu.vue';
 import { useAuthStore } from '@/stores/auth';
 import { getMyPermissions } from '@/api/permissions';
 import { saveTheme } from '@/api/theme';
+import { navIcons } from '@/components/icons/navIcons';
 
 // #1415: выбор темы живёт в навигационном меню, секция «ПОЛЬЗОВАТЕЛЬ».
 
@@ -89,6 +92,25 @@ describe('NavMenu: переключатель темы (#1415)', () => {
     expect(document.documentElement.getAttribute('data-theme')).toBe('light');
     expect(saveTheme).toHaveBeenLastCalledWith('light');
     expect(toggle().attributes('aria-checked')).toBe('false');
+  });
+
+  it('иконка пункта - луна', async () => {
+    wrapper = mountNav();
+    await flushPromises();
+
+    // Палитра тут ни о чём не говорит: пункт называется «Тёмная тема».
+    expect(toggle().findComponent({ name: 'NavIcon' }).props('name')).toBe('moon');
+    expect(navIcons.moon, 'иконки moon нет в реестре').toBeTruthy();
+  });
+
+  it('ползунок не попадает под гашение переходов смены темы', async () => {
+    // html.theme-switching гасит ВСЕ transition на два кадра, чтобы цвета встали
+    // одним кадром. Без исключения ползунок телепортируется (замер: 0
+    // промежуточных положений против 12 с исключением).
+    const css = readFileSync(resolve(__dirname, '../../assets/tokens.css'), 'utf8');
+    const rule = css.match(/html\.theme-switching\s+\.nav-theme-switch[^{]*\{([^}]*)\}/);
+    expect(rule, 'нет исключения для тумблера темы').not.toBeNull();
+    expect(rule[1]).toMatch(/transition:[^;]*transform[^;]*!important/);
   });
 
   it('пункт находится поиском по рельсу и не пропадает у юзера без прав', async () => {

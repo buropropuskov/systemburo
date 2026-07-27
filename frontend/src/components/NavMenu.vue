@@ -447,7 +447,7 @@
           >
             <div class="nav-item-content">
               <NavIcon
-                name="theme"
+                name="moon"
                 :size="18"
                 class="nav-icon"
               />
