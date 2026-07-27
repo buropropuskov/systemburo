@@ -274,3 +274,11 @@ html.theme-switching *::before,
 html.theme-switching *::after {
   transition: none !important;
 }
+
+/* Исключение - сам тумблер темы: гашение нужно ЦВЕТАМ (иначе элементы доезжают
+   вразнобой), а ползунок это управляющий элемент, и его мгновенный скачок
+   читается как «переключатель не сработал». */
+html.theme-switching .nav-theme-switch .switch-toggle__switch,
+html.theme-switching .nav-theme-switch .switch-toggle__thumb {
+  transition: background-color 0.2s ease, transform 0.2s ease !important;
+}
