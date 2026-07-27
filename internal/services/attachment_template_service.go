@@ -406,10 +406,23 @@ func (s *attachmentTemplateService) DeleteByID(ctx context.Context, templateID i
 		}
 		return echo.NewHTTPError(http.StatusInternalServerError, "Ошибка")
 	}
-	// Следующий шаблон сам не активируем: удалив бланк, админ ожидает, что генерация
-	// выключится, а не подхватит соседний файл незаметно для него. Включить генерацию
-	// на другом файле - отдельное осознанное действие (тумблер или выбор в списке).
-	return s.deleteTemplate(ctx, &t)
+	// Удалив активный файл, генерацию не выключаем: у вложения обычно несколько
+	// бланков, и настройка должна остаться рабочей - активным становится самый свежий
+	// из оставшихся.
+	wasActive := t.IsActive
+	if err := s.deleteTemplate(ctx, &t); err != nil {
+		return err
+	}
+	if wasActive {
+		var next models.AttachmentTemplate
+		if err := s.db.WithContext(ctx).
+			Where("unique_attachment_id = ?", t.UniqueAttachmentID).
+			Order("created_at DESC").
+			First(&next).Error; err == nil {
+			s.db.WithContext(ctx).Model(&next).Update("is_active", true)
+		}
+	}
+	return nil
 }
 
 func (s *attachmentTemplateService) deleteTemplate(ctx context.Context, t *models.AttachmentTemplate) error {
