@@ -24,10 +24,6 @@ export const DEFAULT_THEME = 'light';
 export const THEMES = [
   { id: 'light', name: 'Светлая', dot: '#4F5BDF' },
   { id: 'dark', name: 'Тёмная', dot: '#14161c' },
-  { id: 'corporate-orange', name: 'Корпоративная', dot: '#F97316' },
-  { id: 'business-graphite', name: 'Деловая', dot: '#4A5568' },
-  { id: 'official-blue', name: 'Официальная', dot: '#1B4F9C' },
-  { id: 'dark-orange', name: 'Тёмная оранжевая', dot: '#FFA033' },
 ];
 
 const THEME_IDS = THEMES.map((t) => t.id);

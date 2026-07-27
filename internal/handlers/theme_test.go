@@ -65,12 +65,12 @@ func TestTheme_Set_OverwritesPrevious(t *testing.T) {
 	require.Equal(t, http.StatusOK,
 		testutil.PUT(t, e, "/users/me/theme", `{"theme":"dark"}`, testutil.AuthHeader(token)).Code)
 	require.Equal(t, http.StatusOK,
-		testutil.PUT(t, e, "/users/me/theme", `{"theme":"corporate-orange"}`, testutil.AuthHeader(token)).Code)
+		testutil.PUT(t, e, "/users/me/theme", `{"theme":"light"}`, testutil.AuthHeader(token)).Code)
 
 	var u models.User
 	require.NoError(t, db.Where("username = ?", "testadmin").First(&u).Error)
 	require.NotNil(t, u.Theme)
-	assert.Equal(t, models.ThemeCorporateOrange, *u.Theme, "последний выбор перезаписывает прежний")
+	assert.Equal(t, models.ThemeLight, *u.Theme, "последний выбор перезаписывает прежний")
 }
 
 // Неизвестный id отклоняем: в колонке должны лежать только темы, для которых у

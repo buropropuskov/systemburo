@@ -11,7 +11,7 @@
       (function () {
         try {
           var stored = localStorage.getItem('app-theme');
-          var known = ['light', 'dark', 'corporate-orange', 'business-graphite', 'official-blue', 'dark-orange'];
+          var known = ['light', 'dark'];
           if (known.indexOf(stored) !== -1) {
             document.documentElement.setAttribute('data-theme', stored);
           }

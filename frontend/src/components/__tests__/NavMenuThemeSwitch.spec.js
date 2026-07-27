@@ -5,7 +5,6 @@ import NavMenu from '../NavMenu.vue';
 import { useAuthStore } from '@/stores/auth';
 import { getMyPermissions } from '@/api/permissions';
 import { saveTheme } from '@/api/theme';
-import { THEMES } from '@/utils/theme';
 
 // #1415: выбор темы живёт в навигационном меню, секция «ПОЛЬЗОВАТЕЛЬ».
 
@@ -52,48 +51,44 @@ afterEach(() => {
 });
 
 describe('NavMenu: переключатель темы (#1415)', () => {
-  it('показывает все темы реестра с названиями и кружками палитры', async () => {
+  const toggle = () => wrapper.find('[data-testid="nav-theme-toggle"]');
+
+  it('показывает тумблер с подписью, выключенный на светлой теме', async () => {
     wrapper = mountNav();
     await flushPromises();
 
-    const items = wrapper.findAll('.theme-item');
-    expect(items).toHaveLength(THEMES.length);
-    expect(items.map((el) => el.text())).toEqual(THEMES.map((t) => t.name));
-    expect(wrapper.findAll('.theme-dot')).toHaveLength(THEMES.length);
+    expect(toggle().exists()).toBe(true);
+    expect(toggle().text()).toContain('Тёмная тема');
+    expect(toggle().attributes('aria-checked')).toBe('false');
+    // Тем осталось две, поэтому списка выбора в меню больше нет.
+    expect(wrapper.findAll('.theme-item')).toHaveLength(0);
   });
 
-  it('клик по теме переключает data-theme на <html> и сохраняет выбор', async () => {
+  it('клик включает тёмную тему и сохраняет выбор', async () => {
     wrapper = mountNav();
     await flushPromises();
 
-    await wrapper.find('[data-testid="nav-theme-dark"]').trigger('click');
+    await toggle().trigger('click');
     await flushPromises();
 
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
     expect(localStorage.getItem('app-theme')).toBe('dark');
     expect(saveTheme).toHaveBeenCalledWith('dark');
+    expect(toggle().attributes('aria-checked')).toBe('true');
   });
 
-  it('активным подсвечен текущий пункт, и подсветка переезжает за выбором', async () => {
+  it('повторный клик возвращает светлую тему', async () => {
     wrapper = mountNav();
     await flushPromises();
 
-    const active = () => wrapper.findAll('.theme-item.active').map((el) => el.text());
-    expect(active()).toEqual(['Светлая']);
-
-    await wrapper.find('[data-testid="nav-theme-official-blue"]').trigger('click');
+    await toggle().trigger('click');
+    await flushPromises();
+    await toggle().trigger('click');
     await flushPromises();
 
-    expect(active()).toEqual(['Официальная']);
-  });
-
-  it('дропдаун раскрывается по клику на пункт «Оформление»', async () => {
-    wrapper = mountNav();
-    await flushPromises();
-
-    expect(wrapper.vm.dropdowns.themes).toBe(false);
-    await wrapper.find('[data-testid="nav-link-theme"]').trigger('click');
-    expect(wrapper.vm.dropdowns.themes).toBe(true);
+    expect(document.documentElement.getAttribute('data-theme')).toBe('light');
+    expect(saveTheme).toHaveBeenLastCalledWith('light');
+    expect(toggle().attributes('aria-checked')).toBe('false');
   });
 
   it('пункт находится поиском по рельсу и не пропадает у юзера без прав', async () => {
@@ -103,6 +98,6 @@ describe('NavMenu: переключатель темы (#1415)', () => {
     await wrapper.setData({ searchQuery: 'оформл' });
 
     expect(wrapper.vm.sectionVisible.user).toBe(true);
-    expect(wrapper.find('[data-testid="nav-link-theme"]').isVisible()).toBe(true);
+    expect(toggle().isVisible()).toBe(true);
   });
 });

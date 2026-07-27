@@ -37,9 +37,7 @@
 }
 
 :root[data-theme="dark"],
-[data-theme="dark"],
-:root[data-theme="dark-orange"],
-[data-theme="dark-orange"] {
+[data-theme="dark"] {
   /* Инверсия делает тёмный глиф светлым; лёгкое затемнение убирает
      режущую белизну на тёмном фоне. */
   --icon-mono-filter: invert(1) brightness(0.94);

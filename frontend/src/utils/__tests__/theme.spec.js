@@ -18,16 +18,9 @@ describe('utils/theme', () => {
     document.documentElement.removeAttribute('data-theme')
   })
 
-  it('реестр содержит шесть тем с уникальными id', () => {
+  it('реестр содержит светлую и тёмную тему', () => {
     const ids = THEMES.map((t) => t.id)
-    expect(ids).toEqual([
-      'light',
-      'dark',
-      'corporate-orange',
-      'business-graphite',
-      'official-blue',
-      'dark-orange',
-    ])
+    expect(ids).toEqual(['light', 'dark'])
     expect(new Set(ids).size).toBe(ids.length)
     THEMES.forEach((t) => {
       expect(t.name).toBeTruthy()
@@ -37,6 +30,10 @@ describe('utils/theme', () => {
 
   it('isValidTheme пропускает только известные id', () => {
     expect(isValidTheme('dark')).toBe(true)
+    // Снятые темы (#1415): в профиле у кого-то могло остаться старое значение -
+    // оно обязано схлопнуться в светлую, а не оставить пустую палитру.
+    expect(isValidTheme('corporate-orange')).toBe(false)
+    expect(applyTheme('corporate-orange')).toBe(DEFAULT_THEME)
     expect(isValidTheme('neon-hacker')).toBe(false)
     expect(isValidTheme('')).toBe(false)
     expect(isValidTheme(null)).toBe(false)
@@ -50,8 +47,8 @@ describe('utils/theme', () => {
   })
 
   it('applyTheme ставит data-theme на <html>', () => {
-    expect(applyTheme('corporate-orange')).toBe('corporate-orange')
-    expect(document.documentElement.getAttribute('data-theme')).toBe('corporate-orange')
+    expect(applyTheme('dark')).toBe('dark')
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark')
   })
 
   it('applyTheme схлопывает неизвестную тему в светлую', () => {
@@ -231,7 +228,7 @@ describe('utils/theme', () => {
       expect(value(block, '--fill-text'), `${id}: нет --fill-text`).toBeTruthy()
     })
 
-    ;['dark', 'dark-orange'].forEach((id) => {
+    ;['dark'].forEach((id) => {
       const block = blockOf(id)
       const fill = value(block, '--fill-text')
       ;['--accent', '--danger', '--success', '--warning', '--info'].forEach((name) => {
