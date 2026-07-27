@@ -27,7 +27,9 @@
       </button>
     </div>
 
+    <!-- Десктоп: форма фильтров инлайн (как было). -->
     <form
+      v-if="!isNarrow"
       class="filters"
       @submit.prevent="applyFilters"
     >
@@ -75,6 +77,98 @@
         Сбросить
       </button>
     </form>
+
+    <!-- Мобилка: форма фильтров свёрнута в кнопку «Фильтр» (переключатель
+         Активные/Архив и bulk-действия остаются снаружи - это не фильтры). -->
+    <div
+      v-else
+      class="filters-mobile"
+    >
+      <FilterButton
+        :active="hasActiveFilters"
+        data-testid="denials-filter-btn"
+        @click="openFilterSheet"
+      />
+    </div>
+
+    <!-- Мобилка: фильтры в bottom-sheet. Черновик формы откатывается при закрытии
+         без «Применить», чтобы пагинация/bulk не подхватили неприменённые значения. -->
+    <FilterSheet
+      v-if="isNarrow"
+      :show="showFilterSheet"
+      @close="closeFilterSheet"
+    >
+      <div class="filter-section">
+        <span class="filter-label">ID пользователя</span>
+        <input
+          v-model="filters.user_id"
+          class="lk-input"
+          type="number"
+          placeholder="ID пользователя"
+          data-testid="denials-sheet-user-id"
+        >
+      </div>
+      <div class="filter-section">
+        <span class="filter-label">Ресурс</span>
+        <input
+          v-model="filters.resource"
+          class="lk-input"
+          type="text"
+          placeholder="Ресурс (substring)"
+          data-testid="denials-sheet-resource"
+        >
+      </div>
+      <div class="filter-section">
+        <span class="filter-label">Причина</span>
+        <BaseDropdown
+          v-model="filters.reason"
+          :options="reasonOptions"
+          value-key="value"
+          label-key="label"
+          placeholder="Причина — все"
+          teleport
+          data-testid="denials-sheet-reason"
+        />
+      </div>
+      <div class="filter-section">
+        <span class="filter-label">С даты</span>
+        <input
+          v-model="filters.from"
+          class="lk-input"
+          type="datetime-local"
+          data-testid="denials-sheet-from"
+        >
+      </div>
+      <div class="filter-section">
+        <span class="filter-label">По дату</span>
+        <input
+          v-model="filters.to"
+          class="lk-input"
+          type="datetime-local"
+          data-testid="denials-sheet-to"
+        >
+      </div>
+
+      <template #actions>
+        <button
+          type="button"
+          class="lk-button lk-button--ghost"
+          :disabled="!hasActiveFilters"
+          data-testid="denials-sheet-reset"
+          @click="resetFromSheet"
+        >
+          Сбросить
+        </button>
+        <button
+          type="button"
+          class="lk-button lk-button--primary"
+          data-testid="denials-sheet-apply"
+          @click="applyFromSheet"
+        >
+          Применить
+        </button>
+      </template>
+    </FilterSheet>
 
     <div
       v-if="mode === 'active'"
@@ -188,13 +282,26 @@ import {
 } from '@/api/permissions';
 import RefreshButton from '@/components/RefreshButton.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
+import FilterButton from '@/components/ui/FilterButton.vue';
+import FilterSheet from '@/components/ui/FilterSheet.vue';
 import Pager from '@/components/ui/Pager.vue';
+import { useNarrowScreen } from '@/composables/useNarrowScreen';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
 
+const EMPTY_FILTERS = {
+  user_id: '', resource: '', reason: '', from: '', to: '',
+};
+
 export default {
   name: 'AccessDenialsLog',
-  components: { RefreshButton, BaseDropdown, Pager },
+  components: {
+    RefreshButton, BaseDropdown, FilterButton, FilterSheet, Pager,
+  },
+  setup() {
+    const { isNarrow } = useNarrowScreen();
+    return { isNarrow };
+  },
   data() {
     return {
       mode: 'active',
@@ -203,7 +310,11 @@ export default {
       page: 1,
       limit: 50,
       loading: false,
-      filters: { user_id: '', resource: '', reason: '', from: '', to: '' },
+      filters: { ...EMPTY_FILTERS },
+      // Мобилка: фильтры свёрнуты в bottom-sheet; backup хранит применённое
+      // состояние для отката черновика при закрытии без «Применить».
+      showFilterSheet: false,
+      filtersBackup: { ...EMPTY_FILTERS },
       reasonOptions: [
         { value: '', label: 'Причина — все' },
         { value: 'permission_denied', label: 'Нет прав' },
@@ -233,9 +344,27 @@ export default {
       this.fetch();
     },
     resetFilters() {
-      this.filters = { user_id: '', resource: '', reason: '', from: '', to: '' };
+      this.filters = { ...EMPTY_FILTERS };
       this.page = 1;
       this.fetch();
+    },
+    openFilterSheet() {
+      this.filtersBackup = { ...this.filters };
+      this.showFilterSheet = true;
+    },
+    // Крестик/overlay/Escape/свайп: откатываем неприменённый черновик, чтобы вне
+    // sheet filters всегда равнялись применённому (пагинация и bulk шлют filters).
+    closeFilterSheet() {
+      this.filters = { ...this.filtersBackup };
+      this.showFilterSheet = false;
+    },
+    applyFromSheet() {
+      this.showFilterSheet = false;
+      this.applyFilters();
+    },
+    resetFromSheet() {
+      this.showFilterSheet = false;
+      this.resetFilters();
     },
     goToPage(next) {
       if (next < 1 || next > this.totalPages) return;
@@ -348,6 +477,10 @@ export default {
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+}
+
+.filters-mobile {
+  display: flex;
 }
 
 .filter-input {
