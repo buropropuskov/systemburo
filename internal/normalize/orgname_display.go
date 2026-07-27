@@ -1,6 +1,7 @@
 package normalize
 
 import (
+	"regexp"
 	"strings"
 	"unicode"
 )
@@ -34,7 +35,7 @@ var orgLowercasePrefixes = map[string]bool{"м-н": true, "р-н": true}
 // повторные пробелы), поэтому канонизировать можно на любом шаге - до поиска записи или
 // после. Инвариант закреплён тестом.
 func OrgNameDisplay(name string) string {
-	words := strings.Fields(name)
+	words := strings.Fields(splitGluedLegalForm(name))
 	if len(words) == 0 {
 		return ""
 	}
@@ -64,6 +65,27 @@ func OrgNameDisplay(name string) string {
 	}
 
 	return closeDanglingQuote(strings.Join(words, " "))
+}
+
+// orgGluedLegalForm - организационно-правовая форма, набранная слитно с кавычкой:
+// «ооо"бля», «ЗАО«Ромашка». Пробел между ними пропускают часто, и без разделения ОПФ не
+// распознаётся: слово целиком не совпадает ни с одним токеном, поэтому в верхний регистр
+// не уходит, а заглавная достаётся его первой букве («Ооо"бля»).
+var orgGluedLegalForm = regexp.MustCompile(`^([\p{L}]+)([` + orgNameQuotes + `])`)
+
+// splitGluedLegalForm вставляет пробел между ведущей ОПФ и кавычкой названия. Работает
+// только когда слово до кавычки - известная форма: «Д"Артаньян» разделять нельзя, это
+// само наименование.
+func splitGluedLegalForm(name string) string {
+	trimmed := strings.TrimSpace(name)
+	m := orgGluedLegalForm.FindStringSubmatch(trimmed)
+	if m == nil {
+		return name
+	}
+	if !orgLegalFormTokens[strings.ToLower(m[1])] {
+		return name
+	}
+	return m[1] + " " + trimmed[len(m[1]):]
 }
 
 // capitalizeFirstLetter поднимает первую БУКВУ слова, а не первый символ: у названия в

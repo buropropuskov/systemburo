@@ -27,43 +27,39 @@
     >
 
     <span
-      v-if="notice"
-      class="input__hint input__hint--notice"
-      :data-testid="`${testid}-notice`"
-    >{{ notice }}</span>
-    <span
-      v-else-if="hint"
+      v-if="hint"
       class="input__hint"
     >{{ hint }}</span>
 
-    <ul
-      v-if="open && (suggestions.length || createOption)"
-      class="ds-list"
-      :data-testid="`${testid}-list`"
-    >
-      <li
-        v-for="(item, index) in suggestions"
-        :key="item.id"
-        class="ds-item"
-        :class="{ 'ds-item--active': index === activeIndex }"
-        :data-testid="`${testid}-option`"
-        @mousedown.prevent="select(item)"
-        @mouseenter="activeIndex = index"
+    <transition name="ds-fade">
+      <ul
+        v-if="open && (suggestions.length || createOption)"
+        class="ds-list"
+        :data-testid="`${testid}-list`"
       >
-        {{ item.name }}
-      </li>
-      <li
-        v-if="createOption"
-        class="ds-item ds-item--create"
-        :class="{ 'ds-item--active': activeIndex === suggestions.length }"
-        :data-testid="`${testid}-option-create`"
-        @mousedown.prevent="acceptCreateOption"
-        @mouseenter="activeIndex = suggestions.length"
-      >
-        <span class="ds-create__name">Создать: {{ createOption }}</span>
-        <span class="ds-create__note">уйдёт на проверку</span>
-      </li>
-    </ul>
+        <li
+          v-for="(item, index) in suggestions"
+          :key="item.id"
+          class="ds-item"
+          :class="{ 'ds-item--active': index === activeIndex }"
+          :data-testid="`${testid}-option`"
+          @mousedown.prevent="select(item)"
+          @mouseenter="activeIndex = index"
+        >
+          {{ item.name }}
+        </li>
+        <li
+          v-if="createOption"
+          class="ds-item"
+          :class="{ 'ds-item--active': activeIndex === suggestions.length }"
+          :data-testid="`${testid}-option-create`"
+          @mousedown.prevent="acceptCreateOption"
+          @mouseenter="activeIndex = suggestions.length"
+        >
+          {{ createOption }}
+        </li>
+      </ul>
+    </transition>
 
     <div
       v-if="error"
@@ -152,21 +148,6 @@ export default {
             // снова открывает окно с тем же пунктом, по которому человек только что кликнул.
             if (value === this.acceptedCanonical) return '';
             return this.canonical || value;
-        },
-
-        /**
-         * Предупреждение под полем. Показывается, когда введённого наименования нет в
-         * справочнике: заявка пройдёт, но запись уйдёт принимающему на проверку. Дублирует
-         * пометку пункта «Создать» намеренно - окно закрывается по уходу из поля, а
-         * состояние должно оставаться на виду.
-         */
-        notice() {
-            if (!this.editable) return '';
-            const value = (this.modelValue || '').trim();
-            if (!value || value !== this.answeredFor) return '';
-            if (this.degenerate) return 'Укажите наименование: из такого ввода запись не создать';
-            if (this.matched !== false) return '';
-            return 'Нет в справочнике, уйдёт на проверку после подачи';
         }
     },
     beforeUnmount() {
@@ -338,29 +319,17 @@ export default {
     color: var(--text-muted);
 }
 
-/* Предупреждение «наименования нет в справочнике» - тот же размер, что обычная подпись,
-   но акцентным цветом токенов: строка сообщает о последствии, а не поясняет поле. */
-.input__hint--notice {
-    color: var(--warning-text);
+/* Список появляется и уходит плавно: только opacity и transform, как во всех анимациях
+   проекта. Небольшой сдвиг вверх на входе - чтобы окно «раскрывалось» из поля. */
+.ds-fade-enter-active,
+.ds-fade-leave-active {
+    transition: opacity 160ms ease-out, transform 160ms ease-out;
 }
 
-/* Пункт «Создать» отделён от найденных записей: он не выбор из справочника, а согласие
-   завести новое наименование. */
-.ds-item--create {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    border-top: 1px solid var(--border-color, #e6e6e6);
-}
-
-.ds-create__name {
-    font-weight: 500;
-}
-
-.ds-create__note {
-    flex: none;
-    font-size: 11px;
-    color: var(--warning-text);
+.ds-fade-enter-from,
+.ds-fade-leave-to {
+    opacity: 0;
+    transform: translateY(-4px);
 }
 
 .required {
