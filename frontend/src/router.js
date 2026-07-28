@@ -274,6 +274,20 @@ const routes = [
     name: 'Forbidden',
     component: () => import('./views/Forbidden.vue'),
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/404',
+    name: 'NotFound',
+    component: () => import('./views/NotFound.vue'),
+    meta: { requiresAuth: false }
+  },
+  // Ловушка неизвестных адресов - последней в списке, иначе перехватит всё выше.
+  // Без неё опечатка в URL давала пустой экран и "No match found" в консоли.
+  {
+    path: '/:pathMatch(.*)*',
+    name: 'NotFoundCatchAll',
+    component: () => import('./views/NotFound.vue'),
+    meta: { requiresAuth: false }
   }
 ];
 
