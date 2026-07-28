@@ -24,6 +24,7 @@
         data-testid="ob-app-selector"
         :attachments="attachments"
         :current-application-data="currentApplicationData"
+        :active-attachment="selectedAttachment"
         @attachment-selected="handleAttachmentSelected"
         @attachment-added="handleAttachmentAdded"
         @attachment-removed="handleAttachmentRemoved"
@@ -1255,6 +1256,9 @@ export default {
         },
 
         async loadFieldConfig(uniqueAttachmentId) {
+            // Черновики без id вложения (старый формат localStorage) - без запроса
+            // по адресу /attachments/undefined/field-config.
+            if (!uniqueAttachmentId) return;
             if (this.fieldConfigByAttachment[uniqueAttachmentId]) return;
             try {
                 const { getFieldConfig } = await import('@/api/attachment-templates');
@@ -2426,7 +2430,7 @@ export default {
             }
         },
 
-        restoreFromLocalStorage() {
+        async restoreFromLocalStorage() {
             try {
                 const savedData = localStorage.getItem('draftApplicationState');
                 if (savedData) {
@@ -2467,7 +2471,11 @@ export default {
                         this.consentGiven = false;
                     } else {
                         // Открываем первое вложение сверху, чтобы форма дубля не осталась пустой (#952).
-                        this.selectedAttachment = this.attachments[0];
+                        const first = this.attachments[0];
+                        // Конфиг полей ждём ДО показа формы: без него fieldVisible деградирует
+                        // к «видимы все» и в «Дополнительно» встают лишние тумблеры шаблона.
+                        await this.loadFieldConfig(first.template_id || first.id);
+                        this.selectedAttachment = first;
                     }
                 }
             } catch (error) {
