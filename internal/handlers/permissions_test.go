@@ -197,7 +197,8 @@ func TestPermissions_AutoGenerate(t *testing.T) {
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
 
-	token := testutil.RegisterAndLogin(t, e, "autogenuser", "password123", 1, td.OrgID, td.CompanyID)
+	// auto-generate закрыт правом конструктора таблиц - зовём под админом.
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 	h := testutil.AuthHeader(token)
 
 	body := `{"table_id":1,"table_name":"test_table"}`
@@ -226,7 +227,8 @@ func TestPermissions_AutoGenerate_Idempotent(t *testing.T) {
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
 
-	token := testutil.RegisterAndLogin(t, e, "idempuser", "password123", 1, td.OrgID, td.CompanyID)
+	// auto-generate закрыт правом конструктора таблиц - зовём под админом.
+	token := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
 	h := testutil.AuthHeader(token)
 
 	body := `{"table_id":2,"table_name":"idem_table"}`

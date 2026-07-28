@@ -25,6 +25,10 @@ var writeBlockedForRegularUser = []struct {
 	{"marks.bulkArchive", http.MethodPost, "/marks/bulk/archive", `{"ids":[1]}`},
 	{"licensePlate.create", http.MethodPost, "/license-plate-formats", `{"name":"authz_probe","pattern":"A000AA00"}`},
 	{"unloadPlaces.create", http.MethodPost, "/unload-places", `{"name":"authz_probe"}`},
+	// Создание/изменение таблиц КПП — только конструктор (page.admin.tables_constructor).
+	{"systemTables.create", http.MethodPost, "/system-tables", `{"name":"authz_probe","display_name":"x","table_type":"cars"}`},
+	// Генерация ключей прав таблицы — не должна быть доступна обычному юзеру.
+	{"permissions.autoGenerate", http.MethodPost, "/permissions/auto-generate", `{"table_id":1,"table_name":"authz_probe"}`},
 }
 
 // readBlockedForRegularUser — списки/карта доступов, которые нельзя выгружать вне контекста.
@@ -43,7 +47,7 @@ var readBlockedForRegularUser = []struct {
 
 // readOpenForRegularUser — справочники, чтение которых нужно форме заявки и должно
 // остаться доступным обычному юзеру (регресс-страховка от чрезмерного закрытия).
-var readOpenForRegularUser = []string{"/marks", "/license-plate-formats", "/unload-places"}
+var readOpenForRegularUser = []string{"/marks", "/license-plate-formats", "/unload-places", "/system-tables"}
 
 func TestAuthz_RegularUser_CannotWriteDirectoriesOrReadPrivileged(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
