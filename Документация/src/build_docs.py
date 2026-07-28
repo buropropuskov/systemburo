@@ -352,7 +352,10 @@ def column_widths(headers, rows):
         # Колонка без содержимого - это графа под заполнение от руки. По длине
         # текста ей досталась бы минимальная ширина, писать было бы негде.
         if rows and not any(c.strip() for c in body):
-            weights.append(30.0)
+            # Графа под заполнение: по содержимому ей досталась бы минимальная
+            # ширина. Даём заметную долю, но не подавляющую - иначе содержательные
+            # колонки рядом окажутся сжатыми.
+            weights.append(max(15.0, len(headers[i]) * 0.9))
         else:
             weights.append(max(longest * 0.35 + typical * 0.65, 4))
         minimums.append(max(longest_word_cm(c) for c in cells))
@@ -561,7 +564,7 @@ def add_table(doc, headers, rows):
             set_row_height(table.rows[-1], 2.6)
         else:
             filled = sum(1 for i in range(len(headers)) if i < len(row) and row[i].strip())
-            if filled <= 1 and len(headers) >= 2:
+            if filled == 0 or (filled <= 1 and len(headers) >= 2):
                 set_row_height(table.rows[-1], 1.2)
         for i in range(len(headers)):
             para = cells[i].paragraphs[0]
@@ -837,7 +840,14 @@ def render(doc, blocks, toc_titles, splitmap=None, tables_meta=None):
                 toc_titles.append((level, text))
 
         elif kind == "para":
-            add_inline(doc.add_paragraph(), payload)
+            para = doc.add_paragraph()
+            # Строка с местом под запись от руки: выравнивание по ширине растянуло
+            # бы её и линия разъехалась, поэтому прижимаем к левому краю.
+            if "___" in payload:
+                para.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                para.paragraph_format.first_line_indent = Mm(0)
+                para.paragraph_format.space_before = Pt(6)
+            add_inline(para, payload)
 
         elif kind == "bullets":
             for item in payload:
@@ -916,6 +926,26 @@ def doc_path(cfg, ext):
     return os.path.join(doc_dir(cfg), cfg["file"] + ext)
 
 
+
+def change_log(doc):
+    """Лист регистрации изменений: обязательная часть эксплуатационного документа."""
+    doc.add_page_break()
+    heading = doc.add_heading(level=1)
+    heading.paragraph_format.first_line_indent = Mm(0)
+    set_font(heading.add_run("ЛИСТ РЕГИСТРАЦИИ ИЗМЕНЕНИЙ"), size=16, bold=True)
+
+    para = doc.add_paragraph()
+    add_inline(para, "В таблице фиксируются изменения документа. Версия повышается "
+                     "при выпуске новой редакции: вторая цифра при уточнениях и "
+                     "дополнениях, первая при переработке структуры или существенном "
+                     "изменении требований.")
+
+    headers = ["Версия", "Дата", "Содержание изменения", "Внёс"]
+    rows = [[VERSION, DOC_DATE, "Первая редакция", ""]] + [["", "", "", ""] for _ in range(6)]
+    add_caption(doc, "Таблица - Регистрация изменений")
+    add_table(doc, headers, rows)
+
+
 def build(cfg, pagemap=None, splitmap=None):
     src = doc_path(cfg, ".md")
     with open(src, encoding="utf-8") as fh:
@@ -935,6 +965,7 @@ def build(cfg, pagemap=None, splitmap=None):
     render_toc(doc, toc_titles, pagemap)
     tables_meta = []
     render(doc, blocks, [], splitmap, tables_meta)
+    change_log(doc)
     doc.save(doc_path(cfg, ".docx"))
     return toc_titles, tables_meta
 
