@@ -346,7 +346,7 @@ def column_widths(headers, rows):
     weights, minimums = [], []
     for i in range(count):
         cells = [headers[i]] + [r[i] if i < len(r) else "" for r in rows]
-        body = [r[i] if i < len(r) else "" for r in rows]
+        body = [("" if (r[i] if i < len(r) else "").strip() == "~" else (r[i] if i < len(r) else "")) for r in rows]
         longest = max((len(c) for c in cells), default=1)
         typical = sum(len(c) for c in cells) / max(len(cells), 1)
         # Колонка без содержимого - это графа под заполнение от руки. По длине
@@ -557,21 +557,37 @@ def add_table(doc, headers, rows):
         cells = table.add_row().cells
         no_split_row(table.rows[-1])
         # строка-форма: заполняется от руки, поэтому ей нужна высота
-        filled = sum(1 for i in range(len(headers)) if i < len(row) and row[i].strip())
-        if filled <= 1 and len(headers) >= 2:
-            set_row_height(table.rows[-1], 1.1)
+        if any((row[i] if i < len(row) else "").strip() == "~" for i in range(len(headers))):
+            set_row_height(table.rows[-1], 2.6)
+        else:
+            filled = sum(1 for i in range(len(headers)) if i < len(row) and row[i].strip())
+            if filled <= 1 and len(headers) >= 2:
+                set_row_height(table.rows[-1], 1.2)
         for i in range(len(headers)):
             para = cells[i].paragraphs[0]
             para.paragraph_format.first_line_indent = Mm(0)
             para.paragraph_format.line_spacing = 1.0
             para.paragraph_format.space_after = Pt(0)
             para.alignment = WD_ALIGN_PARAGRAPH.LEFT
-            add_inline(para, row[i] if i < len(row) else "", size=12)
+            text = row[i] if i < len(row) else ""
+            # «~» в исходнике - просторное поле под запись от руки
+            add_inline(para, "" if text.strip() == "~" else text, size=12)
 
     apply_grid(table, widths)
     for r in table.rows:
         for i, w in enumerate(widths):
             r.cells[i].width = Cm(w)
+
+    # Таблица-форма состоит из пустых граф, распознать её разрыв по содержимому
+    # нельзя. Поэтому держим её единым блоком: не поместилась - уходит целиком
+    # на следующую страницу.
+    empty = sum(1 for row in rows for i in range(len(headers))
+                if not (row[i] if i < len(row) else "").strip())
+    if rows and empty >= len(rows) * len(headers) * 0.5:
+        for r in table.rows[:-1]:
+            for cell in r.cells:
+                for para in cell.paragraphs:
+                    para.paragraph_format.keep_with_next = True
 
     spacer = doc.add_paragraph()
     spacer.paragraph_format.first_line_indent = Mm(0)
