@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
@@ -567,5 +569,27 @@ describe('пометка обрезки по лимиту', () => {
   it('выгрузка строк тоже помечается', () => {
     const w = mountWithLimit({ ...listRes, rows: [{ a: 'x' }, { a: 'y' }], total: 2 }, 2);
     expect(w.find('[data-testid="rr-truncated"]').exists()).toBe(true);
+  });
+});
+
+// Мобильный адаптив (#1097 r3e). jsdom не считает layout, поэтому инварианты
+// раскладки фиксируем чтением SFC: широкая таблица результата (произвольное число
+// колонок) не должна рвать страницу - её держит горизонтальный скролл обёртки,
+// а на телефоне ячейки уплотняются. Ловит откат этих правил при рефакторинге стилей.
+describe('ReportResult — мобильный адаптив (guard)', () => {
+  const sfc = readFileSync(resolve(__dirname, '../ReportResult.vue'), 'utf8');
+
+  it('таблица завёрнута в горизонтальный скролл (страница не разъезжается на широком результате)', () => {
+    // и aggregate, и list рендерят .rr__table-wrap; правило скролла одно на оба.
+    expect(sfc).toMatch(/\.rr__table-wrap\s*\{[^}]*overflow-x:\s*auto/);
+    expect(sfc).toContain('class="rr__table-wrap"');
+  });
+
+  it('на <=768 ячейки таблицы уплотняются (больше колонок до включения скролла)', () => {
+    const media = sfc.slice(sfc.indexOf('@media (max-width: 768px)'));
+    expect(media).toContain('@media (max-width: 768px)');
+    // th и td получают компактный padding в мобильном блоке.
+    expect(media).toMatch(/\.rr__table thead th\s*\{[^}]*padding:\s*8px 10px/);
+    expect(media).toMatch(/\.rr__table tbody td[\s\S]*?padding:\s*8px 10px/);
   });
 });

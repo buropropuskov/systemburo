@@ -131,12 +131,18 @@ const options = computed(() => ({
   legend: { show: false },
   // На узком экране 12 тиков «пика по часам» (24 бара) сливаются в нечитаемую
   // полосу «00:0002:00...» - hideOverlappingLabels их не разводит. Ниже мобильного
-  // брейкпоинта (--bp-mobile 768) сокращаем число подписей оси X до ~6, бары все.
+  // брейкпоинта (--bp-mobile 768) сокращаем число подписей оси X до ~6, бары все;
+  // и усекаем длинные категориальные подписи разреза отчёта (организация/место) -
+  // короткие числовые/статусы короче лимита и остаются целыми. trim ApexCharts тут
+  // не годится: его слот-ширина режет и короткие «00:00» до точки (проверено на 390).
   responsive: [
     {
       breakpoint: 768,
       options: {
-        xaxis: { tickAmount: Math.min(6, categories.value.length) },
+        xaxis: {
+          tickAmount: Math.min(6, categories.value.length),
+          labels: { formatter: (v) => truncateLabel(v) },
+        },
       },
     },
   ],
@@ -148,6 +154,14 @@ const options = computed(() => ({
     },
   },
 }));
+
+// Длина, при которой подпись оси X ещё помещается в слот на телефоне; длиннее -
+// усекаем с многоточием. «00:00»/статусы короче и проходят как есть.
+const LABEL_MAX = 14;
+function truncateLabel(value) {
+  const s = String(value ?? '');
+  return s.length > LABEL_MAX ? `${s.slice(0, LABEL_MAX - 1)}…` : s;
+}
 
 function formatAxis(v) {
   if (isDuration.value) return formatDuration(v);
