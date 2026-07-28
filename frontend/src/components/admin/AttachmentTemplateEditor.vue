@@ -368,7 +368,7 @@
           >
             <div class="te-params-fields">
               <div class="te-form-field">
-                <label>Начало списка</label>
+                <label>Список с</label>
                 <input
                   v-model.number="form.listStartRow"
                   type="number"
@@ -378,7 +378,7 @@
                 >
               </div>
               <div class="te-form-field">
-                <label>Конец списка</label>
+                <label>Список по</label>
                 <input
                   v-model.number="form.listEndRow"
                   type="number"
@@ -388,7 +388,7 @@
                 >
               </div>
               <div class="te-form-field">
-                <label>Макс. записей</label>
+                <label>Макс. строк</label>
                 <input
                   v-model.number="form.maxListRows"
                   type="number"
@@ -398,13 +398,11 @@
                   data-testid="template-list-max"
                 >
               </div>
-            </div>
-            <div
-              v-if="showItemsRange"
-              class="te-params-fields te-params-fields--items"
-            >
-              <div class="te-form-field">
-                <label>Строк под таблицу ТМЦ</label>
+              <div
+                v-if="showItemsRange"
+                class="te-form-field"
+              >
+                <label>Строк ТМЦ</label>
                 <input
                   v-model.number="form.itemsMaxListRows"
                   type="number"
@@ -414,11 +412,6 @@
                   data-testid="template-items-rows"
                 >
               </div>
-              <p class="te-params-hint">
-                Ввозимый товар из «Заявок на ввоз» этой заявки идёт со строки
-                {{ itemsSectionStart }} - там стоят привязки группы «Имущество (список)».
-                Ноль - таблицы в бланке нет.
-              </p>
             </div>
             <button
               class="lk-button lk-button--ghost te-btn-sm"
@@ -488,7 +481,7 @@
             </div>
             <div class="te-upload-fields">
               <div class="te-form-field">
-                <label>Начало списка</label>
+                <label>Список с</label>
                 <input
                   v-model.number="form.listStartRow"
                   type="number"
@@ -498,7 +491,7 @@
                 >
               </div>
               <div class="te-form-field">
-                <label>Конец списка</label>
+                <label>Список по</label>
                 <input
                   v-model.number="form.listEndRow"
                   type="number"
@@ -508,7 +501,7 @@
                 >
               </div>
               <div class="te-form-field">
-                <label>Макс. записей</label>
+                <label>Макс. строк</label>
                 <input
                   v-model.number="form.maxListRows"
                   type="number"
@@ -1763,25 +1756,14 @@ export default {
   margin-bottom: 14px;
 }
 
+/* Подписи полей разной высоты (часть переносится на две строки), поэтому равняем по
+   нижнему краю - иначе поля с короткой подписью висят выше соседних. */
 .te-params-fields {
   display: flex;
+  align-items: flex-end;
   gap: 14px;
   flex: 1;
   min-width: 0;
-}
-
-/* Вторая таблица бланка идёт отдельным рядом: у полей длинные подписи, в один ряд с
-   границами списка они не помещаются. */
-.te-params-fields--items {
-  margin-top: 10px;
-}
-
-.te-params-hint {
-  margin: 6px 0 0;
-  font-size: 12px;
-  line-height: 1.4;
-  color: var(--text-secondary, #666);
-  flex-basis: 100%;
 }
 
 /* Цвета те же, что у te-action-banner--warning выше: непрозрачная светлая плашка
@@ -1947,6 +1929,27 @@ export default {
   font-size: 13px;
   font-weight: 500;
   color: var(--text-muted);
+}
+
+/* Ряд границ списка: подписи в одну строку, поля одинаковой ширины - иначе колонки
+   разной высоты и ряд выглядит рваным. Панель узкая, поэтому поля переносятся, а не
+   наезжают на кнопку сохранения. */
+.te-params-fields {
+  flex-wrap: wrap;
+  row-gap: 10px;
+}
+
+.te-params-fields .te-form-field {
+  flex: 0 0 92px;
+  min-width: 0;
+}
+
+.te-params-fields .te-form-field label {
+  white-space: nowrap;
+}
+
+.te-params-fields .te-compact-input {
+  width: 100%;
 }
 
 .te-compact-input {
