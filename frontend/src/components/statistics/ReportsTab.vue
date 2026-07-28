@@ -483,4 +483,17 @@ async function onRun(request) {
     grid-template-columns: 1fr;
   }
 }
+
+/* Мобилка (#1097): плотнее по вертикали, у карточки-конструктора padding под
+   узкий экран — 20px с обеих сторон съедали ширину полей мастера. */
+@media (max-width: 768px) {
+  .reports,
+  .reports-layout {
+    gap: 12px;
+  }
+
+  .wizard {
+    padding: 16px 14px;
+  }
+}
 </style>

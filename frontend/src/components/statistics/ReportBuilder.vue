@@ -1131,6 +1131,7 @@ function run() {
   width: 84px;
 }
 
+/* Планшет: свёрнутый сайдбар делает конструктор узким, 3-4 колонки не тянет. */
 @media (max-width: 980px) {
   .rb__metrics {
     grid-template-columns: repeat(2, 1fr);
@@ -1141,22 +1142,51 @@ function run() {
   }
 }
 
-@media (max-width: 620px) {
-  .rb__metrics {
-    grid-template-columns: 1fr;
-    margin-left: 0;
+/* Мобилка (#1097, канонический брейкпоинт 768): контролы стопкой, левый отступ
+   под номер шага убираем (отъедает ширину), тач-зоны пилюль/карточек крупнее. */
+@media (max-width: 768px) {
+  .rb {
+    gap: 18px;
   }
 
   .rb__dims {
     grid-template-columns: repeat(2, 1fr);
-    margin-left: 0;
   }
 
+  .rb__metrics,
+  .rb__dims,
   .rb__group-title,
   .rb__gran,
   .rb__filters,
   .rb__period {
     margin-left: 0;
+  }
+
+  .rb__pill {
+    padding: 8px 14px;
+  }
+
+  .rb__dim {
+    padding: 12px;
+  }
+
+  .rb__metric {
+    padding: 13px 14px;
+  }
+
+  /* «Построить отчёт» на всю ширину под полем «Строк» — крупная зона нажатия. */
+  .rb__footer {
+    justify-content: flex-start;
+  }
+
+  .rb__footer .lk-button--primary {
+    flex: 1 1 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .rb__metrics {
+    grid-template-columns: 1fr;
   }
 }
 </style>

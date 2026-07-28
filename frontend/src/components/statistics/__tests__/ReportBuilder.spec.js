@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { nextTick } from 'vue';
@@ -442,5 +444,39 @@ describe('ReportBuilder', () => {
 
     // Пресет «Этот год» остаётся активным — границы те же, в custom не ушло.
     expect(yearBtn.classes()).toContain('rb__pill--on');
+  });
+});
+
+/*
+ * jsdom не считает медиа-запросы и layout, поэтому контракт мобильной раскладки
+ * (#1097 r3d) сверяем по объявлениям в SFC. Замок против «уборки» медиа-блоков,
+ * которая тихо вернула бы отступы под номер шага и зажатую кнопку на телефоне.
+ */
+describe('ReportBuilder — мобильная адаптивность (#1097 r3d)', () => {
+  const src = readFileSync(resolve(__dirname, '../ReportBuilder.vue'), 'utf8');
+  const mobile = src.slice(src.indexOf('@media (max-width: 768px)'));
+  const marginReset = mobile.slice(0, mobile.indexOf('@media (max-width: 480px)'));
+
+  it('канонический брейкпоинт мобилки 768 (эталон #1097), прежний 620 убран', () => {
+    expect(src).toContain('@media (max-width: 768px)');
+    expect(src).not.toContain('max-width: 620px');
+  });
+
+  it('на мобилке снят левый отступ под номер шага у всех сеток и блоков', () => {
+    for (const sel of ['.rb__metrics', '.rb__dims', '.rb__group-title', '.rb__gran', '.rb__filters', '.rb__period']) {
+      expect(marginReset).toContain(sel);
+    }
+    expect(marginReset).toMatch(/margin-left:\s*0/);
+  });
+
+  it('кнопка построения тянется на всю ширину под полем «Строк»', () => {
+    expect(mobile).toContain('.rb__footer .lk-button--primary');
+    expect(mobile).toMatch(/flex:\s*1 1 100%/);
+  });
+
+  it('на очень узких экранах (<=480) метрики в один столбец', () => {
+    const narrow = src.slice(src.indexOf('@media (max-width: 480px)'));
+    expect(narrow).toContain('.rb__metrics');
+    expect(narrow).toMatch(/grid-template-columns:\s*1fr/);
   });
 });
