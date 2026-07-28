@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="660" viewBox="0 0 1000 660" font-family="Liberation Sans, DejaVu Sans, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#333333"/>
+    </marker>
+  </defs>
+  <rect width="1000" height="660" fill="#ffffff"/>
+
+  <!-- Клиент -->
+  <rect x="330" y="24" width="340" height="62" rx="4" fill="#f2f2f2" stroke="#333333" stroke-width="1.5"/>
+  <text x="500" y="50" text-anchor="middle" font-size="17" fill="#111111">Рабочие места пользователей</text>
+  <text x="500" y="72" text-anchor="middle" font-size="13" fill="#555555">браузер: заявители, бюро, посты, администратор</text>
+
+  <line x1="500" y1="86" x2="500" y2="140" stroke="#333333" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="512" y="117" font-size="13" fill="#333333">HTTPS, порт 443</text>
+
+  <!-- Граница сервера -->
+  <rect x="40" y="150" width="920" height="470" rx="6" fill="none" stroke="#999999" stroke-width="1.2" stroke-dasharray="6 4"/>
+  <text x="56" y="172" font-size="13" fill="#777777">Сервер: контейнеры Docker в общей внутренней сети</text>
+
+  <!-- nginx -->
+  <rect x="230" y="190" width="540" height="76" rx="4" fill="#e8e8e8" stroke="#333333" stroke-width="1.5"/>
+  <text x="500" y="216" text-anchor="middle" font-size="17" fill="#111111">Обратный прокси nginx</text>
+  <text x="500" y="238" text-anchor="middle" font-size="13" fill="#555555">завершение TLS, ограничение частоты входов,</text>
+  <text x="500" y="256" text-anchor="middle" font-size="13" fill="#555555">заголовки безопасности, маршрутизация</text>
+
+  <line x1="360" y1="266" x2="290" y2="330" stroke="#333333" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="640" y1="266" x2="710" y2="330" stroke="#333333" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="140" y="312" font-size="13" fill="#333333">статика и страницы</text>
+  <text x="726" y="312" font-size="13" fill="#333333">запросы к /api/</text>
+
+  <!-- Фронтенд -->
+  <rect x="80" y="336" width="330" height="96" rx="4" fill="#f7f7f7" stroke="#333333" stroke-width="1.5"/>
+  <text x="245" y="362" text-anchor="middle" font-size="16" fill="#111111">Веб-приложение</text>
+  <text x="245" y="384" text-anchor="middle" font-size="13" fill="#555555">Vue 3, собранная статика</text>
+  <text x="245" y="404" text-anchor="middle" font-size="13" fill="#555555">отдаётся отдельным контейнером</text>
+  <text x="245" y="424" text-anchor="middle" font-size="13" fill="#555555">порт 80, наружу не публикуется</text>
+
+  <!-- Бэкенд -->
+  <rect x="590" y="336" width="330" height="96" rx="4" fill="#f7f7f7" stroke="#333333" stroke-width="1.5"/>
+  <text x="755" y="362" text-anchor="middle" font-size="16" fill="#111111">Прикладной сервер</text>
+  <text x="755" y="384" text-anchor="middle" font-size="13" fill="#555555">Go, 407 методов интерфейса</text>
+  <text x="755" y="404" text-anchor="middle" font-size="13" fill="#555555">права, бизнес-логика, выгрузки</text>
+  <text x="755" y="424" text-anchor="middle" font-size="13" fill="#555555">порт 8080, наружу не публикуется</text>
+
+  <!-- Поток событий к браузеру -->
+  <path d="M 920 360 L 944 360 L 944 55 L 676 55" fill="none" stroke="#333333" stroke-width="1.2" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
+  <text x="934" y="240" text-anchor="middle" font-size="12" fill="#555555" transform="rotate(-90 934 240)">поток событий в реальном времени</text>
+
+  <line x1="755" y1="432" x2="755" y2="486" stroke="#333333" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="640" y1="432" x2="330" y2="486" stroke="#333333" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- БД -->
+  <rect x="590" y="492" width="330" height="96" rx="4" fill="#eeeeee" stroke="#333333" stroke-width="1.5"/>
+  <text x="755" y="518" text-anchor="middle" font-size="16" fill="#111111">База данных PostgreSQL 16</text>
+  <text x="755" y="540" text-anchor="middle" font-size="13" fill="#555555">91 таблица, журналы запросов</text>
+  <text x="755" y="560" text-anchor="middle" font-size="13" fill="#555555">и обращений к персональным данным</text>
+  <text x="755" y="580" text-anchor="middle" font-size="13" fill="#555555">разделены по датам</text>
+
+  <!-- Тома -->
+  <rect x="80" y="492" width="330" height="96" rx="4" fill="#eeeeee" stroke="#333333" stroke-width="1.5"/>
+  <text x="245" y="518" text-anchor="middle" font-size="16" fill="#111111">Дисковые тома</text>
+  <text x="245" y="540" text-anchor="middle" font-size="13" fill="#555555">загруженные файлы и фотографии,</text>
+  <text x="245" y="560" text-anchor="middle" font-size="13" fill="#555555">шаблоны бланков,</text>
+  <text x="245" y="580" text-anchor="middle" font-size="13" fill="#555555">журналы приложения</text>
+</svg>

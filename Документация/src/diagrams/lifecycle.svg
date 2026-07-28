@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="580" viewBox="0 0 1000 580" font-family="Liberation Sans, DejaVu Sans, Arial, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#333333"/>
+    </marker>
+    <marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#888888"/>
+    </marker>
+  </defs>
+  <rect width="1000" height="580" fill="#ffffff"/>
+
+  <!-- Колонка 1 -->
+  <rect x="60" y="40" width="330" height="66" rx="4" fill="#f7f7f7" stroke="#333333" stroke-width="1.4"/>
+  <text x="225" y="66" text-anchor="middle" font-size="15" fill="#111111">Подача заявки</text>
+  <text x="225" y="88" text-anchor="middle" font-size="12" fill="#666666">люди, транспорт, ценности, сроки, места</text>
+
+  <line x1="225" y1="106" x2="225" y2="146" stroke="#333333" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <rect x="60" y="146" width="330" height="66" rx="4" fill="#f7f7f7" stroke="#333333" stroke-width="1.4"/>
+  <text x="225" y="172" text-anchor="middle" font-size="15" fill="#111111">Проверка по чёрным спискам</text>
+  <text x="225" y="194" text-anchor="middle" font-size="12" fill="#666666">подачу не блокирует, помечает элемент</text>
+
+  <line x1="225" y1="212" x2="225" y2="252" stroke="#333333" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <rect x="60" y="252" width="330" height="66" rx="4" fill="#f7f7f7" stroke="#333333" stroke-width="1.4"/>
+  <text x="225" y="278" text-anchor="middle" font-size="15" fill="#111111">Приём в работу</text>
+  <text x="225" y="300" text-anchor="middle" font-size="12" fill="#666666">сотрудник бюро становится ответственным</text>
+
+  <line x1="225" y1="318" x2="225" y2="358" stroke="#333333" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <rect x="60" y="358" width="330" height="66" rx="4" fill="#f7f7f7" stroke="#333333" stroke-width="1.4"/>
+  <text x="225" y="384" text-anchor="middle" font-size="15" fill="#111111">Согласование</text>
+  <text x="225" y="406" text-anchor="middle" font-size="12" fill="#666666">решение каждого согласующего фиксируется</text>
+
+  <!-- Переход в колонку 2 -->
+  <path d="M 390 391 L 460 391 L 460 73 L 600 73" fill="none" stroke="#333333" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <!-- Колонка 2 -->
+  <rect x="610" y="40" width="330" height="66" rx="4" fill="#e8e8e8" stroke="#333333" stroke-width="1.4"/>
+  <text x="775" y="66" text-anchor="middle" font-size="15" fill="#111111">Итоговое решение</text>
+  <text x="775" y="88" text-anchor="middle" font-size="12" fill="#666666">одобрение либо отказ с указанием причины</text>
+
+  <line x1="775" y1="106" x2="775" y2="146" stroke="#333333" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <rect x="610" y="146" width="330" height="66" rx="4" fill="#f7f7f7" stroke="#333333" stroke-width="1.4"/>
+  <text x="775" y="172" text-anchor="middle" font-size="15" fill="#111111">Публикация в таблицы постов</text>
+  <text x="775" y="194" text-anchor="middle" font-size="12" fill="#666666">одобренные объекты видит охрана</text>
+
+  <line x1="775" y1="212" x2="775" y2="252" stroke="#333333" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <rect x="610" y="252" width="330" height="66" rx="4" fill="#f7f7f7" stroke="#333333" stroke-width="1.4"/>
+  <text x="775" y="278" text-anchor="middle" font-size="15" fill="#111111">Отметка въезда и выезда</text>
+  <text x="775" y="300" text-anchor="middle" font-size="12" fill="#666666">формирует территориальный статус</text>
+
+  <line x1="775" y1="318" x2="775" y2="358" stroke="#333333" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <rect x="610" y="358" width="330" height="66" rx="4" fill="#eeeeee" stroke="#333333" stroke-width="1.4"/>
+  <text x="775" y="384" text-anchor="middle" font-size="15" fill="#111111">Суточный снимок и сброс</text>
+  <text x="775" y="406" text-anchor="middle" font-size="12" fill="#666666">состояние дня сохраняется, статусы обнуляются</text>
+
+  <!-- Побочные переходы -->
+  <rect x="60" y="466" width="880" height="86" rx="4" fill="#fafafa" stroke="#cccccc" stroke-width="1.2"/>
+  <text x="80" y="492" font-size="13" fill="#111111">Дополнительные переходы, возможные на этапах обработки:</text>
+  <text x="80" y="514" font-size="13" fill="#555555">отзыв заявителем · отказ с указанием причины · пересылка целиком или отдельными вложениями</text>
+  <text x="80" y="534" font-size="13" fill="#555555">вопрос заявителю и ответ · разрешение пропустить вопреки чёрному списку</text>
+
+  <path d="M 225 424 L 225 458" stroke="#888888" stroke-width="1.2" stroke-dasharray="5 4" marker-end="url(#ag)"/>
+  <path d="M 775 424 L 775 458" stroke="#888888" stroke-width="1.2" stroke-dasharray="5 4" marker-end="url(#ag)"/>
+</svg>
