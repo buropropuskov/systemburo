@@ -241,6 +241,13 @@ export default {
         currentApplicationData: {
             type: Object,
             default: () => ({})
+        },
+        // Выбор родителя: вложение можно открыть не только кликом по чипу
+        // (восстановление черновика, удаление выбранного) - подсветка должна
+        // следовать за формой, иначе форма открыта, а в списке ничего не выбрано.
+        activeAttachment: {
+            type: Object,
+            default: null
         }
     },
     emits: ['attachment-added', 'attachment-removed', 'attachment-selected', 'attachment-renamed'],
@@ -351,9 +358,23 @@ export default {
                     if (currentAttachment && currentAttachment !== this.selectedAttachment) {
                         this.selectedAttachment = currentAttachment;
                     }
+                } else if (!this.selectedAttachment && this.activeAttachment) {
+                    // Родитель выбрал вложение раньше, чем список доехал пропсом
+                    // (восстановление черновика) - подсвечиваем, когда список пришёл.
+                    this.setSelectedAttachment(this.activeAttachment);
                 }
             },
             deep: true,
+            immediate: true
+        },
+
+        activeAttachment: {
+            handler(attachment) {
+                const sameKey = attachment && this.selectedAttachment
+                    && this.getAttachmentKey(attachment) === this.getAttachmentKey(this.selectedAttachment);
+                if (sameKey) return;
+                this.setSelectedAttachment(attachment);
+            },
             immediate: true
         },
         // Онбординг просит показать форму вложения нужного типа: добавляем
