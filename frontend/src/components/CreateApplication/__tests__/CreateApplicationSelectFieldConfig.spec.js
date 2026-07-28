@@ -83,6 +83,30 @@ describe('CreateApplication - конфиг полей при выборе вло
     expect(w.vm.currentFieldConfig.roof_access.visible).toBe(false);
   });
 
+  it('восстановление черновика не перебивает вложение, выбранное руками', async () => {
+    localStorage.setItem('draftApplicationState', JSON.stringify({
+      message: 'черновик',
+      attachments: [CARS, PEOPLE],
+    }));
+
+    let resolveRestore;
+    getFieldConfig.mockImplementationOnce(() => new Promise((r) => { resolveRestore = r; }));
+
+    const w = shallowMount(CreateApplication);
+    await flushPromises();
+    expect(w.vm.selectedAttachment).toBeNull();
+
+    // Список вложений уже кликабелен - пользователь открыл второе, не дожидаясь
+    getFieldConfig.mockResolvedValue(CONFIG);
+    await w.vm.handleAttachmentSelected(PEOPLE);
+    expect(w.vm.selectedAttachment.local_id).toBe('a2');
+
+    resolveRestore(CONFIG);
+    await flushPromises();
+
+    expect(w.vm.selectedAttachment.local_id).toBe('a2');
+  });
+
   it('поздний ответ прошлого выбора не открывает чужую форму', async () => {
     const w = await mountApp();
     w.vm.attachments = [CARS, PEOPLE];

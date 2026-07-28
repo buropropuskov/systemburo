@@ -2488,8 +2488,12 @@ export default {
                         const first = this.attachments[0];
                         // Конфиг полей ждём ДО показа формы: без него fieldVisible деградирует
                         // к «видимы все» и в «Дополнительно» встают лишние тумблеры шаблона.
+                        const selectSeq = ++this.attachmentSelectSeq;
                         await this.loadFieldConfig(first.template_id || first.id);
                         if (seq !== this.restoreSeq) return;
+                        // Список вложений кликабелен, пока грузится конфиг: явный выбор
+                        // пользователя за это время важнее нашего «открыть первое».
+                        if (selectSeq !== this.attachmentSelectSeq) return;
                         this.selectedAttachment = first;
                     }
                 }

@@ -67,6 +67,13 @@ export default {
   background: var(--color-primary);
 }
 
+/* Инпут визуально скрыт, поэтому кольцо фокуса рисует трек - иначе клавиатурная
+   навигация по тумблерам идёт вслепую. */
+.toggle-switch input:focus-visible + .toggle-switch__track {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
 .toggle-switch__thumb {
   position: absolute;
   top: 2px;
