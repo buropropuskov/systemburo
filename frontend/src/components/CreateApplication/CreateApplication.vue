@@ -500,6 +500,9 @@ export default {
             fieldConfigByAttachment: {},
             // Номер последнего запуска restoreFromLocalStorage (защита от позднего ответа).
             restoreSeq: 0,
+            // Номер последнего выбора вложения: пока грузится конфиг, пользователь
+            // мог кликнуть другое - поздний ответ не должен открыть чужую форму.
+            attachmentSelectSeq: 0,
         }
     },
     computed: {
@@ -1273,7 +1276,7 @@ export default {
             }
         },
 
-        handleAttachmentSelected(attachment) {
+        async handleAttachmentSelected(attachment) {
             // Смена вложения - гасим панель предупреждений; новая форма пришлёт свои
             // группы через @notices-change (иначе стейл-группы прошлого вложения
             // мелькнут до пересчёта). Это реальный путь переключения между вложениями.
@@ -1286,11 +1289,15 @@ export default {
                 return;
             }
 
+            const uaId = attachment.template_id || attachment.id;
+            // Конфиг ждём ДО показа формы: без него fieldVisible деградирует к
+            // «видимы все» и тумблеры «Дополнительно» моргают полным списком шаблона.
+            const seq = ++this.attachmentSelectSeq;
+            await this.loadFieldConfig(uaId);
+            if (seq !== this.attachmentSelectSeq) return;
+
             this.selectedAttachment = attachment;
             this.restoreAttachmentData(attachment);
-
-            const uaId = attachment.template_id || attachment.id;
-            this.loadFieldConfig(uaId);
         },
 
         attachmentKey(attachment) {
@@ -1373,7 +1380,7 @@ export default {
             }
         },
 
-        handleAttachmentAdded(attachment) {
+        async handleAttachmentAdded(attachment) {
             this.attachments.push(attachment);
 
             const key = this.attachmentKey(attachment);
@@ -1387,12 +1394,16 @@ export default {
 
             this.attachmentDatesByAttachment[key] = this.getDefaultDateData();
 
-            this.selectAttachment(attachment);
+            // Черновик пишем до ожидания конфига: вложение уже в списке, и его
+            // сохранность не должна зависеть от того, дождались ли мы выбора.
+            this.saveToLocalStorage();
 
             const uaId = attachment.template_id || attachment.id;
-            this.loadFieldConfig(uaId);
+            const seq = ++this.attachmentSelectSeq;
+            await this.loadFieldConfig(uaId);
+            if (seq !== this.attachmentSelectSeq) return;
 
-            this.saveToLocalStorage();
+            this.selectAttachment(attachment);
         },
 
         selectAttachment(attachment) {
