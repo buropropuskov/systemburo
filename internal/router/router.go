@@ -310,10 +310,14 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// страницу даже без права, а /check нужен всем при подаче заявки.
 	requireBlacklist := mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageBlacklist)
 	vblGroup := protected.Group("/vehicle-blacklist")
-	vblGroup.GET("", vehicleBlacklist.GetAll)
+	// Выгрузка списка и истории ЧС - только под правом (это ПД). Точечную проверку
+	// /check оставляем открытой: форме заявки нужно узнать, не в ЧС ли конкретная
+	// машина, но без доступа ко всему списку. Пометку реестра теперь даёт сервер
+	// полем is_blacklisted (#1528/#1530), список ЧС в браузер больше не грузится.
+	vblGroup.GET("", vehicleBlacklist.GetAll, requireBlacklist)
 	vblGroup.GET("/check", vehicleBlacklist.Check)
-	vblGroup.GET("/history", vehicleBlacklist.GetAllHistory)
-	vblGroup.GET("/:id/history", vehicleBlacklist.GetHistory)
+	vblGroup.GET("/history", vehicleBlacklist.GetAllHistory, requireBlacklist)
+	vblGroup.GET("/:id/history", vehicleBlacklist.GetHistory, requireBlacklist)
 	vblGroup.POST("", vehicleBlacklist.Create, requireBlacklist)
 	vblGroup.PUT("/:id", vehicleBlacklist.Update, requireBlacklist)
 	vblGroup.DELETE("/:id", vehicleBlacklist.Delete, requireBlacklist)
@@ -325,10 +329,12 @@ func Setup(e *echo.Echo, d Dependencies) {
 
 	// Чёрный список людей (#443). Та же permission page.admin.blacklist (одна страница).
 	pblGroup := protected.Group("/person-blacklist")
-	pblGroup.GET("", personBlacklist.GetAll)
+	// Список и история ЧС людей (ФИО + причины, ПД) - только под правом. /check
+	// остаётся открытым: форма проверяет конкретного человека, не выгружая список.
+	pblGroup.GET("", personBlacklist.GetAll, requireBlacklist)
 	pblGroup.GET("/check", personBlacklist.Check)
-	pblGroup.GET("/history", personBlacklist.GetAllHistory)
-	pblGroup.GET("/:id/history", personBlacklist.GetHistory)
+	pblGroup.GET("/history", personBlacklist.GetAllHistory, requireBlacklist)
+	pblGroup.GET("/:id/history", personBlacklist.GetHistory, requireBlacklist)
 	pblGroup.POST("", personBlacklist.Create, requireBlacklist)
 	pblGroup.PUT("/:id", personBlacklist.Update, requireBlacklist)
 	pblGroup.DELETE("/:id", personBlacklist.Delete, requireBlacklist)
