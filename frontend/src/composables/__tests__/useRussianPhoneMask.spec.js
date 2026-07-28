@@ -5,6 +5,7 @@ import {
   isValidRussianPhone,
   caretAfterMask,
   dropAdjacentDigit,
+  applyPhoneMask,
 } from '../useRussianPhoneMask';
 
 describe('formatRussianPhone', () => {
@@ -108,6 +109,35 @@ describe('dropAdjacentDigit', () => {
 
   it('оставляет значение как есть, если цифры рядом нет', () => {
     expect(dropAdjacentDigit('+', 1)).toEqual({ value: '+', caret: 1 });
+  });
+});
+
+describe('applyPhoneMask', () => {
+  const fakeInput = (value, caret) => ({
+    value,
+    selectionStart: caret,
+    setSelectionRange(from) {
+      this.selectionStart = from;
+    },
+  });
+
+  it('пишет маску в поле и возвращает её же для модели', () => {
+    const input = fakeInput('916', 3);
+    expect(applyPhoneMask(input, { inputType: 'insertText' }, '')).toBe('+7 (916)');
+    expect(input.value).toBe('+7 (916)');
+    expect(input.selectionStart).toBe(8);
+  });
+
+  it('стирание разделителя убирает цифру, а не оставляет поле как было', () => {
+    const input = fakeInput('+7 (916 123 45-67', 7);
+    const masked = applyPhoneMask(input, { inputType: 'deleteContentBackward' }, '+7 (916) 123 45-67');
+    expect(masked).toBe('+7 (911) 234 56-7');
+  });
+
+  it('обычное стирание цифры разделитель не трогает', () => {
+    const input = fakeInput('+7 (916) 123 45-6', 17);
+    const masked = applyPhoneMask(input, { inputType: 'deleteContentBackward' }, '+7 (916) 123 45-67');
+    expect(masked).toBe('+7 (916) 123 45-6');
   });
 });
 

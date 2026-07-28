@@ -21,12 +21,12 @@ beforeEach(() => {
 })
 
 /** Эмулирует ввод в поле телефона: браузер уже изменил value, дальше идёт обработчик. */
-function fireInput(vm, value, caret, inputType) {
+function fireInput(vm, value, caret, inputType, modelKey = 'newUser') {
   const input = document.createElement('input')
   input.type = 'tel'
   input.value = value
   input.setSelectionRange(caret, caret)
-  vm.onPhoneInput({ target: input, inputType }, 'newUser')
+  vm.onPhoneInput({ target: input, inputType }, modelKey)
   return input
 }
 
@@ -49,6 +49,15 @@ describe('UserControl - маска телефона', () => {
 
     expect(input.value).toBe('+7 (916) 923 45-67')
     expect(input.selectionStart).toBe(10)
+  })
+
+  it('маскирует телефон и в карточке выбранного пользователя', () => {
+    const w = mountControl()
+    w.vm.selectedUser = { id: 1, username: 'ivanov', phone: '' }
+    const input = fireInput(w.vm, '8916', 4, 'insertText', 'selectedUser')
+
+    expect(input.value).toBe('+7 (916)')
+    expect(w.vm.selectedUser.phone).toBe('+7 (916)')
   })
 
   it('одно нажатие Backspace стирает цифру, даже если под кареткой был разделитель', () => {
