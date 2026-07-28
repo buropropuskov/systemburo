@@ -5,8 +5,7 @@
         <h1>Системное управление</h1>
         <p class="sc__lede">
           Скрытая страница управления режимом технических работ. Доступна только
-          супер-админу (<code>type_id = 6</code>) по прямой ссылке, в меню не
-          показывается.
+          супер-администратору по прямой ссылке, в меню не показывается.
         </p>
       </header>
 
@@ -24,7 +23,13 @@
           v-if="enabled && startedAt"
           class="sc__status-meta"
         >
-          Начало: {{ formatStart(startedAt) }}
+          Включено: {{ formatMoment(startedAt) }}
+        </p>
+        <p
+          v-if="enabled && plannedEnd"
+          class="sc__status-meta"
+        >
+          Объявленное окончание: {{ formatMoment(plannedEnd) }} — после него режим снимется сам
         </p>
       </section>
 
@@ -35,44 +40,102 @@
             v-model="draftMessage"
             class="sc__textarea"
             rows="3"
-            placeholder="Например: Обновляем систему до v1.5.0, вернёмся к 17:00 МСК"
+            placeholder="Например: обновляем систему до версии 1.5.0, вернёмся к 17:00"
             :disabled="busy"
           />
         </label>
-        <label class="sc__field">
-          <span class="sc__field-label">Контакт поддержки (email)</span>
-          <input
-            v-model="draftSupportEmail"
-            type="email"
-            class="sc__input"
-            placeholder="support@buropropuskov.ru"
-            :disabled="busy"
-          >
-        </label>
+
+        <div class="sc__field-row">
+          <label class="sc__field">
+            <span class="sc__field-label">Начало работ</span>
+            <input
+              v-model="draftPlannedStart"
+              type="datetime-local"
+              class="sc__input"
+              data-testid="planned-start"
+              :disabled="busy"
+            >
+          </label>
+          <label class="sc__field">
+            <span class="sc__field-label">Окончание работ</span>
+            <input
+              v-model="draftPlannedEnd"
+              type="datetime-local"
+              class="sc__input"
+              data-testid="planned-end"
+              :disabled="busy"
+            >
+          </label>
+        </div>
+
+        <div class="sc__field-row">
+          <label class="sc__field">
+            <span class="sc__field-label">Почта поддержки</span>
+            <input
+              v-model="draftSupportEmail"
+              type="email"
+              class="sc__input"
+              placeholder="support@buropropuskov.ru"
+              :disabled="busy"
+            >
+          </label>
+          <label class="sc__field">
+            <span class="sc__field-label">Телефон поддержки</span>
+            <input
+              v-model="draftSupportPhone"
+              type="tel"
+              class="sc__input"
+              placeholder="+7 495 123-45-67"
+              :disabled="busy"
+            >
+          </label>
+        </div>
+        <p class="sc__field-note">
+          Сообщение и контакты видит каждый, кого система не пускает внутрь. Окно
+          работ показывается пользователям как срок и одновременно служит
+          предохранителем: по его окончании режим выключается автоматически.
+        </p>
       </section>
 
       <section class="sc__actions">
         <button
           v-if="!enabled"
           class="sc__btn sc__btn--primary"
+          data-testid="enable-btn"
           :disabled="busy"
           @click="confirmEnable"
         >
           Включить технические работы
         </button>
-        <button
-          v-else
-          class="sc__btn sc__btn--danger"
-          :disabled="busy"
-          @click="disable"
-        >
-          Выключить технические работы
-        </button>
+        <template v-else>
+          <button
+            class="sc__btn sc__btn--primary"
+            data-testid="save-btn"
+            :disabled="busy"
+            @click="enable"
+          >
+            Сохранить сообщение и сроки
+          </button>
+          <button
+            class="sc__btn sc__btn--danger"
+            data-testid="disable-btn"
+            :disabled="busy"
+            @click="disable"
+          >
+            Выключить технические работы
+          </button>
+        </template>
         <p class="sc__hint">
-          При включении <strong>отзываются все refresh-токены не-админов</strong> —
-          через ≤15 минут обычных юзеров выбросит на страницу «Технические работы»
-          и они не смогут залогиниться, пока режим активен. Супер-админ
-          (<code>type_id = 6</code>) продолжает работать без ограничений.
+          При включении <strong>отзываются все сеансы обычных пользователей</strong> —
+          в течение 15 минут их выбросит на страницу «Технические работы», и войти
+          заново они не смогут, пока режим активен. Супер-администратор продолжает
+          работать без ограничений.
+        </p>
+        <p class="sc__hint">
+          Если войти в систему не получается, режим снимается на сервере командой
+          <code>make maintenance-off</code> (для рабочего сервера —
+          <code>make deploy-maintenance-off</code>). Пользователи вернутся в систему
+          в течение 10 секунд.
         </p>
       </section>
 
@@ -95,8 +158,15 @@
           <div class="sc__modal">
             <h2>Включить режим технических работ?</h2>
             <p>
-              Все активные сессии не-админов будут отозваны. Это действие нужно
-              только если вы делаете обновление системы или миграцию БД.
+              Сеансы всех пользователей, кроме супер-администратора, будут
+              прекращены. Режим нужен на время обновления системы или работ с
+              базой данных.
+            </p>
+            <p
+              v-if="draftPlannedStart && draftPlannedEnd"
+              class="sc__modal-window"
+            >
+              Объявленное окно: {{ formatMoment(plannedStartIso) }} — {{ formatMoment(plannedEndIso) }}
             </p>
             <div class="sc__modal-actions">
               <button
@@ -123,6 +193,9 @@
 <script>
 import { apiRequest } from '@/api/client'
 import { useMaintenanceStore } from '@/stores/maintenance'
+import { formatDateTime, isoToLocalInput, localInputToIso } from '@/utils/datetime'
+
+const DEFAULT_WINDOW_HOURS = 2
 
 export default {
   name: 'SystemControl',
@@ -131,13 +204,25 @@ export default {
       enabled: false,
       message: '',
       startedAt: '',
+      plannedEnd: '',
       supportEmail: '',
       draftMessage: '',
+      draftPlannedStart: '',
+      draftPlannedEnd: '',
       draftSupportEmail: 'support@buropropuskov.ru',
+      draftSupportPhone: '',
       busy: false,
       errorText: '',
       confirmOpen: false,
     }
+  },
+  computed: {
+    plannedStartIso() {
+      return localInputToIso(this.draftPlannedStart)
+    },
+    plannedEndIso() {
+      return localInputToIso(this.draftPlannedEnd)
+    },
   },
   async mounted() {
     await this.load()
@@ -161,28 +246,68 @@ export default {
       this.enabled = !!data?.enabled
       this.message = data?.message || ''
       this.startedAt = data?.started_at || ''
+      this.plannedEnd = data?.planned_end || ''
       this.supportEmail = data?.support_email || ''
       this.draftMessage = this.message
       if (data?.support_email) this.draftSupportEmail = data.support_email
+      this.draftSupportPhone = data?.support_phone || ''
+      this.fillWindow(data?.planned_start, data?.planned_end)
       useMaintenanceStore().setFromPayload(data)
     },
+    /**
+     * Заполняет поля окна сохранёнными значениями, а для незаданного окна -
+     * подсказкой «ближайшие два часа»: пустые поля админ всё равно обязан
+     * заполнить, а вводить дату с нуля каждый раз незачем.
+     */
+    fillWindow(plannedStart, plannedEnd) {
+      if (plannedStart && plannedEnd) {
+        this.draftPlannedStart = isoToLocalInput(plannedStart)
+        this.draftPlannedEnd = isoToLocalInput(plannedEnd)
+        return
+      }
+      const now = new Date()
+      const end = new Date(now.getTime() + DEFAULT_WINDOW_HOURS * 60 * 60 * 1000)
+      this.draftPlannedStart = isoToLocalInput(now.toISOString())
+      this.draftPlannedEnd = isoToLocalInput(end.toISOString())
+    },
+    /**
+     * Проверяет окно до отправки. Возвращает текст ошибки или пустую строку.
+     */
+    validateWindow() {
+      if (!this.draftPlannedStart || !this.draftPlannedEnd) {
+        return 'Укажите начало и окончание технических работ.'
+      }
+      if (new Date(this.draftPlannedEnd) <= new Date(this.draftPlannedStart)) {
+        return 'Окончание работ должно быть позже начала.'
+      }
+      return ''
+    },
     confirmEnable() {
+      this.errorText = this.validateWindow()
+      if (this.errorText) return
       this.confirmOpen = true
     },
     async enable() {
+      this.errorText = this.validateWindow()
+      if (this.errorText) {
+        this.confirmOpen = false
+        return
+      }
       this.busy = true
-      this.errorText = ''
       try {
         const r = await apiRequest('/admin/maintenance', {
           method: 'PUT',
           body: JSON.stringify({
             enabled: true,
             message: this.draftMessage,
+            planned_start: this.plannedStartIso,
+            planned_end: this.plannedEndIso,
             support_email: this.draftSupportEmail,
+            support_phone: this.draftSupportPhone,
           }),
         })
         if (!r.ok) {
-          this.errorText = 'Не удалось включить режим.'
+          this.errorText = 'Не удалось сохранить режим технических работ.'
           return
         }
         const data = await r.json()
@@ -214,13 +339,8 @@ export default {
         this.busy = false
       }
     },
-    formatStart(iso) {
-      if (!iso) return '—'
-      const d = new Date(iso)
-      return d.toLocaleString('ru-RU', {
-        day: '2-digit', month: 'short', year: 'numeric',
-        hour: '2-digit', minute: '2-digit',
-      }) + ' МСК'
+    formatMoment(iso) {
+      return formatDateTime(iso) || '—'
     },
   },
 }
@@ -306,6 +426,17 @@ export default {
   margin-bottom: 28px;
 }
 .sc__field { display: block; }
+.sc__field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+.sc__field-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
 .sc__field-label {
   display: block;
   font-size: 13px;
@@ -420,6 +551,10 @@ export default {
   line-height: 1.55;
   color: var(--text-muted);
 }
+.sc__modal-window {
+  color: var(--text);
+  font-weight: 500;
+}
 .sc__modal-actions {
   display: flex;
   gap: 12px;
@@ -435,6 +570,7 @@ export default {
 @media (max-width: 768px) {
   .sc__card { padding: 28px 24px; }
   .sc__status-row { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .sc__field-row { grid-template-columns: 1fr; }
 
   /* Bottom-sheet modal на мобильном - прилипает к низу, высота по контенту */
   .sc__modal-overlay {

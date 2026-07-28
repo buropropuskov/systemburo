@@ -13,8 +13,15 @@
 
     <header class="mt__topbar">
       <span class="mt__brand">Systemburo</span>
-      <div class="mt__chip">
-        Плановое обслуживание
+      <div class="mt__topbar-right">
+        <a
+          class="mt__admin-link"
+          href="/?admin"
+          data-testid="admin-login-link"
+        >Вход для администратора</a>
+        <div class="mt__chip">
+          Плановое обслуживание
+        </div>
       </div>
     </header>
 
@@ -26,7 +33,11 @@
         <h1 class="mt__title">
           Технические <em>работы</em>.
         </h1>
-        <p class="mt__lede">
+        <p
+          class="mt__lede"
+          :class="{ 'mt__lede--announced': hasAnnouncement }"
+          data-testid="maintenance-message"
+        >
           {{ messageText }}
         </p>
 
@@ -164,37 +175,59 @@
         </div>
         <div class="mt__evidence-inner">
           <div class="mt__evidence-label">
-            <span>Deploy log</span>
+            <span>Сроки работ</span>
           </div>
-          <pre class="mt__code"># deployment pipeline
-<span class="mt-t">[14:02]</span> <span class="mt-step">BACKUP</span>   <span class="mt-ok">ok</span>
-<span class="mt-t">[14:08]</span> <span class="mt-step">SERVICES</span> stopped
-<span class="mt-t">[14:12]</span> <span class="mt-step">MIGRATE</span>  <span class="mt-run">running...</span>
-        schema applied 3/5
-<span class="mt-t">[--:--]</span> <span class="mt-step">SMOKE</span>    <span class="mt-wait">pending</span>
-<span class="mt-t">[--:--]</span> <span class="mt-step">RESTART</span>  <span class="mt-wait">pending</span></pre>
-          <div class="mt__progress">
+          <div
+            class="mt__window"
+            data-testid="maintenance-window"
+          >
+            <div class="mt__window-row">
+              <span class="mt__window-label">Начало</span>
+              <span class="mt__window-value">{{ startText }}</span>
+            </div>
+            <div class="mt__window-row">
+              <span class="mt__window-label">Окончание</span>
+              <span class="mt__window-value">{{ endText }}</span>
+            </div>
+            <div
+              v-if="remainingText"
+              class="mt__window-row"
+            >
+              <span class="mt__window-label">Осталось</span>
+              <span class="mt__window-value mt__window-value--accent">{{ remainingText }}</span>
+            </div>
+          </div>
+
+          <div
+            v-if="hasWindow"
+            class="mt__progress"
+          >
             <div class="mt__progress-top">
-              <span class="mt__progress-label">Общий прогресс обновления</span>
-              <span class="mt__progress-pct">60% · 3 из 5</span>
+              <span class="mt__progress-label">Прошло времени от объявленного срока</span>
+              <span class="mt__progress-pct">{{ progressPercent }}%</span>
             </div>
             <div class="mt__progress-bar">
-              <div class="mt__progress-fill" />
+              <div
+                class="mt__progress-fill"
+                :style="{ width: progressPercent + '%' }"
+              />
             </div>
           </div>
-          <dl class="mt__meta">
-            <div>
-              <dt>Начало</dt>
-              <dd>{{ startedAtText }}</dd>
-            </div>
-            <div>
-              <dt>Ожидаемое окончание</dt>
-              <dd>{{ expectedEndText }}</dd>
-            </div>
-            <div style="grid-column: 1 / -1;">
-              <dt>Контакт</dt>
+
+          <dl
+            v-if="hasContacts"
+            class="mt__meta"
+          >
+            <div v-if="supportEmail">
+              <dt>Почта поддержки</dt>
               <dd>
-                <a :href="`mailto:${supportEmailText}`">{{ supportEmailText }}</a>
+                <a :href="`mailto:${supportEmail}`">{{ supportEmail }}</a>
+              </dd>
+            </div>
+            <div v-if="supportPhone">
+              <dt>Телефон поддержки</dt>
+              <dd>
+                <a :href="`tel:${phoneHref}`">{{ supportPhone }}</a>
               </dd>
             </div>
           </dl>
@@ -206,14 +239,18 @@
 
 <script>
 import { useMaintenanceStore } from '@/stores/maintenance'
+import { formatDateTime } from '@/utils/datetime'
 
 const POLL_MS = 30_000
+const DEFAULT_MESSAGE = 'Обновляем систему пропусков. Сервис временно недоступен — мы вернёмся, как только закончим проверки. Страница автоматически обновится, когда работы завершатся.'
 
 export default {
   name: 'MaintenancePage',
   data() {
     return {
       secondsLeft: 30,
+      // Пересчитывается тикером: от него зависят остаток и прогресс окна.
+      now: Date.now(),
       tickInterval: null,
       pollInterval: null,
     }
@@ -222,27 +259,58 @@ export default {
     store() {
       return useMaintenanceStore()
     },
+    hasAnnouncement() {
+      return !!this.store.message
+    },
     messageText() {
-      return this.store.message
-        || 'Обновляем систему пропусков. Сервис временно недоступен — мы вернёмся, как только закончим проверки. Страница автоматически обновится, когда работы завершатся.'
+      return this.store.message || DEFAULT_MESSAGE
     },
-    startedAtText() {
-      if (!this.store.startedAt) return '—'
-      const d = new Date(this.store.startedAt)
-      return d.toLocaleString('ru-RU', {
-        day: '2-digit', month: 'short', year: 'numeric',
-        hour: '2-digit', minute: '2-digit',
-      }) + ' МСК'
+    /** Объявленное окно работ; без него страница не показывает ни срок, ни прогресс. */
+    hasWindow() {
+      return !!(this.store.plannedStart && this.store.plannedEnd)
     },
-    expectedEndText() {
-      return '—'
+    startText() {
+      return formatDateTime(this.store.plannedStart || this.store.startedAt) || '—'
     },
-    supportEmailText() {
-      return this.store.supportEmail || 'support@buropropuskov.ru'
+    endText() {
+      return formatDateTime(this.store.plannedEnd) || 'уточняется'
+    },
+    /** Остаток до объявленного окончания. Пусто, если окна нет или срок вышел. */
+    remainingText() {
+      if (!this.hasWindow) return ''
+      const leftMs = new Date(this.store.plannedEnd).getTime() - this.now
+      if (Number.isNaN(leftMs) || leftMs <= 0) return ''
+      const minutes = Math.ceil(leftMs / 60000)
+      if (minutes < 60) return `${minutes} мин`
+      const hours = Math.floor(minutes / 60)
+      const rest = minutes % 60
+      return rest ? `${hours} ч ${rest} мин` : `${hours} ч`
+    },
+    progressPercent() {
+      if (!this.hasWindow) return 0
+      const start = new Date(this.store.plannedStart).getTime()
+      const end = new Date(this.store.plannedEnd).getTime()
+      if (Number.isNaN(start) || Number.isNaN(end) || end <= start) return 0
+      const passed = ((this.now - start) / (end - start)) * 100
+      return Math.min(100, Math.max(0, Math.round(passed)))
+    },
+    supportEmail() {
+      return this.store.supportEmail
+    },
+    supportPhone() {
+      return this.store.supportPhone
+    },
+    /** Телефон для tel:-ссылки - без пробелов, скобок и дефисов. */
+    phoneHref() {
+      return this.supportPhone.replace(/[^\d+]/g, '')
+    },
+    hasContacts() {
+      return !!(this.supportEmail || this.supportPhone)
     },
   },
   mounted() {
     this.tickInterval = setInterval(() => {
+      this.now = Date.now()
       this.secondsLeft -= 1
       if (this.secondsLeft <= 0) this.secondsLeft = 30
     }, 1000)
@@ -328,6 +396,18 @@ export default {
   font-size: 15px;
   letter-spacing: 0.5px;
 }
+.mt__topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.mt__admin-link {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--border);
+}
+.mt__admin-link:hover { color: var(--accent-text); }
 .mt__chip {
   display: inline-flex;
   align-items: center;
@@ -399,6 +479,17 @@ export default {
   color: var(--text-muted);
   margin: 0 0 36px;
   max-width: 540px;
+}
+/* Объявление администратора - главное на странице: читаемый размер, основной
+   цвет текста и акцентная подложка, чтобы не терялось рядом с заголовком. */
+.mt__lede--announced {
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--text);
+  padding: 18px 24px;
+  border-left: 4px solid var(--accent);
+  border-radius: 0 20px 20px 0;
+  background: var(--accent-tint);
 }
 .mt__actions {
   display: flex;
@@ -484,23 +575,34 @@ export default {
   margin-bottom: 14px;
   padding-left: 80px;
 }
-.mt__code {
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 14.5px;
-  /* Панель намеренно тёмная в любой теме - стилизованная консоль. */
-  background: #0f1129;
-  color: #a5b4fc;
+.mt__window {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   padding: 22px 26px;
   border-radius: 20px;
-  line-height: 1.75;
-  overflow-x: auto;
-  margin: 0;
+  background: var(--accent-tint);
 }
-.mt__code .mt-t { color: #64748b; }
-.mt__code .mt-ok { color: #34d399; }
-.mt__code .mt-run { color: #a5b4fc; font-weight: 600; }
-.mt__code .mt-wait { color: #64748b; }
-.mt__code .mt-step { color: #fff; }
+.mt__window-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+}
+.mt__window-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.mt__window-value {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+.mt__window-value--accent { color: var(--accent-text); }
 .mt__progress {
   margin-top: 18px;
   display: flex;
@@ -529,11 +631,11 @@ export default {
 }
 .mt__progress-fill {
   height: 100%;
-  width: 60%;
   background: linear-gradient(90deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 55%, var(--surface)) 100%);
   border-radius: 999px;
   position: relative;
   overflow: hidden;
+  transition: width 0.3s ease;
 }
 .mt__progress-fill::after {
   content: '';
@@ -570,7 +672,8 @@ export default {
   color: var(--text);
   font-weight: 500;
 }
-.mt__meta a { color: #4F5BDF; text-decoration: none; }
+.mt__meta a { color: var(--accent-text); text-decoration: none; }
+.mt__meta a:hover { text-decoration: underline; }
 
 @media (max-width: 1100px) {
   .mt__main {
@@ -583,10 +686,30 @@ export default {
   .mt__title { font-size: clamp(40px, 9vw, 64px); }
 }
 @media (max-width: 640px) {
-  .mt__topbar { padding: 20px 24px; }
+  /* Бренд и чип статуса не помещаются в строку на 390 - раскладываем столбцом. */
+  .mt__topbar {
+    padding: 20px 24px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .mt__chip { font-size: 10px; letter-spacing: 1.5px; }
+  .mt__topbar-right {
+    width: 100%;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .mt__admin-link { font-size: 11px; white-space: nowrap; }
   .mt__main { padding: 10px 24px 30px; }
   .mt__evidence-inner { padding: 24px 20px; }
   .mt__bg-number span { font-size: 440px; }
   .mt__meta { grid-template-columns: 1fr; }
+  /* Дата целиком не встаёт рядом с подписью - подпись сверху, значение снизу. */
+  .mt__window-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+  .mt__lede--announced { font-size: 18px; padding: 16px 18px; }
 }
 </style>

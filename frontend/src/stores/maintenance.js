@@ -14,7 +14,10 @@ export const useMaintenanceStore = defineStore('maintenance', {
     enabled: false,
     message: '',
     startedAt: '',
+    plannedStart: '',
+    plannedEnd: '',
     supportEmail: '',
+    supportPhone: '',
     loaded: false,
   }),
   actions: {
@@ -34,10 +37,7 @@ export const useMaintenanceStore = defineStore('maintenance', {
         }
         const body = await r.json()
         const data = body && typeof body === 'object' && 'success' in body ? body.data : body
-        this.enabled = !!data?.enabled
-        this.message = data?.message || ''
-        this.startedAt = data?.started_at || ''
-        this.supportEmail = data?.support_email || ''
+        this.setFromPayload(data)
       } catch {
         // Сетевая ошибка - считаем, что режим не включён, иначе положим сайт
         // неверным результатом.
@@ -49,7 +49,10 @@ export const useMaintenanceStore = defineStore('maintenance', {
       this.enabled = !!payload?.enabled
       this.message = payload?.message || ''
       this.startedAt = payload?.started_at || ''
+      this.plannedStart = payload?.planned_start || ''
+      this.plannedEnd = payload?.planned_end || ''
       this.supportEmail = payload?.support_email || ''
+      this.supportPhone = payload?.support_phone || ''
       this.loaded = true
     },
   },
