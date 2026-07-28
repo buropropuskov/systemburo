@@ -1027,13 +1027,15 @@ onUnmounted(() => {
 /* ===== ТОП ЗА ПЕРИОД ===== */
 .dashboard__tops {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* minmax(0,1fr), а не 1fr: трек не должен сайзиться по содержимому (длинные
+     имена в TopList), иначе распирает грид за контейнер, не давая ellipsis. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 20px;
 }
 
 @media (max-width: 900px) {
   .dashboard__tops {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -1080,7 +1082,9 @@ onUnmounted(() => {
 
 @media (max-width: 900px) {
   .dashboard__attach {
-    grid-template-columns: 1fr;
+    /* minmax(0,1fr): иначе трек сайзится по min-content доната (apexcharts ~300px)
+       и на узком экране (<=320) вылезает за контейнер, вместо сжатия графика. */
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -1569,5 +1573,99 @@ onUnmounted(() => {
   font-size: 13px;
   color: var(--color-text-muted);
   text-align: center;
+}
+
+/* ===== МОБИЛКА (<=768) ===== */
+@media (max-width: 768px) {
+  .dashboard {
+    gap: 22px;
+  }
+
+  /* Шапка группы: длинному чипу разрешаем перенос, линейка добирает остаток
+     строки (на 320 «Мониторинг» + чип «в реальном времени · сейчас» в ряд не
+     влезают и без wrap распирают контейнер). */
+  .dashboard__group-head {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .dashboard__group-rule {
+    min-width: 24px;
+  }
+
+  /* Плитки чуть плотнее, чтобы инсайт-футер (спарклайн + дельта) помещался в ряд
+     без переполнения при двух колонках. */
+  .dashboard__tile {
+    padding: 12px;
+  }
+
+  .dashboard__tile-val {
+    font-size: 24px;
+  }
+
+  /* График/динамика онлайна: компактнее рамка, контролы во всю ширину. */
+  .dashboard__chart-card {
+    padding: 14px;
+  }
+
+  .dashboard__chart-head {
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .dashboard__chart-controls {
+    width: 100%;
+  }
+
+  /* Две сегмент-группы по 3 кнопки не влезают в общий ряд на 390 -> каждая на
+     всю ширину отдельной строкой. Кнопки тянутся flex-grow'ом, заполняя ряд; на
+     узких телефонах садятся по содержимому (min-width:auto по умолчанию), чтобы
+     длинные подписи "Проходы людей"/"Проезды машин" не обрезались - равные доли
+     форсить нельзя без overflow-guard, иначе клип текста. */
+  .dashboard__seg {
+    width: 100%;
+  }
+
+  .dashboard__seg-btn {
+    flex: 1 1 0;
+    text-align: center;
+    padding: 6px 4px;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  /* Детальный разворот карточки: сетка графиков в один столбец (minmax(320px)
+     распирал уже узкую панель на 320), паддинги компактнее. */
+  .dashboard__detail {
+    padding: 14px;
+  }
+
+  .dashboard__detail-charts {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  /* Ленты мониторинга: компактнее отступы строк. Текст полей и так усечён
+     ellipsis, feed-main держит min-width:0 -> строка не переполняется. */
+  .dashboard__feed-head {
+    padding: 12px 14px;
+  }
+
+  .dashboard__feed-row {
+    padding: 10px 14px;
+    gap: 10px;
+  }
+
+  .dashboard__feed-list {
+    max-height: 320px;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Номерной знак у́же, чтобы ленте машин хватало ширины под марку/место. */
+  .dashboard__plate {
+    min-width: 56px;
+    padding: 3px 6px;
+  }
 }
 </style>

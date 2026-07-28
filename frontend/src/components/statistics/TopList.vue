@@ -167,6 +167,10 @@ function fmt(val) {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  /* Без min-width:0 flex-элемент не сжимается ниже min-content, ellipsis не
+     срабатывает и длинное имя организации задаёт огромный min-content всей
+     колонке -> на мобилке распирает дашборд за вьюпорт. */
+  min-width: 0;
 }
 
 .top__val {
