@@ -273,9 +273,10 @@ func TestEmployeeHistory_ReadEndpoints(t *testing.T) {
 
 	token := testutil.RegisterAndLogin(t, e, "emphist1", "pass123", 1, td.OrgID, td.CompanyID)
 	h := testutil.AuthHeader(token)
+	passTbl := seedPassTableGrant(t, db, getUserID(t, db, "emphist1"), "people")
 
 	// Регистрируем entry - должен создать запись в audit_log[employee].
-	putBody := `{"territory_status":1,"user_id":null}`
+	putBody := fmt.Sprintf(`{"territory_status":1,"user_id":null,"table_id":%d}`, passTbl)
 	rec := testutil.PUT(t, e, fmt.Sprintf("/employees/%d/territory-status", employee.ID), putBody, h)
 	require.Equal(t, http.StatusOK, rec.Code, "PUT territory-status должен пройти")
 
@@ -370,8 +371,9 @@ func TestUpdateEmployeeTerritoryStatus_Entry(t *testing.T) {
 	empID := seedEmployeeDirect(t, db, "Ivanov", "Ivan")
 	token := testutil.RegisterAndLogin(t, e, "territory_u1", "pass123", 1, td.OrgID, td.CompanyID)
 	userID := getUserID(t, db, "territory_u1")
+	passTbl := seedPassTableGrant(t, db, userID, "people")
 
-	body := fmt.Sprintf(`{"territory_status": 1, "user_id": %d}`, userID)
+	body := fmt.Sprintf(`{"territory_status": 1, "user_id": %d, "table_id": %d}`, userID, passTbl)
 	rec := testutil.PUT(t, e, fmt.Sprintf("/employees/%d/territory-status", empID), body, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
 
@@ -395,8 +397,9 @@ func TestUpdateEmployeeTerritoryStatus_Exit(t *testing.T) {
 
 	empID := seedEmployeeDirect(t, db, "Petrov", "Petr")
 	token := testutil.RegisterAndLogin(t, e, "territory_u2", "pass123", 1, td.OrgID, td.CompanyID)
+	passTbl := seedPassTableGrant(t, db, getUserID(t, db, "territory_u2"), "people")
 
-	body := `{"territory_status": 2}`
+	body := fmt.Sprintf(`{"territory_status": 2, "table_id": %d}`, passTbl)
 	rec := testutil.PUT(t, e, fmt.Sprintf("/employees/%d/territory-status", empID), body, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
 
@@ -418,8 +421,9 @@ func TestUpdateEmployeeTerritoryStatus_NotFound(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	token := testutil.RegisterAndLogin(t, e, "territory_u3", "pass123", 1, td.OrgID, td.CompanyID)
+	passTbl := seedPassTableGrant(t, db, getUserID(t, db, "territory_u3"), "people")
 
-	rec := testutil.PUT(t, e, "/employees/999999/territory-status", `{"territory_status": 1}`, testutil.AuthHeader(token))
+	rec := testutil.PUT(t, e, "/employees/999999/territory-status", fmt.Sprintf(`{"territory_status": 1, "table_id": %d}`, passTbl), testutil.AuthHeader(token))
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 }
 

@@ -87,6 +87,11 @@ type Dependencies struct {
 	// чистить корзину любой таблицы. main и testutil обязаны заполнять.
 	TableVersionsGate echo.MiddlewareFunc
 	TableTrashGate    echo.MiddlewareFunc
+	// TablePassGate - RequireTablePassVerb: отметка прохода на КПП правом
+	// table.<name>.entry/.exit (направление и таблица берутся из тела). main и
+	// testutil обязаны заполнять - без гейта любой залогиненный мог бы отметить
+	// проезд/проход любой машины или человека.
+	TablePassGate echo.MiddlewareFunc
 
 	// Misc
 	JWTSecret  []byte
@@ -552,7 +557,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	carsGroup.GET("/history/all", cars.GetAllCarsHistory)
 	carsGroup.GET("/history/table/:table_id", cars.GetCarsHistoryByTable)
 	carsGroup.GET("/history/current-status", cars.GetCarsCurrentStatus)
-	carsGroup.PUT("/:id/territory-status", cars.UpdateCarTerritoryStatus)
+	carsGroup.PUT("/:id/territory-status", cars.UpdateCarTerritoryStatus, d.TablePassGate)
 	carsGroup.PUT("/:id/deactivate", cars.DeactivateCar)
 	carsGroup.PUT("/:id/activate", cars.ActivateCar)
 	carsGroup.GET("/history/unified", cars.GetUnifiedCarHistory)
@@ -571,7 +576,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	empGroup.POST("/manual", employees.CreateManualEmployees,
 		mw.RequirePermissionV2(permResolver, denialLog, services.KeyEntityEmployeesManualAdd))
 	empGroup.GET("/active-for-table/:table_id", employees.GetActiveEmployeesForTable)
-	empGroup.PUT("/:id/territory-status", employees.UpdateEmployeeTerritoryStatus)
+	empGroup.PUT("/:id/territory-status", employees.UpdateEmployeeTerritoryStatus, d.TablePassGate)
 	empGroup.PUT("/:id/deactivate", employees.DeactivateEmployee)
 	empGroup.PUT("/:id/activate", employees.ActivateEmployee)
 	empGroup.PUT("/:id/restore", employees.RestoreEmployee)

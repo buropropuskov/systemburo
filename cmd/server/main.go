@@ -376,6 +376,7 @@ func main() {
 		TableReportGate:     mw.RequireTableVerb(db, permissionResolver, accessDenialService, "report"),
 		TableVersionsGate:   mw.RequireTableVerb(db, permissionResolver, accessDenialService, "versions"),
 		TableTrashGate:      mw.RequireTableVerb(db, permissionResolver, accessDenialService, "trash"),
+		TablePassGate:       mw.RequireTablePassVerb(db, permissionResolver, accessDenialService),
 		JWTSecret:           []byte(cfg.JWTSecret),
 		UploadPath:          cfg.UploadPath,
 	})

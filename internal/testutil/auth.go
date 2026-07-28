@@ -126,4 +126,8 @@ func GrantTableVerb(t *testing.T, userID int, tableName, verb string) {
 		Value:         "allow",
 	}).Error
 	require.NoError(t, err, "failed to grant table.%s.%s to user %d", tableName, verb, userID)
+	// Сбрасываем кэш прав юзера - grant мог быть сделан после первого резолва.
+	if cachedResolver != nil {
+		cachedResolver.Invalidate(userID)
+	}
 }

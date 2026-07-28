@@ -74,6 +74,8 @@ func TestPassReport_LiveScopeAndGate(t *testing.T) {
 	guard2ID := getUserID(t, db, "prguard2")
 	adminToken := testutil.RegisterAndLogin(t, e, "pradmin", "pass123", 6, td.OrgID, td.CompanyID)
 	grantTableReport(t, db, guardID, "kpp_pass")
+	testutil.GrantTableVerb(t, guardID, "kpp_pass", "entry")
+	testutil.GrantTableVerb(t, guardID, "kpp_pass", "exit")
 
 	// Машина через реальный флоу: заявка -> активация -> отметки въезда/выезда
 	// охранником guard (ловит реальный SQL агрегата, а не только билд).

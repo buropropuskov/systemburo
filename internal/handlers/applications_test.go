@@ -55,6 +55,21 @@ func seedSystemTable(t *testing.T, db *gorm.DB) int {
 	return st.ID
 }
 
+// seedPassTableGrant создаёт таблицу КПП и выдаёт юзеру права отметки прохода
+// (table.<name>.entry/.exit), затем возвращает её id для передачи в теле
+// territory-status. Отметку прохода на бэке теперь гейтит RequireTablePassVerb -
+// тестам нужно и право, и table_id (реальный фронт всегда шлёт table_id).
+func seedPassTableGrant(t *testing.T, db *gorm.DB, userID int, tableType string) int {
+	t.Helper()
+	dn := "Pass Table"
+	name := fmt.Sprintf("pass_tbl_u%d_%d", userID, time.Now().UnixNano()%1000000)
+	tbl := models.SystemTable{Name: name, DisplayName: &dn, TableType: tableType, IsActive: true}
+	require.NoError(t, db.Create(&tbl).Error)
+	testutil.GrantTableVerb(t, userID, name, "entry")
+	testutil.GrantTableVerb(t, userID, name, "exit")
+	return tbl.ID
+}
+
 // assignOrgUser adds the user to organization_users so they appear as responsible.
 func assignOrgUser(t *testing.T, db *gorm.DB, orgID, userID int, isPrimary bool) {
 	t.Helper()
