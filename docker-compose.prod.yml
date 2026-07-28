@@ -55,6 +55,11 @@ services:
       - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # Сертификат и ключ готовит scripts/init-tls.sh до первого старта: без файлов
+      # по этим путям nginx с ssl_certificate не поднимется вообще.
+      - ./nginx/certs:/etc/nginx/certs:ro
+      # Webroot для ACME HTTP-01: certbot пишет challenge с хоста, nginx только отдаёт.
+      - ./nginx/acme-webroot:/var/www/certbot:ro
     depends_on:
       - backend
       - frontend
