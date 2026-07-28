@@ -175,7 +175,6 @@
           @select-company="applyCompanyChoice($event)"
           @validate-field="validateField"
           @format-phone="handleFormatPhoneNumber"
-          @clear-phone="handleClearPhoneFormat"
         />
 
         <CustomFieldsSection
@@ -369,7 +368,7 @@ import { mapWithConcurrency } from '@/utils/mapWithConcurrency'
 import { useAuthStore } from '@/stores/auth'
 import { usePermissionsStore } from '@/stores/permissions'
 import { useDeletionsStore } from '@/stores/deletions'
-import { formatPhoneNumberImmediately, formatPhoneNumber, clearPhoneFormat } from '@/composables/usePhoneFormat'
+import { formatRussianPhone, isValidRussianPhone } from '@/composables/useRussianPhoneMask'
 import BlankSelector from '../BlankSelector.vue';
 import UserInfoRow from './UserInfoRow.vue';
 import DateRangeSection from './DateRangeSection.vue';
@@ -426,7 +425,6 @@ export default {
             company: '',
             responsiblePerson: '',
             phoneNumber: '',
-            rawPhoneNumber: '',
             consentGiven: false,
             // На телефоне ссылка "согласие" открывает эту модалку вместо новой вкладки
             // с /data-processing (там <embed> PDF на мобилке не рендерится).
@@ -1195,13 +1193,8 @@ export default {
                     const middleName = userData.middle_name || '';
                     this.responsiblePerson = `${lastName} ${firstName} ${middleName}`.trim();
                     
-                    this.phoneNumber = userData.phone || '';
-                    if (this.phoneNumber) {
-                        const { raw, formatted } = formatPhoneNumberImmediately(this.phoneNumber);
-                        this.rawPhoneNumber = raw;
-                        this.phoneNumber = formatted;
-                    }
-                    
+                    this.phoneNumber = formatRussianPhone(userData.phone || '');
+
                 } else {
                     console.error("Ошибка загрузки данных пользователя");
                 }
@@ -1242,14 +1235,8 @@ export default {
         },
 
         handleFormatPhoneNumber() {
-            const { raw, formatted } = formatPhoneNumber(this.phoneNumber);
-            this.rawPhoneNumber = raw;
-            this.phoneNumber = formatted;
+            this.phoneNumber = formatRussianPhone(this.phoneNumber);
             this.validateField('phone');
-        },
-
-        handleClearPhoneFormat() {
-            this.phoneNumber = clearPhoneFormat(this.rawPhoneNumber);
         },
 
         updateCustomFieldValues(values) {
@@ -1759,8 +1746,13 @@ export default {
             this.companyId = choice ? choice.id : null;
         },
 
-        validateField(field) {
-            let phoneRegex;
+        /**
+         * @param {string} field - Имя проверяемого поля
+         * @param {{live?: boolean}} [options] - live: проверка по ходу ввода, когда
+         *   недобранный номер ещё не повод показывать ошибку (жалоба userbugs-0728).
+         */
+        validateField(field, options = {}) {
+            const live = options?.live === true;
 
             switch (field) {
                 case 'organization':
@@ -1775,10 +1767,17 @@ export default {
                 case 'responsiblePerson':
                     this.errors.responsiblePerson = this.responsiblePerson ? '' : 'Обязательное поле';
                     break;
-                case 'phone':
-                    phoneRegex = /^(\+7|8)?[\s-]?\(?[489][0-9]{2}\)?[\s-]?[0-9]{3}[\s-]?[0-9]{2}[\s-]?[0-9]{2}$/;
-                    this.errors.phone = this.phoneNumber ? (phoneRegex.test(this.rawPhoneNumber) ? '' : 'Введите корректный номер') : 'Обязательное поле';
+                case 'phone': {
+                    if (!this.phoneNumber) {
+                        this.errors.phone = live ? '' : 'Обязательное поле';
+                        break;
+                    }
+                    const complete = String(this.phoneNumber).replace(/\D/g, '').length >= 11;
+                    this.errors.phone = (live && !complete) || isValidRussianPhone(this.phoneNumber)
+                        ? ''
+                        : 'Введите корректный номер';
                     break;
+                }
             }
         },
 
@@ -2400,7 +2399,6 @@ export default {
                     companyId: this.companyId,
                     responsiblePerson: this.responsiblePerson,
                     phoneNumber: this.phoneNumber,
-                    rawPhoneNumber: this.rawPhoneNumber,
                     consentGiven: this.consentGiven,
                     readers: this.readers,
 
@@ -2450,8 +2448,7 @@ export default {
                     if ('organizationId' in parsedData) this.organizationId = parsedData.organizationId || null;
                     if ('companyId' in parsedData) this.companyId = parsedData.companyId || null;
                     this.responsiblePerson = parsedData.responsiblePerson || '';
-                    this.phoneNumber = parsedData.phoneNumber || '';
-                    this.rawPhoneNumber = parsedData.rawPhoneNumber || '';
+                    this.phoneNumber = formatRussianPhone(parsedData.phoneNumber || '');
                     this.consentGiven = parsedData.consentGiven || false;
                     this.readers = parsedData.readers || [];
 
@@ -2591,7 +2588,7 @@ export default {
                     this.organization = data.organization || '';
                     this.company = data.company || '';
                     this.responsiblePerson = data.responsible_person || '';
-                    this.phoneNumber = data.contact_phone || '';
+                    this.phoneNumber = formatRussianPhone(data.contact_phone || '');
                     
                     if (data.attachments && data.attachments.length > 0) {
                         this.attachments = data.attachments;

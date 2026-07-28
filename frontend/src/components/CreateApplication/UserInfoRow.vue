@@ -57,7 +57,6 @@
         :class="{ 'input--error': errors.phone }"
         @input="handlePhoneInput($event)"
         @blur="$emit('format-phone')"
-        @focus="$emit('clear-phone')"
       >
       <div
         v-if="errors.phone"
@@ -70,7 +69,7 @@
 </template>
 
 <script>
-import { formatPhoneNumberImmediately } from '@/composables/usePhoneFormat'
+import { formatRussianPhone, caretAfterMask } from '@/composables/useRussianPhoneMask'
 import { suggestCompanies, suggestOrganizations } from '@/api/directory'
 import DirectorySuggestInput from './DirectorySuggestInput.vue'
 
@@ -95,22 +94,22 @@ export default {
         'select-organization',
         'select-company',
         'validate-field',
-        'format-phone',
-        'clear-phone'
+        'format-phone'
     ],
     methods: {
         suggestOrganizations,
         suggestCompanies,
 
         handlePhoneInput(event) {
-            // Живое форматирование: не больше 11 цифр, маска +7 (XXX) XXX-XX-XX.
-            const digits = event.target.value.replace(/\D/g, '').slice(0, 11);
-            const { formatted } = formatPhoneNumberImmediately(digits);
-            const value = formatted || digits;
+            const input = event.target;
+            const masked = formatRussianPhone(input.value);
+            const caret = caretAfterMask(input.value, input.selectionStart ?? input.value.length, masked);
             // Поле на one-way :value, поэтому синхронизируем отображение сразу.
-            event.target.value = value;
-            this.$emit('update:phone-number', value);
-            this.$emit('validate-field', 'phone');
+            input.value = masked;
+            input.setSelectionRange(caret, caret);
+            this.$emit('update:phone-number', masked);
+            // live: недобранный номер по ходу ввода - ещё не ошибка, ругаемся на blur.
+            this.$emit('validate-field', 'phone', { live: true });
         }
     }
 }
