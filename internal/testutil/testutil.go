@@ -281,6 +281,8 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 		PermResolver:        permissionResolver,
 		DenialLog:           accessDenialService,
 		TableReportGate:     mw.RequireTableVerb(db, permissionResolver, accessDenialService, "report"),
+		TableVersionsGate:   mw.RequireTableVerb(db, permissionResolver, accessDenialService, "versions"),
+		TableTrashGate:      mw.RequireTableVerb(db, permissionResolver, accessDenialService, "trash"),
 		JWTSecret:           []byte(TestJWTSecret),
 		UploadPath:          uploadDir,
 	})

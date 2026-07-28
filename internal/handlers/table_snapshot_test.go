@@ -276,6 +276,9 @@ func TestTableSnapshot_ManualEndpoint_CreatesRowWithActor(t *testing.T) {
 	tbl := models.SystemTable{Name: "manual_snap_tbl", DisplayName: &dn, TableType: models.TableTypeCars, IsActive: true}
 	require.NoError(t, db.Create(&tbl).Error)
 
+	// Снимок версии теперь под правом table.<name>.versions - выдаём его юзеру.
+	testutil.GrantTableVerb(t, userID, tbl.Name, "versions")
+
 	rec := testutil.POST(t, e, fmt.Sprintf("/system-tables/%d/snapshots", tbl.ID), "", testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, "manual snapshot: %s", rec.Body.String())
 

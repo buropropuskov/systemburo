@@ -44,6 +44,7 @@ func TestCars_Trash_UnionAuditDeleteRow(t *testing.T) {
 	dn := "Корзина КПП union"
 	tbl := models.SystemTable{Name: "trash_cars_union", DisplayName: &dn, TableType: "cars", IsActive: true}
 	require.NoError(t, db.Create(&tbl).Error)
+	testutil.GrantTableVerb(t, userID, tbl.Name, "trash")
 
 	_, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 

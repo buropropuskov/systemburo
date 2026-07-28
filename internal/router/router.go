@@ -81,6 +81,12 @@ type Dependencies struct {
 	// правом table.<name>.report. НЕ опционален для роутов pass-report (main и
 	// testutil обязаны заполнять) - без гейта отчёт открылся бы любому залогиненному.
 	TableReportGate echo.MiddlewareFunc
+	// TableVersionsGate/TableTrashGate - RequireTableVerb(..., "versions"/"trash"):
+	// снимки версий и корзина таблицы правом table.<name>.versions/.trash. Раньше
+	// эти под-роуты гейтил только фронт - любой залогиненный мог снять снимок или
+	// чистить корзину любой таблицы. main и testutil обязаны заполнять.
+	TableVersionsGate echo.MiddlewareFunc
+	TableTrashGate    echo.MiddlewareFunc
 
 	// Misc
 	JWTSecret  []byte
@@ -618,7 +624,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// (см. startDailyStatusReset), ручной - POST. Читалки под общей auth-защитой, как
 	// соседние sub-роуты system-tables (trash/history): доступ вкладки гейтит фронт
 	// правом table.<slug>.versions. Чистка разрушительна - только admin/super.
-	stg.POST("/:id/snapshots", tsnap.Create)
+	stg.POST("/:id/snapshots", tsnap.Create, d.TableVersionsGate)
 	stg.GET("/:id/snapshots", tsnap.List)
 	stg.GET("/:id/snapshots/:sid", tsnap.Get)
 	// Экспорт версии/текущего состояния (xlsx|pdf) файлом на скачивание. Читалка -
@@ -643,9 +649,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// системной таблицы (cars или people).
 	stg.GET("/:id/trash", trash.List)
 	stg.GET("/:id/trash/history", trash.History)
-	stg.POST("/:id/trash/restore", trash.Restore)
-	stg.DELETE("/:id/trash/:item_id", trash.PurgeOne)
-	stg.DELETE("/:id/trash", trash.ClearAll)
+	stg.POST("/:id/trash/restore", trash.Restore, d.TableTrashGate)
+	stg.DELETE("/:id/trash/:item_id", trash.PurgeOne, d.TableTrashGate)
+	stg.DELETE("/:id/trash", trash.ClearAll, d.TableTrashGate)
 
 	// Реестр автомобилей (unique_cars)
 	ucg := protected.Group("/unique-cars")
