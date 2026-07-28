@@ -7,11 +7,17 @@ vi.mock('@/api/client', () => ({
   apiRequest: vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({}) })),
 }));
 
+// Отзыв своего решения спрашивает подтверждение через ui-стор.
+const confirmMock = vi.fn(() => Promise.resolve(true));
+vi.mock('@/stores/ui', () => ({ useUiStore: () => ({ confirm: confirmMock }) }));
+
 import ApplicationActionBar from '../ApplicationActionBar.vue';
 
 const APPROVE = '[data-testid="app-detail-button-approve"]';
 const REJECT = '[data-testid="app-detail-button-reject"]';
 const HINT = '[data-testid="app-detail-blacklist-gate-hint"]';
+const REVOKE = '[data-testid="app-detail-button-revoke-approval"]';
+const TAKE = '[data-testid="app-detail-button-take-to-work"]';
 
 function mountBar(props = {}) {
   return mount(ApplicationActionBar, {
@@ -194,8 +200,6 @@ describe('ApplicationActionBar - принять можно только посл
 // позволяет (application_workflow_service, ветка accept), а интерфейс показывал кнопки
 // только при confirmation='Согласовано' - и заявка застревала навсегда.
 describe('ApplicationActionBar - приём заявки без согласующих', () => {
-  const TAKE = '[data-testid="app-detail-button-take-to-work"]';
-
   it('без согласующих кнопки принять и отказать показываются при confirmation=Согласование', () => {
     const wrapper = mountBar({
       application: { id: 1, confirmation: 'Согласование', status: 'Непрочитано' },
@@ -227,6 +231,135 @@ describe('ApplicationActionBar - приём заявки без согласую
     });
 
     expect(wrapper.find(TAKE).exists()).toBe(true);
+  });
+});
+
+// Пользователь из справочника принимающих, назначенный согласующим по заявке, попадал в
+// ветку совмещённой роли - а в ней кнопки отзыва своего решения не было вовсе. На заявке,
+// ждущей обязательного согласующего, у него оставался один бейдж без единого действия.
+describe('ApplicationActionBar - отзыв своего решения при совмещённой роли (#1550)', () => {
+  const dualRole = (props = {}) => ({
+    currentUserId: 1,
+    approvers: [{ user_id: 1 }],
+    responsibleUsers: [
+      { id: 1, required_approval: false, approval_status: 'approved' },
+      { id: 2, required_approval: true, approval_status: 'pending' },
+    ],
+    ...props,
+  });
+
+  it('ждём обязательного согласующего: решение отзывается, свой голос виден', () => {
+    const wrapper = mountBar(dualRole({
+      application: { id: 1, confirmation: 'Согласование', status: 'В обработке' },
+    }));
+
+    expect(wrapper.find(REVOKE).exists()).toBe(true);
+    expect(wrapper.text()).toContain('Вы согласовали (ожидание других)');
+  });
+
+  it('согласование завершено: отзыв соседствует с "Принять"', () => {
+    const wrapper = mountBar(dualRole({
+      application: { id: 1, confirmation: 'Согласовано', status: 'В обработке' },
+      responsibleUsers: [
+        { id: 1, required_approval: false, approval_status: 'approved' },
+        { id: 2, required_approval: true, approval_status: 'approved' },
+      ],
+    }));
+
+    expect(wrapper.find(TAKE).exists()).toBe(true);
+    expect(wrapper.find(REVOKE).exists()).toBe(true);
+  });
+
+  it('заявка уже в работе: решение не отзывается, доступен отзыв из работы', () => {
+    const wrapper = mountBar(dualRole({
+      application: { id: 1, confirmation: 'Согласовано', status: 'В работе' },
+    }));
+
+    expect(wrapper.find(REVOKE).exists()).toBe(false);
+    expect(wrapper.text()).toContain('Отозвать из работы');
+  });
+
+  it('клик по кнопке отзывает решение на бэкенде', async () => {
+    const { apiRequest } = await import('@/api/client');
+    apiRequest.mockClear();
+    confirmMock.mockResolvedValueOnce(true);
+
+    const wrapper = mountBar(dualRole({
+      application: { id: 95, confirmation: 'Согласование', status: 'В обработке' },
+    }));
+    await wrapper.find(REVOKE).trigger('click');
+    await flushPromises();
+
+    expect(apiRequest).toHaveBeenCalledWith('/applications/95/revoke-approval', expect.objectContaining({ method: 'POST' }));
+  });
+
+  it('отказ в подтверждении ничего не отзывает', async () => {
+    const { apiRequest } = await import('@/api/client');
+    apiRequest.mockClear();
+    confirmMock.mockResolvedValueOnce(false);
+
+    const wrapper = mountBar(dualRole({
+      application: { id: 95, confirmation: 'Согласование', status: 'В обработке' },
+    }));
+    await wrapper.find(REVOKE).trigger('click');
+    await flushPromises();
+
+    expect(apiRequest).not.toHaveBeenCalled();
+  });
+
+  it('на узком экране подпись сокращается - ряд из трёх кнопок не переносится', async () => {
+    const original = window.matchMedia;
+    window.matchMedia = () => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} });
+    try {
+      const wrapper = mountBar(dualRole({
+        application: { id: 1, confirmation: 'Согласовано', status: 'В обработке' },
+        responsibleUsers: [
+          { id: 1, required_approval: false, approval_status: 'approved' },
+          { id: 2, required_approval: true, approval_status: 'approved' },
+        ],
+      }));
+      await flushPromises();
+
+      expect(wrapper.find(REVOKE).text()).toBe('Отозвать');
+    } finally {
+      window.matchMedia = original;
+    }
+  });
+
+  it('на десктопе подпись полная', () => {
+    const wrapper = mountBar(dualRole({
+      application: { id: 1, confirmation: 'Согласование', status: 'В обработке' },
+    }));
+
+    expect(wrapper.find(REVOKE).text()).toBe('Отозвать своё решение');
+  });
+
+  it('согласующий без роли принимающего отзыв видит по-прежнему', () => {
+    const wrapper = mountBar({
+      application: { id: 1, confirmation: 'Согласование', status: 'В обработке' },
+      currentUserId: 1,
+      approvers: [],
+      responsibleUsers: [{ id: 1, required_approval: false, approval_status: 'approved' }],
+    });
+
+    expect(wrapper.find(REVOKE).exists()).toBe(true);
+  });
+});
+
+// На 390 ряд действий не переносится, поэтому кнопка отзыва не должна нести свою ширину:
+// с "Принять" и "Отказать" рядом (120px каждая) её 140px выталкивают тройку за вьюпорт.
+describe('ApplicationActionBar - ширина отзыва решения на мобилке (#1550)', () => {
+  const src = readFileSync(resolve(__dirname, '../ApplicationActionBar.vue'), 'utf8');
+  const mobile = src.slice(src.indexOf('@media (max-width: 768px)'));
+
+  it('мобильное правило снимает min-width', () => {
+    const rule = mobile.match(/\.subtle-btn\.revoke-approval-btn\s*\{([\s\S]*?)\}/);
+    expect(rule).not.toBeNull();
+    expect(rule[1]).toContain('min-width: auto');
+  });
+
+  it('селектор из двух классов - .subtle-btn объявлен ниже и перебил бы одиночный', () => {
+    expect(src.indexOf('.subtle-btn {')).toBeGreaterThan(src.indexOf('@media (max-width: 768px)'));
   });
 });
 

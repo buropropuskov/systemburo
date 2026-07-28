@@ -23,7 +23,7 @@ type Attachment struct {
 	FreeParking bool `gorm:"default:false" json:"free_parking"`
 	// Ручное добавление в таблицы (#1049): вложение-сирота без заявки. При ручном
 	// добавлении application_id NULL + is_manual=true, а org/company хранятся прямо
-	// на вложении (у заявочных берутся из applications). См. .claude/context/active/manual-table-add.
+	// на вложении (у заявочных берутся из applications).
 	OrganizationID  *int          `gorm:"index" json:"organization_id"`
 	Organization    *Organization `json:"-"`
 	CompanyID       *int          `gorm:"index" json:"company_id"`

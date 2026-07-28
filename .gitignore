@@ -7,12 +7,6 @@
 # Зависимости и кэши сборки (в т.ч. node_modules/.vite от прогона vitest из корня)
 node_modules/
 
-# Claude Code / Superpowers
-.claude/
-.superpowers/
-.playwright-mcp/
-*.plan.md
-
 # Дампы БД
 *.sql
 
@@ -24,7 +18,9 @@ frontend/test-results/
 # Временные файлы
 *.tmp
 mockup-*.html
-sidebar-*.png
+# Отладочные снимки экрана в корне: копятся десятками при ручной проверке вёрстки.
+# Ограничено корнем - изображения фронтенда лежат во frontend/public и нужны сборке.
+/*.png
 
 # Runtime-загрузки (тестовые/локальные артефакты, не хранятся в VCS)
 internal/handlers/uploads/

@@ -106,41 +106,58 @@
                 </div>
               </template>
               <!-- Заявка не в работе, не отказана и не завершена: принять её можно, когда
-                   согласование завершено ИЛИ согласовывать нечего (согласующих нет). -->
-              <template v-else-if="canTakeToWork">
+                   согласование завершено ИЛИ согласовывать нечего (согласующих нет).
+                   Своё решение здесь отзывается в любом случае (#1550): пользователь из
+                   справочника принимающих - такой же согласующий, и раньше кнопка отзыва
+                   ему не доставалась, потому что эта ветка перехватывала рендер. -->
+              <template v-else>
+                <template v-if="canTakeToWork">
+                  <button
+                    class="accept-btn"
+                    data-testid="app-detail-button-take-to-work"
+                    :disabled="processing"
+                    @click="handleApplicationAction('accept')"
+                  >
+                    <span
+                      v-if="processing"
+                      class="button-loading"
+                    />
+                    <span v-else>Принять</span>
+                  </button>
+                  <button
+                    class="reject-btn"
+                    data-testid="app-detail-button-reject"
+                    :disabled="processing"
+                    @click="handleApplicationAction('reject')"
+                  >
+                    <span
+                      v-if="processing"
+                      class="button-loading"
+                    />
+                    <span v-else>Отказать</span>
+                  </button>
+                </template>
                 <button
-                  class="accept-btn"
-                  data-testid="app-detail-button-take-to-work"
+                  class="revoke-approval-btn subtle-btn"
+                  data-testid="app-detail-button-revoke-approval"
                   :disabled="processing"
-                  @click="handleApplicationAction('accept')"
+                  @click="revokeOwnApproval"
                 >
                   <span
                     v-if="processing"
                     class="button-loading"
                   />
-                  <span v-else>Принять</span>
+                  <span v-else>{{ revokeApprovalLabel }}</span>
                 </button>
-                <button
-                  class="reject-btn"
-                  data-testid="app-detail-button-reject"
-                  :disabled="processing"
-                  @click="handleApplicationAction('reject')"
+                <!-- Заявка ждёт других согласующих - показываем свой голос -->
+                <div
+                  v-if="!canTakeToWork"
+                  class="vote-status-badge"
+                  :class="userVoteStatus.class"
                 >
-                  <span
-                    v-if="processing"
-                    class="button-loading"
-                  />
-                  <span v-else>Отказать</span>
-                </button>
+                  {{ userVoteStatus.text }} (ожидание других)
+                </div>
               </template>
-              <!-- Если пользователь проголосовал, но заявка не согласована (ждет других) -->
-              <div
-                v-else
-                class="vote-status-badge"
-                :class="userVoteStatus.class"
-              >
-                {{ userVoteStatus.text }} (ожидание других)
-              </div>
             </template>
           </template>
 
@@ -291,6 +308,7 @@
               <template v-else>
                 <button
                   class="revoke-approval-btn subtle-btn"
+                  data-testid="app-detail-button-revoke-approval"
                   :disabled="processing"
                   @click="revokeOwnApproval"
                 >
@@ -381,6 +399,7 @@
 <script>
 import { apiRequest } from '@/api/client'
 import { useUiStore } from '@/stores/ui'
+import { useNarrowScreen } from '@/composables/useNarrowScreen'
 
 export default {
     name: 'ApplicationActionBar',
@@ -428,7 +447,16 @@ export default {
         }
     },
     emits: ['action-completed', 'processing-change', 'updating-confirmation-change', 'comment-clear'],
+    setup() {
+        return useNarrowScreen();
+    },
     computed: {
+        // На узком экране ряд действий не переносится (nowrap), а у совмещённой роли рядом
+        // стоят ещё "Принять" и "Отказать" - полная подпись в 390px не помещается.
+        revokeApprovalLabel() {
+            return this.isNarrow ? 'Отозвать' : 'Отозвать своё решение';
+        },
+
         // Идёт действие (accept/reject/take-to-work), смена согласования ИЛИ рефетч после
         // действия (ready=false). Всё это время держим единый лоадер вместо кнопок в
         // зарезервированной высоте (.action-buttons min-height), чтобы старые кнопки не
@@ -827,6 +855,15 @@ export default {
     .reject-btn,
     .accept-btn {
         padding: 8px 14px;
+        white-space: nowrap;
+    }
+    /* Отзыв решения стоит в ряду с "Принять"/"Отказать" (#1550) - без своей ширины,
+       иначе тройка кнопок вылезает за 390. Селектор с двумя классами обязателен:
+       .subtle-btn объявлен ниже по файлу и при равной специфичности перебивал
+       min-width обратно на 140px. */
+    .subtle-btn.revoke-approval-btn {
+        padding: 8px 14px;
+        min-width: auto;
         white-space: nowrap;
     }
 }
