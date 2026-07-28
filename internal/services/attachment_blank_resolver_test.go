@@ -249,3 +249,53 @@ func TestBuiltinTemplateFields_CoversApplicationItems(t *testing.T) {
 		}
 	}
 }
+
+// Подпись «СОГЛАСОВАНО» в бланке: обязательные согласования перечисляются все,
+// необязательные представляет первый согласовавший.
+func TestResolveValue_Approvers(t *testing.T) {
+	full := []Approver{
+		{LastName: "Иванов", FirstName: "Иван", MiddleName: "Иванович"},
+		{LastName: "Петров", FirstName: "Пётр", MiddleName: "Петрович", Required: true},
+		{LastName: "Сидорова", FirstName: "Анна", MiddleName: "Сергеевна", Required: true},
+	}
+	bctx := &BlankContext{Approvers: full}
+
+	require.Equal(t, "Петров Пётр Петрович, Сидорова Анна Сергеевна",
+		resolveValue(bctx, "application.approver_name", 0),
+		"под подписью идут все обязательные согласования")
+	require.Equal(t, "Петров П. П., Сидорова А. С.",
+		resolveValue(bctx, "application.approver_short_name", 0))
+	require.Equal(t, "Иванов Иван Иванович, Петров Пётр Петрович, Сидорова Анна Сергеевна",
+		resolveValue(bctx, "application.approvers", 0),
+		"отдельным полем доступны все согласовавшие")
+	require.Equal(t, "Иванов И. И., Петров П. П., Сидорова А. С.",
+		resolveValue(bctx, "application.approvers_short", 0))
+
+	// Обязательных нет - подписывает первый согласовавший, остальные только в «всех».
+	onlyOptional := &BlankContext{Approvers: []Approver{
+		{LastName: "Иванов", FirstName: "Иван", MiddleName: "Иванович"},
+		{LastName: "Петров", FirstName: "Пётр", MiddleName: "Петрович"},
+	}}
+	require.Equal(t, "Иванов Иван Иванович", resolveValue(onlyOptional, "application.approver_name", 0))
+	require.Equal(t, "Иванов И. И.", resolveValue(onlyOptional, "application.approver_short_name", 0))
+	require.Equal(t, "Иванов Иван Иванович, Петров Пётр Петрович",
+		resolveValue(onlyOptional, "application.approvers", 0))
+
+	// Никто не согласовал - ячейки бланка остаются такими, как их задал шаблон.
+	empty := &BlankContext{}
+	for _, path := range []string{
+		"application.approver_name", "application.approver_short_name",
+		"application.approvers", "application.approvers_short",
+	} {
+		require.Empty(t, resolveValue(empty, path, 0), "путь %s без согласовавших", path)
+	}
+}
+
+func TestBuiltinTemplateFields_CoversApprovers(t *testing.T) {
+	for _, path := range []string{
+		"application.approver_name", "application.approver_short_name",
+		"application.approvers", "application.approvers_short",
+	} {
+		require.True(t, IsValidFieldPath(path), "путь %s должен быть в словаре", path)
+	}
+}

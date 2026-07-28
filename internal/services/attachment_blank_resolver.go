@@ -49,6 +49,19 @@ func resolveValue(bctx *BlankContext, path string, rowIdx int) string {
 }
 
 func resolveApplication(bctx *BlankContext, path string) string {
+	// Согласовавшие живут в контексте отдельным списком - они не зависят от того,
+	// удалось ли загрузить саму заявку.
+	switch path {
+	case "application.approver_name":
+		return joinApprovers(approversForSignature(bctx.Approvers), false)
+	case "application.approver_short_name":
+		return joinApprovers(approversForSignature(bctx.Approvers), true)
+	case "application.approvers":
+		return joinApprovers(bctx.Approvers, false)
+	case "application.approvers_short":
+		return joinApprovers(bctx.Approvers, true)
+	}
+
 	app := bctx.Application
 	if app == nil {
 		return ""
@@ -127,12 +140,46 @@ func resolveApplication(bctx *BlankContext, path string) string {
 		if bctx.Sender != nil {
 			return formatPhone(derefStr(bctx.Sender.Phone))
 		}
-	case "application.approver_name":
-		return bctx.ApproverName
 	case "application.responsible_comment":
 		return derefStr(app.ResponsibleComment)
 	}
 	return ""
+}
+
+// approversForSignature - кого писать под «СОГЛАСОВАНО»: обязательные согласования
+// перечисляются ВСЕ (каждое из них - отдельное требование заявки), а необязательные
+// представляет первый согласовавший.
+func approversForSignature(all []Approver) []Approver {
+	required := make([]Approver, 0, len(all))
+	for _, a := range all {
+		if a.Required {
+			required = append(required, a)
+		}
+	}
+	if len(required) > 0 {
+		return required
+	}
+	if len(all) > 0 {
+		return all[:1]
+	}
+	return nil
+}
+
+// joinApprovers печатает ФИО согласовавших через запятую: полностью или Фамилия И.О.
+func joinApprovers(list []Approver, short bool) string {
+	names := make([]string, 0, len(list))
+	for _, a := range list {
+		var name string
+		if short {
+			name = joinShortName(a.LastName, a.FirstName, a.MiddleName)
+		} else {
+			name = joinFullName(a.LastName, a.FirstName, a.MiddleName)
+		}
+		if name != "" {
+			names = append(names, name)
+		}
+	}
+	return strings.Join(names, ", ")
 }
 
 // resolveApplicationItems печатает ТМЦ «Заявок на ввоз» этой заявки в бланке любого
