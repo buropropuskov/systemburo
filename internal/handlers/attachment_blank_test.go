@@ -540,7 +540,7 @@ func itemsTableSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
 	tpl := models.AttachmentTemplate{
 		UniqueAttachmentID: ua.ID, IsActive: true, FilePath: path, OriginalFileName: "items_table.xlsx",
 		ListStartRow: 10, ListEndRow: 12, MaxListRows: 3,
-		ItemsListStartRow: 20, ItemsListEndRow: 23, ItemsMaxListRows: 4,
+		ItemsMaxListRows: 4,
 	}
 	require.NoError(t, db.Create(&tpl).Error)
 	require.NoError(t, db.Create(&[]models.AttachmentTemplateMapping{
@@ -1446,36 +1446,48 @@ func templateParamsSection(t *testing.T, w blankWorld) {
 		require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 	})
 
-	t.Run("админ задаёт таблицу ТМЦ, максимум считается по ней", func(t *testing.T) {
-		rec := testutil.PUT(t, w.h.e, url,
-			`{"list_start_row":7,"list_end_row":20,"items_list_start_row":30,"items_list_end_row":37}`,
-			testutil.AuthHeader(w.h.adminToken))
-		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-
-		var tpl models.AttachmentTemplate
-		require.NoError(t, db.Where("unique_attachment_id = ? AND is_active = ?", uaID, true).First(&tpl).Error)
-		require.Equal(t, 30, tpl.ItemsListStartRow)
-		require.Equal(t, 37, tpl.ItemsListEndRow)
-		require.Equal(t, 8, tpl.ItemsMaxListRows)
-	})
-
-	t.Run("таблица ТМЦ поверх списка отклоняется", func(t *testing.T) {
-		rec := testutil.PUT(t, w.h.e, url,
-			`{"list_start_row":7,"list_end_row":20,"items_list_start_row":15,"items_list_end_row":25}`,
+	// Таблица ТМЦ задаётся числом строк, а её начало сервис берёт из привязки полей ТМЦ.
+	t.Run("без привязок к ТМЦ число строк отклоняется", func(t *testing.T) {
+		rec := testutil.PUT(t, w.h.e, url, `{"list_start_row":7,"list_end_row":20,"items_max_list_rows":8}`,
 			testutil.AuthHeader(w.h.adminToken))
 		require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 	})
 
-	t.Run("пустые границы таблицы ТМЦ убирают её из шаблона", func(t *testing.T) {
-		rec := testutil.PUT(t, w.h.e, url,
-			`{"list_start_row":7,"list_end_row":20,"items_list_start_row":0,"items_list_end_row":0}`,
+	t.Run("начало таблицы ТМЦ берётся из привязки", func(t *testing.T) {
+		var tplID int
+		require.NoError(t, db.Table("attachment_templates").
+			Where("unique_attachment_id = ? AND is_active = ?", uaID, true).
+			Select("id").Scan(&tplID).Error)
+		require.NoError(t, db.Create(&models.AttachmentTemplateMapping{
+			TemplateID: tplID, CellRef: "B30", FieldPath: "item.name", IsListField: true,
+		}).Error)
+
+		rec := testutil.PUT(t, w.h.e, url, `{"list_start_row":7,"list_end_row":20,"items_max_list_rows":8}`,
 			testutil.AuthHeader(w.h.adminToken))
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 		var tpl models.AttachmentTemplate
 		require.NoError(t, db.Where("unique_attachment_id = ? AND is_active = ?", uaID, true).First(&tpl).Error)
-		require.Zero(t, tpl.ItemsListStartRow)
+		require.Equal(t, 8, tpl.ItemsMaxListRows)
+		require.Equal(t, 30, tpl.ItemsListStartRow, "снимок границ считается по привязке")
+		require.Equal(t, 37, tpl.ItemsListEndRow)
+	})
+
+	t.Run("таблица ТМЦ поверх списка отклоняется", func(t *testing.T) {
+		rec := testutil.PUT(t, w.h.e, url, `{"list_start_row":25,"list_end_row":40,"items_max_list_rows":8}`,
+			testutil.AuthHeader(w.h.adminToken))
+		require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	})
+
+	t.Run("ноль строк убирает таблицу ТМЦ из шаблона", func(t *testing.T) {
+		rec := testutil.PUT(t, w.h.e, url, `{"list_start_row":7,"list_end_row":20,"items_max_list_rows":0}`,
+			testutil.AuthHeader(w.h.adminToken))
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+		var tpl models.AttachmentTemplate
+		require.NoError(t, db.Where("unique_attachment_id = ? AND is_active = ?", uaID, true).First(&tpl).Error)
 		require.Zero(t, tpl.ItemsMaxListRows)
+		require.Zero(t, tpl.ItemsListStartRow)
 	})
 }
 

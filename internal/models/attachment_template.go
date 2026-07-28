@@ -6,26 +6,32 @@ import "time"
 // Несколько шаблонов на UniqueAttachment, активный определяется IsActive=true.
 // file_path - путь к загруженному .xlsx в uploads/templates/.
 type AttachmentTemplate struct {
-	ID                 int                         `json:"id"`
-	UniqueAttachmentID int                         `gorm:"index" json:"unique_attachment_id"`
-	IsActive           bool                        `gorm:"default:true;index" json:"is_active"`
-	UniqueAttachment   *UniqueAttachment           `gorm:"foreignKey:UniqueAttachmentID" json:"-"`
-	FilePath           string                      `gorm:"size:500" json:"file_path"`
-	OriginalFileName   string                      `gorm:"size:255" json:"original_file_name"`
-	ListStartRow       int                         `json:"list_start_row"`
-	ListEndRow         int                         `json:"list_end_row"`
-	MaxListRows        int                         `json:"max_list_rows"`
+	ID                 int               `json:"id"`
+	UniqueAttachmentID int               `gorm:"index" json:"unique_attachment_id"`
+	IsActive           bool              `gorm:"default:true;index" json:"is_active"`
+	UniqueAttachment   *UniqueAttachment `gorm:"foreignKey:UniqueAttachmentID" json:"-"`
+	FilePath           string            `gorm:"size:500" json:"file_path"`
+	OriginalFileName   string            `gorm:"size:255" json:"original_file_name"`
+	ListStartRow       int               `json:"list_start_row"`
+	ListEndRow         int               `json:"list_end_row"`
+	MaxListRows        int               `json:"max_list_rows"`
 	// Вторая таблица бланка - ТМЦ «Заявок на ввоз» этой же заявки. Строки списка
 	// принадлежат собственному типу вложения (у заявки на работы - сотрудникам),
-	// поэтому ввозимый товар идёт отдельным диапазоном; нули - таблицы в бланке нет.
-	ItemsListStartRow int `json:"items_list_start_row"`
-	ItemsListEndRow   int `json:"items_list_end_row"`
-	ItemsMaxListRows  int `json:"items_max_list_rows"`
-	ConcatSeparator    *string                     `gorm:"size:20" json:"concat_separator,omitempty"`
-	UploadedByUserID   *int                        `json:"uploaded_by_user_id,omitempty"`
-	CreatedAt          time.Time                   `json:"created_at"`
-	UpdatedAt          time.Time                   `json:"updated_at"`
-	Mappings           []AttachmentTemplateMapping `gorm:"foreignKey:TemplateID" json:"mappings,omitempty"`
+	// поэтому ввозимый товар идёт отдельной таблицей.
+	//
+	// Настраивается ОДНИМ числом - сколько строк отведено под таблицу в бланке; ноль
+	// означает, что таблицы нет. Строку начала задавать руками не нужно: её определяет
+	// ячейка, в которую админ привязал поля группы «Имущество (список)».
+	// StartRow/EndRow остались от первой версии настройки и заполняются сервисом как
+	// снимок посчитанных границ - генерация их не читает.
+	ItemsListStartRow int                         `json:"items_list_start_row"`
+	ItemsListEndRow   int                         `json:"items_list_end_row"`
+	ItemsMaxListRows  int                         `json:"items_max_list_rows"`
+	ConcatSeparator   *string                     `gorm:"size:20" json:"concat_separator,omitempty"`
+	UploadedByUserID  *int                        `json:"uploaded_by_user_id,omitempty"`
+	CreatedAt         time.Time                   `json:"created_at"`
+	UpdatedAt         time.Time                   `json:"updated_at"`
+	Mappings          []AttachmentTemplateMapping `gorm:"foreignKey:TemplateID" json:"mappings,omitempty"`
 }
 
 // AttachmentTemplateMapping - связь между ячейкой Excel и полем заявки.
@@ -84,24 +90,21 @@ type AttachmentCustomValue struct {
 // CreateTemplateRequest - данные при загрузке/обновлении шаблона
 // (multipart form: file + form fields).
 type CreateTemplateRequest struct {
-	ListStartRow      int `form:"list_start_row" json:"list_start_row" validate:"min=1"`
-	ListEndRow        int `form:"list_end_row" json:"list_end_row" validate:"min=1"`
-	MaxListRows       int `form:"max_list_rows" json:"max_list_rows" validate:"min=0"`
-	ItemsListStartRow int `form:"items_list_start_row" json:"items_list_start_row" validate:"min=0"`
-	ItemsListEndRow   int `form:"items_list_end_row" json:"items_list_end_row" validate:"min=0"`
-	ItemsMaxListRows  int `form:"items_max_list_rows" json:"items_max_list_rows" validate:"min=0"`
+	ListStartRow int `form:"list_start_row" json:"list_start_row" validate:"min=1"`
+	ListEndRow   int `form:"list_end_row" json:"list_end_row" validate:"min=1"`
+	MaxListRows  int `form:"max_list_rows" json:"max_list_rows" validate:"min=0"`
 }
 
 // UpdateTemplateParamsRequest - границы строк списка без перезагрузки файла.
 // MaxListRows=0 означает "посчитать по диапазону" (как при загрузке шаблона).
 // Границы таблицы ТМЦ необязательны: нули означают "таблицы в бланке нет".
 type UpdateTemplateParamsRequest struct {
-	ListStartRow      int `json:"list_start_row" validate:"min=1"`
-	ListEndRow        int `json:"list_end_row" validate:"min=1"`
-	MaxListRows       int `json:"max_list_rows" validate:"min=0"`
-	ItemsListStartRow int `json:"items_list_start_row" validate:"min=0"`
-	ItemsListEndRow   int `json:"items_list_end_row" validate:"min=0"`
-	ItemsMaxListRows  int `json:"items_max_list_rows" validate:"min=0"`
+	ListStartRow int `json:"list_start_row" validate:"min=1"`
+	ListEndRow   int `json:"list_end_row" validate:"min=1"`
+	MaxListRows  int `json:"max_list_rows" validate:"min=0"`
+	// ItemsMaxListRows - сколько строк бланка отведено под таблицу ТМЦ заявки. Ноль -
+	// таблицы нет. Строку начала не передаём: её задаёт ячейка привязки полей ТМЦ.
+	ItemsMaxListRows int `json:"items_max_list_rows" validate:"min=0"`
 }
 
 // UpdateMappingsRequest - bulk-обновление mappings одним запросом.

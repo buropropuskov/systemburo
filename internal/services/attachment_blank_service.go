@@ -283,32 +283,58 @@ func overflowHeaderRow(shifts []rowShift) int {
 // вложения) и таблицу ТМЦ «Заявок на ввоз» заявки, если её разметили в шаблоне.
 // Вторая таблица заполняется теми же привязками группы item.*, что и бланк ввоза, -
 // админу не надо заводить отдельные поля под «чужие» ТМЦ.
-func blankSections(t *models.AttachmentTemplate, bctx *BlankContext) []listSection {
+func blankSections(t *models.AttachmentTemplate, mappings []models.AttachmentTemplateMapping, bctx *BlankContext) []listSection {
 	sections := make([]listSection, 0, 2)
-	if prefix, count := listSource(bctx); prefix != "" && count > 0 {
+	ownPrefix, count := listSource(bctx)
+	if ownPrefix != "" && count > 0 {
 		sections = append(sections, listSection{
 			startRow: t.ListStartRow, endRow: t.ListEndRow, maxRows: t.MaxListRows,
-			prefix: prefix, count: count,
+			prefix: ownPrefix, count: count,
 			resolve: func(path string, idx int) string { return resolveValue(bctx, path, idx) },
 		})
 	}
-	if t.ItemsListStartRow > 0 && t.ItemsListEndRow >= t.ItemsListStartRow && len(bctx.ApplicationItems) > 0 {
-		rows := bctx.ApplicationItems
-		sections = append(sections, listSection{
-			startRow: t.ItemsListStartRow, endRow: t.ItemsListEndRow, maxRows: t.ItemsMaxListRows,
-			prefix: "item.", count: len(rows),
-			resolve: func(path string, idx int) string { return resolveApplicationItemRow(rows, path, idx) },
-		})
+	// Таблица ТМЦ: сколько строк под неё отведено, админ задаёт числом, а где она
+	// начинается - видно по привязкам группы «Имущество (список)». У бланка самого ввоза
+	// этой таблицы нет: там ТМЦ и так заполняют строки собственного списка.
+	if t.ItemsMaxListRows > 0 && len(bctx.ApplicationItems) > 0 && ownPrefix != "item." {
+		if start := itemsSectionStart(mappings); start > 0 {
+			rows := bctx.ApplicationItems
+			sections = append(sections, listSection{
+				startRow: start, endRow: start + t.ItemsMaxListRows - 1, maxRows: t.ItemsMaxListRows,
+				prefix: "item.", count: len(rows),
+				resolve: func(path string, idx int) string { return resolveApplicationItemRow(rows, path, idx) },
+			})
+		}
 	}
 	sort.Slice(sections, func(i, j int) bool { return sections[i].startRow < sections[j].startRow })
 	return sections
+}
+
+// itemsSectionStart - строка, с которой начинается таблица ТМЦ: верхняя из ячеек, куда
+// админ привязал поля группы «Имущество (список)». Отдельного поля под неё в настройке
+// нет - привязка и есть указание места.
+func itemsSectionStart(mappings []models.AttachmentTemplateMapping) int {
+	start := 0
+	for _, m := range mappings {
+		if !strings.HasPrefix(m.FieldPath, "item.") {
+			continue
+		}
+		_, row, err := excelize.CellNameToCoordinates(m.CellRef)
+		if err != nil || row < 1 {
+			continue
+		}
+		if start == 0 || row < start {
+			start = row
+		}
+	}
+	return start
 }
 
 // fillListSections заполняет таблицы бланка сверху вниз. Расширение верхней таблицы
 // сдвигает нижние, поэтому строки нижних пишутся со смещением на уже добавленные строки.
 // Возвращает сдвиги по каждой таблице для правки формул условного форматирования.
 func (s *attachmentBlankService) fillListSections(f *excelize.File, sheet string, t *models.AttachmentTemplate, mappings []models.AttachmentTemplateMapping, staticCells map[string]string, bctx *BlankContext) []rowShift {
-	sections := blankSections(t, bctx)
+	sections := blankSections(t, mappings, bctx)
 	shifts := make([]rowShift, 0, len(sections))
 	shift := 0
 	for _, sec := range sections {

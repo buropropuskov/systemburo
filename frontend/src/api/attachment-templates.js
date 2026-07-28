@@ -76,8 +76,7 @@ export async function updateMappings(uniqueAttachmentID, mappings, concatSeparat
  * @param {{ listStartRow: number, listEndRow: number, maxListRows?: number }} params
  */
 export async function updateTemplateParams(uniqueAttachmentID, {
-  listStartRow, listEndRow, maxListRows = 0,
-  itemsListStartRow = 0, itemsListEndRow = 0, itemsMaxListRows = 0,
+  listStartRow, listEndRow, maxListRows = 0, itemsMaxListRows = 0,
 }) {
   const res = await apiRequest(`/attachments/${uniqueAttachmentID}/template/params`, {
     method: 'PUT',
@@ -85,8 +84,6 @@ export async function updateTemplateParams(uniqueAttachmentID, {
       list_start_row: listStartRow,
       list_end_row: listEndRow,
       max_list_rows: maxListRows,
-      items_list_start_row: itemsListStartRow,
-      items_list_end_row: itemsListEndRow,
       items_max_list_rows: itemsMaxListRows,
     }),
   });

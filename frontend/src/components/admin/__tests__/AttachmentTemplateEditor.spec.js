@@ -176,22 +176,40 @@ describe('AttachmentTemplateEditor', () => {
     await flushPromises();
 
     expect(updateTemplateParams).toHaveBeenCalledWith(9, {
-      listStartRow: 30, listEndRow: 50, maxListRows: 18,
-      itemsListStartRow: 0, itemsListEndRow: 0, itemsMaxListRows: 0,
+      listStartRow: 30, listEndRow: 50, maxListRows: 18, itemsMaxListRows: 0,
     });
     expect(notify).toHaveBeenCalledWith(expect.objectContaining({ bold: 'Границы списка сохранены' }));
   });
 
-  it('сохраняет границы таблицы ТМЦ вместе со списком', async () => {
+  // Начало таблицы ТМЦ берётся из привязки (в фикстуре item.name стоит в B30),
+  // руками задаётся только число строк.
+  it('сохраняет число строк таблицы ТМЦ вместе со списком', async () => {
     const wrapper = await mountEditor({ attachmentType: 'people' });
-    await wrapper.find('[data-testid="template-items-start"]').setValue(60);
-    await wrapper.find('[data-testid="template-items-end"]').setValue(67);
+    expect(wrapper.vm.itemsSectionStart).toBe(30);
+
+    await wrapper.find('[data-testid="template-items-rows"]').setValue(8);
     await wrapper.find('[data-testid="template-params-save"]').trigger('click');
     await flushPromises();
 
     expect(updateTemplateParams).toHaveBeenCalledWith(9, expect.objectContaining({
-      itemsListStartRow: 60, itemsListEndRow: 67,
+      itemsMaxListRows: 8,
     }));
+  });
+
+  // Без привязок к ТМЦ настройка таблицы не нужна и не показывается.
+  it('прячет настройку таблицы ТМЦ, когда привязок к ТМЦ нет', async () => {
+    getTemplate.mockResolvedValue({
+      ...TEMPLATE,
+      mappings: [{ cell_ref: 'B30', field_path: 'employee.last_name', is_list_field: true }],
+    });
+    const wrapper = await mountEditor({ attachmentType: 'people' });
+    expect(wrapper.find('[data-testid="template-items-rows"]').exists()).toBe(false);
+  });
+
+  // У бланка самого ввоза строки списка и так заполняются его ТМЦ.
+  it('не показывает настройку таблицы ТМЦ у бланка ввоза', async () => {
+    const wrapper = await mountEditor({ attachmentType: 'items' });
+    expect(wrapper.find('[data-testid="template-items-rows"]').exists()).toBe(false);
   });
 
   // Привязки к ТМЦ в бланке работ без заданных строк таблицы молча ничего не заполнят -
@@ -201,8 +219,7 @@ describe('AttachmentTemplateEditor', () => {
     const wrapper = await mountEditor({ attachmentType: 'people' });
     expect(wrapper.find('[data-testid="template-items-range-hint"]').exists()).toBe(true);
 
-    wrapper.vm.form.itemsListStartRow = 42;
-    wrapper.vm.form.itemsListEndRow = 49;
+    wrapper.vm.form.itemsMaxListRows = 8;
     await wrapper.vm.$nextTick();
     expect(wrapper.find('[data-testid="template-items-range-hint"]').exists()).toBe(false);
   });
