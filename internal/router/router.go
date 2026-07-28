@@ -280,26 +280,29 @@ func Setup(e *echo.Echo, d Dependencies) {
 
 	// Форматы номерных знаков
 	lpfGroup := protected.Group("/license-plate-formats")
+	// Чтение форматов номеров нужно форме заявки; изменения - только админ справочников.
 	lpfGroup.GET("", lpf.GetAll)
-	lpfGroup.POST("", lpf.Create)
-	lpfGroup.PUT("/:id", lpf.Update)
-	lpfGroup.DELETE("/:id", lpf.Delete)
-	lpfGroup.POST("/:id/restore", lpf.Restore)
+	lpfGroup.POST("", lpf.Create, requireDirectories)
+	lpfGroup.PUT("/:id", lpf.Update, requireDirectories)
+	lpfGroup.DELETE("/:id", lpf.Delete, requireDirectories)
+	lpfGroup.POST("/:id/restore", lpf.Restore, requireDirectories)
 	// Групповые операции (статический bulk приоритетнее param :id в Echo).
-	lpfGroup.POST("/bulk/archive", lpf.BulkArchive)
-	lpfGroup.POST("/bulk/restore", lpf.BulkRestore)
+	lpfGroup.POST("/bulk/archive", lpf.BulkArchive, requireDirectories)
+	lpfGroup.POST("/bulk/restore", lpf.BulkRestore, requireDirectories)
 	lpfGroup.GET("/:id/history", lpf.GetHistory)
 
 	// Марки автомобилей (#185) - справочник с историчностью.
 	marksGroup := protected.Group("/marks")
+	// Чтение справочника марок нужно форме заявки (дропдаун) - оставляем открытым;
+	// изменения делает только админ из раздела справочников (page.admin.directories).
 	marksGroup.GET("", marks.GetAll)
-	marksGroup.POST("", marks.Create)
-	marksGroup.PUT("/:id", marks.Update)
-	marksGroup.POST("/:id/archive", marks.Archive)
-	marksGroup.POST("/:id/restore", marks.Restore)
+	marksGroup.POST("", marks.Create, requireDirectories)
+	marksGroup.PUT("/:id", marks.Update, requireDirectories)
+	marksGroup.POST("/:id/archive", marks.Archive, requireDirectories)
+	marksGroup.POST("/:id/restore", marks.Restore, requireDirectories)
 	// Групповые операции (статический bulk приоритетнее param :id в Echo).
-	marksGroup.POST("/bulk/archive", marks.BulkArchive)
-	marksGroup.POST("/bulk/restore", marks.BulkRestore)
+	marksGroup.POST("/bulk/archive", marks.BulkArchive, requireDirectories)
+	marksGroup.POST("/bulk/restore", marks.BulkRestore, requireDirectories)
 	marksGroup.GET("/:id/history", marks.GetHistory)
 
 	// Чёрный список машин (#443). POST/DELETE/restore защищены page.admin.blacklist.
@@ -447,31 +450,33 @@ func Setup(e *echo.Echo, d Dependencies) {
 
 	// Места разгрузки
 	upg := protected.Group("/unload-places")
+	// Чтение мест разгрузки нужно форме заявки (дропдаун, слоты, окна) - открыто;
+	// любое изменение справочника - только админ (page.admin.directories).
 	upg.GET("", up.GetAll)
-	upg.POST("", up.Create)
+	upg.POST("", up.Create, requireDirectories)
 	upg.GET("/:id", up.GetByID)
-	upg.PUT("/:id", up.Update)
-	upg.DELETE("/:id", up.Delete)
-	upg.POST("/:id/restore", up.Restore)
+	upg.PUT("/:id", up.Update, requireDirectories)
+	upg.DELETE("/:id", up.Delete, requireDirectories)
+	upg.POST("/:id/restore", up.Restore, requireDirectories)
 	upg.GET("/:id/usage", up.GetUsage)
 	upg.POST("/:id/detach-all", up.DetachAll, requireAdmin)
 	upg.DELETE("/:id/organizations/:org_id", up.DetachOrganization, requireAdmin)
 	upg.DELETE("/:id/companies/:company_id", up.DetachCompany, requireAdmin)
 	// Групповые операции (статический bulk приоритетнее param :id в Echo).
-	upg.POST("/bulk/archive", up.BulkArchive)
-	upg.POST("/bulk/restore", up.BulkRestore)
+	upg.POST("/bulk/archive", up.BulkArchive, requireDirectories)
+	upg.POST("/bulk/restore", up.BulkRestore, requireDirectories)
 	upg.GET("/:id/history", up.GetHistory)
 	upg.GET("/:id/time-slots", up.GetTimeSlots)
-	upg.POST("/:id/time-slots", up.AddTimeSlot)
-	upg.PUT("/:place_id/time-slots/:slot_id", up.UpdateTimeSlot)
-	upg.DELETE("/:place_id/time-slots/:slot_id", up.DeleteTimeSlot)
+	upg.POST("/:id/time-slots", up.AddTimeSlot, requireDirectories)
+	upg.PUT("/:place_id/time-slots/:slot_id", up.UpdateTimeSlot, requireDirectories)
+	upg.DELETE("/:place_id/time-slots/:slot_id", up.DeleteTimeSlot, requireDirectories)
 	upg.GET("/:id/warning-windows", up.GetWarningWindows)
-	upg.POST("/:id/warning-windows", up.AddWarningWindow)
-	upg.PUT("/:place_id/warning-windows/:window_id", up.UpdateWarningWindow)
-	upg.DELETE("/:place_id/warning-windows/:window_id", up.DeleteWarningWindow)
-	upg.POST("/:id/photos", up.UploadPhoto)
-	upg.DELETE("/:place_id/photos/:photo_id", up.DeletePhoto)
-	upg.POST("/:place_id/photos/:photo_id/main", up.SetMainPhoto)
+	upg.POST("/:id/warning-windows", up.AddWarningWindow, requireDirectories)
+	upg.PUT("/:place_id/warning-windows/:window_id", up.UpdateWarningWindow, requireDirectories)
+	upg.DELETE("/:place_id/warning-windows/:window_id", up.DeleteWarningWindow, requireDirectories)
+	upg.POST("/:id/photos", up.UploadPhoto, requireDirectories)
+	upg.DELETE("/:place_id/photos/:photo_id", up.DeletePhoto, requireDirectories)
+	upg.POST("/:place_id/photos/:photo_id/main", up.SetMainPhoto, requireDirectories)
 
 	// Расписание работы Бюро (single-owner). Чтение -- любой авторизованный
 	// (нужно модалке режимов работы), изменения -- админ (раздел «Информация Бюро»).
@@ -746,8 +751,11 @@ func Setup(e *echo.Echo, d Dependencies) {
 
 	// Группы прав (#187a). CRUD защищён permission.audit.manage.
 	pgGroup := protected.Group("/permission-groups")
-	pgGroup.GET("", permGroups.List)
-	pgGroup.GET("/:id", permGroups.Get)
+	// Чтение групп прав - это выгрузка карты доступов системы, не справочник для
+	// формы. Обычному юзеру не нужно (фронт открывает раздел под audit.manage),
+	// поэтому список и карточку гейтим тем же правом, что и запись.
+	pgGroup.GET("", permGroups.List, auditManage)
+	pgGroup.GET("/:id", permGroups.Get, auditManage)
 	pgGroup.POST("", permGroups.Create, auditManage)
 	pgGroup.PUT("/:id", permGroups.Update, auditManage)
 	pgGroup.DELETE("/:id", permGroups.Delete, auditManage)
@@ -760,7 +768,8 @@ func Setup(e *echo.Echo, d Dependencies) {
 
 	// Роли (#187a). CRUD защищён permission.audit.manage.
 	rolesGroup := protected.Group("/roles")
-	rolesGroup.GET("", roles.List)
+	// Список ролей с их грантами - тоже карта доступов, гейтим как запись.
+	rolesGroup.GET("", roles.List, auditManage)
 	rolesGroup.POST("", roles.Create, auditManage)
 	rolesGroup.PUT("/:id", roles.Update, auditManage)
 	rolesGroup.DELETE("/:id", roles.Delete, auditManage)
