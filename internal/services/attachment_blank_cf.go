@@ -10,8 +10,6 @@ import (
 	"strconv"
 	"strings"
 
-	"systemburo/internal/models"
-
 	"github.com/xuri/excelize/v2"
 )
 
@@ -232,12 +230,17 @@ func shiftedRef(ref string, row int) string {
 // таблицы на следующую страницу шапка столбцов повторяется, и таблица не рвётся.
 // Строка заголовков - та, что над списком (list_start_row - 1): так размечены бланки.
 //
+// Сквозную строку задаём ТОЛЬКО у таблицы, которую пришлось достраивать: сквозная
+// строка листа повторяется на каждой печатной странице, поэтому у бланка, где список
+// поместился, заголовки сотрудников печатались и на следующей странице - среди других
+// блоков и подписей (жалоба «внизу дублируются заголовки»). Ноль - не задавать.
+//
 // Физически вставлять копию шапки на разрыве нельзя: высота строк с переносом текста
 // (места разгрузки) считается при отрисовке, поэтому предсказать, где ляжет разрыв,
 // невозможно - вставленная шапка оказалась бы посреди страницы. Сквозная строка
 // повторяется там, где разрыв реально произошёл.
-func repeatHeaderOnEachPage(f *excelize.File, sheet string, t *models.AttachmentTemplate) {
-	if t.ListStartRow < 2 {
+func repeatHeaderOnEachPage(f *excelize.File, sheet string, headerRow int) {
+	if headerRow < 1 {
 		return
 	}
 	// Настройку админа не перебиваем: в шаблоне сквозные строки могли задать руками.
@@ -246,7 +249,7 @@ func repeatHeaderOnEachPage(f *excelize.File, sheet string, t *models.Attachment
 			return
 		}
 	}
-	header := t.ListStartRow - 1
+	header := headerRow
 	refersTo := fmt.Sprintf("'%s'!$%d:$%d", strings.ReplaceAll(sheet, "'", "''"), header, header)
 	if err := f.SetDefinedName(&excelize.DefinedName{
 		Name:     printTitlesName,

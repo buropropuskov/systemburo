@@ -536,6 +536,38 @@ func itemsTableSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
 		require.Equal(t, 32, signRow(t, out), "подпись сдвинулась на две добавленные строки")
 	})
 
+	// Сквозная строка одна на лист: её получает та таблица, которую достраивали. Если
+	// список сотрудников поместился, а ТМЦ - нет, повторяться должна шапка таблицы ТМЦ.
+	t.Run("сквозной становится шапка переполненной таблицы", func(t *testing.T) {
+		items := make([]models.Item, 0, 6)
+		for i := 1; i <= 6; i++ {
+			items = append(items, item(fmt.Sprintf("Позиция %d", i), i))
+		}
+		appID, attID := makeApp(t, 1, items)
+		out := blank(t, appID, attID)
+		defer func() { require.NoError(t, out.Close()) }()
+
+		titles := make([]string, 0)
+		for _, dn := range out.GetDefinedName() {
+			if dn.Name == "_xlnm.Print_Titles" {
+				titles = append(titles, dn.RefersTo)
+			}
+		}
+		require.Len(t, titles, 1)
+		require.Contains(t, titles[0], "$19:$19", "сквозной должна стать строка над таблицей ТМЦ")
+	})
+
+	t.Run("обе таблицы поместились - сквозной строки нет", func(t *testing.T) {
+		appID, attID := makeApp(t, 1, []models.Item{item("Кабель", 10)})
+		out := blank(t, appID, attID)
+		defer func() { require.NoError(t, out.Close()) }()
+
+		for _, dn := range out.GetDefinedName() {
+			require.NotEqual(t, "_xlnm.Print_Titles", dn.Name,
+				"ничего не переполнилось - заголовки не должны повторяться на других страницах")
+		}
+	})
+
 	t.Run("формулы условного форматирования сдвигаются на обе таблицы", func(t *testing.T) {
 		items := make([]models.Item, 0, 6)
 		for i := 1; i <= 6; i++ {
@@ -697,7 +729,9 @@ func printTitlesSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
 	sender := models.User{Username: "blanktitlesender", Password: "x", TypeID: userTypeID, OrganizationID: secPtrInt(td.OrgID)}
 	require.NoError(t, db.Create(&sender).Error)
 
-	makeApp := func(t *testing.T, uaID int) (int, int) {
+	// cars - сколько машин в заявке: список в шаблоне на три строки, поэтому четыре и
+	// больше означают, что таблицу пришлось достраивать.
+	makeApp := func(t *testing.T, uaID, cars int) (int, int) {
 		t.Helper()
 		now := time.Now()
 		conf, status := "Согласовано", models.StatusInWork
@@ -708,8 +742,10 @@ func printTitlesSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
 		require.NoError(t, db.Create(&app).Error)
 		att := models.Attachment{ApplicationID: &app.ID, AttachmentType: "cars", UniqueAttachmentID: &uaID}
 		require.NoError(t, db.Create(&att).Error)
-		number := "Т 100 ТТ 777"
-		require.NoError(t, db.Create(&models.Car{AttachmentID: att.ID, CarNumber: &number}).Error)
+		for i := 0; i < cars; i++ {
+			number := fmt.Sprintf("Т %03d ТТ 777", 100+i)
+			require.NoError(t, db.Create(&models.Car{AttachmentID: att.ID, CarNumber: &number}).Error)
+		}
 		return app.ID, att.ID
 	}
 
@@ -760,17 +796,26 @@ func printTitlesSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
 		return names
 	}
 
-	t.Run("строка над списком становится сквозной", func(t *testing.T) {
+	t.Run("список не поместился - строка над ним становится сквозной", func(t *testing.T) {
 		uaID := seed(t, "titles_blank", 19, false)
-		appID, attID := makeApp(t, uaID)
+		appID, attID := makeApp(t, uaID, 6) // втрое больше строк, чем в шаблоне
 		names := titlesOf(t, appID, attID)
 		require.Len(t, names, 1)
 		require.Contains(t, names[0].RefersTo, "$18:$18", "сквозной должна стать строка над списком")
 	})
 
+	// Сквозная строка листа печатается на КАЖДОЙ странице, поэтому у бланка, где список
+	// поместился, заголовки списка дублировались бы на странице с подписями.
+	t.Run("список поместился - сквозной строки нет", func(t *testing.T) {
+		uaID := seed(t, "titles_fits", 19, false)
+		appID, attID := makeApp(t, uaID, 2)
+		require.Empty(t, titlesOf(t, appID, attID),
+			"таблица не переходит на другую страницу - сквозная строка не нужна")
+	})
+
 	t.Run("свою настройку шаблона не перебиваем", func(t *testing.T) {
 		uaID := seed(t, "titles_own", 19, true)
-		appID, attID := makeApp(t, uaID)
+		appID, attID := makeApp(t, uaID, 6)
 		names := titlesOf(t, appID, attID)
 		require.Len(t, names, 1)
 		require.Contains(t, names[0].RefersTo, "$1:$2", "заданные в шаблоне сквозные строки должны остаться")
@@ -778,7 +823,7 @@ func printTitlesSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
 
 	t.Run("список с первой строки - сквозной строки нет", func(t *testing.T) {
 		uaID := seed(t, "titles_top", 1, false)
-		appID, attID := makeApp(t, uaID)
+		appID, attID := makeApp(t, uaID, 6)
 		require.Empty(t, titlesOf(t, appID, attID), "над списком нет строки заголовков - и сквозной быть не должно")
 	})
 }
