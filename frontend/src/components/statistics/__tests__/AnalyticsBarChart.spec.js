@@ -39,6 +39,10 @@ describe('AnalyticsBarChart', () => {
     expect(opts.colors).toEqual(['#4F5BDF']);
     expect(opts.xaxis.categories).toEqual(['08:00', '09:00']);
     expect(opts.legend.show).toBe(false);
+    // Десктоп подписи не усекает: форматтер живёт только в мобильном брейкпоинте,
+    // а безусловный trim резал бы и короткие «00:00» до точки (проверено на 390).
+    expect(opts.xaxis.labels.trim).toBeUndefined();
+    expect(opts.xaxis.labels.formatter).toBeUndefined();
   });
 
   it('на узком экране сокращает число подписей оси X, бары не трогает', () => {
@@ -52,6 +56,12 @@ describe('AnalyticsBarChart', () => {
     const narrow = opts.responsive.find((r) => r.breakpoint === 768);
     expect(narrow).toBeTruthy();
     expect(narrow.options.xaxis.tickAmount).toBe(6);
+    // На телефоне длинные категориальные подписи разреза (организация/место)
+    // усекаются с многоточием, короткие числовые/статусы проходят как есть.
+    const fmt = narrow.options.xaxis.labels.formatter;
+    expect(fmt('08:00')).toBe('08:00');
+    expect(fmt('Завершено')).toBe('Завершено');
+    expect(fmt('ООО «Производственно-строительное объединение»')).toBe('ООО «Производ…');
   });
 
   it('тултип склоняет единицу по числу', () => {
