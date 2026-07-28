@@ -2,8 +2,8 @@
   <svg
     class="spark"
     :viewBox="`0 0 ${W} ${H}`"
-    :width="W"
-    :height="H"
+    width="100%"
+    height="100%"
     preserveAspectRatio="none"
     aria-hidden="true"
   >
@@ -14,6 +14,7 @@
       stroke-width="2"
       stroke-linecap="round"
       stroke-linejoin="round"
+      vector-effect="non-scaling-stroke"
     />
   </svg>
 </template>
@@ -63,3 +64,13 @@ const points = computed(() => {
     .join(' ');
 });
 </script>
+
+<style scoped>
+/* Заполняем контейнер целиком (родитель задаёт 72x24 через max-width/height).
+   width/height=100% надёжнее фиксированных 120x32: SVG с явной интринзик-шириной
+   часть мобильных браузеров клампит по CSS-контейнеру неохотно, 100% снимает
+   неоднозначность. display:block убирает inline-щель. */
+.spark {
+  display: block;
+}
+</style>

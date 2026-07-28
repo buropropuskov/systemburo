@@ -41,6 +41,19 @@ describe('AnalyticsBarChart', () => {
     expect(opts.legend.show).toBe(false);
   });
 
+  it('на узком экране сокращает число подписей оси X, бары не трогает', () => {
+    // 24 часовых бара с 12 тиками сливаются на 390px в «00:0002:00...» -
+    // responsive-брейкпоинт снижает tickAmount, но категории (бары) остаются все.
+    rendered.last = null;
+    const hours = Array.from({ length: 24 }, (_, h) => ({ label: `${String(h).padStart(2, '0')}:00`, value: h }));
+    mount(AnalyticsBarChart, { props: { data: hours } });
+    const opts = rendered.last.options;
+    expect(opts.xaxis.categories).toHaveLength(24);
+    const narrow = opts.responsive.find((r) => r.breakpoint === 768);
+    expect(narrow).toBeTruthy();
+    expect(narrow.options.xaxis.tickAmount).toBe(6);
+  });
+
   it('тултип склоняет единицу по числу', () => {
     rendered.last = null;
     mount(AnalyticsBarChart, {
