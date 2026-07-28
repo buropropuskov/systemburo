@@ -838,7 +838,7 @@ export default {
     font-size: 14px;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
     min-width: 120px;
     border: 1px solid var(--border);
     position: relative;
@@ -850,8 +850,10 @@ export default {
     color: var(--fill-text);
 }
 
+/* Приём .reject-btn: подмешанный цвет текста темнит фон в светлой теме и светлит
+   в тёмной. Раньше hover повторял базовый var(--success) - отклика не было. */
 .confirm-btn:hover:not(:disabled), .accept-btn:hover:not(:disabled) {
-    background: var(--success);
+    background: color-mix(in srgb, var(--success) 85%, var(--text));
 }
 
 .reject-btn {

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 
@@ -225,5 +227,39 @@ describe('ApplicationActionBar - приём заявки без согласую
     });
 
     expect(wrapper.find(TAKE).exists()).toBe(true);
+  });
+});
+
+/*
+ * jsdom не считает :hover, поэтому контракт наведения сверяем по объявлениям в SFC.
+ * Правило зелёных кнопок повторяло базовый var(--success) - наведение на
+ * "Согласовать"/"Согласовать и принять"/"Принять" не давало отклика, хотя у соседней
+ * "Отказать" он был.
+ */
+describe('ApplicationActionBar - hover кнопок принятия', () => {
+  const src = readFileSync(resolve(__dirname, '../ApplicationActionBar.vue'), 'utf8');
+
+  const rule = (head) => {
+    const m = src.match(new RegExp(`${head}\\s*\\{([\\s\\S]*?)\\}`));
+    return m && m[1].replace(/\/\*[\s\S]*?\*\//g, '').replace(/\s+/g, ' ').trim();
+  };
+  const base = rule('\\.confirm-btn, \\.accept-btn');
+  const hover = rule('\\.confirm-btn:hover:not\\(:disabled\\), \\.accept-btn:hover:not\\(:disabled\\)');
+
+  it('фон на наведении отличается от базового', () => {
+    expect(base).toContain('background: var(--success)');
+    expect(hover).not.toBe(base);
+    expect(hover).not.toContain('background: var(--success);');
+  });
+
+  it('оттенок берётся от цвета текста - в тёмной теме кнопка светлеет, как у "Отказать"', () => {
+    expect(hover).toContain('color-mix(in srgb, var(--success) 85%, var(--text))');
+    expect(rule('\\.reject-btn:hover:not\\(:disabled\\)')).toContain('var(--text)');
+  });
+
+  it('переход анимирует цвет, а не all', () => {
+    const shared = rule('\\.confirm-btn, \\.reject-btn, \\.accept-btn');
+    expect(shared).toContain('transition: background-color');
+    expect(shared).not.toContain('transition: all');
   });
 });
