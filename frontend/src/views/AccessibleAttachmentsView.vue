@@ -27,7 +27,7 @@
             v-model="search"
             type="text"
             class="lk-input filters__search-input"
-            placeholder="Поиск: заявка, машина, ФИО, место разгрузки, согласующий..."
+            placeholder="Поиск"
             data-testid="aa-search"
             @input="onSearchInput"
           >
@@ -277,9 +277,21 @@
         <!-- Деталь вложения -->
         <div
           v-if="selectedId !== null"
+          ref="detailSection"
           class="detail-section"
           data-testid="aa-detail"
         >
+          <!-- Мобилка: список и деталь не помещаются рядом, поэтому при выборе список
+               скрывается и остаётся одна деталь - назад к списку по этой кнопке. -->
+          <button
+            type="button"
+            class="lk-button lk-button--ghost detail-back"
+            data-testid="aa-detail-back"
+            @click="clearSelection"
+          >
+            <span class="detail-back__arrow" aria-hidden="true">←</span> К списку
+          </button>
+
           <template v-if="detail">
             <div class="application-block">
               <h4 class="application-block__title">
@@ -393,7 +405,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AdminPageShell from '@/views/admin/AdminPageShell.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
@@ -471,6 +483,7 @@ const listLoading = ref(false);
 
 const selectedId = ref(null);
 const detail = ref(null);
+const detailSection = ref(null);
 
 // Предпросмотр заполненного бланка (#706 S4): модалка с XlsxViewer по тому же
 // эндпоинту, что и скачивание, но буфер парсится во вьювере, а не сохраняется файлом.
@@ -672,6 +685,13 @@ async function loadFilterOptions() {
 async function selectAttachment(id) {
   selectedId.value = id;
   detail.value = null;
+  // Мобилка (<=900): деталь занимает место списка, а не встаёт под ним - иначе она
+  // рендерится ниже длинного списка, за кромкой экрана, и «открыть вложение» на
+  // телефоне выглядело как «ничего не произошло». Скроллим деталь в поле зрения.
+  // matchMedia/scrollIntoView может не быть (jsdom) - тогда просто пропускаем.
+  if (window.matchMedia?.('(max-width: 900px)')?.matches) {
+    nextTick(() => detailSection.value?.scrollIntoView?.({ block: 'start' }));
+  }
   const seq = ++detailSeq;
   try {
     const data = await getAccessibleAttachmentDetail(id);
@@ -686,6 +706,14 @@ async function selectAttachment(id) {
       suffix: 'вложение',
     });
   }
+}
+
+// Мобилка: вернуться от детали к списку (кнопка «К списку»). detailSeq++ гасит
+// возможный ответ в пути, чтобы он не «переоткрыл» деталь после возврата.
+function clearSelection() {
+  detailSeq++;
+  selectedId.value = null;
+  detail.value = null;
 }
 
 // Открывается по явному клику на текущей детали; модалка-оверлей блокирует список,
@@ -1062,6 +1090,19 @@ onBeforeUnmount(() => {
   padding: 10px;
 }
 
+/* Кнопка возврата к списку - только мобилка (<=900), где список скрыт под деталью.
+   На десктопе список и деталь стоят рядом, возвращаться некуда. */
+.detail-back {
+  display: none;
+  align-self: flex-start;
+}
+
+.detail-back__arrow {
+  margin-right: 2px;
+  font-size: 16px;
+  line-height: 1;
+}
+
 .detail-actions {
   display: flex;
   justify-content: flex-start;
@@ -1091,14 +1132,18 @@ onBeforeUnmount(() => {
   }
 
   .list-section,
-  .list-section.with-details,
   .detail-section {
     width: 100%;
   }
 
+  /* Выбрано вложение - список уступает место детали целиком (не встаёт под ним за
+     кромкой экрана). Возврат к списку - кнопкой «К списку» в детали. */
   .list-section.with-details {
-    border-right: none;
-    border-bottom: 1px solid var(--border);
+    display: none;
+  }
+
+  .detail-back {
+    display: inline-flex;
   }
 
   /* Скролл списка: на десктопе content-container - фикс-высота 540px с ВНУТРЕННИМ
