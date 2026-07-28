@@ -171,6 +171,16 @@ def no_split_row(row):
     tr_pr.append(el)
 
 
+
+def set_row_height(row, cm):
+    """Минимальная высота строки: под графы, заполняемые от руки."""
+    tr_pr = row._tr.get_or_add_trPr()
+    height = OxmlElement("w:trHeight")
+    height.set(qn("w:val"), str(int(cm * 567)))
+    height.set(qn("w:hRule"), "atLeast")
+    tr_pr.append(height)
+
+
 def fixed_layout(table):
     tbl_pr = table._tbl.tblPr
     layout = OxmlElement("w:tblLayout")
@@ -336,9 +346,15 @@ def column_widths(headers, rows):
     weights, minimums = [], []
     for i in range(count):
         cells = [headers[i]] + [r[i] if i < len(r) else "" for r in rows]
+        body = [r[i] if i < len(r) else "" for r in rows]
         longest = max((len(c) for c in cells), default=1)
         typical = sum(len(c) for c in cells) / max(len(cells), 1)
-        weights.append(max(longest * 0.35 + typical * 0.65, 4))
+        # Колонка без содержимого - это графа под заполнение от руки. По длине
+        # текста ей досталась бы минимальная ширина, писать было бы негде.
+        if rows and not any(c.strip() for c in body):
+            weights.append(30.0)
+        else:
+            weights.append(max(longest * 0.35 + typical * 0.65, 4))
         minimums.append(max(longest_word_cm(c) for c in cells))
 
     if sum(minimums) > TEXT_WIDTH_CM:
@@ -540,6 +556,10 @@ def add_table(doc, headers, rows):
     for row in rows:
         cells = table.add_row().cells
         no_split_row(table.rows[-1])
+        # строка-форма: заполняется от руки, поэтому ей нужна высота
+        filled = sum(1 for i in range(len(headers)) if i < len(row) and row[i].strip())
+        if filled <= 1 and len(headers) >= 2:
+            set_row_height(table.rows[-1], 1.1)
         for i in range(len(headers)):
             para = cells[i].paragraphs[0]
             para.paragraph_format.first_line_indent = Mm(0)
