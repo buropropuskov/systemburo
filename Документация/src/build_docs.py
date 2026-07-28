@@ -395,6 +395,101 @@ def add_list_item(doc, marker, text):
     return para
 
 
+
+def clean_cell(text):
+    """Текст ячейки без разметки: в PDF попадает именно он."""
+    text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
+    text = re.sub(r"`([^`]+)`", r"\1", text)
+    text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def split_rows(rows, breaks):
+    """Разрезать строки таблицы в местах, где страница её разрывает."""
+    if not breaks:
+        return [rows]
+    chunks, start = [], 0
+    for point in breaks:
+        if 0 < point < len(rows):
+            chunks.append(rows[start:point])
+            start = point
+    chunks.append(rows[start:])
+    return [c for c in chunks if c]
+
+
+def find_first_unsplit_break(cfg, tables_meta, done):
+    """Найти первую сверху таблицу, которую страница рвёт, и место разрыва.
+
+    Обрабатываем строго по одной сверху вниз. Вёрстка однонаправленна: содержимое
+    ниже не влияет на положение того, что выше, поэтому уже зафиксированное
+    разбиение от последующих не сдвинется. Попытка разобрать все таблицы за один
+    проход не сходится: разбиение верхней таблицы смещает все нижние.
+    """
+    pages = subprocess.run(
+        ["pdftotext", "-layout", doc_path(cfg, ".pdf"), "-"],
+        capture_output=True, text=True, check=True,
+    ).stdout.split("\f")
+    flat = [re.sub(r"\s+", " ", pg) for pg in pages]
+
+    for meta in tables_meta:
+        number = meta["number"]
+        if number in done:
+            continue
+        cells = [clean_cell(c) for c in meta["first_cells"]]
+        if len(cells) < 3:
+            continue
+
+        marker = f"Таблица {number} "
+        start = next((i for i, pg in enumerate(flat) if marker in pg), None)
+        if start is None:
+            continue
+
+        pos, cursor, page = 0, flat[start].find(marker), start
+        while page < len(flat) and pos < len(cells):
+            matched = 0
+            while pos < len(cells):
+                cell = cells[pos]
+                if not cell:
+                    pos += 1
+                    matched += 1
+                    continue
+                at = flat[page].find(cell, cursor)
+                if at < 0:
+                    break
+                cursor, pos, matched = at + len(cell), pos + 1, matched + 1
+            if pos >= len(cells):
+                break
+            if matched == 0:
+                break
+            # таблица не поместилась: строка pos начинается уже на следующей странице
+            return number, [pos]
+        # таблица распознана целиком и уместилась - помечаем, чтобы не возвращаться
+        if pos >= len(cells):
+            done.add(number)
+    return None, None
+
+
+
+def continuation_at_page_top(cfg, number):
+    """Проверить, что подпись «Продолжение таблицы» стоит в начале страницы.
+
+    После разреза подпись занимает место, и остаток таблицы иногда перестаёт
+    выходить за лист. Разрыв исчезает, а подпись повисает в середине страницы -
+    такое разбиение надо откатить.
+    """
+    pages = subprocess.run(
+        ["pdftotext", "-layout", doc_path(cfg, ".pdf"), "-"],
+        capture_output=True, text=True, check=True,
+    ).stdout.split("\f")
+    needle = f"Продолжение таблицы {number}"
+    for page in pages:
+        lines = [ln for ln in page.splitlines() if ln.strip()]
+        for idx, line in enumerate(lines):
+            if needle in line:
+                return idx == 0
+    return False
+
+
 def add_table(doc, headers, rows):
     table = doc.add_table(rows=1, cols=len(headers))
     table.style = "Table Grid"
@@ -657,9 +752,10 @@ def section_prefix(title):
     return num.group(1) if num else None
 
 
-def render(doc, blocks, toc_titles):
+def render(doc, blocks, toc_titles, splitmap=None, tables_meta=None):
     counters = {"table": 0, "figure": 0, "listing": 0}
     prefix = "1"
+    splitmap = splitmap or {}
 
     for kind, payload in blocks:
         if kind == "pagebreak":
@@ -703,8 +799,20 @@ def render(doc, blocks, toc_titles):
             headers, rows, cap = payload
             if cap:
                 counters["table"] += 1
-                add_caption(doc, f"Таблица {prefix}.{counters['table']} \u2014 {cap[1]}")
-            add_table(doc, headers, rows)
+                number = f"{prefix}.{counters['table']}"
+                if tables_meta is not None:
+                    tables_meta.append({"number": number,
+                                        "first_cells": [r[0] if r else "" for r in rows]})
+                for idx, chunk in enumerate(split_rows(rows, splitmap.get(number))):
+                    if idx == 0:
+                        add_caption(doc, f"Таблица {number} \u2014 {cap[1]}")
+                    else:
+                        # Принудительный разрыв не нужен: часть выше закончилась на
+                        # границе листа, а подпись держится за своей таблицей.
+                        add_caption(doc, f"Продолжение таблицы {number}")
+                    add_table(doc, headers, chunk)
+            else:
+                add_table(doc, headers, rows)
 
         elif kind == "image":
             path, caption = payload
@@ -746,7 +854,7 @@ def doc_path(cfg, ext):
     return os.path.join(doc_dir(cfg), cfg["file"] + ext)
 
 
-def build(cfg, pagemap=None):
+def build(cfg, pagemap=None, splitmap=None):
     src = doc_path(cfg, ".md")
     with open(src, encoding="utf-8") as fh:
         blocks = parse_markdown(fh.read())
@@ -763,9 +871,10 @@ def build(cfg, pagemap=None):
     header_footer(doc)
     cover(doc, cfg)
     render_toc(doc, toc_titles, pagemap)
-    render(doc, blocks, [])
+    tables_meta = []
+    render(doc, blocks, [], splitmap, tables_meta)
     doc.save(doc_path(cfg, ".docx"))
-    return toc_titles
+    return toc_titles, tables_meta
 
 
 def to_pdf(cfg):
@@ -814,18 +923,38 @@ def build_one(key):
     cfg = DOCS[key]
     name = cfg["file"]
 
-    # Оглавление собирается в два прохода: сначала вёрстка без номеров страниц,
-    # затем номера вычитываются из её PDF и документ пересобирается.
-    print(f"[{name}] проход 1: нумерация страниц...")
-    entries = build(cfg, None)
+    # Таблицы, которые страница разрывает, обрабатываются по одной сверху вниз:
+    # фиксируем разбиение верхней, пересобираем, ищем следующую. Так каждое
+    # разбиение определяется на вёрстке, где всё вышележащее уже окончательно.
+    splitmap, done = {}, set()
+    entries, tables_meta = build(cfg, None, splitmap)
     to_pdf(cfg)
+
+    for _ in range(40):
+        number, breaks = find_first_unsplit_break(cfg, tables_meta, done)
+        if not number:
+            break
+        splitmap[number] = breaks
+        done.add(number)
+        entries, tables_meta = build(cfg, None, splitmap)
+        to_pdf(cfg)
+
+        # разрез мог сам себя обнулить: подпись заняла место и таблица уместилась
+        if not continuation_at_page_top(cfg, number):
+            del splitmap[number]
+            entries, tables_meta = build(cfg, None, splitmap)
+            to_pdf(cfg)
+
+    if splitmap:
+        print(f"  таблицы с продолжением: {', '.join(sorted(splitmap))}")
+
     pagemap = pagemap_from_pdf(cfg, entries)
     missing = [t for _, t in entries if t not in pagemap]
     if missing:
         print(f"  ВНИМАНИЕ: не найдено в PDF {len(missing)}: {missing[:3]}")
 
-    print(f"[{name}] проход 2: сборка...")
-    build(cfg, pagemap)
+    print(f"[{name}] финальная сборка...")
+    build(cfg, pagemap, splitmap)
     pdf = to_pdf(cfg)
     pages = subprocess.run(["pdfinfo", pdf], capture_output=True, text=True).stdout
     total = re.search(r"Pages:\s+(\d+)", pages)
