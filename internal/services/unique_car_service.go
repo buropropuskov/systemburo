@@ -51,13 +51,13 @@ type CarOwnerInfo struct {
 
 // UniqueCarWithRelations -- машина с данными связанных сущностей.
 type UniqueCarWithRelations struct {
-	ID               int        `json:"id"`
-	Number           *string    `json:"number"`
-	Mark             *string    `json:"mark"`
-	OrganizationID   *int       `json:"organization_id"`
-	CompanyID        *int       `json:"company_id"`
-	FormatID         *int       `json:"format_id"`
-	UserID           *int       `json:"user_id"`
+	ID                   int        `json:"id"`
+	Number               *string    `json:"number"`
+	Mark                 *string    `json:"mark"`
+	OrganizationID       *int       `json:"organization_id"`
+	CompanyID            *int       `json:"company_id"`
+	FormatID             *int       `json:"format_id"`
+	UserID               *int       `json:"user_id"`
 	Status               bool       `json:"status"`
 	CreatedAt            *time.Time `json:"created_at"`
 	OrganizationName     *string    `json:"organization_name"`
@@ -76,6 +76,9 @@ type UniqueCarWithRelations struct {
 	// ActiveApplicationID -- id заявки (applications.id) той же активной заявки, что и
 	// прочие active_*-поля. Нужен фронту для кнопки "Открыть заявку" на вкладке Автомобили.
 	ActiveApplicationID *int `json:"active_application_id"`
+	// IsBlacklisted -- машина в активном чёрном списке (совпадение по номеру и марке).
+	// Считается на сервере, чтобы фронт не выгружал весь список ЧС ради подсветки.
+	IsBlacklisted bool `json:"is_blacklisted"`
 }
 
 // NewUniqueCarRequest -- тело запроса на создание/обновление машины.
@@ -322,7 +325,15 @@ const carsListSelect = `uc.id, uc.number, uc.mark, uc.organization_id, uc.compan
 		AND cr.status = 1 AND app.status IN ('В работе', 'Завершено')
 		AND CURRENT_DATE <= a.entry_date_to::date
 		ORDER BY a.entry_date_to DESC LIMIT 1
-	) as active_application_id`
+	) as active_application_id,
+	-- Флаг ЧС считает сервер (нормализация 1:1 с vehicleBlacklistService.CheckByName),
+	-- чтобы фронт не выгружал весь список машин ЧС ради подсветки в реестре.
+	EXISTS(
+		SELECT 1 FROM vehicle_blacklists vbl
+		WHERE vbl.is_active
+		AND LOWER(TRIM(vbl.car_number)) = LOWER(TRIM(uc.number))
+		AND LOWER(TRIM(COALESCE(vbl.mark_name, ''))) = LOWER(TRIM(COALESCE(uc.mark, '')))
+	) as is_blacklisted`
 
 // buildCarsQuery строит базовый запрос реестра (джойны + фильтр владельца + поиск)
 // БЕЗ Select/Order - переиспользуется отдельно для Count и для выборки данных

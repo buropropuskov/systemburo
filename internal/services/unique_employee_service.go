@@ -97,6 +97,9 @@ type UniqueEmployeeWithRelations struct {
 	// ActiveApplicationID -- id заявки (applications.id) той же активной заявки, что и
 	// прочие active_*-поля. Нужен фронту для кнопки "Открыть заявку" на вкладке Сотрудники.
 	ActiveApplicationID *int `json:"active_application_id"`
+	// IsBlacklisted -- сотрудник в активном чёрном списке людей (совпадение по ФИО).
+	// Считается на сервере, чтобы фронт не выгружал весь список ПД ради подсветки.
+	IsBlacklisted bool `json:"is_blacklisted"`
 }
 
 // NewUniqueEmployeeRequest -- тело запроса на создание/обновление сотрудника.
@@ -316,7 +319,17 @@ const employeesListSelect = `ue.id, ue.last_name, ue.first_name, ue.middle_name,
 		AND e.status = 1 AND app.status IN ('В работе', 'Завершено')
 		AND CURRENT_DATE <= a.entry_date_to::date
 		ORDER BY a.entry_date_to DESC LIMIT 1
-	) as active_application_id`
+	) as active_application_id,
+	-- Флаг ЧС считает сервер (нормализация 1:1 с personBlacklistService.Check), чтобы
+	-- клиенту не отдавать весь список ПД ради подсветки. ФИО в обеих таблицах - открытый
+	-- текст (шифруются только паспорт/патент), поэтому сравнение идёт прямо в SQL.
+	EXISTS(
+		SELECT 1 FROM person_blacklists pbl
+		WHERE pbl.is_active
+		AND LOWER(TRIM(pbl.last_name)) = LOWER(TRIM(ue.last_name))
+		AND LOWER(TRIM(pbl.first_name)) = LOWER(TRIM(ue.first_name))
+		AND LOWER(TRIM(COALESCE(pbl.middle_name, ''))) = LOWER(TRIM(COALESCE(ue.middle_name, '')))
+	) as is_blacklisted`
 
 // buildEmployeesQuery строит базовый запрос реестра (джойны + фильтр владельца + поиск)
 // БЕЗ Select/Order - переиспользуется отдельно для Count и для выборки данных (тот же
