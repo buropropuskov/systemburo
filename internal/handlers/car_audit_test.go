@@ -93,13 +93,14 @@ func TestCars_WriteFlip_AllActionsToAuditLog(t *testing.T) {
 	token := testutil.RegisterAndLogin(t, e, "carflip1", "pass123", 1, td.OrgID, td.CompanyID)
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td)
+	passTbl := seedPassTableGrant(t, db, getUserID(t, db, "carflip1"), "cars")
 
 	// Прогоняем все основные действия через endpoint-ы.
 	steps := []struct {
 		method, path, body string
 	}{
-		{"PUT", fmt.Sprintf("/cars/%d/territory-status", carID), `{"territory_status":1}`},
-		{"PUT", fmt.Sprintf("/cars/%d/territory-status", carID), `{"territory_status":2}`},
+		{"PUT", fmt.Sprintf("/cars/%d/territory-status", carID), fmt.Sprintf(`{"territory_status":1,"table_id":%d}`, passTbl)},
+		{"PUT", fmt.Sprintf("/cars/%d/territory-status", carID), fmt.Sprintf(`{"territory_status":2,"table_id":%d}`, passTbl)},
 		{"POST", fmt.Sprintf("/cars/%d/history", carID), `{"action_type":"data_changed","field_name":"car_number","old_value":"A001AA","new_value":"B002BB"}`},
 		{"PUT", fmt.Sprintf("/cars/%d/deactivate", carID), `{"status":2}`},
 		{"PUT", fmt.Sprintf("/cars/%d/activate", carID), `{}`},

@@ -21,10 +21,11 @@ func TestCarTerritoryStatus_EntryThenExitWithHistory(t *testing.T) {
 	token := testutil.RegisterAndLogin(t, e, "carentry1", "pass123", 1, td.OrgID, td.CompanyID)
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td)
+	passTbl := seedPassTableGrant(t, db, getUserID(t, db, "carentry1"), "cars")
 
 	// Entry: territory_status = 1
 	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/territory-status", carID),
-		`{"territory_status": 1}`, testutil.AuthHeader(token))
+		fmt.Sprintf(`{"territory_status": 1, "table_id": %d}`, passTbl), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, "Car territory status updated successfully", testutil.ParseMessage(t, rec))
 
@@ -37,7 +38,7 @@ func TestCarTerritoryStatus_EntryThenExitWithHistory(t *testing.T) {
 
 	// Exit: territory_status = 2
 	rec = testutil.PUT(t, e, fmt.Sprintf("/cars/%d/territory-status", carID),
-		`{"territory_status": 2}`, testutil.AuthHeader(token))
+		fmt.Sprintf(`{"territory_status": 2, "table_id": %d}`, passTbl), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, "Car territory status updated successfully", testutil.ParseMessage(t, rec))
 
@@ -74,6 +75,7 @@ func TestCarTerritoryStatus_RecordsTableInHistory(t *testing.T) {
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td)
 	tableID := seedSystemTable(t, db)
+	testutil.GrantTableVerb(t, getUserID(t, db, "carentrytbl1"), "test_table", "entry")
 
 	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/territory-status", carID),
 		fmt.Sprintf(`{"territory_status": 1, "table_id": %d}`, tableID), testutil.AuthHeader(token))
@@ -116,7 +118,8 @@ func TestCarTerritoryStatus_EntryWithFactPassData(t *testing.T) {
 		origNumber = *carBefore.CarNumber
 	}
 
-	body := `{"territory_status":1,"pass":{"number":"А 123 ВС 77","format_name":"Стандартный","mark_name":"BMW"}}`
+	passTbl := seedPassTableGrant(t, db, getUserID(t, db, "carfact1"), "cars")
+	body := fmt.Sprintf(`{"territory_status":1,"table_id":%d,"pass":{"number":"А 123 ВС 77","format_name":"Стандартный","mark_name":"BMW"}}`, passTbl)
 	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/territory-status", carID), body, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
 
@@ -162,12 +165,13 @@ func TestCarTerritoryStatus_ExitWithoutPassNoMetadata(t *testing.T) {
 	appID, _, carID := seedCarViaCompleteApp(t, e, db, token, "Test Organization")
 	activateCarViaApp(t, e, db, appID, td)
 
+	passTbl := seedPassTableGrant(t, db, getUserID(t, db, "carfact2"), "cars")
 	// Въезд без данных пропуска, затем выезд.
 	rec := testutil.PUT(t, e, fmt.Sprintf("/cars/%d/territory-status", carID),
-		`{"territory_status":1}`, testutil.AuthHeader(token))
+		fmt.Sprintf(`{"territory_status":1,"table_id":%d}`, passTbl), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
 	rec = testutil.PUT(t, e, fmt.Sprintf("/cars/%d/territory-status", carID),
-		`{"territory_status":2}`, testutil.AuthHeader(token))
+		fmt.Sprintf(`{"territory_status":2,"table_id":%d}`, passTbl), testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	rec = testutil.GET(t, e, fmt.Sprintf("/cars/%d/history", carID), testutil.AuthHeader(token))

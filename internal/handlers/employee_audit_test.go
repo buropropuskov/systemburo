@@ -85,16 +85,17 @@ func TestEmployees_WriteFlip_AllActionsToAuditLog(t *testing.T) {
 	token := testutil.RegisterAndLogin(t, e, "empflip1", "pass123", 1, td.OrgID, td.CompanyID)
 	h := testutil.AuthHeader(token)
 	_, _, empID := seedEmployeeViaCompleteApp(t, e, db, token, "Test Organization")
+	passTbl := seedPassTableGrant(t, db, getUserID(t, db, "empflip1"), "people")
 
 	// Прогоняем все основные действия через endpoint-ы. restore требует предварительной
 	// деактивации, поэтому delete встречается дважды.
 	steps := []struct{ path, body string }{
-		{fmt.Sprintf("/employees/%d/territory-status", empID), `{"territory_status":1}`}, // entry
-		{fmt.Sprintf("/employees/%d/territory-status", empID), `{"territory_status":2}`}, // exit
-		{fmt.Sprintf("/employees/%d/deactivate", empID), `{"status":0}`},                 // delete
-		{fmt.Sprintf("/employees/%d/restore", empID), `{}`},                              // restore
-		{fmt.Sprintf("/employees/%d/deactivate", empID), `{"status":0}`},                 // delete (повторно)
-		{fmt.Sprintf("/employees/%d/activate", empID), `{}`},                             // activate
+		{fmt.Sprintf("/employees/%d/territory-status", empID), fmt.Sprintf(`{"territory_status":1,"table_id":%d}`, passTbl)}, // entry
+		{fmt.Sprintf("/employees/%d/territory-status", empID), fmt.Sprintf(`{"territory_status":2,"table_id":%d}`, passTbl)}, // exit
+		{fmt.Sprintf("/employees/%d/deactivate", empID), `{"status":0}`},                                                     // delete
+		{fmt.Sprintf("/employees/%d/restore", empID), `{}`},                                                                  // restore
+		{fmt.Sprintf("/employees/%d/deactivate", empID), `{"status":0}`},                                                     // delete (повторно)
+		{fmt.Sprintf("/employees/%d/activate", empID), `{}`},                                                                 // activate
 	}
 	for _, s := range steps {
 		rec := testutil.PUT(t, e, s.path, s.body, h)

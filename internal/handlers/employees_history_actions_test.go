@@ -320,6 +320,7 @@ func TestEmployeeTerritoryStatus_RecordsTableInHistory(t *testing.T) {
 	// seedEmployeeViaCompleteApp уже создал system_table "test_table" (display_name "Test Table").
 	var st models.SystemTable
 	require.NoError(t, db.Where("name = ?", "test_table").First(&st).Error)
+	testutil.GrantTableVerb(t, getUserID(t, db, "empentrytbl1"), "test_table", "entry")
 
 	rec := testutil.PUT(t, e, fmt.Sprintf("/employees/%d/territory-status", empID),
 		fmt.Sprintf(`{"territory_status": 1, "table_id": %d}`, st.ID), testutil.AuthHeader(token))
@@ -358,6 +359,7 @@ func TestRecentPassages_ResolvesPostFromTableID(t *testing.T) {
 
 	var st models.SystemTable
 	require.NoError(t, db.Where("name = ?", "test_table").First(&st).Error)
+	testutil.GrantTableVerb(t, getUserID(t, db, "recentpasspost1"), "test_table", "entry")
 
 	// Реальная отметка входа через тот же endpoint, что и страница /table.
 	rec := testutil.PUT(t, e, fmt.Sprintf("/employees/%d/territory-status", empID),

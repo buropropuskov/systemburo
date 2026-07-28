@@ -27,6 +27,10 @@ import (
 var (
 	dbOnce   sync.Once
 	cachedDB *gorm.DB
+	// cachedResolver -- последний созданный в SetupTestApp resolver прав. Нужен
+	// GrantTableVerb, чтобы сбросить кэш прав юзера после выдачи override (иначе
+	// grant, сделанный после первого резолва юзера, не подхватится в том же тесте).
+	cachedResolver *services.PermissionResolver
 )
 
 const (
@@ -123,6 +127,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	manualAttachService := services.NewManualAttachService(db, auditRecorder, nil, nil)
 	permissionService := services.NewPermissionService(db)
 	permissionResolver := services.NewPermissionResolver(db)
+	cachedResolver = permissionResolver
 	permissionGroupService := services.NewPermissionGroupService(db, permissionResolver)
 	roleService := services.NewRoleService(db, permissionResolver)
 	accessDenialService := services.NewAccessDenialService(db)
@@ -283,6 +288,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 		TableReportGate:     mw.RequireTableVerb(db, permissionResolver, accessDenialService, "report"),
 		TableVersionsGate:   mw.RequireTableVerb(db, permissionResolver, accessDenialService, "versions"),
 		TableTrashGate:      mw.RequireTableVerb(db, permissionResolver, accessDenialService, "trash"),
+		TablePassGate:       mw.RequireTablePassVerb(db, permissionResolver, accessDenialService),
 		JWTSecret:           []byte(TestJWTSecret),
 		UploadPath:          uploadDir,
 	})
