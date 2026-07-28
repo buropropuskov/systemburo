@@ -146,6 +146,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// Справочники (типы вложений, настройка их полей и Excel-бланков). Ключ тот же, что
 	// у фронтовых страниц /admin/*: иначе носитель права видит раздел и ловит 403.
 	requireDirectories := mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageAdminDirectories)
+	// Конструктор системных таблиц: создание/изменение/удаление структуры и настроек
+	// таблиц КПП. Ключ тот же, что у фронтовой страницы /table-constructor.
+	requireTablesCtor := mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageAdminTablesCtor)
 	maintenanceBlock := d.MaintenanceBlock
 	banCheck := d.BanCheck
 	loginLimiter := d.LoginLimiter
@@ -579,32 +582,37 @@ func Setup(e *echo.Echo, d Dependencies) {
 
 	// Системные таблицы (конструктор таблиц)
 	stg := protected.Group("/system-tables")
+	// GET-читалки таблиц открыты авторизованному: форма заявки берёт список таблиц КПП
+	// для выбора места, доступ к содержимому конкретной таблицы гейтит фронт правом
+	// table.<slug>.view. Изменение же структуры и настроек таблицы (создать/переименовать/
+	// удалить/поля/слоты/окна/фото) - только конструктор (page.admin.tables_constructor),
+	// его F12 не обойдёт. Вызывается всё это из TableConstructor.vue под тем же правом.
 	stg.GET("", st.GetAll)
-	stg.POST("", st.Create)
+	stg.POST("", st.Create, requireTablesCtor)
 	stg.GET("/:id", st.GetByID)
-	stg.PUT("/:id", st.Update)
-	stg.DELETE("/:id", st.Delete)
-	stg.POST("/:id/restore", st.Restore)
+	stg.PUT("/:id", st.Update, requireTablesCtor)
+	stg.DELETE("/:id", st.Delete, requireTablesCtor)
+	stg.POST("/:id/restore", st.Restore, requireTablesCtor)
 	stg.GET("/:id/usage", st.GetUsage)
 	stg.POST("/:id/detach-all", st.DetachAll, requireAdmin)
 	stg.DELETE("/:id/organizations/:org_id", st.DetachOrganization, requireAdmin)
 	stg.DELETE("/:id/companies/:company_id", st.DetachCompany, requireAdmin)
 	// param :id в Echo, поэтому /bulk/archive и /bulk/restore не конфликтуют с /:id/restore.
-	stg.POST("/bulk/archive", st.BulkArchive)
-	stg.POST("/bulk/restore", st.BulkRestore)
+	stg.POST("/bulk/archive", st.BulkArchive, requireTablesCtor)
+	stg.POST("/bulk/restore", st.BulkRestore, requireTablesCtor)
 	stg.GET("/:id/history", st.GetHistory)
 	stg.GET("/name/:name", st.GetByName)
 	stg.GET("/:id/time-slots", st.GetTimeSlots)
-	stg.POST("/:id/time-slots", st.AddTimeSlot)
-	stg.PUT("/:table_id/time-slots/:slot_id", st.UpdateTimeSlot)
-	stg.DELETE("/:table_id/time-slots/:slot_id", st.DeleteTimeSlot)
+	stg.POST("/:id/time-slots", st.AddTimeSlot, requireTablesCtor)
+	stg.PUT("/:table_id/time-slots/:slot_id", st.UpdateTimeSlot, requireTablesCtor)
+	stg.DELETE("/:table_id/time-slots/:slot_id", st.DeleteTimeSlot, requireTablesCtor)
 	stg.GET("/:id/warning-windows", st.GetWarningWindows)
-	stg.POST("/:id/warning-windows", st.AddWarningWindow)
-	stg.PUT("/:table_id/warning-windows/:window_id", st.UpdateWarningWindow)
-	stg.DELETE("/:table_id/warning-windows/:window_id", st.DeleteWarningWindow)
-	stg.POST("/:id/photos", st.UploadPhoto)
-	stg.DELETE("/:table_id/photos/:photo_id", st.DeletePhoto)
-	stg.POST("/:table_id/photos/:photo_id/main", st.SetMainPhoto)
+	stg.POST("/:id/warning-windows", st.AddWarningWindow, requireTablesCtor)
+	stg.PUT("/:table_id/warning-windows/:window_id", st.UpdateWarningWindow, requireTablesCtor)
+	stg.DELETE("/:table_id/warning-windows/:window_id", st.DeleteWarningWindow, requireTablesCtor)
+	stg.POST("/:id/photos", st.UploadPhoto, requireTablesCtor)
+	stg.DELETE("/:table_id/photos/:photo_id", st.DeletePhoto, requireTablesCtor)
+	stg.POST("/:table_id/photos/:photo_id/main", st.SetMainPhoto, requireTablesCtor)
 
 	// Версии (слепки) состояния таблицы (#980). Дневной снимок в 06:00 снимает джоба
 	// (см. startDailyStatusReset), ручной - POST. Читалки под общей auth-защитой, как
@@ -625,10 +633,10 @@ func Setup(e *echo.Echo, d Dependencies) {
 	stg.GET("/:id/pass-report/live", passReport.Live, d.TableReportGate)
 	stg.GET("/:id/pass-reports", passReport.List, d.TableReportGate)
 
-	// Столбцы таблицы (#345)
-	stg.PUT("/:id/fields", st.UpdateFields)
+	// Столбцы таблицы (#345) - изменение структуры, только конструктор.
+	stg.PUT("/:id/fields", st.UpdateFields, requireTablesCtor)
 	// Столбцы фактовой таблицы (#345)
-	stg.PUT("/:id/fact-fields", st.UpdateFactFields)
+	stg.PUT("/:id/fact-fields", st.UpdateFactFields, requireTablesCtor)
 
 	// Корзина таблицы (#186) - удалённые элементы с возможностью восстановить
 	// или окончательно удалить. Тип элементов определяется по table_type
@@ -753,7 +761,11 @@ func Setup(e *echo.Echo, d Dependencies) {
 	permGroup.PUT("/user/:id", permissions.UpdateUserPermissions, auditManage)
 	permGroup.GET("/tree", permissions.GetPermissionTree)
 	permGroup.GET("/catalog", permissions.GetCatalog)
-	permGroup.POST("/auto-generate", permissions.AutoGenerate)
+	// Генерация прав для таблицы. Фронт напрямую не дёргает - права создаются
+	// автоматически внутри создания таблицы (system_table_service). Прямой роут
+	// закрыт тем же правом, что и конструктор, чтобы обычный юзер не мог плодить
+	// ключи прав в обход.
+	permGroup.POST("/auto-generate", permissions.AutoGenerate, requireTablesCtor)
 
 	// Группы прав (#187a). CRUD защищён permission.audit.manage.
 	pgGroup := protected.Group("/permission-groups")
