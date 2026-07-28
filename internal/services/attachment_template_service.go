@@ -115,10 +115,16 @@ func (s *attachmentTemplateService) Upload(ctx context.Context, uaID int, file *
 		ListStartRow:       req.ListStartRow,
 		ListEndRow:         req.ListEndRow,
 		MaxListRows:        req.MaxListRows,
+		ItemsListStartRow:  req.ItemsListStartRow,
+		ItemsListEndRow:    req.ItemsListEndRow,
+		ItemsMaxListRows:   req.ItemsMaxListRows,
 		UploadedByUserID:   &userID,
 	}
 	if t.MaxListRows == 0 && t.ListStartRow > 0 && t.ListEndRow >= t.ListStartRow {
 		t.MaxListRows = t.ListEndRow - t.ListStartRow + 1
+	}
+	if t.ItemsListStartRow > 0 && t.ItemsListEndRow >= t.ItemsListStartRow && t.ItemsMaxListRows == 0 {
+		t.ItemsMaxListRows = t.ItemsListEndRow - t.ItemsListStartRow + 1
 	}
 
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -301,11 +307,18 @@ func (s *attachmentTemplateService) CopyMappings(ctx context.Context, uaID int, 
 		if maxRows == 0 && source.ListEndRow >= source.ListStartRow {
 			maxRows = source.ListEndRow - source.ListStartRow + 1
 		}
+		itemsMax := source.ItemsMaxListRows
+		if itemsMax == 0 && source.ItemsListStartRow > 0 && source.ItemsListEndRow >= source.ItemsListStartRow {
+			itemsMax = source.ItemsListEndRow - source.ItemsListStartRow + 1
+		}
 		updates := map[string]any{
-			"list_start_row":   source.ListStartRow,
-			"list_end_row":     source.ListEndRow,
-			"max_list_rows":    maxRows,
-			"concat_separator": source.ConcatSeparator,
+			"list_start_row":       source.ListStartRow,
+			"list_end_row":         source.ListEndRow,
+			"max_list_rows":        maxRows,
+			"concat_separator":     source.ConcatSeparator,
+			"items_list_start_row": source.ItemsListStartRow,
+			"items_list_end_row":   source.ItemsListEndRow,
+			"items_max_list_rows":  itemsMax,
 		}
 		return tx.Model(&models.AttachmentTemplate{}).Where("id = ?", target.ID).Updates(updates).Error
 	})
@@ -360,6 +373,11 @@ func normalizeCustomLabel(label string) string {
 	return strings.ToLower(strings.Join(strings.Fields(label), " "))
 }
 
+// rangesOverlap - пересекаются ли два диапазона строк включительно.
+func rangesOverlap(aStart, aEnd, bStart, bEnd int) bool {
+	return aStart <= bEnd && bStart <= aEnd
+}
+
 // UpdateParams меняет границы строк списка у активного шаблона. Раньше их задавали
 // только вместе с загрузкой файла, поэтому подвинуть диапазон значило перезалить
 // тот же .xlsx заново (#1454).
@@ -375,11 +393,30 @@ func (s *attachmentTemplateService) UpdateParams(ctx context.Context, uaID int, 
 	if maxRows == 0 {
 		maxRows = req.ListEndRow - req.ListStartRow + 1
 	}
+	// Таблица ТМЦ необязательна, но заданный диапазон обязан быть осмысленным: иначе
+	// генератор писал бы ввозимый товар поверх чужой разметки бланка.
+	itemsStart, itemsEnd, itemsMax := req.ItemsListStartRow, req.ItemsListEndRow, req.ItemsMaxListRows
+	switch {
+	case itemsStart == 0 && itemsEnd == 0:
+		itemsMax = 0
+	case itemsStart < 1 || itemsEnd < itemsStart:
+		return echo.NewHTTPError(http.StatusBadRequest, "Некорректный диапазон строк таблицы ТМЦ")
+	default:
+		if itemsMax == 0 {
+			itemsMax = itemsEnd - itemsStart + 1
+		}
+	}
+	if itemsStart > 0 && rangesOverlap(req.ListStartRow, req.ListEndRow, itemsStart, itemsEnd) {
+		return echo.NewHTTPError(http.StatusBadRequest, "Диапазоны списка и таблицы ТМЦ пересекаются")
+	}
 	err := s.db.WithContext(ctx).Model(&models.AttachmentTemplate{}).Where("id = ?", t.ID).
 		Updates(map[string]any{
-			"list_start_row": req.ListStartRow,
-			"list_end_row":   req.ListEndRow,
-			"max_list_rows":  maxRows,
+			"list_start_row":       req.ListStartRow,
+			"list_end_row":         req.ListEndRow,
+			"max_list_rows":        maxRows,
+			"items_list_start_row": itemsStart,
+			"items_list_end_row":   itemsEnd,
+			"items_max_list_rows":  itemsMax,
 		}).Error
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Не удалось сохранить параметры списка")

@@ -200,6 +200,27 @@ func resolveApplicationItems(bctx *BlankContext, path string) string {
 	return ""
 }
 
+// resolveApplicationItemRow печатает строку таблицы ТМЦ заявки теми же путями item.*,
+// какими бланк «Заявки на ввоз» печатает собственное имущество: админ размечает вторую
+// таблицу привычной группой полей, а данные идут из вложений-ввоза этой заявки.
+func resolveApplicationItemRow(rows []ApplicationItemRow, path string, rowIdx int) string {
+	if rowIdx < 0 || rowIdx >= len(rows) {
+		return ""
+	}
+	it := rows[rowIdx]
+	switch path {
+	case "item.row_number":
+		return strconv.Itoa(rowIdx + 1)
+	case "item.name":
+		return it.Name
+	case "item.count":
+		if it.Count != nil {
+			return strconv.Itoa(*it.Count)
+		}
+	}
+	return ""
+}
+
 func resolveAttachment(bctx *BlankContext, path string) string {
 	a := bctx.Attachment
 	if a == nil {
