@@ -820,10 +820,13 @@ onBeforeUnmount(() => {
   }
 }
 
-/* Мобилка (<=768, инлайн-фильтры скрыты): поиск тянется, кнопка «Фильтр» рядом. */
+/* Мобилка (<=768, инлайн-фильтры скрыты): поиск в один ряд с кнопкой «Фильтр».
+   flex-basis:0 (не auto) - иначе basis по длинному placeholder распирает поиск и
+   flex-wrap переносит кнопку на строку ниже; с basis 0 поиск растёт заполняя
+   остаток после кнопки, и обе держатся в одной строке. */
 @media (max-width: 768px) {
   .filters__search {
-    flex: 1 1 auto;
+    flex: 1 1 0;
     min-width: 0;
   }
 }
@@ -1096,6 +1099,26 @@ onBeforeUnmount(() => {
   .list-section.with-details {
     border-right: none;
     border-bottom: 1px solid var(--border);
+  }
+
+  /* Скролл списка: на десктопе content-container - фикс-высота 540px с ВНУТРЕННИМ
+     скроллом cards-list (master-detail). На мобилке height:auto убирает эту опору,
+     и внутренний overflow-y:auto у cards-list перестаёт работать (нет ограниченной
+     высоты для flex:1), а overflow:hidden выше по цепочке (.accessible-attachments,
+     .content-container) КЛАМПИТ и обрезает список - скролл мёртв. Даём контенту течь
+     естественно - список скроллится вместе со страницей (внешним скролл-контейнером
+     роута), а не запертым внутренним overflow. */
+  .accessible-attachments {
+    overflow: visible;
+  }
+
+  .content-container {
+    overflow: visible;
+  }
+
+  .cards-list,
+  .detail-section {
+    overflow-y: visible;
   }
 }
 </style>
