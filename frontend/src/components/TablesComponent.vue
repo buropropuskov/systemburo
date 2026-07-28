@@ -1,18 +1,30 @@
 <template>
   <div class="tables">
-    <div class="tables__header">
-      <h1 class="tables__title">
+    <div
+      ref="headerRef"
+      class="tables__header"
+    >
+      <h1
+        ref="titleRef"
+        class="tables__title"
+      >
         Таблица <span class="table-name">{{ tableDisplayName }}</span>
       </h1>
       <button
         class="tables__instruction"
+        :class="{ 'tables__instruction--compact': instructionCompact }"
+        :title="instructionCompact ? 'Инструкция' : null"
+        :aria-label="instructionCompact ? 'Инструкция' : null"
         @click="openInstruction"
       >
         <img
           src="@/assets/icons/instruction.png"
           class="tables__icon"
         >
-        <p class="instruction__text">
+        <p
+          v-if="!instructionCompact"
+          class="instruction__text"
+        >
           Инструкция
         </p>
       </button>
@@ -141,7 +153,7 @@
           @click="showManualAdd = true"
         >
           <span class="options__manual-add-icon">+</span>
-          <span class="options__text">Добавить вручную</span>
+          <span class="options__text">{{ isNarrow ? 'Добавить' : 'Добавить вручную' }}</span>
         </button>
         <RouterLink
           v-if="can(`table.${$route.params.tableName}.versions`)"
@@ -481,6 +493,10 @@ export default {
             // Режим "Сетка" (#1289): один тумблер страницы на обе таблицы
             // (по факту + основная). Состояние своё у каждой таблицы.
             gridMode: false,
+
+            // Мобилка: кнопка «Инструкция» сжата до иконки, когда заголовок+инструкция
+            // не влезают в одну строку (measureHeader). Десктоп всегда с текстом.
+            instructionCompact: false,
         };
     },
     computed: {
@@ -558,13 +574,46 @@ export default {
         },
         gridMode(value) {
             this.saveGridMode(value);
+        },
+        // Имя таблицы или переход десктоп<->мобилка меняют, влезает ли инструкция
+        // с текстом в строку заголовка - пересчитываем.
+        tableDisplayName() {
+            this.measureHeader();
+        },
+        isNarrow() {
+            this.measureHeader();
         }
     },
     async mounted() {
+        window.addEventListener('resize', this.measureHeader);
+        this.measureHeader();
         await this.fetchCurrentUser();  // Ждём загрузки пользователя
         this.fetchTableData();          // потом таблицы
     },
+    beforeUnmount() {
+        window.removeEventListener('resize', this.measureHeader);
+    },
     methods: {
+        /**
+         * На мобилке заголовок «Таблица X» и кнопка «Инструкция» стоят в одну строку.
+         * Если полный заголовок не помещается рядом с инструкцией-с-текстом (обрезается
+         * ellipsis), сжимаем инструкцию до иконки, отдавая место заголовку. На десктопе
+         * инструкция всегда с текстом.
+         */
+        measureHeader() {
+            if (!this.isNarrow) {
+                this.instructionCompact = false;
+                return;
+            }
+            // Мерим в развёрнутом состоянии (текст виден), решение принимаем в nextTick.
+            this.instructionCompact = false;
+            this.$nextTick(() => {
+                const title = this.$refs.titleRef;
+                if (!title || !this.isNarrow) return;
+                this.instructionCompact = title.scrollWidth > title.clientWidth + 1;
+            });
+        },
+
         // Гейтинг по правам (#187 Фаза 2). super -> всегда true, admin -> всё кроме
         // denied, обычный -> по эффективному гранту. Реактивно: читает стор прав.
         can(key) {
@@ -1375,12 +1424,34 @@ export default {
         overflow: visible;
     }
     
+    /* Заголовок и «Инструкция» - в одну строку; длинное имя ужимается ellipsis,
+       инструкция сжимается до иконки через measureHeader (не переносится). */
     .tables__header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 10px;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        align-items: center;
+        gap: 8px;
     }
-    
+
+    .tables__title {
+        flex: 1 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .tables__instruction {
+        flex-shrink: 0;
+    }
+
+    .tables__instruction--compact {
+        width: 25px;
+        padding: 0;
+        gap: 0;
+        justify-content: center;
+    }
+
     .tables__filters {
         flex-direction: column;
         gap: 15px;
@@ -1397,11 +1468,44 @@ export default {
         width: 100%;
     }
 
-    /* Поиск тянется на всю строку, кнопка «Фильтр» - компактная справа. */
+    /* Поиск тянется на всю строку нормальной высоты, кнопка «Фильтр» - справа. */
     .field.search {
         flex: 1 1 auto;
         width: auto;
         min-width: 0;
+        height: 40px;
+    }
+
+    .field.search .field__input {
+        font-size: 14px;
+    }
+
+    /* Экспорт/Отчёт сворачиваются в иконки (как история/корзина), без рамки и текста. */
+    .options__export {
+        width: auto;
+        height: auto;
+        padding: 0;
+        border: none;
+        background: none;
+    }
+
+    /* Подпись прячем визуально, но оставляем в DOM - accessible name кнопки
+       (screenreader читает «Экспорт»/«Отчёт»), приём как у .rt-btn-label. */
+    .options__export .options__text {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+    }
+
+    .options__export .tables__icon {
+        width: 20px;
+        height: 20px;
     }
 
     .instruction-modal-large {

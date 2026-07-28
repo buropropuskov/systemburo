@@ -147,4 +147,18 @@ describe('TablesComponent - сворачивание фильтров в кно�
     expect(wrapper.vm.selectedDate).toBeNull();
     expect(wrapper.vm.hasActiveFilters).toBe(false);
   });
+
+  // Сжатие «Инструкции» в иконку - только мобилка по замеру ширины (jsdom layout
+  // не считает, поэтому проверяем инвариант десктопа: там сжатия быть не должно).
+  it('measureHeader: на десктопе инструкция не сжимается в иконку', async () => {
+    isNarrowRef.value = false;
+    const wrapper = mountPage();
+    await flushPromises();
+
+    wrapper.vm.instructionCompact = true;
+    wrapper.vm.measureHeader();
+    await nextTick();
+
+    expect(wrapper.vm.instructionCompact).toBe(false);
+  });
 });

@@ -20,70 +20,84 @@
       />
     </svg>
         
-    <transition name="dropdown">
-      <div 
-        v-if="isOpen"
-        class="custom-dropdown"
-        @click.stop
-      >
-        <div class="dropdown-search">
-          <input 
-            ref="searchInput" 
-            v-model="searchQuery" 
-            type="text"
-            placeholder="Поиск..."
-            class="dropdown-search__input"
-            @click.stop
-            @input="handleSearchInput"
-          >
-        </div>
-                
+    <Teleport
+      to="body"
+      :disabled="!isNarrow"
+    >
+      <transition name="dropdown">
         <div
-          ref="listContainer"
-          class="dropdown-list"
+          v-if="isOpen"
+          ref="menuRef"
+          class="custom-dropdown"
+          :class="{ 'custom-dropdown--sheet': isNarrow }"
+          @click.stop
         >
-          <div 
-            class="dropdown-item"
-            :class="{ 'dropdown-item--selected': !internalValue }"
-            @click="selectItem(null, 'Все места разгрузки')"
-          >
-            <span
-              class="item-text"
-              title="Все места разгрузки"
-            >Все места разгрузки</span>
+          <div class="dropdown-search">
+            <input
+              ref="searchInput"
+              v-model="searchQuery"
+              type="text"
+              placeholder="Поиск..."
+              class="dropdown-search__input"
+              @click.stop
+              @input="handleSearchInput"
+            >
           </div>
-                    
-          <div 
-            v-for="place in filteredPlaces"
-            :key="place.id"
-            class="dropdown-item"
-            :class="{ 'dropdown-item--selected': internalValue === place.id }"
-            @click="selectItem(place.id, place.name)"
+
+          <div
+            ref="listContainer"
+            class="dropdown-list"
           >
-            <span
-              class="item-text"
-              :title="place.name"
-            >{{ place.name }}</span>
-          </div>
-                    
-          <div 
-            v-if="filteredPlaces.length === 0" 
-            class="dropdown-no-results"
-            :class="{ 'with-border': searchQuery }"
-          >
-            Ничего не найдено
+            <div
+              class="dropdown-item"
+              :class="{ 'dropdown-item--selected': !internalValue }"
+              @click="selectItem(null, 'Все места разгрузки')"
+            >
+              <span
+                class="item-text"
+                title="Все места разгрузки"
+              >Все места разгрузки</span>
+            </div>
+
+            <div
+              v-for="place in filteredPlaces"
+              :key="place.id"
+              class="dropdown-item"
+              :class="{ 'dropdown-item--selected': internalValue === place.id }"
+              @click="selectItem(place.id, place.name)"
+            >
+              <span
+                class="item-text"
+                :title="place.name"
+              >{{ place.name }}</span>
+            </div>
+
+            <div
+              v-if="filteredPlaces.length === 0"
+              class="dropdown-no-results"
+              :class="{ 'with-border': searchQuery }"
+            >
+              Ничего не найдено
+            </div>
           </div>
         </div>
-      </div>
-    </transition>
+      </transition>
+    </Teleport>
   </div>
 </template>
 
 <script>
 import { apiRequest } from '@/api/client'
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
+import { useNarrowScreen } from '@/composables/useNarrowScreen';
 export default {
     name: 'UnloadingPlaceFilter',
+    // На мобилке меню телепортируется в body: внутри bottom-sheet (transform-предок)
+    // position:fixed привязывался бы к sheet, а не к вьюпорту, и меню съезжало вниз.
+    setup() {
+        const { isNarrow } = useNarrowScreen();
+        return { isNarrow };
+    },
     props: {
         value: {
             type: [Number, String],
@@ -177,7 +191,10 @@ export default {
         
         setupClickOutside() {
             this.clickOutsideHandler = (e) => {
-                if (!this.$el.contains(e.target)) {
+                // Меню телепортируется в body (мобилка) - оно вне $el, проверяем и его.
+                const inField = this.$el.contains(e.target);
+                const inMenu = this.$refs.menuRef && this.$refs.menuRef.contains(e.target);
+                if (!inField && !inMenu) {
                     this.isOpen = false;
                 }
             };
@@ -459,6 +476,9 @@ export default {
         min-width: auto;
     }
     
+    /* Меню телепортировано в body и центрируется по вьюпорту. z-index 2000 - тир
+       «телепортнутое меню дропдауна» из лестницы (выше sheet 1000, ниже диалогов
+       20000). Затемнение фона - тенью, без доп. DOM. */
     .custom-dropdown {
         position: fixed;
         top: 50%;
@@ -467,12 +487,27 @@ export default {
         width: 90vw;
         max-width: 400px;
         max-height: 80vh;
+        z-index: 2000;
+        box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.45);
     }
-    
+
+    /* Центрирование сохраняем во время анимации (transform уже занят translate). */
+    .custom-dropdown--sheet.dropdown-enter-from,
+    .custom-dropdown--sheet.dropdown-leave-to {
+        transform: translate(-50%, -50%) scale(0.95);
+        opacity: 0;
+    }
+
+    .custom-dropdown--sheet.dropdown-enter-to,
+    .custom-dropdown--sheet.dropdown-leave-from {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 1;
+    }
+
     .dropdown-list {
         max-height: 60vh;
     }
-    
+
     .item-text {
         max-width: 100%;
     }
