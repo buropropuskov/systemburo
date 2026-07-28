@@ -16,6 +16,7 @@ import (
 	"systemburo/internal/models"
 
 	"github.com/labstack/echo/v4"
+	"github.com/xuri/excelize/v2"
 	"gorm.io/gorm"
 )
 
@@ -115,16 +116,10 @@ func (s *attachmentTemplateService) Upload(ctx context.Context, uaID int, file *
 		ListStartRow:       req.ListStartRow,
 		ListEndRow:         req.ListEndRow,
 		MaxListRows:        req.MaxListRows,
-		ItemsListStartRow:  req.ItemsListStartRow,
-		ItemsListEndRow:    req.ItemsListEndRow,
-		ItemsMaxListRows:   req.ItemsMaxListRows,
 		UploadedByUserID:   &userID,
 	}
 	if t.MaxListRows == 0 && t.ListStartRow > 0 && t.ListEndRow >= t.ListStartRow {
 		t.MaxListRows = t.ListEndRow - t.ListStartRow + 1
-	}
-	if t.ItemsListStartRow > 0 && t.ItemsListEndRow >= t.ItemsListStartRow && t.ItemsMaxListRows == 0 {
-		t.ItemsMaxListRows = t.ItemsListEndRow - t.ItemsListStartRow + 1
 	}
 
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -373,6 +368,27 @@ func normalizeCustomLabel(label string) string {
 	return strings.ToLower(strings.Join(strings.Fields(label), " "))
 }
 
+// itemsSectionStart - верхняя строка, куда привязаны поля группы «Имущество (список)».
+// Ноль - привязок нет, значит и таблице ТМЦ в бланке начинаться неоткуда.
+func (s *attachmentTemplateService) itemsSectionStart(ctx context.Context, templateID int) int {
+	var refs []string
+	s.db.WithContext(ctx).Model(&models.AttachmentTemplateMapping{}).
+		Where("template_id = ? AND field_path LIKE ?", templateID, "item.%").
+		Pluck("cell_ref", &refs)
+
+	start := 0
+	for _, ref := range refs {
+		_, row, err := excelize.CellNameToCoordinates(ref)
+		if err != nil || row < 1 {
+			continue
+		}
+		if start == 0 || row < start {
+			start = row
+		}
+	}
+	return start
+}
+
 // rangesOverlap - пересекаются ли два диапазона строк включительно.
 func rangesOverlap(aStart, aEnd, bStart, bEnd int) bool {
 	return aStart <= bEnd && bStart <= aEnd
@@ -393,21 +409,21 @@ func (s *attachmentTemplateService) UpdateParams(ctx context.Context, uaID int, 
 	if maxRows == 0 {
 		maxRows = req.ListEndRow - req.ListStartRow + 1
 	}
-	// Таблица ТМЦ необязательна, но заданный диапазон обязан быть осмысленным: иначе
-	// генератор писал бы ввозимый товар поверх чужой разметки бланка.
-	itemsStart, itemsEnd, itemsMax := req.ItemsListStartRow, req.ItemsListEndRow, req.ItemsMaxListRows
-	switch {
-	case itemsStart == 0 && itemsEnd == 0:
-		itemsMax = 0
-	case itemsStart < 1 || itemsEnd < itemsStart:
-		return echo.NewHTTPError(http.StatusBadRequest, "Некорректный диапазон строк таблицы ТМЦ")
-	default:
-		if itemsMax == 0 {
-			itemsMax = itemsEnd - itemsStart + 1
+	// Таблица ТМЦ задаётся одним числом - сколько строк под неё отведено. Где она
+	// начинается, видно по привязкам полей ТМЦ, поэтому границы считаем сами и храним
+	// как снимок: так их видно в API и в переносе привязок между шаблонами.
+	itemsMax := req.ItemsMaxListRows
+	itemsStart, itemsEnd := 0, 0
+	if itemsMax > 0 {
+		itemsStart = s.itemsSectionStart(ctx, t.ID)
+		if itemsStart == 0 {
+			return echo.NewHTTPError(http.StatusBadRequest,
+				"Сначала привяжите поля ТМЦ к ячейкам бланка - по ним определяется начало таблицы")
 		}
-	}
-	if itemsStart > 0 && rangesOverlap(req.ListStartRow, req.ListEndRow, itemsStart, itemsEnd) {
-		return echo.NewHTTPError(http.StatusBadRequest, "Диапазоны списка и таблицы ТМЦ пересекаются")
+		itemsEnd = itemsStart + itemsMax - 1
+		if rangesOverlap(req.ListStartRow, req.ListEndRow, itemsStart, itemsEnd) {
+			return echo.NewHTTPError(http.StatusBadRequest, "Таблица ТМЦ накладывается на строки списка")
+		}
 	}
 	err := s.db.WithContext(ctx).Model(&models.AttachmentTemplate{}).Where("id = ?", t.ID).
 		Updates(map[string]any{

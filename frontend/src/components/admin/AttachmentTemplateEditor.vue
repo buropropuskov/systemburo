@@ -404,46 +404,22 @@
               class="te-params-fields te-params-fields--items"
             >
               <div class="te-form-field">
-                <label>Таблица ТМЦ: начало</label>
-                <input
-                  v-model.number="form.itemsListStartRow"
-                  type="number"
-                  min="0"
-                  class="lk-input te-compact-input"
-                  placeholder="нет"
-                  data-testid="template-items-start"
-                >
-              </div>
-              <div class="te-form-field">
-                <label>Таблица ТМЦ: конец</label>
-                <input
-                  v-model.number="form.itemsListEndRow"
-                  type="number"
-                  min="0"
-                  class="lk-input te-compact-input"
-                  placeholder="нет"
-                  data-testid="template-items-end"
-                >
-              </div>
-              <div class="te-form-field">
-                <label>Макс. позиций</label>
+                <label>Строк под таблицу ТМЦ</label>
                 <input
                   v-model.number="form.itemsMaxListRows"
                   type="number"
                   min="0"
                   class="lk-input te-compact-input"
-                  placeholder="авто"
-                  data-testid="template-items-max"
+                  placeholder="нет"
+                  data-testid="template-items-rows"
                 >
               </div>
+              <p class="te-params-hint">
+                Ввозимый товар из «Заявок на ввоз» этой заявки идёт со строки
+                {{ itemsSectionStart }} - там стоят привязки группы «Имущество (список)».
+                Ноль - таблицы в бланке нет.
+              </p>
             </div>
-            <p
-              v-if="showItemsRange"
-              class="te-params-hint"
-            >
-              Строки таблицы ввозимого товара из «Заявок на ввоз» этой заявки.
-              Заполняются привязками группы «Имущество (список)». Пусто - таблицы в бланке нет.
-            </p>
             <button
               class="lk-button lk-button--ghost te-btn-sm"
               :disabled="savingParams || !listRangeChanged"
@@ -581,8 +557,8 @@
             data-testid="template-items-range-hint"
           >
             Привязки к ТМЦ есть ({{ itemsMappingsWithoutRange.map(m => getFieldLabel(m.field_path)).join(', ') }}),
-            но строки таблицы ТМЦ не заданы - ввозимый товар в бланк не попадёт.
-            Укажите начало и конец таблицы выше и нажмите «Сохранить».
+            но число строк под таблицу не задано - ввозимый товар в бланк не попадёт.
+            Укажите «Строк под таблицу ТМЦ» выше и нажмите «Сохранить».
           </div>
           <button
             class="te-section-toggle"
@@ -749,7 +725,7 @@ export default {
       isDragging: false,
       form: {
         file: null, listStartRow: 1, listEndRow: 1, maxListRows: 0,
-        itemsListStartRow: 0, itemsListEndRow: 0, itemsMaxListRows: 0,
+        itemsMaxListRows: 0,
       },
       uploading: false,
       savingMappings: false,
@@ -839,15 +815,23 @@ export default {
     listGroupForType() {
       return { cars: 'car', people: 'employee', items: 'item' }[this.attachmentType] || '';
     },
-    // Таблицу ТМЦ заявки размечают в бланке любого типа, кроме самого ввоза: у него
-    // строки списка и так заполняются собственным имуществом.
-    showItemsRange() {
-      return this.attachmentType !== 'items';
+    // Верхняя строка с привязками ТМЦ - с неё начинается таблица ввозимого товара.
+    // Отдельного поля под неё нет: привязка и есть указание места.
+    itemsSectionStart() {
+      const rows = this.mappings
+        .filter(m => m.field_path.startsWith('item.'))
+        .map(m => Number((/^[A-Za-z]+(\d+)$/.exec(String(m.cell_ref || '').trim()) || [])[1]))
+        .filter(n => n > 0);
+      return rows.length ? Math.min(...rows) : 0;
     },
-    // Строки таблицы ТМЦ заданы - привязки item.* в этом бланке рабочие.
+    // Настройку таблицы ТМЦ показываем, только когда она нужна: поля имущества
+    // привязаны, а бланк не про сам ввоз (там ТМЦ заполняют собственный список).
+    showItemsRange() {
+      return this.attachmentType !== 'items' && this.itemsSectionStart > 0;
+    },
+    // Число строк задано - привязки item.* в этом бланке рабочие.
     itemsRangeSet() {
-      return this.form.itemsListStartRow > 0
-        && this.form.itemsListEndRow >= this.form.itemsListStartRow;
+      return this.form.itemsMaxListRows > 0;
     },
     // Привязка поля-списка из чужой группы: значений у неё не будет, потому что
     // источник (машины/сотрудники/ТМЦ) принадлежит другому типу вложения. Исключение -
@@ -881,8 +865,6 @@ export default {
       return this.form.listStartRow !== this.template.list_start_row
         || this.form.listEndRow !== this.template.list_end_row
         || this.form.maxListRows !== (this.template.max_list_rows || 0)
-        || this.form.itemsListStartRow !== (this.template.items_list_start_row || 0)
-        || this.form.itemsListEndRow !== (this.template.items_list_end_row || 0)
         || this.form.itemsMaxListRows !== (this.template.items_max_list_rows || 0);
     },
     pendingIsListField() {
@@ -981,8 +963,6 @@ export default {
         this.form.listStartRow = data && data.list_start_row || 1;
         this.form.listEndRow = data && data.list_end_row || 1;
         this.form.maxListRows = data && data.max_list_rows || 0;
-        this.form.itemsListStartRow = data && data.items_list_start_row || 0;
-        this.form.itemsListEndRow = data && data.items_list_end_row || 0;
         this.form.itemsMaxListRows = data && data.items_max_list_rows || 0;
         this.concatSeparator = data && data.concat_separator || ', ';
         if (this.enabled) await this.loadTemplateFile();
@@ -1274,8 +1254,6 @@ export default {
           listStartRow: this.form.listStartRow,
           listEndRow: this.form.listEndRow,
           maxListRows: this.form.maxListRows,
-          itemsListStartRow: this.form.itemsListStartRow,
-          itemsListEndRow: this.form.itemsListEndRow,
           itemsMaxListRows: this.form.itemsMaxListRows,
         });
         useDeletionsStore().notify({ bold: 'Границы списка сохранены' });
@@ -1607,8 +1585,10 @@ export default {
   color: var(--warning-text);
 }
 
+/* Баннер лежит поверх листа бланка, поэтому фон обязан быть непрозрачным: --accent-tint
+   полупрозрачен (в тёмной теме 0.22), и сквозь него просвечивала таблица. */
 .te-action-banner--info {
-  background: var(--accent-tint);
+  background: color-mix(in srgb, var(--color-primary) 12%, var(--surface));
   border-bottom: 1px solid var(--color-primary);
   color: var(--accent-text);
 }
