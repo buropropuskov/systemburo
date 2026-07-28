@@ -60,6 +60,18 @@ describe('UserInfoRow - маска телефона при вводе', () => {
     expect(emitted[emitted.length - 1][0]).toBe('+7 (916) 123 45-67');
   });
 
+  it('одно нажатие Backspace стирает цифру, даже если под кареткой был разделитель', async () => {
+    const w = mount(UserInfoRow, { props: { errors: {}, phoneNumber: '+7 (916) 123 45-67' } });
+    const input = w.get('input[placeholder="Номер телефона"]');
+
+    // Браузер уже съел ")" - каретка стоит на его месте, набор цифр не изменился
+    input.element.value = '+7 (916 123 45-67';
+    input.element.setSelectionRange(7, 7);
+    await input.trigger('input', { inputType: 'deleteContentBackward' });
+
+    expect(input.element.value).toBe('+7 (911) 234 56-7');
+  });
+
   it('ввод просит live-валидацию, blur - обычную', async () => {
     const w = mountRow();
     await typePhone(w, '9');

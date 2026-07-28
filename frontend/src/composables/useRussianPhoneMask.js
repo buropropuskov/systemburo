@@ -60,6 +60,33 @@ export function isValidRussianPhone(value) {
 }
 
 /**
+ * Убирает ближайшую цифру от каретки. Нужно при стирании разделителя маски:
+ * сам разделитель браузер уже удалил, но набор цифр не изменился, маска вернёт
+ * прежнюю строку - и Backspace выглядит нажатым впустую.
+ *
+ * @param {string} value - Значение поля после нативного удаления
+ * @param {number} caret - Позиция каретки в нём
+ * @param {boolean} [forward] - Delete вместо Backspace: искать цифру справа
+ * @returns {{value: string, caret: number}}
+ */
+export function dropAdjacentDigit(value, caret, forward = false) {
+  const source = String(value ?? '')
+  const at = Math.max(0, Math.min(caret, source.length))
+  const isDigit = (ch) => ch >= '0' && ch <= '9'
+
+  if (forward) {
+    for (let i = at; i < source.length; i++) {
+      if (isDigit(source[i])) return { value: source.slice(0, i) + source.slice(i + 1), caret: i }
+    }
+    return { value: source, caret: at }
+  }
+  for (let i = at - 1; i >= 0; i--) {
+    if (isDigit(source[i])) return { value: source.slice(0, i) + source.slice(i + 1), caret: i }
+  }
+  return { value: source, caret: at }
+}
+
+/**
  * Позиция каретки в замаскированном значении: держим её у той же по счёту цифры,
  * что и до наложения маски. Без этого правка в середине номера выбрасывает
  * курсор в конец поля.

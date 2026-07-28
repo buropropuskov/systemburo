@@ -69,7 +69,7 @@
 </template>
 
 <script>
-import { formatRussianPhone, caretAfterMask } from '@/composables/useRussianPhoneMask'
+import { formatRussianPhone, caretAfterMask, dropAdjacentDigit } from '@/composables/useRussianPhoneMask'
 import { suggestCompanies, suggestOrganizations } from '@/api/directory'
 import DirectorySuggestInput from './DirectorySuggestInput.vue'
 
@@ -102,8 +102,18 @@ export default {
 
         handlePhoneInput(event) {
             const input = event.target;
-            const masked = formatRussianPhone(input.value);
-            const caret = caretAfterMask(input.value, input.selectionStart ?? input.value.length, masked);
+            let value = input.value;
+            let caret = input.selectionStart ?? value.length;
+
+            // Стёрли разделитель маски: цифры не изменились, поле бы залипло -
+            // убираем соседнюю цифру, иначе Backspace приходится жать дважды.
+            const digits = (str) => String(str ?? '').replace(/\D/g, '');
+            if (event.inputType?.startsWith('delete') && digits(value) === digits(this.phoneNumber)) {
+                ({ value, caret } = dropAdjacentDigit(value, caret, event.inputType === 'deleteContentForward'));
+            }
+
+            const masked = formatRussianPhone(value);
+            caret = caretAfterMask(value, caret, masked);
             // Поле на one-way :value, поэтому синхронизируем отображение сразу.
             input.value = masked;
             input.setSelectionRange(caret, caret);

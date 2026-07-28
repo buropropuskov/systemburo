@@ -4,6 +4,7 @@ import {
   phoneToE164,
   isValidRussianPhone,
   caretAfterMask,
+  dropAdjacentDigit,
 } from '../useRussianPhoneMask';
 
 describe('formatRussianPhone', () => {
@@ -86,6 +87,27 @@ describe('caretAfterMask', () => {
 
   it('ставит каретку в начало пустого значения', () => {
     expect(caretAfterMask('', 0, '')).toBe(0);
+  });
+});
+
+describe('dropAdjacentDigit', () => {
+  it('убирает цифру слева, когда стёрли закрывающую скобку', () => {
+    // "+7 (916) 123 45-67" -> Backspace съел ")", каретка на его месте
+    expect(dropAdjacentDigit('+7 (916 123 45-67', 7)).toEqual({
+      value: '+7 (91 123 45-67',
+      caret: 6,
+    });
+  });
+
+  it('убирает цифру справа при Delete', () => {
+    expect(dropAdjacentDigit('+7 (916 123 45-67', 7, true)).toEqual({
+      value: '+7 (916 23 45-67',
+      caret: 8,
+    });
+  });
+
+  it('оставляет значение как есть, если цифры рядом нет', () => {
+    expect(dropAdjacentDigit('+', 1)).toEqual({ value: '+', caret: 1 });
   });
 });
 
