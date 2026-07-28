@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { nextTick } from 'vue';
@@ -173,5 +175,21 @@ describe('ReportsTab', () => {
     state.deferred[1](Promise.reject(new Error('бэк упал')));
     await flushPromises();
     expect(wrapper.findComponent(ReportResult).props('limit')).toBe(0);
+  });
+});
+
+/*
+ * jsdom не считает медиа-запросы, поэтому мобильный контракт вкладки (#1097 r3d)
+ * сверяем по SFC: на телефоне у карточки-конструктора padding 20px с обеих сторон
+ * съедал ширину полей мастера.
+ */
+describe('ReportsTab — мобильная адаптивность (#1097 r3d)', () => {
+  const src = readFileSync(resolve(__dirname, '../ReportsTab.vue'), 'utf8');
+  const mobile = src.slice(src.indexOf('@media (max-width: 768px)'));
+
+  it('на мобилке карточка-конструктор получает узкий padding', () => {
+    expect(src).toContain('@media (max-width: 768px)');
+    expect(mobile).toContain('.wizard');
+    expect(mobile).toMatch(/padding:\s*16px 14px/);
   });
 });
