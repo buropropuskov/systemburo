@@ -45,3 +45,76 @@ export function phoneToE164(masked) {
   if (!digits) return null
   return '+' + digits.replace(/^8/, '7')
 }
+
+/**
+ * Полный ли российский номер: 11 цифр, код страны 7 или 8, код региона/оператора 3-9.
+ *
+ * @param {string} value - Номер в любом виде (маска, сырые цифры)
+ * @returns {boolean}
+ */
+export function isValidRussianPhone(value) {
+  const digits = String(value ?? '').replace(/\D/g, '')
+  if (digits.length !== 11) return false
+  if (digits[0] !== '7' && digits[0] !== '8') return false
+  return digits[1] >= '3' && digits[1] <= '9'
+}
+
+/**
+ * Убирает ближайшую цифру от каретки. Нужно при стирании разделителя маски:
+ * сам разделитель браузер уже удалил, но набор цифр не изменился, маска вернёт
+ * прежнюю строку - и Backspace выглядит нажатым впустую.
+ *
+ * @param {string} value - Значение поля после нативного удаления
+ * @param {number} caret - Позиция каретки в нём
+ * @param {boolean} [forward] - Delete вместо Backspace: искать цифру справа
+ * @returns {{value: string, caret: number}}
+ */
+export function dropAdjacentDigit(value, caret, forward = false) {
+  const source = String(value ?? '')
+  const at = Math.max(0, Math.min(caret, source.length))
+  const isDigit = (ch) => ch >= '0' && ch <= '9'
+
+  if (forward) {
+    for (let i = at; i < source.length; i++) {
+      if (isDigit(source[i])) return { value: source.slice(0, i) + source.slice(i + 1), caret: i }
+    }
+    return { value: source, caret: at }
+  }
+  for (let i = at - 1; i >= 0; i--) {
+    if (isDigit(source[i])) return { value: source.slice(0, i) + source.slice(i + 1), caret: i }
+  }
+  return { value: source, caret: at }
+}
+
+/**
+ * Позиция каретки в замаскированном значении: держим её у той же по счёту цифры,
+ * что и до наложения маски. Без этого правка в середине номера выбрасывает
+ * курсор в конец поля.
+ *
+ * @param {string} value - Значение поля до маски (то, что набрал пользователь)
+ * @param {number} caret - Позиция каретки в этом значении
+ * @param {string} masked - Результат formatRussianPhone(value)
+ * @returns {number}
+ */
+export function caretAfterMask(value, caret, masked) {
+  const source = String(value ?? '')
+  const digits = source.replace(/\D/g, '')
+  const before = source.slice(0, Math.max(0, caret))
+  let digitsLeft = (before.match(/\d/g) || []).length
+  // Маска дописывает код страны, когда набор начали с национальной цифры -
+  // все цифры пользователя съезжают на одну позицию вправо.
+  if (digits && digits[0] !== '7' && digits[0] !== '8') digitsLeft += 1
+  if (digitsLeft === 0) return 0
+
+  let seen = 0
+  for (let i = 0; i < masked.length; i++) {
+    if (masked[i] < '0' || masked[i] > '9') continue
+    seen += 1
+    if (seen < digitsLeft) continue
+    // Если дальше идут только скобки и дефисы - забираем их с собой, иначе
+    // каретка залипает перед ")" и следующая цифра выглядит вставленной не туда.
+    const tail = masked.slice(i + 1)
+    return /\d/.test(tail) ? i + 1 : masked.length
+  }
+  return masked.length
+}
