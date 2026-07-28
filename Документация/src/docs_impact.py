@@ -1,0 +1,176 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Что в документации задето изменениями в коде.
+
+Держать в голове соответствие «файл кода - раздел документа» невозможно, и
+именно на этом документация отстаёт от системы: правку сделали, документ
+забыли. Скрипт сопоставляет изменённые файлы с картой и называет разделы,
+которые нужно открыть и сверить.
+
+Карта намеренно грубая: лучше лишний раз открыть раздел, чем пропустить
+изменение. Пустой ответ означает «в этих файлах документируемого поведения
+нет», а не «проверять не нужно».
+
+Запуск:
+    python3 Документация/src/docs_impact.py                 # незакоммиченное
+    python3 Документация/src/docs_impact.py origin/dev..HEAD
+    python3 Документация/src/docs_impact.py --debt          # долг против dev
+"""
+import os
+import re
+import subprocess
+import sys
+
+SRC_DIR = os.path.dirname(os.path.abspath(__file__))
+DOCS_DIR = os.path.dirname(SRC_DIR)
+REPO = os.path.dirname(DOCS_DIR)
+
+# (шаблон пути, документ, что смотреть)
+MAP = [
+    (r"^internal/config/config\.go$", "Руководство",
+     "6. Параметры конфигурации и приложение Б"),
+    (r"^docker-compose\.prod\.yml$", "Руководство",
+     "6.4 параметры базы, 5.9 состав служб, приложение А"),
+    (r"^docker-compose\.(base|staging)\.yml$", "Руководство",
+     "4.3 наложение файлов, 8 стенд, приложение В"),
+    (r"^nginx/", "Руководство",
+     "7 сертификат, 12 мониторинг, 13.3 и 13.10 диагностика, приложение А"),
+    (r"^Dockerfile|^frontend/Dockerfile$", "Руководство",
+     "4 состав поставки, 12.1 проверка состояния"),
+    (r"^Makefile$", "Руководство",
+     "5 установка, 8 стенд, 9.1 команды управления"),
+    (r"^scripts/", "Руководство",
+     "5.4 файл параметров, 7 сертификат, приложение В"),
+    (r"^cmd/seed/", "Руководство", "5.8 создание администратора"),
+    (r"^internal/database/migrate\.go$", "Оба",
+     "10 организация данных, 10.6 изменения схемы; число таблиц и индексов"),
+    (r"^internal/database/partitions\.go$", "Техописание",
+     "10.1 разделение журналов, 13.6 сроки хранения"),
+    (r"^internal/router/router\.go$", "Техописание",
+     "11 программный интерфейс: число методов и публичные роуты"),
+    (r"^internal/services/permission_(catalog|keys|service|resolver)",
+     "Техописание", "4.2 разграничение доступа, приложение А категорий прав"),
+    (r"^internal/middleware/(jwt|permission|ratelimit)", "Оба",
+     "13 защита информации; 6.3 ограничения"),
+    (r"^internal/auth/|^internal/services/auth_service\.go$", "Техописание",
+     "13.1 проверка подлинности"),
+    (r"^internal/crypto/", "Техописание",
+     "13.5 защита персональных данных при хранении"),
+    (r"^internal/models/pd|^internal/middleware/pd_audit\.go$", "Оба",
+     "13.6 и 13.7 персональные данные; критерии раздела 5"),
+    (r"^cmd/server/main\.go$", "Техописание",
+     "9.3 периодические задачи"),
+    (r"^internal/services/(application_helpers|.*blacklist.*)\.go$",
+     "Техописание", "5.2 чёрные списки, 7 поиск"),
+    (r"^internal/normalize/|^frontend/src/utils/searchVariants\.js$",
+     "Техописание", "7 поиск и приведение сведений к единому виду"),
+    (r"^internal/services/report_|^internal/services/processing_",
+     "Критерии", "4 показатели: метрики и разрезы"),
+    (r"^internal/realtime/|^internal/handlers/events\.go$", "Техописание",
+     "12 обновление без перезагрузки"),
+    (r"^internal/upload/", "Техописание", "13.4 загрузка файлов"),
+    (r"^\.github/workflows/", "Техописание",
+     "13.9 контроль защищённости, 14.3 конвейер"),
+    (r"_test\.go$|\.spec\.(js|ts)$", "Техописание",
+     "14.1 количественные показатели тестов"),
+]
+
+
+def sh(cmd):
+    return subprocess.run(cmd, shell=True, cwd=REPO, capture_output=True,
+                          text=True).stdout.strip()
+
+
+def changed(rev_range):
+    if rev_range:
+        out = sh("git diff --name-only %s" % rev_range)
+    else:
+        out = sh("git status --porcelain | awk '{print $NF}'")
+    return [line for line in out.splitlines() if line]
+
+
+def impact(files):
+    """Разделы документации, задетые файлами; порядок карты сохраняется."""
+    hits = []
+    for pattern, doc, where in MAP:
+        matched = [f for f in files if re.search(pattern, f)]
+        if matched:
+            hits.append((doc, where, matched))
+    return hits
+
+
+MARK = os.path.join(SRC_DIR, ".synced-dev")
+
+
+def debt_range():
+    """Диапазон коммитов dev, не рассмотренных при правке документации.
+
+    Точка отсчёта хранится в файле отметки: по последнему коммиту каталога
+    документации её не вычислить, потому что ветка документации содержит весь
+    код dev и разница между ними состоит из одних документов.
+    """
+    if not os.path.exists(MARK):
+        return None
+    with open(MARK, encoding="utf-8") as fh:
+        base = fh.read().strip().split()[0]
+    return "%s..origin/dev" % base if base else None
+
+
+def mark_synced():
+    """Запомнить, на каком состоянии dev документацию сверяли."""
+    head = sh("git rev-parse origin/dev")
+    if not head:
+        print("Не удалось определить origin/dev, отметка не поставлена.")
+        return 1
+    date = sh("git log -1 --format=%cs origin/dev")
+    with open(MARK, "w", encoding="utf-8") as fh:
+        fh.write("%s %s\n" % (head, date))
+    print("Отметка синхронизации: dev %s от %s" % (head[:8], date))
+    return 0
+
+
+def main():
+    args = [a for a in sys.argv[1:] if a != "--quiet"]
+    quiet = "--quiet" in sys.argv
+
+    if args and args[0] == "--mark":
+        return mark_synced()
+
+    if args and args[0] == "--debt":
+        rev = debt_range()
+        if not rev:
+            if not quiet:
+                print("Отметки синхронизации нет. Поставить после сверки: "
+                      "python3 Документация/src/docs_impact.py --mark")
+            return 0
+        title = "Пришло в dev после последней сверки документации"
+    else:
+        rev = args[0] if args else ""
+        title = "Изменения" if rev else "Незакоммиченные изменения"
+
+    # Сами документы из разбора исключаются: интересует изменившийся код.
+    files = [f for f in changed(rev) if not f.startswith("Документация/")]
+    if not files:
+        if not quiet:
+            print("Изменений нет.")
+        return 0
+
+    hits = impact(files)
+    if not hits:
+        if not quiet:
+            print("%s: файлов %d, документируемого поведения не затронуто."
+                  % (title, len(files)))
+        return 0
+
+    print("%s: файлов %d. Проверить в документации:" % (title, len(files)))
+    for doc, where, matched in hits:
+        example = matched[0]
+        more = " и ещё %d" % (len(matched) - 1) if len(matched) > 1 else ""
+        print("  [%s] %s" % (doc, where))
+        print("      из-за %s%s" % (example, more))
+    print("Сверка чисел: python3 Документация/src/doc_facts.py")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
