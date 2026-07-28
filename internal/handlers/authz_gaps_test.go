@@ -33,6 +33,12 @@ var readBlockedForRegularUser = []struct {
 }{
 	{"permissionGroups.list", "/permission-groups"},
 	{"roles.list", "/roles"},
+	// Чёрные списки: выгрузка ФИО/номеров и причин (ПД) — только под правом.
+	// Пометку реестра даёт сервер (is_blacklisted), список ЧС в браузер не идёт.
+	{"personBlacklist.list", "/person-blacklist"},
+	{"personBlacklist.history", "/person-blacklist/history"},
+	{"vehicleBlacklist.list", "/vehicle-blacklist"},
+	{"vehicleBlacklist.history", "/vehicle-blacklist/history"},
 }
 
 // readOpenForRegularUser — справочники, чтение которых нужно форме заявки и должно
@@ -71,6 +77,17 @@ func TestAuthz_RegularUser_CannotWriteDirectoriesOrReadPrivileged(t *testing.T) 
 			rec := testutil.GET(t, e, path, userH)
 			require.Equalf(t, http.StatusOK, rec.Code,
 				"GET %s нужен форме заявки и должен остаться открытым, получили %d", path, rec.Code)
+		})
+	}
+
+	// Точечная проверка ЧС остаётся доступной обычному юзеру: форме нужно узнать,
+	// не в ЧС ли конкретная машина/человек. Без параметров сервер отвечает 400
+	// (валидация), но НЕ 403 — авторизация проходит, в отличие от выгрузки списка.
+	for _, path := range []string{"/vehicle-blacklist/check", "/person-blacklist/check"} {
+		t.Run("check_open/"+path, func(t *testing.T) {
+			rec := testutil.GET(t, e, path, userH)
+			require.NotEqualf(t, http.StatusForbidden, rec.Code,
+				"GET %s (точечная проверка) должен быть доступен обычному юзеру, получили 403", path)
 		})
 	}
 }
