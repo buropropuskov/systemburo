@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -387,6 +388,175 @@ func TestBlankGenerate(t *testing.T) {
 	t.Run("условное форматирование при переполнении", func(t *testing.T) { listOverflowConditionalSection(t, db, td) })
 	t.Run("сквозная строка заголовков", func(t *testing.T) { printTitlesSection(t, db, td) })
 	t.Run("ТМЦ соседних вложений заявки", func(t *testing.T) { crossAttachmentItemsSection(t, db, td) })
+	t.Run("таблица ТМЦ в бланке работ", func(t *testing.T) { itemsTableSection(t, db, td) })
+}
+
+// Вторая таблица бланка: ввозимый товар «Заявок на ввоз» заявки идёт строками, теми же
+// привязками item.*, что и бланк самого ввоза. Списочная секция при этом остаётся за
+// собственным типом вложения - у заявки на работы за сотрудниками.
+func itemsTableSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
+	userTypeID := secUserTypeIDByCode(t, db, "user")
+	sender := models.User{Username: "blankitemstablesender", Password: "x", TypeID: userTypeID, OrganizationID: secPtrInt(td.OrgID)}
+	require.NoError(t, db.Create(&sender).Error)
+
+	name := "items_table_blank"
+	ua := models.UniqueAttachment{AttachmentType: "people", Name: &name, IsActive: true}
+	require.NoError(t, db.Create(&ua).Error)
+
+	// Сотрудники 10-12, таблица ТМЦ 20-23, под обеими подпись в 30-й строке с правилом
+	// условного форматирования: по ней видно, что вставки сдвинули разметку и формулы.
+	f := excelize.NewFile()
+	defer func() { require.NoError(t, f.Close()) }()
+	sheet := f.GetSheetName(0)
+	require.NoError(t, f.SetCellValue(sheet, "A9", "СОТРУДНИКИ"))
+	require.NoError(t, f.SetCellValue(sheet, "A19", "ОБОРУДОВАНИЕ"))
+	require.NoError(t, f.SetCellValue(sheet, "A30", "ПОДПИСЬ"))
+	style, err := f.NewConditionalStyle(&excelize.Style{Fill: excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"FFC7CE"}}})
+	require.NoError(t, err)
+	require.NoError(t, f.SetConditionalFormat(sheet, "A30:D30", []excelize.ConditionalFormatOptions{
+		{Type: "formula", Criteria: `$A$30=""`, Format: &style},
+	}))
+	path := filepath.Join(t.TempDir(), "items_table.xlsx")
+	require.NoError(t, f.SaveAs(path))
+
+	tpl := models.AttachmentTemplate{
+		UniqueAttachmentID: ua.ID, IsActive: true, FilePath: path, OriginalFileName: "items_table.xlsx",
+		ListStartRow: 10, ListEndRow: 12, MaxListRows: 3,
+		ItemsListStartRow: 20, ItemsListEndRow: 23, ItemsMaxListRows: 4,
+	}
+	require.NoError(t, db.Create(&tpl).Error)
+	require.NoError(t, db.Create(&[]models.AttachmentTemplateMapping{
+		{TemplateID: tpl.ID, CellRef: "B10", FieldPath: "employee.last_name", IsListField: true},
+		{TemplateID: tpl.ID, CellRef: "A20", FieldPath: "item.row_number", IsListField: true},
+		{TemplateID: tpl.ID, CellRef: "B20", FieldPath: "item.name", IsListField: true},
+		{TemplateID: tpl.ID, CellRef: "F20", FieldPath: "item.count", IsListField: true},
+	}).Error)
+
+	// makeApp собирает заявку: сотрудники в своём вложении, ТМЦ - в «Заявках на ввоз».
+	makeApp := func(t *testing.T, employees int, imports ...[]models.Item) (int, int) {
+		t.Helper()
+		now := time.Now()
+		conf, status := "Согласовано", models.StatusInWork
+		app := models.Application{
+			OrganizationID: td.OrgID, SenderUserID: sender.ID,
+			Confirmation: &conf, Status: &status, SendingDatetime: &now,
+		}
+		require.NoError(t, db.Create(&app).Error)
+		works := models.Attachment{ApplicationID: &app.ID, AttachmentType: "people", UniqueAttachmentID: &ua.ID}
+		require.NoError(t, db.Create(&works).Error)
+		for i := 0; i < employees; i++ {
+			last := fmt.Sprintf("Сотрудник%d", i+1)
+			require.NoError(t, db.Create(&models.Employee{AttachmentID: &works.ID, LastName: &last}).Error)
+		}
+		for _, items := range imports {
+			imp := models.Attachment{ApplicationID: &app.ID, AttachmentType: "items"}
+			require.NoError(t, db.Create(&imp).Error)
+			for i := range items {
+				items[i].AttachmentID = imp.ID
+				require.NoError(t, db.Create(&items[i]).Error)
+			}
+		}
+		return app.ID, works.ID
+	}
+
+	item := func(name string, count int) models.Item {
+		n, c := name, count
+		return models.Item{Name: &n, Count: &c}
+	}
+
+	blank := func(t *testing.T, appID, attID int) *excelize.File {
+		t.Helper()
+		reader, _, err := services.NewAttachmentBlankService(db).
+			GenerateBlank(context.Background(), appID, attID)
+		require.NoError(t, err)
+		out, err := excelize.OpenReader(reader)
+		require.NoError(t, err)
+		return out
+	}
+	cell := func(t *testing.T, out *excelize.File, ref string) string {
+		t.Helper()
+		v, err := out.GetCellValue(out.GetSheetName(0), ref)
+		require.NoError(t, err)
+		return v
+	}
+	signRow := func(t *testing.T, out *excelize.File) int {
+		t.Helper()
+		for row := 25; row <= 45; row++ {
+			if cell(t, out, fmt.Sprintf("A%d", row)) == "ПОДПИСЬ" {
+				return row
+			}
+		}
+		return 0
+	}
+
+	t.Run("ввозимый товар идёт строками таблицы", func(t *testing.T) {
+		appID, attID := makeApp(t, 1,
+			[]models.Item{item("Кабель ВВГнг 3х2.5", 200), item("Щит распределительный", 2)},
+			[]models.Item{item("Лестница-стремянка", 1)})
+		out := blank(t, appID, attID)
+		defer func() { require.NoError(t, out.Close()) }()
+
+		require.Equal(t, "Сотрудник1", cell(t, out, "B10"), "список сотрудников на своём месте")
+		require.Empty(t, cell(t, out, "B11"))
+
+		require.Equal(t, []string{"1", "Кабель ВВГнг 3х2.5", "200"},
+			[]string{cell(t, out, "A20"), cell(t, out, "B20"), cell(t, out, "F20")})
+		require.Equal(t, []string{"2", "Щит распределительный", "2"},
+			[]string{cell(t, out, "A21"), cell(t, out, "B21"), cell(t, out, "F21")})
+		require.Equal(t, []string{"3", "Лестница-стремянка", "1"},
+			[]string{cell(t, out, "A22"), cell(t, out, "B22"), cell(t, out, "F22")},
+			"позиции второго вложения продолжают ту же таблицу")
+		require.Empty(t, cell(t, out, "B23"), "лишняя строка таблицы остаётся пустой")
+		require.Equal(t, 30, signRow(t, out), "разметка под таблицами не двигалась")
+	})
+
+	t.Run("расширение списка сотрудников сдвигает таблицу ТМЦ", func(t *testing.T) {
+		appID, attID := makeApp(t, 5, []models.Item{item("Кабель", 10), item("Щит", 1)})
+		out := blank(t, appID, attID)
+		defer func() { require.NoError(t, out.Close()) }()
+
+		require.Equal(t, "Сотрудник5", cell(t, out, "B14"), "список вырос на две строки")
+		require.Equal(t, "Кабель", cell(t, out, "B22"), "таблица ТМЦ уехала вниз на столько же")
+		require.Equal(t, "Щит", cell(t, out, "B23"))
+		require.Equal(t, 32, signRow(t, out))
+	})
+
+	t.Run("переполнение таблицы ТМЦ добавляет строки", func(t *testing.T) {
+		items := make([]models.Item, 0, 6)
+		for i := 1; i <= 6; i++ {
+			items = append(items, item(fmt.Sprintf("Позиция %d", i), i))
+		}
+		appID, attID := makeApp(t, 1, items)
+		out := blank(t, appID, attID)
+		defer func() { require.NoError(t, out.Close()) }()
+
+		for i := 0; i < 6; i++ {
+			require.Equal(t, fmt.Sprintf("Позиция %d", i+1), cell(t, out, fmt.Sprintf("B%d", 20+i)))
+		}
+		require.Equal(t, 32, signRow(t, out), "подпись сдвинулась на две добавленные строки")
+	})
+
+	t.Run("формулы условного форматирования сдвигаются на обе таблицы", func(t *testing.T) {
+		items := make([]models.Item, 0, 6)
+		for i := 1; i <= 6; i++ {
+			items = append(items, item(fmt.Sprintf("Позиция %d", i), i))
+		}
+		appID, attID := makeApp(t, 5, items)
+		out := blank(t, appID, attID)
+		defer func() { require.NoError(t, out.Close()) }()
+
+		// Сотрудников на 2 больше шаблона и ТМЦ на 2 - подпись уезжает на 4 строки.
+		require.Equal(t, 34, signRow(t, out))
+		formats, err := out.GetConditionalFormats(out.GetSheetName(0))
+		require.NoError(t, err)
+		var criteria string
+		for ref, opts := range formats {
+			if strings.HasPrefix(ref, "A34") && len(opts) > 0 {
+				criteria = opts[0].Criteria
+			}
+		}
+		require.Equal(t, `$A$34=""`, criteria, "формула правила должна указывать на строку подписи после сдвига")
+	})
 }
 
 // ТМЦ «Заявок на ввоз» в бланке заявки на работы: списочная секция бланка занята
@@ -1111,6 +1281,38 @@ func templateParamsSection(t *testing.T, w blankWorld) {
 		rec := testutil.PUT(t, w.h.e, url, `{"list_start_row":30,"list_end_row":10}`,
 			testutil.AuthHeader(w.h.adminToken))
 		require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	})
+
+	t.Run("админ задаёт таблицу ТМЦ, максимум считается по ней", func(t *testing.T) {
+		rec := testutil.PUT(t, w.h.e, url,
+			`{"list_start_row":7,"list_end_row":20,"items_list_start_row":30,"items_list_end_row":37}`,
+			testutil.AuthHeader(w.h.adminToken))
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+		var tpl models.AttachmentTemplate
+		require.NoError(t, db.Where("unique_attachment_id = ? AND is_active = ?", uaID, true).First(&tpl).Error)
+		require.Equal(t, 30, tpl.ItemsListStartRow)
+		require.Equal(t, 37, tpl.ItemsListEndRow)
+		require.Equal(t, 8, tpl.ItemsMaxListRows)
+	})
+
+	t.Run("таблица ТМЦ поверх списка отклоняется", func(t *testing.T) {
+		rec := testutil.PUT(t, w.h.e, url,
+			`{"list_start_row":7,"list_end_row":20,"items_list_start_row":15,"items_list_end_row":25}`,
+			testutil.AuthHeader(w.h.adminToken))
+		require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	})
+
+	t.Run("пустые границы таблицы ТМЦ убирают её из шаблона", func(t *testing.T) {
+		rec := testutil.PUT(t, w.h.e, url,
+			`{"list_start_row":7,"list_end_row":20,"items_list_start_row":0,"items_list_end_row":0}`,
+			testutil.AuthHeader(w.h.adminToken))
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+		var tpl models.AttachmentTemplate
+		require.NoError(t, db.Where("unique_attachment_id = ? AND is_active = ?", uaID, true).First(&tpl).Error)
+		require.Zero(t, tpl.ItemsListStartRow)
+		require.Zero(t, tpl.ItemsMaxListRows)
 	})
 }
 

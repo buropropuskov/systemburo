@@ -399,6 +399,51 @@
                 >
               </div>
             </div>
+            <div
+              v-if="showItemsRange"
+              class="te-params-fields te-params-fields--items"
+            >
+              <div class="te-form-field">
+                <label>Таблица ТМЦ: начало</label>
+                <input
+                  v-model.number="form.itemsListStartRow"
+                  type="number"
+                  min="0"
+                  class="lk-input te-compact-input"
+                  placeholder="нет"
+                  data-testid="template-items-start"
+                >
+              </div>
+              <div class="te-form-field">
+                <label>Таблица ТМЦ: конец</label>
+                <input
+                  v-model.number="form.itemsListEndRow"
+                  type="number"
+                  min="0"
+                  class="lk-input te-compact-input"
+                  placeholder="нет"
+                  data-testid="template-items-end"
+                >
+              </div>
+              <div class="te-form-field">
+                <label>Макс. позиций</label>
+                <input
+                  v-model.number="form.itemsMaxListRows"
+                  type="number"
+                  min="0"
+                  class="lk-input te-compact-input"
+                  placeholder="авто"
+                  data-testid="template-items-max"
+                >
+              </div>
+            </div>
+            <p
+              v-if="showItemsRange"
+              class="te-params-hint"
+            >
+              Строки таблицы ввозимого товара из «Заявок на ввоз» этой заявки.
+              Заполняются привязками группы «Имущество (список)». Пусто - таблицы в бланке нет.
+            </p>
             <button
               class="lk-button lk-button--ghost te-btn-sm"
               :disabled="savingParams || !listRangeChanged"
@@ -529,6 +574,15 @@
             В списке есть {{ foreignListMappings.length }} привязк{{ foreignListMappings.length === 1 ? 'а' : 'и' }}
             из другой группы полей ({{ foreignListMappings.map(m => getFieldLabel(m.field_path)).join(', ') }}).
             У этого типа вложения такие данные не заполняются - ячейки останутся пустыми.
+          </div>
+          <div
+            v-if="itemsMappingsWithoutRange.length"
+            class="te-foreign-warning"
+            data-testid="template-items-range-hint"
+          >
+            Привязки к ТМЦ есть ({{ itemsMappingsWithoutRange.map(m => getFieldLabel(m.field_path)).join(', ') }}),
+            но строки таблицы ТМЦ не заданы - ввозимый товар в бланк не попадёт.
+            Укажите начало и конец таблицы выше и нажмите «Сохранить».
           </div>
           <button
             class="te-section-toggle"
@@ -693,7 +747,10 @@ export default {
       enabled: false,
       showUpload: false,
       isDragging: false,
-      form: { file: null, listStartRow: 1, listEndRow: 1, maxListRows: 0 },
+      form: {
+        file: null, listStartRow: 1, listEndRow: 1, maxListRows: 0,
+        itemsListStartRow: 0, itemsListEndRow: 0, itemsMaxListRows: 0,
+      },
       uploading: false,
       savingMappings: false,
       savingParams: false,
@@ -782,13 +839,31 @@ export default {
     listGroupForType() {
       return { cars: 'car', people: 'employee', items: 'item' }[this.attachmentType] || '';
     },
+    // Таблицу ТМЦ заявки размечают в бланке любого типа, кроме самого ввоза: у него
+    // строки списка и так заполняются собственным имуществом.
+    showItemsRange() {
+      return this.attachmentType !== 'items';
+    },
+    // Строки таблицы ТМЦ заданы - привязки item.* в этом бланке рабочие.
+    itemsRangeSet() {
+      return this.form.itemsListStartRow > 0
+        && this.form.itemsListEndRow >= this.form.itemsListStartRow;
+    },
     // Привязка поля-списка из чужой группы: значений у неё не будет, потому что
-    // источник (машины/сотрудники/ТМЦ) принадлежит другому типу вложения.
+    // источник (машины/сотрудники/ТМЦ) принадлежит другому типу вложения. Исключение -
+    // item.* при заданной таблице ТМЦ: она заполняется «Заявками на ввоз» заявки.
     foreignListMappings() {
       if (!this.listGroupForType) return [];
       return this.mappings.filter(
-        m => m.is_list_field && !m.field_path.startsWith(`${this.listGroupForType}.`)
+        m => m.is_list_field
+          && !m.field_path.startsWith(`${this.listGroupForType}.`)
+          && !(this.itemsRangeSet && m.field_path.startsWith('item.'))
       );
+    },
+    // Привязки к ТМЦ есть, а строки таблицы не заданы - в бланке останется пустое место.
+    itemsMappingsWithoutRange() {
+      if (!this.showItemsRange || this.itemsRangeSet) return [];
+      return this.mappings.filter(m => m.is_list_field && m.field_path.startsWith('item.'));
     },
     // Локальные правки привязок, ещё не отправленные на сервер: перенос с другого
     // шаблона идёт по серверному состоянию, поэтому о них надо предупредить.
@@ -797,6 +872,7 @@ export default {
     },
     pendingIsForeignList() {
       if (!this.pendingFieldPath || !this.listGroupForType) return false;
+      if (this.itemsRangeSet && this.pendingFieldPath.startsWith('item.')) return false;
       return this.isListField(this.pendingFieldPath)
         && !this.pendingFieldPath.startsWith(`${this.listGroupForType}.`);
     },
@@ -804,7 +880,10 @@ export default {
       if (!this.template) return false;
       return this.form.listStartRow !== this.template.list_start_row
         || this.form.listEndRow !== this.template.list_end_row
-        || this.form.maxListRows !== (this.template.max_list_rows || 0);
+        || this.form.maxListRows !== (this.template.max_list_rows || 0)
+        || this.form.itemsListStartRow !== (this.template.items_list_start_row || 0)
+        || this.form.itemsListEndRow !== (this.template.items_list_end_row || 0)
+        || this.form.itemsMaxListRows !== (this.template.items_max_list_rows || 0);
     },
     pendingIsListField() {
       return !!this.pendingFieldPath && this.isListField(this.pendingFieldPath);
@@ -902,6 +981,9 @@ export default {
         this.form.listStartRow = data && data.list_start_row || 1;
         this.form.listEndRow = data && data.list_end_row || 1;
         this.form.maxListRows = data && data.max_list_rows || 0;
+        this.form.itemsListStartRow = data && data.items_list_start_row || 0;
+        this.form.itemsListEndRow = data && data.items_list_end_row || 0;
+        this.form.itemsMaxListRows = data && data.items_max_list_rows || 0;
         this.concatSeparator = data && data.concat_separator || ', ';
         if (this.enabled) await this.loadTemplateFile();
       } catch {
@@ -1192,6 +1274,9 @@ export default {
           listStartRow: this.form.listStartRow,
           listEndRow: this.form.listEndRow,
           maxListRows: this.form.maxListRows,
+          itemsListStartRow: this.form.itemsListStartRow,
+          itemsListEndRow: this.form.itemsListEndRow,
+          itemsMaxListRows: this.form.itemsMaxListRows,
         });
         useDeletionsStore().notify({ bold: 'Границы списка сохранены' });
         await this.loadTemplate();
@@ -1703,6 +1788,20 @@ export default {
   gap: 14px;
   flex: 1;
   min-width: 0;
+}
+
+/* Вторая таблица бланка идёт отдельным рядом: у полей длинные подписи, в один ряд с
+   границами списка они не помещаются. */
+.te-params-fields--items {
+  margin-top: 10px;
+}
+
+.te-params-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-secondary, #666);
+  flex-basis: 100%;
 }
 
 /* Цвета те же, что у te-action-banner--warning выше: непрозрачная светлая плашка

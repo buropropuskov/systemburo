@@ -177,8 +177,34 @@ describe('AttachmentTemplateEditor', () => {
 
     expect(updateTemplateParams).toHaveBeenCalledWith(9, {
       listStartRow: 30, listEndRow: 50, maxListRows: 18,
+      itemsListStartRow: 0, itemsListEndRow: 0, itemsMaxListRows: 0,
     });
     expect(notify).toHaveBeenCalledWith(expect.objectContaining({ bold: 'Границы списка сохранены' }));
+  });
+
+  it('сохраняет границы таблицы ТМЦ вместе со списком', async () => {
+    const wrapper = await mountEditor({ attachmentType: 'people' });
+    await wrapper.find('[data-testid="template-items-start"]').setValue(60);
+    await wrapper.find('[data-testid="template-items-end"]').setValue(67);
+    await wrapper.find('[data-testid="template-params-save"]').trigger('click');
+    await flushPromises();
+
+    expect(updateTemplateParams).toHaveBeenCalledWith(9, expect.objectContaining({
+      itemsListStartRow: 60, itemsListEndRow: 67,
+    }));
+  });
+
+  // Привязки к ТМЦ в бланке работ без заданных строк таблицы молча ничего не заполнят -
+  // редактор обязан об этом сказать, иначе админ ждёт данные и видит пустые ячейки.
+  it('подсказывает задать строки таблицы, когда есть привязки к ТМЦ', async () => {
+    // В фикстуре шаблона уже есть привязка item.name, а строки таблицы не заданы.
+    const wrapper = await mountEditor({ attachmentType: 'people' });
+    expect(wrapper.find('[data-testid="template-items-range-hint"]').exists()).toBe(true);
+
+    wrapper.vm.form.itemsListStartRow = 42;
+    wrapper.vm.form.itemsListEndRow = 49;
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find('[data-testid="template-items-range-hint"]').exists()).toBe(false);
   });
 
   it('показывает ошибку сервера при сохранении границ', async () => {

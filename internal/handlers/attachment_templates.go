@@ -140,12 +140,22 @@ func (h *AttachmentTemplateHandler) Upload(c echo.Context) error {
 	if startRow < 1 || endRow < startRow {
 		return echo.NewHTTPError(http.StatusBadRequest, "Некорректный диапазон строк")
 	}
+	// Таблица ТМЦ необязательна: её границы задают отдельно, форма может их не слать.
+	itemsStart, _ := strconv.Atoi(c.FormValue("items_list_start_row"))
+	itemsEnd, _ := strconv.Atoi(c.FormValue("items_list_end_row"))
+	itemsMax, _ := strconv.Atoi(c.FormValue("items_max_list_rows"))
+	if itemsStart > 0 && itemsEnd < itemsStart {
+		return echo.NewHTTPError(http.StatusBadRequest, "Некорректный диапазон строк таблицы ТМЦ")
+	}
 
 	userID, _ := c.Get("user_id").(int)
 	t, err := h.service.Upload(c.Request().Context(), uaID, file, models.CreateTemplateRequest{
-		ListStartRow: startRow,
-		ListEndRow:   endRow,
-		MaxListRows:  maxRows,
+		ListStartRow:      startRow,
+		ListEndRow:        endRow,
+		MaxListRows:       maxRows,
+		ItemsListStartRow: itemsStart,
+		ItemsListEndRow:   itemsEnd,
+		ItemsMaxListRows:  itemsMax,
 	}, userID)
 	if err != nil {
 		return err

@@ -145,10 +145,11 @@ func (s *attachmentBlankService) GenerateBlank(ctx context.Context, applicationI
 		staticCells[ref] = joined
 	}
 
-	// 5. List-fields с авторасширением.
-	insertedRows := 0
+	// 5. Списочные секции с авторасширением: собственная таблица вложения и, если её
+	// разметили в шаблоне, таблица ТМЦ «Заявок на ввоз» этой же заявки.
+	shifts := make([]rowShift, 0, 2)
 	if len(listMappings) > 0 {
-		insertedRows = s.fillListSection(f, sheet, &template, listMappings, staticCells, bctx)
+		shifts = s.fillListSections(f, sheet, &template, listMappings, staticCells, bctx)
 	}
 
 	// 6. Шапка столбцов сквозная: на следующей странице таблица начинается с неё.
@@ -163,15 +164,22 @@ func (s *attachmentBlankService) GenerateBlank(ctx context.Context, applicationI
 	// 8. Добавленные строки сдвинули диапазоны условного форматирования, но не формулы
 	// внутри правил - дошиваем их сами. Сбой здесь бланк не отменяет: отдаём файл со
 	// старыми формулами правил, но громко пишем в лог.
+	// Секции обрабатываем снизу вверх: формулы хранят строки шаблона, поэтому правило
+	// под обеими таблицами должно получить сдвиг каждой из них, а правило между ними -
+	// только сдвиг верхней.
 	out := buf.Bytes()
-	if insertedRows > 0 {
-		shifted, shiftErr := shiftConditionalFormatFormulas(out, template.ListEndRow+1, insertedRows)
+	sort.Slice(shifts, func(i, j int) bool { return shifts[i].fromRow > shifts[j].fromRow })
+	for _, sh := range shifts {
+		if sh.offset <= 0 {
+			continue
+		}
+		shifted, shiftErr := shiftConditionalFormatFormulas(out, sh.fromRow, sh.offset)
 		if shiftErr != nil {
 			slog.Error("не удалось сдвинуть формулы условного форматирования бланка",
-				"error", shiftErr, "template", template.ID, "inserted", insertedRows)
-		} else {
-			out = shifted
+				"error", shiftErr, "template", template.ID, "from", sh.fromRow, "inserted", sh.offset)
+			continue
 		}
+		out = shifted
 	}
 
 	filename := formatBlankFilename(bctx)
@@ -207,14 +215,14 @@ type repeatedCell struct {
 // внутрь строк списка. Такое поле относится ко всей заявке - организация, компания,
 // период, - и в разметке бланка живёт колонкой таблицы, поэтому его значение должно
 // стоять в каждой строке, а не только в первой.
-func repeatedListCells(t *models.AttachmentTemplate, staticCells map[string]string) []repeatedCell {
-	if t.ListStartRow < 1 || t.ListEndRow < t.ListStartRow {
+func repeatedListCells(startRow, endRow int, staticCells map[string]string) []repeatedCell {
+	if startRow < 1 || endRow < startRow {
 		return nil
 	}
 	out := make([]repeatedCell, 0, len(staticCells))
 	for ref, val := range staticCells {
 		col, row, err := excelize.CellNameToCoordinates(ref)
-		if err != nil || row < t.ListStartRow || row > t.ListEndRow {
+		if err != nil || row < startRow || row > endRow {
 			continue
 		}
 		out = append(out, repeatedCell{col: col, value: val})
@@ -223,25 +231,78 @@ func repeatedListCells(t *models.AttachmentTemplate, staticCells map[string]stri
 	return out
 }
 
+// listSection - одна таблица бланка: строки шаблона, префикс привязок, число записей и
+// как достать значение поля для строки.
+type listSection struct {
+	startRow int
+	endRow   int
+	maxRows  int
+	prefix   string
+	count    int
+	resolve  func(path string, idx int) string
+}
+
+// rowShift - сколько строк добавилось ниже определённой строки шаблона. Нужен, чтобы
+// досдвинуть формулы условного форматирования и сместить нижние таблицы.
+type rowShift struct {
+	fromRow int
+	offset  int
+}
+
+// blankSections собирает таблицы бланка сверху вниз: собственную (её тип задаёт тип
+// вложения) и таблицу ТМЦ «Заявок на ввоз» заявки, если её разметили в шаблоне.
+// Вторая таблица заполняется теми же привязками группы item.*, что и бланк ввоза, -
+// админу не надо заводить отдельные поля под «чужие» ТМЦ.
+func blankSections(t *models.AttachmentTemplate, bctx *BlankContext) []listSection {
+	sections := make([]listSection, 0, 2)
+	if prefix, count := listSource(bctx); prefix != "" && count > 0 {
+		sections = append(sections, listSection{
+			startRow: t.ListStartRow, endRow: t.ListEndRow, maxRows: t.MaxListRows,
+			prefix: prefix, count: count,
+			resolve: func(path string, idx int) string { return resolveValue(bctx, path, idx) },
+		})
+	}
+	if t.ItemsListStartRow > 0 && t.ItemsListEndRow >= t.ItemsListStartRow && len(bctx.ApplicationItems) > 0 {
+		rows := bctx.ApplicationItems
+		sections = append(sections, listSection{
+			startRow: t.ItemsListStartRow, endRow: t.ItemsListEndRow, maxRows: t.ItemsMaxListRows,
+			prefix: "item.", count: len(rows),
+			resolve: func(path string, idx int) string { return resolveApplicationItemRow(rows, path, idx) },
+		})
+	}
+	sort.Slice(sections, func(i, j int) bool { return sections[i].startRow < sections[j].startRow })
+	return sections
+}
+
+// fillListSections заполняет таблицы бланка сверху вниз. Расширение верхней таблицы
+// сдвигает нижние, поэтому строки нижних пишутся со смещением на уже добавленные строки.
+// Возвращает сдвиги по каждой таблице для правки формул условного форматирования.
+func (s *attachmentBlankService) fillListSections(f *excelize.File, sheet string, t *models.AttachmentTemplate, mappings []models.AttachmentTemplateMapping, staticCells map[string]string, bctx *BlankContext) []rowShift {
+	sections := blankSections(t, bctx)
+	shifts := make([]rowShift, 0, len(sections))
+	shift := 0
+	for _, sec := range sections {
+		inserted := s.fillListSection(f, sheet, sec, shift, mappings, staticCells)
+		shifts = append(shifts, rowShift{fromRow: sec.endRow + 1, offset: inserted})
+		shift += inserted
+	}
+	return shifts
+}
+
 // fillListSection заполняет строки списка (cars/employees/items), при необходимости
 // расширяя шаблон через InsertRows + копирование стилей последней шаблонной строки.
 // staticCells - уже записанные значения обычных полей: те из них, что попали в строки
 // списка, повторяются по строкам вместе со списочными.
 // Возвращает число реально добавленных строк: на него потом сдвигаются формулы правил
 // условного форматирования.
-func (s *attachmentBlankService) fillListSection(f *excelize.File, sheet string, t *models.AttachmentTemplate, mappings []models.AttachmentTemplateMapping, staticCells map[string]string, bctx *BlankContext) int {
-	// Список задаёт тип вложения, а не порядок привязок (#1454): у items-вложения нет
+func (s *attachmentBlankService) fillListSection(f *excelize.File, sheet string, sec listSection, shift int, mappings []models.AttachmentTemplateMapping, staticCells map[string]string) int {
+	// Секцию наполняет её собственная группа привязок (#1454): у items-вложения нет
 	// машин, и привязка car.* не должна отменять заполнение ТМЦ. Раньше тип брался по
 	// первому list-маппингу, из-за чего боевой бланк "Заявка на ввоз" с привязками к
 	// номеру машины отдавал пустую таблицу имущества.
-	prefix, count := listSource(bctx)
-	if count == 0 {
-		return 0
-	}
-	// Привязки чужих групп заполнять нечем: их источник у этого вложения пуст.
 	own := make([]models.AttachmentTemplateMapping, 0, len(mappings))
 	for _, m := range mappings {
-		if strings.HasPrefix(m.FieldPath, prefix) {
+		if strings.HasPrefix(m.FieldPath, sec.prefix) {
 			own = append(own, m)
 		}
 	}
@@ -250,17 +311,22 @@ func (s *attachmentBlankService) fillListSection(f *excelize.File, sheet string,
 	}
 	mappings = own
 
+	// Строки шаблона ниже уже расширенной таблицы физически уехали вниз - пишем со
+	// смещением, иначе ТМЦ легли бы поверх разметки под списком сотрудников.
+	startRow := sec.startRow + shift
+	endRow := sec.endRow + shift
+
 	// Записей больше, чем строк в шаблоне - добавляем недостающие копией последней
 	// строки списка: так новая строка получает её оформление. Отдельный InsertRows
 	// здесь не нужен и вреден - DuplicateRowTo сам вставляет строку со сдвигом, и
 	// вдвоём они добавляли вдвое больше строк, оставляя в бланке пустоты, а разметку
 	// под таблицей уводя ниже, чем нужно (#1480).
 	inserted := 0
-	if count > t.MaxListRows && t.MaxListRows > 0 {
-		extra := count - t.MaxListRows
+	if sec.count > sec.maxRows && sec.maxRows > 0 {
+		extra := sec.count - sec.maxRows
 		for i := 0; i < extra; i++ {
-			if err := f.DuplicateRowTo(sheet, t.ListEndRow, t.ListEndRow+1+i); err != nil {
-				slog.Error("не удалось расширить список бланка", "error", err, "row", t.ListEndRow+1+i)
+			if err := f.DuplicateRowTo(sheet, endRow, endRow+1+i); err != nil {
+				slog.Error("не удалось расширить список бланка", "error", err, "row", endRow+1+i)
 				break
 			}
 			inserted++
@@ -274,17 +340,18 @@ func (s *attachmentBlankService) fillListSection(f *excelize.File, sheet string,
 		return ci < cj
 	})
 
-	repeated := repeatedListCells(t, staticCells)
+	// Границы для поиска повторяемых ячеек - шаблонные: обычные поля записаны до вставок.
+	repeated := repeatedListCells(sec.startRow, sec.endRow, staticCells)
 
-	for idx := 0; idx < count; idx++ {
-		row := t.ListStartRow + idx
+	for idx := 0; idx < sec.count; idx++ {
+		row := startRow + idx
 		for _, m := range mappings {
 			col, _, err := excelize.CellNameToCoordinates(m.CellRef) //nolint:nestif // ok
 			if err != nil {
 				continue
 			}
 			cell, _ := excelize.CoordinatesToCellName(col, row)
-			val := resolveValue(bctx, m.FieldPath, idx)
+			val := sec.resolve(m.FieldPath, idx)
 			if val != "" {
 				_ = f.SetCellValue(sheet, cell, val)
 			}
