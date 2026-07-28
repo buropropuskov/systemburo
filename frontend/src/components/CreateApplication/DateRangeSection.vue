@@ -322,32 +322,20 @@
     >
       <label class="input__label">Дополнительно</label>
       <div class="additional-options">
-        <label
+        <ToggleSwitch
           v-if="fieldVisible('roof_access')"
-          class="option-toggle"
+          :model-value="roofAccess"
+          @update:model-value="$emit('update:roof-access', $event)"
         >
-          <input
-            type="checkbox"
-            class="option-toggle__input"
-            :checked="roofAccess"
-            @change="$emit('update:roof-access', $event.target.checked)"
-          >
-          <span class="option-toggle__switch" />
-          <span class="option-text">Доступ на крышу</span>
-        </label>
-        <label
+          Доступ на крышу
+        </ToggleSwitch>
+        <ToggleSwitch
           v-if="fieldVisible('free_parking')"
-          class="option-toggle"
+          :model-value="freeParking"
+          @update:model-value="$emit('update:free-parking', $event)"
         >
-          <input
-            type="checkbox"
-            class="option-toggle__input"
-            :checked="freeParking"
-            @change="$emit('update:free-parking', $event.target.checked)"
-          >
-          <span class="option-toggle__switch" />
-          <span class="option-text">Бесплатная парковка</span>
-        </label>
+          Бесплатная парковка
+        </ToggleSwitch>
       </div>
     </div>
   </div>
@@ -359,9 +347,11 @@ import { ref } from 'vue';
 import { useFieldConfig } from '@/composables/useFieldConfig';
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import { getViewportZoom } from '@/utils/viewportScale';
+import ToggleSwitch from '@/components/ui/ToggleSwitch.vue';
 
 export default {
     name: 'DateRangeSection',
+    components: { ToggleSwitch },
     props: {
         isOneDay: Boolean,
         startDate: { type: String, default: null },
@@ -1307,62 +1297,6 @@ export default {
     flex-direction: column;
     gap: 12px;
     width: 100%;
-}
-
-.option-toggle {
-    display: flex;
-    align-items: center;
-    gap: 11px;
-    cursor: pointer;
-    user-select: none;
-}
-
-.option-toggle__input {
-    position: absolute;
-    opacity: 0;
-    width: 0;
-    height: 0;
-}
-
-.option-toggle__switch {
-    position: relative;
-    width: 42px;
-    height: 24px;
-    border-radius: var(--radius-pill, 999px);
-    background: var(--accent);
-    transition: background 0.22s ease;
-    flex-shrink: 0;
-}
-
-.option-toggle__switch::after {
-    content: '';
-    position: absolute;
-    top: 3px;
-    left: 3px;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: var(--surface);
-    box-shadow: 0 1px 3px var(--shadow-drop);
-    transition: transform 0.22s cubic-bezier(0.3, 1.3, 0.5, 1);
-}
-
-.option-toggle__input:checked + .option-toggle__switch {
-    background: var(--color-primary, var(--accent));
-}
-
-.option-toggle__input:checked + .option-toggle__switch::after {
-    transform: translateX(18px);
-}
-
-.option-toggle__input:focus-visible + .option-toggle__switch {
-    box-shadow: 0 0 0 3px rgba(79, 91, 223, 0.3);
-}
-
-.option-text {
-    color: var(--text);
-    font-size: 13px;
-    white-space: nowrap;
 }
 
 /* Datepicker styles */
