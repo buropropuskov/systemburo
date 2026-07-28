@@ -426,6 +426,7 @@ import { useNarrowScreen } from '@/composables/useNarrowScreen'
 import { useFieldConfig } from '@/composables/useFieldConfig'
 import { collectActiveWarnings } from '@/utils/warningWindows'
 import { buildScheduleReport } from '@/utils/scheduleCheck'
+import { findDuplicateEmployee, employeeLabel } from '@/utils/applicationDuplicates'
 import { getCurrentInstance } from 'vue'
 import { getViewportZoom } from '@/utils/viewportScale'
 
@@ -980,6 +981,20 @@ export default {
                 isExisting: false
             };
 
+            const duplicate = findDuplicateEmployee(
+                this.existingEmployees,
+                newEmployee,
+                this.editingEmployee ? this.editingEmployee.id : null,
+            );
+            if (duplicate) {
+                useDeletionsStore().notify({
+                    prefix: `${employeeLabel(duplicate)} `,
+                    bold: 'уже добавлен в список',
+                    type: 'error',
+                });
+                return;
+            }
+
             if (this.editingEmployee) {
                 newEmployee.id = this.editingEmployee.id;
                 this.$emit('employee-updated', newEmployee);
@@ -1057,7 +1072,34 @@ export default {
                 existingEmployeeId: employee.id
             }));
 
-            this.$emit('employees-added', employees);
+            // Модалка выбора уже гасит добавленные строки, но выбор мог устареть, а среди
+            // записей каталога встречаются двойники по паспорту - отсеиваем здесь ещё раз.
+            const list = [...this.existingEmployees];
+            const toAdd = [];
+            const skipped = [];
+            employees.forEach(employee => {
+                if (findDuplicateEmployee(list, employee)) {
+                    skipped.push(employeeLabel(employee));
+                    return;
+                }
+                list.push(employee);
+                toAdd.push(employee);
+            });
+
+            if (skipped.length > 0) {
+                useDeletionsStore().notify({
+                    prefix: `${skipped.join(', ')} `,
+                    bold: skipped.length > 1 ? 'уже в списке - пропущены' : 'уже добавлен в список',
+                    type: 'error',
+                });
+            }
+
+            if (toAdd.length === 0) {
+                this.clearExistingEmployeesSelection();
+                return;
+            }
+
+            this.$emit('employees-added', toAdd);
             this.clearExistingEmployeesSelection();
         },
 

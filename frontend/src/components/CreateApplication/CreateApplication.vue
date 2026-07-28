@@ -386,6 +386,13 @@ import ApplicationRecipientsRow from './ApplicationRecipientsRow.vue';
 import DuplicateConflictModal from './DuplicateConflictModal.vue';
 import SchedulePlaceWarningPanel from './SchedulePlaceWarningPanel.vue';
 import DataProcessingModal from '@/components/DataProcessingModal.vue';
+import {
+    findFirstDuplicate,
+    isSameEmployee,
+    isSameVehicle,
+    employeeLabel,
+    vehicleLabel,
+} from '@/utils/applicationDuplicates';
 
 // Параллелизм привязки новых ТС/сотрудников при подаче: держим веер узким, чтобы
 // крупная заявка не выстрелила сотнями одновременных POST и не упёрлась в лимит.
@@ -1838,6 +1845,19 @@ export default {
                 return;
             }
 
+            // Формы гасят дубли при добавлении, но черновик из localStorage мог накопить их
+            // раньше - такую заявку на бэк не пускаем.
+            const duplicate = this.findDuplicateEntry();
+            if (duplicate) {
+                useDeletionsStore().notify({
+                    prefix: `Во вложении "${duplicate.attachmentName}" повторяется `,
+                    bold: duplicate.label,
+                    suffix: ' - удалите лишнюю строку',
+                    type: 'error',
+                });
+                return;
+            }
+
             // Проверяем активные машины
   const activeVehicles = await this.checkVehiclesBeforeSubmit();
   
@@ -1885,6 +1905,29 @@ export default {
             } else {
                 await this.sendCompleteApplication();
             }
+        },
+
+        /** Первый повтор человека/машины среди вложений: { attachmentName, label } или null. */
+        findDuplicateEntry() {
+            for (const attachment of this.attachments) {
+                const key = this.attachmentKey(attachment);
+
+                if (attachment.attachment_type === 'people') {
+                    const employee = findFirstDuplicate(this.employeesByAttachment[key], isSameEmployee);
+                    if (employee) {
+                        return { attachmentName: attachment.display_name, label: employeeLabel(employee) };
+                    }
+                }
+
+                if (attachment.attachment_type === 'cars') {
+                    const vehicle = findFirstDuplicate(this.vehiclesByAttachment[key], isSameVehicle);
+                    if (vehicle) {
+                        return { attachmentName: attachment.display_name, label: vehicleLabel(vehicle) };
+                    }
+                }
+            }
+
+            return null;
         },
 
         async collectNewDataForBinding() {

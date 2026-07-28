@@ -207,6 +207,7 @@ import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
 import { ref } from 'vue'
 import { useOverlayClose } from '@/composables/useOverlayClose'
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
+import { isSameVehicle, vehicleFromCatalog } from '@/utils/applicationDuplicates'
 
 export default {
     name: 'ExistingCarsModal',
@@ -426,15 +427,17 @@ export default {
 
         carRowTitle(car) {
             if (this.isCarBlacklisted(car)) return 'Машина в чёрном списке - выбрать нельзя'
+            if (this.isCarAlreadyAdded(car)) return 'Уже добавлена в список заявки'
             return ''
         },
 
+        isCarAlreadyAdded(car) {
+            const candidate = vehicleFromCatalog(car)
+            return this.alreadyAddedVehicles.some(vehicle => isSameVehicle(vehicle, candidate))
+        },
+
         isCarDisabled(car) {
-            if (this.isCarBlacklisted(car)) return true
-            return this.alreadyAddedVehicles.some(vehicle =>
-                (vehicle.isExisting && vehicle.existingCarId === car.id) ||
-                (!vehicle.isExisting && vehicle.plateNumber === car.number && vehicle.mark === car.mark)
-            )
+            return this.isCarBlacklisted(car) || this.isCarAlreadyAdded(car)
         },
 
         confirmSelection() {
