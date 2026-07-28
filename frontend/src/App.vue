@@ -1,9 +1,5 @@
 <template>
   <div id="app">
-    <a
-      href="#main-content"
-      class="skip-link"
-    >Перейти к основному содержанию</a>
     <NavMenu
       v-if="showChrome"
       :is-buropropuskov="isBuropropuskov"
@@ -212,20 +208,6 @@ export default {
 </script>
 
 <style>
-.skip-link {
-  position: absolute;
-  top: -40px;
-  left: 0;
-  background: var(--accent);
-  color: var(--accent-contrast);
-  padding: 8px 16px;
-  z-index: 10000;
-  transition: top 0.2s;
-}
-.skip-link:focus {
-  top: 0;
-}
-
 * {
     font-family: 'Montserrat', sans-serif;
     padding: 0;
