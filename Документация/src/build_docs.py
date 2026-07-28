@@ -395,38 +395,6 @@ def add_list_item(doc, marker, text):
     return para
 
 
-def estimate_row_height_cm(row, widths):
-    """Приблизительная высота строки таблицы: считаем переносы в каждой ячейке."""
-    lines = 1
-    for i, width in enumerate(widths):
-        text = row[i] if i < len(row) else ""
-        per_line = max(int((width - CELL_PADDING_CM) / CHAR_CM), 1)
-        lines = max(lines, -(-len(text) // per_line))
-    return lines * 0.52 + 0.12
-
-
-def split_rows(headers, rows, limit_cm=21.0):
-    """Разбить длинную таблицу на части, помещающиеся на страницу.
-
-    Разрыв таблицы без подписи «Продолжение таблицы» не допускается, а вставить
-    такую подпись в середину сплошной таблицы нельзя. Поэтому таблица заранее
-    режется на части, каждая со своей подписью и со своей страницы.
-    """
-    widths = column_widths(headers, rows)
-    head_cm = estimate_row_height_cm(headers, widths)
-    chunks, current, used = [], [], head_cm
-    for row in rows:
-        height = estimate_row_height_cm(row, widths)
-        if current and used + height > limit_cm:
-            chunks.append(current)
-            current, used = [], head_cm
-        current.append(row)
-        used += height
-    if current:
-        chunks.append(current)
-    return chunks
-
-
 def add_table(doc, headers, rows):
     table = doc.add_table(rows=1, cols=len(headers))
     table.style = "Table Grid"
@@ -735,16 +703,8 @@ def render(doc, blocks, toc_titles):
             headers, rows, cap = payload
             if cap:
                 counters["table"] += 1
-                number = f"{prefix}.{counters['table']}"
-                for idx, chunk in enumerate(split_rows(headers, rows)):
-                    if idx == 0:
-                        add_caption(doc, f"Таблица {number} \u2014 {cap[1]}")
-                    else:
-                        doc.add_page_break()
-                        add_caption(doc, f"Продолжение таблицы {number}")
-                    add_table(doc, headers, chunk)
-            else:
-                add_table(doc, headers, rows)
+                add_caption(doc, f"Таблица {prefix}.{counters['table']} \u2014 {cap[1]}")
+            add_table(doc, headers, rows)
 
         elif kind == "image":
             path, caption = payload
@@ -849,16 +809,22 @@ def pagemap_from_pdf(cfg, entries):
     return pagemap
 
 
+
 def build_one(key):
     cfg = DOCS[key]
-    print(f"[{cfg['file']}] проход 1...")
+    name = cfg["file"]
+
+    # Оглавление собирается в два прохода: сначала вёрстка без номеров страниц,
+    # затем номера вычитываются из её PDF и документ пересобирается.
+    print(f"[{name}] проход 1: нумерация страниц...")
     entries = build(cfg, None)
     to_pdf(cfg)
     pagemap = pagemap_from_pdf(cfg, entries)
     missing = [t for _, t in entries if t not in pagemap]
     if missing:
         print(f"  ВНИМАНИЕ: не найдено в PDF {len(missing)}: {missing[:3]}")
-    print(f"[{cfg['file']}] проход 2...")
+
+    print(f"[{name}] проход 2: сборка...")
     build(cfg, pagemap)
     pdf = to_pdf(cfg)
     pages = subprocess.run(["pdfinfo", pdf], capture_output=True, text=True).stdout
