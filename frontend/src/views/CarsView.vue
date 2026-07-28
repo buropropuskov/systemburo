@@ -778,7 +778,6 @@ import StatusBadge from '@/components/ui/StatusBadge.vue';
 import ConfirmationModal from '@/components/ConfirmationModal.vue';
 import VehicleDetailsModal from '@/components/CreateApplication/VehicleDetailsModal.vue';
 import ApplicationDetail from '@/components/ApplicationDetail/ApplicationDetail.vue';
-import { listVehicleBlacklist } from '@/api/blacklist';
 
 // Размер порции бесшовной подгрузки реестра машин (#1158, срез 2) - аналог
 // APPLICATIONS_PER_PAGE в ApplicationsCenter.
@@ -834,7 +833,6 @@ export default {
             sortDirection: 'desc',
             // carsData/carsTotal/hasMoreCars/listLoading выставлены из useInfiniteList
             // в setup() (#1158, срез 2).
-            blacklistKeys: new Set(),
             searchTimeout: null,
             // seq-guard (#632/#1158): смена фильтра/поиска до резолва предыдущего
             // fetchCars не должна запускать/продолжать устаревший loadAllRemainingCars.
@@ -1047,8 +1045,7 @@ export default {
         await Promise.all([
             this.fetchOwnershipInfo(),
             this.fetchFormats(),
-            this.loadMarks(),
-            this.loadBlacklist()
+            this.loadMarks()
         ]);
         // fetchCars сам подтягивает места разгрузки (allUnloadingPlaces + карта по машинам).
         await this.fetchCars();
@@ -1172,26 +1169,8 @@ export default {
             return 'Недостаточно прав для изменения или удаления';
         },
 
-        async loadBlacklist() {
-            try {
-                const items = await listVehicleBlacklist();
-                const list = Array.isArray(items) ? items : [];
-                this.blacklistKeys = new Set(list.map((e) => this.blacklistKey(e.car_number, e.mark_name)));
-            } catch (error) {
-                console.error('Не удалось загрузить чёрный список машин:', error);
-                this.blacklistKeys = new Set();
-            }
-        },
-
-        // Ключ зеркалит серверный CheckByName: LOWER(TRIM) номера и марки. И mark_name в ЧС,
-        // и mark в реестре - снапшоты имени марки; при переименовании марки между событиями
-        // они могут разойтись (edge case, дизайн унаследован от каскада ЧС).
-        blacklistKey(number, mark) {
-            return `${(number || '').trim().toLowerCase()}|${(mark || '').trim().toLowerCase()}`;
-        },
-
         isCarBlacklisted(car) {
-            return this.blacklistKeys.has(this.blacklistKey(car.number, car.mark));
+            return car.is_blacklisted === true;
         },
 
         /**

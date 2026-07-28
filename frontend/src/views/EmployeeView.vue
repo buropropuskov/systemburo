@@ -553,7 +553,6 @@ import StatusBadge from '@/components/ui/StatusBadge.vue';
 import EmployeeEditModal from '@/components/EmployeeEditModal.vue';
 import EmployeeDetailsModal from '@/components/CreateApplication/EmployeeDetailsModal.vue';
 import ApplicationDetail from '@/components/ApplicationDetail/ApplicationDetail.vue';
-import { listPersonBlacklist } from '@/api/blacklist';
 
 // Размер порции бесшовной подгрузки реестра сотрудников (#1158, срез 3) - аналог
 // CARS_PER_PAGE в CarsView.
@@ -609,7 +608,6 @@ export default {
             sortDirection: 'desc',
             // employeesData/employeesTotal/hasMoreEmployees/listLoading выставлены из
             // useInfiniteList в setup() (#1158, срез 3).
-            blacklistKeys: new Set(),
             searchTimeout: null,
             // seq-guard (#632/#1158): смена фильтра/поиска до резолва предыдущего
             // fetchEmployees не должна запускать/продолжать устаревший
@@ -750,8 +748,7 @@ export default {
     async mounted() {
         await Promise.all([
             this.fetchOwnershipInfo(),
-            this.fetchCitizenships(),
-            this.loadBlacklist()
+            this.fetchCitizenships()
         ]);
         await this.fetchEmployees();
         this._lastHeight = -1;
@@ -822,29 +819,8 @@ export default {
             if (!this.canEditEmployee(emp)) return 'Сотрудник не привязан к вашей организации/компании - редактирование запрещено';
             return 'Недостаточно прав для изменения или удаления';
         },
-        async loadBlacklist() {
-            try {
-                const items = await listPersonBlacklist();
-                const list = Array.isArray(items) ? items : [];
-                this.blacklistKeys = new Set(
-                    list.map((e) => this.blacklistKey(e.last_name, e.first_name, e.middle_name))
-                );
-            } catch (error) {
-                console.error('Не удалось загрузить чёрный список людей:', error);
-                this.blacklistKeys = new Set();
-            }
-        },
-
-        // Ключ зеркалит серверный Check: LOWER(TRIM) ФИО, пустое отчество -> пусто.
-        blacklistKey(last, first, middle) {
-            const norm = (v) => (v || '').trim().toLowerCase();
-            return `${norm(last)}|${norm(first)}|${norm(middle)}`;
-        },
-
         isEmployeeBlacklisted(employee) {
-            return this.blacklistKeys.has(
-                this.blacklistKey(employee.last_name, employee.first_name, employee.middle_name)
-            );
+            return employee.is_blacklisted === true;
         },
 
         async fetchEmployees() {

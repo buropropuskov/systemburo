@@ -517,7 +517,7 @@ import { useSwipeDismiss } from '@/composables/useSwipeDismiss';
 import { usePermissionsStore } from '@/stores/permissions';
 import { getModalActionPermission } from '@/constants/detailModalActions';
 import { useDeletionsStore } from '@/stores/deletions';
-import { listVehicleBlacklist, createVehicleBlacklist } from '@/api/blacklist';
+import { checkVehicleBlacklist, createVehicleBlacklist } from '@/api/blacklist';
 import { listMarks } from '@/api/marks';
 import ExcelJS from 'exceljs';
 
@@ -819,20 +819,21 @@ export default {
             this.showAddBlacklist = false;
         },
 
-        // Статус ЧС: матч активного списка по номеру+марке (зеркалит серверный CheckByName).
+        // Статус ЧС: точечная серверная проверка по номеру+марке (весь список ЧС в
+        // браузер больше не грузим). mark_id резолвим через открытый справочник марок.
         async checkBlacklist() {
             this.isBlacklisted = false;
             this.blacklistReason = '';
             if (!this.hasVehicleIdentity) return;
             try {
-                const list = await listVehicleBlacklist();
-                const arr = Array.isArray(list) ? list : [];
-                const key = (n, m) => `${(n || '').trim().toLowerCase()}|${(m || '').trim().toLowerCase()}`;
-                const want = key(this.vehicleNumber, this.vehicleMark);
-                const hit = arr.find((e) => key(e.car_number, e.mark_name) === want);
-                if (hit) {
+                const marks = await listMarks({ includeArchived: true });
+                const arr = Array.isArray(marks) ? marks : [];
+                const mark = arr.find((m) => (m.name || '').trim().toLowerCase() === this.vehicleMark.trim().toLowerCase());
+                if (!mark) return; // марки нет в справочнике - точного совпадения по ЧС не будет
+                const res = await checkVehicleBlacklist({ car_number: this.vehicleNumber, mark_id: mark.id });
+                if (res && res.is_blacklisted) {
                     this.isBlacklisted = true;
-                    this.blacklistReason = hit.reason || '';
+                    this.blacklistReason = res.reason || '';
                 }
             } catch {
                 // Молча: статус ЧС - вспомогательная плашка, не критична для карточки.
