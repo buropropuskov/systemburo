@@ -700,6 +700,11 @@ def parse_markdown(md_text):
             i += 1
             continue
 
+        if stripped == "<!-- SPACER -->":
+            blocks.append(("spacer", None))
+            i += 1
+            continue
+
         if not stripped:
             i += 1
             continue
@@ -825,6 +830,12 @@ def render(doc, blocks, toc_titles, splitmap=None, tables_meta=None):
     for kind, payload in blocks:
         if kind == "pagebreak":
             doc.add_page_break()
+
+        elif kind == "spacer":
+            gap = doc.add_paragraph()
+            gap.paragraph_format.first_line_indent = Mm(0)
+            gap.paragraph_format.space_after = Pt(0)
+            set_font(gap.add_run(""), size=14)
 
         elif kind == "heading":
             level, text = payload
