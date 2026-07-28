@@ -346,6 +346,23 @@ describe('ApplicationActionBar - отзыв своего решения при �
   });
 });
 
+// На 390 ряд действий не переносится, поэтому кнопка отзыва не должна нести свою ширину:
+// с "Принять" и "Отказать" рядом (120px каждая) её 140px выталкивают тройку за вьюпорт.
+describe('ApplicationActionBar - ширина отзыва решения на мобилке (#1550)', () => {
+  const src = readFileSync(resolve(__dirname, '../ApplicationActionBar.vue'), 'utf8');
+  const mobile = src.slice(src.indexOf('@media (max-width: 768px)'));
+
+  it('мобильное правило снимает min-width', () => {
+    const rule = mobile.match(/\.subtle-btn\.revoke-approval-btn\s*\{([\s\S]*?)\}/);
+    expect(rule).not.toBeNull();
+    expect(rule[1]).toContain('min-width: auto');
+  });
+
+  it('селектор из двух классов - .subtle-btn объявлен ниже и перебил бы одиночный', () => {
+    expect(src.indexOf('.subtle-btn {')).toBeGreaterThan(src.indexOf('@media (max-width: 768px)'));
+  });
+});
+
 /*
  * jsdom не считает :hover, поэтому контракт наведения сверяем по объявлениям в SFC.
  * Правило зелёных кнопок повторяло базовый var(--success) - наведение на
