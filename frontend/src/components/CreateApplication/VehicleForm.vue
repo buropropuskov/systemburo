@@ -458,6 +458,7 @@ import { validatePartValue, formatPartValue, initializeNumberParts } from '@/com
 import { useFieldConfig } from '@/composables/useFieldConfig'
 import { collectActiveWarnings } from '@/utils/warningWindows'
 import { buildScheduleReport } from '@/utils/scheduleCheck'
+import { findDuplicateVehicle, vehicleLabel } from '@/utils/applicationDuplicates'
 import { getCurrentInstance } from 'vue'
 import ExistingCarsModal from '@/components/CreateApplication/ExistingCarsModal.vue'
 import TargetTablesGrid from '@/components/CreateApplication/TargetTablesGrid.vue'
@@ -1321,6 +1322,20 @@ export default {
                 isExisting: false
             };
 
+            const duplicate = findDuplicateVehicle(
+                this.existingVehicles,
+                newVehicle,
+                this.editingVehicle ? this.editingVehicle.id : null,
+            );
+            if (duplicate) {
+                useDeletionsStore().notify({
+                    prefix: `${vehicleLabel(duplicate)} `,
+                    bold: 'уже добавлена в список',
+                    type: 'error',
+                });
+                return;
+            }
+
             if (this.editingVehicle) {
                 newVehicle.id = this.editingVehicle.id;
                 this.$emit('vehicle-updated', newVehicle);
@@ -1408,7 +1423,34 @@ export default {
                 existingCarId: car.id
             }));
 
-            this.$emit('vehicles-added', vehicles);
+            // Модалка выбора уже гасит добавленные строки, но выбор мог устареть, а в каталоге
+            // встречаются записи с одним номером - отсеиваем здесь ещё раз.
+            const list = [...this.existingVehicles];
+            const toAdd = [];
+            const skipped = [];
+            vehicles.forEach(vehicle => {
+                if (findDuplicateVehicle(list, vehicle)) {
+                    skipped.push(vehicleLabel(vehicle));
+                    return;
+                }
+                list.push(vehicle);
+                toAdd.push(vehicle);
+            });
+
+            if (skipped.length > 0) {
+                useDeletionsStore().notify({
+                    prefix: `${skipped.join(', ')} `,
+                    bold: skipped.length > 1 ? 'уже в списке - пропущены' : 'уже добавлена в список',
+                    type: 'error',
+                });
+            }
+
+            if (toAdd.length === 0) {
+                this.clearExistingCarsSelection();
+                return;
+            }
+
+            this.$emit('vehicles-added', toAdd);
             this.clearExistingCarsSelection();
         },
 

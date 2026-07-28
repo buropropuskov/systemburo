@@ -189,6 +189,7 @@ import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
 import { ref } from 'vue'
 import { useOverlayClose } from '@/composables/useOverlayClose'
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
+import { isSameEmployee, employeeFromCatalog } from '@/utils/applicationDuplicates'
 
 export default {
     name: 'ExistingEmployeesModal',
@@ -358,15 +359,17 @@ export default {
 
         employeeRowTitle(employee) {
             if (this.isEmployeeBlacklisted(employee)) return 'Человек в чёрном списке - выбрать нельзя'
+            if (this.isEmployeeAlreadyAdded(employee)) return 'Уже добавлен в список заявки'
             return ''
         },
 
+        isEmployeeAlreadyAdded(employee) {
+            const candidate = employeeFromCatalog(employee)
+            return this.alreadyAddedEmployees.some(emp => isSameEmployee(emp, candidate))
+        },
+
         isEmployeeDisabled(employee) {
-            if (this.isEmployeeBlacklisted(employee)) return true
-            return this.alreadyAddedEmployees.some(emp =>
-                (emp.isExisting && emp.existingEmployeeId === employee.id) ||
-                (!emp.isExisting && emp.passportSeriesNumber === employee.passport_series_number)
-            )
+            return this.isEmployeeBlacklisted(employee) || this.isEmployeeAlreadyAdded(employee)
         },
 
         confirmSelection() {

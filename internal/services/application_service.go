@@ -1702,6 +1702,11 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 		return nil, err
 	}
 
+	// Один человек или одна машина не могут попасть во вложение дважды.
+	if err := validateNoDuplicates(req); err != nil {
+		return nil, err
+	}
+
 	tx := s.db.WithContext(ctx).Begin()
 	if tx.Error != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to start transaction")
