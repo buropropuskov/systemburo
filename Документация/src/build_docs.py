@@ -32,8 +32,17 @@ from docx.shared import Cm, Mm, Pt, RGBColor
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SYSTEM = "СИСТЕМА ЭЛЕКТРОННОЙ ПОДАЧИ ЗАЯВОК «БЮРО ПРОПУСКОВ»"
-VERSION = "1.0"
+VERSION = "1.1"
 DOC_DATE = "28.07.2026"
+
+# Записи листа регистрации изменений, от старой редакции к новой.
+CHANGELOG = [
+    ("1.0", "28.07.2026", "Первая редакция"),
+    ("1.1", "28.07.2026", "Сверка с реализацией: уточнены количественные "
+                          "показатели, состав прав таблиц постов, поведение "
+                          "поиска, требования к версии Docker Compose, порядок "
+                          "развёртывания стенда и снятия показателей"),
+]
 
 DOCS = {
     "overview": {
@@ -952,7 +961,8 @@ def change_log(doc):
                      "изменении требований.")
 
     headers = ["Версия", "Дата", "Содержание изменения", "Внёс"]
-    rows = [[VERSION, DOC_DATE, "Первая редакция", ""]] + [["", "", "", ""] for _ in range(6)]
+    rows = [[ver, date, text, ""] for ver, date, text in CHANGELOG]
+    rows += [["", "", "", ""] for _ in range(6)]
     add_caption(doc, "Таблица - Регистрация изменений")
     add_table(doc, headers, rows)
 
