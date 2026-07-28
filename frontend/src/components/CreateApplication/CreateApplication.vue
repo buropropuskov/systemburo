@@ -500,6 +500,8 @@ export default {
             // Настройка полей по UniqueAttachment (#529): { [uaId]: { [fieldKey]: { visible, required, locked, requirable } } }.
             // Источник - GET /attachments/{id}/field-config (base). Раздаётся секциям формы пропсом field-config.
             fieldConfigByAttachment: {},
+            // Номер последнего запуска restoreFromLocalStorage (защита от позднего ответа).
+            restoreSeq: 0,
         }
     },
     computed: {
@@ -2431,6 +2433,10 @@ export default {
         },
 
         async restoreFromLocalStorage() {
+            // Восстановление ждёт конфиг полей, а «Заменить/Объединить» в конфликте
+            // дублей запускает его повторно: без токена поздний ответ первого прогона
+            // открыл бы вложение прежнего черновика поверх выбранного пользователем.
+            const seq = ++this.restoreSeq;
             try {
                 const savedData = localStorage.getItem('draftApplicationState');
                 if (savedData) {
@@ -2475,6 +2481,7 @@ export default {
                         // Конфиг полей ждём ДО показа формы: без него fieldVisible деградирует
                         // к «видимы все» и в «Дополнительно» встают лишние тумблеры шаблона.
                         await this.loadFieldConfig(first.template_id || first.id);
+                        if (seq !== this.restoreSeq) return;
                         this.selectedAttachment = first;
                     }
                 }

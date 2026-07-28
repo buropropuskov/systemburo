@@ -77,6 +77,31 @@ describe('CreateApplication - конфиг полей восстановленн
     expect(w.vm.currentFieldConfig.roof_access.visible).toBe(false);
   });
 
+  it('поздний ответ прежнего восстановления не перебивает выбранный дубль', async () => {
+    saveDraft();
+    let resolveFirst;
+    getFieldConfig.mockImplementationOnce(() => new Promise((r) => { resolveFirst = r; }));
+
+    const w = shallowMount(CreateApplication);
+    await flushPromises();
+    expect(w.vm.selectedAttachment).toBeNull();
+
+    // «Заменить» в конфликте дублей переписывает черновик и перезапускает восстановление.
+    localStorage.setItem('draftApplicationState', JSON.stringify({
+      message: 'дубль',
+      attachments: [
+        { local_id: 'b1', id: 9, template_id: 9, attachment_type: 'people', display_name: 'Люди' },
+      ],
+    }));
+    w.vm.restoreFromLocalStorage();
+    await flushPromises();
+    expect(w.vm.selectedAttachment.local_id).toBe('b1');
+
+    resolveFirst(CONFIG);
+    await flushPromises();
+    expect(w.vm.selectedAttachment.local_id).toBe('b1');
+  });
+
   it('недоступный конфиг не блокирует форму', async () => {
     saveDraft();
     getFieldConfig.mockRejectedValue(new Error('network'));
