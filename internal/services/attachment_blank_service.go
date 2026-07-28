@@ -31,7 +31,8 @@ type BlankContext struct {
 	Items            []models.Item
 	Citizenships     map[int]string // citizenship_id → name
 	CustomValues     map[int]string // custom_field_id → value
-	ApproverName     string         // ФИО согласовавшего
+	// Approvers - согласовавшие заявку в порядке согласования.
+	Approvers []Approver
 	// AttachmentUnloadPlaces - имена мест разгрузки вложения в порядке привязки. Для
 	// вложения-имущества это единственный источник мест: у ТМЦ своих машин нет (#706).
 	AttachmentUnloadPlaces []string
@@ -45,6 +46,16 @@ type BlankContext struct {
 	// Списочная секция бланка одна и занята его собственным типом (у заявки на работы -
 	// сотрудниками), поэтому чужие ТМЦ перечисляются одной ячейкой через app_items.*.
 	ApplicationItems []ApplicationItemRow
+}
+
+// Approver - согласовавший заявку. Required - согласование было обязательным: такие
+// подписи в бланке перечисляются все, необязательное согласование представляет первый
+// согласовавший.
+type Approver struct {
+	LastName   string
+	FirstName  string
+	MiddleName string
+	Required   bool
 }
 
 // ApplicationItemRow - позиция ТМЦ из вложения-соседа с названием вложения-источника:
@@ -428,8 +439,8 @@ func (s *attachmentBlankService) buildContext(ctx context.Context, appID int, at
 		bctx.Company = &c
 	}
 
-	// ApproverName: ФИО согласовавшего.
-	bctx.ApproverName = s.resolveApproverName(ctx, appID)
+	// Согласовавшие заявку - для подписи «СОГЛАСОВАНО» в бланке.
+	bctx.Approvers = s.loadApprovers(ctx, appID)
 
 	// Cars / employees / items - только для этого attachment.
 	s.db.WithContext(ctx).Where("attachment_id = ?", att.ID).Order("id").Find(&bctx.Cars)
@@ -608,11 +619,10 @@ func groupNamesByOwner(ctx context.Context, db *gorm.DB, query string, ids []int
 	return out
 }
 
-// resolveApproverName определяет ФИО согласовавшего заявку:
-// - если есть обязательные согласующие (required_approval=true) с approval_status='approved',
-//   берется последний по approval_datetime;
-// - иначе берется первый согласовавший (approval_status='approved').
-func (s *attachmentBlankService) resolveApproverName(ctx context.Context, appID int) string {
+// loadApprovers возвращает согласовавших заявку в порядке согласования: под подписью
+// бланка стоит тот, кто согласовал, а признак обязательности решает, кого именно писать
+// (см. approversForSignature).
+func (s *attachmentBlankService) loadApprovers(ctx context.Context, appID int) []Approver {
 	var responsible []models.ApplicationResponsibleUser
 	s.db.WithContext(ctx).
 		Preload("User").
@@ -620,23 +630,15 @@ func (s *attachmentBlankService) resolveApproverName(ctx context.Context, appID 
 		Order("approval_datetime ASC").
 		Find(&responsible)
 
-	if len(responsible) == 0 {
-		return ""
+	out := make([]Approver, 0, len(responsible))
+	for i := range responsible {
+		u := responsible[i].User
+		out = append(out, Approver{
+			LastName:   derefStr(u.LastName),
+			FirstName:  derefStr(u.FirstName),
+			MiddleName: derefStr(u.MiddleName),
+			Required:   responsible[i].RequiredApproval,
+		})
 	}
-
-	var required []models.ApplicationResponsibleUser
-	for _, r := range responsible {
-		if r.RequiredApproval {
-			required = append(required, r)
-		}
-	}
-
-	var approver *models.User
-	if len(required) > 0 {
-		approver = &required[len(required)-1].User
-	} else {
-		approver = &responsible[0].User
-	}
-
-	return joinFullName(derefStr(approver.LastName), derefStr(approver.FirstName), derefStr(approver.MiddleName))
+	return out
 }

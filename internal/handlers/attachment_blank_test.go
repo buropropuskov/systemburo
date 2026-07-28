@@ -389,6 +389,124 @@ func TestBlankGenerate(t *testing.T) {
 	t.Run("сквозная строка заголовков", func(t *testing.T) { printTitlesSection(t, db, td) })
 	t.Run("ТМЦ соседних вложений заявки", func(t *testing.T) { crossAttachmentItemsSection(t, db, td) })
 	t.Run("таблица ТМЦ в бланке работ", func(t *testing.T) { itemsTableSection(t, db, td) })
+	t.Run("подпись согласовавших", func(t *testing.T) { approverSignatureSection(t, db, td) })
+}
+
+// Подпись «СОГЛАСОВАНО» в бланке: обязательные согласования перечисляются все,
+// необязательные представляет первый согласовавший.
+func approverSignatureSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
+	userTypeID := secUserTypeIDByCode(t, db, "user")
+	sender := models.User{Username: "blankapproversender", Password: "x", TypeID: userTypeID, OrganizationID: secPtrInt(td.OrgID)}
+	require.NoError(t, db.Create(&sender).Error)
+
+	makeUser := func(t *testing.T, login, last, first, middle string) models.User {
+		t.Helper()
+		l, f, m := last, first, middle
+		u := models.User{
+			Username: login, Password: "x", TypeID: userTypeID, OrganizationID: secPtrInt(td.OrgID),
+			LastName: &l, FirstName: &f, MiddleName: &m,
+		}
+		require.NoError(t, db.Create(&u).Error)
+		return u
+	}
+	first := makeUser(t, "blankappr_first", "Иванов", "Иван", "Иванович")
+	req1 := makeUser(t, "blankappr_req1", "Петров", "Пётр", "Петрович")
+	req2 := makeUser(t, "blankappr_req2", "Сидорова", "Анна", "Сергеевна")
+
+	name := "approver_blank"
+	ua := models.UniqueAttachment{AttachmentType: "cars", Name: &name, IsActive: true}
+	require.NoError(t, db.Create(&ua).Error)
+
+	f := excelize.NewFile()
+	defer func() { require.NoError(t, f.Close()) }()
+	path := filepath.Join(t.TempDir(), "approver.xlsx")
+	require.NoError(t, f.SaveAs(path))
+
+	tpl := models.AttachmentTemplate{
+		UniqueAttachmentID: ua.ID, IsActive: true, FilePath: path, OriginalFileName: "approver.xlsx",
+		ListStartRow: 10, ListEndRow: 12, MaxListRows: 3,
+	}
+	require.NoError(t, db.Create(&tpl).Error)
+	require.NoError(t, db.Create(&[]models.AttachmentTemplateMapping{
+		{TemplateID: tpl.ID, CellRef: "B4", FieldPath: "application.approver_short_name"},
+		{TemplateID: tpl.ID, CellRef: "B5", FieldPath: "application.approver_name"},
+		{TemplateID: tpl.ID, CellRef: "B6", FieldPath: "application.approvers_short"},
+	}).Error)
+
+	// approve - кто согласовал заявку и было ли согласование обязательным.
+	type approve struct {
+		user     models.User
+		required bool
+		at       time.Time
+	}
+	makeApp := func(t *testing.T, approvals ...approve) (int, int) {
+		t.Helper()
+		now := time.Now()
+		conf, status := "Согласовано", models.StatusInWork
+		app := models.Application{
+			OrganizationID: td.OrgID, SenderUserID: sender.ID,
+			Confirmation: &conf, Status: &status, SendingDatetime: &now,
+		}
+		require.NoError(t, db.Create(&app).Error)
+		att := models.Attachment{ApplicationID: &app.ID, AttachmentType: "cars", UniqueAttachmentID: &ua.ID}
+		require.NoError(t, db.Create(&att).Error)
+		number := "Т 100 ТТ 777"
+		require.NoError(t, db.Create(&models.Car{AttachmentID: att.ID, CarNumber: &number}).Error)
+		approved := "approved"
+		for _, a := range approvals {
+			at := a.at
+			require.NoError(t, db.Create(&models.ApplicationResponsibleUser{
+				ApplicationID: app.ID, UserID: a.user.ID, RequiredApproval: a.required,
+				ApprovalStatus: &approved, ApprovalDatetime: &at,
+			}).Error)
+		}
+		return app.ID, att.ID
+	}
+
+	cells := func(t *testing.T, appID, attID int, refs ...string) []string {
+		t.Helper()
+		reader, _, err := services.NewAttachmentBlankService(db).
+			GenerateBlank(context.Background(), appID, attID)
+		require.NoError(t, err)
+		out, err := excelize.OpenReader(reader)
+		require.NoError(t, err)
+		defer func() { require.NoError(t, out.Close()) }()
+		got := make([]string, 0, len(refs))
+		for _, ref := range refs {
+			v, err := out.GetCellValue(out.GetSheetName(0), ref)
+			require.NoError(t, err)
+			got = append(got, v)
+		}
+		return got
+	}
+
+	base := time.Now().Add(-3 * time.Hour)
+
+	t.Run("обязательные согласования печатаются все", func(t *testing.T) {
+		appID, attID := makeApp(t,
+			approve{user: first, at: base},
+			approve{user: req1, required: true, at: base.Add(time.Hour)},
+			approve{user: req2, required: true, at: base.Add(2 * time.Hour)})
+		got := cells(t, appID, attID, "B4", "B5", "B6")
+		require.Equal(t, "Петров П. П., Сидорова А. С.", got[0])
+		require.Equal(t, "Петров Пётр Петрович, Сидорова Анна Сергеевна", got[1])
+		require.Equal(t, "Иванов И. И., Петров П. П., Сидорова А. С.", got[2],
+			"поле «все согласовавшие» включает и необязательных")
+	})
+
+	t.Run("без обязательных подписывает первый согласовавший", func(t *testing.T) {
+		appID, attID := makeApp(t,
+			approve{user: req1, at: base.Add(time.Hour)},
+			approve{user: first, at: base})
+		got := cells(t, appID, attID, "B4", "B6")
+		require.Equal(t, "Иванов И. И.", got[0], "первый по времени согласования")
+		require.Equal(t, "Иванов И. И., Петров П. П.", got[1])
+	})
+
+	t.Run("никто не согласовал - ячейки пустые", func(t *testing.T) {
+		appID, attID := makeApp(t)
+		require.Equal(t, []string{"", "", ""}, cells(t, appID, attID, "B4", "B5", "B6"))
+	})
 }
 
 // Вторая таблица бланка: ввозимый товар «Заявок на ввоз» заявки идёт строками, теми же
