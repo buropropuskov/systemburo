@@ -152,8 +152,11 @@ func (s *attachmentBlankService) GenerateBlank(ctx context.Context, applicationI
 		shifts = s.fillListSections(f, sheet, &template, listMappings, staticCells, bctx)
 	}
 
-	// 6. Шапка столбцов сквозная: на следующей странице таблица начинается с неё.
-	repeatHeaderOnEachPage(f, sheet, &template)
+	// 6. Шапка столбцов сквозная - только у таблицы, которая не поместилась в шаблон и
+	// достраивалась: тогда её продолжение на следующей странице начинается с заголовков.
+	// Безусловная сквозная строка повторяла шапку списка и на страницах, где этой
+	// таблицы уже нет (под ней идут другие блоки бланка и подписи).
+	repeatHeaderOnEachPage(f, sheet, overflowHeaderRow(shifts))
 
 	// 7. Записать в buffer.
 	buf, err := f.WriteToBuffer()
@@ -244,9 +247,25 @@ type listSection struct {
 
 // rowShift - сколько строк добавилось ниже определённой строки шаблона. Нужен, чтобы
 // досдвинуть формулы условного форматирования и сместить нижние таблицы.
+// headerRow - строка заголовков этой таблицы в готовом файле: у расширенной таблицы она
+// становится сквозной, чтобы её продолжение на следующей странице не начиналось с
+// середины списка.
 type rowShift struct {
-	fromRow int
-	offset  int
+	fromRow   int
+	offset    int
+	headerRow int
+}
+
+// overflowHeaderRow - строка заголовков таблицы, которую пришлось достраивать. Если
+// расширились обе, берём верхнюю: сквозная строка на листе одна, а верхняя таблица
+// уводит вниз и всё, что под ней. Ноль - ни одна таблица не переполнилась.
+func overflowHeaderRow(shifts []rowShift) int {
+	for _, sh := range shifts {
+		if sh.offset > 0 {
+			return sh.headerRow
+		}
+	}
+	return 0
 }
 
 // blankSections собирает таблицы бланка сверху вниз: собственную (её тип задаёт тип
@@ -283,7 +302,11 @@ func (s *attachmentBlankService) fillListSections(f *excelize.File, sheet string
 	shift := 0
 	for _, sec := range sections {
 		inserted := s.fillListSection(f, sheet, sec, shift, mappings, staticCells)
-		shifts = append(shifts, rowShift{fromRow: sec.endRow + 1, offset: inserted})
+		shifts = append(shifts, rowShift{
+			fromRow:   sec.endRow + 1,
+			offset:    inserted,
+			headerRow: sec.startRow - 1 + shift,
+		})
 		shift += inserted
 	}
 	return shifts
