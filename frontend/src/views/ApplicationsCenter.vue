@@ -2488,11 +2488,13 @@ export default {
 }
 
 /* ── Десктоп: инлайн-фильтры Центра (как до волны 3) ── */
+/* Радиус держим равным таблице заявок (30px) - блоки идут стопкой и читаются как
+   одна карточка, разный радиус бросается в глаза. */
 .center__filters {
     padding: 14px 16px;
     background: var(--surface);
     border: 1px solid var(--color-border);
-    border-radius: var(--radius-lg);
+    border-radius: 30px;
 }
 
 .filters-row {
@@ -2737,7 +2739,9 @@ export default {
     border: 1px solid var(--color-border);
     overflow: hidden;
     container-type: inline-size;
-    margin-top: 20px;
+    /* Зазор до блока фильтров держит padding-bottom шапки (.center__header) -
+       своего отступа таблице не нужно, иначе он складывается с ним. */
+    margin-top: 0;
     /* Таблица заполняет оставшуюся высоту .center (высота задана JS в _applyHeight)
        и скроллит внутри .table-body. Раньше высота считалась от var(--app-vh) с
        магической поправкой -340px: несовпадение с реальным чромом то роняло, то
@@ -3113,14 +3117,42 @@ export default {
     overflow: visible;
 }
 
+/* Базис не меньше ширины RefreshButton (100px): при flex-shrink 0 кнопка шапки
+   распирает колонку сверх базиса, шапке остаётся меньше места под гибкие колонки,
+   и заголовки уезжают влево относительно данных (накопительно, до 4px справа). */
 .actions-col {
-    flex: 0 0 96px;
+    flex: 0 0 100px;
     justify-content: flex-end;
     cursor: default;
 }
 
 .header-col.actions-col:hover {
     color: var(--text-muted);
+}
+
+/* Заголовок сжимается по тем же правилам, что и ячейка данных (.application-col
+   ниже: min-width:0 + ellipsis). Без этого на узком контейнере шапка упирается в
+   min-width колонки, а ячейка сжимается дальше - колонки шапки и данных расходятся
+   (замер на 1280: до 5px). Правило идёт ПОСЛЕ .confirmation-col и соседей: у них
+   та же специфичность, решает порядок. Текст режется многоточием, иконка сортировки
+   остаётся на месте. */
+.header-col {
+    min-width: 0;
+    overflow: hidden;
+}
+
+.header-col p {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.header-col .sort-icon {
+    flex-shrink: 0;
+}
+
+/* В колонке действий текста нет - там RefreshButton, обрезать его нечем и незачем. */
+.header-col.actions-col {
+    overflow: visible;
 }
 
 .table-body {
