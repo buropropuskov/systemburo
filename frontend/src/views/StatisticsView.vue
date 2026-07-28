@@ -30,7 +30,8 @@
             </button>
           </div>
           <button
-            class="lk-button lk-button--ghost"
+            class="lk-button lk-button--ghost rt-btn-compact"
+            aria-label="Инструкция"
             @click="showInstruction = true"
           >
             <svg
@@ -47,7 +48,7 @@
               <circle cx="12" cy="12" r="10" />
               <path d="M12 16v-4M12 8h.01" />
             </svg>
-            Инструкция
+            <span class="rt-btn-label">Инструкция</span>
           </button>
           <DateFilter
             mode="range"
@@ -470,5 +471,80 @@ function onRefresh() {
   font-weight: 600;
   color: var(--text);
   margin: 0;
+}
+
+/* ===== МОБИЛКА (<=768): каркас без переполнения ===== */
+@media (max-width: 768px) {
+  .statistics__header {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .statistics__header-right {
+    gap: 8px;
+  }
+
+  /* Пресеты периода - одна ровная строка на всю ширину, кнопки равной ширины:
+     4 подписи не переносятся в две строки. Скользящий индикатор считается JS по
+     реальным rect кнопок (ResizeObserver на presetsEl), равная ширина ему не мешает. */
+  .period-presets {
+    display: flex;
+    width: 100%;
+  }
+
+  .period-preset {
+    flex: 1;
+    text-align: center;
+    padding: 6px 8px;
+  }
+
+  /* «Инструкция» -> иконка: сворачивание подписи и размер 36x36 берём из общей
+     инфраструктуры responsive-tables.css (rt-btn-compact/rt-btn-label, эталон
+     TableConstructor), а не пишем свой clip. SVG - прямой ребёнок, поэтому виден
+     и на десктопе, и на мобилке; rt-btn-label клипается только на <=767.98. */
+
+  /* DateFilter в шапке аналитики - авто-ширина (в списках он full-width, здесь
+     стоит в ряду с иконкой и «Обновить», full-width выбросил бы его на свою строку). */
+  .statistics__header-right :deep(.date-filter) {
+    width: auto;
+  }
+
+  /* «Обновить» прижат к правому краю строки контролов. */
+  .statistics__header-right :deep(.refresh-btn) {
+    margin-left: auto;
+  }
+
+  /* Вкладки - горизонтальная лента со скроллом вместо переноса в две строки
+     («Обработка заявок» длинная, на 320/360 три таба в ряд не влезают). */
+  .statistics__tabs {
+    padding: 0 12px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .statistics__tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .statistics__tab {
+    flex-shrink: 0;
+    white-space: nowrap;
+    padding: 12px 14px;
+    font-size: 14px;
+  }
+
+  /* В ленте со скроллом индикатор держим в границах бокса: bottom:-1px подрезался
+     бы overflow'ом и давал лишний вертикальный скролл. */
+  .statistics__tab--active::after {
+    bottom: 0;
+  }
+
+  .statistics__panel {
+    padding: 14px 12px 24px;
+  }
 }
 </style>
