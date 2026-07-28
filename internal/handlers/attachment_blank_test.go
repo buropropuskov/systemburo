@@ -1,8 +1,11 @@
 package handlers_test
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"path/filepath"
 	"sort"
@@ -386,7 +389,7 @@ func TestBlankGenerate(t *testing.T) {
 	t.Run("переполнение списка", func(t *testing.T) { listOverflowSection(t, db, td) })
 	t.Run("поле заявки в строках списка", func(t *testing.T) { listRepeatedFieldSection(t, db, td) })
 	t.Run("условное форматирование при переполнении", func(t *testing.T) { listOverflowConditionalSection(t, db, td) })
-	t.Run("сквозная строка заголовков", func(t *testing.T) { printTitlesSection(t, db, td) })
+	t.Run("повтор шапки перенесённой таблицы", func(t *testing.T) { printTitlesSection(t, db, td) })
 	t.Run("ТМЦ соседних вложений заявки", func(t *testing.T) { crossAttachmentItemsSection(t, db, td) })
 	t.Run("таблица ТМЦ в бланке работ", func(t *testing.T) { itemsTableSection(t, db, td) })
 	t.Run("подпись согласовавших", func(t *testing.T) { approverSignatureSection(t, db, td) })
@@ -654,38 +657,6 @@ func itemsTableSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
 		require.Equal(t, 32, signRow(t, out), "подпись сдвинулась на две добавленные строки")
 	})
 
-	// Сквозная строка одна на лист: её получает та таблица, которую достраивали. Если
-	// список сотрудников поместился, а ТМЦ - нет, повторяться должна шапка таблицы ТМЦ.
-	t.Run("сквозной становится шапка переполненной таблицы", func(t *testing.T) {
-		items := make([]models.Item, 0, 6)
-		for i := 1; i <= 6; i++ {
-			items = append(items, item(fmt.Sprintf("Позиция %d", i), i))
-		}
-		appID, attID := makeApp(t, 1, items)
-		out := blank(t, appID, attID)
-		defer func() { require.NoError(t, out.Close()) }()
-
-		titles := make([]string, 0)
-		for _, dn := range out.GetDefinedName() {
-			if dn.Name == "_xlnm.Print_Titles" {
-				titles = append(titles, dn.RefersTo)
-			}
-		}
-		require.Len(t, titles, 1)
-		require.Contains(t, titles[0], "$19:$19", "сквозной должна стать строка над таблицей ТМЦ")
-	})
-
-	t.Run("обе таблицы поместились - сквозной строки нет", func(t *testing.T) {
-		appID, attID := makeApp(t, 1, []models.Item{item("Кабель", 10)})
-		out := blank(t, appID, attID)
-		defer func() { require.NoError(t, out.Close()) }()
-
-		for _, dn := range out.GetDefinedName() {
-			require.NotEqual(t, "_xlnm.Print_Titles", dn.Name,
-				"ничего не переполнилось - заголовки не должны повторяться на других страницах")
-		}
-	})
-
 	t.Run("формулы условного форматирования сдвигаются на обе таблицы", func(t *testing.T) {
 		items := make([]models.Item, 0, 6)
 		for i := 1; i <= 6; i++ {
@@ -840,16 +811,52 @@ func crossAttachmentItemsSection(t *testing.T, db *gorm.DB, td testutil.TestData
 	})
 }
 
-// Шапка столбцов сквозная: когда таблица переходит на следующую страницу, она
-// начинается со строки заголовков, а не с середины списка.
+// Когда таблица не помещается на страницу, её продолжение начинается со своей шапки:
+// генератор сам ставит разрыв страницы и повторяет заголовки ИМЕННО той таблицы,
+// которая переносится. Сквозная строка Excel для этого не годится - она одна на лист
+// и печаталась бы над чужой таблицей.
 func printTitlesSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
 	userTypeID := secUserTypeIDByCode(t, db, "user")
 	sender := models.User{Username: "blanktitlesender", Password: "x", TypeID: userTypeID, OrganizationID: secPtrInt(td.OrgID)}
 	require.NoError(t, db.Create(&sender).Error)
 
-	// cars - сколько машин в заявке: список в шаблоне на три строки, поэтому четыре и
-	// больше означают, что таблицу пришлось достраивать.
-	makeApp := func(t *testing.T, uaID, cars int) (int, int) {
+	name := "titles_blank"
+	ua := models.UniqueAttachment{AttachmentType: "people", Name: &name, IsActive: true}
+	require.NoError(t, db.Create(&ua).Error)
+
+	// A4 при полях 5 мм и высоте строк 15 pt вмещает около 51 строки, поэтому таблицы
+	// такого размера гарантированно переезжают на вторую и третью страницы.
+	f := excelize.NewFile()
+	defer func() { require.NoError(t, f.Close()) }()
+	sheet := f.GetSheetName(0)
+	paperA4, scale100 := 9, uint(100)
+	portrait := "portrait"
+	marginTop, marginBottom := 0.2, 0.2
+	require.NoError(t, f.SetPageLayout(sheet, &excelize.PageLayoutOptions{
+		Size: &paperA4, Orientation: &portrait, AdjustTo: &scale100,
+	}))
+	require.NoError(t, f.SetPageMargins(sheet, &excelize.PageLayoutMarginsOptions{
+		Top: &marginTop, Bottom: &marginBottom,
+	}))
+	require.NoError(t, f.SetCellValue(sheet, "A9", "ШАПКА СОТРУДНИКОВ"))
+	require.NoError(t, f.SetCellValue(sheet, "A39", "ШАПКА ТМЦ"))
+	for row := 1; row <= 60; row++ {
+		require.NoError(t, f.SetRowHeight(sheet, row, 15))
+	}
+	path := filepath.Join(t.TempDir(), "titles.xlsx")
+	require.NoError(t, f.SaveAs(path))
+
+	tpl := models.AttachmentTemplate{
+		UniqueAttachmentID: ua.ID, IsActive: true, FilePath: path, OriginalFileName: "titles.xlsx",
+		ListStartRow: 10, ListEndRow: 12, MaxListRows: 3, ItemsMaxListRows: 3,
+	}
+	require.NoError(t, db.Create(&tpl).Error)
+	require.NoError(t, db.Create(&[]models.AttachmentTemplateMapping{
+		{TemplateID: tpl.ID, CellRef: "B10", FieldPath: "employee.last_name", IsListField: true},
+		{TemplateID: tpl.ID, CellRef: "B40", FieldPath: "item.name", IsListField: true},
+	}).Error)
+
+	makeApp := func(t *testing.T, employees, items int) (int, int) {
 		t.Helper()
 		now := time.Now()
 		conf, status := "Согласовано", models.StatusInWork
@@ -858,91 +865,91 @@ func printTitlesSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
 			Confirmation: &conf, Status: &status, SendingDatetime: &now,
 		}
 		require.NoError(t, db.Create(&app).Error)
-		att := models.Attachment{ApplicationID: &app.ID, AttachmentType: "cars", UniqueAttachmentID: &uaID}
-		require.NoError(t, db.Create(&att).Error)
-		for i := 0; i < cars; i++ {
-			number := fmt.Sprintf("Т %03d ТТ 777", 100+i)
-			require.NoError(t, db.Create(&models.Car{AttachmentID: att.ID, CarNumber: &number}).Error)
+		works := models.Attachment{ApplicationID: &app.ID, AttachmentType: "people", UniqueAttachmentID: &ua.ID}
+		require.NoError(t, db.Create(&works).Error)
+		for i := 0; i < employees; i++ {
+			last := fmt.Sprintf("Сотрудник%03d", i+1)
+			require.NoError(t, db.Create(&models.Employee{AttachmentID: &works.ID, LastName: &last}).Error)
 		}
-		return app.ID, att.ID
+		if items > 0 {
+			imp := models.Attachment{ApplicationID: &app.ID, AttachmentType: "items"}
+			require.NoError(t, db.Create(&imp).Error)
+			for i := 0; i < items; i++ {
+				nm := fmt.Sprintf("Позиция %03d", i+1)
+				require.NoError(t, db.Create(&models.Item{AttachmentID: imp.ID, Name: &nm}).Error)
+			}
+		}
+		return app.ID, works.ID
 	}
 
-	seed := func(t *testing.T, name string, startRow int, withOwnTitles bool) int {
-		t.Helper()
-		nm := name
-		ua := models.UniqueAttachment{AttachmentType: "cars", Name: &nm, IsActive: true}
-		require.NoError(t, db.Create(&ua).Error)
-
-		f := excelize.NewFile()
-		defer func() { require.NoError(t, f.Close()) }()
-		if withOwnTitles {
-			require.NoError(t, f.SetDefinedName(&excelize.DefinedName{
-				Name:     "_xlnm.Print_Titles",
-				RefersTo: fmt.Sprintf("'%s'!$1:$2", f.GetSheetName(0)),
-				Scope:    f.GetSheetName(0),
-			}))
-		}
-		path := filepath.Join(t.TempDir(), name+".xlsx")
-		require.NoError(t, f.SaveAs(path))
-
-		tpl := models.AttachmentTemplate{
-			UniqueAttachmentID: ua.ID, IsActive: true, FilePath: path, OriginalFileName: name + ".xlsx",
-			ListStartRow: startRow, ListEndRow: startRow + 2, MaxListRows: 3,
-		}
-		require.NoError(t, db.Create(&tpl).Error)
-		require.NoError(t, db.Create(&models.AttachmentTemplateMapping{
-			TemplateID: tpl.ID, CellRef: fmt.Sprintf("B%d", startRow),
-			FieldPath: "car.car_number", IsListField: true,
-		}).Error)
-		return ua.ID
-	}
-
-	titlesOf := func(t *testing.T, appID, attID int) []excelize.DefinedName {
+	// repeatedHeaders - сколько раз каждая шапка встретилась в бланке и сколько в нём
+	// разрывов страниц. Разрывы читаем из XML книги: публичного метода для них нет.
+	repeatedHeaders := func(t *testing.T, appID, attID int) (map[string]int, int) {
 		t.Helper()
 		reader, _, err := services.NewAttachmentBlankService(db).
 			GenerateBlank(context.Background(), appID, attID)
 		require.NoError(t, err)
-		out, err := excelize.OpenReader(reader)
+		raw, err := io.ReadAll(reader)
+		require.NoError(t, err)
+
+		out, err := excelize.OpenReader(bytes.NewReader(raw))
 		require.NoError(t, err)
 		defer func() { require.NoError(t, out.Close()) }()
-		names := make([]excelize.DefinedName, 0)
-		for _, dn := range out.GetDefinedName() {
-			if dn.Name == "_xlnm.Print_Titles" {
-				names = append(names, dn)
+
+		counts := map[string]int{}
+		rows, err := out.GetRows(out.GetSheetName(0))
+		require.NoError(t, err)
+		for _, row := range rows {
+			if len(row) > 0 && (row[0] == "ШАПКА СОТРУДНИКОВ" || row[0] == "ШАПКА ТМЦ") {
+				counts[row[0]]++
 			}
 		}
-		return names
+		// Сквозная строка листа больше не используется: шапки стоят в самом бланке.
+		for _, dn := range out.GetDefinedName() {
+			require.NotEqual(t, "_xlnm.Print_Titles", dn.Name, "сквозная строка листа не нужна")
+		}
+
+		zr, err := zip.NewReader(bytes.NewReader(raw), int64(len(raw)))
+		require.NoError(t, err)
+		breaks := 0
+		for _, file := range zr.File {
+			if file.Name != "xl/worksheets/sheet1.xml" {
+				continue
+			}
+			rc, err := file.Open()
+			require.NoError(t, err)
+			content, err := io.ReadAll(rc)
+			require.NoError(t, rc.Close())
+			require.NoError(t, err)
+			if idx := strings.Index(string(content), "<rowBreaks"); idx >= 0 {
+				tail := string(content)[idx:]
+				breaks = strings.Count(tail[:strings.Index(tail, "</rowBreaks>")+len("</rowBreaks>")], "<brk ")
+			}
+		}
+		return counts, breaks
 	}
 
-	t.Run("список не поместился - строка над ним становится сквозной", func(t *testing.T) {
-		uaID := seed(t, "titles_blank", 19, false)
-		appID, attID := makeApp(t, uaID, 6) // втрое больше строк, чем в шаблоне
-		names := titlesOf(t, appID, attID)
-		require.Len(t, names, 1)
-		require.Contains(t, names[0].RefersTo, "$18:$18", "сквозной должна стать строка над списком")
+	t.Run("переносится список сотрудников - повторяется его шапка", func(t *testing.T) {
+		appID, attID := makeApp(t, 80, 2)
+		counts, breaks := repeatedHeaders(t, appID, attID)
+		require.GreaterOrEqual(t, counts["ШАПКА СОТРУДНИКОВ"], 2, "шапка сотрудников повторилась на продолжении")
+		require.Equal(t, 1, counts["ШАПКА ТМЦ"], "таблица ТМЦ поместилась - её шапка не дублируется")
+		require.Positive(t, breaks, "разрыв страницы должен быть проставлен")
 	})
 
-	// Сквозная строка листа печатается на КАЖДОЙ странице, поэтому у бланка, где список
-	// поместился, заголовки списка дублировались бы на странице с подписями.
-	t.Run("список поместился - сквозной строки нет", func(t *testing.T) {
-		uaID := seed(t, "titles_fits", 19, false)
-		appID, attID := makeApp(t, uaID, 2)
-		require.Empty(t, titlesOf(t, appID, attID),
-			"таблица не переходит на другую страницу - сквозная строка не нужна")
+	t.Run("переносится таблица ТМЦ - повторяется её шапка", func(t *testing.T) {
+		appID, attID := makeApp(t, 1, 90)
+		counts, _ := repeatedHeaders(t, appID, attID)
+		require.GreaterOrEqual(t, counts["ШАПКА ТМЦ"], 2, "шапка ТМЦ повторилась на продолжении")
+		require.Equal(t, 1, counts["ШАПКА СОТРУДНИКОВ"], "список сотрудников поместился - его шапка одна")
 	})
 
-	t.Run("свою настройку шаблона не перебиваем", func(t *testing.T) {
-		uaID := seed(t, "titles_own", 19, true)
-		appID, attID := makeApp(t, uaID, 6)
-		names := titlesOf(t, appID, attID)
-		require.Len(t, names, 1)
-		require.Contains(t, names[0].RefersTo, "$1:$2", "заданные в шаблоне сквозные строки должны остаться")
-	})
-
-	t.Run("список с первой строки - сквозной строки нет", func(t *testing.T) {
-		uaID := seed(t, "titles_top", 1, false)
-		appID, attID := makeApp(t, uaID, 6)
-		require.Empty(t, titlesOf(t, appID, attID), "над списком нет строки заголовков - и сквозной быть не должно")
+	t.Run("обе таблицы короткие - ничего не повторяется", func(t *testing.T) {
+		appID, attID := makeApp(t, 2, 2)
+		counts, breaks := repeatedHeaders(t, appID, attID)
+		require.Equal(t, 1, counts["ШАПКА СОТРУДНИКОВ"])
+		require.Equal(t, 1, counts["ШАПКА ТМЦ"])
+		require.Zero(t, breaks, "всё поместилось на страницу - разрывов нет")
 	})
 }
 
