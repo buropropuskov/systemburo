@@ -87,6 +87,34 @@ export function dropAdjacentDigit(value, caret, forward = false) {
 }
 
 /**
+ * Накладывает маску на поле ввода: обновляет показ и держит каретку у той же
+ * цифры. Поля телефона сидят на one-way `:value`, поэтому синхронизировать
+ * элемент приходится руками - иначе курсор улетает в конец при правке середины.
+ *
+ * @param {HTMLInputElement} input - Поле телефона
+ * @param {InputEvent} event - Событие input (нужен inputType для стирания)
+ * @param {string} previous - Значение поля до этого ввода
+ * @returns {string} Замаскированное значение для модели
+ */
+export function applyPhoneMask(input, event, previous) {
+  let value = input.value
+  let caret = input.selectionStart ?? value.length
+
+  // Стёрли разделитель маски: набор цифр не изменился, маска вернёт ту же
+  // строку - убираем соседнюю цифру, иначе Backspace приходится жать дважды.
+  const digits = (str) => String(str ?? '').replace(/\D/g, '')
+  if (event?.inputType?.startsWith('delete') && digits(value) === digits(previous)) {
+    ({ value, caret } = dropAdjacentDigit(value, caret, event.inputType === 'deleteContentForward'))
+  }
+
+  const masked = formatRussianPhone(value)
+  const position = caretAfterMask(value, caret, masked)
+  input.value = masked
+  input.setSelectionRange(position, position)
+  return masked
+}
+
+/**
  * Позиция каретки в замаскированном значении: держим её у той же по счёту цифры,
  * что и до наложения маски. Без этого правка в середине номера выбрасывает
  * курсор в конец поля.
