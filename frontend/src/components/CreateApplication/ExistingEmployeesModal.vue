@@ -186,7 +186,6 @@ import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock
 import { apiRequest } from '@/api/client'
 import SearchComponent from '@/components/SearchComponent.vue'
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
-import { listPersonBlacklist } from '@/api/blacklist'
 import { ref } from 'vue'
 import { useOverlayClose } from '@/composables/useOverlayClose'
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
@@ -242,8 +241,7 @@ export default {
             tempSelectedEmployees: [],
             currentFilter: 'all',
             loadingEmployees: false,
-            searchQuery: '',
-            blacklistKeys: new Set()
+            searchQuery: ''
         }
     },
     watch: {
@@ -253,8 +251,9 @@ export default {
                 this.tempSelectedEmployees = [...this.initialSelectedEmployees]
                 this.currentFilter = 'all'
                 this.searchQuery = ''
-                // Грузим ЧС до списка, чтобы строки сразу рисовались с бейджем "В ЧС".
-                this.loadBlacklist().then(() => this.loadEmployeesByFilter('all'))
+                // Флаг ЧС приходит в самих строках реестра (is_blacklisted) - сервер
+                // считает его сам, список ЧС в браузер больше не выгружается.
+                this.loadEmployeesByFilter('all')
             } else {
                 releaseBodyScrollLock(this);
                 this.tempSelectedEmployees = []
@@ -353,30 +352,8 @@ export default {
             return this.tempSelectedEmployees.some(sel => sel.id === employee.id)
         },
 
-        async loadBlacklist() {
-            try {
-                const items = await listPersonBlacklist()
-                const list = Array.isArray(items) ? items : []
-                this.blacklistKeys = new Set(
-                    list.map(e => this.blacklistKey(e.last_name, e.first_name, e.middle_name))
-                )
-            } catch (error) {
-                // Не блокируем модалку при сбое ЧС - серверный гард всё равно отклонит подачу.
-                console.error('Не удалось загрузить чёрный список людей:', error)
-                this.blacklistKeys = new Set()
-            }
-        },
-
-        // Ключ зеркалит серверный Check: LOWER(TRIM) по ФИО, пустое отчество матчит пустое.
-        blacklistKey(last, first, middle) {
-            const norm = (v) => (v || '').trim().toLowerCase()
-            return `${norm(last)}|${norm(first)}|${norm(middle)}`
-        },
-
         isEmployeeBlacklisted(employee) {
-            return this.blacklistKeys.has(
-                this.blacklistKey(employee.last_name, employee.first_name, employee.middle_name)
-            )
+            return employee.is_blacklisted === true
         },
 
         employeeRowTitle(employee) {

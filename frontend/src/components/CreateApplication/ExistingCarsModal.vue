@@ -204,7 +204,6 @@ import { setBodyScrollLock, releaseBodyScrollLock } from '@/utils/bodyScrollLock
 import { apiRequest } from '@/api/client'
 import SearchComponent from '@/components/SearchComponent.vue'
 import LoaderSpinner from '@/components/ui/LoaderSpinner.vue'
-import { listVehicleBlacklist } from '@/api/blacklist'
 import { ref } from 'vue'
 import { useOverlayClose } from '@/composables/useOverlayClose'
 import { useSwipeDismiss } from '@/composables/useSwipeDismiss'
@@ -264,8 +263,7 @@ export default {
             tempSelectedCars: [],
             currentFilter: 'all',
             loadingCars: false,
-            searchQuery: '',
-            blacklistKeys: new Set()
+            searchQuery: ''
         }
     },
     watch: {
@@ -275,9 +273,9 @@ export default {
                 this.tempSelectedCars = [...this.initialSelectedCars]
                 this.currentFilter = 'all'
                 this.searchQuery = ''
-                // Грузим ЧС до списка, чтобы строки сразу рисовались с бейджем "В ЧС"
-                // (иначе строка на миг отрисуется выбираемой, пока blacklistKeys пуст).
-                this.loadBlacklist().then(() => this.loadCarsByFilter('all'))
+                // Флаг ЧС приходит в самих строках реестра (is_blacklisted) - сервер
+                // считает его сам, список ЧС в браузер больше не выгружается.
+                this.loadCarsByFilter('all')
             } else {
                 releaseBodyScrollLock(this);
                 this.tempSelectedCars = []
@@ -422,27 +420,8 @@ export default {
             return this.tempSelectedCars.some(selectedCar => selectedCar.id === car.id)
         },
 
-        async loadBlacklist() {
-            try {
-                const items = await listVehicleBlacklist()
-                const list = Array.isArray(items) ? items : []
-                this.blacklistKeys = new Set(
-                    list.map(e => this.blacklistKey(e.car_number, e.mark_name))
-                )
-            } catch (error) {
-                // Не блокируем модалку при сбое ЧС - серверный гард всё равно отклонит подачу.
-                console.error('Не удалось загрузить чёрный список машин:', error)
-                this.blacklistKeys = new Set()
-            }
-        },
-
-        // Ключ совпадения зеркалит серверный CheckByName: LOWER(TRIM(номер)) + LOWER(TRIM(марка)).
-        blacklistKey(number, mark) {
-            return `${(number || '').trim().toLowerCase()}|${(mark || '').trim().toLowerCase()}`
-        },
-
         isCarBlacklisted(car) {
-            return this.blacklistKeys.has(this.blacklistKey(car.number, car.mark))
+            return car.is_blacklisted === true
         },
 
         carRowTitle(car) {
