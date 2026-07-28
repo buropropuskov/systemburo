@@ -925,7 +925,7 @@ import { ref } from 'vue';
 import { mapState, mapActions } from 'pinia';
 import { useOrganizationsStore } from '@/stores/organizations';
 import { useCompaniesStore } from '@/stores/companies';
-import { formatRussianPhone } from '@/composables/useRussianPhoneMask'
+import { applyPhoneMask } from '@/composables/useRussianPhoneMask'
 import { formatShortName } from '@/utils/formatName'
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import SearchComponent from './SearchComponent.vue';
@@ -1208,8 +1208,7 @@ export default {
     // результат обратно в reactive model. Используется для newUser/selectedUser
     // чтобы явно триггерить saveDraft (где он нужен) отдельно.
     onPhoneInput(event, modelKey) {
-      const masked = formatRussianPhone(event.target.value)
-      this[modelKey].phone = masked
+      this[modelKey].phone = applyPhoneMask(event.target, event, this[modelKey].phone)
       if (modelKey === 'newUser') {
         this.saveDraft()
       }
