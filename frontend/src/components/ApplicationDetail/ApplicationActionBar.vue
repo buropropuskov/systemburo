@@ -858,8 +858,10 @@ export default {
         white-space: nowrap;
     }
     /* Отзыв решения стоит в ряду с "Принять"/"Отказать" (#1550) - без своей ширины,
-       иначе тройка кнопок вылезает за 390. */
-    .revoke-approval-btn {
+       иначе тройка кнопок вылезает за 390. Селектор с двумя классами обязателен:
+       .subtle-btn объявлен ниже по файлу и при равной специфичности перебивал
+       min-width обратно на 140px. */
+    .subtle-btn.revoke-approval-btn {
         padding: 8px 14px;
         min-width: auto;
         white-space: nowrap;
