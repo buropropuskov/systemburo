@@ -113,3 +113,17 @@ func registerUserViaDB(t *testing.T, e *echo.Echo, username string, typeID, orgI
 	token, _ := LoginUser(t, e, username, adminPassword)
 	return token
 }
+
+// GrantTableVerb выдаёт юзеру персональное право table.<name>.<verb> (override allow).
+// Нужен тестам, где табличные операции (снимки версий, корзина) раньше были открыты
+// всем, а теперь гейтятся per-table правом RequireTableVerb. Вызывать ДО первого
+// защищённого запроса юзера - resolver закэширует права при первом резолве.
+func GrantTableVerb(t *testing.T, userID int, tableName, verb string) {
+	t.Helper()
+	err := cachedDB.Create(&models.UserPermissionOverride{
+		UserID:        userID,
+		PermissionKey: fmt.Sprintf("table.%s.%s", tableName, verb),
+		Value:         "allow",
+	}).Error
+	require.NoError(t, err, "failed to grant table.%s.%s to user %d", tableName, verb, userID)
+}

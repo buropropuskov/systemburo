@@ -9,6 +9,7 @@ package handlers_test
 // открытым» — чтобы фикс BFLA случайно не отрезал обычному юзеру дропдауны.
 
 import (
+	"fmt"
 	"net/http"
 	"testing"
 
@@ -94,6 +95,33 @@ func TestAuthz_RegularUser_CannotWriteDirectoriesOrReadPrivileged(t *testing.T) 
 				"GET %s (точечная проверка) должен быть доступен обычному юзеру, получили 403", path)
 		})
 	}
+}
+
+// Снимки версий и корзина таблицы гейтятся per-table правом table.<name>.versions/.trash
+// (RequireTableVerb). Обычный юзер без такого права не должен снимать снимок или чистить
+// корзину любой таблицы.
+func TestAuthz_RegularUser_CannotSnapshotOrTrashTable(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	tableID := seedSystemTable(t, db)
+	userH := testutil.AuthHeader(
+		testutil.RegisterAndLogin(t, e, "authz_table_regular", "password123", 1, td.OrgID, td.CompanyID),
+	)
+
+	snapshot := testutil.POST(t, e, fmt.Sprintf("/system-tables/%d/snapshots", tableID), `{}`, userH)
+	require.Equalf(t, http.StatusForbidden, snapshot.Code,
+		"снимок версии без права table.*.versions должен быть 403, получили %d", snapshot.Code)
+
+	restore := testutil.POST(t, e, fmt.Sprintf("/system-tables/%d/trash/restore", tableID), `{}`, userH)
+	require.Equalf(t, http.StatusForbidden, restore.Code,
+		"восстановление из корзины без права table.*.trash должно быть 403, получили %d", restore.Code)
+
+	clear := testutil.DELETE(t, e, fmt.Sprintf("/system-tables/%d/trash", tableID), userH)
+	require.Equalf(t, http.StatusForbidden, clear.Code,
+		"очистка корзины без права table.*.trash должна быть 403, получили %d", clear.Code)
 }
 
 func TestAuthz_Admin_CanWriteAndReadPrivileged(t *testing.T) {
