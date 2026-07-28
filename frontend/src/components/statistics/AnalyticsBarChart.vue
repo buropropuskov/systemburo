@@ -129,6 +129,17 @@ const options = computed(() => ({
     },
   },
   legend: { show: false },
+  // На узком экране 12 тиков «пика по часам» (24 бара) сливаются в нечитаемую
+  // полосу «00:0002:00...» - hideOverlappingLabels их не разводит. Ниже мобильного
+  // брейкпоинта (--bp-mobile 768) сокращаем число подписей оси X до ~6, бары все.
+  responsive: [
+    {
+      breakpoint: 768,
+      options: {
+        xaxis: { tickAmount: Math.min(6, categories.value.length) },
+      },
+    },
+  ],
   tooltip: {
     theme: 'dark',
     y: {

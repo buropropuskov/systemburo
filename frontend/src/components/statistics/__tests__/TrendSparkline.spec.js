@@ -26,4 +26,15 @@ describe('TrendSparkline', () => {
       down.find('polyline').attributes('stroke'),
     );
   });
+
+  it('штрих ровный при сжатии, SVG заполняет контейнер на всех браузерах', () => {
+    // preserveAspectRatio=none сжимает viewBox неравномерно и плющит толщину линии;
+    // non-scaling-stroke держит штрих ровным. width/height=100% (а не 120x32) надёжно
+    // клампятся по CSS-контейнеру на мобильных браузерах.
+    const wrapper = mount(TrendSparkline, { props: { series: [40, 12], direction: 'down' } });
+    const svg = wrapper.find('svg.spark');
+    expect(svg.attributes('width')).toBe('100%');
+    expect(svg.attributes('height')).toBe('100%');
+    expect(wrapper.find('polyline').attributes('vector-effect')).toBe('non-scaling-stroke');
+  });
 });
