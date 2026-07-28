@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { confirmIfAnyDirty } from '@/utils/dirtyTracker';
 import { isErrorPageReachable, closeIncidentOnLeave } from '@/utils/errorPageAccess';
+import { shouldRedirectToMaintenance } from '@/utils/maintenanceAccess';
 import { useAuthStore } from '@/stores/auth';
 import { useMaintenanceStore } from '@/stores/maintenance';
 import LoginComponent from './components/LoginComponent.vue';
@@ -315,14 +316,12 @@ router.beforeEach(async (to, from, next) => {
   const isAuthenticated = authStore.isAuthenticated;
   const isSuperAdmin = authStore.isSuperAdmin;
 
-  // Maintenance: если режим включён и юзер не супер-админ - на /maintenance.
-  // Сам /maintenance + /500 доступны всегда чтобы не зациклить.
-  if (
-    maintenanceStore.enabled
-    && !isSuperAdmin
-    && to.name !== 'Maintenance'
-    && to.name !== 'Error500'
-  ) {
+  // Maintenance: режим включён и юзер не супер-админ - на /maintenance.
+  // Исключения (страницы-ошибки, вход по `/?admin`) - в maintenanceAccess.
+  if (shouldRedirectToMaintenance(to, {
+    enabled: maintenanceStore.enabled,
+    isSuperAdmin,
+  })) {
     next({ name: 'Maintenance' });
     return;
   }

@@ -12,6 +12,33 @@ export function formatDateTime(value) {
 }
 
 /**
+ * ISO-момент -> значение для `<input type="datetime-local">` (локальное время
+ * без зоны). Через части даты, а не toISOString(): срез ISO-строки увёл бы
+ * время на UTC и показал бы админу не тот час, который он выбрал.
+ * @param {string|null|undefined} iso
+ * @returns {string} 'YYYY-MM-DDTHH:mm' или ''
+ */
+export function isoToLocalInput(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/**
+ * Значение `<input type="datetime-local">` -> ISO-момент для API. Браузер
+ * трактует строку без зоны как локальное время, поэтому смещение учтено.
+ * @param {string|null|undefined} value
+ * @returns {string} ISO-строка или ''
+ */
+export function localInputToIso(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? '' : d.toISOString();
+}
+
+/**
  * Относительное «N назад» от now до момента value. Для last_seen онлайна и лент.
  * Будущие/нулевые значения -> 'только что'. Считается в абсолютных интервалах
  * (UTC-инстант), таймзона не влияет на «сколько прошло».

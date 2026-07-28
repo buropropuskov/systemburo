@@ -1,4 +1,4 @@
-.PHONY: up down build test logs restart lint bash db-shell frontend-dev prod-build init init-staging init-production seed seed-demo staging-seed staging-seed-demo deploy-seed deploy-seed-demo staging-build staging-up staging-down staging-logs deploy-build deploy-up deploy-down deploy-logs security
+.PHONY: up down build test logs restart lint bash db-shell frontend-dev prod-build init init-staging init-production seed seed-demo staging-seed staging-seed-demo deploy-seed deploy-seed-demo staging-build staging-up staging-down staging-logs deploy-build deploy-up deploy-down deploy-logs security maintenance-off staging-maintenance-off deploy-maintenance-off
 
 up:
 	docker compose up -d
@@ -92,3 +92,15 @@ deploy-logs:
 security:
 	go install golang.org/x/vuln/cmd/govulncheck@latest && govulncheck ./...
 	cd frontend && npm audit --audit-level=high || true
+
+# Аварийное снятие режима технических работ мимо интерфейса - когда супер-админ
+# не может войти. Режим отпускает пользователей в течение 10 секунд (TTL кэша),
+# перезапуск сервера не нужен.
+maintenance-off:
+	bash scripts/maintenance-off.sh local
+
+staging-maintenance-off:
+	bash scripts/maintenance-off.sh staging
+
+deploy-maintenance-off:
+	bash scripts/maintenance-off.sh production
