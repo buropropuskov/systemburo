@@ -47,7 +47,7 @@ describe('Maintenance - страница технических работ', () 
     expect(wrapper.vm.progressPercent).toBeGreaterThanOrEqual(49);
     expect(wrapper.vm.progressPercent).toBeLessThanOrEqual(51);
     expect(wrapper.vm.remainingText).toMatch(/^(1 ч|60 мин|59 мин)/);
-    expect(wrapper.get('[data-testid="maintenance-window"]').text()).toContain('ОСТАЛОСЬ');
+    expect(wrapper.get('[data-testid="maintenance-window"]').text()).toContain('осталось');
   });
 
   it('прогресс не выходит за 100% после окончания окна', () => {
@@ -56,12 +56,16 @@ describe('Maintenance - страница технических работ', () 
     expect(wrapper.vm.remainingText).toBe('');
   });
 
-  it('журнал показывает статус работ и мигающий курсор', () => {
+  it('терминал показывает метки времени, приглашение и мигающий курсор', () => {
     wrapper = mountPage({ planned_start: iso(-HOUR), planned_end: iso(HOUR) });
     const log = wrapper.get('[data-testid="maintenance-window"]');
-    expect(log.text()).toContain('режим технических работ');
-    expect(log.text()).toContain('работы идут');
+    expect(log.text()).toContain('работы начаты');
+    expect(log.text()).toContain('ожидаемое завершение');
+    expect(log.text()).toMatch(/выполнено \d+%/);
+    expect(log.text()).toContain('maintenance@systemburo:~$');
     expect(log.find('.mt__caret').exists()).toBe(true);
+    // Метки берутся из окна, а не из шаблона: часы:минуты в квадратных скобках.
+    expect(log.text()).toMatch(/\[\d{2}:\d{2}\]/);
   });
 
   it('после истечения срока статус меняется на завершение', () => {
@@ -69,10 +73,12 @@ describe('Maintenance - страница технических работ', () 
     expect(wrapper.vm.statusText).toBe('завершаем, проверяем систему');
   });
 
-  it('без окна не рисует полосу прогресса и пишет, что срок уточняется', () => {
+  it('без окна не рисует ни полосу прогресса, ни строку завершения', () => {
     wrapper = mountPage({ started_at: iso(-HOUR) });
     expect(wrapper.find('.mt__progress').exists()).toBe(false);
-    expect(wrapper.get('[data-testid="maintenance-window"]').text()).toContain('уточняется');
+    const log = wrapper.get('[data-testid="maintenance-window"]');
+    expect(log.text()).not.toContain('ожидаемое завершение');
+    expect(log.text()).toContain('работы идут');
   });
 
   it('показывает оба контакта ссылками, телефон - без разделителей в href', () => {
