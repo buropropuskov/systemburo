@@ -459,10 +459,11 @@ export default {
   100% { transform: rotate(360deg); }
 }
 
+/* Фон не задаём: это страница, её фон - --bg от body. Своя заливка в --surface делала
+   «Обзор и новости» единственным экраном с карточным цветом во всю площадь. */
 .news {
     padding: 20px;
     font-family: 'Montserrat', sans-serif;
-    background: var(--surface);
 }
 
 .content-wrapper {

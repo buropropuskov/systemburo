@@ -426,7 +426,9 @@ export default {
 .sc {
   /* zoom-safe (#1097): vh под корневым zoom меряется от НЕзумленной высоты. */
   min-height: calc(var(--app-vh, 1vh) * 100 - 80px);
-  background: var(--accent-tint);
+  /* Обычный фон рабочей области: accent-tint заливал акцентом весь экран, и страница
+     выбивалась из остальной админки синеватым полем. */
+  background: var(--bg);
   padding: 40px 24px;
   display: flex;
   justify-content: center;
