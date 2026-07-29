@@ -17,6 +17,8 @@ import (
 // "custom.<id>" для кастомных полей.
 func resolveValue(bctx *BlankContext, path string, rowIdx int) string {
 	switch {
+	case strings.HasPrefix(path, "app_cars."):
+		return resolveApplicationCars(bctx, path)
 	case strings.HasPrefix(path, "app_items."):
 		return resolveApplicationItems(bctx, path)
 	case strings.HasPrefix(path, "application."):
@@ -180,6 +182,63 @@ func joinApprovers(list []Approver, short bool) string {
 		}
 	}
 	return strings.Join(names, ", ")
+}
+
+// resolveApplicationCars печатает транспорт «Автозаявок» этой заявки в бланке любого
+// вложения: в бланке ввоза под него отведена одна ячейка «Марка и гос. номер Т/С»,
+// поэтому несколько машин идут в ней по строкам.
+// Заявка без автозаявок оставляет ячейку такой, как её задал шаблон.
+func resolveApplicationCars(bctx *BlankContext, path string) string {
+	rows := bctx.ApplicationCars
+	if len(rows) == 0 {
+		return ""
+	}
+	switch path {
+	case "app_cars.numbers":
+		return joinCarLines(rows, func(c ApplicationCarRow) string { return c.Number })
+	case "app_cars.marks":
+		return joinCarLines(rows, func(c ApplicationCarRow) string { return c.Mark })
+	case "app_cars.marks_numbers":
+		return joinCarLines(rows, func(c ApplicationCarRow) string {
+			// Марка не заполнена - печатаем один номер: «- О 593 УЕ 325» читалось бы
+			// как потерянное значение.
+			if c.Mark == "" {
+				return c.Number
+			}
+			if c.Number == "" {
+				return c.Mark
+			}
+			return c.Mark + " " + c.Number
+		})
+	case "app_cars.count":
+		return strconv.Itoa(len(rows))
+	case "app_cars.sources":
+		seen := make(map[string]struct{}, len(rows))
+		names := make([]string, 0, len(rows))
+		for _, r := range rows {
+			if r.SourceName == "" {
+				continue
+			}
+			if _, dup := seen[r.SourceName]; dup {
+				continue
+			}
+			seen[r.SourceName] = struct{}{}
+			names = append(names, r.SourceName)
+		}
+		return strings.Join(names, ", ")
+	}
+	return ""
+}
+
+// joinCarLines собирает значения машин по строкам, пропуская пустые.
+func joinCarLines(rows []ApplicationCarRow, value func(ApplicationCarRow) string) string {
+	lines := make([]string, 0, len(rows))
+	for _, r := range rows {
+		if v := value(r); v != "" {
+			lines = append(lines, v)
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 // resolveApplicationItems печатает ТМЦ «Заявок на ввоз» этой заявки в бланке любого
