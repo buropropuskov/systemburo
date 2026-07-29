@@ -12,7 +12,7 @@
     </div>
 
     <header class="mt__topbar">
-      <span class="mt__brand">Systemburo</span>
+      <span class="mt__brand">Бюро пропусков</span>
       <div class="mt__topbar-right">
         <a
           class="mt__admin-link"
@@ -70,35 +70,26 @@
       </section>
 
       <aside class="mt__evidence">
-        <!-- Две сцепленные шестерни: геометрия построена по окружностям (12 и 8
-             зубьев), обводка под акцент страницы, вращение навстречу друг другу. -->
-        <div class="mt__gears">
+        <!-- Шестерня поверх угла карточки: контур считается по окружностям
+             (12 зубьев), медленный оборот вместо мультяшного кручения. -->
+        <div class="mt__gear">
           <svg
-            viewBox="0 0 180 150"
+            viewBox="0 0 124 124"
             fill="none"
             aria-hidden="true"
           >
             <g
               stroke="currentColor"
-              stroke-width="2"
+              stroke-width="2.5"
               stroke-linejoin="round"
+              transform="translate(0, -24)"
             >
-              <g class="mt__gear mt__gear--big">
-                <path d="M97.0 86.0 L105.9 88.99 A44 44 0 0 1 105.18 94.47 L95.81 95.06 A35 35 0 0 1 92.31 103.5 L98.52 110.54 A44 44 0 0 1 95.16 114.92 L86.75 110.75 A35 35 0 0 1 79.5 116.31 L81.36 125.51 A44 44 0 0 1 76.25 127.63 L71.06 119.81 A35 35 0 0 1 62.0 121.0 L59.01 129.9 A44 44 0 0 1 53.53 129.18 L52.94 119.81 A35 35 0 0 1 44.5 116.31 L37.46 122.52 A44 44 0 0 1 33.08 119.16 L37.25 110.75 A35 35 0 0 1 31.69 103.5 L22.49 105.36 A44 44 0 0 1 20.37 100.25 L28.19 95.06 A35 35 0 0 1 27.0 86.0 L18.1 83.01 A44 44 0 0 1 18.82 77.53 L28.19 76.94 A35 35 0 0 1 31.69 68.5 L25.48 61.46 A44 44 0 0 1 28.84 57.08 L37.25 61.25 A35 35 0 0 1 44.5 55.69 L42.64 46.49 A44 44 0 0 1 47.75 44.37 L52.94 52.19 A35 35 0 0 1 62.0 51.0 L64.99 42.1 A44 44 0 0 1 70.47 42.82 L71.06 52.19 A35 35 0 0 1 79.5 55.69 L86.54 49.48 A44 44 0 0 1 90.92 52.84 L86.75 61.25 A35 35 0 0 1 92.31 68.5 L101.51 66.64 A44 44 0 0 1 103.63 71.75 L95.81 76.94 Z" />
-                <circle
-                  cx="62"
-                  cy="86"
-                  r="15"
-                />
-              </g>
-              <g class="mt__gear mt__gear--small">
-                <path d="M138.0 58.0 L143.86 60.65 A26 26 0 0 1 142.91 65.45 L136.48 65.65 A20 20 0 0 1 132.14 72.14 L134.42 78.16 A26 26 0 0 1 130.35 80.88 L125.65 76.48 A20 20 0 0 1 118.0 78.0 L115.35 83.86 A26 26 0 0 1 110.55 82.91 L110.35 76.48 A20 20 0 0 1 103.86 72.14 L97.84 74.42 A26 26 0 0 1 95.12 70.35 L99.52 65.65 A20 20 0 0 1 98.0 58.0 L92.14 55.35 A26 26 0 0 1 93.09 50.55 L99.52 50.35 A20 20 0 0 1 103.86 43.86 L101.58 37.84 A26 26 0 0 1 105.65 35.12 L110.35 39.52 A20 20 0 0 1 118.0 38.0 L120.65 32.14 A26 26 0 0 1 125.45 33.09 L125.65 39.52 A20 20 0 0 1 132.14 43.86 L138.16 41.58 A26 26 0 0 1 140.88 45.65 L136.48 50.35 Z" />
-                <circle
-                  cx="118"
-                  cy="58"
-                  r="8"
-                />
-              </g>
+              <path d="M97.0 86.0 L105.9 88.99 A44 44 0 0 1 105.18 94.47 L95.81 95.06 A35 35 0 0 1 92.31 103.5 L98.52 110.54 A44 44 0 0 1 95.16 114.92 L86.75 110.75 A35 35 0 0 1 79.5 116.31 L81.36 125.51 A44 44 0 0 1 76.25 127.63 L71.06 119.81 A35 35 0 0 1 62.0 121.0 L59.01 129.9 A44 44 0 0 1 53.53 129.18 L52.94 119.81 A35 35 0 0 1 44.5 116.31 L37.46 122.52 A44 44 0 0 1 33.08 119.16 L37.25 110.75 A35 35 0 0 1 31.69 103.5 L22.49 105.36 A44 44 0 0 1 20.37 100.25 L28.19 95.06 A35 35 0 0 1 27.0 86.0 L18.1 83.01 A44 44 0 0 1 18.82 77.53 L28.19 76.94 A35 35 0 0 1 31.69 68.5 L25.48 61.46 A44 44 0 0 1 28.84 57.08 L37.25 61.25 A35 35 0 0 1 44.5 55.69 L42.64 46.49 A44 44 0 0 1 47.75 44.37 L52.94 52.19 A35 35 0 0 1 62.0 51.0 L64.99 42.1 A44 44 0 0 1 70.47 42.82 L71.06 52.19 A35 35 0 0 1 79.5 55.69 L86.54 49.48 A44 44 0 0 1 90.92 52.84 L86.75 61.25 A35 35 0 0 1 92.31 68.5 L101.51 66.64 A44 44 0 0 1 103.63 71.75 L95.81 76.94 Z" />
+              <circle
+                cx="62"
+                cy="86"
+                r="16"
+              />
             </g>
           </svg>
         </div>
@@ -111,26 +102,33 @@
               <span class="mt__terminal-dots">
                 <i /><i /><i />
               </span>
-              <span class="mt__terminal-title">systemburo — maintenance</span>
+              <span class="mt__terminal-title">buropropuskov — технические работы</span>
             </div>
             <div class="mt__terminal-body">
-              <div class="mt__line mt__line--out">
-                <span class="mt__stamp">[{{ startClock }}]</span>
-                <span>работы начаты</span>
+              <div class="mt__row">
+                <span class="mt__key">начало</span>
+                <span class="mt__val">{{ startText }}</span>
               </div>
               <div
                 v-if="hasWindow"
-                class="mt__line mt__line--out"
+                class="mt__row"
               >
-                <span class="mt__stamp">[{{ endClock }}]</span>
-                <span>ожидаемое завершение</span>
+                <span class="mt__key">окончание</span>
+                <span class="mt__val">{{ endText }}</span>
               </div>
-              <div class="mt__line mt__line--out mt__line--now">
-                <span class="mt__stamp">[{{ nowClock }}]</span>
-                <span>{{ progressLine }}</span>
+              <div
+                v-if="remainingText"
+                class="mt__row"
+              >
+                <span class="mt__key">осталось</span>
+                <span class="mt__val mt__val--accent">{{ remainingText }}</span>
               </div>
-              <div class="mt__line">
-                <span class="mt__prompt">maintenance@systemburo:~$</span>
+              <div class="mt__row">
+                <span class="mt__key">статус</span>
+                <span class="mt__val">{{ statusText }}</span>
+              </div>
+              <div class="mt__row mt__row--prompt">
+                <span class="mt__prompt">maintenance@buropropuskov:~$</span>
                 <span class="mt__caret" />
               </div>
             </div>
@@ -521,37 +519,29 @@ export default {
    как технический знак, а не как иллюстрация. */
 /* Две сцепленные шестерни вместо иконки: линия под акцент страницы, разный
    размер и встречное вращение - механизм, а не значок. */
-.mt__gears {
+/* Шестерня лежит ПОВЕРХ угла карточки - как штамп на документе. Линия под
+   акцент страницы, оборот медленный, чтобы не мельтешила. */
+.mt__gear {
   position: absolute;
-  top: -78px;
-  left: -58px;
-  width: 195px;
-  height: 162px;
+  top: -40px;
+  left: -34px;
+  width: 116px;
+  height: 116px;
   color: var(--accent);
-  opacity: 0.5;
-  /* За карточкой: механизм выглядывает из-за угла и не лезет на текст. */
-  z-index: 0;
+  opacity: 0.85;
+  z-index: 2;
   pointer-events: none;
 }
-.mt__gears svg {
+.mt__gear svg {
   width: 100%;
   height: 100%;
-}
-.mt__gear--big {
-  transform-origin: 62px 86px;
   animation: mt_spin 26s linear infinite;
-}
-.mt__gear--small {
-  transform-origin: 118px 58px;
-  animation: mt_spin 26s linear infinite reverse;
+  transform-origin: 50% 50%;
 }
 @keyframes mt_spin {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
 }
-/* Окно терминала: панель намеренно тёмная в любой теме, шапка с кнопками окна,
-   вывод с временными метками. Значения приходят с сервера, поэтому колонку
-   меток держит фиксированная ширина, а не пробелы в тексте. */
 .mt__terminal {
   border-radius: 16px;
   overflow: hidden;
@@ -592,17 +582,18 @@ export default {
   color: #c7d2fe;
   overflow-x: auto;
 }
-.mt__line {
-  display: flex;
-  gap: 10px;
-  white-space: nowrap;
+.mt__row {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 12px;
 }
-.mt__line--out { color: #a5b4fc; }
-.mt__line--now { color: #34d399; }
-.mt__stamp {
-  color: #6b7194;
-  flex: 0 0 auto;
+.mt__row--prompt {
+  display: block;
+  margin-top: 10px;
 }
+.mt__key { color: #6b7194; }
+.mt__val { color: #c7d2fe; }
+.mt__val--accent { color: #34d399; }
 .mt__prompt { color: #34d399; }
 .mt__caret {
   display: inline-block;
@@ -697,7 +688,7 @@ export default {
     padding: 10px 40px 40px;
     gap: 40px;
   }
-  .mt__gears { display: none; }
+  .mt__gear { display: none; }
   .mt__title { font-size: clamp(40px, 9vw, 64px); }
 }
 @media (max-width: 640px) {
