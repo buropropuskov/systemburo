@@ -221,6 +221,33 @@ describe('AccessibleAttachmentsView (FE-S3)', () => {
     // Деталь показывает вложение 2 (актуальный выбор), а не затёртое первым ответом.
     expect(wrapper.find('.detail-stub').text()).toBe('2');
   });
+
+  it('«К списку» снимает выбор и гасит устаревший ответ детали', async () => {
+    getAccessibleAttachments.mockResolvedValue({
+      items: [makeItem(1)],
+      meta: { total: 1, page: 1, per_page: 30 },
+    });
+    const resolvers = new Map();
+    getAccessibleAttachmentDetail.mockImplementation(
+      (id) => new Promise((resolve) => resolvers.set(id, resolve)),
+    );
+
+    wrapper = mountView();
+    await flushPromises();
+    notify.mockClear();
+
+    await wrapper.find('[data-testid="aa-card"]').trigger('click'); // выбрали (ответ ещё в пути)
+    expect(wrapper.find('[data-testid="aa-detail"]').exists()).toBe(true);
+
+    await wrapper.find('[data-testid="aa-detail-back"]').trigger('click'); // назад к списку
+    expect(wrapper.find('[data-testid="aa-detail"]').exists()).toBe(false);
+
+    // Поздний ответ по уже снятому выбору не переоткрывает деталь и не шлёт error-toast.
+    resolvers.get(1)({ attachment: makeItem(1), cars: [] });
+    await flushPromises();
+    expect(wrapper.find('[data-testid="aa-detail"]').exists()).toBe(false);
+    expect(notify).not.toHaveBeenCalled();
+  });
 });
 
 describe('AccessibleAttachmentsView (S4) предпросмотр бланка', () => {

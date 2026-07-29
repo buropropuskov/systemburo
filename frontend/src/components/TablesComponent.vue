@@ -168,6 +168,7 @@
             class="options__icon"
             alt=""
           >
+          <span class="options__text">Версии</span>
         </RouterLink>
         <RouterLink
           v-if="can(`table.${$route.params.tableName}.trash`)"
@@ -182,6 +183,7 @@
             class="options__icon"
             alt=""
           >
+          <span class="options__text">Корзина</span>
         </RouterLink>
         <button
           v-if="can(`table.${$route.params.tableName}.export`)"
@@ -1021,6 +1023,25 @@ export default {
     flex-shrink: 0;
 }
 
+.options__versions-link,
+.options__trash-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    flex-shrink: 0;
+    text-decoration: none;
+    color: var(--text);
+}
+
+/* Десктоп: версии/корзина - только иконка (места хватает, подпись избыточна).
+   На мобилке (см. @media) подпись показывается, и все действия становятся
+   одинаковыми кнопками с текстом. */
+.options__versions-link .options__text,
+.options__trash-link .options__text {
+    display: none;
+}
+
 .options__export {
     width: clamp(70px, 8vw, 100px);
     height: clamp(22px, 2.4vw, 25px);
@@ -1480,32 +1501,38 @@ export default {
         font-size: 14px;
     }
 
-    /* Экспорт/Отчёт сворачиваются в иконки (как история/корзина), без рамки и текста. */
+    /* Все действия шапки - одинаковые кнопки с иконкой и подписью, переносятся в
+       ряд(ы), а не жмутся в разнокалиберные голые иконки. Иконка 16px: PNG нативно
+       30px, при 20px на 2x-экране апскейлились в мыло; 16px (=32px на 2x) чёткие. */
+    .filters__options {
+        flex-wrap: wrap;
+        justify-content: flex-start;
+        gap: 8px;
+    }
+
+    .options__manual-add,
+    .options__versions-link,
+    .options__trash-link,
     .options__export {
+        height: 34px;
         width: auto;
-        height: auto;
-        padding: 0;
-        border: none;
-        background: none;
+        padding: 0 12px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface);
+        font-size: 13px;
+        gap: 6px;
     }
 
-    /* Подпись прячем визуально, но оставляем в DOM - accessible name кнопки
-       (screenreader читает «Экспорт»/«Отчёт»), приём как у .rt-btn-label. */
-    .options__export .options__text {
-        position: absolute;
-        width: 1px;
-        height: 1px;
-        padding: 0;
-        margin: -1px;
-        overflow: hidden;
-        clip: rect(0, 0, 0, 0);
-        white-space: nowrap;
-        border: 0;
+    .options__versions-link .options__text,
+    .options__trash-link .options__text {
+        display: inline;
     }
 
+    .filters__options .options__icon,
     .options__export .tables__icon {
-        width: 20px;
-        height: 20px;
+        width: 16px;
+        height: 16px;
     }
 
     .instruction-modal-large {
