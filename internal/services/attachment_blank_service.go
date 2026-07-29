@@ -159,15 +159,14 @@ func (s *attachmentBlankService) GenerateBlank(ctx context.Context, applicationI
 	// 5. Списочные секции с авторасширением: собственная таблица вложения и, если её
 	// разметили в шаблоне, таблица ТМЦ «Заявок на ввоз» этой же заявки.
 	shifts := make([]rowShift, 0, 2)
+	tables := make([]tableForPagination, 0, 2)
 	if len(listMappings) > 0 {
-		shifts = s.fillListSections(f, sheet, &template, listMappings, staticCells, bctx)
+		shifts, tables = s.fillListSections(f, sheet, &template, listMappings, staticCells, bctx)
 	}
 
-	// 6. Шапка столбцов сквозная - только у таблицы, которая не поместилась в шаблон и
-	// достраивалась: тогда её продолжение на следующей странице начинается с заголовков.
-	// Безусловная сквозная строка повторяла шапку списка и на страницах, где этой
-	// таблицы уже нет (под ней идут другие блоки бланка и подписи).
-	repeatHeaderOnEachPage(f, sheet, overflowHeaderRow(shifts))
+	// 6. Таблица, не поместившаяся на страницу, продолжается со своей шапки столбцов:
+	// ставим разрывы страниц сами и повторяем заголовки той таблицы, которая переносится.
+	shifts = append(shifts, insertRepeatedHeaders(f, sheet, tables, lastMarkupRow(f, sheet), shifts)...)
 
 	// 7. Записать в buffer.
 	buf, err := f.WriteToBuffer()
@@ -258,25 +257,9 @@ type listSection struct {
 
 // rowShift - сколько строк добавилось ниже определённой строки шаблона. Нужен, чтобы
 // досдвинуть формулы условного форматирования и сместить нижние таблицы.
-// headerRow - строка заголовков этой таблицы в готовом файле: у расширенной таблицы она
-// становится сквозной, чтобы её продолжение на следующей странице не начиналось с
-// середины списка.
 type rowShift struct {
-	fromRow   int
-	offset    int
-	headerRow int
-}
-
-// overflowHeaderRow - строка заголовков таблицы, которую пришлось достраивать. Если
-// расширились обе, берём верхнюю: сквозная строка на листе одна, а верхняя таблица
-// уводит вниз и всё, что под ней. Ноль - ни одна таблица не переполнилась.
-func overflowHeaderRow(shifts []rowShift) int {
-	for _, sh := range shifts {
-		if sh.offset > 0 {
-			return sh.headerRow
-		}
-	}
-	return 0
+	fromRow int
+	offset  int
 }
 
 // blankSections собирает таблицы бланка сверху вниз: собственную (её тип задаёт тип
@@ -333,20 +316,24 @@ func itemsSectionStart(mappings []models.AttachmentTemplateMapping) int {
 // fillListSections заполняет таблицы бланка сверху вниз. Расширение верхней таблицы
 // сдвигает нижние, поэтому строки нижних пишутся со смещением на уже добавленные строки.
 // Возвращает сдвиги по каждой таблице для правки формул условного форматирования.
-func (s *attachmentBlankService) fillListSections(f *excelize.File, sheet string, t *models.AttachmentTemplate, mappings []models.AttachmentTemplateMapping, staticCells map[string]string, bctx *BlankContext) []rowShift {
+func (s *attachmentBlankService) fillListSections(f *excelize.File, sheet string, t *models.AttachmentTemplate, mappings []models.AttachmentTemplateMapping, staticCells map[string]string, bctx *BlankContext) ([]rowShift, []tableForPagination) {
 	sections := blankSections(t, mappings, bctx)
 	shifts := make([]rowShift, 0, len(sections))
+	tables := make([]tableForPagination, 0, len(sections))
 	shift := 0
 	for _, sec := range sections {
 		inserted := s.fillListSection(f, sheet, sec, shift, mappings, staticCells)
-		shifts = append(shifts, rowShift{
-			fromRow:   sec.endRow + 1,
-			offset:    inserted,
+		shifts = append(shifts, rowShift{fromRow: sec.endRow + 1, offset: inserted})
+		// Границы таблицы в готовом файле: строки шаблона сдвинуты таблицами выше, а
+		// снизу к ним добавились строки, которые дописал сам список.
+		tables = append(tables, tableForPagination{
 			headerRow: sec.startRow - 1 + shift,
+			firstRow:  sec.startRow + shift,
+			lastRow:   sec.endRow + shift + inserted,
 		})
 		shift += inserted
 	}
-	return shifts
+	return shifts, tables
 }
 
 // fillListSection заполняет строки списка (cars/employees/items), при необходимости
