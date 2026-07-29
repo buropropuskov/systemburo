@@ -308,6 +308,8 @@ export default {
   gap: 20px;
   padding: 20px 45px;
   border-radius: 30px;
+  /* Карточка на фоне страницы: без своего фона она темнее соседней карточки уведомлений. */
+  background: var(--surface);
   border: 1px solid var(--border);
   height: 200px;
   position: relative;

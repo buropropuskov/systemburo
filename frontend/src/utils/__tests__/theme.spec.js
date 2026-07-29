@@ -307,13 +307,15 @@ describe('страницы-заглушки следуют теме', () => {
     }
   })
 
-  it('декоративная сетка тонируется акцентом темы', () => {
+  it('декоративная сетка тонируется переменной темы', () => {
     for (const rel of pages) {
       const css = readFileSync(resolve(__dirname, rel), 'utf8')
       const grid = css.match(/background-image:\s*\n?\s*linear-gradient[\s\S]*?;/)
       expect(grid, `${rel}: не найдена сетка`).not.toBeNull()
       expect(grid[0], `${rel}: сетка прошита синим литералом`).not.toMatch(/rgba?\(\s*79/)
-      expect(grid[0]).toContain('var(--accent)')
+      // Цвет линий приходит из --decor-line: в светлой теме это примесь акцента,
+      // в тёмной - нейтральная рамка (акцентная сетка красила весь экран синим).
+      expect(grid[0]).toMatch(/var\(--decor-line\)|var\(--accent\)/)
     }
   })
 })

@@ -113,11 +113,23 @@ describe('страницы не красят себя цветом карточ�
   });
 });
 
+/*
+ * Карточки, у которых рамка была, а фона не было: пока фон страницы был белым, они
+ * выглядели белыми и без него. Список собран браузерным сканом (элемент с рамкой и
+ * скруглением, лежащий прямо на фоне страницы и не красящий себя).
+ */
 describe('карточка на фоне страницы несёт свой фон', () => {
-  // Панель выбора бланков: рамка есть, фона не было - сквозь неё светил --bg, а
-  // полоса кнопок со своим --surface читалась серой заплатой поверх панели.
-  it('BlankSelector .selector', () => {
-    const src = fs.readFileSync(path.join(SRC, 'components/BlankSelector.vue'), 'utf8');
-    expect(rootBackgrounds(src, 'selector').join(' ')).toMatch(/var\(--surface\)/);
+  const cards = [
+    // Панель бланков: сквозь неё светил --bg, а полоса кнопок со своим --surface
+    // читалась серой заплатой поверх панели.
+    ['components/BlankSelector.vue', 'selector'],
+    ['components/UserProfileHeader.vue', 'account-header'],
+    ['views/CarsView.vue', 'carsview__help'],
+    ['views/EmployeeView.vue', 'employeesview__help'],
+  ];
+
+  it.each(cards)('%s .%s', (file, cls) => {
+    const src = fs.readFileSync(path.join(SRC, file), 'utf8');
+    expect(rootBackgrounds(src, cls).join(' ')).toMatch(/var\(--surface\)/);
   });
 });
