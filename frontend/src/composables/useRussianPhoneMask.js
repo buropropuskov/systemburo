@@ -60,6 +60,21 @@ export function isValidRussianPhone(value) {
 }
 
 /**
+ * Готовит сохранённый номер к показу: приводит к маске +7 (999) 999 99-99.
+ * Номер, не похожий на российский (добавочный, несколько номеров через
+ * запятую, короткий сервисный), возвращается как есть - маска исказила бы его.
+ *
+ * @param {string|null|undefined} value - Номер из базы в любом виде
+ * @returns {string}
+ */
+export function formatRussianPhoneForDisplay(value) {
+  if (!value) return ''
+  const digits = String(value).replace(/\D/g, '')
+  const isRussian = isValidRussianPhone(digits) || isValidRussianPhone(`7${digits}`)
+  return isRussian ? formatRussianPhone(digits) : String(value)
+}
+
+/**
  * Убирает ближайшую цифру от каретки. Нужно при стирании разделителя маски:
  * сам разделитель браузер уже удалил, но набор цифр не изменился, маска вернёт
  * прежнюю строку - и Backspace выглядит нажатым впустую.

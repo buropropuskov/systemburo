@@ -221,7 +221,7 @@
 <script>
 import DateFilter from '@/components/DateFilter.vue'
 import { apiRequest } from '@/api/client'
-import { formatRussianPhone } from '@/composables/useRussianPhoneMask'
+import { formatRussianPhone, formatRussianPhoneForDisplay } from '@/composables/useRussianPhoneMask'
 import { useMaintenanceStore } from '@/stores/maintenance'
 import { formatDateTime } from '@/utils/datetime'
 
@@ -287,7 +287,7 @@ export default {
       this.supportEmail = data?.support_email || ''
       this.draftMessage = this.message
       if (data?.support_email) this.draftSupportEmail = data.support_email
-      this.draftSupportPhone = data?.support_phone || ''
+      this.draftSupportPhone = formatRussianPhoneForDisplay(data?.support_phone)
       this.fillWindow(data?.planned_start, data?.planned_end)
       useMaintenanceStore().setFromPayload(data)
     },
