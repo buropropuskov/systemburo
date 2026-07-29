@@ -347,8 +347,8 @@ export default {
   /* Подложка от темы (как на Error500): литералы держали страницу светлой независимо
      от выбранной темы. */
   background:
-    radial-gradient(1200px 700px at 15% 0%, color-mix(in srgb, var(--accent) 12%, var(--bg)) 0%, transparent 55%),
-    radial-gradient(900px 600px at 100% 100%, color-mix(in srgb, var(--success) 12%, var(--bg)) 0%, transparent 50%),
+    radial-gradient(1200px 700px at 15% 0%, color-mix(in srgb, var(--accent) var(--decor-mix), var(--bg)) 0%, transparent 55%),
+    radial-gradient(900px 600px at 100% 100%, color-mix(in srgb, var(--success) var(--decor-mix), var(--bg)) 0%, transparent 50%),
     var(--bg);
   position: relative;
   overflow: hidden;
@@ -360,8 +360,8 @@ export default {
   position: fixed;
   inset: 0;
   background-image:
-    linear-gradient(color-mix(in srgb, var(--accent) 12%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in srgb, var(--accent) 12%, transparent) 1px, transparent 1px);
+    linear-gradient(var(--decor-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--decor-line) 1px, transparent 1px);
   background-size: 60px 60px;
   pointer-events: none;
   z-index: 0;
@@ -590,11 +590,14 @@ export default {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
 }
+/* Окно терминала тёмное в любой теме, но тон берётся из темы: тёмно-синие литералы
+   складывались с общей синевой тёмного экрана. Точки-светофор и подсветка значений
+   остаются литералами - это цвета терминала, а не интерфейса. */
 .mt__terminal {
   border-radius: 16px;
   overflow: hidden;
-  background: #0f1129;
-  border: 1px solid #23264a;
+  background: var(--console-bg);
+  border: 1px solid var(--console-border);
   font-family: 'JetBrains Mono', ui-monospace, monospace;
 }
 .mt__terminal-bar {
@@ -602,8 +605,8 @@ export default {
   align-items: center;
   gap: 12px;
   padding: 10px 14px;
-  background: #171a36;
-  border-bottom: 1px solid #23264a;
+  background: var(--console-bar);
+  border-bottom: 1px solid var(--console-border);
 }
 .mt__terminal-dots {
   display: inline-flex;

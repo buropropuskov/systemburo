@@ -475,7 +475,7 @@ export default {
   font-size: 14.5px;
   /* Панель намеренно тёмная в любой теме - это стилизованная консоль, а не
      акцентная плашка. Литералы осознанные, тема их не красит. */
-  background: #0f1129;
+  background: var(--console-bg);
   color: #a5b4fc;
   padding: 22px 26px;
   border-radius: 20px;

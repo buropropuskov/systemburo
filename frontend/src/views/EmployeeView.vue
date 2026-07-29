@@ -1085,6 +1085,8 @@ export default {
 }
 
 .employeesview__help {
+    /* Карточка-подсказка лежит на фоне страницы и несёт его же цвет без этой строки. */
+    background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 15px;
     padding: 16px 20px;

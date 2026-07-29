@@ -758,11 +758,15 @@ export default {
 </script>
 
 <style scoped>
+/* Панель - карточка на фоне страницы, поэтому несёт --surface. Без своего фона сквозь
+   неё светил --bg, а полоса кнопок ниже (у неё фон есть, он перекрывает уезжающий под
+   неё список) читалась серой заплатой поверх тёмной панели. */
 .selector {
     width: 200px;
     flex-shrink: 0;
     height: 490px;
     border-radius: 30px;
+    background: var(--surface);
     border: 1px solid var(--border);
     padding: 15px;
     display: flex;

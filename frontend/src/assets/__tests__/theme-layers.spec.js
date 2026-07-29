@@ -1,0 +1,135 @@
+/**
+ * Замки конвенции слоёв поверхностей (#1415 -> разъезд тёмной темы).
+ *
+ * Слоя три: --bg (фон рабочей области), --surface (карточка на нём), --surface-2
+ * (подложка внутри карточки). До этой правки --bg и --surface в светлой теме
+ * совпадали, поэтому «страница покрашена цветом карточки» и «карточка без своего
+ * фона» выглядели одинаково правильно и копились годами - вылезло всё разом в
+ * тёмной теме («Обзор и новости» серый лист, серые плашки кнопок BlankSelector).
+ *
+ * Отсюда две проверки: палитра обязана держать слои разведёнными в КАЖДОЙ теме,
+ * а страница - не красить себя цветом карточки.
+ */
+import fs from 'node:fs';
+import path from 'node:path';
+import { describe, expect, it } from 'vitest';
+
+const ROOT = path.resolve(__dirname, '../../..');
+const SRC = path.join(ROOT, 'src');
+const TOKENS = fs.readFileSync(path.join(SRC, 'assets/tokens.css'), 'utf8');
+
+/** Значения переменных внутри блока темы. */
+function palette(theme) {
+  const re = new RegExp(`\\[data-theme="${theme}"\\][^{]*\\{([\\s\\S]*?)\\n\\}`, 'm');
+  const block = TOKENS.match(re);
+  if (!block) throw new Error(`палитра ${theme} не найдена в tokens.css`);
+  const vars = {};
+  for (const m of block[1].matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) vars[m[1]] = m[2].trim();
+  return vars;
+}
+
+const THEMES = ['light', 'dark'];
+
+describe('слои поверхностей в палитрах', () => {
+  it.each(THEMES)('%s: фон страницы и карточка - разные цвета', (theme) => {
+    const p = palette(theme);
+    expect(p['--bg'], `${theme}: --bg`).toBeTruthy();
+    expect(
+      p['--bg'],
+      'слои слиты: ошибка «страница покрашена как карточка» станет невидимой',
+    ).not.toBe(p['--surface']);
+  });
+
+  it.each(THEMES)('%s: подложка внутри карточки отличается от самой карточки', (theme) => {
+    const p = palette(theme);
+    expect(p['--surface-2']).not.toBe(p['--surface']);
+  });
+
+  it('декор полноэкранных экранов в тёмной теме слабее, чем в светлой', () => {
+    const light = parseInt(palette('light')['--decor-mix'], 10);
+    const dark = parseInt(palette('dark')['--decor-mix'], 10);
+    expect(Number.isFinite(light) && Number.isFinite(dark)).toBe(true);
+    // Та же примесь на тёмном фоне весит больше и красит экран целиком (замер
+    // страницы техработ: синева B-R +27 против +10 у обычного фона).
+    expect(dark).toBeLessThan(light);
+  });
+
+  it('консоль техработ берёт тон из темы, а не из литерала', () => {
+    for (const theme of THEMES) expect(palette(theme)['--console-bg']).toBeTruthy();
+    const files = ['views/Maintenance.vue', 'views/Error500.vue'];
+    for (const f of files) {
+      const css = fs.readFileSync(path.join(SRC, f), 'utf8');
+      expect(css, `${f}: тёмно-синий литерал консоли`).not.toMatch(/background:\s*#0f1129/);
+    }
+  });
+});
+
+/** Компоненты, которые роутер рендерит как страницу (а не как карточку внутри shell). */
+function routedViews() {
+  const router = fs.readFileSync(path.join(SRC, 'router.js'), 'utf8');
+  const files = new Set();
+  for (const m of router.matchAll(/import\(['"](?:\.|@)\/(views\/[^'"]+\.vue)['"]\)/g)) files.add(m[1]);
+  for (const m of router.matchAll(/^import\s+\w+\s+from\s+['"](?:\.|@)\/(views\/[^'"]+\.vue)['"]/gm)) files.add(m[1]);
+  return [...files];
+}
+
+/** Первый класс корневого элемента шаблона. */
+function rootClass(src) {
+  const tpl = src.match(/<template>([\s\S]*?)\n<\/template>/);
+  if (!tpl) return null;
+  const cls = tpl[1].match(/class="([^"{]+)"/);
+  return cls ? cls[1].trim().split(/\s+/)[0] : null;
+}
+
+/** Значения background в правилах ровно этого класса. */
+function rootBackgrounds(src, cls) {
+  const out = [];
+  const re = new RegExp(`(^|\\n)\\s*\\.${cls}\\s*\\{([^}]*)\\}`, 'g');
+  for (const rule of src.matchAll(re)) {
+    for (const b of rule[2].matchAll(/background(?:-color)?\s*:\s*([^;]+);/g)) out.push(b[1].trim());
+  }
+  return out;
+}
+
+describe('страницы не красят себя цветом карточки', () => {
+  const views = routedViews();
+
+  it('роутер отдаёт непустой список страниц', () => {
+    expect(views.length).toBeGreaterThan(10);
+  });
+
+  it.each(routedViews())('%s', (file) => {
+    const src = fs.readFileSync(path.join(SRC, file), 'utf8');
+    // Страницы-карточки внутри AdminPageShell лежат НА фоне, им --surface положен.
+    if (src.includes('AdminPageShell')) return;
+    const cls = rootClass(src);
+    if (!cls) return;
+    for (const bg of rootBackgrounds(src, cls)) {
+      expect(
+        bg,
+        `${file}: корень страницы красится цветом карточки - фон страницы даёт body (--bg)`,
+      ).not.toMatch(/var\(--surface\)|var\(--color-bg\)|var\(--accent-tint\)/);
+    }
+  });
+});
+
+/*
+ * Карточки, у которых рамка была, а фона не было: пока фон страницы был белым, они
+ * выглядели белыми и без него. Список собран браузерным сканом (элемент с рамкой и
+ * скруглением, лежащий прямо на фоне страницы и не красящий себя).
+ */
+describe('карточка на фоне страницы несёт свой фон', () => {
+  const cards = [
+    // Панель бланков: сквозь неё светил --bg, а полоса кнопок со своим --surface
+    // читалась серой заплатой поверх панели.
+    ['components/BlankSelector.vue', 'selector'],
+    ['components/UserProfileHeader.vue', 'account-header'],
+    ['views/CarsView.vue', 'carsview__help'],
+    ['views/EmployeeView.vue', 'employeesview__help'],
+  ];
+
+  it.each(cards)('%s .%s', (file, cls) => {
+    const src = fs.readFileSync(path.join(SRC, file), 'utf8');
+    expect(rootBackgrounds(src, cls).join(' ')).toMatch(/var\(--surface\)/);
+  });
+});
