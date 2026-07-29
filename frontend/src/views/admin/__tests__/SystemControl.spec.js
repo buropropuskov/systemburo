@@ -42,8 +42,9 @@ describe('SystemControl - режим технических работ', () => {
 
   it('подставляет окно ближайших часов, когда работы ещё не объявлены', async () => {
     const wrapper = await mountView();
-    expect(wrapper.vm.draftPlannedStart).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
-    expect(new Date(wrapper.vm.draftPlannedEnd) > new Date(wrapper.vm.draftPlannedStart)).toBe(true);
+    expect(wrapper.vm.startDate).toBeInstanceOf(Date);
+    expect(wrapper.vm.startTime).toMatch(/^\d{2}:\d{2}$/);
+    expect(new Date(wrapper.vm.plannedEndIso) > new Date(wrapper.vm.plannedStartIso)).toBe(true);
   });
 
   it('показывает сохранённое окно и телефон поддержки', async () => {
@@ -57,15 +58,33 @@ describe('SystemControl - режим технических работ', () => {
     });
     expect(wrapper.vm.draftMessage).toBe('Миграция базы');
     expect(wrapper.vm.draftSupportPhone).toBe('+7 495 123-45-67');
-    expect(wrapper.vm.draftPlannedStart).not.toBe('');
-    expect(wrapper.vm.draftPlannedEnd).not.toBe('');
+    expect(wrapper.vm.plannedStartIso).toBe('2026-07-28T10:00:00.000Z');
+    expect(wrapper.vm.plannedEndIso).toBe('2026-07-28T14:00:00.000Z');
+  });
+
+  it('накладывает телефонную маску проекта на ввод', async () => {
+    const wrapper = await mountView();
+    const phone = wrapper.get('[data-testid="support-phone"]');
+    await phone.setValue('84951234567');
+    expect(wrapper.vm.draftSupportPhone).toBe('+7 (495) 123 45-67');
+  });
+
+  it('достраивает неполное время до ЧЧ:ММ', async () => {
+    const wrapper = await mountView();
+    expect(wrapper.vm.maskTime('0930')).toBe('09:30');
+    expect(wrapper.vm.normalizeTime('9')).toBe('09:00');
+    expect(wrapper.vm.normalizeTime('930')).toBe('09:30');
+    expect(wrapper.vm.normalizeTime('2599')).toBe('23:59');
+    expect(wrapper.vm.normalizeTime('')).toBe('');
   });
 
   it('шлёт окно в ISO и оба контакта', async () => {
     const wrapper = await mountView();
     wrapper.vm.draftMessage = 'Обновление до 1.5.0';
-    wrapper.vm.draftPlannedStart = '2026-07-28T10:00';
-    wrapper.vm.draftPlannedEnd = '2026-07-28T14:00';
+    wrapper.vm.startDate = new Date(2026, 6, 28);
+    wrapper.vm.startTime = '10:00';
+    wrapper.vm.endDate = new Date(2026, 6, 28);
+    wrapper.vm.endTime = '14:00';
     wrapper.vm.draftSupportEmail = 'help@example.com';
     wrapper.vm.draftSupportPhone = '+7 495 123-45-67';
     apiRequest.mockResolvedValue(respond({ enabled: true }));
@@ -82,8 +101,10 @@ describe('SystemControl - режим технических работ', () => {
 
   it('не шлёт запрос, если окончание не позже начала', async () => {
     const wrapper = await mountView();
-    wrapper.vm.draftPlannedStart = '2026-07-28T14:00';
-    wrapper.vm.draftPlannedEnd = '2026-07-28T10:00';
+    wrapper.vm.startDate = new Date(2026, 6, 28);
+    wrapper.vm.startTime = '14:00';
+    wrapper.vm.endDate = new Date(2026, 6, 28);
+    wrapper.vm.endTime = '10:00';
 
     await wrapper.vm.enable();
 
@@ -93,12 +114,12 @@ describe('SystemControl - режим технических работ', () => {
 
   it('не открывает подтверждение с незаполненным окном', async () => {
     const wrapper = await mountView();
-    wrapper.vm.draftPlannedEnd = '';
+    wrapper.vm.endDate = null;
 
     wrapper.vm.confirmEnable();
 
     expect(wrapper.vm.confirmOpen).toBe(false);
-    expect(wrapper.vm.errorText).toContain('Укажите начало и окончание');
+    expect(wrapper.vm.errorText).toContain('Выберите даты');
   });
 
   it('не показывает пользователю внутренние идентификаторы типов', async () => {

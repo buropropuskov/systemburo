@@ -47,13 +47,26 @@ describe('Maintenance - страница технических работ', () 
     expect(wrapper.vm.progressPercent).toBeGreaterThanOrEqual(49);
     expect(wrapper.vm.progressPercent).toBeLessThanOrEqual(51);
     expect(wrapper.vm.remainingText).toMatch(/^(1 ч|60 мин|59 мин)/);
-    expect(wrapper.get('[data-testid="maintenance-window"]').text()).toContain('Осталось');
+    expect(wrapper.get('[data-testid="maintenance-window"]').text()).toContain('ОСТАЛОСЬ');
   });
 
   it('прогресс не выходит за 100% после окончания окна', () => {
     wrapper = mountPage({ planned_start: iso(-3 * HOUR), planned_end: iso(-HOUR) });
     expect(wrapper.vm.progressPercent).toBe(100);
     expect(wrapper.vm.remainingText).toBe('');
+  });
+
+  it('журнал показывает статус работ и мигающий курсор', () => {
+    wrapper = mountPage({ planned_start: iso(-HOUR), planned_end: iso(HOUR) });
+    const log = wrapper.get('[data-testid="maintenance-window"]');
+    expect(log.text()).toContain('режим технических работ');
+    expect(log.text()).toContain('работы идут');
+    expect(log.find('.mt__caret').exists()).toBe(true);
+  });
+
+  it('после истечения срока статус меняется на завершение', () => {
+    wrapper = mountPage({ planned_start: iso(-3 * HOUR), planned_end: iso(-HOUR) });
+    expect(wrapper.vm.statusText).toBe('завершаем, проверяем систему');
   });
 
   it('без окна не рисует полосу прогресса и пишет, что срок уточняется', () => {

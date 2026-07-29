@@ -71,106 +71,23 @@
 
       <aside class="mt__evidence">
         <div class="mt__evidence-shape">
-          <svg viewBox="0 0 200 200">
-            <defs>
-              <linearGradient
-                id="mtgg"
-                x1="0%"
-                y1="0%"
-                x2="100%"
-                y2="100%"
-              >
-                <stop
-                  offset="0%"
-                  stop-color="#818cf8"
-                />
-                <stop
-                  offset="100%"
-                  stop-color="#4F5BDF"
-                />
-              </linearGradient>
-            </defs>
-            <g transform="translate(100, 100)">
-              <g fill="url(#mtgg)">
-                <rect
-                  x="-12"
-                  y="-92"
-                  width="24"
-                  height="36"
-                  rx="6"
-                />
-                <rect
-                  x="-12"
-                  y="-92"
-                  width="24"
-                  height="36"
-                  rx="6"
-                  transform="rotate(45)"
-                />
-                <rect
-                  x="-12"
-                  y="-92"
-                  width="24"
-                  height="36"
-                  rx="6"
-                  transform="rotate(90)"
-                />
-                <rect
-                  x="-12"
-                  y="-92"
-                  width="24"
-                  height="36"
-                  rx="6"
-                  transform="rotate(135)"
-                />
-                <rect
-                  x="-12"
-                  y="-92"
-                  width="24"
-                  height="36"
-                  rx="6"
-                  transform="rotate(180)"
-                />
-                <rect
-                  x="-12"
-                  y="-92"
-                  width="24"
-                  height="36"
-                  rx="6"
-                  transform="rotate(225)"
-                />
-                <rect
-                  x="-12"
-                  y="-92"
-                  width="24"
-                  height="36"
-                  rx="6"
-                  transform="rotate(270)"
-                />
-                <rect
-                  x="-12"
-                  y="-92"
-                  width="24"
-                  height="36"
-                  rx="6"
-                  transform="rotate(315)"
-                />
-              </g>
-              <circle
-                r="70"
-                fill="url(#mtgg)"
-                stroke="#3d49c7"
-                stroke-width="3"
-              />
-              <circle
-                r="28"
-                fill="#fff"
-              />
-              <circle
-                r="10"
-                fill="#4F5BDF"
-              />
-            </g>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <circle
+              cx="12"
+              cy="12"
+              r="3"
+            />
+            <path
+              d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
+            />
           </svg>
         </div>
         <div class="mt__evidence-inner">
@@ -178,23 +95,30 @@
             <span>Сроки работ</span>
           </div>
           <div
-            class="mt__window"
+            class="mt__console"
             data-testid="maintenance-window"
           >
-            <div class="mt__window-row">
-              <span class="mt__window-label">Начало</span>
-              <span class="mt__window-value">{{ startText }}</span>
+            <div class="mt__console-line mt__console-line--comment">
+              # режим технических работ
             </div>
-            <div class="mt__window-row">
-              <span class="mt__window-label">Окончание</span>
-              <span class="mt__window-value">{{ endText }}</span>
+            <div class="mt__console-line">
+              <span class="mt__console-step">НАЧАЛО</span>
+              <span class="mt__console-value">{{ startText }}</span>
+            </div>
+            <div class="mt__console-line">
+              <span class="mt__console-step">ОКОНЧАНИЕ</span>
+              <span class="mt__console-value">{{ endText }}</span>
             </div>
             <div
               v-if="remainingText"
-              class="mt__window-row"
+              class="mt__console-line"
             >
-              <span class="mt__window-label">Осталось</span>
-              <span class="mt__window-value mt__window-value--accent">{{ remainingText }}</span>
+              <span class="mt__console-step">ОСТАЛОСЬ</span>
+              <span class="mt__console-value mt__console-value--accent">{{ remainingText }}</span>
+            </div>
+            <div class="mt__console-line">
+              <span class="mt__console-step">СТАТУС</span>
+              <span class="mt__console-value mt__console-value--run">{{ statusText }}<span class="mt__caret" /></span>
             </div>
           </div>
 
@@ -203,7 +127,7 @@
             class="mt__progress"
           >
             <div class="mt__progress-top">
-              <span class="mt__progress-label">Прошло времени от объявленного срока</span>
+              <span class="mt__progress-label">Выполнение работ</span>
               <span class="mt__progress-pct">{{ progressPercent }}%</span>
             </div>
             <div class="mt__progress-bar">
@@ -293,6 +217,11 @@ export default {
       if (Number.isNaN(start) || Number.isNaN(end) || end <= start) return 0
       const passed = ((this.now - start) / (end - start)) * 100
       return Math.min(100, Math.max(0, Math.round(passed)))
+    },
+    /** Строка состояния в журнале: до срока, после срока и без объявленного срока. */
+    statusText() {
+      if (!this.hasWindow) return 'работы идут'
+      return this.remainingText ? 'работы идут' : 'завершаем, проверяем систему'
     },
     supportEmail() {
       return this.store.supportEmail
@@ -547,19 +476,22 @@ export default {
   padding: 36px;
   box-shadow: 0 3px 10px var(--shadow-drop);
 }
+/* Контурная шестерня вместо заливной: тонкая линия и медленный оборот читаются
+   как технический знак, а не как иллюстрация. */
 .mt__evidence-shape {
   position: absolute;
-  top: -34px;
-  left: -24px;
-  width: 110px;
-  height: 110px;
-  filter: drop-shadow(0 10px 20px rgba(79, 91, 223, 0.3));
+  top: -28px;
+  left: -18px;
+  width: 84px;
+  height: 84px;
+  color: var(--accent);
+  opacity: 0.55;
   z-index: 1;
 }
 .mt__evidence-shape svg {
   width: 100%;
   height: 100%;
-  animation: mt_spin 8s linear infinite;
+  animation: mt_spin 24s linear infinite;
   transform-origin: 50% 50%;
 }
 @keyframes mt_spin {
@@ -575,34 +507,50 @@ export default {
   margin-bottom: 14px;
   padding-left: 80px;
 }
-.mt__window {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+/* Панель намеренно тёмная в любой теме - стилизованная консоль. Колонки задаёт
+   grid, а не пробелы в тексте: значения приходят с сервера и по длине скачут. */
+.mt__console {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 18px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 14.5px;
+  line-height: 1.6;
+  background: #0f1129;
   padding: 22px 26px;
   border-radius: 20px;
-  background: var(--accent-tint);
+  overflow-x: auto;
 }
-.mt__window-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 16px;
+.mt__console-line {
+  display: contents;
 }
-.mt__window-label {
-  font-size: 12px;
+.mt__console-line--comment {
+  display: block;
+  grid-column: 1 / -1;
+  color: #64748b;
+  margin-bottom: 2px;
+}
+.mt__console-step {
+  color: #fff;
   font-weight: 600;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  color: var(--text-muted);
+  white-space: nowrap;
 }
-.mt__window-value {
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text);
+.mt__console-value { color: #a5b4fc; }
+.mt__console-value--accent { color: #34d399; }
+.mt__console-value--run { color: #a5b4fc; }
+.mt__caret {
+  display: inline-block;
+  width: 8px;
+  height: 15px;
+  margin-left: 6px;
+  background: #a5b4fc;
+  vertical-align: -2px;
+  animation: mt_blink 1.1s steps(1) infinite;
 }
-.mt__window-value--accent { color: var(--accent-text); }
+@keyframes mt_blink {
+  0%, 50% { opacity: 1; }
+  50.01%, 100% { opacity: 0; }
+}
 .mt__progress {
   margin-top: 18px;
   display: flex;
@@ -673,7 +621,10 @@ export default {
   font-weight: 500;
 }
 .mt__meta a { color: var(--accent-text); text-decoration: none; }
-.mt__meta a:hover { text-decoration: underline; }
+.mt__meta a:hover {
+  text-decoration: underline;
+  text-underline-position: under;
+}
 
 @media (max-width: 1100px) {
   .mt__main {
@@ -705,10 +656,18 @@ export default {
   .mt__bg-number span { font-size: 440px; }
   .mt__meta { grid-template-columns: 1fr; }
   /* Дата целиком не встаёт рядом с подписью - подпись сверху, значение снизу. */
-  .mt__window-row {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 2px;
+  .mt__console {
+    display: block;
+    font-size: 13.5px;
+    padding: 18px 20px;
+  }
+  .mt__console-line { display: block; }
+  .mt__console-line + .mt__console-line { margin-top: 10px; }
+  .mt__console-step {
+    display: block;
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: #64748b;
   }
   .mt__lede--announced { font-size: 18px; padding: 16px 18px; }
 }

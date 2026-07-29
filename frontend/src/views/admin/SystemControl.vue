@@ -46,26 +46,52 @@
         </label>
 
         <div class="sc__field-row">
-          <label class="sc__field">
+          <div class="sc__field">
             <span class="sc__field-label">Начало работ</span>
-            <input
-              v-model="draftPlannedStart"
-              type="datetime-local"
-              class="sc__input"
-              data-testid="planned-start"
-              :disabled="busy"
-            >
-          </label>
-          <label class="sc__field">
+            <div class="sc__when">
+              <DateFilter
+                class="sc__date"
+                mode="single"
+                data-testid="planned-start"
+                :selected-date="startDate"
+                @update:selected-date="startDate = $event"
+              />
+              <input
+                v-model="startTime"
+                class="sc__input sc__input--time"
+                data-testid="planned-start-time"
+                placeholder="чч:мм"
+                inputmode="numeric"
+                maxlength="5"
+                :disabled="busy"
+                @input="startTime = maskTime($event.target.value)"
+                @blur="startTime = normalizeTime(startTime)"
+              >
+            </div>
+          </div>
+          <div class="sc__field">
             <span class="sc__field-label">Окончание работ</span>
-            <input
-              v-model="draftPlannedEnd"
-              type="datetime-local"
-              class="sc__input"
-              data-testid="planned-end"
-              :disabled="busy"
-            >
-          </label>
+            <div class="sc__when">
+              <DateFilter
+                class="sc__date"
+                mode="single"
+                data-testid="planned-end"
+                :selected-date="endDate"
+                @update:selected-date="endDate = $event"
+              />
+              <input
+                v-model="endTime"
+                class="sc__input sc__input--time"
+                data-testid="planned-end-time"
+                placeholder="чч:мм"
+                inputmode="numeric"
+                maxlength="5"
+                :disabled="busy"
+                @input="endTime = maskTime($event.target.value)"
+                @blur="endTime = normalizeTime(endTime)"
+              >
+            </div>
+          </div>
         </div>
 
         <div class="sc__field-row">
@@ -85,8 +111,10 @@
               v-model="draftSupportPhone"
               type="tel"
               class="sc__input"
-              placeholder="+7 495 123-45-67"
+              data-testid="support-phone"
+              placeholder="+7 (495) 123 45-67"
               :disabled="busy"
+              @input="draftSupportPhone = formatRussianPhone($event.target.value)"
             >
           </label>
         </div>
@@ -163,7 +191,7 @@
               базой данных.
             </p>
             <p
-              v-if="draftPlannedStart && draftPlannedEnd"
+              v-if="plannedStartIso && plannedEndIso"
               class="sc__modal-window"
             >
               Объявленное окно: {{ formatMoment(plannedStartIso) }} — {{ formatMoment(plannedEndIso) }}
@@ -191,14 +219,18 @@
 </template>
 
 <script>
+import DateFilter from '@/components/DateFilter.vue'
 import { apiRequest } from '@/api/client'
+import { formatRussianPhone } from '@/composables/useRussianPhoneMask'
 import { useMaintenanceStore } from '@/stores/maintenance'
-import { formatDateTime, isoToLocalInput, localInputToIso } from '@/utils/datetime'
+import { formatDateTime } from '@/utils/datetime'
 
 const DEFAULT_WINDOW_HOURS = 2
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
 
 export default {
   name: 'SystemControl',
+  components: { DateFilter },
   data() {
     return {
       enabled: false,
@@ -207,8 +239,10 @@ export default {
       plannedEnd: '',
       supportEmail: '',
       draftMessage: '',
-      draftPlannedStart: '',
-      draftPlannedEnd: '',
+      startDate: null,
+      startTime: '',
+      endDate: null,
+      endTime: '',
       draftSupportEmail: 'support@buropropuskov.ru',
       draftSupportPhone: '',
       busy: false,
@@ -218,16 +252,19 @@ export default {
   },
   computed: {
     plannedStartIso() {
-      return localInputToIso(this.draftPlannedStart)
+      return this.toIso(this.startDate, this.startTime)
     },
     plannedEndIso() {
-      return localInputToIso(this.draftPlannedEnd)
+      return this.toIso(this.endDate, this.endTime)
     },
   },
   async mounted() {
     await this.load()
   },
   methods: {
+    // Маска телефона общая с остальными формами проекта - шаблону она нужна
+    // как метод, поэтому импортированная функция прокидывается сюда.
+    formatRussianPhone,
     async load() {
       this.errorText = ''
       try {
@@ -260,24 +297,63 @@ export default {
      * заполнить, а вводить дату с нуля каждый раз незачем.
      */
     fillWindow(plannedStart, plannedEnd) {
-      if (plannedStart && plannedEnd) {
-        this.draftPlannedStart = isoToLocalInput(plannedStart)
-        this.draftPlannedEnd = isoToLocalInput(plannedEnd)
-        return
+      const start = plannedStart ? new Date(plannedStart) : new Date()
+      const end = plannedEnd
+        ? new Date(plannedEnd)
+        : new Date(start.getTime() + DEFAULT_WINDOW_HOURS * 60 * 60 * 1000)
+      this.startDate = start
+      this.startTime = this.timeOf(start)
+      this.endDate = end
+      this.endTime = this.timeOf(end)
+    },
+    /** Часы и минуты момента в виде 'ЧЧ:ММ'. */
+    timeOf(date) {
+      const p = (n) => String(n).padStart(2, '0')
+      return `${p(date.getHours())}:${p(date.getMinutes())}`
+    },
+    /** Двоеточие подставляется по мере ввода, как в сроках заявки. */
+    maskTime(raw) {
+      const digits = String(raw).replace(/\D/g, '').slice(0, 4)
+      return digits.length <= 2 ? digits : `${digits.slice(0, 2)}:${digits.slice(2)}`
+    },
+    /**
+     * Дополняет неполный ввод до 'ЧЧ:ММ' и загоняет в границы суток:
+     * '9' -> 09:00, '930' -> 09:30, '0930' -> 09:30, '2599' -> 23:59.
+     * Три цифры читаются как Ч ММ - так их и набирают.
+     */
+    normalizeTime(value) {
+      const digits = String(value).replace(/\D/g, '')
+      if (!digits) return ''
+      let hours = digits.slice(0, 2)
+      let minutes = '0'
+      if (digits.length === 3) {
+        hours = digits.slice(0, 1)
+        minutes = digits.slice(1)
+      } else if (digits.length === 4) {
+        minutes = digits.slice(2)
       }
-      const now = new Date()
-      const end = new Date(now.getTime() + DEFAULT_WINDOW_HOURS * 60 * 60 * 1000)
-      this.draftPlannedStart = isoToLocalInput(now.toISOString())
-      this.draftPlannedEnd = isoToLocalInput(end.toISOString())
+      const pad = (n) => String(n).padStart(2, '0')
+      return `${pad(Math.min(23, Number(hours)))}:${pad(Math.min(59, Number(minutes)))}`
+    },
+    /** Дата из календаря плюс время из поля - в момент для API. */
+    toIso(date, time) {
+      if (!date || !TIME_RE.test(time)) return ''
+      const [hours, minutes] = time.split(':').map(Number)
+      const moment = new Date(date)
+      moment.setHours(hours, minutes, 0, 0)
+      return moment.toISOString()
     },
     /**
      * Проверяет окно до отправки. Возвращает текст ошибки или пустую строку.
      */
     validateWindow() {
-      if (!this.draftPlannedStart || !this.draftPlannedEnd) {
-        return 'Укажите начало и окончание технических работ.'
+      if (!this.startDate || !this.endDate) {
+        return 'Выберите даты начала и окончания технических работ.'
       }
-      if (new Date(this.draftPlannedEnd) <= new Date(this.draftPlannedStart)) {
+      if (!TIME_RE.test(this.startTime) || !TIME_RE.test(this.endTime)) {
+        return 'Укажите время в формате ЧЧ:ММ.'
+      }
+      if (new Date(this.plannedEndIso) <= new Date(this.plannedStartIso)) {
         return 'Окончание работ должно быть позже начала.'
       }
       return ''
@@ -430,6 +506,19 @@ export default {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 18px;
+}
+/* Дата календарём, время рядом отдельным полем - как в сроках заявки. */
+.sc__when {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+}
+.sc__date { flex: 1; min-width: 0; }
+.sc__input--time {
+  width: 96px;
+  flex: 0 0 96px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 .sc__field-note {
   margin: 0;
