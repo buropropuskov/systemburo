@@ -14,6 +14,13 @@
 Запуск:
     python3 Документация/src/doc_facts.py           # все проверки
     python3 Документация/src/doc_facts.py --quiet   # только расхождения
+    python3 Документация/src/doc_facts.py --fix     # подставить числа в текст
+
+Режим --fix правит только те числа, которые скрипт умеет посчитать сам:
+объём кода, число тестов, таблиц, методов, прав. Их правка руками - лишняя
+работа и источник ошибок, потому что чужой коммит с одним новым тестом
+сдвигает сразу несколько показателей. Всё остальное (смысл разделов,
+описание поведения) остаётся на человеке: подставить туда нечего.
 
 Код возврата 1, если найдено расхождение или потерян якорь.
 """
@@ -280,10 +287,90 @@ def behind_dev():
     return int(out) if out.isdigit() else 0
 
 
+def like(sample, value):
+    """Число в том же виде, что стояло в тексте: с тем же разделителем разрядов."""
+    sep = next((ch for ch in sample if ch in "  "), None)
+    if sep is None:
+        return str(value)
+    body = str(value)
+    parts = []
+    while len(body) > 3:
+        parts.insert(0, body[-3:])
+        body = body[:-3]
+    parts.insert(0, body)
+    return sep.join(parts)
+
+
+def apply_fix(texts, m):
+    """Подставить посчитанные числа в текст. Возвращает список правок.
+
+    Заменяются только группы якорей, то есть места, которые скрипт умеет
+    посчитать. Замены идут с конца строки, чтобы правка одной группы не
+    сдвигала границы следующей.
+    """
+    edits = []
+    for doc, label, pattern, expected in anchors(m):
+        while True:
+            match = re.search(pattern, texts[doc])
+            if not match:
+                break
+            spans = []
+            for idx, (shown, actual) in enumerate(zip(match.groups(), expected), 1):
+                if to_int(shown) == actual:
+                    continue
+                if not shown.strip().replace(" ", "").replace(" ", "").isdigit():
+                    # Число записано словом: подстановка цифры испортила бы фразу.
+                    continue
+                spans.append((match.span(idx), like(shown, actual), shown.strip(),
+                              actual))
+            if not spans:
+                break
+            for (start, end), new, old, actual in sorted(spans, reverse=True):
+                texts[doc] = texts[doc][:start] + new + texts[doc][end:]
+                edits.append("%s, %s: «%s» -> «%s»" % (doc, label, old, new))
+            break
+
+    for match in list(re.finditer(r"создано ([\d  ]+?) специальных индексов",
+                                  texts[OVERVIEW]))[::-1]:
+        shown = match.group(1)
+        if to_int(shown) != m["gin"]:
+            start, end = match.span(1)
+            new = like(shown, m["gin"])
+            texts[OVERVIEW] = texts[OVERVIEW][:start] + new + texts[OVERVIEW][end:]
+            edits.append("%s, поисковые индексы: «%s» -> «%s»"
+                         % (OVERVIEW, shown.strip(), new))
+    return edits
+
+
+def write_doc(name, text):
+    path = os.path.join(DOCS_DIR, name, name + ".md")
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(text)
+
+
 def main():
     quiet = "--quiet" in sys.argv
+    fix = "--fix" in sys.argv
     m = metrics()
     problems, lost, checked = [], [], 0
+
+    if fix:
+        if behind_dev():
+            print("Ветка отстала от origin/dev: сначала влить dev, "
+                  "иначе в документ уедут числа старого кода.")
+            return 1
+        texts = {name: read_doc(name) for name in (OVERVIEW, DEPLOY)}
+        edits = apply_fix(texts, m)
+        for name, text in texts.items():
+            write_doc(name, text)
+        if edits:
+            print("Подставлено значений: %d" % len(edits))
+            for line in edits:
+                print("  " + line)
+            print("Пересобрать документы: python3 Документация/src/build_docs.py")
+        else:
+            print("Числа уже сходятся, правок не потребовалось.")
+        return 0
 
     lag = behind_dev()
     if lag:
