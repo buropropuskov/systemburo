@@ -1,7 +1,7 @@
 <template>
   <BaseModal
     :show="show"
-    width="95vw"
+    width="min(1600px, 95vw)"
     closable
     content-class="te-modal-rounded"
     :close-on-overlay="!rebindingMode"
