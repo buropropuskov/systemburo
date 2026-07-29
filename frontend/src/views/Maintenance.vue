@@ -70,55 +70,69 @@
       </section>
 
       <aside class="mt__evidence">
-        <div class="mt__evidence-shape">
+        <!-- Две сцепленные шестерни: геометрия построена по окружностям (12 и 8
+             зубьев), обводка под акцент страницы, вращение навстречу друг другу. -->
+        <div class="mt__gears">
           <svg
-            viewBox="0 0 24 24"
+            viewBox="0 0 180 150"
             fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
             aria-hidden="true"
           >
-            <circle
-              cx="12"
-              cy="12"
-              r="3"
-            />
-            <path
-              d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
-            />
+            <g
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linejoin="round"
+            >
+              <g class="mt__gear mt__gear--big">
+                <path d="M97.0 86.0 L105.9 88.99 A44 44 0 0 1 105.18 94.47 L95.81 95.06 A35 35 0 0 1 92.31 103.5 L98.52 110.54 A44 44 0 0 1 95.16 114.92 L86.75 110.75 A35 35 0 0 1 79.5 116.31 L81.36 125.51 A44 44 0 0 1 76.25 127.63 L71.06 119.81 A35 35 0 0 1 62.0 121.0 L59.01 129.9 A44 44 0 0 1 53.53 129.18 L52.94 119.81 A35 35 0 0 1 44.5 116.31 L37.46 122.52 A44 44 0 0 1 33.08 119.16 L37.25 110.75 A35 35 0 0 1 31.69 103.5 L22.49 105.36 A44 44 0 0 1 20.37 100.25 L28.19 95.06 A35 35 0 0 1 27.0 86.0 L18.1 83.01 A44 44 0 0 1 18.82 77.53 L28.19 76.94 A35 35 0 0 1 31.69 68.5 L25.48 61.46 A44 44 0 0 1 28.84 57.08 L37.25 61.25 A35 35 0 0 1 44.5 55.69 L42.64 46.49 A44 44 0 0 1 47.75 44.37 L52.94 52.19 A35 35 0 0 1 62.0 51.0 L64.99 42.1 A44 44 0 0 1 70.47 42.82 L71.06 52.19 A35 35 0 0 1 79.5 55.69 L86.54 49.48 A44 44 0 0 1 90.92 52.84 L86.75 61.25 A35 35 0 0 1 92.31 68.5 L101.51 66.64 A44 44 0 0 1 103.63 71.75 L95.81 76.94 Z" />
+                <circle
+                  cx="62"
+                  cy="86"
+                  r="15"
+                />
+              </g>
+              <g class="mt__gear mt__gear--small">
+                <path d="M138.0 58.0 L143.86 60.65 A26 26 0 0 1 142.91 65.45 L136.48 65.65 A20 20 0 0 1 132.14 72.14 L134.42 78.16 A26 26 0 0 1 130.35 80.88 L125.65 76.48 A20 20 0 0 1 118.0 78.0 L115.35 83.86 A26 26 0 0 1 110.55 82.91 L110.35 76.48 A20 20 0 0 1 103.86 72.14 L97.84 74.42 A26 26 0 0 1 95.12 70.35 L99.52 65.65 A20 20 0 0 1 98.0 58.0 L92.14 55.35 A26 26 0 0 1 93.09 50.55 L99.52 50.35 A20 20 0 0 1 103.86 43.86 L101.58 37.84 A26 26 0 0 1 105.65 35.12 L110.35 39.52 A20 20 0 0 1 118.0 38.0 L120.65 32.14 A26 26 0 0 1 125.45 33.09 L125.65 39.52 A20 20 0 0 1 132.14 43.86 L138.16 41.58 A26 26 0 0 1 140.88 45.65 L136.48 50.35 Z" />
+                <circle
+                  cx="118"
+                  cy="58"
+                  r="8"
+                />
+              </g>
+            </g>
           </svg>
         </div>
         <div class="mt__evidence-inner">
-          <div class="mt__evidence-label">
-            <span>Сроки работ</span>
-          </div>
           <div
-            class="mt__console"
+            class="mt__terminal"
             data-testid="maintenance-window"
           >
-            <div class="mt__console-line mt__console-line--comment">
-              # режим технических работ
+            <div class="mt__terminal-bar">
+              <span class="mt__terminal-dots">
+                <i /><i /><i />
+              </span>
+              <span class="mt__terminal-title">systemburo — maintenance</span>
             </div>
-            <div class="mt__console-line">
-              <span class="mt__console-step">НАЧАЛО</span>
-              <span class="mt__console-value">{{ startText }}</span>
-            </div>
-            <div class="mt__console-line">
-              <span class="mt__console-step">ОКОНЧАНИЕ</span>
-              <span class="mt__console-value">{{ endText }}</span>
-            </div>
-            <div
-              v-if="remainingText"
-              class="mt__console-line"
-            >
-              <span class="mt__console-step">ОСТАЛОСЬ</span>
-              <span class="mt__console-value mt__console-value--accent">{{ remainingText }}</span>
-            </div>
-            <div class="mt__console-line">
-              <span class="mt__console-step">СТАТУС</span>
-              <span class="mt__console-value mt__console-value--run">{{ statusText }}<span class="mt__caret" /></span>
+            <div class="mt__terminal-body">
+              <div class="mt__line mt__line--out">
+                <span class="mt__stamp">[{{ startClock }}]</span>
+                <span>работы начаты</span>
+              </div>
+              <div
+                v-if="hasWindow"
+                class="mt__line mt__line--out"
+              >
+                <span class="mt__stamp">[{{ endClock }}]</span>
+                <span>ожидаемое завершение</span>
+              </div>
+              <div class="mt__line mt__line--out mt__line--now">
+                <span class="mt__stamp">[{{ nowClock }}]</span>
+                <span>{{ progressLine }}</span>
+              </div>
+              <div class="mt__line">
+                <span class="mt__prompt">maintenance@systemburo:~$</span>
+                <span class="mt__caret" />
+              </div>
             </div>
           </div>
 
@@ -223,6 +237,23 @@ export default {
       if (!this.hasWindow) return 'работы идут'
       return this.remainingText ? 'работы идут' : 'завершаем, проверяем систему'
     },
+    startClock() {
+      return this.clockOf(this.store.plannedStart || this.store.startedAt)
+    },
+    endClock() {
+      return this.clockOf(this.store.plannedEnd)
+    },
+    nowClock() {
+      const d = new Date(this.now)
+      const p = (n) => String(n).padStart(2, '0')
+      return `${p(d.getHours())}:${p(d.getMinutes())}`
+    },
+    /** Последняя строка вывода: сколько сделано и сколько ждать. */
+    progressLine() {
+      if (!this.hasWindow) return this.statusText
+      if (!this.remainingText) return 'срок вышел, завершаем и проверяем систему'
+      return `выполнено ${this.progressPercent}%, осталось ${this.remainingText}`
+    },
     supportEmail() {
       return this.store.supportEmail
     },
@@ -256,6 +287,14 @@ export default {
     if (this.pollInterval) clearInterval(this.pollInterval)
   },
   methods: {
+    /** Часы и минуты момента для метки в выводе; пусто -> прочерк. */
+    clockOf(iso) {
+      if (!iso) return '--:--'
+      const d = new Date(iso)
+      if (Number.isNaN(d.getTime())) return '--:--'
+      const p = (n) => String(n).padStart(2, '0')
+      return `${p(d.getHours())}:${p(d.getMinutes())}`
+    },
     reload() {
       window.location.reload()
     },
@@ -470,6 +509,8 @@ export default {
 }
 .mt__evidence { position: relative; }
 .mt__evidence-inner {
+  position: relative;
+  z-index: 1;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 30px;
@@ -478,73 +519,97 @@ export default {
 }
 /* Контурная шестерня вместо заливной: тонкая линия и медленный оборот читаются
    как технический знак, а не как иллюстрация. */
-.mt__evidence-shape {
+/* Две сцепленные шестерни вместо иконки: линия под акцент страницы, разный
+   размер и встречное вращение - механизм, а не значок. */
+.mt__gears {
   position: absolute;
-  top: -28px;
-  left: -18px;
-  width: 84px;
-  height: 84px;
+  top: -78px;
+  left: -58px;
+  width: 195px;
+  height: 162px;
   color: var(--accent);
-  opacity: 0.55;
-  z-index: 1;
+  opacity: 0.5;
+  /* За карточкой: механизм выглядывает из-за угла и не лезет на текст. */
+  z-index: 0;
+  pointer-events: none;
 }
-.mt__evidence-shape svg {
+.mt__gears svg {
   width: 100%;
   height: 100%;
-  animation: mt_spin 24s linear infinite;
-  transform-origin: 50% 50%;
+}
+.mt__gear--big {
+  transform-origin: 62px 86px;
+  animation: mt_spin 26s linear infinite;
+}
+.mt__gear--small {
+  transform-origin: 118px 58px;
+  animation: mt_spin 26s linear infinite reverse;
 }
 @keyframes mt_spin {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
 }
-.mt__evidence-label {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 3px;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  margin-bottom: 14px;
-  padding-left: 80px;
-}
-/* Панель намеренно тёмная в любой теме - стилизованная консоль. Колонки задаёт
-   grid, а не пробелы в тексте: значения приходят с сервера и по длине скачут. */
-.mt__console {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 8px 18px;
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 14.5px;
-  line-height: 1.6;
+/* Окно терминала: панель намеренно тёмная в любой теме, шапка с кнопками окна,
+   вывод с временными метками. Значения приходят с сервера, поэтому колонку
+   меток держит фиксированная ширина, а не пробелы в тексте. */
+.mt__terminal {
+  border-radius: 16px;
+  overflow: hidden;
   background: #0f1129;
-  padding: 22px 26px;
-  border-radius: 20px;
+  border: 1px solid #23264a;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+.mt__terminal-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: #171a36;
+  border-bottom: 1px solid #23264a;
+}
+.mt__terminal-dots {
+  display: inline-flex;
+  gap: 6px;
+}
+.mt__terminal-dots i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #3a3f6b;
+}
+.mt__terminal-dots i:first-child { background: #ff5f57; }
+.mt__terminal-dots i:nth-child(2) { background: #febc2e; }
+.mt__terminal-dots i:nth-child(3) { background: #28c840; }
+.mt__terminal-title {
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  color: #6b7194;
+}
+.mt__terminal-body {
+  padding: 18px 20px 20px;
+  font-size: 14px;
+  line-height: 1.85;
+  color: #c7d2fe;
   overflow-x: auto;
 }
-.mt__console-line {
-  display: contents;
-}
-.mt__console-line--comment {
-  display: block;
-  grid-column: 1 / -1;
-  color: #64748b;
-  margin-bottom: 2px;
-}
-.mt__console-step {
-  color: #fff;
-  font-weight: 600;
+.mt__line {
+  display: flex;
+  gap: 10px;
   white-space: nowrap;
 }
-.mt__console-value { color: #a5b4fc; }
-.mt__console-value--accent { color: #34d399; }
-.mt__console-value--run { color: #a5b4fc; }
+.mt__line--out { color: #a5b4fc; }
+.mt__line--now { color: #34d399; }
+.mt__stamp {
+  color: #6b7194;
+  flex: 0 0 auto;
+}
+.mt__prompt { color: #34d399; }
 .mt__caret {
   display: inline-block;
-  width: 8px;
-  height: 15px;
-  margin-left: 6px;
-  background: #a5b4fc;
-  vertical-align: -2px;
+  width: 9px;
+  height: 16px;
+  background: #c7d2fe;
+  vertical-align: -3px;
   animation: mt_blink 1.1s steps(1) infinite;
 }
 @keyframes mt_blink {
@@ -632,8 +697,7 @@ export default {
     padding: 10px 40px 40px;
     gap: 40px;
   }
-  .mt__evidence-shape { display: none; }
-  .mt__evidence-label { padding-left: 0; }
+  .mt__gears { display: none; }
   .mt__title { font-size: clamp(40px, 9vw, 64px); }
 }
 @media (max-width: 640px) {
@@ -656,19 +720,11 @@ export default {
   .mt__bg-number span { font-size: 440px; }
   .mt__meta { grid-template-columns: 1fr; }
   /* Дата целиком не встаёт рядом с подписью - подпись сверху, значение снизу. */
-  .mt__console {
-    display: block;
-    font-size: 13.5px;
-    padding: 18px 20px;
+  .mt__terminal-body {
+    font-size: 12.5px;
+    padding: 14px 16px 16px;
   }
-  .mt__console-line { display: block; }
-  .mt__console-line + .mt__console-line { margin-top: 10px; }
-  .mt__console-step {
-    display: block;
-    font-size: 11px;
-    letter-spacing: 1px;
-    color: #64748b;
-  }
+  .mt__terminal-title { font-size: 11px; }
   .mt__lede--announced { font-size: 18px; padding: 16px 18px; }
 }
 </style>
