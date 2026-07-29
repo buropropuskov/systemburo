@@ -25,6 +25,13 @@ SRC_DIR = os.path.dirname(os.path.abspath(__file__))
 DOCS_DIR = os.path.dirname(SRC_DIR)
 REPO = os.path.dirname(DOCS_DIR)
 
+# Долг бывает двух видов, и смешивать их нельзя. Правка тестов двигает только
+# счётчики в таблице показателей: это закрывается подстановкой чисел и терпит
+# до следующей сборки. Всё остальное может менять описанное поведение, и это
+# требует прочитать код. Пока оба вида кричали одинаково, редкий важный сигнал
+# тонул в частом неважном - и документация отставала именно так.
+TESTS_WHERE = "14.1 количественные показатели тестов"
+
 # (шаблон пути, документ, что смотреть)
 MAP = [
     (r"^internal/config/config\.go$", "Руководство",
@@ -69,10 +76,16 @@ MAP = [
     (r"^internal/realtime/|^internal/handlers/events\.go$", "Техописание",
      "12 обновление без перезагрузки"),
     (r"^internal/upload/", "Техописание", "13.4 загрузка файлов"),
+    (r"^internal/services/attachment_blank|^internal/services/attachment_template",
+     "Техописание", "6 вложения и бланки: формирование печатных форм"),
+    (r"^internal/(services|handlers)/maintenance|"
+     r"^frontend/src/views/(Maintenance\.vue|admin/SystemControl\.vue)$",
+     "Руководство", "9.5 режим технических работ"),
+    (r"^internal/services/(analytics|statistics)", "Критерии",
+     "4.1 скорость обработки заявок"),
     (r"^\.github/workflows/", "Техописание",
      "13.9 контроль защищённости, 14.3 конвейер"),
-    (r"_test\.go$|\.spec\.(js|ts)$", "Техописание",
-     "14.1 количественные показатели тестов"),
+    (r"_test\.go$|\.spec\.(js|ts)$", "Техописание", TESTS_WHERE),
 ]
 
 
@@ -162,13 +175,30 @@ def main():
                   % (title, len(files)))
         return 0
 
-    print("%s: файлов %d. Проверить в документации:" % (title, len(files)))
-    for doc, where, matched in hits:
-        example = matched[0]
-        more = " и ещё %d" % (len(matched) - 1) if len(matched) > 1 else ""
-        print("  [%s] %s" % (doc, where))
-        print("      из-за %s%s" % (example, more))
-    print("Сверка чисел: python3 Документация/src/doc_facts.py")
+    sense = [h for h in hits if h[1] != TESTS_WHERE]
+    numeric = [h for h in hits if h[1] == TESTS_WHERE]
+
+    if sense:
+        print("%s: файлов %d. Прочитать код и сверить разделы:"
+              % (title, len(files)))
+        for doc, where, matched in sense:
+            example = matched[0]
+            more = " и ещё %d" % (len(matched) - 1) if len(matched) > 1 else ""
+            print("  [%s] %s" % (doc, where))
+            print("      из-за %s%s" % (example, more))
+
+    if numeric:
+        files_touched = len(numeric[0][2])
+        if sense:
+            print("Плюс сдвинулись показатели тестов (файлов %d)."
+                  % files_touched)
+        else:
+            print("%s: файлов %d. Смысловых изменений нет, сдвинулись только "
+                  "показатели тестов (файлов %d)." % (title, len(files),
+                                                      files_touched))
+        print("Закрывается без чтения кода: doc_facts.py --fix и пересборка.")
+    elif sense:
+        print("Сверка чисел: python3 Документация/src/doc_facts.py")
     return 0
 
 
