@@ -47,7 +47,8 @@ describe('Maintenance - страница технических работ', () 
     expect(wrapper.vm.progressPercent).toBeGreaterThanOrEqual(49);
     expect(wrapper.vm.progressPercent).toBeLessThanOrEqual(51);
     expect(wrapper.vm.remainingText).toMatch(/^(1 ч|60 мин|59 мин)/);
-    expect(wrapper.get('[data-testid="maintenance-window"]').text()).toContain('Осталось');
+    expect(wrapper.get('[data-testid="maintenance-window"]').text()).toContain('осталось');
+    expect(wrapper.get('[data-testid="maintenance-window"]').text()).toContain('окончание');
   });
 
   it('прогресс не выходит за 100% после окончания окна', () => {
@@ -56,10 +57,29 @@ describe('Maintenance - страница технических работ', () 
     expect(wrapper.vm.remainingText).toBe('');
   });
 
-  it('без окна не рисует полосу прогресса и пишет, что срок уточняется', () => {
+  it('терминал подписывает сроки словами, а не голыми метками времени', () => {
+    wrapper = mountPage({ planned_start: iso(-HOUR), planned_end: iso(HOUR) });
+    const log = wrapper.get('[data-testid="maintenance-window"]');
+    expect(log.text()).toContain('начало');
+    expect(log.text()).toContain('окончание');
+    expect(log.text()).toContain('осталось');
+    // Дата и время целиком, чтобы срок читался без догадок.
+    expect(log.text()).toMatch(/\d{2}\.\d{2}\.\d{4} \d{2}:\d{2}/);
+    expect(log.text()).toContain('maintenance@buropropuskov:~$');
+    expect(log.find('.mt__caret').exists()).toBe(true);
+  });
+
+  it('после истечения срока статус меняется на завершение', () => {
+    wrapper = mountPage({ planned_start: iso(-3 * HOUR), planned_end: iso(-HOUR) });
+    expect(wrapper.vm.statusText).toBe('завершаем, проверяем систему');
+  });
+
+  it('без окна не рисует ни полосу прогресса, ни строку завершения', () => {
     wrapper = mountPage({ started_at: iso(-HOUR) });
     expect(wrapper.find('.mt__progress').exists()).toBe(false);
-    expect(wrapper.get('[data-testid="maintenance-window"]').text()).toContain('уточняется');
+    const log = wrapper.get('[data-testid="maintenance-window"]');
+    expect(log.text()).not.toContain('окончание');
+    expect(log.text()).toContain('работы идут');
   });
 
   it('показывает оба контакта ссылками, телефон - без разделителей в href', () => {
@@ -71,7 +91,15 @@ describe('Maintenance - страница технических работ', () 
     expect(links).toHaveLength(2);
     expect(links[0].attributes('href')).toBe('mailto:help@example.com');
     expect(links[1].attributes('href')).toBe('tel:+74951234567');
-    expect(links[1].text()).toBe('+7 495 123-45-67');
+    // Номер из настроек приводится к маске проекта при показе.
+    expect(links[1].text()).toBe('+7 (495) 123 45-67');
+  });
+
+  it('приводит к маске телефон, сохранённый цифрами подряд', () => {
+    wrapper = mountPage({ support_phone: '79100830055' });
+    const link = wrapper.get('.mt__meta a');
+    expect(link.text()).toBe('+7 (910) 083 00-55');
+    expect(link.attributes('href')).toBe('tel:+79100830055');
   });
 
   it('не выдумывает контакты, когда они не заданы', () => {

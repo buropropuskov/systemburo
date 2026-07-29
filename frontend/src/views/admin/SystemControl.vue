@@ -9,135 +9,169 @@
         </p>
       </header>
 
-      <section class="sc__status">
-        <div class="sc__status-row">
-          <span class="sc__status-label">Текущий статус</span>
-          <span
-            class="sc__status-pill"
-            :class="{ 'sc__status-pill--on': enabled }"
-          >
-            {{ enabled ? 'ТЕХНИЧЕСКИЕ РАБОТЫ ВКЛЮЧЕНЫ' : 'Сервис работает нормально' }}
-          </span>
+      <!-- Две колонки: слева объявление и сроки, справа состояние и действия.
+           Форма и кнопки видны одновременно, без прокрутки страницы. -->
+      <div class="sc__columns">
+        <div class="sc__col">
+          <section class="sc__form">
+            <label class="sc__field">
+              <span class="sc__field-label">Сообщение для пользователей</span>
+              <textarea
+                v-model="draftMessage"
+                class="sc__textarea"
+                rows="3"
+                placeholder="Например: обновляем систему до версии 1.5.0, вернёмся к 17:00"
+                :disabled="busy"
+              />
+            </label>
+
+            <div class="sc__field-row">
+              <div class="sc__field">
+                <span class="sc__field-label">Начало работ</span>
+                <div class="sc__when">
+                  <DateFilter
+                    class="sc__date"
+                    mode="single"
+                    data-testid="planned-start"
+                    :selected-date="startDate"
+                    @update:selected-date="startDate = $event"
+                  />
+                  <input
+                    v-model="startTime"
+                    class="sc__input sc__input--time"
+                    data-testid="planned-start-time"
+                    placeholder="чч:мм"
+                    inputmode="numeric"
+                    maxlength="5"
+                    :disabled="busy"
+                    @input="startTime = maskTime($event.target.value)"
+                    @blur="startTime = normalizeTime(startTime)"
+                  >
+                </div>
+              </div>
+              <div class="sc__field">
+                <span class="sc__field-label">Окончание работ</span>
+                <div class="sc__when">
+                  <DateFilter
+                    class="sc__date"
+                    mode="single"
+                    data-testid="planned-end"
+                    :selected-date="endDate"
+                    @update:selected-date="endDate = $event"
+                  />
+                  <input
+                    v-model="endTime"
+                    class="sc__input sc__input--time"
+                    data-testid="planned-end-time"
+                    placeholder="чч:мм"
+                    inputmode="numeric"
+                    maxlength="5"
+                    :disabled="busy"
+                    @input="endTime = maskTime($event.target.value)"
+                    @blur="endTime = normalizeTime(endTime)"
+                  >
+                </div>
+              </div>
+            </div>
+
+            <div class="sc__field-row">
+              <label class="sc__field">
+                <span class="sc__field-label">Почта поддержки</span>
+                <input
+                  v-model="draftSupportEmail"
+                  type="email"
+                  class="sc__input"
+                  placeholder="support@buropropuskov.ru"
+                  :disabled="busy"
+                >
+              </label>
+              <label class="sc__field">
+                <span class="sc__field-label">Телефон поддержки</span>
+                <input
+                  v-model="draftSupportPhone"
+                  type="tel"
+                  class="sc__input"
+                  data-testid="support-phone"
+                  placeholder="+7 (495) 123 45-67"
+                  :disabled="busy"
+                  @input="draftSupportPhone = formatRussianPhone($event.target.value)"
+                >
+              </label>
+            </div>
+            <p class="sc__field-note">
+              Сообщение и контакты видит каждый, кого система не пускает внутрь. Окно
+              работ показывается пользователям как срок и одновременно служит
+              предохранителем: по его окончании режим выключается автоматически.
+            </p>
+          </section>
         </div>
-        <p
-          v-if="enabled && startedAt"
-          class="sc__status-meta"
-        >
-          Включено: {{ formatMoment(startedAt) }}
-        </p>
-        <p
-          v-if="enabled && plannedEnd"
-          class="sc__status-meta"
-        >
-          Объявленное окончание: {{ formatMoment(plannedEnd) }} — после него режим снимется сам
-        </p>
-      </section>
-
-      <section class="sc__form">
-        <label class="sc__field">
-          <span class="sc__field-label">Сообщение для пользователей</span>
-          <textarea
-            v-model="draftMessage"
-            class="sc__textarea"
-            rows="3"
-            placeholder="Например: обновляем систему до версии 1.5.0, вернёмся к 17:00"
-            :disabled="busy"
-          />
-        </label>
-
-        <div class="sc__field-row">
-          <label class="sc__field">
-            <span class="sc__field-label">Начало работ</span>
-            <input
-              v-model="draftPlannedStart"
-              type="datetime-local"
-              class="sc__input"
-              data-testid="planned-start"
-              :disabled="busy"
+        <aside class="sc__col sc__col--side">
+          <section class="sc__status">
+            <div class="sc__status-row">
+              <span class="sc__status-label">Текущий статус</span>
+              <span
+                class="sc__status-pill"
+                :class="{ 'sc__status-pill--on': enabled }"
+              >
+                {{ enabled ? 'ТЕХНИЧЕСКИЕ РАБОТЫ ВКЛЮЧЕНЫ' : 'Сервис работает нормально' }}
+              </span>
+            </div>
+            <p
+              v-if="enabled && startedAt"
+              class="sc__status-meta"
             >
-          </label>
-          <label class="sc__field">
-            <span class="sc__field-label">Окончание работ</span>
-            <input
-              v-model="draftPlannedEnd"
-              type="datetime-local"
-              class="sc__input"
-              data-testid="planned-end"
-              :disabled="busy"
+              Включено: {{ formatMoment(startedAt) }}
+            </p>
+            <p
+              v-if="enabled && plannedEnd"
+              class="sc__status-meta"
             >
-          </label>
-        </div>
-
-        <div class="sc__field-row">
-          <label class="sc__field">
-            <span class="sc__field-label">Почта поддержки</span>
-            <input
-              v-model="draftSupportEmail"
-              type="email"
-              class="sc__input"
-              placeholder="support@buropropuskov.ru"
+              Объявленное окончание: {{ formatMoment(plannedEnd) }} — после него режим снимется сам
+            </p>
+          </section>
+          <section class="sc__actions">
+            <button
+              v-if="!enabled"
+              class="sc__btn sc__btn--primary"
+              data-testid="enable-btn"
               :disabled="busy"
+              @click="confirmEnable"
             >
-          </label>
-          <label class="sc__field">
-            <span class="sc__field-label">Телефон поддержки</span>
-            <input
-              v-model="draftSupportPhone"
-              type="tel"
-              class="sc__input"
-              placeholder="+7 495 123-45-67"
-              :disabled="busy"
-            >
-          </label>
-        </div>
-        <p class="sc__field-note">
-          Сообщение и контакты видит каждый, кого система не пускает внутрь. Окно
-          работ показывается пользователям как срок и одновременно служит
-          предохранителем: по его окончании режим выключается автоматически.
-        </p>
-      </section>
-
-      <section class="sc__actions">
-        <button
-          v-if="!enabled"
-          class="sc__btn sc__btn--primary"
-          data-testid="enable-btn"
-          :disabled="busy"
-          @click="confirmEnable"
-        >
-          Включить технические работы
-        </button>
-        <template v-else>
-          <button
-            class="sc__btn sc__btn--primary"
-            data-testid="save-btn"
-            :disabled="busy"
-            @click="enable"
-          >
-            Сохранить сообщение и сроки
-          </button>
-          <button
-            class="sc__btn sc__btn--danger"
-            data-testid="disable-btn"
-            :disabled="busy"
-            @click="disable"
-          >
-            Выключить технические работы
-          </button>
-        </template>
-        <p class="sc__hint">
-          При включении <strong>отзываются все сеансы обычных пользователей</strong> —
-          в течение 15 минут их выбросит на страницу «Технические работы», и войти
-          заново они не смогут, пока режим активен. Супер-администратор продолжает
-          работать без ограничений.
-        </p>
-        <p class="sc__hint">
-          Если войти в систему не получается, режим снимается на сервере командой
-          <code>make maintenance-off</code> (для рабочего сервера —
-          <code>make deploy-maintenance-off</code>). Пользователи вернутся в систему
-          в течение 10 секунд.
-        </p>
-      </section>
+              Включить технические работы
+            </button>
+            <template v-else>
+              <button
+                class="sc__btn sc__btn--primary"
+                data-testid="save-btn"
+                :disabled="busy"
+                @click="enable"
+              >
+                Сохранить сообщение и сроки
+              </button>
+              <button
+                class="sc__btn sc__btn--danger"
+                data-testid="disable-btn"
+                :disabled="busy"
+                @click="disable"
+              >
+                Выключить технические работы
+              </button>
+            </template>
+            <p class="sc__hint">
+              При включении <strong>отзываются все сеансы обычных пользователей</strong> —
+              в течение 15 минут их выбросит на страницу «Технические работы», и войти
+              заново они не смогут, пока режим активен. Супер-администратор продолжает
+              работать без ограничений.
+            </p>
+            <p class="sc__hint">
+              Если войти в систему не получается, режим снимается на сервере командой
+              <code>make maintenance-off</code> (для рабочего сервера —
+              <code>make deploy-maintenance-off</code>). Пользователи вернутся в систему
+              в течение 10 секунд.
+            </p>
+          </section>
+        </aside>
+      </div>
 
       <div
         v-if="errorText"
@@ -163,7 +197,7 @@
               базой данных.
             </p>
             <p
-              v-if="draftPlannedStart && draftPlannedEnd"
+              v-if="plannedStartIso && plannedEndIso"
               class="sc__modal-window"
             >
               Объявленное окно: {{ formatMoment(plannedStartIso) }} — {{ formatMoment(plannedEndIso) }}
@@ -191,14 +225,18 @@
 </template>
 
 <script>
+import DateFilter from '@/components/DateFilter.vue'
 import { apiRequest } from '@/api/client'
+import { formatRussianPhone, formatRussianPhoneForDisplay } from '@/composables/useRussianPhoneMask'
 import { useMaintenanceStore } from '@/stores/maintenance'
-import { formatDateTime, isoToLocalInput, localInputToIso } from '@/utils/datetime'
+import { formatDateTime } from '@/utils/datetime'
 
 const DEFAULT_WINDOW_HOURS = 2
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
 
 export default {
   name: 'SystemControl',
+  components: { DateFilter },
   data() {
     return {
       enabled: false,
@@ -207,8 +245,10 @@ export default {
       plannedEnd: '',
       supportEmail: '',
       draftMessage: '',
-      draftPlannedStart: '',
-      draftPlannedEnd: '',
+      startDate: null,
+      startTime: '',
+      endDate: null,
+      endTime: '',
       draftSupportEmail: 'support@buropropuskov.ru',
       draftSupportPhone: '',
       busy: false,
@@ -218,16 +258,19 @@ export default {
   },
   computed: {
     plannedStartIso() {
-      return localInputToIso(this.draftPlannedStart)
+      return this.toIso(this.startDate, this.startTime)
     },
     plannedEndIso() {
-      return localInputToIso(this.draftPlannedEnd)
+      return this.toIso(this.endDate, this.endTime)
     },
   },
   async mounted() {
     await this.load()
   },
   methods: {
+    // Маска телефона общая с остальными формами проекта - шаблону она нужна
+    // как метод, поэтому импортированная функция прокидывается сюда.
+    formatRussianPhone,
     async load() {
       this.errorText = ''
       try {
@@ -250,7 +293,7 @@ export default {
       this.supportEmail = data?.support_email || ''
       this.draftMessage = this.message
       if (data?.support_email) this.draftSupportEmail = data.support_email
-      this.draftSupportPhone = data?.support_phone || ''
+      this.draftSupportPhone = formatRussianPhoneForDisplay(data?.support_phone)
       this.fillWindow(data?.planned_start, data?.planned_end)
       useMaintenanceStore().setFromPayload(data)
     },
@@ -260,24 +303,63 @@ export default {
      * заполнить, а вводить дату с нуля каждый раз незачем.
      */
     fillWindow(plannedStart, plannedEnd) {
-      if (plannedStart && plannedEnd) {
-        this.draftPlannedStart = isoToLocalInput(plannedStart)
-        this.draftPlannedEnd = isoToLocalInput(plannedEnd)
-        return
+      const start = plannedStart ? new Date(plannedStart) : new Date()
+      const end = plannedEnd
+        ? new Date(plannedEnd)
+        : new Date(start.getTime() + DEFAULT_WINDOW_HOURS * 60 * 60 * 1000)
+      this.startDate = start
+      this.startTime = this.timeOf(start)
+      this.endDate = end
+      this.endTime = this.timeOf(end)
+    },
+    /** Часы и минуты момента в виде 'ЧЧ:ММ'. */
+    timeOf(date) {
+      const p = (n) => String(n).padStart(2, '0')
+      return `${p(date.getHours())}:${p(date.getMinutes())}`
+    },
+    /** Двоеточие подставляется по мере ввода, как в сроках заявки. */
+    maskTime(raw) {
+      const digits = String(raw).replace(/\D/g, '').slice(0, 4)
+      return digits.length <= 2 ? digits : `${digits.slice(0, 2)}:${digits.slice(2)}`
+    },
+    /**
+     * Дополняет неполный ввод до 'ЧЧ:ММ' и загоняет в границы суток:
+     * '9' -> 09:00, '930' -> 09:30, '0930' -> 09:30, '2599' -> 23:59.
+     * Три цифры читаются как Ч ММ - так их и набирают.
+     */
+    normalizeTime(value) {
+      const digits = String(value).replace(/\D/g, '')
+      if (!digits) return ''
+      let hours = digits.slice(0, 2)
+      let minutes = '0'
+      if (digits.length === 3) {
+        hours = digits.slice(0, 1)
+        minutes = digits.slice(1)
+      } else if (digits.length === 4) {
+        minutes = digits.slice(2)
       }
-      const now = new Date()
-      const end = new Date(now.getTime() + DEFAULT_WINDOW_HOURS * 60 * 60 * 1000)
-      this.draftPlannedStart = isoToLocalInput(now.toISOString())
-      this.draftPlannedEnd = isoToLocalInput(end.toISOString())
+      const pad = (n) => String(n).padStart(2, '0')
+      return `${pad(Math.min(23, Number(hours)))}:${pad(Math.min(59, Number(minutes)))}`
+    },
+    /** Дата из календаря плюс время из поля - в момент для API. */
+    toIso(date, time) {
+      if (!date || !TIME_RE.test(time)) return ''
+      const [hours, minutes] = time.split(':').map(Number)
+      const moment = new Date(date)
+      moment.setHours(hours, minutes, 0, 0)
+      return moment.toISOString()
     },
     /**
      * Проверяет окно до отправки. Возвращает текст ошибки или пустую строку.
      */
     validateWindow() {
-      if (!this.draftPlannedStart || !this.draftPlannedEnd) {
-        return 'Укажите начало и окончание технических работ.'
+      if (!this.startDate || !this.endDate) {
+        return 'Выберите даты начала и окончания технических работ.'
       }
-      if (new Date(this.draftPlannedEnd) <= new Date(this.draftPlannedStart)) {
+      if (!TIME_RE.test(this.startTime) || !TIME_RE.test(this.endTime)) {
+        return 'Укажите время в формате ЧЧ:ММ.'
+      }
+      if (new Date(this.plannedEndIso) <= new Date(this.plannedStartIso)) {
         return 'Окончание работ должно быть позже начала.'
       }
       return ''
@@ -350,14 +432,19 @@ export default {
 .sc {
   /* zoom-safe (#1097): vh под корневым zoom меряется от НЕзумленной высоты. */
   min-height: calc(var(--app-vh, 1vh) * 100 - 80px);
-  background: var(--accent-tint);
+  /* Обычный фон рабочей области: accent-tint заливал акцентом весь экран, и страница
+     выбивалась из остальной админки синеватым полем. */
+  background: var(--bg);
   padding: 40px 24px;
   display: flex;
   justify-content: center;
+  /* Карточка по высоте контента: в две колонки он ниже экрана, и растянутая
+     карточка выглядела пустой коробкой. */
+  align-items: flex-start;
 }
 .sc__card {
   width: 100%;
-  max-width: 720px;
+  max-width: 1120px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 30px;
@@ -382,12 +469,24 @@ export default {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 12px;
 }
+/* Горизонтальная раскладка: форма и панель управления рядом, а не стопкой. */
+.sc__columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+}
+.sc__col {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
 .sc__status {
   padding: 16px 20px;
   background: var(--accent-tint);
   border: 1px solid var(--border);
   border-radius: 20px;
-  margin-bottom: 28px;
 }
 .sc__status-row {
   display: flex;
@@ -423,13 +522,34 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 18px;
-  margin-bottom: 28px;
 }
-.sc__field { display: block; }
+.sc__field {
+  display: block;
+  min-width: 0;
+}
 .sc__field-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 18px;
+}
+/* Дата календарём, время рядом отдельным полем - как в сроках заявки. */
+.sc__when {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+}
+.sc__date { flex: 1; min-width: 0; }
+/* У DateFilter ширина поля зашита в 215px - в колонке формы он должен тянуться
+   по месту, иначе пара «дата + время» вылезает за край. */
+.sc__date :deep(.date-filter),
+.sc__date :deep(.date-field) {
+  width: 100%;
+}
+.sc__input--time {
+  width: 84px;
+  flex: 0 0 84px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 .sc__field-note {
   margin: 0;
@@ -566,6 +686,13 @@ export default {
 }
 .sc-fade-enter-from,
 .sc-fade-leave-to { opacity: 0; }
+
+/* Узкий экран: колонки схлопываются, состояние и кнопки уходят наверх -
+   сначала «что сейчас», потом «что менять». */
+@media (max-width: 1000px) {
+  .sc__columns { grid-template-columns: 1fr; }
+  .sc__col--side { order: -1; }
+}
 
 @media (max-width: 768px) {
   .sc__card { padding: 28px 24px; }
