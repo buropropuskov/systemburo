@@ -149,4 +149,36 @@ export default {
     .refresh-btn__dot.is-lit {
         background-color: var(--accent);
     }
+
+    /* Мобилка: «Обновить» сворачивается в круглую иконку. Текст прячем в clip (не
+       display:none) - у кнопки остаётся доступное имя для скринридера. Размер 36px -
+       как у прочих мобильных icon-кнопок проекта (rt-btn-compact / rt-header-inline),
+       иконка 16px (refresh.png нативно 30px, на 2x чёткая). Порог 767.98px - как во
+       всём проекте: per-page оверрайды (pill в шапке Центра) и rt-header-inline
+       завязаны на него, ровно на 768px иначе разъехались бы стили. */
+    @media (max-width: 767.98px) {
+        .refresh-btn {
+            width: 36px;
+            height: 36px;
+            padding: 0;
+            gap: 0;
+        }
+
+        .refresh-btn__text {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        .refresh-btn__icon {
+            width: 16px;
+            height: 16px;
+        }
+    }
 </style>
