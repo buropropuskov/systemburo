@@ -212,6 +212,7 @@
 </template>
 
 <script>
+import { formatRussianPhoneForDisplay } from '@/composables/useRussianPhoneMask'
 import { useMaintenanceStore } from '@/stores/maintenance'
 import { formatDateTime } from '@/utils/datetime'
 
@@ -293,8 +294,10 @@ export default {
     supportEmail() {
       return this.store.supportEmail
     },
+    /** Номер приводится к маске при показе: в настройках он мог быть сохранён
+     *  цифрами подряд, а пользователю нужен читаемый вид. */
     supportPhone() {
-      return this.store.supportPhone
+      return formatRussianPhoneForDisplay(this.store.supportPhone)
     },
     /** Телефон для tel:-ссылки - без пробелов, скобок и дефисов. */
     phoneHref() {
