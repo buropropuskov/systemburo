@@ -193,28 +193,33 @@ const (
 	refreshReuseGraceWindow = 10 * time.Second
 )
 
-// lockoutLadder - длительность блокировки учётки по ступеням. Каждые
-// maxFailedLoginsBeforeLock неудач поднимают ступень; после последней лестница
-// упирается в час и дальше не растёт. Ступень обнуляется успешным входом,
-// сбросом из админки и сутками без неудачных попыток (lockoutLevelDecay).
-var lockoutLadder = []time.Duration{
-	accountLockDuration,
-	5 * time.Minute,
-	15 * time.Minute,
-	30 * time.Minute,
-	60 * time.Minute,
-}
+// lockoutSteps - во сколько раз каждая следующая блокировка длиннее первой.
+// При базе в минуту это 1, 5, 15, 30 и 60 минут. Каждые maxFailedLoginsBeforeLock
+// неудач поднимают ступень; после последней лестница упирается в час и дальше не
+// растёт. Ступень обнуляется успешным входом, сбросом из админки и сутками без
+// неудачных попыток (lockoutLevelDecay).
+//
+// Хранятся именно множители, а не готовые длительности: по этой же лестнице живёт
+// счётчик пары «адрес + логин» в loginGuard, у которого своя база (в тестах
+// короткая). Общая форма лестницы гарантирует, что сроки для существующего и
+// выдуманного логина совпадают.
+var lockoutSteps = []int{1, 5, 15, 30, 60}
 
-// lockoutDuration возвращает длительность блокировки для ступени level
-// (0 - первая блокировка). Выше последней ступени длительность не растёт.
-func lockoutDuration(level int) time.Duration {
+// stepDuration - длительность ступени level от базового шага base.
+func stepDuration(base time.Duration, level int) time.Duration {
 	if level < 0 {
 		level = 0
 	}
-	if level >= len(lockoutLadder) {
-		level = len(lockoutLadder) - 1
+	if level >= len(lockoutSteps) {
+		level = len(lockoutSteps) - 1
 	}
-	return lockoutLadder[level]
+	return base * time.Duration(lockoutSteps[level])
+}
+
+// lockoutDuration возвращает длительность блокировки учётной записи для ступени
+// level (0 - первая блокировка).
+func lockoutDuration(level int) time.Duration {
+	return stepDuration(accountLockDuration, level)
 }
 
 // lockoutError - единый ответ на любую блокировку входа. Текст ОДИН для адреса и
@@ -268,12 +273,12 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *
 		ip = meta.IPAddress
 	}
 
-	// IP заблокирован за перебор - сразу таймер, без проверки пароля. Единый
-	// per-IP счётчик работает одинаково для существующих и несуществующих логинов.
-	// Учётка при этом может быть заперта дольше адреса (у неё лестница, у адреса
-	// плоская минута), поэтому берём больший срок: меньший обещал бы вход раньше,
-	// чем он откроется, и человек вернулся бы к той же плашке.
-	if sec, blocked := s.loginGuard.blockedSeconds(ip); blocked {
+	// Счётчик в памяти уже запер адрес или пару «адрес + логин» - сразу таймер,
+	// без проверки пароля. Он работает одинаково для существующих и несуществующих
+	// логинов, поэтому и сроки для них совпадают. Учётка при этом может быть заперта
+	// дольше (её лестница копит неудачи со всех адресов), поэтому берём больший
+	// срок: меньший обещал бы вход раньше, чем он откроется.
+	if sec, blocked := s.loginGuard.blockedSeconds(ip, req.Username); blocked {
 		if accSec := s.accountLockSeconds(ctx, req.Username); accSec > sec {
 			sec = accSec
 		}

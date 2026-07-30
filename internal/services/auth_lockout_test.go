@@ -25,3 +25,17 @@ func TestLockoutDuration_Ladder(t *testing.T) {
 		assert.Equal(t, c.want, lockoutDuration(c.level), "ступень %d", c.level)
 	}
 }
+
+// TestLockoutLadder_SharedByAccountAndGuard - учётная запись и счётчик пары
+// «адрес + логин» обязаны расти по ОДНОЙ лестнице. На этом держится то, что
+// выдуманный логин запирается на те же сроки, что настоящий: разойдись формы -
+// и по длительности блокировки снова можно отличать существующие учётки.
+func TestLockoutLadder_SharedByAccountAndGuard(t *testing.T) {
+	base := 20 * time.Millisecond
+	for level := 0; level <= len(lockoutSteps)+2; level++ {
+		account := lockoutDuration(level)
+		guard := stepDuration(base, level)
+		assert.Equal(t, account/accountLockDuration, guard/base,
+			"ступень %d: множитель учётки и пары разошёлся", level)
+	}
+}
