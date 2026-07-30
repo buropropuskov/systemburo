@@ -63,7 +63,8 @@ MAP = [
      "13.1 проверка подлинности"),
     (r"^internal/crypto/", "Техописание",
      "13.5 защита персональных данных при хранении"),
-    (r"^internal/models/pd|^internal/middleware/pd_audit\.go$", "Оба",
+    (r"^internal/models/pd|^internal/middleware/pd_|^internal/services/pd_|"
+     r"^internal/handlers/(consent|settings_pd)", "Оба",
      "13.6 и 13.7 персональные данные; критерии раздела 5"),
     (r"^cmd/server/main\.go$", "Техописание",
      "9.3 периодические задачи"),
