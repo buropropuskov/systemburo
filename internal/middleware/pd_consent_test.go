@@ -227,6 +227,17 @@ func TestPDConsentGate_ArbitraryProtectedRoutesClosed(t *testing.T) {
 	}
 }
 
+// Незарегистрированный путь под /api тоже проходит через гейт: echo вешает на
+// группу catch-all со всей её цепочкой middleware, поэтому вместо 404 приходит
+// отказ гейта. Так же ведут себя проверки блокировки и техработ, живущие рядом, и
+// это скорее плюс - существование роутов не подсказывается тому, кого не пустили.
+func TestPDConsentGate_UnknownPathAnsweredByGate(t *testing.T) {
+	e, _, _, user, cleanup := setupGate(t, "<p>Согласие</p>")
+	defer cleanup()
+
+	assertConsentBlocked(t, testutil.GET(t, e, "/no-such-route-here", testutil.AuthHeader(user)))
+}
+
 // Гость (без токена) до гейта не доходит - его отбивает JWTAuth, и ответ не должен
 // притворяться требованием согласия.
 func TestPDConsentGate_AnonymousUntouched(t *testing.T) {
