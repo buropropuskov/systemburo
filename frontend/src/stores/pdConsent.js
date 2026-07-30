@@ -26,6 +26,16 @@ export const usePDConsentStore = defineStore('pdConsent', () => {
   // и успешный логин, и маркер отказа из ответа API - иначе на входе уходит
   // три одинаковых GET.
   let inflight = null;
+  // Поколение состояния. Ответ, начатый до смены поколения, относится к прошлой
+  // сессии (вошёл другой пользователь, вышли, только что записали согласие) и
+  // применять его нельзя: он вернул бы чужую редакцию текста или снятое окно.
+  let generation = 0;
+
+  /** Пометить летящие запросы устаревшими и освободить место новому. */
+  function invalidateInflight() {
+    generation += 1;
+    inflight = null;
+  }
 
   function applyState(state) {
     required.value = Boolean(state?.required);
@@ -41,20 +51,29 @@ export const usePDConsentStore = defineStore('pdConsent', () => {
    * @returns {Promise<void>}
    */
   async function refresh(force = false) {
-    if (inflight) return inflight;
-    if (resolved.value && !force) return;
-    inflight = (async () => {
+    // force идёт на сервер даже поверх летящего запроса: он и означает «состояние
+    // сменилось». Переиспользовать чужой промис тут нельзя - именно так ответ на
+    // запрос предыдущего пользователя дописался бы в сессию следующего.
+    if (force) invalidateInflight();
+    else if (inflight) return inflight;
+    else if (resolved.value) return;
+
+    const startedAt = generation;
+    const request = (async () => {
       try {
-        applyState(await getConsentGate());
+        const state = await getConsentGate();
+        if (startedAt !== generation) return;
+        applyState(state);
       } catch {
         // Сеть или сервер недоступны: resolved НЕ поднимаем. Окно на догадке не
         // показываем (иначе первый же 502 запирает всех) и доступ на догадке не
         // открываем - его режет серверный гейт.
       } finally {
-        inflight = null;
+        if (inflight === request) inflight = null;
       }
     })();
-    return inflight;
+    inflight = request;
+    return request;
   }
 
   /**
@@ -64,7 +83,11 @@ export const usePDConsentStore = defineStore('pdConsent', () => {
    * @returns {Promise<void>}
    */
   async function accept() {
-    applyState(await acceptConsent());
+    const state = await acceptConsent();
+    // Летящий запрос состояния стартовал до записи согласия и вернёт required:
+    // true - без сброса поколения он вернул бы окно уже согласившемуся.
+    invalidateInflight();
+    applyState(state);
   }
 
   /**
@@ -84,6 +107,8 @@ export const usePDConsentStore = defineStore('pdConsent', () => {
 
   /** Сброс при выходе: следующий пользователь на этом устройстве спросит своё. */
   function reset() {
+    // Ответ, летящий с прошлой сессии, иначе допишет состояние вышедшего юзера.
+    invalidateInflight();
     resolved.value = false;
     required.value = false;
     version.value = 0;

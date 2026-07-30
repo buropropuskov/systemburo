@@ -387,8 +387,10 @@ async function maybeAutostart() {
   if (route.path !== '/news') return;
   if (!store.canShowTour) return;
   if (!store.statusLoaded) await store.loadStatus();
-  // Перепроверяем после await: статус мог не загрузиться, юзер мог уйти/стартовать.
+  // Перепроверяем после await: статус мог не загрузиться, юзер мог уйти/стартовать,
+  // а гейт согласия - доехать ответом и закрыть показ тура (#1567).
   if (!store.statusLoaded || store.isActive || route.path !== '/news') return;
+  if (!store.canShowTour) return;
   if (store.hasCompleted()) return;
   store.start({ manual: false });
 }

@@ -62,6 +62,64 @@ describe('stores/pdConsent (#1567)', () => {
     expect(store.required).toBe(true);
   });
 
+  // Ревью поймало: force, пущенный поверх летящего запроса, переиспользовал его
+  // промис - и ответ прошлого пользователя дописывался в сессию следующего.
+  it('force пробивает летящий запрос, поздний ответ прежнего не применяется', async () => {
+    const pending = {};
+    getConsentGate
+      .mockImplementationOnce(() => new Promise((resolve) => { pending.first = resolve; }))
+      .mockResolvedValueOnce({ required: false, version: 9, text: '<p>Новый юзер</p>', document: null });
+    const store = usePDConsentStore();
+
+    const stale = store.refresh();
+    const fresh = store.refresh(true);
+    await fresh;
+
+    expect(getConsentGate).toHaveBeenCalledTimes(2);
+    expect(store.required).toBe(false);
+    expect(store.version).toBe(9);
+
+    // Ответ первого запроса приходит последним и обязан быть проигнорирован.
+    pending.first(GATE_REQUIRED);
+    await stale;
+    expect(store.required).toBe(false);
+    expect(store.version).toBe(9);
+  });
+
+  it('reset во время летящего запроса не даёт ему воскресить состояние', async () => {
+    let release;
+    getConsentGate.mockImplementation(
+      () => new Promise((resolve) => { release = () => resolve(GATE_REQUIRED); }),
+    );
+    const store = usePDConsentStore();
+
+    const pending = store.refresh();
+    store.reset();
+    release();
+    await pending;
+
+    expect(store.resolved).toBe(false);
+    expect(store.required).toBe(false);
+    expect(store.html).toBe('');
+  });
+
+  it('accept побеждает летящий запрос состояния - окно не возвращается', async () => {
+    let release;
+    getConsentGate.mockImplementation(
+      () => new Promise((resolve) => { release = () => resolve(GATE_REQUIRED); }),
+    );
+    acceptConsent.mockResolvedValue({ required: false, version: 2, text: '<p>Текст согласия</p>' });
+    const store = usePDConsentStore();
+
+    const pending = store.refresh();
+    await store.accept();
+    expect(store.required).toBe(false);
+
+    release();
+    await pending;
+    expect(store.required).toBe(false);
+  });
+
   it('повторный refresh без force не ходит на сервер, с force - ходит', async () => {
     getConsentGate.mockResolvedValue(GATE_REQUIRED);
     const store = usePDConsentStore();
