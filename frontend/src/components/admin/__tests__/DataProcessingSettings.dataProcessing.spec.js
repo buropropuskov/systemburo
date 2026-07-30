@@ -30,22 +30,25 @@ vi.mock('@/api/pdConsent', () => ({
   savePDConsentText: vi.fn(),
   setPDConsentRequired: vi.fn(),
   requirePDConsentAgain: vi.fn(),
+  getPDConsentCollection: vi.fn().mockResolvedValue({
+    active: false, version: 1, total: 0, accepted: 0, pending: 0, pending_users: [], truncated: false,
+  }),
 }));
 
-import AdminSettings from '../AdminSettings.vue';
+import DataProcessingSettings from '../DataProcessingSettings.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
 
 async function mountView() {
   getSettings.mockResolvedValue([]);
-  const wrapper = shallowMount(AdminSettings);
+  const wrapper = shallowMount(DataProcessingSettings);
   await flushPromises();
   return wrapper;
 }
 
 const pdfMeta = { file_name: 'soglasie.pdf', mime_type: 'application/pdf', ext: '.pdf', uploaded_at: '2026-06-21T10:00:00Z' };
 
-describe('AdminSettings - обработка данных', () => {
+describe('Обработка данных - обработка данных', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     [getSettings, updateSetting, getDataProcessingMeta, uploadDataProcessingDoc,
@@ -54,13 +57,11 @@ describe('AdminSettings - обработка данных', () => {
     getPDConsentSettings.mockResolvedValue({ text: '', version: 1, required: false });
   });
 
-  it('подгружает документ при первом открытии секции (lazy)', async () => {
+  // Раздел стал отдельной страницей: данные грузятся на открытии, а не по выбору
+  // секции - ленивой загрузки внутри настроек больше нет.
+  it('грузит документ при открытии страницы', async () => {
     getDataProcessingMeta.mockResolvedValue(pdfMeta);
     const wrapper = await mountView();
-
-    expect(getDataProcessingMeta).not.toHaveBeenCalled();
-    wrapper.vm.activeSection = 'data-processing';
-    await flushPromises();
 
     expect(getDataProcessingMeta).toHaveBeenCalledTimes(1);
     expect(wrapper.vm.dpMeta.file_name).toBe('soglasie.pdf');
