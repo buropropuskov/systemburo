@@ -4,6 +4,7 @@
       <div
         v-if="show"
         class="modal-overlay"
+        :style="{ zIndex }"
         @click.self="handleCancel"
       >
         <div class="modal">
@@ -68,6 +69,14 @@ export default {
         show: {
             type: Boolean,
             default: false
+        },
+        // z-index оверлея. Дефолт 1000 - базовый слой модалок, как у BaseModal.
+        // Поднимать, когда подтверждение вызывается ИЗ другой модалки: та стоит на
+        // 1001+, и подтверждение на базовом слое оказывается под ней (окно вроде бы
+        // открылось, а на экране его нет).
+        zIndex: {
+            type: Number,
+            default: 1000
         }
     },
     emits: ['cancel', 'confirm'],
@@ -103,6 +112,8 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
+  /* Фактическое значение приходит инлайном из пропа zIndex; правило оставлено
+     запасным на случай, если стиль не применился. */
   z-index: 1000;
   backdrop-filter: blur(0.1px);
   -webkit-backdrop-filter: blur(0.1px);

@@ -930,8 +930,12 @@
       @cancel="unbanConfirmVisible = false"
     />
 
+    <!-- Кнопка удаления живёт ВНУТРИ карточки редактирования (:z-index 1001),
+         поэтому подтверждение поднимаем над ней: на базовом слое 1000 оно
+         открывалось под карточкой и было не видно. -->
     <ConfirmationModal
       :show="!!deleteConfirmUser"
+      :z-index="1002"
       title="Удаление пользователя"
       :message="deleteConfirmUser ? `Удалить учётную запись «${deleteConfirmUser.username}»? Действие необратимо.` : ''"
       confirm-text="Удалить"
