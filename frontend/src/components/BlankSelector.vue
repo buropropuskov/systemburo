@@ -226,6 +226,7 @@
 import { apiRequest } from '@/api/client'
 import { getViewportZoom } from '@/utils/viewportScale'
 import { useOnboardingStore } from '@/stores/onboarding';
+import { useDeletionsStore } from '@/stores/deletions';
 import ConfirmationModal from './ConfirmationModal.vue';
 
 export default {
@@ -540,7 +541,12 @@ export default {
         addAttachment(category) {
             const categoryAttachments = this.getCategoryAttachments(category);
             if (categoryAttachments.length >= 10) {
-                alert(`Максимальное количество бланков в категории "${category}" — 10.`);
+                useDeletionsStore().notify({
+                    prefix: 'В категории ',
+                    bold: category,
+                    suffix: ' уже 10 бланков - это максимум',
+                    type: 'warning',
+                });
                 return;
             }
 
