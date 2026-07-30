@@ -263,6 +263,13 @@ export default {
     margin-bottom: 20px;
 }
 
+/* Список согласующих скрыт, когда их нет: тогда последним остаётся блок выше, и его
+   margin-bottom складывался с padding секции в пустоту снизу (#1587). Зазоры между
+   блоками при этом сохраняются - обнуляется только последний. */
+.confirmation-section > *:last-child {
+    margin-bottom: 0;
+}
+
 .info-row {
     display: flex;
     justify-content: space-between;
