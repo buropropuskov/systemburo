@@ -25,13 +25,15 @@ const MONTH_MS = 30 * DAY_MS;
 const YEAR_MS = 365 * DAY_MS;
 
 // Шкала единиц от старшей к младшей: на подпись идут ДВЕ старшие непустые.
+// Сокращения с точкой - как принято в русском тексте («5 мес. 12 дн.»); секунды
+// пишем «сек.», а не «с.», чтобы одиночная буква не читалась как другое сокращение.
 const SEEN_UNITS = [
-  { ms: YEAR_MS, label: 'г' },
-  { ms: MONTH_MS, label: 'мес' },
-  { ms: DAY_MS, label: 'дн' },
-  { ms: HOUR_MS, label: 'ч' },
-  { ms: MINUTE_MS, label: 'мин' },
-  { ms: SECOND_MS, label: 'с' },
+  { ms: YEAR_MS, label: 'г.' },
+  { ms: MONTH_MS, label: 'мес.' },
+  { ms: DAY_MS, label: 'дн.' },
+  { ms: HOUR_MS, label: 'ч.' },
+  { ms: MINUTE_MS, label: 'мин.' },
+  { ms: SECOND_MS, label: 'сек.' },
 ];
 
 /**
@@ -70,12 +72,13 @@ export function isOnline(user, nowMs) {
  */
 function formatAgo(diffMs) {
   // Будущее значение (перекос часов клиента и сервера) читаем как ноль, иначе
-  // отрицательная разница дала бы «-3 мин» и выглядела бы поломкой.
+  // отрицательная разница дала бы «-3 мин.» и выглядела бы поломкой.
   const diff = Math.max(0, diffMs);
 
+  const smallest = SEEN_UNITS[SEEN_UNITS.length - 1];
   const topIndex = SEEN_UNITS.findIndex(u => diff >= u.ms);
-  // Меньше секунды - самая младшая единица с нулём, «0 с» честнее пустой ячейки.
-  if (topIndex === -1) return '0 с';
+  // Меньше секунды - младшая единица с нулём, «0 сек.» честнее пустой ячейки.
+  if (topIndex === -1) return `0 ${smallest.label}`;
 
   const top = SEEN_UNITS[topIndex];
   const topValue = Math.floor(diff / top.ms);
