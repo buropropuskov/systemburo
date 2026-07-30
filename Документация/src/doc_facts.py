@@ -154,7 +154,7 @@ def anchors(m):
         (OVERVIEW, "таблиц базы данных",
          r"База содержит ([\d  ]+?) таблиц", [m["db_tables"]]),
         (OVERVIEW, "методов и групп программного интерфейса",
-         r"Зарегистрировано ([\d  ]+?) методов в (\d+) группах",
+         r"Зарегистрировано ([\d  ]+?) метод\w* в (\d+) группах",
          [m["api_methods"], m["api_groups"]]),
         (OVERVIEW, "бэкенд-тестов",
          r"Штатное средство тестирования Go \| ([\d  ]+?) тест\w* "
@@ -170,7 +170,7 @@ def anchors(m):
         (OVERVIEW, "тестов на настоящей базе",
          r"(\d+) файлов бэкенд-тестов выполняются", [m["go_db_files"]]),
         (OVERVIEW, "объёма исходного кода",
-         r"Объём исходного кода \| ([\d  ]+?) строк "
+         r"Объём исходного кода \| ([\d  ]+?) строк\w* "
          r"в ([\d  ]+?) файлах", [m["code_lines"], m["code_files"]]),
         (OVERVIEW, "состава серверной части",
          r"Серверная часть \| ([\d  ]+?) строк\w* без тестов: (\d+) служб\w*, "
@@ -301,6 +301,64 @@ def like(sample, value):
     return sep.join(parts)
 
 
+# Формы существительных после числа: 1 тест, 2 теста, 5 тестов. Подстановка
+# числа без согласования оставляет «2 781 теста» - документ уходит заказчику
+# с ошибкой в первой же таблице показателей.
+FORMS = {
+    "тест": ("тест", "теста", "тестов"),
+    "файл": ("файл", "файла", "файлов"),
+    "строка": ("строка", "строки", "строк"),
+    "служба": ("служба", "службы", "служб"),
+    "обработчик": ("обработчик", "обработчика", "обработчиков"),
+    "модель": ("модель", "модели", "моделей"),
+    "экран": ("экран", "экрана", "экранов"),
+    "элемент": ("элемент", "элемента", "элементов"),
+    "таблица": ("таблица", "таблицы", "таблиц"),
+    "индекс": ("индекс", "индекса", "индексов"),
+    "метод": ("метод", "метода", "методов"),
+    "группа": ("группа", "группы", "групп"),
+    "ключ": ("ключ", "ключа", "ключей"),
+    "категория": ("категория", "категории", "категорий"),
+}
+WORD_BY_FORM = {form: stem for stem, forms in FORMS.items() for form in forms}
+
+
+def agreed_form(stem, value):
+    """Форма слова при числе value по правилам согласования."""
+    one, few, many = FORMS[stem]
+    tail100, tail10 = value % 100, value % 10
+    if 11 <= tail100 <= 14:
+        return many
+    if tail10 == 1:
+        return one
+    if 2 <= tail10 <= 4:
+        return few
+    return many
+
+
+def agree_after(text, pos, value):
+    """Согласовать существительное, стоящее сразу после числа в позиции pos.
+
+    Слово после предлога («в 317 файлах») остаётся в своём падеже: там число
+    не управляет формой, и правка испортила бы фразу.
+    """
+    before = text[max(0, pos - 4):pos]
+    if re.search(r"\b(в|на|из|по|до|от)\s$", before):
+        return text
+    match = re.match(r"(\s+)([А-Яа-яЁё]+)", text[pos:])
+    if not match:
+        return text
+    word = match.group(2)
+    stem = WORD_BY_FORM.get(word.lower())
+    if not stem:
+        return text
+    form = agreed_form(stem, value)
+    if form == word.lower():
+        return text
+    start = pos + len(match.group(1))
+    return text[:start] + form + text[start + len(word):]
+
+
 def apply_fix(texts, m):
     """Подставить посчитанные числа в текст. Возвращает список правок.
 
@@ -327,8 +385,29 @@ def apply_fix(texts, m):
                 break
             for (start, end), new, old, actual in sorted(spans, reverse=True):
                 texts[doc] = texts[doc][:start] + new + texts[doc][end:]
+                texts[doc] = agree_after(texts[doc], start + len(new), actual)
                 edits.append("%s, %s: «%s» -> «%s»" % (doc, label, old, new))
             break
+
+    # Согласование проверяется у всех показателей, а не только у изменённых:
+    # неверная форма могла остаться от прошлой подстановки, когда число уже
+    # совпадает и в замену не попадает.
+    for doc, label, pattern, expected in anchors(m):
+        match = re.search(pattern, texts[doc])
+        if not match:
+            continue
+        for idx, actual in enumerate(expected, 1):
+            span = match.span(idx)
+            if span[0] < 0:
+                continue
+            before = texts[doc]
+            texts[doc] = agree_after(texts[doc], span[1], actual)
+            if texts[doc] != before:
+                edits.append("%s, %s: согласовано слово после числа %d"
+                             % (doc, label, actual))
+                match = re.search(pattern, texts[doc])
+                if not match:
+                    break
 
     for match in list(re.finditer(r"создано ([\d  ]+?) специальных индексов",
                                   texts[OVERVIEW]))[::-1]:
