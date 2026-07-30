@@ -342,7 +342,7 @@
           </div>
         </div>
         <div class="users-footer">
-          <span class="items-count">{{ showArchive ? 'В архиве' : 'Всего пользователей' }}: {{ sortedUsers.length }}</span>
+          <span class="items-count">{{ countLabel }}: {{ sortedUsers.length }}</span>
         </div>
       </div>
     </div>
@@ -1084,6 +1084,12 @@ export default {
     },
     onlineOnly() {
       return this.listMode === 'online';
+    },
+    // Подпись футера идёт от режима списка: «Всего пользователей» под отфильтрованным
+    // числом читалось бы как «в системе всего один», хотя это только те, кто в сети.
+    countLabel() {
+      if (this.showArchive) return 'В архиве';
+      return this.onlineOnly ? 'В сети' : 'Всего пользователей';
     },
     // Счётчик шапки считается по всем учёткам, а не по видимым: он отвечает на
     // «сколько людей в системе сейчас», и поиск с режимом списка не должны его менять.

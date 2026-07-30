@@ -127,6 +127,21 @@ describe('UserControl — колонка присутствия', () => {
     expect(rowLogins(wrapper)).toHaveLength(4)
   })
 
+  it('подпись футера отражает режим списка, а не «всего пользователей» под фильтром', async () => {
+    wrapper = mountUserControl()
+    await flushPromises()
+    const footer = () => wrapper.find('.items-count').text()
+    expect(footer()).toBe('Всего пользователей: 4')
+
+    wrapper.vm.onArchiveModeChange('online')
+    await flushPromises()
+    expect(footer()).toBe('В сети: 1')
+
+    wrapper.vm.onArchiveModeChange('archive')
+    await flushPromises()
+    expect(footer()).toBe('В архиве: 0')
+  })
+
   it('сортировка по колонке ставит свежие визиты и «не заходил» в противоположные концы', async () => {
     wrapper = mountUserControl()
     await flushPromises()
