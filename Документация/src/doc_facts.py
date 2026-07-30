@@ -262,6 +262,7 @@ def inventories():
                 "BlacklistView.vue": "Чёрные списки",
                 "CitizenshipView.vue": "Гражданства",
                 "CompaniesView.vue": "Организации и компании",
+                "DataProcessingView.vue": "Обработка данных",
                 "DocumentsView.vue": "документы",
                 "GuideManagementView.vue": "Обучение",
                 "MarksView.vue": "марки транспорта",
