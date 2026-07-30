@@ -13,7 +13,8 @@ type SettingsHandler struct {
 	maxFileSize int64
 	// consentGate нужен, чтобы правка текста, тумблера или редакции согласия
 	// действовала сразу, а не по истечении TTL кэша гейта (#1567).
-	consentGate *services.PDConsentGateService
+	consentGate  *services.PDConsentGateService
+	consentStats *services.PDConsentStatsService
 }
 
 // NewSettingsHandler создаёт хендлер для управления системными настройками.
@@ -22,12 +23,14 @@ func NewSettingsHandler(
 	fileSvc services.DocumentFileService,
 	maxFileSize int64,
 	consentGate *services.PDConsentGateService,
+	consentStats *services.PDConsentStatsService,
 ) *SettingsHandler {
 	return &SettingsHandler{
-		service:     service,
-		fileSvc:     fileSvc,
-		maxFileSize: maxFileSize,
-		consentGate: consentGate,
+		service:      service,
+		fileSvc:      fileSvc,
+		maxFileSize:  maxFileSize,
+		consentGate:  consentGate,
+		consentStats: consentStats,
 	}
 }
 

@@ -170,6 +170,7 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, fun
 	// Гейт согласия на обработку ПД (#1567). TTL нулевой: в тестах кэш только мешал
 	// бы - настройки меняются прямо в ходе теста и должны читаться сразу.
 	pdConsentGateService := services.NewPDConsentGateService(consentService, settingsService, 0)
+	pdConsentStatsService := services.NewPDConsentStatsService(db, pdConsentGateService)
 
 	// Create maintenance service early so authHandler can get it.
 	maintenanceService := services.NewMaintenanceService(db)
@@ -225,7 +226,7 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, fun
 	accessDenialHandler := handlers.NewAccessDenialHandler(accessDenialService)
 	userBanHandler := handlers.NewUserBanHandler(userBanService)
 	consentHandler := handlers.NewConsentHandler(consentService, pdConsentGateService, settingsService, db)
-	settingsHandler := handlers.NewSettingsHandler(settingsService, documentFileService, 10*1024*1024, pdConsentGateService)
+	settingsHandler := handlers.NewSettingsHandler(settingsService, documentFileService, 10*1024*1024, pdConsentGateService, pdConsentStatsService)
 	telegramService := services.NewTelegramService("", "")
 	bugReportService := services.NewBugReportService(db, telegramService)
 	bugReportHandler := handlers.NewBugReportHandler(bugReportService)
