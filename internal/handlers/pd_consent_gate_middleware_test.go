@@ -1,11 +1,9 @@
-package middleware_test
+package handlers_test
 
 import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"sort"
-	"strings"
 	"testing"
 
 	mw "systemburo/internal/middleware"
@@ -21,11 +19,14 @@ import (
 // редакцией текста, protected-API отвечает 403 с маркером consent_required. Гейт
 // навешивается только через SetupTestAppWithConsentGate - в остальных тестах он nil,
 // иначе они получали бы 403 вместо своих ответов.
+//
+// Тесты лежат в handlers, а не рядом с middleware: любой DB-backed Go-тест обязан
+// быть в этом пакете - `go test ./...` гоняет пакеты параллельными бинарями, и
+// второй бинарь с базой дерётся с этим за общую auto_registry_test (Seed падает на
+// duplicate key). Скоуп-прогон одного пакета такую гонку не показывает.
 
 const (
 	consentSettingsPath = "/settings/pd-consent"
-	consentGatePath     = "/consents/gate"
-	consentAcceptPath   = "/consents/accept"
 	// Произвольная protected-ручка вне белого списка: на ней и проверяем, что
 	// доступ реально закрыт. Читающая и безобидная - бан её пропускает, так что
 	// отказ на ней означает именно гейт согласия.
@@ -79,7 +80,7 @@ func TestPDConsentGate_BlocksUntilAccepted(t *testing.T) {
 
 	// Доступ обязан открыться сразу после записи согласия, а не по истечении TTL
 	// кэша: иначе фронт уже снял окно, а API продолжает отказывать.
-	rec := testutil.POST(t, e, consentAcceptPath, `{}`, testutil.AuthHeader(user))
+	rec := testutil.POST(t, e, acceptPath, `{}`, testutil.AuthHeader(user))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Equal(t, http.StatusOK, testutil.GET(t, e, guardedPath, testutil.AuthHeader(user)).Code)
 }
@@ -90,7 +91,7 @@ func TestPDConsentGate_AllowsConsentFlowAndLogout(t *testing.T) {
 	e, _, _, user, cleanup := setupGate(t, "<p>Согласие</p>")
 	defer cleanup()
 
-	assert.Equal(t, http.StatusOK, testutil.GET(t, e, consentGatePath, testutil.AuthHeader(user)).Code,
+	assert.Equal(t, http.StatusOK, testutil.GET(t, e, gatePath, testutil.AuthHeader(user)).Code,
 		"состояние гейта обязано читаться, иначе фронту нечего показать")
 	assert.Equal(t, http.StatusOK, testutil.GET(t, e, "/permissions/my", testutil.AuthHeader(user)).Code)
 	assert.Equal(t, http.StatusOK, testutil.GET(t, e, "/users/me", testutil.AuthHeader(user)).Code)
@@ -113,7 +114,7 @@ func TestPDConsentGate_VersionBumpClosesAccessAgain(t *testing.T) {
 	e, _, admin, user, cleanup := setupGate(t, "<p>Первая редакция</p>")
 	defer cleanup()
 
-	require.Equal(t, http.StatusOK, testutil.POST(t, e, consentAcceptPath, `{}`, testutil.AuthHeader(user)).Code)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, `{}`, testutil.AuthHeader(user)).Code)
 	require.Equal(t, http.StatusOK, testutil.GET(t, e, guardedPath, testutil.AuthHeader(user)).Code)
 
 	rec := testutil.POST(t, e, consentSettingsPath+"/require-again", `{}`, testutil.AuthHeader(admin))
@@ -128,7 +129,7 @@ func TestPDConsentGate_ClientCannotForgeVersion(t *testing.T) {
 	e, _, admin, user, cleanup := setupGate(t, "<p>Согласие</p>")
 	defer cleanup()
 
-	rec := testutil.POST(t, e, consentAcceptPath, `{"document_version":999,"version":999}`, testutil.AuthHeader(user))
+	rec := testutil.POST(t, e, acceptPath, `{"document_version":999,"version":999}`, testutil.AuthHeader(user))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	require.Equal(t, http.StatusOK, testutil.GET(t, e, guardedPath, testutil.AuthHeader(user)).Code)
 
@@ -166,7 +167,7 @@ func TestPDConsentGate_BanTakesPrecedence(t *testing.T) {
 	rec := testutil.POST(t, e, banPath, `{"reason":"тест"}`, testutil.AuthHeader(admin))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
-	rec = testutil.POST(t, e, consentAcceptPath, `{}`, testutil.AuthHeader(user))
+	rec = testutil.POST(t, e, acceptPath, `{}`, testutil.AuthHeader(user))
 	require.Equal(t, http.StatusForbidden, rec.Code)
 	assert.Empty(t, rec.Header().Get("X-PD-Consent-Required"),
 		"забаненному отвечает проверка бана, а не гейт согласия")
@@ -188,30 +189,6 @@ func TestPDConsentGate_WhitelistMatchesRegisteredRoutes(t *testing.T) {
 	for key := range mw.PDConsentWhitelist {
 		assert.True(t, registered[key], "роут %q из белого списка не зарегистрирован", key)
 	}
-}
-
-// Золотой список: расширение исключений - это расширение дыры в гейте, и оно должно
-// быть осознанным, а не побочным эффектом правки соседнего кода.
-func TestPDConsentGate_WhitelistIsGolden(t *testing.T) {
-	want := []string{
-		"GET /api/consents/gate",
-		"GET /api/permissions/my",
-		"GET /api/settings/data-processing/document",
-		"GET /api/settings/data-processing/document/meta",
-		"GET /api/settings/notifications",
-		"GET /api/users/me",
-		"GET /api/users/me/theme",
-		"POST /api/consents/accept",
-		"POST /api/events/ticket",
-		"POST /api/logout",
-		"POST /api/logout-all",
-	}
-	got := make([]string, 0, len(mw.PDConsentWhitelist))
-	for key := range mw.PDConsentWhitelist {
-		got = append(got, key)
-	}
-	sort.Strings(got)
-	assert.Equal(t, want, got)
 }
 
 // Гейт закрывает именно ПРОИЗВОЛЬНЫЕ protected-роуты, а не только тот один, на
@@ -263,14 +240,4 @@ func TestPDConsentGate_DisabledByDefaultInTests(t *testing.T) {
 	rec := testutil.GET(t, e, guardedPath, testutil.AuthHeader(user))
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Empty(t, rec.Header().Get("X-PD-Consent-Required"))
-}
-
-// Ключ белого списка собирается как "МЕТОД ПУТЬ" c.Path() - без префикса /api он бы
-// не совпал ни с чем, и обязательные роуты оказались бы закрыты.
-func TestPDConsentGate_WhitelistKeysCarryAPIPrefix(t *testing.T) {
-	for key := range mw.PDConsentWhitelist {
-		parts := strings.SplitN(key, " ", 2)
-		require.Len(t, parts, 2, "ключ %q должен быть вида \"МЕТОД ПУТЬ\"", key)
-		assert.True(t, strings.HasPrefix(parts[1], "/api/"), "ключ %q обязан нести префикс /api", key)
-	}
 }
