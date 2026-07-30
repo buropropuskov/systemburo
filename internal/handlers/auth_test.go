@@ -816,7 +816,7 @@ func TestLogin_LockedAccountRejectsEvenCorrectPassword(t *testing.T) {
 	// Даже правильный пароль возвращает 429 пока lock не истечёт.
 	rec := testutil.POST(t, e, "/login", `{"username":"locked","password":"correctpass"}`, nil)
 	assert.Equal(t, http.StatusTooManyRequests, rec.Code)
-	assert.Contains(t, rec.Body.String(), "заблокирована")
+	assert.Contains(t, rec.Body.String(), "Вход заблокирован")
 	// Retry-After даёт фронту остаток для таймера обратного отсчёта.
 	assert.NotEmpty(t, rec.Header().Get("Retry-After"), "блокировка учётки должна отдавать Retry-After")
 }
@@ -842,6 +842,60 @@ func TestLogin_ExpiredLockAllowsLogin(t *testing.T) {
 	require.NoError(t, db.Where("username = ?", "unlocked").First(&user).Error)
 	assert.Equal(t, 0, user.FailedLoginCount)
 	assert.Nil(t, user.LockedUntil)
+}
+
+// TestLogin_BlockedIPStillShowsLongerAccountTimer - когда заперты и адрес, и
+// учётка, отдаётся больший срок. Меньший обещал бы вход раньше, чем он откроется:
+// человек досидел бы минуту адреса и упёрся в ту же плашку.
+func TestLogin_BlockedIPStillShowsLongerAccountTimer(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	testutil.RegisterUser(t, e, "bothlocked", "correctpass", 1, td.OrgID, td.CompanyID)
+
+	from := http.Header{}
+	from.Set("X-Forwarded-For", "192.0.2.55")
+	// Пять неудач запирают адрес на минуту и учётку на первую ступень.
+	for i := 1; i <= 5; i++ {
+		testutil.POST(t, e, "/login", `{"username":"bothlocked","password":"wrong"}`, from)
+	}
+	// Учётку удлиняем до получаса - как если бы это был не первый её круг.
+	require.NoError(t, db.Model(&models.User{}).Where("username = ?", "bothlocked").
+		Update("locked_until", time.Now().Add(30*time.Minute)).Error)
+
+	rec := testutil.POST(t, e, "/login", `{"username":"bothlocked","password":"correctpass"}`, from)
+	require.Equal(t, http.StatusTooManyRequests, rec.Code)
+	retryAfter, err := strconv.Atoi(rec.Header().Get("Retry-After"))
+	require.NoError(t, err)
+	assert.Greater(t, retryAfter, 60, "срок учётки, а не минута адреса")
+}
+
+// TestLogin_LockoutMessageSameForUnknownUser - текст блокировки не отличает
+// существующий логин от выдуманного, иначе по нему можно перебирать имена.
+func TestLogin_LockoutMessageSameForUnknownUser(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	testutil.RegisterUser(t, e, "real", "correctpass", 1, td.OrgID, td.CompanyID)
+
+	lockedBody := func(username, ip string) string {
+		h := http.Header{}
+		h.Set("X-Forwarded-For", ip)
+		var rec *httptest.ResponseRecorder
+		for i := 1; i <= 5; i++ {
+			rec = testutil.POST(t, e, "/login",
+				fmt.Sprintf(`{"username":%q,"password":"wrong"}`, username), h)
+		}
+		require.Equal(t, http.StatusTooManyRequests, rec.Code, "логин %s", username)
+		return rec.Body.String()
+	}
+
+	assert.Equal(t, lockedBody("real", "192.0.2.71"), lockedBody("ghost", "192.0.2.72"),
+		"ответ на исчерпание попыток одинаков для существующего и выдуманного логина")
 }
 
 // --- Сброс блокировки входа из админки (#1600) ---

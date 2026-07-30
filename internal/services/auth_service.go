@@ -217,6 +217,28 @@ func lockoutDuration(level int) time.Duration {
 	return lockoutLadder[level]
 }
 
+// lockoutError - единый ответ на любую блокировку входа. Текст ОДИН для адреса и
+// для учётной записи: разные формулировки сообщали бы перебирающему, существует
+// ли логин, - блокировка учётки бывает только у существующего.
+func (s *authService) lockoutError(seconds int) error {
+	return apperr.TooManyRequests(
+		fmt.Sprintf("Слишком много попыток. Вход заблокирован на %d секунд.", seconds)).
+		WithHeader("Retry-After", strconv.Itoa(seconds))
+}
+
+// accountLockSeconds - остаток блокировки учётной записи в секундах (0, если
+// логина нет или он не заперт). Отдельный лёгкий запрос по индексу: полную
+// запись на этом пути читать незачем, а пароль здесь не проверяется вовсе.
+func (s *authService) accountLockSeconds(ctx context.Context, username string) int {
+	var lockedUntil *time.Time
+	s.db.WithContext(ctx).Table("users").Select("locked_until").
+		Where("username = ?", username).Scan(&lockedUntil)
+	if lockedUntil == nil || !lockedUntil.After(time.Now().UTC()) {
+		return 0
+	}
+	return secondsUntil(*lockedUntil)
+}
+
 // loginFailureResponse формирует ответ на неудачную попытку входа: 401 с остатком
 // попыток ("Осталось попыток: N") либо, если попытка исчерпала лимит, сразу 429 с
 // таймером блокировки (без промежуточного "осталось 0").
@@ -233,9 +255,7 @@ func (s *authService) loginFailureResponse(ip, username string, accountLockedUnt
 		}
 	}
 	if blockedSec > 0 {
-		return apperr.TooManyRequests(
-			fmt.Sprintf("Слишком много попыток. Вход заблокирован на %d секунд.", blockedSec)).
-			WithHeader("Retry-After", strconv.Itoa(blockedSec))
+		return s.lockoutError(blockedSec)
 	}
 	return apperr.Unauthorized("Неверный логин или пароль").
 		WithHeader("X-Auth-Attempts-Remaining", strconv.Itoa(remaining))
@@ -248,14 +268,18 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *
 		ip = meta.IPAddress
 	}
 
-	// IP заблокирован за перебор - сразу таймер, ещё до обращения к БД. Единый
+	// IP заблокирован за перебор - сразу таймер, без проверки пароля. Единый
 	// per-IP счётчик работает одинаково для существующих и несуществующих логинов.
+	// Учётка при этом может быть заперта дольше адреса (у неё лестница, у адреса
+	// плоская минута), поэтому берём больший срок: меньший обещал бы вход раньше,
+	// чем он откроется, и человек вернулся бы к той же плашке.
 	if sec, blocked := s.loginGuard.blockedSeconds(ip); blocked {
+		if accSec := s.accountLockSeconds(ctx, req.Username); accSec > sec {
+			sec = accSec
+		}
 		s.recordAuthEvent(ctx, nil, req.Username, models.AuthEventLoginLocked, false, meta,
 			fmt.Sprintf("ip locked for %ds", sec))
-		return nil, apperr.TooManyRequests(
-			fmt.Sprintf("Слишком много попыток входа. Повторите через %d секунд.", sec)).
-			WithHeader("Retry-After", strconv.Itoa(sec))
+		return nil, s.lockoutError(sec)
 	}
 
 	var user models.User
@@ -276,16 +300,10 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest, meta *
 	// пока не истечёт lock-период. Это важно: иначе валидная попытка сбросила бы
 	// счётчик и атакующий мог бы "разморозить" учётку угадав пароль в моменте.
 	if user.LockedUntil != nil && user.LockedUntil.After(time.Now().UTC()) {
-		remaining := int(time.Until(*user.LockedUntil).Seconds())
-		if remaining < 1 {
-			remaining = 1
-		}
+		remaining := secondsUntil(*user.LockedUntil)
 		s.recordAuthEvent(ctx, &user.ID, user.Username, models.AuthEventLoginLocked, false, meta,
 			fmt.Sprintf("locked for %ds", remaining))
-		// Retry-After даёт фронту точный остаток для таймера обратного отсчёта.
-		return nil, apperr.TooManyRequests(
-			fmt.Sprintf("Учётная запись временно заблокирована. Повторите через %d секунд.", remaining)).
-			WithHeader("Retry-After", strconv.Itoa(remaining))
+		return nil, s.lockoutError(remaining)
 	}
 
 	// Блокировка ИСТЕКЛА (LockedUntil в прошлом) -> сбрасываем счётчик, даём свежий

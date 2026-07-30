@@ -2958,6 +2958,19 @@ export default {
 
 /* Радиус окон редактирования/создания задаётся пропом radius у BaseModal
    (content-class телепортится в body, scoped :deep до него не достаёт). */
+
+/* На телефоне ряд кнопок шапки не помещается рядом с заголовком и уезжал за
+   правый край окна целиком. Отдаём кнопкам всю ширину под заголовком и разрешаем
+   перенос - тогда он считается от края окна, а не от остатка строки. На широком
+   экране переноса нет намеренно: там ряд помещается, и wrap ломал бы его надвое. */
+@media (max-width: 767.98px) {
+  .modal-header-actions {
+    margin-left: 0;
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+}
 </style>
 
 <!-- Глобальный (не scoped): контент BaseModal телепортится в body, scoped-хэш до
@@ -2966,5 +2979,22 @@ export default {
 .base-modal.user-edit-modal .base-modal__header {
   padding-left: 30px;
   padding-right: 30px;
+}
+
+/* Шапка окна редактирования на телефоне: заголовок и крестик строкой, кнопки
+   под ними. Крестик в разметке идёт последним, поэтому переносим порядком -
+   иначе полоса кнопок во всю ширину сталкивает его на третью строку. */
+@media (max-width: 767.98px) {
+  .base-modal.user-edit-modal .base-modal__header {
+    flex-wrap: wrap;
+  }
+
+  .base-modal.user-edit-modal .base-modal__close {
+    order: 1;
+  }
+
+  .base-modal.user-edit-modal .modal-header-actions {
+    order: 2;
+  }
 }
 </style>
