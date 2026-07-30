@@ -169,6 +169,7 @@ module.exports = {
   SUPER_ADMIN,
   E2E_PREFIX,
   loginAsSuperAdmin,
+  apiGet,
   unwrap,
   listRoles,
   createRole,

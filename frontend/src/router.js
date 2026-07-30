@@ -4,6 +4,7 @@ import { isErrorPageReachable, closeIncidentOnLeave } from '@/utils/errorPageAcc
 import { shouldRedirectToMaintenance } from '@/utils/maintenanceAccess';
 import { useAuthStore } from '@/stores/auth';
 import { useMaintenanceStore } from '@/stores/maintenance';
+import { usePDConsentStore } from '@/stores/pdConsent';
 import LoginComponent from './components/LoginComponent.vue';
 import TablesComponent from './components/TablesComponent.vue';
 import AccountComponent from './components/AccountComponent.vue';
@@ -337,6 +338,19 @@ router.beforeEach(async (to, from, next) => {
   if (to.meta.requiresAuth && !isAuthenticated) {
     next('/');
     return;
+  }
+
+  // Состояние гейта согласия (#1567) должно быть известно ДО того, как
+  // смонтируется страница. Иначе между входом и ответом гейта страница успевает
+  // отрисоваться и запросить свои данные, все запросы получают отказ, а окно
+  // согласия встаёт поверх уже нарисованного интерфейса - на живом стенде это
+  // мигание страницы и волна отказов на каждом входе.
+  //
+  // Ждать безопасно: refresh() дедуплицируется, после первого ответа становится
+  // no-op, а сетевую ошибку глушит сам - навигация не залипнет и при недоступном
+  // сервере.
+  if (to.meta.requiresAuth) {
+    await usePDConsentStore().refresh();
   }
   // Гейт "Доступные мне": супер-админ проходит сразу; иначе резолвим код типа
   // пользователя (один раз, лениво) и пускаем только охранника. userTypeCode
