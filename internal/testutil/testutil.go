@@ -150,6 +150,9 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 		PaginationMaxLimit:      100,
 	})
 	userService.SetPasswordPolicyProvider(settingsService)
+	// Гейт согласия на обработку ПД (#1567). TTL нулевой: в тестах кэш только мешал
+	// бы - настройки меняются прямо в ходе теста и должны читаться сразу.
+	pdConsentGateService := services.NewPDConsentGateService(consentService, settingsService, 0)
 
 	// Create maintenance service early so authHandler can get it.
 	maintenanceService := services.NewMaintenanceService(db)
@@ -204,8 +207,8 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	roleHandler := handlers.NewRoleHandler(roleService)
 	accessDenialHandler := handlers.NewAccessDenialHandler(accessDenialService)
 	userBanHandler := handlers.NewUserBanHandler(userBanService)
-	consentHandler := handlers.NewConsentHandler(consentService, db)
-	settingsHandler := handlers.NewSettingsHandler(settingsService, documentFileService, 10*1024*1024)
+	consentHandler := handlers.NewConsentHandler(consentService, pdConsentGateService, settingsService, db)
+	settingsHandler := handlers.NewSettingsHandler(settingsService, documentFileService, 10*1024*1024, pdConsentGateService)
 	telegramService := services.NewTelegramService("", "")
 	bugReportService := services.NewBugReportService(db, telegramService)
 	bugReportHandler := handlers.NewBugReportHandler(bugReportService)

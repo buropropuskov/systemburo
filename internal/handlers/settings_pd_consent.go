@@ -27,6 +27,7 @@ func (h *SettingsHandler) UpdatePDConsentText(c echo.Context) error {
 	if err := h.service.SetPDConsentText(ctx, req.Text); err != nil {
 		return err
 	}
+	h.invalidateConsentGate()
 	settings, err := h.service.GetPDConsentSettings(ctx)
 	if err != nil {
 		return err
@@ -45,6 +46,7 @@ func (h *SettingsHandler) UpdatePDConsentRequired(c echo.Context) error {
 	if err := h.service.SetPDConsentRequired(ctx, *req.Required); err != nil {
 		return err
 	}
+	h.invalidateConsentGate()
 	settings, err := h.service.GetPDConsentSettings(ctx)
 	if err != nil {
 		return err
@@ -59,9 +61,16 @@ func (h *SettingsHandler) BumpPDConsentVersion(c echo.Context) error {
 	if _, err := h.service.BumpPDConsentVersion(ctx); err != nil {
 		return err
 	}
+	h.invalidateConsentGate()
 	settings, err := h.service.GetPDConsentSettings(ctx)
 	if err != nil {
 		return err
 	}
 	return RespondSuccess(c, settings)
+}
+
+// invalidateConsentGate сбрасывает кэш гейта согласия: без этого правка текста,
+// тумблера или редакции доезжала бы до пользователей лишь по истечении TTL.
+func (h *SettingsHandler) invalidateConsentGate() {
+	h.consentGate.InvalidateAll()
 }
