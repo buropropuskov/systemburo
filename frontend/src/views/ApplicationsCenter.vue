@@ -2685,10 +2685,6 @@ export default {
     box-shadow: var(--shadow-focus);
 }
 
-.field--select {
-    cursor: pointer;
-}
-
 .date-field {
     cursor: pointer;
 }
@@ -2705,31 +2701,13 @@ export default {
     width: 150px;
 }
 
-.field--select .field__input,
 .date-field .field__input {
     cursor: pointer;
-}
-
-.select-text {
-    font-size: 14px;
-    color: var(--text);
-    flex: 1;
 }
 
 .center__icon {
     width: 15px;
     height: 15px;
-}
-
-.select-icon {
-    width: 10px;
-    height: 10px;
-    transition: transform 0.5s ease;
-    transform: rotate(90deg);
-}
-
-.select-icon--rotated {
-    transform: rotate(-90deg);
 }
 
 .applications-table {

@@ -17,7 +17,6 @@ vi.mock('@/utils/notificationSound', () => ({ playPreset: vi.fn(), SOUND_PRESETS
 
 const stubs = {
   teleport: true,
-  OrganizationFilter: true,
   RefreshButton: true,
   ApplicationDetail: true,
   DateFilter: true,
