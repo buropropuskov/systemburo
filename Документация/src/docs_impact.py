@@ -112,6 +112,25 @@ def impact(files):
     return hits
 
 
+# Пути, документируемого поведения заведомо не несущие: оформление и вёрстка.
+# Всё остальное, чего карта не знает, показывается как пробел - карта конечна,
+# и её незнание однажды уже прошло за «изменений нет».
+COSMETIC = (
+    r"\.(css|scss|svg|png|jpg|ico|woff2?)$",
+    r"^frontend/src/assets/",
+    r"^\.gitignore$|^\.dockerignore$|^README",
+)
+
+
+def uncovered(files):
+    """Файлы вне карты, которые могут нести документируемое поведение."""
+    known = set()
+    for pattern, _doc, _where in MAP:
+        known |= {f for f in files if re.search(pattern, f)}
+    rest = [f for f in files if f not in known]
+    return [f for f in rest if not any(re.search(p, f) for p in COSMETIC)]
+
+
 MARK = os.path.join(SRC_DIR, ".synced-dev")
 
 
@@ -169,10 +188,22 @@ def main():
         return 0
 
     hits = impact(files)
-    if not hits:
+    blind = uncovered(files)
+
+    if not hits and not blind:
         if not quiet:
             print("%s: файлов %d, документируемого поведения не затронуто."
                   % (title, len(files)))
+        return 0
+
+    if not hits and blind:
+        print("%s: файлов %d. Карта разделов их не знает, проверить глазами "
+              "(%d):" % (title, len(files), len(blind)))
+        for name in blind[:8]:
+            print("  " + name)
+        if len(blind) > 8:
+            print("  и ещё %d" % (len(blind) - 8))
+        print("Описанное поведение задето - дополнить карту в docs_impact.py.")
         return 0
 
     sense = [h for h in hits if h[1] != TESTS_WHERE]
@@ -199,6 +230,11 @@ def main():
         print("Закрывается без чтения кода: doc_facts.py --fix и пересборка.")
     elif sense:
         print("Сверка чисел: python3 Документация/src/doc_facts.py")
+
+    if blind:
+        print("Вне карты, посмотреть глазами (%d): %s%s"
+              % (len(blind), ", ".join(blind[:4]),
+                 " и ещё %d" % (len(blind) - 4) if len(blind) > 4 else ""))
     return 0
 
 
