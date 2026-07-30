@@ -31,19 +31,40 @@ vi.mock('@/api/pdConsent', () => ({
   getPDConsentCollection: (...a) => getPDConsentCollection(...a),
 }));
 
+// Выгрузка тянет exceljs динамическим импортом; настоящая сборка файла в jsdom
+// падает уже ПОСЛЕ теста (нет nodebuffer) и валит прогон необработанным отказом.
+// Проверяем здесь не формирование xlsx, а что в файл идёт полный список.
+const writeBuffer = vi.fn().mockResolvedValue(new ArrayBuffer(8));
+vi.mock('exceljs', () => ({
+  default: {
+    Workbook: class {
+      constructor() {
+        this.xlsx = { writeBuffer };
+        this.columns = [];
+      }
+
+      addWorksheet() {
+        return {
+          addRow: () => ({ height: 0, eachCell: () => {} }),
+          columns: [],
+        };
+      }
+    },
+  },
+}));
+
 vi.mock('@/utils/documentTextExtract', () => ({
   extractDocumentHtml: vi.fn(),
   UnsupportedDocumentError: class extends Error {},
 }));
 
-import AdminSettings from '../AdminSettings.vue';
+import DataProcessingSettings from '../DataProcessingSettings.vue';
 import { useUiStore } from '@/stores/ui';
 import RefreshButton from '@/components/RefreshButton.vue';
 
-const renderSlot = { template: '<div><slot /></div>' };
-
 const collection = (over = {}) => ({
   active: true,
+  truncated: false,
   version: 2,
   total: 10,
   accepted: 7,
@@ -57,19 +78,21 @@ const collection = (over = {}) => ({
 });
 
 async function openSection() {
-  getSettings.mockResolvedValue([]);
-  const wrapper = shallowMount(AdminSettings, {
-    global: { stubs: { SkeletonTransition: renderSlot } },
+  // Раздел стал отдельной страницей (#1567): компонент грузит данные сам на
+  // монтировании, выбирать секцию больше не надо.
+  const wrapper = shallowMount(DataProcessingSettings, {
+    global: { stubs: { TextConstructor: true, RefreshButton: true } },
   });
-  await flushPromises();
-  wrapper.vm.activeSection = 'data-processing';
   await flushPromises();
   return wrapper;
 }
 
-describe('AdminSettings - сбор согласий', () => {
+describe('Обработка данных - сбор согласий', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
+    writeBuffer.mockClear();
+    global.URL.createObjectURL = vi.fn(() => 'blob:mock');
+    global.URL.revokeObjectURL = vi.fn();
     [getSettings, getPDConsentSettings, getPDConsentCollection, requirePDConsentAgain]
       .forEach((m) => m.mockReset());
     getPDConsentSettings.mockResolvedValue({ text: '<p>Текст</p>', version: 2, required: true });
@@ -148,6 +171,34 @@ describe('AdminSettings - сбор согласий', () => {
     await flushPromises();
 
     expect(getPDConsentCollection).toHaveBeenCalledTimes(1);
+  });
+
+  // Урезанный список обязан говорить, что он урезан: молча показать часть значит
+  // соврать, что остальных нет.
+  it('урезанный список сообщает об этом, а выгрузка тянет полный', async () => {
+    getPDConsentCollection.mockResolvedValue(collection({
+      truncated: true, total: 400, accepted: 100, pending: 300,
+    }));
+    const wrapper = await openSection();
+
+    expect(wrapper.get('[data-testid="pdc-collection-truncated"]').text()).toContain('Показаны первые');
+
+    getPDConsentCollection.mockClear();
+    getPDConsentCollection.mockResolvedValue(collection({ truncated: false, pending: 300 }));
+    await wrapper.get('[data-testid="pdc-collection-export"]').trigger('click');
+    await flushPromises();
+
+    expect(getPDConsentCollection).toHaveBeenCalledWith({ full: true });
+  });
+
+  it('неурезанный список выгружается без повторного запроса', async () => {
+    const wrapper = await openSection();
+    getPDConsentCollection.mockClear();
+
+    await wrapper.get('[data-testid="pdc-collection-export"]').trigger('click');
+    await flushPromises();
+
+    expect(getPDConsentCollection).not.toHaveBeenCalled();
   });
 
   // Пустая система (никого, кого закрывает гейт) - деление на ноль, а не «0%».

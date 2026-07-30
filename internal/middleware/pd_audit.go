@@ -17,7 +17,13 @@ import (
 // Пути, на которых пользователь видит персональные данные (152-ФЗ). Префикс /api
 // обязателен: роутер вешает всё на api := e.Group("/api"), а nginx проксирует без
 // среза префикса - без него сверка не совпадала ни разу и журнал стоял пустым (#1472).
-var pdPaths = []string{"/api/employees", "/api/unique-employees", "/api/attachments"}
+var pdPaths = []string{
+	"/api/employees", "/api/unique-employees", "/api/attachments",
+	// Сводка сбора согласий (#1567) отдаёт поимённый список работников с
+	// организациями. Это просмотр персональных данных, пусть и в агрегированном
+	// виде, - обращение к нему должно попадать в журнал наравне с прочими.
+	"/api/settings/pd-consent/collection",
+}
 
 // auditWriteTimeout - максимальное время на запись лога в БД. Если БД легла или
 // горутина зависла, не блокируем graceful shutdown навсегда.
@@ -140,6 +146,8 @@ func pathToResource(path string) string {
 		return "employee"
 	case strings.HasPrefix(path, "/api/attachments"):
 		return "attachment"
+	case strings.HasPrefix(path, "/api/settings/pd-consent/collection"):
+		return "pd_consent_collection"
 	}
 	return "unknown"
 }

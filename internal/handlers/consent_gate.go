@@ -23,7 +23,7 @@ func (h *ConsentHandler) GetGate(c echo.Context) error {
 		return err
 	}
 
-	state := models.PDConsentGateState{Version: req.Version, Text: req.Text}
+	state := models.PDConsentGateState{Version: req.Version, VersionAt: req.VersionAt, Text: req.Text}
 	// Документ - скачиваемая копия рядом с текстом, и провалить из-за неё весь ответ
 	// нельзя: без ответа пользователь не увидит окна и не сможет согласиться вовсе.
 	// Поэтому ошибку логируем, но состояние отдаём.
@@ -62,7 +62,7 @@ func (h *ConsentHandler) Accept(c echo.Context) error {
 	// ошибкой на такой клик неправильно: подтверждать уже нечего, окно просто
 	// закрывается. Записи при этом не делаем - она была бы про пустое требование.
 	if !req.Enabled {
-		return RespondSuccess(c, models.PDConsentGateState{Version: req.Version, Text: req.Text})
+		return RespondSuccess(c, models.PDConsentGateState{Version: req.Version, VersionAt: req.VersionAt, Text: req.Text})
 	}
 	userID, err := h.resolveUserID(c)
 	if err != nil {
@@ -81,8 +81,9 @@ func (h *ConsentHandler) Accept(c echo.Context) error {
 		return err
 	}
 	return RespondSuccess(c, models.PDConsentGateState{
-		Required: needs,
-		Version:  req.Version,
-		Text:     req.Text,
+		Required:  needs,
+		Version:   req.Version,
+		VersionAt: req.VersionAt,
+		Text:      req.Text,
 	})
 }

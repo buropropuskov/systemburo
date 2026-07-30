@@ -36,10 +36,13 @@ type GrantConsentRequest struct {
 // учитывает исключения (супер-админ) и то, задан ли текст, поэтому фронту не нужно
 // повторять эти правила у себя.
 type PDConsentGateState struct {
-	Required bool                    `json:"required"`
-	Version  int                     `json:"version"`
-	Text     string                  `json:"text"`
-	Document *DataProcessingDocument `json:"document"`
+	Required bool `json:"required"`
+	Version  int  `json:"version"`
+	// VersionAt -- с какого числа действует показываемая редакция. Номер редакции
+	// человеку ничего не говорит, дата говорит.
+	VersionAt string                  `json:"version_at"`
+	Text      string                  `json:"text"`
+	Document  *DataProcessingDocument `json:"document"`
 }
 
 // PDConsentCollection -- как идёт сбор согласий по текущей редакции (#1567).
@@ -60,8 +63,12 @@ type PDConsentCollection struct {
 	Accepted int `json:"accepted"`
 	Pending  int `json:"pending"`
 	// PendingUsers -- кто ещё не подтвердил. Это рабочий список для администратора:
-	// кому напомнить и кого искать.
+	// кому напомнить и кого искать. По умолчанию урезан: после подъёма редакции сюда
+	// попадают ВСЕ работники разом, и на крупной установке это тысячи строк в разметке.
 	PendingUsers []PDConsentPendingUser `json:"pending_users"`
+	// Truncated -- список показан не целиком. Полный отдаётся по запросу и уходит в
+	// выгрузку: молча показать часть значит соврать, что остальных нет.
+	Truncated bool `json:"truncated"`
 }
 
 // PDConsentPendingUser -- строка списка не подтвердивших.

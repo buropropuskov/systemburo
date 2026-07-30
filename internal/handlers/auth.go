@@ -176,6 +176,31 @@ func (h *AuthHandler) LogoutAll(c echo.Context) error {
 	return RespondSuccess(c, map[string]int{"revoked": revoked})
 }
 
+// ResetLockout godoc
+// @Summary      Снять блокировку входа
+// @Description  Обнуляет счётчик неудачных попыток, лестницу кулдаунов и сам лок учётной записи
+// @Tags         users
+// @Produce      json
+// @Security     BearerAuth
+// @Param        username path string true "Логин пользователя"
+// @Success      200 {object} map[string]bool "reset=false, если блокировки не было"
+// @Failure      404 {object} models.HTTPError
+// @Router       /users/{username}/reset-lockout [post]
+//
+// ResetLockout -- POST /users/:username/reset-lockout. Права проверяет
+// middleware (page.admin.users) -- тот же гейт, что у смены пароля.
+func (h *AuthHandler) ResetLockout(c echo.Context) error {
+	username := c.Param("username")
+	if username == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "Не указан пользователь")
+	}
+	reset, err := h.service.ResetLoginLockout(c.Request().Context(), username, GetUserID(c))
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, map[string]bool{"reset": reset})
+}
+
 // requestMeta - helper для сбора IP/UA из echo.Context в services.RequestMeta.
 func requestMeta(c echo.Context) *services.RequestMeta {
 	return &services.RequestMeta{

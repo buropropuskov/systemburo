@@ -39,7 +39,7 @@ vi.mock('@/utils/documentTextExtract', () => ({
   UnsupportedDocumentError: class extends Error {},
 }));
 
-import AdminSettings from '../AdminSettings.vue';
+import DataProcessingSettings from '../DataProcessingSettings.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
 
@@ -50,20 +50,17 @@ const state = (over = {}) => ({ text: '', version: 1, required: false, ...over }
 // Разметка секции лежит в слоте SkeletonTransition, а shallowMount слоты
 // застабленных компонентов не рисует - подменяем его на прозрачную обёртку,
 // чтобы проверять реальный DOM секции. Остальные дети остаются заглушками.
-const renderSlot = { template: '<div><slot /></div>' };
-
 async function openSection() {
-  getSettings.mockResolvedValue([]);
-  const wrapper = shallowMount(AdminSettings, {
-    global: { stubs: { SkeletonTransition: renderSlot } },
+  // Раздел стал отдельной страницей (#1567): компонент грузит данные сам на
+  // монтировании, выбирать секцию больше не надо.
+  const wrapper = shallowMount(DataProcessingSettings, {
+    global: { stubs: { TextConstructor: true, RefreshButton: true } },
   });
-  await flushPromises();
-  wrapper.vm.activeSection = 'data-processing';
   await flushPromises();
   return wrapper;
 }
 
-describe('AdminSettings - текст согласия при первом входе', () => {
+describe('Обработка данных - текст согласия при первом входе', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     [getSettings, getDataProcessingMeta, fetchDataProcessingBlob, getPDConsentSettings,
@@ -76,15 +73,11 @@ describe('AdminSettings - текст согласия при первом вхо
     getPDConsentSettings.mockResolvedValue(state());
   });
 
-  it('грузит настройки согласия при первом открытии секции', async () => {
+  // Раздел стал отдельной страницей: настройки грузятся на открытии.
+  it('грузит настройки согласия при открытии страницы', async () => {
     getPDConsentSettings.mockResolvedValue(state({ text: '<p>Текст</p>', version: 3, required: true }));
 
-    const wrapper = shallowMount(AdminSettings);
-    await flushPromises();
-    expect(getPDConsentSettings).not.toHaveBeenCalled();
-
-    wrapper.vm.activeSection = 'data-processing';
-    await flushPromises();
+    const wrapper = await openSection();
 
     expect(getPDConsentSettings).toHaveBeenCalledTimes(1);
     expect(wrapper.vm.pdcText).toBe('<p>Текст</p>');

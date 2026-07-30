@@ -95,6 +95,17 @@ describe('LoginComponent — 429 таймер', () => {
     wrapper.unmount()
   })
 
+  // Верхняя ступень лестницы - час (#1600). "60:00" читалось бы как минуты,
+  // поэтому час выводится отдельным разрядом.
+  it('часовой кулдаун показывается часами, а не 60 минутами', async () => {
+    apiRequest.mockResolvedValue(resp(429, { 'Retry-After': '3600' }))
+    const wrapper = mountLogin()
+    await submit(wrapper)
+
+    expect(wrapper.vm.displayError).toBe('Слишком много попыток. Повторите через 1:00:00')
+    wrapper.unmount()
+  })
+
   it('таймер убывает и по нулю разблокирует', async () => {
     apiRequest.mockResolvedValue(resp(429, { 'Retry-After': '2' }))
     const wrapper = mountLogin()

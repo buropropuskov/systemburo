@@ -39,6 +39,9 @@ type PDConsentRequirement struct {
 	// ошибка настройки, о которой гейт обязан сказать в журнал.
 	Requested bool
 	Version   int
+	// VersionAt -- когда появилась действующая редакция (RFC3339, пусто у настроек
+	// до появления поля).
+	VersionAt string
 	Text      string
 	Hash      string
 }
@@ -74,6 +77,7 @@ func (s *PDConsentGateService) Requirement(ctx context.Context) (PDConsentRequir
 		Enabled:   settings.Required && hasVisibleText(settings.Text),
 		Requested: settings.Required,
 		Version:   settings.Version,
+		VersionAt: settings.VersionAt,
 		Text:      settings.Text,
 		Hash:      hex.EncodeToString(sum[:]),
 	}

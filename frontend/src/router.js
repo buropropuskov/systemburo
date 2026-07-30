@@ -134,6 +134,12 @@ const routes = [
     meta: { requiresAuth: true, permission: 'page.admin.monitoring' }
   },
   {
+    path: '/admin/data-processing',
+    name: 'AdminDataProcessing',
+    component: () => import('./views/admin/DataProcessingView.vue'),
+    meta: { requiresAuth: true, permission: 'page.admin' }
+  },
+  {
     path: '/admin/settings',
     name: 'AdminSettings',
     component: () => import('./views/AdminSettings.vue'),

@@ -1,10 +1,12 @@
 package handlers_test
 
 import (
+	"fmt"
 	"net/http"
 	"testing"
 
 	"systemburo/internal/models"
+	"systemburo/internal/services"
 	"systemburo/internal/testutil"
 
 	"github.com/labstack/echo/v4"
@@ -20,9 +22,41 @@ const collectionPath = pdConsentPath + "/collection"
 
 func collection(t *testing.T, e *echo.Echo, token string) *models.PDConsentCollection {
 	t.Helper()
-	rec := testutil.GET(t, e, collectionPath, testutil.AuthHeader(token))
+	return collectionAt(t, e, token, collectionPath)
+}
+
+func collectionAt(t *testing.T, e *echo.Echo, token, path string) *models.PDConsentCollection {
+	t.Helper()
+	rec := testutil.GET(t, e, path, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	return testutil.ParseResponse[*models.PDConsentCollection](t, rec)
+}
+
+// Список не подтвердивших урезается: сразу после подъёма редакции в него попадают
+// все работники, и на крупной установке полный список - тысячи строк в разметке.
+// Урезание обязано быть видимым, а полный список - доступным выгрузке.
+func TestPDConsentCollection_PendingListTruncatedAndFull(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	enableConsent(t, e, admin, "<p>Согласие</p>")
+
+	const extra = 3
+	for i := 0; i < services.PendingListLimit+extra; i++ {
+		testutil.RegisterAndLogin(t, e,
+			fmt.Sprintf("coll_many_%02d", i), "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
+	}
+
+	got := collection(t, e, admin)
+	assert.Equal(t, services.PendingListLimit+extra, got.Pending, "счётчик считает всех, а не показанных")
+	assert.Len(t, got.PendingUsers, services.PendingListLimit)
+	assert.True(t, got.Truncated, "урезание обязано быть видимым")
+
+	full := collectionAt(t, e, admin, collectionPath+"?full=1")
+	assert.Len(t, full.PendingUsers, services.PendingListLimit+extra)
+	assert.False(t, full.Truncated)
 }
 
 func TestPDConsentCollection_CountsOnlyGatedUsers(t *testing.T) {
@@ -167,6 +201,27 @@ func TestPDConsentCollection_InactiveWhenTextEmpty(t *testing.T) {
 	require.Equal(t, http.StatusOK, savePDConsentText(t, e, admin, "").Code)
 
 	assert.False(t, collection(t, e, admin).Active)
+}
+
+// Сводка отдаёт поимённый список работников с организациями, то есть это просмотр
+// персональных данных - обращение к ней обязано попадать в журнал 152-ФЗ наравне с
+// прочими. Без записи в журнале обещание, данное заказчику в документации, не
+// выполняется, а сама правка списка путей никак иначе не проверяется.
+func TestPDConsentCollection_WritesPDAuditRow(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	enableConsent(t, e, admin, "<p>Согласие</p>")
+
+	require.NotNil(t, collection(t, e, admin))
+
+	row := waitPDAuditRow(t, db, "/api"+collectionPath)
+	assert.Equal(t, "pd_consent_collection", row.Resource)
+	assert.Equal(t, "view", row.Action)
+	assert.Equal(t, http.StatusOK, row.StatusCode)
+	assert.NotNil(t, row.UserID)
 }
 
 // Сводка - административные данные о людях, обычному пользователю она закрыта.

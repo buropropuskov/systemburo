@@ -7,7 +7,6 @@
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="pdc-title"
-        aria-describedby="pdc-subtitle"
       >
         <div class="pdc-modal">
           <div class="pdc-modal__top">
@@ -18,46 +17,69 @@
               Согласие на обработку персональных данных
             </h2>
             <p
-              id="pdc-subtitle"
-              class="pdc-modal__subtitle"
-            >
-              Прочитайте документ до конца и подтвердите согласие - без этого работа в системе
-              недоступна
-            </p>
-            <p
               v-if="version"
               class="pdc-modal__version"
             >
-              Редакция {{ version }}
+              {{ versionLabel }}
             </p>
           </div>
 
           <div
-            ref="scroller"
-            class="pdc-modal__doc"
-            tabindex="0"
-            role="document"
-            aria-label="Текст согласия на обработку персональных данных"
+            ref="columns"
+            class="pdc-modal__columns"
             @scroll="updateProgress"
           >
-            <!-- Только sanitizeHtml: в system_settings текст лежит сырым. -->
             <div
-              v-if="hasText"
-              class="pdc-doc"
-              v-html="safeHtml"
-            />
-            <p
-              v-else
-              class="pdc-doc__missing"
+              ref="scroller"
+              class="pdc-modal__doc"
+              tabindex="0"
+              role="document"
+              aria-label="Текст согласия на обработку персональных данных"
+              @scroll="updateProgress"
             >
-              Текст согласия недоступен. Обновите страницу, а если сообщение осталось - обратитесь
-              к администратору системы.
-            </p>
-            <div
-              ref="sentinel"
-              class="pdc-doc__end"
-              aria-hidden="true"
-            />
+              <!-- Только sanitizeHtml: в system_settings текст лежит сырым. -->
+              <div
+                v-if="hasText"
+                class="pdc-doc"
+                v-html="safeHtml"
+              />
+              <p
+                v-else
+                class="pdc-doc__missing"
+              >
+                Текст согласия недоступен. Обновите страницу, а если сообщение осталось - обратитесь
+                к администратору системы.
+              </p>
+              <div
+                ref="sentinel"
+                class="pdc-doc__end"
+                aria-hidden="true"
+              />
+            </div>
+
+            <!-- Пояснение своими словами: сам документ юридический, и по нему трудно
+               понять, что именно происходит с данными конкретного человека. -->
+            <aside class="pdc-modal__aside">
+              <h3 class="pdc-aside__title">
+                Коротко о главном
+              </h3>
+              <p class="pdc-aside__text">
+                Система обрабатывает данные вашей учётной записи: фамилию, имя и отчество,
+                организацию и должность, рабочие контакты, а также сведения о входах и
+                действиях в системе.
+              </p>
+              <p class="pdc-aside__text">
+                Эти данные нужны, чтобы оформлять и согласовывать заявки на проход, показывать
+                вас коллегам как участника заявки и вести учёт доступа на территорию.
+              </p>
+              <p class="pdc-aside__text">
+                Слева - полный текст согласия. Подтвердить его можно, прочитав документ до
+                конца: кнопка станет активной.
+              </p>
+              <p class="pdc-aside__note">
+                Отказаться можно в любой момент - обратитесь в Бюро пропусков.
+              </p>
+            </aside>
           </div>
 
           <div class="pdc-modal__foot">
@@ -156,6 +178,10 @@ const emit = defineEmits(['logout']);
 const store = usePDConsentStore();
 
 const scroller = ref(null);
+// На узком экране прокручивается уже столбец целиком, а не область текста:
+// прогресс обязан считаться по тому, что реально скроллится, иначе полоса
+// показывает 100% с первого кадра.
+const columns = ref(null);
 const sentinel = ref(null);
 // Документ дочитан. Значение монотонное: один раз доскроллив до конца,
 // пользователь не теряет право согласиться, случайно прокрутив текст вверх.
@@ -172,6 +198,16 @@ let ro = null;
 const lockOwner = {};
 
 const version = computed(() => store.version);
+/**
+ * Подпись редакции. Номер сам по себе человеку ничего не говорит - дата говорит,
+ * с какого числа действует то, что ему показывают. Без даты (настройки заведены
+ * до появления поля) остаётся один номер.
+ */
+const versionLabel = computed(() => {
+  const at = store.versionAt ? new Date(store.versionAt) : null;
+  if (!at || Number.isNaN(at.getTime())) return `Редакция ${store.version}`;
+  return `Редакция ${store.version} от ${at.toLocaleDateString('ru-RU')}`;
+});
 const hasText = computed(() => Boolean(store.html));
 const hasDocument = computed(() => Boolean(store.docMeta?.stored_name));
 // В system_settings HTML лежит сырым - это единственная точка его рендера, и она
@@ -190,8 +226,14 @@ const hint = computed(() => {
   return 'Можно подтверждать';
 });
 
+function activeScroller() {
+  const doc = scroller.value;
+  if (doc && doc.scrollHeight > doc.clientHeight + 1) return doc;
+  return columns.value || doc;
+}
+
 function updateProgress() {
-  const el = scroller.value;
+  const el = activeScroller();
   if (!el) return;
   const max = el.scrollHeight - el.clientHeight;
   if (max <= 1) {
@@ -331,7 +373,7 @@ async function download() {
 .pdc-modal {
   display: flex;
   flex-direction: column;
-  width: 720px;
+  width: 1040px;
   max-width: 95vw;
   /* --app-vh, а не vh: под корневым zoom и с мобильной адресной строкой
      единицы vh врут и окно уезжает за экран (#1359). */
@@ -368,6 +410,47 @@ async function download() {
   letter-spacing: 0.05em;
   text-transform: uppercase;
   opacity: 0.8;
+}
+
+/* Две колонки: слева документ, справа пояснение своими словами. На узком экране
+   пояснение уходит вниз и не отбирает место у текста, который надо прочитать. */
+.pdc-modal__columns {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  gap: 0;
+}
+
+.pdc-modal__aside {
+  flex: 0 0 320px;
+  min-width: 0;
+  padding: 22px 26px;
+  border-left: 1px solid var(--border);
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+  overflow-y: auto;
+}
+
+.pdc-aside__title {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text, var(--text));
+}
+
+.pdc-aside__text {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-text-muted, var(--text-muted));
+}
+
+.pdc-aside__note {
+  margin: 14px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-muted, var(--text-muted));
 }
 
 .pdc-modal__doc {
@@ -447,7 +530,9 @@ async function download() {
   height: 4px;
   border-radius: 999px;
   overflow: hidden;
-  background: var(--accent-tint);
+  /* Приглушённая дорожка: на акцентном оттенке пустая полоса читалась как
+     заполненная, и «ничего не прочитано» выглядело как «прочитано всё». */
+  background: color-mix(in srgb, var(--color-text, var(--text)) 14%, transparent);
 }
 
 .pdc-progress__fill {
@@ -580,8 +665,25 @@ async function download() {
     padding: 22px 20px 18px;
   }
 
+  .pdc-modal__columns {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
   .pdc-modal__doc {
     padding: 18px 20px;
+    /* В колонке прокручивается уже сам столбец - иначе получаются две вложенные
+       прокрутки и текст ловится пальцем через раз. */
+    flex: none;
+    overflow: visible;
+  }
+
+  .pdc-modal__aside {
+    flex: none;
+    border-left: none;
+    border-top: 1px solid var(--border);
+    padding: 18px 20px;
+    overflow: visible;
   }
 
   .pdc-modal__foot {

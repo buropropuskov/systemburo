@@ -16,6 +16,8 @@ export const usePDConsentStore = defineStore('pdConsent', () => {
   const resolved = ref(false);
   const required = ref(false);
   const version = ref(0);
+  // Когда появилась действующая редакция: показывается человеку рядом с номером.
+  const versionAt = ref('');
   // HTML согласия. В system_settings он лежит СЫРЫМ (TextConstructor отдаёт
   // нефильтрованный вывод редактора наружу через v-model), поэтому рендерить
   // его можно только через sanitizeHtml - см. PDConsentOverlay.
@@ -40,6 +42,7 @@ export const usePDConsentStore = defineStore('pdConsent', () => {
   function applyState(state) {
     required.value = Boolean(state?.required);
     version.value = Number(state?.version) || 0;
+    versionAt.value = typeof state?.version_at === 'string' ? state.version_at : '';
     html.value = typeof state?.text === 'string' ? state.text : '';
     docMeta.value = state?.document || null;
     resolved.value = true;
@@ -112,6 +115,7 @@ export const usePDConsentStore = defineStore('pdConsent', () => {
     resolved.value = false;
     required.value = false;
     version.value = 0;
+    versionAt.value = '';
     html.value = '';
     docMeta.value = null;
   }
@@ -120,6 +124,7 @@ export const usePDConsentStore = defineStore('pdConsent', () => {
     resolved,
     required,
     version,
+    versionAt,
     html,
     docMeta,
     refresh,

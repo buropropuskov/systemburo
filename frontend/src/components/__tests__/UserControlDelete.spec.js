@@ -20,6 +20,7 @@ vi.mock('@/api/users', () => ({
   bulkAssignUsersCompany: vi.fn(),
   bulkBanUsers: vi.fn(),
   bulkUnbanUsers: vi.fn(),
+  resetUserLockout: vi.fn(),
 }))
 
 // Слой карточки редактирования (BaseModal :z-index) - подтверждение обязано быть выше.
