@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"systemburo/internal/config"
 	"systemburo/internal/models"
@@ -26,6 +27,8 @@ const (
 	pdConsentTextKey     = "legal.pd_consent_text"
 	pdConsentVersionKey  = "legal.pd_consent_version"
 	pdConsentRequiredKey = "legal.pd_consent_required"
+	// Дата появления действующей редакции: ставится вместе с подъёмом номера.
+	pdConsentVersionAtKey = "legal.pd_consent_version_at"
 )
 
 // PDConsentTextMaxBytes -- предел размера HTML согласия. Редактор инлайнит картинки
@@ -317,7 +320,7 @@ func (s *settingsService) ClearDataProcessingDoc(ctx context.Context) error {
 // остальным. Отсутствующие ключи дают версию 1 и выключенный запрос согласия.
 func (s *settingsService) GetPDConsentSettings(ctx context.Context) (*models.PDConsentSettings, error) {
 	var settings []models.SystemSetting
-	keys := []string{pdConsentTextKey, pdConsentVersionKey, pdConsentRequiredKey}
+	keys := []string{pdConsentTextKey, pdConsentVersionKey, pdConsentRequiredKey, pdConsentVersionAtKey}
 	if err := s.db.WithContext(ctx).Where("key IN ?", keys).Find(&settings).Error; err != nil {
 		return nil, fmt.Errorf("failed to load pd consent settings: %w", err)
 	}
@@ -332,6 +335,8 @@ func (s *settingsService) GetPDConsentSettings(ctx context.Context) (*models.PDC
 			}
 		case pdConsentRequiredKey:
 			result.Required = st.Value == "true"
+		case pdConsentVersionAtKey:
+			result.VersionAt = st.Value
 		}
 	}
 	return result, nil
@@ -380,6 +385,11 @@ func (s *settingsService) BumpPDConsentVersion(ctx context.Context) (int, error)
 	}
 	next := current.Version + 1
 	if err := s.upsertRaw(ctx, pdConsentVersionKey, strconv.Itoa(next), "int"); err != nil {
+		return 0, err
+	}
+	// Дату пишем тем же действием: редакция без даты ничего не говорит человеку,
+	// а восстановить её задним числом уже неоткуда.
+	if err := s.upsertRaw(ctx, pdConsentVersionAtKey, time.Now().UTC().Format(time.RFC3339), "string"); err != nil {
 		return 0, err
 	}
 	return next, nil

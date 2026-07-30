@@ -22,9 +22,13 @@ type UpdateSettingRequest struct {
 // первый же ввод в редакторе включал бы запрос согласия до нажатия "Сохранить", а
 // первый деплой закрывал бы систему до того, как администратор вставит текст.
 type PDConsentSettings struct {
-	Text     string `json:"text"`
-	Version  int    `json:"version"`
-	Required bool   `json:"required"`
+	Text    string `json:"text"`
+	Version int    `json:"version"`
+	// VersionAt -- когда появилась действующая редакция. Пользователь по номеру
+	// «редакция 17» не поймёт ничего, а по дате видит, с какого числа действует то,
+	// что ему показывают. Пустая строка у настроек, заведённых до появления поля.
+	VersionAt string `json:"version_at"`
+	Required  bool   `json:"required"`
 }
 
 // UpdatePDConsentTextRequest -- сохранение текста согласия. Пустая строка допустима:
