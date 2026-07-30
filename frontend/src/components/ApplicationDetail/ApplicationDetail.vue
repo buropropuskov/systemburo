@@ -1984,6 +1984,10 @@ export default {
 .detail-main-column {
     flex: 1;
     padding: 15px;
+    /* Подложка, как у боковых колонок: без неё секции ложатся прямо на модалку,
+       совпадают с ней цветом и читаются одним полотном, тогда как слева и справа
+       такие же секции выглядят приподнятыми (#1581). */
+    background: var(--surface-sunken);
     overflow-y: auto;
     display: flex;
     flex-direction: column;

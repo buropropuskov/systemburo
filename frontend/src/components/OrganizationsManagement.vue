@@ -16,11 +16,14 @@
         <BaseDropdown
           class="type-filter-dropdown"
           data-testid="orgs-type-filter"
-          :model-value="typeFilter"
+          multiple
+          :model-value="typeFilters"
           :options="typeFilterOptions"
           label-key="label"
           value-key="value"
-          @update:model-value="typeFilter = $event"
+          :placeholder="typeFilterAllLabel"
+          summary-label="Тип"
+          @update:model-value="typeFilters = $event"
         />
         <SearchComponent
           v-model="searchQuery"
@@ -712,7 +715,7 @@ import {
   ORG_TYPE_CREATE_OPTIONS,
   ORG_TYPE_DETAIL_OPTIONS,
   ORG_TYPE_FILTER_OPTIONS,
-  ORG_TYPE_FILTER_ALL,
+  ORG_TYPE_FILTER_ALL_LABEL,
   ORG_TYPE_FILTER_UNSPECIFIED,
   ORG_TYPE_UNSPECIFIED_LABEL,
 } from '@/constants/orgTypes';
@@ -758,7 +761,7 @@ export default {
     return {
       searchQuery: '',
       showArchive: false,
-      typeFilter: ORG_TYPE_FILTER_ALL,
+      typeFilters: [],
       selectedIds: [],
       // Якорь для shift-выделения диапазона строк (id последней кликнутой строки).
       lastSelectedId: null,
@@ -800,6 +803,7 @@ export default {
       typeCreateOptions: ORG_TYPE_CREATE_OPTIONS,
       typeDetailOptions: ORG_TYPE_DETAIL_OPTIONS,
       typeFilterOptions: ORG_TYPE_FILTER_OPTIONS,
+      typeFilterAllLabel: ORG_TYPE_FILTER_ALL_LABEL,
       unspecifiedTypeLabel: ORG_TYPE_UNSPECIFIED_LABEL,
     };
   },
@@ -828,10 +832,11 @@ export default {
       let list = this.organizationsWithUsers.filter(org =>
         this.showArchive ? !org.is_active : org.is_active
       );
-      if (this.typeFilter === ORG_TYPE_FILTER_UNSPECIFIED) {
-        list = list.filter(org => !org.type);
-      } else if (this.typeFilter !== ORG_TYPE_FILTER_ALL) {
-        list = list.filter(org => org.type === this.typeFilter);
+      if (this.typeFilters.length) {
+        // «не указан» - такой же элемент набора, как остальные типы: NULL/пусто
+        // приводим к его сентинелу, чтобы «Отдел + не указан» отдавал и то, и то.
+        const types = new Set(this.typeFilters);
+        list = list.filter(org => types.has(org.type || ORG_TYPE_FILTER_UNSPECIFIED));
       }
       const variants = buildSearchVariants(this.searchQuery);
       if (!variants.length) return list;
@@ -880,7 +885,9 @@ export default {
     },
     emptyText() {
       if (this.searchQuery.trim()) return 'Ничего не найдено по запросу';
-      if (this.typeFilter !== ORG_TYPE_FILTER_ALL) return 'Нет организаций с таким типом';
+      if (this.typeFilters.length) {
+        return this.typeFilters.length === 1 ? 'Нет организаций с таким типом' : 'Нет организаций с выбранными типами';
+      }
       return this.showArchive ? 'В архиве пусто' : 'Организаций пока нет';
     },
     isAddDirty() {

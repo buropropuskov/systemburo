@@ -1,19 +1,25 @@
 import { apiRequest } from './client';
 
 /**
- * API-клиент настроек согласия на обработку персональных данных, которое
- * запрашивается у пользователя при первом входе (#1567). Пока это только
- * администраторская часть: текст, требуемая версия и выключатель запроса.
+ * API-клиент согласия на обработку персональных данных, которое запрашивается у
+ * пользователя при первом входе (#1567): администраторские настройки (текст,
+ * требуемая редакция, выключатель запроса) и состояние гейта для самого
+ * пользователя.
  * @typedef {{text: string, version: number, required: boolean}} PDConsentSettings
+ * @typedef {{stored_name: string, file_name: string, mime_type: string, ext: string, uploaded_at: string}} PDConsentDocument
+ * @typedef {{required: boolean, version: number, text: string, document: PDConsentDocument|null}} PDConsentGateState
  */
 
 const BASE = '/settings/pd-consent';
+const CONSENTS = '/consents';
 
 /**
- * Разворачивает ответ, доставая сообщение об ошибке из envelope.
+ * Разворачивает ответ, доставая сообщение об ошибке из envelope. Ключ ошибки в
+ * envelope - `error`, но `wrapJsonUnwrap` в client.js уже переложил его в
+ * `message`, поэтому читаем именно `message` и не трогаем `res.text()`.
  * @param {Response} res
  * @param {string} fallback
- * @returns {Promise<PDConsentSettings>}
+ * @returns {Promise<any>}
  */
 async function unwrap(res, fallback) {
   const body = await res.json().catch(() => null);
@@ -69,4 +75,29 @@ export async function requirePDConsentAgain() {
     body: '{}',
   });
   return unwrap(res, 'Не удалось запросить согласие заново');
+}
+
+/**
+ * Состояние согласия для текущего пользователя: спрашивать ли его, какой
+ * редакции и какой текст показать. Исключения (супер-администратор, пустой
+ * текст, выключенный запрос) сервер учитывает сам в поле `required` - фронт эти
+ * правила у себя не повторяет, иначе они разъедутся.
+ * @returns {Promise<PDConsentGateState>}
+ */
+export async function getConsentGate() {
+  const res = await apiRequest(`${CONSENTS}/gate`);
+  return unwrap(res, 'Не удалось проверить согласие на обработку данных');
+}
+
+/**
+ * Записывает согласие текущего пользователя на текущую редакцию текста.
+ * Редакцию и хэш штампует сервер, поэтому осмысленного тела у запроса нет.
+ * @returns {Promise<PDConsentGateState>}
+ */
+export async function acceptConsent() {
+  const res = await apiRequest(`${CONSENTS}/accept`, {
+    method: 'POST',
+    body: '{}',
+  });
+  return unwrap(res, 'Не удалось подтвердить согласие');
 }
