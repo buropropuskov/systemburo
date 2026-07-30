@@ -28,7 +28,6 @@ vi.mock('@/services/eventStream', () => ({
 
 const stubs = {
   teleport: true,
-  OrganizationFilter: true,
   RefreshButton: true,
   ApplicationDetail: true,
   DateFilter: true,

@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import BaseDropdown from '../BaseDropdown.vue';
 
 // Поиск в BaseDropdown идёт через общий util searchVariants (#1157) - тот же, что был
-// в OrganizationFilter/UnloadingPlaceFilter до переезда фильтров на этот дропдаун.
+// в прежних фильтрах-компонентах до переезда фильтров на этот дропдаун.
 // Кейсы перенесены оттуда: плоское `includes` теряло забытую раскладку и транслит,
 // а техническое описание (раздел 7.1) обещает заказчику именно такое поведение.
 
