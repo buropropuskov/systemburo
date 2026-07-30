@@ -531,6 +531,8 @@ func (s *organizationService) GetHistory(ctx context.Context, id int) ([]models.
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching organization history")
 	}
 
+	// Логин вместо ФИО у акторов, не давших согласия на обработку данных.
+	masks := loadConsentMasks(ctx, s.db)
 	items := make([]models.OrganizationHistoryItem, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, models.OrganizationHistoryItem{
@@ -538,7 +540,7 @@ func (s *organizationService) GetHistory(ctx context.Context, id int) ([]models.
 			ActionType:  r.ActionType,
 			Details:     r.Details,
 			ActorUserID: r.ActorUserID,
-			ActorName:   r.ActorName,
+			ActorName:   maskName(masks, r.ActorUserID, r.ActorName),
 			CreatedAt:   r.CreatedAt,
 		})
 	}

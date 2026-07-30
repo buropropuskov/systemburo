@@ -637,6 +637,8 @@ func (s *userService) GetHistory(ctx context.Context, username string) ([]models
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching user history")
 	}
 
+	// Логин вместо ФИО у акторов, не давших согласия на обработку данных.
+	masks := loadConsentMasks(ctx, s.db)
 	items := make([]models.UserHistoryItem, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, models.UserHistoryItem{
@@ -644,7 +646,7 @@ func (s *userService) GetHistory(ctx context.Context, username string) ([]models
 			ActionType:  r.ActionType,
 			Details:     r.Details,
 			ActorUserID: r.ActorUserID,
-			ActorName:   r.ActorName,
+			ActorName:   maskName(masks, r.ActorUserID, r.ActorName),
 			CreatedAt:   r.CreatedAt,
 		})
 	}

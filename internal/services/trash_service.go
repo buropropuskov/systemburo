@@ -365,13 +365,26 @@ func (s *trashService) ListTrashHistory(ctx context.Context, systemTableID int) 
 			COALESCE((a.details->>'affected_count')::int, 0) AS affected_count,
 			COALESCE(a.details->'items', '[]'::jsonb) AS details,
 			` + userName + ` AS user_name,
+			a.actor_user_id AS actor_user_id,
 			a.created_at
 		FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
 		WHERE a.entity_type = ? AND a.entity_id = ?
 		ORDER BY a.created_at DESC, a.id DESC`
-	rows := make([]models.TrashHistoryItem, 0)
-	if err := s.db.WithContext(ctx).Raw(sql, models.AuditEntitySystemTableTrash, systemTableID).Scan(&rows).Error; err != nil {
+	// Актора читаем отдельным полем: в ответе его нет, а маскировке ФИО он нужен.
+	type trashRow struct {
+		models.TrashHistoryItem
+		ActorUserID *int `gorm:"column:actor_user_id"`
+	}
+	var scanned []trashRow
+	if err := s.db.WithContext(ctx).Raw(sql, models.AuditEntitySystemTableTrash, systemTableID).Scan(&scanned).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения истории корзины")
+	}
+	masks := loadConsentMasks(ctx, s.db)
+	rows := make([]models.TrashHistoryItem, 0, len(scanned))
+	for _, r := range scanned {
+		item := r.TrashHistoryItem
+		item.UserName = maskName(masks, r.ActorUserID, item.UserName)
+		rows = append(rows, item)
 	}
 	return rows, nil
 }

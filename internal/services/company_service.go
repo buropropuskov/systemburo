@@ -536,6 +536,8 @@ func (s *companyService) GetHistory(ctx context.Context, companyID int) ([]model
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching company history")
 	}
 
+	// Логин вместо ФИО у акторов, не давших согласия на обработку данных.
+	masks := loadConsentMasks(ctx, s.db)
 	items := make([]models.CompanyHistoryItem, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, models.CompanyHistoryItem{
@@ -543,7 +545,7 @@ func (s *companyService) GetHistory(ctx context.Context, companyID int) ([]model
 			ActionType:  r.ActionType,
 			Details:     r.Details,
 			ActorUserID: r.ActorUserID,
-			ActorName:   r.ActorName,
+			ActorName:   maskName(masks, r.ActorUserID, r.ActorName),
 			CreatedAt:   r.CreatedAt,
 		})
 	}

@@ -147,8 +147,10 @@ func (s *feedbackService) GetAll(ctx context.Context, username string) ([]models
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching feedback")
 	}
 
-	// Замена пустых имён на значение по умолчанию (как в Rust)
+	// Логин вместо ФИО у авторов, не давших согласия на обработку данных.
+	masks := loadConsentMasks(ctx, s.db)
 	for i := range results {
+		results[i].UserName = maskName(masks, &results[i].UserID, results[i].UserName)
 		if strings.TrimSpace(results[i].UserName) == "" {
 			results[i].UserName = "Неизвестный пользователь"
 		}

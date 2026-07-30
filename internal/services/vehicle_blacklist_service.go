@@ -491,6 +491,8 @@ func (s *vehicleBlacklistService) queryHistory(ctx context.Context, entityID *in
 	if err := s.db.WithContext(ctx).Raw(query, args...).Scan(&rows).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка получения истории чёрного списка")
 	}
+	// Логин вместо ФИО у акторов, не давших согласия на обработку данных.
+	masks := loadConsentMasks(ctx, s.db)
 	items := make([]models.VehicleBlacklistHistoryItem, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, models.VehicleBlacklistHistoryItem{
@@ -499,7 +501,7 @@ func (s *vehicleBlacklistService) queryHistory(ctx context.Context, entityID *in
 			ActionType: r.ActionType,
 			Details:    r.Details,
 			UserID:     r.UserID,
-			UserName:   r.UserName,
+			UserName:   maskName(masks, r.UserID, r.UserName),
 			CreatedAt:  r.CreatedAt,
 		})
 	}

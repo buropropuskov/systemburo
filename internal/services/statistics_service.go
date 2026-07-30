@@ -408,6 +408,12 @@ func (s *statisticsService) GetOnlineUsers(ctx context.Context) ([]models.Online
 		Scan(&users).Error; err != nil {
 		return nil, fmt.Errorf("statistics: online users: %w", err)
 	}
+	// Логин вместо ФИО у тех, кто не давал согласия на обработку данных.
+	if masks := loadConsentMasks(ctx, s.db); len(masks) > 0 {
+		for i := range users {
+			users[i].FullName = maskName(masks, &users[i].ID, users[i].FullName)
+		}
+	}
 	return users, nil
 }
 

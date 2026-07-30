@@ -89,6 +89,19 @@ func (s *newsService) newsSelectQuery(db *gorm.DB) *gorm.DB {
 		Joins("LEFT JOIN users uu ON n.updated_by = uu.id")
 }
 
+// maskNewsAuthors подменяет ФИО авторов новостей логином, если они не давали
+// согласия на обработку персональных данных.
+func (s *newsService) maskNewsAuthors(ctx context.Context, items []models.NewsWithUser) {
+	masks := loadConsentMasks(ctx, s.db)
+	if len(masks) == 0 {
+		return
+	}
+	for i := range items {
+		items[i].CreatedByName = maskNamePtr(masks, items[i].CreatedBy, items[i].CreatedByName)
+		items[i].UpdatedByName = maskNamePtr(masks, items[i].UpdatedBy, items[i].UpdatedByName)
+	}
+}
+
 func (s *newsService) GetActiveNews(ctx context.Context) ([]models.NewsWithUser, error) {
 	results := make([]models.NewsWithUser, 0)
 	err := s.newsSelectQuery(s.db.WithContext(ctx)).
@@ -98,6 +111,7 @@ func (s *newsService) GetActiveNews(ctx context.Context) ([]models.NewsWithUser,
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching news")
 	}
+	s.maskNewsAuthors(ctx, results)
 	return results, nil
 }
 
@@ -109,6 +123,7 @@ func (s *newsService) GetAllNews(ctx context.Context) ([]models.NewsWithUser, er
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching news")
 	}
+	s.maskNewsAuthors(ctx, results)
 	return results, nil
 }
 
