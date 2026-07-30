@@ -78,8 +78,11 @@ func (h *SettingsHandler) invalidateConsentGate() {
 // GetPDConsentCollection отдаёт сводку по сбору согласий текущей редакции и список
 // тех, кто ещё не подтвердил (#1567). Считается той же меркой, что и гейт, поэтому
 // число согласившихся всегда совпадает с числом тех, кого система пускает.
+// Параметр full=1 снимает ограничение на длину списка не подтвердивших: он нужен
+// выгрузке в файл, где урезанный список означал бы потерю людей.
 func (h *SettingsHandler) GetPDConsentCollection(c echo.Context) error {
-	collection, err := h.consentStats.Collection(c.Request().Context())
+	full := c.QueryParam("full") == "1"
+	collection, err := h.consentStats.Collection(c.Request().Context(), full)
 	if err != nil {
 		return err
 	}

@@ -48,9 +48,15 @@ const acceptedExists = `EXISTS (
 	  AND c.document_version >= ?
 )`
 
+// PendingListLimit -- сколько не подтвердивших отдаём в обычном ответе. Список нужен
+// администратору как рабочий («кому напомнить»), а не как выгрузка: сразу после
+// подъёма редакции в него попадают все работники, и на крупной установке полный
+// список - тысячи строк в разметке. За полным ходят явно, для выгрузки в файл.
+const PendingListLimit = 50
+
 // Collection возвращает сводку по сбору согласий текущей редакции вместе со списком
-// тех, кто ещё не подтвердил.
-func (s *PDConsentStatsService) Collection(ctx context.Context) (*models.PDConsentCollection, error) {
+// тех, кто ещё не подтвердил. full=true снимает ограничение на длину списка.
+func (s *PDConsentStatsService) Collection(ctx context.Context, full bool) (*models.PDConsentCollection, error) {
 	req, err := s.gate.Requirement(ctx)
 	if err != nil {
 		return nil, err
@@ -75,18 +81,24 @@ func (s *PDConsentStatsService) Collection(ctx context.Context) (*models.PDConse
 		return nil, err
 	}
 
-	pending, err := s.pendingUsers(ctx, version)
+	limit := PendingListLimit
+	if full {
+		limit = 0
+	}
+	pending, err := s.pendingUsers(ctx, version, limit)
 	if err != nil {
 		return nil, err
 	}
 
+	pendingCount := int(total) - int(accepted)
 	return &models.PDConsentCollection{
 		Active:       req.Enabled,
 		Version:      version,
 		Total:        int(total),
 		Accepted:     int(accepted),
-		Pending:      int(total) - int(accepted),
+		Pending:      pendingCount,
 		PendingUsers: pending,
+		Truncated:    len(pending) < pendingCount,
 	}, nil
 }
 
@@ -98,16 +110,18 @@ type pendingRow struct {
 	Organization *string
 }
 
-func (s *PDConsentStatsService) pendingUsers(ctx context.Context, version int) ([]models.PDConsentPendingUser, error) {
+func (s *PDConsentStatsService) pendingUsers(ctx context.Context, version, limit int) ([]models.PDConsentPendingUser, error) {
 	var rows []pendingRow
-	err := s.db.WithContext(ctx).Model(&models.User{}).
+	q := s.db.WithContext(ctx).Model(&models.User{}).
 		Select("users.id, users.username, users.last_name, users.first_name, organizations.name AS organization").
 		Joins("LEFT JOIN organizations ON organizations.id = users.organization_id").
 		Where(gatedUsersWhere).
 		Where("NOT "+acceptedExists, ConsentTypePDProcessing, version).
-		Order("users.last_name NULLS LAST, users.username").
-		Scan(&rows).Error
-	if err != nil {
+		Order("users.last_name NULLS LAST, users.username")
+	if limit > 0 {
+		q = q.Limit(limit)
+	}
+	if err := q.Scan(&rows).Error; err != nil {
 		return nil, err
 	}
 
