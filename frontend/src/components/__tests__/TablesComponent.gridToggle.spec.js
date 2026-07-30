@@ -39,8 +39,7 @@ function mountPage(tableName = 'kpp_4') {
         ApplicationDetail: true,
         TableExportModal: true,
         ManualAddModal: true,
-        OrganizationFilter: true,
-        UnloadingPlaceFilter: true,
+        BaseDropdown: true,
         DateFilter: true,
       },
       mocks: {

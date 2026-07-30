@@ -92,35 +92,30 @@
           >
         </div>
                 
-        <!-- Десктоп: вторичные фильтры инлайн в строке (как было). -->
+        <!-- Десктоп: вторичные фильтры инлайн в строке (как было). Видимость каждого
+             фильтра решает directoryFilters, а не v-if в шаблоне - иначе десктопный ряд
+             и мобильный лист со временем разъедутся по составу. data-testid у обеих
+             ветвей общий (`table-sheet-*`): ветки взаимоисключающие по isNarrow, дублей
+             в DOM нет, а переименование стоило бы правки спек без выгоды. -->
         <template v-if="!isNarrow">
-          <!-- Организация через компонент -->
-          <OrganizationFilter
-            v-if="showOrganizationFilter"
-            ref="organizationFilter"
-            v-model="selectedOrganizationId"
-            :organizations="organizations"
-            @change="handleOrganizationChange"
-          />
-
-          <!-- Компания через тот же компонент (reuse OrganizationFilter) -->
-          <OrganizationFilter
-            v-if="showOrganizationFilter"
-            ref="companyFilter"
-            v-model="selectedCompanyId"
-            :organizations="companies"
-            all-label="Все компании"
-            placeholder-text="Компания"
-            @change="handleCompanyChange"
-          />
-
-          <!-- Место разгрузки через компонент -->
-          <UnloadingPlaceFilter
-            v-if="showUnloadingFilter"
-            ref="unloadingPlaceFilter"
-            v-model="selectedUnloadingPlaceId"
-            @change="handleUnloadingPlaceChange"
-          />
+          <div
+            v-for="filter in directoryFilters"
+            :key="filter.field"
+            class="filters__control"
+          >
+            <BaseDropdown
+              :model-value="filter.values"
+              :options="filter.options"
+              :placeholder="filter.allLabel"
+              :summary-label="filter.summaryLabel"
+              :search-keys="filter.searchKeys"
+              :data-testid="filter.testid"
+              multiple
+              searchable
+              teleport
+              @update:model-value="ids => setMultiFilter(filter.field, ids)"
+            />
+          </div>
 
           <!-- Новый DateFilter -->
           <DateFilter
@@ -224,43 +219,22 @@
       @reset="clearFilters"
     >
       <div
-        v-if="showOrganizationFilter"
+        v-for="filter in directoryFilters"
+        :key="filter.field"
         class="filter-section"
       >
-        <span class="filter-label">Организация</span>
-        <OrganizationFilter
-          ref="organizationFilter"
-          v-model="selectedOrganizationId"
-          :organizations="organizations"
-          data-testid="table-sheet-org"
-          @change="handleOrganizationChange"
-        />
-      </div>
-      <div
-        v-if="showOrganizationFilter"
-        class="filter-section"
-      >
-        <span class="filter-label">Компания</span>
-        <OrganizationFilter
-          ref="companyFilter"
-          v-model="selectedCompanyId"
-          :organizations="companies"
-          all-label="Все компании"
-          placeholder-text="Компания"
-          data-testid="table-sheet-company"
-          @change="handleCompanyChange"
-        />
-      </div>
-      <div
-        v-if="showUnloadingFilter"
-        class="filter-section"
-      >
-        <span class="filter-label">Место разгрузки</span>
-        <UnloadingPlaceFilter
-          ref="unloadingPlaceFilter"
-          v-model="selectedUnloadingPlaceId"
-          data-testid="table-sheet-place"
-          @change="handleUnloadingPlaceChange"
+        <span class="filter-label">{{ filter.summaryLabel }}</span>
+        <BaseDropdown
+          :model-value="filter.values"
+          :options="filter.options"
+          :placeholder="filter.allLabel"
+          :summary-label="filter.summaryLabel"
+          :search-keys="filter.searchKeys"
+          :data-testid="filter.testid"
+          multiple
+          searchable
+          teleport
+          @update:model-value="ids => setMultiFilter(filter.field, ids)"
         />
       </div>
       <div class="filter-section">
@@ -294,9 +268,9 @@
           :table-id="tableData?.table?.id"
           :table-data="tableData"
           :search-query="searchQuery"
-          :selected-organization-id="selectedOrganizationId"
-          :selected-company-id="selectedCompanyId"
-          :selected-unloading-place="selectedUnloadingPlaceName"
+          :selected-organization-ids="selectedOrganizationIds"
+          :selected-company-ids="selectedCompanyIds"
+          :selected-unloading-place-ids="selectedUnloadingPlaceIds"
           :date-range-start="dateRangeStart"
           :date-range-end="dateRangeEnd"
           :selected-date="selectedDate"
@@ -328,9 +302,9 @@
         :table-title="tableDisplayName"
         :table-id="tableData?.table?.id"
         :search-query="searchQuery"
-        :selected-organization-id="selectedOrganizationId"
-        :selected-company-id="selectedCompanyId"
-        :selected-unloading-place-id="selectedUnloadingPlaceId"
+        :selected-organization-ids="selectedOrganizationIds"
+        :selected-company-ids="selectedCompanyIds"
+        :selected-unloading-place-ids="selectedUnloadingPlaceIds"
         :date-range-start="dateRangeStart"
         :date-range-end="dateRangeEnd"
         :selected-date="selectedDate"
@@ -346,9 +320,8 @@
         v-model:grid="gridMode"
         :table-name="tableSystemName"
         :search-query="searchQuery"
-        :selected-organization-id="selectedOrganizationId"
-        :selected-company-id="selectedCompanyId"
-        :selected-unloading-place-id="selectedUnloadingPlaceId"
+        :selected-organization-ids="selectedOrganizationIds"
+        :selected-company-ids="selectedCompanyIds"
         :date-range-start="dateRangeStart"
         :date-range-end="dateRangeEnd"
         :selected-date="selectedDate"
@@ -401,8 +374,7 @@ import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import { apiRequest } from '@/api/client'
 import { sanitizeHtml } from '@/utils/sanitize';
 import { useOverlayClose } from '@/composables/useOverlayClose';
-import OrganizationFilter from '@/components/OrganizationFilter.vue';
-import UnloadingPlaceFilter from '@/components/UnloadingPlaceFilter.vue';
+import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import DateFilter from './DateFilter.vue';
 import FactTable from './FactTable.vue';
 import CarsTable from './CarsTable.vue';
@@ -419,8 +391,7 @@ import { usePermissionsStore } from '@/stores/permissions';
 export default {
     name: 'TablesComponent',
     components: {
-        OrganizationFilter,
-        UnloadingPlaceFilter,
+        BaseDropdown,
         DateFilter,
         FactTable,
         CarsTable,
@@ -466,15 +437,16 @@ export default {
             tableData: null,
             isRefreshing: false,
             searchQuery: '',
-            selectedOrganizationId: null,
-            selectedOrganizationName: '',
-            selectedCompanyId: null,
-            selectedCompanyName: '',
-            selectedUnloadingPlaceId: null,
-            selectedUnloadingPlaceName: '',
+            // Мультивыбор справочников (#1398): пустой массив - фильтр выключен.
+            selectedOrganizationIds: [],
+            selectedCompanyIds: [],
+            selectedUnloadingPlaceIds: [],
 
             organizations: [],
             companies: [],
+            // Справочник мест разгрузки: до #1398 его тянул сам UnloadingPlaceFilter,
+            // теперь владелец - страница (дропдаун получает готовые опции пропом).
+            unloadPlaces: [],
 
             selectedDate: null,
             dateRangeStart: null,
@@ -550,13 +522,56 @@ export default {
         sanitizedInstruction() {
             return this.sanitizeHtml(this.tableInstruction);
         },
-        
+
+        // Конфиг мультивыборных фильтров-справочников (#1398), зеркало
+        // ApplicationsCenter.directoryFilters. Один источник для десктопного ряда и
+        // мобильного листа: состав задаётся здесь, поэтому две ветви шаблона не могут
+        // разойтись. summaryLabel идёт и в счётчик кнопки («Организация: 3»), и в
+        // подпись секции листа.
+        directoryFilters() {
+            const filters = [];
+            if (this.showOrganizationFilter) {
+                filters.push(
+                    {
+                        field: 'selectedOrganizationIds',
+                        values: this.selectedOrganizationIds,
+                        options: this.organizations,
+                        allLabel: 'Все организации',
+                        summaryLabel: 'Организация',
+                        testid: 'table-sheet-org',
+                    },
+                    {
+                        field: 'selectedCompanyIds',
+                        values: this.selectedCompanyIds,
+                        options: this.companies,
+                        allLabel: 'Все компании',
+                        summaryLabel: 'Компания',
+                        testid: 'table-sheet-company',
+                    },
+                );
+            }
+            if (this.showUnloadingFilter) {
+                filters.push({
+                    field: 'selectedUnloadingPlaceIds',
+                    values: this.selectedUnloadingPlaceIds,
+                    options: this.unloadPlaces,
+                    allLabel: 'Все места разгрузки',
+                    summaryLabel: 'Место разгрузки',
+                    // Код площадки живёт в description: без этого поиск по коду,
+                    // работавший до переезда на BaseDropdown, молча сузился бы.
+                    searchKeys: ['name', 'description'],
+                    testid: 'table-sheet-place',
+                });
+            }
+            return filters;
+        },
+
         // Вторичные фильтры (без поиска) - для точки-индикатора на кнопке «Фильтр»
         // на мобилке: поиск виден отдельно, точка отражает только свёрнутые фильтры.
         secondaryFiltersActive() {
-            return !!this.selectedOrganizationId ||
-                   !!this.selectedCompanyId ||
-                   !!this.selectedUnloadingPlaceId ||
+            return this.selectedOrganizationIds.length > 0 ||
+                   this.selectedCompanyIds.length > 0 ||
+                   this.selectedUnloadingPlaceIds.length > 0 ||
                    !!this.selectedDate ||
                    !!(this.dateRangeStart && this.dateRangeEnd);
         },
@@ -702,6 +717,7 @@ export default {
 
                     await this.fetchOrganizationsForTable();
                     await this.fetchCompaniesForTable();
+                    if (this.showUnloadingFilter) await this.fetchUnloadPlacesForTable();
                 } else {
                     console.error('Table not found');
                     this.$router.push('/404');
@@ -745,24 +761,35 @@ export default {
             }
         },
 
-        handleOrganizationChange({ id, name }) {
-            this.selectedOrganizationId = id;
-            this.selectedOrganizationName = name;
+        /**
+         * Справочник мест разгрузки для фильтра (#1398). Архивные записи отсеиваем,
+         * как в Центре: фильтровать по выведенной из работы площадке смысла нет.
+         *
+         * Зовётся из fetchTableData, а не из mounted: справочник нужен только когда
+         * известен тип таблицы (cars), а fetchTableData срабатывает ещё и на смену
+         * таблицы в роуте.
+         */
+        async fetchUnloadPlacesForTable() {
+            try {
+                const response = await apiRequest("/unload-places", { method: "GET" });
+                if (!response.ok) {
+                    console.error("Ошибка при загрузке мест разгрузки");
+                    return;
+                }
+                const data = await response.json();
+                this.unloadPlaces = (Array.isArray(data) ? data : []).filter(p => p.is_active !== false);
+            } catch (error) {
+                console.error("Ошибка сети при загрузке мест разгрузки:", error);
+            }
+        },
+
+        // Единая точка для всех мультивыборных фильтров (#1398): записать массив
+        // и применить. Зеркало ApplicationsCenter.setMultiFilter.
+        setMultiFilter(field, values) {
+            this[field] = Array.isArray(values) ? values : [];
             this.applyFilters();
         },
 
-        handleCompanyChange({ id, name }) {
-            this.selectedCompanyId = id;
-            this.selectedCompanyName = name;
-            this.applyFilters();
-        },
-
-        handleUnloadingPlaceChange({ id, name }) {
-            this.selectedUnloadingPlaceId = id;
-            this.selectedUnloadingPlaceName = name;
-            this.applyFilters();
-        },
-        
         updateSelectedDate(date) {
             this.selectedDate = date;
             this.dateRangeStart = null;
@@ -799,22 +826,17 @@ export default {
 
             // Прямой сброс state - работает и когда sheet закрыт (на мобилке вторичные
             // фильтры размонтированы, refs недоступны, а clearFilters зовётся ещё и при
-            // смене таблицы). Дочерние следят за v-model/selected-date и подхватят сброс.
-            this.selectedOrganizationId = null;
-            this.selectedOrganizationName = '';
-            this.selectedCompanyId = null;
-            this.selectedCompanyName = '';
-            this.selectedUnloadingPlaceId = null;
-            this.selectedUnloadingPlaceName = '';
+            // смене таблицы). Дочерние следят за пропсами и подхватят сброс.
+            // unloadPlaces НЕ чистим: это справочник опций, а не выбор.
+            this.selectedOrganizationIds = [];
+            this.selectedCompanyIds = [];
+            this.selectedUnloadingPlaceIds = [];
             this.selectedDate = null;
             this.dateRangeStart = null;
             this.dateRangeEnd = null;
 
-            // Сброс внутреннего состояния дочерних фильтров, если смонтированы
-            // (десктоп-инлайн или открытый sheet) - обнуляет их локальный поиск/выбор.
-            this.$refs.organizationFilter?.reset?.();
-            this.$refs.companyFilter?.reset?.();
-            this.$refs.unloadingPlaceFilter?.reset?.();
+            // BaseDropdown полностью управляется пропом modelValue, метода reset() у него
+            // нет - сброса состояния выше достаточно. У календаря своё выделение.
             this.$refs.dateFilter?.clearSelection?.();
         },
 
@@ -979,8 +1001,48 @@ export default {
     min-width: 0;
 }
 
-.field--select {
-    cursor: pointer;
+/* Обёртка дропдауна-фильтра (#1398). У .base-dropdown своей ширины нет, поэтому без
+   обёртки ряд дёргался бы при каждой смене подписи («Все организации» -> «Организация: 3»).
+   Размеры один в один с .field: ряд сжимается в лад с полем поиска, как до переезда на
+   BaseDropdown. min-width:0 обязателен - ряд nowrap, и несжимаемый минимум выдавливает
+   дропдауны поверх правой группы кнопок (замер: перекрытие 265px на 769px при 120px). */
+.filters__control {
+    width: clamp(120px, 14vw, 200px);
+    min-width: 0;
+    flex-shrink: 1;
+}
+
+/* Кнопка дропдауна под контракт ряда: те же clamp-высота, радиус 15px и размер шрифта,
+   что у .field и календаря. :deep обязателен - кнопка живёт внутри дочернего компонента
+   и хэша этого файла не несёт. min-height:0 гасит собственные 30px BaseDropdown, иначе
+   они перебивают низ clamp. */
+.filters__control :deep(.base-dropdown__button) {
+    height: clamp(28px, 3vw, 35px);
+    min-height: 0;
+    border-radius: 15px;
+    padding: 0 clamp(6px, 0.8vw, 10px);
+    gap: clamp(4px, 0.6vw, 10px);
+}
+
+.filters__control :deep(.base-dropdown__text) {
+    font-size: clamp(11px, 1.1vw, 14px);
+}
+
+/* Мобильный лист: FilterSheet восстанавливает бокс правилом :deep(.field), но до
+   .base-dropdown оно не достаёт - задаём высоту 40px как у календаря рядом. Правило
+   висит на .filter-section (элемент слота, несёт хэш этого файла и стоит в реальной
+   DOM-цепочке под teleport'ом BaseModal); на .filter-sheet оно было бы мёртвым.
+   Вне @media намеренно: секция рендерится только при isNarrow, и брейкпоинт CSS не
+   должен расходиться с JS-условием. */
+.filter-section :deep(.base-dropdown__button) {
+    height: 40px;
+    min-height: 0;
+    border-radius: var(--radius-md);
+    padding: 0 12px;
+}
+
+.filter-section :deep(.base-dropdown__text) {
+    font-size: 14px;
 }
 
 .field__input {
@@ -991,16 +1053,6 @@ export default {
     width: 100%;
     min-width: 0;
     cursor: pointer;
-}
-
-.select-text {
-    font-size: clamp(11px, 1.1vw, 14px);
-    color: var(--text);
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
 }
 
 .search {
