@@ -92,6 +92,9 @@ func (s *applicationService) GetApplicationQuestions(ctx context.Context, applic
 		return questions, nil
 	}
 
+	// Логин вместо ФИО у авторов, не давших согласия на обработку данных.
+	masks := loadConsentMasks(ctx, s.db)
+
 	ids := make([]int, 0, len(qRows))
 	idx := make(map[int]int, len(qRows))
 	for i, q := range qRows {
@@ -99,7 +102,7 @@ func (s *applicationService) GetApplicationQuestions(ctx context.Context, applic
 			ID:            q.ID,
 			ApplicationID: applicationID,
 			AuthorUserID:  q.AuthorUserID,
-			AuthorName:    q.AuthorName,
+			AuthorName:    maskName(masks, &q.AuthorUserID, q.AuthorName),
 			Subject:       q.Subject,
 			Text:          q.Text,
 			Attachments:   []QuestionAttachmentItem{},
@@ -136,7 +139,7 @@ func (s *applicationService) GetApplicationQuestions(ctx context.Context, applic
 				ID:           a.ID,
 				QuestionID:   a.QuestionID,
 				AuthorUserID: a.AuthorUserID,
-				AuthorName:   a.AuthorName,
+				AuthorName:   maskName(masks, &a.AuthorUserID, a.AuthorName),
 				Text:         a.Text,
 				CreatedAt:    a.CreatedAt,
 			})
