@@ -80,7 +80,7 @@ describe('UserControl — колонка присутствия', () => {
     // Порядок по умолчанию — по логину: banned_fresh, left_recently, never_seen, online_now.
     expect(rowLogins(wrapper)).toEqual(['banned_fresh', 'left_recently', 'never_seen', 'online_now'])
     // Присутствующий - бейджем, отсутствующие - давностью последнего визита.
-    expect(seenTexts(wrapper)).toEqual(['2 мин', '12 мин', '-', 'Онлайн'])
+    expect(seenTexts(wrapper)).toEqual(['2 мин.', '12 мин.', '-', 'Онлайн'])
     expect(onlineBadges(wrapper)).toHaveLength(1)
     expect(onlineBadges(wrapper)[0].classes()).toContain('badge--success')
   })
@@ -91,7 +91,7 @@ describe('UserControl — колонка присутствия', () => {
 
     const bannedCell = seenCells(wrapper)[0]
     expect(bannedCell.find('[data-testid="users-row-online-badge"]').exists()).toBe(false)
-    expect(bannedCell.text()).toBe('2 мин')
+    expect(bannedCell.text()).toBe('2 мин.')
     expect(hintText(bannedCell)).toContain('Был в сети')
   })
 
@@ -100,8 +100,8 @@ describe('UserControl — колонка присутствия', () => {
     await flushPromises()
 
     const titles = seenCells(wrapper).map(c => hintText(c))
-    expect(titles[3]).toContain('В сети. Последняя активность: 1 мин назад')
-    expect(titles[1]).toMatch(/Был в сети: 12 мин назад \(\d{2}\.\d{2}\.\d{4} \d{2}:\d{2}\)/)
+    expect(titles[3]).toContain('В сети. Последняя активность: 1 мин. назад')
+    expect(titles[1]).toMatch(/Был в сети: 12 мин. назад \(\d{2}\.\d{2}\.\d{4} \d{2}:\d{2}\)/)
     expect(titles[2]).toBe('Ни разу не заходил')
 
     // Нативного title на ячейке больше нет: он гас при каждом тике давности.
@@ -181,19 +181,19 @@ describe('UserControl — колонка присутствия', () => {
     await flushPromises()
 
     expect(onlineBadges(wrapper)).toHaveLength(0)
-    expect(seenTexts(wrapper)[3]).toBe('6 мин 1 с')
+    expect(seenTexts(wrapper)[3]).toBe('6 мин. 1 сек.')
   })
 
   it('давность пересчитывается каждую секунду — иначе секунды врали бы', async () => {
     wrapper = mountUserControl()
     await flushPromises()
     // Забаненный: у него метка свежая, но бейджа нет, поэтому видна сама давность.
-    expect(seenTexts(wrapper)[0]).toBe('2 мин')
+    expect(seenTexts(wrapper)[0]).toBe('2 мин.')
 
     vi.setSystemTime(NOW + 20_000)
     vi.advanceTimersByTime(1000)
     await flushPromises()
-    expect(seenTexts(wrapper)[0]).toBe('2 мин 21 с')
+    expect(seenTexts(wrapper)[0]).toBe('2 мин. 21 сек.')
   })
 
   it('тихий опрос просит родителя перезагрузить список', async () => {
