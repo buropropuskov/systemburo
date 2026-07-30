@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { loginAsSuperAdmin, unwrap } = require('../helpers/permissions');
+const { loginAsSuperAdmin, unwrap, e2eName } = require('../helpers/permissions');
 
 const API_BASE = process.env.E2E_API_BASE_URL || '/api';
 const SETTINGS = `${API_BASE}/settings/pd-consent`;
@@ -19,7 +19,9 @@ const LONG_TEXT = `<h2>Согласие на обработку персонал
 }`;
 
 const TEST_USER = {
-  username: `e2e_consent_${Date.now()}`,
+  // e2eName, а не Date.now(): ретрай перезапускает весь serial-блок вместе с
+  // beforeAll, и то же имя упёрлось бы в конфликт с недоудалённой учёткой.
+  username: e2eName('consent'),
   password: 'ConsentE2E-pass-9137',
 };
 
@@ -204,7 +206,7 @@ test.describe.serial('Гейт согласия на обработку ПД (#1
     // Стена отказов вместо окна - главный симптом неверного белого списка.
     await expect(page.getByText('Недостаточно прав')).toHaveCount(0);
     // Данные страниц под окном не грузятся: router-view не смонтирован.
-    const pageData = forbidden.filter((x) => /\/(news|notifications|system-tables|onboarding|applications)/.test(x));
+    const pageData = forbidden.filter((x) => /\/(news|notifications|system-tables|onboarding|applications|announcements|documents)/.test(x));
     expect(pageData, `403 под окном: ${forbidden.join(', ')}`).toHaveLength(0);
   });
 
