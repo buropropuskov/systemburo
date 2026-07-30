@@ -20,6 +20,7 @@ vi.mock('@/api/users', () => ({
   bulkAssignUsersCompany: vi.fn(),
   bulkBanUsers: vi.fn(),
   bulkUnbanUsers: vi.fn(),
+  resetUserLockout: vi.fn(),
 }))
 
 const NOW = new Date('2026-07-30T12:00:00Z').getTime()

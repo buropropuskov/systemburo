@@ -536,6 +536,9 @@ func Setup(e *echo.Echo, d Dependencies) {
 	protected.DELETE("/users/:username", users.Delete, requireUsers)
 	protected.POST("/users/:username/restore", users.Restore, requireUsers)
 	protected.GET("/users/:username/history", users.GetHistory, requireUsers)
+	// Снятие блокировки входа живёт в auth (там политика лока), но гейтится как
+	// остальное управление учётками.
+	protected.POST("/users/:username/reset-lockout", auth.ResetLockout, requireUsers)
 	// Групповые операции над пользователями (username-keyed). Статические сегменты
 	// bulk/* приоритетнее /users/:username в роутинге Echo.
 	protected.POST("/users/bulk/archive", users.BulkArchive, requireUsers)

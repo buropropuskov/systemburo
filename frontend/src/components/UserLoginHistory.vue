@@ -242,6 +242,7 @@ const EVENT_BADGES = {
   login_failed: { cls: 'lh-badge--danger', label: 'Неудачный вход' },
   login_locked: { cls: 'lh-badge--warn', label: 'Вход заблокирован' },
   account_locked: { cls: 'lh-badge--warn', label: 'Аккаунт заблокирован' },
+  lockout_reset: { cls: 'lh-badge--ok', label: 'Блокировка снята' },
   refresh: { cls: 'lh-badge--muted', label: 'Сессия обновлена' },
   token_reuse_detected: { cls: 'lh-badge--danger', label: 'Подозрительная сессия' },
 }
