@@ -194,6 +194,113 @@ def anchors(m):
 
 
 # --------------------------------------------------------------------------
+# полнота перечней
+# --------------------------------------------------------------------------
+# Якоря стерегут числа, карта задетых разделов - изменившиеся файлы. Ни то, ни
+# другое не ловит пропуск в ПЕРЕЧНЕ: функция, появившаяся до того, как раздел был
+# написан, не попадает в дифф и не меняет ни одного числа. Так планировщик
+# напоминаний согласующим (#1315, 21.07) не попал в таблицу периодических задач и
+# не был замечен ни одной сверкой - нашёлся только ручной ревизией.
+#
+# Отсюда третья проверка: состав. Для перечня берётся машинный список из кода и
+# реестр соответствий «идентификатор -> фрагмент строки документа». Расходится в
+# любую сторону - скрипт называет, в какую именно:
+#   в коде есть, в реестре нет   -> появилось новое, документ не знает;
+#   в реестре есть, в тексте нет -> строку из документа удалили;
+#   в реестре есть, в коде нет   -> документ описывает то, чего уже нет.
+def code_list(cmd):
+    return {line.strip() for line in sh(cmd).splitlines() if line.strip()}
+
+
+def inventories():
+    return [
+        {
+            "имя": "периодические задачи",
+            "документ": OVERVIEW,
+            "код": code_list(
+                r"grep -oE 'go start[A-Za-z]+\(' cmd/server/main.go "
+                r"| sed 's/^go //; s/($//'"),
+            "реестр": {
+                "startExpiryScheduler": "Архивация просроченных вложений",
+                "startAccessDenialsArchiver": "Архивация журнала отказов",
+                "startDailyStatusReset": "Суточный снимок и сброс",
+                "startDailyPassReportSaver": "Суточный отчёт по проходам",
+                "startOnlinePeakSnapshotter": "Фиксация пика посещаемости",
+                "startLogPartitionWorker": "Обслуживание журнальных таблиц",
+                "startReminderScheduler": "Напоминания согласующим",
+            },
+        },
+        {
+            "имя": "категории прав",
+            "документ": OVERVIEW,
+            "код": code_list(
+                r"grep -oE 'Cat[A-Za-z]+ +=' "
+                r"internal/services/permission_catalog.go | sed 's/ *=//'"),
+            "реестр": {
+                "CatNavigation": "Разделы навигации",
+                "CatHeader": "Элементы верхней панели",
+                "CatCenter": "Центр заявок",
+                "CatDetail": "Карточки объектов",
+                "CatRegistry": "Реестры",
+                "CatAdmin": "Администрирование",
+                "CatOverview": "Обзор и руководство",
+                "CatTables": "Таблицы постов",
+            },
+        },
+        {
+            "имя": "разделы администрирования",
+            "документ": OVERVIEW,
+            "код": code_list(
+                "ls frontend/src/views/admin/*.vue | xargs -n1 basename"),
+            "реестр": {
+                "AccessDenialsLog.vue": "Журнал отказов",
+                "AdminPageShell.vue": "Администрирование",
+                "AdminPermissionGroups.vue": "группы прав",
+                "AdminRoles.vue": "Роли",
+                "ApproversView.vue": "Принимающие заявки",
+                "AttachmentTypesView.vue": "типы вложений",
+                "BlacklistView.vue": "Чёрные списки",
+                "CitizenshipView.vue": "Гражданства",
+                "CompaniesView.vue": "Организации и компании",
+                "DocumentsView.vue": "документы",
+                "GuideManagementView.vue": "Обучение",
+                "MarksView.vue": "марки транспорта",
+                "NewsManagement.vue": "Новости и объявления",
+                "NumberFormatsView.vue": "форматы регистрационных знаков",
+                "OrganizationsView.vue": "Организации и компании",
+                "PdAuditLog.vue": "обращений к персональным данным",
+                "SystemControl.vue": "режим работ",
+                "UnloadPlacesView.vue": "Места разгрузки",
+                "UserControlView.vue": "Учётные записи",
+                "UserTypesView.vue": "типы работников",
+            },
+        },
+    ]
+
+
+def check_inventories(texts, problems):
+    for inv in inventories():
+        text = texts[inv["документ"]]
+        for key in sorted(inv["код"]):
+            if key not in inv["реестр"]:
+                problems.append(
+                    "%s, %s: в коде появилось «%s», реестр сверки о нём не знает "
+                    "- проверить, описано ли оно в документе"
+                    % (inv["документ"], inv["имя"], key))
+                continue
+            if inv["реестр"][key] not in text:
+                problems.append(
+                    "%s, %s: «%s» есть в коде, но строка «%s» в документе не "
+                    "найдена" % (inv["документ"], inv["имя"], key,
+                                 inv["реестр"][key]))
+        for key in sorted(inv["реестр"]):
+            if key not in inv["код"]:
+                problems.append(
+                    "%s, %s: «%s» описан в реестре, но в коде его больше нет"
+                    % (inv["документ"], inv["имя"], key))
+
+
+# --------------------------------------------------------------------------
 # параметры окружения и базы данных
 # --------------------------------------------------------------------------
 def env_defaults():
@@ -490,6 +597,7 @@ def main():
             problems.append("%s, поисковые индексы: в тексте «%s», по коду %d"
                             % (OVERVIEW, shown.strip(), m["gin"]))
 
+    check_inventories(texts, problems)
     check_env(texts[DEPLOY], problems)
     check_db(texts[DEPLOY], problems)
     check_paths(texts[DEPLOY], problems)
