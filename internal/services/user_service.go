@@ -290,7 +290,7 @@ func (s *userService) GetAll(ctx context.Context, includeArchived bool) ([]model
 			c.name as company, u.company_id,
 			u.type_id, ut.name as user_type, u.role_id,
 			u.last_name, u.first_name, u.middle_name,
-			u.position, u.email, u.phone`).
+			u.position, u.email, u.phone, u.last_seen`).
 		Joins("LEFT JOIN organizations o ON u.organization_id = o.id").
 		Joins("LEFT JOIN companies c ON u.company_id = c.id").
 		Joins("LEFT JOIN user_types ut ON u.type_id = ut.id")

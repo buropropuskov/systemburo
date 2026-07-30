@@ -43,13 +43,16 @@ export function localInputToIso(value) {
  * Будущие/нулевые значения -> 'только что'. Считается в абсолютных интервалах
  * (UTC-инстант), таймзона не влияет на «сколько прошло».
  * @param {string|Date|null|undefined} value
+ * @param {number} [nowMs] — «сейчас» в мс. Передаётся, когда вызывающий держит
+ *   собственное тикающее время (колонка присутствия в UserControl): иначе подпись
+ *   и статус в одной ячейке считались бы от разных моментов.
  * @returns {string}
  */
-export function formatTimeAgo(value) {
+export function formatTimeAgo(value, nowMs = Date.now()) {
   if (!value) return '';
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return '';
-  const diffMs = Date.now() - d.getTime();
+  const diffMs = nowMs - d.getTime();
   if (diffMs < 60000) return 'только что';
   const mins = Math.floor(diffMs / 60000);
   if (mins < 60) return `${mins} мин назад`;

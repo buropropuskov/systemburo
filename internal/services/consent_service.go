@@ -11,11 +11,16 @@ import (
 	"gorm.io/gorm"
 )
 
+// ConsentTypePDProcessing -- согласие на обработку персональных данных, которое
+// запрашивается при первом входе (#1567).
+const ConsentTypePDProcessing = "pd_processing"
+
 type ConsentService interface {
-	Grant(ctx context.Context, userID int, req models.GrantConsentRequest, ip, ua string) (*models.PDConsent, error)
+	Grant(ctx context.Context, userID int, req models.GrantConsentRequest, ip, ua string, version int, hash string) (*models.PDConsent, error)
 	Revoke(ctx context.Context, userID int, consentType string) error
 	List(ctx context.Context, userID int) ([]models.PDConsent, error)
 	HasActive(ctx context.Context, userID int, consentType string) (bool, error)
+	ActiveVersion(ctx context.Context, userID int, consentType string) (int, error)
 }
 
 type consentService struct {
@@ -27,15 +32,21 @@ func NewConsentService(db *gorm.DB) ConsentService {
 	return &consentService{db: db}
 }
 
-// Grant выдаёт согласие на обработку персональных данных указанного типа.
-func (s *consentService) Grant(ctx context.Context, userID int, req models.GrantConsentRequest, ip, ua string) (*models.PDConsent, error) {
+// Grant выдаёт согласие на обработку персональных данных указанного типа. Редакцию
+// и хэш текста передаёт вызывающий, взяв их из настроек: клиент на них не влияет.
+func (s *consentService) Grant(ctx context.Context, userID int, req models.GrantConsentRequest, ip, ua string, version int, hash string) (*models.PDConsent, error) {
+	if version < 1 {
+		version = 1
+	}
 	consent := models.PDConsent{
-		UserID:      userID,
-		ConsentType: req.ConsentType,
-		Granted:     true,
-		IPAddress:   ip,
-		UserAgent:   ua,
-		GrantedAt:   time.Now().UTC(),
+		UserID:          userID,
+		ConsentType:     req.ConsentType,
+		Granted:         true,
+		IPAddress:       ip,
+		UserAgent:       ua,
+		GrantedAt:       time.Now().UTC(),
+		DocumentVersion: version,
+		DocumentHash:    hash,
 	}
 	if err := s.db.WithContext(ctx).Create(&consent).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error granting consent")
@@ -66,6 +77,24 @@ func (s *consentService) List(ctx context.Context, userID int) ([]models.PDConse
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error listing consents")
 	}
 	return consents, nil
+}
+
+// ActiveVersion возвращает максимальную редакцию среди действующих согласий
+// пользователя указанного типа; 0 означает "действующего согласия нет". По ней гейт
+// решает, устроит ли его прежнее согласие после подъёма редакции текста.
+func (s *consentService) ActiveVersion(ctx context.Context, userID int, consentType string) (int, error) {
+	var version *int
+	err := s.db.WithContext(ctx).Model(&models.PDConsent{}).
+		Where("user_id = ? AND consent_type = ? AND granted = true AND revoked_at IS NULL", userID, consentType).
+		Select("MAX(document_version)").
+		Scan(&version).Error
+	if err != nil {
+		return 0, err
+	}
+	if version == nil {
+		return 0, nil
+	}
+	return *version, nil
 }
 
 // HasActive проверяет наличие активного согласия указанного типа у пользователя.
