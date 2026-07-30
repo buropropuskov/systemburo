@@ -1678,13 +1678,22 @@ export default {
     padding: 15px;
     margin-bottom: 10px;
     box-shadow: 0 2px 12px var(--shadow-drop);
+    /* Зазор держит gap, а не margin-bottom заголовка: при отозванной заявке и без
+       принявшего блок под заголовком пуст, и margin оставался пустотой снизу (#1587).
+       Пустую обёртку убираем из раскладки - скрытый элемент gap не считает. */
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.application-status-section > *:empty {
+    display: none;
 }
 
 .status-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 15px;
 }
 
 .status-header h4 {
@@ -1996,6 +2005,13 @@ export default {
 
 /* Блоки колонки держат свою высоту, а колонка скроллится. Без этого flex-column
    сжимает дочерние блоки (у части overflow:hidden) и контент режется вместо скролла. */
+/* Обёртки веток и вопросов рендерятся всегда, а их содержимое - по данным: пустой
+   список пересылок оставлял div высотой 0, и gap колонки считал его за блок, давая
+   лишний зазор между сообщением и вопросами (#1587). */
+.detail-main-column > *:empty {
+    display: none;
+}
+
 .detail-main-column > * {
     flex-shrink: 0;
 }
