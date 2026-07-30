@@ -772,7 +772,7 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 	return query
 }
 
-func (s *applicationService) fetchResponsibleUsers(db *gorm.DB, applicationID int) ([]ResponsibleUserInfo, error) {
+func (s *applicationService) fetchResponsibleUsers(ctx context.Context, db *gorm.DB, applicationID int) ([]ResponsibleUserInfo, error) {
 	responsibles := make([]ResponsibleUserInfo, 0)
 	err := db.Raw(`
 		SELECT
@@ -802,6 +802,12 @@ func (s *applicationService) fetchResponsibleUsers(db *gorm.DB, applicationID in
 
 	if responsibles == nil {
 		responsibles = []ResponsibleUserInfo{}
+	}
+	if masks := loadConsentMasks(ctx, s.db); len(masks) > 0 {
+		for i := range responsibles {
+			maskUserParts(masks, responsibles[i].ID,
+				&responsibles[i].LastName, &responsibles[i].FirstName, &responsibles[i].MiddleName)
+		}
 	}
 	return responsibles, nil
 }

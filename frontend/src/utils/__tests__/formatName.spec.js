@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatShortName, formatFullName } from '../formatName'
+import { formatShortName, formatFullName, formatUserLabel } from '../formatName'
 
 describe('formatShortName', () => {
   it('полное ФИО -> Фамилия И.О.', () => {
@@ -56,3 +56,20 @@ describe('formatFullName', () => {
     expect(formatFullName({})).toBe('')
   })
 })
+
+describe('formatUserLabel', () => {
+  it('показывает сокращённое ФИО, когда оно есть', () => {
+    expect(formatUserLabel({ last_name: 'Иванов', first_name: 'Иван', middle_name: 'Иванович', username: 'ivanov' }))
+      .toBe('Иванов И.И.');
+  });
+
+  it('падает на логин, когда ФИО скрыто до согласия на обработку данных', () => {
+    expect(formatUserLabel({ last_name: null, first_name: null, middle_name: null, username: 'ivanov' }))
+      .toBe('ivanov');
+  });
+
+  it('пустого пользователя не превращает в мусор', () => {
+    expect(formatUserLabel(null)).toBe('');
+    expect(formatUserLabel({})).toBe('');
+  });
+});

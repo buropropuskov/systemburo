@@ -303,6 +303,11 @@ func (s *userService) GetAll(ctx context.Context, includeArchived bool) ([]model
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching users")
 	}
 
+	if masks := loadConsentMasks(ctx, s.db); len(masks) > 0 {
+		for i := range result {
+			maskUserParts(masks, result[i].ID, &result[i].LastName, &result[i].FirstName, &result[i].MiddleName)
+		}
+	}
 	return result, nil
 }
 

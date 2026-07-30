@@ -564,6 +564,11 @@ func (s *companyService) GetUsers(ctx context.Context, companyID int) ([]Company
 		slog.Error("не удалось получить пользователей компании", "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching company users")
 	}
+	if masks := loadConsentMasks(ctx, s.db); len(masks) > 0 {
+		for i := range users {
+			maskUserParts(masks, users[i].ID, &users[i].LastName, &users[i].FirstName, &users[i].MiddleName)
+		}
+	}
 	return users, nil
 }
 
@@ -580,6 +585,11 @@ func (s *companyService) GetMembers(ctx context.Context, companyID int) ([]Membe
 	if err != nil {
 		slog.Error("не удалось получить участников компании", "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching company members")
+	}
+	if masks := loadConsentMasks(ctx, s.db); len(masks) > 0 {
+		for i := range members {
+			maskUserParts(masks, members[i].ID, &members[i].LastName, &members[i].FirstName, &members[i].MiddleName)
+		}
 	}
 	return members, nil
 }

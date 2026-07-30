@@ -51,3 +51,19 @@ export function formatFullName(parts) {
     .filter(Boolean)
     .join(' ')
 }
+
+/**
+ * Подпись учётной записи для списков: сокращённое ФИО, а если его нет - логин.
+ *
+ * Пустое ФИО у работника означает одно из двух: его не заполнили при заведении
+ * учётной записи либо сервер скрыл его, пока работник не дал согласия на обработку
+ * персональных данных (#1567). В обоих случаях логин - единственное, чем строку
+ * можно опознать, и он всяко лучше прочерка.
+ *
+ * @param {NameParts & {username?: string}} user
+ * @returns {string}
+ */
+export function formatUserLabel(user) {
+  if (!user) return ''
+  return formatShortName(user) || trim(user.username)
+}

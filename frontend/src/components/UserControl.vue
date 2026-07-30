@@ -999,7 +999,7 @@ import { mapState, mapActions } from 'pinia';
 import { useOrganizationsStore } from '@/stores/organizations';
 import { useCompaniesStore } from '@/stores/companies';
 import { applyPhoneMask } from '@/composables/useRussianPhoneMask'
-import { formatShortName } from '@/utils/formatName'
+import { formatUserLabel } from '@/utils/formatName'
 import { isOnline, formatSeenShort, seenTitle, lastSeenSortKey } from '@/utils/presence'
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import SearchComponent from './SearchComponent.vue';
@@ -1710,8 +1710,9 @@ export default {
     },
 
     formatUserName(user) {
-      const formatted = formatShortName(user);
-      return formatted || '-';
+      // Логин вместо прочерка: ФИО пусто и когда его не заполнили, и когда сервер
+      // скрыл его до согласия на обработку данных - опознать строку надо в обоих случаях.
+      return formatUserLabel(user) || '-';
     },
 
     onSelectOrganization(id) {
