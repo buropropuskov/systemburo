@@ -92,7 +92,7 @@ import {
   downloadDataProcessingDoc,
 } from '@/api/dataProcessing';
 import { usePDConsentStore } from '@/stores/pdConsent';
-import { sanitizeHtml } from '@/utils/sanitize';
+import { sanitizeHtml, stripHtml } from '@/utils/sanitize';
 
 /**
  * Модалка согласия на обработку ПД для мобильного показа: bottom-sheet (BaseModal)
@@ -122,7 +122,10 @@ let loadSeq = 0;
 const isPdf = computed(
   () => meta.value && (meta.value.mime_type === 'application/pdf' || meta.value.ext === '.pdf'),
 );
-const hasText = computed(() => Boolean(consent.html));
+// Редактор на очищенном документе отдаёт "<p></p>": голый Boolean счёл бы это
+// текстом и показал пустой лист вместо файла. Считаем по видимому тексту -
+// той же меркой, что и серверный гейт (hasVisibleText).
+const hasText = computed(() => stripHtml(consent.html).length > 0);
 const safeHtml = computed(() => sanitizeHtml(consent.html));
 
 async function load() {
@@ -146,14 +149,14 @@ async function load() {
     loaded.value = true;
   } catch {
     if (seq !== loadSeq) return;
-    meta.value = null;
-    // Текст есть - окно остаётся полезным, пропадает только кнопка скачивания.
-    if (hasText.value) {
-      loaded.value = true;
-    } else {
+    // Текст есть - окно остаётся полезным: показываем его, а не экран ошибки.
+    // meta не обнуляем: если упало чтение файла, имя документа уже известно и
+    // кнопка скачивания рабочая. loaded НЕ поднимаем - иначе «грузим раз на
+    // сеанс» навсегда запомнил бы неудачу и следующее открытие не повторило бы.
+    if (!hasText.value) {
       error.value = 'Не удалось загрузить документ. Попробуйте ещё раз.';
-      loaded.value = false;
     }
+    loaded.value = false;
   } finally {
     if (seq === loadSeq) loading.value = false;
   }

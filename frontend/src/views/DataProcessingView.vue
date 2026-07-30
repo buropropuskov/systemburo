@@ -101,7 +101,7 @@ import {
 } from '@/api/dataProcessing';
 import PdfDocumentViewer from '@/components/ui/PdfDocumentViewer.vue';
 import { usePDConsentStore } from '@/stores/pdConsent';
-import { sanitizeHtml } from '@/utils/sanitize';
+import { sanitizeHtml, stripHtml } from '@/utils/sanitize';
 
 const consent = usePDConsentStore();
 const meta = ref(null);
@@ -118,7 +118,10 @@ let mql = null;
 const isPdf = computed(
   () => meta.value && (meta.value.mime_type === 'application/pdf' || meta.value.ext === '.pdf'),
 );
-const hasText = computed(() => Boolean(consent.html));
+// Редактор на очищенном документе отдаёт "<p></p>": голый Boolean счёл бы это
+// текстом и показал пустой лист вместо файла. Считаем по видимому тексту -
+// той же меркой, что и серверный гейт (hasVisibleText).
+const hasText = computed(() => stripHtml(consent.html).length > 0);
 const safeHtml = computed(() => sanitizeHtml(consent.html));
 
 function revokePdf() {
@@ -145,8 +148,9 @@ async function load() {
       pdfUrl.value = URL.createObjectURL(blob);
     }
   } catch {
-    meta.value = null;
-    // Текст есть - страница остаётся полезной, пропадает только кнопка скачивания.
+    // Текст есть - страница остаётся полезной, показываем его вместо экрана ошибки.
+    // meta не обнуляем: если упало чтение файла, имя документа уже известно и
+    // кнопка скачивания рабочая.
     if (!hasText.value) {
       error.value = 'Не удалось загрузить документ. Попробуйте обновить страницу.';
     }

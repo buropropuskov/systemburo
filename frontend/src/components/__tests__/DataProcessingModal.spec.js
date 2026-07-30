@@ -74,7 +74,7 @@ describe('DataProcessingModal', () => {
     getConsentGate.mockResolvedValue({
       required: false,
       version: 2,
-      text: '<p>Текст</p><script>window.__pwnModal = 1;<\/script><img src="x" onerror="window.__pwnModal = 2">',
+      text: '<p>Текст</p><script>window.__pwnModal = 1;</script><img src="x" onerror="window.__pwnModal = 2">',
       document: null,
     });
     getDataProcessingMeta.mockResolvedValue(null);
@@ -105,6 +105,51 @@ describe('DataProcessingModal', () => {
     expect(wrapper.find('.dp-modal__text').exists()).toBe(true);
     expect(wrapper.findComponent({ name: 'PdfDocumentViewer' }).exists()).toBe(false);
     expect(fetchDataProcessingBlob).not.toHaveBeenCalled();
+  });
+
+  // Ревью поймало: при заданном тексте сбой чтения файла поднимал флаг «загружено»
+  // и «грузим раз на сеанс» навсегда запоминал неудачу - повторное открытие уже не
+  // пробовало прочитать документ.
+  it('сбой чтения файла при заданном тексте показывает текст и не блокирует повтор', async () => {
+    getConsentGate.mockResolvedValue({
+      required: false, version: 2, text: '<p>Редакция 2</p>', document: null,
+    });
+    getDataProcessingMeta.mockRejectedValueOnce(new Error('503'));
+    const wrapper = mountClosed();
+
+    await wrapper.setProps({ show: true });
+    await flushPromises();
+    expect(wrapper.find('.dp-modal__text').exists()).toBe(true);
+    expect(wrapper.text()).not.toContain('Не удалось загрузить документ');
+
+    getDataProcessingMeta.mockResolvedValue({
+      file_name: 'soglasie.pdf', mime_type: 'application/pdf', ext: '.pdf',
+    });
+    await wrapper.setProps({ show: false });
+    await wrapper.setProps({ show: true });
+    await flushPromises();
+
+    expect(getDataProcessingMeta).toHaveBeenCalledTimes(2);
+    expect(wrapper.find('.dp-modal__btn--primary').exists()).toBe(true);
+  });
+
+  // "<p></p>" - это очищенный редактором документ, а не текст согласия: показывать
+  // надо файл, а не пустой лист.
+  it('визуально пустой HTML текстом не считается - остаётся файловый путь', async () => {
+    getConsentGate.mockResolvedValue({
+      required: false, version: 2, text: '<p></p>', document: null,
+    });
+    getDataProcessingMeta.mockResolvedValue({
+      file_name: 'soglasie.pdf', mime_type: 'application/pdf', ext: '.pdf',
+    });
+    fetchDataProcessingBlob.mockResolvedValue(new Blob(['%PDF']));
+    const wrapper = mountClosed();
+
+    await wrapper.setProps({ show: true });
+    await flushPromises();
+
+    expect(wrapper.find('.dp-modal__text').exists()).toBe(false);
+    expect(wrapper.find('.pdf-stub').exists()).toBe(true);
   });
 
   it('на открытии грузит документ и показывает PDF во просмотрщике', async () => {

@@ -23,7 +23,6 @@ vi.mock('@/api/pdConsent', () => ({
   acceptConsent: vi.fn(),
 }));
 
-import { usePDConsentStore } from '@/stores/pdConsent';
 import DataProcessingView from '../DataProcessingView.vue';
 
 describe('DataProcessingView', () => {
@@ -67,7 +66,7 @@ describe('DataProcessingView', () => {
     getConsentGate.mockResolvedValue({
       required: false,
       version: 2,
-      text: '<p>Текст</p><script>window.__pwnView = 1;<\/script><img src="x" onerror="window.__pwnView = 2">',
+      text: '<p>Текст</p><script>window.__pwnView = 1;</script><img src="x" onerror="window.__pwnView = 2">',
       document: null,
     });
     getDataProcessingMeta.mockResolvedValue(null);
@@ -108,6 +107,23 @@ describe('DataProcessingView', () => {
 
     expect(wrapper.find('.dp-text').exists()).toBe(true);
     expect(wrapper.find('.dp-state--error').exists()).toBe(false);
+  });
+
+  // "<p></p>" - это очищенный редактором документ, а не текст согласия: показывать
+  // надо файл, а не пустой лист.
+  it('визуально пустой HTML текстом не считается - остаётся файловый путь', async () => {
+    getConsentGate.mockResolvedValue({
+      required: false, version: 2, text: '<p></p>', document: null,
+    });
+    getDataProcessingMeta.mockResolvedValue({
+      file_name: 'soglasie.pdf', mime_type: 'application/pdf', ext: '.pdf', uploaded_at: '',
+    });
+    fetchDataProcessingBlob.mockResolvedValue(new Blob(['%PDF'], { type: 'application/pdf' }));
+    const wrapper = mount(DataProcessingView);
+    await flushPromises();
+
+    expect(wrapper.find('.dp-text').exists()).toBe(false);
+    expect(wrapper.find('.dp-pdf').exists()).toBe(true);
   });
 
   it('встраивает PDF через object URL', async () => {
