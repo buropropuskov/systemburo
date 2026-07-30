@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { useAuthStore } from '@/stores/auth';
+import { usePDConsentStore } from '@/stores/pdConsent';
 import { onboardingSteps, ONBOARDING_VERSION } from '@/components/onboarding/onboardingSteps';
 import {
   securityOnboardingSteps,
@@ -69,9 +70,13 @@ export const useOnboardingStore = defineStore('onboarding', () => {
   const totalSteps = computed(() => steps.value.length);
   const currentStep = computed(() => steps.value[currentIndex.value] || null);
 
+  // Пока не дано согласие на обработку ПД, тур не показываем - ни автозапуском,
+  // ни кнопкой «Обучение»: driver.js подсветил бы интерфейс под неснимаемым
+  // окном согласия (#1567). После подтверждения окно уходит, флаг гаснет, и
+  // автозапуск срабатывает сам - маршрут к этому моменту уже /news.
   const canShowTour = computed(() => {
     const auth = useAuthStore();
-    return auth.isAuthenticated;
+    return auth.isAuthenticated && !usePDConsentStore().required;
   });
 
   /**

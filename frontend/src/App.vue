@@ -13,7 +13,10 @@
         v-if="showChrome"
         class="theheader"
       />
-      <router-view v-slot="{ Component }">
+      <router-view
+        v-if="!consentBlocking"
+        v-slot="{ Component }"
+      >
         <transition
           name="page-fade"
           mode="out-in"
@@ -31,8 +34,12 @@
     <ConfirmDialog />
     <DirtyConfirmModal />
     <DeleteNotifications />
-    <OnboardingTour v-if="isAuthenticated" />
+    <OnboardingTour v-if="isAuthenticated && !consentBlocking" />
     <BanOverlay @logout="logout" />
+    <PDConsentOverlay
+      :active="consentBlocking"
+      @logout="logout"
+    />
   </div>
 </template>
 
@@ -41,7 +48,9 @@ import { apiRequest } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import { usePermissionsStore } from '@/stores/permissions'
 import { useOnboardingStore } from '@/stores/onboarding'
+import { usePDConsentStore } from '@/stores/pdConsent'
 import { useThemeStore } from '@/stores/theme'
+import { isShellHiddenPath } from '@/utils/shellPaths'
 import eventStream from '@/services/eventStream'
 import NavMenu from './components/NavMenu.vue';
 import TheHeader from './components/TheHeader/TheHeader.vue';
@@ -51,6 +60,7 @@ import DirtyConfirmModal from './components/DirtyConfirmModal.vue';
 import DeleteNotifications from './components/DeleteNotifications.vue';
 import OnboardingTour from './components/onboarding/OnboardingTour.vue';
 import BanOverlay from './components/BanOverlay.vue';
+import PDConsentOverlay from './components/PDConsentOverlay.vue';
 
 export default {
   name: "App",
@@ -63,6 +73,7 @@ export default {
     DeleteNotifications,
     OnboardingTour,
     BanOverlay,
+    PDConsentOverlay,
   },
   data() {
     return {
@@ -87,10 +98,32 @@ export default {
      * setTokens() в LoginComponent до router.push('/news')
      * (задержан на 1.5с из-за success-анимации) шапка и меню моргают
      * поверх формы логина. На /500 chrome тоже скрываем - это full-page view.
+     * Список путей общий с гейтом согласия - utils/shellPaths.
      */
     showChrome() {
-      const hidePaths = ['/', '/500', '/maintenance']
-      return this.isAuthenticated && !hidePaths.includes(this.$route.path);
+      return this.isAuthenticated
+        && !isShellHiddenPath(this.$route.path)
+        && !this.consentBlocking;
+    },
+    /**
+     * Согласие на обработку ПД ещё не дано, а без него доступа нет (#1567):
+     * шапка, навигация, страница и онбординг-тур не монтируются, поверх стоит
+     * PDConsentOverlay.
+     *
+     * `resolved` обязателен - без ответа гейта окно на догадке не показываем.
+     * Супер-администратор исключён и здесь, и на сервере: с битой настройкой
+     * согласия систему всё равно надо чинить через интерфейс. Забаненному
+     * показываем блокировку, а не согласие - принять его он всё равно не сможет,
+     * серверный гейт бана стоит раньше.
+     */
+    consentBlocking() {
+      const consent = usePDConsentStore()
+      return this.isAuthenticated
+        && !this.isBuropropuskov
+        && !this.isBanned
+        && consent.resolved
+        && consent.required
+        && !isShellHiddenPath(this.$route.path);
     },
     isBanned() {
       return usePermissionsStore().banned
@@ -133,6 +166,7 @@ export default {
       const permissionsStore = usePermissionsStore()
       permissionsStore.fetchPermissions()
       authStore.loadUserTypeCode()
+      usePDConsentStore().refresh()
       // Тему профиля здесь НЕ запрашиваем: её тянет main.js до mount, иначе
       // интерфейс успевал отрисоваться в чужой/светлой теме (#1415).
     }
@@ -179,6 +213,9 @@ export default {
       permissionsStore.fetchPermissions()
       authStore.loadUserTypeCode()
       useThemeStore().syncFromServer()
+      // force: в этой вкладке до логина уже мог отвечать гейт другого юзера
+      // (или гостя) - без force свежий resolved закоротил бы запрос в no-op.
+      usePDConsentStore().refresh(true)
       // Подписку на бан для нового токена ставит watch(banScopeUserId).
     },
 
@@ -198,6 +235,9 @@ export default {
         // Снять онбординг-тур, если он был активен - иначе overlay driver.js
         // останется висеть поверх страницы логина.
         useOnboardingStore().reset()
+        // Иначе окно согласия предыдущего юзера осталось бы висеть поверх формы
+        // входа, а следующий увидел бы чужую редакцию текста.
+        usePDConsentStore().reset()
         if (this.$route.path !== '/') {
           this.$router.push("/");
         }

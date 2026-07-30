@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import { useOnboardingStore } from '../onboarding';
 import { useAuthStore } from '../auth';
+import { usePDConsentStore } from '../pdConsent';
 import { onboardingSteps, ONBOARDING_VERSION } from '@/components/onboarding/onboardingSteps';
 import { securityOnboardingSteps } from '@/components/onboarding/securityOnboardingSteps';
 import { getOnboardingStatus, markOnboardingComplete, getSecurityFactRoute } from '@/api/onboarding';
@@ -318,6 +319,21 @@ describe('onboarding store', () => {
 
       const store = useOnboardingStore();
       expect(store.canShowTour).toBe(false);
+    });
+
+    // #1567: тур не должен подсвечивать интерфейс под неснимаемым окном согласия.
+    it('false пока не дано согласие на обработку ПД, true после подтверждения', () => {
+      const auth = useAuthStore();
+      auth.setTokens(createMockJWT({ username: 'admin' }, 3600));
+      const consent = usePDConsentStore();
+      consent.resolved = true;
+      consent.required = true;
+
+      const store = useOnboardingStore();
+      expect(store.canShowTour).toBe(false);
+
+      consent.required = false;
+      expect(store.canShowTour).toBe(true);
     });
   });
 
