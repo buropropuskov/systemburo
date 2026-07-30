@@ -65,9 +65,15 @@ type RestoreTrashRequest struct {
 }
 
 // TrashFilter - фильтры списка корзины.
+//
+// OrganizationIDs - мультивыбор организаций (#1398): comma-список id -> IN. Живёт рядом
+// с одиночным OrganizationID, а не вместо него: параметр публичный, сторонние интеграции
+// могут слать старую форму. Тип string, а не *string как у ApplicationFilter: структуру
+// не биндит echo, handler собирает её поле за полем через c.QueryParam.
 type TrashFilter struct {
-	Search         string `query:"search"`
-	OrganizationID int    `query:"organization_id"`
-	DateFrom       string `query:"date_from"`
-	DateTo         string `query:"date_to"`
+	Search          string `query:"search"`
+	OrganizationID  int    `query:"organization_id"`
+	OrganizationIDs string `query:"organization_ids"`
+	DateFrom        string `query:"date_from"`
+	DateTo          string `query:"date_to"`
 }

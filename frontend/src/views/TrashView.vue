@@ -44,12 +44,19 @@
             class="trash-filters__search"
             @input="onSearchChange"
           />
-          <OrganizationFilter
-            ref="organizationFilter"
-            :value="filters.organizationId"
-            :organizations="organizations"
-            @change="onOrganizationChange"
-          />
+          <div class="trash-filters__control">
+            <BaseDropdown
+              :model-value="filters.organizationIds"
+              :options="organizations"
+              placeholder="Все организации"
+              summary-label="Организация"
+              data-testid="trash-filter-organizations"
+              multiple
+              searchable
+              teleport
+              @update:model-value="onOrganizationsChange"
+            />
+          </div>
           <DateFilter
             :selected-date="filters.selectedDate"
             :date-range-start="filters.dateFrom"
@@ -361,7 +368,7 @@ import { apiRequest } from '@/api/client';
 import { useDeletionsStore } from '@/stores/deletions';
 import { listTrash, restoreItems, purgeItem, clearTrash } from '@/api/trash';
 import SearchComponent from '@/components/SearchComponent.vue';
-import OrganizationFilter from '@/components/OrganizationFilter.vue';
+import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import DateFilter from '@/components/DateFilter.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import VehicleDetailsModal from '@/components/CreateApplication/VehicleDetailsModal.vue';
@@ -373,7 +380,7 @@ import ApplicationDetail from '@/components/ApplicationDetail/ApplicationDetail.
 export default {
   name: 'TrashView',
   components: {
-    SearchComponent, OrganizationFilter, DateFilter, RefreshButton,
+    SearchComponent, BaseDropdown, DateFilter, RefreshButton,
     VehicleDetailsModal, EmployeeDetailsModal, TrashHistoryModal, ConfirmationModal,
     ApplicationDetail,
   },
@@ -390,7 +397,7 @@ export default {
       error: '',
       filters: {
         search: '',
-        organizationId: null,
+        organizationIds: [],
         selectedDate: null,
         dateFrom: null,
         dateTo: null,
@@ -535,8 +542,8 @@ export default {
           dateFrom: this.filters.selectedDate || this.filters.dateFrom || '',
           dateTo: this.filters.selectedDate || this.filters.dateTo || '',
         };
-        if (this.filters.organizationId) {
-          params.organizationId = this.filters.organizationId;
+        if (this.filters.organizationIds.length) {
+          params.organizationIds = this.filters.organizationIds;
         }
         const data = await listTrash(this.tableID, params);
         this.items = Array.isArray(data) ? data : [];
@@ -550,8 +557,8 @@ export default {
       clearTimeout(this.searchTimer);
       this.searchTimer = setTimeout(() => this.reload(), 300);
     },
-    onOrganizationChange(payload) {
-      this.filters.organizationId = payload && payload.id ? payload.id : null;
+    onOrganizationsChange(ids) {
+      this.filters.organizationIds = Array.isArray(ids) ? ids : [];
       this.reload();
     },
     onDateClear() {
@@ -956,19 +963,21 @@ export default {
   flex: 0 0 auto;
 }
 
-.trash-filters :deep(.field) {
+/* Ширина ряда живёт на обёртке: у .base-dropdown своей ширины нет, и без неё кнопка
+   дёргалась бы при смене подписи "Все организации" -> "Организация: 2". */
+.trash-filters__control {
   width: 200px;
+  max-width: 100%;
+}
+
+/* Кнопка дропдауна под контракт ряда: те же 35px, радиус 15px и отступы, что у поиска
+   и календаря рядом. :deep обязателен - кнопка живёт внутри дочернего компонента и хэша
+   этого файла не несёт; min-height:0 гасит собственные 30px BaseDropdown. */
+.trash-filters__control :deep(.base-dropdown__button) {
   height: 35px;
-  background-color: var(--surface);
-  border: 1px solid var(--border);
+  min-height: 0;
   border-radius: 15px;
   padding: 0 10px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  box-sizing: border-box;
-  cursor: pointer;
 }
 
 .trash-tool-btn {
@@ -1336,9 +1345,8 @@ export default {
   }
 
   /* Фильтры на всю ширину телефона (в столбце они иначе 200px слева). */
-  .trash-filters :deep(.field) {
+  .trash-filters__control {
     width: 100%;
-    max-width: 100%;
   }
 }
 </style>

@@ -86,6 +86,12 @@ func (s *trashService) ListCarsTrash(ctx context.Context, systemTableID int, fil
 		sql += ` AND a.organization_id = ?`
 		args = append(args, filter.OrganizationID)
 	}
+	// Мультивыбор организаций (#1398). parseIDList принимает указатель - у ApplicationFilter
+	// параметр опциональный (*string), здесь поле обычная строка, поэтому берём адрес.
+	if ids := parseIDList(&filter.OrganizationIDs); len(ids) > 0 {
+		sql += ` AND a.organization_id IN ?`
+		args = append(args, ids)
+	}
 	if filter.DateFrom != "" {
 		sql += ` AND c.date_removed >= ?`
 		args = append(args, filter.DateFrom)
@@ -149,6 +155,10 @@ func (s *trashService) ListEmployeesTrash(ctx context.Context, systemTableID int
 	if filter.OrganizationID > 0 {
 		sql += ` AND a.organization_id = ?`
 		args = append(args, filter.OrganizationID)
+	}
+	if ids := parseIDList(&filter.OrganizationIDs); len(ids) > 0 {
+		sql += ` AND a.organization_id IN ?`
+		args = append(args, ids)
 	}
 	if filter.DateFrom != "" {
 		sql += ` AND e.date_deleted >= ?`
