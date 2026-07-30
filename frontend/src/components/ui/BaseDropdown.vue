@@ -123,6 +123,7 @@
 <script>
 import { getViewportZoom } from '@/utils/viewportScale';
 import { wholeItemsHeight, measureChromeHeight } from '@/utils/dropdownMetrics';
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 
 // Минимум пунктов в списке: даже в тесном месте должно быть видно, что он прокручивается.
 const MIN_VISIBLE_OPTIONS = 2;
@@ -159,6 +160,13 @@ export default {
     searchable: {
       type: Boolean,
       default: false,
+    },
+    // Поля опции, по которым идёт поиск. Пусто - только labelKey. Список нужен там,
+    // где значимый текст лежит вне подписи: у мест разгрузки код площадки живёт в
+    // description, и поиск по нему работал до переезда на этот дропдаун.
+    searchKeys: {
+      type: Array,
+      default: () => [],
     },
     // Множественный выбор (#1398): modelValue - массив значений, выбор пункта тоглит
     // его и НЕ закрывает меню. Одиночная ветка (multiple=false) не меняется.
@@ -224,12 +232,17 @@ export default {
       }
       return `${label}: ${count}`;
     },
+    searchFields() {
+      return this.searchKeys.length ? this.searchKeys : [this.labelKey];
+    },
+    // Поиск через общий util (#1157), а не плоское вхождение подстроки: иначе
+    // забытая раскладка ("hjvfirf") и транслит ("romashka") не находят "Ромашка".
+    // Плоское совпадение остаётся подмножеством - base всегда входит в варианты.
     filteredOptions() {
       if (!this.searchable || !this.searchQuery) return this.options;
-      const query = this.searchQuery.toLowerCase();
-      return this.options.filter((opt) =>
-        String(opt[this.labelKey]).toLowerCase().includes(query)
-      );
+      const variants = buildSearchVariants(this.searchQuery);
+      if (!variants.length) return this.options;
+      return this.options.filter((opt) => matchesSearch(this.optionHaystack(opt), variants));
     },
     optionsStyle() {
       return this.optionsMaxHeight ? { maxHeight: `${this.optionsMaxHeight}px` } : null;
@@ -263,6 +276,12 @@ export default {
     this.removeRepositionListeners();
   },
   methods: {
+    optionHaystack(option) {
+      return this.searchFields
+        .map((key) => option[key])
+        .filter((value) => value !== null && value !== undefined && value !== '')
+        .join(' ');
+    },
     toggle() {
       if (this.disabled) return;
       this.isOpen = !this.isOpen;
