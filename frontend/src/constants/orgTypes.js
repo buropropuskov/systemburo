@@ -11,8 +11,10 @@ export const ORG_TYPES = ['Арендатор', 'Подрядчик', 'Отде�
 export const ORG_TYPE_UNSPECIFIED_LABEL = 'не указан';
 
 /** Сентинел значения «не указан» в дропдауне-фильтре шапки. */
-export const ORG_TYPE_FILTER_ALL = 'all';
 export const ORG_TYPE_FILTER_UNSPECIFIED = '__none__';
+
+/** Подпись фильтра шапки, когда не выбран ни один тип (#1398). */
+export const ORG_TYPE_FILTER_ALL_LABEL = 'Тип: все';
 
 /** Опции дропдауна создания: только 4 значения (тип обязателен). */
 export const ORG_TYPE_CREATE_OPTIONS = ORG_TYPES.map((t) => ({ label: t, value: t }));
@@ -23,9 +25,11 @@ export const ORG_TYPE_DETAIL_OPTIONS = [
   { label: ORG_TYPE_UNSPECIFIED_LABEL, value: null },
 ];
 
-/** Опции фильтра в шапке: «Тип: все» + 4 значения + «не указан». */
+/**
+ * Опции мультифильтра в шапке: значения + «не указан». Отдельной опции «все» нет -
+ * её роль играет пустой выбор и встроенная строка «Сбросить выбор (N)».
+ */
 export const ORG_TYPE_FILTER_OPTIONS = [
-  { label: 'Тип: все', value: ORG_TYPE_FILTER_ALL },
   ...ORG_TYPES.map((t) => ({ label: t, value: t })),
   { label: ORG_TYPE_UNSPECIFIED_LABEL, value: ORG_TYPE_FILTER_UNSPECIFIED },
 ];

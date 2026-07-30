@@ -177,7 +177,7 @@ describe('OrganizationsManagement — групповой выбор и пане�
     await w.find('[data-testid="orgs-select-all"]').trigger('change')
     expect(w.vm.selectedIds).toEqual([1, 2, 3])
 
-    w.findComponent('[data-testid="orgs-type-filter"]').vm.$emit('update:modelValue', 'Отдел')
+    w.findComponent('[data-testid="orgs-type-filter"]').vm.$emit('update:modelValue', ['Отдел'])
     await nextTick()
     expect(w.vm.selectedIds).toEqual([2])
     expect(bulkBar(w).find('.bulk-count').text()).toBe('Выбрано: 1')
