@@ -3,11 +3,15 @@
     <div class="management-header rt-header-inline">
       <h3 class="management-title">
         Учётные записи пользователей
+        <span
+          class="online-count"
+          data-testid="users-online-count"
+        >в сети: {{ onlineCount }}</span>
       </h3>
       <div class="search-container header-controls">
         <BaseDropdown
           class="archive-dropdown"
-          :model-value="showArchive ? 'archive' : 'active'"
+          :model-value="listMode"
           :options="archiveOptions"
           label-key="label"
           value-key="value"
@@ -220,6 +224,22 @@
                 }"
               >
             </div>
+            <div
+              class="header-col seen-col"
+              @click="sortBy('last_seen')"
+            >
+              <p :class="{ 'active-sort': sortField === 'last_seen' }">
+                В сети
+              </p>
+              <img
+                src="@/assets/icons/sort.png"
+                class="sort-icon"
+                :class="{
+                  'sorted': sortField === 'last_seen',
+                  'desc': sortField === 'last_seen' && sortDirection === 'desc'
+                }"
+              >
+            </div>
           </div>
         </div>
         
@@ -304,6 +324,19 @@
                   class="type-badge"
                 >{{ user.user_type }}</span>
                 <span v-else>-</span>
+              </div>
+              <div
+                class="user-col seen-col"
+                data-label="В сети"
+                :title="seenTitle(user, presenceNow)"
+                data-testid="users-row-seen"
+              >
+                <span
+                  class="seen-dot"
+                  :class="{ 'seen-dot--online': isOnline(user, presenceNow) }"
+                  aria-hidden="true"
+                />
+                <span class="seen-text">{{ formatSeenShort(user, presenceNow) }}</span>
               </div>
             </div>
           </div>
@@ -927,6 +960,7 @@ import { useOrganizationsStore } from '@/stores/organizations';
 import { useCompaniesStore } from '@/stores/companies';
 import { applyPhoneMask } from '@/composables/useRussianPhoneMask'
 import { formatShortName } from '@/utils/formatName'
+import { isOnline, formatSeenShort, seenTitle, lastSeenSortKey } from '@/utils/presence'
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import SearchComponent from './SearchComponent.vue';
 import RefreshButton from './RefreshButton.vue';
@@ -945,6 +979,12 @@ import UserBulkOperationsModal from './UserBulkOperationsModal.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
 import { resetOnboardingForUser } from '@/api/onboarding';
+
+// Тик подписей присутствия: дешёвый пересчёт по уже загруженным данным, поэтому чаще
+// опроса. Опрос списка реже - он ходит на бэк, а last_seen там всё равно пишется
+// с троттлингом 60с (internal/middleware/last_seen.go), чаще смысла нет.
+const PRESENCE_TICK_MS = 30_000;
+const PRESENCE_POLL_MS = 60_000;
 
 export default {
   components: {
@@ -999,11 +1039,21 @@ export default {
       banReason: '',
       unbanConfirmVisible: false,
       bulkSubmitting: false,
-      showArchive: false,
+      // Режим списка: активные / только присутствующие сейчас / архив. Наборы
+      // bulk-операций у активных и архивных разные, поэтому режим один на всё,
+      // а не отдельный тумблер «онлайн» поверх архива.
+      listMode: 'active',
       archiveOptions: [
         { value: 'active', label: 'Активные' },
+        { value: 'online', label: 'В сети' },
         { value: 'archive', label: 'Архив' },
       ],
+      // presenceNow - тикающее «сейчас» для колонки присутствия. Держим в data, а не
+      // читаем Date.now() внутри computed: иначе пересчёт не триггерится и точка
+      // никогда не гаснет без перезагрузки.
+      presenceNow: Date.now(),
+      presenceTimer: null,
+      presencePollTimer: null,
       showNewPass: false,
       currentLanguage: '',
       isCapsLockOn: false,
@@ -1029,6 +1079,17 @@ export default {
   computed: {
     ...mapState(useOrganizationsStore, { organizations: 'items' }),
     ...mapState(useCompaniesStore, { companies: 'items' }),
+    showArchive() {
+      return this.listMode === 'archive';
+    },
+    onlineOnly() {
+      return this.listMode === 'online';
+    },
+    // Счётчик шапки считается по всем учёткам, а не по видимым: он отвечает на
+    // «сколько людей в системе сейчас», и поиск с режимом списка не должны его менять.
+    onlineCount() {
+      return this.allUsers.filter(user => isOnline(user, this.presenceNow)).length;
+    },
     // Опции с пунктом "Не выбрано" (null) для дропдаунов создания - орг/компания опциональны.
     orgOptionsWithNone() {
       return [{ id: null, name: 'Не выбрано' }, ...this.organizations];
@@ -1070,6 +1131,7 @@ export default {
       const variants = buildSearchVariants(this.userSearch);
       return this.allUsers
         .filter(user => (this.showArchive ? user.is_active === false : user.is_active !== false))
+        .filter(user => !this.onlineOnly || isOnline(user, this.presenceNow))
         .filter(user => matchesSearch(
           `${user.username} ${user.organization || ''} ${user.company || ''} `
           + `${user.user_type || ''} ${user.position || ''} ${this.formatUserName(user)}`,
@@ -1120,6 +1182,14 @@ export default {
           case 'user_type':
             valueA = a.user_type || '';
             valueB = b.user_type || '';
+            break;
+          // Числовые ключи, а не строки: ISO-даты сравнились бы лексикографически
+          // и разъехались бы на разной длине дробной части. Не заходившие получают
+          // -Infinity, то есть читаются как «бесконечно давно» и держатся в том же
+          // конце списка, что и самые старые визиты.
+          case 'last_seen':
+            valueA = lastSeenSortKey(a);
+            valueB = lastSeenSortKey(b);
             break;
           default:
             return 0;
@@ -1192,9 +1262,38 @@ export default {
   mounted() {
     this.fetchAllUsers();
     this.loadDraft();
+    this.presenceTimer = setInterval(this.tickPresence, PRESENCE_TICK_MS);
+    this.presencePollTimer = setInterval(this.pollPresence, PRESENCE_POLL_MS);
   },
- 
+  beforeUnmount() {
+    clearInterval(this.presenceTimer);
+    clearInterval(this.presencePollTimer);
+    this.presenceTimer = null;
+    this.presencePollTimer = null;
+  },
+
   methods: {
+    isOnline,
+    formatSeenShort,
+    seenTitle,
+
+    // Пересчёт подписей присутствия из уже загруженного last_seen: запросов не делает,
+    // поэтому тик частый - иначе «в сети» висело бы у ушедшего до следующего опроса.
+    tickPresence() {
+      this.presenceNow = Date.now();
+    },
+
+    // Тихий перезапрос списка: без спиннера и тостов, чтобы присутствие оживало само.
+    // Пропускаем, когда открыта карточка или модалка bulk-операции: watch allUsers
+    // пере-резолвит selectedUser из свежего ответа и затёр бы незасохранённый ввод
+    // формы. В скрытой вкладке не опрашиваем вовсе - смотреть там всё равно некому.
+    pollPresence() {
+      if (document.hidden) return;
+      if (this.showEditModal || this.showCreateModal) return;
+      if (this.bulkModalVisible || this.bulkConfirmVisible || this.banModalVisible || this.unbanConfirmVisible) return;
+      this.fetchAllUsers();
+    },
+
     ...mapActions(useOrganizationsStore, {
       fetchOrganizations: 'fetchOrganizations',
       refreshOrganizations: 'refresh',
@@ -1229,9 +1328,10 @@ export default {
     },
 
     onArchiveModeChange(value) {
-      this.showArchive = value === 'archive';
+      this.listMode = value;
       this.selectedUser = null;
-      // Наборы операций активных и архивных разные - выбор не переносим.
+      // Наборы операций активных и архивных разные - выбор не переносим. Режим «В сети»
+      // тоже сбрасывает выбор: набор строк меняется сам по себе, по мере ухода людей.
       this.clearSelection();
     },
 
@@ -2025,11 +2125,18 @@ export default {
   display: flex;
   height: fit-content;
   width: 100%;
+  /* Горизонтальная деградация живёт здесь, а не на .users-body: у тела свой
+     overflow-y, и его же горизонтальный скролл увёл бы строки из-под шапки.
+     Скролля контейнер, шапка и строки едут вместе. */
+  overflow-x: auto;
 }
 
 .users-list {
   flex: 1 1 auto;
-  min-width: 0;
+  /* Сумма минимумов восьми колонок с падингами ячеек и строки. Ниже этой ширины
+     список не сжимается, а .users-container отдаёт честный горизонтальный скролл:
+     %-ширины иначе схлопывают текст колонки в ноль вместо прокрутки. */
+  min-width: 760px;
   display: flex;
   flex-direction: column;
 }
@@ -2138,13 +2245,53 @@ export default {
 }
 
 /* Колонки с фиксированной шириной */
-/* check-col 6% забюджетирован в сумму 100% (14+16+18+15+16+15+6). */
-.login-col { width: 14%; min-width: 110px; }
-.name-col { width: 16%; min-width: 110px; }
-.org-col { width: 18%; min-width: 110px; }
-.company-col { width: 15%; min-width: 110px; }
-.position-col { width: 16%; min-width: 110px; }
-.type-col { width: 15%; min-width: 90px; }
+/* check-col 6% забюджетирован в сумму 100% (6+12+15+16+13+14+11+13). */
+.login-col { width: 12%; min-width: 100px; }
+.name-col { width: 15%; min-width: 105px; }
+.org-col { width: 16%; min-width: 110px; }
+.company-col { width: 13%; min-width: 100px; }
+.position-col { width: 14%; min-width: 100px; }
+.type-col { width: 11%; min-width: 90px; }
+.seen-col { width: 13%; min-width: 86px; }
+
+/* Ячейка присутствия: точка и подпись в одну строку, подпись не переносится -
+   иначе строка таблицы прыгала бы по высоте на «12 мин назад». */
+.seen-col {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.seen-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Точка присутствия - по образцу .ou-row__dot из OnlineUsersModal (модалка «кто
+   онлайн» на дашборде): один визуальный язык для одного и того же состояния. */
+.seen-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--text-muted);
+}
+
+.seen-dot--online {
+  background: var(--color-success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 22%, transparent);
+}
+
+/* Счётчик присутствия в шапке блока. Не жирный и не крупный: подпись к заголовку,
+   а не второй заголовок. */
+.online-count {
+  margin-left: 10px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
 
 /* Тело таблицы */
 .users-body {
@@ -2642,11 +2789,32 @@ export default {
   .users-container {
     flex-direction: column;
     height: auto;
+    /* В card-режиме горизонтальной деградации нет: строки стали карточками, ширины
+       колонок не действуют. Оставленный скролл давал бы пустую прокрутку на 760px. */
+    overflow-x: visible;
+  }
+
+  /* Тот же откат для минимума ширины - иначе карточки распирают вьюпорт телефона. */
+  .users-list {
+    min-width: 0;
   }
 
   .users-body {
     height: auto;
     max-height: 300px;
+  }
+
+  /* В карточке ячейка несёт ТРИ элемента: подпись data-label (::before из
+     responsive-tables.css), точку и текст. При space-between точка повисла бы
+     ровно посередине строки - отжимаем подпись влево, чтобы точка с подписью
+     времени держались парой справа, как значение любой другой ячейки. */
+  .seen-col::before {
+    margin-right: auto;
+  }
+
+  .seen-text {
+    overflow: visible;
+    text-overflow: clip;
   }
 
   /* Спейсинг карточек: rt-row сидит на .user-row, а не на v-for-корне
