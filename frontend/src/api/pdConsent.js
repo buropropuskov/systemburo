@@ -101,3 +101,16 @@ export async function acceptConsent() {
   });
   return unwrap(res, 'Не удалось подтвердить согласие');
 }
+
+/**
+ * Сводка по сбору согласий текущей редакции и список тех, кто ещё не подтвердил.
+ * Считается той же меркой, что и гейт, поэтому число согласившихся совпадает с
+ * числом тех, кого система пускает.
+ * @typedef {{id: number, username: string, full_name: string, organization: string}} PDConsentPendingUser
+ * @typedef {{version: number, total: number, accepted: number, pending: number, pending_users: PDConsentPendingUser[]}} PDConsentCollection
+ * @returns {Promise<PDConsentCollection>}
+ */
+export async function getPDConsentCollection() {
+  const res = await apiRequest(`${BASE}/collection`);
+  return unwrap(res, 'Не удалось загрузить сводку по сбору согласий');
+}

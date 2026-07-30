@@ -41,3 +41,28 @@ type PDConsentGateState struct {
 	Text     string                  `json:"text"`
 	Document *DataProcessingDocument `json:"document"`
 }
+
+// PDConsentCollection -- как идёт сбор согласий по текущей редакции (#1567).
+//
+// Счёт ведётся ТОЙ ЖЕ меркой, что и гейт: в знаменателе только те, кого он реально
+// закрывает, а согласившимся считается тот, чья действующая редакция не ниже
+// требуемой. Иначе сводка разошлась бы с тем, кого система пускает.
+type PDConsentCollection struct {
+	// Version -- редакция, по которой считали. Сводка по прежней редакции
+	// бессмысленна: после подъёма номера состав согласившихся меняется.
+	Version  int `json:"version"`
+	Total    int `json:"total"`
+	Accepted int `json:"accepted"`
+	Pending  int `json:"pending"`
+	// PendingUsers -- кто ещё не подтвердил. Это рабочий список для администратора:
+	// кому напомнить и кого искать.
+	PendingUsers []PDConsentPendingUser `json:"pending_users"`
+}
+
+// PDConsentPendingUser -- строка списка не подтвердивших.
+type PDConsentPendingUser struct {
+	ID           int    `json:"id"`
+	Username     string `json:"username"`
+	FullName     string `json:"full_name"`
+	Organization string `json:"organization"`
+}
