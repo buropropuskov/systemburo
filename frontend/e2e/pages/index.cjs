@@ -7,4 +7,5 @@ module.exports = {
   ...require('./CarsPage'),
   ...require('./EmployeesPage'),
   ...require('./CreateApplicationPage'),
+  ...require('./TablesPage'),
 };
