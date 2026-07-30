@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/mail"
 	"strconv"
+	"strings"
 	"sync"
 
 	"systemburo/internal/config"
@@ -20,6 +21,17 @@ import (
 // dataProcessingDocKey -- ключ настройки с метаданными документа согласия на обработку данных.
 const dataProcessingDocKey = "legal.data_processing_document"
 
+// Ключи настроек согласия на обработку ПД при первом входе (#1567).
+const (
+	pdConsentTextKey     = "legal.pd_consent_text"
+	pdConsentVersionKey  = "legal.pd_consent_version"
+	pdConsentRequiredKey = "legal.pd_consent_required"
+)
+
+// PDConsentTextMaxBytes -- предел размера HTML согласия. Редактор инлайнит картинки
+// в base64, а текст уезжает пользователю при каждом входе, поэтому лимит жёсткий.
+const PDConsentTextMaxBytes = 512 * 1024
+
 type SettingsService interface {
 	GetAll(ctx context.Context, isSuperAdmin bool) ([]models.SystemSetting, error)
 	Update(ctx context.Context, isSuperAdmin bool, key string, value string) (*models.SystemSetting, error)
@@ -30,6 +42,10 @@ type SettingsService interface {
 	GetDataProcessingDoc(ctx context.Context) (*models.DataProcessingDocument, error)
 	SetDataProcessingDoc(ctx context.Context, meta *models.DataProcessingDocument) error
 	ClearDataProcessingDoc(ctx context.Context) error
+	GetPDConsentSettings(ctx context.Context) (*models.PDConsentSettings, error)
+	SetPDConsentText(ctx context.Context, text string) error
+	SetPDConsentRequired(ctx context.Context, required bool) error
+	BumpPDConsentVersion(ctx context.Context) (int, error)
 	GetApprovalReminderSettings(ctx context.Context) (enabled bool, firstDays int, repeatDays int)
 }
 
@@ -293,6 +309,106 @@ func (s *settingsService) ClearDataProcessingDoc(ctx context.Context) error {
 	delete(s.cache, dataProcessingDocKey)
 	s.mu.Unlock()
 	return nil
+}
+
+// GetPDConsentSettings собирает настройки согласия на обработку ПД: текст, требуемую
+// версию и флаг обязательности. Читает БД, а не кэш: кэш наполняется при старте
+// процесса, и при нескольких репликах подъём версии на одной остался бы не виден
+// остальным. Отсутствующие ключи дают версию 1 и выключенный запрос согласия.
+func (s *settingsService) GetPDConsentSettings(ctx context.Context) (*models.PDConsentSettings, error) {
+	var settings []models.SystemSetting
+	keys := []string{pdConsentTextKey, pdConsentVersionKey, pdConsentRequiredKey}
+	if err := s.db.WithContext(ctx).Where("key IN ?", keys).Find(&settings).Error; err != nil {
+		return nil, fmt.Errorf("failed to load pd consent settings: %w", err)
+	}
+	result := &models.PDConsentSettings{Version: 1}
+	for _, st := range settings {
+		switch st.Key {
+		case pdConsentTextKey:
+			result.Text = st.Value
+		case pdConsentVersionKey:
+			if v, err := strconv.Atoi(st.Value); err == nil && v > 0 {
+				result.Version = v
+			}
+		case pdConsentRequiredKey:
+			result.Required = st.Value == "true"
+		}
+	}
+	return result, nil
+}
+
+// SetPDConsentText сохраняет текст согласия. Пустая строка допустима -- это очистка
+// текста; запрос согласия при этом перестаёт работать, и администратор видит
+// предупреждение в интерфейсе.
+func (s *settingsService) SetPDConsentText(ctx context.Context, text string) error {
+	if len(text) > PDConsentTextMaxBytes {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf(
+			"Текст согласия больше %d КБ. Уберите вставленные картинки или сократите текст.",
+			PDConsentTextMaxBytes/1024))
+	}
+	return s.upsertRaw(ctx, pdConsentTextKey, text, "html")
+}
+
+// SetPDConsentRequired включает или выключает запрос согласия при входе. Включить с
+// пустым текстом нельзя: настройка выглядела бы рабочей, а показать пользователю было
+// бы нечего.
+func (s *settingsService) SetPDConsentRequired(ctx context.Context, required bool) error {
+	if required {
+		current, err := s.GetPDConsentSettings(ctx)
+		if err != nil {
+			return err
+		}
+		if !hasVisibleText(current.Text) {
+			return echo.NewHTTPError(http.StatusBadRequest, "Сначала задайте текст согласия")
+		}
+	}
+	return s.upsertRaw(ctx, pdConsentRequiredKey, strconv.FormatBool(required), "bool")
+}
+
+// BumpPDConsentVersion поднимает требуемую версию согласия: после этого система
+// запросит согласие заново у всех, кто соглашался с прежней редакцией текста.
+//
+// Чтение и запись не в одной транзакции, поэтому одновременный подъём двумя
+// администраторами может потерять один инкремент (оба прочитают N, оба запишут
+// N+1). На семантику это не влияет: версия всё равно уходит вперёд, и согласия с
+// прежней редакцией становятся недостаточными -- ровно то, чего хотел каждый из
+// администраторов.
+func (s *settingsService) BumpPDConsentVersion(ctx context.Context) (int, error) {
+	current, err := s.GetPDConsentSettings(ctx)
+	if err != nil {
+		return 0, err
+	}
+	next := current.Version + 1
+	if err := s.upsertRaw(ctx, pdConsentVersionKey, strconv.Itoa(next), "int"); err != nil {
+		return 0, err
+	}
+	return next, nil
+}
+
+// hasVisibleText сообщает, есть ли в HTML видимое содержимое. Редактор на пустом
+// документе отдаёт "<p></p>", поэтому голого TrimSpace недостаточно: без этой проверки
+// согласие можно было бы включить с визуально пустым текстом.
+func hasVisibleText(html string) bool {
+	if strings.Contains(strings.ToLower(html), "<img") {
+		return true
+	}
+	var text strings.Builder
+	depth := 0
+	for _, r := range html {
+		switch {
+		case r == '<':
+			depth++
+		case r == '>':
+			if depth > 0 {
+				depth--
+			}
+		case depth == 0:
+			text.WriteRune(r)
+		}
+	}
+	plain := strings.ReplaceAll(text.String(), "&nbsp;", " ")
+	plain = strings.ReplaceAll(plain, "\u00a0", " ")
+	return strings.TrimSpace(plain) != ""
 }
 
 // upsertRaw записывает значение настройки напрямую, без проверки knownKeys и прав

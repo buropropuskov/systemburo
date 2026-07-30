@@ -13,11 +13,23 @@ const getDataProcessingMeta = vi.fn();
 const uploadDataProcessingDoc = vi.fn();
 const deleteDataProcessingDoc = vi.fn();
 const downloadDataProcessingDoc = vi.fn();
+const fetchDataProcessingBlob = vi.fn();
 vi.mock('@/api/dataProcessing', () => ({
   getDataProcessingMeta: (...a) => getDataProcessingMeta(...a),
   uploadDataProcessingDoc: (...a) => uploadDataProcessingDoc(...a),
   deleteDataProcessingDoc: (...a) => deleteDataProcessingDoc(...a),
   downloadDataProcessingDoc: (...a) => downloadDataProcessingDoc(...a),
+  fetchDataProcessingBlob: (...a) => fetchDataProcessingBlob(...a),
+}));
+
+// Секция настроек грузит вместе с документом и текст согласия (#1567) - мокаем,
+// чтобы спека оставалась герметичной и не уходила в сеть.
+const getPDConsentSettings = vi.fn();
+vi.mock('@/api/pdConsent', () => ({
+  getPDConsentSettings: (...a) => getPDConsentSettings(...a),
+  savePDConsentText: vi.fn(),
+  setPDConsentRequired: vi.fn(),
+  requirePDConsentAgain: vi.fn(),
 }));
 
 import AdminSettings from '../AdminSettings.vue';
@@ -37,7 +49,9 @@ describe('AdminSettings - обработка данных', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     [getSettings, updateSetting, getDataProcessingMeta, uploadDataProcessingDoc,
-      deleteDataProcessingDoc, downloadDataProcessingDoc].forEach((m) => m.mockReset());
+      deleteDataProcessingDoc, downloadDataProcessingDoc, fetchDataProcessingBlob,
+      getPDConsentSettings].forEach((m) => m.mockReset());
+    getPDConsentSettings.mockResolvedValue({ text: '', version: 1, required: false });
   });
 
   it('подгружает документ при первом открытии секции (lazy)', async () => {
