@@ -139,3 +139,41 @@ describe('карточка на фоне страницы несёт свой ф
     expect(rootBackgrounds(src, cls).join(' ')).toMatch(/var\(--surface\)/);
   });
 });
+
+/**
+ * Подложка под карточками (#1576).
+ *
+ * У --surface-2 направление в палитрах РАЗНОЕ: в светлой он темнее карточки,
+ * в тёмной светлее. Поэтому контейнер-колонка, покрашенная в --surface-2,
+ * выглядит правильно в одной теме и переворачивается в другой: подложка
+ * выпирает светлым, а карточки внутри неё темнее внешней панели и сливаются
+ * с ней. Так и разъехалась деталь заявки. Для подложек есть --surface-sunken
+ * с одинаковым направлением в обеих темах - эти проверки держат и сам токен,
+ * и переход детали на него.
+ */
+describe('подложка под карточками темнее карточки', () => {
+  const lum = (hex) => {
+    const h = hex.replace('#', '');
+    const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
+    const ch = [0, 2, 4].map((i) => parseInt(full.slice(i, i + 2), 16) / 255);
+    const f = (s) => (s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4);
+    return 0.2126 * f(ch[0]) + 0.7152 * f(ch[1]) + 0.0722 * f(ch[2]);
+  };
+
+  it.each(THEMES)('%s: --surface-sunken объявлен и темнее --surface', (theme) => {
+    const p = palette(theme);
+    expect(p['--surface-sunken'], `${theme}: --surface-sunken`).toBeTruthy();
+    expect(lum(p['--surface-sunken'])).toBeLessThan(lum(p['--surface']));
+  });
+
+  const sunken = [
+    ['components/ApplicationDetail/ApplicationDetail.vue', 'detail-header'],
+    ['components/ApplicationDetail/ApplicationDetail.vue', 'detail-left-column'],
+    ['components/ApplicationDetail/ApplicationDetail.vue', 'detail-right-column'],
+  ];
+
+  it.each(sunken)('%s .%s берёт --surface-sunken', (file, cls) => {
+    const src = fs.readFileSync(path.join(SRC, file), 'utf8');
+    expect(rootBackgrounds(src, cls).join(' ')).toMatch(/var\(--surface-sunken\)/);
+  });
+});

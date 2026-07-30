@@ -594,6 +594,7 @@
 <script>
 import { apiRequest } from '@/api/client'
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
+import { idFilterSet } from '@/utils/idFilter';
 import { useDeletionsStore } from '@/stores/deletions';
 import { usePermissionsStore } from '@/stores/permissions';
 import eventStream from '@/services/eventStream';
@@ -641,9 +642,11 @@ export default {
     tableTitle: { type: String, default: '' },
     tableId: { type: Number, default: null },
     searchQuery: { type: String, default: '' },
-    selectedOrganizationId: { type: [Number, String], default: null },
-    selectedCompanyId: { type: [Number, String], default: null },
-    selectedUnloadingPlaceId: { type: [Number, String], default: null },
+    // Мультивыбор (#1398): пустой массив - фильтр выключен. Дефолт обязателен -
+    // preview-монтирования (вкладка «Колонки», версии таблицы) пропсы не передают.
+    selectedOrganizationIds: { type: Array, default: () => [] },
+    selectedCompanyIds: { type: Array, default: () => [] },
+    selectedUnloadingPlaceIds: { type: Array, default: () => [] },
     dateRangeStart: { type: Date, default: null },
     dateRangeEnd: { type: Date, default: null },
     selectedDate: { type: Date, default: null },
@@ -725,17 +728,19 @@ export default {
           return matchesSearch(searchFields.filter(Boolean).join(' '), variants);
         });
       }
-      if (this.selectedOrganizationId) {
-        filtered = filtered.filter(item => item.organization_id == this.selectedOrganizationId);
+      const organizations = idFilterSet(this.selectedOrganizationIds);
+      if (organizations) {
+        filtered = filtered.filter(item => organizations.has(String(item.organization_id)));
       }
-      if (this.selectedCompanyId) {
-        filtered = filtered.filter(item => item.company_id == this.selectedCompanyId);
+      const companies = idFilterSet(this.selectedCompanyIds);
+      if (companies) {
+        filtered = filtered.filter(item => companies.has(String(item.company_id)));
       }
-      if (this.selectedUnloadingPlaceId) {
+      const unloadPlaceIds = idFilterSet(this.selectedUnloadingPlaceIds);
+      if (unloadPlaceIds) {
         filtered = filtered.filter(item => {
-          const carId = item.id;
-          const unloadPlaces = this.carUnloadPlacesMap[carId] || [];
-          return unloadPlaces.some(place => place.id == this.selectedUnloadingPlaceId);
+          const unloadPlaces = this.carUnloadPlacesMap[item.id] || [];
+          return unloadPlaces.some(place => unloadPlaceIds.has(String(place.id)));
         });
       }
       if (this.selectedDate) {
@@ -787,9 +792,9 @@ export default {
     hasActiveFilters() {
       return !!(
         this.searchQuery ||
-        this.selectedOrganizationId ||
-        this.selectedCompanyId ||
-        this.selectedUnloadingPlaceId ||
+        idFilterSet(this.selectedOrganizationIds) ||
+        idFilterSet(this.selectedCompanyIds) ||
+        idFilterSet(this.selectedUnloadingPlaceIds) ||
         this.selectedDate ||
         (this.dateRangeStart && this.dateRangeEnd)
       );

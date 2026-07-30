@@ -617,6 +617,7 @@
 <script>
 import { apiRequest } from '@/api/client';
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
+import { idFilterSet } from '@/utils/idFilter';
 import { useDeletionsStore } from '@/stores/deletions';
 import { usePermissionsStore } from '@/stores/permissions';
 import { useOrientation } from '@/composables/useOrientation';
@@ -667,17 +668,17 @@ export default {
       type: String,
       default: ''
     },
-    selectedOrganizationId: {
-      type: [Number, String],
-      default: null
+    // Мультивыбор (#1398): пустой массив - фильтр выключен. Дефолт обязателен -
+    // preview-монтирования (вкладка «Колонки», версии таблицы) пропсы не передают.
+    // Места разгрузки здесь нет намеренно: у сотрудников такой связи не существует,
+    // фильтр применим только к машинам.
+    selectedOrganizationIds: {
+      type: Array,
+      default: () => []
     },
-    selectedCompanyId: {
-      type: [Number, String],
-      default: null
-    },
-    selectedUnloadingPlace: {
-      type: String,
-      default: ''
+    selectedCompanyIds: {
+      type: Array,
+      default: () => []
     },
     dateRangeStart: {
       type: Date,
@@ -775,12 +776,14 @@ export default {
         });
       }
 
-      if (this.selectedOrganizationId) {
-        filtered = filtered.filter(item => item.organization_id == this.selectedOrganizationId);
+      const organizations = idFilterSet(this.selectedOrganizationIds);
+      if (organizations) {
+        filtered = filtered.filter(item => organizations.has(String(item.organization_id)));
       }
 
-      if (this.selectedCompanyId) {
-        filtered = filtered.filter(item => item.company_id == this.selectedCompanyId);
+      const companies = idFilterSet(this.selectedCompanyIds);
+      if (companies) {
+        filtered = filtered.filter(item => companies.has(String(item.company_id)));
       }
 
       if (this.selectedDate) {
@@ -843,8 +846,8 @@ export default {
     hasActiveFilters() {
       return !!(
         this.searchQuery ||
-        this.selectedOrganizationId ||
-        this.selectedCompanyId ||
+        idFilterSet(this.selectedOrganizationIds) ||
+        idFilterSet(this.selectedCompanyIds) ||
         this.selectedDate ||
         (this.dateRangeStart && this.dateRangeEnd)
       );
