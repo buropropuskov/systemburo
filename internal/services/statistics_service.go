@@ -13,7 +13,12 @@ import (
 // onlineWindowMinutes — окно "онлайн": пользователь считается онлайн, если его
 // last_seen обновлялся за последние N минут. Должно быть >= троттл-окна записи
 // last_seen в middleware (60с), с запасом на простой между запросами.
-const onlineWindowMinutes = 15
+//
+// То же окно продублировано на фронте (ONLINE_WINDOW_MINUTES в
+// frontend/src/utils/presence.js): таблица пользователей гасит точку присутствия
+// по тикающему таймеру, без запроса к бэку. Меняя число здесь, менять и там -
+// иначе плитка дашборда и колонка «В сети» дадут разные ответы.
+const onlineWindowMinutes = 5
 
 // StatisticsService — интерфейс бизнес-логики статистики дашборда.
 type StatisticsService interface {

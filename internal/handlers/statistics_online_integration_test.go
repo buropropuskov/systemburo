@@ -27,8 +27,8 @@ func TestUsersOnline_CountsByLastSeenWindow(t *testing.T) {
 
 	now := time.Now().UTC()
 	recent := now.Add(-2 * time.Minute) // в окне
-	stale := now.Add(-30 * time.Minute) // вне окна (15 мин)
-	edge := now.Add(-14 * time.Minute)  // на границе - в окне
+	stale := now.Add(-30 * time.Minute) // вне окна (5 мин)
+	edge := now.Add(-4 * time.Minute)   // на границе - в окне
 
 	mk := func(username string, ls *time.Time) {
 		u := models.User{Username: username, TypeID: 1, IsActive: true}
@@ -118,9 +118,9 @@ func TestGetOnlineUsers_WindowSortAndFields(t *testing.T) {
 	testutil.CleanDB(t, db)
 
 	now := time.Now().UTC()
-	recent := now.Add(-2 * time.Minute) // в окне, свежее
-	edge := now.Add(-14 * time.Minute)  // в окне, граница
-	stale := now.Add(-30 * time.Minute) // вне окна (15 мин)
+	recent := now.Add(-1 * time.Minute) // в окне, свежее
+	edge := now.Add(-4 * time.Minute)   // в окне, граница
+	stale := now.Add(-30 * time.Minute) // вне окна (5 мин)
 
 	role := models.Role{Code: "role_test_g7", Name: "РольТест"}
 	require.NoError(t, db.Create(&role).Error)

@@ -146,6 +146,10 @@ type UserInfoResponse struct {
 	Position       *string `json:"position"`
 	Email          *string `json:"email"`
 	Phone          *string `json:"phone"`
+	// LastSeen - последняя активность (см. User.LastSeen). Без omitempty: «никогда
+	// не заходил» должно доезжать до клиента явным null, а не отсутствием ключа -
+	// таблица пользователей рисует по нему прочерк, а не «только что».
+	LastSeen *time.Time `json:"last_seen"`
 }
 
 // UpdateUserTypeRequest — запрос на обновление типа пользователя.
