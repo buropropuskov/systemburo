@@ -60,6 +60,9 @@ function rowTypes(w) {
 function rowNames(w) {
   return w.findAll('[data-testid="orgs-row"] .name-col').map(c => c.text())
 }
+function typeFilter(w) {
+  return w.findComponent('[data-testid="orgs-type-filter"]')
+}
 
 describe('OrganizationsManagement — тип/фильтр/сортировка/участники', () => {
   beforeEach(() => {
@@ -75,16 +78,46 @@ describe('OrganizationsManagement — тип/фильтр/сортировка/�
 
   it('фильтр по типу оставляет только организации выбранного типа', async () => {
     const { w } = await mountCmp()
-    w.findComponent('[data-testid="orgs-type-filter"]').vm.$emit('update:modelValue', 'Отдел')
+    typeFilter(w).vm.$emit('update:modelValue', ['Отдел'])
     await nextTick()
     expect(rowNames(w)).toEqual(['Бета'])
   })
 
   it('фильтр «не указан» оставляет только организации без типа', async () => {
     const { w } = await mountCmp()
-    w.findComponent('[data-testid="orgs-type-filter"]').vm.$emit('update:modelValue', '__none__')
+    typeFilter(w).vm.$emit('update:modelValue', ['__none__'])
     await nextTick()
     expect(rowNames(w)).toEqual(['Гамма'])
+  })
+
+  it('мультивыбор: «не указан» — элемент набора, а не отдельный режим (#1398)', async () => {
+    const { w } = await mountCmp()
+    typeFilter(w).vm.$emit('update:modelValue', ['Отдел', '__none__'])
+    await nextTick()
+    expect(rowNames(w)).toEqual(['Бета', 'Гамма'])
+  })
+
+  it('пустой набор типов не фильтрует', async () => {
+    const { w } = await mountCmp()
+    typeFilter(w).vm.$emit('update:modelValue', ['Отдел'])
+    await nextTick()
+    typeFilter(w).vm.$emit('update:modelValue', [])
+    await nextTick()
+    expect(rowNames(w)).toEqual(['Альфа', 'Бета', 'Гамма'])
+  })
+
+  it('подпись кнопки: «Тип: все» без выбора, имя при одном, счётчик при нескольких', async () => {
+    const { w } = await mountCmp()
+    const caption = () => typeFilter(w).find('.base-dropdown__text').text()
+    expect(caption()).toBe('Тип: все')
+
+    typeFilter(w).vm.$emit('update:modelValue', ['Отдел'])
+    await nextTick()
+    expect(caption()).toBe('Отдел')
+
+    typeFilter(w).vm.$emit('update:modelValue', ['Отдел', '__none__'])
+    await nextTick()
+    expect(caption()).toBe('Тип: 2')
   })
 
   it('сортировка по типу: «не указан» первым при asc', async () => {
