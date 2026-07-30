@@ -50,10 +50,11 @@ function mountUserControl(allUsers = seedUsers()) {
   })
 }
 
-// Ячейки колонки присутствия в порядке строк таблицы.
+// Ячейки колонки присутствия в порядке строк таблицы. У присутствующих вместо
+// подписи стоит бейдж «Онлайн», поэтому текст ячейки читаем как есть.
 const seenCells = w => w.findAll('[data-testid="users-row-seen"]')
-const seenTexts = w => seenCells(w).map(c => c.find('.seen-text').text())
-const onlineDots = w => w.findAll('.seen-dot--online')
+const seenTexts = w => seenCells(w).map(c => c.text())
+const onlineBadges = w => w.findAll('[data-testid="users-row-online-badge"]')
 const rowLogins = w => w.findAll('.user-login').map(el => el.text())
 
 describe('UserControl — колонка присутствия', () => {
@@ -75,17 +76,19 @@ describe('UserControl — колонка присутствия', () => {
 
     // Порядок по умолчанию — по логину: banned_fresh, left_recently, never_seen, online_now.
     expect(rowLogins(wrapper)).toEqual(['banned_fresh', 'left_recently', 'never_seen', 'online_now'])
-    // Присутствующему тоже показывается время: статус несёт точка, не текст.
-    expect(seenTexts(wrapper)).toEqual(['2 мин', '12 мин', '-', '1 мин'])
-    expect(onlineDots(wrapper)).toHaveLength(1)
+    // Присутствующий - бейджем, отсутствующие - давностью последнего визита.
+    expect(seenTexts(wrapper)).toEqual(['2 мин', '12 мин', '-', 'Онлайн'])
+    expect(onlineBadges(wrapper)).toHaveLength(1)
+    expect(onlineBadges(wrapper)[0].classes()).toContain('badge--success')
   })
 
-  it('забаненный со свежей активностью не показывается как «в сети»', async () => {
+  it('забаненный со свежей активностью не получает бейдж', async () => {
     wrapper = mountUserControl()
     await flushPromises()
 
     const bannedCell = seenCells(wrapper)[0]
-    expect(bannedCell.find('.seen-dot').classes()).not.toContain('seen-dot--online')
+    expect(bannedCell.find('[data-testid="users-row-online-badge"]').exists()).toBe(false)
+    expect(bannedCell.text()).toBe('2 мин')
     expect(bannedCell.attributes('title')).toContain('Был в сети')
   })
 
@@ -160,10 +163,10 @@ describe('UserControl — колонка присутствия', () => {
     expect(secondPass[secondPass.length - 1]).toBe('never_seen')
   })
 
-  it('точка гаснет по таймеру, без перезапроса списка', async () => {
+  it('бейдж сменяется давностью по таймеру, без перезапроса списка', async () => {
     wrapper = mountUserControl()
     await flushPromises()
-    expect(onlineDots(wrapper)).toHaveLength(1)
+    expect(onlineBadges(wrapper)).toHaveLength(1)
 
     // Уводим время за окно онлайна, данные не меняем. Тик забирает Date.now(),
     // поэтому итоговое «сейчас» = NOW + 5 мин + 1 с тика.
@@ -171,19 +174,20 @@ describe('UserControl — колонка присутствия', () => {
     vi.advanceTimersByTime(1000)
     await flushPromises()
 
-    expect(onlineDots(wrapper)).toHaveLength(0)
+    expect(onlineBadges(wrapper)).toHaveLength(0)
     expect(seenTexts(wrapper)[3]).toBe('6 мин 1 с')
   })
 
-  it('подпись пересчитывается каждую секунду — иначе секунды врали бы', async () => {
+  it('давность пересчитывается каждую секунду — иначе секунды врали бы', async () => {
     wrapper = mountUserControl()
     await flushPromises()
-    expect(seenTexts(wrapper)[3]).toBe('1 мин')
+    // Забаненный: у него метка свежая, но бейджа нет, поэтому видна сама давность.
+    expect(seenTexts(wrapper)[0]).toBe('2 мин')
 
     vi.setSystemTime(NOW + 20_000)
     vi.advanceTimersByTime(1000)
     await flushPromises()
-    expect(seenTexts(wrapper)[3]).toBe('1 мин 21 с')
+    expect(seenTexts(wrapper)[0]).toBe('2 мин 21 с')
   })
 
   it('тихий опрос просит родителя перезагрузить список', async () => {

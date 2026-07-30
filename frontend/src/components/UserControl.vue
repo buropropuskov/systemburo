@@ -331,12 +331,19 @@
                 :title="seenTitle(user, presenceNow)"
                 data-testid="users-row-seen"
               >
+                <Badge
+                  v-if="isOnline(user, presenceNow)"
+                  variant="success"
+                  size="sm"
+                  dot
+                  data-testid="users-row-online-badge"
+                >
+                  Онлайн
+                </Badge>
                 <span
-                  class="seen-dot"
-                  :class="{ 'seen-dot--online': isOnline(user, presenceNow) }"
-                  aria-hidden="true"
-                />
-                <span class="seen-text">{{ formatSeenShort(user, presenceNow) }}</span>
+                  v-else
+                  class="seen-text"
+                >{{ formatSeenShort(user, presenceNow) }}</span>
               </div>
             </div>
           </div>
@@ -970,6 +977,7 @@ import { evaluatePassword, passwordMeetsPolicy, generatePassword as buildPasswor
 import ConfirmationModal from './ConfirmationModal.vue';
 import BaseModal from './ui/BaseModal.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
+import Badge from './ui/Badge.vue';
 import ToggleSwitch from './ui/ToggleSwitch.vue';
 import UserHistoryModal from './UserHistoryModal.vue';
 import UserLoginHistory from './UserLoginHistory.vue';
@@ -995,6 +1003,7 @@ export default {
     ConfirmationModal,
     BaseModal,
     BaseDropdown,
+    Badge,
     ToggleSwitch,
     UserHistoryModal,
     UserLoginHistory,
@@ -2277,21 +2286,6 @@ export default {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-/* Точка присутствия - по образцу .ou-row__dot из OnlineUsersModal (модалка «кто
-   онлайн» на дашборде): один визуальный язык для одного и того же состояния. */
-.seen-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  background: var(--text-muted);
-}
-
-.seen-dot--online {
-  background: var(--color-success);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 22%, transparent);
 }
 
 /* Счётчик присутствия в шапке блока. Не жирный и не крупный: подпись к заголовку,

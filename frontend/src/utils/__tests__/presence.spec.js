@@ -46,9 +46,10 @@ describe('presence — isOnline', () => {
 })
 
 describe('presence — formatSeenShort', () => {
-  // Все ступени шкалы: секунды -> минуты -> часы -> дни -> месяцы -> годы,
-  // по две старшие единицы. Присутствующие тоже получают время, а не «в сети».
-  const secondsAgo = (s) => ({ is_active: true, last_seen: new Date(NOW - s * 1000).toISOString() })
+  // Все ступени шкалы: секунды -> минуты -> часы -> дни -> месяцы -> годы, по две
+  // старшие единицы. Подпись отвечает только за отсутствующих: присутствующим
+  // ячейка рисует бейдж «Онлайн» (см. спеку UserControl.presence).
+  const secondsAgo = (s) => ({ is_active: true, is_banned: true, last_seen: new Date(NOW - s * 1000).toISOString() })
 
   it('секунды и минуты с секундами', () => {
     expect(formatSeenShort(secondsAgo(0), NOW)).toBe('0 с')
@@ -58,10 +59,10 @@ describe('presence — formatSeenShort', () => {
     expect(formatSeenShort(secondsAgo(200), NOW)).toBe('3 мин 20 с')
   })
 
-  it('присутствующий тоже показывает время, а не слово «в сети»', () => {
-    const fresh = secondsAgo(45)
-    expect(isOnline(fresh, NOW)).toBe(true)
-    expect(formatSeenShort(fresh, NOW)).toBe('45 с')
+  it('вышедший за окно онлайна сразу показывает давность', () => {
+    const justLeft = { is_active: true, last_seen: new Date(NOW - (ONLINE_WINDOW_MINUTES * 60 + 12) * 1000).toISOString() }
+    expect(isOnline(justLeft, NOW)).toBe(false)
+    expect(formatSeenShort(justLeft, NOW)).toBe('5 мин 12 с')
   })
 
   it('часы с минутами, дни с часами', () => {
@@ -90,7 +91,7 @@ describe('presence — formatSeenShort', () => {
   })
 
   it('активность из будущего (перекос часов) читается как ноль', () => {
-    const future = { is_active: true, last_seen: new Date(NOW + 60_000).toISOString() }
+    const future = { is_active: true, is_banned: true, last_seen: new Date(NOW + 60_000).toISOString() }
     expect(formatSeenShort(future, NOW)).toBe('0 с')
   })
 })
