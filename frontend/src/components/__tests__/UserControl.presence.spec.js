@@ -75,7 +75,8 @@ describe('UserControl — колонка присутствия', () => {
 
     // Порядок по умолчанию — по логину: banned_fresh, left_recently, never_seen, online_now.
     expect(rowLogins(wrapper)).toEqual(['banned_fresh', 'left_recently', 'never_seen', 'online_now'])
-    expect(seenTexts(wrapper)).toEqual(['2 мин', '12 мин', '-', 'в сети'])
+    // Присутствующему тоже показывается время: статус несёт точка, не текст.
+    expect(seenTexts(wrapper)).toEqual(['2 мин', '12 мин', '-', '1 мин'])
     expect(onlineDots(wrapper)).toHaveLength(1)
   })
 
@@ -93,7 +94,7 @@ describe('UserControl — колонка присутствия', () => {
     await flushPromises()
 
     const titles = seenCells(wrapper).map(c => c.attributes('title'))
-    expect(titles[3]).toContain('В сети')
+    expect(titles[3]).toContain('В сети. Последняя активность: 1 мин назад')
     expect(titles[1]).toMatch(/Был в сети: 12 мин назад \(\d{2}\.\d{2}\.\d{4} \d{2}:\d{2}\)/)
     expect(titles[2]).toBe('Ни разу не заходил')
   })
@@ -165,13 +166,24 @@ describe('UserControl — колонка присутствия', () => {
     expect(onlineDots(wrapper)).toHaveLength(1)
 
     // Уводим время за окно онлайна, данные не меняем. Тик забирает Date.now(),
-    // поэтому итоговое «сейчас» = NOW + 5 мин + 30 с тика.
+    // поэтому итоговое «сейчас» = NOW + 5 мин + 1 с тика.
     vi.setSystemTime(NOW + ONLINE_WINDOW_MINUTES * 60_000)
-    vi.advanceTimersByTime(30_000)
+    vi.advanceTimersByTime(1000)
     await flushPromises()
 
     expect(onlineDots(wrapper)).toHaveLength(0)
-    expect(seenTexts(wrapper)[3]).toBe('6 мин')
+    expect(seenTexts(wrapper)[3]).toBe('6 мин 1 с')
+  })
+
+  it('подпись пересчитывается каждую секунду — иначе секунды врали бы', async () => {
+    wrapper = mountUserControl()
+    await flushPromises()
+    expect(seenTexts(wrapper)[3]).toBe('1 мин')
+
+    vi.setSystemTime(NOW + 20_000)
+    vi.advanceTimersByTime(1000)
+    await flushPromises()
+    expect(seenTexts(wrapper)[3]).toBe('1 мин 21 с')
   })
 
   it('тихий опрос просит родителя перезагрузить список', async () => {

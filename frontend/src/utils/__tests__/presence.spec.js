@@ -46,40 +46,67 @@ describe('presence — isOnline', () => {
 })
 
 describe('presence — formatSeenShort', () => {
-  it('внутри окна показывает «в сети»', () => {
-    expect(formatSeenShort(seenMinutesAgo(2), NOW)).toBe('в сети')
+  // Все ступени шкалы: секунды -> минуты -> часы -> дни -> месяцы -> годы,
+  // по две старшие единицы. Присутствующие тоже получают время, а не «в сети».
+  const secondsAgo = (s) => ({ is_active: true, last_seen: new Date(NOW - s * 1000).toISOString() })
+
+  it('секунды и минуты с секундами', () => {
+    expect(formatSeenShort(secondsAgo(0), NOW)).toBe('0 с')
+    expect(formatSeenShort(secondsAgo(12), NOW)).toBe('12 с')
+    expect(formatSeenShort(secondsAgo(59), NOW)).toBe('59 с')
+    expect(formatSeenShort(secondsAgo(60), NOW)).toBe('1 мин')
+    expect(formatSeenShort(secondsAgo(200), NOW)).toBe('3 мин 20 с')
   })
 
-  it('минуты, часы и дни за пределами окна', () => {
-    expect(formatSeenShort(seenMinutesAgo(12), NOW)).toBe('12 мин')
+  it('присутствующий тоже показывает время, а не слово «в сети»', () => {
+    const fresh = secondsAgo(45)
+    expect(isOnline(fresh, NOW)).toBe(true)
+    expect(formatSeenShort(fresh, NOW)).toBe('45 с')
+  })
+
+  it('часы с минутами, дни с часами', () => {
     expect(formatSeenShort(seenMinutesAgo(59), NOW)).toBe('59 мин')
     expect(formatSeenShort(seenMinutesAgo(60), NOW)).toBe('1 ч')
-    expect(formatSeenShort(seenMinutesAgo(60 * 23), NOW)).toBe('23 ч')
+    expect(formatSeenShort(seenMinutesAgo(135), NOW)).toBe('2 ч 15 мин')
     expect(formatSeenShort(seenMinutesAgo(60 * 24), NOW)).toBe('1 дн')
-    expect(formatSeenShort(seenMinutesAgo(60 * 24 * 3 + 5), NOW)).toBe('3 дн')
+    expect(formatSeenShort(seenMinutesAgo(60 * 24 * 3 + 60 * 4), NOW)).toBe('3 дн 4 ч')
+  })
+
+  it('месяцы с днями и годы с месяцами', () => {
+    const daysAgo = (d) => ({ is_active: true, last_seen: new Date(NOW - d * 86400_000).toISOString() })
+    expect(formatSeenShort(daysAgo(30), NOW)).toBe('1 мес')
+    expect(formatSeenShort(daysAgo(30 * 5 + 12), NOW)).toBe('5 мес 12 дн')
+    expect(formatSeenShort(daysAgo(365), NOW)).toBe('1 г')
+    expect(formatSeenShort(daysAgo(365 * 2 + 90), NOW)).toBe('2 г 3 мес')
+  })
+
+  it('нулевая младшая единица опускается', () => {
+    expect(formatSeenShort(seenMinutesAgo(120), NOW)).toBe('2 ч')
+    expect(formatSeenShort(seenMinutesAgo(60 * 24 * 2), NOW)).toBe('2 дн')
   })
 
   it('не заходившему рисует прочерк', () => {
     expect(formatSeenShort({ is_active: true, last_seen: null }, NOW)).toBe('-')
   })
 
-  it('забаненный со свежей активностью показывает время, а не «в сети»', () => {
-    expect(formatSeenShort(seenMinutesAgo(2, { is_banned: true }), NOW)).toBe('2 мин')
-  })
-
-  it('активность из будущего (перекос часов) не даёт «0 мин»', () => {
-    const future = { is_active: true, is_banned: true, last_seen: new Date(NOW + 60_000).toISOString() }
-    expect(formatSeenShort(future, NOW)).toBe('1 мин')
+  it('активность из будущего (перекос часов) читается как ноль', () => {
+    const future = { is_active: true, last_seen: new Date(NOW + 60_000).toISOString() }
+    expect(formatSeenShort(future, NOW)).toBe('0 с')
   })
 })
 
 describe('presence — seenTitle', () => {
   it('онлайн, офлайн и «ни разу» формулируются по-разному', () => {
-    expect(seenTitle(seenMinutesAgo(2), NOW)).toContain('В сети')
+    const online = seenTitle(seenMinutesAgo(2), NOW)
+    expect(online).toContain('В сети. Последняя активность: 2 мин назад')
     const offline = seenTitle(seenMinutesAgo(90), NOW)
-    expect(offline).toContain('Был в сети')
-    expect(offline).toContain('1 ч назад')
+    expect(offline).toContain('Был в сети: 1 ч 30 мин назад')
     expect(seenTitle({ is_active: true, last_seen: null }, NOW)).toBe('Ни разу не заходил')
+  })
+
+  it('относительная часть подсказки совпадает с подписью ячейки', () => {
+    const user = seenMinutesAgo(135)
+    expect(seenTitle(user, NOW)).toContain(`${formatSeenShort(user, NOW)} назад`)
   })
 })
 
