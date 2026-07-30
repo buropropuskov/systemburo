@@ -2,6 +2,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useMaintenanceStore } from '@/stores/maintenance'
 import { useDeletionsStore } from '@/stores/deletions'
 import { usePermissionsStore } from '@/stores/permissions'
+import { usePDConsentStore } from '@/stores/pdConsent'
 import router from '@/router'
 import { buildBugContext, saveBugContext } from '@/composables/useBugReport'
 
@@ -24,6 +25,9 @@ const SILENT_403_PREFIXES = [
   // только при праве, но если право снимут посреди сессии, тост о нём не нужен.
   '/organizations/suggest',
   '/companies/suggest',
+  // Билет real-time потока (#1567): пока не дано согласие на обработку ПД, гейт
+  // отбивает его 403, а поток поднимается фоном - тост тут не о чем.
+  '/events/ticket',
 ]
 
 // Дедупликация 403-уведомлений: одинаковый текст в окне TTL показывается один раз.
@@ -75,6 +79,21 @@ async function isBanContext(response) {
   try {
     const body = await response.clone().json()
     return Boolean(body?.banned)
+  } catch {
+    return false
+  }
+}
+
+// Гейт согласия на обработку ПД (#1567) отбивает protected-запросы 403 с маркером
+// consent_required. Опознаём его по МАРКЕРУ ОТВЕТА, а не по флагу стора: устаревший
+// флаг заглушил бы настоящие отказы в правах. Подняв флаг, показываем окно согласия
+// вместо стены тостов - это же путь, по которому клиент узнаёт о поднятой в другой
+// вкладке редакции.
+async function isConsentRequired(response) {
+  if (response.headers.get('X-PD-Consent-Required') === '1') return true
+  try {
+    const body = await response.clone().json()
+    return Boolean(body?.consent_required)
   } catch {
     return false
   }
@@ -216,6 +235,14 @@ async function baseRequest(path, options = {}) {
   // но НЕ редиректим: вызывающий код сам решит как обработать.
   // Тихий режим: опция silent403 или путь из списка фоновых/ожидаемых запросов.
   if (response.status === 403 && !isAuthEndpoint(path)) {
+    if (await isConsentRequired(response)) {
+      try {
+        usePDConsentStore().markRequiredFromResponse()
+      } catch {
+        // pinia ещё не активна на раннем запросе -- окно поднимет App при загрузке
+      }
+      return response
+    }
     if (!options.silent403 && !shouldSilence403(path) && !(await isBanContext(response))) {
       show403Notify('Недостаточно прав для этого действия.')
     }

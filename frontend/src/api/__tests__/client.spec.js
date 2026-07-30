@@ -15,6 +15,7 @@ vi.mock('@/router', () => ({
 }));
 
 import { apiRequest, apiRequestRaw, _resetDedup403 } from '../client';
+import { usePDConsentStore } from '@/stores/pdConsent';
 
 function okJson(body, init = {}) {
   return new Response(JSON.stringify(body), {
@@ -250,6 +251,50 @@ describe('403 handling', () => {
 
     await apiRequest('/applications', { method: 'POST' });
 
+    expect(notifyMock).not.toHaveBeenCalled();
+  });
+
+  // #1567: гейт согласия отбивает protected-запросы 403 с маркером consent_required.
+  // Клиент обязан поднять флаг стора и промолчать - иначе пользователь получает
+  // стену тостов «Недостаточно прав» вместо окна согласия.
+  it('маркер consent_required в теле поднимает флаг согласия и не тостит', async () => {
+    fetchMock.mockResolvedValueOnce(errJson({ success: false, consent_required: true }, 403));
+
+    await apiRequest('/applications', { method: 'POST' });
+
+    expect(notifyMock).not.toHaveBeenCalled();
+    expect(usePDConsentStore().required).toBe(true);
+  });
+
+  it('маркер согласия в заголовке распознаётся так же, как в теле', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('', {
+      status: 403,
+      headers: { 'Content-Type': 'application/json', 'X-PD-Consent-Required': '1' },
+    }));
+
+    await apiRequest('/notifications');
+
+    expect(notifyMock).not.toHaveBeenCalled();
+    expect(usePDConsentStore().required).toBe(true);
+  });
+
+  // Опознаём по маркеру ОТВЕТА, а не по флагу стора: устаревший флаг заглушил бы
+  // настоящие отказы в правах.
+  it('обычный 403 без маркера флаг согласия не трогает и тостит', async () => {
+    fetchMock.mockResolvedValueOnce(errJson({ banned: false }, 403));
+
+    await apiRequest('/applications/1/confirm-pass', { method: 'POST' });
+
+    expect(usePDConsentStore().required).toBe(false);
+    expect(notifyMock).toHaveBeenCalled();
+  });
+
+  it('не вызывает notify для билета real-time потока (/events/ticket)', async () => {
+    fetchMock.mockResolvedValueOnce(errJson({ banned: false }, 403));
+
+    await apiRequest('/events/ticket', { method: 'POST' });
+
+    await Promise.resolve();
     expect(notifyMock).not.toHaveBeenCalled();
   });
 
