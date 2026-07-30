@@ -38,10 +38,12 @@ vi.mock('@/utils/documentTextExtract', () => ({
 
 import AdminSettings from '../AdminSettings.vue';
 import { useUiStore } from '@/stores/ui';
+import RefreshButton from '@/components/RefreshButton.vue';
 
 const renderSlot = { template: '<div><slot /></div>' };
 
 const collection = (over = {}) => ({
+  active: true,
   version: 2,
   total: 10,
   accepted: 7,
@@ -89,6 +91,19 @@ describe('AdminSettings - сбор согласий', () => {
     expect(pending).toContain('Феникс');
   });
 
+  // Пока запрос согласия выключен, подтвердить его нельзя в принципе: «0 из N»
+  // было бы ложным сигналом «все игнорируют».
+  it('при выключенном запросе показывает, что сбор не идёт, а не нулевой процент', async () => {
+    getPDConsentCollection.mockResolvedValue(
+      collection({ active: false, total: 10, accepted: 0, pending: 10 }),
+    );
+    const wrapper = await openSection();
+
+    expect(wrapper.find('[data-testid="pdc-collection-inactive"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="pdc-collection-counts"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="pdc-collection-pending"]').exists()).toBe(false);
+  });
+
   it('когда подтвердили все, списка нет и сказано об этом', async () => {
     getPDConsentCollection.mockResolvedValue(
       collection({ total: 5, accepted: 5, pending: 0, pending_users: [] }),
@@ -127,7 +142,9 @@ describe('AdminSettings - сбор согласий', () => {
     const wrapper = await openSection();
     getPDConsentCollection.mockClear();
 
-    await wrapper.get('[data-testid="pdc-collection-refresh"]').trigger('click');
+    // RefreshButton - общий компонент проекта; в shallowMount он заглушка, поэтому
+    // дёргаем его событие, а не клик по стабу.
+    await wrapper.findComponent(RefreshButton).vm.$emit('refresh');
     await flushPromises();
 
     expect(getPDConsentCollection).toHaveBeenCalledTimes(1);

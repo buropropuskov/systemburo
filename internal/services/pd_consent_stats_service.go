@@ -17,13 +17,16 @@ import (
 // разошлась бы с тем, кого система пускает, и администратор принимал бы решения по
 // числу, которому нельзя верить.
 type PDConsentStatsService struct {
-	db       *gorm.DB
-	settings SettingsService
+	db *gorm.DB
+	// gate -- источник правды о том, работает ли запрос согласия и какой редакции.
+	// Повторять его формулу здесь нельзя: два места разъедутся, и сводка начнёт
+	// расходиться с тем, кого система реально закрывает.
+	gate *PDConsentGateService
 }
 
 // NewPDConsentStatsService создаёт сервис сводки по сбору согласий.
-func NewPDConsentStatsService(db *gorm.DB, settings SettingsService) *PDConsentStatsService {
-	return &PDConsentStatsService{db: db, settings: settings}
+func NewPDConsentStatsService(db *gorm.DB, gate *PDConsentGateService) *PDConsentStatsService {
+	return &PDConsentStatsService{db: db, gate: gate}
 }
 
 // gatedUsersWhere -- кого гейт согласия реально закрывает.
@@ -48,11 +51,11 @@ const acceptedExists = `EXISTS (
 // Collection возвращает сводку по сбору согласий текущей редакции вместе со списком
 // тех, кто ещё не подтвердил.
 func (s *PDConsentStatsService) Collection(ctx context.Context) (*models.PDConsentCollection, error) {
-	settings, err := s.settings.GetPDConsentSettings(ctx)
+	req, err := s.gate.Requirement(ctx)
 	if err != nil {
 		return nil, err
 	}
-	version := settings.Version
+	version := req.Version
 	if version < 1 {
 		version = 1
 	}
@@ -78,6 +81,7 @@ func (s *PDConsentStatsService) Collection(ctx context.Context) (*models.PDConse
 	}
 
 	return &models.PDConsentCollection{
+		Active:       req.Enabled,
 		Version:      version,
 		Total:        int(total),
 		Accepted:     int(accepted),
@@ -115,15 +119,8 @@ func (s *PDConsentStatsService) pendingUsers(ctx context.Context, version int) (
 			// fullName - общая с аудитом справочников сборка «Фамилия Имя»
 			// с фолбэком на логин, чтобы строка не оказалась пустой.
 			FullName:     fullName(r.LastName, r.FirstName, r.Username),
-			Organization: deref(r.Organization),
+			Organization: derefStr(r.Organization),
 		})
 	}
 	return pending, nil
-}
-
-func deref(p *string) string {
-	if p == nil {
-		return ""
-	}
-	return *p
 }

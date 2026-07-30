@@ -136,6 +136,39 @@ func TestPDConsentCollection_ShowsNameAndOrganization(t *testing.T) {
 	assert.NotEmpty(t, got.PendingUsers[0].Organization, "организация нужна, чтобы найти человека")
 }
 
+// Пока запрос согласия выключен, гейт не закрывает никого, а подтвердить согласие
+// нельзя в принципе (Accept при выключенном требовании ничего не пишет). Счёт в этот
+// момент всегда «0 из N», и выдавать его за ход сбора значит врать администратору -
+// поэтому сводка обязана честно сказать, что она неактивна.
+func TestPDConsentCollection_InactiveWhenDisabled(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	testutil.RegisterAndLogin(t, e, "coll_off", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
+
+	got := collection(t, e, admin)
+	assert.False(t, got.Active, "тумблер выключен - сбор не идёт")
+
+	enableConsent(t, e, admin, "<p>Согласие</p>")
+	assert.True(t, collection(t, e, admin).Active)
+}
+
+// Включённый тумблер с пустым текстом - ошибка настройки: гейт в этом состоянии
+// пропускает всех, значит и сбор не идёт.
+func TestPDConsentCollection_InactiveWhenTextEmpty(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	enableConsent(t, e, admin, "<p>Согласие</p>")
+	require.Equal(t, http.StatusOK, savePDConsentText(t, e, admin, "").Code)
+
+	assert.False(t, collection(t, e, admin).Active)
+}
+
 // Сводка - административные данные о людях, обычному пользователю она закрыта.
 func TestPDConsentCollection_RequiresAdmin(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)

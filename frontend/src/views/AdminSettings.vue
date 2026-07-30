@@ -613,16 +613,23 @@
                   <h5 class="pdc-collection__title">
                     Сбор согласий по редакции {{ pdcCollection.version }}
                   </h5>
-                  <button
-                    class="btn btn--ghost btn--small"
-                    :disabled="pdcCollectionLoading"
+                  <RefreshButton
+                    :loading="pdcCollectionLoading"
                     data-testid="pdc-collection-refresh"
-                    @click="fetchPdcCollection"
-                  >
-                    {{ pdcCollectionLoading ? 'Обновление...' : 'Обновить' }}
-                  </button>
+                    @refresh="fetchPdcCollection"
+                  />
                 </div>
 
+                <p
+                  v-if="!pdcCollection.active"
+                  class="form-hint"
+                  data-testid="pdc-collection-inactive"
+                >
+                  Запрос согласия сейчас не действует, сбор не идёт. Подтвердить согласие
+                  пользователи смогут после включения.
+                </p>
+
+                <template v-else>
                 <div
                   class="pdc-collection__bar"
                   role="progressbar"
@@ -667,7 +674,7 @@
                     </li>
                   </ul>
                   <button
-                    class="btn btn--ghost btn--small"
+                    class="btn btn--ghost"
                     data-testid="pdc-collection-export"
                     @click="exportPdcPending"
                   >
@@ -680,6 +687,7 @@
                 >
                   Подтвердили все, кого закрывает запрос согласия.
                 </p>
+                </template>
               </div>
             </template>
           </div>
@@ -790,6 +798,7 @@ import { stripHtml } from '@/utils/sanitize';
 import { SkeletonTransition, SkeletonLine, SkeletonBlock } from '@/components/ui';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import TextConstructor from '@/components/TextConstructor.vue';
+import RefreshButton from '@/components/RefreshButton.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
 import { useContactsStore } from '@/stores/contacts';
@@ -805,6 +814,7 @@ export default {
     WorkScheduleTab,
     BaseDropdown,
     TextConstructor,
+    RefreshButton,
   },
   data() {
     return {
@@ -1312,7 +1322,8 @@ export default {
       this.pdcCollectionLoading = true;
       try {
         this.pdcCollection = await getPDConsentCollection();
-      } catch {
+      } catch (error) {
+        console.error('Не удалось загрузить сводку по сбору согласий:', error);
         this.pdcCollection = null;
       } finally {
         this.pdcCollectionLoading = false;

@@ -223,7 +223,7 @@ func main() {
 	// Гейт согласия на обработку ПД (#1567): TTL кэша как у BanCheckService - сервис
 	// будет опрашиваться на каждом protected-запросе.
 	pdConsentGateService := services.NewPDConsentGateService(consentService, settingsService, 30*time.Second)
-	pdConsentStatsService := services.NewPDConsentStatsService(db, settingsService)
+	pdConsentStatsService := services.NewPDConsentStatsService(db, pdConsentGateService)
 	userService.SetPasswordPolicyProvider(settingsService) // политика паролей при создании/смене
 	reminderService := services.NewReminderService(db, notificationService, settingsService)
 	telegramService := services.NewTelegramService(cfg.TelegramBotToken, cfg.TelegramChatID)
