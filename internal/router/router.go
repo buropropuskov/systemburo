@@ -934,6 +934,15 @@ func Setup(e *echo.Echo, d Dependencies) {
 		dpGroup.GET("/document", settings.ServeDataProcessingDoc)
 		dpGroup.POST("/document", settings.UploadDataProcessingDoc, requireAdmin)
 		dpGroup.DELETE("/document", settings.DeleteDataProcessingDoc, requireAdmin)
+
+		// Текст согласия на обработку ПД для запроса при первом входе (#1567).
+		// Пока только управление под page.admin: пользовательская ручка появится
+		// вместе с самим запросом согласия.
+		pdcGroup := protected.Group("/settings/pd-consent", requireAdmin)
+		pdcGroup.GET("", settings.GetPDConsentSettings)
+		pdcGroup.PUT("/text", settings.UpdatePDConsentText)
+		pdcGroup.PUT("/required", settings.UpdatePDConsentRequired)
+		pdcGroup.POST("/require-again", settings.BumpPDConsentVersion)
 	}
 
 	// Статистика дашборда (#632). Доступ ограничен page.statistics.
