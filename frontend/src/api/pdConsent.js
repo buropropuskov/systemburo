@@ -107,10 +107,12 @@ export async function acceptConsent() {
  * Считается той же меркой, что и гейт, поэтому число согласившихся совпадает с
  * числом тех, кого система пускает.
  * @typedef {{id: number, username: string, full_name: string, organization: string}} PDConsentPendingUser
- * @typedef {{version: number, total: number, accepted: number, pending: number, pending_users: PDConsentPendingUser[]}} PDConsentCollection
+ * @typedef {{active: boolean, version: number, total: number, accepted: number, pending: number, pending_users: PDConsentPendingUser[], truncated: boolean}} PDConsentCollection
+ * @param {{full?: boolean}} [opts] full - вернуть список не подтвердивших целиком
+ *   (нужно выгрузке: урезанный список означал бы потерю людей в файле)
  * @returns {Promise<PDConsentCollection>}
  */
-export async function getPDConsentCollection() {
-  const res = await apiRequest(`${BASE}/collection`);
+export async function getPDConsentCollection({ full = false } = {}) {
+  const res = await apiRequest(`${BASE}/collection${full ? '?full=1' : ''}`);
   return unwrap(res, 'Не удалось загрузить сводку по сбору согласий');
 }

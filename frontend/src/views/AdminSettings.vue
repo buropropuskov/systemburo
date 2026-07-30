@@ -630,63 +630,74 @@
                 </p>
 
                 <template v-else>
-                <div
-                  class="pdc-collection__bar"
-                  role="progressbar"
-                  aria-label="Доля подтвердивших согласие"
-                  aria-valuemin="0"
-                  aria-valuemax="100"
-                  :aria-valuenow="pdcCollectionPercent"
-                >
                   <div
-                    class="pdc-collection__fill"
-                    :style="{ transform: `scaleX(${pdcCollectionRatio})` }"
-                  />
-                </div>
+                    class="pdc-collection__bar"
+                    role="progressbar"
+                    aria-label="Доля подтвердивших согласие"
+                    aria-valuemin="0"
+                    aria-valuemax="100"
+                    :aria-valuenow="pdcCollectionPercent"
+                  >
+                    <div
+                      class="pdc-collection__fill"
+                      :style="{ transform: `scaleX(${pdcCollectionRatio})` }"
+                    />
+                  </div>
 
-                <p
-                  class="pdc-collection__counts"
-                  data-testid="pdc-collection-counts"
-                >
-                  Подтвердили {{ pdcCollection.accepted }} из {{ pdcCollection.total }}
-                  ({{ pdcCollectionPercent }}%)
-                </p>
-
-                <template v-if="pdcCollection.pending_users.length">
-                  <p class="form-hint">
-                    Ещё не подтвердили ({{ pdcCollection.pending }}):
+                  <p
+                    class="pdc-collection__counts"
+                    data-testid="pdc-collection-counts"
+                  >
+                    Подтвердили {{ pdcCollection.accepted }} из {{ pdcCollection.total }}
+                    ({{ pdcCollectionPercent }}%)
                   </p>
-                  <ul
-                    class="pdc-collection__list"
-                    data-testid="pdc-collection-pending"
-                  >
-                    <li
-                      v-for="person in pdcCollection.pending_users"
-                      :key="person.id"
-                      class="pdc-collection__item"
+
+                  <template v-if="pdcCollection.pending_users.length">
+                    <p class="form-hint">
+                      Ещё не подтвердили ({{ pdcCollection.pending }}):
+                    </p>
+                    <div class="pdc-collection__list-wrap">
+                      <ul
+                        class="pdc-collection__list"
+                        data-testid="pdc-collection-pending"
+                      >
+                        <li
+                          v-for="person in pdcCollection.pending_users"
+                          :key="person.id"
+                          class="pdc-collection__item"
+                        >
+                          <span class="pdc-collection__name">{{ person.full_name }}</span>
+                          <span class="pdc-collection__login">{{ person.username }}</span>
+                          <span
+                            v-if="person.organization"
+                            class="pdc-collection__org"
+                          >{{ person.organization }}</span>
+                        </li>
+                      </ul>
+                    </div>
+                    <p
+                      v-if="pdcCollection.truncated"
+                      class="form-hint"
+                      data-testid="pdc-collection-truncated"
                     >
-                      <span class="pdc-collection__name">{{ person.full_name }}</span>
-                      <span class="pdc-collection__login">{{ person.username }}</span>
-                      <span
-                        v-if="person.organization"
-                        class="pdc-collection__org"
-                      >{{ person.organization }}</span>
-                    </li>
-                  </ul>
-                  <button
-                    class="btn btn--ghost"
-                    data-testid="pdc-collection-export"
-                    @click="exportPdcPending"
+                      Показаны первые {{ pdcCollection.pending_users.length }}. Полный список -
+                      в выгрузке.
+                    </p>
+                    <button
+                      class="btn btn--ghost"
+                      :disabled="pdcExporting"
+                      data-testid="pdc-collection-export"
+                      @click="exportPdcPending"
+                    >
+                      {{ pdcExporting ? 'Готовим файл...' : 'Выгрузить список' }}
+                    </button>
+                  </template>
+                  <p
+                    v-else
+                    class="form-hint"
                   >
-                    Выгрузить список
-                  </button>
-                </template>
-                <p
-                  v-else
-                  class="form-hint"
-                >
-                  Подтвердили все, кого закрывает запрос согласия.
-                </p>
+                    Подтвердили все, кого закрывает запрос согласия.
+                  </p>
                 </template>
               </div>
             </template>
@@ -773,7 +784,6 @@
         </SkeletonTransition>
       </div>
     </div>
-
   </section>
 </template>
 
@@ -879,6 +889,7 @@ export default {
       // которое меняет состав согласившихся (подъём редакции).
       pdcCollection: null,
       pdcCollectionLoading: false,
+      pdcExporting: false,
       bureauTimeSlots: [],
       bureauSlotsLoaded: false,
       bureauSlotsLoading: false,
@@ -1336,9 +1347,14 @@ export default {
      * выгрузок системы.
      */
     async exportPdcPending() {
-      const rows = this.pdcCollection?.pending_users || [];
-      if (!rows.length) return;
+      if (!this.pdcCollection?.pending_users?.length) return;
+      this.pdcExporting = true;
       try {
+        // В файл идут ВСЕ, а не показанная часть: урезанная выгрузка тихо теряет людей.
+        const full = this.pdcCollection.truncated
+          ? await getPDConsentCollection({ full: true })
+          : this.pdcCollection;
+        const rows = full.pending_users || [];
         const ExcelJS = (await import('exceljs')).default;
         const workbook = new ExcelJS.Workbook();
         const sheet = workbook.addWorksheet('Не подтвердили');
@@ -1372,6 +1388,8 @@ export default {
           prefix: error?.message || 'Не удалось выгрузить список',
           type: 'error',
         });
+      } finally {
+        this.pdcExporting = false;
       }
     },
 
@@ -1906,11 +1924,13 @@ export default {
   color: var(--color-text, var(--text));
 }
 
+/* Дорожка приглушена намеренно: на акцентном оттенке пустая полоса читалась как
+   заполненная, и «0 из 18» выглядело как «собрано всё» (замер на стенде). */
 .pdc-collection__bar {
   height: 6px;
   border-radius: 999px;
   overflow: hidden;
-  background: var(--accent-tint);
+  background: color-mix(in srgb, var(--color-text, var(--text)) 12%, transparent);
 }
 
 .pdc-collection__fill {
@@ -1926,6 +1946,23 @@ export default {
   font-size: 13px;
   font-weight: 600;
   color: var(--color-text, var(--text));
+}
+
+/* Список прокручивается, и обрезанная по середине строка выглядела как дефект
+   вёрстки. Затухание у нижней кромки показывает, что список продолжается. */
+.pdc-collection__list-wrap {
+  position: relative;
+}
+
+.pdc-collection__list-wrap::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 28px;
+  pointer-events: none;
+  background: linear-gradient(to bottom, transparent, var(--surface));
 }
 
 .pdc-collection__list {
