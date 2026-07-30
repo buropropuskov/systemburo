@@ -77,6 +77,11 @@ type Dependencies struct {
 	BanCheck         echo.MiddlewareFunc
 	LoginLimiter     echo.MiddlewareFunc
 	LastSeen         echo.MiddlewareFunc
+	// ConsentGate - PDConsentGate: закрывает API до согласия на обработку ПД
+	// (#1567). nil по умолчанию, в том числе в тестах: иначе каждый тест, где
+	// согласия нет, начал бы получать 403. Тесты самого гейта поднимают
+	// приложение через SetupTestAppWithConsentGate.
+	ConsentGate echo.MiddlewareFunc
 	// TableReportGate - RequireTableVerb(..., "report"): гейт отчётов по проходам
 	// правом table.<name>.report. НЕ опционален для роутов pass-report (main и
 	// testutil обязаны заполнять) - без гейта отчёт открылся бы любому залогиненному.
@@ -162,6 +167,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	requireTablesCtor := mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageAdminTablesCtor)
 	maintenanceBlock := d.MaintenanceBlock
 	banCheck := d.BanCheck
+	consentGate := d.ConsentGate
 	loginLimiter := d.LoginLimiter
 	lastSeen := d.LastSeen
 	jwtSecret := d.JWTSecret
@@ -217,6 +223,12 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// Ban/Unban из UserBanService. nil в тестах чтобы не требовать service.
 	if banCheck != nil {
 		protected.Use(banCheck)
+	}
+	// ConsentGate - после BanCheck: забаненный не может дать согласие (проверка
+	// бана режет POST), поэтому ему показываем блокировку, а не требование
+	// согласия. Супер-админ и роуты из PDConsentWhitelist проходят. nil в тестах.
+	if consentGate != nil {
+		protected.Use(consentGate)
 	}
 	// LastSeen - после JWTAuth (нужен user_id). Обновляет users.last_seen для
 	// учёта онлайна (#632), с in-memory троттлингом и асинхронной записью.

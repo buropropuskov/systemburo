@@ -31,12 +31,16 @@ type PDConsentGateService struct {
 // PDConsentRequirement -- требование системы: что и какой редакции нужно принять.
 type PDConsentRequirement struct {
 	// Enabled -- запрос согласия реально работает: тумблер включён И текст задан.
-	// Пустой текст при включённом тумблере это ошибка настройки, и гейт обязан
+	// Пустой текст при включённом тумблене это ошибка настройки, и гейт обязан
 	// пропускать (иначе система закрыта, а показать нечего).
 	Enabled bool
-	Version int
-	Text    string
-	Hash    string
+	// Requested -- сырое состояние тумблера, без учёта текста. Отличает
+	// "администратор не включал запрос" от "включил, но текст пуст": второе -
+	// ошибка настройки, о которой гейт обязан сказать в журнал.
+	Requested bool
+	Version   int
+	Text      string
+	Hash      string
 }
 
 type acceptedEntry struct {
@@ -67,10 +71,11 @@ func (s *PDConsentGateService) Requirement(ctx context.Context) (PDConsentRequir
 	}
 	sum := sha256.Sum256([]byte(settings.Text))
 	req := PDConsentRequirement{
-		Enabled: settings.Required && hasVisibleText(settings.Text),
-		Version: settings.Version,
-		Text:    settings.Text,
-		Hash:    hex.EncodeToString(sum[:]),
+		Enabled:   settings.Required && hasVisibleText(settings.Text),
+		Requested: settings.Required,
+		Version:   settings.Version,
+		Text:      settings.Text,
+		Hash:      hex.EncodeToString(sum[:]),
 	}
 
 	s.mu.Lock()

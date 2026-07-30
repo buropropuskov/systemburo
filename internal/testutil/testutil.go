@@ -14,6 +14,7 @@ import (
 	"systemburo/internal/database"
 	"systemburo/internal/handlers"
 	mw "systemburo/internal/middleware"
+	"systemburo/internal/realtime"
 	"systemburo/internal/router"
 	"systemburo/internal/services"
 	appvalidator "systemburo/internal/validator"
@@ -83,6 +84,22 @@ var tables = []string{
 // SetupTestApp creates a fully wired Echo app with real DB, identical to production.
 // AutoMigrate runs once per test binary via sync.Once; each test still uses CleanDB for isolation.
 func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
+	t.Helper()
+	return setupTestApp(t, false)
+}
+
+// SetupTestAppWithConsentGate поднимает приложение с навешенным middleware гейта
+// согласия на обработку ПД (#1567).
+//
+// Отдельной функцией, а не флагом по умолчанию: гейт закрывает protected-API, и
+// включи мы его для всех, три сотни существующих тестов (в них согласия нет)
+// начали бы получать 403 вместо своих ответов.
+func SetupTestAppWithConsentGate(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
+	t.Helper()
+	return setupTestApp(t, true)
+}
+
+func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, func()) {
 	t.Helper()
 
 	crypto.SetGlobalKey(nil) // passthrough in tests
@@ -224,6 +241,11 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	guideHandler := handlers.NewGuideHandler(guideService, guideFileService, 10*1024*1024)
 	auditHandler := handlers.NewAuditHandler(services.NewAuditReader(db))
 	authEventHandler := handlers.NewAuthEventHandler(services.NewAuthEventReader(db))
+	// Real-time хендлер поднимаем и в тестах: хаб и хранилище билетов - обычные
+	// структуры в памяти без горутин, зато роуты /events и /events/ticket начинают
+	// существовать. Без них гвард-тест белого списка гейта согласия сверялся бы с
+	// роутером, где нужного роута нет вовсе.
+	eventsHandler := handlers.NewEventsHandler(realtime.NewHub(), realtime.NewTicketStore(60*time.Second))
 
 	// Setup Echo with routes (no rate limiter, no logger — clean for tests)
 	e := echo.New()
@@ -234,9 +256,20 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	// без него сверка путей проверялась бы только юнитом, а именно она молча разъехалась
 	// с реальными адресами (#1472).
 	e.Use(mw.PDAudit(db))
+	// Гейт согласия идёт в паре с проверкой блокировки: их порядок - часть контракта
+	// (забаненный не может дать согласие, поэтому ему показывается блокировка, а не
+	// требование). В обычном тестовом приложении BanCheck не навешивается, чтобы не
+	// менять поведение существующих тестов, поэтому пара поднимается только здесь.
+	var consentGate, banCheck echo.MiddlewareFunc
+	if withConsentGate {
+		consentGate = mw.PDConsentGate(pdConsentGateService)
+		banCheck = mw.BanCheck(services.NewBanCheckService(db, 0))
+	}
 	// nil loginLimiter - в тестах rate-limit на /login не применяется,
 	// т.к. тесты делают много логинов подряд. Отдельный Test* покрывает сам лимитер.
 	router.Setup(e, router.Dependencies{
+		ConsentGate:         consentGate,
+		BanCheck:            banCheck,
 		Auth:                authHandler,
 		UserTypes:           userTypesHandler,
 		Attachments:         attachmentHandler,
@@ -286,6 +319,7 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 		Guide:               guideHandler,
 		Audit:               auditHandler,
 		AuthEvents:          authEventHandler,
+		Events:              eventsHandler,
 		PermResolver:        permissionResolver,
 		DenialLog:           accessDenialService,
 		TableReportGate:     mw.RequireTableVerb(db, permissionResolver, accessDenialService, "report"),

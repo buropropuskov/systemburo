@@ -311,6 +311,9 @@ func main() {
 	var loginLimiter echo.MiddlewareFunc
 	maintenanceBlock := mw.MaintenanceBlock(maintenanceService)
 	banCheck := mw.BanCheck(banCheckService)
+	// Гейт согласия на обработку ПД (#1567). Пока тумблер выключен или текст пуст,
+	// пропускает всех - включается настройкой, а не деплоем.
+	consentGate := mw.PDConsentGate(pdConsentGateService)
 	lastSeen := mw.LastSeen(db)
 
 	// Routes
@@ -374,6 +377,7 @@ func main() {
 		DenialLog:           accessDenialService,
 		MaintenanceBlock:    maintenanceBlock,
 		BanCheck:            banCheck,
+		ConsentGate:         consentGate,
 		LoginLimiter:        loginLimiter,
 		LastSeen:            lastSeen,
 		TableReportGate:     mw.RequireTableVerb(db, permissionResolver, accessDenialService, "report"),
