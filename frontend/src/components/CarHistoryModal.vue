@@ -1031,6 +1031,11 @@ export default {
   white-space: nowrap;
 }
 
+/* DateFilter несёт свои 14px и в ряду фильтров выбивается из общих 12px. */
+.date-filter :deep(.field-input) {
+  font-size: 12px;
+}
+
 .search-input {
   padding: 6px 12px;
   border: 1px solid var(--border);
@@ -1283,6 +1288,7 @@ export default {
 
 .history-content--link:hover .action-text {
   text-decoration: underline;
+  text-underline-position: under;
 }
 
 .action-comment {

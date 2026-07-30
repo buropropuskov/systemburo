@@ -29,7 +29,7 @@ func TestLoginGuard_BlockedSecondsReportsRemainder(t *testing.T) {
 	g.recordFailure("2.2.2.2", "u")
 	g.recordFailure("2.2.2.2", "u") // блокирует
 
-	sec, blocked := g.blockedSeconds("2.2.2.2")
+	sec, blocked := g.blockedSeconds("2.2.2.2", "u")
 	assert.True(t, blocked)
 	assert.Greater(t, sec, 0)
 	assert.LessOrEqual(t, sec, 60)
@@ -44,7 +44,7 @@ func TestLoginGuard_FreshCycleAfterBlockExpires(t *testing.T) {
 
 	time.Sleep(30 * time.Millisecond) // блокировка истекла
 
-	_, ok := g.blockedSeconds("3.3.3.3")
+	_, ok := g.blockedSeconds("3.3.3.3", "u")
 	assert.False(t, ok, "после истечения не заблокирован")
 
 	// Свежий цикл: первая новая неудача даёт остаток max-1, а не ре-лок.
@@ -64,6 +64,48 @@ func TestLoginGuard_ResetOnSuccess(t *testing.T) {
 	assert.Equal(t, 2, remaining, "после reset счётчик с нуля: 3 - 1 = 2")
 }
 
+// TestLoginGuard_PairLadderEscalates - счётчик пары «адрес + логин» растёт по той
+// же лестнице, что блокировка учётной записи. Это и делает сроки одинаковыми для
+// существующего и выдуманного логина.
+func TestLoginGuard_PairLadderEscalates(t *testing.T) {
+	base := 20 * time.Millisecond
+	g := newLoginGuard(2, 5*time.Minute, base)
+
+	for round, mult := range []int{1, 5, 15, 30, 60, 60} {
+		// Отбываем прошлую блокировку, чтобы начался следующий круг.
+		if round > 0 {
+			g.mu.Lock()
+			past := time.Now().Add(-time.Millisecond)
+			g.entries["7.7.7.7"].blockedUntil = past
+			g.entries["7.7.7.7"].users["ghost"].blockedUntil = past
+			g.mu.Unlock()
+		}
+		var got time.Duration
+		for i := 0; i < 2; i++ {
+			g.recordFailure("7.7.7.7", "ghost")
+		}
+		g.mu.Lock()
+		got = time.Until(g.entries["7.7.7.7"].users["ghost"].blockedUntil)
+		g.mu.Unlock()
+		want := base * time.Duration(mult)
+		assert.InDelta(t, want.Milliseconds(), got.Milliseconds(), 15,
+			"круг %d: ожидалась ступень x%d", round+1, mult)
+	}
+}
+
+// TestLoginGuard_PairIsolatedPerUsername - лестница у каждого логина своя: сосед
+// по адресу не получает чужую ступень.
+func TestLoginGuard_PairIsolatedPerUsername(t *testing.T) {
+	g := newLoginGuard(2, 5*time.Minute, 20*time.Millisecond)
+	g.recordFailure("8.8.8.8", "petrov")
+	g.recordFailure("8.8.8.8", "petrov") // ступень petrov поднялась
+
+	g.mu.Lock()
+	assert.Equal(t, 1, g.entries["8.8.8.8"].users["petrov"].level)
+	assert.Nil(t, g.entries["8.8.8.8"].users["sidorov"], "у соседа записи ещё нет")
+	g.mu.Unlock()
+}
+
 func TestLoginGuard_ResetUserClearsHisIPs(t *testing.T) {
 	g := newLoginGuard(2, 5*time.Minute, time.Minute)
 	// Один логин падал с двух адресов, с одного из них падал и другой логин.
@@ -76,9 +118,9 @@ func TestLoginGuard_ResetUserClearsHisIPs(t *testing.T) {
 
 	assert.Equal(t, 2, g.resetUser("petrov"), "сняты оба адреса, где падал petrov")
 
-	_, blocked := g.blockedSeconds("10.0.0.1")
+	_, blocked := g.blockedSeconds("10.0.0.1", "u")
 	assert.False(t, blocked, "адрес petrov разблокирован")
-	_, blocked = g.blockedSeconds("10.0.0.3")
+	_, blocked = g.blockedSeconds("10.0.0.3", "u")
 	assert.True(t, blocked, "чужой адрес не тронут")
 }
 
@@ -89,7 +131,7 @@ func TestLoginGuard_ResetUnknownUserIsNoop(t *testing.T) {
 
 	assert.Equal(t, 0, g.resetUser("никого"))
 	assert.Equal(t, 0, g.resetUser(""), "пустой логин ничего не чистит")
-	_, blocked := g.blockedSeconds("11.0.0.1")
+	_, blocked := g.blockedSeconds("11.0.0.1", "u")
 	assert.True(t, blocked, "блокировка на месте")
 }
 
@@ -100,7 +142,7 @@ func TestLoginGuard_PerIPIsolation(t *testing.T) {
 	assert.True(t, blocked)
 
 	// Другой IP - свой счётчик.
-	_, blk := g.blockedSeconds("6.6.6.6")
+	_, blk := g.blockedSeconds("6.6.6.6", "u")
 	assert.False(t, blk, "другой IP не заблокирован")
 	remaining, _, blocked2 := g.recordFailure("6.6.6.6", "u")
 	assert.False(t, blocked2)
@@ -112,7 +154,7 @@ func TestLoginGuard_EmptyIPNotTracked(t *testing.T) {
 	remaining, _, blocked := g.recordFailure("", "u")
 	assert.False(t, blocked)
 	assert.Equal(t, 2, remaining, "пустой IP не учитывается")
-	_, ok := g.blockedSeconds("")
+	_, ok := g.blockedSeconds("", "u")
 	assert.False(t, ok)
 }
 
