@@ -170,6 +170,9 @@ describe('подложка под карточками темнее карточ
     ['components/ApplicationDetail/ApplicationDetail.vue', 'detail-header'],
     ['components/ApplicationDetail/ApplicationDetail.vue', 'detail-left-column'],
     ['components/ApplicationDetail/ApplicationDetail.vue', 'detail-right-column'],
+    // Центральная колонка держала секции без подложки: они ложились прямо на
+    // модалку и совпадали с ней цветом, пока боковые выглядели приподнятыми (#1581).
+    ['components/ApplicationDetail/ApplicationDetail.vue', 'detail-main-column'],
   ];
 
   it.each(sunken)('%s .%s берёт --surface-sunken', (file, cls) => {
