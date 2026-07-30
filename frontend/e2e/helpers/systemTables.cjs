@@ -1,5 +1,5 @@
 const { test } = require('@playwright/test');
-const { loginAsSuperAdmin } = require('./permissions');
+const { loginAsSuperAdmin, E2E_PREFIX } = require('./permissions');
 
 const API_BASE = process.env.E2E_API_BASE_URL || '/api';
 
@@ -16,16 +16,25 @@ function unwrapTable(item) {
 /**
  * Первая таблица типа cars/people. Только они поддерживают корзину и показывают
  * фильтры справочников; место разгрузки есть лишь у cars, поэтому cars в приоритете.
+ *
+ * Чужие фикстуры (префикс e2e_) пропускаем намеренно: спеки разных файлов идут в
+ * параллельных воркерах на одной базе, и подхваченная чужая таблица уедет в архив
+ * прямо посреди теста - её удалит тот, кто её создал.
  */
 async function findFilterableTable(request, token) {
   const res = await request.get(`${API_BASE}/system-tables`, { headers: headers(token) });
-  if (!res.ok()) return null;
-  const tables = ((await res.json()).data || []).map(unwrapTable).filter(Boolean);
+  // Сорванный запрос - это провал, а не «таблиц нет»: вернув null, спека ушла бы
+  // в skip и зелёный прогон скрыл бы недоступный список таблиц.
+  if (!res.ok()) throw new Error(`GET /system-tables failed: ${res.status()}`);
+  const tables = ((await res.json()).data || [])
+    .map(unwrapTable)
+    .filter((t) => t && !String(t.name || '').startsWith(E2E_PREFIX));
   return tables.find((t) => t.table_type === 'cars') || tables.find((t) => t.table_type === 'people') || null;
 }
 
 async function createCarsTable(request, token) {
-  const name = `e2e_tbl_${Date.now()}`;
+  // Имя уникально на воркер: соседний воркер той же базы заводит свою фикстуру.
+  const name = `${E2E_PREFIX}tbl_${process.pid}_${Date.now()}`;
   const res = await request.post(`${API_BASE}/system-tables`, {
     headers: headers(token),
     data: { name, display_name: 'E2E таблица', table_type: 'cars' },
