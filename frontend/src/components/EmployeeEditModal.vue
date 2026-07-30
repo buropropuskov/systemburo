@@ -26,13 +26,18 @@
               <div class="completion__citizenship">
                 <div class="citizenship__header">
                   <label class="citizenship__label">Гражданство <span class="required">*</span></label>
-                  <button
-                    class="add-button"
-                    :disabled="!canSaveEmployee"
-                    @click="saveEmployee"
+                  <span
+                    class="hint-anchor hint-anchor--below hint-anchor--right"
+                    :data-hint="saveEmployeeHint"
                   >
-                    {{ editingEmployee ? 'Сохранить' : 'Добавить' }}
-                  </button>
+                    <button
+                      class="add-button"
+                      :disabled="!canSaveEmployee"
+                      @click="saveEmployee"
+                    >
+                      {{ editingEmployee ? 'Сохранить' : 'Добавить' }}
+                    </button>
+                  </span>
                 </div>
                 <div class="citizenship__dropdown">
                   <button
@@ -367,6 +372,31 @@ export default {
                 }
             }
             return true;
+        },
+
+        /**
+         * Подсказка на заблокированной кнопке сохранения: чего не хватает.
+         * Пустая строка - форма заполнена (селектор подсказки пустое
+         * значение не берёт).
+         */
+        saveEmployeeHint() {
+            if (this.canSaveEmployee) return '';
+
+            const missing = [];
+            if (!this.selectedCitizenship) missing.push('гражданство');
+            if (!this.lastName.trim()) missing.push('фамилию');
+            if (!this.firstName.trim()) missing.push('имя');
+            if (!this.position.trim()) missing.push('должность');
+            if (!this.passportSeriesNumber.trim()) missing.push('серию и номер паспорта');
+
+            const reasons = [];
+            if (missing.length) reasons.push(`Заполните: ${missing.join(', ')}`);
+            if (this.isPatentRequired
+                && !this.patentNumber.trim()
+                && (this.selectedPermission === 'Не выбрано' || !this.selectedPermission)) {
+                reasons.push('Для этого гражданства нужен номер патента или иное разрешение на работы');
+            }
+            return reasons.join('. ');
         }
     },
     watch: {

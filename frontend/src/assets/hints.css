@@ -1,0 +1,89 @@
+/*
+ * Всплывающая подсказка единого стиля - системный паттерн проекта
+ * (изначально .tag-hint в UserApplications, дальше копипастой по компонентам).
+ *
+ * Разметка: элемент-якорь с классом .hint-anchor и атрибутом data-hint.
+ * Отсутствующий или пустой data-hint гасит подсказку целиком, поэтому его
+ * можно держать на реактивном значении: null - подсказки нет.
+ *
+ * Заблокированную кнопку в якорь не превращать: disabled-элемент не получает
+ * событий мыши, :hover на нём не срабатывает и подсказка не покажется никогда.
+ * Якорем берётся обёртка вокруг такой кнопки.
+ */
+
+.hint-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.hint-anchor[data-hint]:not([data-hint=""])::after {
+  content: attr(data-hint);
+  position: absolute;
+  bottom: calc(100% + 9px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 260px;
+  background: var(--hint-bg);
+  color: var(--hint-text);
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.35;
+  text-align: center;
+  white-space: normal;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  box-shadow: 0 2px 8px var(--shadow-drop);
+}
+
+.hint-anchor[data-hint]:not([data-hint=""])::before {
+  content: '';
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--hint-bg);
+  z-index: 61;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+/* Подсказка под якорем - когда сверху места нет (первая строка формы, шапка). */
+.hint-anchor--below[data-hint]:not([data-hint=""])::after {
+  top: calc(100% + 9px);
+  bottom: auto;
+}
+
+.hint-anchor--below[data-hint]:not([data-hint=""])::before {
+  top: calc(100% + 4px);
+  bottom: auto;
+  border-top-color: transparent;
+  border-bottom-color: var(--hint-bg);
+}
+
+/*
+ * Якорь у правого края окна (кнопка в футере модалки): центрированный пузырёк
+ * вылезает за окно и обрезается его скроллом, поэтому равняем по правому краю
+ * якоря. Стрелка остаётся над серединой якоря.
+ */
+.hint-anchor--right[data-hint]:not([data-hint=""])::after {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+
+/* .is-hinted - программный показ (тап на мобилке, где hover'а нет). */
+.hint-anchor[data-hint]:not([data-hint=""]):hover::after,
+.hint-anchor[data-hint]:not([data-hint=""]):hover::before,
+.hint-anchor[data-hint]:not([data-hint=""]):focus-within::after,
+.hint-anchor[data-hint]:not([data-hint=""]):focus-within::before,
+.hint-anchor[data-hint]:not([data-hint=""]).is-hinted::after,
+.hint-anchor[data-hint]:not([data-hint=""]).is-hinted::before {
+  opacity: 1;
+}

@@ -309,15 +309,20 @@
             >
               Отмена
             </button>
-            <button
-              type="button"
-              class="manual-btn manual-btn--primary"
-              :disabled="!canSubmit"
-              data-testid="manual-add-submit"
-              @click="submit"
+            <span
+              class="hint-anchor hint-anchor--right"
+              :data-hint="submitHint"
             >
-              {{ submitLabel }}
-            </button>
+              <button
+                type="button"
+                class="manual-btn manual-btn--primary"
+                :disabled="!canSubmit"
+                data-testid="manual-add-submit"
+                @click="submit"
+              >
+                {{ submitLabel }}
+              </button>
+            </span>
           </div>
         </div>
       </div>
@@ -487,6 +492,31 @@ export default {
             return d.isOneDay
                 ? !!(d.singleDate && d.startTime && d.endTime)
                 : !!(d.startDate && d.endDate && d.startTime && d.endTime);
+        },
+        /**
+         * Подсказка на заблокированной кнопке отправки: чего не хватает.
+         * Пока идёт сохранение подсказки нет - кнопка выключена по другой
+         * причине и объяснять нечего.
+         */
+        submitHint() {
+            if (this.canSubmit || this.submitting) return '';
+
+            const missing = [];
+            if (this.isBinding && !this.selectedApplicationId) missing.push('заявку');
+            if (this.isBinding && this.attachTarget === 'existing' && !this.selectedAttachmentId) {
+                missing.push('вложение заявки');
+            }
+            if (!this.selectedOrgId) missing.push('организацию');
+            if (!this.datesComplete) missing.push('даты и время');
+
+            const reasons = [];
+            if (missing.length) reasons.push(`Заполните: ${missing.join(', ')}`);
+            if (this.addedCount === 0) {
+                reasons.push(this.isPeople
+                    ? 'Добавьте хотя бы одного сотрудника'
+                    : 'Добавьте хотя бы одну машину');
+            }
+            return reasons.join('. ');
         },
         canSubmit() {
             if (!this.selectedOrgId || this.addedCount === 0 || !this.datesComplete || this.submitting) {
