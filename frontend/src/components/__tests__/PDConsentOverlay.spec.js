@@ -55,11 +55,12 @@ function mountOverlay({ active = true } = {}) {
   });
 }
 
-function primeStore({ text = '<p>Текст согласия</p>', document: doc = null, version = 2 } = {}) {
+function primeStore({ text = '<p>Текст согласия</p>', document: doc = null, version = 2, versionAt = '' } = {}) {
   const store = usePDConsentStore();
   store.resolved = true;
   store.required = true;
   store.version = version;
+  store.versionAt = versionAt;
   store.html = text;
   store.docMeta = doc;
   return store;
@@ -260,6 +261,42 @@ describe('PDConsentOverlay (#1567)', () => {
 
     expect(wrapper.get('[data-testid="pdc-agree"]').attributes('disabled')).toBeDefined();
     expect(wrapper.get('[data-testid="pdc-accept"]').attributes('disabled')).toBeDefined();
+  });
+
+  // Номер редакции сам по себе человеку ничего не говорит - дата говорит, с какого
+  // числа действует то, что ему показывают.
+  it('редакция помечена датой появления, а без даты остаётся один номер', async () => {
+    primeStore({ version: 7, versionAt: '2026-07-30T12:00:00Z' });
+    const withDate = mountOverlay();
+    await flushPromises();
+    expect(withDate.text()).toContain('Редакция 7 от 30.07.2026');
+
+    withDate.unmount();
+    setActivePinia(createPinia());
+    primeStore({ version: 7, versionAt: '' });
+    const noDate = mountOverlay();
+    await flushPromises();
+    expect(noDate.text()).toContain('Редакция 7');
+    expect(noDate.text()).not.toContain('от ');
+  });
+
+  // Подзаголовок убран по просьбе: он повторял то, что и так видно по мёртвой кнопке.
+  it('в шапке нет прежнего подзаголовка про недоступность работы', async () => {
+    primeStore();
+    const wrapper = mountOverlay();
+    await flushPromises();
+
+    expect(wrapper.text()).not.toContain('работа в системе недоступна');
+  });
+
+  it('рядом с текстом есть пояснение своими словами', async () => {
+    primeStore();
+    const wrapper = mountOverlay();
+    await flushPromises();
+
+    const aside = wrapper.get('.pdc-modal__aside').text();
+    expect(aside).toContain('данные вашей учётной записи');
+    expect(aside).toContain('Отказаться можно в любой момент');
   });
 
   it('пока active=false, окно не рисуется', async () => {
