@@ -858,14 +858,19 @@
         >
           Отмена
         </button>
-        <button
-          :disabled="!canCreateUser"
-          class="modal-btn modal-btn--confirm"
-          :class="{'modal-btn--disabled': !canCreateUser}"
-          @click="createUser"
+        <span
+          class="hint-anchor hint-anchor--right"
+          :data-hint="createUserHint"
         >
-          Создать
-        </button>
+          <button
+            :disabled="!canCreateUser"
+            class="modal-btn modal-btn--confirm"
+            :class="{'modal-btn--disabled': !canCreateUser}"
+            @click="createUser"
+          >
+            Создать
+          </button>
+        </span>
       </template>
     </BaseModal>
 
@@ -1274,6 +1279,28 @@ export default {
     },
     hasOrgOrCompany() {
       return Boolean(this.newUser.organization_id || this.newUser.company_id);
+    },
+    /**
+     * Подсказка на заблокированной кнопке "Создать": чего именно не хватает.
+     * Порядок причин совпадает с порядком полей в форме. Пустая строка -
+     * форма заполнена и подсказку показывать не на чем (селектор [data-hint]
+     * пустое значение не берёт).
+     */
+    createUserHint() {
+      if (this.canCreateUser) return '';
+
+      const missing = [];
+      if (!this.newUser.username) missing.push('логин');
+      if (!this.newUser.password) missing.push('пароль');
+      if (!this.hasOrgOrCompany) missing.push('организацию или компанию');
+      if (!this.newUser.type_id) missing.push('тип пользователя');
+
+      const reasons = [];
+      if (missing.length) reasons.push(`Заполните: ${missing.join(', ')}`);
+      if (this.newUser.password && !this.createPasswordValid) {
+        reasons.push('Пароль не отвечает требованиям политики');
+      }
+      return reasons.join('. ');
     }
   },
   watch: {
