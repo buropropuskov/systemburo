@@ -600,6 +600,95 @@
                   Поднимает редакцию: все, кто согласился с прежней, подтвердят снова.
                 </span>
               </div>
+
+              <!-- Сбор согласий: сколько человек подтвердили текущую редакцию.
+                   Считается той же меркой, что и гейт, поэтому число согласившихся
+                   совпадает с числом тех, кого система пускает. -->
+              <div
+                v-if="pdcCollection"
+                class="pdc-collection"
+                data-testid="pdc-collection"
+              >
+                <div class="pdc-collection__head">
+                  <h5 class="pdc-collection__title">
+                    Сбор согласий по редакции {{ pdcCollection.version }}
+                  </h5>
+                  <RefreshButton
+                    :loading="pdcCollectionLoading"
+                    data-testid="pdc-collection-refresh"
+                    @refresh="fetchPdcCollection"
+                  />
+                </div>
+
+                <p
+                  v-if="!pdcCollection.active"
+                  class="form-hint"
+                  data-testid="pdc-collection-inactive"
+                >
+                  Запрос согласия сейчас не действует, сбор не идёт. Подтвердить согласие
+                  пользователи смогут после включения.
+                </p>
+
+                <template v-else>
+                <div
+                  class="pdc-collection__bar"
+                  role="progressbar"
+                  aria-label="Доля подтвердивших согласие"
+                  aria-valuemin="0"
+                  aria-valuemax="100"
+                  :aria-valuenow="pdcCollectionPercent"
+                >
+                  <div
+                    class="pdc-collection__fill"
+                    :style="{ transform: `scaleX(${pdcCollectionRatio})` }"
+                  />
+                </div>
+
+                <p
+                  class="pdc-collection__counts"
+                  data-testid="pdc-collection-counts"
+                >
+                  Подтвердили {{ pdcCollection.accepted }} из {{ pdcCollection.total }}
+                  ({{ pdcCollectionPercent }}%)
+                </p>
+
+                <template v-if="pdcCollection.pending_users.length">
+                  <p class="form-hint">
+                    Ещё не подтвердили ({{ pdcCollection.pending }}):
+                  </p>
+                  <ul
+                    class="pdc-collection__list"
+                    data-testid="pdc-collection-pending"
+                  >
+                    <li
+                      v-for="person in pdcCollection.pending_users"
+                      :key="person.id"
+                      class="pdc-collection__item"
+                    >
+                      <span class="pdc-collection__name">{{ person.full_name }}</span>
+                      <span class="pdc-collection__login">{{ person.username }}</span>
+                      <span
+                        v-if="person.organization"
+                        class="pdc-collection__org"
+                      >{{ person.organization }}</span>
+                    </li>
+                  </ul>
+                  <button
+                    class="btn btn--ghost"
+                    data-testid="pdc-collection-export"
+                    @click="exportPdcPending"
+                  >
+                    Выгрузить список
+                  </button>
+                </template>
+                <p
+                  v-else
+                  class="form-hint"
+                >
+                  Подтвердили все, кого закрывает запрос согласия.
+                </p>
+                </template>
+              </div>
             </template>
           </div>
 
@@ -702,12 +791,14 @@ import {
   savePDConsentText,
   setPDConsentRequired,
   requirePDConsentAgain,
+  getPDConsentCollection,
 } from '@/api/pdConsent';
 import { extractDocumentHtml } from '@/utils/documentTextExtract';
 import { stripHtml } from '@/utils/sanitize';
 import { SkeletonTransition, SkeletonLine, SkeletonBlock } from '@/components/ui';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import TextConstructor from '@/components/TextConstructor.vue';
+import RefreshButton from '@/components/RefreshButton.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
 import { useContactsStore } from '@/stores/contacts';
@@ -723,6 +814,7 @@ export default {
     WorkScheduleTab,
     BaseDropdown,
     TextConstructor,
+    RefreshButton,
   },
   data() {
     return {
@@ -783,6 +875,10 @@ export default {
       pdcExtracting: false,
       pdcRequiringAgain: false,
       pdcTogglingRequired: false,
+      // Сводка сбора согласий: грузится вместе с секцией и после каждого действия,
+      // которое меняет состав согласившихся (подъём редакции).
+      pdcCollection: null,
+      pdcCollectionLoading: false,
       bureauTimeSlots: [],
       bureauSlotsLoaded: false,
       bureauSlotsLoading: false,
@@ -832,6 +928,15 @@ export default {
       return this.pdcRequired
         ? 'Включено: согласие при входе запрашивается.'
         : 'Выключено: согласие при входе не запрашивается.';
+    },
+    /** Доля подтвердивших, 0..1. Пустая система - считаем сбор завершённым. */
+    pdcCollectionRatio() {
+      const c = this.pdcCollection;
+      if (!c || !c.total) return 1;
+      return Math.min(1, Math.max(0, c.accepted / c.total));
+    },
+    pdcCollectionPercent() {
+      return Math.round(this.pdcCollectionRatio * 100);
     },
     pdcBusy() {
       return this.pdcSaving || this.pdcExtracting || this.pdcRequiringAgain || this.pdcTogglingRequired;
@@ -1197,6 +1302,7 @@ export default {
       try {
         this.applyPdConsentSettings(await getPDConsentSettings());
         this.pdcLoaded = true;
+        this.fetchPdcCollection();
       } catch (error) {
         useDeletionsStore().notify({
           prefix: error?.message || 'Не удалось загрузить текст согласия',
@@ -1204,6 +1310,68 @@ export default {
         });
       } finally {
         this.pdcLoading = false;
+      }
+    },
+
+    /**
+     * Сводку тянем отдельно от настроек: она считается по всем учётным записям и
+     * не должна задерживать показ самого текста согласия. Ошибку не показываем
+     * тостом - блок просто не рисуется, текст и тумблер при этом работают.
+     */
+    async fetchPdcCollection() {
+      this.pdcCollectionLoading = true;
+      try {
+        this.pdcCollection = await getPDConsentCollection();
+      } catch (error) {
+        console.error('Не удалось загрузить сводку по сбору согласий:', error);
+        this.pdcCollection = null;
+      } finally {
+        this.pdcCollectionLoading = false;
+      }
+    },
+
+    /**
+     * Выгружает список не подтвердивших: администратору с ним идти напоминать, а
+     * пятнадцать человек из интерфейса не перепишешь. Формат тот же, что у прочих
+     * выгрузок системы.
+     */
+    async exportPdcPending() {
+      const rows = this.pdcCollection?.pending_users || [];
+      if (!rows.length) return;
+      try {
+        const ExcelJS = (await import('exceljs')).default;
+        const workbook = new ExcelJS.Workbook();
+        const sheet = workbook.addWorksheet('Не подтвердили');
+
+        const headerRow = sheet.addRow(['ФИО', 'Логин', 'Организация']);
+        headerRow.height = 25;
+        headerRow.eachCell((cell) => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F5BDF' } };
+          cell.font = { name: 'Verdana', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+          cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        });
+        rows.forEach((person) => {
+          sheet.addRow([person.full_name, person.username, person.organization]);
+        });
+        sheet.columns.forEach((column) => { column.width = 32; });
+
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Soglasie_ne_podtverdili_red${this.pdcCollection.version}.xlsx`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+      } catch (error) {
+        useDeletionsStore().notify({
+          prefix: error?.message || 'Не удалось выгрузить список',
+          type: 'error',
+        });
       }
     },
 
@@ -1285,6 +1453,8 @@ export default {
       this.pdcRequiringAgain = true;
       try {
         this.applyPdConsentSettings(await requirePDConsentAgain());
+        // Состав согласившихся только что обнулился - сводка обязана это показать.
+        this.fetchPdcCollection();
         useDeletionsStore().notify({ prefix: `Редакция согласия поднята до ${this.pdcVersion}` });
       } catch (error) {
         useDeletionsStore().notify({
@@ -1710,6 +1880,85 @@ export default {
 
 .pdc-editor {
   margin-bottom: 4px;
+}
+
+.pdc-collection {
+  margin-top: 20px;
+  padding: 16px 18px;
+  border: 1px solid var(--color-border, var(--border));
+  border-radius: var(--radius-md, 15px);
+  background: var(--surface);
+}
+
+.pdc-collection__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.pdc-collection__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text, var(--text));
+}
+
+.pdc-collection__bar {
+  height: 6px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--accent-tint);
+}
+
+.pdc-collection__fill {
+  height: 100%;
+  background: var(--accent);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.2s ease-out;
+}
+
+.pdc-collection__counts {
+  margin: 8px 0 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text, var(--text));
+}
+
+.pdc-collection__list {
+  margin: 8px 0 12px;
+  padding: 0;
+  list-style: none;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.pdc-collection__item {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--color-border, var(--border));
+  font-size: 13px;
+}
+
+.pdc-collection__item:last-child {
+  border-bottom: none;
+}
+
+.pdc-collection__name {
+  font-weight: 500;
+  color: var(--color-text, var(--text));
+}
+
+.pdc-collection__login,
+.pdc-collection__org {
+  font-size: 12px;
+  color: var(--color-text-muted, var(--text-muted));
 }
 
 /* Состояния загрузки и ошибки */

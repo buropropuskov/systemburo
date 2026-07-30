@@ -956,6 +956,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 		// вместе с самим запросом согласия.
 		pdcGroup := protected.Group("/settings/pd-consent", requireAdmin)
 		pdcGroup.GET("", settings.GetPDConsentSettings)
+		pdcGroup.GET("/collection", settings.GetPDConsentCollection)
 		pdcGroup.PUT("/text", settings.UpdatePDConsentText)
 		pdcGroup.PUT("/required", settings.UpdatePDConsentRequired)
 		pdcGroup.POST("/require-again", settings.BumpPDConsentVersion)

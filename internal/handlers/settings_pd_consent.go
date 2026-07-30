@@ -74,3 +74,14 @@ func (h *SettingsHandler) BumpPDConsentVersion(c echo.Context) error {
 func (h *SettingsHandler) invalidateConsentGate() {
 	h.consentGate.InvalidateAll()
 }
+
+// GetPDConsentCollection отдаёт сводку по сбору согласий текущей редакции и список
+// тех, кто ещё не подтвердил (#1567). Считается той же меркой, что и гейт, поэтому
+// число согласившихся всегда совпадает с числом тех, кого система пускает.
+func (h *SettingsHandler) GetPDConsentCollection(c echo.Context) error {
+	collection, err := h.consentStats.Collection(c.Request().Context())
+	if err != nil {
+		return err
+	}
+	return RespondSuccess(c, collection)
+}

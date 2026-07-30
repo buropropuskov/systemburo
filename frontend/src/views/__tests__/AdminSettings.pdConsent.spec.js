@@ -24,11 +24,13 @@ const getPDConsentSettings = vi.fn();
 const savePDConsentText = vi.fn();
 const setPDConsentRequired = vi.fn();
 const requirePDConsentAgain = vi.fn();
+const getPDConsentCollection = vi.fn();
 vi.mock('@/api/pdConsent', () => ({
   getPDConsentSettings: (...a) => getPDConsentSettings(...a),
   savePDConsentText: (...a) => savePDConsentText(...a),
   setPDConsentRequired: (...a) => setPDConsentRequired(...a),
   requirePDConsentAgain: (...a) => requirePDConsentAgain(...a),
+  getPDConsentCollection: (...a) => getPDConsentCollection(...a),
 }));
 
 const extractDocumentHtml = vi.fn();
@@ -66,7 +68,10 @@ describe('AdminSettings - текст согласия при первом вхо
     setActivePinia(createPinia());
     [getSettings, getDataProcessingMeta, fetchDataProcessingBlob, getPDConsentSettings,
       savePDConsentText, setPDConsentRequired, requirePDConsentAgain,
-      extractDocumentHtml].forEach((m) => m.mockReset());
+      extractDocumentHtml, getPDConsentCollection].forEach((m) => m.mockReset());
+    getPDConsentCollection.mockResolvedValue({
+      version: 1, total: 0, accepted: 0, pending: 0, pending_users: [],
+    });
     getDataProcessingMeta.mockResolvedValue(pdfMeta);
     getPDConsentSettings.mockResolvedValue(state());
   });
