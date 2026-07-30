@@ -72,7 +72,5 @@ func (h *SettingsHandler) BumpPDConsentVersion(c echo.Context) error {
 // invalidateConsentGate сбрасывает кэш гейта согласия: без этого правка текста,
 // тумблера или редакции доезжала бы до пользователей лишь по истечении TTL.
 func (h *SettingsHandler) invalidateConsentGate() {
-	if h.consentGate != nil {
-		h.consentGate.InvalidateAll()
-	}
+	h.consentGate.InvalidateAll()
 }

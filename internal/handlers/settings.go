@@ -12,7 +12,7 @@ type SettingsHandler struct {
 	fileSvc     services.DocumentFileService
 	maxFileSize int64
 	// consentGate нужен, чтобы правка текста, тумблера или редакции согласия
-	// действовала сразу, а не по истечении TTL кэша гейта (#1567). Может быть nil.
+	// действовала сразу, а не по истечении TTL кэша гейта (#1567).
 	consentGate *services.PDConsentGateService
 }
 

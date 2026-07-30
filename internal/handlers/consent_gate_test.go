@@ -199,7 +199,10 @@ func TestConsentGate_RevokeRequiresConsentAgain(t *testing.T) {
 	assert.True(t, gateState(t, e, user).Required)
 }
 
-func TestConsentGate_AcceptRejectedWhenNotRequested(t *testing.T) {
+// Запрос согласия могли выключить, пока пользователь читал текст. Клик по кнопке в
+// этот момент не должен давать ошибку: подтверждать нечего, окно просто закрывается,
+// и записи о согласии на пустое требование не появляется.
+func TestConsentGate_AcceptWhenNotRequestedIsNoop(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)
 	defer cleanup()
 	testutil.CleanDB(t, db)
@@ -207,7 +210,12 @@ func TestConsentGate_AcceptRejectedWhenNotRequested(t *testing.T) {
 	user := testutil.RegisterAndLogin(t, e, "gate_noreq", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
 
 	rec := testutil.POST(t, e, acceptPath, `{}`, testutil.AuthHeader(user))
-	assert.Equal(t, http.StatusBadRequest, rec.Code, "подтверждать нечего, пока запрос выключен")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.False(t, testutil.ParseResponse[*models.PDConsentGateState](t, rec).Required)
+
+	var count int64
+	require.NoError(t, db.Model(&models.PDConsent{}).Count(&count).Error)
+	assert.Zero(t, count, "согласие на невыставленное требование не записывается")
 }
 
 func TestConsentGate_Unauthorized(t *testing.T) {
