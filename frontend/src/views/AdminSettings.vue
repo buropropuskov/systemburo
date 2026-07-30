@@ -416,293 +416,6 @@
             </button>
           </div>
 
-          <!-- Обработка данных -->
-          <div
-            v-else-if="activeSection === 'data-processing'"
-            class="settings-section"
-          >
-            <h3 class="section-title">
-              Обработка данных
-            </h3>
-            <p class="dp-desc">
-              Документ открывается по ссылке «согласие» при подаче заявки и доступен по адресу
-              <code>/data-processing</code>. PDF показывается прямо на странице, DOC и DOCX —
-              только для скачивания.
-            </p>
-
-            <p
-              v-if="dpLoading"
-              class="form-hint"
-            >
-              Загрузка...
-            </p>
-
-            <div
-              v-else-if="dpMeta"
-              class="dp-card"
-            >
-              <div class="dp-card__info">
-                <span class="dp-card__name">{{ dpMeta.file_name }}</span>
-                <span class="dp-card__meta">{{ dpExtLabel }} · загружен {{ dpUploadedLabel }}</span>
-              </div>
-              <div class="dp-card__actions">
-                <a
-                  class="btn btn--ghost"
-                  href="/data-processing"
-                  target="_blank"
-                  rel="noopener"
-                >Открыть</a>
-                <button
-                  class="btn btn--ghost"
-                  :disabled="dpBusy"
-                  @click="downloadDp"
-                >
-                  Скачать
-                </button>
-                <label
-                  class="btn btn--ghost"
-                  :class="{ 'btn--disabled': dpBusy }"
-                >
-                  {{ dpUploading ? 'Загрузка...' : 'Заменить' }}
-                  <input
-                    type="file"
-                    accept=".pdf,.doc,.docx"
-                    hidden
-                    :disabled="dpBusy"
-                    @change="onDpFileChange"
-                  >
-                </label>
-                <button
-                  class="btn btn--danger"
-                  :disabled="dpBusy"
-                  @click="deleteDp"
-                >
-                  {{ dpDeleting ? 'Удаление...' : 'Удалить' }}
-                </button>
-              </div>
-            </div>
-
-            <div
-              v-else
-              class="dp-upload"
-            >
-              <label
-                class="btn btn--primary"
-                :class="{ 'btn--disabled': dpUploading }"
-              >
-                {{ dpUploading ? 'Загрузка...' : 'Загрузить документ' }}
-                <input
-                  type="file"
-                  accept=".pdf,.doc,.docx"
-                  hidden
-                  :disabled="dpUploading"
-                  @change="onDpFileChange"
-                >
-              </label>
-              <span class="form-hint">PDF, DOC или DOCX.</span>
-            </div>
-
-            <h4 class="subsection-title pdc-title">
-              Текст согласия при первом входе
-            </h4>
-            <p class="dp-desc">
-              Этот текст показывается пользователю в окне при первом входе. Кнопку подтверждения
-              он сможет нажать только прокрутив текст до конца. Кнопка «Извлечь из документа»
-              переносит сюда текст загруженного файла: извлечение не воспроизводит таблицы,
-              теряет автонумерацию Word и путает переносы по слогам, поэтому результат нужно
-              вычитать.
-            </p>
-
-            <p
-              v-if="pdcLoading"
-              class="form-hint"
-            >
-              Загрузка...
-            </p>
-
-            <template v-else>
-              <div
-                v-if="pdcRequired && !pdcHasText"
-                class="pdc-warning"
-                data-testid="pdc-empty-warning"
-              >
-                Запрос согласия включён, но текст пуст, поэтому согласие у пользователей не
-                спрашивается. Задайте текст или выключите запрос.
-              </div>
-
-              <div class="pdc-actions">
-                <button
-                  class="btn btn--ghost"
-                  :disabled="!dpMeta || pdcBusy"
-                  data-testid="pdc-extract"
-                  @click="extractPdcText"
-                >
-                  {{ pdcExtracting ? 'Извлечение...' : 'Извлечь из документа' }}
-                </button>
-                <span
-                  v-if="!dpMeta"
-                  class="form-hint"
-                >Сначала загрузите документ</span>
-              </div>
-
-              <TextConstructor
-                v-model="pdcText"
-                class="pdc-editor"
-                :rows="12"
-                placeholder="Текст согласия на обработку персональных данных"
-              />
-
-              <div class="pdc-actions">
-                <button
-                  class="btn btn--primary"
-                  :disabled="pdcBusy"
-                  data-testid="pdc-save"
-                  @click="savePdcText"
-                >
-                  {{ pdcSaving ? 'Сохранение...' : 'Сохранить текст' }}
-                </button>
-                <span class="form-hint">Редакция {{ pdcVersion }}</span>
-              </div>
-
-              <div class="form-group">
-                <label class="switch-label">
-                  <span class="switch-text">Запрашивать согласие при первом входе</span>
-                  <span
-                    class="switch"
-                    :class="{ 'switch--on': pdcRequired }"
-                    role="switch"
-                    :aria-checked="String(pdcRequired)"
-                    tabindex="0"
-                    data-testid="pdc-required-switch"
-                    @click="togglePdcRequired"
-                    @keydown.enter="togglePdcRequired"
-                    @keydown.space.prevent="togglePdcRequired"
-                  >
-                    <span class="switch__thumb" />
-                  </span>
-                </label>
-                <span
-                  class="form-hint"
-                  data-testid="pdc-required-hint"
-                >{{ pdcRequiredHint }}</span>
-              </div>
-
-              <div class="pdc-actions">
-                <button
-                  class="btn btn--ghost"
-                  :disabled="pdcBusy"
-                  data-testid="pdc-require-again"
-                  @click="requirePdcAgain"
-                >
-                  {{ pdcRequiringAgain ? 'Обновление...' : 'Требовать согласие заново' }}
-                </button>
-                <span class="form-hint">
-                  Поднимает редакцию: все, кто согласился с прежней, подтвердят снова.
-                </span>
-              </div>
-
-              <!-- Сбор согласий: сколько человек подтвердили текущую редакцию.
-                   Считается той же меркой, что и гейт, поэтому число согласившихся
-                   совпадает с числом тех, кого система пускает. -->
-              <div
-                v-if="pdcCollection"
-                class="pdc-collection"
-                data-testid="pdc-collection"
-              >
-                <div class="pdc-collection__head">
-                  <h5 class="pdc-collection__title">
-                    Сбор согласий по редакции {{ pdcCollection.version }}
-                  </h5>
-                  <RefreshButton
-                    :loading="pdcCollectionLoading"
-                    data-testid="pdc-collection-refresh"
-                    @refresh="fetchPdcCollection"
-                  />
-                </div>
-
-                <p
-                  v-if="!pdcCollection.active"
-                  class="form-hint"
-                  data-testid="pdc-collection-inactive"
-                >
-                  Запрос согласия сейчас не действует, сбор не идёт. Подтвердить согласие
-                  пользователи смогут после включения.
-                </p>
-
-                <template v-else>
-                  <div
-                    class="pdc-collection__bar"
-                    role="progressbar"
-                    aria-label="Доля подтвердивших согласие"
-                    aria-valuemin="0"
-                    aria-valuemax="100"
-                    :aria-valuenow="pdcCollectionPercent"
-                  >
-                    <div
-                      class="pdc-collection__fill"
-                      :style="{ transform: `scaleX(${pdcCollectionRatio})` }"
-                    />
-                  </div>
-
-                  <p
-                    class="pdc-collection__counts"
-                    data-testid="pdc-collection-counts"
-                  >
-                    Подтвердили {{ pdcCollection.accepted }} из {{ pdcCollection.total }}
-                    ({{ pdcCollectionPercent }}%)
-                  </p>
-
-                  <template v-if="pdcCollection.pending_users.length">
-                    <p class="form-hint">
-                      Ещё не подтвердили ({{ pdcCollection.pending }}):
-                    </p>
-                    <div class="pdc-collection__list-wrap">
-                      <ul
-                        class="pdc-collection__list"
-                        data-testid="pdc-collection-pending"
-                      >
-                        <li
-                          v-for="person in pdcCollection.pending_users"
-                          :key="person.id"
-                          class="pdc-collection__item"
-                        >
-                          <span class="pdc-collection__name">{{ person.full_name }}</span>
-                          <span class="pdc-collection__login">{{ person.username }}</span>
-                          <span
-                            v-if="person.organization"
-                            class="pdc-collection__org"
-                          >{{ person.organization }}</span>
-                        </li>
-                      </ul>
-                    </div>
-                    <p
-                      v-if="pdcCollection.truncated"
-                      class="form-hint"
-                      data-testid="pdc-collection-truncated"
-                    >
-                      Показаны первые {{ pdcCollection.pending_users.length }}. Полный список -
-                      в выгрузке.
-                    </p>
-                    <button
-                      class="btn btn--ghost"
-                      :disabled="pdcExporting"
-                      data-testid="pdc-collection-export"
-                      @click="exportPdcPending"
-                    >
-                      {{ pdcExporting ? 'Готовим файл...' : 'Выгрузить список' }}
-                    </button>
-                  </template>
-                  <p
-                    v-else
-                    class="form-hint"
-                  >
-                    Подтвердили все, кого закрывает запрос согласия.
-                  </p>
-                </template>
-              </div>
-            </template>
-          </div>
-
           <!-- Напоминания согласующим -->
           <div
             v-else-if="activeSection === 'approvals'"
@@ -789,28 +502,9 @@
 
 <script>
 import { getSettings, updateSetting } from '@/api/settings';
-import {
-  getDataProcessingMeta,
-  uploadDataProcessingDoc,
-  deleteDataProcessingDoc,
-  downloadDataProcessingDoc,
-  fetchDataProcessingBlob,
-} from '@/api/dataProcessing';
-import {
-  getPDConsentSettings,
-  savePDConsentText,
-  setPDConsentRequired,
-  requirePDConsentAgain,
-  getPDConsentCollection,
-} from '@/api/pdConsent';
-import { extractDocumentHtml } from '@/utils/documentTextExtract';
-import { stripHtml } from '@/utils/sanitize';
 import { SkeletonTransition, SkeletonLine, SkeletonBlock } from '@/components/ui';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
-import TextConstructor from '@/components/TextConstructor.vue';
-import RefreshButton from '@/components/RefreshButton.vue';
 import { useDeletionsStore } from '@/stores/deletions';
-import { useUiStore } from '@/stores/ui';
 import { useContactsStore } from '@/stores/contacts';
 import { apiRequest } from '@/api/client';
 import WorkScheduleTab from '@/components/WorkScheduleTab.vue';
@@ -823,8 +517,6 @@ export default {
     SkeletonBlock,
     WorkScheduleTab,
     BaseDropdown,
-    TextConstructor,
-    RefreshButton,
   },
   data() {
     return {
@@ -834,7 +526,6 @@ export default {
         { value: 'pagination', label: 'Пагинация' },
         { value: 'notifications', label: 'Уведомления' },
         { value: 'security', label: 'Безопасность' },
-        { value: 'data-processing', label: 'Обработка данных' },
         { value: 'contacts', label: 'Информация Бюро' },
         { value: 'approvals', label: 'Напоминания' },
       ],
@@ -871,25 +562,6 @@ export default {
         { key: 'password_require_digit', label: 'Требовать цифру' },
         { key: 'password_require_special', label: 'Требовать спецсимвол' },
       ],
-      dpMeta: null,
-      dpLoaded: false,
-      dpLoading: false,
-      dpUploading: false,
-      dpDeleting: false,
-      pdcText: '',
-      pdcLoaded: false,
-      pdcVersion: 1,
-      pdcRequired: false,
-      pdcLoading: false,
-      pdcSaving: false,
-      pdcExtracting: false,
-      pdcRequiringAgain: false,
-      pdcTogglingRequired: false,
-      // Сводка сбора согласий: грузится вместе с секцией и после каждого действия,
-      // которое меняет состав согласившихся (подъём редакции).
-      pdcCollection: null,
-      pdcCollectionLoading: false,
-      pdcExporting: false,
       bureauTimeSlots: [],
       bureauSlotsLoaded: false,
       bureauSlotsLoading: false,
@@ -917,50 +589,6 @@ export default {
       } catch {
         return this.settings.allowed_doc_types.split(',').map(t => t.trim()).filter(Boolean);
       }
-    },
-    dpBusy() {
-      return this.dpUploading || this.dpDeleting;
-    },
-    dpExtLabel() {
-      const ext = (this.dpMeta?.ext || '').replace('.', '').toUpperCase();
-      return ext || 'Документ';
-    },
-    dpUploadedLabel() {
-      if (!this.dpMeta?.uploaded_at) return '';
-      const d = new Date(this.dpMeta.uploaded_at);
-      if (Number.isNaN(d.getTime())) return '';
-      return d.toLocaleDateString('ru-RU');
-    },
-    /**
-     * Подпись под тумблером обязана следовать его состоянию: статичный текст
-     * «пока выключено» при включённом запросе читается как вранье.
-     */
-    pdcRequiredHint() {
-      return this.pdcRequired
-        ? 'Включено: согласие при входе запрашивается.'
-        : 'Выключено: согласие при входе не запрашивается.';
-    },
-    /** Доля подтвердивших, 0..1. Пустая система - считаем сбор завершённым. */
-    pdcCollectionRatio() {
-      const c = this.pdcCollection;
-      if (!c || !c.total) return 1;
-      return Math.min(1, Math.max(0, c.accepted / c.total));
-    },
-    pdcCollectionPercent() {
-      return Math.round(this.pdcCollectionRatio * 100);
-    },
-    pdcBusy() {
-      return this.pdcSaving || this.pdcExtracting || this.pdcRequiringAgain || this.pdcTogglingRequired;
-    },
-    /**
-     * Есть ли в тексте видимое содержимое: редактор на пустом документе отдаёт
-     * "<p></p>". Нужно только для предупреждения администратору - запрет включения
-     * с пустым текстом держит сервер.
-     */
-    pdcHasText() {
-      const html = this.pdcText || '';
-      if (/<img/i.test(html)) return true;
-      return stripHtml(html) !== '';
     },
   },
   watch: {
@@ -1242,247 +870,17 @@ export default {
       }
     },
 
-    async fetchDataProcessingDoc() {
-      this.dpLoading = true;
-      try {
-        this.dpMeta = await getDataProcessingMeta();
-        this.dpLoaded = true;
-      } catch (error) {
-        console.error('Ошибка загрузки документа согласия:', error);
-        useDeletionsStore().notify({ prefix: 'Не удалось загрузить документ', type: 'error' });
-      } finally {
-        this.dpLoading = false;
-      }
-    },
 
-    async onDpFileChange(event) {
-      const file = event.target.files?.[0];
-      // Сбрасываем input, иначе повторный выбор того же файла не вызовет change.
-      event.target.value = '';
-      if (!file) return;
-      this.dpUploading = true;
-      try {
-        this.dpMeta = await uploadDataProcessingDoc(file);
-        this.dpLoaded = true;
-        useDeletionsStore().notify({ prefix: 'Документ ', bold: this.dpMeta.file_name, suffix: ' загружен' });
-      } catch (error) {
-        useDeletionsStore().notify({ prefix: error?.message || 'Ошибка загрузки документа', type: 'error' });
-      } finally {
-        this.dpUploading = false;
-      }
-    },
 
-    async downloadDp() {
-      if (!this.dpMeta) return;
-      try {
-        await downloadDataProcessingDoc(this.dpMeta.file_name);
-      } catch (error) {
-        console.error('Ошибка скачивания документа согласия:', error);
-        useDeletionsStore().notify({ prefix: 'Не удалось скачать документ', type: 'error' });
-      }
-    },
 
-    async deleteDp() {
-      if (!this.dpMeta) return;
-      const ok = await useUiStore().confirm({
-        message: `Удалить документ «${this.dpMeta.file_name}»? Пользователи перестанут видеть его при подаче заявки.`,
-      });
-      if (!ok) return;
-      const name = this.dpMeta.file_name;
-      this.dpDeleting = true;
-      try {
-        await deleteDataProcessingDoc();
-        this.dpMeta = null;
-        useDeletionsStore().notify({ prefix: 'Документ ', bold: name, suffix: ' удалён' });
-      } catch (error) {
-        console.error('Ошибка удаления документа согласия:', error);
-        useDeletionsStore().notify({ prefix: 'Ошибка удаления документа', type: 'error' });
-      } finally {
-        this.dpDeleting = false;
-      }
-    },
 
-    applyPdConsentSettings(settings) {
-      this.pdcText = settings?.text || '';
-      this.pdcVersion = settings?.version || 1;
-      this.pdcRequired = Boolean(settings?.required);
-    },
 
-    async fetchPdConsentSettings() {
-      this.pdcLoading = true;
-      try {
-        this.applyPdConsentSettings(await getPDConsentSettings());
-        this.pdcLoaded = true;
-        this.fetchPdcCollection();
-      } catch (error) {
-        useDeletionsStore().notify({
-          prefix: error?.message || 'Не удалось загрузить текст согласия',
-          type: 'error',
-        });
-      } finally {
-        this.pdcLoading = false;
-      }
-    },
 
-    /**
-     * Сводку тянем отдельно от настроек: она считается по всем учётным записям и
-     * не должна задерживать показ самого текста согласия. Ошибку не показываем
-     * тостом - блок просто не рисуется, текст и тумблер при этом работают.
-     */
-    async fetchPdcCollection() {
-      this.pdcCollectionLoading = true;
-      try {
-        this.pdcCollection = await getPDConsentCollection();
-      } catch (error) {
-        console.error('Не удалось загрузить сводку по сбору согласий:', error);
-        this.pdcCollection = null;
-      } finally {
-        this.pdcCollectionLoading = false;
-      }
-    },
 
-    /**
-     * Выгружает список не подтвердивших: администратору с ним идти напоминать, а
-     * пятнадцать человек из интерфейса не перепишешь. Формат тот же, что у прочих
-     * выгрузок системы.
-     */
-    async exportPdcPending() {
-      if (!this.pdcCollection?.pending_users?.length) return;
-      this.pdcExporting = true;
-      try {
-        // В файл идут ВСЕ, а не показанная часть: урезанная выгрузка тихо теряет людей.
-        const full = this.pdcCollection.truncated
-          ? await getPDConsentCollection({ full: true })
-          : this.pdcCollection;
-        const rows = full.pending_users || [];
-        const ExcelJS = (await import('exceljs')).default;
-        const workbook = new ExcelJS.Workbook();
-        const sheet = workbook.addWorksheet('Не подтвердили');
 
-        const headerRow = sheet.addRow(['ФИО', 'Логин', 'Организация']);
-        headerRow.height = 25;
-        headerRow.eachCell((cell) => {
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F5BDF' } };
-          cell.font = { name: 'Verdana', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
-          cell.alignment = { vertical: 'middle', horizontal: 'center' };
-        });
-        rows.forEach((person) => {
-          sheet.addRow([person.full_name, person.username, person.organization]);
-        });
-        sheet.columns.forEach((column) => { column.width = 32; });
 
-        const buffer = await workbook.xlsx.writeBuffer();
-        const blob = new Blob([buffer], {
-          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        });
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `Soglasie_ne_podtverdili_red${this.pdcCollection.version}.xlsx`;
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        window.URL.revokeObjectURL(url);
-      } catch (error) {
-        useDeletionsStore().notify({
-          prefix: error?.message || 'Не удалось выгрузить список',
-          type: 'error',
-        });
-      } finally {
-        this.pdcExporting = false;
-      }
-    },
 
-    async extractPdcText() {
-      if (!this.dpMeta) return;
-      this.pdcExtracting = true;
-      try {
-        const blob = await fetchDataProcessingBlob();
-        const html = await extractDocumentHtml(blob, this.dpMeta.ext);
-        if (!html) {
-          useDeletionsStore().notify({
-            prefix: 'В документе не нашлось текста. Возможно, это сканированные страницы.',
-            type: 'warning',
-          });
-          return;
-        }
-        this.pdcText = html;
-        useDeletionsStore().notify({
-          prefix: 'Текст извлечён. Проверьте нумерацию и переносы, затем сохраните.',
-          type: 'info',
-        });
-      } catch (error) {
-        useDeletionsStore().notify({
-          prefix: error?.message || 'Не удалось извлечь текст из документа',
-          type: 'error',
-        });
-      } finally {
-        this.pdcExtracting = false;
-      }
-    },
 
-    async savePdcText() {
-      this.pdcSaving = true;
-      try {
-        this.applyPdConsentSettings(await savePDConsentText(this.pdcText));
-        this.pdcLoaded = true;
-        useDeletionsStore().notify({ prefix: 'Текст согласия сохранён' });
-      } catch (error) {
-        useDeletionsStore().notify({
-          prefix: error?.message || 'Не удалось сохранить текст согласия',
-          type: 'error',
-        });
-      } finally {
-        this.pdcSaving = false;
-      }
-    },
-
-    async togglePdcRequired() {
-      if (this.pdcBusy) return;
-      const next = !this.pdcRequired;
-      if (next) {
-        const ok = await useUiStore().confirm({
-          message: 'Включить запрос согласия при первом входе? Снять его можно тем же тумблером.',
-        });
-        if (!ok) return;
-      }
-      this.pdcTogglingRequired = true;
-      try {
-        this.applyPdConsentSettings(await setPDConsentRequired(next));
-        useDeletionsStore().notify({
-          prefix: next ? 'Согласие запрашивается при входе' : 'Запрос согласия выключен',
-        });
-      } catch (error) {
-        useDeletionsStore().notify({
-          prefix: error?.message || 'Не удалось изменить настройку',
-          type: 'error',
-        });
-      } finally {
-        this.pdcTogglingRequired = false;
-      }
-    },
-
-    async requirePdcAgain() {
-      const ok = await useUiStore().confirm({
-        message: 'Требовать согласие заново? Все, кто соглашался с прежней редакцией текста,'
-          + ' подтвердят его при следующем входе.',
-      });
-      if (!ok) return;
-      this.pdcRequiringAgain = true;
-      try {
-        this.applyPdConsentSettings(await requirePDConsentAgain());
-        // Состав согласившихся только что обнулился - сводка обязана это показать.
-        this.fetchPdcCollection();
-        useDeletionsStore().notify({ prefix: `Редакция согласия поднята до ${this.pdcVersion}` });
-      } catch (error) {
-        useDeletionsStore().notify({
-          prefix: error?.message || 'Не удалось запросить согласие заново',
-          type: 'error',
-        });
-      } finally {
-        this.pdcRequiringAgain = false;
-      }
-    },
   },
 };
 </script>
@@ -1803,200 +1201,32 @@ export default {
   pointer-events: none;
 }
 
-/* Обработка данных */
-.dp-desc {
-  font-size: 12px;
-  color: var(--text);
-  line-height: 1.5;
-  margin: 0 0 16px 0;
-}
 
-.dp-desc code {
-  background: var(--accent-tint);
-  color: var(--accent-text);
-  padding: 1px 6px;
-  border-radius: var(--radius-sm);
-  font-size: 11px;
-}
 
-.dp-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-  padding: 14px 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-}
 
-.dp-card__info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
 
-.dp-card__name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
-  word-break: break-word;
-}
 
-.dp-card__meta {
-  font-size: 11px;
-  color: var(--text-muted);
-}
 
-.dp-card__actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
 
-.dp-upload {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
 
-.dp-upload .form-hint {
-  margin-top: 0;
-}
 
-/* Текст согласия при первом входе */
-.pdc-title {
-  margin-top: 28px;
-  padding-top: 20px;
-  border-top: 1px solid var(--border);
-}
 
-.pdc-warning {
-  margin-bottom: 16px;
-  padding: 12px 16px;
-  border: 1px solid var(--danger);
-  border-radius: var(--radius-md);
-  background: var(--danger-bg);
-  color: var(--danger-text);
-  font-size: 13px;
-  line-height: 1.5;
-}
 
-.pdc-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin: 12px 0;
-}
 
-.pdc-actions .form-hint {
-  margin-top: 0;
-}
 
-.pdc-editor {
-  margin-bottom: 4px;
-}
 
-.pdc-collection {
-  margin-top: 20px;
-  padding: 16px 18px;
-  border: 1px solid var(--color-border, var(--border));
-  border-radius: var(--radius-md, 15px);
-  background: var(--surface);
-}
 
-.pdc-collection__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
-}
 
-.pdc-collection__title {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--color-text, var(--text));
-}
 
-/* Дорожка приглушена намеренно: на акцентном оттенке пустая полоса читалась как
-   заполненная, и «0 из 18» выглядело как «собрано всё» (замер на стенде). */
-.pdc-collection__bar {
-  height: 6px;
-  border-radius: 999px;
-  overflow: hidden;
-  background: color-mix(in srgb, var(--color-text, var(--text)) 12%, transparent);
-}
 
-.pdc-collection__fill {
-  height: 100%;
-  background: var(--accent);
-  transform: scaleX(0);
-  transform-origin: left center;
-  transition: transform 0.2s ease-out;
-}
 
-.pdc-collection__counts {
-  margin: 8px 0 12px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--color-text, var(--text));
-}
 
-/* Список прокручивается, и обрезанная по середине строка выглядела как дефект
-   вёрстки. Затухание у нижней кромки показывает, что список продолжается. */
-.pdc-collection__list-wrap {
-  position: relative;
-}
 
-.pdc-collection__list-wrap::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 28px;
-  pointer-events: none;
-  background: linear-gradient(to bottom, transparent, var(--surface));
-}
 
-.pdc-collection__list {
-  margin: 8px 0 12px;
-  padding: 0;
-  list-style: none;
-  max-height: 220px;
-  overflow-y: auto;
-}
 
-.pdc-collection__item {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  flex-wrap: wrap;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--color-border, var(--border));
-  font-size: 13px;
-}
 
-.pdc-collection__item:last-child {
-  border-bottom: none;
-}
 
-.pdc-collection__name {
-  font-weight: 500;
-  color: var(--color-text, var(--text));
-}
 
-.pdc-collection__login,
-.pdc-collection__org {
-  font-size: 12px;
-  color: var(--color-text-muted, var(--text-muted));
-}
 
 /* Состояния загрузки и ошибки */
 .loading-state {

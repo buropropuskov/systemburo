@@ -58,11 +58,9 @@ vi.mock('@/utils/documentTextExtract', () => ({
   UnsupportedDocumentError: class extends Error {},
 }));
 
-import AdminSettings from '../AdminSettings.vue';
+import DataProcessingSettings from '../DataProcessingSettings.vue';
 import { useUiStore } from '@/stores/ui';
 import RefreshButton from '@/components/RefreshButton.vue';
-
-const renderSlot = { template: '<div><slot /></div>' };
 
 const collection = (over = {}) => ({
   active: true,
@@ -80,17 +78,16 @@ const collection = (over = {}) => ({
 });
 
 async function openSection() {
-  getSettings.mockResolvedValue([]);
-  const wrapper = shallowMount(AdminSettings, {
-    global: { stubs: { SkeletonTransition: renderSlot } },
+  // Раздел стал отдельной страницей (#1567): компонент грузит данные сам на
+  // монтировании, выбирать секцию больше не надо.
+  const wrapper = shallowMount(DataProcessingSettings, {
+    global: { stubs: { TextConstructor: true, RefreshButton: true } },
   });
-  await flushPromises();
-  wrapper.vm.activeSection = 'data-processing';
   await flushPromises();
   return wrapper;
 }
 
-describe('AdminSettings - сбор согласий', () => {
+describe('Обработка данных - сбор согласий', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     writeBuffer.mockClear();

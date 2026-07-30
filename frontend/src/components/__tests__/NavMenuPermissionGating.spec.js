@@ -140,7 +140,7 @@ describe('NavMenu: гранулярность Администрирования
     expect(groupBy(wrapper.vm, 'Система').items.map((i) => i.label)).toEqual(['Конструктор таблиц']);
   });
 
-  it('page.admin: Настройки (Система) + Руководство (Справочники), без директорий/конструктора/мониторинга', async () => {
+  it('page.admin: Настройки и Обработка данных (Система) + Руководство (Справочники), без директорий/конструктора/мониторинга', async () => {
     useAuthStore.mockReturnValue({ isSuperAdmin: false, canViewAccessibleAttachments: false });
     getMyPermissions.mockResolvedValue(permResponse('normal', ['page.admin']));
     wrapper = mountNav();
@@ -151,6 +151,6 @@ describe('NavMenu: гранулярность Администрирования
     // справочники (page.admin.directories) и конструктор/мониторинг не выданы.
     expect(groupTitles(wrapper.vm)).toEqual(['Справочники', 'Система']);
     expect(groupBy(wrapper.vm, 'Справочники').items.map((i) => i.label)).toEqual(['Руководство']);
-    expect(groupBy(wrapper.vm, 'Система').items.map((i) => i.label)).toEqual(['Настройки']);
+    expect(groupBy(wrapper.vm, 'Система').items.map((i) => i.label)).toEqual(['Настройки', 'Обработка данных']);
   });
 });
