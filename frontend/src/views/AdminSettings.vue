@@ -581,9 +581,10 @@
                     <span class="switch__thumb" />
                   </span>
                 </label>
-                <span class="form-hint">
-                  Пока выключено, окно согласия никому не показывается.
-                </span>
+                <span
+                  class="form-hint"
+                  data-testid="pdc-required-hint"
+                >{{ pdcRequiredHint }}</span>
               </div>
 
               <div class="pdc-actions">
@@ -822,6 +823,15 @@ export default {
       const d = new Date(this.dpMeta.uploaded_at);
       if (Number.isNaN(d.getTime())) return '';
       return d.toLocaleDateString('ru-RU');
+    },
+    /**
+     * Подпись под тумблером обязана следовать его состоянию: статичный текст
+     * «пока выключено» при включённом запросе читается как вранье.
+     */
+    pdcRequiredHint() {
+      return this.pdcRequired
+        ? 'Включено: согласие при входе запрашивается.'
+        : 'Выключено: согласие при входе не запрашивается.';
     },
     pdcBusy() {
       return this.pdcSaving || this.pdcExtracting || this.pdcRequiringAgain || this.pdcTogglingRequired;

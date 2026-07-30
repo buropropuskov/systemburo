@@ -264,6 +264,19 @@ describe('AdminSettings - текст согласия при первом вхо
     expect(wrapper.find('[data-testid="pdc-empty-warning"]').exists()).toBe(true);
   });
 
+  // Подпись под тумблером ловится только рендером: статичное «пока выключено»
+  // при включённом запросе противоречило состоянию.
+  it('подпись под тумблером следует его состоянию', async () => {
+    getPDConsentSettings.mockResolvedValue(state({ text: '<p>Согласие</p>', required: true }));
+    const wrapper = await openSection();
+
+    expect(wrapper.find('[data-testid="pdc-required-hint"]').text()).toContain('Включено');
+
+    wrapper.vm.pdcRequired = false;
+    await flushPromises();
+    expect(wrapper.find('[data-testid="pdc-required-hint"]').text()).toContain('Выключено');
+  });
+
   it('при заданном тексте предупреждения нет', async () => {
     getPDConsentSettings.mockResolvedValue(state({ text: '<p>Согласие</p>', required: true }));
     const wrapper = await openSection();
