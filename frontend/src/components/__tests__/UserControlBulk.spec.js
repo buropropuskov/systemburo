@@ -22,6 +22,7 @@ const bulkApi = vi.hoisted(() => ({
   bulkAssignUsersCompany: vi.fn(),
   bulkBanUsers: vi.fn(),
   bulkUnbanUsers: vi.fn(),
+  resetUserLockout: vi.fn(),
 }))
 vi.mock('@/api/users', () => bulkApi)
 

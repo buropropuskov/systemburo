@@ -142,3 +142,15 @@ export async function bulkUnbanUsers(usernames) {
   const res = await apiRequest('/users/bulk/unban', { method: 'POST', body: JSON.stringify({ usernames }) });
   return res.json();
 }
+
+/**
+ * Снять блокировку входа: обнуляет счётчик неудачных попыток, лестницу кулдаунов
+ * и сам лок. Возвращает `{ reset }` - false означает, что блокировки и не было.
+ * Бросает на 4xx, чтобы отказ не прошёл молчаливым успехом.
+ */
+export async function resetUserLockout(username) {
+  const res = await apiRequest(`/users/${encodeURIComponent(username)}/reset-lockout`, { method: 'POST' });
+  const body = await res.json();
+  if (!res.ok) throw new Error(body?.message || 'Не удалось снять блокировку входа');
+  return body;
+}

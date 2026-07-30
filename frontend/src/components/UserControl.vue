@@ -275,6 +275,12 @@
                   v-if="user.is_active === false"
                   class="inactive-badge"
                 >(архив)</span>
+                <span
+                  v-if="isLockedOut(user)"
+                  class="lockout-badge"
+                  data-testid="users-row-lockout"
+                  :title="lockoutTitle(user)"
+                >вход заблокирован</span>
               </div>
               <div
                 class="user-col name-col"
@@ -398,6 +404,16 @@
             История
           </button>
           <template v-if="selectedUser.is_active !== false">
+            <button
+              v-if="isLockedOut(selectedUser)"
+              class="lk-button lk-button--primary"
+              data-testid="user-reset-lockout"
+              :disabled="lockoutResetting"
+              :title="lockoutTitle(selectedUser)"
+              @click="resetLockout(selectedUser)"
+            >
+              {{ lockoutResetting ? 'Снимаем…' : 'Снять блокировку входа' }}
+            </button>
             <button
               class="lk-button lk-button--secondary"
               data-testid="user-reset-onboarding"
@@ -972,7 +988,7 @@
 
 <script>
 import { apiRequest } from '@/api/client'
-import { bulkArchiveUsers, bulkRestoreUsers, bulkUpdateUsersType, bulkAssignUsersOrganization, bulkAssignUsersCompany, bulkBanUsers, bulkUnbanUsers } from '@/api/users';
+import { bulkArchiveUsers, bulkRestoreUsers, bulkUpdateUsersType, bulkAssignUsersOrganization, bulkAssignUsersCompany, bulkBanUsers, bulkUnbanUsers, resetUserLockout } from '@/api/users';
 import { ref } from 'vue';
 import { mapState, mapActions } from 'pinia';
 import { useOrganizationsStore } from '@/stores/organizations';
@@ -1076,6 +1092,7 @@ export default {
       // читаем Date.now() внутри computed: иначе пересчёт не триггерится и точка
       // никогда не гаснет без перезагрузки.
       presenceNow: Date.now(),
+      lockoutResetting: false,
       presenceTimer: null,
       presencePollTimer: null,
       showNewPass: false,
@@ -1597,6 +1614,41 @@ export default {
         useDeletionsStore().notify({ prefix: 'Обучение сброшено для ', bold: user.username, suffix: ' — тур запустится снова при входе' });
       } catch (error) {
         useDeletionsStore().notify({ prefix: 'Не удалось сбросить обучение: ', bold: error?.message || 'ошибка', type: 'error' });
+      }
+    },
+
+    // Блокировка входа. Срок сравниваем с presenceNow (тикает раз в секунду) -
+    // иначе отметка висела бы до перезагрузки страницы после истечения кулдауна.
+    isLockedOut(user) {
+      if (!user?.locked_until) return false;
+      const until = new Date(user.locked_until).getTime();
+      return Number.isFinite(until) && until > this.presenceNow;
+    },
+
+    lockoutTitle(user) {
+      if (!this.isLockedOut(user)) return '';
+      const until = new Date(user.locked_until);
+      return `Вход заблокирован до ${until.toLocaleString('ru-RU')} после серии неверных паролей`;
+    },
+
+    async resetLockout(user) {
+      if (this.lockoutResetting) return;
+      this.lockoutResetting = true;
+      try {
+        await resetUserLockout(user.username);
+        useDeletionsStore().notify({ prefix: 'Блокировка входа снята для ', bold: user.username });
+        if (this.selectedUser && this.selectedUser.username === user.username) {
+          this.selectedUser.locked_until = null;
+          this.selectedUser.lockout_level = 0;
+        }
+        // Точечно синхронизируем строку списка, а не перезапрашиваем его целиком:
+        // рефетч при открытой карточке пере-резолвит selectedUser и затрёт
+        // незасохранённый ввод формы (та же причина, по которой молчит опрос присутствия).
+        this.$emit('user-updated', { username: user.username, locked_until: null, lockout_level: 0 });
+      } catch (error) {
+        useDeletionsStore().notify({ prefix: 'Не удалось снять блокировку: ', bold: error?.message || 'ошибка', type: 'error' });
+      } finally {
+        this.lockoutResetting = false;
       }
     },
 
@@ -2209,6 +2261,16 @@ export default {
   font-size: 11px;
   color: var(--text-muted);
   font-style: italic;
+}
+
+.lockout-badge {
+  margin-left: 6px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--danger-bg);
+  color: var(--danger-text);
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .archive-badge {

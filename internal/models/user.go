@@ -46,6 +46,13 @@ type User struct {
 	LastSeen         *time.Time `gorm:"index" json:"last_seen,omitempty"`
 	FailedLoginCount int        `gorm:"default:0" json:"-"`
 	LockedUntil      *time.Time `json:"-"`
+	// LockoutLevel - ступень лестницы кулдаунов (0 = блокировок в текущей цепочке
+	// не было). Каждая блокировка поднимает ступень, успешный вход и сброс
+	// администратором опускают её в ноль; сутки без неудачных попыток - тоже.
+	LockoutLevel int `gorm:"default:0" json:"-"`
+	// LastFailedLoginAt - момент последней неудачной попытки. Держит окно
+	// накопления счётчика и точку отсчёта для затухания ступени.
+	LastFailedLoginAt *time.Time `json:"-"`
 	// OnboardingCompletedVersion - версия онбординг-тура, которую прошёл юзер.
 	// null = не проходил. Хранится per-user (а не per-browser), чтобы тур не
 	// сбрасывался при смене устройства; при подъёме версии шагов тур показывается заново.
@@ -150,6 +157,12 @@ type UserInfoResponse struct {
 	// не заходил» должно доезжать до клиента явным null, а не отсутствием ключа -
 	// таблица пользователей рисует по нему прочерк, а не «только что».
 	LastSeen *time.Time `json:"last_seen"`
+	// LockedUntil - момент окончания блокировки входа. null означает «не заблокирован»:
+	// истёкшие локи запрос отсекает сам, чтобы админке не пришлось сравнивать время.
+	LockedUntil *time.Time `json:"locked_until"`
+	// LockoutLevel - ступень лестницы кулдаунов. Показывает, каким будет следующий
+	// кулдаун, если человек продолжит ошибаться.
+	LockoutLevel int `json:"lockout_level"`
 }
 
 // UpdateUserTypeRequest — запрос на обновление типа пользователя.
