@@ -5,10 +5,12 @@ import { apiRequest } from './client';
  * Бэк сам определяет тип элементов (cars/people) по table_type системной таблицы.
  */
 
-export async function listTrash(systemTableID, { search = '', organizationId = 0, dateFrom = '', dateTo = '' } = {}) {
+export async function listTrash(systemTableID, { search = '', organizationIds = [], dateFrom = '', dateTo = '' } = {}) {
   const params = new URLSearchParams();
   if (search) params.set('search', search);
-  if (organizationId) params.set('organization_id', String(organizationId));
+  if (Array.isArray(organizationIds) && organizationIds.length) {
+    params.set('organization_ids', organizationIds.join(','));
+  }
   if (dateFrom) params.set('date_from', dateFrom);
   if (dateTo) params.set('date_to', dateTo);
   const qs = params.toString();
