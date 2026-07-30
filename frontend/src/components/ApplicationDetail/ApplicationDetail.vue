@@ -1855,7 +1855,7 @@ export default {
     align-items: center;
     padding: 15px 20px;
     border-bottom: 1px solid var(--border);
-    background: var(--surface-2);
+    background: var(--surface-sunken);
     min-height: 40px;
 }
 
@@ -1971,7 +1971,7 @@ export default {
     width: 240px;
     border-right: 1px solid var(--border);
     overflow-y: auto;
-    background: var(--surface-2);
+    background: var(--surface-sunken);
     padding: 15px;
     transition: width 0.3s ease;
 }
@@ -2001,7 +2001,7 @@ export default {
     border-left: 1px solid var(--border);
     overflow-y: auto;
     padding: 15px;
-    background: var(--surface-2);
+    background: var(--surface-sunken);
 }
 
 .message-section {
