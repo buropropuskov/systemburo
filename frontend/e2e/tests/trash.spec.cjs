@@ -6,13 +6,16 @@ const { TrashPage } = require('../pages/TrashPage');
 const API_BASE = process.env.E2E_API_BASE_URL || '/api';
 
 // Находит первую таблицу типа cars/people - только они поддерживают корзину.
+// Элемент списка приходит двойной обёрткой {table:{...}, fields:[...]} поверх
+// envelope, поэтому table_type лежит на вложенном объекте: без разворачивания
+// поиск не находил ничего и оба теста молча уходили в skip.
 async function firstTrashableTable(request, token) {
   const res = await request.get(`${API_BASE}/system-tables`, {
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
   });
   if (!res.ok()) return null;
-  const data = (await res.json()).data || [];
-  return data.find((t) => t.table_type === 'cars' || t.table_type === 'people') || null;
+  const tables = ((await res.json()).data || []).map((item) => (item && item.table) || item);
+  return tables.find((t) => t && (t.table_type === 'cars' || t.table_type === 'people')) || null;
 }
 
 test.describe('Корзина таблицы (#186)', () => {
