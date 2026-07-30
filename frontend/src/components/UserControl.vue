@@ -980,10 +980,11 @@ import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
 import { resetOnboardingForUser } from '@/api/onboarding';
 
-// Тик подписей присутствия: дешёвый пересчёт по уже загруженным данным, поэтому чаще
-// опроса. Опрос списка реже - он ходит на бэк, а last_seen там всё равно пишется
-// с троттлингом 60с (internal/middleware/last_seen.go), чаще смысла нет.
-const PRESENCE_TICK_MS = 30_000;
+// Тик подписей присутствия: раз в секунду, потому что младшая единица подписи -
+// секунды, и на более редком тике «12 с» висело бы неверным до полминуты. Пересчёт
+// идёт по уже загруженным данным, без запросов. Опрос списка реже - он ходит на бэк,
+// а last_seen там всё равно пишется с троттлингом 60с (internal/middleware/last_seen.go).
+const PRESENCE_TICK_MS = 1000;
 const PRESENCE_POLL_MS = 60_000;
 
 export default {
@@ -2142,7 +2143,7 @@ export default {
   /* Сумма минимумов восьми колонок с падингами ячеек и строки. Ниже этой ширины
      список не сжимается, а .users-container отдаёт честный горизонтальный скролл:
      %-ширины иначе схлопывают текст колонки в ноль вместо прокрутки. */
-  min-width: 760px;
+  min-width: 770px;
   display: flex;
   flex-direction: column;
 }
@@ -2251,14 +2252,18 @@ export default {
 }
 
 /* Колонки с фиксированной шириной */
-/* check-col 6% забюджетирован в сумму 100% (6+12+15+16+13+14+11+13). */
+/* check-col 6% забюджетирован в сумму 100% (6+12+14+16+13+13+11+15).
+   seen-col шире прочих узких: подпись из двух единиц («3 мин 20 с», «5 мес 12 дн»)
+   длиннее одиночной, а обрезать её ellipsis'ом значит терять младшую единицу.
+   Проценты под неё сняты с ФИО и должности, но НЕ с org-col: там живут длинные
+   названия отделов («Технический департамент»), которые сразу уходят в ellipsis. */
 .login-col { width: 12%; min-width: 100px; }
-.name-col { width: 15%; min-width: 105px; }
+.name-col { width: 14%; min-width: 100px; }
 .org-col { width: 16%; min-width: 110px; }
 .company-col { width: 13%; min-width: 100px; }
-.position-col { width: 14%; min-width: 100px; }
+.position-col { width: 13%; min-width: 95px; }
 .type-col { width: 11%; min-width: 90px; }
-.seen-col { width: 13%; min-width: 86px; }
+.seen-col { width: 15%; min-width: 104px; }
 
 /* Ячейка присутствия: точка и подпись в одну строку, подпись не переносится -
    иначе строка таблицы прыгала бы по высоте на «12 мин назад». */

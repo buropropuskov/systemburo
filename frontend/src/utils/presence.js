@@ -6,7 +6,7 @@
  * на бэке, чтобы таблица пользователей и статистика не давали разных ответов.
  */
 
-import { formatDateTime, formatTimeAgo } from '@/utils/datetime.js';
+import { formatDateTime } from '@/utils/datetime.js';
 
 /**
  * Окно «онлайн» в минутах. ДУБЛЬ серверной константы onlineWindowMinutes
@@ -15,9 +15,24 @@ import { formatDateTime, formatTimeAgo } from '@/utils/datetime.js';
  */
 export const ONLINE_WINDOW_MINUTES = 5;
 
-const MINUTE_MS = 60 * 1000;
+const SECOND_MS = 1000;
+const MINUTE_MS = 60 * SECOND_MS;
 const HOUR_MS = 60 * MINUTE_MS;
 const DAY_MS = 24 * HOUR_MS;
+// Месяц и год - приближения (30 и 365 дней): подпись отвечает на «как давно», а не
+// на «какая была дата» - точный момент лежит в подсказке ячейки (seenTitle).
+const MONTH_MS = 30 * DAY_MS;
+const YEAR_MS = 365 * DAY_MS;
+
+// Шкала единиц от старшей к младшей: на подпись идут ДВЕ старшие непустые.
+const SEEN_UNITS = [
+  { ms: YEAR_MS, label: 'г' },
+  { ms: MONTH_MS, label: 'мес' },
+  { ms: DAY_MS, label: 'дн' },
+  { ms: HOUR_MS, label: 'ч' },
+  { ms: MINUTE_MS, label: 'мин' },
+  { ms: SECOND_MS, label: 'с' },
+];
 
 /**
  * Момент last_seen в миллисекундах. Пустое/невалидное значение -> null.
@@ -48,9 +63,18 @@ export function isOnline(user, nowMs) {
 }
 
 /**
- * Компактная подпись присутствия под узкую колонку таблицы: «в сети», «12 мин»,
- * «2 ч», «3 дн», «-» если пользователь не заходил ни разу. Полная формулировка -
- * в seenTitle (подсказка ячейки), здесь ширины хватает только на число с единицей.
+ * Сколько прошло с последней активности - двумя старшими единицами: «12 с»,
+ * «3 мин 20 с», «2 ч 15 мин», «3 дн 4 ч», «5 мес 12 дн», «2 г 3 мес». «-» если
+ * человек не заходил ни разу.
+ *
+ * Подпись даётся ВСЕМ, включая присутствующих: «в сети» словами занимало ту же
+ * ячейку и прятало секунды с минутами (внутри окна онлайна время не показывалось
+ * вовсе). Факт присутствия несёт точка рядом, а ячейка отвечает на «когда был
+ * последний раз». Младшая единица опускается при нуле, чтобы не писать «2 ч 0 мин».
+ *
+ * Точность самой метки ограничена троттлингом записи last_seen (60 с на бэке),
+ * поэтому секунды показывают «когда прошёл последний учтённый запрос», а не
+ * тиканье в реальном времени.
  * @param {{last_seen?: string|null, is_active?: boolean, is_banned?: boolean}|null|undefined} user
  * @param {number} nowMs
  * @returns {string}
@@ -58,14 +82,25 @@ export function isOnline(user, nowMs) {
 export function formatSeenShort(user, nowMs) {
   const ms = seenMs(user);
   if (ms === null) return '-';
-  if (isOnline(user, nowMs)) return 'в сети';
 
-  // Будущее значение (перекос часов клиента и сервера) читаем как «только что»,
-  // иначе отрицательная разница дала бы «0 мин» и выглядела бы поломкой.
+  // Будущее значение (перекос часов клиента и сервера) читаем как ноль, иначе
+  // отрицательная разница дала бы «-3 мин» и выглядела бы поломкой.
   const diff = Math.max(0, nowMs - ms);
-  if (diff < HOUR_MS) return `${Math.max(1, Math.floor(diff / MINUTE_MS))} мин`;
-  if (diff < DAY_MS) return `${Math.floor(diff / HOUR_MS)} ч`;
-  return `${Math.floor(diff / DAY_MS)} дн`;
+
+  const topIndex = SEEN_UNITS.findIndex(u => diff >= u.ms);
+  // Меньше секунды - самая младшая единица с нулём, «0 с» честнее пустой ячейки.
+  if (topIndex === -1) return '0 с';
+
+  const top = SEEN_UNITS[topIndex];
+  const topValue = Math.floor(diff / top.ms);
+  const rest = diff - topValue * top.ms;
+
+  const next = SEEN_UNITS[topIndex + 1];
+  const nextValue = next ? Math.floor(rest / next.ms) : 0;
+
+  return nextValue > 0
+    ? `${topValue} ${top.label} ${nextValue} ${next.label}`
+    : `${topValue} ${top.label}`;
 }
 
 /**
@@ -77,11 +112,14 @@ export function formatSeenShort(user, nowMs) {
  */
 export function seenTitle(user, nowMs) {
   if (seenMs(user) === null) return 'Ни разу не заходил';
-  // nowMs пробрасываем в formatTimeAgo: иначе подпись считалась бы от Date.now(),
-  // а статус рядом - от тикающего presenceNow, и в одной ячейке разъезжались бы
-  // «в сети» и «час назад».
-  if (isOnline(user, nowMs)) return `В сети: ${formatTimeAgo(user.last_seen, nowMs)}`;
-  return `Был в сети: ${formatTimeAgo(user.last_seen, nowMs)} (${formatDateTime(user.last_seen)})`;
+  // Относительную часть берём из formatSeenShort, а не из formatTimeAgo: у них разная
+  // грануляция, и подсказка «11 мин назад» под ячейкой «11 мин 30 с» читалась бы как
+  // расхождение. Точный момент рядом - из него видно, что метка та же.
+  const ago = `${formatSeenShort(user, nowMs)} назад`;
+  const exact = formatDateTime(user.last_seen);
+  return isOnline(user, nowMs)
+    ? `В сети. Последняя активность: ${ago} (${exact})`
+    : `Был в сети: ${ago} (${exact})`;
 }
 
 /**
