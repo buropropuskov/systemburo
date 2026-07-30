@@ -19,6 +19,9 @@ const dpDocPath = "/api/settings/data-processing/document"
 // minimalPDF -- содержимое с корректной PDF magic-сигнатурой (%PDF).
 var minimalPDF = []byte("%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n")
 
+// minimalOOXML -- содержимое с magic-сигнатурой zip (PK), общей для docx/xlsx/pptx.
+var minimalOOXML = append([]byte{0x50, 0x4B, 0x03, 0x04}, bytes.Repeat([]byte("x"), 64)...)
+
 // uploadDPDoc загружает документ согласия multipart-запросом от имени token.
 func uploadDPDoc(t *testing.T, e *echo.Echo, token, filename string, content []byte) *httptest.ResponseRecorder {
 	t.Helper()
@@ -155,6 +158,35 @@ func TestDataProcessing_Delete_NonAdmin_Forbidden(t *testing.T) {
 
 	rec := testutil.DELETE(t, e, "/settings/data-processing/document", testutil.AuthHeader(user))
 	assert.Equal(t, http.StatusForbidden, rec.Code)
+}
+
+func TestDataProcessing_Upload_Xlsx_Success(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	rec := uploadDPDoc(t, e, admin, "Перечень данных.xlsx", minimalOOXML)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	meta := testutil.ParseResponse[*models.DataProcessingDocument](t, rec)
+	require.NotNil(t, meta)
+	assert.Equal(t, ".xlsx", meta.Ext)
+	assert.Equal(t, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", meta.MimeType)
+}
+
+// Хранилище документов принимает и pptx, но документом согласия он быть не может:
+// извлечения текста для него нет. Белый список хендлера уже хранилища.
+func TestDataProcessing_Upload_Pptx_Rejected(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	rec := uploadDPDoc(t, e, admin, "Презентация.pptx", minimalOOXML)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
 func TestDataProcessing_Upload_InvalidExt(t *testing.T) {

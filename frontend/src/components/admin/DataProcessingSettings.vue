@@ -5,7 +5,7 @@
           </h3>
           <p class="dp-desc">
             Документ открывается по ссылке «согласие» при подаче заявки и доступен по адресу
-            <code>/data-processing</code>. PDF показывается прямо на странице, DOC и DOCX —
+            <code>/data-processing</code>. PDF показывается прямо на странице, DOC, DOCX и XLSX —
             только для скачивания.
           </p>
 
@@ -45,7 +45,7 @@
                 {{ dpUploading ? 'Загрузка...' : 'Заменить' }}
                 <input
                   type="file"
-                  accept=".pdf,.doc,.docx"
+                  accept=".pdf,.doc,.docx,.xlsx"
                   hidden
                   :disabled="dpBusy"
                   @change="onDpFileChange"
@@ -72,13 +72,13 @@
               {{ dpUploading ? 'Загрузка...' : 'Загрузить документ' }}
               <input
                 type="file"
-                accept=".pdf,.doc,.docx"
+                accept=".pdf,.doc,.docx,.xlsx"
                 hidden
                 :disabled="dpUploading"
                 @change="onDpFileChange"
               >
             </label>
-            <span class="form-hint">PDF, DOC или DOCX.</span>
+            <span class="form-hint">PDF, DOC, DOCX или XLSX.</span>
           </div>
 
           <h4 class="subsection-title pdc-title">
@@ -86,10 +86,10 @@
           </h4>
           <p class="dp-desc">
             Этот текст показывается пользователю в окне при первом входе. Кнопку подтверждения
-            он сможет нажать только прокрутив текст до конца. Кнопка «Извлечь из документа»
-            переносит сюда текст загруженного файла: извлечение не воспроизводит таблицы,
-            теряет автонумерацию Word и путает переносы по слогам, поэтому результат нужно
-            вычитать.
+            он сможет нажать только прокрутив текст до конца. Текст загруженного документа
+            переносится сюда сразу при загрузке: абзацы, списки и заголовки восстанавливаются
+            по разметке файла, но таблицы не воспроизводятся и автонумерация Word теряется,
+            поэтому результат нужно вычитать.
           </p>
 
           <p
@@ -109,24 +109,18 @@
               спрашивается. Задайте текст или выключите запрос.
             </div>
 
-            <div class="pdc-actions">
-              <button
-                class="btn btn--ghost"
-                :disabled="!dpMeta || pdcBusy"
-                data-testid="pdc-extract"
-                @click="extractPdcText"
-              >
-                {{ pdcExtracting ? 'Извлечение...' : 'Извлечь из документа' }}
-              </button>
-              <span
-                v-if="!dpMeta"
-                class="form-hint"
-              >Сначала загрузите документ</span>
-            </div>
+            <p
+              v-if="pdcExtracting"
+              class="form-hint"
+              data-testid="pdc-extracting"
+            >
+              Переносим текст из документа...
+            </p>
 
             <TextConstructor
               v-model="pdcText"
               class="pdc-editor"
+              :disabled="pdcExtracting"
               :rows="12"
               placeholder="Текст согласия на обработку персональных данных"
             />
@@ -289,7 +283,6 @@ import {
   uploadDataProcessingDoc,
   deleteDataProcessingDoc,
   downloadDataProcessingDoc,
-  fetchDataProcessingBlob,
 } from '@/api/dataProcessing';
 import {
   getPDConsentSettings,
@@ -341,7 +334,10 @@ export default {
   },
   computed: {
     dpBusy() {
-      return this.dpUploading || this.dpDeleting;
+      // Перенос текста идёт следом за загрузкой и спрашивает подтверждение замены.
+      // Пока висит вопрос, повторная загрузка запрещена: диалог подтверждения один
+      // на приложение, и второй вызов оставил бы первый висеть без ответа.
+      return this.dpUploading || this.dpDeleting || this.pdcExtracting;
     },
 
     dpExtLabel() {
@@ -384,7 +380,8 @@ export default {
   },
   mounted() {
     this.fetchDataProcessingDoc();
-    this.fetchPdConsentSettings();
+    // Промис нужен переносу текста из документа: он не должен обогнать загрузку настроек.
+    this.pdcReady = this.fetchPdConsentSettings();
   },
   methods: {
     async fetchDataProcessingDoc() {
@@ -406,14 +403,68 @@ export default {
       event.target.value = '';
       if (!file) return;
       this.dpUploading = true;
+      let uploaded = null;
       try {
         this.dpMeta = await uploadDataProcessingDoc(file);
         this.dpLoaded = true;
+        uploaded = this.dpMeta;
         useDeletionsStore().notify({ prefix: 'Документ ', bold: this.dpMeta.file_name, suffix: ' загружен' });
       } catch (error) {
         useDeletionsStore().notify({ prefix: error?.message || 'Ошибка загрузки документа', type: 'error' });
       } finally {
         this.dpUploading = false;
+      }
+      if (uploaded) await this.importTextFromDocument(file, uploaded.ext);
+    },
+
+    /**
+     * Переносит текст только что загруженного документа в редактор. Читаем сам
+     * выбранный файл, а не скачиваем его обратно: он уже в руках и содержимое то же.
+     * @param {File} file
+     * @param {string} ext расширение, каким его сохранил сервер
+     */
+    async importTextFromDocument(file, ext) {
+      // Флаг поднимаем до вопроса о замене: он же гасит кнопки загрузки и
+      // редактор, пока перенос не закончится.
+      this.pdcExtracting = true;
+      try {
+        // Настройки согласия грузятся параллельно с разделом: их ответ перезаписал бы
+        // перенесённый текст, поэтому сперва дожидаемся его.
+        await this.pdcReady;
+        if (this.pdcHasText) {
+          const ok = await useUiStore().confirm({
+            title: 'Текст согласия',
+            message: 'Заменить текст согласия текстом из загруженного документа?'
+              + ' Нынешний текст будет потерян.',
+            confirmText: 'Заменить',
+            danger: false,
+          });
+          if (!ok) return;
+        }
+        const html = await extractDocumentHtml(file, ext);
+        if (!html) {
+          useDeletionsStore().notify({
+            prefix: ext === '.xlsx'
+              ? 'В книге не нашлось текста: все ячейки пусты.'
+              : 'В документе не нашлось текста. Возможно, это сканированные страницы.',
+            type: 'warning',
+          });
+          return;
+        }
+        this.pdcText = html;
+        useDeletionsStore().notify({
+          prefix: 'Текст перенесён из ',
+          bold: file.name,
+          suffix: '. Проверьте разметку и сохраните.',
+          type: 'info',
+        });
+      } catch (error) {
+        useDeletionsStore().notify({
+          prefix: error?.message || 'Не удалось перенести текст из документа',
+          type: 'warning',
+        });
+      } finally {
+        this.pdcExtracting = false;
       }
     },
 
@@ -525,34 +576,6 @@ export default {
         });
       } finally {
         this.pdcExporting = false;
-      }
-    },
-
-    async extractPdcText() {
-      if (!this.dpMeta) return;
-      this.pdcExtracting = true;
-      try {
-        const blob = await fetchDataProcessingBlob();
-        const html = await extractDocumentHtml(blob, this.dpMeta.ext);
-        if (!html) {
-          useDeletionsStore().notify({
-            prefix: 'В документе не нашлось текста. Возможно, это сканированные страницы.',
-            type: 'warning',
-          });
-          return;
-        }
-        this.pdcText = html;
-        useDeletionsStore().notify({
-          prefix: 'Текст извлечён. Проверьте нумерацию и переносы, затем сохраните.',
-          type: 'info',
-        });
-      } catch (error) {
-        useDeletionsStore().notify({
-          prefix: error?.message || 'Не удалось извлечь текст из документа',
-          type: 'error',
-        });
-      } finally {
-        this.pdcExtracting = false;
       }
     },
 

@@ -11,11 +11,11 @@ vi.mock('@/api/settings', () => ({
 }));
 
 const getDataProcessingMeta = vi.fn();
-const fetchDataProcessingBlob = vi.fn();
+const uploadDataProcessingDoc = vi.fn();
 vi.mock('@/api/dataProcessing', () => ({
   getDataProcessingMeta: (...a) => getDataProcessingMeta(...a),
-  fetchDataProcessingBlob: (...a) => fetchDataProcessingBlob(...a),
-  uploadDataProcessingDoc: vi.fn(),
+  uploadDataProcessingDoc: (...a) => uploadDataProcessingDoc(...a),
+  fetchDataProcessingBlob: vi.fn(),
   deleteDataProcessingDoc: vi.fn(),
   downloadDataProcessingDoc: vi.fn(),
 }));
@@ -47,6 +47,12 @@ const pdfMeta = { file_name: 'soglasie.pdf', ext: '.pdf', uploaded_at: '2026-07-
 
 const state = (over = {}) => ({ text: '', version: 1, required: false, ...over });
 
+/** Событие выбора файла, как его отдаёт <input type="file">. */
+function fileEvent(name = 'soglasie.pdf', type = 'application/pdf') {
+  const file = new File(['%PDF'], name, { type });
+  return { file, event: { target: { files: [file], value: name } } };
+}
+
 // Разметка секции лежит в слоте SkeletonTransition, а shallowMount слоты
 // застабленных компонентов не рисует - подменяем его на прозрачную обёртку,
 // чтобы проверять реальный DOM секции. Остальные дети остаются заглушками.
@@ -63,9 +69,10 @@ async function openSection() {
 describe('Обработка данных - текст согласия при первом входе', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
-    [getSettings, getDataProcessingMeta, fetchDataProcessingBlob, getPDConsentSettings,
+    [getSettings, getDataProcessingMeta, uploadDataProcessingDoc, getPDConsentSettings,
       savePDConsentText, setPDConsentRequired, requirePDConsentAgain,
       extractDocumentHtml, getPDConsentCollection].forEach((m) => m.mockReset());
+    uploadDataProcessingDoc.mockResolvedValue(pdfMeta);
     getPDConsentCollection.mockResolvedValue({
       version: 1, total: 0, accepted: 0, pending: 0, pending_users: [],
     });
@@ -95,46 +102,140 @@ describe('Обработка данных - текст согласия при �
     expect(getPDConsentSettings).toHaveBeenCalledTimes(1);
   });
 
-  it('извлечение переносит текст документа в редактор', async () => {
-    fetchDataProcessingBlob.mockResolvedValue(new Blob(['%PDF']));
+  it('загрузка документа сразу переносит текст в редактор, без отдельной команды', async () => {
     extractDocumentHtml.mockResolvedValue('<p>Извлечённый текст</p>');
     const wrapper = await openSection();
+    const { file, event } = fileEvent();
 
-    await wrapper.vm.extractPdcText();
+    await wrapper.vm.onDpFileChange(event);
+    await flushPromises();
 
-    expect(extractDocumentHtml).toHaveBeenCalledWith(expect.any(Blob), '.pdf');
+    // Читаем сам выбранный файл, а не скачиваем документ обратно с сервера.
+    expect(extractDocumentHtml).toHaveBeenCalledWith(file, '.pdf');
     expect(wrapper.vm.pdcText).toBe('<p>Извлечённый текст</p>');
-    // Извлечение само не сохраняет: администратор сперва вычитывает результат.
+    // Перенос сам не сохраняет: администратор сперва вычитывает результат.
     expect(savePDConsentText).not.toHaveBeenCalled();
   });
 
-  it('ошибку извлечения показывает пользователю и текст не трогает', async () => {
-    fetchDataProcessingBlob.mockResolvedValue(new Blob(['doc']));
-    extractDocumentHtml.mockRejectedValue(new Error('Из старого формата .doc текст не извлекается'));
+  it('кнопки извлечения в разделе больше нет', async () => {
     const wrapper = await openSection();
-    wrapper.vm.pdcText = '<p>Было</p>';
+
+    expect(wrapper.find('[data-testid="pdc-extract"]').exists()).toBe(false);
+  });
+
+  it('инпут файла принимает и xlsx', async () => {
+    const wrapper = await openSection();
+
+    const accept = wrapper.find('input[type="file"]').attributes('accept');
+    expect(accept).toContain('.xlsx');
+    expect(accept).toContain('.pdf');
+  });
+
+  it('замену непустого текста спрашивает, отказ оставляет прежний', async () => {
+    getPDConsentSettings.mockResolvedValue(state({ text: '<p>Было</p>' }));
+    extractDocumentHtml.mockResolvedValue('<p>Новое</p>');
+    const wrapper = await openSection();
+    const confirmSpy = vi.spyOn(useUiStore(), 'confirm').mockResolvedValue(false);
+
+    await wrapper.vm.onDpFileChange(fileEvent().event);
+    await flushPromises();
+
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(extractDocumentHtml).not.toHaveBeenCalled();
+    expect(wrapper.vm.pdcText).toBe('<p>Было</p>');
+  });
+
+  it('пустой текст заменяет без вопросов', async () => {
+    extractDocumentHtml.mockResolvedValue('<p>Новое</p>');
+    const wrapper = await openSection();
+    const confirmSpy = vi.spyOn(useUiStore(), 'confirm');
+
+    await wrapper.vm.onDpFileChange(fileEvent().event);
+    await flushPromises();
+
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(wrapper.vm.pdcText).toBe('<p>Новое</p>');
+  });
+
+  it('перенос не обгоняет загрузку настроек и не затирается их ответом', async () => {
+    // Настройки и загрузка документа летят параллельно: ответ настроек с пустым
+    // текстом не должен стереть только что перенесённый.
+    let releaseSettings;
+    getPDConsentSettings.mockReturnValue(new Promise((resolve) => { releaseSettings = resolve; }));
+    extractDocumentHtml.mockResolvedValue('<p>Перенесённый</p>');
+    const wrapper = shallowMount(DataProcessingSettings, {
+      global: { stubs: { TextConstructor: true, RefreshButton: true } },
+    });
+
+    const upload = wrapper.vm.onDpFileChange(fileEvent().event);
+    releaseSettings(state({ text: '' }));
+    await upload;
+    await flushPromises();
+
+    expect(wrapper.vm.pdcText).toBe('<p>Перенесённый</p>');
+  });
+
+  it('неизвлекаемый документ предупреждает, но загрузку не отменяет', async () => {
+    extractDocumentHtml.mockRejectedValue(new Error('Из старого формата .doc текст не извлекается'));
+    getPDConsentSettings.mockResolvedValue(state({ text: '<p>Было</p>' }));
+    const wrapper = await openSection();
+    vi.spyOn(useUiStore(), 'confirm').mockResolvedValue(true);
     const notify = vi.spyOn(useDeletionsStore(), 'notify');
 
-    await wrapper.vm.extractPdcText();
+    await wrapper.vm.onDpFileChange(fileEvent('soglasie.doc').event);
+    await flushPromises();
 
+    expect(uploadDataProcessingDoc).toHaveBeenCalled();
     expect(notify).toHaveBeenCalledWith(expect.objectContaining({
       prefix: 'Из старого формата .doc текст не извлекается',
-      type: 'error',
+      type: 'warning',
     }));
     expect(wrapper.vm.pdcText).toBe('<p>Было</p>');
   });
 
   it('документ без текстового слоя предупреждает, а не молчит', async () => {
-    fetchDataProcessingBlob.mockResolvedValue(new Blob(['%PDF']));
     extractDocumentHtml.mockResolvedValue('');
+    getPDConsentSettings.mockResolvedValue(state({ text: '<p>Было</p>' }));
     const wrapper = await openSection();
-    wrapper.vm.pdcText = '<p>Было</p>';
+    vi.spyOn(useUiStore(), 'confirm').mockResolvedValue(true);
     const notify = vi.spyOn(useDeletionsStore(), 'notify');
 
-    await wrapper.vm.extractPdcText();
+    await wrapper.vm.onDpFileChange(fileEvent().event);
+    await flushPromises();
 
     expect(notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'warning' }));
     expect(wrapper.vm.pdcText).toBe('<p>Было</p>');
+  });
+
+  it('пока идёт перенос, повторная загрузка и правка текста закрыты', async () => {
+    // Диалог подтверждения в приложении один: второй вызов оставил бы первый
+    // висеть без ответа, а правка в редакторе была бы затёрта переносом.
+    getPDConsentSettings.mockResolvedValue(state({ text: '<p>Было</p>' }));
+    let releaseConfirm;
+    vi.spyOn(useUiStore(), 'confirm')
+      .mockReturnValue(new Promise((resolve) => { releaseConfirm = resolve; }));
+    const wrapper = await openSection();
+
+    const running = wrapper.vm.onDpFileChange(fileEvent().event);
+    await flushPromises();
+
+    expect(wrapper.vm.dpBusy).toBe(true);
+    expect(wrapper.findComponent({ name: 'TextConstructor' }).props('disabled')).toBe(true);
+
+    releaseConfirm(false);
+    await running;
+    expect(wrapper.vm.dpBusy).toBe(false);
+  });
+
+  it('провал загрузки документа текст не трогает', async () => {
+    uploadDataProcessingDoc.mockRejectedValue(new Error('Файл слишком большой'));
+    const wrapper = await openSection();
+
+    await wrapper.vm.onDpFileChange(fileEvent().event);
+    await flushPromises();
+
+    expect(extractDocumentHtml).not.toHaveBeenCalled();
+    expect(wrapper.vm.pdcText).toBe('');
   });
 
   it('сохранение текста применяет состояние с сервера', async () => {
@@ -282,10 +383,10 @@ describe('Обработка данных - текст согласия при �
     expect(wrapper.find('[data-testid="pdc-empty-warning"]').exists()).toBe(false);
   });
 
-  it('без загруженного документа кнопка извлечения недоступна', async () => {
+  it('без загруженного документа раздел предлагает его загрузить', async () => {
     getDataProcessingMeta.mockResolvedValue(null);
     const wrapper = await openSection();
 
-    expect(wrapper.find('[data-testid="pdc-extract"]').attributes('disabled')).toBeDefined();
+    expect(wrapper.find('.dp-upload input[type="file"]').exists()).toBe(true);
   });
 });

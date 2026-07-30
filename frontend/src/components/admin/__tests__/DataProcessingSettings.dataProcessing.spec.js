@@ -35,6 +35,15 @@ vi.mock('@/api/pdConsent', () => ({
   }),
 }));
 
+// Загрузка документа сразу переносит из него текст (#1567 S10) - извлечение мокаем,
+// иначе спека тянула бы настоящий pdf.js с воркером. Сам перенос проверяет
+// DataProcessingSettings.pdConsent.spec.js.
+const extractDocumentHtml = vi.fn();
+vi.mock('@/utils/documentTextExtract', () => ({
+  extractDocumentHtml: (...a) => extractDocumentHtml(...a),
+  UnsupportedDocumentError: class extends Error {},
+}));
+
 import DataProcessingSettings from '../DataProcessingSettings.vue';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
@@ -53,8 +62,9 @@ describe('Обработка данных - обработка данных', ()
     setActivePinia(createPinia());
     [getSettings, updateSetting, getDataProcessingMeta, uploadDataProcessingDoc,
       deleteDataProcessingDoc, downloadDataProcessingDoc, fetchDataProcessingBlob,
-      getPDConsentSettings].forEach((m) => m.mockReset());
+      getPDConsentSettings, extractDocumentHtml].forEach((m) => m.mockReset());
     getPDConsentSettings.mockResolvedValue({ text: '', version: 1, required: false });
+    extractDocumentHtml.mockResolvedValue('<p>Текст из документа</p>');
   });
 
   // Раздел стал отдельной страницей: данные грузятся на открытии, а не по выбору
