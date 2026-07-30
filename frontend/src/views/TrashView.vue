@@ -483,9 +483,6 @@ export default {
   async mounted() {
     this.fetchCurrentUser();
     this.fetchOrganizations();
-    // Подгружаем настроенные длительности уведомлений после авторизации
-    // (на холодном старте App.vue запрос мог уйти до получения токена).
-    useDeletionsStore().loadDurations();
     await this.fetchTable();
     if (this.tableID) await this.reload();
   },

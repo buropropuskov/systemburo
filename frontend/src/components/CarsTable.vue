@@ -868,10 +868,6 @@ export default {
     if (this.preview) return;
     this.startPolling();
     this.loadEnlargedFromStorage();
-    // Подгружаем настроенные длительности уведомлений после авторизации
-    // (на холодном старте App.vue запрос мог уйти до получения токена).
-    useDeletionsStore().loadDurations();
-
     // Real-time (#840): по сигналу продюсера tables.refresh тихо перезагружаем строки
     // вместо ожидания поллинга. Сама подписка на scope - в watch tableId (уже immediate).
     eventStream.connect();
