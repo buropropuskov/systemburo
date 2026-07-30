@@ -27,10 +27,18 @@ func textBody(t *testing.T, html string) string {
 	return string(payload)
 }
 
-// savePDConsentText сохраняет текст согласия от имени token.
+// savePDConsentText сохраняет текст согласия от имени token, не двигая редакцию.
 func savePDConsentText(t *testing.T, e *echo.Echo, token, html string) *httptest.ResponseRecorder {
 	t.Helper()
 	return testutil.PUT(t, e, pdConsentPath+"/text", textBody(t, html), testutil.AuthHeader(token))
+}
+
+// savePDConsentTextRequiringAgain сохраняет текст и тем же запросом поднимает редакцию.
+func savePDConsentTextRequiringAgain(t *testing.T, e *echo.Echo, token, html string) *httptest.ResponseRecorder {
+	t.Helper()
+	payload, err := json.Marshal(models.UpdatePDConsentTextRequest{Text: html, RequireAgain: true})
+	require.NoError(t, err)
+	return testutil.PUT(t, e, pdConsentPath+"/text", string(payload), testutil.AuthHeader(token))
 }
 
 func TestPDConsent_Get_DefaultsWhenNothingSet(t *testing.T) {
@@ -191,4 +199,44 @@ func TestPDConsent_VersionMovesOnlyOnRequireAgain(t *testing.T) {
 	again := testutil.POST(t, e, pdConsentPath+"/require-again", "{}", testutil.AuthHeader(admin))
 	require.Equal(t, http.StatusOK, again.Code)
 	assert.Equal(t, 3, testutil.ParseResponse[*models.PDConsentSettings](t, again).Version)
+}
+
+// Смена текста с require_again -- новая редакция того же согласия: текст и номер
+// редакции обязаны меняться ОДНИМ запросом, иначе между двумя вызовами существует
+// состояние «новый текст со старой редакцией», в котором система считает
+// достаточным согласие, данное другому тексту.
+func TestPDConsent_SaveText_RequireAgain_BumpsVersion(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	require.Equal(t, http.StatusOK, savePDConsentText(t, e, admin, "<p>Редакция 1</p>").Code)
+
+	rec := savePDConsentTextRequiringAgain(t, e, admin, "<p>Редакция 2</p>")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	state := testutil.ParseResponse[*models.PDConsentSettings](t, rec)
+	assert.Equal(t, "<p>Редакция 2</p>", state.Text)
+	assert.Equal(t, 2, state.Version, "редакция поднялась тем же запросом")
+	assert.NotEmpty(t, state.VersionAt, "дата редакции проставлена")
+}
+
+// Слишком большой текст отвергается ДО подъёма редакции: иначе отказ сохранить
+// оставлял бы всех переподтверждать прежний текст без причины.
+func TestPDConsent_SaveText_RequireAgain_TooLargeKeepsVersion(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	require.Equal(t, http.StatusOK, savePDConsentText(t, e, admin, "<p>Редакция 1</p>").Code)
+
+	oversized := "<p>" + strings.Repeat("я", services.PDConsentTextMaxBytes) + "</p>"
+	require.Equal(t, http.StatusBadRequest, savePDConsentTextRequiringAgain(t, e, admin, oversized).Code)
+
+	state := testutil.ParseResponse[*models.PDConsentSettings](t,
+		testutil.GET(t, e, pdConsentPath, testutil.AuthHeader(admin)))
+	assert.Equal(t, 1, state.Version, "отвергнутое сохранение редакцию не двигает")
+	assert.Equal(t, "<p>Редакция 1</p>", state.Text)
 }

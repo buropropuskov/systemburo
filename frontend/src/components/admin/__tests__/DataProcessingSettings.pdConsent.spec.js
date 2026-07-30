@@ -239,15 +239,118 @@ describe('Обработка данных - текст согласия при �
   });
 
   it('сохранение текста применяет состояние с сервера', async () => {
+    getPDConsentSettings.mockResolvedValue(state({ text: '<p>Сохранено</p>' }));
     savePDConsentText.mockResolvedValue(state({ text: '<p>Сохранено</p>', version: 2, required: true }));
     const wrapper = await openSection();
-    wrapper.vm.pdcText = '<p>Сохранено</p>';
 
     await wrapper.vm.savePdcText();
 
-    expect(savePDConsentText).toHaveBeenCalledWith('<p>Сохранено</p>');
+    // Текст не менялся - вопроса про новую редакцию нет и редакцию не двигаем.
+    expect(savePDConsentText).toHaveBeenCalledWith('<p>Сохранено</p>', false);
     expect(wrapper.vm.pdcVersion).toBe(2);
     expect(wrapper.vm.pdcRequired).toBe(true);
+  });
+
+  describe('смена текста и повторное согласие', () => {
+    it('изменённый текст спрашивает про повторное согласие и поднимает редакцию', async () => {
+      getPDConsentSettings.mockResolvedValue(state({ text: '<p>Было</p>', version: 4, required: true }));
+      savePDConsentText.mockResolvedValue(state({ text: '<p>Стало</p>', version: 5, required: true }));
+      const wrapper = await openSection();
+      const confirmSpy = vi.spyOn(useUiStore(), 'confirm').mockResolvedValue(true);
+      wrapper.vm.pdcText = '<p>Стало</p>';
+
+      await wrapper.vm.savePdcText();
+
+      expect(confirmSpy).toHaveBeenCalledWith(expect.objectContaining({
+        title: 'Текст изменён',
+        confirmText: 'Запросить заново',
+      }));
+      // Редакцию поднимает тот же запрос: отдельный вызов мог бы не дойти и
+      // оставить новый текст со старой редакцией.
+      expect(savePDConsentText).toHaveBeenCalledWith('<p>Стало</p>', true);
+      expect(requirePDConsentAgain).not.toHaveBeenCalled();
+      expect(wrapper.vm.pdcVersion).toBe(5);
+    });
+
+    it('отказ от повторного согласия текст всё равно сохраняет', async () => {
+      getPDConsentSettings.mockResolvedValue(state({ text: '<p>Было</p>', version: 4 }));
+      savePDConsentText.mockResolvedValue(state({ text: '<p>Стало</p>', version: 4 }));
+      const wrapper = await openSection();
+      vi.spyOn(useUiStore(), 'confirm').mockResolvedValue(false);
+      wrapper.vm.pdcText = '<p>Стало</p>';
+
+      await wrapper.vm.savePdcText();
+
+      expect(savePDConsentText).toHaveBeenCalledWith('<p>Стало</p>', false);
+      expect(wrapper.vm.pdcVersion).toBe(4);
+    });
+
+    it('без правки текста вопроса нет', async () => {
+      getPDConsentSettings.mockResolvedValue(state({ text: '<p>Было</p>' }));
+      savePDConsentText.mockResolvedValue(state({ text: '<p>Было</p>' }));
+      const wrapper = await openSection();
+      const confirmSpy = vi.spyOn(useUiStore(), 'confirm');
+
+      await wrapper.vm.savePdcText();
+
+      expect(confirmSpy).not.toHaveBeenCalled();
+      expect(savePDConsentText).toHaveBeenCalledWith('<p>Было</p>', false);
+    });
+
+    it('правка только разметки тоже считается сменой редакции', async () => {
+      getPDConsentSettings.mockResolvedValue(state({ text: '<p>Согласие</p>' }));
+      savePDConsentText.mockResolvedValue(state({ text: '<p><strong>Согласие</strong></p>' }));
+      const wrapper = await openSection();
+      vi.spyOn(useUiStore(), 'confirm').mockResolvedValue(true);
+      wrapper.vm.pdcText = '<p><strong>Согласие</strong></p>';
+
+      await wrapper.vm.savePdcText();
+
+      expect(savePDConsentText).toHaveBeenCalledWith('<p><strong>Согласие</strong></p>', true);
+    });
+
+    it('при выключенном запросе вопрос честно говорит, что окно поднимется позже', async () => {
+      getPDConsentSettings.mockResolvedValue(state({ text: '<p>Было</p>', required: false }));
+      savePDConsentText.mockResolvedValue(state({ text: '<p>Стало</p>' }));
+      const wrapper = await openSection();
+      const confirmSpy = vi.spyOn(useUiStore(), 'confirm').mockResolvedValue(true);
+      wrapper.vm.pdcText = '<p>Стало</p>';
+
+      await wrapper.vm.savePdcText();
+
+      expect(confirmSpy).toHaveBeenCalledWith(expect.objectContaining({
+        message: expect.stringContaining('запрос согласия выключен'),
+      }));
+    });
+
+    it('после сохранения повторная правка снова спрашивает', async () => {
+      getPDConsentSettings.mockResolvedValue(state({ text: '<p>Было</p>' }));
+      savePDConsentText.mockResolvedValue(state({ text: '<p>Стало</p>', version: 2 }));
+      const wrapper = await openSection();
+      const confirmSpy = vi.spyOn(useUiStore(), 'confirm').mockResolvedValue(true);
+      wrapper.vm.pdcText = '<p>Стало</p>';
+      await wrapper.vm.savePdcText();
+
+      // Сохранённый текст обновился - повторное сохранение без правки молчит.
+      expect(wrapper.vm.pdcTextChanged).toBe(false);
+      await wrapper.vm.savePdcText();
+      expect(confirmSpy).toHaveBeenCalledTimes(1);
+
+      wrapper.vm.pdcText = '<p>Снова другое</p>';
+      expect(wrapper.vm.pdcTextChanged).toBe(true);
+    });
+
+    it('перенос текста из документа делает его изменённым', async () => {
+      getPDConsentSettings.mockResolvedValue(state({ text: '<p>Было</p>' }));
+      extractDocumentHtml.mockResolvedValue('<p>Из документа</p>');
+      const wrapper = await openSection();
+      vi.spyOn(useUiStore(), 'confirm').mockResolvedValue(true);
+
+      await wrapper.vm.onDpFileChange(fileEvent().event);
+      await flushPromises();
+
+      expect(wrapper.vm.pdcTextChanged).toBe(true);
+    });
   });
 
   it('ошибку сохранения показывает сообщением сервера', async () => {

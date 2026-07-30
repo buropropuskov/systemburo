@@ -16,15 +16,16 @@ func (h *SettingsHandler) GetPDConsentSettings(c echo.Context) error {
 	return RespondSuccess(c, settings)
 }
 
-// UpdatePDConsentText сохраняет текст согласия. Версию не двигает: правка опечатки не
-// должна заставлять всех соглашаться заново -- для этого есть BumpPDConsentVersion.
+// UpdatePDConsentText сохраняет текст согласия. Редакцию двигает только по явному
+// require_again: правка опечатки не должна заставлять всех соглашаться заново, а
+// правка по существу должна -- решает администратор при сохранении.
 func (h *SettingsHandler) UpdatePDConsentText(c echo.Context) error {
 	var req models.UpdatePDConsentTextRequest
 	if err := BindAndValidate(c, &req); err != nil {
 		return err
 	}
 	ctx := c.Request().Context()
-	if err := h.service.SetPDConsentText(ctx, req.Text); err != nil {
+	if err := h.service.SetPDConsentText(ctx, req.Text, req.RequireAgain); err != nil {
 		return err
 	}
 	h.invalidateConsentGate()
