@@ -328,22 +328,30 @@
               <div
                 class="user-col seen-col"
                 data-label="В сети"
-                :title="seenTitle(user, presenceNow)"
                 data-testid="users-row-seen"
               >
-                <Badge
-                  v-if="isOnline(user, presenceNow)"
-                  variant="success"
-                  size="sm"
-                  dot
-                  data-testid="users-row-online-badge"
+                <!-- Подсказка на самом значении, а не нативный title: тот при каждой
+                     смене атрибута (а давность тикает раз в секунду) гаснет и всплывает
+                     заново прямо под курсором. -->
+                <HintTooltip
+                  :text="seenTitle(user, presenceNow)"
+                  :width="240"
+                  data-testid="users-row-seen-hint"
                 >
-                  Онлайн
-                </Badge>
-                <span
-                  v-else
-                  class="seen-text"
-                >{{ formatSeenShort(user, presenceNow) }}</span>
+                  <Badge
+                    v-if="isOnline(user, presenceNow)"
+                    variant="success"
+                    size="sm"
+                    dot
+                    data-testid="users-row-online-badge"
+                  >
+                    Онлайн
+                  </Badge>
+                  <span
+                    v-else
+                    class="seen-text"
+                  >{{ formatSeenShort(user, presenceNow) }}</span>
+                </HintTooltip>
               </div>
             </div>
           </div>
@@ -978,6 +986,7 @@ import ConfirmationModal from './ConfirmationModal.vue';
 import BaseModal from './ui/BaseModal.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
 import Badge from './ui/Badge.vue';
+import HintTooltip from './ui/HintTooltip.vue';
 import ToggleSwitch from './ui/ToggleSwitch.vue';
 import UserHistoryModal from './UserHistoryModal.vue';
 import UserLoginHistory from './UserLoginHistory.vue';
@@ -1004,6 +1013,7 @@ export default {
     BaseModal,
     BaseDropdown,
     Badge,
+    HintTooltip,
     ToggleSwitch,
     UserHistoryModal,
     UserLoginHistory,
