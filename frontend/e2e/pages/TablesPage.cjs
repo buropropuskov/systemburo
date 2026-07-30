@@ -11,7 +11,6 @@ class TablesPage {
     this.page = page;
     this.root = page.locator('.tables');
     this.title = page.locator('.tables__title');
-    this.searchInput = page.locator('.tables__filters .field__input.search');
     // Мобильная ветка: вторичные фильтры свёрнуты в кнопку «Фильтр».
     this.filterButton = page.getByTestId('table-filter-btn');
     this.filterSheet = page.locator('.filter-sheet');
@@ -57,19 +56,16 @@ class TablesPage {
     return this.menuItems.nth(index).locator('.base-dropdown__item-text');
   }
 
+  // Выбор по подписи. Совпадение точное: имена справочников бывают вложены одно
+  // в другое («Отдел аренды» / «Отдел аренды и логистики»), и подстрочный матч
+  // отметил бы соседний пункт.
   async selectFilterOption(name, optionLabel) {
     await this.openFilterMenu(name);
-    await this.menu.locator('.base-dropdown__item', { hasText: optionLabel }).first().click();
+    await this.menu.getByText(optionLabel, { exact: true }).click();
   }
 
   async resetFilter() {
     await this.clearOption.click();
-  }
-
-  // Escape BaseDropdown не слушает - меню закрывается кликом вне него.
-  async closeFilterMenu() {
-    await this.title.click();
-    await expect(this.menu).toBeHidden();
   }
 
   async openFilterSheet() {
