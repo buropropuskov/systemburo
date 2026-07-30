@@ -27,13 +27,18 @@ test.describe('Фильтры страницы таблицы: мультивы�
   });
 
   test('клик по пункту не закрывает меню, второй выбор даёт счётчик «Организация: 2»', async ({ page, request }) => {
-    await withSystemTable(request, async (table) => {
+    await withSystemTable(request, async (table, token) => {
+      // Порог считаем по справочнику, а не по числу пунктов в меню: пустое меню
+      // при непустом справочнике - это провал фильтра, и он должен краснеть,
+      // а не выглядеть как «мало данных».
+      const orgs = await apiGet(request, token, '/organizations');
+      test.skip(orgs.length < 2, `в справочнике ${orgs.length} организаций, для счётчика нужно 2`);
+
       await loginAsSuperAdminUI(page);
       const tables = await openTable(page, table);
 
       await tables.openFilterMenu('org');
-      const optionCount = await tables.menuItems.count();
-      test.skip(optionCount < 2, `в справочнике организаций ${optionCount} записей, для счётчика нужно 2`);
+      await expect(tables.menuItems.nth(1)).toBeVisible();
 
       const firstLabel = (await tables.getOptionLabel(0).innerText()).trim();
       await tables.checkOption(0);
