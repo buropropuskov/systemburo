@@ -43,13 +43,17 @@ describe('слои глобальных диалогов', () => {
   const ordinary = all.filter(z => !GLOBAL_DIALOGS.includes(z.name));
   const ceiling = Math.max(...ordinary.map(z => z.value));
 
-  it.each(GLOBAL_DIALOGS)('%s не ниже самой высокой обычной модалки', (name) => {
+  // Сравнение СТРОГОЕ: при равном z-index выигрывает тот, кто позже в DOM, а модалки
+  // телепортируются в body уже после смонтированных в App.vue диалогов. Прежняя проверка
+  // «не ниже» это пропускала - ConfirmDialog стоял вровень с историей заявки (оба 20000),
+  // и вопрос уходил под её ленту, где его нельзя было ни увидеть, ни кликнуть.
+  it.each(GLOBAL_DIALOGS)('%s строго выше самой высокой обычной модалки', (name) => {
     const layers = all.filter(z => z.name === name);
     expect(layers.length, `${name}: не нашёл ни одного z-index`).toBeGreaterThan(0);
 
     const top = Math.max(...layers.map(z => z.value));
-    const blockers = ordinary.filter(z => z.value > top).map(z => `${z.name}: ${z.value}`);
-    expect(blockers, `${name} (${top}) ниже: ${blockers.join(', ')}`).toEqual([]);
+    const blockers = ordinary.filter(z => z.value >= top).map(z => `${z.name}: ${z.value}`);
+    expect(blockers, `${name} (${top}) не выше: ${blockers.join(', ')}`).toEqual([]);
   });
 
   // Стек уведомлений отдельно: он не блокирует ввод, поэтому обязан быть выше
@@ -64,9 +68,7 @@ describe('слои глобальных диалогов', () => {
     expect(above).toEqual([]);
   });
 
-  // Равенство не защищает: при одинаковом z-index выигрывает тот, кто позже в DOM.
-  // ConfirmDialog (20000) сегодня ровно на потолке обычных модалок - фиксируем факт,
-  // чтобы следующая модалка на 20000 не создала ту же ловушку незамеченной.
+  // Потолок держим отдельно: он же задаёт, где начинается зона глобальных диалогов.
   it('потолок обычных модалок не выше 20000', () => {
     const tallest = ordinary.filter(z => z.value === ceiling).map(z => `${z.name}: ${z.value}`);
     expect(ceiling, `самые высокие обычные модалки: ${tallest.join(', ')}`).toBeLessThanOrEqual(20000);

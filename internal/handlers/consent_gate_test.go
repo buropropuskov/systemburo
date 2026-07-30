@@ -249,3 +249,42 @@ func TestConsentGate_TransferConsentKeepsVersionOne(t *testing.T) {
 	// И согласие на передачу не закрывает требование по обработке.
 	assert.True(t, gateState(t, e, user).Required)
 }
+
+// Изменённый текст с require_again -- новая редакция: согласие, данное прежней,
+// перестаёт быть достаточным, и пользователю показывают именно новый текст.
+func TestConsentGate_TextChangeWithRequireAgain_AsksAnew(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	enableConsent(t, e, admin, "<p>Редакция 1</p>")
+
+	user := testutil.RegisterAndLogin(t, e, "gate_reconsent", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, "{}", testutil.AuthHeader(user)).Code)
+	require.False(t, gateState(t, e, user).Required, "после подтверждения окно не показывается")
+
+	require.Equal(t, http.StatusOK, savePDConsentTextRequiringAgain(t, e, admin, "<p>Редакция 2</p>").Code)
+
+	after := gateState(t, e, user)
+	assert.True(t, after.Required, "изменённый текст спрашивают заново")
+	assert.Equal(t, "<p>Редакция 2</p>", after.Text, "и показывают именно новую редакцию")
+}
+
+// Без require_again правка текста согласие не отменяет: опечатка не повод поднимать
+// окно у всех.
+func TestConsentGate_TextChangeWithoutRequireAgain_KeepsConsent(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	enableConsent(t, e, admin, "<p>Редакция 1</p>")
+
+	user := testutil.RegisterAndLogin(t, e, "gate_keepconsent", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, "{}", testutil.AuthHeader(user)).Code)
+
+	require.Equal(t, http.StatusOK, savePDConsentText(t, e, admin, "<p>Редакция 1 с опечаткой</p>").Code)
+
+	assert.False(t, gateState(t, e, user).Required, "правка без require_again согласие не отменяет")
+}

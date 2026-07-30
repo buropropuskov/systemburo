@@ -46,7 +46,7 @@ type SettingsService interface {
 	SetDataProcessingDoc(ctx context.Context, meta *models.DataProcessingDocument) error
 	ClearDataProcessingDoc(ctx context.Context) error
 	GetPDConsentSettings(ctx context.Context) (*models.PDConsentSettings, error)
-	SetPDConsentText(ctx context.Context, text string) error
+	SetPDConsentText(ctx context.Context, text string, requireAgain bool) error
 	SetPDConsentRequired(ctx context.Context, required bool) error
 	BumpPDConsentVersion(ctx context.Context) (int, error)
 	GetApprovalReminderSettings(ctx context.Context) (enabled bool, firstDays int, repeatDays int)
@@ -345,11 +345,22 @@ func (s *settingsService) GetPDConsentSettings(ctx context.Context) (*models.PDC
 // SetPDConsentText сохраняет текст согласия. Пустая строка допустима -- это очистка
 // текста; запрос согласия при этом перестаёт работать, и администратор видит
 // предупреждение в интерфейсе.
-func (s *settingsService) SetPDConsentText(ctx context.Context, text string) error {
+//
+// requireAgain поднимает редакцию тем же действием: изменённый текст -- новая
+// редакция, подтверждать её надо заново. Редакцию двигаем ДО записи текста: если
+// запись сорвётся, люди переподтвердят прежний текст (шум, но не обман), а обратный
+// порядок оставил бы новый текст со старой редакцией -- то есть согласие, данное не
+// тому тексту, который человеку теперь показывают.
+func (s *settingsService) SetPDConsentText(ctx context.Context, text string, requireAgain bool) error {
 	if len(text) > PDConsentTextMaxBytes {
 		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf(
 			"Текст согласия больше %d КБ. Уберите вставленные картинки или сократите текст.",
 			PDConsentTextMaxBytes/1024))
+	}
+	if requireAgain {
+		if _, err := s.BumpPDConsentVersion(ctx); err != nil {
+			return err
+		}
 	}
 	return s.upsertRaw(ctx, pdConsentTextKey, text, "html")
 }

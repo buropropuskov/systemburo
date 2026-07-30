@@ -37,15 +37,17 @@ export async function getPDConsentSettings() {
 }
 
 /**
- * Сохраняет текст согласия. Версию не двигает: правка опечатки не должна
- * заставлять всех соглашаться заново.
+ * Сохраняет текст согласия. Редакцию двигает только по requireAgain, и тем же
+ * запросом: отдельный вызов мог бы не дойти, оставив новый текст со старой
+ * редакцией - то есть согласие, данное не тому тексту.
  * @param {string} text HTML согласия; пустая строка означает очистку
+ * @param {boolean} [requireAgain] поднять редакцию, чтобы согласие подтвердили заново
  * @returns {Promise<PDConsentSettings>}
  */
-export async function savePDConsentText(text) {
+export async function savePDConsentText(text, requireAgain = false) {
   const res = await apiRequest(`${BASE}/text`, {
     method: 'PUT',
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text, require_again: requireAgain }),
   });
   return unwrap(res, 'Не удалось сохранить текст согласия');
 }
