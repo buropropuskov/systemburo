@@ -134,7 +134,15 @@
               >
                 {{ pdcSaving ? 'Сохранение...' : 'Сохранить текст' }}
               </button>
-              <span class="form-hint">Редакция {{ pdcVersion }}</span>
+              <span
+                v-if="pdcTextChanged"
+                class="form-hint"
+                data-testid="pdc-text-changed"
+              >Текст изменён: при сохранении спросим, требовать ли согласие заново.</span>
+              <span
+                v-else
+                class="form-hint"
+              >Редакция {{ pdcVersion }}</span>
             </div>
 
             <div class="form-group">
@@ -317,6 +325,9 @@ export default {
       dpUploading: false,
       dpDeleting: false,
       pdcText: '',
+      // Текст, лежащий на сервере: с ним сверяем правку, чтобы спросить про
+      // подтверждение заново только когда текст действительно менялся.
+      pdcSavedText: '',
       pdcLoaded: false,
       pdcVersion: 1,
       pdcRequired: false,
@@ -376,6 +387,14 @@ export default {
       const html = this.pdcText || '';
       if (/<img/i.test(html)) return true;
       return stripHtml(html) !== '';
+    },
+
+    // Сравниваем разметку целиком, а не видимый текст: смена выделения, врезка
+    // картинки или переформатирование пунктов - тоже другая редакция согласия.
+    // Лишний вопрос дёшев, пропущенная правка означала бы согласие, данное не
+    // тому тексту, который человеку показывают.
+    pdcTextChanged() {
+      return (this.pdcText || '') !== (this.pdcSavedText || '');
     },
   },
   mounted() {
@@ -500,6 +519,7 @@ export default {
 
     applyPdConsentSettings(settings) {
       this.pdcText = settings?.text || '';
+      this.pdcSavedText = this.pdcText;
       this.pdcVersion = settings?.version || 1;
       this.pdcRequired = Boolean(settings?.required);
     },
@@ -580,11 +600,34 @@ export default {
     },
 
     async savePdcText() {
+      // Изменённый текст - это новая редакция согласия, и подтверждать её надо
+      // заново. Решение за администратором: правка опечатки не стоит того, чтобы
+      // поднимать окно у всех, а правка по существу стоит.
+      let requireAgain = false;
+      if (this.pdcTextChanged) {
+        const answer = await useUiStore().confirm({
+          title: 'Текст изменён',
+          message: this.pdcRequired
+            ? 'Запросить согласие заново у всех? Те, кто соглашался с прежней редакцией,'
+              + ' подтвердят новую при следующем входе.'
+            : 'Запросить согласие заново у всех? Сейчас запрос согласия выключен -'
+              + ' подтверждать новую редакцию будут, когда вы его включите.',
+          confirmText: 'Запросить заново',
+          cancelText: 'Только сохранить',
+          danger: false,
+        });
+        requireAgain = answer === true;
+      }
       this.pdcSaving = true;
       try {
-        this.applyPdConsentSettings(await savePDConsentText(this.pdcText));
+        this.applyPdConsentSettings(await savePDConsentText(this.pdcText, requireAgain));
         this.pdcLoaded = true;
-        useDeletionsStore().notify({ prefix: 'Текст согласия сохранён' });
+        useDeletionsStore().notify({
+          prefix: requireAgain
+            ? `Текст сохранён, редакция ${this.pdcVersion}: согласие запросим заново`
+            : 'Текст согласия сохранён',
+        });
+        if (requireAgain) this.fetchPdcCollection();
       } catch (error) {
         useDeletionsStore().notify({
           prefix: error?.message || 'Не удалось сохранить текст согласия',
