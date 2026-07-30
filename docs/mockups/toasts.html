@@ -1,0 +1,1246 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Всплывающие уведомления - варианты редизайна</title>
+<style>
+/* ============================================================================
+   МОКАП ВСПЛЫВАЮЩИХ УВЕДОМЛЕНИЙ
+
+   Файл самодостаточен: ни одной внешней ссылки, открывается с диска.
+
+   Тост живёт три секунды и исчезает - на статичной картинке его не оценить.
+   Поэтому здесь не четыре скриншота, а один стенд: макет приложения, в котором
+   уведомления появляются по-настоящему, со своими таймингами и анимацией.
+   Пульт слева переключает тему, ширину экрана и открытую модалку.
+
+   Переменные тем скопированы из frontend/src/assets/tokens.css, чтобы цвета
+   совпадали с продуктом, а не подбирались заново.
+   ========================================================================= */
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --accent: #4F5BDF;
+  --accent-text: #4F5BDF;
+  --accent-hover: #3d49c7;
+  --accent-contrast: #ffffff;
+  --accent-tint: rgba(79, 91, 223, 0.08);
+  --fill-text: #ffffff;
+
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f9f9f9;
+  --surface-sunken: #f9f9f9;
+  --text: #333333;
+  --text-muted: #5f6672;
+  --border: #e6e6e6;
+  --shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+  --shadow-drop: rgba(0, 0, 0, 0.15);
+
+  --success: #28a745;  --success-bg: #e8f5e8;  --success-text: #2e7d32;
+  --danger:  #dc3545;  --danger-bg:  #ffebee;  --danger-text:  #c62828;
+  --warning: #f59e0b;  --warning-bg: #fff3e0;  --warning-text: #92400e;
+  --info:    #3b82f6;  --info-bg:    #e3f2fd;  --info-text:    #1565c0;
+
+  --hint-bg: #333333;
+  --hint-text: #ffffff;
+  --overlay: rgba(15, 23, 42, 0.45);
+  --skeleton: #e9eaef;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --accent: #5561B8;
+  --accent-text: #A6AEE8;
+  --accent-hover: #616DC6;
+  --accent-contrast: #F2F4FF;
+  --accent-tint: rgba(85, 97, 184, 0.22);
+  --fill-text: #F2F4FF;
+
+  --bg: #1f2229;
+  --surface: #272b33;
+  --surface-2: #30343d;
+  --surface-sunken: #1f2229;
+  --text: #c9ced8;
+  --text-muted: #9aa2b1;
+  --border: #3a3f4a;
+  --shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+  --shadow-drop: rgba(0, 0, 0, 0.6);
+
+  --success: #3A7359;  --success-bg: #2a3538;  --success-text: #8FC7AC;
+  --danger:  #9F4C54;  --danger-bg:  #383038;  --danger-text:  #E3A2A7;
+  --warning: #866326;  --warning-bg: #343331;  --warning-text: #D9B87C;
+  --info:    #416A94;  --info-bg:    #2b3441;  --info-text:    #9DC0E0;
+
+  --hint-bg: #14171d;
+  --hint-text: #c9ced8;
+  --overlay: rgba(0, 0, 0, 0.65);
+  --skeleton: #262a35;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--surface-sunken);
+  color: var(--text);
+  font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* --- Каркас страницы ------------------------------------------------------ */
+
+.page {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 32px 24px 80px;
+}
+
+.masthead {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 32px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+}
+
+.masthead h1 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.masthead p {
+  margin: 6px 0 0;
+  max-width: 640px;
+  color: var(--text-muted);
+}
+
+.theme-switch {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 50px;
+}
+
+.theme-switch button {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 16px;
+  border-radius: 50px;
+  cursor: pointer;
+}
+
+.theme-switch button[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+/* --- Стенд ---------------------------------------------------------------- */
+
+.bench {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 24px;
+  align-items: start;
+  margin-bottom: 44px;
+}
+
+.console {
+  position: sticky;
+  top: 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  padding: 18px;
+}
+
+.console h2 {
+  margin: 0 0 14px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.console-group { margin-bottom: 18px; }
+
+.console-group > span {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.seg {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  overflow: hidden;
+}
+
+.seg button {
+  flex: 1;
+  border: none;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 13px;
+  padding: 7px 4px;
+  cursor: pointer;
+}
+
+.seg button + button { border-left: 1px solid var(--border); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-contrast); }
+
+.console-note {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+/* Сцена: уменьшенный макет приложения, внутри которого живут уведомления. */
+
+.stage-wrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  padding: 16px;
+}
+
+.stage {
+  position: relative;
+  height: 520px;
+  margin: 0 auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: max-width 0.3s ease;
+  max-width: 100%;
+}
+
+.stage[data-width="mobile"] { max-width: 390px; }
+
+.stage-rail {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 44px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 12px;
+  gap: 14px;
+}
+
+.stage[data-width="mobile"] .stage-rail { display: none; }
+
+.rail-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  background: var(--skeleton);
+}
+
+.rail-dot:first-child { background: var(--accent); }
+
+.stage-header {
+  position: absolute;
+  top: 0;
+  left: 44px;
+  right: 0;
+  height: 46px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  z-index: 2;
+}
+
+.stage[data-width="mobile"] .stage-header { left: 0; }
+
+.stage-header b { font-size: 13px; font-weight: 600; }
+
+.stage-pill {
+  font-size: 11px;
+  padding: 5px 12px;
+  border-radius: 50px;
+  border: 1px solid var(--accent);
+  color: var(--accent-text);
+}
+
+.stage-body {
+  position: absolute;
+  top: 46px;
+  left: 44px;
+  right: 0;
+  bottom: 0;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.stage[data-width="mobile"] .stage-body { left: 0; }
+
+.row {
+  height: 34px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  flex: none;
+}
+
+.row i {
+  display: block;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--skeleton);
+}
+
+/* Модалка на сцене: проверка, что уведомление не тонет под затемнением. */
+
+.stage-modal {
+  position: absolute;
+  inset: 0;
+  background: var(--overlay);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 40;
+}
+
+.stage[data-modal="on"] .stage-modal { display: flex; }
+
+.stage-modal > div {
+  width: 260px;
+  background: var(--surface);
+  border-radius: 15px;
+  padding: 16px;
+  box-shadow: 0 10px 30px var(--shadow-drop);
+}
+
+.stage-modal b { display: block; font-size: 14px; margin-bottom: 6px; }
+.stage-modal p { margin: 0 0 14px; font-size: 12px; color: var(--text-muted); }
+
+.stage-modal button {
+  border: none;
+  border-radius: 50px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font: inherit;
+  font-size: 12px;
+  padding: 7px 18px;
+  cursor: pointer;
+}
+
+/* Слой уведомлений всегда выше модалки - иначе сообщение об ошибке,
+   вызванное из открытого окна, уходит под затемнение. */
+.toast-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 60;
+}
+
+.toast-layer > * { pointer-events: auto; }
+
+/* --- Общие детали уведомлений --------------------------------------------- */
+
+.t-icon {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--fill-text);
+}
+
+.t-icon[data-kind="success"] { background: var(--success); }
+.t-icon[data-kind="error"] { background: var(--danger); }
+.t-icon[data-kind="warning"] { background: var(--warning); }
+
+.t-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.t-text strong { font-weight: 700; }
+
+.t-action {
+  flex: none;
+  border: none;
+  background: transparent;
+  color: var(--accent-text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 50px;
+  cursor: pointer;
+}
+
+.t-action:hover { background: var(--accent-tint); }
+
+.t-close {
+  flex: none;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 4px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+/* Крестик появляется по наведению: в покое он лишний шум, под курсором - нужен. */
+.v-a:hover .t-close, .v-c:hover .t-close { opacity: 1; }
+
+@keyframes drain { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+@keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes slide-in { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
+@keyframes drop-in { from { opacity: 0; transform: translateY(-14px); } to { opacity: 1; transform: none; } }
+@keyframes fade-out { to { opacity: 0; transform: scale(0.97); } }
+
+.leaving { animation: fade-out 0.22s ease forwards; }
+
+/* --- Вариант A. Тихая карточка -------------------------------------------- */
+
+.stack-a {
+  position: absolute;
+  top: 58px;
+  right: 12px;
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stage[data-width="mobile"] .stack-a { left: 10px; right: 10px; width: auto; }
+
+.v-a {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 12px 13px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  box-shadow: 0 6px 18px var(--shadow-drop);
+  font-size: 13px;
+  overflow: hidden;
+  animation: slide-in 0.24s ease;
+}
+
+/* Прогресс ушёл с отдельной дорожки на кромку карточки: время видно,
+   но полоса больше не занимает строку и не спорит с текстом. */
+.v-a .bar {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 100%;
+  transform-origin: left;
+  background: var(--accent);
+  animation: drain linear forwards;
+}
+
+.v-a[data-kind="error"] .bar { background: var(--danger); }
+.v-a[data-kind="success"] .bar { background: var(--success); }
+.v-a:hover .bar { animation-play-state: paused; }
+
+/* --- Вариант B. Строка снизу ---------------------------------------------- */
+
+.stack-b {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  width: min(460px, calc(100% - 32px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+}
+
+.v-b {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px 10px 14px;
+  background: var(--hint-bg);
+  color: var(--hint-text);
+  border-radius: 50px;
+  box-shadow: 0 8px 24px var(--shadow-drop);
+  font-size: 13px;
+  animation: rise 0.24s ease;
+}
+
+.v-b .t-action { color: #9aa6ff; }
+.v-b .t-action:hover { background: rgba(255, 255, 255, 0.1); }
+.v-b .t-icon { width: 8px; height: 8px; }
+
+/* Время показывает не полоса, а кольцо у правого края: строка остаётся строкой. */
+.v-b .ring {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: conic-gradient(currentColor var(--p, 100%), transparent 0);
+  opacity: 0.55;
+}
+
+.v-b .more {
+  font-size: 12px;
+  opacity: 0.6;
+  padding-left: 2px;
+}
+
+/* --- Вариант C. Стопка ----------------------------------------------------- */
+
+.stack-c {
+  position: absolute;
+  top: 58px;
+  right: 12px;
+  width: 300px;
+}
+
+.stage[data-width="mobile"] .stack-c { left: 10px; right: 10px; width: auto; }
+
+.c-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  box-shadow: 0 6px 18px var(--shadow-drop);
+  overflow: hidden;
+  animation: slide-in 0.24s ease;
+}
+
+.c-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.c-head button {
+  border: none;
+  background: transparent;
+  color: var(--accent-text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.v-c {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.v-c + .v-c { border-top: 1px solid var(--border); }
+
+/* Кольцевой таймер на месте иконки: у каждой строки своё время,
+   а карточка одна - счётчик наверху говорит, сколько всего событий. */
+.v-c .ring {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: conic-gradient(var(--ring-color, var(--accent)) var(--p, 100%), var(--border) 0);
+}
+
+.v-c .ring::after {
+  content: '';
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--surface);
+}
+
+.v-c[data-kind="error"] { --ring-color: var(--danger); }
+.v-c[data-kind="success"] { --ring-color: var(--success); }
+
+.c-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 50px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* --- Вариант D. Лента под шапкой ------------------------------------------ */
+
+.stack-d {
+  position: absolute;
+  top: 46px;
+  left: 44px;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.stage[data-width="mobile"] .stack-d { left: 0; }
+
+.v-d {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 16px 12px;
+  font-size: 13px;
+  background: var(--success-bg);
+  color: var(--success-text);
+  border-bottom: 1px solid var(--border);
+  animation: drop-in 0.26s ease;
+  overflow: hidden;
+}
+
+.v-d[data-kind="error"] { background: var(--danger-bg); color: var(--danger-text); }
+.v-d[data-kind="warning"] { background: var(--warning-bg); color: var(--warning-text); }
+
+.v-d .t-text strong { color: inherit; }
+.v-d .t-action { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+
+.v-d .bar {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 100%;
+  transform-origin: left;
+  background: currentColor;
+  opacity: 0.4;
+  animation: drain linear forwards;
+}
+
+.v-d:hover .bar { animation-play-state: paused; }
+
+/* --- Описания вариантов ---------------------------------------------------- */
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.card[data-active="true"] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-tint);
+}
+
+.card-mark {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.card h3 {
+  margin: 0 0 6px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.card > p {
+  margin: 0 0 16px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.axes { margin: 0 0 18px; }
+
+.axes div {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 10px;
+  padding: 7px 0;
+  border-top: 1px solid var(--border);
+  font-size: 12.5px;
+}
+
+.axes dt {
+  color: var(--text-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding-top: 1px;
+}
+
+.axes dd { margin: 0; }
+
+.shots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: auto;
+}
+
+.shots button {
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  padding: 7px 13px;
+  border-radius: 50px;
+  cursor: pointer;
+}
+
+.shots button:hover { border-color: var(--accent); color: var(--accent-text); }
+
+.shots button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+}
+
+/* --- Итоговая таблица ------------------------------------------------------ */
+
+.verdict {
+  margin-top: 44px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  padding: 24px;
+}
+
+.verdict h2 { margin: 0 0 16px; font-size: 18px; }
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+
+th, td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); font-weight: 600; }
+tbody tr:last-child td { border-bottom: none; }
+td b { font-weight: 700; }
+
+.verdict > p { color: var(--text-muted); margin: 18px 0 0; }
+
+@media (max-width: 900px) {
+  .bench { grid-template-columns: 1fr; }
+  .console { position: static; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="masthead">
+    <div>
+      <h1>Всплывающие уведомления</h1>
+      <p>
+        Четыре направления редизайна. Стенд ниже - живой: кнопки в карточках показывают
+        настоящие уведомления с их таймингами прямо в макете приложения. Пульт слева
+        переключает тему, ширину экрана и открытую модалку.
+      </p>
+    </div>
+    <div class="theme-switch" role="group" aria-label="Тема">
+      <button type="button" data-theme-btn="light" aria-pressed="true">Светлая</button>
+      <button type="button" data-theme-btn="dark" aria-pressed="false">Тёмная</button>
+    </div>
+  </header>
+
+  <section class="bench">
+    <div class="console">
+      <h2>Стенд</h2>
+
+      <div class="console-group">
+        <span>Ширина экрана</span>
+        <div class="seg" role="group">
+          <button type="button" data-width-btn="desktop" aria-pressed="true">Десктоп</button>
+          <button type="button" data-width-btn="mobile" aria-pressed="false">390</button>
+        </div>
+      </div>
+
+      <div class="console-group">
+        <span>Открытая модалка</span>
+        <div class="seg" role="group">
+          <button type="button" data-modal-btn="off" aria-pressed="true">Нет</button>
+          <button type="button" data-modal-btn="on" aria-pressed="false">Есть</button>
+        </div>
+      </div>
+
+      <div class="console-group">
+        <span>Скорость таймера</span>
+        <div class="seg" role="group">
+          <button type="button" data-speed-btn="1" aria-pressed="true">Как в бою</button>
+          <button type="button" data-speed-btn="3" aria-pressed="false">x3</button>
+        </div>
+      </div>
+
+      <p class="console-note">
+        Наведи курсор на уведомление - таймер встаёт на паузу во всех четырёх вариантах.
+        Это часть предложения: сейчас плашка исчезает, даже когда её читают.
+      </p>
+    </div>
+
+    <div class="stage-wrap">
+      <div class="stage" id="stage" data-width="desktop" data-modal="off">
+        <div class="stage-rail">
+          <span class="rail-dot"></span>
+          <span class="rail-dot"></span>
+          <span class="rail-dot"></span>
+          <span class="rail-dot"></span>
+        </div>
+        <div class="stage-header">
+          <b>Машины на территории</b>
+          <span class="stage-pill">Подать заявку</span>
+        </div>
+        <div class="stage-body" id="stage-body"></div>
+        <div class="stage-modal">
+          <div>
+            <b>Права доступа</b>
+            <p>Окно держит затемнение, пока показывается уведомление.</p>
+            <button type="button">Сохранить</button>
+          </div>
+        </div>
+        <div class="toast-layer" id="layer"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cards">
+
+    <article class="card" data-card="a">
+      <div class="card-mark">A</div>
+      <h3>Тихая карточка</h3>
+      <p>Сегодняшняя плашка, с которой сняли лишнее. Самый дешёвый путь: меняется CSS, разметка почти та же.</p>
+      <dl class="axes">
+        <div><dt>Вид</dt><dd>Иконка вместо заголовка-слова, прогресс - волосяная линия по кромке вместо дорожки в 10px.</dd></div>
+        <div><dt>Позиция</dt><dd>Там же, сверху справа. Стек вниз, максимум три карточки, дальше старые уходят.</dd></div>
+        <div><dt>Таймер</dt><dd>Пауза по наведению и по фокусу с клавиатуры. Крестик закрывает, не отменяя удаление.</dd></div>
+        <div><dt>Мобилка</dt><dd>Во всю ширину, как сейчас.</dd></div>
+      </dl>
+      <div class="shots">
+        <button type="button" class="primary" data-shot="a:success">Успех</button>
+        <button type="button" data-shot="a:error">Ошибка</button>
+        <button type="button" data-shot="a:undo">Удаление</button>
+        <button type="button" data-shot="a:series">Серия</button>
+      </div>
+    </article>
+
+    <article class="card" data-card="b">
+      <div class="card-mark">B</div>
+      <h3>Строка снизу</h3>
+      <p>Уведомление перестаёт быть карточкой и становится строкой у нижнего края - подальше от кнопок в шапке.</p>
+      <dl class="axes">
+        <div><dt>Вид</dt><dd>Тёмная пилюля во всю строку, светлый текст, действие справа. Ни заголовка, ни полосы.</dd></div>
+        <div><dt>Позиция</dt><dd>Низ по центру. На экране одна строка: следующие ждут очереди, счётчик показывает сколько.</dd></div>
+        <div><dt>Таймер</dt><dd>Кольцо у правого края вместо полосы. Пауза по наведению.</dd></div>
+        <div><dt>Мобилка</dt><dd>Та же строка над нижней кромкой, свайп вниз убирает.</dd></div>
+      </dl>
+      <div class="shots">
+        <button type="button" class="primary" data-shot="b:success">Успех</button>
+        <button type="button" data-shot="b:error">Ошибка</button>
+        <button type="button" data-shot="b:undo">Удаление</button>
+        <button type="button" data-shot="b:series">Серия</button>
+      </div>
+    </article>
+
+    <article class="card" data-card="c">
+      <div class="card-mark">C</div>
+      <h3>Стопка</h3>
+      <p>Уведомления перестают спорить за место: они собираются в одну панель, а однотипные схлопываются в строку с общей отменой.</p>
+      <dl class="axes">
+        <div><dt>Вид</dt><dd>Одна панель с шапкой-счётчиком, внутри строки. Кольцевой таймер на месте иконки.</dd></div>
+        <div><dt>Позиция</dt><dd>Сверху справа, ширина фиксированная. Панель не растёт бесконечно: строк максимум четыре.</dd></div>
+        <div><dt>Таймер</dt><dd>У каждой строки своё кольцо, «Отменить всё» в шапке снимает всю пачку разом.</dd></div>
+        <div><dt>Мобилка</dt><dd>Панель во всю ширину, шапка со счётчиком остаётся: пачка удалений занимает одну строку вместо пяти.</dd></div>
+      </dl>
+      <div class="shots">
+        <button type="button" class="primary" data-shot="c:success">Успех</button>
+        <button type="button" data-shot="c:error">Ошибка</button>
+        <button type="button" data-shot="c:undo">Удаление</button>
+        <button type="button" data-shot="c:series">Серия</button>
+      </div>
+    </article>
+
+    <article class="card" data-card="d">
+      <div class="card-mark">D</div>
+      <h3>Лента под шапкой</h3>
+      <p>Самый заметный вариант: сообщение выезжает лентой во всю ширину рабочей области и красится по смыслу.</p>
+      <dl class="axes">
+        <div><dt>Вид</dt><dd>Не карточка, а полоса на цветной подложке роли. Текст крупнее, тени нет.</dd></div>
+        <div><dt>Позиция</dt><dd>Под шапкой, поверх контента. Ленты складываются друг под другом.</dd></div>
+        <div><dt>Таймер</dt><dd>Линия по нижней кромке ленты. Ошибки не гаснут сами - закрывает человек.</dd></div>
+        <div><dt>Мобилка</dt><dd>Та же лента от края до края, текст в две строки.</dd></div>
+      </dl>
+      <div class="shots">
+        <button type="button" class="primary" data-shot="d:success">Успех</button>
+        <button type="button" data-shot="d:error">Ошибка</button>
+        <button type="button" data-shot="d:undo">Удаление</button>
+        <button type="button" data-shot="d:series">Серия</button>
+      </div>
+    </article>
+
+  </section>
+
+  <section class="verdict">
+    <h2>Чем варианты отличаются на деле</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Вопрос</th>
+          <th>A. Тихая карточка</th>
+          <th>B. Строка снизу</th>
+          <th>C. Стопка</th>
+          <th>D. Лента</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><b>Что видно при пяти удалениях подряд</b></td>
+          <td>Три карточки, остальные вытесняются</td>
+          <td>Одна строка и счётчик очереди</td>
+          <td>Одна строка «Удалено 5 записей» с общей отменой</td>
+          <td>Пять лент, экран уезжает</td>
+        </tr>
+        <tr>
+          <td><b>Мешает ли работе</b></td>
+          <td>Перекрывает угол таблицы</td>
+          <td>Низ экрана свободнее верха</td>
+          <td>Перекрывает угол, но одним блоком</td>
+          <td>Двигает взгляд, перекрывает первые строки</td>
+        </tr>
+        <tr>
+          <td><b>Заметность ошибки</b></td>
+          <td>Средняя</td>
+          <td>Средняя, но далеко от места действия</td>
+          <td>Средняя</td>
+          <td>Высокая: цвет во всю ширину</td>
+        </tr>
+        <tr>
+          <td><b>Объём работы</b></td>
+          <td>Только CSS, разметка та же</td>
+          <td>CSS плюс очередь показа в сторе</td>
+          <td>Группировка одинаковых событий в сторе</td>
+          <td>CSS плюс правка раскладки под шапкой</td>
+        </tr>
+        <tr>
+          <td><b>Риск</b></td>
+          <td>Низкий</td>
+          <td>Средний: низ занят на мобилке</td>
+          <td>Средний: логика схлопывания</td>
+          <td>Высокий: конфликт с шапкой и модалками</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>
+      Пауза по наведению, крестик и потолок числа карточек нужны в любом варианте -
+      это не отличие, а общий долг сегодняшнего стека.
+    </p>
+  </section>
+
+</div>
+
+<script>
+(() => {
+  const stage = document.getElementById('stage');
+  const layer = document.getElementById('layer');
+  const body = document.getElementById('stage-body');
+  let speed = 1;
+
+  // Фон сцены: строки таблицы, чтобы уведомление было видно на реальном контенте.
+  for (let i = 0; i < 9; i++) {
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = `<i style="width:${18 + (i % 3) * 10}%"></i><i style="width:${24 + (i % 4) * 8}%"></i><i style="width:${12 + (i % 2) * 9}%"></i>`;
+    body.appendChild(row);
+  }
+
+  const press = (group, value, attr) => {
+    document.querySelectorAll(`[data-${group}]`).forEach(b => {
+      b.setAttribute('aria-pressed', String(b.dataset[attr] === value));
+    });
+  };
+
+  document.querySelectorAll('[data-theme-btn]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.documentElement.dataset.theme = btn.dataset.themeBtn;
+      press('theme-btn', btn.dataset.themeBtn, 'themeBtn');
+    });
+  });
+
+  document.querySelectorAll('[data-width-btn]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      stage.dataset.width = btn.dataset.widthBtn;
+      press('width-btn', btn.dataset.widthBtn, 'widthBtn');
+    });
+  });
+
+  document.querySelectorAll('[data-modal-btn]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      stage.dataset.modal = btn.dataset.modalBtn;
+      press('modal-btn', btn.dataset.modalBtn, 'modalBtn');
+    });
+  });
+
+  document.querySelectorAll('[data-speed-btn]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      speed = Number(btn.dataset.speedBtn);
+      press('speed-btn', btn.dataset.speedBtn, 'speedBtn');
+    });
+  });
+
+  // Тексты взяты из продукта: конкретное имя объекта, а не «Успешно».
+  const COPY = {
+    success: { prefix: 'Машина ', bold: 'А123ВС77', suffix: ' отмечена о прибытии' },
+    error: { prefix: 'Не удалось сохранить: ', bold: 'нет связи с сервером', suffix: '' },
+    undo: { prefix: 'Сотрудник ', bold: 'Ковалёв И. С.', suffix: ' убран из таблицы' },
+  };
+
+  const MS = { success: 5000, error: 6000, undo: 10000 };
+
+  const html = (parts, kind) =>
+    `<span class="t-text">${parts.prefix}<strong>${parts.bold}</strong>${parts.suffix}</span>`;
+
+  function dismiss(el) {
+    if (!el.isConnected) return;
+    el.classList.add('leaving');
+    setTimeout(() => el.remove(), 220);
+  }
+
+  function autoDismiss(el, ms) {
+    const timer = setTimeout(() => dismiss(el), ms);
+    // Пауза по наведению: пока читают, время не идёт.
+    let left = ms, started = Date.now(), current = timer;
+    el.addEventListener('mouseenter', () => {
+      clearTimeout(current);
+      left -= Date.now() - started;
+    });
+    el.addEventListener('mouseleave', () => {
+      started = Date.now();
+      current = setTimeout(() => dismiss(el), Math.max(left, 400));
+    });
+  }
+
+  function container(variant) {
+    const cls = `stack-${variant}`;
+    let box = layer.querySelector('.' + cls);
+    if (!box) {
+      box = document.createElement('div');
+      box.className = cls;
+      layer.appendChild(box);
+    }
+    return box;
+  }
+
+  function clearOthers(variant) {
+    layer.querySelectorAll('[class^="stack-"]').forEach(box => {
+      if (!box.classList.contains(`stack-${variant}`)) box.remove();
+    });
+    document.querySelectorAll('.card').forEach(c => {
+      c.dataset.active = String(c.dataset.card === variant);
+    });
+  }
+
+  const ringTick = (el, ms) => {
+    const started = Date.now();
+    const step = () => {
+      if (!el.isConnected) return;
+      const left = Math.max(0, 1 - (Date.now() - started) / ms);
+      el.style.setProperty('--p', (left * 100) + '%');
+      if (left > 0) requestAnimationFrame(step);
+    };
+    step();
+  };
+
+  function showA(kind) {
+    const ms = MS[kind] / speed;
+    const box = container('a');
+    const el = document.createElement('div');
+    el.className = 'v-a';
+    el.dataset.kind = kind === 'undo' ? 'success' : kind;
+    el.innerHTML =
+      `<span class="t-icon" data-kind="${el.dataset.kind}">${kind === 'error' ? '!' : '✓'}</span>` +
+      html(COPY[kind]) +
+      (kind === 'undo' ? '<button type="button" class="t-action">Отменить</button>' : '') +
+      '<button type="button" class="t-close" aria-label="Закрыть">&times;</button>' +
+      `<span class="bar" style="animation-duration:${ms}ms"></span>`;
+    box.prepend(el);
+    // Потолок стека: четвёртая карточка вытесняет самую старую.
+    [...box.children].slice(3).forEach(dismiss);
+    el.querySelector('.t-close').addEventListener('click', () => dismiss(el));
+    el.querySelector('.t-action')?.addEventListener('click', () => dismiss(el));
+    autoDismiss(el, ms);
+  }
+
+  function showB(kind) {
+    const ms = MS[kind] / speed;
+    const box = container('b');
+    // На экране одна строка: остальные ждут очереди и считаются в подписи.
+    const shown = box.querySelector('.v-b:not(.leaving)');
+    if (shown) {
+      const badge = shown.querySelector('.more') || (() => {
+        const s = document.createElement('span');
+        s.className = 'more';
+        shown.appendChild(s);
+        return s;
+      })();
+      const queued = Number(shown.dataset.queued || 0) + 1;
+      shown.dataset.queued = queued;
+      badge.textContent = `ещё ${queued}`;
+      return;
+    }
+    const el = document.createElement('div');
+    el.className = 'v-b';
+    el.innerHTML =
+      `<span class="t-icon" data-kind="${kind === 'undo' ? 'success' : kind}"></span>` +
+      html(COPY[kind]) +
+      (kind === 'undo' ? '<button type="button" class="t-action">Отменить</button>' : '') +
+      '<span class="ring"></span>';
+    box.appendChild(el);
+    el.querySelector('.t-action')?.addEventListener('click', () => dismiss(el));
+    ringTick(el.querySelector('.ring'), ms);
+    autoDismiss(el, ms);
+  }
+
+  function showC(kind) {
+    const ms = MS[kind] / speed;
+    const box = container('c');
+    let panel = box.querySelector('.c-panel');
+    if (!panel) {
+      panel = document.createElement('div');
+      panel.className = 'c-panel';
+      panel.innerHTML =
+        '<div class="c-head"><span>События <span class="c-count">0</span></span>' +
+        '<button type="button">Отменить всё</button></div>';
+      box.appendChild(panel);
+      panel.querySelector('button').addEventListener('click', () => dismiss(panel));
+    }
+
+    // Однотипные события схлопываются в одну строку со счётчиком.
+    const same = panel.querySelector(`.v-c[data-group="${kind}"]:not(.leaving)`);
+    if (same) {
+      const n = Number(same.dataset.n || 1) + 1;
+      same.dataset.n = n;
+      same.querySelector('.t-text').innerHTML =
+        kind === 'undo' ? `Убрано <strong>${n} сотрудника</strong> из таблицы`
+        : kind === 'error' ? `<strong>${n} операции</strong> не прошли`
+        : `Отмечено <strong>${n} машины</strong>`;
+    } else {
+      const el = document.createElement('div');
+      el.className = 'v-c';
+      el.dataset.kind = kind === 'undo' ? 'success' : kind;
+      el.dataset.group = kind;
+      el.dataset.n = 1;
+      el.innerHTML =
+        '<span class="ring"></span>' + html(COPY[kind]) +
+        (kind === 'undo' ? '<button type="button" class="t-action">Отменить</button>' : '') +
+        '<button type="button" class="t-close" aria-label="Закрыть">&times;</button>';
+      panel.appendChild(el);
+      el.querySelector('.t-close').addEventListener('click', () => {
+        dismiss(el);
+        setTimeout(() => { if (!panel.querySelector('.v-c')) dismiss(panel); }, 240);
+      });
+      el.querySelector('.t-action')?.addEventListener('click', () => dismiss(el));
+      ringTick(el.querySelector('.ring'), ms);
+      setTimeout(() => {
+        dismiss(el);
+        setTimeout(() => { if (!panel.querySelector('.v-c:not(.leaving)')) dismiss(panel); }, 240);
+      }, ms);
+    }
+    panel.querySelector('.c-count').textContent =
+      [...panel.querySelectorAll('.v-c')].reduce((s, r) => s + Number(r.dataset.n || 1), 0);
+  }
+
+  function showD(kind) {
+    const ms = MS[kind] / speed;
+    const box = container('d');
+    const el = document.createElement('div');
+    el.className = 'v-d';
+    el.dataset.kind = kind === 'undo' ? 'success' : kind;
+    el.innerHTML =
+      `<span class="t-icon" data-kind="${el.dataset.kind}">${kind === 'error' ? '!' : '✓'}</span>` +
+      html(COPY[kind]) +
+      (kind === 'undo' ? '<button type="button" class="t-action">Отменить</button>' : '') +
+      '<button type="button" class="t-close" style="opacity:1" aria-label="Закрыть">&times;</button>' +
+      (kind === 'error' ? '' : `<span class="bar" style="animation-duration:${ms}ms"></span>`);
+    box.appendChild(el);
+    el.querySelector('.t-close').addEventListener('click', () => dismiss(el));
+    el.querySelector('.t-action')?.addEventListener('click', () => dismiss(el));
+    // Ошибка в этом варианте ждёт человека: цветная лента слишком заметна,
+    // чтобы гаснуть сама, пока её не прочитали.
+    if (kind !== 'error') autoDismiss(el, ms);
+  }
+
+  const RENDER = { a: showA, b: showB, c: showC, d: showD };
+
+  document.querySelectorAll('[data-shot]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const [variant, kind] = btn.dataset.shot.split(':');
+      clearOthers(variant);
+      if (kind === 'series') {
+        ['undo', 'undo', 'undo'].forEach((k, i) => setTimeout(() => RENDER[variant](k), i * 500));
+      } else {
+        RENDER[variant](kind);
+      }
+    });
+  });
+})();
+</script>
+</body>
+</html>
