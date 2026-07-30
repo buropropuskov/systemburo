@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
+import { setActivePinia, createPinia } from 'pinia';
 
 const getDataProcessingMeta = vi.fn();
 const fetchDataProcessingBlob = vi.fn();
@@ -14,6 +15,13 @@ vi.mock('@/api/dataProcessing', () => ({
 // PdfDocumentViewer (в цепочке импорта) статически тянет ?worker-конструктор воркера pdf.js;
 // мок делает спек герметичным - иначе Vite резолвит реальный ассет из node_modules.
 vi.mock('pdfjs-dist/build/pdf.worker.min.mjs?worker', () => ({ default: class {} }));
+
+// Окно берёт текст согласия из стора гейта (#1567); в спеке сеть не нужна.
+const getConsentGate = vi.fn();
+vi.mock('@/api/pdConsent', () => ({
+  getConsentGate: (...a) => getConsentGate(...a),
+  acceptConsent: vi.fn(),
+}));
 
 import DataProcessingModal from '../DataProcessingModal.vue';
 
@@ -38,9 +46,65 @@ function mountClosed() {
 
 describe('DataProcessingModal', () => {
   beforeEach(() => {
+    setActivePinia(createPinia());
+    getConsentGate.mockReset().mockResolvedValue({ required: false, version: 1, text: '', document: null });
     getDataProcessingMeta.mockReset();
     fetchDataProcessingBlob.mockReset();
     downloadDataProcessingDoc.mockReset();
+  });
+
+  // #1567: когда администратор задал текст согласия, окно показывает именно его -
+  // это та редакция, которую пользователь подтверждает при входе.
+  it('показывает текст согласия, когда он задан, и не читает файл', async () => {
+    getConsentGate.mockResolvedValue({
+      required: false, version: 2, text: '<p>Пункт согласия</p>', document: null,
+    });
+    getDataProcessingMeta.mockResolvedValue(null);
+    // Загрузку запускает watch(show): монтируем закрытым и открываем, как родитель.
+    const wrapper = mount(DataProcessingModal, { props: { show: false }, global: { stubs } });
+    await wrapper.setProps({ show: true });
+    await flushPromises();
+
+    expect(wrapper.find('.dp-modal__text').text()).toContain('Пункт согласия');
+    expect(fetchDataProcessingBlob).not.toHaveBeenCalled();
+    expect(wrapper.text()).not.toContain('Документ ещё не загружен');
+  });
+
+  it('текст рендерится через sanitizeHtml: скрипт и onerror вырезаны', async () => {
+    getConsentGate.mockResolvedValue({
+      required: false,
+      version: 2,
+      text: '<p>Текст</p><script>window.__pwnModal = 1;<\/script><img src="x" onerror="window.__pwnModal = 2">',
+      document: null,
+    });
+    getDataProcessingMeta.mockResolvedValue(null);
+    // Загрузку запускает watch(show): монтируем закрытым и открываем, как родитель.
+    const wrapper = mount(DataProcessingModal, { props: { show: false }, global: { stubs } });
+    await wrapper.setProps({ show: true });
+    await flushPromises();
+
+    const html = wrapper.find('.dp-modal__text').html();
+    expect(html).toContain('Текст');
+    expect(html).not.toContain('<script');
+    expect(html).not.toContain('onerror');
+    expect(window.__pwnModal).toBeUndefined();
+  });
+
+  it('текст показывается и когда файл тоже загружен - PDF уступает тексту', async () => {
+    getConsentGate.mockResolvedValue({
+      required: false, version: 2, text: '<p>Редакция 2</p>', document: null,
+    });
+    getDataProcessingMeta.mockResolvedValue({
+      file_name: 'soglasie.pdf', mime_type: 'application/pdf', ext: '.pdf', uploaded_at: '',
+    });
+    // Загрузку запускает watch(show): монтируем закрытым и открываем, как родитель.
+    const wrapper = mount(DataProcessingModal, { props: { show: false }, global: { stubs } });
+    await wrapper.setProps({ show: true });
+    await flushPromises();
+
+    expect(wrapper.find('.dp-modal__text').exists()).toBe(true);
+    expect(wrapper.findComponent({ name: 'PdfDocumentViewer' }).exists()).toBe(false);
+    expect(fetchDataProcessingBlob).not.toHaveBeenCalled();
   });
 
   it('на открытии грузит документ и показывает PDF во просмотрщике', async () => {

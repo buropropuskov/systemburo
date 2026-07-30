@@ -35,6 +35,15 @@
         </button>
       </div>
 
+      <!-- Текст согласия важнее файла: он и есть та редакция, которую подтверждает
+           пользователь при входе (#1567). Рендер только через sanitizeHtml -
+           в system_settings HTML лежит сырым. -->
+      <article
+        v-else-if="hasText"
+        class="dp-text"
+        v-html="safeHtml"
+      />
+
       <div
         v-else-if="!meta"
         class="dp-state"
@@ -91,7 +100,10 @@ import {
   downloadDataProcessingDoc,
 } from '@/api/dataProcessing';
 import PdfDocumentViewer from '@/components/ui/PdfDocumentViewer.vue';
+import { usePDConsentStore } from '@/stores/pdConsent';
+import { sanitizeHtml } from '@/utils/sanitize';
 
+const consent = usePDConsentStore();
 const meta = ref(null);
 const loading = ref(true);
 const error = ref(null);
@@ -106,6 +118,8 @@ let mql = null;
 const isPdf = computed(
   () => meta.value && (meta.value.mime_type === 'application/pdf' || meta.value.ext === '.pdf'),
 );
+const hasText = computed(() => Boolean(consent.html));
+const safeHtml = computed(() => sanitizeHtml(consent.html));
 
 function revokePdf() {
   if (pdfUrl.value) {
@@ -119,15 +133,23 @@ async function load() {
   loading.value = true;
   error.value = null;
   revokePdf();
+  // Сетевую ошибку стор глушит сам: текста просто не будет, и мы уйдём на файл.
+  await consent.refresh();
   try {
     meta.value = await getDataProcessingMeta();
-    if (isPdf.value) {
+    // Когда текст задан, файл не читаем вовсе - показывать будем текст, а блоб
+    // весит мегабайты и грузился бы впустую.
+    if (!hasText.value && isPdf.value) {
       const blob = await fetchDataProcessingBlob();
       pdfBlob.value = blob;
       pdfUrl.value = URL.createObjectURL(blob);
     }
   } catch {
-    error.value = 'Не удалось загрузить документ. Попробуйте обновить страницу.';
+    meta.value = null;
+    // Текст есть - страница остаётся полезной, пропадает только кнопка скачивания.
+    if (!hasText.value) {
+      error.value = 'Не удалось загрузить документ. Попробуйте обновить страницу.';
+    }
   } finally {
     loading.value = false;
   }
@@ -212,6 +234,52 @@ onBeforeUnmount(() => {
   overflow-y: auto;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
+}
+
+.dp-text {
+  flex: 1;
+  min-width: 0;
+  padding: 24px 28px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--color-text);
+  font-size: 14px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.dp-text :deep(p) {
+  margin: 0 0 10px;
+}
+
+.dp-text :deep(h1),
+.dp-text :deep(h2),
+.dp-text :deep(h3) {
+  margin: 18px 0 10px;
+  line-height: 1.35;
+}
+
+.dp-text :deep(ul),
+.dp-text :deep(ol) {
+  margin: 0 0 10px;
+  padding-left: 22px;
+}
+
+.dp-text :deep(img) {
+  max-width: 100%;
+  height: auto;
+}
+
+.dp-text :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.dp-text :deep(td),
+.dp-text :deep(th) {
+  border: 1px solid var(--color-border);
+  padding: 6px 8px;
 }
 
 .dp-state {
