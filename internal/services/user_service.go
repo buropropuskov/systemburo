@@ -305,7 +305,11 @@ func (s *userService) GetAll(ctx context.Context, includeArchived bool) ([]model
 
 	if masks := loadConsentMasks(ctx, s.db); len(masks) > 0 {
 		for i := range result {
+			if _, hidden := masks[result[i].ID]; !hidden {
+				continue
+			}
 			maskUserParts(masks, result[i].ID, &result[i].LastName, &result[i].FirstName, &result[i].MiddleName)
+			result[i].NameHidden = true
 		}
 	}
 	return result, nil
@@ -443,12 +447,22 @@ func (s *userService) UpdateInfo(ctx context.Context, callerUserID int, username
 		Scan(&prev)
 
 	updates := map[string]interface{}{
-		"last_name":   req.LastName,
-		"first_name":  req.FirstName,
-		"middle_name": req.MiddleName,
-		"position":    req.Position,
-		"email":       req.Email,
-		"phone":       req.Phone,
+		"position": req.Position,
+		"email":    req.Email,
+		"phone":    req.Phone,
+	}
+	// ФИО пишем, только если поле пришло. Пустая строка по-прежнему очищает его, а
+	// отсутствие поля означает "не трогай": форма редактирования не показывает ФИО
+	// работника, скрытое до его согласия на обработку данных, и не должна затирать
+	// настоящее значение правкой соседнего поля.
+	if req.LastName != nil {
+		updates["last_name"] = *req.LastName
+	}
+	if req.FirstName != nil {
+		updates["first_name"] = *req.FirstName
+	}
+	if req.MiddleName != nil {
+		updates["middle_name"] = *req.MiddleName
 	}
 	if req.IsImportant != nil {
 		updates["is_important"] = *req.IsImportant

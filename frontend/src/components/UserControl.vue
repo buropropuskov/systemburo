@@ -491,7 +491,8 @@
                 <input
                   v-model="selectedUser.last_name"
                   class="lk-input"
-                  placeholder="Введите фамилию"
+                  :placeholder="selectedUser.name_hidden ? 'Скрыто до согласия на обработку данных' : 'Введите фамилию'"
+                  :disabled="selectedUser.name_hidden"
                   autocomplete="new-password"
                   autocorrect="off"
                   autocapitalize="off"
@@ -505,7 +506,8 @@
                 <input
                   v-model="selectedUser.middle_name"
                   class="lk-input"
-                  placeholder="Введите отчество"
+                  :placeholder="selectedUser.name_hidden ? 'Скрыто до согласия на обработку данных' : 'Введите отчество'"
+                  :disabled="selectedUser.name_hidden"
                   autocomplete="new-password"
                   autocorrect="off"
                   autocapitalize="off"
@@ -548,7 +550,8 @@
                 <input
                   v-model="selectedUser.first_name"
                   class="lk-input"
-                  placeholder="Введите имя"
+                  :placeholder="selectedUser.name_hidden ? 'Скрыто до согласия на обработку данных' : 'Введите имя'"
+                  :disabled="selectedUser.name_hidden"
                   autocomplete="new-password"
                   autocorrect="off"
                   autocapitalize="off"
@@ -1847,18 +1850,24 @@ export default {
     
     async updateUserInfo(user) {
       try {
+        const payload = {
+          position: user.position || null,
+          email: user.email || null,
+          phone: user.phone || null,
+          is_important: !!user.is_important,
+        };
+        // У работника, не давшего согласия на обработку данных, сервер ФИО не
+        // присылает. Отправить пустые поля значило бы стереть настоящее ФИО правкой
+        // соседнего: без ключей сервер их не трогает.
+        if (!user.name_hidden) {
+          payload.last_name = user.last_name || null;
+          payload.first_name = user.first_name || null;
+          payload.middle_name = user.middle_name || null;
+        }
         const response = await apiRequest(`/users/${user.username}/info`,
           {
             method: "PUT",
-            body: JSON.stringify({
-              last_name: user.last_name || null,
-              first_name: user.first_name || null,
-              middle_name: user.middle_name || null,
-              position: user.position || null,
-              email: user.email || null,
-              phone: user.phone || null,
-              is_important: !!user.is_important,
-            }),
+            body: JSON.stringify(payload),
           }
         );
 

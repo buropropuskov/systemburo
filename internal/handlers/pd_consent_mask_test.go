@@ -165,3 +165,89 @@ func applicationSenderNames(t *testing.T, e *echo.Echo, token string) string {
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	return rec.Body.String()
 }
+
+// Маскировка - состояние показа, а не команда стереть данные. Форма редактирования
+// работника скрытое ФИО не присылает, и сохранение соседнего поля (должность, почта)
+// не должно затирать настоящую фамилию в базе.
+func TestPDConsentMask_UpdateUserInfoWithoutNames_KeepsRealName(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	enableConsent(t, e, admin, "<p>Согласие</p>")
+
+	testutil.RegisterAndLogin(t, e, "mask_edit", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
+	setUserName(t, db, "mask_edit", "Скрытов", "Кузьма", "Кузьмич")
+	require.Equal(t, "", orgUserNames(t, e, admin, td.OrgID)["mask_edit"], "ФИО скрыто")
+
+	// Тело без ключей ФИО - ровно то, что шлёт форма для скрытого работника.
+	rec := testutil.PUT(t, e, "/users/mask_edit/info",
+		`{"position":"Главный инженер","email":"k@example.com","phone":null,"is_important":false}`,
+		testutil.AuthHeader(admin))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	var last string
+	require.NoError(t, db.Model(&models.User{}).Where("username = ?", "mask_edit").
+		Select("COALESCE(last_name, '')").Row().Scan(&last))
+	assert.Equal(t, "Скрытов", last, "правка должности не стирает настоящую фамилию")
+}
+
+// Явно переданная пустая строка по-прежнему очищает ФИО: администратор должен мочь
+// стереть ошибочно введённые данные.
+func TestPDConsentMask_UpdateUserInfoWithEmptyNames_ClearsThem(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	testutil.RegisterAndLogin(t, e, "mask_clear", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
+	setUserName(t, db, "mask_clear", "Ошибкин", "Иван", "Иванович")
+
+	rec := testutil.PUT(t, e, "/users/mask_clear/info",
+		`{"last_name":"","first_name":"","middle_name":"","position":null,"email":null,"phone":null}`,
+		testutil.AuthHeader(admin))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	var last string
+	require.NoError(t, db.Model(&models.User{}).Where("username = ?", "mask_clear").
+		Select("COALESCE(last_name, '')").Row().Scan(&last))
+	assert.Equal(t, "", last, "пустая строка очищает поле, как и раньше")
+}
+
+// Скрытое ФИО в списке помечено флагом: без него форма не отличит «скрыто» от
+// «не заполнено» и затрёт настоящие данные.
+func TestPDConsentMask_UsersList_MarksHiddenNames(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	enableConsent(t, e, admin, "<p>Согласие</p>")
+	user := testutil.RegisterAndLogin(t, e, "mask_flag", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
+	setUserName(t, db, "mask_flag", "Флагов", "Фёдор", "Фёдорович")
+
+	require.True(t, userNameHidden(t, e, admin, "mask_flag"), "скрытое ФИО помечено")
+	require.False(t, userNameHidden(t, e, admin, "testadmin"), "у супер-администратора ничего не скрыто")
+
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, "{}", testutil.AuthHeader(user)).Code)
+	assert.False(t, userNameHidden(t, e, admin, "mask_flag"), "после согласия пометка снимается")
+}
+
+// userNameHidden читает признак скрытого ФИО из списка работников.
+func userNameHidden(t *testing.T, e *echo.Echo, token, username string) bool {
+	t.Helper()
+	rec := testutil.GET(t, e, "/users/all", testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	type row struct {
+		Username   string `json:"username"`
+		NameHidden bool   `json:"name_hidden"`
+	}
+	for _, r := range testutil.ParseResponse[[]row](t, rec) {
+		if r.Username == username {
+			return r.NameHidden
+		}
+	}
+	t.Fatalf("работник %s не найден в списке", username)
+	return false
+}

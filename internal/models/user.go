@@ -150,9 +150,13 @@ type UserInfoResponse struct {
 	LastName       *string `json:"last_name"`
 	FirstName      *string `json:"first_name"`
 	MiddleName     *string `json:"middle_name"`
-	Position       *string `json:"position"`
-	Email          *string `json:"email"`
-	Phone          *string `json:"phone"`
+	// NameHidden -- ФИО не пусто, а скрыто: работник не дал согласия на обработку
+	// персональных данных (#1567). Форма редактирования обязана отличать это от
+	// незаполненного поля, иначе сохранение соседнего поля затрёт настоящее ФИО.
+	NameHidden bool    `json:"name_hidden"`
+	Position   *string `json:"position"`
+	Email      *string `json:"email"`
+	Phone      *string `json:"phone"`
 	// LastSeen - последняя активность (см. User.LastSeen). Без omitempty: «никогда
 	// не заходил» должно доезжать до клиента явным null, а не отсутствием ключа -
 	// таблица пользователей рисует по нему прочерк, а не «только что».
