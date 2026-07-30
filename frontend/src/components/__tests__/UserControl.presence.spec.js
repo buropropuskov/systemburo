@@ -55,6 +55,9 @@ function mountUserControl(allUsers = seedUsers()) {
 const seenCells = w => w.findAll('[data-testid="users-row-seen"]')
 const seenTexts = w => seenCells(w).map(c => c.text())
 const onlineBadges = w => w.findAll('[data-testid="users-row-online-badge"]')
+// Текст подсказки берём из aria-label якоря: пузырёк телепортируется в body и
+// рендерится только на наведение.
+const hintText = cell => cell.find('[data-testid="users-row-seen-hint"]').attributes('aria-label')
 const rowLogins = w => w.findAll('.user-login').map(el => el.text())
 
 describe('UserControl — колонка присутствия', () => {
@@ -89,17 +92,20 @@ describe('UserControl — колонка присутствия', () => {
     const bannedCell = seenCells(wrapper)[0]
     expect(bannedCell.find('[data-testid="users-row-online-badge"]').exists()).toBe(false)
     expect(bannedCell.text()).toBe('2 мин')
-    expect(bannedCell.attributes('title')).toContain('Был в сети')
+    expect(hintText(bannedCell)).toContain('Был в сети')
   })
 
   it('подсказка ячейки даёт полное время, а не сокращение', async () => {
     wrapper = mountUserControl()
     await flushPromises()
 
-    const titles = seenCells(wrapper).map(c => c.attributes('title'))
+    const titles = seenCells(wrapper).map(c => hintText(c))
     expect(titles[3]).toContain('В сети. Последняя активность: 1 мин назад')
     expect(titles[1]).toMatch(/Был в сети: 12 мин назад \(\d{2}\.\d{2}\.\d{4} \d{2}:\d{2}\)/)
     expect(titles[2]).toBe('Ни разу не заходил')
+
+    // Нативного title на ячейке больше нет: он гас при каждом тике давности.
+    expect(seenCells(wrapper)[0].attributes('title')).toBeUndefined()
   })
 
   it('счётчик в шапке считает присутствующих независимо от поиска', async () => {

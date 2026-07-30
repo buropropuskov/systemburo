@@ -1,7 +1,9 @@
 <template>
   <span
     ref="anchorEl"
+    v-bind="$attrs"
     class="hint-tooltip"
+    :class="{ 'hint-tooltip--icon': !hasAnchorSlot }"
     tabindex="0"
     role="note"
     :aria-label="text"
@@ -9,7 +11,7 @@
     @mouseleave="close"
     @focus="open"
     @blur="close"
-  >i</span>
+  ><slot>i</slot></span>
   <Teleport to="body">
     <div
       v-if="visible"
@@ -17,13 +19,20 @@
       class="hint-tooltip__bubble"
       role="tooltip"
       :style="bubbleStyle"
-    >{{ text }}</div>
+    >
+      {{ text }}
+    </div>
   </Teleport>
 </template>
 
 <script setup>
-import { ref, nextTick, onBeforeUnmount } from 'vue';
+import { ref, computed, nextTick, onBeforeUnmount, useSlots } from 'vue';
 import { getViewportZoom } from '@/utils/viewportScale';
+
+// Шаблон двухкорневой (якорь + Teleport), автоматический fallthrough в таком
+// случае не работает: без явного v-bind атрибуты потребителя (data-testid, aria-*,
+// обработчики) молча теряются.
+defineOptions({ inheritAttrs: false });
 
 /*
  * Подсказка «что считается» в стиле проекта (#333), но пузырёк рендерится в <body>
@@ -39,6 +48,15 @@ const props = defineProps({
   /** Максимальная ширина пузырька, px (клампится по вьюпорту). */
   width: { type: Number, default: 260 },
 });
+
+/*
+ * Якорем может быть либо собственная иконка «i» (по умолчанию), либо содержимое
+ * слота - тогда подсказка висит прямо на значении, без лишнего значка в строке.
+ * Круглые «иконочные» стили в этом случае не применяются, иначе значение оказалось
+ * бы в кружке 14px.
+ */
+const slots = useSlots();
+const hasAnchorSlot = computed(() => Boolean(slots.default));
 
 const anchorEl = ref(null);
 const bubbleEl = ref(null);
@@ -124,6 +142,12 @@ onBeforeUnmount(close);
 .hint-tooltip {
   display: inline-flex;
   align-items: center;
+  cursor: help;
+  user-select: none;
+}
+
+/* Собственная иконка «i» - когда якорь не передан слотом. */
+.hint-tooltip--icon {
   justify-content: center;
   width: 14px;
   height: 14px;
@@ -135,16 +159,22 @@ onBeforeUnmount(close);
   font-weight: 700;
   font-style: normal;
   line-height: 1;
-  cursor: help;
   flex-shrink: 0;
-  user-select: none;
 }
 
-.hint-tooltip:hover,
-.hint-tooltip:focus {
+.hint-tooltip--icon:hover,
+.hint-tooltip--icon:focus {
   border-color: var(--accent);
   color: var(--accent-text);
   outline: none;
+}
+
+/* Слотовый якорь фокус-кольцо всё же получает: значение в ячейке - единственный
+   способ добраться до подсказки с клавиатуры. */
+.hint-tooltip:not(.hint-tooltip--icon):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 </style>
 
