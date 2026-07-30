@@ -826,6 +826,10 @@ func Setup(e *echo.Echo, d Dependencies) {
 
 	// Согласие на обработку ПД (152-ФЗ)
 	consents := protected.Group("/consents")
+	// Состояние согласия и его подтверждение при первом входе (#1567). Доступны
+	// любому авторизованному: именно ими кормится окно согласия.
+	consents.GET("/gate", consent.GetGate)
+	consents.POST("/accept", consent.Accept)
 	consents.POST("", consent.Grant)
 	consents.DELETE("/:type", consent.Revoke)
 	consents.GET("", consent.List)
