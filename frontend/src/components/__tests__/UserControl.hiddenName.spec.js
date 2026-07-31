@@ -113,3 +113,67 @@ describe('UserControl — скрытое до согласия ФИО', () => {
     expect(payload.first_name).toBe('Иван')
   })
 })
+
+describe('UserControl — согласие на обработку данных в карточке', () => {
+  let wrapper
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    apiRequest.mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue([]) })
+  })
+  afterEach(() => wrapper?.unmount())
+
+  it('строка списка помечает того, кто согласие не подтвердил', async () => {
+    wrapper = mountUserControl([{ ...hiddenUser, consent_required: true, consent_granted: false }])
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="users-row-no-consent"]').exists()).toBe(true)
+  })
+
+  it('пока согласие не запрашивают, метки нет: его нет вообще ни у кого', async () => {
+    wrapper = mountUserControl([{ ...openUser, consent_required: false, consent_granted: false }])
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="users-row-no-consent"]').exists()).toBe(false)
+  })
+
+  it('подтвердившего меткой не помечает', async () => {
+    wrapper = mountUserControl([{ ...openUser, consent_required: true, consent_granted: true }])
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="users-row-no-consent"]').exists()).toBe(false)
+  })
+
+  it('в карточке показывает дату согласия', async () => {
+    wrapper = mountUserControl([openUser])
+    await flushPromises()
+
+    expect(wrapper.vm.consentStateLabel({ consent_granted: true, consent_at: '2026-07-12T08:30:00Z' }))
+      .toBe('Дано 12.07.2026')
+    expect(wrapper.vm.consentStateLabel({ consent_granted: false, consent_required: true }))
+      .toBe('Не дано')
+    // Пока запрос выключен, «не дано» само по себе ничего не означает.
+    expect(wrapper.vm.consentStateLabel({ consent_granted: false, consent_required: false }))
+      .toContain('не запрашивается')
+  })
+})
+
+describe('UserControl — поиск по логину с собачкой', () => {
+  let wrapper
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    apiRequest.mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue([]) })
+  })
+  afterEach(() => wrapper?.unmount())
+
+  it('находит человека и когда собачку скопировали в запрос', async () => {
+    wrapper = mountUserControl([openUser, { ...hiddenUser, username: 'other_user' }])
+    await flushPromises()
+
+    wrapper.vm.userSearch = '@open_user'
+    await flushPromises()
+
+    expect(wrapper.vm.filteredUsers.map(u => u.username)).toEqual(['open_user'])
+  })
+})

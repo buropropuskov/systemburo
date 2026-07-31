@@ -16,7 +16,7 @@
           @mousedown.stop
         >
           <div class="modal-header">
-            <h3>История учётной записи «{{ user.username }}»</h3>
+            <h3>История учётной записи «{{ formatLogin(user.username) }}»</h3>
             <div class="header-actions">
               <button
                 class="export-btn"
@@ -197,6 +197,7 @@
 
 <script>
 import { ref } from 'vue';
+import { formatLogin } from '@/utils/formatName';
 import { apiRequest } from '@/api/client';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import { useDeletionsStore } from '@/stores/deletions';
@@ -214,6 +215,8 @@ const ACTION_TEXTS = {
   restored: 'Учётная запись восстановлена из архива',
   banned: 'Заблокирован',
   unbanned: 'Разблокирован',
+  consent_granted: 'Дал согласие на обработку персональных данных',
+  consent_revoked: 'Отозвал согласие на обработку персональных данных',
 };
 
 const ACTION_DOT_CLASS = {
@@ -227,6 +230,8 @@ const ACTION_DOT_CLASS = {
   restored: 'dot-activate',
   banned: 'dot-deactivate',
   unbanned: 'dot-activate',
+  consent_granted: 'dot-activate',
+  consent_revoked: 'dot-deactivate',
 };
 
 // Читаемые лейблы для полей в details (updated/created).
@@ -393,6 +398,8 @@ export default {
     document.removeEventListener('keydown', this.onKeydown);
   },
   methods: {
+    formatLogin,
+
     onKeydown(e) {
       if (e.key === 'Escape') this.requestClose();
     },
@@ -496,9 +503,14 @@ export default {
           if (d.reason) return `Причина блокировки: «${d.reason}»`;
           return '';
         }
+        // Редакция - главное в записи о согласии: по ней видно, с каким текстом
+        // человек согласился, если текст с тех пор переиздавали.
+        case 'consent_granted':
+          return d.version ? `Редакция ${d.version}` : '';
         case 'password_reset':
         case 'archived':
         case 'restored':
+        case 'consent_revoked':
         default:
           return '';
       }

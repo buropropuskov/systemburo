@@ -270,7 +270,7 @@
                 class="user-col login-col"
                 data-label="Логин"
               >
-                <span class="user-login">{{ user.username }}</span>
+                <span class="user-login">{{ formatLogin(user.username) }}</span>
                 <span
                   v-if="user.is_active === false"
                   class="inactive-badge"
@@ -281,6 +281,12 @@
                   data-testid="users-row-lockout"
                   :title="lockoutTitle(user)"
                 >вход заблокирован</span>
+                <span
+                  v-if="user.consent_required && !user.consent_granted"
+                  class="consent-badge"
+                  data-testid="users-row-no-consent"
+                  title="Не подтвердил согласие на обработку персональных данных"
+                >нет согласия</span>
               </div>
               <div
                 class="user-col name-col"
@@ -607,6 +613,17 @@
           </div>
 
           <div class="full-width-groups">
+            <div class="detail-group">
+              <label class="detail-label">Согласие на обработку данных:</label>
+              <p
+                class="consent-state"
+                :class="{ 'consent-state--missing': selectedUser.consent_required && !selectedUser.consent_granted }"
+                data-testid="user-consent-state"
+              >
+                {{ consentStateLabel(selectedUser) }}
+              </p>
+            </div>
+
             <div class="detail-group detail-group--checkbox">
               <ToggleSwitch
                 :model-value="!!selectedUser.is_important"
@@ -1002,7 +1019,7 @@ import { mapState, mapActions } from 'pinia';
 import { useOrganizationsStore } from '@/stores/organizations';
 import { useCompaniesStore } from '@/stores/companies';
 import { applyPhoneMask } from '@/composables/useRussianPhoneMask'
-import { formatUserLabel } from '@/utils/formatName'
+import { formatUserLabel, formatLogin } from '@/utils/formatName'
 import { isOnline, formatSeenShort, seenTitle, lastSeenSortKey } from '@/utils/presence'
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import SearchComponent from './SearchComponent.vue';
@@ -1183,7 +1200,9 @@ export default {
         : { background: '#c62828', borderColor: '#c62828' };
     },
     filteredUsers() {
-      const variants = buildSearchVariants(this.userSearch);
+      // Логин на экране подписан с собачкой (#1567), и её копируют в поиск вместе
+      // с логином. Ищем по самому логину, поэтому ведущую собачку в запросе снимаем.
+      const variants = buildSearchVariants(this.userSearch.replace(/^\s*@/, ''));
       return this.allUsers
         .filter(user => (this.showArchive ? user.is_active === false : user.is_active !== false))
         .filter(user => !this.onlineOnly || isOnline(user, this.presenceNow))
@@ -1711,6 +1730,25 @@ export default {
         // Имя - необязательная деталь экспорта, молчим (footer покажет дефолт).
       }
     },
+
+    /**
+     * Подпись состояния согласия в карточке. Пока запрос выключен, «не дано» ничего
+     * не значит - согласия нет вообще ни у кого, поэтому такое состояние называется
+     * отдельно.
+     * @param {{consent_granted?: boolean, consent_at?: string, consent_required?: boolean}} user
+     * @returns {string}
+     */
+    consentStateLabel(user) {
+      if (user?.consent_granted) {
+        const at = user.consent_at ? new Date(user.consent_at) : null;
+        return at && !Number.isNaN(at.getTime())
+          ? `Дано ${at.toLocaleDateString('ru-RU')}`
+          : 'Дано';
+      }
+      return user?.consent_required ? 'Не дано' : 'Не дано (согласие сейчас не запрашивается)';
+    },
+
+    formatLogin,
 
     formatUserName(user) {
       // Логин вместо прочерка: ФИО пусто и когда его не заполнили, и когда сервер
@@ -2306,6 +2344,30 @@ export default {
   border-radius: 999px;
   background: var(--danger-bg);
   color: var(--danger-text);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* Согласие не подтверждено - предупреждение, а не ошибка: человек просто ещё не
+   заходил. Поэтому янтарный, а не красный, как у заблокированного входа. */
+.consent-state {
+  margin: 0;
+  padding: 7px 0;
+  font-size: 14px;
+  color: var(--color-text, var(--text));
+}
+
+.consent-state--missing {
+  color: var(--warning-text);
+  font-weight: 600;
+}
+
+.consent-badge {
+  margin-left: 6px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--warning-bg);
+  color: var(--warning-text);
   font-size: 11px;
   white-space: nowrap;
 }

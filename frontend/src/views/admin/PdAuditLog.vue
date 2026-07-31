@@ -211,11 +211,11 @@
               <span
                 v-else
                 class="muted"
-              >{{ item.username || '—' }}</span>
+              >{{ item.username ? formatLogin(item.username) : '—' }}</span>
               <span
                 v-if="item.user_name && item.username"
                 class="pda__login"
-              >{{ item.username }}</span>
+              >{{ formatLogin(item.username) }}</span>
             </td>
             <td data-label="Действие">
               {{ actionLabel(item.action) }}
@@ -280,6 +280,7 @@
 
 <script>
 import { listPDAudit } from '@/api/pd-audit';
+import { formatLogin } from '@/utils/formatName';
 import RefreshButton from '@/components/RefreshButton.vue';
 import BaseDropdown from '@/components/ui/BaseDropdown.vue';
 import FilterButton from '@/components/ui/FilterButton.vue';
@@ -354,6 +355,8 @@ export default {
     this.fetch();
   },
   methods: {
+    formatLogin,
+
     applyFilters() {
       this.page = 1;
       this.fetch();

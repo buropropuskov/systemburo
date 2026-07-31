@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatShortName, formatFullName, formatUserLabel } from '../formatName'
+import { formatShortName, formatFullName, formatUserLabel, formatLogin } from '../formatName'
 
 describe('formatShortName', () => {
   it('полное ФИО -> Фамилия И.О.', () => {
@@ -63,13 +63,28 @@ describe('formatUserLabel', () => {
       .toBe('Иванов И.И.');
   });
 
-  it('падает на логин, когда ФИО скрыто до согласия на обработку данных', () => {
+  it('падает на логин с собачкой, когда ФИО скрыто до согласия на обработку данных', () => {
     expect(formatUserLabel({ last_name: null, first_name: null, middle_name: null, username: 'ivanov' }))
-      .toBe('ivanov');
+      .toBe('@ivanov');
   });
 
   it('пустого пользователя не превращает в мусор', () => {
     expect(formatUserLabel(null)).toBe('');
     expect(formatUserLabel({})).toBe('');
+  });
+});
+
+describe('formatLogin', () => {
+  it('добавляет собачку', () => {
+    expect(formatLogin('ivanov')).toBe('@ivanov');
+  });
+
+  it('вторую собачку не добавляет', () => {
+    expect(formatLogin('@ivanov')).toBe('@ivanov');
+  });
+
+  it('пустой логин оставляет пустым, чтобы не рисовать одинокую собачку', () => {
+    expect(formatLogin('')).toBe('');
+    expect(formatLogin(null)).toBe('');
   });
 });

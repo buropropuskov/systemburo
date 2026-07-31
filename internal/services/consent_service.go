@@ -25,11 +25,15 @@ type ConsentService interface {
 
 type consentService struct {
 	db *gorm.DB
+	// recorder пишет выдачу и отзыв согласия в историю учётной записи. Через Log,
+	// а не Record: провал записи в журнал не должен отменять само согласие -
+	// иначе человек останется заперт в окне из-за сбоя аудита.
+	recorder AuditRecorder
 }
 
 // NewConsentService создаёт сервис для управления согласиями на обработку ПД.
 func NewConsentService(db *gorm.DB) ConsentService {
-	return &consentService{db: db}
+	return &consentService{db: db, recorder: NewAuditRecorder(db)}
 }
 
 // Grant выдаёт согласие на обработку персональных данных указанного типа. Редакцию
@@ -51,6 +55,11 @@ func (s *consentService) Grant(ctx context.Context, userID int, req models.Grant
 	if err := s.db.WithContext(ctx).Create(&consent).Error; err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error granting consent")
 	}
+	// Актор - сам работник: согласие даёт он, а не администратор.
+	s.recorder.Log(ctx, nil, models.AuditEntityUser, &userID, models.UserActionConsentGranted, &userID, map[string]any{
+		"consent_type": req.ConsentType,
+		"version":      consent.DocumentVersion,
+	})
 	return &consent, nil
 }
 
@@ -67,6 +76,9 @@ func (s *consentService) Revoke(ctx context.Context, userID int, consentType str
 	if result.RowsAffected == 0 {
 		return echo.NewHTTPError(http.StatusNotFound, "Active consent not found")
 	}
+	s.recorder.Log(ctx, nil, models.AuditEntityUser, &userID, models.UserActionConsentRevoked, &userID, map[string]any{
+		"consent_type": consentType,
+	})
 	return nil
 }
 

@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -65,8 +66,16 @@ func pdConsentMaskingActive(ctx context.Context, db *gorm.DB) bool {
 // раньше. Считай мы иначе, скрытыми оказались бы имена тех, у кого система согласия
 // и не спрашивает.
 func loadConsentMasks(ctx context.Context, db *gorm.DB) map[int]string {
+	masks, _ := consentMasksWithState(ctx, db)
+	return masks
+}
+
+// consentMasksWithState - то же, что loadConsentMasks, плюс признак «запрос
+// согласия сейчас работает». Пустая карта масок сама по себе не отвечает на этот
+// вопрос: масок нет и когда запрос выключен, и когда все уже согласились.
+func consentMasksWithState(ctx context.Context, db *gorm.DB) (map[int]string, bool) {
 	if !pdConsentMaskingActive(ctx, db) {
-		return nil
+		return nil, false
 	}
 	type row struct {
 		ID       int
@@ -86,13 +95,15 @@ func loadConsentMasks(ctx context.Context, db *gorm.DB) map[int]string {
 		)`, ConsentTypePDProcessing).
 		Scan(&rows).Error
 	if err != nil || len(rows) == 0 {
-		return nil
+		return nil, true
 	}
 	masks := make(map[int]string, len(rows))
 	for _, r := range rows {
-		masks[r.ID] = r.Username
+		// С собачкой, как логины показываются во всём интерфейсе: иначе подставленный
+		// вместо фамилии логин читается как фамилия.
+		masks[r.ID] = "@" + r.Username
 	}
-	return masks
+	return masks, true
 }
 
 // loadNameMasks собирает обе маски отображаемого имени: заданную администратором
@@ -130,4 +141,29 @@ func maskUserParts(masks map[int]string, userID int, last, first, middle **strin
 	*last = nil
 	*first = nil
 	*middle = nil
+}
+
+// loadConsentGrants возвращает user_id -> когда работник дал действующее согласие
+// на обработку персональных данных (RFC3339). Нужна администраторскому списку
+// работников: без неё «дал ли человек согласие» видно только косвенно, по скрытому ФИО.
+func loadConsentGrants(ctx context.Context, db *gorm.DB) map[int]string {
+	type row struct {
+		UserID    int       `gorm:"column:user_id"`
+		GrantedAt time.Time `gorm:"column:granted_at"`
+	}
+	var rows []row
+	err := db.WithContext(ctx).
+		Table("pd_consents").
+		Select("user_id, MAX(granted_at) AS granted_at").
+		Where("consent_type = ? AND granted = true AND revoked_at IS NULL", ConsentTypePDProcessing).
+		Group("user_id").
+		Scan(&rows).Error
+	if err != nil || len(rows) == 0 {
+		return nil
+	}
+	grants := make(map[int]string, len(rows))
+	for _, r := range rows {
+		grants[r.UserID] = r.GrantedAt.UTC().Format(time.RFC3339)
+	}
+	return grants
 }

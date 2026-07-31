@@ -167,7 +167,7 @@
                 :key="u.id"
                 :value="u.id"
               >
-                {{ u.username }}
+                {{ formatLogin(u.username) }}
               </option>
             </select>
             <input
@@ -667,7 +667,7 @@
                     v-for="u in history.top_users"
                     :key="u.user_id"
                   >
-                    <td>{{ u.username }}</td>
+                    <td>{{ formatLogin(u.username) }}</td>
                     <td>{{ formatNum(u.requests) }}</td>
                   </tr>
                   <tr v-if="!history.top_users.length">
@@ -700,6 +700,7 @@
 
 <script>
 import { apiRequest, apiRequestRaw } from '@/api/client'
+import { formatLogin } from '@/utils/formatName';
 import { useDeletionsStore } from '@/stores/deletions'
 import SearchComponent from '@/components/SearchComponent.vue'
 import RealTimeChart from '@/components/RealTimeChart.vue'
@@ -797,6 +798,8 @@ export default {
     this.stopPolling();
   },
   methods: {
+    formatLogin,
+
     switchToAnalytics() {
       this.activeTab = 'analytics'
       if (!this.historyLoaded) {

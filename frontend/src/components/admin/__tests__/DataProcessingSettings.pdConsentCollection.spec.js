@@ -173,22 +173,24 @@ describe('Обработка данных - сбор согласий', () => {
     expect(getPDConsentCollection).toHaveBeenCalledTimes(1);
   });
 
-  // Урезанный список обязан говорить, что он урезан: молча показать часть значит
-  // соврать, что остальных нет.
-  it('урезанный список сообщает об этом, а выгрузка тянет полный', async () => {
-    getPDConsentCollection.mockResolvedValue(collection({
-      truncated: true, total: 400, accepted: 100, pending: 300,
-    }));
+  // Урезанный список догружается целиком сразу: по нему работают поиск и фильтр,
+  // а выгрузка берёт уже загруженное, не ходя на сервер второй раз.
+  it('урезанный список догружается целиком, и выгрузка идёт по нему', async () => {
+    getPDConsentCollection.mockImplementation((opts) => Promise.resolve(collection(
+      opts?.full
+        ? { truncated: false, total: 400, accepted: 100, pending: 300 }
+        : { truncated: true, total: 400, accepted: 100, pending: 300 },
+    )));
     const wrapper = await openSection();
 
-    expect(wrapper.get('[data-testid="pdc-collection-truncated"]').text()).toContain('Показаны первые');
+    expect(getPDConsentCollection).toHaveBeenCalledWith({ full: true });
+    expect(wrapper.vm.pdcPendingComplete).toBe(true);
 
     getPDConsentCollection.mockClear();
-    getPDConsentCollection.mockResolvedValue(collection({ truncated: false, pending: 300 }));
     await wrapper.get('[data-testid="pdc-collection-export"]').trigger('click');
     await flushPromises();
 
-    expect(getPDConsentCollection).toHaveBeenCalledWith({ full: true });
+    expect(getPDConsentCollection).not.toHaveBeenCalled();
   });
 
   it('неурезанный список выгружается без повторного запроса', async () => {
