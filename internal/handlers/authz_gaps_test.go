@@ -37,6 +37,10 @@ var writeBlockedForRegularUser = []struct {
 	{"fileArchive.reexport", http.MethodPost, "/file-archive/applications/1/reexport", `{}`},
 	// Бэкфилл ставит в очередь массовую перезапись файлов диапазона заявок.
 	{"fileArchive.backfill", http.MethodPost, "/file-archive/backfill", `{}`},
+	// Оценка объёма и билет на потоковый ZIP архива (#1615, B3) - тот же раздел, что
+	// настройки и пересоздание, обычному юзеру недоступен целиком.
+	{"fileArchive.estimate", http.MethodPost, "/file-archive/estimate", `{"date_from":"2026-01-01","date_to":"2026-01-31"}`},
+	{"fileArchive.downloadTicket", http.MethodPost, "/file-archive/download-ticket", `{"date_from":"2026-01-01","date_to":"2026-01-31"}`},
 }
 
 // readBlockedForRegularUser — списки/карта доступов, которые нельзя выгружать вне контекста.
@@ -55,6 +59,11 @@ var readBlockedForRegularUser = []struct {
 	{"fileArchive.settings", "/file-archive/settings"},
 	{"fileArchive.tokens", "/file-archive/tokens"},
 	{"fileArchive.stats", "/file-archive/stats"},
+	// Реестр файлового архива (#1615, B3) - тем же ключом page.admin.file_archive.
+	// GET /file-archive/files/:id сюда не входит - в отличие от прочих ручек этого
+	// раздела, он зависит от конкретной строки реестра и на пустой базе отдаёт 404
+	// даже носителю права, ломая инвариант "админ читает всё" ниже.
+	{"fileArchive.items", "/file-archive/items"},
 }
 
 // readOpenForRegularUser — справочники, чтение которых нужно форме заявки и должно

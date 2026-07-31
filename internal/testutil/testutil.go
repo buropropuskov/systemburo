@@ -301,6 +301,12 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 			archiveWriter, settingsService, blankExportQuotaService),
 		auditRecorder)
 	blankArchiveStatsHandler := handlers.NewBlankArchiveStatsHandler(blankExportQuotaService)
+	// Скачивание из файлового архива (#1615, срез B3) - тот же писатель и корень, что
+	// у сервиса выгрузки выше; access/resolver повторяют пару, которой пользуется
+	// attachmentBlankHandler ниже, чтобы гейт ZIP заявки и гейт одного бланка не разъехались.
+	archiveDownloadHandler := handlers.NewArchiveDownloadHandler(
+		services.NewArchiveDownloadService(db, archiveWriter, settingsService),
+		applicationService, permissionResolver)
 	telegramService := services.NewTelegramService("", "")
 	bugReportService := services.NewBugReportService(db, telegramService)
 	bugReportHandler := handlers.NewBugReportHandler(bugReportService)
@@ -406,6 +412,7 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 		Search:              searchHandler,
 		BlankArchive:        blankArchiveHandler,
 		BlankArchiveStats:   blankArchiveStatsHandler,
+		ArchiveDownload:     archiveDownloadHandler,
 		PermResolver:        permissionResolver,
 		DenialLog:           accessDenialService,
 		TableReportGate:     mw.RequireTableVerb(db, permissionResolver, accessDenialService, "report"),

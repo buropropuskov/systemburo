@@ -70,6 +70,7 @@ type Dependencies struct {
 	Search              *handlers.SearchHandler
 	BlankArchive        *handlers.BlankArchiveHandler
 	BlankArchiveStats   *handlers.BlankArchiveStatsHandler
+	ArchiveDownload     *handlers.ArchiveDownloadHandler
 
 	// Services (для middleware и audit)
 	PermResolver *services.PermissionResolver
@@ -157,6 +158,7 @@ func Setup(e *echo.Echo, d Dependencies) {
 	audit := d.Audit
 	authEvents := d.AuthEvents
 	events := d.Events
+	archiveDownload := d.ArchiveDownload
 	permResolver := d.PermResolver
 	denialLog := d.DenialLog
 	// requireAdmin — гейт admin-страниц по page.admin (super/admin проходят,
@@ -211,6 +213,15 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// query утёк бы в журналы. Consume билета внутри Stream.
 	if events != nil {
 		api.GET("/events", events.Stream)
+	}
+
+	// Потоковый ZIP файлового архива за период (#1615, B3). Публичный роут намеренно,
+	// как и /events: прямая ссылка/клик по кнопке скачивания не может нести заголовок
+	// Authorization. Авторизация - одноразовым билетом из query (выдаётся защищённым
+	// POST /file-archive/download-ticket ниже), сам билет несёт и право, и границы
+	// периода - consume внутри Download.
+	if archiveDownload != nil {
+		api.GET("/file-archive/download", archiveDownload.Download)
 	}
 
 	// Protected routes
@@ -736,6 +747,11 @@ func Setup(e *echo.Echo, d Dependencies) {
 	apg.GET("/:id/details", app.GetApplicationDetails)
 	apg.GET("/:id/attachments", app.GetApplicationAttachments)
 	apg.GET("/:id/blank", attachmentBlanks.Download) // #183 - скачать заполненный .xlsx
+	if archiveDownload != nil {
+		// ZIP сохранённых бланков заявки из файлового архива (#1615, B3). Гейт тот же,
+		// что у скачивания одного бланка (canDownloadBlank) - не выше и не ниже.
+		apg.GET("/:id/archive", archiveDownload.Archive)
+	}
 	apg.POST("/:id/update-items-status", app.UpdateApplicationItemsStatus)
 	apg.POST("/:id/forward", app.ForwardApplication)
 	apg.GET("/:id/forward-messages", app.GetForwardMessages) // #967 - ветка заявки (пересылки)
@@ -1001,6 +1017,17 @@ func Setup(e *echo.Echo, d Dependencies) {
 		// просмотр настроек: занятое место видит любой, кому виден раздел.
 		if stats := d.BlankArchiveStats; stats != nil {
 			faGroup.GET("/stats", stats.GetStats)
+		}
+		// Скачивание из файлового архива (#1615, срез B3). Список и оценка объёма -
+		// тот же уровень, что просмотр раздела; фактическая выгрузка байтов (билет,
+		// отдельный файл) требует дополнительно action.download.file_archive - право
+		// на скачивание тяжелее просмотра сводки, как настройка тяжелее просмотра.
+		if archiveDownload != nil {
+			downloadFileArchive := mw.RequirePermissionV2(permResolver, denialLog, services.KeyActionDownloadFileArchive)
+			faGroup.GET("/items", archiveDownload.ListItems)
+			faGroup.POST("/estimate", archiveDownload.EstimateDownload)
+			faGroup.POST("/download-ticket", archiveDownload.IssueDownloadTicket, downloadFileArchive)
+			faGroup.GET("/files/:id", archiveDownload.DownloadFile, downloadFileArchive)
 		}
 	}
 
