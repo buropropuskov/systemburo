@@ -269,7 +269,9 @@ export default {
 <style scoped>
 .gsp {
   position: fixed;
-  top: 0;
+  /* Панель начинается под шапкой: накрывая её, она обрезала кнопки и выглядела
+     съехавшей поверх интерфейса, а не рядом с ним. */
+  top: 60px;
   right: 0;
   bottom: 0;
   width: 420px;
@@ -414,10 +416,8 @@ export default {
 @media (max-width: 768px) {
   .gsp {
     width: 100vw;
-    /* Высота от видимой части окна: на мобилке её занимает клавиатура. */
-    height: var(--app-vvh, 100%);
-    top: var(--app-vvt, 0);
-    bottom: auto;
+    top: var(--mobile-header-height, 55px);
+    bottom: 0;
   }
 }
 </style>
