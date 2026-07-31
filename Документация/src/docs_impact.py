@@ -64,7 +64,8 @@ MAP = [
     (r"^internal/crypto/", "Техописание",
      "13.5 защита персональных данных при хранении"),
     (r"^internal/models/pd|^internal/middleware/pd_|^internal/services/pd_|"
-     r"^internal/handlers/(consent|settings_pd)", "Оба",
+     r"^internal/handlers/(consent|settings_pd)|_mask|^internal/services/"
+     r"(approver_mask|audit_reader)|^frontend/src/utils/formatName\.js$", "Оба",
      "13.6 и 13.7 персональные данные; критерии раздела 5"),
     (r"^cmd/server/main\.go$", "Техописание",
      "9.3 периодические задачи"),
