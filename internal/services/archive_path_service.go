@@ -144,6 +144,11 @@ func (s *ArchivePathService) attachmentValues(ctx context.Context, applicationID
 	return row, nil
 }
 
+// Location отдаёт рабочую таймзону раскладки. Нужна тем, кто задаёт границы
+// периода по календарным датам: реестр и пути на диске живут по местной дате, и
+// граница, посчитанная в UTC, отрезала бы не тот кусок суток.
+func (s *ArchivePathService) Location() *time.Location { return s.loc }
+
 // BucketDate возвращает дату каталога заявки - местную дату подачи.
 func (s *ArchivePathService) BucketDate(sending *time.Time) time.Time {
 	return s.bucketDate(sending)

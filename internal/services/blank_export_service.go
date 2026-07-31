@@ -33,6 +33,10 @@ const (
 	// BlankExportReasonRecheck - ночная сверка реестра с диском (B1): полный прогон
 	// заявок в окне recheck_days, независимо от того, звала ли их очередь.
 	BlankExportReasonRecheck = "recheck"
+	// BlankExportReasonBackfill - ручной бэкфилл за период (B4): администратор просит
+	// пересобрать бланки диапазона, не дожидаясь ночной сверки, либо пересоздаёт файлы
+	// одного типа после правки маппингов шаблона.
+	BlankExportReasonBackfill = "backfill"
 )
 
 // Паузы перед повтором неудачной выгрузки: минута с удвоением до шести часов.
@@ -98,6 +102,11 @@ func (s *BlankExportService) Wake() <-chan struct{} {
 func (s *BlankExportService) Writer() *ArchiveWriter {
 	return s.writer
 }
+
+// Location - рабочая таймзона раскладки архива. Границы бэкфилла считаются по ней,
+// иначе они разъедутся с bucket_date: заявка, поданная вечером по местному времени,
+// в UTC относится уже к следующим суткам.
+func (s *BlankExportService) Location() *time.Location { return s.paths.Location() }
 
 // blankExportTarget - вложение заявки вместе с тем, что решает его судьбу: тумблер
 // типа и наличие активного бланка.

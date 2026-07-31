@@ -35,6 +35,8 @@ var writeBlockedForRegularUser = []struct {
 	{"fileArchive.preview", http.MethodPost, "/file-archive/preview", `{}`},
 	// Пересоздание бланков заявки переписывает файлы на диске сервера.
 	{"fileArchive.reexport", http.MethodPost, "/file-archive/applications/1/reexport", `{}`},
+	// Бэкфилл ставит в очередь массовую перезапись файлов диапазона заявок.
+	{"fileArchive.backfill", http.MethodPost, "/file-archive/backfill", `{}`},
 }
 
 // readBlockedForRegularUser — списки/карта доступов, которые нельзя выгружать вне контекста.
