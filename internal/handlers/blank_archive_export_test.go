@@ -120,6 +120,7 @@ func TestFileArchiveExport(t *testing.T) {
 	t.Run("повтор не трогает файл", func(t *testing.T) { archiveDedupSection(t, w) })
 	t.Run("смена организации переносит папку", func(t *testing.T) { archiveRenameSection(t, w) })
 	t.Run("тип без бланка", func(t *testing.T) { archiveNoTemplateSection(t, w) })
+	t.Run("слепок заявки рядом с бланками", func(t *testing.T) { archiveSnapshotSection(t, w) })
 	t.Run("выключенный тумблер типа", func(t *testing.T) { archiveSkippedSection(t, w) })
 	t.Run("две заявки в одну папку", func(t *testing.T) { archiveDirCollisionSection(t, w) })
 	t.Run("заморозка закрытой заявки", func(t *testing.T) { archiveFreezeSection(t, w) })

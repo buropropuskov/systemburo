@@ -119,8 +119,9 @@ func (s *BlankExportService) ExportApplication(ctx context.Context, applicationI
 	// Замороженная заявка остаётся там, где лежит: путь уже уехал в корпоративную
 	// копию, и переименование развело бы копии по разным папкам. Новые вложения
 	// такой заявки лягут в ту же папку - она и есть папка этой заявки.
-	if frozen := frozenDir(registry); frozen != "" {
-		levels = splitRelDir(frozen)
+	frozenApplicationDir := frozenDir(registry)
+	if frozenApplicationDir != "" {
+		levels = splitRelDir(frozenApplicationDir)
 	} else {
 		levels, result.Renamed, err = s.relocate(ctx, registry, levels)
 		if err != nil {
@@ -141,6 +142,17 @@ func (s *BlankExportService) ExportApplication(ctx context.Context, applicationI
 		})
 		result.Items = append(result.Items, item)
 	}
+
+	// Слепок заявки (заявка.json) живёт в той же папке, что и бланки, и замирает
+	// вместе с ними: заморозка распространяется на него так же, как и на бланки -
+	// без этого файл с текущим состоянием заявки продолжал бы обновляться рядом с
+	// уже неизменными, окончательными бланками.
+	if frozenApplicationDir == "" {
+		if err := writeApplicationSnapshot(ctx, s.db, s.writer, applicationID, levels); err != nil {
+			slog.Error("не удалось записать слепок заявки в архив", "application_id", applicationID, "error", err)
+		}
+	}
+
 	return result, nil
 }
 
