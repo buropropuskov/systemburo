@@ -29,7 +29,6 @@
               <button
                 class="export-btn"
                 :disabled="filteredHistory.length === 0 || isExporting"
-                title="Экспорт в Excel"
                 aria-label="Экспорт в Excel"
                 @click="exportToExcel"
               >
@@ -39,6 +38,10 @@
                   class="export-icon"
                   alt=""
                 >
+                <span
+                  v-if="!isExporting"
+                  class="export-label"
+                >Экспорт</span>
                 <div
                   v-else
                   class="export-loader"
@@ -952,12 +955,13 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
+  gap: 8px;
   height: 32px;
-  padding: 0;
+  padding: 6px 16px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 50%;
+  border-radius: 20px;
+  font-size: 13px;
   color: var(--text);
   cursor: pointer;
   transition: all 0.2s ease;
@@ -974,8 +978,8 @@ export default {
 }
 
 .export-icon {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
 }
 
 .export-loader {
@@ -1387,6 +1391,25 @@ export default {
   .close-btn {
     min-width: 40px;
     min-height: 40px;
+  }
+
+  /* На узкой шапке подпись не помещается рядом с названием - остаётся круглая иконка
+     (#1239), на десктопе кнопка подписана как в остальных историях. */
+  .export-btn {
+    width: 32px;
+    padding: 0;
+    gap: 0;
+    border-radius: 50%;
+  }
+
+  .export-label {
+    display: none;
+  }
+
+  /* Одиночной иконке без подписи нужен вес. */
+  .export-icon {
+    width: 16px;
+    height: 16px;
   }
 
   .modal-fade-enter-active .employee-history-modal {
