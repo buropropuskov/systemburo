@@ -215,6 +215,8 @@ const ACTION_TEXTS = {
   restored: 'Учётная запись восстановлена из архива',
   banned: 'Заблокирован',
   unbanned: 'Разблокирован',
+  consent_granted: 'Дал согласие на обработку персональных данных',
+  consent_revoked: 'Отозвал согласие на обработку персональных данных',
 };
 
 const ACTION_DOT_CLASS = {
@@ -228,6 +230,8 @@ const ACTION_DOT_CLASS = {
   restored: 'dot-activate',
   banned: 'dot-deactivate',
   unbanned: 'dot-activate',
+  consent_granted: 'dot-activate',
+  consent_revoked: 'dot-deactivate',
 };
 
 // Читаемые лейблы для полей в details (updated/created).
@@ -499,9 +503,14 @@ export default {
           if (d.reason) return `Причина блокировки: «${d.reason}»`;
           return '';
         }
+        // Редакция - главное в записи о согласии: по ней видно, с каким текстом
+        // человек согласился, если текст с тех пор переиздавали.
+        case 'consent_granted':
+          return d.version ? `Редакция ${d.version}` : '';
         case 'password_reset':
         case 'archived':
         case 'restored':
+        case 'consent_revoked':
         default:
           return '';
       }

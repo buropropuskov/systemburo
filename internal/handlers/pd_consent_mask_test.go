@@ -393,3 +393,30 @@ func userConsentRow(t *testing.T, e *echo.Echo, token, username string) consentR
 	t.Fatalf("работник %s не найден", username)
 	return consentRow{}
 }
+
+// Согласие - факт о самом работнике, и в истории его учётной записи он должен быть
+// виден администратору наравне с остальными событиями.
+func TestPDConsent_Accept_WritesUserHistory(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	enableConsent(t, e, admin, "<p>Согласие</p>")
+
+	user := testutil.RegisterAndLogin(t, e, "hist_consent", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, "{}", testutil.AuthHeader(user)).Code)
+
+	rec := testutil.GET(t, e, "/users/hist_consent/history", testutil.AuthHeader(admin))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	body := rec.Body.String()
+	assert.Contains(t, body, "consent_granted", "выдача согласия попала в историю учётной записи")
+	assert.Contains(t, body, "hist_consent", "актор - сам работник, а не администратор")
+
+	// Отзыв тоже записывается: без него в истории остаётся только половина правды.
+	require.Equal(t, http.StatusOK,
+		testutil.DELETE(t, e, "/consents/pd_processing", testutil.AuthHeader(user)).Code)
+	after := testutil.GET(t, e, "/users/hist_consent/history", testutil.AuthHeader(admin))
+	require.Equal(t, http.StatusOK, after.Code)
+	assert.Contains(t, after.Body.String(), "consent_revoked")
+}
