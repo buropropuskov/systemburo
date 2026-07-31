@@ -169,3 +169,29 @@ type ArchiveTemplateIssue struct {
 	Token  string `json:"token"`
 	Reason string `json:"reason"`
 }
+
+// BlankExportItem - итог выгрузки одного бланка. Отдаётся администратору после
+// ручного пересоздания и им же отчитывается фоновый воркер в журнал.
+type BlankExportItem struct {
+	AttachmentID int    `json:"attachment_id"`
+	Status       string `json:"status"`
+	RelPath      string `json:"rel_path"`
+	// Written - файл действительно переписан. false при совпадении содержимого:
+	// mtime не двигается, и инкрементальная синхронизация не тянет файл заново.
+	Written bool `json:"written"`
+	// Frozen - файл окончателен и больше не перезаписывается.
+	Frozen bool   `json:"frozen"`
+	Error  string `json:"error"`
+}
+
+// BlankExportResult - итог выгрузки заявки целиком. Единица обработки именно заявка:
+// папка принадлежит ей, и переименование из нескольких строк одновременно - гонка.
+type BlankExportResult struct {
+	ApplicationID int `json:"application_id"`
+	// RelDir - фактический каталог заявки после прогона.
+	RelDir string `json:"rel_dir"`
+	// Renamed - каталог заявки переехал на этом прогоне (поправили организацию,
+	// номер или шаблон раскладки).
+	Renamed bool              `json:"renamed"`
+	Items   []BlankExportItem `json:"items"`
+}

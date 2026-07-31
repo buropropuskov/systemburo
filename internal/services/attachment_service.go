@@ -115,6 +115,19 @@ func (s *attachmentService) Create(ctx context.Context, userID int, req models.C
 		slog.Error("failed to create attachment", "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка при создании вложения")
 	}
+	// У auto_export задан default:true, а gorm выбрасывает из INSERT поля с нулевым
+	// значением, если у колонки есть значение по умолчанию - выключенный тумблер
+	// молча превращался бы во включённый, и бланки типа уезжали бы в архив вопреки
+	// решению администратора (#1615). Дописываем отдельным UPDATE, потому что судить
+	// по attachment.AutoExport после вставки уже нельзя: там лежит default из базы.
+	if req.AutoExport != nil && !*req.AutoExport {
+		if err := s.db.WithContext(ctx).Model(&models.UniqueAttachment{}).
+			Where("id = ?", attachment.ID).Update("auto_export", false).Error; err != nil {
+			slog.Error("failed to disable attachment auto export", "id", attachment.ID, "error", err)
+			return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка при создании вложения")
+		}
+		attachment.AutoExport = false
+	}
 
 	s.recorder.Log(ctx, nil, models.AuditEntityUniqueAttachment, &attachment.ID, models.UniqueAttachmentActionCreated, &userID, map[string]any{"display_name": req.DisplayName})
 	return &models.CreateUniqueAttachmentResponse{

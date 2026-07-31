@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -42,6 +43,10 @@ const (
 // tables lists all tables in FK-safe deletion order (dependents first).
 var tables = []string{
 	"audit_log",
+	// blank_exports живёт без внешних ключей, поэтому чистка заявок её строк не
+	// снимает: прошлый прогон оставлял заявку с тем же идентификатором уже
+	// выгруженной и замороженной, и следующий видел чужое состояние (#1615).
+	"blank_exports",
 	"daily_pass_reports",
 	"system_settings",
 	"user_online_peaks",
@@ -85,6 +90,16 @@ var tables = []string{
 // AutoMigrate runs once per test binary via sync.Once; each test still uses CleanDB for isolation.
 func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	t.Helper()
+	e, db, _, cleanup := setupTestApp(t, false)
+	return e, db, cleanup
+}
+
+// SetupTestAppWithArchive - то же приложение плюс путь к корню файлового архива
+// (#1615). Отдельной функцией: корень нужен единицам тестов, которые проверяют
+// файлы на диске, а менять сигнатуру SetupTestApp ради них - трогать три сотни
+// чужих вызовов.
+func SetupTestAppWithArchive(t *testing.T) (*echo.Echo, *gorm.DB, string, func()) {
+	t.Helper()
 	return setupTestApp(t, false)
 }
 
@@ -96,10 +111,11 @@ func SetupTestApp(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 // начали бы получать 403 вместо своих ответов.
 func SetupTestAppWithConsentGate(t *testing.T) (*echo.Echo, *gorm.DB, func()) {
 	t.Helper()
-	return setupTestApp(t, true)
+	e, db, _, cleanup := setupTestApp(t, true)
+	return e, db, cleanup
 }
 
-func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, func()) {
+func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, string, func()) {
 	t.Helper()
 
 	crypto.SetGlobalKey(nil) // passthrough in tests
@@ -228,9 +244,19 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, fun
 	consentHandler := handlers.NewConsentHandler(consentService, pdConsentGateService, settingsService, db)
 	settingsHandler := handlers.NewSettingsHandler(settingsService, documentFileService, 10*1024*1024, pdConsentGateService, pdConsentStatsService)
 	// Файловый архив поднимается и в тестах: без него роуты /file-archive не
-	// существуют, и гвард прав сверялся бы с роутером, где их просто нет.
+	// существуют, и гвард прав сверялся бы с роутером, где их просто нет. Корень
+	// архива - временный каталог теста: запись проверяется на настоящем диске,
+	// подменять писатель заглушкой смысла нет, он ровно про диск и есть.
+	archiveDir := filepath.Join(t.TempDir(), "archive")
+	archiveWriter, err := services.NewArchiveWriter(archiveDir)
+	if err != nil {
+		t.Fatalf("archive writer: %v", err)
+	}
+	archivePathService := services.NewArchivePathService(db, time.UTC)
 	blankArchiveHandler := handlers.NewBlankArchiveHandler(
-		settingsService, services.NewArchivePathService(db, time.UTC), auditRecorder)
+		settingsService, archivePathService,
+		services.NewBlankExportService(db, attachmentBlankService, archivePathService, archiveWriter, settingsService),
+		auditRecorder)
 	telegramService := services.NewTelegramService("", "")
 	bugReportService := services.NewBugReportService(db, telegramService)
 	bugReportHandler := handlers.NewBugReportHandler(bugReportService)
@@ -348,7 +374,7 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, fun
 	// No-op cleanup: shared DB stays open for the test binary lifetime.
 	cleanup := func() {}
 
-	return e, db, cleanup
+	return e, db, archiveDir, cleanup
 }
 
 // CleanDB deletes all test data and re-seeds reference tables.

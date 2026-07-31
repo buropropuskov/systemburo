@@ -301,8 +301,19 @@ func main() {
 		slog.Warn("неверный RESET_TIMEZONE, используем UTC", "timezone", cfg.ResetTimezone, "error", err)
 		resetLoc = time.UTC
 	}
+	archivePathService := services.NewArchivePathService(db, resetLoc)
+	// Писатель архива поднимается один на процесс. Не сложился корень - раздел
+	// настроек всё равно должен открываться, поэтому сервис выгрузки остаётся nil,
+	// а ручка пересоздания честно отвечает «архив недоступен».
+	var blankExportService *services.BlankExportService
+	if archiveWriter, err := services.NewArchiveWriter(cfg.ArchivePath); err != nil {
+		slog.Error("файловый архив не поднят", "path", cfg.ArchivePath, "error", err)
+	} else {
+		blankExportService = services.NewBlankExportService(
+			db, attachmentBlankService, archivePathService, archiveWriter, settingsService)
+	}
 	blankArchiveHandler := handlers.NewBlankArchiveHandler(
-		settingsService, services.NewArchivePathService(db, resetLoc), auditRecorder)
+		settingsService, archivePathService, blankExportService, auditRecorder)
 	bugReportHandler := handlers.NewBugReportHandler(bugReportService)
 	maintenanceHandler := handlers.NewMaintenanceHandler(maintenanceService)
 	markHandler := handlers.NewMarkHandler(markService)

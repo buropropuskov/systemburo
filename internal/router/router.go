@@ -991,6 +991,8 @@ func Setup(e *echo.Echo, d Dependencies) {
 		faGroup.PUT("/settings", blankArchive.UpdateSettings, manageFileArchive)
 		faGroup.GET("/tokens", blankArchive.GetTokens)
 		faGroup.POST("/preview", blankArchive.Preview, manageFileArchive)
+		// Пересоздание файлов заявки переписывает диск - право то же, что на настройки.
+		faGroup.POST("/applications/:id/reexport", blankArchive.Reexport, manageFileArchive)
 	}
 
 	// Статистика дашборда (#632). Доступ ограничен page.statistics.
