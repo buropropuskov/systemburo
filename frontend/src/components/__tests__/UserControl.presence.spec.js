@@ -59,7 +59,8 @@ const onlineBadges = w => w.findAll('[data-testid="users-row-online-badge"]')
 // Текст подсказки берём из aria-label якоря: пузырёк телепортируется в body и
 // рендерится только на наведение.
 const hintText = cell => cell.find('[data-testid="users-row-seen-hint"]').attributes('aria-label')
-const rowLogins = w => w.findAll('.user-login').map(el => el.text())
+// Логин в списке показывается с собачкой (#1567) - в ожиданиях спеки её нет, срезаем.
+const rowLogins = w => w.findAll('.user-login').map(el => el.text().replace(/^@/, ''))
 
 describe('UserControl — колонка присутствия', () => {
   let wrapper

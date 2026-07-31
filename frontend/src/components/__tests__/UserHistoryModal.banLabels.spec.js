@@ -112,3 +112,37 @@ describe('UserHistoryModal — лейблы блокировки', () => {
     expect(vm.formatBanDuration('2026-05-01T10:00:00Z', '2026-05-01T09:00:00Z')).toBe('');
   });
 });
+
+describe('UserHistoryModal — согласие на обработку данных', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    apiRequest.mockReset();
+  });
+
+  it('выдачу согласия подписывает по-русски и показывает редакцию', async () => {
+    const wrapper = await mountWith([entry({
+      action_type: 'consent_granted',
+      details: { consent_type: 'pd_processing', version: 17 },
+      actor_name: 'Проверкин П.П.',
+    })]);
+
+    const text = wrapper.text();
+    expect(text).toContain('Дал согласие на обработку персональных данных');
+    expect(text).toContain('Редакция 17');
+    // Сырого значения из базы в интерфейсе быть не должно.
+    expect(text).not.toContain('consent_granted');
+
+    wrapper.unmount();
+  });
+
+  it('отзыв согласия тоже подписан', async () => {
+    const wrapper = await mountWith([entry({
+      action_type: 'consent_revoked',
+      details: { consent_type: 'pd_processing' },
+    })]);
+
+    expect(wrapper.text()).toContain('Отозвал согласие на обработку персональных данных');
+
+    wrapper.unmount();
+  });
+});

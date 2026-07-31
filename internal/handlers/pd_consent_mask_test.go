@@ -155,7 +155,7 @@ func TestPDConsentMask_ApplicationSender_MaskedByLogin(t *testing.T) {
 
 	after := applicationSenderNames(t, e, admin)
 	assert.NotContains(t, after, "Заявкин", "ФИО подавшего скрыто")
-	assert.Contains(t, after, "mask_sender", "вместо ФИО показывается логин")
+	assert.Contains(t, after, "@mask_sender", "вместо ФИО показывается логин с собачкой")
 }
 
 // applicationSenderNames собирает имена подавших из списка Центра заявок одной строкой.
@@ -344,4 +344,100 @@ func TestPDConsentMask_ApproverHistory_HidesBothNames(t *testing.T) {
 	require.Equal(t, http.StatusOK, after.Code)
 	assert.NotContains(t, after.Body.String(), "Назначенов", "ФИО назначенного принимающего скрыто")
 	assert.Contains(t, after.Body.String(), "mask_subject", "вместо ФИО подставлен логин")
+}
+
+// Признак согласия в списке работников: администратор должен видеть, дал ли человек
+// согласие, прямо в разделе «Работники», а не догадываться по скрытому ФИО.
+func TestPDConsentMask_UsersList_ShowsConsentState(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	user := testutil.RegisterAndLogin(t, e, "consent_state", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
+
+	before := userConsentRow(t, e, admin, "consent_state")
+	assert.False(t, before.ConsentGranted, "согласия ещё нет")
+	assert.False(t, before.ConsentRequired, "запрос выключен - «не дано» ничего не значит")
+
+	enableConsent(t, e, admin, "<p>Согласие</p>")
+	during := userConsentRow(t, e, admin, "consent_state")
+	assert.True(t, during.ConsentRequired, "запрос включён и этого работника касается")
+	assert.False(t, during.ConsentGranted)
+
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, "{}", testutil.AuthHeader(user)).Code)
+	after := userConsentRow(t, e, admin, "consent_state")
+	assert.True(t, after.ConsentGranted, "после подтверждения согласие видно")
+	require.NotNil(t, after.ConsentAt, "дата согласия проставлена")
+
+	// Кого запрос не касается: супер-администратор, архивный и заблокированный.
+	assert.False(t, userConsentRow(t, e, admin, "testadmin").ConsentRequired, "супер-администратор")
+
+	testutil.RegisterAndLogin(t, e, "consent_archived", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
+	require.NoError(t, db.Model(&models.User{}).Where("username = ?", "consent_archived").
+		Update("is_active", false).Error)
+	assert.False(t, userConsentRowArchived(t, e, admin, "consent_archived").ConsentRequired, "архивный")
+
+	testutil.RegisterAndLogin(t, e, "consent_banned", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
+	require.NoError(t, db.Model(&models.User{}).Where("username = ?", "consent_banned").
+		Update("is_banned", true).Error)
+	assert.False(t, userConsentRow(t, e, admin, "consent_banned").ConsentRequired, "заблокированный")
+}
+
+type consentRow struct {
+	Username        string  `json:"username"`
+	ConsentGranted  bool    `json:"consent_granted"`
+	ConsentAt       *string `json:"consent_at"`
+	ConsentRequired bool    `json:"consent_required"`
+}
+
+func userConsentRow(t *testing.T, e *echo.Echo, token, username string) consentRow {
+	t.Helper()
+	return findConsentRow(t, e, token, username, "/users/all")
+}
+
+// userConsentRowArchived - тот же запрос, но с архивными: по умолчанию их в списке нет.
+func userConsentRowArchived(t *testing.T, e *echo.Echo, token, username string) consentRow {
+	t.Helper()
+	return findConsentRow(t, e, token, username, "/users/all?include_archived=true")
+}
+
+func findConsentRow(t *testing.T, e *echo.Echo, token, username, path string) consentRow {
+	t.Helper()
+	rec := testutil.GET(t, e, path, testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	for _, r := range testutil.ParseResponse[[]consentRow](t, rec) {
+		if r.Username == username {
+			return r
+		}
+	}
+	t.Fatalf("работник %s не найден", username)
+	return consentRow{}
+}
+
+// Согласие - факт о самом работнике, и в истории его учётной записи он должен быть
+// виден администратору наравне с остальными событиями.
+func TestPDConsent_Accept_WritesUserHistory(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	enableConsent(t, e, admin, "<p>Согласие</p>")
+
+	user := testutil.RegisterAndLogin(t, e, "hist_consent", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, "{}", testutil.AuthHeader(user)).Code)
+
+	rec := testutil.GET(t, e, "/users/hist_consent/history", testutil.AuthHeader(admin))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	body := rec.Body.String()
+	assert.Contains(t, body, "consent_granted", "выдача согласия попала в историю учётной записи")
+	assert.Contains(t, body, "hist_consent", "актор - сам работник, а не администратор")
+
+	// Отзыв тоже записывается: без него в истории остаётся только половина правды.
+	require.Equal(t, http.StatusOK,
+		testutil.DELETE(t, e, "/consents/pd_processing", testutil.AuthHeader(user)).Code)
+	after := testutil.GET(t, e, "/users/hist_consent/history", testutil.AuthHeader(admin))
+	require.Equal(t, http.StatusOK, after.Code)
+	assert.Contains(t, after.Body.String(), "consent_revoked")
 }

@@ -77,6 +77,13 @@ type Config struct {
 	// PdAuditRetentionMonths - срок хранения аудита ПД (152-ФЗ): партиции старше
 	// дропаются. По умолчанию 36 месяцев (3 года).
 	PdAuditRetentionMonths int `env:"PD_AUDIT_RETENTION_MONTHS" envDefault:"36"`
+
+	// Суточная уборка технического мусора (#1614). Считается от момента, когда
+	// запись обесценилась: у токена - от истечения или отзыва, у уведомления - от
+	// создания при снятой отметке непрочитанного. Остальные журналы автоматика не
+	// трогает, для них есть подкоманда cleanup.
+	RefreshTokenRetentionDays     int `env:"REFRESH_TOKEN_RETENTION_DAYS" envDefault:"30"`
+	ReadNotificationRetentionDays int `env:"READ_NOTIFICATION_RETENTION_DAYS" envDefault:"30"`
 }
 
 func Load() (*Config, error) {

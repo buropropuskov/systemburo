@@ -303,14 +303,22 @@ func (s *userService) GetAll(ctx context.Context, includeArchived bool) ([]model
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching users")
 	}
 
-	if masks := loadConsentMasks(ctx, s.db); len(masks) > 0 {
-		for i := range result {
-			if _, hidden := masks[result[i].ID]; !hidden {
-				continue
-			}
-			maskUserParts(masks, result[i].ID, &result[i].LastName, &result[i].FirstName, &result[i].MiddleName)
-			result[i].NameHidden = true
+	masks, consentActive := consentMasksWithState(ctx, s.db)
+	grants := loadConsentGrants(ctx, s.db)
+	for i := range result {
+		if at, ok := grants[result[i].ID]; ok {
+			result[i].ConsentGranted = true
+			granted := at
+			result[i].ConsentAt = &granted
 		}
+		// Кого запрос согласия реально касается - та же мерка, что у гейта.
+		result[i].ConsentRequired = consentActive && !result[i].IsSuperAdmin &&
+			result[i].IsActive && !result[i].IsBanned
+		if _, hidden := masks[result[i].ID]; !hidden {
+			continue
+		}
+		maskUserParts(masks, result[i].ID, &result[i].LastName, &result[i].FirstName, &result[i].MiddleName)
+		result[i].NameHidden = true
 	}
 	return result, nil
 }

@@ -72,12 +72,9 @@
                 Эти данные нужны, чтобы оформлять и согласовывать заявки на проход, показывать
                 вас коллегам как участника заявки и вести учёт доступа на территорию.
               </p>
-              <p class="pdc-aside__text">
-                Слева - полный текст согласия. Подтвердить его можно, прочитав документ до
-                конца: кнопка станет активной.
-              </p>
               <p class="pdc-aside__note">
-                Отказаться можно в любой момент - обратитесь в Бюро пропусков.
+                Отозвать согласие можно, обратившись в бюро пропусков. После отзыва система
+                снова покажет это окно, и до нового подтверждения работать в ней не получится.
               </p>
             </aside>
           </div>
@@ -373,8 +370,8 @@ async function download() {
 .pdc-modal {
   display: flex;
   flex-direction: column;
-  width: 1040px;
-  max-width: 95vw;
+  width: 880px;
+  max-width: 94vw;
   /* --app-vh, а не vh: под корневым zoom и с мобильной адресной строкой
      единицы vh врут и окно уезжает за экран (#1359). */
   max-height: calc(var(--app-vh, 1vh) * 88);
@@ -384,10 +381,14 @@ async function download() {
   box-shadow: 0 30px 80px rgba(10, 14, 24, 0.45);
 }
 
+/* Шапка пастельная, а не заливка акцентом: окно видит каждый работник при первом
+   входе, и ярко-синяя плашка во весь верх читается тревожно. Оттенок берётся от
+   акцента темы, поэтому шапка остаётся согласованной с остальным интерфейсом. */
 .pdc-modal__top {
-  padding: 26px 30px 22px;
-  color: var(--accent-contrast);
-  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 72%, var(--text)));
+  padding: 24px 28px 20px;
+  color: var(--color-text, var(--text));
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
 }
 
 .pdc-modal__title {
@@ -409,7 +410,7 @@ async function download() {
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  opacity: 0.8;
+  color: var(--color-text-muted, var(--text-muted));
 }
 
 /* Две колонки: слева документ, справа пояснение своими словами. На узком экране
@@ -422,7 +423,7 @@ async function download() {
 }
 
 .pdc-modal__aside {
-  flex: 0 0 320px;
+  flex: 0 0 272px;
   min-width: 0;
   padding: 22px 26px;
   border-left: 1px solid var(--border);

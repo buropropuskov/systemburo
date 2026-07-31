@@ -17,6 +17,11 @@ const (
 	UserActionRestored       = "restored"
 	UserActionBanned         = "banned"
 	UserActionUnbanned       = "unbanned"
+	// Согласие на обработку персональных данных: кто и когда его дал или отозвал.
+	// Пишется в историю учётной записи, потому что это факт о самом работнике, и
+	// администратор должен видеть его там же, где остальные события по нему.
+	UserActionConsentGranted = "consent_granted"
+	UserActionConsentRevoked = "consent_revoked"
 )
 
 // UserHistoryItem - запись истории с именем актора для API (LEFT JOIN users).
