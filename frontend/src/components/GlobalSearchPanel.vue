@@ -5,13 +5,59 @@
         v-if="open"
         ref="panel"
         class="gsp"
+        :class="{ 'gsp--collapsed': collapsed }"
         role="complementary"
         aria-label="Результаты поиска"
       >
-        <header class="gsp__head">
+        <button
+          v-if="collapsed"
+          class="gsp__strip"
+          type="button"
+          title="Развернуть результаты поиска"
+          aria-label="Развернуть результаты поиска"
+          @click="collapsed = false"
+        >
+          <NavIcon
+            name="search"
+            :size="18"
+          />
+          <span
+            v-if="totalFound"
+            class="gsp__strip-count"
+          >{{ totalFound }}</span>
+        </button>
+
+        <header
+          v-if="!collapsed"
+          class="gsp__head"
+        >
+          <NavIcon
+            name="search"
+            :size="18"
+            class="gsp__head-icon"
+          />
           <span class="gsp__head-title">Результаты поиска</span>
           <button
-            class="gsp__close"
+            class="gsp__act"
+            type="button"
+            :title="pinned ? 'Открепить: панель будет закрываться при переходе' : 'Закрепить: панель останется открытой при переходе'"
+            :aria-label="pinned ? 'Открепить панель' : 'Закрепить панель'"
+            :aria-pressed="pinned"
+            @click="togglePinned"
+          >
+            <span :class="['gsp__pin', { 'gsp__pin--on': pinned }]" />
+          </button>
+          <button
+            class="gsp__act"
+            type="button"
+            title="Свернуть в столбик"
+            aria-label="Свернуть в столбик"
+            @click="collapsed = true"
+          >
+            &rsaquo;
+          </button>
+          <button
+            class="gsp__act gsp__act--close"
             type="button"
             aria-label="Закрыть результаты"
             @click="close"
@@ -20,7 +66,10 @@
           </button>
         </header>
 
-        <div class="gsp__body">
+        <div
+          v-if="!collapsed"
+          class="gsp__body"
+        >
           <p
             v-if="degradedLabels.length"
             class="gsp__degraded"
@@ -106,6 +155,7 @@ import { SEARCH_TARGETS } from '@/constants/searchTargets';
 
 /** Сколько разделов меню показывать: список длинный, а нужен обычно первый же. */
 const SECTIONS_LIMIT = 5;
+const PIN_STORAGE_KEY = 'globalSearch.pinned';
 
 export default {
   name: 'GlobalSearchPanel',
@@ -123,6 +173,10 @@ export default {
   data() {
     return {
       activeIndex: 0,
+      // Закрепление переживает перезагрузку: это привычка работы, а не состояние
+      // одного захода -- каждый раз закреплять заново раздражало бы.
+      pinned: localStorage.getItem(PIN_STORAGE_KEY) === '1',
+      collapsed: false,
     };
   },
   computed: {
@@ -179,6 +233,10 @@ export default {
     flatItems() {
       return this.visibleGroups.flatMap((g) => g.items);
     },
+    /** Число найденного для свёрнутого столбика: иначе он не сообщает ничего. */
+    totalFound() {
+      return this.flatItems.length;
+    },
     tooShort() {
       const len = this.query.trim().length;
       return len > 0 && len < MIN_QUERY_LENGTH && this.sectionItems.length === 0;
@@ -196,6 +254,8 @@ export default {
       immediate: true,
       handler(val) {
         this.activeIndex = 0;
+        // Новый запрос разворачивает столбик: искать со свёрнутой панелью бессмысленно.
+        if (val.trim()) this.collapsed = false;
         this.search(val);
       },
     },
@@ -216,7 +276,10 @@ export default {
       if (e.key === 'Escape') {
         e.stopPropagation();
         e.preventDefault();
-        this.close();
+        // У закреплённой Escape сворачивает в столбик, а не закрывает: закрепление
+        // -- это явное «панель мне нужна», и одна клавиша не должна его отменять.
+        if (this.pinned && !this.collapsed) this.collapsed = true;
+        else this.close();
         return;
       }
       // Стрелки и ввод работают, пока курсор в поле поиска: список живёт в панели, а
@@ -225,9 +288,12 @@ export default {
       if (e.key === 'ArrowUp') { e.preventDefault(); this.move(-1); }
       if (e.key === 'Enter') this.openActive();
     },
-    /** Клик мимо панели и мимо поля поиска закрывает результаты. */
+    /**
+     * Клик мимо панели и мимо поля поиска закрывает результаты. Закреплённую не
+     * трогаем: её для того и закрепляют, чтобы работать со страницей рядом.
+     */
     onDocumentMousedown(e) {
-      if (!this.open) return;
+      if (!this.open || this.pinned) return;
       if (this.$refs.panel?.contains(e.target)) return;
       if (e.target.closest?.('.nav-search-row')) return;
       this.close();
@@ -253,10 +319,18 @@ export default {
     },
     openItem(item) {
       if (!item.to) return;
-      // Сначала закрываем панель, потом переходим: подтверждение о несохранённой форме
-      // роутер поднимает поверх страницы, и панель не должна его перекрывать.
-      this.close();
+      // Закреплённая панель переживает переход: по одному запросу часто открывают
+      // несколько находок подряд, и закрывать её каждый раз значит вводить запрос заново.
+      if (!this.pinned) {
+        // Незакреплённую закрываем ДО перехода: подтверждение о несохранённой форме
+        // роутер поднимает поверх страницы, и панель не должна его перекрывать.
+        this.close();
+      }
       this.$nextTick(() => this.$router.push(item.to));
+    },
+    togglePinned() {
+      this.pinned = !this.pinned;
+      localStorage.setItem(PIN_STORAGE_KEY, this.pinned ? '1' : '0');
     },
     close() {
       this.cancel();
@@ -278,39 +352,102 @@ export default {
   max-width: 100vw;
   display: flex;
   flex-direction: column;
-  background: var(--surface);
+  /* Полупрозрачная: страница под панелью остаётся видна, поэтому переход по находке
+     не ощущается как уход «вслепую». Без backdrop-filter -- он форсит слой
+     компоновки и рвёт кадры при выезде (запрет из правил адаптивности). */
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
   border-left: 1px solid var(--border);
   box-shadow: -8px 0 24px rgb(0 0 0 / 12%);
   /* Выше выдвижного меню и карточек, ниже блокирующих окон: подтверждение о
      несохранённой форме и сообщение о блокировке должны перекрывать результаты. */
   z-index: 15000;
+  transition: width 0.2s ease-out;
+}
+
+/* Свёрнутая -- узкий столбик с иконкой и числом найденного: панель не мешает работать
+   со страницей, но остаётся под рукой и помнит запрос. */
+.gsp--collapsed {
+  width: 52px;
+}
+
+.gsp__strip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 100%;
+  padding: 14px 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--color-text-muted);
+}
+
+.gsp__strip-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.gsp__head-icon {
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+.gsp__act {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius-md, 15px);
+  background: transparent;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--color-text-muted);
+}
+
+.gsp__act:hover {
+  background: var(--surface-2);
+}
+
+.gsp__act--close {
+  font-size: 26px;
+}
+
+/* Кнопка закрепления: залитый кружок во включённом состоянии, контурный в выключенном.
+   Иконки булавки в наборе нет, а заводить свою ради одной кнопки не стоит. */
+.gsp__pin {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid currentcolor;
+}
+
+.gsp__pin--on {
+  background: var(--color-primary, #4f5bdf);
+  border-color: var(--color-primary, #4f5bdf);
 }
 
 .gsp__head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
-  padding: 14px 8px 14px 18px;
+  padding: 12px 8px 12px 16px;
   border-bottom: 1px solid var(--border);
 }
 
 .gsp__head-title {
+  flex: 1;
+  min-width: 0;
   font-size: 13px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--color-text-muted);
-}
-
-.gsp__close {
-  width: 44px;
-  height: 44px;
-  border: none;
-  background: transparent;
-  font-size: 26px;
-  line-height: 1;
-  cursor: pointer;
   color: var(--color-text-muted);
 }
 
@@ -418,6 +555,12 @@ export default {
     width: 100vw;
     top: var(--mobile-header-height, 55px);
     bottom: 0;
+  }
+
+  /* На узком экране столбик занимал бы полосу поперёк единственной колонки контента,
+     поэтому свёрнутая панель просто уже, но остаётся у края. */
+  .gsp--collapsed {
+    width: 52px;
   }
 }
 </style>
