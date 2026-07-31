@@ -52,6 +52,7 @@ var readBlockedForRegularUser = []struct {
 	// Настройки файлового архива: раскладка каталогов на диске и пороги места.
 	{"fileArchive.settings", "/file-archive/settings"},
 	{"fileArchive.tokens", "/file-archive/tokens"},
+	{"fileArchive.stats", "/file-archive/stats"},
 }
 
 // readOpenForRegularUser — справочники, чтение которых нужно форме заявки и должно

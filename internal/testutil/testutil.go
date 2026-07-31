@@ -292,6 +292,12 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 		settingsService, archivePathService,
 		services.NewBlankExportService(db, attachmentBlankService, archivePathService, archiveWriter, settingsService),
 		auditRecorder)
+	// Место и квота (#1615, срез B2): та же пара каталогов, что видит настоящий
+	// процесс (архив/загрузки), логи в тестах не пишутся в файл.
+	blankArchiveStatsHandler := handlers.NewBlankArchiveStatsHandler(
+		services.NewBlankExportQuotaService(
+			db, settingsService, notificationService, permissionResolver, auditRecorder,
+			archiveDir, uploadDir, ""))
 	telegramService := services.NewTelegramService("", "")
 	bugReportService := services.NewBugReportService(db, telegramService)
 	bugReportHandler := handlers.NewBugReportHandler(bugReportService)
@@ -396,6 +402,7 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 		Events:              eventsHandler,
 		Search:              searchHandler,
 		BlankArchive:        blankArchiveHandler,
+		BlankArchiveStats:   blankArchiveStatsHandler,
 		PermResolver:        permissionResolver,
 		DenialLog:           accessDenialService,
 		TableReportGate:     mw.RequireTableVerb(db, permissionResolver, accessDenialService, "report"),

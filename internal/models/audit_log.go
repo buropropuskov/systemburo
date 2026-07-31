@@ -61,10 +61,25 @@ const (
 	// AuditEntityArchiveSettings - настройки файлового архива бланков (#1615).
 	// EntityID у записей пустой: настройки одни на систему, а не строка справочника.
 	AuditEntityArchiveSettings = "archive_settings"
+	// AuditEntityArchiveQuota - место и квота файлового архива (#1615, срез B2):
+	// переход очереди выгрузки в blocked при пересечении жёсткого порога и снятие
+	// блокировки. EntityID пустой - событие относится к очереди в целом, а не к
+	// одной заявке.
+	AuditEntityArchiveQuota = "archive_quota"
 )
 
 // ArchiveSettingsActionUpdated - изменение настроек файлового архива.
 const ArchiveSettingsActionUpdated = "updated"
+
+// ArchiveQuotaAction* - действия над очередью выгрузки при пересечении жёсткого
+// порога места (#1615, срез B2).
+const (
+	// ArchiveQuotaActionBlocked - недостатка места хватило, чтобы остановить
+	// часть очереди: строки реестра ушли в blocked до появления свободного места.
+	ArchiveQuotaActionBlocked = "blocked"
+	// ArchiveQuotaActionUnblocked - порог перестал нарушаться, блокировка снята.
+	ArchiveQuotaActionUnblocked = "unblocked"
+)
 
 // AllAuditEntities - перечень известных типов сущностей. Нужен там, где тип приходит
 // снаружи и опечатку в нём надо поймать, а не молча получить пустую выборку: так
@@ -76,7 +91,7 @@ var AllAuditEntities = []string{
 	AuditEntityPersonBlacklist, AuditEntityVehicleBlacklist, AuditEntitySystemTable,
 	AuditEntitySystemTableTrash, AuditEntityMark, AuditEntityCar, AuditEntityUniqueCar,
 	AuditEntityEmployee, AuditEntityUniqueEmployee, AuditEntityApplication,
-	AuditEntityArchiveSettings,
+	AuditEntityArchiveSettings, AuditEntityArchiveQuota,
 }
 
 // AuditAction* - значения AuditLog.Action, вынесенные в константы там, где значение
