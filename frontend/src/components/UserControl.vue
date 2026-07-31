@@ -626,7 +626,7 @@
                 </p>
                 <button
                   v-if="selectedUser.consent_granted"
-                  class="btn btn--ghost consent-revoke"
+                  class="lk-button lk-button--danger lk-button--sm"
                   :disabled="consentRevoking"
                   data-testid="user-consent-revoke"
                   @click="revokeConsent(selectedUser)"
@@ -2413,11 +2413,6 @@ export default {
   flex-wrap: wrap;
 }
 
-.consent-revoke {
-  padding: 4px 14px;
-  font-size: 13px;
-}
-
 .consent-state {
   margin: 0;
   padding: 7px 0;
@@ -2588,9 +2583,6 @@ export default {
 
 .user-login {
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   color: var(--accent-text);
   font-weight: 600;
   white-space: nowrap;
