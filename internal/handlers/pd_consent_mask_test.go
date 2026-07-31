@@ -317,3 +317,31 @@ func TestPDConsentMask_ApproversPool_HidesName(t *testing.T) {
 	assert.NotContains(t, body, "Приёмов", "ФИО принимающего без согласия скрыто")
 	assert.Contains(t, body, "mask_pool", "логин остаётся - иначе строку не опознать")
 }
+
+// В истории принимающих ФИО двое: кто действовал и кого добавили или сняли. Второе
+// ревью нашло незакрытым - оба должны прятаться.
+func TestPDConsentMask_ApproverHistory_HidesBothNames(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	testutil.RegisterAndLogin(t, e, "mask_subject", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
+	subjectID := setUserName(t, db, "mask_subject", "Назначенов", "Борис", "Борисович")
+
+	added := testutil.POST(t, e, "/application-approvers",
+		`{"user_id":`+strconv.Itoa(subjectID)+`}`, testutil.AuthHeader(admin))
+	require.Equal(t, http.StatusCreated, added.Code, added.Body.String())
+
+	rec := testutil.GET(t, e, "/application-approvers/history", testutil.AuthHeader(admin))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.Contains(t, rec.Body.String(), "Назначенов", "до включения запроса согласия ФИО на месте")
+
+	enableConsent(t, e, admin, "<p>Согласие</p>")
+
+	after := testutil.GET(t, e, "/application-approvers/history", testutil.AuthHeader(admin))
+	require.Equal(t, http.StatusOK, after.Code)
+	assert.NotContains(t, after.Body.String(), "Назначенов", "ФИО назначенного принимающего скрыто")
+	assert.Contains(t, after.Body.String(), "mask_subject", "вместо ФИО подставлен логин")
+}

@@ -220,14 +220,15 @@ func (s *approverService) GetHistory(ctx context.Context) ([]models.ApplicationA
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching approver history")
 	}
 
-	// Логин вместо ФИО у акторов, не давших согласия на обработку данных.
+	// Логин вместо ФИО у обоих участников записи: и у актора, и у принимающего,
+	// которого добавили или сняли - это тоже персональные данные работника.
 	masks := loadConsentMasks(ctx, s.db)
 	items := make([]models.ApplicationApproverHistoryItem, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, models.ApplicationApproverHistoryItem{
 			ID:             r.ID,
 			ApproverUserID: r.ApproverUserID,
-			ApproverName:   r.ApproverName,
+			ApproverName:   maskName(masks, &r.ApproverUserID, r.ApproverName),
 			ActionType:     r.ActionType,
 			ActorUserID:    r.ActorUserID,
 			ActorName:      maskName(masks, r.ActorUserID, r.ActorName),

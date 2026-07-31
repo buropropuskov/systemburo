@@ -102,6 +102,20 @@ func (s *newsService) maskNewsAuthors(ctx context.Context, items []models.NewsWi
 	}
 }
 
+// maskAnnouncementAuthors - то же для объявлений: их видит любой авторизованный,
+// а авторов там трое (создал, изменил, включил).
+func (s *newsService) maskAnnouncementAuthors(ctx context.Context, items []models.AnnouncementWithUser) {
+	masks := loadConsentMasks(ctx, s.db)
+	if len(masks) == 0 {
+		return
+	}
+	for i := range items {
+		items[i].CreatedByName = maskNamePtr(masks, items[i].CreatedBy, items[i].CreatedByName)
+		items[i].UpdatedByName = maskNamePtr(masks, items[i].UpdatedBy, items[i].UpdatedByName)
+		items[i].ActivatedByName = maskNamePtr(masks, items[i].ActivatedBy, items[i].ActivatedByName)
+	}
+}
+
 func (s *newsService) GetActiveNews(ctx context.Context) ([]models.NewsWithUser, error) {
 	results := make([]models.NewsWithUser, 0)
 	err := s.newsSelectQuery(s.db.WithContext(ctx)).
@@ -238,7 +252,10 @@ func (s *newsService) GetActiveAnnouncement(ctx context.Context) (*models.Announ
 	if result.ID == 0 {
 		return nil, nil
 	}
-	return &result, nil
+	// Через срез, а не по значению: маска правит элементы среза, копия осталась бы прежней.
+	one := []models.AnnouncementWithUser{result}
+	s.maskAnnouncementAuthors(ctx, one)
+	return &one[0], nil
 }
 
 func (s *newsService) GetAllAnnouncements(ctx context.Context) ([]models.AnnouncementWithUser, error) {
@@ -249,6 +266,7 @@ func (s *newsService) GetAllAnnouncements(ctx context.Context) ([]models.Announc
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching announcements")
 	}
+	s.maskAnnouncementAuthors(ctx, results)
 	return results, nil
 }
 
