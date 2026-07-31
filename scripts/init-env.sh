@@ -100,6 +100,19 @@ BASIC_AUTH_PASS=${BASIC_AUTH_PASS}
 
 # === Frontend ===
 VITE_API_BASE_URL=${API_URL}
+
+# === Резервное копирование ===
+# Сроки хранения и режим архивации файлов описаны в .env.example.
+# Ключ шифрования копий заводится отдельно: age-keygen -o buro-backup.key,
+# сюда вписывается ОТКРЫТАЯ часть, закрытая хранится вне сервера.
+BACKUP_DIR=/var/backups/systemburo
+BACKUP_AGE_RECIPIENT=
+BACKUP_KEEP_DAILY=7
+BACKUP_KEEP_WEEKLY=4
+BACKUP_KEEP_MONTHLY=6
+BACKUP_UPLOADS_MODE=weekly
+BACKUP_S3_REMOTE=
+BACKUP_S3_BUCKET=
 EOF
 
 echo ""
@@ -112,5 +125,10 @@ if [[ "$ENV" == "staging" ]]; then
     echo "  Basic Auth:      ${BASIC_AUTH_USER} / ${BASIC_AUTH_PASS}"
     echo "  pgAdmin URL:     https://${DOMAIN}/pgadmin"
 fi
+echo ""
+echo "Резервное копирование настраивается отдельно:"
+echo "  1. age-keygen -o buro-backup.key   (закрытый ключ унести с сервера!)"
+echo "  2. вписать открытую часть в BACKUP_AGE_RECIPIENT в .env"
+echo "  3. sudo ./scripts/backup-install.sh ${ENV}"
 echo ""
 echo "Запуск: make ${ENV}-up"

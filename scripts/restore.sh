@@ -1,0 +1,150 @@
+#!/usr/bin/env bash
+# Восстановление системы из резервной копии.
+#
+#   ./scripts/restore.sh [local|staging|production] <файл выгрузки базы> [архив файлов]
+#
+# Операция необратима: текущее содержимое базы заменяется содержимым копии.
+# Поэтому она требует явного подтверждения и выполняется при остановленном
+# прикладном сервере, под режимом технических работ - чтобы пользователи видели
+# объяснение, а не ошибки.
+#
+# Порядок обратный снятию: сначала база, потом файлы. Проверка счётчиков идёт до
+# запуска приложения: пустая база обнаруживается до того, как в неё начнут писать.
+#
+# Зашифрованные копии (.age) расшифровываются закрытым ключом, путь к которому
+# передаётся в AGE_IDENTITY. На сервере этот ключ не хранится - его приносит
+# оператор на время восстановления.
+set -euo pipefail
+
+ENVIRONMENT="${1:-}"
+DB_ARCHIVE="${2:-}"
+UPLOADS_ARCHIVE="${3:-}"
+cd "$(dirname "$0")/.."
+
+usage() {
+  cat >&2 <<'EOF'
+Использование:
+  ./scripts/restore.sh [local|staging|production] <файл выгрузки базы> [архив файлов]
+
+Переменные окружения:
+  CONFIRM=yes       пропустить запрос подтверждения (для неинтерактивного запуска)
+  AGE_IDENTITY=путь закрытый ключ age, если копия зашифрована
+EOF
+}
+
+case "$ENVIRONMENT" in
+  local)      COMPOSE=(docker compose) ;;
+  staging)    COMPOSE=(docker compose -f docker-compose.base.yml -f docker-compose.staging.yml) ;;
+  production) COMPOSE=(docker compose -f docker-compose.base.yml -f docker-compose.prod.yml) ;;
+  *) usage; exit 1 ;;
+esac
+
+if [ -z "$DB_ARCHIVE" ] || [ ! -f "$DB_ARCHIVE" ]; then
+  echo "Файл выгрузки базы не найден: ${DB_ARCHIVE:-не указан}" >&2
+  usage
+  exit 1
+fi
+
+if [ ! -f .env ]; then
+  echo "Файл параметров .env не найден в $(pwd)" >&2
+  exit 1
+fi
+set -a; . ./.env; set +a
+DB_NAME="${DB_NAME:-auto_registry}"
+DB_USER="${DB_USER:-postgres}"
+AGE_IDENTITY="${AGE_IDENTITY:-}"
+
+echo "Контур:        $ENVIRONMENT"
+echo "База данных:   $DB_NAME"
+echo "Выгрузка базы: $DB_ARCHIVE"
+echo "Архив файлов:  ${UPLOADS_ARCHIVE:-не указан, файлы останутся текущими}"
+echo
+echo "Текущее содержимое базы будет заменено. Отменить это нельзя."
+
+if [ "${CONFIRM:-}" != "yes" ]; then
+  printf 'Введите ВОССТАНОВИТЬ для продолжения: '
+  read -r answer
+  if [ "$answer" != "ВОССТАНОВИТЬ" ]; then
+    echo "Отменено." >&2
+    exit 1
+  fi
+fi
+
+WORK_DIR="$(mktemp -d)"
+cleanup() { rm -rf "$WORK_DIR"; }
+trap cleanup EXIT
+
+# Расшифровка. Отдельным шагом, чтобы дальше работать с обычным файлом независимо
+# от того, была копия зашифрована или нет.
+decrypt_if_needed() {
+  local src="$1" out="$2"
+  case "$src" in
+    *.age)
+      if [ -z "$AGE_IDENTITY" ]; then
+        echo "Копия зашифрована, но AGE_IDENTITY не задан" >&2
+        exit 1
+      fi
+      if command -v age >/dev/null 2>&1; then
+        age -d -i "$AGE_IDENTITY" -o "$out" "$src"
+      else
+        docker run --rm -i -v "$(realpath "$AGE_IDENTITY")":/key:ro alpine:3.20 sh -c \
+          'apk add --no-cache -q age && age -d -i /key' < "$src" > "$out"
+      fi
+      ;;
+    *) cp "$src" "$out" ;;
+  esac
+}
+
+echo "== Включаю режим технических работ"
+# Пользователи должны видеть объяснение, а не ошибки подключения. Ключи те же,
+# что использует служба режима работ; снимается он scripts/maintenance-off.sh.
+# Сбой здесь не отменяет восстановление, но и не проглатывается молча: оператор
+# должен знать, что люди увидят ошибки вместо объяснения.
+if ! "${COMPOSE[@]}" exec -T db sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<'SQL'
+INSERT INTO system_settings (key, value, type) VALUES
+  ('maintenance.enabled', 'true', 'bool'),
+  ('maintenance.message', 'Идёт восстановление данных из резервной копии', 'string')
+ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
+SQL
+then
+  echo "ПРЕДУПРЕЖДЕНИЕ: режим технических работ включить не удалось, пользователи увидят ошибки" >&2
+fi
+
+echo "== Останавливаю прикладной сервер"
+"${COMPOSE[@]}" stop backend frontend nginx
+
+echo "== Восстанавливаю базу данных"
+decrypt_if_needed "$DB_ARCHIVE" "${WORK_DIR}/db.dump"
+"${COMPOSE[@]}" exec -T db pg_restore -U "$DB_USER" -d "$DB_NAME" --clean --if-exists \
+  < "${WORK_DIR}/db.dump"
+
+if [ -n "$UPLOADS_ARCHIVE" ]; then
+  if [ ! -f "$UPLOADS_ARCHIVE" ]; then
+    echo "Архив файлов не найден: $UPLOADS_ARCHIVE" >&2
+    exit 1
+  fi
+  echo "== Восстанавливаю загруженные файлы"
+  decrypt_if_needed "$UPLOADS_ARCHIVE" "${WORK_DIR}/uploads.tar.gz"
+  UPLOADS_VOL="$(docker volume ls --format '{{.Name}}' | grep '_uploads$' | head -1)"
+  if [ -z "$UPLOADS_VOL" ]; then
+    echo "Не найден том с загруженными файлами" >&2
+    exit 1
+  fi
+  docker run --rm -v "$UPLOADS_VOL":/data -v "$WORK_DIR":/in alpine:3.20 \
+    tar xzf /in/uploads.tar.gz -C /data
+fi
+
+echo "== Проверяю восстановленное до запуска приложения"
+"${COMPOSE[@]}" exec -T db psql -U "$DB_USER" -d "$DB_NAME" \
+  -c "SELECT count(*) AS applications FROM applications;" \
+  -c "SELECT count(*) AS users FROM users;"
+
+echo "== Запускаю систему"
+"${COMPOSE[@]}" up -d
+
+echo "== Снимаю режим технических работ"
+bash scripts/maintenance-off.sh "$ENVIRONMENT" >/dev/null
+
+echo
+echo "Восстановление завершено. Проверьте вход в систему и открытие заявки."
+echo "Если числа выше отличаются от ожидаемых, повторите восстановление из другой копии."
