@@ -157,3 +157,23 @@ describe('UserControl — согласие на обработку данных 
       .toContain('не запрашивается')
   })
 })
+
+describe('UserControl — поиск по логину с собачкой', () => {
+  let wrapper
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    apiRequest.mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue([]) })
+  })
+  afterEach(() => wrapper?.unmount())
+
+  it('находит человека и когда собачку скопировали в запрос', async () => {
+    wrapper = mountUserControl([openUser, { ...hiddenUser, username: 'other_user' }])
+    await flushPromises()
+
+    wrapper.vm.userSearch = '@open_user'
+    await flushPromises()
+
+    expect(wrapper.vm.filteredUsers.map(u => u.username)).toEqual(['open_user'])
+  })
+})

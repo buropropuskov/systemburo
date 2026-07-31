@@ -1200,7 +1200,9 @@ export default {
         : { background: '#c62828', borderColor: '#c62828' };
     },
     filteredUsers() {
-      const variants = buildSearchVariants(this.userSearch);
+      // Логин на экране подписан с собачкой (#1567), и её копируют в поиск вместе
+      // с логином. Ищем по самому логину, поэтому ведущую собачку в запросе снимаем.
+      const variants = buildSearchVariants(this.userSearch.replace(/^\s*@/, ''));
       return this.allUsers
         .filter(user => (this.showArchive ? user.is_active === false : user.is_active !== false))
         .filter(user => !this.onlineOnly || isOnline(user, this.presenceNow))
