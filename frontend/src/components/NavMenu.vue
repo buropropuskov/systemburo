@@ -111,7 +111,10 @@
           </div>
         </div>
 
-        <!-- Поиск: место зарезервировано всегда (в свёрнутом - лупа по центру). -->
+        <!-- Поиск: место зарезервировано всегда (в свёрнутом - лупа по центру).
+             Поле не вводит текст на месте, а открывает окно сквозного поиска: там первой
+             группой идут разделы, то есть прежний фильтр меню никуда не делся, а к нему
+             добавились люди, машины, заявки и справочники. -->
         <div class="nav-search-row">
           <span class="nav-search-ic">
             <NavIcon
@@ -120,11 +123,13 @@
             />
           </span>
           <input
-            v-model="searchQuery"
             type="text"
             class="nav-search"
             placeholder="Поиск..."
-            aria-label="Поиск по меню"
+            aria-label="Поиск по системе"
+            readonly
+            @mousedown.prevent="openGlobalSearch"
+            @focus="openGlobalSearch"
           >
         </div>
 
@@ -138,7 +143,7 @@
               ЗАЯВКИ
             </div>
             <div
-              v-show="matches('Центр заявок') && can('page.center')"
+              v-show="can('page.center')"
               class="nav-item"
               :class="{ active: isActive('/center') }"
               data-testid="nav-link-center"
@@ -166,7 +171,7 @@
               </span>
             </div>
             <div
-              v-show="matches('Новая заявка') && can('page.new_application')"
+              v-show="can('page.new_application')"
               class="nav-item"
               :class="{ active: isActive('/new-application') }"
               data-testid="nav-link-new-application"
@@ -180,7 +185,7 @@
               <span class="nav-text">Новая заявка</span>
             </div>
             <div
-              v-show="authStore.canViewAccessibleAttachments && matches('Доступные мне')"
+              v-show="authStore.canViewAccessibleAttachments"
               class="nav-item"
               :class="{ active: isActive('/accessible-attachments') }"
               data-testid="nav-link-accessible-attachments"
@@ -286,7 +291,7 @@
                  «Таблиц» - их нет у большинства ролей). -->
             <div data-testid="ob-nav-group-data">
               <div
-                v-show="matches('Сотрудники') && can('page.employees')"
+                v-show="can('page.employees')"
                 class="nav-item"
                 :class="{ active: isActive('/employeesview') }"
                 data-testid="nav-link-employees"
@@ -301,7 +306,7 @@
               </div>
 
               <div
-                v-show="matches('Автомобили') && can('page.cars')"
+                v-show="can('page.cars')"
                 class="nav-item"
                 :class="{ active: isActive('/carsview') }"
                 data-testid="nav-link-cars"
@@ -326,7 +331,7 @@
               АНАЛИТИКА
             </div>
             <div
-              v-show="matches('Аналитика') && can('page.statistics')"
+              v-show="can('page.statistics')"
               class="nav-item"
               :class="{ active: isActive('/analytics') }"
               data-testid="nav-link-analytics"
@@ -352,7 +357,7 @@
               АДМИНИСТРИРОВАНИЕ
             </div>
             <div
-              v-show="matches('Администрирование')"
+              v-show="canSeeAdmin"
               class="nav-item has-dropdown"
               :class="{ active: adminOpen }"
               data-testid="nav-link-admin"
@@ -409,7 +414,7 @@
             ПОЛЬЗОВАТЕЛЬ
           </div>
           <div
-            v-show="matches('Обзор и новости') && can('page.news')"
+            v-show="can('page.news')"
             class="nav-item"
             :class="{ active: isActive('/news') }"
             data-testid="nav-link-news"
@@ -423,7 +428,7 @@
             <span class="nav-text">Обзор и новости</span>
           </div>
           <div
-            v-show="matches('Личный кабинет') && can('page.personal_cabinet')"
+            v-show="can('page.personal_cabinet')"
             class="nav-item"
             :class="{ active: isActive('/personal-cabinet') }"
             data-testid="nav-link-cabinet"
@@ -438,7 +443,7 @@
           </div>
           <!-- Тёмная тема: тумблер, тем осталось две (#1415) -->
           <div
-            v-show="matches('Тёмная тема') || matches('Оформление')"
+            v-show="true"
             class="nav-item nav-item--theme"
             data-testid="nav-theme-toggle"
             role="switch"
@@ -464,7 +469,6 @@
           </div>
 
           <div
-            v-show="matches('Выйти')"
             class="nav-item"
             data-testid="nav-button-logout"
             @click="logout"
@@ -641,6 +645,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { useSoundStore } from '@/stores/sound'
 import { usePermissionsStore } from '@/stores/permissions'
+import { ADMIN_GROUPS } from '@/constants/navSections';
 import { useThemeStore } from '@/stores/theme'
 import { playPreset } from '@/utils/notificationSound'
 import eventStream from '@/services/eventStream'
@@ -709,58 +714,12 @@ export default {
       // «Сообщить о проблеме» из drawer'а (W3.3): модалка та же, что в шапке.
       showFeedbackModal: false,
       isBanned: false,
-      searchQuery: '',
       adminOpen: false,
       adminSearch: '',
       // Разделы Админки по группам мокапа (#510). permission - ключ права на
       // раздел (совпадает с meta.permission роутов, #187 Фаза 2): пункт виден
       // только если can(permission). super/admin проходят, Техработы - super-only.
-      adminGroups: [
-        {
-          title: 'Доступ и роли',
-          items: [
-            { label: 'Пользователи', icon: 'users', path: '/admin/users', permission: 'page.admin.users' },
-            { label: 'Роли', icon: 'roles', path: '/admin/roles', permission: 'permission.audit.manage' },
-            { label: 'Группы прав', icon: 'permission-groups', path: '/admin/permission-groups', permission: 'permission.audit.manage' },
-            { label: 'Журнал отказов', icon: 'access-denials', path: '/admin/access-denials', permission: 'permission.audit.read' },
-            { label: 'Доступ к перс. данным', icon: 'access-denials', path: '/admin/pd-audit', permission: 'page.admin.pd_audit' },
-            { label: 'Чёрный список', icon: 'blacklist', path: '/admin/blacklist', permission: 'page.admin.blacklist' },
-          ],
-        },
-        {
-          title: 'Справочники',
-          items: [
-            { label: 'Организации', icon: 'organizations', path: '/admin/organizations', permission: 'page.admin.directories' },
-            { label: 'Компании', icon: 'companies', path: '/admin/companies', permission: 'page.admin.directories' },
-            { label: 'Места разгрузки', icon: 'unload-places', path: '/admin/unload-places', permission: 'page.admin.directories' },
-            { label: 'Форматы номеров', icon: 'number-formats', path: '/admin/number-formats', permission: 'page.admin.directories' },
-            { label: 'Гражданства', icon: 'citizenship', path: '/admin/citizenship', permission: 'page.admin.directories' },
-            { label: 'Марки авто', icon: 'marks', path: '/admin/marks', permission: 'page.admin.directories' },
-            { label: 'Типы вложений', icon: 'attachment-types', path: '/admin/attachment-types', permission: 'page.admin.directories' },
-            { label: 'Типы пользователей', icon: 'user-types', path: '/admin/user-types', permission: 'page.admin.directories' },
-            { label: 'Принимающие', icon: 'approvers', path: '/admin/approvers', permission: 'page.admin.directories' },
-            { label: 'Документы', icon: 'documents', path: '/admin/documents', permission: 'page.admin.directories' },
-            { label: 'Новости и объявления', icon: 'news', path: '/admin/news', permission: 'page.admin.directories' },
-            { label: 'Руководство', icon: 'guide', path: '/admin/guide', permission: 'page.admin' },
-          ],
-        },
-        {
-          title: 'Система',
-          items: [
-            { label: 'Настройки', icon: 'settings', path: '/admin/settings', permission: 'page.admin' },
-            { label: 'Обработка данных', icon: 'data-processing', path: '/admin/data-processing', permission: 'page.admin' },
-            { label: 'Конструктор таблиц', icon: 'table-constructor', path: '/table-constructor', permission: 'page.admin.tables_constructor' },
-            { label: 'Техработы', icon: 'system-control', path: '/admin/system-control', permission: 'page.admin.system_control' },
-          ],
-        },
-        {
-          title: 'Аудит и связь',
-          items: [
-            { label: 'Обратная связь', icon: 'feedback', path: '/admin/feedback', permission: 'page.admin.feedback' },
-            { label: 'Мониторинг запросов', icon: 'requests', path: '/admin/requests', permission: 'page.admin.monitoring' },
-          ],
-        },
-      ],
+      adminGroups: ADMIN_GROUPS,
     };
   },
   computed: {
@@ -817,20 +776,11 @@ export default {
       else if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) word = 'раздела';
       return `${n} ${word}`;
     },
-    // Активен ли поиск по рельсу.
-    searchActive() {
-      return this.searchQuery.trim().length > 0;
-    },
-    // Таблицы под правами (#187 Фаза 2): сначала по гранту table.<name>.view
-    // (super/admin видят все), затем по поиску рельса (по отображаемому имени).
+    // Таблицы под правами (#187 Фаза 2): по гранту table.<name>.view
+    // (super/admin видят все). Поиск по таблицам живёт в окне сквозного поиска.
     filteredTables() {
-      const permitted = this.systemTables.filter(
+      return this.systemTables.filter(
         (t) => this.can(`table.${this.getTableName(t)}.view`),
-      );
-      const q = this.searchQuery.trim().toLowerCase();
-      if (!q) return permitted;
-      return permitted.filter(
-        (t) => this.getTableDisplayName(t).toLowerCase().includes(q),
       );
     },
     // Таблицы, разложенные по типу: машины и люди - иначе на нескольких постах
@@ -856,39 +806,25 @@ export default {
     // Пункт «Таблицы» виден если есть доступные таблицы; при поиске - ещё и если
     // совпала его метка. Нет доступных таблиц (нет грантов) - пункт скрыт целиком.
     tablesItemVisible() {
-      if (this.filteredTables.length > 0) return true;
-      return this.searchActive && this.matches('Таблицы');
+      return this.filteredTables.length > 0;
     },
-    // При поиске с совпавшими таблицами дропдаун раскрывается сам, чтобы показать
-    // найденное; иначе - по ручному клику.
     tablesDropdownOpen() {
-      if (this.searchActive && this.filteredTables.length > 0) return true;
       return this.dropdowns.tables;
     },
-    // Видимость секций при поиске: пустую группу (все пункты отфильтрованы) прячем
-    // целиком, чтобы результат был плоским, без осиротевших заголовков. Без поиска
-    // все секции видны.
-    // Видимость секции = есть хотя бы один доступный (по правам) и совпавший с
-    // поиском пункт. v(label,key) = matches(label) && can(key) - объединяет поиск
-    // и право. Пустые секции (все пункты недоступны/отфильтрованы) скрываются
-    // целиком, без осиротевшего заголовка.
+    // Видимость секции = есть хотя бы один доступный по правам пункт. Пустая секция
+    // скрывается целиком, без осиротевшего заголовка.
     sectionVisible() {
-      const v = (label, key) => this.matches(label) && this.can(key);
       return {
-        requests: v('Центр заявок', 'page.center')
-          || v('Новая заявка', 'page.new_application')
-          || (this.authStore.canViewAccessibleAttachments && this.matches('Доступные мне')),
+        requests: this.can('page.center')
+          || this.can('page.new_application')
+          || this.authStore.canViewAccessibleAttachments,
         data: this.tablesItemVisible
-          || v('Сотрудники', 'page.employees')
-          || v('Автомобили', 'page.cars'),
-        analytics: v('Аналитика', 'page.statistics'),
-        admin: this.canSeeAdmin && this.matches('Администрирование'),
-        // «Выйти» и «Оформление» доступны всегда (право не требуется) - секция
-        // пользователя видна.
-        user: v('Обзор и новости', 'page.news')
-          || v('Личный кабинет', 'page.personal_cabinet')
-          || this.matches('Оформление')
-          || this.matches('Выйти'),
+          || this.can('page.employees')
+          || this.can('page.cars'),
+        analytics: this.can('page.statistics'),
+        admin: this.canSeeAdmin,
+        // «Выйти» и «Оформление» доступны всегда - секция пользователя видна всегда.
+        user: true,
       };
     },
   },
@@ -995,11 +931,10 @@ export default {
       if (!tableName) return false;
       return this.$route.params.tableName === tableName;
     },
-    // Клиентский фильтр пунктов рельса по подстроке (поиск в развёрнутом виде).
-    matches(label) {
-      const q = this.searchQuery.trim().toLowerCase();
-      if (!q) return true;
-      return label.toLowerCase().includes(q);
+    // Поле поиска в рельсе открывает окно сквозного поиска: там первой группой идут
+    // разделы, поэтому прежний фильтр меню остался доступен, просто вместе с данными.
+    openGlobalSearch() {
+      this.$bus?.emit?.('global-search:open');
     },
     togglePin() {
       this.uiStore.toggleSidebarPinned();
