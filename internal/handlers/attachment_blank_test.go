@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"net/http"
@@ -393,6 +394,127 @@ func TestBlankGenerate(t *testing.T) {
 	t.Run("ТМЦ соседних вложений заявки", func(t *testing.T) { crossAttachmentItemsSection(t, db, td) })
 	t.Run("таблица ТМЦ в бланке работ", func(t *testing.T) { itemsTableSection(t, db, td) })
 	t.Run("подпись согласовавших", func(t *testing.T) { approverSignatureSection(t, db, td) })
+	t.Run("повторная генерация побайтово совпадает", func(t *testing.T) { determinismSection(t, db, td) })
+}
+
+// determinismSection - гейт дедупликации файлового архива (#1615). Архив не будет
+// перезаписывать файл, если sha256 нового бланка совпал с сохранённым: это экономит
+// запись и, что важнее, не двигает mtime - иначе инкрементальная выгрузка на рабочий
+// ПК каждый раз тянула бы архив целиком, а ночная сверка переписывала бы его весь.
+//
+// Проверяется самый рискованный путь: переполненный список (excelize дублирует
+// строки) вместе с условным форматированием (после excelize бланк пересобирается из
+// zip вручную). Появится здесь текущее время - дедупликация не сработает никогда.
+func determinismSection(t *testing.T, db *gorm.DB, td testutil.TestData) {
+	userTypeID := secUserTypeIDByCode(t, db, "user")
+	sender := models.User{Username: "blankdetsender", Password: "x", TypeID: userTypeID, OrganizationID: secPtrInt(td.OrgID)}
+	require.NoError(t, db.Create(&sender).Error)
+
+	name := "det_blank"
+	ua := models.UniqueAttachment{AttachmentType: "cars", Name: &name, IsActive: true}
+	require.NoError(t, db.Create(&ua).Error)
+
+	f := excelize.NewFile()
+	defer func() { require.NoError(t, f.Close()) }()
+	sheet := f.GetSheetName(0)
+	style, err := f.NewConditionalStyle(&excelize.Style{Fill: excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"FFC7CE"}}})
+	require.NoError(t, err)
+	require.NoError(t, f.SetConditionalFormat(sheet, "A20:D20", []excelize.ConditionalFormatOptions{
+		{Type: "formula", Criteria: `$A$20=""`, Format: &style},
+	}))
+	path := filepath.Join(t.TempDir(), "det.xlsx")
+	require.NoError(t, f.SaveAs(path))
+
+	tpl := models.AttachmentTemplate{
+		UniqueAttachmentID: ua.ID, IsActive: true, FilePath: path,
+		OriginalFileName: "det.xlsx", ListStartRow: 10, ListEndRow: 12, MaxListRows: 3,
+	}
+	require.NoError(t, db.Create(&tpl).Error)
+	require.NoError(t, db.Create(&[]models.AttachmentTemplateMapping{
+		{TemplateID: tpl.ID, CellRef: "A1", FieldPath: "application.application_number"},
+		{TemplateID: tpl.ID, CellRef: "B10", FieldPath: "car.car_number", IsListField: true},
+	}).Error)
+
+	now := time.Now()
+	conf, status := "Согласовано", models.StatusInWork
+	number := "№ 20260731/077"
+	app := models.Application{
+		OrganizationID: td.OrgID, SenderUserID: sender.ID, ApplicationNumber: &number,
+		Confirmation: &conf, Status: &status, SendingDatetime: &now,
+	}
+	require.NoError(t, db.Create(&app).Error)
+	att := models.Attachment{ApplicationID: &app.ID, AttachmentType: "cars", UniqueAttachmentID: &ua.ID}
+	require.NoError(t, db.Create(&att).Error)
+
+	const carCount = 5 // на две больше, чем строк списка в шаблоне
+	firstNumber := ""
+	for i := 0; i < carCount; i++ {
+		carNumber := fmt.Sprintf("Д %03d ДД 777", 401+i)
+		if i == 0 {
+			firstNumber = carNumber
+		}
+		require.NoError(t, db.Create(&models.Car{AttachmentID: att.ID, CarNumber: &carNumber}).Error)
+	}
+
+	svc := services.NewAttachmentBlankService(db)
+	first := generateBlankBytes(t, svc, app.ID, att.ID)
+	second := generateBlankBytes(t, svc, app.ID, att.ID)
+
+	// Сначала убеждаемся, что бланк содержательный: два одинаково пустых результата
+	// тоже "совпадают побайтово", и без этой проверки гейт был бы зелёным впустую.
+	require.NotEmpty(t, first)
+	out, err := excelize.OpenReader(bytes.NewReader(first))
+	require.NoError(t, err)
+	defer func() { require.NoError(t, out.Close()) }()
+	gotNumber, err := out.GetCellValue(out.GetSheetName(0), "A1")
+	require.NoError(t, err)
+	require.Equal(t, number, gotNumber)
+	gotCar, err := out.GetCellValue(out.GetSheetName(0), "B10")
+	require.NoError(t, err)
+	require.Equal(t, firstNumber, gotCar)
+	gotOverflow, err := out.GetCellValue(out.GetSheetName(0), "B14")
+	require.NoError(t, err)
+	require.NotEmpty(t, gotOverflow, "список должен был расшириться, иначе рискованный путь не проверен")
+
+	require.Equal(t, sha256.Sum256(first), sha256.Sum256(second),
+		"два бланка по одним данным разошлись побайтово: дедупликация архива по хешу работать не будет")
+
+	// Отдельно от равенства двух прогонов в одном процессе: архив сравнивает хеш с
+	// сохранённым днями раньше и другим процессом. Момент генерации, попавший внутрь
+	// книги, там разошёлся бы, а здесь остался бы незамеченным.
+	core := blankCoreProps(t, first)
+	require.NotEmpty(t, core, "в книге нет docProps/core.xml - проверка ниже стала бы пустой")
+	require.NotContains(t, core, time.Now().Format("2006-01-02"),
+		"в свойства книги попал момент генерации - хеш будет меняться от прогона к прогону")
+}
+
+func generateBlankBytes(t *testing.T, svc services.AttachmentBlankService, appID, attID int) []byte {
+	t.Helper()
+	reader, _, err := svc.GenerateBlank(context.Background(), appID, attID)
+	require.NoError(t, err)
+	data, err := io.ReadAll(reader)
+	require.NoError(t, err)
+	return data
+}
+
+// blankCoreProps возвращает docProps/core.xml готовой книги - именно туда офисные
+// форматы пишут время изменения. Пустая строка, если раздела в книге нет.
+func blankCoreProps(t *testing.T, data []byte) string {
+	t.Helper()
+	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	require.NoError(t, err)
+	for _, file := range zr.File {
+		if file.Name != "docProps/core.xml" {
+			continue
+		}
+		rc, err := file.Open()
+		require.NoError(t, err)
+		defer func() { require.NoError(t, rc.Close()) }()
+		content, err := io.ReadAll(rc)
+		require.NoError(t, err)
+		return string(content)
+	}
+	return ""
 }
 
 // Подпись «СОГЛАСОВАНО» в бланке: обязательные согласования перечисляются все,
