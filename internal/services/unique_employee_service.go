@@ -392,6 +392,12 @@ func (s *uniqueEmployeeService) buildEmployeesQuery(ctx context.Context, ownerIn
 		variants := buildSearchVariants(raw)
 		cols := []string{"ue.last_name", "ue.first_name", "ue.middle_name", "ue.\"position\"", "o.name", "c.name", "cit.name"}
 		cond, args := ilikePatternsArgs(cols, variants)
+		// Форма с функцией по concat_ws индексом не покрывается (выражение не IMMUTABLE)
+		// и даёт полный просмотр таблицы. Индексируемый вариант -- оператор по отдельным
+		// колонкам: ue.last_name %>> ? и т.д. с порогом через SET LOCAL, так сделан
+		// сквозной поиск (search_scope.go). Здесь оставлено как есть: замена меняет
+		// разбор многословных запросов, а листинг открывают по кнопке, не на каждый
+		// введённый символ.
 		cond += " OR strict_word_similarity(?, concat_ws(' ', ue.last_name, ue.first_name, ue.middle_name)) > 0.3"
 		args = append(args, raw)
 		query = query.Where(cond, args...)
