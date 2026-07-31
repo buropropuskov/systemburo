@@ -15,7 +15,7 @@ async function unwrap(res, fallback) {
 
 /**
  * Настройки файлового архива: рубильник, шаблоны раскладки, квота и пороги.
- * @returns {Promise<{data: object}>}
+ * @returns {Promise<object>} настройки без обёртки: apiRequest уже развернул конверт
  */
 export async function getArchiveSettings() {
   const res = await apiRequest('/file-archive/settings');
