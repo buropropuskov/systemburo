@@ -315,6 +315,43 @@ func TestGetApplications_SearchFindsItemWork(t *testing.T) {
 	assert.True(t, found, "заявка должна находиться по наименованию работ из items-вложения")
 }
 
+// TestGetApplications_SearchFindsCarBrand: поиск находит заявку по марке её машины.
+// Марка хранится в двух колонках: mark_name -- снимок имени марки, он появился позже и
+// заполнен у единиц записей, у остальных марка лежит в устаревшей car_brand. Поиск
+// смотрел только в mark_name, и заявку по марке машины было не найти.
+func TestGetApplications_SearchFindsCarBrand(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	token := testutil.RegisterAndLogin(t, e, "carbrandsearch", "pass123", 1, td.OrgID, td.CompanyID)
+	appID := createSimpleApplication(t, e, token, td.OrgID)
+
+	var attID int
+	require.NoError(t, db.Raw(
+		`INSERT INTO attachments (application_id, attachment_type, created_at, updated_at)
+		 VALUES (?, 'cars', now(), now()) RETURNING id`, appID).Scan(&attID).Error)
+	// mark_name намеренно пуст -- ровно так выглядят реальные записи.
+	require.NoError(t, db.Exec(
+		`INSERT INTO cars (attachment_id, car_number, car_brand, created_at, updated_at)
+		 VALUES (?, ?, ?, now(), now())`, attID, "В 543 НЕ 654", "Мерседесzzqx").Error)
+
+	rec := testutil.GET(t, e,
+		"/applications?search_query="+url.QueryEscape("Мерседесzzqx"),
+		testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	apps := testutil.ParseResponse[[]map[string]interface{}](t, rec)
+	found := false
+	for _, a := range apps {
+		if id, ok := a["id"].(float64); ok && int(id) == appID {
+			found = true
+		}
+	}
+	assert.True(t, found, "заявка должна находиться по марке своей машины")
+}
+
 // TestGetApplications_SearchFindsAttachmentName: поиск находит заявку по
 // пользовательскому наименованию вложения (#883). Имя вложения редактируется
 // при подаче и хранится в attachments.attachment_display_name; раньше в мега-поиске

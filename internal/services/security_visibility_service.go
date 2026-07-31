@@ -251,7 +251,9 @@ func availableAttachmentFilterWhere(f AvailableAttachmentFilters) (string, []int
 			baseCond, baseArgs := ilikePatternsArgs(baseCols, variants)
 
 			// Машины этого вложения: номер (+ слитно/раздельно при цифрах), марка, место разгрузки.
-			carCond, carArgs := ilikePatternsArgs([]string{"c2.car_number", "c2.mark_name", "c2.unload_place"}, variants)
+			// Обе колонки марки: mark_name заполнен у единиц записей, у остальных марка
+			// в устаревшей car_brand (тот же перекос, что в поиске Центра заявок).
+			carCond, carArgs := ilikePatternsArgs([]string{"c2.car_number", "c2.mark_name", "c2.car_brand", "c2.unload_place"}, variants)
 			platePattern := ""
 			if strings.ContainsAny(s, "0123456789") {
 				carCond += " OR REPLACE(c2.car_number, ' ', '') ILIKE ?"
