@@ -34,7 +34,9 @@
               v-if="tile.animated"
               :value="tile.value"
             />
-            <template v-else>{{ tile.display }}</template>
+            <template v-else>
+              {{ tile.display }}
+            </template>
           </div>
         </div>
       </div>
