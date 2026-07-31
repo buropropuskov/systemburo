@@ -12,6 +12,7 @@ const (
 	SearchTypeEmployees    SearchEntityType = "employees"
 	SearchTypeCars         SearchEntityType = "cars"
 	SearchTypeApplications SearchEntityType = "applications"
+	SearchTypeDirectories  SearchEntityType = "directories"
 )
 
 // SearchTarget -- адрес перехода из результата. Отдаём сущность и её id, а не готовый
