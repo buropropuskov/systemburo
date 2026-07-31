@@ -574,7 +574,10 @@ func applyApplicationFilters(query *gorm.DB, filter ApplicationFilter, includeUs
 		// --- вложения: машины ---
 		// Госномер ищем по всем вариантам (включая normalize.Plate для омоглифов/нулей);
 		// марку - по тексту. EXISTS чтобы не размножать строки заявки.
-		carNumCond, carNumArgs := ilikePatternsArgs([]string{"c2.car_number", "c2.mark_name", "c2.unload_place"}, variants)
+		// Марка ищется по обеим колонкам: mark_name -- снимок имени марки, он появился
+		// позже и заполнен у единиц записей, а в остальных марка лежит в устаревшей
+		// car_brand. По одной mark_name заявка по марке своей машины не находилась.
+		carNumCond, carNumArgs := ilikePatternsArgs([]string{"c2.car_number", "c2.mark_name", "c2.car_brand", "c2.unload_place"}, variants)
 		// Слитно/раздельно: сравниваем номер без пробелов с нормализованным запросом,
 		// чтобы "А 777 АА" находился по "А777АА" и наоборот (только если в запросе есть цифры).
 		platePattern := ""
