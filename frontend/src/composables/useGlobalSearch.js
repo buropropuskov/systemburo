@@ -50,17 +50,6 @@ export function useGlobalSearch() {
     }
   }
 
-  /** Кеш держит выдачу, уже суженную правами, поэтому при смене пользователя его чистим. */
-  function reset() {
-    cancel();
-    cache.clear();
-    groups.value = [];
-    degraded.value = [];
-    loading.value = false;
-    failed.value = false;
-    lastQuery.value = '';
-  }
-
   function cancel() {
     if (timer) {
       clearTimeout(timer);
@@ -130,5 +119,7 @@ export function useGlobalSearch() {
 
   onBeforeUnmount(cancel);
 
-  return { groups, degraded, loading, failed, lastQuery, search, cancel, reset };
+  // Отдельной очистки кеша нет намеренно: он живёт в замыкании панели, а панель
+  // размонтируется при разлогине (v-if по признаку авторизации), унося кеш с собой.
+  return { groups, degraded, loading, failed, lastQuery, search, cancel };
 }

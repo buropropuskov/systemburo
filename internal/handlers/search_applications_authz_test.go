@@ -118,6 +118,41 @@ func TestSearch_Applications_ViewerSees(t *testing.T) {
 	assert.True(t, found, "наблюдатель заявки должен её находить: %s", rec.Body.String())
 }
 
+// Марка машины в заявке лежит в устаревшей колонке car_brand -- снимок mark_name
+// появился позже и заполнен у единиц записей. Заявка обязана находиться по марке,
+// иначе запрос «номер + марка» не работает именно там, где его чаще всего вводят.
+func TestSearch_Applications_FoundByCarBrand(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+
+	testutil.RegisterUser(t, e, "app_brand", "password123", 1, td.OrgID, td.CompanyID)
+	assignBaseRole(t, db, "app_brand")
+	senderID := userIDByName(t, db, "app_brand")
+	appID := seedSearchApplication(t, db, "20260731/222", senderID, td.OrgID)
+
+	att := models.Attachment{ApplicationID: &appID, AttachmentType: "cars"}
+	require.NoError(t, db.Create(&att).Error)
+	require.NoError(t, db.Create(&models.Car{
+		AttachmentID: att.ID,
+		CarNumber:    searchStrPtr("В 543 НЕ 654"),
+		CarBrand:     searchStrPtr("Мерседес"),
+	}).Error)
+
+	token, _ := testutil.LoginUser(t, e, "app_brand", "password123")
+
+	for _, q := range []string{"Мерседес", "В 543 НЕ 654 Мерседес"} {
+		t.Run(q, func(t *testing.T) {
+			rec := testutil.GET(t, e, "/search?q="+urlQuery(q), testutil.AuthHeader(token))
+			require.Equal(t, http.StatusOK, rec.Code, "тело: %s", rec.Body.String())
+
+			_, found := groupByType(decodeSearch(t, rec.Body.String()), "applications")
+			assert.True(t, found, "заявка должна находиться по марке своей машины: %s", rec.Body.String())
+		})
+	}
+}
+
 // Заявку можно найти по номеру машины из вложения -- ради этого поиск по заявкам и нужен.
 func TestSearch_Applications_FoundByCarNumber(t *testing.T) {
 	e, db, cleanup := testutil.SetupTestApp(t)

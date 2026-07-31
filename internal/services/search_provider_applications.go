@@ -39,7 +39,10 @@ func (applicationSearchProvider) Search(ctx context.Context, db *gorm.DB, req se
 	cols := []string{"a.application_number", "a.message", "o.name", "c.name"}
 	cond, args := multiWordCondition(cols, req.Raw)
 
-	carCols := []string{"cr.car_number", "cr.mark_name"}
+	// car_brand -- устаревшая колонка марки, но в данных заполнена именно она: снимок
+	// mark_name появился позже и есть у единиц записей. Ищем по обеим, иначе заявка не
+	// находится по марке своей машины.
+	carCols := []string{"cr.car_number", "cr.mark_name", "cr.car_brand"}
 	carCond, carArgs := multiWordCondition(carCols, req.Raw)
 	cond += fmt.Sprintf(` OR EXISTS(
 		SELECT 1 FROM attachments att
