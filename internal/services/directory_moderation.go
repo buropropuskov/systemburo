@@ -235,8 +235,43 @@ func conflictOutcome(def directoryModeration, conflict DirectoryEntry) (Director
 	}, nil
 }
 
+// applicationRefColumn находит колонку, которой applications ссылается на
+// разбираемый справочник (organization_id либо company_id), по общему списку
+// refs (#1615, B1) - тот же источник, которым уже пользуется слияние, так что
+// enqueue не может разъехаться с реальными связями при будущей правке refs.
+func applicationRefColumn(def directoryModeration) string {
+	for _, ref := range def.refs {
+		if ref.Table == "applications" {
+			return ref.Column
+		}
+	}
+	return ""
+}
+
+// enqueueDirectoryArchiveExport ставит в очередь на пересборку файлового архива
+// заявки, ссылающиеся на запись справочника id (#1615, B1): наименование
+// организации/компании печатается в бланке и в слепке заявки, и разбор
+// (подтверждение, переименование, слияние) может его поменять.
+func enqueueDirectoryArchiveExport(ctx context.Context, db *gorm.DB, enqueuer BlankExportEnqueuer, def directoryModeration, id int) {
+	if enqueuer == nil {
+		return
+	}
+	column := applicationRefColumn(def)
+	if column == "" {
+		return
+	}
+	var appIDs []int
+	if err := db.WithContext(ctx).Model(&models.Application{}).
+		Where(column+" = ?", id).Pluck("id", &appIDs).Error; err != nil {
+		slog.Warn("не удалось собрать заявки для пересборки архива после разбора справочника",
+			"table", def.table, "id", id, "error", err)
+		return
+	}
+	enqueuer.EnqueueApplications(appIDs, BlankExportReasonUpdate)
+}
+
 // approveDirectoryEntry подтверждает запись «на проверке».
-func approveDirectoryEntry(ctx context.Context, db *gorm.DB, rec AuditRecorder, def directoryModeration, id, actorID int) (DirectoryModerationResult, error) {
+func approveDirectoryEntry(ctx context.Context, db *gorm.DB, rec AuditRecorder, enqueuer BlankExportEnqueuer, def directoryModeration, id, actorID int) (DirectoryModerationResult, error) {
 	entry, err := loadPendingEntry(ctx, db, def, id)
 	if err != nil {
 		return DirectoryModerationResult{}, err
@@ -290,6 +325,13 @@ func approveDirectoryEntry(ctx context.Context, db *gorm.DB, rec AuditRecorder, 
 	}
 	slog.Info("запись справочника подтверждена", "table", def.table, "id", id, "actor", actorID)
 
+	// Наименование в бланке/слепке заявок обязано следовать канону (#1615, B1) -
+	// но только если оно реально сменилось: подтверждение легаси-черновика без
+	// правки текста не повод трогать архив.
+	if display != entry.Name {
+		enqueueDirectoryArchiveExport(ctx, db, enqueuer, def, id)
+	}
+
 	entry.Name = display
 	entry.ModerationStatus = models.ModerationApproved
 	return DirectoryModerationResult{Status: DirectoryModerationApproved, Entry: &entry}, nil
@@ -298,7 +340,7 @@ func approveDirectoryEntry(ctx context.Context, db *gorm.DB, rec AuditRecorder, 
 // rename исправляет наименование записи «на проверке» и тем самым разбирает её:
 // принимающий, поправивший опечатку, уже подтвердил запись, второе действие не нужно.
 // notifier - уведомления инициатору наименования, может быть nil (см. notifyDirectoryResolved).
-func renameDirectoryEntry(ctx context.Context, db *gorm.DB, rec AuditRecorder, notifier NotificationService, def directoryModeration, id int, rawName string, actorID int) (DirectoryModerationResult, error) {
+func renameDirectoryEntry(ctx context.Context, db *gorm.DB, rec AuditRecorder, notifier NotificationService, enqueuer BlankExportEnqueuer, def directoryModeration, id int, rawName string, actorID int) (DirectoryModerationResult, error) {
 	entry, err := loadPendingEntry(ctx, db, def, id)
 	if err != nil {
 		return DirectoryModerationResult{}, err
@@ -367,6 +409,7 @@ func renameDirectoryEntry(ctx context.Context, db *gorm.DB, rec AuditRecorder, n
 	notifyDirectoryResolved(ctx, notifier, def.table, entry.CreatedByUserID, actorID,
 		def.label+" уточнена",
 		fmt.Sprintf("Указанное вами наименование «%s» исправлено на «%s».", entry.Name, name))
+	enqueueDirectoryArchiveExport(ctx, db, enqueuer, def, id)
 
 	renamed := DirectoryEntry{ID: id, Name: name, ModerationStatus: models.ModerationApproved}
 	return DirectoryModerationResult{Status: DirectoryModerationRenamed, Entry: &renamed}, nil
@@ -376,7 +419,7 @@ func renameDirectoryEntry(ctx context.Context, db *gorm.DB, rec AuditRecorder, n
 // Удаляем, а не архивируем: архив - это запись, которой пользовались, а черновик после
 // слияния не значит ничего и только засоряет справочник дублем.
 // notifier - уведомления инициатору наименования, может быть nil.
-func mergeDirectoryEntry(ctx context.Context, db *gorm.DB, rec AuditRecorder, notifier NotificationService, def directoryModeration, sourceID, targetID, actorID int) (DirectoryMergeResult, error) {
+func mergeDirectoryEntry(ctx context.Context, db *gorm.DB, rec AuditRecorder, notifier NotificationService, enqueuer BlankExportEnqueuer, def directoryModeration, sourceID, targetID, actorID int) (DirectoryMergeResult, error) {
 	if sourceID == targetID {
 		return DirectoryMergeResult{}, echo.NewHTTPError(http.StatusBadRequest, "Нельзя привязать запись к самой себе")
 	}
@@ -398,6 +441,20 @@ func mergeDirectoryEntry(ctx context.Context, db *gorm.DB, rec AuditRecorder, no
 	if target.ModerationStatus != models.ModerationApproved {
 		// Привязка к другому черновику оставила бы обе записи неразобранными.
 		return DirectoryMergeResult{}, echo.NewHTTPError(http.StatusBadRequest, "Привязывать можно только к проверенной записи справочника")
+	}
+
+	// Заявки черновика собираем ДО слияния (#1615, B1): после переноса ссылок
+	// organization_id/company_id этих заявок уже указывает на targetID, и искать
+	// их по sourceID было бы поздно.
+	var affectedAppIDs []int
+	if enqueuer != nil {
+		if column := applicationRefColumn(def); column != "" {
+			if err := db.WithContext(ctx).Model(&models.Application{}).
+				Where(column+" = ?", sourceID).Pluck("id", &affectedAppIDs).Error; err != nil {
+				slog.Warn("не удалось собрать заявки для пересборки архива перед слиянием справочника",
+					"table", def.table, "source", sourceID, "error", err)
+			}
+		}
 	}
 
 	reassigned := map[string]int{}
@@ -454,6 +511,9 @@ func mergeDirectoryEntry(ctx context.Context, db *gorm.DB, rec AuditRecorder, no
 	notifyDirectoryResolved(ctx, notifier, def.table, source.CreatedByUserID, actorID,
 		def.label+" привязана к справочнику",
 		fmt.Sprintf("Указанное вами наименование «%s» привязано к записи справочника «%s».", source.Name, target.Name))
+	if enqueuer != nil {
+		enqueuer.EnqueueApplications(affectedAppIDs, BlankExportReasonUpdate)
+	}
 
 	return DirectoryMergeResult{Target: target, Reassigned: reassigned, DroppedDup: dropped}, nil
 }

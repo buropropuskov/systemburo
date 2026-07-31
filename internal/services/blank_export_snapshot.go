@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -27,6 +28,14 @@ const archiveSnapshotFileName = "заявка.json"
 // со структурой снапшота, чтобы читающая сторона (корпоративный сервер) могла
 // отличить файлы, записанные до и после расширения состава.
 const archiveSnapshotSchemaVersion = 1
+
+// archiveSnapshotAttachmentID - зарезервированное значение attachment_id для
+// строки реестра слепка заявки (B1, долг A5c). 0 не занят реальными вложениями
+// (их id всегда положительны), и слепок под ним пользуется тем же механизмом
+// currentDir/frozenDir/relocate, что и обычные бланки: без строки реестра заявка
+// без единого бланка не знает своего фактического пути и после смены организации
+// заявка.json остаётся сиротой в прежней папке.
+const archiveSnapshotAttachmentID = 0
 
 // applicationSnapshot - корень заявка.json. Поля описаны структурами, а не
 // map[string]any: порядок полей структуры фиксирован её объявлением, тогда как
@@ -518,47 +527,47 @@ func formatSnapshotTime(t *time.Time) string {
 
 // writeApplicationSnapshot кладёт заявка.json в папку заявки тем же писателем и по
 // тем же гарантиям атомарности, что и бланки (ArchiveWriter.WriteFile). Возвращает,
-// был ли файл записан на этом прогоне.
+// был ли файл записан на этом прогоне, и хэш/размер актуального содержимого - с B1
+// слепок ведёт строку реестра, как и обычные бланки, и ей нужно чем заполниться.
 //
 // Заморозка запрещает ПЕРЕЗАПИСЬ уже лежащего слепка, но не первую его запись, и
-// проверяется наличием файла на диске, а не признаком «заявка заморожена». Гейт по
-// признаку оставлял бы без слепка навсегда: заявки, замороженные до появления этого
-// кода; заявки, у которых запись сорвалась ровно на том прогоне, где замёрзли бланки
-// (ретрая у слепка нет - нет и строки реестра); и починить это было бы нечем -
-// ручное «пересоздать» упиралось бы в тот же признак.
-//
-// Дедуп ведёт по собственному хэшу с диска, а не по строке реестра blank_exports: у
-// слепка нет attachment_id, и заводить под него строку означало бы либо путать
-// markOrphans (он считает сиротой всё, чего нет среди вложений заявки), либо
-// расширять схему сверх минимального следа этого среза.
-func writeApplicationSnapshot(ctx context.Context, db *gorm.DB, writer *ArchiveWriter, applicationID int, levels []string, frozen bool) (bool, error) {
+// проверяется наличием файла на диске, а не признаком «заявка заморожена» из
+// реестра. Гейт по признаку оставлял бы без слепка навсегда: заявки, замороженные
+// до появления этого кода; заявки, у которых запись сорвалась ровно на том прогоне,
+// где замёрзли бланки; и починить это было бы нечем - ручное «пересоздать»
+// упиралось бы в тот же признак. Строка реестра (B1) добавлена только ради
+// фактического пути для переезда, решение «писать или нет» по-прежнему смотрит на
+// диск, а не на неё.
+func writeApplicationSnapshot(ctx context.Context, db *gorm.DB, writer *ArchiveWriter, applicationID int, levels []string, frozen bool) (written bool, hash string, size int64, err error) {
 	exists, err := writer.Exists(levels, archiveSnapshotFileName)
 	if err != nil {
-		return false, err
+		return false, "", 0, err
 	}
 	if frozen && exists {
-		return false, nil
+		return false, "", 0, nil
 	}
 
 	data, err := buildApplicationSnapshot(ctx, db, applicationID)
 	if err != nil {
-		return false, err
+		return false, "", 0, err
 	}
+	sum := sha256.Sum256(data)
+	hash, size = hex.EncodeToString(sum[:]), int64(len(data))
 
 	if exists {
 		changed, err := snapshotContentChanged(writer, levels, data)
 		if err != nil {
-			return false, err
+			return false, hash, size, err
 		}
 		if !changed {
-			return false, nil
+			return false, hash, size, nil
 		}
 	}
 
 	if err := writer.WriteFile(levels, archiveSnapshotFileName, data); err != nil {
-		return false, err
+		return false, hash, size, err
 	}
-	return true, nil
+	return true, hash, size, nil
 }
 
 // snapshotContentChanged сравнивает хэш нового слепка с уже лежащим на диске.

@@ -361,6 +361,11 @@ func (s *applicationService) applicationParticipants(ctx context.Context, applic
 // поэтому кто видит деталь, тот видит и строку в Центре. Best-effort: без паблишера/при
 // пустой аудитории - no-op, сбой не влияет на бизнес-операцию. Звать ПОСЛЕ commit изменения.
 func (s *applicationService) notifyApplicationUpdated(ctx context.Context, applicationID int) {
+	// Файловый архив (#1615, B1): единый хокпоинт "заявка реально изменилась",
+	// которым уже пользуются все точки workflow/согласования/назначения ниже по
+	// файлу - независим от realtimePublisher, поэтому стоит до раннего return.
+	s.enqueueArchiveExport(applicationID, BlankExportReasonUpdate)
+
 	if s.realtimePublisher == nil {
 		return
 	}
