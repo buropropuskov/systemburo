@@ -296,7 +296,10 @@ describe('PDConsentOverlay (#1567)', () => {
 
     const aside = wrapper.get('.pdc-modal__aside').text();
     expect(aside).toContain('данные вашей учётной записи');
-    expect(aside).toContain('Отказаться можно в любой момент');
+    // Про отзыв согласия сказано с последствием, а не обещанием «в любой момент»:
+    // отозвав его, человек снова упирается в это же окно.
+    expect(aside).toContain('Отозвать согласие можно');
+    expect(aside).toContain('снова покажет это окно');
   });
 
   it('пока active=false, окно не рисуется', async () => {

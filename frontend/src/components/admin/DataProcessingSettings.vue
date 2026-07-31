@@ -234,44 +234,99 @@
                 </p>
 
                 <template v-if="pdcCollection.pending_users.length">
-                  <p class="form-hint">
-                    Ещё не подтвердили ({{ pdcCollection.pending }}):
-                  </p>
-                  <div class="pdc-collection__list-wrap">
-                    <ul
-                      class="pdc-collection__list"
-                      data-testid="pdc-collection-pending"
-                    >
-                      <li
-                        v-for="person in pdcCollection.pending_users"
-                        :key="person.id"
-                        class="pdc-collection__item"
+                  <div class="pdc-pending">
+                    <div class="pdc-pending__toolbar">
+                      <h6 class="pdc-pending__title">
+                        Ещё не подтвердили: {{ pdcCollection.pending }}
+                      </h6>
+                      <div class="pdc-pending__controls">
+                        <input
+                          v-model="pdcPendingQuery"
+                          class="lk-input pdc-pending__search"
+                          type="search"
+                          placeholder="Поиск по ФИО, логину, организации"
+                          data-testid="pdc-pending-search"
+                        >
+                        <BaseDropdown
+                          v-model="pdcPendingOrg"
+                          class="pdc-pending__filter"
+                          :options="pdcPendingOrgOptions"
+                          label-key="name"
+                          value-key="id"
+                          placeholder="Все организации"
+                          searchable
+                          data-testid="pdc-pending-org"
+                        />
+                        <button
+                          class="btn btn--ghost"
+                          :disabled="pdcExporting"
+                          data-testid="pdc-collection-export"
+                          @click="exportPdcPending"
+                        >
+                          {{ pdcExporting ? 'Готовим файл...' : 'Выгрузить' }}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div class="pdc-pending__table rt-table">
+                      <div class="pdc-pending__head rt-head-row">
+                        <div class="pdc-pending__col pdc-pending__col--name">
+                          ФИО
+                        </div>
+                        <div class="pdc-pending__col pdc-pending__col--login">
+                          Логин
+                        </div>
+                        <div class="pdc-pending__col pdc-pending__col--org">
+                          Организация
+                        </div>
+                      </div>
+                      <div
+                        class="pdc-pending__body"
+                        data-testid="pdc-collection-pending"
                       >
-                        <span class="pdc-collection__name">{{ person.full_name }}</span>
-                        <span class="pdc-collection__login">{{ person.username }}</span>
-                        <span
-                          v-if="person.organization"
-                          class="pdc-collection__org"
-                        >{{ person.organization }}</span>
-                      </li>
-                    </ul>
+                        <div
+                          v-for="person in pdcPendingRows"
+                          :key="person.id"
+                          class="pdc-pending__row rt-row"
+                        >
+                          <div
+                            class="pdc-pending__col pdc-pending__col--name"
+                            data-label="ФИО"
+                          >
+                            {{ person.full_name || '-' }}
+                          </div>
+                          <div
+                            class="pdc-pending__col pdc-pending__col--login"
+                            data-label="Логин"
+                          >
+                            {{ loginLabel(person.username) }}
+                          </div>
+                          <div
+                            class="pdc-pending__col pdc-pending__col--org"
+                            data-label="Организация"
+                          >
+                            {{ person.organization || '-' }}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <p
+                      v-if="!pdcPendingRows.length"
+                      class="form-hint"
+                      data-testid="pdc-pending-empty"
+                    >
+                      По запросу никого не нашлось.
+                    </p>
+                    <p
+                      v-else-if="pdcPendingHiddenCount"
+                      class="form-hint"
+                      data-testid="pdc-collection-truncated"
+                    >
+                      Показаны первые {{ pdcPendingRows.length }} из {{ pdcCollection.pending }}.
+                      Остальные - в выгрузке; поиск и фильтр ищут по всему списку.
+                    </p>
                   </div>
-                  <p
-                    v-if="pdcCollection.truncated"
-                    class="form-hint"
-                    data-testid="pdc-collection-truncated"
-                  >
-                    Показаны первые {{ pdcCollection.pending_users.length }}. Полный список -
-                    в выгрузке.
-                  </p>
-                  <button
-                    class="btn btn--ghost"
-                    :disabled="pdcExporting"
-                    data-testid="pdc-collection-export"
-                    @click="exportPdcPending"
-                  >
-                    {{ pdcExporting ? 'Готовим файл...' : 'Выгрузить список' }}
-                  </button>
                 </template>
                 <p
                   v-else
@@ -301,10 +356,13 @@ import {
 } from '@/api/pdConsent';
 import { extractDocumentHtml } from '@/utils/documentTextExtract';
 import { stripHtml } from '@/utils/sanitize';
+import { formatLogin } from '@/utils/formatName';
 import { useDeletionsStore } from '@/stores/deletions';
 import { useUiStore } from '@/stores/ui';
 import TextConstructor from '@/components/TextConstructor.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
+import BaseDropdown from '@/components/ui/BaseDropdown.vue';
+import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 
 /**
  * Раздел «Обработка данных» отдельной страницей (/admin/data-processing): документ
@@ -316,7 +374,7 @@ import RefreshButton from '@/components/RefreshButton.vue';
  */
 export default {
   name: 'DataProcessingSettings',
-  components: { TextConstructor, RefreshButton },
+  components: { TextConstructor, RefreshButton, BaseDropdown },
   data() {
     return {
       dpMeta: null,
@@ -341,6 +399,13 @@ export default {
       pdcCollection: null,
       pdcCollectionLoading: false,
       pdcExporting: false,
+      // Поиск и фильтр по списку не подтвердивших. Сам список приходит урезанным
+      // (первые PendingListLimit), поэтому при первом же запросе догружаем полный:
+      // искать по видимой полусотне значит врать администратору «никого не нашлось».
+      pdcPendingQuery: '',
+      pdcPendingOrg: null,
+      pdcPendingFull: null,
+      pdcPendingFullLoading: false,
     };
   },
   computed: {
@@ -381,6 +446,38 @@ export default {
 
     pdcBusy() {
       return this.pdcSaving || this.pdcExtracting || this.pdcRequiringAgain || this.pdcTogglingRequired;
+    },
+
+    /** Список, по которому идут поиск и фильтр: полный, если он уже догружен. */
+    pdcPendingSource() {
+      return this.pdcPendingFull || this.pdcCollection?.pending_users || [];
+    },
+
+    pdcPendingOrgOptions() {
+      const names = new Set();
+      for (const person of this.pdcPendingSource) {
+        if (person.organization) names.add(person.organization);
+      }
+      return [{ id: null, name: 'Все организации' }]
+        .concat([...names].sort((a, b) => a.localeCompare(b, 'ru')).map((name) => ({ id: name, name })));
+    },
+
+    pdcPendingRows() {
+      const variants = buildSearchVariants(this.pdcPendingQuery);
+      return this.pdcPendingSource.filter((person) => {
+        if (this.pdcPendingOrg && person.organization !== this.pdcPendingOrg) return false;
+        if (!this.pdcPendingQuery.trim()) return true;
+        return matchesSearch(
+          `${person.full_name || ''} ${person.username || ''} ${person.organization || ''}`,
+          variants,
+        );
+      });
+    },
+
+    /** Сколько человек в списке есть, но на экран не попало. */
+    pdcPendingHiddenCount() {
+      const total = this.pdcCollection?.pending || 0;
+      return Math.max(0, total - this.pdcPendingRows.length);
     },
 
     pdcHasText() {
@@ -544,12 +641,38 @@ export default {
       this.pdcCollectionLoading = true;
       try {
         this.pdcCollection = await getPDConsentCollection();
+        this.pdcPendingFull = null;
+        if (this.pdcCollection?.truncated) this.loadPdcPendingFull();
       } catch (error) {
         console.error('Не удалось загрузить сводку по сбору согласий:', error);
         this.pdcCollection = null;
       } finally {
         this.pdcCollectionLoading = false;
       }
+    },
+
+    /**
+     * Догружает полный список не подтвердивших. Нужен поиску и фильтру: искать по
+     * показанной части значит отвечать «никого не нашлось» про человека, который в
+     * списке есть. Грузим один раз на обновление сводки.
+     */
+    async loadPdcPendingFull() {
+      if (this.pdcPendingFullLoading || this.pdcPendingFull) return;
+      this.pdcPendingFullLoading = true;
+      try {
+        const full = await getPDConsentCollection({ full: true });
+        this.pdcPendingFull = full?.pending_users || null;
+      } catch (error) {
+        // Поиск останется по показанной части - об этом сказано подписью под таблицей.
+        console.error('Не удалось загрузить полный список не подтвердивших:', error);
+      } finally {
+        this.pdcPendingFullLoading = false;
+      }
+    },
+
+    /** Логин с собачкой; прочерк, когда логина нет. */
+    loginLabel(username) {
+      return formatLogin(username) || '-';
     },
 
     async exportPdcPending() {
@@ -1124,53 +1247,108 @@ export default {
   color: var(--color-text, var(--text));
 }
 
-/* Список прокручивается, и обрезанная по середине строка выглядела как дефект
-   вёрстки. Затухание у нижней кромки показывает, что список продолжается. */
-.pdc-collection__list-wrap {
-  position: relative;
+/* Не подтвердившие - обычная таблица проекта: шапка с поиском и фильтром,
+   строки с подписями колонок, на узком экране rt-* разворачивает их в карточки. */
+.pdc-pending {
+  margin-top: 14px;
 }
 
-.pdc-collection__list-wrap::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 28px;
-  pointer-events: none;
-  background: linear-gradient(to bottom, transparent, var(--surface));
-}
-
-.pdc-collection__list {
-  margin: 8px 0 12px;
-  padding: 0;
-  list-style: none;
-  max-height: 220px;
-  overflow-y: auto;
-}
-
-.pdc-collection__item {
+.pdc-pending__toolbar {
   display: flex;
-  align-items: baseline;
-  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
   flex-wrap: wrap;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--color-border, var(--border));
-  font-size: 13px;
+  gap: 10px;
+  margin-bottom: 10px;
 }
 
-.pdc-collection__item:last-child {
-  border-bottom: none;
-}
-
-.pdc-collection__name {
-  font-weight: 500;
+.pdc-pending__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
   color: var(--color-text, var(--text));
 }
 
-.pdc-collection__login,
-.pdc-collection__org {
+.pdc-pending__controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pdc-pending__search {
+  width: 260px;
+  max-width: 100%;
+}
+
+.pdc-pending__filter {
+  min-width: 200px;
+}
+
+.pdc-pending__table {
+  border: 1px solid var(--color-border, var(--border));
+  border-radius: var(--radius-md, 15px);
+  overflow: hidden;
+}
+
+.pdc-pending__head,
+.pdc-pending__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 14px;
+}
+
+.pdc-pending__head {
+  background: var(--color-bg-muted, color-mix(in srgb, var(--text) 4%, var(--surface)));
   font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
   color: var(--color-text-muted, var(--text-muted));
 }
+
+.pdc-pending__body {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.pdc-pending__row {
+  border-top: 1px solid var(--color-border, var(--border));
+  font-size: 13px;
+  color: var(--color-text, var(--text));
+}
+
+.pdc-pending__col {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pdc-pending__col--name {
+  flex: 1 1 40%;
+}
+
+.pdc-pending__col--login {
+  flex: 0 0 26%;
+  color: var(--color-text-muted, var(--text-muted));
+}
+
+.pdc-pending__col--org {
+  flex: 1 1 34%;
+  color: var(--color-text-muted, var(--text-muted));
+}
+
+@media (max-width: 768px) {
+  .pdc-pending__search,
+  .pdc-pending__filter {
+    width: 100%;
+  }
+
+  .pdc-pending__controls {
+    width: 100%;
+  }
+}
+
 </style>

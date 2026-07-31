@@ -16,7 +16,7 @@
           @mousedown.stop
         >
           <div class="modal-header">
-            <h3>История учётной записи «{{ user.username }}»</h3>
+            <h3>История учётной записи «{{ formatLogin(user.username) }}»</h3>
             <div class="header-actions">
               <button
                 class="export-btn"
@@ -197,6 +197,7 @@
 
 <script>
 import { ref } from 'vue';
+import { formatLogin } from '@/utils/formatName';
 import { apiRequest } from '@/api/client';
 import { useOverlayClose } from '@/composables/useOverlayClose';
 import { useDeletionsStore } from '@/stores/deletions';
@@ -393,6 +394,8 @@ export default {
     document.removeEventListener('keydown', this.onKeydown);
   },
   methods: {
+    formatLogin,
+
     onKeydown(e) {
       if (e.key === 'Escape') this.requestClose();
     },

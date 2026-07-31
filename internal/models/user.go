@@ -153,7 +153,15 @@ type UserInfoResponse struct {
 	// NameHidden -- ФИО не пусто, а скрыто: работник не дал согласия на обработку
 	// персональных данных (#1567). Форма редактирования обязана отличать это от
 	// незаполненного поля, иначе сохранение соседнего поля затрёт настоящее ФИО.
-	NameHidden bool    `json:"name_hidden"`
+	NameHidden bool `json:"name_hidden"`
+	// ConsentGranted -- у работника есть действующее согласие на обработку
+	// персональных данных, ConsentAt -- когда он его дал.
+	ConsentGranted bool    `json:"consent_granted"`
+	ConsentAt      *string `json:"consent_at"`
+	// ConsentRequired -- согласие сейчас спрашивают, и этого работника это касается.
+	// Без признака «согласия нет» неотличимо от «его и не спрашивают»: пока запрос
+	// выключен, согласия нет вообще ни у кого.
+	ConsentRequired bool `json:"consent_required"`
 	Position   *string `json:"position"`
 	Email      *string `json:"email"`
 	Phone      *string `json:"phone"`

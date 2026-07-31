@@ -748,7 +748,7 @@ export default {
           title: 'Система',
           items: [
             { label: 'Настройки', icon: 'settings', path: '/admin/settings', permission: 'page.admin' },
-            { label: 'Обработка данных', icon: 'settings', path: '/admin/data-processing', permission: 'page.admin' },
+            { label: 'Обработка данных', icon: 'data-processing', path: '/admin/data-processing', permission: 'page.admin' },
             { label: 'Конструктор таблиц', icon: 'table-constructor', path: '/table-constructor', permission: 'page.admin.tables_constructor' },
             { label: 'Техработы', icon: 'system-control', path: '/admin/system-control', permission: 'page.admin.system_control' },
           ],

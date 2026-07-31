@@ -53,6 +53,20 @@ export function formatFullName(parts) {
 }
 
 /**
+ * Логин с собачкой - единый вид во всех списках и карточках. Собачка отличает
+ * логин от фамилии в соседней колонке; в подборе согласующих такой вид был с
+ * самого начала, остальные экраны приведены к нему (#1567).
+ *
+ * @param {?string} username
+ * @returns {string} пустая строка, если логина нет
+ */
+export function formatLogin(username) {
+  const login = trim(username)
+  if (!login) return ''
+  return login.startsWith('@') ? login : `@${login}`
+}
+
+/**
  * Подпись учётной записи для списков: сокращённое ФИО, а если его нет - логин.
  *
  * Пустое ФИО у работника означает одно из двух: его не заполнили при заведении
@@ -65,5 +79,5 @@ export function formatFullName(parts) {
  */
 export function formatUserLabel(user) {
   if (!user) return ''
-  return formatShortName(user) || trim(user.username)
+  return formatShortName(user) || formatLogin(user.username)
 }
