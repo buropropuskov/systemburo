@@ -251,3 +251,97 @@ func userNameHidden(t *testing.T, e *echo.Echo, token, username string) bool {
 	t.Fatalf("работник %s не найден в списке", username)
 	return false
 }
+
+// Журналы справочников: актор без согласия подписан логином. Проверяем на истории
+// марки - она читает audit_log тем же путём, что и остальные справочники.
+func TestPDConsentMask_DirectoryHistory_ActorMaskedByLogin(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	// Актор - обычный администратор (не супер): гейт согласия его закрывает.
+	actor := testutil.RegisterManager(t, e, "mask_dir", td.OrgID, td.CompanyID)
+	setUserName(t, db, "mask_dir", "Справочников", "Тимур", "Тимурович")
+
+	// Действие делаем над уже существующей маркой: имя справочника уникально, а
+	// CleanDB марки не чистит - создание второй раз упиралось бы в дубликат.
+	markID := seedMarkForMask(t, db)
+	require.Equal(t, http.StatusOK,
+		testutil.POST(t, e, "/marks/"+strconv.Itoa(markID)+"/archive", "{}", testutil.AuthHeader(actor)).Code)
+
+	before := markHistoryBody(t, e, admin, markID)
+	require.Contains(t, before, "Справочников", "до включения запроса согласия ФИО актора на месте")
+
+	enableConsent(t, e, admin, "<p>Согласие</p>")
+
+	after := markHistoryBody(t, e, admin, markID)
+	assert.NotContains(t, after, "Справочников", "ФИО актора скрыто")
+	assert.Contains(t, after, "mask_dir", "вместо ФИО подставлен логин")
+}
+
+// seedMarkForMask заводит марку прямо в базе и возвращает её id.
+func seedMarkForMask(t *testing.T, db *gorm.DB) int {
+	t.Helper()
+	mark := models.Mark{Name: "Маска-Тест-Марка", IsActive: true}
+	require.NoError(t, db.Where("name = ?", mark.Name).FirstOrCreate(&mark).Error)
+	require.NoError(t, db.Model(&models.Mark{}).Where("id = ?", mark.ID).
+		Update("is_active", true).Error)
+	return mark.ID
+}
+
+// markHistoryBody возвращает тело истории марки одной строкой.
+func markHistoryBody(t *testing.T, e *echo.Echo, token string, markID int) string {
+	t.Helper()
+	rec := testutil.GET(t, e, "/marks/"+strconv.Itoa(markID)+"/history", testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	return rec.Body.String()
+}
+
+// Пул принимающих - список, из которого заявитель узнаёт, кому уйдёт заявка.
+func TestPDConsentMask_ApproversPool_HidesName(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	testutil.RegisterAndLogin(t, e, "mask_pool", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
+	setUserName(t, db, "mask_pool", "Приёмов", "Олег", "Олегович")
+	makeApprover(t, db, "mask_pool")
+	enableConsent(t, e, admin, "<p>Согласие</p>")
+
+	rec := testutil.GET(t, e, "/application-approvers", testutil.AuthHeader(admin))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	body := rec.Body.String()
+	assert.NotContains(t, body, "Приёмов", "ФИО принимающего без согласия скрыто")
+	assert.Contains(t, body, "mask_pool", "логин остаётся - иначе строку не опознать")
+}
+
+// В истории принимающих ФИО двое: кто действовал и кого добавили или сняли. Второе
+// ревью нашло незакрытым - оба должны прятаться.
+func TestPDConsentMask_ApproverHistory_HidesBothNames(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	testutil.RegisterAndLogin(t, e, "mask_subject", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
+	subjectID := setUserName(t, db, "mask_subject", "Назначенов", "Борис", "Борисович")
+
+	added := testutil.POST(t, e, "/application-approvers",
+		`{"user_id":`+strconv.Itoa(subjectID)+`}`, testutil.AuthHeader(admin))
+	require.Equal(t, http.StatusCreated, added.Code, added.Body.String())
+
+	rec := testutil.GET(t, e, "/application-approvers/history", testutil.AuthHeader(admin))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.Contains(t, rec.Body.String(), "Назначенов", "до включения запроса согласия ФИО на месте")
+
+	enableConsent(t, e, admin, "<p>Согласие</p>")
+
+	after := testutil.GET(t, e, "/application-approvers/history", testutil.AuthHeader(admin))
+	require.Equal(t, http.StatusOK, after.Code)
+	assert.NotContains(t, after.Body.String(), "Назначенов", "ФИО назначенного принимающего скрыто")
+	assert.Contains(t, after.Body.String(), "mask_subject", "вместо ФИО подставлен логин")
+}

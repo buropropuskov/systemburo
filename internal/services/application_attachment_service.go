@@ -35,6 +35,11 @@ func (s *applicationService) GetApplicationViewers(ctx context.Context, applicat
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching viewers")
 	}
 
+	if masks := loadConsentMasks(ctx, s.db); len(masks) > 0 {
+		for i := range viewers {
+			maskUserParts(masks, viewers[i].UserID, &viewers[i].LastName, &viewers[i].FirstName, &viewers[i].MiddleName)
+		}
+	}
 	return viewers, nil
 }
 

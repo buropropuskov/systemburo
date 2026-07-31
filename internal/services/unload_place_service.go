@@ -640,6 +640,8 @@ func (s *unloadPlaceService) GetHistory(ctx context.Context, id int) ([]models.U
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching unload place history")
 	}
 
+	// Логин вместо ФИО у акторов, не давших согласия на обработку данных.
+	masks := loadConsentMasks(ctx, s.db)
 	items := make([]models.UnloadPlaceHistoryItem, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, models.UnloadPlaceHistoryItem{
@@ -647,7 +649,7 @@ func (s *unloadPlaceService) GetHistory(ctx context.Context, id int) ([]models.U
 			ActionType:  r.ActionType,
 			Details:     r.Details,
 			ActorUserID: r.ActorUserID,
-			ActorName:   r.ActorName,
+			ActorName:   maskName(masks, r.ActorUserID, r.ActorName),
 			CreatedAt:   r.CreatedAt,
 		})
 	}

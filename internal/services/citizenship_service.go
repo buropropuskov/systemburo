@@ -267,6 +267,8 @@ func (s *citizenshipService) GetHistory(ctx context.Context, id int) ([]models.C
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching citizenship history")
 	}
 
+	// Логин вместо ФИО у акторов, не давших согласия на обработку данных.
+	masks := loadConsentMasks(ctx, s.db)
 	items := make([]models.CitizenshipHistoryItem, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, models.CitizenshipHistoryItem{
@@ -274,7 +276,7 @@ func (s *citizenshipService) GetHistory(ctx context.Context, id int) ([]models.C
 			ActionType:  r.ActionType,
 			Details:     r.Details,
 			ActorUserID: r.ActorUserID,
-			ActorName:   r.ActorName,
+			ActorName:   maskName(masks, r.ActorUserID, r.ActorName),
 			CreatedAt:   r.CreatedAt,
 		})
 	}

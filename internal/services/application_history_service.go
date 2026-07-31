@@ -178,12 +178,14 @@ func (s *applicationService) GetForwardMessages(ctx context.Context, application
 		return out
 	}
 
+	// Логин вместо ФИО у пересылавших, не давших согласия на обработку данных.
+	masks := loadConsentMasks(ctx, s.db)
 	items := make([]ForwardMessageItem, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, ForwardMessageItem{
 			ID:          r.ID,
 			AuthorID:    r.AuthorID,
-			AuthorName:  r.AuthorName,
+			AuthorName:  maskName(masks, &r.AuthorID, r.AuthorName),
 			Message:     r.Message,
 			Recipients:  parseStrings(r.RecipientsJSON, "recipients", r.ID),
 			Whole:       r.Whole,
