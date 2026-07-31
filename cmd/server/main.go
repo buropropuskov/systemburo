@@ -314,6 +314,14 @@ func main() {
 	}
 	blankArchiveHandler := handlers.NewBlankArchiveHandler(
 		settingsService, archivePathService, blankExportService, auditRecorder)
+	// Место и квота файлового архива (#1615, срез B2): сводка занятого места и
+	// порог, останавливающий очередь выгрузки при нехватке места. Поднимается
+	// независимо от blankExportService - сводку и статус диска нужно показывать
+	// и когда каталог архива ещё не настроен (тот же принцип, что у настроек).
+	blankExportQuotaService := services.NewBlankExportQuotaService(
+		db, settingsService, notificationService, permissionResolver, auditRecorder,
+		cfg.ArchivePath, cfg.UploadPath, cfg.LogFilePath)
+	blankArchiveStatsHandler := handlers.NewBlankArchiveStatsHandler(blankExportQuotaService)
 	bugReportHandler := handlers.NewBugReportHandler(bugReportService)
 	maintenanceHandler := handlers.NewMaintenanceHandler(maintenanceService)
 	markHandler := handlers.NewMarkHandler(markService)
@@ -417,6 +425,7 @@ func main() {
 		Events:              eventsHandler,
 		Search:              searchHandler,
 		BlankArchive:        blankArchiveHandler,
+		BlankArchiveStats:   blankArchiveStatsHandler,
 		PermResolver:        permissionResolver,
 		DenialLog:           accessDenialService,
 		MaintenanceBlock:    maintenanceBlock,

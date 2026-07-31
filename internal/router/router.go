@@ -69,6 +69,7 @@ type Dependencies struct {
 	Events              *handlers.EventsHandler
 	Search              *handlers.SearchHandler
 	BlankArchive        *handlers.BlankArchiveHandler
+	BlankArchiveStats   *handlers.BlankArchiveStatsHandler
 
 	// Services (для middleware и audit)
 	PermResolver *services.PermissionResolver
@@ -993,6 +994,11 @@ func Setup(e *echo.Echo, d Dependencies) {
 		faGroup.POST("/preview", blankArchive.Preview, manageFileArchive)
 		// Пересоздание файлов заявки переписывает диск - право то же, что на настройки.
 		faGroup.POST("/applications/:id/reexport", blankArchive.Reexport, manageFileArchive)
+		// Сводка места и квоты (#1615, срез B2) - тот же уровень доступа, что и
+		// просмотр настроек: занятое место видит любой, кому виден раздел.
+		if stats := d.BlankArchiveStats; stats != nil {
+			faGroup.GET("/stats", stats.GetStats)
+		}
 	}
 
 	// Статистика дашборда (#632). Доступ ограничен page.statistics.
