@@ -38,18 +38,35 @@
           />
           <span class="gsp__head-title">Результаты поиска</span>
           <button
-            class="gsp__act"
+            class="gsp__act gsp__act--pin"
+            :class="{ 'is-pinned': pinned }"
             type="button"
-            :title="pinned ? 'Открепить: панель будет закрываться при переходе' : 'Закрепить: панель останется открытой при переходе'"
+            :title="pinned ? 'Открепить панель' : 'Закрепить раскрытой'"
             :aria-label="pinned ? 'Открепить панель' : 'Закрепить панель'"
             :aria-pressed="pinned"
             @click="togglePinned"
           >
-            <NavIcon
-              name="pin"
-              :size="17"
-              :class="['gsp__pin', { 'gsp__pin--on': pinned }]"
-            />
+            <!-- Тот же глиф и то же состояние, что у закрепления рельса в навигации:
+                 одна кнопка в двух местах интерфейса должна выглядеть одинаково. -->
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M9 4h6l-1 7 3 3v2H7v-2l3-3z" />
+              <line
+                x1="12"
+                y1="16"
+                x2="12"
+                y2="21"
+              />
+            </svg>
           </button>
           <button
             class="gsp__act"
@@ -377,9 +394,10 @@ export default {
 <style scoped>
 .gsp {
   position: fixed;
-  /* Панель начинается под шапкой: накрывая её, она обрезала кнопки и выглядела
-     съехавшей поверх интерфейса, а не рядом с ним. */
-  top: 60px;
+  /* Во всю высоту окна. Шапка приложения прокручивается вместе со страницей, поэтому
+     панель, начинавшаяся под ней, при прокрутке оставляла сверху пустую полосу.
+     Кнопки шапки под панелью не теряются: она открыта, только пока идёт поиск. */
+  top: 0;
   right: 0;
   bottom: 0;
   width: 420px;
@@ -455,17 +473,10 @@ export default {
   background: var(--surface-2);
 }
 
-/* Закреплённая булавка подсвечена и наклонена -- состояние читается и по цвету, и по
-   форме, а не только по цвету (важно, когда цвет плохо различим). */
-.gsp__pin {
-  opacity: 0.75;
-  transition: transform 0.15s ease-out;
-}
-
-.gsp__pin--on {
+/* Закреплённое состояние -- как у закрепления рельса: цвет темы и мягкая подложка. */
+.gsp__act--pin.is-pinned {
   color: var(--color-primary, #4f5bdf);
-  opacity: 1;
-  transform: rotate(-35deg);
+  background: var(--color-primary-tint);
 }
 
 .gsp__head {
@@ -474,6 +485,10 @@ export default {
   gap: 8px;
   padding: 12px 8px 12px 16px;
   border-bottom: 1px solid var(--border);
+  /* Шапка панели непрозрачная, в отличие от тела: она приходится на ту же полосу, что
+     шапка приложения, и сквозь прозрачность её кнопки просвечивали под заголовком
+     панели -- получалась каша из двух наложенных строк. */
+  background: var(--surface);
 }
 
 .gsp__head-title {
@@ -588,7 +603,7 @@ export default {
 @media (max-width: 768px) {
   .gsp {
     width: 100vw;
-    top: var(--mobile-header-height, 55px);
+    top: 0;
     bottom: 0;
   }
 
