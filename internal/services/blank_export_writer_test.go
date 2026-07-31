@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -74,6 +75,37 @@ func TestArchiveWriter_WriteFile_ModesAndNoLeftovers(t *testing.T) {
 	}
 	if len(entries) != 1 {
 		t.Fatalf("в папке заявки %d записей, ожидался только бланк: %v", len(entries), entries)
+	}
+}
+
+// Жёсткий umask не должен отбирать у архива групповое чтение: ради него каталог и
+// отдают в сетевую папку. Mkdir запрошенные права через umask пропускает, поэтому
+// режим выставляется отдельным Chmod - проверяем это на всех созданных уровнях,
+// включая сам корень.
+func TestArchiveWriter_EnsureDir_ModesSurviveStrictUmask(t *testing.T) {
+	w := newTestWriter(t)
+	levels := archiveLevels("31.07.2026", "31.07.2026 №001 Мегобари")
+
+	prev := syscall.Umask(0o077)
+	_, err := w.EnsureDir(levels)
+	syscall.Umask(prev)
+	if err != nil {
+		t.Fatalf("EnsureDir: %v", err)
+	}
+
+	dir := filepath.Join(append([]string{w.Root()}, levels...)...)
+	for {
+		info, err := os.Stat(dir)
+		if err != nil {
+			t.Fatalf("Stat %s: %v", dir, err)
+		}
+		if got := info.Mode().Perm(); got != archiveDirMode {
+			t.Errorf("режим каталога %s = %v, ожидался %v", dir, got, archiveDirMode)
+		}
+		if dir == w.Root() {
+			break
+		}
+		dir = filepath.Dir(dir)
 	}
 }
 
@@ -285,6 +317,83 @@ func TestArchiveWriter_MoveDir_MergesIntoOccupied(t *testing.T) {
 	src := filepath.Join(append([]string{w.Root()}, from...)...)
 	if _, err := os.Stat(src); !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("исходная папка осталась после слияния: %v", err)
+	}
+}
+
+// Слияние идёт вглубь: подкаталог в папке заявки не теряется, а созданный при
+// переносе каталог получает тот же режим, что и остальное дерево.
+func TestArchiveWriter_MoveDir_MergesNestedDirs(t *testing.T) {
+	w := newTestWriter(t)
+	from := archiveLevels("31.07.2026", "31.07.2026 №001 Ромашка")
+	to := archiveLevels("31.07.2026", "31.07.2026 №001 Мегобари")
+
+	if err := w.WriteFile(append(from, "приложения"), "скан.xlsx", []byte("скан")); err != nil {
+		t.Fatalf("WriteFile во вложенный каталог: %v", err)
+	}
+	if err := w.WriteFile(to, "ввоз.xlsx", []byte("ввоз")); err != nil {
+		t.Fatalf("WriteFile цели: %v", err)
+	}
+
+	prev := syscall.Umask(0o077)
+	err := w.MoveDir(from, to)
+	syscall.Umask(prev)
+	if err != nil {
+		t.Fatalf("MoveDir: %v", err)
+	}
+
+	nested := filepath.Join(append([]string{w.Root()}, append(to, "приложения")...)...)
+	info, err := os.Stat(nested)
+	if err != nil {
+		t.Fatalf("вложенный каталог не переехал: %v", err)
+	}
+	if got := info.Mode().Perm(); got != archiveDirMode {
+		t.Errorf("режим перенесённого каталога = %v, ожидался %v", got, archiveDirMode)
+	}
+	data, err := os.ReadFile(filepath.Join(nested, "скан.xlsx"))
+	if err != nil {
+		t.Fatalf("файл во вложенном каталоге не переехал: %v", err)
+	}
+	if string(data) != "скан" {
+		t.Errorf("содержимое = %q, ожидалось %q", data, "скан")
+	}
+	src := filepath.Join(append([]string{w.Root()}, from...)...)
+	if _, err := os.Stat(src); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("исходная папка осталась после слияния: %v", err)
+	}
+}
+
+// Одноимённый бланк есть и в переносимой папке, и в целевой. Побеждает переносимый:
+// он записан последним прогоном выгрузки, а лежащий в цели остался от экспорта по
+// новому пути до переименования.
+func TestArchiveWriter_MoveDir_MergeOverwritesSameName(t *testing.T) {
+	w := newTestWriter(t)
+	from := archiveLevels("31.07.2026", "31.07.2026 №001 Ромашка")
+	to := archiveLevels("31.07.2026", "31.07.2026 №001 Мегобари")
+
+	if err := w.WriteFile(from, "работы.xlsx", []byte("актуальный")); err != nil {
+		t.Fatalf("WriteFile источника: %v", err)
+	}
+	if err := w.WriteFile(to, "работы.xlsx", []byte("устаревший")); err != nil {
+		t.Fatalf("WriteFile цели: %v", err)
+	}
+	if err := w.WriteFile(to, "ввоз.xlsx", []byte("ввоз")); err != nil {
+		t.Fatalf("WriteFile соседа: %v", err)
+	}
+
+	if err := w.MoveDir(from, to); err != nil {
+		t.Fatalf("MoveDir: %v", err)
+	}
+
+	dst := filepath.Join(append([]string{w.Root()}, to...)...)
+	data, err := os.ReadFile(filepath.Join(dst, "работы.xlsx"))
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if string(data) != "актуальный" {
+		t.Errorf("содержимое = %q, ожидался файл из переносимой папки", data)
+	}
+	if _, err := os.Stat(filepath.Join(dst, "ввоз.xlsx")); err != nil {
+		t.Errorf("сосед по целевой папке пострадал при слиянии: %v", err)
 	}
 }
 

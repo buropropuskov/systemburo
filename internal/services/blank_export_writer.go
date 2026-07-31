@@ -184,25 +184,64 @@ func (w *ArchiveWriter) EnsureDir(levels []string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := os.MkdirAll(w.root, archiveDirMode); err != nil {
-		return "", fmt.Errorf("failed to create archive root: %w", err)
+	if err := w.ensureRoot(); err != nil {
+		return "", err
 	}
 
 	cur := w.root
 	for _, level := range levels {
 		cur = filepath.Join(cur, level)
-		switch err := os.Mkdir(cur, archiveDirMode); {
-		case err == nil:
-			if err := os.Chmod(cur, archiveDirMode); err != nil {
-				return "", fmt.Errorf("failed to set archive directory mode: %w", err)
-			}
-		case errors.Is(err, fs.ErrExist):
-			// Уже есть - ни режим, ни владельца не трогаем.
-		default:
-			return "", fmt.Errorf("failed to create archive directory: %w", err)
+		if err := mkdirWithMode(cur); err != nil {
+			return "", err
 		}
 	}
 	return full, nil
+}
+
+// ensureRoot создаёт корень архива, если его ещё нет.
+//
+// Готовый каталог не трогаем ни режимом, ни владельцем: на боевом сервере его
+// заводит администратор bind-mount'ом с владельцем 1001, и Chmod по чужому каталогу
+// вернул бы EPERM - процесс не root. Создали сами - выставляем режим явно, потому
+// что Mkdir пропускает запрошенные права через umask, и при жёстком umask каталог
+// молча остался бы без группового чтения, ради которого архив и отдают в сетевую папку.
+func (w *ArchiveWriter) ensureRoot() error {
+	switch err := os.Mkdir(w.root, archiveDirMode); {
+	case err == nil:
+		return chmodDir(w.root)
+	case errors.Is(err, fs.ErrExist):
+		return nil
+	case errors.Is(err, fs.ErrNotExist):
+		// Корня нет вместе с родительскими каталогами - штатно для локального
+		// ./archive в разработке, на боевом пути такого не бывает.
+		if err := os.MkdirAll(w.root, archiveDirMode); err != nil {
+			return fmt.Errorf("failed to create archive root: %w", err)
+		}
+		return chmodDir(w.root)
+	default:
+		return fmt.Errorf("failed to create archive root: %w", err)
+	}
+}
+
+// mkdirWithMode создаёт один каталог и выставляет режим только на созданный.
+func mkdirWithMode(dir string) error {
+	switch err := os.Mkdir(dir, archiveDirMode); {
+	case err == nil:
+		return chmodDir(dir)
+	case errors.Is(err, fs.ErrExist):
+		// Уже есть - ни режим, ни владельца не трогаем: каталог мог быть намеренно
+		// открыт администратором под сетевую папку.
+		return nil
+	default:
+		return fmt.Errorf("failed to create archive directory: %w", err)
+	}
+}
+
+func chmodDir(dir string) error {
+	if err := os.Chmod(dir, archiveDirMode); err != nil {
+		return fmt.Errorf("failed to set archive directory mode: %w", err)
+	}
+	return nil
 }
 
 // MoveDir переносит папку заявки из фактического положения в желаемое: организацию
@@ -225,21 +264,20 @@ func (w *ArchiveWriter) MoveDir(from, to []string) error {
 		return nil
 	}
 
-	if _, err := os.Stat(src); err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return ErrArchiveSourceMissing
-		}
-		return fmt.Errorf("failed to stat archive directory: %w", err)
-	}
-
 	if len(to) > 0 {
 		if _, err := w.EnsureDir(to[:len(to)-1]); err != nil {
 			return err
 		}
 	}
 
+	// Отсутствие источника определяется по ошибке самого Rename, а не проверкой
+	// заранее: между Stat и Rename папку успели бы удалить, и вызывающий получил бы
+	// вместо понятного сигнала «папки нет» невнятную ошибку переноса. Родитель цели
+	// к этому моменту уже создан, поэтому ENOENT здесь означает именно источник.
 	switch err := os.Rename(src, dst); {
 	case err == nil:
+	case errors.Is(err, fs.ErrNotExist):
+		return ErrArchiveSourceMissing
 	case isDirNotEmpty(err):
 		// Целевая папка занята: та же заявка уже писалась по новому пути, либо
 		// администратор создал каталог руками. Сливаем пофайлово - потерять бланк
@@ -331,8 +369,8 @@ func mergeDir(src, dst string) error {
 		to := filepath.Join(dst, entry.Name())
 
 		if entry.IsDir() {
-			if err := os.Mkdir(to, archiveDirMode); err != nil && !errors.Is(err, fs.ErrExist) {
-				return fmt.Errorf("failed to create archive directory: %w", err)
+			if err := mkdirWithMode(to); err != nil {
+				return err
 			}
 			if err := mergeDir(from, to); err != nil {
 				return err
