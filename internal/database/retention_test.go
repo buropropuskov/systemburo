@@ -66,7 +66,7 @@ func TestSweepRetention_TokensKeepsValid(t *testing.T) {
 	revoked := newToken("retention-revoked", now.AddDate(0, 0, 7), true, &revokedAt)
 	alive := newToken("retention-alive", now.AddDate(0, 0, 7), false, nil)
 
-	res, err := database.SweepRetention(context.Background(), db, database.TargetTokens, now.AddDate(0, 0, -30), true)
+	res, err := database.SweepRetention(context.Background(), db, database.TargetTokens, database.SweepOptions{Cutoff: now.AddDate(0, 0, -30), Apply: true})
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, res.Deleted, int64(2))
 
@@ -102,7 +102,7 @@ func TestSweepRetention_NotificationsOnlyRead(t *testing.T) {
 	unreadOld := newNotification("непрочитанное старое", false, old)
 	readFresh := newNotification("прочитанное свежее", true, now)
 
-	_, err := database.SweepRetention(context.Background(), db, database.TargetNotifications, now.AddDate(0, 0, -30), true)
+	_, err := database.SweepRetention(context.Background(), db, database.TargetNotifications, database.SweepOptions{Cutoff: now.AddDate(0, 0, -30), Apply: true})
 	require.NoError(t, err)
 
 	exists := func(id int) bool {
@@ -135,7 +135,7 @@ func TestSweepRetention_AuditKeepsTrashAndLastPassage(t *testing.T) {
 	otherEntityExit := insertAudit(t, db, entity, 2, "exit", older)
 	fresh := insertAudit(t, db, entity, 1, "update", now)
 
-	res, err := database.SweepRetention(context.Background(), db, database.TargetAudit, now.AddDate(-3, 0, 0), true)
+	res, err := database.SweepRetention(context.Background(), db, database.TargetAudit, database.SweepOptions{Cutoff: now.AddDate(-3, 0, 0), Apply: true})
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, res.Deleted, int64(2))
 
@@ -158,7 +158,7 @@ func TestSweepRetention_DryRunDeletesNothing(t *testing.T) {
 	const entity = "zzz-retention-dryrun"
 	id := insertAudit(t, db, entity, 1, "update", now.AddDate(-5, 0, 0))
 
-	res, err := database.SweepRetention(context.Background(), db, database.TargetAudit, now.AddDate(-3, 0, 0), false)
+	res, err := database.SweepRetention(context.Background(), db, database.TargetAudit, database.SweepOptions{Cutoff: now.AddDate(-3, 0, 0), Apply: false})
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, res.Matched, int64(1), "показ должен посчитать подходящие записи")
 	require.Zero(t, res.Deleted, "в режиме показа удалять нечего")
@@ -188,7 +188,7 @@ func TestSweepRetention_SnapshotsKeepManual(t *testing.T) {
 	scheduled := newSnapshot("scheduled")
 	manual := newSnapshot("manual")
 
-	_, err := database.SweepRetention(context.Background(), db, database.TargetSnapshots, now.AddDate(-1, 0, 0), true)
+	_, err := database.SweepRetention(context.Background(), db, database.TargetSnapshots, database.SweepOptions{Cutoff: now.AddDate(-1, 0, 0), Apply: true})
 	require.NoError(t, err)
 
 	exists := func(id int) bool {
@@ -266,7 +266,7 @@ func TestSweepRetention_ReportsSize(t *testing.T) {
 	now := time.Now().UTC()
 	insertAudit(t, db, "zzz-retention-size", 1, "update", now.AddDate(-5, 0, 0))
 
-	res, err := database.SweepRetention(context.Background(), db, database.TargetAudit, now.AddDate(-3, 0, 0), false)
+	res, err := database.SweepRetention(context.Background(), db, database.TargetAudit, database.SweepOptions{Cutoff: now.AddDate(-3, 0, 0), Apply: false})
 	require.NoError(t, err)
 	require.Positive(t, res.TotalRows, "всего записей в группе должно считаться")
 	require.Positive(t, res.TableBytes, "размер таблицы должен быть известен")
@@ -291,4 +291,111 @@ func TestStorageOverview(t *testing.T) {
 		require.NotRegexp(t, `_\d{4}_\d{2}(_\d{2})?$`, tbl.Name,
 			"раздел %s должен считаться внутри родительской таблицы, а не отдельной строкой", tbl.Name)
 	}
+}
+
+// TestSweepRetention_EntityFilter проверяет сужение истории по типу сущности:
+// «почистить только по машинам» не должно задеть заявки.
+func TestSweepRetention_EntityFilter(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+
+	now := time.Now().UTC()
+	old := now.AddDate(-5, 0, 0)
+	car := insertAudit(t, db, models.AuditEntityCar, 9001, "update", old)
+	app := insertAudit(t, db, models.AuditEntityApplication, 9002, "update", old)
+
+	res, err := database.SweepRetention(context.Background(), db, database.TargetAudit,
+		database.SweepOptions{Cutoff: now.AddDate(-3, 0, 0), EntityType: models.AuditEntityCar, Apply: true})
+	require.NoError(t, err)
+	require.Positive(t, res.Deleted)
+
+	require.False(t, auditExists(t, db, car), "история по машинам должна быть удалена")
+	require.True(t, auditExists(t, db, app), "история заявок под фильтр не попадает")
+}
+
+// TestSweepRetention_FromLimitsPeriod проверяет нижнюю границу периода: записи
+// старше начала интервала остаются нетронутыми.
+func TestSweepRetention_FromLimitsPeriod(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+
+	now := time.Now().UTC()
+	const entity = "zzz-retention-period"
+	older := insertAudit(t, db, entity, 1, "update", now.AddDate(-8, 0, 0))
+	inside := insertAudit(t, db, entity, 2, "update", now.AddDate(-5, 0, 0))
+
+	from := now.AddDate(-6, 0, 0)
+	_, err := database.SweepRetention(context.Background(), db, database.TargetAudit,
+		database.SweepOptions{Cutoff: now.AddDate(-3, 0, 0), From: &from, EntityType: "", Apply: true})
+	require.NoError(t, err)
+
+	require.True(t, auditExists(t, db, older), "запись старше начала периода трогать нельзя")
+	require.False(t, auditExists(t, db, inside), "запись внутри периода должна быть удалена")
+}
+
+// TestSweepRetention_TableFilter проверяет сужение слепков по таблице поста.
+func TestSweepRetention_TableFilter(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+
+	first := models.SystemTable{Name: "Пост фильтра А"}
+	second := models.SystemTable{Name: "Пост фильтра Б"}
+	require.NoError(t, db.Create(&first).Error)
+	require.NoError(t, db.Create(&second).Error)
+
+	now := time.Now().UTC()
+	old := now.AddDate(-2, 0, 0)
+	newSnapshot := func(tableID int) int {
+		var id int
+		require.NoError(t, db.Raw(`
+			INSERT INTO table_snapshots (table_id, taken_at, reason, payload, counts, created_at)
+			VALUES (?,?,'scheduled','{}'::jsonb,'{}'::jsonb,?) RETURNING id`, tableID, old, old).Scan(&id).Error)
+		return id
+	}
+	kept := newSnapshot(first.ID)
+	removed := newSnapshot(second.ID)
+
+	_, err := database.SweepRetention(context.Background(), db, database.TargetSnapshots,
+		database.SweepOptions{Cutoff: now.AddDate(-1, 0, 0), TableID: &second.ID, Apply: true})
+	require.NoError(t, err)
+
+	exists := func(id int) bool {
+		var n int64
+		require.NoError(t, db.Raw(`SELECT count(*) FROM table_snapshots WHERE id = ?`, id).Scan(&n).Error)
+		return n > 0
+	}
+	require.True(t, exists(kept), "слепки другого поста трогать нельзя")
+	require.False(t, exists(removed), "слепки выбранного поста должны быть удалены")
+}
+
+// TestSweepRetention_RejectsInapplicableFilter проверяет, что неприменимый фильтр
+// отклоняется. Молча его проигнорировать нельзя: оператор просил сузить удаление,
+// а получил бы удаление всей группы.
+func TestSweepRetention_RejectsInapplicableFilter(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+
+	now := time.Now().UTC()
+	tableID := 1
+
+	_, err := database.SweepRetention(context.Background(), db, database.TargetTokens,
+		database.SweepOptions{Cutoff: now, EntityType: models.AuditEntityCar, Apply: true})
+	require.Error(t, err, "фильтр по сущности к токенам неприменим")
+
+	_, err = database.SweepRetention(context.Background(), db, database.TargetAudit,
+		database.SweepOptions{Cutoff: now, TableID: &tableID, Apply: true})
+	require.Error(t, err, "фильтр по таблице поста к истории неприменим")
+
+	after := now.AddDate(1, 0, 0)
+	_, err = database.SweepRetention(context.Background(), db, database.TargetAudit,
+		database.SweepOptions{Cutoff: now, From: &after, Apply: true})
+	require.Error(t, err, "начало периода позже его конца - ошибка")
+}
+
+// TestValidateEntityType ловит опечатку в типе сущности: без проверки она дала бы
+// пустую выборку, и оператор решил бы, что чистить нечего.
+func TestValidateEntityType(t *testing.T) {
+	require.NoError(t, database.ValidateEntityType(models.AuditEntityEmployee))
+	require.Error(t, database.ValidateEntityType("cars"))
+	require.Error(t, database.ValidateEntityType(""))
 }

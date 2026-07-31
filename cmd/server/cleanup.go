@@ -36,6 +36,10 @@ const cleanupHelp = `Очистка накопленных данных.
   -except    Группы, которые исключить из выбранных. Например: -targets=all -except=audit
   -older-than
              Срок хранения: 30d - сутки, 12m - месяцы. По умолчанию свой у каждой группы
+  -from      Начало периода, YYYY-MM-DD. Ограничивает удаление снизу: вместе с
+             -older-than задаёт интервал, старше начала ничего не тронет
+  -entity    Тип сущности, только для группы audit: car, employee, application и т.д.
+  -table     Идентификатор таблицы поста, только для группы snapshots
   -apply     Выполнить удаление. Без него команда только показывает, что удалилось бы
   -help      Эта справка
 
@@ -55,6 +59,9 @@ const cleanupHelp = `Очистка накопленных данных.
   server cleanup -targets=audit -older-than=36m    что удалилось бы из истории
   server cleanup -targets=all -except=audit -apply почистить всё, кроме истории
   server cleanup -targets=all -older-than=24m -apply
+  server cleanup -targets=audit -entity=car -older-than=24m       история только по машинам
+  server cleanup -targets=snapshots -table=3 -apply               слепки одного поста
+  server cleanup -targets=audit -from=2023-01-01 -older-than=24m  история за отрезок
 
 Что и сколько занимает места - server storage -help
 `
@@ -66,6 +73,9 @@ func runCleanup(args []string) int {
 	fs.Usage = func() { fmt.Fprint(os.Stderr, cleanupHelp) }
 	targets := fs.String("targets", "tokens,notifications", "группы через запятую либо all")
 	except := fs.String("except", "", "группы, исключаемые из выбранных")
+	from := fs.String("from", "", "начало периода, YYYY-MM-DD")
+	entity := fs.String("entity", "", "тип сущности для группы audit")
+	tableID := fs.Int("table", 0, "идентификатор таблицы поста для группы snapshots")
 	olderThan := fs.String("older-than", "", "срок хранения, например 30d или 12m")
 	apply := fs.Bool("apply", false, "выполнить удаление")
 	help := fs.Bool("help", false, "справка")
@@ -98,6 +108,26 @@ func runCleanup(args []string) int {
 		cutoffs[t] = cutoff
 	}
 
+	var fromTime *time.Time
+	if *from != "" {
+		parsed, err := time.Parse(time.DateOnly, *from)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Ошибка: начало периода не разобрано (ожидается YYYY-MM-DD)")
+			return 2
+		}
+		fromTime = &parsed
+	}
+	if *entity != "" {
+		if err := database.ValidateEntityType(*entity); err != nil {
+			fmt.Fprintln(os.Stderr, "Ошибка:", err)
+			return 2
+		}
+	}
+	var tablePtr *int
+	if *tableID != 0 {
+		tablePtr = tableID
+	}
+
 	db, err := openCleanupDB()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Ошибка:", err)
@@ -107,7 +137,13 @@ func runCleanup(args []string) int {
 	ctx := context.Background()
 	results := make([]database.RetentionResult, 0, len(list))
 	for _, t := range list {
-		res, err := database.SweepRetention(ctx, db, t, cutoffs[t], *apply)
+		res, err := database.SweepRetention(ctx, db, t, database.SweepOptions{
+			Cutoff:     cutoffs[t],
+			From:       fromTime,
+			EntityType: *entity,
+			TableID:    tablePtr,
+			Apply:      *apply,
+		})
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "Ошибка:", err)
 			return 1
@@ -127,7 +163,7 @@ func printCleanupReport(results []database.RetentionResult, applied bool) {
 		fmt.Println("Ничего не удалено: это предварительный показ. Повторите с флагом -apply.")
 	}
 	fmt.Println()
-	fmt.Println(padRight("Группа", 20), padRight("Старше", 12), padLeft("Всего", 10),
+	fmt.Println(padRight("Группа", 20), padRight("Период", 25), padLeft("Всего", 10),
 		padLeft("Размер", 10), padLeft("Записей", 10), padLeft("Освободится", 12))
 	var totalRows, totalBytes int64
 	for _, r := range results {
@@ -137,7 +173,7 @@ func printCleanupReport(results []database.RetentionResult, applied bool) {
 		}
 		totalRows += count
 		totalBytes += r.FreedBytes
-		fmt.Println(padRight(string(r.Target), 20), padRight(r.Cutoff.Format(time.DateOnly), 12),
+		fmt.Println(padRight(string(r.Target), 20), padRight(periodLabel(r), 25),
 			padLeft(strconv.FormatInt(r.TotalRows, 10), 10), padLeft(humanBytes(r.TableBytes), 10),
 			padLeft(strconv.FormatInt(count, 10), 10), padLeft(humanBytes(r.FreedBytes), 12))
 	}
@@ -160,6 +196,15 @@ func printCleanupReport(results []database.RetentionResult, applied bool) {
 		fmt.Printf("Попадает под удаление: %d %s, примерно %s\n",
 			totalRows, pluralRecords(totalRows), humanBytes(totalBytes))
 	}
+}
+
+// periodLabel описывает, какой отрезок времени попал под условие: только верхняя
+// граница или интервал, если задано начало периода.
+func periodLabel(r database.RetentionResult) string {
+	if r.From != nil {
+		return r.From.Format(time.DateOnly) + " - " + r.Cutoff.Format(time.DateOnly)
+	}
+	return "старше " + r.Cutoff.Format(time.DateOnly)
 }
 
 // padRight и padLeft выравнивают колонки ПО РУНАМ. Форматы вида %-20s считают байты,
