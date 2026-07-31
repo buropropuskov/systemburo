@@ -38,7 +38,7 @@ function mountCenter() {
   return mount(ApplicationsCenter, {
     global: {
       stubs,
-      mocks: { $route: { query: {} }, $router: { push: vi.fn() } },
+      mocks: { $route: { query: {} }, $router: { push: vi.fn(), replace: vi.fn().mockResolvedValue(undefined) } },
     },
   });
 }
@@ -85,7 +85,7 @@ describe('ApplicationsCenter — гейтинг центр-действий (с�
     it('без права прямой URL ?archive=true не переключает в архив', () => {
       seedPerms({ allow: [] });
       wrapper = mount(ApplicationsCenter, {
-        global: { stubs, mocks: { $route: { query: { archive: 'true' } }, $router: { push: vi.fn() } } },
+        global: { stubs, mocks: { $route: { query: { archive: 'true' } }, $router: { push: vi.fn(), replace: vi.fn().mockResolvedValue(undefined) } } },
       });
       expect(wrapper.vm.archiveMode).toBe('active');
     });

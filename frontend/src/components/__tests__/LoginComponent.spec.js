@@ -25,7 +25,7 @@ function mountLogin() {
   return mount(LoginComponent, {
     global: {
       stubs: { PasswordRecoveryModal: true },
-      mocks: { $router: { push: vi.fn() } },
+      mocks: { $router: { push: vi.fn(), replace: vi.fn().mockResolvedValue(undefined) } },
     },
   })
 }

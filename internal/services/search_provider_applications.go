@@ -37,10 +37,10 @@ func (applicationSearchProvider) PermissionKey() string { return KeyPagePersonal
 
 func (applicationSearchProvider) Search(ctx context.Context, db *gorm.DB, req searchRequest) ([]SearchItem, error) {
 	cols := []string{"a.application_number", "a.message", "o.name", "c.name"}
-	cond, args := ilikePatternsArgs(cols, req.Variants)
+	cond, args := multiWordCondition(cols, req.Raw)
 
 	carCols := []string{"cr.car_number", "cr.mark_name"}
-	carCond, carArgs := ilikePatternsArgs(carCols, req.Variants)
+	carCond, carArgs := multiWordCondition(carCols, req.Raw)
 	cond += fmt.Sprintf(` OR EXISTS(
 		SELECT 1 FROM attachments att
 		JOIN cars cr ON cr.attachment_id = att.id
@@ -48,7 +48,7 @@ func (applicationSearchProvider) Search(ctx context.Context, db *gorm.DB, req se
 	args = append(args, carArgs...)
 
 	empCols := []string{"e.last_name", "e.first_name", "e.middle_name"}
-	empCond, empArgs := ilikePatternsArgs(empCols, req.Variants)
+	empCond, empArgs := multiWordCondition(empCols, req.Raw)
 	cond += fmt.Sprintf(` OR EXISTS(
 		SELECT 1 FROM attachments att2
 		JOIN employees e ON e.attachment_id = att2.id
@@ -61,17 +61,15 @@ func (applicationSearchProvider) Search(ctx context.Context, db *gorm.DB, req se
 		Joins("LEFT JOIN companies c ON a.company_id = c.id").
 		Select(`a.id AS id,
 			CONCAT('Заявка ', COALESCE(a.application_number, CAST(a.id AS TEXT))) AS title,
-			CONCAT_WS(' · ', COALESCE(o.name, c.name), NULLIF(a.status, '')) AS subtitle`).
+			CONCAT_WS(' · ', COALESCE(o.name, c.name), NULLIF(a.status, '')) AS subtitle,
+			`+matchRankExpr("a.application_number"), req.Raw, req.Raw).
 		Where(cond, args...)
 
 	q = applyApplicationAccessFilter(q, req.UserID, req.IsApprover)
 
 	rows := make([]searchRow, 0, req.Limit+1)
 	if err := q.
-		Order(gorm.Expr(`CASE
-			WHEN LOWER(TRIM(COALESCE(a.application_number, ''))) = LOWER(TRIM(?)) THEN 0
-			WHEN LOWER(COALESCE(a.application_number, '')) LIKE LOWER(?) || '%' THEN 1
-			ELSE 2 END, a.id DESC`, req.Raw, req.Raw)).
+		Order("match_rank, a.id DESC").
 		Limit(req.Limit + 1).
 		Scan(&rows).Error; err != nil {
 		return nil, fmt.Errorf("поиск по заявкам: %w", err)

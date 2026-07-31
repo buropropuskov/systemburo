@@ -34,7 +34,7 @@ const stubs = {
 
 function mountView() {
   return mount(EmployeeView, {
-    global: { stubs, mocks: { $route: { query: {} }, $router: { push: vi.fn() } } },
+    global: { stubs, mocks: { $route: { query: {} }, $router: { push: vi.fn(), replace: vi.fn().mockResolvedValue(undefined) } } },
   });
 }
 

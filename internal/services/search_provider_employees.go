@@ -31,7 +31,7 @@ func (uniqueEmployeeSearchProvider) PermissionKey() string  { return KeyEntityEm
 func (uniqueEmployeeSearchProvider) Search(ctx context.Context, db *gorm.DB, req searchRequest) ([]SearchItem, error) {
 	// position -- зарезервированное слово, отсюда кавычки (как в buildEmployeesQuery).
 	cols := []string{"ue.last_name", "ue.first_name", "ue.middle_name", `ue."position"`, "o.name", "c.name", "cit.name"}
-	cond, args := ilikePatternsArgs(cols, req.Variants)
+	cond, args := multiWordCondition(cols, req.Raw)
 
 	q := db.WithContext(ctx).
 		Table("unique_employees ue").
@@ -40,17 +40,15 @@ func (uniqueEmployeeSearchProvider) Search(ctx context.Context, db *gorm.DB, req
 		Joins("LEFT JOIN citizenships cit ON ue.citizenship_id = cit.id").
 		Select(`ue.id AS id,
 			TRIM(CONCAT_WS(' ', ue.last_name, ue.first_name, ue.middle_name)) AS title,
-			CONCAT_WS(' · ', NULLIF(ue."position", ''), COALESCE(o.name, c.name)) AS subtitle`).
+			CONCAT_WS(' · ', NULLIF(ue."position", ''), COALESCE(o.name, c.name)) AS subtitle,
+			`+matchRankExpr("ue.last_name"), req.Raw, req.Raw).
 		Where(cond, args...)
 
 	q = applyRegistryScope(q, "ue", req)
 
 	rows := make([]searchRow, 0, req.Limit+1)
 	if err := q.
-		Order(gorm.Expr(`CASE
-			WHEN LOWER(TRIM(COALESCE(ue.last_name, ''))) = LOWER(TRIM(?)) THEN 0
-			WHEN LOWER(COALESCE(ue.last_name, '')) LIKE LOWER(?) || '%' THEN 1
-			ELSE 2 END, ue.id DESC`, req.Raw, req.Raw)).
+		Order("match_rank, ue.id DESC").
 		Limit(req.Limit + 1).
 		Scan(&rows).Error; err != nil {
 		return nil, fmt.Errorf("поиск по реестру сотрудников: %w", err)

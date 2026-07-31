@@ -762,6 +762,7 @@
 </template>
 
 <script>
+import { readSearchFromRoute, writeSearchToRoute } from '@/utils/searchQueryParam';
 import { apiRequest } from '@/api/client'
 import { getViewportZoom } from '@/utils/viewportScale'
 import { getUniqueCarsPaginated } from '@/api/cars'
@@ -828,7 +829,9 @@ export default {
     data() {
         return {
             loading: true,
-            searchQuery: '',
+            // Из адреса: переход из сквозного поиска приносит запрос с собой,
+            // и список должен уйти на сервер сразу с ним.
+            searchQuery: readSearchFromRoute(this.$route),
             sortField: null,
             sortDirection: 'desc',
             // carsData/carsTotal/hasMoreCars/listLoading выставлены из useInfiniteList
@@ -1022,7 +1025,8 @@ export default {
         // Поиск - на сервере (#1158, срез 2): дебаунс 300мс перед fetchCars (reset на
         // стр.1 + очистка аккумулятора уже даёт loadCarsList({reset:true})). withPlaces:false
         // - места разгрузки от search_query не зависят, тянуть их на каждый ввод не нужно.
-        searchQuery() {
+        searchQuery(val) {
+            writeSearchToRoute(this.$router, this.$route, val);
             clearTimeout(this.searchTimeout);
             this.searchTimeout = setTimeout(() => {
                 this.fetchCars({ withPlaces: false });

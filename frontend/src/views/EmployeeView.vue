@@ -536,6 +536,7 @@
 </template>
 
 <script>
+import { readSearchFromRoute, writeSearchToRoute } from '@/utils/searchQueryParam';
 import { apiRequest } from '@/api/client'
 import { getViewportZoom } from '@/utils/viewportScale'
 import { getUniqueEmployeesPaginated } from '@/api/employees'
@@ -603,7 +604,9 @@ export default {
     data() {
         return {
             loading: true,
-            searchQuery: '',
+            // Из адреса: переход из сквозного поиска приносит запрос с собой,
+            // и список должен уйти на сервер сразу с ним.
+            searchQuery: readSearchFromRoute(this.$route),
             sortField: null,
             sortDirection: 'desc',
             // employeesData/employeesTotal/hasMoreEmployees/listLoading выставлены из
@@ -738,7 +741,8 @@ export default {
     watch: {
         // Поиск - на сервере (#1158, срез 3): дебаунс 300мс перед fetchEmployees
         // (reset на стр.1 + очистка аккумулятора уже даёт loadEmployeesList({reset:true})).
-        searchQuery() {
+        searchQuery(val) {
+            writeSearchToRoute(this.$router, this.$route, val);
             clearTimeout(this.searchTimeout);
             this.searchTimeout = setTimeout(() => {
                 this.fetchEmployees();
