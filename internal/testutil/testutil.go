@@ -59,7 +59,15 @@ var tables = []string{
 	"bug_reports",
 	"guide_sections",
 	"documents", "document_groups",
-	"request_log", "request_logs", "notifications", "news", "announcements",
+	// request_logs_daily - суточный агрегат запросов, наполняется через ON CONFLICT
+	// DO UPDATE с прибавлением счётчика. Внешних ключей у него нет, поэтому чистка
+	// журнала его не касается: значение накапливалось от прогона к прогону, и
+	// TestLogPartitionMaintenance ждал единицу, а получал столько, сколько раз
+	// запускали тесты на этой базе.
+	"request_logs_daily", "request_log", "request_logs", "notifications", "news", "announcements",
+	// analytics_cache и user_ban_histories тоже живут без внешних ключей: кэш отдаёт
+	// тесту цифры прошлого прогона, история банов копится вечно.
+	"analytics_cache", "user_ban_histories",
 	// feedback_reads тоже без внешних ключей: строки прошлого прогона переживают и
 	// чистку, и первичный TRUNCATE, а идентификаторы обращений и пользователей
 	// начинаются заново - рано или поздно пара совпадает, и обращение приходит в
@@ -81,6 +89,9 @@ var tables = []string{
 	"companies_unload_places", "organization_unload_places",
 	"unload_place_time_slots", "unload_place_photos", "unload_places",
 	"table_fields", "table_field_facts", "companies_tables", "organization_tables",
+	// Окна предупреждений ссылаются на таблицу поста без каскада (NO ACTION), то есть
+	// непустая таблица окон заблокировала бы удаление самих постов.
+	"system_table_warning_windows",
 	"system_table_time_slots", "system_table_photos", "system_tables",
 	"license_plate_format_cells", "license_plate_formats",
 	"citizenships",
@@ -88,6 +99,26 @@ var tables = []string{
 	"auth_events", "refresh_tokens", "users",
 	"roles",
 	"companies", "organizations", "user_types",
+}
+
+// CleanupTables отдаёт перечень таблиц, которые чистятся между тестами. Нужен
+// гвард-тесту: он сверяет список с фактическим составом базы и не даёт новой
+// таблице тихо остаться вне чистки.
+func CleanupTables() []string {
+	return append([]string(nil), tables...)
+}
+
+// CleanupExempt - таблицы, намеренно оставленные вне чистки, с причиной. Причина
+// обязательна: без неё исключение через полгода читается как забытая строка.
+var CleanupExempt = map[string]string{
+	"attachment_unload_places":     "каскад от attachments",
+	"forward_attachments":          "каскад от attachments",
+	"security_user_tables":         "каскад от users",
+	"security_user_unload_places":  "каскад от users",
+	"table_snapshots":              "каскад от system_tables",
+	"unload_place_warning_windows": "каскад от unload_places",
+	"marks":                        "справочник, наполняется Seed",
+	"role_permission_grants":       "выдачи прав ролям, наполняются Seed",
 }
 
 // SetupTestApp creates a fully wired Echo app with real DB, identical to production.
