@@ -9,8 +9,9 @@ package services
 type SearchEntityType string
 
 const (
-	SearchTypeEmployees SearchEntityType = "employees"
-	SearchTypeCars      SearchEntityType = "cars"
+	SearchTypeEmployees    SearchEntityType = "employees"
+	SearchTypeCars         SearchEntityType = "cars"
+	SearchTypeApplications SearchEntityType = "applications"
 )
 
 // SearchTarget -- адрес перехода из результата. Отдаём сущность и её id, а не готовый
@@ -67,6 +68,9 @@ type searchRequest struct {
 	OrgID           *int
 	CompanyID       *int
 	CanSeeAllSystem bool
+	// IsApprover снимает фильтр видимости заявок целиком -- принимающий видит все.
+	// Читается один раз на запрос, как и остальные данные видимости.
+	IsApprover bool
 }
 
 // searchRow -- приёмник строк провайдера. Структура плоская намеренно: gorm .Scan в

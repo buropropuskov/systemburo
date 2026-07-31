@@ -244,6 +244,15 @@ func (s *searchService) buildRequest(ctx context.Context, userID int, raw string
 		return searchRequest{}, fmt.Errorf("сквозной поиск: не удалось прочитать данные пользователя: %w", err)
 	}
 
+	// Принимающий видит все заявки -- это снимает фильтр видимости целиком, поэтому
+	// признак читается здесь, вместе с остальными данными видимости, а не в провайдере.
+	var approverCount int64
+	if err := s.db.WithContext(ctx).Table("application_approvers").
+		Where("user_id = ?", userID).
+		Count(&approverCount).Error; err != nil {
+		return searchRequest{}, fmt.Errorf("сквозной поиск: не удалось проверить роль принимающего: %w", err)
+	}
+
 	return searchRequest{
 		Raw:             raw,
 		Variants:        buildSearchVariantsFor(raw),
@@ -253,5 +262,6 @@ func (s *searchService) buildRequest(ctx context.Context, userID int, raw string
 		OrgID:           owner.OrganizationID,
 		CompanyID:       owner.CompanyID,
 		CanSeeAllSystem: searchCanSeeAllSystem(ctx, s.db, userID),
+		IsApprover:      approverCount > 0,
 	}, nil
 }
