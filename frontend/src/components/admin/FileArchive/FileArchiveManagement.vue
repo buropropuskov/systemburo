@@ -13,7 +13,7 @@
       <div class="header-controls">
         <RefreshButton
           :loading="loading"
-          @refresh="loadSettings"
+          @refresh="onRefresh"
         />
       </div>
     </div>
@@ -39,14 +39,11 @@
         {{ loadError }}
       </p>
       <template v-else>
-        <!-- ArchiveStatusPanel/ArchiveSizeBreakdown - срез C2 -->
         <section
           v-if="activeTab === 'overview'"
           class="file-archive__panel"
         >
-          <p class="file-archive__placeholder">
-            Раздел «Обзор» появится в следующем срезе.
-          </p>
+          <ArchiveStatusPanel ref="overviewRef" />
         </section>
         <!-- ArchiveSettingsForm/TemplatePatternField - срез C3 -->
         <section
@@ -75,14 +72,15 @@
 import { ref, computed, onMounted } from 'vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
+import ArchiveStatusPanel from './ArchiveStatusPanel.vue';
 import { getArchiveSettings } from '@/api/fileArchive';
 import { useDeletionsStore } from '@/stores/deletions';
 
 /**
- * Каркас раздела «Файловый архив» (#1615, срез C1). Тела вкладок приезжают
- * следующими срезами (C2 «Обзор», C3 «Настройки», C4 «Ошибки») - здесь только
- * шапка с состоянием рубильника, вкладки и загрузка текущих настроек, чтобы
- * бейдж в шапке показывал реальный статус, а не заглушку.
+ * Каркас раздела «Файловый архив» (#1615, срез C1) с телом вкладки «Обзор»
+ * (срез C2). «Настройки» и «Ошибки» приезжают следующими срезами (C3, C4) -
+ * здесь шапка с состоянием рубильника, вкладки и загрузка текущих настроек,
+ * чтобы бейдж в шапке показывал реальный статус, а не заглушку.
  */
 const TABS = [
   { key: 'overview', label: 'Обзор' },
@@ -94,6 +92,7 @@ const activeTab = ref('overview');
 const loading = ref(false);
 const settings = ref(null);
 const loadError = ref('');
+const overviewRef = ref(null);
 
 const statusLabel = computed(() => (settings.value?.enabled ? 'Активен' : 'Неактивен'));
 
@@ -111,6 +110,14 @@ async function loadSettings() {
 }
 
 onMounted(loadSettings);
+
+// Шапка обновляет рубильник всегда (бейдж статуса виден на любой вкладке) и
+// дополнительно данные активной вкладки - вкладки «Настройки»/«Ошибки» ещё не
+// реализованы (срезы C3/C4), их обновление добавится тем же способом.
+function onRefresh() {
+  loadSettings();
+  if (activeTab.value === 'overview') overviewRef.value?.refresh();
+}
 
 defineExpose({ loadSettings });
 </script>
