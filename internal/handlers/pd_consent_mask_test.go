@@ -2,6 +2,7 @@ package handlers_test
 
 import (
 	"net/http"
+	"net/url"
 	"strconv"
 	"testing"
 
@@ -227,25 +228,25 @@ func TestPDConsentMask_UsersList_MarksHiddenNames(t *testing.T) {
 	user := testutil.RegisterAndLogin(t, e, "mask_flag", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
 	setUserName(t, db, "mask_flag", "Флагов", "Фёдор", "Фёдорович")
 
-	require.True(t, userNameHidden(t, e, admin, "mask_flag"), "скрытое ФИО помечено")
-	require.False(t, userNameHidden(t, e, admin, "testadmin"), "у супер-администратора ничего не скрыто")
+	require.True(t, userPDHidden(t, e, admin, "mask_flag"), "скрытое ФИО помечено")
+	require.False(t, userPDHidden(t, e, admin, "testadmin"), "у супер-администратора ничего не скрыто")
 
 	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, "{}", testutil.AuthHeader(user)).Code)
-	assert.False(t, userNameHidden(t, e, admin, "mask_flag"), "после согласия пометка снимается")
+	assert.False(t, userPDHidden(t, e, admin, "mask_flag"), "после согласия пометка снимается")
 }
 
-// userNameHidden читает признак скрытого ФИО из списка работников.
-func userNameHidden(t *testing.T, e *echo.Echo, token, username string) bool {
+// userPDHidden читает признак скрытого ФИО из списка работников.
+func userPDHidden(t *testing.T, e *echo.Echo, token, username string) bool {
 	t.Helper()
 	rec := testutil.GET(t, e, "/users/all", testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	type row struct {
-		Username   string `json:"username"`
-		NameHidden bool   `json:"name_hidden"`
+		Username string `json:"username"`
+		PDHidden bool   `json:"pd_hidden"`
 	}
 	for _, r := range testutil.ParseResponse[[]row](t, rec) {
 		if r.Username == username {
-			return r.NameHidden
+			return r.PDHidden
 		}
 	}
 	t.Fatalf("работник %s не найден в списке", username)
@@ -497,4 +498,115 @@ func TestPDConsent_RevokeForUser_UnknownUser(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound,
 		testutil.DELETE(t, e, "/users/no_such_person/consent", testutil.AuthHeader(admin)).Code)
+}
+
+// Почта и телефон - такие же персональные данные, как фамилия: до согласия их не
+// показывают и не дают затереть правкой соседнего поля.
+func TestPDConsentMask_HidesContacts(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	user := testutil.RegisterAndLogin(t, e, "mask_contacts", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
+	setUserName(t, db, "mask_contacts", "Контактов", "Кирилл", "Кириллович")
+	require.NoError(t, db.Model(&models.User{}).Where("username = ?", "mask_contacts").
+		Updates(map[string]any{"email": "k@example.com", "phone": "+7 999 111 22-33"}).Error)
+
+	before := userContactsRow(t, e, admin, "mask_contacts")
+	require.Equal(t, "k@example.com", before.Email, "до включения запроса согласия контакты видны")
+
+	enableConsent(t, e, admin, "<p>Согласие</p>")
+
+	hidden := userContactsRow(t, e, admin, "mask_contacts")
+	assert.Empty(t, hidden.Email, "почта скрыта")
+	assert.Empty(t, hidden.Phone, "телефон скрыт")
+	assert.True(t, hidden.PDHidden, "признак скрытых данных выставлен")
+
+	// Правка должности без полей контактов настоящие значения не трогает.
+	require.Equal(t, http.StatusOK, testutil.PUT(t, e, "/users/mask_contacts/info",
+		`{"position":"Инженер","is_important":false}`, testutil.AuthHeader(admin)).Code)
+	var email string
+	require.NoError(t, db.Model(&models.User{}).Where("username = ?", "mask_contacts").
+		Select("COALESCE(email, '')").Row().Scan(&email))
+	assert.Equal(t, "k@example.com", email, "почта в базе осталась")
+
+	// После подтверждения контакты возвращаются.
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, "{}", testutil.AuthHeader(user)).Code)
+	after := userContactsRow(t, e, admin, "mask_contacts")
+	assert.Equal(t, "k@example.com", after.Email)
+	assert.Equal(t, "+7 999 111 22-33", after.Phone)
+}
+
+type contactsRow struct {
+	Username string `json:"username"`
+	Email    string `json:"email"`
+	Phone    string `json:"phone"`
+	PDHidden bool   `json:"pd_hidden"`
+}
+
+func userContactsRow(t *testing.T, e *echo.Echo, token, username string) contactsRow {
+	t.Helper()
+	rec := testutil.GET(t, e, "/users/all", testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	for _, r := range testutil.ParseResponse[[]contactsRow](t, rec) {
+		if r.Username == username {
+			return r
+		}
+	}
+	t.Fatalf("работник %s не найден", username)
+	return contactsRow{}
+}
+
+// Сквозной поиск не должен ни находить по скрытым контактам, ни показывать скрытое ФИО.
+func TestPDConsentMask_Search_HidesPD(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	testutil.RegisterAndLogin(t, e, "mask_search", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
+	setUserName(t, db, "mask_search", "Поисков", "Павел", "Павлович")
+	require.NoError(t, db.Model(&models.User{}).Where("username = ?", "mask_search").
+		Update("email", "hidden_addr@example.com").Error)
+
+	require.NotEmpty(t, searchTitles(t, e, admin, "hidden_addr"),
+		"до включения запроса согласия поиск по почте работает")
+
+	enableConsent(t, e, admin, "<p>Согласие</p>")
+
+	// Запросы намеренно разные: ответы поиска живут в кэше 10 секунд, и повтор той
+	// же строки вернул бы прежнюю выдачу вместо новой.
+	assert.Empty(t, searchTitles(t, e, admin, "hidden_addr@example"),
+		"по скрытой почте больше не находится")
+	assert.Equal(t, []string{"@mask_search"}, searchTitles(t, e, admin, "Поисков"),
+		"вместо скрытого ФИО в подсказке логин")
+}
+
+// searchTitles возвращает заголовки найденных учётных записей.
+func searchTitles(t *testing.T, e *echo.Echo, token, query string) []string {
+	t.Helper()
+	rec := testutil.GET(t, e, "/search?q="+url.QueryEscape(query), testutil.AuthHeader(token))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	type group struct {
+		Type  string `json:"type"`
+		Items []struct {
+			Title string `json:"title"`
+		} `json:"items"`
+	}
+	res := testutil.ParseResponse[struct {
+		Groups []group `json:"groups"`
+	}](t, rec)
+	titles := []string{}
+	for _, g := range res.Groups {
+		if g.Type != "users" {
+			continue
+		}
+		for _, it := range g.Items {
+			titles = append(titles, it.Title)
+		}
+	}
+	return titles
 }
