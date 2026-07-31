@@ -1,7 +1,10 @@
 package config
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -49,6 +52,28 @@ type Config struct {
 	LoginRateLimitWindowSec int64  `env:"LOGIN_RATE_LIMIT_WINDOW_SEC" envDefault:"60"`
 	PaginationMaxLimit      int    `env:"PAGINATION_MAX_LIMIT" envDefault:"100"`
 	UploadPath              string `env:"UPLOAD_PATH" envDefault:"./uploads"`
+
+	// ArchivePath - корень файлового архива бланков (#1615): заполненные .xlsx
+	// раскладываются под ним по годам, месяцам и дням.
+	//
+	// Каталог обязан лежать ВНЕ UploadPath. Содержимое UploadPath раздаётся
+	// статикой до проверки авторизации (router.go, api.Static("/uploads")), а в
+	// бланке паспортные данные и патенты - те самые поля, которые в базе хранятся
+	// зашифрованными. Архив внутри загрузок означал бы их доступность по прямой
+	// ссылке кому угодно. Проверку делает Validate, и она отказывает в старте.
+	//
+	// На проде монтируется bind-mount-ом с отдельного раздела: путь должен быть
+	// предсказуемым, чтобы его можно было зашифровать, отдать в сетевую папку
+	// только на чтение и включить в резервное копирование.
+	ArchivePath string `env:"ARCHIVE_PATH" envDefault:"./archive"`
+
+	// ArchiveWorkerTick - как часто фоновый воркер разбирает очередь выгрузки.
+	ArchiveWorkerTick time.Duration `env:"ARCHIVE_WORKER_TICK" envDefault:"15s"`
+
+	// ArchiveSweepInterval - как часто подметаются заявки, для которых очередь
+	// потеряна: постановка в неё идёт после коммита и намеренно best-effort, чтобы
+	// выгрузка на диск не могла уронить подачу заявки.
+	ArchiveSweepInterval time.Duration `env:"ARCHIVE_SWEEP_INTERVAL" envDefault:"5m"`
 
 	// CookieSecure управляет флагом Secure на refresh-cookie. На staging/prod
 	// всегда true (HTTPS). На локальной разработке (http://localhost) - false,
@@ -136,5 +161,94 @@ func (c *Config) Validate() error {
 	if c.JWTRefreshTTL <= c.JWTAccessTTL {
 		return fmt.Errorf("JWT_REFRESH_TTL (%s) must be greater than JWT_ACCESS_TTL (%s)", c.JWTRefreshTTL, c.JWTAccessTTL)
 	}
+	if c.ArchiveWorkerTick <= 0 {
+		return fmt.Errorf("ARCHIVE_WORKER_TICK must be positive (got %s)", c.ArchiveWorkerTick)
+	}
+	if c.ArchiveSweepInterval <= 0 {
+		return fmt.Errorf("ARCHIVE_SWEEP_INTERVAL must be positive (got %s)", c.ArchiveSweepInterval)
+	}
+	if err := validateArchiveOutsideUploads(c.ArchivePath, c.UploadPath); err != nil {
+		return err
+	}
 	return nil
+}
+
+// validateArchiveOutsideUploads не даёт запуститься с каталогом архива внутри
+// каталога загрузок (или наоборот).
+//
+// Загрузки раздаются статикой до проверки авторизации, поэтому архив внутри них
+// сделал бы заполненные бланки с персональными данными доступными по прямой ссылке.
+// Это отказ в старте, а не предупреждение в лог: молча работающая система с утечкой
+// хуже упавшей, а предупреждение при развёртывании никто не прочитает.
+func validateArchiveOutsideUploads(archivePath, uploadPath string) error {
+	if archivePath == "" || uploadPath == "" {
+		return nil
+	}
+
+	archiveAbs, err := resolvePath(archivePath)
+	if err != nil {
+		return fmt.Errorf("ARCHIVE_PATH: %w", err)
+	}
+	uploadAbs, err := resolvePath(uploadPath)
+	if err != nil {
+		return fmt.Errorf("UPLOAD_PATH: %w", err)
+	}
+
+	switch {
+	case archiveAbs == uploadAbs:
+		return fmt.Errorf("ARCHIVE_PATH (%s) must differ from UPLOAD_PATH: uploads are served without authorization", archiveAbs)
+	case isInside(archiveAbs, uploadAbs):
+		return fmt.Errorf("ARCHIVE_PATH (%s) must not be inside UPLOAD_PATH (%s): uploads are served without authorization, blanks contain personal data", archiveAbs, uploadAbs)
+	case isInside(uploadAbs, archiveAbs):
+		return fmt.Errorf("UPLOAD_PATH (%s) must not be inside ARCHIVE_PATH (%s)", uploadAbs, archiveAbs)
+	}
+	return nil
+}
+
+// resolvePath приводит путь к абсолютному и разворачивает символические ссылки.
+//
+// Без разворачивания проверка сравнивала бы лексические пути, и каталог архива,
+// подложенный ссылкой внутрь загрузок, прошёл бы её - то есть ровно тот случай, от
+// которого весь этот код и защищает.
+//
+// Каталога может ещё не быть: при первом развёртывании приложение стартует до того,
+// как оператор создаст его руками. Поэтому разворачиваем ближайшего существующего
+// предка и приклеиваем остаток пути.
+func resolvePath(p string) (string, error) {
+	abs, err := filepath.Abs(p)
+	if err != nil {
+		return "", err
+	}
+
+	rest := ""
+	for cur := abs; ; {
+		resolved, err := filepath.EvalSymlinks(cur)
+		if err == nil {
+			return filepath.Join(resolved, rest), nil
+		}
+		if !errors.Is(err, fs.ErrNotExist) {
+			// Развернуть не дали по другой причине (например, нет прав на чтение
+			// промежуточного каталога). Сравним хотя бы лексические пути: неполная
+			// проверка лучше, чем отказ стартовать из-за особенностей монтирования.
+			return abs, nil
+		}
+		parent := filepath.Dir(cur)
+		if parent == cur {
+			return abs, nil
+		}
+		rest = filepath.Join(filepath.Base(cur), rest)
+		cur = parent
+	}
+}
+
+// isInside сообщает, лежит ли child под parent. Оба пути должны быть абсолютными.
+func isInside(child, parent string) bool {
+	rel, err := filepath.Rel(parent, child)
+	if err != nil {
+		return false
+	}
+	if rel == "." || rel == ".." {
+		return false
+	}
+	return !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
