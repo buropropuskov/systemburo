@@ -434,7 +434,7 @@ export default {
   flex-direction: column;
   /* Полупрозрачная: страница под панелью остаётся видна, поэтому переход по находке
      не ощущается как уход «вслепую». */
-  background: color-mix(in srgb, var(--surface) 75%, transparent);
+  background: color-mix(in srgb, var(--surface) 85%, transparent);
   border-left: 1px solid var(--border);
   box-shadow: -8px 0 24px rgb(0 0 0 / 12%);
   /* Выше выдвижного меню и карточек, ниже блокирующих окон: подтверждение о
