@@ -1,6 +1,10 @@
 package handlers
 
 import (
+	"errors"
+	"net/http"
+	"strconv"
+
 	"systemburo/internal/blankpath"
 	"systemburo/internal/models"
 	"systemburo/internal/services"
@@ -8,21 +12,26 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// BlankArchiveHandler - настройки файлового архива бланков и живое превью раскладки
-// (#1615). Выгрузка, статистика и скачивание приезжают следующими срезами.
+// BlankArchiveHandler - настройки файлового архива бланков, живое превью раскладки и
+// ручное пересоздание файлов заявки (#1615). Статистика и скачивание приезжают
+// следующими срезами.
 type BlankArchiveHandler struct {
 	settings services.SettingsService
 	paths    *services.ArchivePathService
+	exports  *services.BlankExportService
 	recorder services.AuditRecorder
 }
 
-// NewBlankArchiveHandler создаёт хендлер раздела «Файловый архив».
+// NewBlankArchiveHandler создаёт хендлер раздела «Файловый архив». Сервис выгрузки
+// приходит отдельно и может отсутствовать: без настроенного каталога архива запись
+// не поднимается, а раздел настроек обязан открываться и в этом состоянии.
 func NewBlankArchiveHandler(
 	settings services.SettingsService,
 	paths *services.ArchivePathService,
+	exports *services.BlankExportService,
 	recorder services.AuditRecorder,
 ) *BlankArchiveHandler {
-	return &BlankArchiveHandler{settings: settings, paths: paths, recorder: recorder}
+	return &BlankArchiveHandler{settings: settings, paths: paths, exports: exports, recorder: recorder}
 }
 
 // GetSettings отдаёт настройки файлового архива. На базе, где их ни разу не сохраняли,
@@ -96,6 +105,31 @@ func (h *BlankArchiveHandler) Preview(c echo.Context) error {
 // списка - она разъедется с сервером на первом же новом токене.
 func (h *BlankArchiveHandler) GetTokens(c echo.Context) error {
 	return RespondSuccess(c, blankpath.Tokens())
+}
+
+// Reexport пересоздаёт файлы заявки в архиве по текущим данным и настройкам.
+//
+// Ручка нужна там, где ждать фоновый разбор очереди нечестно: администратор поправил
+// шаблон раскладки или починил бланк и должен увидеть результат на этой же заявке.
+// Право то же, что на настройки: пересоздание переписывает файлы на диске и по весу
+// ближе к настройке, чем к просмотру.
+func (h *BlankArchiveHandler) Reexport(c echo.Context) error {
+	if h.exports == nil {
+		return echo.NewHTTPError(http.StatusServiceUnavailable, "Файловый архив недоступен: каталог не настроен")
+	}
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid application ID")
+	}
+
+	result, err := h.exports.ExportApplication(c.Request().Context(), id, services.BlankExportReasonReexport)
+	switch {
+	case errors.Is(err, services.ErrArchiveDisabled):
+		return echo.NewHTTPError(http.StatusConflict, "Выгрузка бланков выключена в настройках файлового архива")
+	case err != nil:
+		return err
+	}
+	return RespondSuccess(c, result)
 }
 
 // archiveSettingsDiff собирает изменившиеся настройки как {old, new}. Сравнивается

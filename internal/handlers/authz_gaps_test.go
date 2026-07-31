@@ -33,6 +33,8 @@ var writeBlockedForRegularUser = []struct {
 	// Превью раскладки файлового архива читает данные последней заявки (организация,
 	// заявитель) — не выборка для случайного пользователя.
 	{"fileArchive.preview", http.MethodPost, "/file-archive/preview", `{}`},
+	// Пересоздание бланков заявки переписывает файлы на диске сервера.
+	{"fileArchive.reexport", http.MethodPost, "/file-archive/applications/1/reexport", `{}`},
 }
 
 // readBlockedForRegularUser — списки/карта доступов, которые нельзя выгружать вне контекста.

@@ -111,7 +111,25 @@ func (s *attachmentService) Create(ctx context.Context, userID int, req models.C
 		AutoExport:     req.AutoExport == nil || *req.AutoExport,
 	}
 
-	if err := s.db.WithContext(ctx).Create(&attachment).Error; err != nil {
+	// Запись идёт транзакцией из двух шагов: у auto_export задан default:true, а gorm
+	// выбрасывает из INSERT поля с нулевым значением, когда у колонки есть значение
+	// по умолчанию - выключенный тумблер молча превращался бы во включённый, и бланки
+	// типа уезжали бы в архив вопреки решению администратора (#1615). Судить по
+	// attachment.AutoExport после вставки нельзя: там уже default из базы.
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&attachment).Error; err != nil {
+			return err
+		}
+		if req.AutoExport != nil && !*req.AutoExport {
+			if err := tx.Model(&models.UniqueAttachment{}).
+				Where("id = ?", attachment.ID).Update("auto_export", false).Error; err != nil {
+				return err
+			}
+			attachment.AutoExport = false
+		}
+		return nil
+	})
+	if err != nil {
 		slog.Error("failed to create attachment", "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Ошибка при создании вложения")
 	}
