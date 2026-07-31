@@ -63,6 +63,9 @@ const (
 	AuditEntityArchiveSettings = "archive_settings"
 )
 
+// ArchiveSettingsActionUpdated - изменение настроек файлового архива.
+const ArchiveSettingsActionUpdated = "updated"
+
 // AllAuditEntities - перечень известных типов сущностей. Нужен там, где тип приходит
 // снаружи и опечатку в нём надо поймать, а не молча получить пустую выборку: так
 // работает фильтр очистки журнала по типу сущности (#1632).

@@ -56,7 +56,7 @@ func (h *BlankArchiveHandler) UpdateSettings(c echo.Context) error {
 
 	if details := archiveSettingsDiff(before, after); len(details) > 0 {
 		userID := GetUserID(c)
-		h.recorder.Log(ctx, nil, models.AuditEntityArchiveSettings, nil, "updated", &userID, details)
+		h.recorder.Log(ctx, nil, models.AuditEntityArchiveSettings, nil, models.ArchiveSettingsActionUpdated, &userID, details)
 	}
 	return RespondSuccess(c, after)
 }
