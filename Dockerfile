@@ -35,6 +35,11 @@ RUN addgroup -S -g 1001 appgroup && \
 WORKDIR /app
 COPY --from=builder --chown=appuser:appgroup /app/server /app/seed ./
 RUN mkdir -p /app/uploads/templates && chown -R appuser:appgroup /app/uploads
+# Точка монтирования файлового архива бланков (#1615). Каталог создаётся с нужным
+# владельцем заранее: на проде сюда монтируется каталог хоста, и без совпадения
+# uid/gid процесс под appuser не сможет в него писать. Отдельно от uploads намеренно -
+# uploads раздаётся статикой без авторизации, а в бланках персональные данные.
+RUN mkdir -p /app/archive && chown -R appuser:appgroup /app/archive
 USER appuser
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
