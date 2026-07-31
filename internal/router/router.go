@@ -859,6 +859,10 @@ func Setup(e *echo.Echo, d Dependencies) {
 	consents.GET("", consent.List)
 	consents.GET("/check/:type", consent.Check)
 
+	// Отзыв согласия за работника: он приходит с просьбой к администратору,
+	// своей кнопки отзыва у него нет. Право то же, что у раздела работников.
+	protected.DELETE("/users/:username/consent", consent.RevokeForUser, requireUsers)
+
 	// Настройки системы
 	protected.GET("/settings", settings.GetAll)
 	protected.GET("/settings/upload", settings.GetUploadSettings)

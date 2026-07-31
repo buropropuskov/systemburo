@@ -35,6 +35,11 @@
     <DirtyConfirmModal />
     <DeleteNotifications />
     <OnboardingTour v-if="isAuthenticated && !consentBlocking" />
+    <GlobalSearchPalette
+      v-if="isAuthenticated"
+      :show="searchOpen"
+      @close="searchOpen = false"
+    />
     <BanOverlay @logout="logout" />
     <PDConsentOverlay
       :active="consentBlocking"
@@ -58,6 +63,7 @@ import ScrollTopButton from './components/ScrollTopButton.vue';
 import ConfirmDialog from './components/ConfirmDialog.vue';
 import DirtyConfirmModal from './components/DirtyConfirmModal.vue';
 import DeleteNotifications from './components/DeleteNotifications.vue';
+import GlobalSearchPalette from './components/GlobalSearchPalette.vue';
 import OnboardingTour from './components/onboarding/OnboardingTour.vue';
 import BanOverlay from './components/BanOverlay.vue';
 import PDConsentOverlay from './components/PDConsentOverlay.vue';
@@ -71,6 +77,7 @@ export default {
     ConfirmDialog,
     DirtyConfirmModal,
     DeleteNotifications,
+    GlobalSearchPalette,
     OnboardingTour,
     BanOverlay,
     PDConsentOverlay,
@@ -81,6 +88,9 @@ export default {
       banEventOff: null,
       // userId, на который сейчас стоит подписка бана; держит её синхронной с токеном.
       banSubUserId: null,
+      // Окно сквозного поиска. Живёт здесь, а не в меню: открывается и с рабочей
+      // страницы, и с закрытым меню, и по сочетанию клавиш.
+      searchOpen: false,
     }
   },
   computed: {
@@ -173,11 +183,29 @@ export default {
     // Подписка на бан для восстановленной при старте сессии; дальше её ведёт
     // watch(banScopeUserId) на смену токена.
     this.reconcileBanSubscription()
+    window.addEventListener('keydown', this.onGlobalSearchHotkey)
+    this.$bus?.on?.('global-search:open', this.openGlobalSearch)
   },
   beforeUnmount() {
     this.teardownBanSubscription()
+    window.removeEventListener('keydown', this.onGlobalSearchHotkey)
+    this.$bus?.off?.('global-search:open', this.openGlobalSearch)
   },
   methods: {
+    openGlobalSearch() {
+      if (this.isAuthenticated) this.searchOpen = true
+    },
+    /**
+     * Ctrl+K (Cmd+K на маке) -- общепринятое сочетание для поиска по приложению.
+     * preventDefault обязателен: в Firefox оно уводит фокус в адресную строку.
+     */
+    onGlobalSearchHotkey(e) {
+      if (e.key !== 'k' && e.key !== 'K' && e.key !== 'л' && e.key !== 'Л') return
+      if (!e.ctrlKey && !e.metaKey) return
+      if (!this.isAuthenticated) return
+      e.preventDefault()
+      this.searchOpen = !this.searchOpen
+    },
     /**
      * Приводит подписку на адресный real-time сигнал бана (scope user:<id>, #840)
      * в соответствие с текущим залогиненным юзером. Прилетевший

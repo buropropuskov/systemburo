@@ -12,6 +12,11 @@ const (
 	SearchTypeEmployees    SearchEntityType = "employees"
 	SearchTypeCars         SearchEntityType = "cars"
 	SearchTypeApplications SearchEntityType = "applications"
+	SearchTypeDirectories  SearchEntityType = "directories"
+	SearchTypeUsers        SearchEntityType = "users"
+	SearchTypeBlacklist    SearchEntityType = "blacklist"
+	SearchTypeContent      SearchEntityType = "content"
+	SearchTypeFeedback     SearchEntityType = "feedback"
 )
 
 // SearchTarget -- адрес перехода из результата. Отдаём сущность и её id, а не готовый
