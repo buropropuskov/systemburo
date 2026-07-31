@@ -99,7 +99,8 @@ func printRetentionSummary(ctx context.Context, db *gorm.DB) error {
 		padLeft("Примерно", 12), " Что это")
 	var total int64
 	for _, t := range database.AllRetentionTargets {
-		res, err := database.SweepRetention(ctx, db, t, database.DefaultRetentionCutoff(t, now), false)
+		res, err := database.SweepRetention(ctx, db, t,
+			database.SweepOptions{Cutoff: database.DefaultRetentionCutoff(t, now)})
 		if err != nil {
 			return err
 		}

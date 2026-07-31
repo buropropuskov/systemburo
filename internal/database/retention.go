@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"systemburo/internal/models"
+
 	"gorm.io/gorm"
 )
 
@@ -69,6 +71,14 @@ type retentionRule struct {
 	table      string
 	where      string
 	cutoffArgs int
+	// timeColumn - по какому столбцу отсчитывается возраст записи. Нужен фильтру
+	// нижней границы: без него «удалить только за 2023 год» не выразить.
+	timeColumn string
+	// entityFilter и tableFilter - применим ли к группе фильтр по типу сущности и по
+	// таблице поста. Фильтр, заданный для группы, которая его не понимает, отклоняется
+	// с объяснением: молча проигнорировать его при удалении опаснее, чем упасть.
+	entityFilter bool
+	tableFilter  bool
 	// defaultAge - срок хранения по умолчанию, если оператор не задал свой.
 	defaultAge func(now time.Time) time.Time
 	// description - строка для отчёта команды, человеку в терминал.
@@ -80,6 +90,7 @@ var retentionRules = map[RetentionTarget]retentionRule{
 		table:       "refresh_tokens",
 		where:       "expires_at < ? OR (is_revoked AND COALESCE(revoked_at, created_at) < ?)",
 		cutoffArgs:  2,
+		timeColumn:  "created_at",
 		defaultAge:  func(now time.Time) time.Time { return now.AddDate(0, 0, -30) },
 		description: "недействительные токены сессий",
 	},
@@ -87,13 +98,16 @@ var retentionRules = map[RetentionTarget]retentionRule{
 		table:       "notifications",
 		where:       "is_read AND created_at < ?",
 		cutoffArgs:  1,
+		timeColumn:  "created_at",
 		defaultAge:  func(now time.Time) time.Time { return now.AddDate(0, 0, -30) },
 		description: "прочитанные уведомления",
 	},
 	TargetAudit: {
-		table:       "audit_log",
-		where:       auditRetentionWhere,
-		cutoffArgs:  1,
+		table:        "audit_log",
+		where:        auditRetentionWhere,
+		cutoffArgs:   1,
+		timeColumn:   "created_at",
+		entityFilter: true,
 		defaultAge:  func(now time.Time) time.Time { return now.AddDate(-3, 0, 0) },
 		description: "история сущностей, кроме корзины и последних отметок прохода",
 	},
@@ -101,6 +115,8 @@ var retentionRules = map[RetentionTarget]retentionRule{
 		table:       "table_snapshots",
 		where:       "reason = 'scheduled' AND taken_at < ?",
 		cutoffArgs:  1,
+		timeColumn:  "taken_at",
+		tableFilter: true,
 		defaultAge:  func(now time.Time) time.Time { return now.AddDate(-1, 0, 0) },
 		description: "суточные слепки таблиц постов, кроме ручных",
 	},
@@ -108,6 +124,7 @@ var retentionRules = map[RetentionTarget]retentionRule{
 		table:       "request_logs_daily",
 		where:       "day < (?)::date",
 		cutoffArgs:  1,
+		timeColumn:  "day",
 		defaultAge:  func(now time.Time) time.Time { return now.AddDate(-2, 0, 0) },
 		description: "дневные агрегаты журнала запросов",
 	},
@@ -125,6 +142,7 @@ type RetentionResult struct {
 	Target      RetentionTarget
 	Description string
 	Cutoff      time.Time
+	From        *time.Time
 	Matched     int64
 	Deleted     int64
 	TotalRows   int64
@@ -229,36 +247,100 @@ func ParseRetentionAge(s string, now time.Time) (time.Time, error) {
 // SweepRetention удаляет данные одной группы старше cutoff. При apply=false ничего
 // не удаляет и только считает, сколько попало бы под условие - это режим по умолчанию
 // для команды cleanup: оператор сначала смотрит на числа.
-func SweepRetention(ctx context.Context, db *gorm.DB, target RetentionTarget, cutoff time.Time, apply bool) (RetentionResult, error) {
+func SweepRetention(ctx context.Context, db *gorm.DB, target RetentionTarget, opts SweepOptions) (RetentionResult, error) {
 	rule, ok := retentionRules[target]
 	if !ok {
 		return RetentionResult{}, fmt.Errorf("неизвестная группа %q", target)
 	}
-	res := RetentionResult{Target: target, Description: rule.description, Cutoff: cutoff}
+	if err := opts.validateFor(target, rule); err != nil {
+		return RetentionResult{}, err
+	}
+	res := RetentionResult{Target: target, Description: rule.description, Cutoff: opts.Cutoff, From: opts.From}
 
-	args := make([]interface{}, rule.cutoffArgs)
-	for i := range args {
-		args[i] = cutoff
+	// Условие группы берётся в скобки: у токенов оно содержит OR, и без скобок
+	// добавленный фильтр прилип бы только ко второй его половине.
+	where := "(" + rule.where + ")"
+	args := make([]interface{}, 0, rule.cutoffArgs+3)
+	for i := 0; i < rule.cutoffArgs; i++ {
+		args = append(args, opts.Cutoff)
+	}
+	if opts.From != nil {
+		if rule.timeColumn == "day" {
+			where += " AND day >= (?)::date" // столбец типа date, приведение обязательно
+		} else {
+			where += fmt.Sprintf(" AND %s >= ?", rule.timeColumn)
+		}
+		args = append(args, *opts.From)
+	}
+	if opts.EntityType != "" {
+		where += " AND entity_type = ?"
+		args = append(args, opts.EntityType)
+	}
+	if opts.TableID != nil {
+		where += " AND table_id = ?"
+		args = append(args, *opts.TableID)
 	}
 
-	countSQL := fmt.Sprintf("SELECT count(*) FROM %s WHERE %s", rule.table, rule.where)
+	countSQL := fmt.Sprintf("SELECT count(*) FROM %s WHERE %s", rule.table, where)
 	if err := db.WithContext(ctx).Raw(countSQL, args...).Scan(&res.Matched).Error; err != nil {
 		return res, fmt.Errorf("подсчёт %s: %w", rule.table, err)
 	}
 	if err := measureRetentionTable(ctx, db, rule.table, &res); err != nil {
 		return res, err
 	}
-	if !apply || res.Matched == 0 {
+	if !opts.Apply || res.Matched == 0 {
 		return res, nil
 	}
 
-	deleteSQL := fmt.Sprintf("DELETE FROM %s WHERE %s", rule.table, rule.where)
+	deleteSQL := fmt.Sprintf("DELETE FROM %s WHERE %s", rule.table, where)
 	tx := db.WithContext(ctx).Exec(deleteSQL, args...)
 	if tx.Error != nil {
 		return res, fmt.Errorf("удаление из %s: %w", rule.table, tx.Error)
 	}
 	res.Deleted = tx.RowsAffected
 	return res, nil
+}
+
+// SweepOptions - что и с какими сужениями удалять. Cutoff обязателен, остальное
+// сужает выборку внутри группы: период снизу, тип сущности в журнале, таблица поста
+// у слепков. Появились по запросу эксплуатации (#1632): «удалить историю только по
+// машинам» или «снять слепки одного поста» без сужений не выразить.
+type SweepOptions struct {
+	Cutoff     time.Time
+	From       *time.Time
+	EntityType string
+	TableID    *int
+	Apply      bool
+}
+
+// validateFor отклоняет фильтр, которого группа не понимает. Тихо игнорировать его
+// нельзя: оператор просил сузить удаление, а получил бы удаление всей группы.
+func (o SweepOptions) validateFor(target RetentionTarget, rule retentionRule) error {
+	if o.EntityType != "" && !rule.entityFilter {
+		return fmt.Errorf("фильтр по типу сущности применим только к группе %s, а выбрана %s",
+			TargetAudit, target)
+	}
+	if o.TableID != nil && !rule.tableFilter {
+		return fmt.Errorf("фильтр по таблице поста применим только к группе %s, а выбрана %s",
+			TargetSnapshots, target)
+	}
+	if o.From != nil && !o.From.Before(o.Cutoff) {
+		return fmt.Errorf("начало периода (%s) должно быть раньше его конца (%s)",
+			o.From.Format(time.DateOnly), o.Cutoff.Format(time.DateOnly))
+	}
+	return nil
+}
+
+// ValidateEntityType проверяет тип сущности по перечню известных: опечатка иначе
+// молча даст пустую выборку, и оператор решит, что чистить нечего.
+func ValidateEntityType(s string) error {
+	for _, known := range models.AllAuditEntities {
+		if s == known {
+			return nil
+		}
+	}
+	return fmt.Errorf("неизвестный тип сущности %q (доступны: %s)",
+		s, strings.Join(models.AllAuditEntities, ", "))
 }
 
 // StorageReport - обзор занятого места: вся база, крупнейшие таблицы и остаток по
@@ -371,7 +453,7 @@ func SweepRoutine(ctx context.Context, db *gorm.DB, tokenDays, notificationDays 
 		{TargetNotifications, now.AddDate(0, 0, -notificationDays)},
 	}
 	for _, p := range plan {
-		res, err := SweepRetention(ctx, db, p.target, p.cutoff, true)
+		res, err := SweepRetention(ctx, db, p.target, SweepOptions{Cutoff: p.cutoff, Apply: true})
 		if err != nil {
 			slog.Error("уборка не выполнена", "target", p.target, "error", err)
 			continue
