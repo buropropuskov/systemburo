@@ -201,6 +201,25 @@ type BlankExportSnapshotResult struct {
 	Error  string `json:"error"`
 }
 
+// ArchiveBackfillRequest - запрос ручного бэкфилла за период (#1615, B4):
+// администратор пересобирает бланки заявок диапазона, не дожидаясь ночной сверки.
+// Тем же запросом с UniqueAttachmentID пользуется «пересоздать бланки этого типа»
+// после правки маппингов шаблона - auto-enqueue на каждую правку поставил бы в
+// очередь десятки тысяч файлов, поэтому пересборка типа осознанное действие.
+type ArchiveBackfillRequest struct {
+	DateFrom string `json:"date_from" validate:"required"`
+	DateTo   string `json:"date_to" validate:"required"`
+	// UniqueAttachmentID сужает бэкфилл до заявок с вложением этого типа. Пусто -
+	// период целиком, независимо от типов вложений.
+	UniqueAttachmentID *int `json:"unique_attachment_id,omitempty"`
+}
+
+// ArchiveBackfillResponse - сколько заявок поставлено в очередь. Запись асинхронна:
+// разбор идёт фоновым воркером (B1), ручка результата выгрузки не ждёт.
+type ArchiveBackfillResponse struct {
+	Queued int `json:"queued"`
+}
+
 // BlankExportResult - итог выгрузки заявки целиком. Единица обработки именно заявка:
 // папка принадлежит ей, и переименование из нескольких строк одновременно - гонка.
 type BlankExportResult struct {

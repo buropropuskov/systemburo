@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
 	"systemburo/internal/blankpath"
 	"systemburo/internal/models"
@@ -130,6 +131,47 @@ func (h *BlankArchiveHandler) Reexport(c echo.Context) error {
 		return err
 	}
 	return RespondSuccess(c, result)
+}
+
+// Backfill ставит в очередь на выгрузку все заявки периода, по желанию суженные
+// типом вложения. Ответ асинхронный (202): разбор идёт фоновым воркером (B1), а не в
+// рамках этого запроса - широкий диапазон иначе держал бы администратора часами.
+//
+// Тот же запрос обслуживает и «пересоздать бланки этого типа» после правки
+// маппингов шаблона (unique_attachment_id без сужения периода до нужного дня):
+// auto-enqueue на каждую правку поставил бы в очередь десятки тысяч файлов, поэтому
+// пересборка - осознанное действие администратора, а не следствие сохранения формы.
+func (h *BlankArchiveHandler) Backfill(c echo.Context) error {
+	if h.exports == nil {
+		return echo.NewHTTPError(http.StatusServiceUnavailable, "Файловый архив недоступен: каталог не настроен")
+	}
+	var req models.ArchiveBackfillRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+
+	from, err := time.Parse("2006-01-02", req.DateFrom)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Некорректная дата date_from (ожидается YYYY-MM-DD)")
+	}
+	to, err := time.Parse("2006-01-02", req.DateTo)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Некорректная дата date_to (ожидается YYYY-MM-DD)")
+	}
+	if to.Before(from) {
+		return echo.NewHTTPError(http.StatusBadRequest, "date_to не может быть раньше date_from")
+	}
+	// date_to включителен: конец периода - начало следующих суток.
+	toExclusive := to.Add(24 * time.Hour)
+
+	queued, err := h.exports.Backfill(c.Request().Context(), from, toExclusive, req.UniqueAttachmentID)
+	switch {
+	case errors.Is(err, services.ErrArchiveDisabled):
+		return echo.NewHTTPError(http.StatusConflict, "Выгрузка бланков выключена в настройках файлового архива")
+	case err != nil:
+		return err
+	}
+	return RespondAccepted(c, models.ArchiveBackfillResponse{Queued: queued})
 }
 
 // archiveSettingsDiff собирает изменившиеся настройки как {old, new}. Сравнивается

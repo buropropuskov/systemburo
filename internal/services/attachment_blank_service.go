@@ -6,8 +6,10 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
 	"sort"
 	"strings"
+	"sync"
 
 	"systemburo/internal/models"
 
@@ -75,11 +77,41 @@ type AttachmentBlankService interface {
 
 type attachmentBlankService struct {
 	db *gorm.DB
+	// templateCache - сырые байты уже читанных .xlsx-шаблонов (#1615, B4): массовый
+	// прогон (бэкфилл за период, ночная сверка) генерирует бланк за бланком одним и
+	// тем же файлом шаблона, и без кэша каждый бланк заново читал бы его с диска.
+	// Ключ - FilePath: Upload всегда пишет новый шаблон под новым именем с меткой
+	// времени и никогда не перезаписывает существующий файл, поэтому у кэша нет
+	// нужды в инвалидации - старый путь не меняет содержимого.
+	templateCache   map[string][]byte
+	templateCacheMu sync.Mutex
 }
 
 // NewAttachmentBlankService создаёт сервис.
 func NewAttachmentBlankService(db *gorm.DB) AttachmentBlankService {
-	return &attachmentBlankService{db: db}
+	return &attachmentBlankService{db: db, templateCache: make(map[string][]byte)}
+}
+
+// loadTemplateFile отдаёт байты .xlsx-шаблона, читая файл с диска только один раз на
+// путь. Возвращаемый срез не мутируется вызывающими (excelize.OpenReader только
+// читает), поэтому безопасен для конкурентного использования без копирования.
+func (s *attachmentBlankService) loadTemplateFile(path string) ([]byte, error) {
+	s.templateCacheMu.Lock()
+	data, ok := s.templateCache[path]
+	s.templateCacheMu.Unlock()
+	if ok {
+		return data, nil
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	s.templateCacheMu.Lock()
+	s.templateCache[path] = data
+	s.templateCacheMu.Unlock()
+	return data, nil
 }
 
 // GenerateBlank возвращает Reader с готовым .xlsx и filename.
@@ -116,8 +148,13 @@ func (s *attachmentBlankService) GenerateBlank(ctx context.Context, applicationI
 		return nil, "", err
 	}
 
-	// 3. Открыть шаблон.
-	f, err := excelize.OpenFile(template.FilePath)
+	// 3. Открыть шаблон - байты берутся из кэша, а не с диска на каждый вызов
+	// (массовый прогон бьётся об один и тот же файл сотнями заявок подряд).
+	templateBytes, err := s.loadTemplateFile(template.FilePath)
+	if err != nil {
+		return nil, "", echo.NewHTTPError(http.StatusInternalServerError, "Не удалось открыть шаблон: "+err.Error())
+	}
+	f, err := excelize.OpenReader(bytes.NewReader(templateBytes))
 	if err != nil {
 		return nil, "", echo.NewHTTPError(http.StatusInternalServerError, "Не удалось открыть шаблон: "+err.Error())
 	}
