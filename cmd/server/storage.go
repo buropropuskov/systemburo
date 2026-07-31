@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"systemburo/internal/config"
@@ -76,12 +77,13 @@ func printStorageReport(r database.StorageReport) {
 	fmt.Println()
 	fmt.Printf("База данных занимает %s\n", humanBytes(r.DatabaseBytes))
 	fmt.Println()
-	fmt.Printf("%-34s %12s %12s\n", "Таблица", "Записей", "Размер")
+	fmt.Println(padRight("Таблица", 34), padLeft("Записей", 12), padLeft("Размер", 12))
 	for _, t := range r.Tables {
-		fmt.Printf("%-34s %12d %12s\n", t.Name, t.Rows, humanBytes(t.Bytes))
+		fmt.Println(padRight(t.Name, 34), padLeft(strconv.FormatInt(t.Rows, 10), 12),
+			padLeft(humanBytes(t.Bytes), 12))
 	}
 	if r.OthersBytes > 0 {
-		fmt.Printf("%-34s %12s %12s\n", "прочие таблицы", "", humanBytes(r.OthersBytes))
+		fmt.Println(padRight("прочие таблицы", 34), padLeft("", 12), padLeft(humanBytes(r.OthersBytes), 12))
 	}
 }
 
@@ -93,7 +95,8 @@ func printRetentionSummary(ctx context.Context, db *gorm.DB) error {
 	fmt.Println()
 	fmt.Println("Из этого объёма подлежит очистке по срокам хранения:")
 	fmt.Println()
-	fmt.Printf("%-20s %-12s %10s %12s  %s\n", "Группа", "Старше", "Записей", "Примерно", "Что это")
+	fmt.Println(padRight("Группа", 20), padRight("Старше", 12), padLeft("Записей", 10),
+		padLeft("Примерно", 12), " Что это")
 	var total int64
 	for _, t := range database.AllRetentionTargets {
 		res, err := database.SweepRetention(ctx, db, t, database.DefaultRetentionCutoff(t, now), false)
@@ -101,12 +104,17 @@ func printRetentionSummary(ctx context.Context, db *gorm.DB) error {
 			return err
 		}
 		total += res.FreedBytes
-		fmt.Printf("%-20s %-12s %10d %12s  %s\n",
-			res.Target, res.Cutoff.Format(time.DateOnly), res.Matched,
-			humanBytes(res.FreedBytes), res.Description)
+		fmt.Println(padRight(string(res.Target), 20), padRight(res.Cutoff.Format(time.DateOnly), 12),
+			padLeft(strconv.FormatInt(res.Matched, 10), 10), padLeft(humanBytes(res.FreedBytes), 12),
+			" "+res.Description)
 	}
 	fmt.Println()
-	fmt.Printf("Всего можно освободить примерно %s при сроках по умолчанию.\n", humanBytes(total))
+	if total == 0 {
+		fmt.Println("При сроках по умолчанию удалять нечего: всё занятое место под данными,")
+		fmt.Println("которые ещё не вышли за срок хранения.")
+	} else {
+		fmt.Printf("Всего можно освободить примерно %s при сроках по умолчанию.\n", humanBytes(total))
+	}
 	return nil
 }
 
