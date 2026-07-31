@@ -59,25 +59,7 @@ func (blacklistSearchProvider) Search(ctx context.Context, db *gorm.DB, req sear
 	args = append(args, req.Limit+1)
 	args = append(args, req.Raw, req.Raw, req.Limit+1)
 
-	var rows []struct {
-		ID       int    `gorm:"column:id"`
-		Title    string `gorm:"column:title"`
-		Subtitle string `gorm:"column:subtitle"`
-		Kind     string `gorm:"column:kind"`
-	}
-	if err := db.WithContext(ctx).Raw(sql, args...).Scan(&rows).Error; err != nil {
-		return nil, fmt.Errorf("поиск по чёрным спискам: %w", err)
-	}
-
-	items := make([]SearchItem, 0, len(rows))
-	for _, r := range rows {
-		items = append(items, SearchItem{
-			ID:       r.ID,
-			Type:     SearchTypeBlacklist,
-			Title:    r.Title,
-			Subtitle: r.Subtitle,
-			Target:   SearchTarget{Entity: r.Kind, ID: r.ID},
-		})
-	}
-	return items, nil
+	// Человек и машина ведут на разные вкладки раздела, отсюда свой код сущности
+	// у каждой строки.
+	return scanKindedRows(ctx, db, SearchTypeBlacklist, sql, args, "поиск по чёрным спискам")
 }
