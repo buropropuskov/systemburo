@@ -108,6 +108,22 @@
           <span class="appl-btn__label-short">Заявка</span>
         </button>
       </div>
+      <!-- Поиск по системе: крайний правый элемент шапки. Нажатие открывает панель
+           результатов справа и ставит в неё курсор -- ввод идёт уже там, рядом с
+           найденным, а не в другом конце экрана. -->
+      <button
+        class="search-btn"
+        type="button"
+        title="Поиск по системе"
+        aria-label="Поиск по системе"
+        data-testid="header-button-search"
+        @click="openGlobalSearch"
+      >
+        <NavIcon
+          name="search"
+          :size="18"
+        />
+      </button>
     </div>
 
     <!-- Используем отдельный компонент модального окна -->
@@ -132,6 +148,7 @@ import FeedbackModal from '@/components/FeedbackModal.vue';
 import AnnouncementModal from '@/components/AnnouncementModal.vue';
 import UserNotifications from '@/components/UserNotifications.vue';
 import { SkeletonLine } from '@/components/ui';
+import NavIcon from '@/components/icons/NavIcon.vue';
 
 export default {
   name: 'TheHeader',
@@ -140,6 +157,7 @@ export default {
     AnnouncementModal,
     UserNotifications,
     SkeletonLine,
+    NavIcon,
   },
   emits: ['refresh-feedback'],
   setup() {
@@ -240,6 +258,10 @@ export default {
       } catch (error) {
         console.error('Ошибка при загрузке объявления:', error);
       }
+    },
+    /** Открыть панель поиска и поставить в неё курсор. */
+    openGlobalSearch() {
+      this.$bus?.emit?.('global-search:open');
     },
     openFeedbackModal() {
       this.showFeedbackModal = true;
@@ -395,6 +417,27 @@ h3 {
 .broadcast { order: 2; }
 .user__notifications { order: 4; }
 .appl-btn__container { order: 5; }
+.search-btn { order: 6; }
+
+/* Поиск: иконка у самого правого края. Размер как у прочих круглых контролов шапки. */
+.search-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.search-btn:hover {
+  background: var(--surface-2);
+  color: var(--color-text);
+}
 
 /* Дата и время в шапке (только десктоп): серый цвет, размер, центрирование и
    min-width как в оригинале до W3; моноширинные цифры, чтобы секунды не дёргали

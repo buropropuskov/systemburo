@@ -36,20 +36,49 @@
             :size="18"
             class="gsp__head-icon"
           />
-          <span class="gsp__head-title">Результаты поиска</span>
+          <input
+            ref="input"
+            :value="query"
+            class="gsp__input"
+            type="text"
+            placeholder="Поиск по системе"
+            aria-label="Поиск по системе"
+            autocomplete="off"
+            @input="$emit('update:query', $event.target.value)"
+            @keydown.down.prevent="move(1)"
+            @keydown.up.prevent="move(-1)"
+            @keydown.enter.prevent="openActive"
+          >
           <button
-            class="gsp__act"
+            class="gsp__act gsp__act--pin"
+            :class="{ 'is-pinned': pinned }"
             type="button"
-            :title="pinned ? 'Открепить: панель будет закрываться при переходе' : 'Закрепить: панель останется открытой при переходе'"
+            :title="pinned ? 'Открепить панель' : 'Закрепить раскрытой'"
             :aria-label="pinned ? 'Открепить панель' : 'Закрепить панель'"
             :aria-pressed="pinned"
             @click="togglePinned"
           >
-            <NavIcon
-              name="pin"
-              :size="17"
-              :class="['gsp__pin', { 'gsp__pin--on': pinned }]"
-            />
+            <!-- Тот же глиф и то же состояние, что у закрепления рельса в навигации:
+                 одна кнопка в двух местах интерфейса должна выглядеть одинаково. -->
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M9 4h6l-1 7 3 3v2H7v-2l3-3z" />
+              <line
+                x1="12"
+                y1="16"
+                x2="12"
+                y2="21"
+              />
+            </svg>
           </button>
           <button
             class="gsp__act"
@@ -138,6 +167,12 @@
             Поиск сейчас недоступен. Попробуйте ещё раз.
           </p>
           <p
+            v-else-if="!query.trim()"
+            class="gsp__hint"
+          >
+            Человек, машина, заявка, раздел или действие -- начните вводить
+          </p>
+          <p
             v-else-if="tooShort"
             class="gsp__hint"
           >
@@ -173,10 +208,12 @@ export default {
   name: 'GlobalSearchPanel',
   components: { NavIcon, SkeletonLine },
   props: {
-    /** Строка из поля поиска в меню. Ввод идёт там, панель только показывает найденное. */
+    /** Открыта ли панель. Открывается кнопкой в шапке, до всякого ввода. */
+    show: { type: Boolean, default: false },
+    /** Строка поиска. Живёт снаружи, чтобы переживать сворачивание панели. */
     query: { type: String, default: '' },
   },
-  emits: ['close'],
+  emits: ['close', 'update:query'],
   setup() {
     const { can } = usePermission();
     const search = useGlobalSearch();
@@ -192,9 +229,12 @@ export default {
     };
   },
   computed: {
-    /** Панель открыта, пока в поле что-то есть: пустой запрос закрывает её сам собой. */
+    /**
+     * Панель открыта по явному признаку, а не по наличию текста: её открывают кнопкой
+     * в шапке и сразу видят, что можно сделать, ещё не набрав ни буквы.
+     */
     open() {
-      return this.query.trim().length > 0;
+      return this.show;
     },
     /**
      * Быстрые действия -- первая группа: «подать» или «отправить» это намерение, и
@@ -285,6 +325,15 @@ export default {
     },
   },
   watch: {
+    show(val) {
+      if (val) {
+        this.collapsed = false;
+        this.$nextTick(() => this.$refs.input?.focus());
+      }
+    },
+    collapsed(val) {
+      if (!val) this.$nextTick(() => this.$refs.input?.focus());
+    },
     query: {
       immediate: true,
       handler(val) {
@@ -316,11 +365,7 @@ export default {
         if (!this.collapsed) this.collapsed = true;
         return;
       }
-      // Стрелки и ввод работают, пока курсор в поле поиска: список живёт в панели, а
-      // фокус остаётся в меню, иначе после каждой буквы пришлось бы возвращать его руками.
-      if (e.key === 'ArrowDown') { e.preventDefault(); this.move(1); }
-      if (e.key === 'ArrowUp') { e.preventDefault(); this.move(-1); }
-      if (e.key === 'Enter') this.openActive();
+
     },
     /**
      * Клик мимо панели и мимо поля поиска сворачивает её в столбик. Закреплённую не
@@ -332,7 +377,7 @@ export default {
     onDocumentMousedown(e) {
       if (!this.open || this.pinned || this.collapsed) return;
       if (this.$refs.panel?.contains(e.target)) return;
-      if (e.target.closest?.('.nav-search-row')) return;
+      if (e.target.closest?.('.search-btn')) return;
       this.collapsed = true;
     },
     move(delta) {
@@ -377,9 +422,10 @@ export default {
 <style scoped>
 .gsp {
   position: fixed;
-  /* Панель начинается под шапкой: накрывая её, она обрезала кнопки и выглядела
-     съехавшей поверх интерфейса, а не рядом с ним. */
-  top: 60px;
+  /* Во всю высоту окна. Шапка приложения прокручивается вместе со страницей, поэтому
+     панель, начинавшаяся под ней, при прокрутке оставляла сверху пустую полосу.
+     Кнопки шапки под панелью не теряются: она открыта, только пока идёт поиск. */
+  top: 0;
   right: 0;
   bottom: 0;
   width: 420px;
@@ -455,17 +501,10 @@ export default {
   background: var(--surface-2);
 }
 
-/* Закреплённая булавка подсвечена и наклонена -- состояние читается и по цвету, и по
-   форме, а не только по цвету (важно, когда цвет плохо различим). */
-.gsp__pin {
-  opacity: 0.75;
-  transition: transform 0.15s ease-out;
-}
-
-.gsp__pin--on {
+/* Закреплённое состояние -- как у закрепления рельса: цвет темы и мягкая подложка. */
+.gsp__act--pin.is-pinned {
   color: var(--color-primary, #4f5bdf);
-  opacity: 1;
-  transform: rotate(-35deg);
+  background: var(--color-primary-tint);
 }
 
 .gsp__head {
@@ -474,16 +513,25 @@ export default {
   gap: 8px;
   padding: 12px 8px 12px 16px;
   border-bottom: 1px solid var(--border);
+  /* Шапка панели непрозрачная, в отличие от тела: она приходится на ту же полосу, что
+     шапка приложения, и сквозь прозрачность её кнопки просвечивали под заголовком
+     панели -- получалась каша из двух наложенных строк. */
+  background: var(--surface);
 }
 
-.gsp__head-title {
+.gsp__input {
   flex: 1;
   min-width: 0;
-  font-size: 13px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--color-text-muted);
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  /* 16px, иначе iOS зазумит страницу при фокусе. */
+  font-size: 16px;
+  padding: 6px 0;
+}
+
+.gsp__input:focus {
+  outline: none;
 }
 
 .gsp__body {
@@ -588,7 +636,7 @@ export default {
 @media (max-width: 768px) {
   .gsp {
     width: 100vw;
-    top: var(--mobile-header-height, 55px);
+    top: 0;
     bottom: 0;
   }
 

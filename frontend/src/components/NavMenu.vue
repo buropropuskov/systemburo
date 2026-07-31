@@ -111,30 +111,6 @@
           </div>
         </div>
 
-        <!-- Поиск: место зарезервировано всегда (в свёрнутом - лупа по центру).
-             Ввод идёт прямо здесь, найденное показывается в панели справа: первой
-             группой разделы (прежний фильтр меню), за ними люди, машины, заявки,
-             справочники. -->
-        <div class="nav-search-row">
-          <span
-            class="nav-search-ic"
-            @click="focusSearch"
-          >
-            <NavIcon
-              name="search"
-              :size="16"
-            />
-          </span>
-          <input
-            ref="searchInput"
-            v-model="searchQuery"
-            type="text"
-            class="nav-search"
-            placeholder="Поиск..."
-            aria-label="Поиск по системе"
-            autocomplete="off"
-          >
-        </div>
 
         <div class="nav-scroll">
           <!-- ЗАЯВКИ -->
@@ -722,7 +698,6 @@ export default {
       // Разделы Админки по группам мокапа (#510). permission - ключ права на
       // раздел (совпадает с meta.permission роутов, #187 Фаза 2): пункт виден
       // только если can(permission). super/admin проходят, Техработы - super-only.
-      searchQuery: '',
       adminGroups: ADMIN_GROUPS,
     };
   },
@@ -833,12 +808,6 @@ export default {
     },
   },
   watch: {
-    // Строку отдаём наружу: панель результатов живёт в корне приложения, чтобы
-    // перекрывать страницу, а не схлопываться вместе с рельсом при уходе курсора.
-    searchQuery(val) {
-      this.$bus?.emit?.('global-search:query', val);
-    },
-
     // Закрываем drawer при переходе по пункту меню; покинули раздел Админки
     // (клик «РАБОТА»/кабинет) - закрываем колонку.
     '$route'() {
@@ -886,10 +855,6 @@ export default {
       }
     };
     window.addEventListener('keydown', this._escHandler);
-    // Панель результатов закрылась (Escape, крестик, клик мимо) -- чистим поле, иначе
-    // оставшийся текст тут же откроет её снова.
-    this.$bus?.on?.('global-search:clear', this.clearSearch);
-    this.$bus?.on?.('global-search:focus', this.focusSearch);
 
     // Клик вне рельса и колонки Админки закрывает колонку.
     this._docClickHandler = (e) => {
@@ -918,8 +883,6 @@ export default {
     }
     if (this._escHandler) {
       window.removeEventListener('keydown', this._escHandler);
-    this.$bus?.off?.('global-search:clear', this.clearSearch);
-    this.$bus?.off?.('global-search:focus', this.focusSearch);
     }
     if (this._docClickHandler) {
       document.removeEventListener('mousedown', this._docClickHandler);
@@ -946,15 +909,6 @@ export default {
     isCurrentTable(tableName) {
       if (!tableName) return false;
       return this.$route.params.tableName === tableName;
-    },
-    // Клик по лупе в свёрнутом рельсе: поля не видно, поэтому раскрываем меню и
-    // ставим курсор в поле, иначе по иконке нечего нажать.
-    focusSearch() {
-      this.uiStore.sidebarExpanded = true;
-      this.$nextTick(() => this.$refs.searchInput?.focus());
-    },
-    clearSearch() {
-      this.searchQuery = '';
     },
     togglePin() {
       this.uiStore.toggleSidebarPinned();
@@ -1478,56 +1432,6 @@ export default {
 .nav-ctrl--pin.is-pinned {
   color: var(--nav-primary);
   background: var(--nav-primary-soft);
-}
-
-/* Поиск: строка с зарезервированной высотой (всегда занимает место - не двигает
-   пункты при разворачивании). В свёрнутом - только лупа по центру. */
-.nav-search-row {
-  display: flex;
-  align-items: center;
-  position: relative;
-  height: 38px;
-  margin: 8px 7px;
-  flex-shrink: 0;
-}
-
-.nav-search-ic {
-  position: absolute;
-  left: 10px;
-  display: flex;
-  align-items: center;
-  color: var(--nav-text-faint);
-  pointer-events: none;
-  z-index: 1;
-}
-
-.nav-search {
-  width: 100%;
-  height: 100%;
-  padding: 0 12px 0 34px;
-  border: 1px solid var(--nav-border);
-  border-radius: var(--radius-md, 15px);
-  background: var(--nav-bg);
-  font-family: 'Montserrat', sans-serif;
-  font-size: 13px;
-  color: var(--nav-text);
-  outline: none;
-  opacity: 0;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
-}
-
-.nav-menu.expanded .nav-search {
-  opacity: 1;
-  transition-delay: 0.05s;
-}
-
-.nav-search::placeholder {
-  color: var(--nav-text-muted);
-}
-
-.nav-search:focus {
-  border-color: var(--nav-primary);
-  box-shadow: 0 0 0 3px var(--nav-primary-soft);
 }
 
 /* Прокручиваемая середина (секции выше ПОЛЬЗОВАТЕЛЬ). */
@@ -2288,7 +2192,6 @@ export default {
   /* В drawer'е всё всегда развёрнуто - hover/collapse не работают на touch.
      Перебиваем свёрнутые desktop-оверрайды. */
   .nav-menu .nav-brand__name,
-  .nav-menu .nav-search,
   .nav-menu .nav-text,
   .nav-menu .section-title,
   .nav-menu .dropdown-arrow,
@@ -2333,19 +2236,6 @@ export default {
   .nav-menu:not(.expanded) .nav-head {
     justify-content: flex-start;
     padding: 14px 12px 8px;
-  }
-
-  .nav-menu .nav-search-row,
-  .nav-menu:not(.expanded) .nav-search-row {
-    justify-content: flex-start;
-    margin: 0 12px 8px;
-  }
-
-  .nav-menu .nav-search-ic,
-  .nav-menu:not(.expanded) .nav-search-ic {
-    position: absolute;
-    left: 11px;
-    width: auto;
   }
 
   .nav-menu:not(.expanded) .nav-scroll {
@@ -2409,14 +2299,6 @@ export default {
   .nav-menu .nav-ctrl {
     width: 44px;
     height: 44px;
-  }
-
-  .nav-menu .nav-search-row {
-    height: 44px;
-  }
-
-  .nav-menu .nav-search {
-    height: 100%;
   }
 
   .nav-menu .dropdown-item {
