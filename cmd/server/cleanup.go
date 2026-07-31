@@ -5,7 +5,10 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"systemburo/internal/config"
 	"systemburo/internal/database"
@@ -124,8 +127,8 @@ func printCleanupReport(results []database.RetentionResult, applied bool) {
 		fmt.Println("Ничего не удалено: это предварительный показ. Повторите с флагом -apply.")
 	}
 	fmt.Println()
-	fmt.Printf("%-20s %-12s %10s %10s %10s %12s\n",
-		"Группа", "Старше", "Всего", "Размер", "Записей", "Освободится")
+	fmt.Println(padRight("Группа", 20), padRight("Старше", 12), padLeft("Всего", 10),
+		padLeft("Размер", 10), padLeft("Записей", 10), padLeft("Освободится", 12))
 	var totalRows, totalBytes int64
 	for _, r := range results {
 		count := r.Matched
@@ -134,24 +137,46 @@ func printCleanupReport(results []database.RetentionResult, applied bool) {
 		}
 		totalRows += count
 		totalBytes += r.FreedBytes
-		fmt.Printf("%-20s %-12s %10d %10s %10d %12s\n",
-			r.Target, r.Cutoff.Format(time.DateOnly), r.TotalRows,
-			humanBytes(r.TableBytes), count, humanBytes(r.FreedBytes))
+		fmt.Println(padRight(string(r.Target), 20), padRight(r.Cutoff.Format(time.DateOnly), 12),
+			padLeft(strconv.FormatInt(r.TotalRows, 10), 10), padLeft(humanBytes(r.TableBytes), 10),
+			padLeft(strconv.FormatInt(count, 10), 10), padLeft(humanBytes(r.FreedBytes), 12))
 	}
 	fmt.Println()
 	for _, r := range results {
-		fmt.Printf("  %-20s %s\n", r.Target, r.Description)
+		fmt.Println(" ", padRight(string(r.Target), 20), r.Description)
 	}
 	fmt.Println()
-	if applied {
+	switch {
+	case totalRows == 0 && applied:
+		fmt.Println("Удалять было нечего: под заданные сроки не попала ни одна запись.")
+	case totalRows == 0:
+		fmt.Println("Удалять нечего: под заданные сроки не попала ни одна запись.")
+	case applied:
 		fmt.Printf("Удалено: %d %s, освобождено примерно %s\n",
 			totalRows, pluralRecords(totalRows), humanBytes(totalBytes))
 		fmt.Println("Место остаётся в файлах базы и переиспользуется под новые записи;")
 		fmt.Println("операционной системе оно возвращается только полной перепаковкой таблицы.")
-	} else {
+	default:
 		fmt.Printf("Попадает под удаление: %d %s, примерно %s\n",
 			totalRows, pluralRecords(totalRows), humanBytes(totalBytes))
 	}
+}
+
+// padRight и padLeft выравнивают колонки ПО РУНАМ. Форматы вида %-20s считают байты,
+// поэтому кириллический заголовок занимает вдвое больше и шапка съезжает относительно
+// значений - на живом стенде это было видно сразу.
+func padRight(s string, w int) string {
+	if n := utf8.RuneCountInString(s); n < w {
+		return s + strings.Repeat(" ", w-n)
+	}
+	return s
+}
+
+func padLeft(s string, w int) string {
+	if n := utf8.RuneCountInString(s); n < w {
+		return strings.Repeat(" ", w-n) + s
+	}
+	return s
 }
 
 // pluralRecords склоняет слово «запись» по числу: строку читает человек, и «1 записей»
