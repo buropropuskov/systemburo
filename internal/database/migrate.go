@@ -181,6 +181,11 @@ func AllModels() []interface{} {
 		// [21:30, 21:30) МСК, фиксируются кроном в 21:30. Без FK - история
 		// переживает удаление таблицы/пользователя.
 		&models.DailyPassReport{},
+
+		// Реестр файлового архива бланков (#1615): очередь выгрузки и указатель
+		// «какой файл где лежит». Без FK - строка переживает удаление вложения,
+		// иначе каскад оставил бы на диске файл, про который система забыла.
+		&models.BlankExport{},
 	}
 }
 
@@ -230,6 +235,9 @@ func AutoMigrate(db *gorm.DB) error {
 		return err
 	}
 	if err := createSearchIndexes(db); err != nil {
+		return err
+	}
+	if err := createBlankExportPathIndex(db); err != nil {
 		return err
 	}
 	slog.Info("AutoMigrate completed")
@@ -717,6 +725,20 @@ func fixAttachmentTemplateIndex(db *gorm.DB) error {
 					ON attachment_templates(unique_attachment_id);
 			END IF;
 		END $$;
+	`).Error
+}
+
+// createBlankExportPathIndex запрещает двум строкам реестра указывать на один и тот
+// же файл на диске (#1615). Индекс частичный: до первой удачной записи rel_dir пуст,
+// и обычный UNIQUE считал бы такие строки конфликтующими - в очереди их сколько угодно.
+//
+// GORM-тегом это не выражается (WHERE в уникальном индексе он не умеет), поэтому
+// сырым SQL по образцу fixAttachmentTemplateIndex.
+func createBlankExportPathIndex(db *gorm.DB) error {
+	return db.Exec(`
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_blank_exports_path
+			ON blank_exports (rel_dir, file_name)
+			WHERE rel_dir <> ''
 	`).Error
 }
 

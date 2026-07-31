@@ -1,5 +1,6 @@
 data[]
 data[].attachment_type
+data[].auto_export
 data[].created_at
 data[].display_name
 data[].id

@@ -68,6 +68,7 @@ type Dependencies struct {
 	AuthEvents          *handlers.AuthEventHandler
 	Events              *handlers.EventsHandler
 	Search              *handlers.SearchHandler
+	BlankArchive        *handlers.BlankArchiveHandler
 
 	// Services (для middleware и audit)
 	PermResolver *services.PermissionResolver
@@ -976,6 +977,20 @@ func Setup(e *echo.Echo, d Dependencies) {
 		pdcGroup.PUT("/text", settings.UpdatePDConsentText)
 		pdcGroup.PUT("/required", settings.UpdatePDConsentRequired)
 		pdcGroup.POST("/require-again", settings.BumpPDConsentVersion)
+	}
+
+	// Файловый архив бланков (#1615): настройки раскладки и живое превью. Просмотр
+	// раздела - по page.admin.file_archive, правка настроек - дополнительно по
+	// action.manage.file_archive: сменённый шаблон разводит новые файлы мимо тех,
+	// что уже лежат на диске, и это действие тяжелее просмотра.
+	if blankArchive := d.BlankArchive; blankArchive != nil {
+		requireFileArchive := mw.RequirePermissionV2(permResolver, denialLog, services.KeyPageAdminFileArchive)
+		manageFileArchive := mw.RequirePermissionV2(permResolver, denialLog, services.KeyActionManageFileArchive)
+		faGroup := protected.Group("/file-archive", requireFileArchive)
+		faGroup.GET("/settings", blankArchive.GetSettings)
+		faGroup.PUT("/settings", blankArchive.UpdateSettings, manageFileArchive)
+		faGroup.GET("/tokens", blankArchive.GetTokens)
+		faGroup.POST("/preview", blankArchive.Preview, manageFileArchive)
 	}
 
 	// Статистика дашборда (#632). Доступ ограничен page.statistics.

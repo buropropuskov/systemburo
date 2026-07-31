@@ -50,6 +50,8 @@ type SettingsService interface {
 	SetPDConsentRequired(ctx context.Context, required bool) error
 	BumpPDConsentVersion(ctx context.Context) (int, error)
 	GetApprovalReminderSettings(ctx context.Context) (enabled bool, firstDays int, repeatDays int)
+	GetArchiveSettings(ctx context.Context) (*models.ArchiveSettings, error)
+	UpdateArchiveSettings(ctx context.Context, req models.UpdateArchiveSettingsRequest) (*models.ArchiveSettings, error)
 }
 
 var knownKeys = map[string]string{

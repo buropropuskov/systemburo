@@ -58,7 +58,13 @@ const (
 	AuditEntityEmployee           = "employee"
 	AuditEntityUniqueEmployee     = "unique_employee"
 	AuditEntityApplication        = "application"
+	// AuditEntityArchiveSettings - настройки файлового архива бланков (#1615).
+	// EntityID у записей пустой: настройки одни на систему, а не строка справочника.
+	AuditEntityArchiveSettings = "archive_settings"
 )
+
+// ArchiveSettingsActionUpdated - изменение настроек файлового архива.
+const ArchiveSettingsActionUpdated = "updated"
 
 // AllAuditEntities - перечень известных типов сущностей. Нужен там, где тип приходит
 // снаружи и опечатку в нём надо поймать, а не молча получить пустую выборку: так
@@ -70,6 +76,7 @@ var AllAuditEntities = []string{
 	AuditEntityPersonBlacklist, AuditEntityVehicleBlacklist, AuditEntitySystemTable,
 	AuditEntitySystemTableTrash, AuditEntityMark, AuditEntityCar, AuditEntityUniqueCar,
 	AuditEntityEmployee, AuditEntityUniqueEmployee, AuditEntityApplication,
+	AuditEntityArchiveSettings,
 }
 
 // AuditAction* - значения AuditLog.Action, вынесенные в константы там, где значение
