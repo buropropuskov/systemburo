@@ -412,7 +412,7 @@ func (s *organizationService) Update(ctx context.Context, callerUserID, id int, 
 // или дефисы) ключ пуст, и по нему такие записи схлопнулись бы между собой. Для них
 // сверяемся по точному имени - защита не должна стать слабее той, что была до ключа
 // (#1437). По той же причине unique index на name_normalized ставится с условием
-// name_normalized <> ''.
+// name_normalized <> ”.
 func applyNameDuplicateFilter(q *gorm.DB, name, normalized string) *gorm.DB {
 	if normalized == "" {
 		return q.Where("name = ?", name)

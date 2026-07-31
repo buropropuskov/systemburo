@@ -20,8 +20,8 @@ import (
 	"golang.org/x/crypto/argon2"
 	"gorm.io/gorm"
 
-	goargon2 "golang.org/x/crypto/argon2"
 	_ "crypto/rand"
+	goargon2 "golang.org/x/crypto/argon2"
 )
 
 // RequestMeta - метаданные HTTP-запроса, пробрасываемые в auth-операции.

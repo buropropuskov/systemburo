@@ -37,13 +37,13 @@ func (applicationSearchProvider) PermissionKey() string { return KeyPagePersonal
 
 func (applicationSearchProvider) Search(ctx context.Context, db *gorm.DB, req searchRequest) ([]SearchItem, error) {
 	cols := []string{"a.application_number", "a.message", "o.name", "c.name"}
-	cond, args := multiWordCondition(cols, req.Raw)
+	cond, args := searchCondition(cols, req.Raw)
 
 	// car_brand -- устаревшая колонка марки, но в данных заполнена именно она: снимок
 	// mark_name появился позже и есть у единиц записей. Ищем по обеим, иначе заявка не
 	// находится по марке своей машины.
 	carCols := []string{"cr.car_number", "cr.mark_name", "cr.car_brand"}
-	carCond, carArgs := multiWordCondition(carCols, req.Raw)
+	carCond, carArgs := searchCondition(carCols, req.Raw)
 	cond += fmt.Sprintf(` OR EXISTS(
 		SELECT 1 FROM attachments att
 		JOIN cars cr ON cr.attachment_id = att.id
@@ -51,30 +51,32 @@ func (applicationSearchProvider) Search(ctx context.Context, db *gorm.DB, req se
 	args = append(args, carArgs...)
 
 	empCols := []string{"e.last_name", "e.first_name", "e.middle_name"}
-	empCond, empArgs := multiWordCondition(empCols, req.Raw)
+	empCond, empArgs := searchCondition(empCols, req.Raw)
 	cond += fmt.Sprintf(` OR EXISTS(
 		SELECT 1 FROM attachments att2
 		JOIN employees e ON e.attachment_id = att2.id
 		WHERE att2.application_id = a.id AND (%s))`, empCond)
 	args = append(args, empArgs...)
 
-	q := db.WithContext(ctx).
-		Table("applications a").
-		Joins("LEFT JOIN organizations o ON a.organization_id = o.id").
-		Joins("LEFT JOIN companies c ON a.company_id = c.id").
-		Select(`a.id AS id,
-			CONCAT('Заявка ', COALESCE(a.application_number, CAST(a.id AS TEXT))) AS title,
-			CONCAT_WS(' · ', COALESCE(o.name, c.name), NULLIF(a.status, '')) AS subtitle,
-			`+matchRankExpr("a.application_number"), req.Raw, req.Raw).
-		Where(cond, args...)
-
-	q = applyApplicationAccessFilter(q, req.UserID, req.IsApprover)
-
 	rows := make([]searchRow, 0, req.Limit+1)
-	if err := q.
-		Order("match_rank, a.id DESC").
-		Limit(req.Limit + 1).
-		Scan(&rows).Error; err != nil {
+	if err := withTrigramThreshold(ctx, db, func(tx *gorm.DB) error {
+		q := tx.
+			Table("applications a").
+			Joins("LEFT JOIN organizations o ON a.organization_id = o.id").
+			Joins("LEFT JOIN companies c ON a.company_id = c.id").
+			Select(`a.id AS id,
+				CONCAT('Заявка ', COALESCE(a.application_number, CAST(a.id AS TEXT))) AS title,
+				CONCAT_WS(' · ', COALESCE(o.name, c.name), NULLIF(a.status, '')) AS subtitle,
+				`+matchRankExpr("a.application_number"), req.Raw, req.Raw).
+			Where(cond, args...)
+
+		q = applyApplicationAccessFilter(q, req.UserID, req.IsApprover)
+
+		return q.
+			Order("match_rank, a.id DESC").
+			Limit(req.Limit + 1).
+			Scan(&rows).Error
+	}); err != nil {
 		return nil, fmt.Errorf("поиск по заявкам: %w", err)
 	}
 

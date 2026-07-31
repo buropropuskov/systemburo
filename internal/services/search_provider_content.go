@@ -27,9 +27,9 @@ func (contentSearchProvider) Search(ctx context.Context, db *gorm.DB, req search
 	// full_text новостей и объявлений -- размеченный текст целиком. Ищем по нему, но в
 	// подзаголовок кладём короткое описание: показывать кусок разметки в подсказке
 	// незачем.
-	newsCond, newsArgs := ilikePatternsArgs([]string{"title", "description", "full_text"}, req.Variants)
-	annCond, annArgs := ilikePatternsArgs([]string{"title", "description", "full_text"}, req.Variants)
-	docCond, docArgs := ilikePatternsArgs([]string{"title", "description", "file_name"}, req.Variants)
+	newsCond, newsArgs := searchCondition([]string{"title", "description", "full_text"}, req.Raw)
+	annCond, annArgs := searchCondition([]string{"title", "description", "full_text"}, req.Raw)
+	docCond, docArgs := searchCondition([]string{"title", "description", "file_name"}, req.Raw)
 
 	sql := fmt.Sprintf(`SELECT id, title, subtitle, kind FROM (
 		(SELECT id, title, CONCAT_WS(' · ', 'Новость', NULLIF(description, '')) AS subtitle, 'news' AS kind
@@ -73,23 +73,25 @@ func (feedbackSearchProvider) PermissionKey() string  { return KeyPageAdminFeedb
 
 func (feedbackSearchProvider) Search(ctx context.Context, db *gorm.DB, req searchRequest) ([]SearchItem, error) {
 	cols := []string{"f.message", "u.last_name", "u.first_name", "u.middle_name", "u.username"}
-	cond, args := ilikePatternsArgs(cols, req.Variants)
-
-	q := db.WithContext(ctx).
-		Table("feedback f").
-		Joins("LEFT JOIN users u ON f.user_id = u.id").
-		Select(`f.id AS id,
-			LEFT(f.message, 120) AS title,
-			CONCAT_WS(' · ',
-				NULLIF(TRIM(CONCAT_WS(' ', u.last_name, u.first_name)), ''),
-				NULLIF(f.status, '')) AS subtitle`).
-		Where(cond, args...)
+	cond, args := searchCondition(cols, req.Raw)
 
 	rows := make([]searchRow, 0, req.Limit+1)
-	if err := q.
-		Order("f.id DESC").
-		Limit(req.Limit + 1).
-		Scan(&rows).Error; err != nil {
+	// Запрос строится на соединении транзакции: порог нечёткого сравнения выставлен
+	// внутри неё, и построенный снаружи запрос его бы не увидел.
+	if err := withTrigramThreshold(ctx, db, func(tx *gorm.DB) error {
+		return tx.
+			Table("feedback f").
+			Joins("LEFT JOIN users u ON f.user_id = u.id").
+			Select(`f.id AS id,
+				LEFT(f.message, 120) AS title,
+				CONCAT_WS(' · ',
+					NULLIF(TRIM(CONCAT_WS(' ', u.last_name, u.first_name)), ''),
+					NULLIF(f.status, '')) AS subtitle`).
+			Where(cond, args...).
+			Order("f.id DESC").
+			Limit(req.Limit + 1).
+			Scan(&rows).Error
+	}); err != nil {
 		return nil, fmt.Errorf("поиск по обращениям: %w", err)
 	}
 
@@ -106,7 +108,12 @@ func scanKindedRows(ctx context.Context, db *gorm.DB, t SearchEntityType, sql st
 		Subtitle string `gorm:"column:subtitle"`
 		Kind     string `gorm:"column:kind"`
 	}
-	if err := db.WithContext(ctx).Raw(sql, args...).Scan(&rows).Error; err != nil {
+	// В транзакции с выставленным порогом: у всех этих разделов условие содержит
+	// нечёткое сравнение, а оно без порога взяло бы значение по умолчанию.
+	err := withTrigramThreshold(ctx, db, func(tx *gorm.DB) error {
+		return tx.Raw(sql, args...).Scan(&rows).Error
+	})
+	if err != nil {
 		return nil, fmt.Errorf("%s: %w", errContext, err)
 	}
 

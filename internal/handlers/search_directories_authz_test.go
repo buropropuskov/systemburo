@@ -28,6 +28,15 @@ func searchDirToken(prefix string) string {
 	return fmt.Sprintf("%s%d", prefix, time.Now().UnixNano()%1_000_000_000)
 }
 
+// dropTestMarks убирает марки, оставшиеся от прошлых прогонов: таблица не входит в
+// список очистки CleanDB и копится. Одного уникального номера в имени мало: с нечётким
+// сравнением похожая старая запись находится по новому токену -- у них общее начало.
+// Поэтому у каждого теста и корень слова свой, и чистка своего префикса.
+func dropTestMarks(t *testing.T, db *gorm.DB, prefix string) {
+	t.Helper()
+	require.NoError(t, db.Exec("DELETE FROM marks WHERE name LIKE ?", prefix+"%").Error)
+}
+
 func grantPermission(t *testing.T, db *gorm.DB, username, key string) {
 	t.Helper()
 	userID := userIDByName(t, db, username)
@@ -45,7 +54,8 @@ func TestSearch_Directories_GatedByPermission(t *testing.T) {
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
 
-	markName := searchDirToken("Роголевмотор")
+	dropTestMarks(t, db, "Кряквамотор")
+	markName := searchDirToken("Кряквамотор")
 	require.NoError(t, db.Create(&models.Mark{Name: markName}).Error)
 
 	testutil.RegisterUser(t, e, "dir_plain", "password123", 1, td.OrgID, td.CompanyID)
@@ -84,7 +94,8 @@ func TestSearch_Directories_ArchivedHidden(t *testing.T) {
 
 	// Архивируем отдельным Update: при Create поле с false -- нулевое значение, и gorm
 	// подставляет вместо него default:true, из-за чего запись остаётся действующей.
-	archivedName := searchDirToken("Роголевархив")
+	dropTestMarks(t, db, "Пингвинархив")
+	archivedName := searchDirToken("Пингвинархив")
 	archived := models.Mark{Name: archivedName}
 	require.NoError(t, db.Create(&archived).Error)
 	require.NoError(t, db.Model(&archived).Update("is_active", false).Error)
@@ -109,7 +120,8 @@ func TestSearch_Directories_DifferentKindsHaveOwnTargets(t *testing.T) {
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
 
-	token := searchDirToken("Роголевобщий")
+	dropTestMarks(t, db, "Зюзюкаобщий")
+	token := searchDirToken("Зюзюкаобщий")
 	require.NoError(t, db.Create(&models.Mark{Name: token + "марка"}).Error)
 	require.NoError(t, db.Create(&models.Organization{Name: token + "транс", IsActive: true}).Error)
 
