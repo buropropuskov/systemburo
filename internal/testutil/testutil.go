@@ -227,6 +227,10 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, fun
 	userBanHandler := handlers.NewUserBanHandler(userBanService)
 	consentHandler := handlers.NewConsentHandler(consentService, pdConsentGateService, settingsService, db)
 	settingsHandler := handlers.NewSettingsHandler(settingsService, documentFileService, 10*1024*1024, pdConsentGateService, pdConsentStatsService)
+	// Файловый архив поднимается и в тестах: без него роуты /file-archive не
+	// существуют, и гвард прав сверялся бы с роутером, где их просто нет.
+	blankArchiveHandler := handlers.NewBlankArchiveHandler(
+		settingsService, services.NewArchivePathService(db, time.UTC), auditRecorder)
 	telegramService := services.NewTelegramService("", "")
 	bugReportService := services.NewBugReportService(db, telegramService)
 	bugReportHandler := handlers.NewBugReportHandler(bugReportService)
@@ -330,6 +334,7 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, fun
 		AuthEvents:          authEventHandler,
 		Events:              eventsHandler,
 		Search:              searchHandler,
+		BlankArchive:        blankArchiveHandler,
 		PermResolver:        permissionResolver,
 		DenialLog:           accessDenialService,
 		TableReportGate:     mw.RequireTableVerb(db, permissionResolver, accessDenialService, "report"),

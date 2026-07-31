@@ -28,6 +28,10 @@ const (
 	KeyPageAdminPDAudit     = "page.admin.pd_audit"
 	KeyPageAdminDirectories = "page.admin.directories"
 	KeyPageAdminTablesCtor  = "page.admin.tables_constructor"
+	// Раздел «Файловый архив» (#1615): состояние выгрузки бланков на диск, её
+	// настройки и выгрузка файлов. Слово «архив» отдельно уже занято архивными
+	// заявками, поэтому раздел называется файловым и в ключе, и в интерфейсе.
+	KeyPageAdminFileArchive = "page.admin.file_archive"
 
 	KeyHeaderReportProblem     = "header.report_problem"
 	KeyHeaderCreateApplication = "header.create_application"
@@ -60,6 +64,17 @@ const (
 	KeyApplicationOrganizationModerate = "application.organization.moderate"
 
 	KeyActionGrantAdmin = "action.grant.admin"
+
+	// KeyActionManageFileArchive - правка настроек файлового архива: рубильник,
+	// шаблоны раскладки, пороги места. Отделено от просмотра раздела: смотреть
+	// состояние выгрузки полезно и дежурному, а менять раскладку - нет, сменённый
+	// шаблон разводит новые файлы мимо тех, что уже лежат на диске.
+	KeyActionManageFileArchive = "action.manage.file_archive"
+
+	// KeyActionDownloadFileArchive - выгрузка файлов архива на рабочий компьютер
+	// (ZIP за период, ZIP заявки, отдельный бланк). Право отдельное, потому что это
+	// вынос персональных данных за пределы системы разом и помногу.
+	KeyActionDownloadFileArchive = "action.download.file_archive"
 
 	KeyGuideUser  = "guide.user"
 	KeyGuideAdmin = "guide.admin"
@@ -149,6 +164,9 @@ func staticCatalog() []CatalogNode {
 		{Key: KeyPageBlacklist, DisplayName: "Раздел «Чёрный список»", Category: CatAdmin},
 		{Key: KeyPageAdminDirectories, DisplayName: "Раздел «Справочники»", Category: CatAdmin},
 		{Key: KeyPageAdminTablesCtor, DisplayName: "Раздел «Конструктор таблиц»", Category: CatAdmin},
+		{Key: KeyPageAdminFileArchive, DisplayName: "Раздел «Файловый архив»", Category: CatAdmin},
+		{Key: KeyActionManageFileArchive, DisplayName: "Файловый архив: настройка", Category: CatAdmin},
+		{Key: KeyActionDownloadFileArchive, DisplayName: "Файловый архив: выгрузка файлов", Category: CatAdmin},
 		{Key: KeyAuditRead, DisplayName: "Журнал отказов в доступе", Category: CatAdmin},
 		{Key: KeyAuditManage, DisplayName: "Управление ролями и группами", Category: CatAdmin},
 		{Key: KeyActionBanUser, DisplayName: "Блокировка пользователей", Category: CatAdmin},

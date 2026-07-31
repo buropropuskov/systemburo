@@ -108,15 +108,6 @@ describe('GlobalSearchPanel', () => {
     expect(wrapper.text()).toContain('Заявки');
   });
 
-  it('крестик просит закрыть панель', async () => {
-    wrapper = mountPanel('Автомоб');
-    await flushPromises();
-
-    await wrapper.find('[aria-label="Закрыть результаты"]').trigger('click');
-
-    expect(wrapper.emitted('close')).toBeTruthy();
-  });
-
   it('закреплённая панель переживает переход по находке', async () => {
     wrapper = mountPanel('Автомоб');
     await flushPromises();
@@ -148,7 +139,8 @@ describe('GlobalSearchPanel', () => {
     await wrapper.find('[aria-label="Свернуть в столбик"]').trigger('click');
 
     expect(wrapper.find('.gsp--collapsed').exists()).toBe(true);
-    expect(wrapper.find('.gsp__strip-count').text()).toBe('1');
+    // По «Автомоб» находятся и раздел «Автомобили», и действие «Добавить автомобиль».
+    expect(wrapper.find('.gsp__strip-count').text()).toBe('2');
     // Список в столбике не показывается, иначе он не столбик.
     expect(wrapper.find('.gsp__row').exists()).toBe(false);
   });
@@ -165,21 +157,45 @@ describe('GlobalSearchPanel', () => {
     expect(wrapper.find('.gsp--collapsed').exists()).toBe(false);
   });
 
-  it('переход закрывает панель раньше навигации', async () => {
+  it('переход сворачивает панель, но не закрывает её', async () => {
     wrapper = mountPanel('Автомоб');
     await flushPromises();
-
-    // Проверяем сам инвариант, а не число тиков: к моменту навигации панель уже должна
-    // закрываться, иначе подтверждение о несохранённой форме окажется под ней.
-    let closedBeforeNavigation = false;
-    push.mockImplementation(() => {
-      closedBeforeNavigation = Boolean(wrapper.emitted('close'));
-    });
 
     await wrapper.find('.gsp__row').trigger('click');
     await flushPromises();
 
     expect(push).toHaveBeenCalledWith({ path: '/carsview' });
-    expect(closedBeforeNavigation).toBe(true);
+    // Запрос и найденное остаются: вернуться к ним можно одним нажатием на столбик.
+    expect(wrapper.emitted('close')).toBeFalsy();
+    expect(wrapper.find('.gsp--collapsed').exists()).toBe(true);
+  });
+
+  it('крестик закрывает совсем -- это единственный способ', async () => {
+    wrapper = mountPanel('Автомоб');
+    await flushPromises();
+
+    await wrapper.find('[aria-label="Закрыть результаты"]').trigger('click');
+
+    expect(wrapper.emitted('close')).toBeTruthy();
+  });
+
+  it('действие находится по обиходному слову, а не только по названию', async () => {
+    wrapper = mountPanel('подать');
+    await flushPromises();
+
+    const titles = wrapper.findAll('.gsp__row-title').map((el) => el.text());
+    expect(titles).toContain('Подать заявку');
+    // Действия идут первыми: это намерение, а не место, где слово встречается.
+    expect(titles[0]).toBe('Подать заявку');
+  });
+
+  it('действие ведёт на страницу оформления', async () => {
+    wrapper = mountPanel('отправить');
+    await flushPromises();
+
+    await wrapper.find('.gsp__row').trigger('click');
+    await flushPromises();
+
+    expect(push).toHaveBeenCalledWith({ path: '/new-application' });
   });
 });

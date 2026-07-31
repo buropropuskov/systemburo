@@ -30,6 +30,9 @@ var writeBlockedForRegularUser = []struct {
 	{"systemTables.create", http.MethodPost, "/system-tables", `{"name":"authz_probe","display_name":"x","table_type":"cars"}`},
 	// Генерация ключей прав таблицы — не должна быть доступна обычному юзеру.
 	{"permissions.autoGenerate", http.MethodPost, "/permissions/auto-generate", `{"table_id":1,"table_name":"authz_probe"}`},
+	// Превью раскладки файлового архива читает данные последней заявки (организация,
+	// заявитель) — не выборка для случайного пользователя.
+	{"fileArchive.preview", http.MethodPost, "/file-archive/preview", `{}`},
 }
 
 // readBlockedForRegularUser — списки/карта доступов, которые нельзя выгружать вне контекста.
@@ -44,6 +47,9 @@ var readBlockedForRegularUser = []struct {
 	{"personBlacklist.history", "/person-blacklist/history"},
 	{"vehicleBlacklist.list", "/vehicle-blacklist"},
 	{"vehicleBlacklist.history", "/vehicle-blacklist/history"},
+	// Настройки файлового архива: раскладка каталогов на диске и пороги места.
+	{"fileArchive.settings", "/file-archive/settings"},
+	{"fileArchive.tokens", "/file-archive/tokens"},
 }
 
 // readOpenForRegularUser — справочники, чтение которых нужно форме заявки и должно

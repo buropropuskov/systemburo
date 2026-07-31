@@ -294,6 +294,15 @@ func main() {
 	userBanHandler := handlers.NewUserBanHandler(userBanService)
 	consentHandler := handlers.NewConsentHandler(consentService, pdConsentGateService, settingsService, db)
 	settingsHandler := handlers.NewSettingsHandler(settingsService, documentFileService, cfg.UploadMaxFileSize, pdConsentGateService, pdConsentStatsService)
+	// Рабочая таймзона суточных операций: по ней же считается каталог дня в файловом
+	// архиве, иначе заявка, поданная поздним вечером, легла бы в папку следующего дня.
+	resetLoc, err := time.LoadLocation(cfg.ResetTimezone)
+	if err != nil {
+		slog.Warn("неверный RESET_TIMEZONE, используем UTC", "timezone", cfg.ResetTimezone, "error", err)
+		resetLoc = time.UTC
+	}
+	blankArchiveHandler := handlers.NewBlankArchiveHandler(
+		settingsService, services.NewArchivePathService(db, resetLoc), auditRecorder)
 	bugReportHandler := handlers.NewBugReportHandler(bugReportService)
 	maintenanceHandler := handlers.NewMaintenanceHandler(maintenanceService)
 	markHandler := handlers.NewMarkHandler(markService)
@@ -396,6 +405,7 @@ func main() {
 		AuthEvents:          authEventHandler,
 		Events:              eventsHandler,
 		Search:              searchHandler,
+		BlankArchive:        blankArchiveHandler,
 		PermResolver:        permissionResolver,
 		DenialLog:           accessDenialService,
 		MaintenanceBlock:    maintenanceBlock,
@@ -428,12 +438,8 @@ func main() {
 	// Архив access_denials: 3 мес retention, цикл раз в сутки.
 	go startAccessDenialsArchiver(ctxSig, accessDenialService, 90*24*time.Hour, 24*time.Hour)
 
-	// Ежедневный сброс территориальных статусов "Покинул/Выехал" -> "Не входил/Не въезжал" в 06:00.
-	resetLoc, err := time.LoadLocation(cfg.ResetTimezone)
-	if err != nil {
-		slog.Warn("неверный RESET_TIMEZONE, используем UTC", "timezone", cfg.ResetTimezone, "error", err)
-		resetLoc = time.UTC
-	}
+	// Ежедневный сброс территориальных статусов "Покинул/Выехал" -> "Не входил/Не въезжал"
+	// в 06:00. resetLoc посчитан выше, вместе с сервисами.
 	resetService := services.NewTerritoryResetService(db)
 	go startDailyStatusReset(ctxSig, tableSnapshotService, resetService, resetLoc)
 

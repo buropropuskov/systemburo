@@ -108,6 +108,7 @@ func (s *attachmentService) Create(ctx context.Context, userID int, req models.C
 		Title:          &titleUpper,
 		Instruction:    req.Instruction,
 		IsActive:       true,
+		AutoExport:     req.AutoExport == nil || *req.AutoExport,
 	}
 
 	if err := s.db.WithContext(ctx).Create(&attachment).Error; err != nil {
@@ -136,15 +137,22 @@ func (s *attachmentService) Update(ctx context.Context, userID, id int, req mode
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error fetching attachment")
 		}
 
+		fields := map[string]interface{}{
+			"attachment_type": req.AttachmentType,
+			"name":            req.Name,
+			"display_name":    req.DisplayName,
+			"title":           titleUpper,
+			"instruction":     req.Instruction,
+		}
+		// Тумблер архива обновляем только когда клиент его прислал: форма шаблона
+		// вложения и форма настроек архива -- разные экраны, и одна не должна гасить
+		// настройку другой.
+		if req.AutoExport != nil {
+			fields["auto_export"] = *req.AutoExport
+		}
 		if err := tx.Model(&models.UniqueAttachment{}).
 			Where("id = ?", id).
-			Updates(map[string]interface{}{
-				"attachment_type": req.AttachmentType,
-				"name":            req.Name,
-				"display_name":    req.DisplayName,
-				"title":           titleUpper,
-				"instruction":     req.Instruction,
-			}).Error; err != nil {
+			Updates(fields).Error; err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "Error updating attachment")
 		}
 		details = buildAttachmentUpdateDetails(prev, req, titleUpper)
@@ -262,6 +270,9 @@ func buildAttachmentUpdateDetails(prev models.UniqueAttachment, req models.Updat
 	}
 	if strPtrVal(prev.Instruction) != strPtrVal(req.Instruction) {
 		details["instruction"] = map[string]any{"old": strPtrVal(prev.Instruction), "new": strPtrVal(req.Instruction)}
+	}
+	if req.AutoExport != nil && prev.AutoExport != *req.AutoExport {
+		details["auto_export"] = map[string]any{"old": prev.AutoExport, "new": *req.AutoExport}
 	}
 	return details
 }
