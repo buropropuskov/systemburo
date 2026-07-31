@@ -16,9 +16,9 @@ vi.mock('@/composables/usePermission', () => ({
 
 const push = vi.fn();
 
-function mountPanel(query = '') {
+function mountPanel(query = '', show = true) {
   return mount(GlobalSearchPanel, {
-    props: { query },
+    props: { show, query },
     global: {
       mocks: { $router: { push } },
       stubs: {
@@ -47,10 +47,25 @@ afterEach(() => {
 });
 
 describe('GlobalSearchPanel', () => {
-  it('пустая строка держит панель закрытой', () => {
-    wrapper = mountPanel('');
+  it('закрытая панель не рисуется', () => {
+    wrapper = mountPanel('', false);
 
     expect(wrapper.find('.gsp').exists()).toBe(false);
+  });
+
+  it('открывается без запроса и подсказывает, что можно искать', () => {
+    wrapper = mountPanel('');
+
+    expect(wrapper.find('.gsp').exists()).toBe(true);
+    expect(wrapper.text()).toContain('начните вводить');
+  });
+
+  it('ввод идёт в самой панели', async () => {
+    wrapper = mountPanel('');
+
+    await wrapper.find('.gsp__input').setValue('Роголев');
+
+    expect(wrapper.emitted('update:query')[0]).toEqual(['Роголев']);
   });
 
   it('находит раздел меню без обращения к серверу', async () => {
