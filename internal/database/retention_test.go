@@ -228,3 +228,67 @@ func TestParseRetentionTarget(t *testing.T) {
 	_, err = database.ParseRetentionTarget("users; DROP TABLE users")
 	require.Error(t, err)
 }
+
+// TestSelectRetentionTargets проверяет разбор групп: перечень, all, исключение и
+// понятные ошибки на мусоре.
+func TestSelectRetentionTargets(t *testing.T) {
+	all, err := database.SelectRetentionTargets("all", "")
+	require.NoError(t, err)
+	require.Equal(t, database.AllRetentionTargets, all)
+
+	// Исключение - главный сценарий: «почисти всё, историю не трогай».
+	except, err := database.SelectRetentionTargets("all", "audit")
+	require.NoError(t, err)
+	require.NotContains(t, except, database.TargetAudit)
+	require.Len(t, except, len(database.AllRetentionTargets)-1)
+
+	// Порядок вывода общий, повторы схлопываются.
+	list, err := database.SelectRetentionTargets("snapshots,tokens,tokens", "")
+	require.NoError(t, err)
+	require.Equal(t, []database.RetentionTarget{database.TargetTokens, database.TargetSnapshots}, list)
+
+	_, err = database.SelectRetentionTargets("all", "all")
+	require.Error(t, err, "исключение всех выбранных групп - ошибка, а не пустая работа")
+
+	_, err = database.SelectRetentionTargets("", "")
+	require.Error(t, err, "пустой перечень групп - ошибка")
+
+	_, err = database.SelectRetentionTargets("all", "users; DROP TABLE users")
+	require.Error(t, err, "имя группы берётся из белого списка и в исключениях тоже")
+}
+
+// TestSweepRetention_ReportsSize проверяет, что показ отдаёт размер группы: без этого
+// оператор не поймёт, стоит ли чистить.
+func TestSweepRetention_ReportsSize(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+
+	now := time.Now().UTC()
+	insertAudit(t, db, "zzz-retention-size", 1, "update", now.AddDate(-5, 0, 0))
+
+	res, err := database.SweepRetention(context.Background(), db, database.TargetAudit, now.AddDate(-3, 0, 0), false)
+	require.NoError(t, err)
+	require.Positive(t, res.TotalRows, "всего записей в группе должно считаться")
+	require.Positive(t, res.TableBytes, "размер таблицы должен быть известен")
+	require.GreaterOrEqual(t, res.TotalRows, res.Matched, "под удаление не может попасть больше, чем есть")
+	require.LessOrEqual(t, res.FreedBytes, res.TableBytes, "освободить больше размера таблицы нельзя")
+}
+
+// TestStorageOverview проверяет обзор занятого места: база не пуста, таблицы
+// перечислены с размерами, разделы журнальных таблиц не попадают отдельными строками.
+func TestStorageOverview(t *testing.T) {
+	_, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+
+	rep, err := database.StorageOverview(context.Background(), db, 10)
+	require.NoError(t, err)
+	require.Positive(t, rep.DatabaseBytes, "размер базы должен быть известен")
+	require.NotEmpty(t, rep.Tables, "перечень таблиц не должен быть пустым")
+	require.LessOrEqual(t, len(rep.Tables), 10, "показывается не больше запрошенного числа таблиц")
+
+	for _, tbl := range rep.Tables {
+		require.Positive(t, tbl.Bytes, "у таблицы %s нулевой размер", tbl.Name)
+		require.NotRegexp(t, `_\d{4}_\d{2}(_\d{2})?$`, tbl.Name,
+			"раздел %s должен считаться внутри родительской таблицы, а не отдельной строкой", tbl.Name)
+	}
+}

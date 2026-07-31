@@ -23,6 +23,9 @@ func TestIsPDPath(t *testing.T) {
 		{"/api/attachments/5/employees", true},
 		{"/api/applications/89/blank", true},
 		{"/api/applications/available-attachments/111", true},
+		// Сквозной поиск отдаёт ФИО сотрудников: вход другой, данные те же.
+		// Строка запроса сюда не доходит, isPDPath получает URL.Path.
+		{"/api/search", true},
 		// без префикса /api такого запроса не бывает: так выглядел старый перечень
 		{"/employees", false},
 		{"/attachments/5", false},
