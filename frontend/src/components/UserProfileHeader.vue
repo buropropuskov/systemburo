@@ -127,12 +127,46 @@
             </transition>
           </span>
         </div>
+        <!-- Согласие на обработку данных: единственное место, где работник может
+             его отозвать. Показываем, только когда согласие реально дано - иначе
+             отзывать нечего, а окно согласия он и так видит. -->
+        <div
+          v-if="consentGrantedAt"
+          class="user-detail"
+        >
+          <button
+            type="button"
+            class="detail-badge consent-badge clickable"
+            :disabled="consentRevoking"
+            :title="consentTitle"
+            data-testid="cabinet-consent-badge"
+            @click="revokeOwnConsent"
+          >
+            <span class="badge-content">
+              <svg
+                class="icon"
+                viewBox="0 0 24 24"
+              >
+                <path d="M12,3L4,6V11.1C4,15.6 7.4,19.8 12,21C16.6,19.8 20,15.6 20,11.1V6L12,3M10.9,15.5L7.4,12L8.8,10.6L10.9,12.7L15.2,8.4L16.6,9.8L10.9,15.5Z" />
+              </svg>
+              <span class="badge-text">{{ consentBadgeLabel }}</span>
+            </span>
+          </button>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script>
+import { listMyConsents, revokeMyConsent } from '@/api/pdConsent';
+import { usePDConsentStore } from '@/stores/pdConsent';
+import { useDeletionsStore } from '@/stores/deletions';
+import { useUiStore } from '@/stores/ui';
+
+/** Вид согласия, которое спрашивают при первом входе. */
+const PD_PROCESSING = 'pd_processing';
+
 export default {
   props: {
     organization: { type: String, default: null },
@@ -153,7 +187,10 @@ export default {
       timeoutEmail: null,
       timeoutPhone: null,
       emailBadgeWidth: null,
-      phoneBadgeWidth: null
+      phoneBadgeWidth: null,
+      // Когда работник дал действующее согласие; null - согласия нет, отзывать нечего.
+      consentGrantedAt: null,
+      consentRevoking: false
     };
   },
   computed: {
@@ -182,8 +219,18 @@ export default {
       return 'П';
     },
     hasContactDetails() {
-      // Показываем контактные данные, если есть email или телефон
-      return this.email || this.phone;
+      // Показываем ряд, если есть почта, телефон или бейдж согласия
+      return this.email || this.phone || this.consentGrantedAt;
+    },
+
+    consentBadgeLabel() {
+      return this.consentRevoking ? 'Отзываем...' : 'Согласие на обработку данных';
+    },
+
+    consentTitle() {
+      const at = this.consentGrantedAt ? new Date(this.consentGrantedAt) : null;
+      const when = at && !Number.isNaN(at.getTime()) ? ` ${at.toLocaleDateString('ru-RU')}` : '';
+      return `Согласие дано${when}. Нажмите, чтобы отозвать`;
     },
     formattedPhone() {
       if (!this.phone) return '';
@@ -218,12 +265,62 @@ export default {
     this.$nextTick(() => {
       this.updateBadgeWidths();
     });
+    this.loadOwnConsent();
   },
   beforeUnmount() {
     if (this.timeoutEmail) clearTimeout(this.timeoutEmail);
     if (this.timeoutPhone) clearTimeout(this.timeoutPhone);
   },
   methods: {
+    /**
+     * Читает собственное согласие работника. Молча пропускаем ошибку: бейдж -
+     * дополнение к кабинету, и падать из-за него страница не должна.
+     */
+    async loadOwnConsent() {
+      try {
+        const consents = await listMyConsents();
+        const active = (Array.isArray(consents) ? consents : [])
+          .filter((c) => c.consent_type === PD_PROCESSING && c.granted && !c.revoked_at)
+          .sort((a, b) => String(b.granted_at).localeCompare(String(a.granted_at)))[0];
+        this.consentGrantedAt = active?.granted_at || null;
+      } catch {
+        this.consentGrantedAt = null;
+      }
+    },
+
+    /**
+     * Отзывает собственное согласие. Последствие серьёзное - доступ закрывается до
+     * нового подтверждения, поэтому спрашиваем и говорим об этом прямо.
+     */
+    async revokeOwnConsent() {
+      if (this.consentRevoking) return;
+      const ok = await useUiStore().confirm({
+        title: 'Отзыв согласия',
+        message: 'Отозвать согласие на обработку персональных данных?'
+          + ' Система сразу закроет доступ и покажет окно согласия -'
+          + ' работать получится только после нового подтверждения.',
+        confirmText: 'Отозвать',
+        danger: true,
+      });
+      if (!ok) return;
+      this.consentRevoking = true;
+      try {
+        await revokeMyConsent(PD_PROCESSING);
+        this.consentGrantedAt = null;
+        useDeletionsStore().notify({ prefix: 'Согласие на обработку данных отозвано' });
+        // Окно согласия поднимает стор: без принудительного перечитывания оно
+        // появилось бы только по истечении кэша или после перезагрузки страницы.
+        await usePDConsentStore().refresh(true);
+      } catch (error) {
+        useDeletionsStore().notify({
+          prefix: error?.message || 'Не удалось отозвать согласие',
+          type: 'error',
+        });
+      } finally {
+        this.consentRevoking = false;
+      }
+    },
+
     updateBadgeWidths() {
       if (this.$refs.emailBadge && this.email) {
         const originalBadge = this.$refs.emailBadge;
@@ -447,6 +544,18 @@ export default {
 .user-detail:nth-child(1) { animation-delay: 0.4s; }
 .user-detail:nth-child(2) { animation-delay: 0.45s; }
 .user-detail:nth-child(3) { animation-delay: 0.5s; }
+
+/* Бейдж согласия - кнопка, а не span: он единственный в ряду что-то делает.
+   Обнуляем браузерные стили кнопки, чтобы он не выбивался из ряда соседей. */
+.consent-badge {
+  font-family: inherit;
+  line-height: inherit;
+}
+
+.consent-badge:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
 
 .detail-badge {
   display: inline-flex;

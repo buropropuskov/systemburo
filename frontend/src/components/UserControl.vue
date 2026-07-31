@@ -281,18 +281,19 @@
                   data-testid="users-row-lockout"
                   :title="lockoutTitle(user)"
                 >вход заблокирован</span>
-                <span
-                  v-if="user.consent_required && !user.consent_granted"
-                  class="consent-badge"
-                  data-testid="users-row-no-consent"
-                  title="Не подтвердил согласие на обработку персональных данных"
-                >нет согласия</span>
+
               </div>
               <div
                 class="user-col name-col"
                 data-label="Фамилия И.О."
               >
-                {{ formatUserName(user) }}
+                <span
+                  v-if="user.name_hidden"
+                  class="consent-missing"
+                  data-testid="users-row-no-consent"
+                  title="Работник не подтвердил согласие на обработку персональных данных"
+                >без согласия</span>
+                <template v-else>{{ formatUserName(user) }}</template>
               </div>
               <div
                 class="user-col org-col"
@@ -615,13 +616,24 @@
           <div class="full-width-groups">
             <div class="detail-group">
               <label class="detail-label">Согласие на обработку данных:</label>
-              <p
-                class="consent-state"
-                :class="{ 'consent-state--missing': selectedUser.consent_required && !selectedUser.consent_granted }"
-                data-testid="user-consent-state"
-              >
-                {{ consentStateLabel(selectedUser) }}
-              </p>
+              <div class="consent-row">
+                <p
+                  class="consent-state"
+                  :class="{ 'consent-state--missing': selectedUser.consent_required && !selectedUser.consent_granted }"
+                  data-testid="user-consent-state"
+                >
+                  {{ consentStateLabel(selectedUser) }}
+                </p>
+                <button
+                  v-if="selectedUser.consent_granted"
+                  class="lk-button lk-button--danger lk-button--sm"
+                  :disabled="consentRevoking"
+                  data-testid="user-consent-revoke"
+                  @click="revokeConsent(selectedUser)"
+                >
+                  {{ consentRevoking ? 'Отзываем...' : 'Отозвать' }}
+                </button>
+              </div>
             </div>
 
             <div class="detail-group detail-group--checkbox">
@@ -1020,6 +1032,7 @@ import { useOrganizationsStore } from '@/stores/organizations';
 import { useCompaniesStore } from '@/stores/companies';
 import { applyPhoneMask } from '@/composables/useRussianPhoneMask'
 import { formatUserLabel, formatLogin } from '@/utils/formatName'
+import { revokeUserConsent } from '@/api/pdConsent'
 import { isOnline, formatSeenShort, seenTitle, lastSeenSortKey } from '@/utils/presence'
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants'
 import SearchComponent from './SearchComponent.vue';
@@ -1087,6 +1100,7 @@ export default {
     return {
       userSearch: '',
       refreshing: false,
+      consentRevoking: false,
       selectedUser: null,
       activeTab: 'profile',
       historyForUser: null,
@@ -1732,6 +1746,47 @@ export default {
     },
 
     /**
+     * Отзывает согласие работника по его просьбе. Своей кнопки отзыва у него нет,
+     * поэтому исполнить обращение может только администратор. Предупреждаем о
+     * последствии: человек снова упрётся в окно согласия и до подтверждения
+     * работать не сможет.
+     * @param {{username: string}} user
+     */
+    async revokeConsent(user) {
+      if (!user?.username || this.consentRevoking) return;
+      const ok = await useUiStore().confirm({
+        title: 'Отзыв согласия',
+        message: `Отозвать согласие на обработку данных у ${formatLogin(user.username)}?`
+          + ' Работник снова увидит окно согласия и не сможет работать в системе,'
+          + ' пока не подтвердит его заново.',
+        confirmText: 'Отозвать',
+        danger: true,
+      });
+      if (!ok) return;
+      this.consentRevoking = true;
+      try {
+        await revokeUserConsent(user.username);
+        useDeletionsStore().notify({
+          prefix: 'Согласие отозвано у ',
+          bold: formatLogin(user.username),
+        });
+        // Признаки согласия живут в списке работников - перечитываем его.
+        this.$emit('fetch-users');
+        if (this.selectedUser) {
+          this.selectedUser.consent_granted = false;
+          this.selectedUser.consent_at = null;
+        }
+      } catch (error) {
+        useDeletionsStore().notify({
+          prefix: error?.message || 'Не удалось отозвать согласие',
+          type: 'error',
+        });
+      } finally {
+        this.consentRevoking = false;
+      }
+    },
+
+    /**
      * Подпись состояния согласия в карточке. Пока запрос выключен, «не дано» ничего
      * не значит - согласия нет вообще ни у кого, поэтому такое состояние называется
      * отдельно.
@@ -2350,6 +2405,14 @@ export default {
 
 /* Согласие не подтверждено - предупреждение, а не ошибка: человек просто ещё не
    заходил. Поэтому янтарный, а не красный, как у заблокированного входа. */
+.consent-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .consent-state {
   margin: 0;
   padding: 7px 0;
@@ -2362,13 +2425,12 @@ export default {
   font-weight: 600;
 }
 
-.consent-badge {
-  margin-left: 6px;
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: var(--warning-bg);
+/* ФИО скрыто до согласия - об этом и говорим в колонке ФИО. Повторять там логин
+   бессмысленно: он стоит в соседней колонке. Предупреждение, а не ошибка: человек
+   просто ещё не заходил, поэтому янтарный, а не красный. */
+.consent-missing {
   color: var(--warning-text);
-  font-size: 11px;
+  font-size: 13px;
   white-space: nowrap;
 }
 
@@ -2441,7 +2503,22 @@ export default {
    длиннее одиночной, а обрезать её ellipsis'ом значит терять младшую единицу.
    Проценты под неё сняты с ФИО и должности, но НЕ с org-col: там живут длинные
    названия отделов («Технический департамент»), которые сразу уходят в ellipsis. */
-.login-col { width: 12%; min-width: 100px; }
+.login-col {
+  width: 12%;
+  min-width: 100px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 6px;
+  overflow: hidden;
+}
+
+/* Метки внутри колонки логина расставляет gap, собственный отступ им не нужен -
+   иначе после переноса на вторую строку слева появляется лишняя ступенька. */
+.login-col .inactive-badge,
+.login-col .lockout-badge {
+  margin-left: 0;
+}
 .name-col { width: 14%; min-width: 100px; }
 .org-col { width: 16%; min-width: 110px; }
 .company-col { width: 13%; min-width: 100px; }
@@ -2505,6 +2582,7 @@ export default {
 }
 
 .user-login {
+  max-width: 100%;
   color: var(--accent-text);
   font-weight: 600;
   white-space: nowrap;
