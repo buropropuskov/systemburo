@@ -254,10 +254,16 @@ func createStatisticsIndexes(db *gorm.DB) error {
 	return nil
 }
 
-// createSearchIndexes добавляет GIN trgm-индексы под мега-поиск заявок (#46): ILIKE
-// '%...%' и pg_trgm similarity по полям заявки и вложений ускоряются gin_trgm_ops.
-// Все CREATE INDEX IF NOT EXISTS - идемпотентны и аддитивны. Индексы по отдельным
-// колонкам (не по concat-выражению: concat_ws не IMMUTABLE, expression-индекс не создать).
+// createSearchIndexes добавляет GIN trgm-индексы под поиск: сначала под мега-поиск
+// заявок (#46), затем под сквозной поиск по разделам. ILIKE '%...%' и pg_trgm similarity
+// по этим колонкам опираются на gin_trgm_ops. Все CREATE INDEX IF NOT EXISTS -
+// идемпотентны и аддитивны. Индексы по отдельным колонкам (не по concat-выражению:
+// concat_ws не IMMUTABLE, expression-индекс не создать).
+//
+// Важное следствие того же ограничения: функция strict_word_similarity(?, concat_ws(...))
+// в WHERE индексом не покрывается ни при каких индексах ниже и всегда даёт полный
+// просмотр таблицы. Именно поэтому сквозной поиск ищет только по ILIKE, а распознавание
+// опечаток осталось за поиском внутри раздела, который открывают по кнопке.
 func createSearchIndexes(db *gorm.DB) error {
 	stmts := []string{
 		`CREATE INDEX IF NOT EXISTS idx_applications_number_trgm ON applications USING gin (application_number gin_trgm_ops)`,
@@ -276,6 +282,33 @@ func createSearchIndexes(db *gorm.DB) error {
 		`CREATE INDEX IF NOT EXISTS idx_employees_position_trgm ON employees USING gin (position gin_trgm_ops)`,
 		`CREATE INDEX IF NOT EXISTS idx_app_resp_users_comment_trgm ON application_responsible_users USING gin (approval_comment gin_trgm_ops)`,
 		`CREATE INDEX IF NOT EXISTS idx_unload_places_name_trgm ON unload_places USING gin (name gin_trgm_ops)`,
+
+		// Колонки сквозного поиска (GET /api/search). Он ходит по реестрам, учётным
+		// записям, справочникам, чёрным спискам и материалам раздела новостей, причём
+		// запрос уходит на каждый введённый символ -- без индекса это полный просмотр
+		// таблицы на нажатие клавиши. Заявки и вложения уже покрыты списком выше.
+		`CREATE INDEX IF NOT EXISTS idx_unique_cars_number_trgm ON unique_cars USING gin (number gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_unique_cars_mark_trgm ON unique_cars USING gin (mark gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_unique_employees_last_name_trgm ON unique_employees USING gin (last_name gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_unique_employees_first_name_trgm ON unique_employees USING gin (first_name gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_unique_employees_middle_name_trgm ON unique_employees USING gin (middle_name gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_unique_employees_position_trgm ON unique_employees USING gin ("position" gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_users_username_trgm ON users USING gin (username gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_users_position_trgm ON users USING gin ("position" gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_system_tables_name_trgm ON system_tables USING gin (name gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_system_tables_display_name_trgm ON system_tables USING gin (display_name gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_marks_name_trgm ON marks USING gin (name gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_citizenships_name_trgm ON citizenships USING gin (name gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_lpf_name_trgm ON license_plate_formats USING gin (name gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_vehicle_blacklists_number_trgm ON vehicle_blacklists USING gin (car_number gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_vehicle_blacklists_mark_trgm ON vehicle_blacklists USING gin (mark_name gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_person_blacklists_last_name_trgm ON person_blacklists USING gin (last_name gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_person_blacklists_first_name_trgm ON person_blacklists USING gin (first_name gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_person_blacklists_middle_name_trgm ON person_blacklists USING gin (middle_name gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_news_title_trgm ON news USING gin (title gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_announcements_title_trgm ON announcements USING gin (title gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_documents_title_trgm ON documents USING gin (title gin_trgm_ops)`,
+		`CREATE INDEX IF NOT EXISTS idx_feedback_message_trgm ON feedback USING gin (message gin_trgm_ops)`,
 	}
 	for _, stmt := range stmts {
 		if err := db.Exec(stmt).Error; err != nil {
