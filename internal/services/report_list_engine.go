@@ -170,12 +170,18 @@ type listPlan struct {
 // SQL-выражения — из listExecRegistry. Неизвестная сущность/фильтр или столбец
 // каталога без выражения -> ErrInvalidReportRequest.
 // responsibleMaskedExpr - колонка «принимающий», когда персональные данные скрыты
-// до согласия: вместо ФИО и телефона показывается логин. Условие «согласие есть»
-// повторяет loadConsentMasks, но в SQL: строку собирает база, и подменить её после
+// до согласия: вместо ФИО и телефона показывается логин. Условие повторяет
+// consentMasksWithState, но в SQL: строку собирает база, и подменить её после
 // выборки нечем - идентификатора работника в выдаче отчёта нет.
+//
+// Скрываем только тех, кого запрос согласия реально касается (та же мерка, что у
+// гейта и у gatedUsersWhere): супер-администратор проходит гейт всегда, архивных и
+// заблокированных отбивают раньше, и согласия у них нет не потому, что они его не
+// дали. Без этой оговорки отчёт обезличивал бы тех, кто во всей остальной системе
+// показывается открыто.
 const responsibleMaskedExpr = `CASE
 	WHEN ru.id IS NULL THEN ''
-	WHEN EXISTS (
+	WHEN ru.is_super_admin OR NOT ru.is_active OR ru.is_banned OR EXISTS (
 		SELECT 1 FROM pd_consents c
 		WHERE c.user_id = ru.id AND c.consent_type = 'pd_processing'
 		  AND c.granted = true AND c.revoked_at IS NULL

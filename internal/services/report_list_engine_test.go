@@ -209,6 +209,14 @@ func TestBuildListPlan_MaskedResponsibleColumn(t *testing.T) {
 	if !strings.Contains(masked.selectStr, "ru.username") {
 		t.Error("вместо ФИО и телефона ожидается логин")
 	}
+	// Мерка обязана совпасть с gatedUsersWhere: кого запрос согласия не касается,
+	// того и в отчёте не обезличиваем, иначе супер-администратор и архивные
+	// работники в отчёте выглядят иначе, чем во всей остальной системе.
+	for _, guard := range []string{"ru.is_super_admin", "NOT ru.is_active", "ru.is_banned"} {
+		if !strings.Contains(masked.selectStr, guard) {
+			t.Errorf("в условии маскировки нет оговорки %q", guard)
+		}
+	}
 	// Телефон остаётся только в ветке «согласие есть»; у остальных - логин.
 	if !strings.Contains(masked.selectStr, "ELSE '@'") {
 		t.Error("у работника без согласия ожидается логин вместо ФИО и телефона")
