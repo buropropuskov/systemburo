@@ -4,12 +4,27 @@ import { createPinia, setActivePinia } from 'pinia'
 
 const api = vi.hoisted(() => ({
   getArchiveSettings: vi.fn(),
+  getArchiveStats: vi.fn(),
 }))
 vi.mock('@/api/fileArchive', () => api)
 
 import FileArchiveManagement from '../FileArchiveManagement.vue'
+import ArchiveStatusPanel from '../ArchiveStatusPanel.vue'
 import RefreshButton from '@/components/RefreshButton.vue'
 import { useDeletionsStore } from '@/stores/deletions'
+
+const emptyStats = {
+  used_bytes: 0,
+  free_bytes: 0,
+  file_count: 0,
+  periods: [],
+  statuses: {},
+  disk: {
+    total_bytes: 0, free_bytes: 0, archive_bytes: 0, uploads_bytes: 0,
+    database_bytes: 0, logs_bytes: 0, other_bytes: 0, partitions: [],
+  },
+  generated_at: '2026-07-31T00:00:00Z',
+}
 
 function mountCmp() {
   return mount(FileArchiveManagement, {
@@ -21,6 +36,7 @@ describe('FileArchiveManagement', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
+    api.getArchiveStats.mockResolvedValue(emptyStats)
     const del = useDeletionsStore()
     vi.spyOn(del, 'notify').mockImplementation(() => {})
   })
@@ -49,7 +65,7 @@ describe('FileArchiveManagement', () => {
 
     const tabs = w.findAll('.file-archive__tab')
     expect(tabs).toHaveLength(3)
-    expect(w.find('.file-archive__panel').text()).toContain('Обзор')
+    expect(w.findComponent(ArchiveStatusPanel).exists()).toBe(true)
 
     await tabs[1].trigger('click')
     expect(w.find('.file-archive__panel').text()).toContain('Настройки')
@@ -78,5 +94,29 @@ describe('FileArchiveManagement', () => {
     await w.findComponent(RefreshButton).vm.$emit('refresh')
     await flushPromises()
     expect(api.getArchiveSettings).toHaveBeenCalledTimes(2)
+  })
+
+  it('RefreshButton на вкладке «Обзор» обновляет и настройки, и сводку архива', async () => {
+    api.getArchiveSettings.mockResolvedValue({ enabled: false })
+    const w = mountCmp()
+    await flushPromises()
+    expect(api.getArchiveStats).toHaveBeenCalledTimes(1)
+
+    await w.findComponent(RefreshButton).vm.$emit('refresh')
+    await flushPromises()
+    expect(api.getArchiveSettings).toHaveBeenCalledTimes(2)
+    expect(api.getArchiveStats).toHaveBeenCalledTimes(2)
+  })
+
+  it('RefreshButton на другой вкладке не дёргает сводку архива (панель размонтирована)', async () => {
+    api.getArchiveSettings.mockResolvedValue({ enabled: false })
+    const w = mountCmp()
+    await flushPromises()
+    await w.findAll('.file-archive__tab')[1].trigger('click')
+    expect(api.getArchiveStats).toHaveBeenCalledTimes(1)
+
+    await w.findComponent(RefreshButton).vm.$emit('refresh')
+    await flushPromises()
+    expect(api.getArchiveStats).toHaveBeenCalledTimes(1)
   })
 })

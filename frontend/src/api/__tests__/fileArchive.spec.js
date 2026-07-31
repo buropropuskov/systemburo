@@ -10,6 +10,7 @@ import {
   getArchiveTokens,
   previewArchivePath,
   reexportApplication,
+  getArchiveStats,
 } from '../fileArchive'
 
 // apiRequest разворачивает envelope: на успехе json() = data, на ошибке = { message }.
@@ -88,6 +89,20 @@ describe('api/fileArchive', () => {
         method: 'POST',
         body: JSON.stringify({ dir_template: '', file_template: '', application_id: 42 }),
       })
+    })
+  })
+
+  describe('getArchiveStats', () => {
+    it('GET /file-archive/stats', async () => {
+      apiRequest.mockResolvedValue(okJson({ used_bytes: 100, file_count: 1 }))
+      const data = await getArchiveStats()
+      expect(apiRequest).toHaveBeenCalledWith('/file-archive/stats')
+      expect(data).toEqual({ used_bytes: 100, file_count: 1 })
+    })
+
+    it('бросает при ошибке загрузки', async () => {
+      apiRequest.mockResolvedValue(errJson('Файловый архив недоступен: каталог не настроен', 503))
+      await expect(getArchiveStats()).rejects.toThrow('каталог не настроен')
     })
   })
 

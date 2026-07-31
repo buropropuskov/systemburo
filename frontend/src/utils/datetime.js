@@ -75,6 +75,25 @@ export function formatDateRu(value) {
   return m ? `${m[3]}.${m[2]}.${m[1]}` : String(value);
 }
 
+const MONTH_NAMES_RU = [
+  'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+  'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь',
+];
+
+/**
+ * Форматирует период 'YYYY-MM' (разбивка файлового архива по месяцам) в
+ * 'Месяц ГГГГ'. Разбор вручную, как в formatDateRu — new Date('YYYY-MM')
+ * трактуется как UTC-полночь и в МСК съезжает на предыдущий месяц.
+ * @param {string|null|undefined} value
+ * @returns {string}
+ */
+export function formatMonthRu(value) {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(value || ''));
+  if (!m) return String(value || '');
+  const name = MONTH_NAMES_RU[Number(m[2]) - 1];
+  return name ? `${name} ${m[1]}` : String(value);
+}
+
 /**
  * Форматирует ячейку отчёта-выгрузки (mode=list) ПО ТИПУ колонки (column.type с
  * бэка): 'date'/'datetime' -> ISO-даты 'ГГГГ-ММ-ДД' в 'дд.мм.гггг'; 'time'/'datetime'
