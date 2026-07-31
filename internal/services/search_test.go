@@ -37,7 +37,7 @@ func TestValidateSearchProviders(t *testing.T) {
 // -- дописать свой случай в тесты видимости. Механическая защита от "забыл сузить
 // выборку", а не надежда на внимательность.
 func TestSearchProviderRegistryIsExpected(t *testing.T) {
-	want := []SearchEntityType{SearchTypeEmployees, SearchTypeCars}
+	want := []SearchEntityType{SearchTypeEmployees, SearchTypeCars, SearchTypeApplications}
 
 	got := make([]SearchEntityType, 0, len(searchProviderOrder()))
 	for _, p := range searchProviderOrder() {
