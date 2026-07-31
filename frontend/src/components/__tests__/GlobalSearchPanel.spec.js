@@ -36,6 +36,7 @@ let wrapper;
 beforeEach(() => {
   setActivePinia(createPinia());
   vi.useFakeTimers();
+  localStorage.clear();
   globalSearch.mockResolvedValue({ groups: [], total: 0 });
 });
 
@@ -111,9 +112,57 @@ describe('GlobalSearchPanel', () => {
     wrapper = mountPanel('Автомоб');
     await flushPromises();
 
-    await wrapper.find('.gsp__close').trigger('click');
+    await wrapper.find('[aria-label="Закрыть результаты"]').trigger('click');
 
     expect(wrapper.emitted('close')).toBeTruthy();
+  });
+
+  it('закреплённая панель переживает переход по находке', async () => {
+    wrapper = mountPanel('Автомоб');
+    await flushPromises();
+
+    await wrapper.find('[aria-label="Закрепить панель"]').trigger('click');
+    await wrapper.find('.gsp__row').trigger('click');
+    await flushPromises();
+
+    expect(push).toHaveBeenCalled();
+    expect(wrapper.emitted('close')).toBeFalsy();
+  });
+
+  it('закрепление запоминается между заходами', async () => {
+    wrapper = mountPanel('Автомоб');
+    await flushPromises();
+    await wrapper.find('[aria-label="Закрепить панель"]').trigger('click');
+    wrapper.unmount();
+
+    wrapper = mountPanel('Автомоб');
+    await flushPromises();
+
+    expect(wrapper.find('[aria-label="Открепить панель"]').exists()).toBe(true);
+  });
+
+  it('свёрнутая панель показывает столбик с числом найденного', async () => {
+    wrapper = mountPanel('Автомоб');
+    await flushPromises();
+
+    await wrapper.find('[aria-label="Свернуть в столбик"]').trigger('click');
+
+    expect(wrapper.find('.gsp--collapsed').exists()).toBe(true);
+    expect(wrapper.find('.gsp__strip-count').text()).toBe('1');
+    // Список в столбике не показывается, иначе он не столбик.
+    expect(wrapper.find('.gsp__row').exists()).toBe(false);
+  });
+
+  it('новый запрос разворачивает свёрнутую панель', async () => {
+    wrapper = mountPanel('Автомоб');
+    await flushPromises();
+    await wrapper.find('[aria-label="Свернуть в столбик"]').trigger('click');
+    expect(wrapper.find('.gsp--collapsed').exists()).toBe(true);
+
+    await wrapper.setProps({ query: 'Сотрудн' });
+    await flushPromises();
+
+    expect(wrapper.find('.gsp--collapsed').exists()).toBe(false);
   });
 
   it('переход закрывает панель раньше навигации', async () => {
