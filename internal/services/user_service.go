@@ -318,7 +318,8 @@ func (s *userService) GetAll(ctx context.Context, includeArchived bool) ([]model
 			continue
 		}
 		maskUserParts(masks, result[i].ID, &result[i].LastName, &result[i].FirstName, &result[i].MiddleName)
-		result[i].NameHidden = true
+		maskUserContacts(masks, result[i].ID, &result[i].Email, &result[i].Phone)
+		result[i].PDHidden = true
 	}
 	return result, nil
 }
@@ -456,8 +457,6 @@ func (s *userService) UpdateInfo(ctx context.Context, callerUserID int, username
 
 	updates := map[string]interface{}{
 		"position": req.Position,
-		"email":    req.Email,
-		"phone":    req.Phone,
 	}
 	// ФИО пишем, только если поле пришло. Пустая строка по-прежнему очищает его, а
 	// отсутствие поля означает "не трогай": форма редактирования не показывает ФИО
@@ -471,6 +470,14 @@ func (s *userService) UpdateInfo(ctx context.Context, callerUserID int, username
 	}
 	if req.MiddleName != nil {
 		updates["middle_name"] = *req.MiddleName
+	}
+	// Контакты скрываются вместе с ФИО, и правило для них то же: нет поля в
+	// запросе - не трогаем, пустая строка по-прежнему очищает.
+	if req.Email != nil {
+		updates["email"] = *req.Email
+	}
+	if req.Phone != nil {
+		updates["phone"] = *req.Phone
 	}
 	if req.IsImportant != nil {
 		updates["is_important"] = *req.IsImportant

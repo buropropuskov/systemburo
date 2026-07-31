@@ -884,7 +884,9 @@ func (s *statisticsService) execAggregatePlan(ctx context.Context, plan *aggPlan
 // подставляется только через плейсхолдеры. Невалидный запрос -> ErrInvalidReportRequest
 // (400 в handler). Строки сканируются в []map по алиасам столбцов плана.
 func (s *statisticsService) RunReportList(ctx context.Context, req models.ReportRequest) (*models.ReportListResponse, error) {
-	plan, err := buildListPlan(req)
+	// Персональные данные не давших согласия скрыты и в отчётах: колонка принимающего
+	// собирает ФИО с телефоном одной строкой, и подменить её после выборки нечем.
+	plan, err := buildListPlan(req, pdConsentMaskingActive(ctx, s.db))
 	if err != nil {
 		return nil, err
 	}

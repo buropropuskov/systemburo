@@ -132,15 +132,31 @@ func loadNameMasks(ctx context.Context, db *gorm.DB) map[int]string {
 // маскируется. Интерфейс, получив пустое ФИО, показывает логин сам - подменять
 // фамилию логином не нужно и вредно: логин попал бы в поле «Фамилия».
 func maskUserParts(masks map[int]string, userID int, last, first, middle **string) {
-	if len(masks) == 0 {
-		return
-	}
-	if _, ok := masks[userID]; !ok {
+	if !isMasked(masks, userID) {
 		return
 	}
 	*last = nil
 	*first = nil
 	*middle = nil
+}
+
+// maskUserContacts скрывает рабочие контакты работника. Почта и телефон - такие же
+// персональные данные, как фамилия, и до согласия их не показывают наравне с ней.
+func maskUserContacts(masks map[int]string, userID int, email, phone **string) {
+	if !isMasked(masks, userID) {
+		return
+	}
+	*email = nil
+	*phone = nil
+}
+
+// isMasked сообщает, скрыты ли персональные данные этого работника.
+func isMasked(masks map[int]string, userID int) bool {
+	if len(masks) == 0 {
+		return false
+	}
+	_, ok := masks[userID]
+	return ok
 }
 
 // loadConsentGrants возвращает user_id -> когда работник дал действующее согласие
