@@ -184,6 +184,23 @@ type BlankExportItem struct {
 	Error  string `json:"error"`
 }
 
+// BlankExportSnapshotResult - итог записи машиночитаемого слепка заявки
+// (заявка.json). У слепка нет строки реестра, а значит нет ни ретрая, ни следа в
+// журнале ошибок: единственное место, где администратор узнаёт о провале записи, -
+// ответ на «пересоздать». Молчаливый 200 после несостоявшейся записи оставлял бы
+// заявку без слепка навсегда, и заметить это было бы нечем.
+type BlankExportSnapshotResult struct {
+	Status  string `json:"status"`
+	RelPath string `json:"rel_path"`
+	// Written - слепок действительно записан. false при совпадении содержимого и у
+	// замороженной заявки, чей слепок уже лежит на диске.
+	Written bool `json:"written"`
+	// Frozen - файлы заявки окончательны: существующий слепок больше не
+	// перезаписывается, но отсутствующий всё ещё будет записан.
+	Frozen bool   `json:"frozen"`
+	Error  string `json:"error"`
+}
+
 // BlankExportResult - итог выгрузки заявки целиком. Единица обработки именно заявка:
 // папка принадлежит ей, и переименование из нескольких строк одновременно - гонка.
 type BlankExportResult struct {
@@ -192,6 +209,7 @@ type BlankExportResult struct {
 	RelDir string `json:"rel_dir"`
 	// Renamed - каталог заявки переехал на этом прогоне (поправили организацию,
 	// номер или шаблон раскладки).
-	Renamed bool              `json:"renamed"`
-	Items   []BlankExportItem `json:"items"`
+	Renamed  bool                      `json:"renamed"`
+	Items    []BlankExportItem         `json:"items"`
+	Snapshot BlankExportSnapshotResult `json:"snapshot"`
 }

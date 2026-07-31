@@ -2,12 +2,14 @@ package handlers_test
 
 import (
 	"encoding/json"
+	"net/http"
 	"os"
 	"path"
 	"testing"
 	"time"
 
 	"systemburo/internal/models"
+	"systemburo/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -52,6 +54,11 @@ func archiveSnapshotSection(t *testing.T, w archiveWorld) {
 	}).Error)
 
 	res := w.reexport(t, appID)
+	require.Equal(t, models.BlankExportOK, res.Snapshot.Status, res.Snapshot.Error)
+	assert.True(t, res.Snapshot.Written, "первый прогон обязан записать слепок")
+	assert.Equal(t, path.Join(res.RelDir, archiveSnapshotFileName), res.Snapshot.RelPath,
+		"путь слепка приходит в ответе - по нему администратор его и ищет")
+
 	snapPath := w.abs(path.Join(res.RelDir, archiveSnapshotFileName))
 	data, err := os.ReadFile(snapPath)
 	require.NoError(t, err, "слепок заявки не появился на диске рядом с бланками")
@@ -105,6 +112,7 @@ func archiveSnapshotSection(t *testing.T, w archiveWorld) {
 
 	second := w.reexport(t, appID)
 	assert.Equal(t, res.RelDir, second.RelDir)
+	assert.False(t, second.Snapshot.Written, "содержимое не изменилось - переписывать нечего")
 
 	info, err := os.Stat(snapPath)
 	require.NoError(t, err)
@@ -113,4 +121,61 @@ func archiveSnapshotSection(t *testing.T, w archiveWorld) {
 	dataAgain, err := os.ReadFile(snapPath)
 	require.NoError(t, err)
 	assert.Equal(t, data, dataAgain, "слепок обязан быть побайтово стабилен между прогонами на неизменных данных")
+}
+
+// Заморозка защищает уже лежащий слепок от перезаписи, но не отменяет первую его
+// запись. Заявка, замороженная до появления заявка.json, и заявка, потерявшая слепок
+// на том самом прогоне, где замёрзли бланки, - одно и то же состояние на диске:
+// файла нет, а бланки уже документы. Без записи «первого раза» такая заявка осталась
+// бы без слепка навсегда - у него нет ни строки реестра, ни ретрая, и ручное
+// «пересоздать» упиралось бы в тот же признак заморозки.
+func archiveSnapshotFrozenSection(t *testing.T, w archiveWorld) {
+	rec := testutil.PUT(t, w.e, "/file-archive/settings", `{"freeze_after_days":0}`, w.adminH)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	t.Cleanup(func() {
+		restore := testutil.PUT(t, w.e, "/file-archive/settings", `{"freeze_after_days":30}`, w.adminH)
+		require.Equal(t, http.StatusOK, restore.Code, restore.Body.String())
+	})
+
+	uaID := w.newExportType(t, "Пропуск слепок заморозка", true, true)
+	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	appID, attID := w.newExportApp(t, "20260731/011", uaID, yesterday)
+	require.NoError(t, w.db.Model(&models.Application{}).Where("id = ?", appID).
+		Update("status", models.StatusCompleted).Error)
+
+	first := w.reexport(t, appID)
+	require.Equal(t, models.BlankExportOK, first.Items[0].Status, first.Items[0].Error)
+	require.True(t, first.Items[0].Frozen, "срок вышел - бланки заявки окончательны")
+	require.NotNil(t, w.registryRow(t, appID, attID).FrozenAt)
+
+	snapPath := w.abs(path.Join(first.RelDir, archiveSnapshotFileName))
+	require.FileExists(t, snapPath)
+	require.NoError(t, os.Remove(snapPath))
+
+	second := w.reexport(t, appID)
+	assert.Equal(t, models.BlankExportOK, second.Snapshot.Status, second.Snapshot.Error)
+	assert.True(t, second.Snapshot.Frozen, "бланки заявки заморожены - ответ обязан это показывать")
+	assert.True(t, second.Snapshot.Written, "пропавший слепок замороженной заявки записывается заново")
+
+	data, err := os.ReadFile(snapPath)
+	require.NoError(t, err, "заморозка не должна отменять первую запись слепка")
+
+	// Уже лежащий слепок заморозка защищает: правка заявки его не двигает.
+	old := time.Now().Add(-3 * time.Hour)
+	require.NoError(t, os.Chtimes(snapPath, old, old))
+	require.NoError(t, w.db.Model(&models.Application{}).Where("id = ?", appID).
+		Update("message", "правка после заморозки").Error)
+
+	third := w.reexport(t, appID)
+	assert.Equal(t, models.BlankExportOK, third.Snapshot.Status, third.Snapshot.Error)
+	assert.False(t, third.Snapshot.Written, "замороженный слепок не перезаписывается")
+	assert.Equal(t, path.Join(first.RelDir, archiveSnapshotFileName), third.Snapshot.RelPath)
+
+	info, err := os.Stat(snapPath)
+	require.NoError(t, err)
+	assert.WithinDuration(t, old, info.ModTime(), time.Second, "замороженный слепок трогать нельзя: mtime уводит синхронизацию в перекачку")
+
+	kept, err := os.ReadFile(snapPath)
+	require.NoError(t, err)
+	assert.Equal(t, data, kept, "содержимое замороженного слепка не следует за правками заявки")
 }

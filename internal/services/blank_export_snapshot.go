@@ -286,13 +286,16 @@ func loadSnapshotAttachments(ctx context.Context, db *gorm.DB, applicationID int
 		ids[i] = r.ID
 	}
 
-	unloadPlaces := groupNamesByOwner(ctx, db, `
+	unloadPlaces, err := groupSnapshotNames(ctx, db, `
 		SELECT aup.attachment_id AS owner_id, up.name
 		FROM attachment_unload_places aup
 		JOIN unload_places up ON aup.unload_place_id = up.id
 		WHERE aup.attachment_id IN ?
 		ORDER BY aup.order_index NULLS LAST, up.name
 	`, ids)
+	if err != nil {
+		return nil, err
+	}
 
 	employees, err := loadSnapshotEmployees(ctx, db, ids)
 	if err != nil {
@@ -358,13 +361,16 @@ func loadSnapshotEmployees(ctx context.Context, db *gorm.DB, attachmentIDs []int
 	for i, e := range rows {
 		empIDs[i] = e.ID
 	}
-	targetTables := groupNamesByOwner(ctx, db, `
+	targetTables, err := groupSnapshotNames(ctx, db, `
 		SELECT ett.employee_id AS owner_id, COALESCE(NULLIF(st.display_name, ''), st.name) AS name
 		FROM employee_target_tables ett
 		JOIN system_tables st ON ett.table_id = st.id
 		WHERE ett.employee_id IN ?
 		ORDER BY ett.order_index NULLS LAST, name
 	`, empIDs)
+	if err != nil {
+		return nil, err
+	}
 
 	for _, e := range rows {
 		if e.AttachmentID == nil {
@@ -402,20 +408,26 @@ func loadSnapshotCars(ctx context.Context, db *gorm.DB, attachmentIDs []int) (ma
 	for i, c := range rows {
 		carIDs[i] = c.ID
 	}
-	unloadPlaces := groupNamesByOwner(ctx, db, `
+	unloadPlaces, err := groupSnapshotNames(ctx, db, `
 		SELECT cup.car_id AS owner_id, up.name
 		FROM car_unload_places cup
 		JOIN unload_places up ON cup.unload_place_id = up.id
 		WHERE cup.car_id IN ?
 		ORDER BY cup.order_index NULLS LAST, up.name
 	`, carIDs)
-	passageTables := groupNamesByOwner(ctx, db, `
+	if err != nil {
+		return nil, err
+	}
+	passageTables, err := groupSnapshotNames(ctx, db, `
 		SELECT ctt.car_id AS owner_id, COALESCE(NULLIF(st.display_name, ''), st.name) AS name
 		FROM car_target_tables ctt
 		JOIN system_tables st ON ctt.table_id = st.id
 		WHERE ctt.car_id IN ?
 		ORDER BY ctt.order_index NULLS LAST, name
 	`, carIDs)
+	if err != nil {
+		return nil, err
+	}
 
 	for _, c := range rows {
 		out[c.AttachmentID] = append(out[c.AttachmentID], snapshotCar{
@@ -453,6 +465,35 @@ func loadSnapshotItems(ctx context.Context, db *gorm.DB, attachmentIDs []int) (m
 	return out, nil
 }
 
+// groupSnapshotNames раскладывает результат запроса вида (owner_id, name) по
+// владельцам - то же, что делает groupNamesByOwner для бланка, но с ошибкой наружу.
+//
+// Отдельный хелпер именно ради ошибки. Общий groupNamesByOwner при сбое запроса
+// логирует и отдаёт то, что успел собрать: у бланка это строка, пропавшая из
+// таблицы, которую человек увидит глазами при печати. У слепка тот же пропуск
+// молчалив - пустые места разгрузки или посты запишутся как полный файл, а после
+// заморозки останутся такими навсегда. Поэтому сбой запроса здесь отменяет запись
+// слепка целиком: лучше отсутствующий файл, который видно в ответе и который
+// перезапишется на следующем прогоне, чем правдоподобно неполный.
+func groupSnapshotNames(ctx context.Context, db *gorm.DB, query string, ids []int) (map[int][]string, error) {
+	out := make(map[int][]string, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+
+	var rows []struct {
+		OwnerID int    `gorm:"column:owner_id"`
+		Name    string `gorm:"column:name"`
+	}
+	if err := db.WithContext(ctx).Raw(query, ids).Scan(&rows).Error; err != nil {
+		return nil, fmt.Errorf("failed to load related names for archive snapshot: %w", err)
+	}
+	for _, r := range rows {
+		out[r.OwnerID] = append(out[r.OwnerID], r.Name)
+	}
+	return out, nil
+}
+
 // snapshotFullName склеивает ФИО из указателей на части имени.
 func snapshotFullName(last, first, middle *string) string {
 	parts := make([]string, 0, 3)
@@ -476,25 +517,48 @@ func formatSnapshotTime(t *time.Time) string {
 }
 
 // writeApplicationSnapshot кладёт заявка.json в папку заявки тем же писателем и по
-// тем же гарантиям атомарности, что и бланки (ArchiveWriter.WriteFile). Дедуп ведёт
-// по собственному хэшу с диска, а не по строке реестра blank_exports: у слепка нет
-// attachment_id, и заводить под него строку означало бы либо путать markOrphans
-// (он считает сиротой всё, чего нет среди вложений заявки), либо расширять схему
-// сверх минимального следа этого среза.
-func writeApplicationSnapshot(ctx context.Context, db *gorm.DB, writer *ArchiveWriter, applicationID int, levels []string) error {
-	data, err := buildApplicationSnapshot(ctx, db, applicationID)
+// тем же гарантиям атомарности, что и бланки (ArchiveWriter.WriteFile). Возвращает,
+// был ли файл записан на этом прогоне.
+//
+// Заморозка запрещает ПЕРЕЗАПИСЬ уже лежащего слепка, но не первую его запись, и
+// проверяется наличием файла на диске, а не признаком «заявка заморожена». Гейт по
+// признаку оставлял бы без слепка навсегда: заявки, замороженные до появления этого
+// кода; заявки, у которых запись сорвалась ровно на том прогоне, где замёрзли бланки
+// (ретрая у слепка нет - нет и строки реестра); и починить это было бы нечем -
+// ручное «пересоздать» упиралось бы в тот же признак.
+//
+// Дедуп ведёт по собственному хэшу с диска, а не по строке реестра blank_exports: у
+// слепка нет attachment_id, и заводить под него строку означало бы либо путать
+// markOrphans (он считает сиротой всё, чего нет среди вложений заявки), либо
+// расширять схему сверх минимального следа этого среза.
+func writeApplicationSnapshot(ctx context.Context, db *gorm.DB, writer *ArchiveWriter, applicationID int, levels []string, frozen bool) (bool, error) {
+	exists, err := writer.Exists(levels, archiveSnapshotFileName)
 	if err != nil {
-		return err
+		return false, err
+	}
+	if frozen && exists {
+		return false, nil
 	}
 
-	changed, err := snapshotContentChanged(writer, levels, data)
+	data, err := buildApplicationSnapshot(ctx, db, applicationID)
 	if err != nil {
-		return err
+		return false, err
 	}
-	if !changed {
-		return nil
+
+	if exists {
+		changed, err := snapshotContentChanged(writer, levels, data)
+		if err != nil {
+			return false, err
+		}
+		if !changed {
+			return false, nil
+		}
 	}
-	return writer.WriteFile(levels, archiveSnapshotFileName, data)
+
+	if err := writer.WriteFile(levels, archiveSnapshotFileName, data); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // snapshotContentChanged сравнивает хэш нового слепка с уже лежащим на диске.

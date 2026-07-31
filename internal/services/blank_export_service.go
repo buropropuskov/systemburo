@@ -143,17 +143,30 @@ func (s *BlankExportService) ExportApplication(ctx context.Context, applicationI
 		result.Items = append(result.Items, item)
 	}
 
-	// Слепок заявки (заявка.json) живёт в той же папке, что и бланки, и замирает
-	// вместе с ними: заморозка распространяется на него так же, как и на бланки -
-	// без этого файл с текущим состоянием заявки продолжал бы обновляться рядом с
-	// уже неизменными, окончательными бланками.
-	if frozenApplicationDir == "" {
-		if err := writeApplicationSnapshot(ctx, s.db, s.writer, applicationID, levels); err != nil {
-			slog.Error("не удалось записать слепок заявки в архив", "application_id", applicationID, "error", err)
-		}
-	}
+	result.Snapshot = s.exportSnapshot(ctx, applicationID, levels, frozenApplicationDir != "")
 
 	return result, nil
+}
+
+// exportSnapshot пишет машиночитаемый слепок заявки рядом с бланками и докладывает
+// исход в ответе. Молчать нельзя: строки реестра у слепка нет, повторять его некому,
+// и администратор, нажавший «пересоздать», обязан узнать о несостоявшейся записи
+// сразу, а не обнаружить пропажу файла годы спустя.
+func (s *BlankExportService) exportSnapshot(ctx context.Context, applicationID int, levels []string, frozen bool) models.BlankExportSnapshotResult {
+	out := models.BlankExportSnapshotResult{
+		RelPath: path.Join(path.Join(levels...), archiveSnapshotFileName),
+		Frozen:  frozen,
+	}
+
+	written, err := writeApplicationSnapshot(ctx, s.db, s.writer, applicationID, levels, frozen)
+	if err != nil {
+		out.Status, out.Error = models.BlankExportFailed, err.Error()
+		slog.Error("не удалось записать слепок заявки в архив", "application_id", applicationID, "error", err)
+		return out
+	}
+
+	out.Status, out.Written = models.BlankExportOK, written
+	return out
 }
 
 // exportRequest - вход одной строки реестра. Собран структурой, чтобы список
