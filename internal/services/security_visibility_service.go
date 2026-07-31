@@ -42,6 +42,9 @@ type AvailableAttachment struct {
 	CompanyName       *string    `json:"company_name"`
 	SenderName        *string    `json:"sender_name"`
 	SenderFullName    *string    `json:"sender_full_name"`
+	// SenderUserID нужен маскировке ФИО подавшего, не давшего согласия на обработку
+	// персональных данных: без него строку не с чем сопоставить.
+	SenderUserID *int `json:"sender_user_id"`
 }
 
 // availableAttachmentFilters - опциональные пользовательские фильтры вкладки "Доступные мне"
@@ -112,6 +115,7 @@ const availableAttachmentSelect = `
 	app.sending_datetime,
 	COALESCE(o.name, c.name) as organization_name,
 	c.name as company_name,
+	app.sender_user_id,
 	format_short_name(su.last_name, su.first_name, su.middle_name) as sender_name,
 	format_full_name(su.last_name, su.first_name, su.middle_name) as sender_full_name,
 	CASE WHEN a.attachment_type = 'people' THEN (
@@ -373,6 +377,12 @@ func (s *applicationService) GetAvailableAttachmentsForSecurity(ctx context.Cont
 	rows := make([]AvailableAttachment, 0)
 	if err := s.db.WithContext(ctx).Raw(dataSQL, dataArgs...).Scan(&rows).Error; err != nil {
 		return nil, 0, fmt.Errorf("failed to fetch available attachments: %w", err)
+	}
+	if masks := loadConsentMasks(ctx, s.db); len(masks) > 0 {
+		for i := range rows {
+			rows[i].SenderName = maskNamePtr(masks, rows[i].SenderUserID, rows[i].SenderName)
+			rows[i].SenderFullName = maskNamePtr(masks, rows[i].SenderUserID, rows[i].SenderFullName)
+		}
 	}
 	return rows, total, nil
 }

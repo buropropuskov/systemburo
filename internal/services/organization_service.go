@@ -531,6 +531,8 @@ func (s *organizationService) GetHistory(ctx context.Context, id int) ([]models.
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching organization history")
 	}
 
+	// Логин вместо ФИО у акторов, не давших согласия на обработку данных.
+	masks := loadConsentMasks(ctx, s.db)
 	items := make([]models.OrganizationHistoryItem, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, models.OrganizationHistoryItem{
@@ -538,7 +540,7 @@ func (s *organizationService) GetHistory(ctx context.Context, id int) ([]models.
 			ActionType:  r.ActionType,
 			Details:     r.Details,
 			ActorUserID: r.ActorUserID,
-			ActorName:   r.ActorName,
+			ActorName:   maskName(masks, r.ActorUserID, r.ActorName),
 			CreatedAt:   r.CreatedAt,
 		})
 	}
@@ -637,6 +639,11 @@ func (s *organizationService) GetOrganizationUsers(ctx context.Context, orgID in
 		slog.Error("Не удалось получить пользователей организации", "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching organization users")
 	}
+	if masks := loadConsentMasks(ctx, s.db); len(masks) > 0 {
+		for i := range users {
+			maskUserParts(masks, users[i].ID, &users[i].LastName, &users[i].FirstName, &users[i].MiddleName)
+		}
+	}
 	return users, nil
 }
 
@@ -653,6 +660,11 @@ func (s *organizationService) GetMembers(ctx context.Context, orgID int) ([]Memb
 	if err != nil {
 		slog.Error("Не удалось получить участников организации", "error", err)
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching organization members")
+	}
+	if masks := loadConsentMasks(ctx, s.db); len(masks) > 0 {
+		for i := range members {
+			maskUserParts(masks, members[i].ID, &members[i].LastName, &members[i].FirstName, &members[i].MiddleName)
+		}
 	}
 	return members, nil
 }

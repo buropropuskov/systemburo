@@ -791,17 +791,20 @@ func NewApplicationService(db *gorm.DB, permSvc PermissionService, notifSvc Noti
 // --- Основные методы ---
 
 // GetApplications возвращает список заявок для Центра заявок с фильтрацией.
-// maskResponsibleNames подменяет ФИО принимающего его маской в списке заявок
-// (responsible_name / responsible_full_name) для заявитель-видимых списков. Sender и прочие
-// имена не трогаются. No-op, если ни у одного принимающего нет маски.
-func (s *applicationService) maskResponsibleNames(ctx context.Context, rows []ApplicationWithDetails) {
-	masks := loadApproverMasks(ctx, s.db)
+// maskApplicationNames подменяет в списке заявок ФИО принимающего заданной ему
+// маской, а ФИО подавшего и принимающего - логином, если человек не давал согласия
+// на обработку персональных данных. No-op, если маскировать некого.
+func (s *applicationService) maskApplicationNames(ctx context.Context, rows []ApplicationWithDetails) {
+	masks := loadNameMasks(ctx, s.db)
 	if masks == nil {
 		return
 	}
 	for i := range rows {
 		rows[i].ResponsibleName = maskName(masks, rows[i].ResponsibleUserID, rows[i].ResponsibleName)
 		rows[i].ResponsibleFullName = maskNamePtr(masks, rows[i].ResponsibleUserID, rows[i].ResponsibleFullName)
+		sender := rows[i].SenderUserID
+		rows[i].SenderName = maskName(masks, &sender, rows[i].SenderName)
+		rows[i].SenderFullName = maskNamePtr(masks, &sender, rows[i].SenderFullName)
 	}
 }
 
@@ -834,7 +837,7 @@ func (s *applicationService) GetApplications(ctx context.Context, username strin
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
 
-	s.maskResponsibleNames(ctx, rows)
+	s.maskApplicationNames(ctx, rows)
 	return rows, nil
 }
 
@@ -874,7 +877,7 @@ func (s *applicationService) GetAttachableApplications(ctx context.Context, user
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
 
-	s.maskResponsibleNames(ctx, rows)
+	s.maskApplicationNames(ctx, rows)
 	return rows, nil
 }
 
@@ -925,7 +928,7 @@ func (s *applicationService) GetApplicationsPaginated(ctx context.Context, usern
 		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
 
-	s.maskResponsibleNames(ctx, rows)
+	s.maskApplicationNames(ctx, rows)
 	return rows, total, nil
 }
 
@@ -978,7 +981,7 @@ func (s *applicationService) GetUserApplications(ctx context.Context, username s
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
 
-	s.maskResponsibleNames(ctx, rows)
+	s.maskApplicationNames(ctx, rows)
 	return rows, nil
 }
 
@@ -1012,7 +1015,7 @@ func (s *applicationService) GetUserApplicationsPaginated(ctx context.Context, u
 		return nil, 0, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
 
-	s.maskResponsibleNames(ctx, rows)
+	s.maskApplicationNames(ctx, rows)
 	return rows, total, nil
 }
 
@@ -1091,7 +1094,7 @@ func (s *applicationService) GetApplicationByID(ctx context.Context, username st
 	}
 
 	// Получаем ответственных
-	responsibles, err := s.fetchResponsibleUsers(tx, applicationID)
+	responsibles, err := s.fetchResponsibleUsers(ctx, tx, applicationID)
 	if err != nil {
 		tx.Rollback()
 		return nil, err
@@ -1118,10 +1121,13 @@ func (s *applicationService) GetApplicationByID(ctx context.Context, username st
 		responsibleName = *row.ResponsibleName
 	}
 
-	// Маскировка ФИО принимающего (кто принял заявку) для заявитель-видимой детали.
-	masks := loadApproverMasks(ctx, s.db)
+	// Маскировка ФИО в детали: заданная маска принимающего и логин вместо ФИО у тех,
+	// кто не давал согласия на обработку персональных данных.
+	masks := loadNameMasks(ctx, s.db)
 	responsibleName = maskName(masks, row.ResponsibleUserID, responsibleName)
 	responsibleFullName := maskNamePtr(masks, row.ResponsibleUserID, row.ResponsibleFullName)
+	senderName = maskName(masks, &row.SenderUserID, senderName)
+	senderFullName := maskNamePtr(masks, &row.SenderUserID, row.SenderFullName)
 
 	response := map[string]interface{}{
 		"id":                    row.ID,
@@ -1135,7 +1141,7 @@ func (s *applicationService) GetApplicationByID(ctx context.Context, username st
 		"company_id":            row.CompanyID,
 		"company_name":          companyName,
 		"sender_user_id":        row.SenderUserID,
-		"sender_full_name":      row.SenderFullName,
+		"sender_full_name":      senderFullName,
 		"sender_name":           senderName,
 		"sender_is_important":   row.SenderIsImportant,
 		"message":               row.Message,
@@ -1195,7 +1201,7 @@ func (s *applicationService) GetApplicationDetails(ctx context.Context, applicat
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Database error")
 	}
 
-	responsibles, _ := s.fetchResponsibleUsers(s.db.WithContext(ctx), applicationID)
+	responsibles, _ := s.fetchResponsibleUsers(ctx, s.db.WithContext(ctx), applicationID)
 
 	// Зеркало гейта согласования (#481): пока есть помеченные элементы без override,
 	// фронт держит кнопку "Согласовать" заблокированной. Источник правды - тот же
@@ -1222,10 +1228,13 @@ func (s *applicationService) GetApplicationDetails(ctx context.Context, applicat
 		responsibleName = *row.ResponsibleName
 	}
 
-	// Маскировка ФИО принимающего (кто принял заявку) для заявитель-видимой детали.
-	masks := loadApproverMasks(ctx, s.db)
+	// Маскировка ФИО в детали: заданная маска принимающего и логин вместо ФИО у тех,
+	// кто не давал согласия на обработку персональных данных.
+	masks := loadNameMasks(ctx, s.db)
 	responsibleName = maskName(masks, row.ResponsibleUserID, responsibleName)
 	responsibleFullName := maskNamePtr(masks, row.ResponsibleUserID, row.ResponsibleFullName)
+	senderName = maskName(masks, &row.SenderUserID, senderName)
+	senderFullName := maskNamePtr(masks, &row.SenderUserID, row.SenderFullName)
 
 	response := map[string]interface{}{
 		"id":                    row.ID,
@@ -1239,7 +1248,7 @@ func (s *applicationService) GetApplicationDetails(ctx context.Context, applicat
 		"company_id":            row.CompanyID,
 		"company_name":          companyName,
 		"sender_user_id":        row.SenderUserID,
-		"sender_full_name":      row.SenderFullName,
+		"sender_full_name":      senderFullName,
 		"sender_name":           senderName,
 		"sender_is_important":   row.SenderIsImportant,
 		"message":               row.Message,

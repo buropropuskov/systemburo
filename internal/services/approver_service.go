@@ -49,6 +49,11 @@ func (s *approverService) GetAll(ctx context.Context) ([]models.ApplicationAppro
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching approvers")
 	}
+	if masks := loadConsentMasks(ctx, s.db); len(masks) > 0 {
+		for i := range result {
+			maskUserParts(masks, result[i].UserID, &result[i].LastName, &result[i].FirstName, &result[i].MiddleName)
+		}
+	}
 	return result, nil
 }
 
@@ -66,6 +71,11 @@ func (s *approverService) GetAvailableUsers(ctx context.Context) ([]models.Avail
 		Scan(&result).Error
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching available users")
+	}
+	if masks := loadConsentMasks(ctx, s.db); len(masks) > 0 {
+		for i := range result {
+			maskUserParts(masks, result[i].ID, &result[i].LastName, &result[i].FirstName, &result[i].MiddleName)
+		}
 	}
 	return result, nil
 }
@@ -210,15 +220,18 @@ func (s *approverService) GetHistory(ctx context.Context) ([]models.ApplicationA
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching approver history")
 	}
 
+	// Логин вместо ФИО у обоих участников записи: и у актора, и у принимающего,
+	// которого добавили или сняли - это тоже персональные данные работника.
+	masks := loadConsentMasks(ctx, s.db)
 	items := make([]models.ApplicationApproverHistoryItem, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, models.ApplicationApproverHistoryItem{
 			ID:             r.ID,
 			ApproverUserID: r.ApproverUserID,
-			ApproverName:   r.ApproverName,
+			ApproverName:   maskName(masks, &r.ApproverUserID, r.ApproverName),
 			ActionType:     r.ActionType,
 			ActorUserID:    r.ActorUserID,
-			ActorName:      r.ActorName,
+			ActorName:      maskName(masks, r.ActorUserID, r.ActorName),
 			CreatedAt:      r.CreatedAt,
 		})
 	}
