@@ -1,4 +1,4 @@
-.PHONY: up down build test logs restart lint bash db-shell frontend-dev prod-build init init-staging init-production seed seed-demo staging-seed staging-seed-demo deploy-seed deploy-seed-demo staging-build staging-up staging-down staging-logs deploy-build deploy-up deploy-down deploy-logs security maintenance-off staging-maintenance-off deploy-maintenance-off cleanup staging-cleanup deploy-cleanup storage staging-storage deploy-storage
+.PHONY: up down build test logs restart lint bash db-shell frontend-dev prod-build init init-staging init-production seed seed-demo staging-seed staging-seed-demo deploy-seed deploy-seed-demo staging-build staging-up staging-down staging-logs deploy-build deploy-up deploy-down deploy-logs security maintenance-off staging-maintenance-off deploy-maintenance-off cleanup staging-cleanup deploy-cleanup storage staging-storage deploy-storage backup staging-backup deploy-backup backup-status staging-backup-status deploy-backup-status backup-verify staging-backup-verify deploy-backup-verify deploy-restore
 
 up:
 	docker compose up -d
@@ -128,3 +128,40 @@ staging-storage:
 
 deploy-storage:
 	docker compose -f docker-compose.base.yml -f docker-compose.prod.yml exec backend ./server storage $(ARGS)
+
+# Резервное копирование. Снимает выгрузку базы и архив загруженных файлов,
+# раскладывает по срокам хранения и чистит устаревшие копии.
+# Расписание ставится один раз: sudo ./scripts/backup-install.sh production
+backup:
+	bash scripts/backup.sh local
+
+staging-backup:
+	bash scripts/backup.sh staging
+
+deploy-backup:
+	bash scripts/backup.sh production
+
+# Состояние копирования: когда снята последняя копия, сколько их и не устарели ли.
+backup-status:
+	bash scripts/backup-status.sh local
+
+staging-backup-status:
+	bash scripts/backup-status.sh staging
+
+deploy-backup-status:
+	bash scripts/backup-status.sh production
+
+# Проверка восстановимости: копия разворачивается во временную базу рядом с рабочей.
+backup-verify:
+	bash scripts/backup-verify.sh local $(ARGS)
+
+staging-backup-verify:
+	bash scripts/backup-verify.sh staging $(ARGS)
+
+deploy-backup-verify:
+	bash scripts/backup-verify.sh production $(ARGS)
+
+# Восстановление из копии. Необратимо, требует подтверждения.
+# Пример: make deploy-restore ARGS="/var/backups/systemburo/daily/buro-db-2026-07-31-0330.dump.age"
+deploy-restore:
+	bash scripts/restore.sh production $(ARGS)
