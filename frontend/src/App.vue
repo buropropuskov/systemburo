@@ -37,8 +37,10 @@
     <OnboardingTour v-if="isAuthenticated && !consentBlocking" />
     <GlobalSearchPanel
       v-if="isAuthenticated"
+      :show="searchOpen"
       :query="searchQuery"
-      @close="clearGlobalSearch"
+      @update:query="searchQuery = $event"
+      @close="closeGlobalSearch"
     />
     <BanOverlay @logout="logout" />
     <PDConsentOverlay
@@ -88,9 +90,9 @@ export default {
       banEventOff: null,
       // userId, на который сейчас стоит подписка бана; держит её синхронной с токеном.
       banSubUserId: null,
-      // Строка сквозного поиска. Вводят её в поле меню, а панель результатов живёт
-      // здесь, в корне: иначе она схлопывалась бы вместе с рельсом, когда курсор
-      // уходит с меню к результатам.
+      // Панель поиска: признак открытия и строка запроса. Живут в корне -- панель
+      // открывают кнопкой из шапки, а показывается она поверх всей страницы.
+      searchOpen: false,
       searchQuery: '',
     }
   },
@@ -185,25 +187,25 @@ export default {
     // watch(banScopeUserId) на смену токена.
     this.reconcileBanSubscription()
     window.addEventListener('keydown', this.onGlobalSearchHotkey)
-    this.$bus?.on?.('global-search:query', this.onGlobalSearchQuery)
+    this.$bus?.on?.('global-search:open', this.openGlobalSearch)
   },
   beforeUnmount() {
     this.teardownBanSubscription()
     window.removeEventListener('keydown', this.onGlobalSearchHotkey)
-    this.$bus?.off?.('global-search:query', this.onGlobalSearchQuery)
+    this.$bus?.off?.('global-search:open', this.openGlobalSearch)
   },
   methods: {
-    onGlobalSearchQuery(value) {
-      this.searchQuery = value ?? ''
+    openGlobalSearch() {
+      if (this.isAuthenticated) this.searchOpen = true
     },
-    /** Закрытие панели чистит и поле в меню: иначе она тут же откроется снова. */
-    clearGlobalSearch() {
+    /** Закрытие чистит запрос: следующий поиск начинается с чистого листа. */
+    closeGlobalSearch() {
+      this.searchOpen = false
       this.searchQuery = ''
-      this.$bus?.emit?.('global-search:clear')
     },
     /**
      * Ctrl+K (Cmd+K на маке) -- общепринятое сочетание для поиска по приложению.
-     * Ставит курсор в поле меню; сама панель откроется, как только там появится текст.
+     * Открывает и закрывает панель поиска; курсор ставится в её поле.
      * preventDefault обязателен: в Firefox сочетание уводит фокус в адресную строку.
      */
     onGlobalSearchHotkey(e) {
@@ -211,7 +213,7 @@ export default {
       if (!e.ctrlKey && !e.metaKey) return
       if (!this.isAuthenticated) return
       e.preventDefault()
-      this.$bus?.emit?.('global-search:focus')
+      this.searchOpen = !this.searchOpen
     },
     /**
      * Приводит подписку на адресный real-time сигнал бана (scope user:<id>, #840)
