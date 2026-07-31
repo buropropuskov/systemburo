@@ -288,7 +288,7 @@
                 data-label="Фамилия И.О."
               >
                 <span
-                  v-if="user.name_hidden"
+                  v-if="user.pd_hidden"
                   class="consent-missing"
                   data-testid="users-row-no-consent"
                   title="Работник не подтвердил согласие на обработку персональных данных"
@@ -498,8 +498,8 @@
                 <input
                   v-model="selectedUser.last_name"
                   class="lk-input"
-                  :placeholder="selectedUser.name_hidden ? 'Скрыто до согласия на обработку данных' : 'Введите фамилию'"
-                  :disabled="selectedUser.name_hidden"
+                  :placeholder="selectedUser.pd_hidden ? 'Скрыто до согласия на обработку данных' : 'Введите фамилию'"
+                  :disabled="selectedUser.pd_hidden"
                   autocomplete="new-password"
                   autocorrect="off"
                   autocapitalize="off"
@@ -513,8 +513,8 @@
                 <input
                   v-model="selectedUser.middle_name"
                   class="lk-input"
-                  :placeholder="selectedUser.name_hidden ? 'Скрыто до согласия на обработку данных' : 'Введите отчество'"
-                  :disabled="selectedUser.name_hidden"
+                  :placeholder="selectedUser.pd_hidden ? 'Скрыто до согласия на обработку данных' : 'Введите отчество'"
+                  :disabled="selectedUser.pd_hidden"
                   autocomplete="new-password"
                   autocorrect="off"
                   autocapitalize="off"
@@ -557,8 +557,8 @@
                 <input
                   v-model="selectedUser.first_name"
                   class="lk-input"
-                  :placeholder="selectedUser.name_hidden ? 'Скрыто до согласия на обработку данных' : 'Введите имя'"
-                  :disabled="selectedUser.name_hidden"
+                  :placeholder="selectedUser.pd_hidden ? 'Скрыто до согласия на обработку данных' : 'Введите имя'"
+                  :disabled="selectedUser.pd_hidden"
                   autocomplete="new-password"
                   autocorrect="off"
                   autocapitalize="off"
@@ -572,7 +572,8 @@
                 <input
                   :value="selectedUser.phone"
                   class="lk-input"
-                  placeholder="+7 (___) ___ __-__"
+                  :placeholder="selectedUser.pd_hidden ? 'Скрыто до согласия на обработку данных' : '+7 (___) ___ __-__'"
+                  :disabled="selectedUser.pd_hidden"
                   type="tel"
                   autocomplete="new-password"
                   autocorrect="off"
@@ -601,7 +602,8 @@
                 <input
                   v-model="selectedUser.email"
                   class="lk-input"
-                  placeholder="Введите email"
+                  :placeholder="selectedUser.pd_hidden ? 'Скрыто до согласия на обработку данных' : 'Введите email'"
+                  :disabled="selectedUser.pd_hidden"
                   type="email"
                   autocomplete="new-password"
                   autocorrect="off"
@@ -1945,17 +1947,17 @@ export default {
       try {
         const payload = {
           position: user.position || null,
-          email: user.email || null,
-          phone: user.phone || null,
           is_important: !!user.is_important,
         };
-        // У работника, не давшего согласия на обработку данных, сервер ФИО не
-        // присылает. Отправить пустые поля значило бы стереть настоящее ФИО правкой
-        // соседнего: без ключей сервер их не трогает.
-        if (!user.name_hidden) {
+        // У работника, не давшего согласия на обработку данных, сервер не присылает
+        // ни ФИО, ни рабочих контактов. Отправить пустые поля значило бы стереть
+        // настоящие данные правкой соседнего: без ключей сервер их не трогает.
+        if (!user.pd_hidden) {
           payload.last_name = user.last_name || null;
           payload.first_name = user.first_name || null;
           payload.middle_name = user.middle_name || null;
+          payload.email = user.email || null;
+          payload.phone = user.phone || null;
         }
         const response = await apiRequest(`/users/${user.username}/info`,
           {

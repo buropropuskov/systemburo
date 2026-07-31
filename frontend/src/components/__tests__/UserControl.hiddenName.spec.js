@@ -6,7 +6,8 @@ import { apiRequest } from '@/api/client'
 import { useUiStore } from '@/stores/ui'
 
 // ФИО работника, не давшего согласия на обработку персональных данных, сервер не
-// присылает и помечает признаком name_hidden (#1567 S10). Карточка редактирования
+// присылает и помечает признаком pd_hidden (#1567). Скрыты и ФИО, и контакты.
+// Карточка редактирования
 // обязана отличать это от незаполненного поля: иначе правка должности или почты
 // уходит на сервер с пустым ФИО и стирает настоящее.
 
@@ -38,7 +39,7 @@ const hiddenUser = {
   last_name: null,
   first_name: null,
   middle_name: null,
-  name_hidden: true,
+  pd_hidden: true,
   position: 'Инженер',
   email: 'e@example.com',
 }
@@ -50,7 +51,7 @@ const openUser = {
   last_name: 'Иванов',
   first_name: 'Иван',
   middle_name: 'Иванович',
-  name_hidden: false,
+  pd_hidden: false,
   position: 'Инженер',
 }
 
@@ -103,6 +104,9 @@ describe('UserControl — скрытое до согласия ФИО', () => {
     expect('last_name' in payload).toBe(false)
     expect('first_name' in payload).toBe(false)
     expect('middle_name' in payload).toBe(false)
+    // Почта и телефон - такие же персональные данные: их тоже нельзя затирать.
+    expect('email' in payload).toBe(false)
+    expect('phone' in payload).toBe(false)
   })
 
   it('у обычного работника ФИО по-прежнему отправляется', async () => {
@@ -114,6 +118,7 @@ describe('UserControl — скрытое до согласия ФИО', () => {
     const payload = lastInfoPayload()
     expect(payload.last_name).toBe('Иванов')
     expect(payload.first_name).toBe('Иван')
+    expect('email' in payload).toBe(true)
   })
 })
 
@@ -138,7 +143,7 @@ describe('UserControl — согласие на обработку данных 
   })
 
   it('пока согласие не запрашивают, метки нет: его нет вообще ни у кого', async () => {
-    wrapper = mountUserControl([{ ...openUser, name_hidden: false }])
+    wrapper = mountUserControl([{ ...openUser, pd_hidden: false }])
     await flushPromises()
 
     expect(wrapper.find('[data-testid="users-row-no-consent"]').exists()).toBe(false)

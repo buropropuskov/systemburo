@@ -24,9 +24,17 @@ func (userSearchProvider) Title() string          { return "Пользовате
 func (userSearchProvider) PermissionKey() string  { return KeyPageAdminUsers }
 
 func (userSearchProvider) Search(ctx context.Context, db *gorm.DB, req searchRequest) ([]SearchItem, error) {
+	// Скрытые до согласия персональные данные не должны находиться и через поиск:
+	// пока маскировка работает, по почте и телефону не ищем вовсе, а скрытое ФИО
+	// подменяем логином уже в выдаче. Иначе подсказка подтверждала бы, чей это
+	// адрес, - то же раскрытие, только другим путём.
+	masks := loadConsentMasks(ctx, db)
 	cols := []string{
 		"u.last_name", "u.first_name", "u.middle_name",
-		"u.username", `u."position"`, "u.email", "u.phone",
+		"u.username", `u."position"`,
+	}
+	if len(masks) == 0 {
+		cols = append(cols, "u.email", "u.phone")
 	}
 	cond, args := ilikePatternsArgs(cols, req.Variants)
 
@@ -52,9 +60,14 @@ func (userSearchProvider) Search(ctx context.Context, db *gorm.DB, req searchReq
 	}
 
 	// У учётной записи может не быть ФИО -- тогда показываем логин, иначе строка
-	// приедет с пустым заголовком и подсказка будет выглядеть сломанной.
+	// приедет с пустым заголовком и подсказка будет выглядеть сломанной. Скрытое до
+	// согласия ФИО подменяем тем же логином.
 	items := rowsToItems(SearchTypeUsers, "user", rows)
 	for i := range items {
+		if mask, hidden := masks[items[i].ID]; hidden {
+			items[i].Title = mask
+			continue
+		}
 		if items[i].Title == "" {
 			items[i].Title = items[i].Subtitle
 		}
