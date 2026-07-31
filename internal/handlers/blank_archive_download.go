@@ -124,10 +124,15 @@ func (h *ArchiveDownloadHandler) Download(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "missing ticket")
 	}
 
-	entries, name, err := h.downloads.ConsumeAndCollect(c.Request().Context(), ticket, time.Now())
+	entries, name, userID, err := h.downloads.ConsumeAndCollect(c.Request().Context(), ticket, time.Now())
 	if err != nil {
 		return err
 	}
+	// Роут публичный, JWT-middleware сюда контекст не наполняет - без этой строки
+	// журнал персональных данных записал бы самый массовый вынос бланков в системе
+	// обезличенно. Владельца знает билет, ставим до отдачи байтов: PDAudit читает
+	// контекст после обработчика.
+	c.Set("user_id", userID)
 	return download.StreamZip(c, name, entries)
 }
 

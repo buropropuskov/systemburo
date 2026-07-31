@@ -33,6 +33,8 @@ func TestIsPDPath(t *testing.T) {
 		{"/api/file-archive/files/42", true},
 		{"/api/file-archive/items", true},
 		{"/api/file-archive/estimate", true},
+		// ZIP бланков одной заявки: те же паспорта плюс слепок со всеми участниками.
+		{"/api/applications/89/archive", true},
 		// Настройки раскладки и сводка места персональных данных не отдают.
 		{"/api/file-archive/settings", false},
 		{"/api/file-archive/stats", false},
@@ -43,6 +45,7 @@ func TestIsPDPath(t *testing.T) {
 		{"/api/applications/89", false},
 		{"/api/applications/available-attachments", false},
 		{"/api/applications/89/attachments", false},
+		{"/api/applications/89/archived", false},
 		{"/api/cars", false},
 		{"/api/login", false},
 	}

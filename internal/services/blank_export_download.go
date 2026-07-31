@@ -152,21 +152,25 @@ func (s *ArchiveDownloadService) consumeTicket(ticket string, now time.Time) (ar
 	return t, true
 }
 
-// ConsumeAndCollect обменивает билет на список файлов ZIP и имя архива. Публичный
-// GET-роут (без JWT, см. router.go) больше ничего про период не знает - границы
-// пришли с билетом, а не из query-параметров запроса.
-func (s *ArchiveDownloadService) ConsumeAndCollect(ctx context.Context, ticket string, now time.Time) ([]download.ZipEntry, string, error) {
+// ConsumeAndCollect обменивает билет на список файлов ZIP, имя архива и того, кому
+// билет выдан. Публичный GET-роут (без JWT, см. router.go) больше ничего про период
+// не знает - границы пришли с билетом, а не из query-параметров запроса.
+//
+// Идентификатор пользователя возвращается ради журнала 152-ФЗ: на публичном роуте
+// его больше взять неоткуда, а запись «кто-то выгрузил бланки сотен заявок» на
+// вопрос закона не отвечает.
+func (s *ArchiveDownloadService) ConsumeAndCollect(ctx context.Context, ticket string, now time.Time) ([]download.ZipEntry, string, int, error) {
 	t, ok := s.consumeTicket(ticket, now)
 	if !ok {
-		return nil, "", echo.NewHTTPError(http.StatusUnauthorized, "билет на скачивание недействителен или истёк")
+		return nil, "", 0, echo.NewHTTPError(http.StatusUnauthorized, "билет на скачивание недействителен или истёк")
 	}
 
 	entries, err := s.periodEntries(ctx, t.from, t.to)
 	if err != nil {
-		return nil, "", err
+		return nil, "", 0, err
 	}
 	name := fmt.Sprintf("archive_%s_%s.zip", t.from.Format("20060102"), t.to.Format("20060102"))
-	return entries, name, nil
+	return entries, name, t.userID, nil
 }
 
 // ArchiveApplicationEntries отбирает файлы заявки, доступные вызывающему, для ZIP

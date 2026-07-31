@@ -101,7 +101,15 @@ func isPDPath(path string) bool {
 			return true
 		}
 	}
-	return isBlankPath(path) || isAvailableAttachmentPath(path)
+	return isBlankPath(path) || isAvailableAttachmentPath(path) || isApplicationArchivePath(path)
+}
+
+// isApplicationArchivePath - ZIP сохранённых бланков одной заявки
+// (/api/applications/:id/archive). Внутри те же паспорта и патенты, что в бланке,
+// плюс машиночитаемый слепок заявки со всеми участниками - в журнале это обращение
+// обязано быть наравне с одиночным бланком.
+func isApplicationArchivePath(path string) bool {
+	return strings.HasPrefix(path, "/api/applications/") && strings.HasSuffix(path, "/archive")
 }
 
 func isBlankPath(path string) bool {
@@ -158,6 +166,8 @@ func pathToResource(path string) string {
 		return "attachment_blank"
 	case isAvailableAttachmentPath(path):
 		return "available_attachment"
+	case isApplicationArchivePath(path):
+		return "application_archive"
 	case strings.HasPrefix(path, "/api/unique-employees"):
 		return "unique_employee"
 	case strings.HasPrefix(path, "/api/employees"):
