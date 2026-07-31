@@ -35,6 +35,9 @@ const NotificationTypeArchiveQuotaWarning = "archive_quota_warning"
 // Ключи устойчивых флагов "уже сказали / уже остановили" в system_settings.
 // Мимо knownKeys, как и archive.* настройки - это внутреннее состояние сервиса,
 // не то, что правится через PUT /settings/:key.
+//
+// Флаг означает "действие перехода ВЫПОЛНЕНО", а не "переход замечен", и пишется
+// только после подтверждённого успеха действия - см. crossEdge.
 const (
 	archiveWarnFlagKey  = "archive.warn_notified"
 	archiveBlockFlagKey = "archive.blocked_notified"
@@ -294,28 +297,36 @@ func (q *BlankExportQuotaService) EnforceThresholds(ctx context.Context) (*Quota
 	var reason string
 	result.HardTripped, reason = hardThresholdTripped(usage, archiveBytes, settings)
 
-	if crossedIn, _, err := q.crossEdge(ctx, &q.warnFlag, archiveWarnFlagKey, result.SoftTripped); err != nil {
-		// Уведомление - не тот случай, ради которого стоит рвать весь прогон:
-		// жёсткий порог важнее и должен быть проверен независимо от того,
-		// сохранился ли флаг мягкого.
-		slog.Warn("archive quota: не удалось сохранить отметку мягкого порога", "error", err)
-	} else if crossedIn {
-		q.notifyAdmins(ctx, usage, settings)
+	// Мягкий порог: провал уведомления не рвёт прогон - жёсткий порог важнее и
+	// должен быть проверен независимо. Отметка при этом не сдвинется, и следующий
+	// тик повторит попытку.
+	if err := q.crossEdge(ctx, &q.warnFlag, archiveWarnFlagKey, result.SoftTripped, func(crossedIn bool) error {
+		if !crossedIn {
+			// Возврат ниже порога сам по себе действия не требует: снятая отметка и
+			// есть всё событие - следующее пересечение снова разбудит уведомление.
+			return nil
+		}
+		return q.notifyAdmins(ctx, usage, settings)
+	}); err != nil {
+		slog.Warn("archive quota: предупреждение о заполнении не отправлено, повторим на следующем тике", "error", err)
 	}
 
-	blockedIn, blockedOut, err := q.crossEdge(ctx, &q.blockFlag, archiveBlockFlagKey, result.HardTripped)
-	if err != nil {
-		return nil, fmt.Errorf("failed to persist archive block flag: %w", err)
-	}
-	switch {
-	case blockedIn:
+	err = q.crossEdge(ctx, &q.blockFlag, archiveBlockFlagKey, result.HardTripped, func(crossedIn bool) error {
+		if !crossedIn {
+			// Снятие блокировки видно администратору только этой записью - она и
+			// есть действие перехода, поэтому её провал откладывает отметку.
+			return q.recorder.Record(ctx, nil, models.AuditEntityArchiveQuota, nil,
+				models.ArchiveQuotaActionUnblocked, nil, nil)
+		}
 		blocked, err := q.blockQueue(ctx, reason)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		result.BlockedRows = blocked
-	case blockedOut:
-		q.recorder.Log(ctx, nil, models.AuditEntityArchiveQuota, nil, models.ArchiveQuotaActionUnblocked, nil, nil)
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to enforce archive hard threshold: %w", err)
 	}
 	return result, nil
 }
@@ -335,30 +346,56 @@ func (q *BlankExportQuotaService) archiveRegistryBytes(ctx context.Context) (int
 // blockQueue переводит строки очереди в blocked с ретраем через
 // archiveBlockRetry. Уже лежащие файлы (status=ok) не трогаются - блокировка
 // про то, что ЕЩЁ предстоит записать, а не про то, что уже на диске.
+//
+// Строки и запись журнала идут одной транзакцией (Record с exec=tx, паттерн
+// blacklist): остановка очереди без следа в журнале выглядит для администратора
+// как "выгрузка сама перестала работать", а откат вернёт строки в очередь, и
+// следующий тик повторит блокировку с честным числом строк.
 func (q *BlankExportQuotaService) blockQueue(ctx context.Context, reason string) (int64, error) {
 	next := time.Now().Add(archiveBlockRetry)
-	res := q.db.WithContext(ctx).Model(&models.BlankExport{}).
-		Where("status IN ?", []string{models.BlankExportPending, models.BlankExportFailed}).
-		Updates(map[string]any{
-			"status":          models.BlankExportBlocked,
-			"next_attempt_at": next,
-			"last_error":      "недостаточно места в файловом архиве: " + reason,
-		})
-	if res.Error != nil {
-		return 0, fmt.Errorf("failed to block archive export queue: %w", res.Error)
+	var affected int64
+	err := q.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Model(&models.BlankExport{}).
+			Where("status IN ?", []string{models.BlankExportPending, models.BlankExportFailed}).
+			Updates(map[string]any{
+				"status":          models.BlankExportBlocked,
+				"next_attempt_at": next,
+				"last_error":      "недостаточно места в файловом архиве: " + reason,
+			})
+		if res.Error != nil {
+			return fmt.Errorf("failed to block archive export queue: %w", res.Error)
+		}
+		affected = res.RowsAffected
+		return q.recorder.Record(ctx, tx, models.AuditEntityArchiveQuota, nil,
+			models.ArchiveQuotaActionBlocked, nil,
+			map[string]any{"reason": reason, "rows": res.RowsAffected})
+	})
+	if err != nil {
+		return 0, err
 	}
-	q.recorder.Log(ctx, nil, models.AuditEntityArchiveQuota, nil, models.ArchiveQuotaActionBlocked, nil,
-		map[string]any{"reason": reason, "rows": res.RowsAffected})
-	return res.RowsAffected, nil
+	return affected, nil
 }
 
-// crossEdge переводит устойчивый флаг threshold-а в новое состояние и сообщает,
-// произошёл ли ИМЕННО переход через край, а не "условие всё ещё истинно/ложно" -
-// иначе каждый тик воркера повторно уведомлял бы или заново блокировал бы уже
-// заблокированные строки. Состояние переживает рестарт процесса через
-// system_settings: без этого рестарт при всё ещё критичном месте "забыл" бы,
-// что уже предупредил, и продублировал бы уведомление на первом же тике.
-func (q *BlankExportQuotaService) crossEdge(ctx context.Context, state *thresholdState, key string, tripped bool) (crossedIn, crossedOut bool, err error) {
+// crossEdge выполняет действие перехода через край порога и только после его
+// подтверждённого успеха фиксирует устойчивую отметку. onCross вызывается ИМЕННО
+// на переходе, а не при "условие всё ещё истинно/ложно" - иначе каждый тик
+// воркера повторно уведомлял бы или заново блокировал бы уже заблокированные
+// строки; crossedIn=true означает переход в нарушение порога, false - возврат.
+//
+// Порядок именно такой: отметка, поставленная ДО действия, при упавшем действии
+// (или рестарте процесса между шагами) сказала бы следующему тику "уже сделано",
+// и очередь так и не ушла бы в blocked при реально переполненном диске - перехода
+// больше не будет, пока место не вернётся и снова не кончится. Провалилось
+// действие - отметка не двигается, и следующий тик повторяет попытку.
+//
+// Отметка переживает рестарт процесса через system_settings: без этого рестарт
+// при всё ещё критичном месте "забыл" бы, что уже предупредил, и продублировал
+// бы уведомление на первом же тике.
+//
+// Мьютекс держится и на время действия: два одновременных прогона иначе оба
+// увидели бы переход и оба заблокировали бы очередь (и прислали по уведомлению).
+// onCross по этой же причине не имеет права вызывать crossEdge повторно.
+func (q *BlankExportQuotaService) crossEdge(ctx context.Context, state *thresholdState, key string, tripped bool, onCross func(crossedIn bool) error) error {
 	q.thresholdMu.Lock()
 	defer q.thresholdMu.Unlock()
 
@@ -367,13 +404,18 @@ func (q *BlankExportQuotaService) crossEdge(ctx context.Context, state *threshol
 		state.loaded = true
 	}
 	if tripped == state.active {
-		return false, false, nil
+		return nil
+	}
+	if onCross != nil {
+		if err := onCross(tripped); err != nil {
+			return err
+		}
 	}
 	if err := q.saveFlag(ctx, key, tripped); err != nil {
-		return false, false, err
+		return fmt.Errorf("failed to persist threshold flag %s: %w", key, err)
 	}
 	state.active = tripped
-	return tripped, !tripped, nil
+	return nil
 }
 
 func (q *BlankExportQuotaService) loadFlag(ctx context.Context, key string) bool {
@@ -401,25 +443,42 @@ func (q *BlankExportQuotaService) saveFlag(ctx context.Context, key string, acti
 
 // notifyAdmins шлёт предупреждение о заполнении носителям права управления
 // архивом (KeyActionManageFileArchive) - тем же, кто видит настройки и решает,
-// что с этим делать. Best-effort: сбой уведомления не должен рвать проверку
-// жёсткого порога, которая идёт следом.
-func (q *BlankExportQuotaService) notifyAdmins(ctx context.Context, usage diskspace.Usage, settings *models.ArchiveSettings) {
+// что с этим делать.
+//
+// Ошибка возвращается только когда предупреждение не дошло НИ ДО КОГО: отметка
+// "уже предупредили" ставится по успеху (см. crossEdge), и провал на одном
+// администраторе из пяти заставил бы следующий тик прислать остальным четверым
+// второе уведомление о том же событии. Некому предупреждать (право никому не
+// выдано) - не сбой: повторять такое каждый тик бессмысленно.
+func (q *BlankExportQuotaService) notifyAdmins(ctx context.Context, usage diskspace.Usage, settings *models.ArchiveSettings) error {
 	if q.notifier == nil || q.resolver == nil {
-		return
+		return nil
 	}
 	audience, err := q.archiveAdmins(ctx)
 	if err != nil {
-		slog.Warn("archive quota: аудитория предупреждения о месте не собралась", "error", err)
-		return
+		return fmt.Errorf("failed to collect archive quota audience: %w", err)
+	}
+	if len(audience) == 0 {
+		slog.Warn("archive quota: архив заполняется, но право управления им никому не выдано")
+		return nil
 	}
 	title := "Файловый архив заполняется"
 	body := fmt.Sprintf("Раздел архива заполнен на %.0f%% (порог %d%%), свободно %s.",
 		usage.UsedPercent(), settings.WarnPercent, formatBytesRu(usage.FreeBytes))
+	var delivered int
+	var lastErr error
 	for _, userID := range audience {
 		if err := q.notifier.CreateForUser(ctx, userID, NotificationTypeArchiveQuotaWarning, title, body, nil); err != nil {
 			slog.Warn("archive quota: не удалось уведомить о заполнении архива", "user_id", userID, "error", err)
+			lastErr = err
+			continue
 		}
+		delivered++
 	}
+	if delivered == 0 {
+		return fmt.Errorf("failed to notify archive admins (%d recipients): %w", len(audience), lastErr)
+	}
+	return nil
 }
 
 // archiveAdmins - активные пользователи с правом управления файловым архивом.
@@ -454,10 +513,17 @@ func softThresholdTripped(usage diskspace.Usage, settings *models.ArchiveSetting
 
 // hardThresholdTripped - свободного места меньше MinFreeBytes ИЛИ архив достиг
 // QuotaBytes (0 у обоих полей значит "порог не задан", а не "нулевой лимит").
+//
+// Строгость сравнений разная намеренно, это не опечатка: MinFreeBytes - сколько
+// обязано ОСТАТЬСЯ свободным, и ровно минимум ещё выполняет обещание, а QuotaBytes -
+// потолок объёма архива, и достигнутый потолок уже исчерпан, писать дальше нельзя.
 func hardThresholdTripped(usage diskspace.Usage, archiveBytes int64, settings *models.ArchiveSettings) (bool, string) {
+	// Строго <: свободного места ровно минимум - порог ещё соблюдён.
 	if settings.MinFreeBytes > 0 && usage.FreeBytes < settings.MinFreeBytes {
 		return true, "insufficient_free_space"
 	}
+	// Нестрого >=: архив ровно на потолке квоты - место под следующий файл уже
+	// выбрано, и очередь обязана встать.
 	if settings.QuotaBytes > 0 && archiveBytes >= settings.QuotaBytes {
 		return true, "quota_exceeded"
 	}
