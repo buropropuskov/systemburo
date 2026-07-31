@@ -254,6 +254,12 @@ const routes = [
     meta: { requiresAuth: true, permission: 'page.admin' }
   },
   {
+    path: '/admin/file-archive',
+    name: 'AdminFileArchive',
+    component: () => import('./views/admin/FileArchiveView.vue'),
+    meta: { requiresAuth: true, permission: 'page.admin.file_archive' }
+  },
+  {
     path: '/analytics',
     name: 'analytics',
     component: () => import('./views/StatisticsView.vue'),
