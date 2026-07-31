@@ -303,6 +303,54 @@ def check_inventories(texts, problems):
 
 
 # --------------------------------------------------------------------------
+# сообщения скриптов
+# --------------------------------------------------------------------------
+# По журналу человек ищет строку дословно, поэтому в руководстве она должна
+# стоять ровно так, как её печатает скрипт. Проверять это глазами бесполезно:
+# сообщений два десятка, и новое добавляется мимо документа незаметно - так
+# в таблице причин сбоя копирования не хватало четырёх строк, а сообщения
+# проверки восстановимости не были описаны вовсе.
+#
+# Сверяется начало сообщения: хвост с переменными ($DB_NAME, номер строки) в
+# документе не воспроизводят, да и не должны.
+SCRIPT_MESSAGES = {
+    "scripts/backup.sh": "11.5 разбор сбоя копирования",
+    "scripts/backup-verify.sh": "11.5 проверка восстановимости",
+    "scripts/backup-status.sh": "11.5 состояние копий",
+}
+
+# Служебные строки: они либо не про сбой, либо повторяют соседнюю.
+MESSAGES_SKIP = (
+    "копия снята",
+    "копирование завершено",
+)
+
+
+def script_messages(path):
+    """Тексты сообщений скрипта, обрезанные до подстановок."""
+    body = sh("cat %s 2>/dev/null" % path)
+    found = set()
+    for raw in re.findall(r'(?:FAIL_REASON="|ОШИБКА: |ВНИМАНИЕ: )([^"\n]+)', body):
+        text = raw.split("$")[0].split(",")[0].split(" - ")[0]
+        # Хвостовой предлог остаётся от обрезки пути («не найдено в ${DIR}»)
+        # и в документе не воспроизводится.
+        text = re.sub(r"\s+(в|на|из|по|до|от)\s*$", "", text.strip(" -:"))
+        if len(text) > 12 and not any(s in text for s in MESSAGES_SKIP):
+            found.add(text)
+    return found
+
+
+def check_script_messages(texts, problems):
+    text = texts[DEPLOY]
+    for path, where in SCRIPT_MESSAGES.items():
+        for message in sorted(script_messages(path)):
+            if message not in text:
+                problems.append(
+                    "%s, %s: скрипт печатает «%s», в документе такой строки нет"
+                    % (DEPLOY, where, message))
+
+
+# --------------------------------------------------------------------------
 # параметры окружения и базы данных
 # --------------------------------------------------------------------------
 def env_defaults():
@@ -600,6 +648,7 @@ def main():
                            % (OVERVIEW, shown.strip(), m["gin"]))
 
     check_inventories(texts, problems)
+    check_script_messages(texts, problems)
     check_env(texts[DEPLOY], problems)
     check_db(texts[DEPLOY], problems)
     check_paths(texts[DEPLOY], problems)
