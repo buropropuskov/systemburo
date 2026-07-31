@@ -51,8 +51,13 @@ func main() {
 	// Подкоманды обслуживания живут в этом же бинаре: в рабочем образе есть только
 	// собранные server и seed, компилятора там нет, и отдельный инструмент пришлось
 	// бы вносить в сборку образа.
-	if len(os.Args) > 1 && os.Args[1] == "cleanup" {
-		os.Exit(runCleanup(os.Args[2:]))
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "cleanup":
+			os.Exit(runCleanup(os.Args[2:]))
+		case "storage":
+			os.Exit(runStorage(os.Args[2:]))
+		}
 	}
 
 	cfg, err := config.Load()

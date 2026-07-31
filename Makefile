@@ -1,4 +1,4 @@
-.PHONY: up down build test logs restart lint bash db-shell frontend-dev prod-build init init-staging init-production seed seed-demo staging-seed staging-seed-demo deploy-seed deploy-seed-demo staging-build staging-up staging-down staging-logs deploy-build deploy-up deploy-down deploy-logs security maintenance-off staging-maintenance-off deploy-maintenance-off cleanup staging-cleanup deploy-cleanup
+.PHONY: up down build test logs restart lint bash db-shell frontend-dev prod-build init init-staging init-production seed seed-demo staging-seed staging-seed-demo deploy-seed deploy-seed-demo staging-build staging-up staging-down staging-logs deploy-build deploy-up deploy-down deploy-logs security maintenance-off staging-maintenance-off deploy-maintenance-off cleanup staging-cleanup deploy-cleanup storage staging-storage deploy-storage
 
 up:
 	docker compose up -d
@@ -117,3 +117,14 @@ staging-cleanup:
 
 deploy-cleanup:
 	docker compose -f docker-compose.base.yml -f docker-compose.prod.yml exec backend ./server cleanup $(ARGS)
+
+# Обзор занятого места: крупнейшие таблицы и что из них подлежит очистке.
+# Только читает. Справка: make storage ARGS=-help
+storage:
+	docker compose exec go-backend go run ./cmd/server storage $(ARGS)
+
+staging-storage:
+	docker compose -f docker-compose.base.yml -f docker-compose.staging.yml exec backend ./server storage $(ARGS)
+
+deploy-storage:
+	docker compose -f docker-compose.base.yml -f docker-compose.prod.yml exec backend ./server storage $(ARGS)

@@ -115,12 +115,21 @@ var retentionRules = map[RetentionTarget]retentionRule{
 
 // RetentionResult - итог по одной группе. Matched считается всегда, Deleted остаётся
 // нулём в режиме предварительного показа.
+//
+// TotalRows и TableBytes отвечают на вопрос «а что вообще занимает место»: без них
+// оператор видит число записей под удаление, но не знает, стоит ли овчинка выделки.
+// FreedBytes - ОЦЕНКА по доле строк, а не точный замер: строки одной таблицы разного
+// размера (в audit_log details у одних пустой, у других килобайт), да и место
+// удалённых строк база отдаёт не операционной системе, а себе под новые записи.
 type RetentionResult struct {
 	Target      RetentionTarget
 	Description string
 	Cutoff      time.Time
 	Matched     int64
 	Deleted     int64
+	TotalRows   int64
+	TableBytes  int64
+	FreedBytes  int64
 }
 
 // ParseRetentionTarget разбирает имя группы из аргументов команды.
@@ -134,6 +143,59 @@ func ParseRetentionTarget(s string) (RetentionTarget, error) {
 		return "", fmt.Errorf("неизвестная группа %q (доступны: %s)", s, strings.Join(names, ", "))
 	}
 	return t, nil
+}
+
+// SelectRetentionTargets раскрывает аргументы команды в перечень групп: targets -
+// список через запятую либо all, except - что из него вычесть. Порядок вывода общий
+// для всех вызовов (AllRetentionTargets), повторы схлопываются.
+//
+// Исключение существует потому, что оператор рассуждает «почисти всё, только историю
+// не трогай», а не перечисляет четыре имени из пяти.
+func SelectRetentionTargets(targets, except string) ([]RetentionTarget, error) {
+	chosen, err := parseTargetList(targets)
+	if err != nil {
+		return nil, err
+	}
+	if len(chosen) == 0 {
+		return nil, fmt.Errorf("не указана ни одна группа")
+	}
+	excluded, err := parseTargetList(except)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]RetentionTarget, 0, len(chosen))
+	for _, t := range AllRetentionTargets {
+		if chosen[t] && !excluded[t] {
+			out = append(out, t)
+		}
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("исключены все выбранные группы, удалять нечего")
+	}
+	return out, nil
+}
+
+// parseTargetList разбирает перечень групп через запятую; "all" разворачивается в
+// полный набор, пустая строка даёт пустое множество.
+func parseTargetList(s string) (map[RetentionTarget]bool, error) {
+	set := make(map[RetentionTarget]bool, len(AllRetentionTargets))
+	if strings.TrimSpace(s) == "all" {
+		for _, t := range AllRetentionTargets {
+			set[t] = true
+		}
+		return set, nil
+	}
+	for _, part := range strings.Split(s, ",") {
+		if strings.TrimSpace(part) == "" {
+			continue
+		}
+		t, err := ParseRetentionTarget(part)
+		if err != nil {
+			return nil, err
+		}
+		set[t] = true
+	}
+	return set, nil
 }
 
 // DefaultRetentionCutoff возвращает границу по умолчанию для группы.
@@ -183,6 +245,9 @@ func SweepRetention(ctx context.Context, db *gorm.DB, target RetentionTarget, cu
 	if err := db.WithContext(ctx).Raw(countSQL, args...).Scan(&res.Matched).Error; err != nil {
 		return res, fmt.Errorf("подсчёт %s: %w", rule.table, err)
 	}
+	if err := measureRetentionTable(ctx, db, rule.table, &res); err != nil {
+		return res, err
+	}
 	if !apply || res.Matched == 0 {
 		return res, nil
 	}
@@ -194,6 +259,103 @@ func SweepRetention(ctx context.Context, db *gorm.DB, target RetentionTarget, cu
 	}
 	res.Deleted = tx.RowsAffected
 	return res, nil
+}
+
+// StorageReport - обзор занятого места: вся база, крупнейшие таблицы и остаток по
+// прочим. Строится для команды storage, которая только читает.
+type StorageReport struct {
+	DatabaseBytes int64
+	Tables        []TableSize
+	OthersBytes   int64
+}
+
+// TableSize - размер одной таблицы вместе с её индексами и вынесенными значениями.
+// Rows берётся из статистики планировщика (reltuples), а не точным подсчётом: обзор
+// не должен читать таблицу целиком, а порядок величины для решения «что чистить»
+// статистика даёт. После массового удаления число уточняется автоочисткой.
+type TableSize struct {
+	Name  string
+	Rows  int64
+	Bytes int64
+}
+
+// StorageOverview собирает обзор: размер базы, top крупнейших таблиц и суммарный
+// размер остальных.
+func StorageOverview(ctx context.Context, db *gorm.DB, top int) (StorageReport, error) {
+	var rep StorageReport
+	if err := db.WithContext(ctx).Raw("SELECT pg_database_size(current_database())").Scan(&rep.DatabaseBytes).Error; err != nil {
+		return rep, fmt.Errorf("размер базы: %w", err)
+	}
+
+	rows := []struct {
+		Name  string
+		Rows  int64
+		Bytes int64
+	}{}
+	// Разделы журнальных таблиц (request_logs_2026_07_25 и подобные) отсекаются
+	// условием relispartition и досчитываются к родителю обходом дерева: иначе перечень
+	// забивают три десятка суточных разделов, а итог задваивается. Ветвление по relkind
+	// обязательно: pg_partition_tree на обычной таблице возвращает пустое множество, а
+	// не саму таблицу, и без CASE все непартиционированные таблицы показали бы ноль.
+	if err := db.WithContext(ctx).Raw(`
+		SELECT c.relname AS name,
+		       CASE WHEN c.relkind = 'p' THEN
+		           (SELECT COALESCE(sum(GREATEST(p.reltuples, 0)), 0)::bigint
+		              FROM pg_partition_tree(c.oid) t
+		              JOIN pg_class p ON p.oid = t.relid)
+		       ELSE GREATEST(c.reltuples, 0)::bigint END AS rows,
+		       CASE WHEN c.relkind = 'p' THEN
+		           (SELECT COALESCE(sum(pg_total_relation_size(t.relid)), 0)
+		              FROM pg_partition_tree(c.oid) t)
+		       ELSE pg_total_relation_size(c.oid) END AS bytes
+		FROM pg_class c
+		JOIN pg_namespace n ON n.oid = c.relnamespace
+		WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND NOT c.relispartition
+		ORDER BY bytes DESC`).Scan(&rows).Error; err != nil {
+		return rep, fmt.Errorf("размеры таблиц: %w", err)
+	}
+
+	for i, r := range rows {
+		if i < top {
+			rep.Tables = append(rep.Tables, TableSize{Name: r.Name, Rows: r.Rows, Bytes: r.Bytes})
+			continue
+		}
+		rep.OthersBytes += r.Bytes
+	}
+
+	// Статистика планировщика пуста, пока автоочистка не дошла до таблицы: у молодой
+	// базы это половина перечня, и обзор показывал бы нули там, где данные есть.
+	// Пересчитываем только показываемые таблицы - их немного.
+	for i := range rep.Tables {
+		if rep.Tables[i].Rows > 0 {
+			continue
+		}
+		var exact int64
+		if err := db.WithContext(ctx).Raw(fmt.Sprintf("SELECT count(*) FROM %q", rep.Tables[i].Name)).Scan(&exact).Error; err != nil {
+			return rep, fmt.Errorf("подсчёт строк %s: %w", rep.Tables[i].Name, err)
+		}
+		rep.Tables[i].Rows = exact
+	}
+	return rep, nil
+}
+
+// measureRetentionTable заполняет размер группы: сколько в ней всего записей, сколько
+// места занимает таблица со своими индексами и сколько освободит удаление.
+//
+// Размер берётся по таблице целиком (pg_total_relation_size), а освобождаемое
+// оценивается долей строк - точного ответа тут нет и быть не может: строки разной
+// длины, а место всё равно достаётся не диску, а самой базе под новые записи.
+func measureRetentionTable(ctx context.Context, db *gorm.DB, table string, res *RetentionResult) error {
+	if err := db.WithContext(ctx).Raw(fmt.Sprintf("SELECT count(*) FROM %s", table)).Scan(&res.TotalRows).Error; err != nil {
+		return fmt.Errorf("подсчёт строк %s: %w", table, err)
+	}
+	if err := db.WithContext(ctx).Raw("SELECT pg_total_relation_size(?::regclass)", table).Scan(&res.TableBytes).Error; err != nil {
+		return fmt.Errorf("размер %s: %w", table, err)
+	}
+	if res.TotalRows > 0 {
+		res.FreedBytes = res.TableBytes * res.Matched / res.TotalRows
+	}
+	return nil
 }
 
 // SweepRoutine - суточная уборка технического мусора: недействительные токены и

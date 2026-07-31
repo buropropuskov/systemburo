@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"systemburo/internal/config"
@@ -31,6 +30,7 @@ const cleanupHelp = `Очистка накопленных данных.
 
 Флаги:
   -targets   Группы через запятую, либо all. По умолчанию: tokens,notifications
+  -except    Группы, которые исключить из выбранных. Например: -targets=all -except=audit
   -older-than
              Срок хранения: 30d - сутки, 12m - месяцы. По умолчанию свой у каждой группы
   -apply     Выполнить удаление. Без него команда только показывает, что удалилось бы
@@ -50,7 +50,10 @@ const cleanupHelp = `Очистка накопленных данных.
   server cleanup                                   что удалилось бы из мусорных групп
   server cleanup -apply                            удалить мусор
   server cleanup -targets=audit -older-than=36m    что удалилось бы из истории
+  server cleanup -targets=all -except=audit -apply почистить всё, кроме истории
   server cleanup -targets=all -older-than=24m -apply
+
+Что и сколько занимает места - server storage -help
 `
 
 // runCleanup выполняет подкоманду и возвращает код возврата процесса.
@@ -59,6 +62,7 @@ func runCleanup(args []string) int {
 	fs.SetOutput(os.Stderr)
 	fs.Usage = func() { fmt.Fprint(os.Stderr, cleanupHelp) }
 	targets := fs.String("targets", "tokens,notifications", "группы через запятую либо all")
+	except := fs.String("except", "", "группы, исключаемые из выбранных")
 	olderThan := fs.String("older-than", "", "срок хранения, например 30d или 12m")
 	apply := fs.Bool("apply", false, "выполнить удаление")
 	help := fs.Bool("help", false, "справка")
@@ -70,7 +74,7 @@ func runCleanup(args []string) int {
 		return 0
 	}
 
-	list, err := parseCleanupTargets(*targets)
+	list, err := database.SelectRetentionTargets(*targets, *except)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Ошибка:", err)
 		return 2
@@ -112,34 +116,6 @@ func runCleanup(args []string) int {
 	return 0
 }
 
-// parseCleanupTargets разбирает список групп, сохраняя порядок вывода и отсекая повторы.
-func parseCleanupTargets(s string) ([]database.RetentionTarget, error) {
-	if strings.TrimSpace(s) == "all" {
-		return database.AllRetentionTargets, nil
-	}
-	seen := make(map[database.RetentionTarget]bool)
-	for _, part := range strings.Split(s, ",") {
-		if strings.TrimSpace(part) == "" {
-			continue
-		}
-		t, err := database.ParseRetentionTarget(part)
-		if err != nil {
-			return nil, err
-		}
-		seen[t] = true
-	}
-	if len(seen) == 0 {
-		return nil, fmt.Errorf("не указана ни одна группа")
-	}
-	out := make([]database.RetentionTarget, 0, len(seen))
-	for _, t := range database.AllRetentionTargets {
-		if seen[t] {
-			out = append(out, t)
-		}
-	}
-	return out, nil
-}
-
 func printCleanupReport(results []database.RetentionResult, applied bool) {
 	fmt.Println()
 	if applied {
@@ -148,21 +124,68 @@ func printCleanupReport(results []database.RetentionResult, applied bool) {
 		fmt.Println("Ничего не удалено: это предварительный показ. Повторите с флагом -apply.")
 	}
 	fmt.Println()
-	fmt.Printf("%-20s %-12s %10s  %s\n", "Группа", "Старше", "Записей", "Что это")
-	var total int64
+	fmt.Printf("%-20s %-12s %10s %10s %10s %12s\n",
+		"Группа", "Старше", "Всего", "Размер", "Записей", "Освободится")
+	var totalRows, totalBytes int64
 	for _, r := range results {
 		count := r.Matched
 		if applied {
 			count = r.Deleted
 		}
-		total += count
-		fmt.Printf("%-20s %-12s %10d  %s\n", r.Target, r.Cutoff.Format(time.DateOnly), count, r.Description)
+		totalRows += count
+		totalBytes += r.FreedBytes
+		fmt.Printf("%-20s %-12s %10d %10s %10d %12s\n",
+			r.Target, r.Cutoff.Format(time.DateOnly), r.TotalRows,
+			humanBytes(r.TableBytes), count, humanBytes(r.FreedBytes))
+	}
+	fmt.Println()
+	for _, r := range results {
+		fmt.Printf("  %-20s %s\n", r.Target, r.Description)
 	}
 	fmt.Println()
 	if applied {
-		fmt.Printf("Удалено записей: %d\n", total)
+		fmt.Printf("Удалено: %d %s, освобождено примерно %s\n",
+			totalRows, pluralRecords(totalRows), humanBytes(totalBytes))
+		fmt.Println("Место остаётся в файлах базы и переиспользуется под новые записи;")
+		fmt.Println("операционной системе оно возвращается только полной перепаковкой таблицы.")
 	} else {
-		fmt.Printf("Попадает под удаление: %d\n", total)
+		fmt.Printf("Попадает под удаление: %d %s, примерно %s\n",
+			totalRows, pluralRecords(totalRows), humanBytes(totalBytes))
+	}
+}
+
+// pluralRecords склоняет слово «запись» по числу: строку читает человек, и «1 записей»
+// в отчёте выглядит небрежностью.
+func pluralRecords(n int64) string {
+	if n < 0 {
+		n = -n
+	}
+	switch {
+	case n%100 >= 11 && n%100 <= 14:
+		return "записей"
+	case n%10 == 1:
+		return "запись"
+	case n%10 >= 2 && n%10 <= 4:
+		return "записи"
+	default:
+		return "записей"
+	}
+}
+
+// humanBytes переводит байты в привычные человеку единицы: оператор смотрит на вывод
+// глазами и решает, стоит ли чистить, а не считает степени двойки.
+func humanBytes(n int64) string {
+	switch {
+	case n <= 0:
+		return "-"
+	case n < 1024:
+		return fmt.Sprintf("%d Б", n)
+	case n < 1024*1024:
+		return fmt.Sprintf("%.0f КБ", float64(n)/1024)
+	case n < 1024*1024*1024:
+		return fmt.Sprintf("%.1f МБ", float64(n)/(1024*1024))
+	default:
+		return fmt.Sprintf("%.1f ГБ", float64(n)/(1024*1024*1024))
 	}
 }
 
