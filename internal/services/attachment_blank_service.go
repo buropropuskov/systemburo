@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"systemburo/internal/models"
 
@@ -80,27 +81,50 @@ type attachmentBlankService struct {
 	// templateCache - сырые байты уже читанных .xlsx-шаблонов (#1615, B4): массовый
 	// прогон (бэкфилл за период, ночная сверка) генерирует бланк за бланком одним и
 	// тем же файлом шаблона, и без кэша каждый бланк заново читал бы его с диска.
-	// Ключ - FilePath: Upload всегда пишет новый шаблон под новым именем с меткой
-	// времени и никогда не перезаписывает существующий файл, поэтому у кэша нет
-	// нужды в инвалидации - старый путь не меняет содержимого.
-	templateCache   map[string][]byte
+	//
+	// Ключ - путь файла, но запись хранит ещё время изменения и размер, и они
+	// сверяются на каждом обращении. Сегодня загрузка пишет новый шаблон под новым
+	// именем, то есть путь не меняет содержимого - но строить кэш на этом инварианте
+	// значит поставить корректность бланков в зависимость от чужого файла: стоит
+	// однажды добавить «заменить шаблон на месте», и система молча раздавала бы
+	// старые бланки до перезапуска. Stat дешевле чтения на два порядка.
+	templateCache   map[string]cachedTemplate
 	templateCacheMu sync.Mutex
+}
+
+// cachedTemplate - содержимое шаблона вместе с приметами файла, по которым видно,
+// что на диске лежит уже другой файл.
+type cachedTemplate struct {
+	data    []byte
+	modTime time.Time
+	size    int64
 }
 
 // NewAttachmentBlankService создаёт сервис.
 func NewAttachmentBlankService(db *gorm.DB) AttachmentBlankService {
-	return &attachmentBlankService{db: db, templateCache: make(map[string][]byte)}
+	return &attachmentBlankService{db: db, templateCache: make(map[string]cachedTemplate)}
 }
 
-// loadTemplateFile отдаёт байты .xlsx-шаблона, читая файл с диска только один раз на
-// путь. Возвращаемый срез не мутируется вызывающими (excelize.OpenReader только
+// loadTemplateFile отдаёт байты .xlsx-шаблона, читая файл с диска только когда он
+// изменился. Возвращаемый срез не мутируется вызывающими (excelize.OpenReader только
 // читает), поэтому безопасен для конкурентного использования без копирования.
+//
+// Пропавший файл выбрасывается из кэша: удалённый шаблон должен давать честную
+// ошибку генерации, а не бланк из памяти процесса.
 func (s *attachmentBlankService) loadTemplateFile(path string) ([]byte, error) {
+	info, statErr := os.Stat(path)
+	if statErr != nil {
+		s.templateCacheMu.Lock()
+		delete(s.templateCache, path)
+		s.templateCacheMu.Unlock()
+		return nil, statErr
+	}
+
 	s.templateCacheMu.Lock()
-	data, ok := s.templateCache[path]
+	cached, ok := s.templateCache[path]
 	s.templateCacheMu.Unlock()
-	if ok {
-		return data, nil
+	if ok && cached.size == info.Size() && cached.modTime.Equal(info.ModTime()) {
+		return cached.data, nil
 	}
 
 	data, err := os.ReadFile(path)
@@ -109,7 +133,7 @@ func (s *attachmentBlankService) loadTemplateFile(path string) ([]byte, error) {
 	}
 
 	s.templateCacheMu.Lock()
-	s.templateCache[path] = data
+	s.templateCache[path] = cachedTemplate{data: data, modTime: info.ModTime(), size: info.Size()}
 	s.templateCacheMu.Unlock()
 	return data, nil
 }

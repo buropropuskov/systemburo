@@ -26,6 +26,7 @@ func TestFileArchiveBackfill(t *testing.T) {
 	t.Run("тип сужает выборку", func(t *testing.T) { archiveBackfillTypeSection(t, w) })
 	t.Run("выключенная выгрузка", func(t *testing.T) { archiveBackfillDisabledSection(t, w) })
 	t.Run("некорректные даты", func(t *testing.T) { archiveBackfillBadDatesSection(t, w) })
+	t.Run("два вложения одного типа - одна запись", func(t *testing.T) { archiveBackfillTwinAttachmentsSection(t, w) })
 }
 
 // backfillSetDate переносит заявку на конкретный день - иначе все заявки секции
@@ -139,4 +140,22 @@ func archiveBackfillBadDatesSection(t *testing.T, w archiveWorld) {
 			assert.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 		})
 	}
+}
+
+// У заявки бывает два вложения одного типа - в очередь она обязана попасть один раз.
+// JOIN вместо EXISTS дал бы две записи, и воркер прогнал бы одну заявку дважды,
+// переписав её файлы вторым проходом впустую.
+func archiveBackfillTwinAttachmentsSection(t *testing.T, w archiveWorld) {
+	uaID := w.newExportType(t, "Пропуск бэкфилл близнецы", true, true)
+	appID, _ := w.newExportApp(t, "20240710/001", uaID, "")
+	twin := models.Attachment{ApplicationID: &appID, AttachmentType: "people", UniqueAttachmentID: &uaID}
+	require.NoError(t, w.db.Create(&twin).Error)
+	w.backfillSetDate(t, appID, time.Date(2024, 7, 10, 12, 0, 0, 0, time.UTC))
+
+	body := fmt.Sprintf(`{"date_from":"2024-07-01","date_to":"2024-07-31","unique_attachment_id":%d}`, uaID)
+	rec := testutil.POST(t, w.e, "/file-archive/backfill", body, w.adminH)
+	require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
+
+	res := testutil.ParseResponse[models.ArchiveBackfillResponse](t, rec)
+	assert.Equal(t, 1, res.Queued, "заявка с двумя вложениями искомого типа ставится в очередь один раз")
 }

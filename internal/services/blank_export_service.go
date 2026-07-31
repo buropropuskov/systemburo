@@ -103,6 +103,11 @@ func (s *BlankExportService) Writer() *ArchiveWriter {
 	return s.writer
 }
 
+// Location - рабочая таймзона раскладки архива. Границы бэкфилла считаются по ней,
+// иначе они разъедутся с bucket_date: заявка, поданная вечером по местному времени,
+// в UTC относится уже к следующим суткам.
+func (s *BlankExportService) Location() *time.Location { return s.paths.Location() }
+
 // blankExportTarget - вложение заявки вместе с тем, что решает его судьбу: тумблер
 // типа и наличие активного бланка.
 type blankExportTarget struct {

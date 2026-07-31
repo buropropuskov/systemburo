@@ -4,7 +4,6 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
-	"time"
 
 	"systemburo/internal/blankpath"
 	"systemburo/internal/models"
@@ -150,19 +149,12 @@ func (h *BlankArchiveHandler) Backfill(c echo.Context) error {
 		return err
 	}
 
-	from, err := time.Parse("2006-01-02", req.DateFrom)
+	// Границы считает сервис: он знает рабочую таймзону раскладки, а разбор дат в
+	// UTC отрезал бы не тот кусок суток (см. ParsePeriod).
+	from, toExclusive, err := h.exports.ParsePeriod(req.DateFrom, req.DateTo)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Некорректная дата date_from (ожидается YYYY-MM-DD)")
+		return err
 	}
-	to, err := time.Parse("2006-01-02", req.DateTo)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Некорректная дата date_to (ожидается YYYY-MM-DD)")
-	}
-	if to.Before(from) {
-		return echo.NewHTTPError(http.StatusBadRequest, "date_to не может быть раньше date_from")
-	}
-	// date_to включителен: конец периода - начало следующих суток.
-	toExclusive := to.Add(24 * time.Hour)
 
 	queued, err := h.exports.Backfill(c.Request().Context(), from, toExclusive, req.UniqueAttachmentID)
 	switch {
