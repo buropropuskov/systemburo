@@ -73,6 +73,14 @@ MAP = [
      "Техописание", "5.2 чёрные списки, 7 поиск"),
     (r"^internal/normalize/|^frontend/src/utils/searchVariants\.js$",
      "Техописание", "7 поиск и приведение сведений к единому виду"),
+    # Сквозной поиск: состав разделов выдачи и то, какие совпадения он распознаёт,
+    # описаны в 7.1. Провайдер добавляют одним файлом, и без этой строки новый раздел
+    # выдачи не двигал бы ни одного числа и прошёл бы мимо сверки.
+    (r"^internal/services/search_|^internal/handlers/search\.go$|"
+     r"^frontend/src/components/GlobalSearchPalette\.vue$|"
+     r"^frontend/src/composables/useGlobalSearch\.js$|"
+     r"^frontend/src/constants/(searchTargets|navSections)\.js$",
+     "Техописание", "7.1 сквозной поиск: состав разделов и распознаваемые совпадения"),
     (r"^internal/services/report_|^internal/services/processing_",
      "Критерии", "4 показатели: метрики и разрезы"),
     (r"^internal/realtime/|^internal/handlers/events\.go$", "Техописание",
