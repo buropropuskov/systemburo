@@ -179,3 +179,48 @@ func archiveSnapshotFrozenSection(t *testing.T, w archiveWorld) {
 	require.NoError(t, err)
 	assert.Equal(t, data, kept, "содержимое замороженного слепка не следует за правками заявки")
 }
+
+// Заявка, у которой ни одному типу вложения не настроен бланк, замороженных строк
+// реестра не заводит вовсе - там нечего замораживать. Слепок у неё при этом есть, и
+// он обязан замереть по сроку самой заявки: иначе единственный документ такой
+// заявки переписывался бы вечно, расходясь с уже увезённой копией.
+func archiveSnapshotFrozenWithoutBlanksSection(t *testing.T, w archiveWorld) {
+	rec := testutil.PUT(t, w.e, "/file-archive/settings", `{"freeze_after_days":0}`, w.adminH)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	t.Cleanup(func() {
+		restore := testutil.PUT(t, w.e, "/file-archive/settings", `{"freeze_after_days":30}`, w.adminH)
+		require.Equal(t, http.StatusOK, restore.Code, restore.Body.String())
+	})
+
+	uaID := w.newExportType(t, "Тип без бланка со слепком", false, true)
+	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	appID, _ := w.newExportApp(t, "20260731/012", uaID, yesterday)
+	require.NoError(t, w.db.Model(&models.Application{}).Where("id = ?", appID).
+		Update("status", models.StatusCompleted).Error)
+
+	first := w.reexport(t, appID)
+	require.Equal(t, models.BlankExportNoTemplate, first.Items[0].Status, "у типа нет бланка - выгружать нечего")
+	require.Equal(t, models.BlankExportOK, first.Snapshot.Status, first.Snapshot.Error)
+	require.True(t, first.Snapshot.Written, "слепок пишется даже когда бланков у заявки нет")
+
+	snapPath := w.abs(path.Join(first.RelDir, archiveSnapshotFileName))
+	before, err := os.ReadFile(snapPath)
+	require.NoError(t, err)
+
+	old := time.Now().Add(-4 * time.Hour)
+	require.NoError(t, os.Chtimes(snapPath, old, old))
+	require.NoError(t, w.db.Model(&models.Application{}).Where("id = ?", appID).
+		Update("message", "правка заявки без бланков").Error)
+
+	second := w.reexport(t, appID)
+	assert.True(t, second.Snapshot.Frozen, "срок заявки вышел - слепок окончателен и без единого бланка рядом")
+	assert.False(t, second.Snapshot.Written, "замороженный слепок не переписывается")
+
+	info, err := os.Stat(snapPath)
+	require.NoError(t, err)
+	assert.WithinDuration(t, old, info.ModTime(), time.Second, "файл трогать нельзя")
+
+	kept, err := os.ReadFile(snapPath)
+	require.NoError(t, err)
+	assert.Equal(t, before, kept, "содержимое не следует за правками завершённой заявки")
+}

@@ -143,7 +143,11 @@ func (s *BlankExportService) ExportApplication(ctx context.Context, applicationI
 		result.Items = append(result.Items, item)
 	}
 
-	result.Snapshot = s.exportSnapshot(ctx, applicationID, levels, frozenApplicationDir != "")
+	// Слепок замораживается по сроку самой заявки, а не по тому, есть ли рядом
+	// замороженный бланк. У заявки, где ни одному типу вложения не настроен бланк,
+	// замороженных строк реестра не появляется вовсе - и слепок такой заявки
+	// переписывался бы вечно, хотя обещан окончательным.
+	result.Snapshot = s.exportSnapshot(ctx, applicationID, levels, frozenApplicationDir != "" || frozenAt != nil)
 
 	return result, nil
 }
