@@ -47,7 +47,7 @@ import eventStream from '@/services/eventStream';
 function mountApp() {
   return shallowMount(App, {
     global: {
-      mocks: { $route: { path: '/news', name: 'News' }, $router: { push: vi.fn() } },
+      mocks: { $route: { path: '/news', name: 'News' }, $router: { push: vi.fn(), replace: vi.fn().mockResolvedValue(undefined) } },
       stubs: { 'router-view': true, RouterView: true, transition: true },
     },
   });

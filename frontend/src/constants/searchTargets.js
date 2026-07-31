@@ -21,13 +21,13 @@ function withQuery(path, query, accepts) {
 export const SEARCH_TARGETS = {
   unique_employee: {
     icon: 'employees',
-    acceptsQuery: false,
-    route: (id, q) => withQuery('/employeesview', q, false),
+    acceptsQuery: true,
+    route: (id, q) => withQuery('/employeesview', q, true),
   },
   unique_car: {
     icon: 'cars',
-    acceptsQuery: false,
-    route: (id, q) => withQuery('/carsview', q, false),
+    acceptsQuery: true,
+    route: (id, q) => withQuery('/carsview', q, true),
   },
   // У заявок открытие карточки по номеру уже работает -- этим же параметром ходят
   // переходы из уведомлений.

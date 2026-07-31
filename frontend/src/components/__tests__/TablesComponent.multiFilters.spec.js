@@ -78,7 +78,7 @@ function mountPage() {
       },
       mocks: {
         $route: { params: { tableName: 'kpp_4' } },
-        $router: { push: vi.fn() },
+        $router: { push: vi.fn(), replace: vi.fn().mockResolvedValue(undefined) },
       },
     },
   });

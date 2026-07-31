@@ -42,7 +42,7 @@ function mountUserControl(allUsers = seedUsers()) {
     global: {
       mocks: {
         $bus: { on: vi.fn(), off: vi.fn(), emit: vi.fn() },
-        $router: { push: vi.fn() },
+        $router: { push: vi.fn(), replace: vi.fn().mockResolvedValue(undefined) },
         $route: { path: '/admin/users', params: {} },
       },
     },
