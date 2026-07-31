@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
-import GlobalSearchPalette from '../GlobalSearchPalette.vue';
+import GlobalSearchPanel from '../GlobalSearchPanel.vue';
 import { globalSearch } from '@/api/search';
 
-// Проверяем три вещи, которые ломаются незаметно: разделы находятся без обращения к
-// серверу (ради них поиск и открывают), результаты сервера показываются группами, а
-// переход закрывает окно ДО навигации -- иначе подтверждение о несохранённой форме
-// нарисуется ниже окна по слоям и останется невидимым.
+// Панель показывает найденное, ввод идёт в поле меню и приходит сюда строкой. Проверяем
+// то, что ломается незаметно: разделы находятся без обращения к серверу, пустая строка
+// закрывает панель, а переход закрывает её раньше навигации -- иначе подтверждение о
+// несохранённой форме окажется под панелью.
 
 vi.mock('@/api/search', () => ({ globalSearch: vi.fn() }));
 vi.mock('@/composables/usePermission', () => ({
@@ -16,21 +16,18 @@ vi.mock('@/composables/usePermission', () => ({
 
 const push = vi.fn();
 
-function mountPalette() {
-  return mount(GlobalSearchPalette, {
-    props: { show: true },
+function mountPanel(query = '') {
+  return mount(GlobalSearchPanel, {
+    props: { query },
     global: {
       mocks: { $router: { push } },
       stubs: {
         NavIcon: true,
         SkeletonLine: true,
-        // BaseModal телепортирует содержимое в body; для проверок достаточно
-        // отрисовать слоты на месте.
-        BaseModal: {
-          template: '<div class="modal"><slot name="header" /><slot /></div>',
-        },
+        teleport: true,
       },
     },
+    attachTo: document.body,
   });
 }
 
@@ -48,11 +45,16 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe('GlobalSearchPalette', () => {
-  it('находит раздел меню без обращения к серверу', async () => {
-    wrapper = mountPalette();
+describe('GlobalSearchPanel', () => {
+  it('пустая строка держит панель закрытой', () => {
+    wrapper = mountPanel('');
 
-    await wrapper.setData({ query: 'Автомоб' });
+    expect(wrapper.find('.gsp').exists()).toBe(false);
+  });
+
+  it('находит раздел меню без обращения к серверу', async () => {
+    wrapper = mountPanel('Автомоб');
+    await flushPromises();
 
     const titles = wrapper.findAll('.gsp__row-title').map((el) => el.text());
     expect(titles).toContain('Автомобили');
@@ -60,9 +62,7 @@ describe('GlobalSearchPalette', () => {
   });
 
   it('короткий запрос не уходит на сервер', async () => {
-    wrapper = mountPalette();
-
-    await wrapper.setData({ query: 'ро' });
+    wrapper = mountPanel('ро');
     vi.advanceTimersByTime(1000);
     await flushPromises();
 
@@ -70,11 +70,9 @@ describe('GlobalSearchPalette', () => {
   });
 
   it('запрос уходит один раз после паузы, а не на каждый символ', async () => {
-    wrapper = mountPalette();
-
-    await wrapper.setData({ query: 'Рог' });
-    await wrapper.setData({ query: 'Рогол' });
-    await wrapper.setData({ query: 'Роголев' });
+    wrapper = mountPanel('Рог');
+    await wrapper.setProps({ query: 'Рогол' });
+    await wrapper.setProps({ query: 'Роголев' });
     vi.advanceTimersByTime(400);
     await flushPromises();
 
@@ -92,9 +90,7 @@ describe('GlobalSearchPalette', () => {
       }],
       total: 1,
     });
-    wrapper = mountPalette();
-
-    await wrapper.setData({ query: 'Роголев' });
+    wrapper = mountPanel('Роголев');
     vi.advanceTimersByTime(400);
     await flushPromises();
 
@@ -104,22 +100,28 @@ describe('GlobalSearchPalette', () => {
 
   it('сообщает о разделе, который не ответил', async () => {
     globalSearch.mockResolvedValue({ groups: [], total: 0, degraded: ['applications'] });
-    wrapper = mountPalette();
-
-    await wrapper.setData({ query: 'Роголев' });
+    wrapper = mountPanel('Роголев');
     vi.advanceTimersByTime(400);
     await flushPromises();
 
     expect(wrapper.text()).toContain('Заявки');
   });
 
-  it('переход закрывает окно раньше навигации', async () => {
-    wrapper = mountPalette();
-    await wrapper.setData({ query: 'Автомоб' });
+  it('крестик просит закрыть панель', async () => {
+    wrapper = mountPanel('Автомоб');
+    await flushPromises();
 
-    // Проверяем сам инвариант, а не число тиков: к моменту навигации окно уже должно
-    // быть закрыто. Иначе подтверждение о несохранённой форме, которое поднимает
-    // роутер, нарисуется ниже окна по слоям и останется невидимым, а переход повиснет.
+    await wrapper.find('.gsp__close').trigger('click');
+
+    expect(wrapper.emitted('close')).toBeTruthy();
+  });
+
+  it('переход закрывает панель раньше навигации', async () => {
+    wrapper = mountPanel('Автомоб');
+    await flushPromises();
+
+    // Проверяем сам инвариант, а не число тиков: к моменту навигации панель уже должна
+    // закрываться, иначе подтверждение о несохранённой форме окажется под ней.
     let closedBeforeNavigation = false;
     push.mockImplementation(() => {
       closedBeforeNavigation = Boolean(wrapper.emitted('close'));
