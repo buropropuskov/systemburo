@@ -323,6 +323,22 @@ func archiveFreezeSection(t *testing.T, w archiveWorld) {
 	after := w.registryRow(t, appID, attID)
 	assert.Equal(t, frozenRow.ContentHash, after.ContentHash)
 	assert.Equal(t, frozenRow.FrozenAt.Unix(), after.FrozenAt.Unix())
+
+	// Новое вложение того же типа даёт то же имя файла. Подвинуться обязано оно:
+	// замороженный файл лежит на диске под своим именем и переименован не будет.
+	extra := models.Attachment{ApplicationID: &appID, AttachmentType: "people", UniqueAttachmentID: &uaID}
+	require.NoError(t, w.db.Create(&extra).Error)
+
+	third := w.reexport(t, appID)
+	require.Len(t, third.Items, 2)
+	fresh := third.Items[1]
+	require.Equal(t, models.BlankExportOK, fresh.Status, fresh.Error)
+	assert.Contains(t, fresh.RelPath, fmt.Sprintf("(№%d)", extra.ID), "новый файл разводится суффиксом вложения")
+	assert.FileExists(t, w.abs(fresh.RelPath))
+
+	kept, err := os.Stat(path)
+	require.NoError(t, err)
+	assert.WithinDuration(t, old, kept.ModTime(), time.Second, "замороженный файл не должен быть перезаписан соседом")
 }
 
 // Выключенная выгрузка отвечает причиной, а не пустым результатом: администратор,

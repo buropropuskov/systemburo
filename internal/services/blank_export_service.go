@@ -106,7 +106,7 @@ func (s *BlankExportService) ExportApplication(ctx context.Context, applicationI
 		return nil, err
 	}
 
-	levels, err := s.layout(ctx, settings, applicationID, appValues, targets)
+	levels, err := s.layout(ctx, settings, applicationID, appValues, targets, registry)
 	if err != nil {
 		return nil, err
 	}
@@ -340,19 +340,27 @@ func (s *BlankExportService) layout(
 	applicationID int,
 	appValues blankpath.Values,
 	targets []blankExportTarget,
+	registry map[int]*models.BlankExport,
 ) ([]string, error) {
 	longest := ""
 	for i := range targets {
-		values, err := s.paths.Values(ctx, applicationID, targets[i].AttachmentID)
+		// Поля заявки уже загружены и для всех её вложений одинаковы - дочитываем
+		// только тип и срок вложения, а не повторяем тяжёлый разбор заявки.
+		att, err := s.paths.attachmentValues(ctx, applicationID, targets[i].AttachmentID)
 		if err != nil {
 			return nil, err
 		}
+		values := appValues
+		values.AttachmentID = att.AttachmentID
+		values.AttachmentType = att.AttachmentType
+		values.Period = formatArchivePeriod(att.EntryDateFrom, att.EntryDateTo)
+
 		targets[i].FileName = blankpath.RenderName(settings.FileTemplate, values, blankFileExt)
 		if len(targets[i].FileName) > len(longest) {
 			longest = targets[i].FileName
 		}
 	}
-	resolveNameCollisions(targets)
+	resolveNameCollisions(targets, registry)
 
 	levels := blankpath.FitRelPath(blankpath.RenderPath(settings.DirTemplate, appValues), longest, archiveRelPathMaxBytes)
 	return s.resolveDirCollision(ctx, applicationID, levels)
@@ -364,12 +372,29 @@ func (s *BlankExportService) layout(
 // Суффикс получают ВСЕ участники коллизии и по своему attachment_id, а не второй по
 // счёту: нумерация «(2)», «(3)» перетасовывалась бы при каждом пересоздании и файл
 // прыгал бы между именами, ломая синхронизацию на рабочий компьютер.
-func resolveNameCollisions(targets []blankExportTarget) {
+//
+// Имена замороженных файлов берутся из реестра, а не из свежего расчёта: такой файл
+// лежит на диске под старым именем и переименован уже не будет. Не учти мы его,
+// новое вложение после смены шаблона имени попало бы ровно на замороженный файл и
+// переписало бы документ, который обещан неизменным.
+func resolveNameCollisions(targets []blankExportTarget, registry map[int]*models.BlankExport) {
 	seen := make(map[string]int, len(targets))
 	for _, t := range targets {
 		seen[t.FileName]++
 	}
+	// Занятое замороженное имя делает конфликтующим любое совпадение с ним, даже
+	// единственное: подвинуться обязан новый файл, старый уже документ.
+	for _, row := range registry {
+		if row.FrozenAt != nil && row.FileName != "" {
+			seen[row.FileName] += 2
+		}
+	}
+
 	for i := range targets {
+		// Замороженному вложению имя не меняем: на диске оно уже под своим.
+		if row := registry[targets[i].AttachmentID]; row != nil && row.FrozenAt != nil {
+			continue
+		}
 		if seen[targets[i].FileName] < 2 {
 			continue
 		}

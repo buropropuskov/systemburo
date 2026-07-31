@@ -60,7 +60,11 @@ var tables = []string{
 	"guide_sections",
 	"documents", "document_groups",
 	"request_log", "request_logs", "notifications", "news", "announcements",
-	"feedback", "application_items", "items",
+	// feedback_reads тоже без внешних ключей: строки прошлого прогона переживают и
+	// чистку, и первичный TRUNCATE, а идентификаторы обращений и пользователей
+	// начинаются заново - рано или поздно пара совпадает, и обращение приходит в
+	// тест уже прочитанным (поймано на TestFeedback_ReadIsPerUser).
+	"feedback_reads", "feedback", "application_items", "items",
 	"application_blacklist_overrides", "application_blacklist_flags",
 	"employee_target_tables", "employee_files", "application_employees", "employees",
 	"car_unload_places", "car_target_tables", "cars",
