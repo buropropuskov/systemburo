@@ -119,8 +119,9 @@ func (s *BlankExportService) ExportApplication(ctx context.Context, applicationI
 	// Замороженная заявка остаётся там, где лежит: путь уже уехал в корпоративную
 	// копию, и переименование развело бы копии по разным папкам. Новые вложения
 	// такой заявки лягут в ту же папку - она и есть папка этой заявки.
-	if frozen := frozenDir(registry); frozen != "" {
-		levels = splitRelDir(frozen)
+	frozenApplicationDir := frozenDir(registry)
+	if frozenApplicationDir != "" {
+		levels = splitRelDir(frozenApplicationDir)
 	} else {
 		levels, result.Renamed, err = s.relocate(ctx, registry, levels)
 		if err != nil {
@@ -141,7 +142,35 @@ func (s *BlankExportService) ExportApplication(ctx context.Context, applicationI
 		})
 		result.Items = append(result.Items, item)
 	}
+
+	// Слепок замораживается по сроку самой заявки, а не по тому, есть ли рядом
+	// замороженный бланк. У заявки, где ни одному типу вложения не настроен бланк,
+	// замороженных строк реестра не появляется вовсе - и слепок такой заявки
+	// переписывался бы вечно, хотя обещан окончательным.
+	result.Snapshot = s.exportSnapshot(ctx, applicationID, levels, frozenApplicationDir != "" || frozenAt != nil)
+
 	return result, nil
+}
+
+// exportSnapshot пишет машиночитаемый слепок заявки рядом с бланками и докладывает
+// исход в ответе. Молчать нельзя: строки реестра у слепка нет, повторять его некому,
+// и администратор, нажавший «пересоздать», обязан узнать о несостоявшейся записи
+// сразу, а не обнаружить пропажу файла годы спустя.
+func (s *BlankExportService) exportSnapshot(ctx context.Context, applicationID int, levels []string, frozen bool) models.BlankExportSnapshotResult {
+	out := models.BlankExportSnapshotResult{
+		RelPath: path.Join(path.Join(levels...), archiveSnapshotFileName),
+		Frozen:  frozen,
+	}
+
+	written, err := writeApplicationSnapshot(ctx, s.db, s.writer, applicationID, levels, frozen)
+	if err != nil {
+		out.Status, out.Error = models.BlankExportFailed, err.Error()
+		slog.Error("не удалось записать слепок заявки в архив", "application_id", applicationID, "error", err)
+		return out
+	}
+
+	out.Status, out.Written = models.BlankExportOK, written
+	return out
 }
 
 // exportRequest - вход одной строки реестра. Собран структурой, чтобы список
