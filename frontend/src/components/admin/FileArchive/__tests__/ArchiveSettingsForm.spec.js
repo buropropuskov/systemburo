@@ -137,4 +137,20 @@ describe('ArchiveSettingsForm', () => {
   afterEach(() => {
     vi.useRealTimers()
   })
+
+  it('подпись под рубильником следует за его состоянием', async () => {
+    // Статический текст «пока выключено» под включённым тумблером утверждает
+    // обратное тому, что делает система: администратор решает, что бланки не
+    // пишутся, хотя они пишутся.
+    api.getArchiveSettings.mockResolvedValue({ ...SETTINGS, enabled: true })
+    const w = mount(ArchiveSettingsForm)
+    await flushPromises()
+
+    expect(w.text()).toContain('Включено')
+    expect(w.text()).not.toContain('Пока выключено')
+
+    await w.findComponent(ToggleSwitch).vm.$emit('update:modelValue', false)
+    await w.vm.$nextTick()
+    expect(w.text()).toContain('Пока выключено')
+  })
 })
