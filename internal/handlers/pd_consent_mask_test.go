@@ -370,8 +370,18 @@ func TestPDConsentMask_UsersList_ShowsConsentState(t *testing.T) {
 	assert.True(t, after.ConsentGranted, "после подтверждения согласие видно")
 	require.NotNil(t, after.ConsentAt, "дата согласия проставлена")
 
-	// Супер-администратора запрос согласия не касается.
-	assert.False(t, userConsentRow(t, e, admin, "testadmin").ConsentRequired)
+	// Кого запрос не касается: супер-администратор, архивный и заблокированный.
+	assert.False(t, userConsentRow(t, e, admin, "testadmin").ConsentRequired, "супер-администратор")
+
+	testutil.RegisterAndLogin(t, e, "consent_archived", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
+	require.NoError(t, db.Model(&models.User{}).Where("username = ?", "consent_archived").
+		Update("is_active", false).Error)
+	assert.False(t, userConsentRowArchived(t, e, admin, "consent_archived").ConsentRequired, "архивный")
+
+	testutil.RegisterAndLogin(t, e, "consent_banned", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
+	require.NoError(t, db.Model(&models.User{}).Where("username = ?", "consent_banned").
+		Update("is_banned", true).Error)
+	assert.False(t, userConsentRow(t, e, admin, "consent_banned").ConsentRequired, "заблокированный")
 }
 
 type consentRow struct {
@@ -383,7 +393,18 @@ type consentRow struct {
 
 func userConsentRow(t *testing.T, e *echo.Echo, token, username string) consentRow {
 	t.Helper()
-	rec := testutil.GET(t, e, "/users/all", testutil.AuthHeader(token))
+	return findConsentRow(t, e, token, username, "/users/all")
+}
+
+// userConsentRowArchived - тот же запрос, но с архивными: по умолчанию их в списке нет.
+func userConsentRowArchived(t *testing.T, e *echo.Echo, token, username string) consentRow {
+	t.Helper()
+	return findConsentRow(t, e, token, username, "/users/all?include_archived=true")
+}
+
+func findConsentRow(t *testing.T, e *echo.Echo, token, username, path string) consentRow {
+	t.Helper()
+	rec := testutil.GET(t, e, path, testutil.AuthHeader(token))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	for _, r := range testutil.ParseResponse[[]consentRow](t, rec) {
 		if r.Username == username {

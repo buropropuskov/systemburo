@@ -66,8 +66,16 @@ func pdConsentMaskingActive(ctx context.Context, db *gorm.DB) bool {
 // раньше. Считай мы иначе, скрытыми оказались бы имена тех, у кого система согласия
 // и не спрашивает.
 func loadConsentMasks(ctx context.Context, db *gorm.DB) map[int]string {
+	masks, _ := consentMasksWithState(ctx, db)
+	return masks
+}
+
+// consentMasksWithState - то же, что loadConsentMasks, плюс признак «запрос
+// согласия сейчас работает». Пустая карта масок сама по себе не отвечает на этот
+// вопрос: масок нет и когда запрос выключен, и когда все уже согласились.
+func consentMasksWithState(ctx context.Context, db *gorm.DB) (map[int]string, bool) {
 	if !pdConsentMaskingActive(ctx, db) {
-		return nil
+		return nil, false
 	}
 	type row struct {
 		ID       int
@@ -87,7 +95,7 @@ func loadConsentMasks(ctx context.Context, db *gorm.DB) map[int]string {
 		)`, ConsentTypePDProcessing).
 		Scan(&rows).Error
 	if err != nil || len(rows) == 0 {
-		return nil
+		return nil, true
 	}
 	masks := make(map[int]string, len(rows))
 	for _, r := range rows {
@@ -95,7 +103,7 @@ func loadConsentMasks(ctx context.Context, db *gorm.DB) map[int]string {
 		// вместо фамилии логин читается как фамилия.
 		masks[r.ID] = "@" + r.Username
 	}
-	return masks
+	return masks, true
 }
 
 // loadNameMasks собирает обе маски отображаемого имени: заданную администратором

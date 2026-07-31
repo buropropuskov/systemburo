@@ -319,12 +319,20 @@
                       По запросу никого не нашлось.
                     </p>
                     <p
-                      v-else-if="pdcPendingHiddenCount"
-                      class="form-hint"
-                      data-testid="pdc-collection-truncated"
+                      v-if="!pdcPendingComplete"
+                      class="form-hint pdc-pending__warn"
+                      data-testid="pdc-pending-partial"
                     >
-                      Показаны первые {{ pdcPendingRows.length }} из {{ pdcCollection.pending }}.
-                      Остальные - в выгрузке; поиск и фильтр ищут по всему списку.
+                      Список загружен не полностью: показаны {{ pdcPendingSource.length }} из
+                      {{ pdcCollection.pending }}, поиск и фильтр идут только по ним. Обновите
+                      сводку или выгрузите список целиком.
+                    </p>
+                    <p
+                      v-else-if="pdcPendingFiltered"
+                      class="form-hint"
+                      data-testid="pdc-pending-found"
+                    >
+                      Найдено {{ pdcPendingRows.length }} из {{ pdcCollection.pending }}.
                     </p>
                   </div>
                 </template>
@@ -474,10 +482,19 @@ export default {
       });
     },
 
-    /** Сколько человек в списке есть, но на экран не попало. */
-    pdcPendingHiddenCount() {
-      const total = this.pdcCollection?.pending || 0;
-      return Math.max(0, total - this.pdcPendingRows.length);
+    /**
+     * Список на руках целиком. Пока это не так, поиск отвечает только за
+     * показанную часть, и молчать об этом нельзя: «никого не нашлось» тогда
+     * означает «не нашлось среди показанных», а выглядит как факт.
+     */
+    pdcPendingComplete() {
+      if (!this.pdcCollection) return true;
+      return !this.pdcCollection.truncated || Boolean(this.pdcPendingFull);
+    },
+
+    /** Поиск или фильтр сузили список - об этом стоит сказать числом. */
+    pdcPendingFiltered() {
+      return this.pdcPendingRows.length !== this.pdcPendingSource.length;
     },
 
     pdcHasText() {
@@ -492,6 +509,16 @@ export default {
     // тому тексту, который человеку показывают.
     pdcTextChanged() {
       return (this.pdcText || '') !== (this.pdcSavedText || '');
+    },
+  },
+  watch: {
+    // Догрузка полного списка могла не удаться. Следующая же попытка поиска -
+    // самый естественный момент попробовать снова: именно она от полноты зависит.
+    pdcPendingQuery() {
+      if (!this.pdcPendingComplete) this.loadPdcPendingFull();
+    },
+    pdcPendingOrg() {
+      if (!this.pdcPendingComplete) this.loadPdcPendingFull();
     },
   },
   mounted() {
@@ -663,7 +690,8 @@ export default {
         const full = await getPDConsentCollection({ full: true });
         this.pdcPendingFull = full?.pending_users || null;
       } catch (error) {
-        // Поиск останется по показанной части - об этом сказано подписью под таблицей.
+        // Молчать нельзя: подпись под таблицей скажет, что список неполный, а
+        // следующая попытка поиска попробует догрузить его снова.
         console.error('Не удалось загрузить полный список не подтвердивших:', error);
       } finally {
         this.pdcPendingFullLoading = false;
@@ -680,10 +708,13 @@ export default {
       this.pdcExporting = true;
       try {
         // В файл идут ВСЕ, а не показанная часть: урезанная выгрузка тихо теряет людей.
-        const full = this.pdcCollection.truncated
-          ? await getPDConsentCollection({ full: true })
-          : this.pdcCollection;
-        const rows = full.pending_users || [];
+        // Полный список обычно уже на руках - его тянет таблица ради поиска.
+        // Идём на сервер только если догрузка не удалась.
+        let rows = this.pdcPendingFull || this.pdcCollection.pending_users || [];
+        if (this.pdcCollection.truncated && !this.pdcPendingFull) {
+          const full = await getPDConsentCollection({ full: true });
+          rows = full.pending_users || [];
+        }
         const ExcelJS = (await import('exceljs')).default;
         const workbook = new ExcelJS.Workbook();
         const sheet = workbook.addWorksheet('Не подтвердили');
@@ -1283,6 +1314,10 @@ export default {
 
 .pdc-pending__filter {
   min-width: 200px;
+}
+
+.pdc-pending__warn {
+  color: var(--warning-text);
 }
 
 .pdc-pending__table {

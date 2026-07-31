@@ -145,3 +145,59 @@ describe('Сбор согласий - таблица не подтвердивш
     expect(getPDConsentCollection).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('Сбор согласий - когда полный список не загрузился', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    getPDConsentCollection.mockReset();
+    getPDConsentCollection.mockImplementation((opts) => (opts?.full
+      ? Promise.reject(new Error('сеть'))
+      : Promise.resolve(collection())));
+  });
+
+  it('честно говорит, что поиск идёт по показанной части', async () => {
+    const wrapper = await mountSection();
+
+    expect(wrapper.vm.pdcPendingComplete).toBe(false);
+    expect(wrapper.find('[data-testid="pdc-pending-partial"]').text())
+      .toContain('Список загружен не полностью');
+  });
+
+  it('предупреждение видно и когда поиск ничего не нашёл', async () => {
+    const wrapper = await mountSection();
+
+    wrapper.vm.pdcPendingQuery = 'сидор';
+    await flushPromises();
+
+    // «Никого не нашлось» без оговорки означало бы, что человека в списке нет.
+    expect(wrapper.find('[data-testid="pdc-pending-empty"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="pdc-pending-partial"]').exists()).toBe(true);
+  });
+
+  it('следующий поиск пробует догрузить список снова', async () => {
+    const wrapper = await mountSection();
+    expect(getPDConsentCollection).toHaveBeenCalledTimes(2);
+
+    getPDConsentCollection.mockImplementation((opts) => Promise.resolve(
+      opts?.full ? collection({ pending_users: [...shown, ...rest], truncated: false }) : collection(),
+    ));
+    wrapper.vm.pdcPendingQuery = 'сидор';
+    await flushPromises();
+
+    expect(wrapper.vm.pdcPendingComplete).toBe(true);
+    expect(wrapper.vm.pdcPendingRows.map((p) => p.username)).toEqual(['sidorov']);
+  });
+
+  it('когда список полный, вместо предупреждения показывает число найденных', async () => {
+    getPDConsentCollection.mockImplementation((opts) => Promise.resolve(
+      opts?.full ? collection({ pending_users: [...shown, ...rest], truncated: false }) : collection(),
+    ));
+    const wrapper = await mountSection();
+
+    wrapper.vm.pdcPendingQuery = 'ivanov';
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="pdc-pending-partial"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="pdc-pending-found"]').text()).toContain('Найдено 1 из 3');
+  });
+})

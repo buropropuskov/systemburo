@@ -161,10 +161,10 @@ type UserInfoResponse struct {
 	// ConsentRequired -- согласие сейчас спрашивают, и этого работника это касается.
 	// Без признака «согласия нет» неотличимо от «его и не спрашивают»: пока запрос
 	// выключен, согласия нет вообще ни у кого.
-	ConsentRequired bool `json:"consent_required"`
-	Position   *string `json:"position"`
-	Email      *string `json:"email"`
-	Phone      *string `json:"phone"`
+	ConsentRequired bool    `json:"consent_required"`
+	Position        *string `json:"position"`
+	Email           *string `json:"email"`
+	Phone           *string `json:"phone"`
 	// LastSeen - последняя активность (см. User.LastSeen). Без omitempty: «никогда
 	// не заходил» должно доезжать до клиента явным null, а не отсутствием ключа -
 	// таблица пользователей рисует по нему прочерк, а не «только что».

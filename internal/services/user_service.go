@@ -303,9 +303,8 @@ func (s *userService) GetAll(ctx context.Context, includeArchived bool) ([]model
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Error fetching users")
 	}
 
-	masks := loadConsentMasks(ctx, s.db)
+	masks, consentActive := consentMasksWithState(ctx, s.db)
 	grants := loadConsentGrants(ctx, s.db)
-	consentActive := pdConsentMaskingActive(ctx, s.db)
 	for i := range result {
 		if at, ok := grants[result[i].ID]; ok {
 			result[i].ConsentGranted = true
