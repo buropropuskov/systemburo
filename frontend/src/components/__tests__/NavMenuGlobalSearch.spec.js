@@ -26,7 +26,7 @@ function mountNav() {
     global: {
       mocks: {
         $bus: bus,
-        $router: { push: vi.fn() },
+        $router: { push: vi.fn(), replace: vi.fn().mockResolvedValue(undefined) },
         $route: { path: '/news', params: {} },
       },
     },

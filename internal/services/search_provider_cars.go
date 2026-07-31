@@ -24,7 +24,7 @@ func (uniqueCarSearchProvider) PermissionKey() string  { return KeyEntityCarsRea
 
 func (uniqueCarSearchProvider) Search(ctx context.Context, db *gorm.DB, req searchRequest) ([]SearchItem, error) {
 	cols := []string{"uc.number", "uc.mark", "lpf.name", "o.name", "c.name"}
-	cond, args := ilikePatternsArgs(cols, req.Variants)
+	cond, args := multiWordCondition(cols, req.Raw)
 	// Номер с пробелами и без: "А 777 АА" находится по "А777АА" и наоборот. Условие
 	// повторяет buildCarsQuery -- расходиться этим двум местам нельзя, иначе поиск и
 	// реестр начнут отвечать по-разному на один и тот же номер.
@@ -40,7 +40,8 @@ func (uniqueCarSearchProvider) Search(ctx context.Context, db *gorm.DB, req sear
 		Joins("LEFT JOIN license_plate_formats lpf ON uc.format_id = lpf.id").
 		Select(`uc.id AS id,
 			COALESCE(uc.number, '') AS title,
-			CONCAT_WS(' · ', NULLIF(uc.mark, ''), COALESCE(o.name, c.name)) AS subtitle`).
+			CONCAT_WS(' · ', NULLIF(uc.mark, ''), COALESCE(o.name, c.name)) AS subtitle,
+			`+matchRankExpr("uc.number"), req.Raw, req.Raw).
 		Where(cond, args...)
 
 	q = applyRegistryScope(q, "uc", req)
@@ -49,10 +50,7 @@ func (uniqueCarSearchProvider) Search(ctx context.Context, db *gorm.DB, req sear
 	// Ступенчатый CASE вместо similarity(): выражение дешёвое и не требует своего
 	// индекса, а строк после отбора по GIN немного. Тонкая ранжировка -- в Go.
 	if err := q.
-		Order(gorm.Expr(`CASE
-			WHEN LOWER(TRIM(COALESCE(uc.number, ''))) = LOWER(TRIM(?)) THEN 0
-			WHEN LOWER(COALESCE(uc.number, '')) LIKE LOWER(?) || '%' THEN 1
-			ELSE 2 END, uc.id DESC`, req.Raw, req.Raw)).
+		Order("match_rank, uc.id DESC").
 		Limit(req.Limit + 1).
 		Scan(&rows).Error; err != nil {
 		return nil, fmt.Errorf("поиск по реестру машин: %w", err)

@@ -28,7 +28,7 @@ func (userSearchProvider) Search(ctx context.Context, db *gorm.DB, req searchReq
 		"u.last_name", "u.first_name", "u.middle_name",
 		"u.username", `u."position"`, "u.email", "u.phone",
 	}
-	cond, args := ilikePatternsArgs(cols, req.Variants)
+	cond, args := multiWordCondition(cols, req.Raw)
 
 	q := db.WithContext(ctx).
 		Table("users u").
@@ -36,16 +36,13 @@ func (userSearchProvider) Search(ctx context.Context, db *gorm.DB, req searchReq
 		Joins("LEFT JOIN companies c ON u.company_id = c.id").
 		Select(`u.id AS id,
 			NULLIF(TRIM(CONCAT_WS(' ', u.last_name, u.first_name, u.middle_name)), '') AS title,
-			CONCAT_WS(' · ', u.username, NULLIF(u."position", ''), COALESCE(o.name, c.name)) AS subtitle`).
+			CONCAT_WS(' · ', u.username, NULLIF(u."position", ''), COALESCE(o.name, c.name)) AS subtitle,
+			`+matchRankExpr("u.last_name"), req.Raw, req.Raw).
 		Where(cond, args...)
 
 	rows := make([]searchRow, 0, req.Limit+1)
 	if err := q.
-		Order(gorm.Expr(`CASE
-			WHEN LOWER(TRIM(COALESCE(u.last_name, ''))) = LOWER(TRIM(?)) THEN 0
-			WHEN LOWER(COALESCE(u.username, '')) = LOWER(TRIM(?)) THEN 0
-			WHEN LOWER(COALESCE(u.last_name, '')) LIKE LOWER(?) || '%' THEN 1
-			ELSE 2 END, u.id DESC`, req.Raw, req.Raw, req.Raw)).
+		Order("match_rank, u.id DESC").
 		Limit(req.Limit + 1).
 		Scan(&rows).Error; err != nil {
 		return nil, fmt.Errorf("поиск по пользователям: %w", err)

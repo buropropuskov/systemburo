@@ -74,6 +74,61 @@ func searchCanSeeAllSystem(ctx context.Context, db *gorm.DB, userID int) bool {
 //
 // buildSearchVariants не трогаем: у него другие потребители (Центр заявок, реестры,
 // доступные вложения), и смена их семантики в объём сквозного поиска не входит.
+// matchRankExpr возвращает выражение ступени совпадения для сортировки: точное
+// совпадение колонки с запросом, затем совпадение с начала, затем всё остальное.
+// Ожидает два аргумента-плейсхолдера с сырым запросом.
+//
+// Выражение идёт в SELECT под именем match_rank, а не прямо в ORDER BY, и это
+// существенно: gorm не подставляет аргументы в Order, из-за чего условие тихо теряется
+// вместе со всей сортировкой -- выдача приезжала в порядке физического чтения таблицы,
+// то есть от самых старых записей, и обрезка по лимиту выбрасывала как раз свежие.
+func matchRankExpr(col string) string {
+	return `CASE
+		WHEN LOWER(TRIM(COALESCE(` + col + `, ''))) = LOWER(TRIM(?)) THEN 0
+		WHEN LOWER(COALESCE(` + col + `, '')) LIKE LOWER(?) || '%' THEN 1
+		ELSE 2 END AS match_rank`
+}
+
+// searchMaxWords -- сколько слов запроса учитывать. Каждое слово добавляет свой блок
+// условий, а осмысленный запрос длиннее шести слов в этой системе не встречается.
+const searchMaxWords = 6
+
+// multiWordCondition строит условие поиска по набору колонок с разбором запроса на слова.
+//
+// Человек вводит «В 543 НЕ 654 Мерседес» или «Иванов Иван», а номер с маркой и фамилия с
+// именем лежат в разных колонках. Поиск строки целиком не находит ничего: такой
+// последовательности символов нет ни в одном поле. Поэтому каждое слово ищется отдельно
+// по всем колонкам, а между словами стоит И: запись подходит, если каждое слово нашлось
+// хоть где-то.
+//
+// Требование «все слова» существенно. С ИЛИ запрос из двух слов возвращал бы объединение
+// двух поисков -- по «Мерседес Запорожец» приехал бы весь Мерседес, хотя такой записи нет.
+func multiWordCondition(cols []string, raw string) (string, []interface{}) {
+	words := strings.Fields(raw)
+	if len(words) > searchMaxWords {
+		words = words[:searchMaxWords]
+	}
+	// Одно слово -- обычное условие, без лишней вложенности скобок.
+	if len(words) <= 1 {
+		return ilikePatternsArgs(cols, buildSearchVariantsFor(raw))
+	}
+
+	parts := make([]string, 0, len(words))
+	args := make([]interface{}, 0, len(words)*len(cols)*2)
+	for _, w := range words {
+		cond, wordArgs := ilikePatternsArgs(cols, buildSearchVariantsFor(w))
+		if cond == "" {
+			continue
+		}
+		parts = append(parts, "("+cond+")")
+		args = append(args, wordArgs...)
+	}
+	if len(parts) == 0 {
+		return ilikePatternsArgs(cols, buildSearchVariantsFor(raw))
+	}
+	return strings.Join(parts, " AND "), args
+}
+
 func buildSearchVariantsFor(raw string) []string {
 	variants := make([]string, 0, 3)
 	seen := make(map[string]struct{}, 3)

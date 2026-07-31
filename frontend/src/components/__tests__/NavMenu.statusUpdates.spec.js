@@ -46,7 +46,7 @@ async function mountNav() {
       mocks: {
         $bus: { on: vi.fn(), off: vi.fn(), emit: vi.fn() },
         $route: { path: '/personal-cabinet', params: {} },
-        $router: { push: vi.fn() },
+        $router: { push: vi.fn(), replace: vi.fn().mockResolvedValue(undefined) },
       },
     },
   });

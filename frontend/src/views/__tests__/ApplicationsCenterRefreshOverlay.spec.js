@@ -39,7 +39,7 @@ const stubs = {
 
 function mountCenter() {
   return mount(ApplicationsCenter, {
-    global: { stubs, mocks: { $route: { query: {} }, $router: { push: vi.fn() } } },
+    global: { stubs, mocks: { $route: { query: {} }, $router: { push: vi.fn(), replace: vi.fn().mockResolvedValue(undefined) } } },
   });
 }
 
