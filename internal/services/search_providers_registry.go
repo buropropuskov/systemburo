@@ -42,6 +42,7 @@ func searchProviderOrder() []searchProvider {
 		uniqueEmployeeSearchProvider{},
 		uniqueCarSearchProvider{},
 		applicationSearchProvider{},
+		directorySearchProvider{},
 	}
 }
 
