@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import UserControl from '@/components/UserControl.vue'
 import { apiRequest } from '@/api/client'
+import { useUiStore } from '@/stores/ui'
 
 // ФИО работника, не давшего согласия на обработку персональных данных, сервер не
 // присылает и помечает признаком name_hidden (#1567 S10). Карточка редактирования
@@ -16,6 +17,8 @@ vi.mock('@/api/client', () => ({
   apiRequest: vi.fn().mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue([]) }),
 }))
 vi.mock('@/api/onboarding', () => ({ resetOnboardingForUser: vi.fn().mockResolvedValue({}) }))
+const revokeUserConsent = vi.fn()
+vi.mock('@/api/pdConsent', () => ({ revokeUserConsent: (...a) => revokeUserConsent(...a) }))
 vi.mock('@/utils/notificationSound', () => ({ playPreset: vi.fn() }))
 vi.mock('@/api/users', () => ({
   bulkArchiveUsers: vi.fn(),
@@ -123,18 +126,23 @@ describe('UserControl — согласие на обработку данных 
   })
   afterEach(() => wrapper?.unmount())
 
-  it('строка списка помечает того, кто согласие не подтвердил', async () => {
+  it('в колонке ФИО у скрытого пишет «без согласия», а не повторяет логин', async () => {
     wrapper = mountUserControl([{ ...hiddenUser, consent_required: true, consent_granted: false }])
     await flushPromises()
 
-    expect(wrapper.find('[data-testid="users-row-no-consent"]').exists()).toBe(true)
+    const marker = wrapper.find('[data-testid="users-row-no-consent"]')
+    expect(marker.exists()).toBe(true)
+    expect(marker.text()).toBe('без согласия')
+    // Логин уже стоит в соседней колонке - дублировать его незачем.
+    expect(wrapper.find('.user-row .name-col').text()).not.toContain('silent_user')
   })
 
   it('пока согласие не запрашивают, метки нет: его нет вообще ни у кого', async () => {
-    wrapper = mountUserControl([{ ...openUser, consent_required: false, consent_granted: false }])
+    wrapper = mountUserControl([{ ...openUser, name_hidden: false }])
     await flushPromises()
 
     expect(wrapper.find('[data-testid="users-row-no-consent"]').exists()).toBe(false)
+    expect(wrapper.find('.user-row .name-col').text()).toContain('Иванов')
   })
 
   it('подтвердившего меткой не помечает', async () => {
@@ -175,5 +183,58 @@ describe('UserControl — поиск по логину с собачкой', () 
     await flushPromises()
 
     expect(wrapper.vm.filteredUsers.map(u => u.username)).toEqual(['open_user'])
+  })
+})
+
+describe('UserControl — отзыв согласия администратором', () => {
+  let wrapper
+  const granted = { ...openUser, consent_granted: true, consent_at: '2026-07-12T08:30:00Z', consent_required: true }
+
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    apiRequest.mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue([]) })
+    revokeUserConsent.mockResolvedValue({})
+  })
+  afterEach(() => wrapper?.unmount())
+
+  it('спрашивает подтверждение и отзывает', async () => {
+    wrapper = mountUserControl([granted])
+    await flushPromises()
+    const confirmSpy = vi.spyOn(useUiStore(), 'confirm').mockResolvedValue(true)
+    wrapper.vm.selectedUser = { ...granted }
+
+    await wrapper.vm.revokeConsent(granted)
+    await flushPromises()
+
+    expect(confirmSpy).toHaveBeenCalledWith(expect.objectContaining({ confirmText: 'Отозвать' }))
+    expect(revokeUserConsent).toHaveBeenCalledWith('open_user')
+    // Карточка обязана сразу показать новое состояние, не дожидаясь перезагрузки списка.
+    expect(wrapper.vm.selectedUser.consent_granted).toBe(false)
+    expect(wrapper.emitted('fetch-users')).toBeTruthy()
+  })
+
+  it('отказ в подтверждении ничего не отзывает', async () => {
+    wrapper = mountUserControl([granted])
+    await flushPromises()
+    vi.spyOn(useUiStore(), 'confirm').mockResolvedValue(false)
+
+    await wrapper.vm.revokeConsent(granted)
+
+    expect(revokeUserConsent).not.toHaveBeenCalled()
+  })
+
+  it('кнопка отзыва есть только у того, кто согласие давал', async () => {
+    wrapper = mountUserControl([granted])
+    await flushPromises()
+
+    // Карточку открывает selectUser, а сама она уезжает в body через Teleport.
+    wrapper.vm.selectUser({ ...granted })
+    await flushPromises()
+    expect(document.body.querySelector('[data-testid="user-consent-revoke"]')).not.toBeNull()
+
+    wrapper.vm.selectUser({ ...granted, consent_granted: false })
+    await flushPromises()
+    expect(document.body.querySelector('[data-testid="user-consent-revoke"]')).toBeNull()
   })
 })

@@ -17,7 +17,7 @@ const ConsentTypePDProcessing = "pd_processing"
 
 type ConsentService interface {
 	Grant(ctx context.Context, userID int, req models.GrantConsentRequest, ip, ua string, version int, hash string) (*models.PDConsent, error)
-	Revoke(ctx context.Context, userID int, consentType string) error
+	Revoke(ctx context.Context, userID int, consentType string, actorID int) error
 	List(ctx context.Context, userID int) ([]models.PDConsent, error)
 	HasActive(ctx context.Context, userID int, consentType string) (bool, error)
 	ActiveVersion(ctx context.Context, userID int, consentType string) (int, error)
@@ -63,8 +63,10 @@ func (s *consentService) Grant(ctx context.Context, userID int, req models.Grant
 	return &consent, nil
 }
 
-// Revoke отзывает активное согласие на обработку персональных данных.
-func (s *consentService) Revoke(ctx context.Context, userID int, consentType string) error {
+// Revoke отзывает активное согласие на обработку персональных данных. actorID -
+// кто отзывает: сам работник или администратор по его обращению; в историю
+// учётной записи попадает именно он.
+func (s *consentService) Revoke(ctx context.Context, userID int, consentType string, actorID int) error {
 	now := time.Now().UTC()
 	result := s.db.WithContext(ctx).
 		Model(&models.PDConsent{}).
@@ -76,9 +78,13 @@ func (s *consentService) Revoke(ctx context.Context, userID int, consentType str
 	if result.RowsAffected == 0 {
 		return echo.NewHTTPError(http.StatusNotFound, "Active consent not found")
 	}
-	s.recorder.Log(ctx, nil, models.AuditEntityUser, &userID, models.UserActionConsentRevoked, &userID, map[string]any{
-		"consent_type": consentType,
-	})
+	details := map[string]any{"consent_type": consentType}
+	if actorID != userID {
+		// Отзыв «за работника» - отдельный случай: в истории должно быть видно, что
+		// это сделал администратор, а не сам человек передумал.
+		details["by_admin"] = true
+	}
+	s.recorder.Log(ctx, nil, models.AuditEntityUser, &userID, models.UserActionConsentRevoked, &actorID, details)
 	return nil
 }
 

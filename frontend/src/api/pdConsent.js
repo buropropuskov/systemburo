@@ -80,6 +80,18 @@ export async function requirePDConsentAgain() {
 }
 
 /**
+ * Отзывает согласие работника по его обращению к администратору. Своей кнопки
+ * отзыва у работника нет, поэтому исполнить просьбу может только администратор.
+ * После отзыва система снова закрывает человеку доступ до нового подтверждения.
+ * @param {string} username логин работника
+ * @returns {Promise<{message?: string}>}
+ */
+export async function revokeUserConsent(username) {
+  const res = await apiRequest(`/users/${encodeURIComponent(username)}/consent`, { method: 'DELETE' });
+  return unwrap(res, 'Не удалось отозвать согласие');
+}
+
+/**
  * Состояние согласия для текущего пользователя: спрашивать ли его, какой
  * редакции и какой текст показать. Исключения (супер-администратор, пустой
  * текст, выключенный запрос) сервер учитывает сам в поле `required` - фронт эти

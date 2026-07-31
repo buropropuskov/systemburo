@@ -441,3 +441,60 @@ func TestPDConsent_Accept_WritesUserHistory(t *testing.T) {
 	require.Equal(t, http.StatusOK, after.Code)
 	assert.Contains(t, after.Body.String(), "consent_revoked")
 }
+
+// Отзыв согласия за работника: своей кнопки отзыва у него нет, и без этой ручки
+// его письменную просьбу администратору нечем исполнить.
+func TestPDConsent_AdminRevokesForUser(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	enableConsent(t, e, admin, "<p>Согласие</p>")
+
+	user := testutil.RegisterAndLogin(t, e, "revoke_target", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
+	require.Equal(t, http.StatusOK, testutil.POST(t, e, acceptPath, "{}", testutil.AuthHeader(user)).Code)
+	require.False(t, gateState(t, e, user).Required, "после подтверждения окно снято")
+
+	rec := testutil.DELETE(t, e, "/users/revoke_target/consent", testutil.AuthHeader(admin))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	assert.True(t, gateState(t, e, user).Required, "после отзыва система снова спрашивает согласие")
+	assert.False(t, userConsentRow(t, e, admin, "revoke_target").ConsentGranted,
+		"в разделе работников согласие больше не числится")
+
+	// В истории учётной записи отзыв записан на администратора, а не на работника:
+	// человек не передумал, отозвали за него.
+	hist := testutil.GET(t, e, "/users/revoke_target/history", testutil.AuthHeader(admin))
+	require.Equal(t, http.StatusOK, hist.Code)
+	body := hist.Body.String()
+	assert.Contains(t, body, "consent_revoked")
+	assert.Contains(t, body, "by_admin")
+}
+
+// Отзывать чужое согласие может только тот, кому доступен раздел работников.
+func TestPDConsent_RevokeForUser_RequiresPermission(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+	enableConsent(t, e, admin, "<p>Согласие</p>")
+	testutil.RegisterAndLogin(t, e, "revoke_victim", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
+
+	outsider := testutil.RegisterAndLogin(t, e, "revoke_outsider", "password123456789012345678901234", 1, td.OrgID, td.CompanyID)
+	assert.Equal(t, http.StatusForbidden,
+		testutil.DELETE(t, e, "/users/revoke_victim/consent", testutil.AuthHeader(outsider)).Code)
+}
+
+// Несуществующий работник - 404, а не молчаливый успех.
+func TestPDConsent_RevokeForUser_UnknownUser(t *testing.T) {
+	e, db, cleanup := testutil.SetupTestApp(t)
+	defer cleanup()
+	testutil.CleanDB(t, db)
+	td := testutil.SeedTestData(t, db)
+	admin := testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID)
+
+	assert.Equal(t, http.StatusNotFound,
+		testutil.DELETE(t, e, "/users/no_such_person/consent", testutil.AuthHeader(admin)).Code)
+}
