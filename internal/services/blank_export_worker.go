@@ -17,10 +17,56 @@ const (
 	archiveRecheckBatchLimit = 2000
 )
 
+// ArchiveQuotaGuard - проверка порогов места перед записью в архив (#1615, B2).
+// Интерфейс, а не *BlankExportQuotaService: фоновому прогону нужен ровно один метод,
+// а сводка диска и рассылка предупреждений администраторам ему не нужны вовсе.
+type ArchiveQuotaGuard interface {
+	EnforceThresholds(ctx context.Context) (*QuotaEnforcementResult, error)
+}
+
+// spaceAvailable прогоняет пороги места и отвечает, можно ли писать в архив прямо
+// сейчас. Зовётся ПЕРЕД каждым фоновым прогоном записи: смысл жёсткого порога в том,
+// чтобы узнать про нехватку места до записи, а не по факту сбоя записи. Он же
+// уводит очередь в blocked и предупреждает администраторов - без этого вызова вся
+// защита B2 остаётся мёртвым кодом.
+//
+// Сбой самой проверки прогон не отменяет: сломанный statfs или недоступная таблица
+// настроек иначе тихо остановили бы выгрузку целиком. Ошибка уходит в лог громко, а
+// решение принимается в пользу записи - реальная нехватка места всё равно вернётся
+// ошибкой записи и уведёт строку в повтор по backoff.
+func (s *BlankExportService) spaceAvailable(ctx context.Context, stage string) bool {
+	if s.quota == nil {
+		return true
+	}
+	res, err := s.quota.EnforceThresholds(ctx)
+	if err != nil {
+		slog.Error("файловый архив: проверка порогов места не удалась, продолжаем запись",
+			"stage", stage, "error", err)
+		return true
+	}
+	if res.HardTripped {
+		slog.Warn("файловый архив: места недостаточно, запись пропущена",
+			"stage", stage, "blocked_rows", res.BlockedRows)
+		return false
+	}
+	return true
+}
+
 // ProcessQueue разбирает очередь enqueue: вызывается воркером на каждом тике
 // ArchiveWorkerTick и по Nudge. Ошибка одной заявки не останавливает разбор
 // остальных - иначе проблемная заявка держала бы очередь от всех, кто встал за ней.
 func (s *BlankExportService) ProcessQueue(ctx context.Context) (processed, failed int) {
+	// Пустую очередь не сторожим: проверка порогов ходит в statfs и агрегирует
+	// реестр, а тик идёт каждые 15 секунд и разбирать чаще всего нечего.
+	if s.queue.empty() {
+		return 0, 0
+	}
+	// Сначала узнаём, есть ли место, потом пишем. Очередь при нехватке места НЕ
+	// вычерпывается: заявки дождутся тика, на котором писать будет куда.
+	if !s.spaceAvailable(ctx, "очередь") {
+		return 0, 0
+	}
+
 	pending := s.queue.drain()
 	if len(pending) == 0 {
 		return 0, 0
@@ -50,10 +96,15 @@ func (s *BlankExportService) ProcessQueue(ctx context.Context) (processed, faile
 	return processed, failed
 }
 
-// Sweep подбирает заявки, чья прошлая попытка выгрузки провалилась транзиентно и
-// подошёл срок повтора (next_attempt_at по backoff из ExportApplication). Дополняет
-// очередь на короткой дистанции: очередь ловит новые заявки сразу после commit,
-// подметатель - те, что уже пробовались и не удались (интервал ArchiveSweepInterval).
+// Sweep подбирает заявки, чья прошлая попытка выгрузки не состоялась и подошёл срок
+// повтора (next_attempt_at по backoff из ExportApplication либо пятнадцатиминутная
+// пауза остановки по месту). Дополняет очередь на короткой дистанции: очередь ловит
+// новые заявки сразу после commit, подметатель - те, что уже пробовались и не удались
+// (интервал ArchiveSweepInterval).
+//
+// Строки, остановленные нехваткой места (blocked), подбираются наравне с failed:
+// им обещан повтор через archiveBlockRetry, а других претендентов на этот повтор в
+// системе нет - без них blocked оказался бы состоянием в один конец.
 //
 // Известное ограничение: заявка, чья САМАЯ ПЕРВАЯ попытка выгрузки потерялась вместе
 // с очередью (процесс перезапущен между commit и разбором), строки в blank_exports
@@ -70,10 +121,14 @@ func (s *BlankExportService) Sweep(ctx context.Context) (processed, failed int) 
 	if !settings.Enabled {
 		return 0, 0
 	}
+	if !s.spaceAvailable(ctx, "подметатель") {
+		return 0, 0
+	}
 
 	var ids []int
 	err = s.db.WithContext(ctx).Model(&models.BlankExport{}).
-		Where("status = ? AND next_attempt_at IS NOT NULL AND next_attempt_at <= ?", models.BlankExportFailed, time.Now()).
+		Where("status IN ? AND next_attempt_at IS NOT NULL AND next_attempt_at <= ?",
+			[]string{models.BlankExportFailed, models.BlankExportBlocked}, time.Now()).
 		Distinct("application_id").
 		Limit(archiveSweepBatchLimit).
 		Pluck("application_id", &ids).Error
@@ -103,6 +158,9 @@ func (s *BlankExportService) Recheck(ctx context.Context) (processed, failed int
 		return 0, 0
 	}
 	if !settings.Enabled {
+		return 0, 0
+	}
+	if !s.spaceAvailable(ctx, "сверка") {
 		return 0, 0
 	}
 	days := settings.RecheckDays

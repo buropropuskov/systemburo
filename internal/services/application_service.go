@@ -2240,7 +2240,7 @@ func (s *applicationService) UpdateApplication(ctx context.Context, username str
 
 	// Любое изменение заявки этим путём (статус/подтверждение/коммент) участники
 	// видят в детали live (#840 V4).
-	s.notifyApplicationUpdated(ctx, applicationID)
+	s.notifyApplicationUpdated(ctx, applicationID, archiveDataChanged)
 	// Инициатору - уведомление об исходе согласования, если admin выставил confirmation
 	// в финальное значение (Согласовано/Не согласовано) и оно реально сменилось (#1349).
 	if confirmationChanged {

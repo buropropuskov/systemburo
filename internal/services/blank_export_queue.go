@@ -53,6 +53,14 @@ func (q *blankExportQueue) nudge() {
 	}
 }
 
+// empty сообщает, пуста ли очередь, ничего из неё не забирая. Нужен воркеру, чтобы
+// не платить за проверку порогов места на каждом тике, когда разбирать нечего.
+func (q *blankExportQueue) empty() bool {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return len(q.pending) == 0
+}
+
 // drain забирает всё накопленное и опустошает очередь. Возвращает nil, если
 // пусто, - вызывающему не нужно отличать nil от пустой карты.
 func (q *blankExportQueue) drain() map[int]string {

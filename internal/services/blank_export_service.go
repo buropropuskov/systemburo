@@ -62,20 +62,28 @@ type BlankExportService struct {
 	// маленькая структура, а не поле-канал прямо здесь: push/drain/nudge должны
 	// быть безопасны без блокировки остального сервиса.
 	queue *blankExportQueue
+	// quota - пороги места (B2). Спрашивается перед каждой фоновой записью: узнать
+	// про нехватку места надо ДО записи, а не по факту сбоя.
+	quota ArchiveQuotaGuard
 }
 
 // NewBlankExportService собирает сервис выгрузки поверх готовых частей: генератор
-// бланков, расчёт путей и писатель на диск.
+// бланков, расчёт путей, писатель на диск и сторож места на разделе.
+//
+// quota может быть nil - тогда фоновые прогоны идут без проверки порогов (полезно
+// в тестах ядра выгрузки). В рабочем процессе сторож подключён всегда: без него
+// жёсткий порог места остаётся мёртвым кодом.
 func NewBlankExportService(
 	db *gorm.DB,
 	blanks AttachmentBlankService,
 	paths *ArchivePathService,
 	writer *ArchiveWriter,
 	settings SettingsService,
+	quota ArchiveQuotaGuard,
 ) *BlankExportService {
 	return &BlankExportService{
 		db: db, blanks: blanks, paths: paths, writer: writer, settings: settings,
-		queue: newBlankExportQueue(),
+		queue: newBlankExportQueue(), quota: quota,
 	}
 }
 

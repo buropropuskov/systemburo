@@ -94,7 +94,7 @@ func (s *applicationService) OverrideBlacklistFlag(ctx context.Context, username
 	}
 	// Подтверждение пропуска меняет доступность согласования - участники детали
 	// увидят это live (#840 V4).
-	s.notifyApplicationUpdated(ctx, applicationID)
+	s.notifyApplicationUpdated(ctx, applicationID, archiveDataUnchanged)
 	return nil
 }
 
@@ -228,7 +228,7 @@ func (s *applicationService) DeleteBlacklistOverride(ctx context.Context, userna
 		return err
 	}
 	// Снятие подтверждения снова блокирует согласование - участники увидят live (#840 V4).
-	s.notifyApplicationUpdated(ctx, applicationID)
+	s.notifyApplicationUpdated(ctx, applicationID, archiveDataUnchanged)
 	return nil
 }
 

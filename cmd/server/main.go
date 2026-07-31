@@ -302,6 +302,15 @@ func main() {
 		resetLoc = time.UTC
 	}
 	archivePathService := services.NewArchivePathService(db, resetLoc)
+	// Место и квота файлового архива (#1615, срез B2): сводка занятого места и
+	// порог, останавливающий очередь выгрузки при нехватке места. Поднимается
+	// независимо от blankExportService - сводку и статус диска нужно показывать
+	// и когда каталог архива ещё не настроен (тот же принцип, что у настроек), -
+	// но раньше него: фоновый прогон выгрузки спрашивает пороги перед каждой
+	// записью и получает сторожа конструктором.
+	blankExportQuotaService := services.NewBlankExportQuotaService(
+		db, settingsService, notificationService, permissionResolver, auditRecorder,
+		cfg.ArchivePath, cfg.UploadPath, cfg.LogFilePath)
 	// Писатель архива поднимается один на процесс. Не сложился корень - раздел
 	// настроек всё равно должен открываться, поэтому сервис выгрузки остаётся nil,
 	// а ручка пересоздания честно отвечает «архив недоступен».
@@ -310,7 +319,8 @@ func main() {
 		slog.Error("файловый архив не поднят", "path", cfg.ArchivePath, "error", err)
 	} else {
 		blankExportService = services.NewBlankExportService(
-			db, attachmentBlankService, archivePathService, archiveWriter, settingsService)
+			db, attachmentBlankService, archivePathService, archiveWriter, settingsService,
+			blankExportQuotaService)
 	}
 	// Точки изменения заявки ставят её в очередь на выгрузку (#1615, B1). Сеттеры,
 	// а не конструкторские опции: сервисы выше уже собраны, а blankExportService
@@ -323,13 +333,6 @@ func main() {
 	employeeService.SetBlankExportEnqueuer(blankExportService)
 	blankArchiveHandler := handlers.NewBlankArchiveHandler(
 		settingsService, archivePathService, blankExportService, auditRecorder)
-	// Место и квота файлового архива (#1615, срез B2): сводка занятого места и
-	// порог, останавливающий очередь выгрузки при нехватке места. Поднимается
-	// независимо от blankExportService - сводку и статус диска нужно показывать
-	// и когда каталог архива ещё не настроен (тот же принцип, что у настроек).
-	blankExportQuotaService := services.NewBlankExportQuotaService(
-		db, settingsService, notificationService, permissionResolver, auditRecorder,
-		cfg.ArchivePath, cfg.UploadPath, cfg.LogFilePath)
 	blankArchiveStatsHandler := handlers.NewBlankArchiveStatsHandler(blankExportQuotaService)
 	bugReportHandler := handlers.NewBugReportHandler(bugReportService)
 	maintenanceHandler := handlers.NewMaintenanceHandler(maintenanceService)
@@ -764,7 +767,9 @@ func startReminderScheduler(ctx context.Context, svc services.ReminderService, i
 
 // startFileArchiveWorker обслуживает файловый архив бланков (#1615, B1):
 //   - разбирает очередь enqueue по каждому тику ArchiveWorkerTick И по Wake() -
-//     точки изменения заявки будят воркер сразу, тик подстраховывает;
+//     точки изменения заявки будят воркер сразу, тик подстраховывает; перед
+//     разбором спрашиваются пороги места (B2): узнать про нехватку надо ДО записи,
+//     а сработавший жёсткий порог пропускает разбор целиком;
 //   - раз в ArchiveSweepInterval подметает заявки, чья прошлая попытка выгрузки
 //     провалилась транзиентно и подошёл срок повтора;
 //   - раз в сутки в 03:00 по location сверяет реестр с диском в окне recheck_days
