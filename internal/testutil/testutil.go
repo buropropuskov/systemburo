@@ -248,6 +248,14 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, fun
 	// роутером, где нужного роута нет вовсе.
 	eventsHandler := handlers.NewEventsHandler(realtime.NewHub(), realtime.NewTicketStore(60*time.Second))
 
+	// Сквозной поиск поднимается и здесь: гвард-тесты его прав сверяются с роутером
+	// тестового приложения, и без регистрации они молча проверяли бы роутер без поиска.
+	searchService, err := services.NewSearchService(db, permissionResolver)
+	if err != nil {
+		t.Fatalf("search service: %v", err)
+	}
+	searchHandler := handlers.NewSearchHandler(searchService)
+
 	// Setup Echo with routes (no rate limiter, no logger — clean for tests)
 	e := echo.New()
 	e.HideBanner = true
@@ -321,6 +329,7 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, fun
 		Audit:               auditHandler,
 		AuthEvents:          authEventHandler,
 		Events:              eventsHandler,
+		Search:              searchHandler,
 		PermResolver:        permissionResolver,
 		DenialLog:           accessDenialService,
 		TableReportGate:     mw.RequireTableVerb(db, permissionResolver, accessDenialService, "report"),

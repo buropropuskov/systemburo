@@ -1,0 +1,147 @@
+package services
+
+import (
+	"context"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
+)
+
+// Провайдер без права -- это раздел, открытый всем подряд, поэтому реестр проверяется на
+// старте приложения, а не при первом запросе. Тест держит саму проверку: если её
+// ослабят, он покажет это раньше, чем неправильный провайдер доедет до прода.
+func TestValidateSearchProviders(t *testing.T) {
+	t.Run("боевой реестр валиден", func(t *testing.T) {
+		require.NoError(t, validateSearchProviders(searchProviderOrder()))
+	})
+
+	t.Run("пустой ключ отвергается", func(t *testing.T) {
+		err := validateSearchProviders([]searchProvider{stubSearchProvider{typ: "stub", key: ""}})
+		require.ErrorContains(t, err, "без permission-ключа")
+	})
+
+	t.Run("ключ вне каталога отвергается", func(t *testing.T) {
+		err := validateSearchProviders([]searchProvider{stubSearchProvider{typ: "stub", key: "page.made.up"}})
+		require.ErrorContains(t, err, "неизвестный ключ")
+	})
+
+	t.Run("дубль раздела отвергается", func(t *testing.T) {
+		p := stubSearchProvider{typ: SearchTypeCars, key: KeyEntityCarsRead}
+		err := validateSearchProviders([]searchProvider{p, p})
+		require.ErrorContains(t, err, "дубль типа")
+	})
+}
+
+// Состав реестра выписан явно: новый раздел обязан обновить этот список, а вместе с ним
+// -- дописать свой случай в тесты видимости. Механическая защита от "забыл сузить
+// выборку", а не надежда на внимательность.
+func TestSearchProviderRegistryIsExpected(t *testing.T) {
+	want := []SearchEntityType{SearchTypeEmployees, SearchTypeCars}
+
+	got := make([]SearchEntityType, 0, len(searchProviderOrder()))
+	for _, p := range searchProviderOrder() {
+		got = append(got, p.Type())
+	}
+	require.Equal(t, want, got, "изменился состав разделов поиска: обнови и тесты видимости")
+}
+
+// Каждый раздел обязан объявить право. Отдельно от validateSearchProviders: тот
+// проверяет функцию, этот -- боевой реестр целиком.
+func TestSearchProvidersHaveGates(t *testing.T) {
+	for _, p := range searchProviderOrder() {
+		t.Run(string(p.Type()), func(t *testing.T) {
+			require.NotEmpty(t, p.PermissionKey(), "раздел без права виден всем")
+			require.True(t, IsValidKey(p.PermissionKey()), "право отсутствует в каталоге")
+			require.NotEmpty(t, p.Title())
+		})
+	}
+}
+
+func TestBuildSearchVariantsFor(t *testing.T) {
+	t.Run("фамилия: раскладка есть, дубля по регистру нет", func(t *testing.T) {
+		got := buildSearchVariantsFor("Роголев")
+
+		require.Contains(t, got, "Роголев")
+		// normalize.Plate дал бы "РОГОЛЕВ" -- для ILIKE это тот же запрос, и лишнее
+		// условие только удлиняет SQL.
+		require.NotContains(t, got, "РОГОЛЕВ")
+		require.Len(t, got, 2, "ожидались оригинал и раскладка: %v", got)
+	})
+
+	t.Run("госномер: вариант без пробелов добавляется", func(t *testing.T) {
+		got := buildSearchVariantsFor("а 777 аа")
+		require.Contains(t, got, "а 777 аа")
+		require.Contains(t, got, "А777АА")
+	})
+
+	t.Run("пустой запрос не даёт вариантов", func(t *testing.T) {
+		require.Empty(t, buildSearchVariantsFor("   "))
+	})
+}
+
+func TestScoreMatch(t *testing.T) {
+	cases := []struct {
+		name, value, query string
+		want               float64
+	}{
+		{"точное совпадение", "Роголев", "роголев", scoreExact},
+		{"регистр и пробелы не мешают точному", "  РОГОЛЕВ ", "Роголев", scoreExact},
+		{"начало строки", "Роголев Иван Петрович", "роголев", scorePrefix},
+		{"начало слова внутри строки", "Иван Роголев", "роголев", scoreWordStart},
+		{"вхождение в середине слова", "Пророголев", "роголев", scoreContains},
+		{"совпадения в заголовке нет", "Иванов Иван", "роголев", scoreNoMatch},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.want, scoreMatch(tc.value, tc.query))
+		})
+	}
+}
+
+func TestRankItems(t *testing.T) {
+	items := []SearchItem{
+		{Title: "Иван Роголев", Subtitle: "водитель"},
+		{Title: "Роголев", Subtitle: "водитель"},
+		{Title: "Роголев Иван Петрович", Subtitle: "водитель"},
+	}
+
+	rankItems(items, "Роголев")
+
+	require.Equal(t, "Роголев", items[0].Title, "точное совпадение должно быть первым")
+	require.Equal(t, "Роголев Иван Петрович", items[1].Title)
+	require.Equal(t, "Иван Роголев", items[2].Title)
+	require.Equal(t, matchedFieldTitle, items[0].MatchedField)
+}
+
+// Совпало не в заголовке -- подсвечивать надо подзаголовок, иначе фронт мигает строкой
+// без вхождения.
+func TestRankItemsMarksSubtitleWhenTitleDoesNotMatch(t *testing.T) {
+	items := []SearchItem{{Title: "А777АА", Subtitle: "BMW · ООО Роголев и партнёры"}}
+
+	rankItems(items, "Роголев")
+
+	require.Equal(t, matchedFieldSubtitle, items[0].MatchedField)
+}
+
+func TestHasExactMatch(t *testing.T) {
+	exact := SearchGroup{Items: []SearchItem{{Score: scoreContains}, {Score: scoreExact}}}
+	partial := SearchGroup{Items: []SearchItem{{Score: scorePrefix}}}
+
+	require.True(t, hasExactMatch(exact))
+	require.False(t, hasExactMatch(partial))
+}
+
+// stubSearchProvider -- заглушка для проверки самой валидации реестра.
+type stubSearchProvider struct {
+	typ SearchEntityType
+	key string
+}
+
+func (s stubSearchProvider) Type() SearchEntityType { return s.typ }
+func (s stubSearchProvider) Title() string          { return "Заглушка" }
+func (s stubSearchProvider) PermissionKey() string  { return s.key }
+func (s stubSearchProvider) Search(_ context.Context, _ *gorm.DB, _ searchRequest) ([]SearchItem, error) {
+	return nil, nil
+}
