@@ -210,13 +210,106 @@ func TestCheck_ReportsEachTokenOnce(t *testing.T) {
 	assert.Equal(t, "тип", problems[1].Token)
 }
 
+// TestRenderPath_ValueTailIsNotTrimmed - обрезка разделителей относится только к
+// литералам шаблона. Организация "Ромашка-Строй-" обязана дойти до имени папки со
+// своим дефисом: молча срезанный хвост значения потом не отличить от опечатки.
+func TestRenderPath_ValueTailIsNotTrimmed(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		tmpl string
+		v    Values
+		want string
+	}{
+		{"дефис в конце названия", "{организация}", Values{Organization: "Ромашка-Строй-"}, "Ромашка-Строй-"},
+		{"точка с запятой в конце", "{статус}", Values{Status: "Завершено;"}, "Завершено;"},
+		{"дефис внутри значения", "{организация}", Values{Organization: "Ромашка - Строй"}, "Ромашка - Строй"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := RenderPath(tc.tmpl, tc.v)
+			require.Len(t, got, 1)
+			assert.Equal(t, tc.want, got[0])
+		})
+	}
+}
+
+// TestRenderPath_MixedLiteralCollapses - литерал, где разделитель слеплен с текстом
+// (", ООО"), должен терять у пустого соседа только разделительную часть. Иначе
+// оператор увидит в проводнике папку, начинающуюся с запятой.
+func TestRenderPath_MixedLiteralCollapses(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		tmpl string
+		want string
+	}{
+		{"запятая перед текстом", "{компания}, ООО", "ООО"},
+		{"знак номера и двоеточие", "№{номер}: файл", "файл"},
+		{"текст перед пустым значением", "Заявка {номер}", "Заявка"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := RenderPath(tc.tmpl, Values{Date: time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC)})
+			require.Len(t, got, 1)
+			assert.Equal(t, tc.want, got[0])
+		})
+	}
+}
+
+// TestRenderPath_EdgeSeparatorsTrimmedBothSides - висячий разделитель убирается с
+// обоих краёв уровня. Знак номера исключение: "№{номер}" начинают с него осмысленно.
+func TestRenderPath_EdgeSeparatorsTrimmedBothSides(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		tmpl string
+		want string
+	}{
+		{"разделитель слева", " - {организация}", "Мегобари"},
+		{"разделитель справа", "{организация} -", "Мегобари"},
+		{"разделитель с обеих сторон", "_ {организация} _", "Мегобари"},
+		{"знак номера сохраняется", "№{номер}", "№20260731-001"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := RenderPath(tc.tmpl, sampleValues())
+			require.Len(t, got, 1)
+			assert.Equal(t, tc.want, got[0])
+		})
+	}
+}
+
 func TestParse_MalformedBracesStayLiteral(t *testing.T) {
 	t.Parallel()
 
-	got := RenderPath("{дата} {незакрытый", sampleValues())
+	cases := []struct {
+		name string
+		tmpl string
+		want string
+	}{
+		{"незакрытая скобка", "{дата} {незакрытый", "31.07.2026 {незакрытый"},
+		{"вложенные скобки", "{{номер}}", "{20260731-001}"},
+		{"пустой плейсхолдер", "заявка {}", "заявка {}"},
+	}
 
-	require.Len(t, got, 1)
-	assert.Equal(t, "31.07.2026 {незакрытый", got[0])
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := RenderPath(tc.tmpl, sampleValues())
+			require.Len(t, got, 1)
+			assert.Equal(t, tc.want, got[0])
+		})
+	}
 }
 
 func TestFitRelPath(t *testing.T) {

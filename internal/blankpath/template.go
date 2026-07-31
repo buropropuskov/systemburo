@@ -3,6 +3,7 @@ package blankpath
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 )
 
 const (
@@ -14,10 +15,15 @@ const (
 	// здесь, а не в имени папки: вложений у заявки несколько и типы у них разные.
 	DefaultFileTemplate = "{тип} - {организация}"
 
-	// separatorRunes - символы, которые в шаблоне служат только склейкой между
-	// плейсхолдерами. Литерал, целиком состоящий из них, исчезает вместе с пустым
-	// соседом: иначе "{дата} №{номер}" при пустом номере оставил бы висячее "№".
-	separatorRunes = " \t-–—_,;.·№#"
+	// separatorRunes - символы, которыми в шаблоне склеивают плейсхолдеры. Такой
+	// литерал исчезает вместе с опустевшим соседом: иначе "{дата} №{номер}" при
+	// пустом номере оставил бы висячее "№".
+	separatorRunes = " \t-–—_,;.:·№#"
+
+	// edgeTrimRunes - подмножество separatorRunes, которое убирается ещё и с краёв
+	// уровня. Знак номера и решётка сюда не входят намеренно: "№{номер}" начинают
+	// с них осмысленно, и краевая обрезка съела бы знак у заполненного номера.
+	edgeTrimRunes = " \t-–—_,;.:·"
 
 	// minDeepestLevelBytes - ниже этого предела самый глубокий уровень не режется:
 	// путь короче, но нечитаемая папка из четырёх букв хуже длинного пути.
@@ -42,6 +48,25 @@ const (
 type part struct {
 	kind partKind
 	text string
+}
+
+type segKind uint8
+
+const (
+	// segValue - подставленное значение плейсхолдера. Не редактируется: организация
+	// "Ромашка-Строй-" обязана дойти до имени папки со своим дефисом.
+	segValue segKind = iota
+	// segSeparator - разделительный литерал шаблона. Единственное, что пакет вправе
+	// выбросить.
+	segSeparator
+	// segText - содержательный литерал шаблона.
+	segText
+)
+
+type segment struct {
+	kind segKind
+	text string
+	keep bool
 }
 
 // Check возвращает список претензий к шаблону: неизвестные плейсхолдеры и те, что
@@ -146,64 +171,109 @@ func FitRelPath(levels []string, fileName string, maxBytes int) []string {
 	return out
 }
 
-// renderLevel подставляет значения в один уровень (или в имя файла) и схлопывает
-// разделители вокруг пустых плейсхолдеров.
+// renderLevel подставляет значения в один уровень (или в имя файла).
+//
+// Работает по сегментам, а не по склеенной строке: обрезка разделителей на готовом
+// тексте не отличала бы литерал шаблона от хвоста самого значения и молча срезала
+// бы дефис у организации "Ромашка-Строй-".
 func renderLevel(tmpl string, v Values) string {
-	parts := parse(tmpl)
+	segs := buildSegments(parse(tmpl), v)
+	dropSeparatorsAround(segs)
+	trimEdgeSeparators(segs)
 
-	text := make([]string, len(parts))
-	keep := make([]bool, len(parts))
-	sepOnly := make([]bool, len(parts))
+	var b strings.Builder
+	for _, s := range segs {
+		if s.keep {
+			b.WriteString(s.text)
+		}
+	}
+	return collapseSpaces(b.String())
+}
 
-	for i, p := range parts {
+// buildSegments подставляет значения плейсхолдеров и раскладывает литералы на
+// разделители и содержательный текст.
+func buildSegments(parts []part, v Values) []segment {
+	segs := make([]segment, 0, len(parts)*2)
+	for _, p := range parts {
 		if p.kind == partToken {
 			// Неизвестный ключ даёт пустое значение и схлопывается вместе с
 			// разделителем: до рендера шаблон уже прошёл Validate, а ронять
 			// запись бланка из-за опечатки в настройке нельзя.
 			value, _ := v.lookup(p.text)
-			text[i] = strings.TrimSpace(value)
-			keep[i] = text[i] != ""
+			value = strings.TrimSpace(value)
+			segs = append(segs, segment{kind: segValue, text: value, keep: value != ""})
 			continue
 		}
-		text[i] = p.text
-		sepOnly[i] = isSeparatorOnly(p.text)
-		keep[i] = true
+		segs = append(segs, splitLiteral(p.text)...)
 	}
+	return segs
+}
 
-	dropSeparatorsAround(parts, keep, sepOnly)
+// splitLiteral режет литерал на ведущий разделитель, содержательную часть и
+// хвостовой разделитель. Литерал целиком из разделителей даёт один сегмент.
+func splitLiteral(s string) []segment {
+	lead := leadingRun(s, separatorRunes)
+	rest := s[len(lead):]
+	trail := trailingRun(rest, separatorRunes)
+	core := rest[:len(rest)-len(trail)]
 
-	var b strings.Builder
-	for i := range parts {
-		if keep[i] {
-			b.WriteString(text[i])
-		}
+	segs := make([]segment, 0, 3)
+	if lead != "" {
+		segs = append(segs, segment{kind: segSeparator, text: lead, keep: true})
 	}
-	// Обрезаем разделители только справа. Слева нельзя: "№{номер}" начинается со
-	// знака номера намеренно, и общая обрезка съела бы его вместе с висячими
-	// хвостами. Пробелы по краям уже снял collapseSpaces.
-	return strings.TrimRight(collapseSpaces(b.String()), separatorRunes)
+	if core != "" {
+		segs = append(segs, segment{kind: segText, text: core, keep: true})
+	}
+	if trail != "" {
+		segs = append(segs, segment{kind: segSeparator, text: trail, keep: true})
+	}
+	return segs
 }
 
 // dropSeparatorsAround убирает у каждого пустого плейсхолдера ОДИН примыкающий
 // разделитель - предшествующий, а если его нет или он уже убран, то следующий.
 // Убирать оба нельзя: соседние значения склеились бы в "31.07.2026Мегобари".
-func dropSeparatorsAround(parts []part, keep, sepOnly []bool) {
-	for i, p := range parts {
-		if p.kind != partToken || keep[i] {
+func dropSeparatorsAround(segs []segment) {
+	for i := range segs {
+		if segs[i].kind != segValue || segs[i].keep {
 			continue
 		}
-		if j := i - 1; j >= 0 && sepOnly[j] && keep[j] {
-			keep[j] = false
+		if j := i - 1; j >= 0 && segs[j].kind == segSeparator && segs[j].keep {
+			segs[j].keep = false
 			continue
 		}
-		if j := i + 1; j < len(parts) && sepOnly[j] && keep[j] {
-			keep[j] = false
+		if j := i + 1; j < len(segs) && segs[j].kind == segSeparator && segs[j].keep {
+			segs[j].keep = false
 		}
 	}
 }
 
-// parse разбивает шаблон на литералы и плейсхолдеры. Незакрытая скобка и пустое
-// "{}" остаются обычным текстом.
+// trimEdgeSeparators убирает разделители, оставшиеся по краям уровня: шаблон
+// "{организация} -" не должен давать папку "Мегобари -". Знак номера исключён из
+// edgeTrimRunes, поэтому "№{номер}" при заполненном номере знак сохраняет.
+func trimEdgeSeparators(segs []segment) {
+	for i := 0; i < len(segs); i++ {
+		if !segs[i].keep {
+			continue
+		}
+		if segs[i].kind != segSeparator || !isEdgeTrimmable(segs[i].text) {
+			break
+		}
+		segs[i].keep = false
+	}
+	for i := len(segs) - 1; i >= 0; i-- {
+		if !segs[i].keep {
+			continue
+		}
+		if segs[i].kind != segSeparator || !isEdgeTrimmable(segs[i].text) {
+			break
+		}
+		segs[i].keep = false
+	}
+}
+
+// parse разбивает шаблон на литералы и плейсхолдеры. Незакрытая скобка, вложенные
+// скобки и пустое "{}" остаются обычным текстом.
 func parse(s string) []part {
 	var out []part
 	var lit strings.Builder
@@ -235,16 +305,39 @@ func parse(s string) []part {
 	return out
 }
 
-func isSeparatorOnly(s string) bool {
+// isEdgeTrimmable - сегмент состоит только из символов, которые можно убрать с края.
+func isEdgeTrimmable(s string) bool {
 	if s == "" {
 		return false
 	}
 	for _, r := range s {
-		if !strings.ContainsRune(separatorRunes, r) {
+		if !strings.ContainsRune(edgeTrimRunes, r) {
 			return false
 		}
 	}
 	return true
+}
+
+// leadingRun возвращает начальный отрезок строки из символов набора set.
+func leadingRun(s, set string) string {
+	for i, r := range s {
+		if !strings.ContainsRune(set, r) {
+			return s[:i]
+		}
+	}
+	return s
+}
+
+// trailingRun возвращает конечный отрезок строки из символов набора set.
+func trailingRun(s, set string) string {
+	for i := len(s); i > 0; {
+		r, size := utf8.DecodeLastRuneInString(s[:i])
+		if !strings.ContainsRune(set, r) {
+			return s[i:]
+		}
+		i -= size
+	}
+	return s
 }
 
 func countLevels(tmpl string) int {
