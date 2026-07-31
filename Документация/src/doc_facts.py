@@ -228,6 +228,7 @@ def inventories():
                 "startOnlinePeakSnapshotter": "Фиксация пика посещаемости",
                 "startLogPartitionWorker": "Обслуживание журнальных таблиц",
                 "startReminderScheduler": "Напоминания согласующим",
+                "startRetentionWorker": "Уборка технического мусора",
             },
         },
         {
