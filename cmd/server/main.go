@@ -328,6 +328,15 @@ func main() {
 	eventsTickets := realtime.NewTicketStore(60 * time.Second)
 	eventsHandler := handlers.NewEventsHandler(eventsHub, eventsTickets)
 
+	// Сквозной поиск. Конструктор проверяет реестр разделов и падает на старте, если
+	// раздел объявлен без права: такой раздел в рантайме был бы открыт всем подряд.
+	searchService, err := services.NewSearchService(db, permissionResolver)
+	if err != nil {
+		slog.Error("failed to init search service", "error", err)
+		os.Exit(1)
+	}
+	searchHandler := handlers.NewSearchHandler(searchService)
+
 	router.Setup(e, router.Dependencies{
 		Auth:                authHandler,
 		UserTypes:           userTypesHandler,
@@ -381,6 +390,7 @@ func main() {
 		Audit:               auditHandler,
 		AuthEvents:          authEventHandler,
 		Events:              eventsHandler,
+		Search:              searchHandler,
 		PermResolver:        permissionResolver,
 		DenialLog:           accessDenialService,
 		MaintenanceBlock:    maintenanceBlock,

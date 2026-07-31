@@ -67,6 +67,7 @@ type Dependencies struct {
 	Audit               *handlers.AuditHandler
 	AuthEvents          *handlers.AuthEventHandler
 	Events              *handlers.EventsHandler
+	Search              *handlers.SearchHandler
 
 	// Services (для middleware и audit)
 	PermResolver *services.PermissionResolver
@@ -252,6 +253,14 @@ func Setup(e *echo.Echo, d Dependencies) {
 	// userID из JWT. Права не требуются, оформление доступно любому.
 	protected.GET("/users/me/theme", theme.GetTheme)
 	protected.PUT("/users/me/theme", theme.SetTheme)
+
+	// Сквозной поиск по разделам. Гейт эндпоинта -- только авторизация, и это
+	// намеренно: раздел, на который нет права, отсекается отбором провайдеров, а
+	// строки внутри раздела сужает сам провайдер. Права на сам поиск не существует --
+	// он не даёт доступа ни к чему, чего нет в листингах.
+	if d.Search != nil {
+		protected.GET("/search", d.Search.Search)
+	}
 
 	// Выдача одноразового билета для SSE-потока (#840). Защищён JWTAuth+banCheck:
 	// забаненный/разлогиненный билет не получит, значит и поток не переоткроет.

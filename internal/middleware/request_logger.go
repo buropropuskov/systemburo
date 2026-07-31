@@ -15,13 +15,41 @@ import (
 // Защита от висящих горутин при медленной БД (например, во время shutdown).
 const requestLogWriteTimeout = 5 * time.Second
 
-// RequestLogger записывает все HTTP-запросы в таблицу request_logs.
+// Пути, которые не попадают в журнал обращений. Сюда идёт только то, что вызывается
+// набором текста, а не действием человека: подсказки сквозного поиска летят на каждый
+// ввод, и в /admin/requests они вытеснили бы всё остальное, ради чего журнал и заведён.
+// Отказы всё равно записываются - см. skipRequestLog.
+var requestLogSkipPaths = []string{"/api/search"}
+
+// skipRequestLog решает, пропускать ли запись. Успешный поиск не логируем, а вот отказ
+// или ошибку - да: именно они интересны при разборе инцидента, и их немного.
+// Обращение к персональным данным в поиске это не скрывает: его пишет отдельный
+// журнал 152-ФЗ (PDAudit), у которого свой перечень путей.
+// Сравнение точное, а не по префиксу: префикс заглушил бы и будущий соседний адрес
+// вроде /api/search-history, причём молча -- пропажу записей в журнале никто не заметит.
+func skipRequestLog(path string, status int) bool {
+	if status >= 400 {
+		return false
+	}
+	for _, p := range requestLogSkipPaths {
+		if path == p {
+			return true
+		}
+	}
+	return false
+}
+
+// RequestLogger записывает HTTP-запросы в таблицу request_logs.
 func RequestLogger(db *gorm.DB) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			start := time.Now().UTC()
 
 			err := next(c)
+
+			if skipRequestLog(c.Request().URL.Path, c.Response().Status) {
+				return err
+			}
 
 			duration := time.Since(start).Milliseconds()
 
