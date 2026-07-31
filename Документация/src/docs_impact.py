@@ -104,13 +104,21 @@ def changed(rev_range):
     return [line for line in out.splitlines() if line]
 
 
+LEVELS = ['^internal/config/config', '^docker-compose', '^nginx/', '^Dockerfile', '^Makefile', '^scripts/', '^cmd/seed/', '^internal/database/migrate', '^internal/database/partitions', '^internal/router/router', '^internal/services/permission_', '^internal/middleware/(jwt', '^internal/auth/', '^internal/crypto/', '^internal/models/pd', '^\\.github/workflows/']
+
+
+def level(pattern):
+    """Насколько срочно смотреть раздел: важное - обещания заказчику."""
+    return "высокая" if any(pattern.startswith(p) for p in LEVELS) else "обычная"
+
+
 def impact(files):
     """Разделы документации, задетые файлами; порядок карты сохраняется."""
     hits = []
     for pattern, doc, where in MAP:
         matched = [f for f in files if re.search(pattern, f)]
         if matched:
-            hits.append((doc, where, matched))
+            hits.append((doc, where, matched, level(pattern)))
     return hits
 
 
@@ -210,15 +218,27 @@ def main():
 
     sense = [h for h in hits if h[1] != TESTS_WHERE]
     numeric = [h for h in hits if h[1] == TESTS_WHERE]
+    важные = [h for h in sense if h[3] == "высокая"]
+    прочие = [h for h in sense if h[3] != "высокая"]
 
-    if sense:
-        print("%s: файлов %d. Прочитать код и сверить разделы:"
-              % (title, len(files)))
-        for doc, where, matched in sense:
+    def покажи(группа, заголовок):
+        if not группа:
+            return
+        print("  %s" % заголовок)
+        for doc, where, matched, _lvl in группа:
             example = matched[0]
             more = " и ещё %d" % (len(matched) - 1) if len(matched) > 1 else ""
-            print("  [%s] %s" % (doc, where))
-            print("      из-за %s%s" % (example, more))
+            print("    [%s] %s" % (doc, where))
+            print("        из-за %s%s" % (example, more))
+
+    if sense:
+        print("%s: файлов %d." % (title, len(files)))
+        # Порядок не косметика: важное - это обещания, которые заказчик
+        # исполняет или проверяет (вход, права, персональные данные, параметры
+        # установки, команды, конвейер). Остальное описывает поведение: сверить
+        # нужно, но пропуск не меняет порядок действий на месте.
+        покажи(важные, "ВАЖНОЕ - обещания заказчику, описать обязательно:")
+        покажи(прочие, "Прочее - сверить описание поведения:")
 
     if numeric:
         files_touched = len(numeric[0][2])

@@ -142,52 +142,52 @@ def metrics():
 def anchors(m):
     """(документ, описание, регулярка, ожидаемые значения по группам)."""
     return [
-        (OVERVIEW, "типов учётных записей",
+        (OVERVIEW, "4.1 типы учётных записей",
          r"заведено (\S+) типов учётных записей", [m["user_types"]]),
-        (OVERVIEW, "ключей и категорий каталога прав",
+        (OVERVIEW, "4.2 каталог прав",
          r"Каталог прав содержит (\d+) фиксированных ключей в (\S+) категориях",
          [m["perm_keys"], m["perm_cats"]]),
-        (OVERVIEW, "прав на таблицу поста",
+        (OVERVIEW, "4.2 права таблиц постов",
          r"автоматически создаётся (\S+) прав", [m["table_verbs"]]),
-        (OVERVIEW, "поисковых индексов",
+        (OVERVIEW, "7.4 и 10.3 поисковые индексы",
          r"создано ([\d  ]+?) специальных индексов", [m["gin"]]),
-        (OVERVIEW, "таблиц базы данных",
+        (OVERVIEW, "10.1 состав базы данных",
          r"База содержит ([\d  ]+?) таблиц", [m["db_tables"]]),
-        (OVERVIEW, "методов и групп программного интерфейса",
+        (OVERVIEW, "11 программный интерфейс",
          r"Зарегистрировано ([\d  ]+?) метод\w* в (\d+) группах",
          [m["api_methods"], m["api_groups"]]),
-        (OVERVIEW, "бэкенд-тестов",
+        (OVERVIEW, "14.1 бэкенд-тесты",
          r"Штатное средство тестирования Go \| ([\d  ]+?) тест\w* "
          r"в (\d+) файлах", [m["go_tests"], m["go_test_files"]]),
-        (OVERVIEW, "фронтенд-тестов",
+        (OVERVIEW, "14.1 фронтенд-тесты",
          r"Vitest \| ([\d  ]+?) тест\w* в (\d+) файлах",
          [m["vitest"], m["vitest_files"]]),
-        (OVERVIEW, "сквозных сценариев",
+        (OVERVIEW, "14.1 сквозные сценарии",
          r"Playwright \| ([\d  ]+?) тест\w* в (\d+) файлах",
          [m["e2e"], m["e2e_files"]]),
-        (OVERVIEW, "всего тестов",
+        (OVERVIEW, "14.1 всего тестов",
          r"\| Всего \| \| ([\d  ]+?) \|", [m["tests_total"]]),
-        (OVERVIEW, "файлов тестов на настоящей базе",
+        (OVERVIEW, "15 файлов тестов на базе",
          r"\| Файлов бэкенд-тестов на настоящей базе \| (\d+) \|",
          [m["go_db_files"]]),
         # Таблица показателей раздела 15 повторяет часть чисел из текста, и эти
         # повторы якорями не были покрыты: методы и число тестов там разошлись с
         # кодом, пока сверка показывала «сходится».
-        (OVERVIEW, "методов интерфейса в таблице показателей",
+        (OVERVIEW, "15 методы интерфейса",
          r"\| Методы программного интерфейса \| ([\d  ]+?) в (\d+) группах \|",
          [m["api_methods"], m["api_groups"]]),
-        (OVERVIEW, "таблиц базы в таблице показателей",
+        (OVERVIEW, "15 таблицы базы",
          r"\| Таблицы базы данных \| ([\d  ]+?) \|", [m["db_tables"]]),
-        (OVERVIEW, "всего тестов в таблице показателей",
+        (OVERVIEW, "15 всего тестов",
          r"\| Автоматические тесты \| ([\d  ]+?) \|", [m["tests_total"]]),
-        (OVERVIEW, "объёма исходного кода",
+        (OVERVIEW, "15 объём исходного кода",
          r"Объём исходного кода \| ([\d  ]+?) строк\w* "
          r"в ([\d  ]+?) файлах", [m["code_lines"], m["code_files"]]),
-        (OVERVIEW, "состава серверной части",
+        (OVERVIEW, "15 состав серверной части",
          r"Серверная часть \| ([\d  ]+?) строк\w* без тестов: (\d+) служб\w*, "
          r"(\d+) обработчик\w*, (\d+) модел\w*",
          [m["be_lines"], m["services"], m["handlers"], m["models"]]),
-        (OVERVIEW, "состава интерфейса",
+        (OVERVIEW, "15 состав интерфейса",
          r"интерфейса \| ([\d  ]+?) строк\w*: (\d+) экранов, "
          r"(\d+) элемент\w*", [m["vue_lines"], m["views"], m["components"]]),
     ]
@@ -215,7 +215,7 @@ def code_list(cmd):
 def inventories():
     return [
         {
-            "имя": "периодические задачи",
+            "имя": "9.3 периодические задачи",
             "документ": OVERVIEW,
             "код": code_list(
                 r"grep -oE 'go start[A-Za-z]+\(' cmd/server/main.go "
@@ -231,7 +231,7 @@ def inventories():
             },
         },
         {
-            "имя": "категории прав",
+            "имя": "приложение А, категории прав",
             "документ": OVERVIEW,
             "код": code_list(
                 r"grep -oE 'Cat[A-Za-z]+ +=' "
@@ -248,7 +248,7 @@ def inventories():
             },
         },
         {
-            "имя": "разделы администрирования",
+            "имя": "6 подсистемы и разделы администрирования",
             "документ": OVERVIEW,
             "код": code_list(
                 "ls frontend/src/views/admin/*.vue | xargs -n1 basename"),
@@ -535,7 +535,7 @@ def apply_fix(texts, m):
             start, end = match.span(1)
             new = like(shown, m["gin"])
             texts[OVERVIEW] = texts[OVERVIEW][:start] + new + texts[OVERVIEW][end:]
-            edits.append("%s, поисковые индексы: «%s» -> «%s»"
+            edits.append("%s, 7.4 и 10.3 поисковые индексы: «%s» -> «%s»"
                          % (OVERVIEW, shown.strip(), new))
     return edits
 
@@ -550,7 +550,7 @@ def main():
     quiet = "--quiet" in sys.argv
     fix = "--fix" in sys.argv
     m = metrics()
-    problems, lost, checked = [], [], 0
+    problems, lost, numbers, checked = [], [], [], 0
 
     if fix:
         if behind_dev():
@@ -587,16 +587,16 @@ def main():
             checked += 1
             value = to_int(shown)
             if value != actual:
-                problems.append("%s, %s: в тексте «%s», по коду %d"
-                                % (doc, label, shown.strip(), actual))
+                numbers.append("%s, %s: в тексте «%s», по коду %d"
+                               % (doc, label, shown.strip(), actual))
 
     # Второе вхождение числа индексов: оно упоминается в двух разделах.
     for shown in re.findall(r"создано ([\d  ]+?) специальных индексов",
                             texts[OVERVIEW]):
         checked += 1
         if to_int(shown) != m["gin"]:
-            problems.append("%s, поисковые индексы: в тексте «%s», по коду %d"
-                            % (OVERVIEW, shown.strip(), m["gin"]))
+            numbers.append("%s, 7.4 и 10.3 поисковые индексы: в тексте «%s», по коду %d"
+                           % (OVERVIEW, shown.strip(), m["gin"]))
 
     check_inventories(texts, problems)
     check_env(texts[DEPLOY], problems)
@@ -604,13 +604,24 @@ def main():
     check_paths(texts[DEPLOY], problems)
     check_make_targets(problems)
 
-    if problems:
-        print("РАСХОЖДЕНИЯ С КОДОМ (%d):" % len(problems))
-        for line in problems:
+    # Два вида находок нельзя показывать одинаково. Числа устаревают от любого
+    # чужого коммита с тестом, это рутина: одна команда и пересборка. Всё
+    # остальное - потерянный якорь, пропуск в перечне, несуществующий файл или
+    # команда, разошедшийся параметр - означает, что документ говорит неправду,
+    # и требует прочитать код. Пока оба шли одним списком «РАСХОЖДЕНИЯ С КОДОМ»,
+    # важное терялось в рутине, а рутина выглядела аварией.
+    if numbers:
+        print("ЧИСЛА УСТАРЕЛИ (%d), закрывается без чтения кода:" % len(numbers))
+        for line in numbers:
             print("  " + line)
-    if lost:
-        print("ПОТЕРЯННЫЕ ЯКОРЯ (%d):" % len(lost))
+        print("  -> python3 Документация/src/doc_facts.py --fix "
+              "&& python3 Документация/src/build_docs.py")
+    if problems or lost:
+        print("ТРЕБУЕТ ВНИМАНИЯ (%d) - документ расходится с системой:"
+              % (len(problems) + len(lost)))
         for line in lost:
+            print("  " + line)
+        for line in problems:
             print("  " + line)
     if lag:
         # Зелёного при отставании быть не может: числа считались по старому
@@ -621,10 +632,10 @@ def main():
             print("ИТОГ: недостоверно. Сверка шла против кода отставшей "
                   "ветки; влить dev и прогнать заново.")
         return 1
-    if not problems and not lost and not quiet:
+    if not problems and not lost and not numbers and not quiet:
         print("Документация сходится с кодом: сверено утверждений %d, "
               "параметров %d." % (checked, len(env_defaults())))
-    return 1 if problems or lost else 0
+    return 1 if problems or lost or numbers else 0
 
 
 if __name__ == "__main__":
