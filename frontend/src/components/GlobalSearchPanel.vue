@@ -45,7 +45,11 @@
             :aria-pressed="pinned"
             @click="togglePinned"
           >
-            <span :class="['gsp__pin', { 'gsp__pin--on': pinned }]" />
+            <NavIcon
+              name="pin"
+              :size="17"
+              :class="['gsp__pin', { 'gsp__pin--on': pinned }]"
+            />
           </button>
           <button
             class="gsp__act"
@@ -54,15 +58,22 @@
             aria-label="Свернуть в столбик"
             @click="collapsed = true"
           >
-            &rsaquo;
+            <NavIcon
+              name="collapse-right"
+              :size="17"
+            />
           </button>
           <button
-            class="gsp__act gsp__act--close"
+            class="gsp__act"
             type="button"
+            title="Закрыть поиск и очистить запрос"
             aria-label="Закрыть результаты"
             @click="close"
           >
-            &times;
+            <NavIcon
+              name="close"
+              :size="17"
+            />
           </button>
         </header>
 
@@ -152,6 +163,7 @@ import { useGlobalSearch, MIN_QUERY_LENGTH } from '@/composables/useGlobalSearch
 import { ADMIN_GROUPS, MAIN_SECTIONS } from '@/constants/navSections';
 import { buildSearchVariants, matchesSearch } from '@/utils/searchVariants';
 import { SEARCH_TARGETS } from '@/constants/searchTargets';
+import { SEARCH_ACTIONS } from '@/constants/searchActions';
 
 /** Сколько разделов меню показывать: список длинный, а нужен обычно первый же. */
 const SECTIONS_LIMIT = 5;
@@ -185,8 +197,30 @@ export default {
       return this.query.trim().length > 0;
     },
     /**
-     * Разделы меню -- первая группа и единственная, что считается на месте. Ради неё
-     * поиск и затевался: чаще всего человек не помнит, в каком разделе искать.
+     * Быстрые действия -- первая группа: «подать» или «отправить» это намерение, и
+     * предложить его надо раньше, чем список мест, где слово встречается. Ищем и по
+     * названию, и по обиходным словам, до которых человек доходит раньше официальных.
+     */
+    actionItems() {
+      const raw = this.query.trim();
+      if (!raw) return [];
+      const variants = buildSearchVariants(raw);
+
+      return SEARCH_ACTIONS
+        .filter((a) => !a.permission || this.can(a.permission))
+        .filter((a) => matchesSearch(a.label, variants)
+          || a.keywords.some((k) => matchesSearch(k, variants)))
+        .map((a) => ({
+          key: a.key,
+          title: a.label,
+          subtitle: a.hint,
+          icon: a.icon,
+          to: a.to,
+        }));
+    },
+    /**
+     * Разделы меню -- вторая группа. Ради неё поиск и затевался: чаще всего человек не
+     * помнит, в каком разделе искать.
      */
     sectionItems() {
       const raw = this.query.trim();
@@ -218,6 +252,7 @@ export default {
         groups.push({ type, title, items: items.map((it) => ({ ...it, index: index++ })) });
       };
 
+      push('actions', 'Действия', this.actionItems);
       push('sections', 'Разделы', this.sectionItems);
       for (const g of this.groups) {
         push(g.type, g.title, (g.items || []).map((it) => ({
@@ -276,10 +311,9 @@ export default {
       if (e.key === 'Escape') {
         e.stopPropagation();
         e.preventDefault();
-        // У закреплённой Escape сворачивает в столбик, а не закрывает: закрепление
-        // -- это явное «панель мне нужна», и одна клавиша не должна его отменять.
-        if (this.pinned && !this.collapsed) this.collapsed = true;
-        else this.close();
+        // Escape сворачивает, а не закрывает: результаты и запрос остаются, и вернуться
+        // к ним можно одним нажатием. Совсем убрать панель -- крестиком.
+        if (!this.collapsed) this.collapsed = true;
         return;
       }
       // Стрелки и ввод работают, пока курсор в поле поиска: список живёт в панели, а
@@ -289,14 +323,17 @@ export default {
       if (e.key === 'Enter') this.openActive();
     },
     /**
-     * Клик мимо панели и мимо поля поиска закрывает результаты. Закреплённую не
+     * Клик мимо панели и мимо поля поиска сворачивает её в столбик. Закреплённую не
      * трогаем: её для того и закрепляют, чтобы работать со страницей рядом.
+     *
+     * Именно сворачивает, а не закрывает: запрос и найденное сохраняются, вернуться к
+     * ним можно одним нажатием. Закрытие -- только явное, крестиком.
      */
     onDocumentMousedown(e) {
-      if (!this.open || this.pinned) return;
+      if (!this.open || this.pinned || this.collapsed) return;
       if (this.$refs.panel?.contains(e.target)) return;
       if (e.target.closest?.('.nav-search-row')) return;
-      this.close();
+      this.collapsed = true;
     },
     move(delta) {
       const total = this.flatItems.length;
@@ -319,13 +356,10 @@ export default {
     },
     openItem(item) {
       if (!item.to) return;
-      // Закреплённая панель переживает переход: по одному запросу часто открывают
-      // несколько находок подряд, и закрывать её каждый раз значит вводить запрос заново.
-      if (!this.pinned) {
-        // Незакреплённую закрываем ДО перехода: подтверждение о несохранённой форме
-        // роутер поднимает поверх страницы, и панель не должна его перекрывать.
-        this.close();
-      }
+      // Закреплённая панель остаётся развёрнутой: по одному запросу часто открывают
+      // несколько находок подряд. Незакреплённая сворачивается в столбик -- уступает
+      // место странице, но помнит запрос и найденное.
+      if (!this.pinned) this.collapsed = true;
       this.$nextTick(() => this.$router.push(item.to));
     },
     togglePinned() {
@@ -353,15 +387,23 @@ export default {
   display: flex;
   flex-direction: column;
   /* Полупрозрачная: страница под панелью остаётся видна, поэтому переход по находке
-     не ощущается как уход «вслепую». Без backdrop-filter -- он форсит слой
-     компоновки и рвёт кадры при выезде (запрет из правил адаптивности). */
-  background: color-mix(in srgb, var(--surface) 88%, transparent);
+     не ощущается как уход «вслепую». */
+  background: color-mix(in srgb, var(--surface) 75%, transparent);
   border-left: 1px solid var(--border);
   box-shadow: -8px 0 24px rgb(0 0 0 / 12%);
   /* Выше выдвижного меню и карточек, ниже блокирующих окон: подтверждение о
      несохранённой форме и сообщение о блокировке должны перекрывать результаты. */
   z-index: 15000;
   transition: width 0.2s ease-out;
+}
+
+/* Лёгкое размытие подложки -- только на десктопе. На мобильных backdrop-filter форсит
+   слой компоновки и рвёт кадры при выезде панели (запрет из правил адаптивности,
+   #1201), поэтому там остаётся чистая прозрачность без размытия. */
+@media (min-width: 769px) {
+  .gsp {
+    backdrop-filter: blur(2px);
+  }
 }
 
 /* Свёрнутая -- узкий столбик с иконкой и числом найденного: панель не мешает работать
@@ -405,8 +447,6 @@ export default {
   border: none;
   border-radius: var(--radius-md, 15px);
   background: transparent;
-  font-size: 20px;
-  line-height: 1;
   cursor: pointer;
   color: var(--color-text-muted);
 }
@@ -415,22 +455,17 @@ export default {
   background: var(--surface-2);
 }
 
-.gsp__act--close {
-  font-size: 26px;
-}
-
-/* Кнопка закрепления: залитый кружок во включённом состоянии, контурный в выключенном.
-   Иконки булавки в наборе нет, а заводить свою ради одной кнопки не стоит. */
+/* Закреплённая булавка подсвечена и наклонена -- состояние читается и по цвету, и по
+   форме, а не только по цвету (важно, когда цвет плохо различим). */
 .gsp__pin {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  border: 2px solid currentcolor;
+  opacity: 0.75;
+  transition: transform 0.15s ease-out;
 }
 
 .gsp__pin--on {
-  background: var(--color-primary, #4f5bdf);
-  border-color: var(--color-primary, #4f5bdf);
+  color: var(--color-primary, #4f5bdf);
+  opacity: 1;
+  transform: rotate(-35deg);
 }
 
 .gsp__head {
