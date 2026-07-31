@@ -433,6 +433,16 @@ func TestFileArchiveStats_CountsWrittenRegistryOnly(t *testing.T) {
 	rec := testutil.GET(t, e, "/file-archive/stats", adminH)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
+	// Счётчики по статусам показывают пробелы архива числом: no_template - это не
+	// «пусто», а вложение, для которого бланк никто не настроил.
+	counted := testutil.ParseResponse[models.ArchiveStats](t, rec)
+	assert.Equal(t, int64(3), counted.Statuses[models.BlankExportOK])
+	assert.Equal(t, int64(1), counted.Statuses[models.BlankExportNoTemplate])
+	assert.Equal(t, int64(1), counted.Statuses[models.BlankExportPending])
+	assert.Equal(t, int64(1), counted.Statuses[models.BlankExportFailed])
+	assert.Contains(t, counted.Statuses, models.BlankExportBlocked, "известный статус обязан приходить и с нулём")
+	assert.Zero(t, counted.Statuses[models.BlankExportBlocked])
+
 	// Форма ответа - общий конверт, а не голый объект: фронт разворачивает data.
 	var envelope struct {
 		Success bool            `json:"success"`

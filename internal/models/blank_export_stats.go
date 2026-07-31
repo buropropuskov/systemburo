@@ -12,9 +12,14 @@ type ArchiveStats struct {
 	FreeBytes int64 `json:"free_bytes"`
 	FileCount int64 `json:"file_count"`
 	// Periods - разбивка архива по месяцам, свежий месяц сверху.
-	Periods     []ArchiveStatsPeriod `json:"periods"`
-	Disk        ArchiveDiskUsage     `json:"disk"`
-	GeneratedAt time.Time            `json:"generated_at"`
+	Periods []ArchiveStatsPeriod `json:"periods"`
+	// Statuses - сколько строк реестра в каждом состоянии, включая нули по
+	// известным статусам. Ради no_template: вложение без настроенного бланка -
+	// видимый пробел архива, и он обязан быть числом на экране, а не тишиной,
+	// иначе неполнота обнаружится в тот момент, когда заявка понадобится.
+	Statuses    map[string]int64 `json:"statuses"`
+	Disk        ArchiveDiskUsage `json:"disk"`
+	GeneratedAt time.Time        `json:"generated_at"`
 }
 
 // ArchiveStatsPeriod - один месяц раскладки архива.

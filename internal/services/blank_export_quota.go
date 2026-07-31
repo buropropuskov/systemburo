@@ -129,6 +129,30 @@ func (q *BlankExportQuotaService) Stats(ctx context.Context) (*models.ArchiveSta
 	return &out, nil
 }
 
+// statusCounts считает строки реестра по состояниям. Известные статусы попадают в
+// ответ даже с нулём: пропавший из карты ключ фронт покажет пустотой, а «ноль
+// пробелов» и «про пробелы не спросили» - разные сообщения администратору.
+func (q *BlankExportQuotaService) statusCounts(ctx context.Context) (map[string]int64, error) {
+	var rows []struct {
+		Status string
+		Total  int64
+	}
+	err := q.db.WithContext(ctx).Model(&models.BlankExport{}).
+		Select("status, COUNT(*) AS total").Group("status").Scan(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to aggregate archive statuses: %w", err)
+	}
+
+	out := make(map[string]int64, len(models.AllBlankExportStatuses))
+	for _, name := range models.AllBlankExportStatuses {
+		out[name] = 0
+	}
+	for _, r := range rows {
+		out[r.Status] = r.Total
+	}
+	return out, nil
+}
+
 func (q *BlankExportQuotaService) computeStats(ctx context.Context) (*models.ArchiveStats, error) {
 	var agg struct {
 		Bytes int64
@@ -162,6 +186,11 @@ func (q *BlankExportQuotaService) computeStats(ctx context.Context) (*models.Arc
 		periods = append(periods, models.ArchiveStatsPeriod{Month: r.Month, Bytes: r.Bytes, FileCount: r.Files})
 	}
 
+	statuses, err := q.statusCounts(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	disk, err := q.diskUsage(ctx, agg.Bytes)
 	if err != nil {
 		return nil, err
@@ -172,6 +201,7 @@ func (q *BlankExportQuotaService) computeStats(ctx context.Context) (*models.Arc
 		FreeBytes:   disk.FreeBytes,
 		FileCount:   agg.Files,
 		Periods:     periods,
+		Statuses:    statuses,
 		Disk:        disk,
 		GeneratedAt: time.Now(),
 	}, nil
