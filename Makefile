@@ -1,4 +1,4 @@
-.PHONY: up down build test logs restart lint bash db-shell frontend-dev prod-build init init-staging init-production seed seed-demo staging-seed staging-seed-demo deploy-seed deploy-seed-demo staging-build staging-up staging-down staging-logs deploy-build deploy-up deploy-down deploy-logs security maintenance-off staging-maintenance-off deploy-maintenance-off
+.PHONY: up down build test logs restart lint bash db-shell frontend-dev prod-build init init-staging init-production seed seed-demo staging-seed staging-seed-demo deploy-seed deploy-seed-demo staging-build staging-up staging-down staging-logs deploy-build deploy-up deploy-down deploy-logs security maintenance-off staging-maintenance-off deploy-maintenance-off cleanup staging-cleanup deploy-cleanup
 
 up:
 	docker compose up -d
@@ -104,3 +104,16 @@ staging-maintenance-off:
 
 deploy-maintenance-off:
 	bash scripts/maintenance-off.sh production
+
+# Очистка накопленных данных. Без ARGS показывает, сколько записей попадёт под
+# удаление, и ничего не удаляет. Справка: make cleanup ARGS=-help
+# Примеры: make cleanup ARGS="-apply"
+#          make deploy-cleanup ARGS="-targets=audit -older-than=36m"
+cleanup:
+	docker compose exec go-backend go run ./cmd/server cleanup $(ARGS)
+
+staging-cleanup:
+	docker compose -f docker-compose.base.yml -f docker-compose.staging.yml exec backend ./server cleanup $(ARGS)
+
+deploy-cleanup:
+	docker compose -f docker-compose.base.yml -f docker-compose.prod.yml exec backend ./server cleanup $(ARGS)

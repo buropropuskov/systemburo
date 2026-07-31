@@ -48,6 +48,13 @@ import (
 // @description JWT токен в формате: Bearer {token}
 
 func main() {
+	// Подкоманды обслуживания живут в этом же бинаре: в рабочем образе есть только
+	// собранные server и seed, компилятора там нет, и отдельный инструмент пришлось
+	// бы вносить в сборку образа.
+	if len(os.Args) > 1 && os.Args[1] == "cleanup" {
+		os.Exit(runCleanup(os.Args[2:]))
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		slog.Error("failed to load config", "error", err)
@@ -432,6 +439,11 @@ func main() {
 	// сворачивает партиции старше RequestLogDetailDays в агрегаты и дропает.
 	go startLogPartitionWorker(ctxSig, db, cfg.RequestLogDetailDays, cfg.RequestLogPartitionPrecreateDays, cfg.PdAuditRetentionMonths, 24*time.Hour)
 
+	// Суточная уборка технического мусора: недействительные токены сессий и
+	// прочитанные уведомления. Остальные журналы чистятся только вручную
+	// подкомандой cleanup - там решение за оператором.
+	go startRetentionWorker(ctxSig, db, cfg.RefreshTokenRetentionDays, cfg.ReadNotificationRetentionDays, 24*time.Hour)
+
 	// Graceful shutdown
 	go func() {
 		<-ctxSig.Done()
@@ -468,6 +480,25 @@ func startLogPartitionWorker(ctx context.Context, db *gorm.DB, detailDays, precr
 		select {
 		case <-ctx.Done():
 			slog.Info("log partition worker stopped")
+			return
+		case <-ticker.C:
+			run()
+		}
+	}
+}
+
+// startRetentionWorker раз в interval сметает данные, которые обесценились сами:
+// недействительные токены сессий и прочитанные уведомления. Первый прогон сразу -
+// после долгого простоя мусор копится, ждать сутки незачем.
+func startRetentionWorker(ctx context.Context, db *gorm.DB, tokenDays, notificationDays int, interval time.Duration) {
+	run := func() { database.SweepRoutine(ctx, db, tokenDays, notificationDays) }
+	run()
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			slog.Info("retention worker stopped")
 			return
 		case <-ticker.C:
 			run()
