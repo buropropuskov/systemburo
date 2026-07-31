@@ -69,6 +69,9 @@ type CarService interface {
 	// Пустой итоговый набор целевых таблиц -> машина деактивируется (как единичный
 	// DeactivateCar).
 	BulkUnbindTable(ctx context.Context, req BulkUnbindCarsTableRequest, actorID int) (*BulkOpResult, error)
+
+	// SetBlankExportEnqueuer подключает очередь файлового архива (#1615, B1).
+	SetBlankExportEnqueuer(e BlankExportEnqueuer)
 }
 
 // --- DTO запросов ---
@@ -321,6 +324,11 @@ type carService struct {
 	db             *gorm.DB
 	recorder       AuditRecorder
 	tablesProducer *TablesRefreshPublisher
+	// blankExports - постановка заявки в очередь на выгрузку в файловый архив
+	// (#1615, B1): bulk-перенос машины между таблицами «Проезд» меняет то, что
+	// хранит слепок заявки (заявка.json). Сеттер - тот же порядок инициализации,
+	// что у applicationService.SetBlankExportEnqueuer.
+	blankExports BlankExportEnqueuer
 }
 
 // CarServiceOption конфигурирует carService при создании.
@@ -330,6 +338,11 @@ type CarServiceOption func(*carService)
 // машины (#840 V2.3): строка видна во всех cars-таблицах, обновляем их live.
 func WithCarTablesProducer(p *TablesRefreshPublisher) CarServiceOption {
 	return func(s *carService) { s.tablesProducer = p }
+}
+
+// SetBlankExportEnqueuer подключает очередь файлового архива (#1615, B1).
+func (s *carService) SetBlankExportEnqueuer(e BlankExportEnqueuer) {
+	s.blankExports = e
 }
 
 // NewCarService создаёт новый экземпляр CarService.

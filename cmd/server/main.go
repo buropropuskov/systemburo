@@ -302,6 +302,15 @@ func main() {
 		resetLoc = time.UTC
 	}
 	archivePathService := services.NewArchivePathService(db, resetLoc)
+	// Место и квота файлового архива (#1615, срез B2): сводка занятого места и
+	// порог, останавливающий очередь выгрузки при нехватке места. Поднимается
+	// независимо от blankExportService - сводку и статус диска нужно показывать
+	// и когда каталог архива ещё не настроен (тот же принцип, что у настроек), -
+	// но раньше него: фоновый прогон выгрузки спрашивает пороги перед каждой
+	// записью и получает сторожа конструктором.
+	blankExportQuotaService := services.NewBlankExportQuotaService(
+		db, settingsService, notificationService, permissionResolver, auditRecorder,
+		cfg.ArchivePath, cfg.UploadPath, cfg.LogFilePath)
 	// Писатель архива поднимается один на процесс. Не сложился корень - раздел
 	// настроек всё равно должен открываться, поэтому сервис выгрузки остаётся nil,
 	// а ручка пересоздания честно отвечает «архив недоступен».
@@ -310,17 +319,20 @@ func main() {
 		slog.Error("файловый архив не поднят", "path", cfg.ArchivePath, "error", err)
 	} else {
 		blankExportService = services.NewBlankExportService(
-			db, attachmentBlankService, archivePathService, archiveWriter, settingsService)
+			db, attachmentBlankService, archivePathService, archiveWriter, settingsService,
+			blankExportQuotaService)
 	}
+	// Точки изменения заявки ставят её в очередь на выгрузку (#1615, B1). Сеттеры,
+	// а не конструкторские опции: сервисы выше уже собраны, а blankExportService
+	// поднят только сейчас (зависит от attachmentBlankService/archivePathService).
+	// blankExportService типизированный nil безопасен - Enqueue* на нём no-op.
+	applicationService.SetBlankExportEnqueuer(blankExportService)
+	organizationService.SetBlankExportEnqueuer(blankExportService)
+	companyService.SetBlankExportEnqueuer(blankExportService)
+	carService.SetBlankExportEnqueuer(blankExportService)
+	employeeService.SetBlankExportEnqueuer(blankExportService)
 	blankArchiveHandler := handlers.NewBlankArchiveHandler(
 		settingsService, archivePathService, blankExportService, auditRecorder)
-	// Место и квота файлового архива (#1615, срез B2): сводка занятого места и
-	// порог, останавливающий очередь выгрузки при нехватке места. Поднимается
-	// независимо от blankExportService - сводку и статус диска нужно показывать
-	// и когда каталог архива ещё не настроен (тот же принцип, что у настроек).
-	blankExportQuotaService := services.NewBlankExportQuotaService(
-		db, settingsService, notificationService, permissionResolver, auditRecorder,
-		cfg.ArchivePath, cfg.UploadPath, cfg.LogFilePath)
 	blankArchiveStatsHandler := handlers.NewBlankArchiveStatsHandler(blankExportQuotaService)
 	bugReportHandler := handlers.NewBugReportHandler(bugReportService)
 	maintenanceHandler := handlers.NewMaintenanceHandler(maintenanceService)
@@ -484,6 +496,12 @@ func main() {
 	// прочитанные уведомления. Остальные журналы чистятся только вручную
 	// подкомандой cleanup - там решение за оператором.
 	go startRetentionWorker(ctxSig, db, cfg.RefreshTokenRetentionDays, cfg.ReadNotificationRetentionDays, 24*time.Hour)
+
+	// Файловый архив бланков (#1615, B1): разбор очереди enqueue, подметатель
+	// повторов и ежесуточная сверка реестра с диском в 03:00 по resetLoc. nil,
+	// если каталог архива не поднялся - startFileArchiveWorker сама это проверяет
+	// и завершается без цикла.
+	go startFileArchiveWorker(ctxSig, blankExportService, cfg.ArchiveWorkerTick, cfg.ArchiveSweepInterval, resetLoc)
 
 	// Graceful shutdown
 	go func() {
@@ -743,6 +761,85 @@ func startReminderScheduler(ctx context.Context, svc services.ReminderService, i
 			if err := svc.SendPendingReminders(ctx); err != nil {
 				slog.Error("reminder run failed", "error", err)
 			}
+		}
+	}
+}
+
+// startFileArchiveWorker обслуживает файловый архив бланков (#1615, B1):
+//   - разбирает очередь enqueue по каждому тику ArchiveWorkerTick И по Wake() -
+//     точки изменения заявки будят воркер сразу, тик подстраховывает; перед
+//     разбором спрашиваются пороги места (B2): узнать про нехватку надо ДО записи,
+//     а сработавший жёсткий порог пропускает разбор целиком;
+//   - раз в ArchiveSweepInterval подметает заявки, чья прошлая попытка выгрузки
+//     провалилась транзиентно и подошёл срок повтора;
+//   - раз в сутки в 03:00 по location сверяет реестр с диском в окне recheck_days
+//     (ловит заявки, потерявшие очередь вместе с процессом, и заодно докладывает
+//     о выявленном расхождении);
+//   - убирает временный мусор (.tmp-*) на старте и затем раз в час - недописанный
+//     файл после падения процесса иначе остаётся под каталогом заявки навсегда.
+//
+// svc == nil, если каталог архива не поднялся (Validate прошёл, но запись
+// недоступна) - воркеру тогда нечего делать, и горутина завершается сразу.
+func startFileArchiveWorker(ctx context.Context, svc *services.BlankExportService, tick, sweepInterval time.Duration, location *time.Location) {
+	if svc == nil {
+		return
+	}
+	writer := svc.Writer()
+
+	if removed, err := writer.CleanupTemp(time.Hour); err != nil {
+		slog.Error("файловый архив: уборка временных файлов на старте не удалась", "error", err)
+	} else if removed > 0 {
+		slog.Info("файловый архив: временные файлы убраны на старте", "count", removed)
+	}
+
+	workTicker := time.NewTicker(tick)
+	defer workTicker.Stop()
+	sweepTicker := time.NewTicker(sweepInterval)
+	defer sweepTicker.Stop()
+	tmpTicker := time.NewTicker(time.Hour)
+	defer tmpTicker.Stop()
+
+	now := time.Now().In(location)
+	nextRecheck := time.Date(now.Year(), now.Month(), now.Day(), 3, 0, 0, 0, location)
+	if !nextRecheck.After(now) {
+		nextRecheck = nextRecheck.Add(24 * time.Hour)
+	}
+	recheckTimer := time.NewTimer(time.Until(nextRecheck))
+	defer recheckTimer.Stop()
+
+	slog.Info("файловый архив: воркер запущен",
+		"tick", tick, "sweep_interval", sweepInterval, "next_recheck", nextRecheck.Format(time.RFC3339))
+
+	processQueue := func() {
+		if processed, failed := svc.ProcessQueue(ctx); processed+failed > 0 {
+			slog.Info("файловый архив: очередь разобрана", "processed", processed, "failed", failed)
+		}
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			slog.Info("файловый архив: воркер остановлен")
+			return
+		case <-svc.Wake():
+			processQueue()
+		case <-workTicker.C:
+			processQueue()
+		case <-sweepTicker.C:
+			if processed, failed := svc.Sweep(ctx); processed+failed > 0 {
+				slog.Info("файловый архив: подметены заявки на повтор", "processed", processed, "failed", failed)
+			}
+		case <-tmpTicker.C:
+			if removed, err := writer.CleanupTemp(time.Hour); err != nil {
+				slog.Error("файловый архив: уборка временных файлов не удалась", "error", err)
+			} else if removed > 0 {
+				slog.Info("файловый архив: временные файлы убраны", "count", removed)
+			}
+		case <-recheckTimer.C:
+			processed, failed := svc.Recheck(ctx)
+			slog.Info("файловый архив: ночная сверка выполнена", "processed", processed, "failed", failed)
+			nextRecheck = nextRecheck.Add(24 * time.Hour)
+			recheckTimer.Reset(time.Until(nextRecheck))
 		}
 	}
 }

@@ -350,6 +350,22 @@ func (s *applicationService) applicationParticipants(ctx context.Context, applic
 	return s.centerAudience(ctx, applicationID, senderID)
 }
 
+// applicationArchiveChange - изменила ли операция данные, которые лежат в файловом
+// архиве заявки: бланк и заявка.json (#1615, B1). Именованный тип, а не голый bool,
+// чтобы решение было видно в самом вызове, а новая точка мутации была обязана его
+// принять - молча унаследовать чужое значение у неё не получится.
+type applicationArchiveChange bool
+
+const (
+	// archiveDataChanged - изменился состав людей/машин/ТМЦ, сроки, организация,
+	// статус или согласование: копию на диске надо пересобрать.
+	archiveDataChanged applicationArchiveChange = true
+	// archiveDataUnchanged - изменилось только то, чего нет ни в бланке, ни в
+	// слепке: переписка по заявке и отметка о пропуске предупреждения ЧС. Дедуп по
+	// хэшу спас бы от лишней записи на диск, но не от самой генерации бланка.
+	archiveDataUnchanged applicationArchiveChange = false
+)
+
 // notifyApplicationUpdated шлёт участникам заявки два лёгких сигнала (#840):
 //   - application.updated (scope application:<id>) - открытая деталь перезапросит
 //     статус/вопросы/согласующих без F5 (V4);
@@ -360,7 +376,17 @@ func (s *applicationService) applicationParticipants(ctx context.Context, applic
 // Аудитория одна на оба - applicationParticipants (зеркало applyApplicationAccessFilter),
 // поэтому кто видит деталь, тот видит и строку в Центре. Best-effort: без паблишера/при
 // пустой аудитории - no-op, сбой не влияет на бизнес-операцию. Звать ПОСЛЕ commit изменения.
-func (s *applicationService) notifyApplicationUpdated(ctx context.Context, applicationID int) {
+//
+// change отвечает на отдельный вопрос: изменилось ли то, что лежит в файловом архиве
+// (#1615, B1). Сигнал интерфейсу нужен любой правке, включая переписку по заявке, а
+// пересборка бланка - только правке данных: генерация открывает xlsx-шаблон и делает
+// полтора десятка запросов, и на каждый вопрос-ответ этот прогон уходил бы впустую.
+func (s *applicationService) notifyApplicationUpdated(ctx context.Context, applicationID int, change applicationArchiveChange) {
+	// До раннего return: очередь архива живёт независимо от realtimePublisher.
+	if change == archiveDataChanged {
+		s.enqueueArchiveExport(applicationID, BlankExportReasonUpdate)
+	}
+
 	if s.realtimePublisher == nil {
 		return
 	}

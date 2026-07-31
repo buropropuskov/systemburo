@@ -110,6 +110,10 @@ type CompanyService interface {
 
 	// BulkRestore восстанавливает набор компаний из архива.
 	BulkRestore(ctx context.Context, callerUserID int, ids []int) (*BulkOpResult, error)
+
+	// SetBlankExportEnqueuer подключает очередь файлового архива (#1615, B1) -
+	// разбор справочника ставит на пересборку заявки, ссылающиеся на запись.
+	SetBlankExportEnqueuer(e BlankExportEnqueuer)
 }
 
 // --- DTO: запросы ---
@@ -201,6 +205,9 @@ type companyService struct {
 	db       *gorm.DB
 	recorder AuditRecorder
 	notifier NotificationService
+	// blankExports - постановка затронутых заявок в очередь на выгрузку в файловый
+	// архив (#1615, B1), зеркало organizationService.blankExports.
+	blankExports BlankExportEnqueuer
 }
 
 // CompanyServiceOption конфигурирует companyService при создании.
@@ -210,6 +217,11 @@ type CompanyServiceOption func(*companyService)
 // наименования (#1437), зеркало WithOrganizationNotifications.
 func WithCompanyNotifications(n NotificationService) CompanyServiceOption {
 	return func(s *companyService) { s.notifier = n }
+}
+
+// SetBlankExportEnqueuer подключает очередь файлового архива (#1615, B1).
+func (s *companyService) SetBlankExportEnqueuer(e BlankExportEnqueuer) {
+	s.blankExports = e
 }
 
 // NewCompanyService создаёт экземпляр сервиса компаний.
@@ -238,17 +250,17 @@ func (s *companyService) Suggest(ctx context.Context, query string) (DirectorySu
 
 // ApproveModeration - разбор компании «на проверке», см. approveDirectoryEntry.
 func (s *companyService) ApproveModeration(ctx context.Context, callerUserID, id int) (DirectoryModerationResult, error) {
-	return approveDirectoryEntry(ctx, s.db, s.recorder, companyModeration, id, callerUserID)
+	return approveDirectoryEntry(ctx, s.db, s.recorder, s.blankExports, companyModeration, id, callerUserID)
 }
 
 // RenameModeration - исправление наименования при разборе, см. renameDirectoryEntry.
 func (s *companyService) RenameModeration(ctx context.Context, callerUserID, id int, name string) (DirectoryModerationResult, error) {
-	return renameDirectoryEntry(ctx, s.db, s.recorder, s.notifier, companyModeration, id, name, callerUserID)
+	return renameDirectoryEntry(ctx, s.db, s.recorder, s.notifier, s.blankExports, companyModeration, id, name, callerUserID)
 }
 
 // MergeModeration - привязка черновика к существующей компании, см. mergeDirectoryEntry.
 func (s *companyService) MergeModeration(ctx context.Context, callerUserID, id, targetID int) (DirectoryMergeResult, error) {
-	return mergeDirectoryEntry(ctx, s.db, s.recorder, s.notifier, companyModeration, id, targetID, callerUserID)
+	return mergeDirectoryEntry(ctx, s.db, s.recorder, s.notifier, s.blankExports, companyModeration, id, targetID, callerUserID)
 }
 
 // GetWithUsers возвращает компании с количеством привязанных пользователей.

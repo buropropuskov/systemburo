@@ -288,16 +288,19 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 		t.Fatalf("archive writer: %v", err)
 	}
 	archivePathService := services.NewArchivePathService(db, time.UTC)
+	// Место и квота (#1615, срез B2): та же пара каталогов, что видит настоящий
+	// процесс (архив/загрузки), логи в тестах не пишутся в файл. Как и в cmd/server,
+	// сторож поднимается раньше сервиса выгрузки - фоновый прогон спрашивает пороги
+	// перед записью и получает сторожа конструктором.
+	blankExportQuotaService := services.NewBlankExportQuotaService(
+		db, settingsService, notificationService, permissionResolver, auditRecorder,
+		archiveDir, uploadDir, "")
 	blankArchiveHandler := handlers.NewBlankArchiveHandler(
 		settingsService, archivePathService,
-		services.NewBlankExportService(db, attachmentBlankService, archivePathService, archiveWriter, settingsService),
+		services.NewBlankExportService(db, attachmentBlankService, archivePathService,
+			archiveWriter, settingsService, blankExportQuotaService),
 		auditRecorder)
-	// Место и квота (#1615, срез B2): та же пара каталогов, что видит настоящий
-	// процесс (архив/загрузки), логи в тестах не пишутся в файл.
-	blankArchiveStatsHandler := handlers.NewBlankArchiveStatsHandler(
-		services.NewBlankExportQuotaService(
-			db, settingsService, notificationService, permissionResolver, auditRecorder,
-			archiveDir, uploadDir, ""))
+	blankArchiveStatsHandler := handlers.NewBlankArchiveStatsHandler(blankExportQuotaService)
 	telegramService := services.NewTelegramService("", "")
 	bugReportService := services.NewBugReportService(db, telegramService)
 	bugReportHandler := handlers.NewBugReportHandler(bugReportService)

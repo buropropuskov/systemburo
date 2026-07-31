@@ -266,6 +266,10 @@ type ApplicationService interface {
 	// MarkQuestionRead помечает конкретный вопрос-топик прочитанным (#973) - гасит его новизну
 	// для пользователя (per-топик отметка, недочитанные топики остаются новыми).
 	MarkQuestionRead(ctx context.Context, username string, applicationID, questionID int) error
+
+	// SetBlankExportEnqueuer подключает очередь файлового архива (#1615, B1) -
+	// точки изменения заявки ставят её на пересборку бланков после commit.
+	SetBlankExportEnqueuer(e BlankExportEnqueuer)
 }
 
 // --- DTO: запросы ---
@@ -741,6 +745,27 @@ type applicationService struct {
 	tablesProducer      *TablesRefreshPublisher
 	availableProducer   *AvailableRefreshPublisher
 	permissionResolver  *PermissionResolver
+	// blankExports - постановка заявки в очередь на выгрузку в файловый архив
+	// (#1615, B1). Сеттер, а не конструкторская опция: BlankExportService поднимается
+	// позже applicationService в cmd/server/main.go (зависит от attachmentBlankService).
+	blankExports BlankExportEnqueuer
+}
+
+// SetBlankExportEnqueuer подключает очередь файлового архива (#1615, B1). nil
+// безопасен - enqueueArchiveExport становится no-op, раздел настроек архива при
+// этом всё равно открывается (архив мог не подняться из-за каталога).
+func (s *applicationService) SetBlankExportEnqueuer(e BlankExportEnqueuer) {
+	s.blankExports = e
+}
+
+// enqueueArchiveExport ставит заявку в очередь на выгрузку бланков в файловый
+// архив. Best-effort и синхронный (карта в памяти под мьютексом) - вызывается из
+// каждой точки, где заявка реально изменилась после commit.
+func (s *applicationService) enqueueArchiveExport(applicationID int, reason string) {
+	if s.blankExports == nil {
+		return
+	}
+	s.blankExports.EnqueueApplication(applicationID, reason)
 }
 
 // ApplicationServiceOption конфигурирует applicationService при создании.
@@ -2035,6 +2060,10 @@ func (s *applicationService) SubmitCompleteApplication(ctx context.Context, user
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
 	}
 
+	// Файловый архив (#1615, B1): подача - первая точка, где у заявки вообще
+	// появляются бланки на выгрузку.
+	s.enqueueArchiveExport(appID, BlankExportReasonSubmit)
+
 	// Мягкая проверка возможного обхода ЧС по похожему номеру/ФИО (#481): помечает
 	// элементы флагом для предупреждения согласующим. Best-effort, заявку не блокирует.
 	// Синхронно (не в горутине) намеренно: флаги должны быть готовы сразу для детали
@@ -2211,7 +2240,7 @@ func (s *applicationService) UpdateApplication(ctx context.Context, username str
 
 	// Любое изменение заявки этим путём (статус/подтверждение/коммент) участники
 	// видят в детали live (#840 V4).
-	s.notifyApplicationUpdated(ctx, applicationID)
+	s.notifyApplicationUpdated(ctx, applicationID, archiveDataChanged)
 	// Инициатору - уведомление об исходе согласования, если admin выставил confirmation
 	// в финальное значение (Согласовано/Не согласовано) и оно реально сменилось (#1349).
 	if confirmationChanged {

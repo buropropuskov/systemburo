@@ -27,6 +27,12 @@ const (
 	BlankExportReasonReexport = "reexport"
 	BlankExportReasonSubmit   = "submit"
 	BlankExportReasonUpdate   = "update"
+	// BlankExportReasonSweep - подметатель повторов (B1): заявка, у которой прошлая
+	// попытка выгрузки провалилась транзиентно и подошёл срок next_attempt_at.
+	BlankExportReasonSweep = "sweep"
+	// BlankExportReasonRecheck - ночная сверка реестра с диском (B1): полный прогон
+	// заявок в окне recheck_days, независимо от того, звала ли их очередь.
+	BlankExportReasonRecheck = "recheck"
 )
 
 // Паузы перед повтором неудачной выгрузки: минута с удвоением до шести часов.
@@ -52,18 +58,45 @@ type BlankExportService struct {
 	paths    *ArchivePathService
 	writer   *ArchiveWriter
 	settings SettingsService
+	// queue - набор заявок, ожидающих разбора фоновым воркером (B1). Отдельная
+	// маленькая структура, а не поле-канал прямо здесь: push/drain/nudge должны
+	// быть безопасны без блокировки остального сервиса.
+	queue *blankExportQueue
+	// quota - пороги места (B2). Спрашивается перед каждой фоновой записью: узнать
+	// про нехватку места надо ДО записи, а не по факту сбоя.
+	quota ArchiveQuotaGuard
 }
 
 // NewBlankExportService собирает сервис выгрузки поверх готовых частей: генератор
-// бланков, расчёт путей и писатель на диск.
+// бланков, расчёт путей, писатель на диск и сторож места на разделе.
+//
+// quota может быть nil - тогда фоновые прогоны идут без проверки порогов (полезно
+// в тестах ядра выгрузки). В рабочем процессе сторож подключён всегда: без него
+// жёсткий порог места остаётся мёртвым кодом.
 func NewBlankExportService(
 	db *gorm.DB,
 	blanks AttachmentBlankService,
 	paths *ArchivePathService,
 	writer *ArchiveWriter,
 	settings SettingsService,
+	quota ArchiveQuotaGuard,
 ) *BlankExportService {
-	return &BlankExportService{db: db, blanks: blanks, paths: paths, writer: writer, settings: settings}
+	return &BlankExportService{
+		db: db, blanks: blanks, paths: paths, writer: writer, settings: settings,
+		queue: newBlankExportQueue(), quota: quota,
+	}
+}
+
+// Wake отдаёт канал пробуждения воркера - сигнал приходит по каждому enqueue и
+// по явному Nudge. Воркер (cmd/server) селектит его рядом с тикерами.
+func (s *BlankExportService) Wake() <-chan struct{} {
+	return s.queue.wake
+}
+
+// Writer отдаёт писателя архива - воркеру (cmd/server) он нужен для уборки
+// временного мусора (.tmp-*) на своём тике, отдельном от разбора очереди.
+func (s *BlankExportService) Writer() *ArchiveWriter {
+	return s.writer
 }
 
 // blankExportTarget - вложение заявки вместе с тем, что решает его судьбу: тумблер
@@ -147,29 +180,64 @@ func (s *BlankExportService) ExportApplication(ctx context.Context, applicationI
 	// замороженный бланк. У заявки, где ни одному типу вложения не настроен бланк,
 	// замороженных строк реестра не появляется вовсе - и слепок такой заявки
 	// переписывался бы вечно, хотя обещан окончательным.
-	result.Snapshot = s.exportSnapshot(ctx, applicationID, levels, frozenApplicationDir != "" || frozenAt != nil)
+	//
+	// Слепок ведёт строку реестра под attachment_id=archiveSnapshotAttachmentID
+	// (B1, долг A5c): без неё currentDir/frozenDir/relocate не видят его фактический
+	// путь, и заявка без единого бланка после смены организации оставляет заявка.json
+	// сиротой в прежней папке - переезжать в системе было бы нечему.
+	result.Snapshot = s.exportSnapshot(ctx, exportRequest{
+		applicationID: applicationID,
+		reason:        reason,
+		bucketDate:    appValues.Date,
+		levels:        levels,
+		target:        blankExportTarget{AttachmentID: archiveSnapshotAttachmentID, FileName: archiveSnapshotFileName},
+		row:           registry[archiveSnapshotAttachmentID],
+		frozenAt:      frozenAt,
+	})
 
 	return result, nil
 }
 
 // exportSnapshot пишет машиночитаемый слепок заявки рядом с бланками и докладывает
-// исход в ответе. Молчать нельзя: строки реестра у слепка нет, повторять его некому,
-// и администратор, нажавший «пересоздать», обязан узнать о несостоявшейся записи
-// сразу, а не обнаружить пропажу файла годы спустя.
-func (s *BlankExportService) exportSnapshot(ctx context.Context, applicationID int, levels []string, frozen bool) models.BlankExportSnapshotResult {
+// исход в ответе. Молчать нельзя: без ретрая и без записи в реестр администратор,
+// нажавший «пересоздать», обязан узнать о несостоявшейся записи сразу, а не
+// обнаружить пропажу файла годы спустя.
+//
+// Решение «писать или нет» остаётся диск-ориентированным (writeApplicationSnapshot
+// сама проверяет exists+frozen), а не читает req.row.FrozenAt из реестра: гейт по
+// персистентному признаку оставил бы без слепка навсегда заявки, у которых первая
+// запись сорвалась ровно на прогоне заморозки, - реестр здесь только запоминает
+// ФАКТИЧЕСКИЙ путь для переезда, не решает, перезаписывать ли содержимое.
+func (s *BlankExportService) exportSnapshot(ctx context.Context, req exportRequest) models.BlankExportSnapshotResult {
+	frozen := req.frozenAt != nil
 	out := models.BlankExportSnapshotResult{
-		RelPath: path.Join(path.Join(levels...), archiveSnapshotFileName),
+		RelPath: path.Join(path.Join(req.levels...), archiveSnapshotFileName),
 		Frozen:  frozen,
 	}
 
-	written, err := writeApplicationSnapshot(ctx, s.db, s.writer, applicationID, levels, frozen)
+	written, hash, size, err := writeApplicationSnapshot(ctx, s.db, s.writer, req.applicationID, req.levels, frozen)
 	if err != nil {
 		out.Status, out.Error = models.BlankExportFailed, err.Error()
-		slog.Error("не удалось записать слепок заявки в архив", "application_id", applicationID, "error", err)
+		slog.Error("не удалось записать слепок заявки в архив", "application_id", req.applicationID, "error", err)
+		if saveErr := s.saveState(ctx, req, out.Status, out.Error, nil); saveErr != nil {
+			slog.Error("не удалось записать состояние слепка заявки", "application_id", req.applicationID, "error", saveErr)
+		}
 		return out
 	}
 
+	// Замороженный слепок пропускает чтение файла (writeApplicationSnapshot экономит
+	// I/O раз содержимое всё равно неприкосновенно) - хэш тогда не пересчитан, берём
+	// его из прежней строки реестра. RelDir всё равно перезаписывается на req.levels:
+	// без этого переезд заявки при смене организации некому заметить (долг A5c).
+	if hash == "" && req.row != nil {
+		hash, size = req.row.ContentHash, req.row.SizeBytes
+	}
+
 	out.Status, out.Written = models.BlankExportOK, written
+	state := &exportedFile{hash: hash, size: size, frozenAt: req.frozenAt}
+	if err := s.saveState(ctx, req, models.BlankExportOK, "", state); err != nil {
+		out.Status, out.Error = models.BlankExportFailed, err.Error()
+	}
 	return out
 }
 
@@ -525,6 +593,12 @@ func (s *BlankExportService) markOrphans(ctx context.Context, registry map[int]*
 	}
 	orphans := make([]int, 0)
 	for id, row := range registry {
+		// Строка слепка (attachment_id=archiveSnapshotAttachmentID) не вложение и
+		// никогда не встретится среди targets - без этой оговорки её отмечало бы
+		// сиротой на каждом прогоне.
+		if id == archiveSnapshotAttachmentID {
+			continue
+		}
 		if _, ok := alive[id]; !ok && row.Status != models.BlankExportOrphan {
 			orphans = append(orphans, row.ID)
 		}

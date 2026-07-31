@@ -123,7 +123,7 @@ func (s *applicationService) TakeApplicationToWork(ctx context.Context, username
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
 	}
 
-	s.notifyApplicationUpdated(ctx, applicationID)
+	s.notifyApplicationUpdated(ctx, applicationID, archiveDataChanged)
 	// Инициатору - уведомление об исходе принятия/отказа (#1349). Гейт actor != sender
 	// внутри хелпера: если принимающий = отправитель, себе не шлём.
 	if req.Action == "accept" {
@@ -192,7 +192,7 @@ func (s *applicationService) RevokeApplicationFromWork(ctx context.Context, user
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
 	}
 
-	s.notifyApplicationUpdated(ctx, applicationID)
+	s.notifyApplicationUpdated(ctx, applicationID, archiveDataChanged)
 	return nil
 }
 
@@ -253,7 +253,7 @@ func (s *applicationService) RestoreApplicationToWork(ctx context.Context, usern
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
 	}
 
-	s.notifyApplicationUpdated(ctx, applicationID)
+	s.notifyApplicationUpdated(ctx, applicationID, archiveDataChanged)
 	return nil
 }
 
@@ -333,7 +333,7 @@ func (s *applicationService) WithdrawApplication(ctx context.Context, username s
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
 	}
 
-	s.notifyApplicationUpdated(ctx, applicationID)
+	s.notifyApplicationUpdated(ctx, applicationID, archiveDataChanged)
 	return nil
 }
 
@@ -373,7 +373,7 @@ func (s *applicationService) UpdateApplicationItemsStatus(ctx context.Context, a
 	// их аудитории обновиться live (#840 V2.2). После commit: строки уже видны.
 	s.tablesProducer.NotifyApplicationActivated(ctx, applicationID)
 	// Принятие сменило статус заявки - участники увидят его в детали live (#840 V4).
-	s.notifyApplicationUpdated(ctx, applicationID)
+	s.notifyApplicationUpdated(ctx, applicationID, archiveDataChanged)
 
 	return nil
 }
@@ -511,7 +511,7 @@ func (s *applicationService) CheckExpiredAttachments(ctx context.Context) error 
 	// Завершение - смена статуса заявки: участники видят её live в детали и списках (#1349).
 	// Инициатору - уведомление "завершена" (actor=nil: завершил крон, шлём и отправителю).
 	for _, id := range completedAppIDs {
-		s.notifyApplicationUpdated(ctx, id)
+		s.notifyApplicationUpdated(ctx, id, archiveDataChanged)
 		s.notifyInitiatorStatusChanged(ctx, id, nil, statusOutcomeCompleted)
 	}
 
