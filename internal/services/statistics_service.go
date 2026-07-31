@@ -219,7 +219,7 @@ func (s *statisticsService) computeHeavySummary(ctx context.Context, from, to ti
 	// cars_entered: источник carsHistoryUnion (audit_log[car], #870 F.5 read-switch);
 	// до-cutover въезды cars_history перенесены в audit_log backfill'ом.
 	if err := s.db.WithContext(ctx).
-		Table(carsHistoryUnion + " ch").
+		Table(carsHistoryUnion+" ch").
 		Where("ch.action_type = 'entry' AND ch.created_at BETWEEN ? AND ?", from, to).
 		Count(&summary.CarsEntered).Error; err != nil {
 		return nil, fmt.Errorf("statistics: cars_entered: %w", err)
@@ -228,7 +228,7 @@ func (s *statisticsService) computeHeavySummary(ctx context.Context, from, to ti
 	// people_entered: источник employeesHistoryUnion (audit_log[employee], #870 F.6
 	// read-switch); до-cutover въезды employees_history перенесены backfill'ом.
 	if err := s.db.WithContext(ctx).
-		Table(employeesHistoryUnion + " eh").
+		Table(employeesHistoryUnion+" eh").
 		Where("eh.action_type = 'entry' AND eh.created_at BETWEEN ? AND ?", from, to).
 		Count(&summary.PeopleEntered).Error; err != nil {
 		return nil, fmt.Errorf("statistics: people_entered: %w", err)
@@ -549,7 +549,7 @@ func (s *statisticsService) GetRecentPassages(ctx context.Context, limit int) (*
 	}
 
 	if err := s.db.WithContext(ctx).
-		Table(employeesHistoryUnion + " eh").
+		Table(employeesHistoryUnion+" eh").
 		Joins("JOIN employees e ON e.id = eh.employee_id").
 		Joins("LEFT JOIN attachments a ON a.id = e.attachment_id").
 		Joins("LEFT JOIN applications app ON app.id = a.application_id").
@@ -569,7 +569,7 @@ func (s *statisticsService) GetRecentPassages(ctx context.Context, limit int) (*
 	}
 
 	if err := s.db.WithContext(ctx).
-		Table(carsHistoryUnion + " ch").
+		Table(carsHistoryUnion+" ch").
 		Joins("JOIN cars c ON c.id = ch.car_id").
 		Joins("LEFT JOIN attachments a ON a.id = c.attachment_id").
 		Joins("LEFT JOIN applications app ON app.id = a.application_id").

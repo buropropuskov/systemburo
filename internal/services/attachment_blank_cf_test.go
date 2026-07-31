@@ -74,4 +74,3 @@ func TestShiftConditionalFormatFormulas_НетВставки(t *testing.T) {
 		t.Fatalf("без вставки файл должен остаться прежним")
 	}
 }
-

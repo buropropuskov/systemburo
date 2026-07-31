@@ -26,10 +26,10 @@ func (blacklistSearchProvider) Title() string          { return "Чёрные с
 func (blacklistSearchProvider) PermissionKey() string  { return KeyPageBlacklist }
 
 func (blacklistSearchProvider) Search(ctx context.Context, db *gorm.DB, req searchRequest) ([]SearchItem, error) {
-	personCond, personArgs := ilikePatternsArgs(
-		[]string{"last_name", "first_name", "middle_name"}, req.Variants)
-	vehicleCond, vehicleArgs := ilikePatternsArgs(
-		[]string{"car_number", "mark_name"}, req.Variants)
+	personCond, personArgs := searchCondition(
+		[]string{"last_name", "first_name", "middle_name"}, req.Raw)
+	vehicleCond, vehicleArgs := searchCondition(
+		[]string{"car_number", "mark_name"}, req.Raw)
 
 	sql := fmt.Sprintf(`SELECT id, title, subtitle, kind FROM (
 		(SELECT id,

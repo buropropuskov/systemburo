@@ -202,7 +202,7 @@ func TestDocumentFileService_Delete(t *testing.T) {
 	dir := t.TempDir()
 	svc := NewDocumentFileService(dir)
 
-	svc.Delete("") // не паникует
+	svc.Delete("")                     // не паникует
 	svc.Delete("nonexistent-uuid.pdf") // не паникует
 }
 

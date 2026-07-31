@@ -48,8 +48,8 @@ type AssignElementTablesRequest struct {
 // AssignCarUnloadPlacesRequest - назначение мест разгрузки машинам заявки.
 // У сотрудников мест разгрузки нет, поэтому запрос только про машины.
 type AssignCarUnloadPlacesRequest struct {
-	CarIDs   []int `json:"car_ids" validate:"required,min=1"`
-	PlaceIDs []int `json:"place_ids"`
+	CarIDs   []int  `json:"car_ids" validate:"required,min=1"`
+	PlaceIDs []int  `json:"place_ids"`
 	Mode     string `json:"mode" validate:"required,oneof=add replace"`
 }
 
