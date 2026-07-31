@@ -45,6 +45,8 @@ func searchProviderOrder() []searchProvider {
 		userSearchProvider{},
 		blacklistSearchProvider{},
 		directorySearchProvider{},
+		contentSearchProvider{},
+		feedbackSearchProvider{},
 	}
 }
 

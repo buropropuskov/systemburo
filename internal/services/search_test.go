@@ -38,7 +38,8 @@ func TestValidateSearchProviders(t *testing.T) {
 // выборку", а не надежда на внимательность.
 func TestSearchProviderRegistryIsExpected(t *testing.T) {
 	want := []SearchEntityType{SearchTypeEmployees, SearchTypeCars, SearchTypeApplications,
-		SearchTypeUsers, SearchTypeBlacklist, SearchTypeDirectories}
+		SearchTypeUsers, SearchTypeBlacklist, SearchTypeDirectories,
+		SearchTypeContent, SearchTypeFeedback}
 
 	got := make([]SearchEntityType, 0, len(searchProviderOrder()))
 	for _, p := range searchProviderOrder() {

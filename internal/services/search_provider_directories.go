@@ -71,27 +71,7 @@ func (directorySearchProvider) Search(ctx context.Context, db *gorm.DB, req sear
 		LIMIT ?`, strings.Join(branches, " UNION ALL "))
 	args = append(args, req.Raw, req.Raw, req.Limit+1)
 
-	var rows []struct {
-		ID       int    `gorm:"column:id"`
-		Title    string `gorm:"column:title"`
-		Subtitle string `gorm:"column:subtitle"`
-		Kind     string `gorm:"column:kind"`
-	}
-	if err := db.WithContext(ctx).Raw(sql, args...).Scan(&rows).Error; err != nil {
-		return nil, fmt.Errorf("поиск по справочникам: %w", err)
-	}
-
-	// Собираем сами, а не через rowsToItems: у каждой строки свой код сущности --
+	// Через scanKindedRows, а не rowsToItems: у каждой строки свой код сущности --
 	// организация и марка ведут на разные страницы.
-	items := make([]SearchItem, 0, len(rows))
-	for _, r := range rows {
-		items = append(items, SearchItem{
-			ID:       r.ID,
-			Type:     SearchTypeDirectories,
-			Title:    r.Title,
-			Subtitle: r.Subtitle,
-			Target:   SearchTarget{Entity: r.Kind, ID: r.ID},
-		})
-	}
-	return items, nil
+	return scanKindedRows(ctx, db, SearchTypeDirectories, sql, args, "поиск по справочникам")
 }
