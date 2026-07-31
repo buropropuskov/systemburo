@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -389,4 +390,80 @@ func TestLoad_ArchiveDefaults(t *testing.T) {
 	assert.Equal(t, 15*time.Second, cfg.ArchiveWorkerTick)
 	assert.Equal(t, 5*time.Minute, cfg.ArchiveSweepInterval)
 	assert.NotEqual(t, cfg.UploadPath, cfg.ArchivePath, "дефолты не должны совпадать")
+}
+
+// TestValidate_ArchiveSymlinkedIntoUploads - обход проверки ссылкой. Лексически
+// пути разные, физически архив лежит внутри публично раздаваемых загрузок, и без
+// разворачивания ссылок конфигурация прошла бы проверку.
+func TestValidate_ArchiveSymlinkedIntoUploads(t *testing.T) {
+	root := t.TempDir()
+	uploads := filepath.Join(root, "uploads")
+	require.NoError(t, os.MkdirAll(filepath.Join(uploads, "inner"), 0o750))
+
+	link := filepath.Join(root, "archive-link")
+	require.NoError(t, os.Symlink(filepath.Join(uploads, "inner"), link))
+
+	cfg := validConfig()
+	cfg.ArchivePath = link
+	cfg.UploadPath = uploads
+
+	require.ErrorContains(t, cfg.Validate(), "must not be inside UPLOAD_PATH")
+}
+
+// TestValidate_UploadsSymlinkedIntoArchive - та же ссылка с другой стороны.
+func TestValidate_UploadsSymlinkedIntoArchive(t *testing.T) {
+	root := t.TempDir()
+	archive := filepath.Join(root, "archive")
+	require.NoError(t, os.MkdirAll(filepath.Join(archive, "inner"), 0o750))
+
+	link := filepath.Join(root, "uploads-link")
+	require.NoError(t, os.Symlink(filepath.Join(archive, "inner"), link))
+
+	cfg := validConfig()
+	cfg.ArchivePath = archive
+	cfg.UploadPath = link
+
+	require.ErrorContains(t, cfg.Validate(), "must not be inside ARCHIVE_PATH")
+}
+
+// TestValidate_ArchivePathNotCreatedYet - при первом развёртывании каталога ещё нет:
+// приложение стартует раньше, чем оператор его создаст. Несуществующий путь не
+// должен ни валить старт, ни отключать проверку вложенности.
+func TestValidate_ArchivePathNotCreatedYet(t *testing.T) {
+	root := t.TempDir()
+	uploads := filepath.Join(root, "uploads")
+	require.NoError(t, os.MkdirAll(uploads, 0o750))
+
+	t.Run("несуществующий соседний каталог допустим", func(t *testing.T) {
+		cfg := validConfig()
+		cfg.ArchivePath = filepath.Join(root, "not-created-yet")
+		cfg.UploadPath = uploads
+		assert.NoError(t, cfg.Validate())
+	})
+
+	t.Run("несуществующий каталог внутри загрузок всё равно отвергается", func(t *testing.T) {
+		cfg := validConfig()
+		cfg.ArchivePath = filepath.Join(uploads, "not-created-yet")
+		cfg.UploadPath = uploads
+		require.ErrorContains(t, cfg.Validate(), "must not be inside UPLOAD_PATH")
+	})
+}
+
+// TestValidate_EmptyPathsSkipCheck фиксирует единственную ветку, которая выключает
+// проверку целиком. Поведение зеркалит router.go, где статика не поднимается при
+// пустом UploadPath. Тест нужен, чтобы будущий рефакторинг не превратил отказ в
+// молчаливое разрешение.
+func TestValidate_EmptyPathsSkipCheck(t *testing.T) {
+	for _, tc := range []struct{ name, archive, upload string }{
+		{"оба пусты", "", ""},
+		{"пуст архив", "", "/srv/uploads"},
+		{"пусты загрузки", "/srv/archive", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := validConfig()
+			cfg.ArchivePath = tc.archive
+			cfg.UploadPath = tc.upload
+			assert.NoError(t, cfg.Validate())
+		})
+	}
 }

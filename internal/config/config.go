@@ -1,7 +1,9 @@
 package config
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"path/filepath"
 	"strings"
 	"time"
@@ -65,10 +67,12 @@ type Config struct {
 	// только на чтение и включить в резервное копирование.
 	ArchivePath string `env:"ARCHIVE_PATH" envDefault:"./archive"`
 
-	// ArchiveWorkerTick - как часто фоновый воркер разбирает очередь выгрузки,
+	// ArchiveWorkerTick - как часто фоновый воркер разбирает очередь выгрузки.
+	ArchiveWorkerTick time.Duration `env:"ARCHIVE_WORKER_TICK" envDefault:"15s"`
+
 	// ArchiveSweepInterval - как часто подметаются заявки, для которых очередь
-	// потеряна (постановка в неё идёт после коммита и намеренно best-effort).
-	ArchiveWorkerTick    time.Duration `env:"ARCHIVE_WORKER_TICK" envDefault:"15s"`
+	// потеряна: постановка в неё идёт после коммита и намеренно best-effort, чтобы
+	// выгрузка на диск не могла уронить подачу заявки.
 	ArchiveSweepInterval time.Duration `env:"ARCHIVE_SWEEP_INTERVAL" envDefault:"5m"`
 
 	// CookieSecure управляет флагом Secure на refresh-cookie. На staging/prod
@@ -181,11 +185,11 @@ func validateArchiveOutsideUploads(archivePath, uploadPath string) error {
 		return nil
 	}
 
-	archiveAbs, err := filepath.Abs(archivePath)
+	archiveAbs, err := resolvePath(archivePath)
 	if err != nil {
 		return fmt.Errorf("ARCHIVE_PATH: %w", err)
 	}
-	uploadAbs, err := filepath.Abs(uploadPath)
+	uploadAbs, err := resolvePath(uploadPath)
 	if err != nil {
 		return fmt.Errorf("UPLOAD_PATH: %w", err)
 	}
@@ -199,6 +203,42 @@ func validateArchiveOutsideUploads(archivePath, uploadPath string) error {
 		return fmt.Errorf("UPLOAD_PATH (%s) must not be inside ARCHIVE_PATH (%s)", uploadAbs, archiveAbs)
 	}
 	return nil
+}
+
+// resolvePath приводит путь к абсолютному и разворачивает символические ссылки.
+//
+// Без разворачивания проверка сравнивала бы лексические пути, и каталог архива,
+// подложенный ссылкой внутрь загрузок, прошёл бы её - то есть ровно тот случай, от
+// которого весь этот код и защищает.
+//
+// Каталога может ещё не быть: при первом развёртывании приложение стартует до того,
+// как оператор создаст его руками. Поэтому разворачиваем ближайшего существующего
+// предка и приклеиваем остаток пути.
+func resolvePath(p string) (string, error) {
+	abs, err := filepath.Abs(p)
+	if err != nil {
+		return "", err
+	}
+
+	rest := ""
+	for cur := abs; ; {
+		resolved, err := filepath.EvalSymlinks(cur)
+		if err == nil {
+			return filepath.Join(resolved, rest), nil
+		}
+		if !errors.Is(err, fs.ErrNotExist) {
+			// Развернуть не дали по другой причине (например, нет прав на чтение
+			// промежуточного каталога). Сравним хотя бы лексические пути: неполная
+			// проверка лучше, чем отказ стартовать из-за особенностей монтирования.
+			return abs, nil
+		}
+		parent := filepath.Dir(cur)
+		if parent == cur {
+			return abs, nil
+		}
+		rest = filepath.Join(filepath.Base(cur), rest)
+		cur = parent
+	}
 }
 
 // isInside сообщает, лежит ли child под parent. Оба пути должны быть абсолютными.
