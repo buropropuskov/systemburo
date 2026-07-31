@@ -80,6 +80,22 @@ describe('api/attachments', () => {
         createAttachment({ attachmentType: 'cars', name: 'avto', displayName: 'Авто', title: 'АВТО' }),
       ).rejects.toThrow('Attachment with this name already exists')
     })
+
+    it('auto_export не попадает в тело, когда не передан (undefined выпадает из JSON.stringify)', async () => {
+      apiRequest.mockResolvedValue(okJson({ id: 7 }))
+      await createAttachment({ attachmentType: 'cars', name: 'avto', displayName: 'Авто', title: 'АВТО' })
+      const [, opts] = apiRequest.mock.calls[0]
+      expect(JSON.parse(opts.body)).not.toHaveProperty('auto_export')
+    })
+
+    it('шлёт auto_export, когда вызывающая форма его передала (#1615)', async () => {
+      apiRequest.mockResolvedValue(okJson({ id: 7 }))
+      await createAttachment({
+        attachmentType: 'cars', name: 'avto', displayName: 'Авто', title: 'АВТО', autoExport: false,
+      })
+      const [, opts] = apiRequest.mock.calls[0]
+      expect(JSON.parse(opts.body)).toMatchObject({ auto_export: false })
+    })
   })
 
   describe('updateAttachment', () => {
@@ -102,6 +118,28 @@ describe('api/attachments', () => {
           instruction: null,
         }),
       })
+    })
+
+    // КРИТИЧНО (#1615): PUT - полная замена полей, поэтому тумблер архива обязан
+    // уходить в теле запроса каждый раз, когда форма его показывает - иначе он
+    // молча выпадает из сохранения и правка теряется на первом же изменении
+    // другого поля.
+    it('шлёт auto_export в теле PUT, когда передан', async () => {
+      apiRequest.mockResolvedValue(okJson('ok'))
+      await updateAttachment(3, {
+        attachmentType: 'items', name: 'tmc', displayName: 'ТМЦ заявка', title: 'ТМЦ', autoExport: true,
+      })
+      const [, opts] = apiRequest.mock.calls[0]
+      expect(JSON.parse(opts.body)).toMatchObject({ auto_export: true })
+    })
+
+    it('auto_export не попадает в тело PUT, когда не передан', async () => {
+      apiRequest.mockResolvedValue(okJson('ok'))
+      await updateAttachment(3, {
+        attachmentType: 'items', name: 'tmc', displayName: 'ТМЦ заявка', title: 'ТМЦ',
+      })
+      const [, opts] = apiRequest.mock.calls[0]
+      expect(JSON.parse(opts.body)).not.toHaveProperty('auto_export')
     })
   })
 

@@ -10,6 +10,7 @@ vi.mock('@/api/fileArchive', () => api)
 
 import FileArchiveManagement from '../FileArchiveManagement.vue'
 import ArchiveStatusPanel from '../ArchiveStatusPanel.vue'
+import ArchiveSettingsForm from '../ArchiveSettingsForm.vue'
 import RefreshButton from '@/components/RefreshButton.vue'
 import { useDeletionsStore } from '@/stores/deletions'
 
@@ -28,7 +29,7 @@ const emptyStats = {
 
 function mountCmp() {
   return mount(FileArchiveManagement, {
-    global: { stubs: { RefreshButton: true } },
+    global: { stubs: { RefreshButton: true, ArchiveSettingsForm: true } },
   })
 }
 
@@ -58,6 +59,13 @@ describe('FileArchiveManagement', () => {
     expect(w.text()).toContain('Неактивен')
   })
 
+  // jsdom не даёт живого layout-пересчёта на отсоединённом от document дереве (mount()
+  // без attachTo), поэтому DOMWrapper.isVisible() (getComputedStyle) там ненадёжен -
+  // проверяем непосредственно инлайновый display, который v-show выставляет сам.
+  function isShown(wrapper) {
+    return wrapper.element.style.display !== 'none'
+  }
+
   it('переключает вкладки Обзор/Настройки/Ошибки по клику', async () => {
     api.getArchiveSettings.mockResolvedValue({ enabled: false })
     const w = mountCmp()
@@ -66,12 +74,23 @@ describe('FileArchiveManagement', () => {
     const tabs = w.findAll('.file-archive__tab')
     expect(tabs).toHaveLength(3)
     expect(w.findComponent(ArchiveStatusPanel).exists()).toBe(true)
+    expect(w.findComponent(ArchiveSettingsForm).exists()).toBe(true)
+    // Все три секции смонтированы одновременно (v-show, не v-if) - несохранённые
+    // правки в ArchiveSettingsForm не теряются при переключении на «Обзор»/«Ошибки».
+    // Порядок в DOM фиксирован: 0-Обзор, 1-Настройки, 2-Ошибки.
+    const panels = w.findAll('.file-archive__panel')
+    expect(panels).toHaveLength(3)
+    expect(isShown(panels[0])).toBe(true)
+    expect(isShown(panels[1])).toBe(false)
 
+    // «Настройки» с C3 - реальный ArchiveSettingsForm (заглушен), а не текст-плейсхолдер.
     await tabs[1].trigger('click')
-    expect(w.find('.file-archive__panel').text()).toContain('Настройки')
+    expect(isShown(panels[1])).toBe(true)
+    expect(w.findComponent(ArchiveSettingsForm).exists()).toBe(true)
 
     await tabs[2].trigger('click')
-    expect(w.find('.file-archive__panel').text()).toContain('Ошибки')
+    expect(isShown(panels[2])).toBe(true)
+    expect(panels[2].text()).toContain('Ошибки')
   })
 
   it('при ошибке загрузки показывает сообщение и уведомляет через notify', async () => {

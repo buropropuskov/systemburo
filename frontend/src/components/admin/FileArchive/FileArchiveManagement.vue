@@ -39,24 +39,25 @@
         {{ loadError }}
       </p>
       <template v-else>
+        <!-- v-show, не v-if/else-if: переключение вкладок не должно уничтожать
+             несохранённые правки в ArchiveSettingsForm - секция остаётся
+             смонтированной, просто скрывается. (KeepAlive здесь не годится: у него
+             все ветки обязаны быть компонентами, а «Ошибки» - пока плейсхолдер.) -->
         <section
-          v-if="activeTab === 'overview'"
+          v-show="activeTab === 'overview'"
           class="file-archive__panel"
         >
           <ArchiveStatusPanel ref="overviewRef" />
         </section>
-        <!-- ArchiveSettingsForm/TemplatePatternField - срез C3 -->
         <section
-          v-else-if="activeTab === 'settings'"
+          v-show="activeTab === 'settings'"
           class="file-archive__panel"
         >
-          <p class="file-archive__placeholder">
-            Раздел «Настройки» появится в следующем срезе.
-          </p>
+          <ArchiveSettingsForm @saved="loadSettings" />
         </section>
         <!-- ArchiveFailuresList - срез C4 -->
         <section
-          v-else-if="activeTab === 'errors'"
+          v-show="activeTab === 'errors'"
           class="file-archive__panel"
         >
           <p class="file-archive__placeholder">
@@ -73,6 +74,7 @@ import { ref, computed, onMounted } from 'vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import ArchiveStatusPanel from './ArchiveStatusPanel.vue';
+import ArchiveSettingsForm from './ArchiveSettingsForm.vue';
 import { getArchiveSettings } from '@/api/fileArchive';
 import { useDeletionsStore } from '@/stores/deletions';
 
