@@ -4,10 +4,9 @@ import { createPinia, setActivePinia } from 'pinia';
 import NavMenu from '../NavMenu.vue';
 import { useAuthStore } from '@/stores/auth';
 
-// Поле «Поиск...» в рельсе раньше фильтровало пункты меню на месте. Теперь оно открывает
-// окно сквозного поиска, где разделы идут первой группой: прежняя возможность осталась, к
-// ней добавились данные. Поле сделано нередактируемым намеренно -- ввод идёт в окне, и
-// два поля с разным поведением в одной панели путали бы.
+// Поле «Поиск...» в рельсе раньше фильтровало пункты меню на месте. Теперь ввод из него
+// уходит в сквозной поиск, а найденное показывается в панели справа: прежняя возможность
+// осталась (разделы идут первой группой), к ней добавились данные.
 
 vi.mock('@/stores/auth', () => ({ useAuthStore: vi.fn() }));
 vi.mock('@/api/client', () => ({
@@ -49,26 +48,36 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe('NavMenu: поле поиска открывает сквозной поиск', () => {
-  it('клик по полю просит открыть окно поиска', async () => {
+describe('NavMenu: поле поиска питает сквозной поиск', () => {
+  it('введённая строка уходит наружу, в панель результатов', async () => {
     wrapper = mountNav();
 
-    await wrapper.find('.nav-search').trigger('mousedown');
+    await wrapper.find('.nav-search').setValue('Роголев');
 
-    expect(bus.emit).toHaveBeenCalledWith('global-search:open');
+    expect(bus.emit).toHaveBeenCalledWith('global-search:query', 'Роголев');
   });
 
-  it('фокус с клавиатуры тоже открывает окно', async () => {
+  it('поле редактируется на месте', () => {
     wrapper = mountNav();
 
-    await wrapper.find('.nav-search').trigger('focus');
-
-    expect(bus.emit).toHaveBeenCalledWith('global-search:open');
+    expect(wrapper.find('.nav-search').attributes('readonly')).toBeUndefined();
   });
 
-  it('поле не редактируется на месте: ввод идёт в окне поиска', () => {
+  it('закрытие панели чистит поле, иначе она откроется снова', async () => {
+    wrapper = mountNav();
+    await wrapper.find('.nav-search').setValue('Роголев');
+
+    wrapper.vm.clearSearch();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find('.nav-search').element.value).toBe('');
+  });
+
+  it('клик по лупе раскрывает свёрнутый рельс и ставит курсор в поле', async () => {
     wrapper = mountNav();
 
-    expect(wrapper.find('.nav-search').attributes('readonly')).toBeDefined();
+    await wrapper.find('.nav-search-ic').trigger('click');
+
+    expect(wrapper.vm.uiStore.sidebarExpanded).toBe(true);
   });
 });

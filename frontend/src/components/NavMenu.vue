@@ -112,24 +112,27 @@
         </div>
 
         <!-- Поиск: место зарезервировано всегда (в свёрнутом - лупа по центру).
-             Поле не вводит текст на месте, а открывает окно сквозного поиска: там первой
-             группой идут разделы, то есть прежний фильтр меню никуда не делся, а к нему
-             добавились люди, машины, заявки и справочники. -->
+             Ввод идёт прямо здесь, найденное показывается в панели справа: первой
+             группой разделы (прежний фильтр меню), за ними люди, машины, заявки,
+             справочники. -->
         <div class="nav-search-row">
-          <span class="nav-search-ic">
+          <span
+            class="nav-search-ic"
+            @click="focusSearch"
+          >
             <NavIcon
               name="search"
               :size="16"
             />
           </span>
           <input
+            ref="searchInput"
+            v-model="searchQuery"
             type="text"
             class="nav-search"
             placeholder="Поиск..."
             aria-label="Поиск по системе"
-            readonly
-            @mousedown.prevent="openGlobalSearch"
-            @focus="openGlobalSearch"
+            autocomplete="off"
           >
         </div>
 
@@ -719,6 +722,7 @@ export default {
       // Разделы Админки по группам мокапа (#510). permission - ключ права на
       // раздел (совпадает с meta.permission роутов, #187 Фаза 2): пункт виден
       // только если can(permission). super/admin проходят, Техработы - super-only.
+      searchQuery: '',
       adminGroups: ADMIN_GROUPS,
     };
   },
@@ -829,6 +833,12 @@ export default {
     },
   },
   watch: {
+    // Строку отдаём наружу: панель результатов живёт в корне приложения, чтобы
+    // перекрывать страницу, а не схлопываться вместе с рельсом при уходе курсора.
+    searchQuery(val) {
+      this.$bus?.emit?.('global-search:query', val);
+    },
+
     // Закрываем drawer при переходе по пункту меню; покинули раздел Админки
     // (клик «РАБОТА»/кабинет) - закрываем колонку.
     '$route'() {
@@ -876,6 +886,10 @@ export default {
       }
     };
     window.addEventListener('keydown', this._escHandler);
+    // Панель результатов закрылась (Escape, крестик, клик мимо) -- чистим поле, иначе
+    // оставшийся текст тут же откроет её снова.
+    this.$bus?.on?.('global-search:clear', this.clearSearch);
+    this.$bus?.on?.('global-search:focus', this.focusSearch);
 
     // Клик вне рельса и колонки Админки закрывает колонку.
     this._docClickHandler = (e) => {
@@ -904,6 +918,8 @@ export default {
     }
     if (this._escHandler) {
       window.removeEventListener('keydown', this._escHandler);
+    this.$bus?.off?.('global-search:clear', this.clearSearch);
+    this.$bus?.off?.('global-search:focus', this.focusSearch);
     }
     if (this._docClickHandler) {
       document.removeEventListener('mousedown', this._docClickHandler);
@@ -931,10 +947,14 @@ export default {
       if (!tableName) return false;
       return this.$route.params.tableName === tableName;
     },
-    // Поле поиска в рельсе открывает окно сквозного поиска: там первой группой идут
-    // разделы, поэтому прежний фильтр меню остался доступен, просто вместе с данными.
-    openGlobalSearch() {
-      this.$bus?.emit?.('global-search:open');
+    // Клик по лупе в свёрнутом рельсе: поля не видно, поэтому раскрываем меню и
+    // ставим курсор в поле, иначе по иконке нечего нажать.
+    focusSearch() {
+      this.uiStore.sidebarExpanded = true;
+      this.$nextTick(() => this.$refs.searchInput?.focus());
+    },
+    clearSearch() {
+      this.searchQuery = '';
     },
     togglePin() {
       this.uiStore.toggleSidebarPinned();
