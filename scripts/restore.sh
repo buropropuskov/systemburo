@@ -108,6 +108,7 @@ decrypt_if_needed() {
   esac
 }
 
+echo
 echo "== Включаю режим технических работ"
 # Пользователи должны видеть объяснение, а не ошибки подключения. Ключи те же,
 # что использует служба режима работ; снимается он scripts/maintenance-off.sh.
@@ -123,9 +124,11 @@ then
   echo "ПРЕДУПРЕЖДЕНИЕ: режим технических работ включить не удалось, пользователи увидят ошибки" >&2
 fi
 
+echo
 echo "== Останавливаю прикладной сервер"
 "${COMPOSE[@]}" stop backend frontend nginx
 
+echo
 echo "== Восстанавливаю базу данных"
 decrypt_if_needed "$DB_ARCHIVE" "${WORK_DIR}/db.dump"
 
@@ -158,16 +161,24 @@ if [ -n "$UPLOADS_ARCHIVE" ]; then
     tar xzf /in/uploads.tar.gz -C /data
 fi
 
+echo
 echo "== Проверяю восстановленное до запуска приложения"
-"${COMPOSE[@]}" exec -T db psql -U "$DB_USER" -d "$DB_NAME" \
-  -c "SELECT count(*) AS applications FROM applications;" \
-  -c "SELECT count(*) AS users FROM users;"
+# Сырую таблицу psql оператор читает плохо: подписи по-английски, рамки, лишние
+# строки. Берём только числа и печатаем их словами.
+COUNTS="$("${COMPOSE[@]}" exec -T db psql -U "$DB_USER" -d "$DB_NAME" -At -F' ' -c \
+  "SELECT (SELECT count(*) FROM users), (SELECT count(*) FROM applications),
+          (SELECT count(*) FROM system_tables);" | tr -d '\r')"
+echo "   Учётные записи:  $(echo "$COUNTS" | awk '{print $1}')"
+echo "   Заявки:          $(echo "$COUNTS" | awk '{print $2}')"
+echo "   Таблицы постов:  $(echo "$COUNTS" | awk '{print $3}')"
 
+echo
 echo "== Запускаю систему"
 # start, а не up: up обращается к реестру образов, где нужна авторизация, и
 # восстановление падало бы на последнем шаге, оставив систему выключенной.
 "${COMPOSE[@]}" start backend frontend nginx
 
+echo
 echo "== Снимаю режим технических работ"
 bash scripts/maintenance-off.sh "$ENVIRONMENT" >/dev/null
 
