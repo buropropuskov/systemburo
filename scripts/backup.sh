@@ -19,6 +19,10 @@
 set -euo pipefail
 
 ENVIRONMENT="${1:-local}"
+# Метка попадает в имя файла: «buro-db-2026-08-01-1612-pered-obnovleniem.dump».
+# Без неё копии различаются только временем, и найти среди них ту, что снята
+# перед конкретной работой, можно лишь по памяти.
+LABEL="${2:-}"
 cd "$(dirname "$0")/.."
 
 case "$ENVIRONMENT" in
@@ -51,6 +55,17 @@ DB_USER="${DB_USER:-postgres}"
 LOG_FILE="${BACKUP_DIR}/backup.log"
 STATUS_FILE="${BACKUP_DIR}/status.json"
 STAMP="$(date +%Y-%m-%d-%H%M)"
+if [ -n "$LABEL" ]; then
+  # Латиница, цифры, дефис и подчёркивание: имя файла уезжает в архив, во внешнее
+  # хранилище и в команды восстановления, где пробелы и кириллица только мешают.
+  case "$LABEL" in
+    *[!A-Za-z0-9_-]*)
+      echo "Метка «$LABEL» содержит недопустимые знаки. Разрешены латиница, цифры, дефис и подчёркивание." >&2
+      exit 1
+      ;;
+  esac
+  STAMP="${STAMP}-${LABEL}"
+fi
 TODAY_DOW="$(date +%u)"   # 7 = воскресенье, недельная копия
 TODAY_DOM="$(date +%d)"   # 01 = первое число, месячная копия
 

@@ -130,16 +130,17 @@ deploy-storage:
 	docker compose -f docker-compose.base.yml -f docker-compose.prod.yml exec backend ./server storage $(ARGS)
 
 # Резервное копирование. Снимает выгрузку базы и архив загруженных файлов,
+# Метка в имени файла: make deploy-backup ARGS=pered-obnovleniem
 # раскладывает по срокам хранения и чистит устаревшие копии.
 # Расписание ставится один раз: sudo ./scripts/backup-install.sh production
 backup:
-	bash scripts/backup.sh local
+	bash scripts/backup.sh local $(ARGS)
 
 staging-backup:
-	bash scripts/backup.sh staging
+	bash scripts/backup.sh staging $(ARGS)
 
 deploy-backup:
-	bash scripts/backup.sh production
+	bash scripts/backup.sh production $(ARGS)
 
 # Состояние копирования: когда снята последняя копия, сколько их и не устарели ли.
 backup-status:
