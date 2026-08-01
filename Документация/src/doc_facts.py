@@ -229,6 +229,7 @@ def inventories():
                 "startLogPartitionWorker": "Обслуживание журнальных таблиц",
                 "startReminderScheduler": "Напоминания согласующим",
                 "startRetentionWorker": "Уборка технического мусора",
+                "startFileArchiveWorker": "Выгрузка бланков в файловый архив",
             },
         },
         {
@@ -255,6 +256,7 @@ def inventories():
                 "ls frontend/src/views/admin/*.vue | xargs -n1 basename"),
             "реестр": {
                 "AccessDenialsLog.vue": "Журнал отказов",
+                "FileArchiveView.vue": "Файловый архив",
                 "AdminPageShell.vue": "Администрирование",
                 "AdminPermissionGroups.vue": "группы прав",
                 "AdminRoles.vue": "Роли",
@@ -421,6 +423,22 @@ def check_env(text, problems):
             problems.append(
                 "%s, приложение Б, %s: в тексте «%s», в config.go «%s»"
                 % (DEPLOY, name, shown, actual))
+
+
+def check_env_completeness(text, problems):
+    """Каждый параметр из config.go должен быть описан в руководстве.
+
+    Прежняя проверка шла от документа к коду и сверяла значения только у тех
+    параметров, что уже описаны. Новый параметр так не ловился вовсе: он не
+    двигал ни одного числа и не менял ни одной описанной строки, поэтому
+    приложение Б молча отставало от системы (так пропустили параметры
+    файлового архива). Проверка нужна обратная - от кода к документу.
+    """
+    for name in sorted(env_defaults()):
+        if "`%s`" % name not in text:
+            problems.append(
+                "%s, приложение Б: параметр %s задаётся в config.go, "
+                "но в документе не описан" % (DEPLOY, name))
 
 
 def check_db(text, problems):
@@ -669,6 +687,7 @@ def main():
     check_script_messages(texts, problems)
     check_refs(texts, problems)
     check_env(texts[DEPLOY], problems)
+    check_env_completeness(texts[DEPLOY], problems)
     check_db(texts[DEPLOY], problems)
     check_paths(texts[DEPLOY], problems)
     check_make_targets(problems)

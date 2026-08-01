@@ -88,6 +88,14 @@ MAP = [
     (r"^internal/upload/", "Техописание", "13.4 загрузка файлов"),
     (r"^internal/services/attachment_blank|^internal/services/attachment_template",
      "Техописание", "6 вложения и бланки: формирование печатных форм"),
+    # Файловый архив описан с двух сторон: что он делает - в техописании,
+    # как его готовят и обслуживают на сервере - в руководстве.
+    (r"^internal/services/(blank_export|archive_path|settings_archive)|"
+     r"^internal/diskspace/|^internal/handlers/(file_archive|blank_archive)|"
+     r"^internal/models/blank_export|^frontend/src/api/fileArchive\.js$|"
+     r"^frontend/src/components/admin/TemplatePatternField\.vue$|"
+     r"^frontend/src/(components/admin/FileArchive/|views/admin/FileArchive)",
+     "Оба", "6.1 файловый архив бланков; руководство 9.6 и приложение Б"),
     (r"^internal/(services|handlers)/maintenance|"
      r"^frontend/src/views/(Maintenance\.vue|admin/SystemControl\.vue)$",
      "Руководство", "9.5 режим технических работ"),
@@ -110,6 +118,62 @@ def changed(rev_range):
     else:
         out = sh("git status --porcelain | awk '{print $NF}'")
     return [line for line in out.splitlines() if line]
+
+
+COMMENT_LINE = re.compile(r"^\s*(//|#|\*|/\*|\*/|<!--)")
+
+
+def _norm(line):
+    return re.sub(r"\s+", "", line)
+
+
+def weights(rev_range):
+    """Сколько в каждом файле изменилось строк, несущих поведение.
+
+    Карта срабатывает по имени файла, и перестановка импортов трогает файл
+    ровно так же, как переписанная проверка пароля. Пока оба случая попадали
+    в «важное», предупреждение переставали читать - а среди шума терялась
+    единственная строка, менявшая обещание заказчику.
+
+    Строка считается значащей, если после снятия пробелов она не нашлась по
+    другую сторону правки. Это отсеивает выравнивание gofmt, переупорядочение
+    импортов и переносы, оставляя изменение смысла. Комментарии тоже не в счёт:
+    поведение системы от них не меняется.
+    """
+    diff = sh("git diff --unified=0 %s" % rev_range) if rev_range \
+        else sh("git diff --unified=0")
+    result, path, added, removed = {}, None, [], []
+
+    def flush():
+        if path is None:
+            return
+        rest = list(added)
+        for line in removed:
+            if line in rest:
+                rest.remove(line)
+        back = list(removed)
+        for line in added:
+            if line in back:
+                back.remove(line)
+        result[path] = len(rest) + len(back)
+
+    for line in diff.splitlines():
+        if line.startswith("+++ b/"):
+            flush()
+            path, added, removed = line[6:], [], []
+        elif line.startswith("diff --git "):
+            flush()
+            path, added, removed = None, [], []
+        elif path and line.startswith("+") and not line.startswith("+++"):
+            body = line[1:]
+            if body.strip() and not COMMENT_LINE.match(body):
+                added.append(_norm(body))
+        elif path and line.startswith("-") and not line.startswith("---"):
+            body = line[1:]
+            if body.strip() and not COMMENT_LINE.match(body):
+                removed.append(_norm(body))
+    flush()
+    return result
 
 
 LEVELS = ['^internal/config/config', '^docker-compose', '^nginx/', '^Dockerfile', '^Makefile', '^scripts/', '^cmd/seed/', '^internal/database/migrate', '^internal/database/partitions', '^internal/router/router', '^internal/services/permission_', '^internal/middleware/(jwt', '^internal/auth/', '^internal/crypto/', '^internal/models/pd', '^\\.github/workflows/']
@@ -205,6 +269,17 @@ def main():
             print("Изменений нет.")
         return 0
 
+    # Файл, в котором сменился только порядок импортов или ширина отступа,
+    # поведения не менял и в список задетых разделов попадать не должен.
+    # Про новые файлы вес неизвестен, они считаются значащими.
+    weight = weights(rev)
+    files = [f for f in files if weight.get(f, 1) > 0]
+    if not files:
+        if not quiet:
+            print("%s: правки есть, но смысл кода не менялся "
+                  "(форматирование, импорты, комментарии)." % title)
+        return 0
+
     hits = impact(files)
     blind = uncovered(files)
 
@@ -234,10 +309,15 @@ def main():
             return
         print("  %s" % заголовок)
         for doc, where, matched, _lvl in группа:
+            # Пример берётся самый весомый: по нему сразу видно, о правке
+            # какого масштаба речь - строка или переписанный сервис.
+            matched = sorted(matched, key=lambda f: -weight.get(f, 1))
             example = matched[0]
             more = " и ещё %d" % (len(matched) - 1) if len(matched) > 1 else ""
+            total = sum(weight.get(f, 1) for f in matched)
             print("    [%s] %s" % (doc, where))
-            print("        из-за %s%s" % (example, more))
+            print("        из-за %s%s, изменено по существу строк: %d"
+                  % (example, more, total))
 
     if sense:
         print("%s: файлов %d." % (title, len(files)))
