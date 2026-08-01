@@ -70,6 +70,24 @@ if [ "${CONFIRM:-}" != "yes" ]; then
   fi
 fi
 
+# Восстановление идёт минутами, и без отсчёта непонятно, работает оно или зависло.
+# Шаги нумеруются, у каждого печатается время выполнения.
+STEP_NO=0
+# Шагов шесть, а с восстановлением загруженных файлов - семь: этот шаг
+# выполняется, только если архив передан вторым аргументом.
+STEP_TOTAL=6
+[ -n "$UPLOADS_ARCHIVE" ] && STEP_TOTAL=7
+STEP_STARTED=0
+step() {
+  if [ "$STEP_STARTED" -ne 0 ]; then
+    echo "      готово за $(( $(date +%s) - STEP_STARTED )) с"
+  fi
+  STEP_NO=$(( STEP_NO + 1 ))
+  STEP_STARTED=$(date +%s)
+  echo
+  echo "[$STEP_NO/$STEP_TOTAL] $1"
+}
+
 WORK_DIR="$(mktemp -d)"
 cleanup() { rm -rf "$WORK_DIR"; }
 trap cleanup EXIT
@@ -108,7 +126,7 @@ decrypt_if_needed() {
   esac
 }
 
-echo "== Включаю режим технических работ"
+step "Включаю режим технических работ"
 # Пользователи должны видеть объяснение, а не ошибки подключения. Ключи те же,
 # что использует служба режима работ; снимается он scripts/maintenance-off.sh.
 # Сбой здесь не отменяет восстановление, но и не проглатывается молча: оператор
@@ -123,10 +141,10 @@ then
   echo "ПРЕДУПРЕЖДЕНИЕ: режим технических работ включить не удалось, пользователи увидят ошибки" >&2
 fi
 
-echo "== Останавливаю прикладной сервер"
+step "Останавливаю прикладной сервер"
 "${COMPOSE[@]}" stop backend frontend nginx
 
-echo "== Восстанавливаю базу данных"
+step "Восстанавливаю базу данных"
 decrypt_if_needed "$DB_ARCHIVE" "${WORK_DIR}/db.dump"
 
 # База пересоздаётся целиком, а не чистится ключом --clean. Причина: журналы
@@ -139,8 +157,16 @@ decrypt_if_needed "$DB_ARCHIVE" "${WORK_DIR}/db.dump"
       WHERE datname = '${DB_NAME}' AND pid <> pg_backend_pid();" >/dev/null
 "${COMPOSE[@]}" exec -T db psql -U "$DB_USER" -d postgres -v ON_ERROR_STOP=1 \
   -c "DROP DATABASE IF EXISTS ${DB_NAME};" -c "CREATE DATABASE ${DB_NAME};" >/dev/null
-"${COMPOSE[@]}" exec -T db pg_restore -U "$DB_USER" -d "$DB_NAME" --no-owner \
-  < "${WORK_DIR}/db.dump"
+# pv рисует полосу по объёму выгрузки. Его отсутствие не повод ставить пакет на
+# рабочий сервер - тогда идёт обычный отсчёт времени шага.
+if command -v pv >/dev/null 2>&1; then
+  pv "${WORK_DIR}/db.dump" | "${COMPOSE[@]}" exec -T db \
+    pg_restore -U "$DB_USER" -d "$DB_NAME" --no-owner
+else
+  echo "      идёт восстановление, обычно занимает минуту-две..."
+  "${COMPOSE[@]}" exec -T db pg_restore -U "$DB_USER" -d "$DB_NAME" --no-owner \
+    < "${WORK_DIR}/db.dump"
+fi
 
 if [ -n "$UPLOADS_ARCHIVE" ]; then
   if [ ! -f "$UPLOADS_ARCHIVE" ]; then
@@ -158,19 +184,25 @@ if [ -n "$UPLOADS_ARCHIVE" ]; then
     tar xzf /in/uploads.tar.gz -C /data
 fi
 
-echo "== Проверяю восстановленное до запуска приложения"
-"${COMPOSE[@]}" exec -T db psql -U "$DB_USER" -d "$DB_NAME" \
-  -c "SELECT count(*) AS applications FROM applications;" \
-  -c "SELECT count(*) AS users FROM users;"
+step "Проверяю восстановленное до запуска приложения"
+# Сырую таблицу psql оператор читает плохо: подписи по-английски, рамки, лишние
+# строки. Берём только числа и печатаем их словами.
+COUNTS="$("${COMPOSE[@]}" exec -T db psql -U "$DB_USER" -d "$DB_NAME" -At -F' ' -c \
+  "SELECT (SELECT count(*) FROM users), (SELECT count(*) FROM applications),
+          (SELECT count(*) FROM system_tables);" | tr -d '\r')"
+echo "   Учётные записи:  $(echo "$COUNTS" | awk '{print $1}')"
+echo "   Заявки:          $(echo "$COUNTS" | awk '{print $2}')"
+echo "   Таблицы постов:  $(echo "$COUNTS" | awk '{print $3}')"
 
-echo "== Запускаю систему"
+step "Запускаю систему"
 # start, а не up: up обращается к реестру образов, где нужна авторизация, и
 # восстановление падало бы на последнем шаге, оставив систему выключенной.
 "${COMPOSE[@]}" start backend frontend nginx
 
-echo "== Снимаю режим технических работ"
+step "Снимаю режим технических работ"
 bash scripts/maintenance-off.sh "$ENVIRONMENT" >/dev/null
 
+echo "      готово за $(( $(date +%s) - STEP_STARTED )) с"
 echo
 echo "Восстановление завершено. Проверьте вход в систему и открытие заявки."
 echo "Если числа выше отличаются от ожидаемых, повторите восстановление из другой копии."
