@@ -74,6 +74,19 @@ WORK_DIR="$(mktemp -d)"
 cleanup() { rm -rf "$WORK_DIR"; }
 trap cleanup EXIT
 
+# Прерваться посреди восстановления - худший исход: службы остановлены, режим
+# технических работ включён, и без подсказки человек остаётся с выключенной
+# системой. Поднимать её автоматически нельзя (база может быть неполной), поэтому
+# печатаем точные команды.
+on_failure() {
+  echo >&2
+  echo "ВОССТАНОВЛЕНИЕ ПРЕРВАНО. Система сейчас остановлена." >&2
+  echo "Проверьте состояние базы, затем поднимите систему:" >&2
+  echo "  ${COMPOSE[*]} start backend frontend nginx" >&2
+  echo "  bash scripts/maintenance-off.sh ${ENVIRONMENT}" >&2
+}
+trap on_failure ERR
+
 # Расшифровка. Отдельным шагом, чтобы дальше работать с обычным файлом независимо
 # от того, была копия зашифрована или нет.
 decrypt_if_needed() {
@@ -115,7 +128,18 @@ echo "== Останавливаю прикладной сервер"
 
 echo "== Восстанавливаю базу данных"
 decrypt_if_needed "$DB_ARCHIVE" "${WORK_DIR}/db.dump"
-"${COMPOSE[@]}" exec -T db pg_restore -U "$DB_USER" -d "$DB_NAME" --clean --if-exists \
+
+# База пересоздаётся целиком, а не чистится ключом --clean. Причина: журналы
+# запросов и обращений к персональным данным разбиты на разделы по датам, а снять
+# ключ с раздела нельзя - он унаследован от родительской таблицы. На такой базе
+# --clean выдаёт по ошибке на каждый раздел (их десятки) и возвращает ненулевой код,
+# из-за чего восстановление обрывается на полпути, оставив систему выключенной.
+"${COMPOSE[@]}" exec -T db psql -U "$DB_USER" -d postgres -v ON_ERROR_STOP=1 \
+  -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity
+      WHERE datname = '${DB_NAME}' AND pid <> pg_backend_pid();" >/dev/null
+"${COMPOSE[@]}" exec -T db psql -U "$DB_USER" -d postgres -v ON_ERROR_STOP=1 \
+  -c "DROP DATABASE IF EXISTS ${DB_NAME};" -c "CREATE DATABASE ${DB_NAME};" >/dev/null
+"${COMPOSE[@]}" exec -T db pg_restore -U "$DB_USER" -d "$DB_NAME" --no-owner \
   < "${WORK_DIR}/db.dump"
 
 if [ -n "$UPLOADS_ARCHIVE" ]; then
@@ -140,7 +164,9 @@ echo "== Проверяю восстановленное до запуска п�
   -c "SELECT count(*) AS users FROM users;"
 
 echo "== Запускаю систему"
-"${COMPOSE[@]}" up -d
+# start, а не up: up обращается к реестру образов, где нужна авторизация, и
+# восстановление падало бы на последнем шаге, оставив систему выключенной.
+"${COMPOSE[@]}" start backend frontend nginx
 
 echo "== Снимаю режим технических работ"
 bash scripts/maintenance-off.sh "$ENVIRONMENT" >/dev/null

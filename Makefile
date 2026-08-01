@@ -1,4 +1,4 @@
-.PHONY: up down build test logs restart lint bash db-shell frontend-dev prod-build init init-staging init-production seed seed-demo staging-seed staging-seed-demo deploy-seed deploy-seed-demo staging-build staging-up staging-down staging-logs deploy-build deploy-up deploy-down deploy-logs security maintenance-off staging-maintenance-off deploy-maintenance-off cleanup staging-cleanup deploy-cleanup storage staging-storage deploy-storage backup staging-backup deploy-backup backup-status staging-backup-status deploy-backup-status backup-verify staging-backup-verify deploy-backup-verify deploy-restore
+.PHONY: up down build test logs restart lint bash db-shell frontend-dev prod-build init init-staging init-production seed seed-demo staging-seed staging-seed-demo deploy-seed deploy-seed-demo staging-build staging-up staging-down staging-logs deploy-build deploy-up deploy-down deploy-logs security maintenance-off staging-maintenance-off deploy-maintenance-off cleanup staging-cleanup deploy-cleanup storage staging-storage deploy-storage backup staging-backup deploy-backup backup-status staging-backup-status deploy-backup-status backup-verify staging-backup-verify deploy-backup-verify deploy-restore restore staging-restore
 
 up:
 	docker compose up -d
@@ -163,5 +163,11 @@ deploy-backup-verify:
 
 # Восстановление из копии. Необратимо, требует подтверждения.
 # Пример: make deploy-restore ARGS="/var/backups/systemburo/daily/buro-db-2026-07-31-0330.dump.age"
+restore:
+	bash scripts/restore.sh local $(ARGS)
+
+staging-restore:
+	bash scripts/restore.sh staging $(ARGS)
+
 deploy-restore:
 	bash scripts/restore.sh production $(ARGS)

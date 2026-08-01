@@ -93,7 +93,7 @@ USERS="$(echo "$COUNTS" | awk '{print $1}')"
 APPS="$(echo "$COUNTS" | awk '{print $2}')"
 TABLES="$(echo "$COUNTS" | awk '{print $3}')"
 
-log "восстановлено: учётных записей $USERS, заявок $APPS, таблиц постов $TABLES"
+log "во временной копии: учётных записей $USERS, заявок $APPS, таблиц постов $TABLES"
 
 if [ "${USERS:-0}" -lt 1 ]; then
   log "ОШИБКА: в копии нет ни одной учётной записи - для восстановления она непригодна"
