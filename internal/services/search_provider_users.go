@@ -36,23 +36,26 @@ func (userSearchProvider) Search(ctx context.Context, db *gorm.DB, req searchReq
 	if len(masks) == 0 {
 		cols = append(cols, "u.email", "u.phone")
 	}
-	cond, args := multiWordCondition(cols, req.Raw)
-
-	q := db.WithContext(ctx).
-		Table("users u").
-		Joins("LEFT JOIN organizations o ON u.organization_id = o.id").
-		Joins("LEFT JOIN companies c ON u.company_id = c.id").
-		Select(`u.id AS id,
-			NULLIF(TRIM(CONCAT_WS(' ', u.last_name, u.first_name, u.middle_name)), '') AS title,
-			CONCAT_WS(' · ', u.username, NULLIF(u."position", ''), COALESCE(o.name, c.name)) AS subtitle,
-			`+matchRankExpr("u.last_name"), req.Raw, req.Raw).
-		Where(cond, args...)
+	cond, args := searchCondition(cols, req.Raw)
 
 	rows := make([]searchRow, 0, req.Limit+1)
-	if err := q.
-		Order("match_rank, u.id DESC").
-		Limit(req.Limit + 1).
-		Scan(&rows).Error; err != nil {
+	err := withTrigramThreshold(ctx, db, func(tx *gorm.DB) error {
+		q := tx.
+			Table("users u").
+			Joins("LEFT JOIN organizations o ON u.organization_id = o.id").
+			Joins("LEFT JOIN companies c ON u.company_id = c.id").
+			Select(`u.id AS id,
+				NULLIF(TRIM(CONCAT_WS(' ', u.last_name, u.first_name, u.middle_name)), '') AS title,
+				CONCAT_WS(' · ', u.username, NULLIF(u."position", ''), COALESCE(o.name, c.name)) AS subtitle,
+				`+matchRankExpr("u.last_name"), req.Raw, req.Raw).
+			Where(cond, args...)
+
+		return q.
+			Order("match_rank, u.id DESC").
+			Limit(req.Limit + 1).
+			Scan(&rows).Error
+	})
+	if err != nil {
 		return nil, fmt.Errorf("поиск по пользователям: %w", err)
 	}
 

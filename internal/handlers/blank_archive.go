@@ -132,6 +132,40 @@ func (h *BlankArchiveHandler) Reexport(c echo.Context) error {
 	return RespondSuccess(c, result)
 }
 
+// Backfill ставит в очередь на выгрузку все заявки периода, по желанию суженные
+// типом вложения. Ответ асинхронный (202): разбор идёт фоновым воркером (B1), а не в
+// рамках этого запроса - широкий диапазон иначе держал бы администратора часами.
+//
+// Тот же запрос обслуживает и «пересоздать бланки этого типа» после правки
+// маппингов шаблона (unique_attachment_id без сужения периода до нужного дня):
+// auto-enqueue на каждую правку поставил бы в очередь десятки тысяч файлов, поэтому
+// пересборка - осознанное действие администратора, а не следствие сохранения формы.
+func (h *BlankArchiveHandler) Backfill(c echo.Context) error {
+	if h.exports == nil {
+		return echo.NewHTTPError(http.StatusServiceUnavailable, "Файловый архив недоступен: каталог не настроен")
+	}
+	var req models.ArchiveBackfillRequest
+	if err := BindAndValidate(c, &req); err != nil {
+		return err
+	}
+
+	// Границы считает сервис: он знает рабочую таймзону раскладки, а разбор дат в
+	// UTC отрезал бы не тот кусок суток (см. ParsePeriod).
+	from, toExclusive, err := h.exports.ParsePeriod(req.DateFrom, req.DateTo)
+	if err != nil {
+		return err
+	}
+
+	queued, err := h.exports.Backfill(c.Request().Context(), from, toExclusive, req.UniqueAttachmentID)
+	switch {
+	case errors.Is(err, services.ErrArchiveDisabled):
+		return echo.NewHTTPError(http.StatusConflict, "Выгрузка бланков выключена в настройках файлового архива")
+	case err != nil:
+		return err
+	}
+	return RespondAccepted(c, models.ArchiveBackfillResponse{Queued: queued})
+}
+
 // archiveSettingsDiff собирает изменившиеся настройки как {old, new}. Сравнивается
 // состояние до и после записи, а не присланные поля: запрос может прислать значение,
 // равное текущему, и запись «изменено» о нём была бы враньём.

@@ -22,7 +22,7 @@ const (
 	KeyPageAvailable      = "page.available"
 	KeyPageTables         = "page.tables"
 
-	KeyPageAdminMonitoring  = "page.admin.monitoring"
+	KeyPageAdminMonitoring = "page.admin.monitoring"
 	// Журнал доступа к персональным данным (152-ФЗ). Отдельно от permission.audit.read:
 	// тот про отказы в доступе, а здесь видно, кто и когда смотрел паспорта (#1472).
 	KeyPageAdminPDAudit     = "page.admin.pd_audit"

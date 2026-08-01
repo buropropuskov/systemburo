@@ -325,7 +325,7 @@ func (s *applicationService) ForwardApplication(ctx context.Context, username st
 
 	slog.Info("заявка переслана", "application_id", applicationID, "user_id", user.ID,
 		"responsible_count", len(addedResponsibleUsers), "viewer_count", len(addedViewers))
-	s.notifyApplicationUpdated(ctx, applicationID)
+	s.notifyApplicationUpdated(ctx, applicationID, archiveDataChanged)
 	// Пересылка может пересчитать confirmation до финального значения (#1349): если он
 	// сменился в Согласовано/Не согласовано - уведомляем инициатора об исходе.
 	if confirmationChanged {
@@ -463,7 +463,7 @@ func (s *applicationService) ApproveApplicationByUser(ctx context.Context, usern
 	}
 
 	slog.Info("заявка одобрена/отклонена", "application_id", applicationID, "user_id", user.ID, "status", req.Status)
-	s.notifyApplicationUpdated(ctx, applicationID)
+	s.notifyApplicationUpdated(ctx, applicationID, archiveDataChanged)
 	// Инициатору - уведомление об исходе согласования, если confirmation сменился в
 	// финальное значение Согласовано/Не согласовано (#1349).
 	if confirmationChanged {
@@ -571,7 +571,7 @@ func (s *applicationService) RevokeApproval(ctx context.Context, username string
 	}
 	s.db.WithContext(ctx).Raw("SELECT confirmation, status FROM applications WHERE id = ?", applicationID).Scan(&updatedApp)
 
-	s.notifyApplicationUpdated(ctx, applicationID)
+	s.notifyApplicationUpdated(ctx, applicationID, archiveDataChanged)
 
 	return &RevokeApprovalResponse{
 		Success:      true,

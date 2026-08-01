@@ -100,7 +100,11 @@ func TestSearch_Blacklist_VehicleAndPersonHaveOwnTargets(t *testing.T) {
 	testutil.CleanDB(t, db)
 	td := testutil.SeedTestData(t, db)
 
-	token := searchDirToken("Роголевобa")
+	// Корень слова свой, не пересекающийся с соседними тестами: нечёткое сравнение
+	// находит записи с общим началом, и «Роголевоб…» ловилось бы запросом «Роголевчс».
+	require.NoError(t, db.Exec("DELETE FROM person_blacklists WHERE last_name LIKE ?", "Барсуквкладка%").Error)
+	require.NoError(t, db.Exec("DELETE FROM vehicle_blacklists WHERE car_number LIKE ?", "Барсуквкладка%").Error)
+	token := searchDirToken("Барсуквкладка")
 	require.NoError(t, db.Create(&models.PersonBlacklist{
 		LastName: token, FirstName: "Иван", Reason: "причина",
 	}).Error)

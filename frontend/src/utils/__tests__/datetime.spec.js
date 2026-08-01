@@ -1,5 +1,24 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { formatDateRu, formatTimeAgo, formatReportCell, formatDuration } from '../datetime';
+import { formatDateRu, formatTimeAgo, formatReportCell, formatDuration, formatMonthRu } from '../datetime';
+
+describe('formatMonthRu', () => {
+  it('YYYY-MM -> Месяц ГГГГ', () => {
+    expect(formatMonthRu('2026-07')).toBe('Июль 2026');
+    expect(formatMonthRu('2026-01')).toBe('Январь 2026');
+    expect(formatMonthRu('2025-12')).toBe('Декабрь 2025');
+  });
+
+  it('не съезжает на соседний месяц (нет new Date/UTC-полуночи)', () => {
+    expect(formatMonthRu('2026-03')).toBe('Март 2026');
+  });
+
+  it('невалидное/пустое возвращает как есть', () => {
+    expect(formatMonthRu('')).toBe('');
+    expect(formatMonthRu(null)).toBe('');
+    expect(formatMonthRu('не период')).toBe('не период');
+    expect(formatMonthRu('2026-13')).toBe('2026-13');
+  });
+});
 
 describe('formatDateRu', () => {
   it('YYYY-MM-DD -> дд.мм.гггг', () => {

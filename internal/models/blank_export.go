@@ -184,6 +184,42 @@ type BlankExportItem struct {
 	Error  string `json:"error"`
 }
 
+// BlankExportSnapshotResult - итог записи машиночитаемого слепка заявки
+// (заявка.json). У слепка нет строки реестра, а значит нет ни ретрая, ни следа в
+// журнале ошибок: единственное место, где администратор узнаёт о провале записи, -
+// ответ на «пересоздать». Молчаливый 200 после несостоявшейся записи оставлял бы
+// заявку без слепка навсегда, и заметить это было бы нечем.
+type BlankExportSnapshotResult struct {
+	Status  string `json:"status"`
+	RelPath string `json:"rel_path"`
+	// Written - слепок действительно записан. false при совпадении содержимого и у
+	// замороженной заявки, чей слепок уже лежит на диске.
+	Written bool `json:"written"`
+	// Frozen - файлы заявки окончательны: существующий слепок больше не
+	// перезаписывается, но отсутствующий всё ещё будет записан.
+	Frozen bool   `json:"frozen"`
+	Error  string `json:"error"`
+}
+
+// ArchiveBackfillRequest - запрос ручного бэкфилла за период (#1615, B4):
+// администратор пересобирает бланки заявок диапазона, не дожидаясь ночной сверки.
+// Тем же запросом с UniqueAttachmentID пользуется «пересоздать бланки этого типа»
+// после правки маппингов шаблона - auto-enqueue на каждую правку поставил бы в
+// очередь десятки тысяч файлов, поэтому пересборка типа осознанное действие.
+type ArchiveBackfillRequest struct {
+	DateFrom string `json:"date_from" validate:"required"`
+	DateTo   string `json:"date_to" validate:"required"`
+	// UniqueAttachmentID сужает бэкфилл до заявок с вложением этого типа. Пусто -
+	// период целиком, независимо от типов вложений.
+	UniqueAttachmentID *int `json:"unique_attachment_id,omitempty"`
+}
+
+// ArchiveBackfillResponse - сколько заявок поставлено в очередь. Запись асинхронна:
+// разбор идёт фоновым воркером (B1), ручка результата выгрузки не ждёт.
+type ArchiveBackfillResponse struct {
+	Queued int `json:"queued"`
+}
+
 // BlankExportResult - итог выгрузки заявки целиком. Единица обработки именно заявка:
 // папка принадлежит ей, и переименование из нескольких строк одновременно - гонка.
 type BlankExportResult struct {
@@ -192,6 +228,7 @@ type BlankExportResult struct {
 	RelDir string `json:"rel_dir"`
 	// Renamed - каталог заявки переехал на этом прогоне (поправили организацию,
 	// номер или шаблон раскладки).
-	Renamed bool              `json:"renamed"`
-	Items   []BlankExportItem `json:"items"`
+	Renamed  bool                      `json:"renamed"`
+	Items    []BlankExportItem         `json:"items"`
+	Snapshot BlankExportSnapshotResult `json:"snapshot"`
 }

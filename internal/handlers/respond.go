@@ -29,6 +29,12 @@ func RespondCreated(c echo.Context, data any) error {
 	return c.JSON(http.StatusCreated, Response{Success: true, Data: data})
 }
 
+// RespondAccepted wraps data in a success envelope with status 202: запрос принят,
+// но обработка асинхронна (фоновый воркер) и результат этим ответом не гарантирован.
+func RespondAccepted(c echo.Context, data any) error {
+	return c.JSON(http.StatusAccepted, Response{Success: true, Data: data})
+}
+
 // RespondMessage sends a success envelope with a message string as data.
 func RespondMessage(c echo.Context, msg string) error {
 	return c.JSON(http.StatusOK, Response{Success: true, Data: msg})

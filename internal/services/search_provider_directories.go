@@ -50,7 +50,7 @@ func (directorySearchProvider) Search(ctx context.Context, db *gorm.DB, req sear
 	args := make([]interface{}, 0, len(directoryKinds)*len(req.Variants)*2)
 
 	for _, k := range directoryKinds {
-		cond, condArgs := ilikePatternsArgs([]string{k.titleCol}, req.Variants)
+		cond, condArgs := searchCondition([]string{k.titleCol}, req.Raw)
 		branches = append(branches, fmt.Sprintf(
 			`(SELECT id, %s AS title, ? AS subtitle, ? AS kind
 			  FROM %s WHERE is_active AND (%s)

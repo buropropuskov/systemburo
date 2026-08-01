@@ -280,6 +280,26 @@
               </div>
             </div>
 
+            <div class="form-row">
+              <div class="form-group">
+                <label class="field-label">Автосохранение в файловый архив</label>
+                <span
+                  class="hint-anchor"
+                  :data-hint="autoExportHint"
+                  data-testid="attachment-auto-export-hint"
+                >
+                  <ToggleSwitch
+                    v-model="form.auto_export"
+                    :disabled="!selectedAttachment.is_active || isSaving || autoExportDisabled"
+                    data-testid="attachment-auto-export"
+                  >
+                    {{ form.auto_export ? 'Включено' : 'Выключено' }}
+                  </ToggleSwitch>
+                </span>
+                <span class="field-hint">Писать ли бланки этого типа в файловый архив бюро</span>
+              </div>
+            </div>
+
             <div class="form-group">
               <label class="field-label">Инструкция к вложению</label>
               <TextConstructor
@@ -317,7 +337,7 @@
                 :show="showTemplateEditor"
                 :unique-attachment-id="selectedAttachment.id"
                 :attachment-type="selectedAttachment.attachment_type"
-                @close="showTemplateEditor = false"
+                @close="onTemplateEditorClose"
               />
             </template>
 
@@ -501,6 +521,7 @@ import ConfirmationModal from './ConfirmationModal.vue';
 import TextConstructor from './TextConstructor.vue';
 import BaseDropdown from './ui/BaseDropdown.vue';
 import LoaderSpinner from './ui/LoaderSpinner.vue';
+import ToggleSwitch from './ui/ToggleSwitch.vue';
 import AttachmentFieldsModal from './admin/AttachmentFieldsModal.vue';
 import AttachmentTemplateEditor from './admin/AttachmentTemplateEditor.vue';
 import UniqueAttachmentHistoryModal from './UniqueAttachmentHistoryModal.vue';
@@ -515,11 +536,15 @@ import {
   archiveAttachment,
   restoreAttachment,
 } from '@/api/attachments';
+import { getTemplate } from '@/api/attachment-templates';
+import { getArchiveSettings } from '@/api/fileArchive';
 
 const SYSTEM_NAME_RE = /^[a-z0-9_]*$/;
 
 function emptyForm() {
-  return { display_name: '', name: '', title: '', attachment_type: 'cars', instruction: '' };
+  return {
+    display_name: '', name: '', title: '', attachment_type: 'cars', instruction: '', auto_export: true,
+  };
 }
 
 export default {
@@ -531,6 +556,7 @@ export default {
     TextConstructor,
     BaseDropdown,
     LoaderSpinner,
+    ToggleSwitch,
     AttachmentFieldsModal,
     AttachmentTemplateEditor,
     UniqueAttachmentHistoryModal,
@@ -566,6 +592,10 @@ export default {
       editingName: false,
       editingNameValue: '',
       currentUserName: '',
+      // Тумблер архива (#1615): глобальный рубильник грузится один раз, а признак
+      // активного бланка - на каждый выбор строки (у своего вложения он свой).
+      archiveEnabled: false,
+      hasActiveTemplate: false,
       archiveOptions: [
         { label: 'Активные', value: 'active' },
         { label: 'Архив', value: 'archive' },
@@ -626,18 +656,32 @@ export default {
       return f.display_name.trim() !== o.display_name
         || f.title.trim() !== o.title
         || f.attachment_type !== o.attachment_type
-        || (f.instruction || '') !== (o.instruction || '');
+        || (f.instruction || '') !== (o.instruction || '')
+        || !!f.auto_export !== !!o.auto_export;
     },
     isDirty() {
       return this.isAddDirty || this.isDetailsDirty;
     },
+    // Тумблер архива заблокирован в двух случаях (#1615): глобальный рубильник
+    // выключен в настройках раздела «Файловый архив», либо у ЭТОГО типа вложения
+    // нет активного Excel-бланка - без него генерировать нечего.
+    autoExportDisabled() {
+      return !this.archiveEnabled || !this.hasActiveTemplate;
+    },
+    autoExportHint() {
+      if (!this.archiveEnabled) return 'Файловый архив выключен в настройках раздела «Файловый архив»';
+      if (!this.hasActiveTemplate) return 'У вложения нет активного Excel-бланка - настройте его во вкладке «Excel-бланк»';
+      return '';
+    },
   },
   created() {
     this.overlay.close = () => { this.requestCloseAdd(); };
+    this._templateStatusSeq = 0;
   },
   mounted() {
     this.refresh();
     this.fetchCurrentUser();
+    this.loadArchiveEnabled();
     this._stopGuard = registerDirtyTracker({
       isDirty: () => this.isDirty,
       getChanges: () => {
@@ -657,6 +701,9 @@ export default {
           }
           if ((f.instruction || '') !== (o.instruction || '')) {
             ch.push({ label: 'Инструкция', from: '', to: 'изменена' });
+          }
+          if (!!f.auto_export !== !!o.auto_export) {
+            ch.push({ label: 'Автосохранение в архив', from: o.auto_export ? 'включено' : 'выключено', to: f.auto_export ? 'включено' : 'выключено' });
           }
           return ch;
         }
@@ -714,10 +761,43 @@ export default {
         title: fresh.title ?? '',
         attachment_type: fresh.attachment_type ?? 'cars',
         instruction: fresh.instruction ?? '',
+        auto_export: !!fresh.auto_export,
       };
       this.form = { ...vals };
       this.original = { ...vals };
       this.showTemplateEditor = false;
+      this.loadTemplateStatus(fresh.id);
+    },
+    // Признак «есть активный Excel-бланк» нужен только для гейта тумблера архива -
+    // 404 «Шаблон не настроен» здесь штатный случай, а не сетевая ошибка (getTemplate
+    // не проверяет res.ok, так же читает его AttachmentTemplateEditor.loadTemplate).
+    async loadTemplateStatus(id) {
+      const seq = (this._templateStatusSeq += 1);
+      this.hasActiveTemplate = false;
+      try {
+        const data = await getTemplate(id);
+        if (seq !== this._templateStatusSeq) return;
+        this.hasActiveTemplate = !!(data && data.file_path);
+      } catch {
+        if (seq !== this._templateStatusSeq) return;
+        this.hasActiveTemplate = false;
+      }
+    },
+    // Настройка бланка могла появиться/исчезнуть в редакторе - перепроверяем гейт
+    // тумблера архива при закрытии, иначе он останется disabled ещё один цикл.
+    onTemplateEditorClose() {
+      this.showTemplateEditor = false;
+      if (this.selectedAttachment) this.loadTemplateStatus(this.selectedAttachment.id);
+    },
+    async loadArchiveEnabled() {
+      try {
+        const settings = await getArchiveSettings();
+        this.archiveEnabled = !!(settings && settings.enabled);
+      } catch {
+        // Раздел архива недоступен/не настроен - тумблер остаётся заблокированным,
+        // это безопасное значение по умолчанию, а не повод падать формой вложений.
+        this.archiveEnabled = false;
+      }
     },
     async refresh() {
       this.isLoading = true;
@@ -768,6 +848,7 @@ export default {
           displayName,
           title,
           instruction: this.form.instruction || null,
+          autoExport: this.form.auto_export,
         });
         this.deletions.notify({ prefix: 'Изменения сохранены в ', bold: displayName });
         this.form.display_name = displayName;

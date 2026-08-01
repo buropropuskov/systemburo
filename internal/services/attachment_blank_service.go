@@ -6,8 +6,11 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
 	"sort"
 	"strings"
+	"sync"
+	"time"
 
 	"systemburo/internal/models"
 
@@ -75,11 +78,64 @@ type AttachmentBlankService interface {
 
 type attachmentBlankService struct {
 	db *gorm.DB
+	// templateCache - сырые байты уже читанных .xlsx-шаблонов (#1615, B4): массовый
+	// прогон (бэкфилл за период, ночная сверка) генерирует бланк за бланком одним и
+	// тем же файлом шаблона, и без кэша каждый бланк заново читал бы его с диска.
+	//
+	// Ключ - путь файла, но запись хранит ещё время изменения и размер, и они
+	// сверяются на каждом обращении. Сегодня загрузка пишет новый шаблон под новым
+	// именем, то есть путь не меняет содержимого - но строить кэш на этом инварианте
+	// значит поставить корректность бланков в зависимость от чужого файла: стоит
+	// однажды добавить «заменить шаблон на месте», и система молча раздавала бы
+	// старые бланки до перезапуска. Stat дешевле чтения на два порядка.
+	templateCache   map[string]cachedTemplate
+	templateCacheMu sync.Mutex
+}
+
+// cachedTemplate - содержимое шаблона вместе с приметами файла, по которым видно,
+// что на диске лежит уже другой файл.
+type cachedTemplate struct {
+	data    []byte
+	modTime time.Time
+	size    int64
 }
 
 // NewAttachmentBlankService создаёт сервис.
 func NewAttachmentBlankService(db *gorm.DB) AttachmentBlankService {
-	return &attachmentBlankService{db: db}
+	return &attachmentBlankService{db: db, templateCache: make(map[string]cachedTemplate)}
+}
+
+// loadTemplateFile отдаёт байты .xlsx-шаблона, читая файл с диска только когда он
+// изменился. Возвращаемый срез не мутируется вызывающими (excelize.OpenReader только
+// читает), поэтому безопасен для конкурентного использования без копирования.
+//
+// Пропавший файл выбрасывается из кэша: удалённый шаблон должен давать честную
+// ошибку генерации, а не бланк из памяти процесса.
+func (s *attachmentBlankService) loadTemplateFile(path string) ([]byte, error) {
+	info, statErr := os.Stat(path)
+	if statErr != nil {
+		s.templateCacheMu.Lock()
+		delete(s.templateCache, path)
+		s.templateCacheMu.Unlock()
+		return nil, statErr
+	}
+
+	s.templateCacheMu.Lock()
+	cached, ok := s.templateCache[path]
+	s.templateCacheMu.Unlock()
+	if ok && cached.size == info.Size() && cached.modTime.Equal(info.ModTime()) {
+		return cached.data, nil
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	s.templateCacheMu.Lock()
+	s.templateCache[path] = cachedTemplate{data: data, modTime: info.ModTime(), size: info.Size()}
+	s.templateCacheMu.Unlock()
+	return data, nil
 }
 
 // GenerateBlank возвращает Reader с готовым .xlsx и filename.
@@ -116,8 +172,13 @@ func (s *attachmentBlankService) GenerateBlank(ctx context.Context, applicationI
 		return nil, "", err
 	}
 
-	// 3. Открыть шаблон.
-	f, err := excelize.OpenFile(template.FilePath)
+	// 3. Открыть шаблон - байты берутся из кэша, а не с диска на каждый вызов
+	// (массовый прогон бьётся об один и тот же файл сотнями заявок подряд).
+	templateBytes, err := s.loadTemplateFile(template.FilePath)
+	if err != nil {
+		return nil, "", echo.NewHTTPError(http.StatusInternalServerError, "Не удалось открыть шаблон: "+err.Error())
+	}
+	f, err := excelize.OpenReader(bytes.NewReader(templateBytes))
 	if err != nil {
 		return nil, "", echo.NewHTTPError(http.StatusInternalServerError, "Не удалось открыть шаблон: "+err.Error())
 	}

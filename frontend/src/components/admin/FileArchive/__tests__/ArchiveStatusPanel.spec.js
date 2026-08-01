@@ -1,0 +1,173 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { mount, flushPromises } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
+
+const api = vi.hoisted(() => ({
+  getArchiveStats: vi.fn(),
+}))
+vi.mock('@/api/fileArchive', () => api)
+
+import ArchiveStatusPanel from '../ArchiveStatusPanel.vue'
+import BaseDropdown from '@/components/ui/BaseDropdown.vue'
+import { useDeletionsStore } from '@/stores/deletions'
+
+const GB = 1024 * 1024 * 1024
+
+function baseStats(overrides = {}) {
+  return {
+    used_bytes: 2 * GB,
+    free_bytes: 6 * GB,
+    file_count: 120,
+    periods: [
+      { month: '2026-07', bytes: 2 * GB, file_count: 120 },
+    ],
+    statuses: { ok: 118, failed: 3, no_template: 5, pending: 0, skipped: 0, blocked: 0, orphan: 0 },
+    disk: {
+      total_bytes: 10 * GB,
+      free_bytes: 6 * GB,
+      archive_bytes: 2 * GB,
+      uploads_bytes: 1 * GB,
+      database_bytes: 0.5 * GB,
+      logs_bytes: 0.1 * GB,
+      other_bytes: 0.4 * GB,
+      partitions: [
+        { labels: ['Архив', 'Загрузки', 'Логи'], total_bytes: 10 * GB, free_bytes: 6 * GB },
+      ],
+    },
+    generated_at: '2026-07-31T12:00:00Z',
+    ...overrides,
+  }
+}
+
+describe('ArchiveStatusPanel', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    const del = useDeletionsStore()
+    vi.spyOn(del, 'notify').mockImplementation(() => {})
+  })
+
+  it('загружает сводку при монтировании и показывает плитки', async () => {
+    api.getArchiveStats.mockResolvedValue(baseStats())
+    const w = mount(ArchiveStatusPanel)
+    await flushPromises()
+
+    expect(api.getArchiveStats).toHaveBeenCalledTimes(1)
+    expect(w.text()).toContain('Занято')
+    expect(w.text()).toContain('2.0 ГБ')
+    expect(w.text()).toContain('Свободно')
+    expect(w.text()).toContain('6.0 ГБ')
+    expect(w.text()).toContain('Последняя запись')
+    expect(w.text()).toContain('Июль 2026')
+  })
+
+  it('вложения без шаблона и ошибки берутся из карты статусов реестра', async () => {
+    api.getArchiveStats.mockResolvedValue(baseStats())
+    const w = mount(ArchiveStatusPanel)
+    await flushPromises()
+
+    const tiles = w.findAll('.archive-status__tile')
+    const errorsTile = tiles.find((t) => t.text().includes('Ошибок'))
+    const noTemplateTile = tiles.find((t) => t.text().includes('Без шаблона'))
+    expect(errorsTile.text()).toContain('3')
+    expect(noTemplateTile.text()).toContain('5')
+  })
+
+  it('без периодов «последняя запись» - прочерк', async () => {
+    api.getArchiveStats.mockResolvedValue(baseStats({ periods: [] }))
+    const w = mount(ArchiveStatusPanel)
+    await flushPromises()
+
+    const tiles = w.findAll('.archive-status__tile')
+    const lastTile = tiles.find((t) => t.text().includes('Последняя запись'))
+    expect(lastTile.text()).toContain('—')
+  })
+
+  it('один раздел диска - дропдаун выбора не показывается, состав полный', async () => {
+    api.getArchiveStats.mockResolvedValue(baseStats())
+    const w = mount(ArchiveStatusPanel)
+    await flushPromises()
+
+    expect(w.findComponent(BaseDropdown).exists()).toBe(false)
+    expect(w.text()).toContain('Архив: 2.0 ГБ')
+    expect(w.text()).toContain('База: 512.0 МБ')
+    expect(w.find('.archive-status__disk-caption').exists()).toBe(false)
+  })
+
+  it('несколько разделов - выбор непервичного раздела упрощает состав до занято/свободно', async () => {
+    const stats = baseStats({
+      disk: {
+        total_bytes: 10 * GB, free_bytes: 6 * GB, archive_bytes: 2 * GB,
+        uploads_bytes: 0, database_bytes: 0.5 * GB, logs_bytes: 0, other_bytes: 0.4 * GB,
+        partitions: [
+          { labels: ['Архив'], total_bytes: 10 * GB, free_bytes: 6 * GB },
+          { labels: ['Логи'], total_bytes: 4 * GB, free_bytes: 1 * GB },
+        ],
+      },
+    })
+    api.getArchiveStats.mockResolvedValue(stats)
+    const w = mount(ArchiveStatusPanel)
+    await flushPromises()
+
+    expect(w.findComponent(BaseDropdown).exists()).toBe(true)
+    expect(w.findComponent(BaseDropdown).props('options')).toEqual([
+      { index: 0, label: 'Архив' },
+      { index: 1, label: 'Логи' },
+    ])
+
+    await w.findComponent(BaseDropdown).vm.$emit('update:modelValue', 1)
+    await flushPromises()
+
+    expect(w.text()).toContain('Занято: 3.0 ГБ') // 4 - 1 ГБ
+    expect(w.text()).toContain('Свободно: 1.0 ГБ')
+    expect(w.find('.archive-status__disk-caption').text()).toContain('Логи')
+    expect(w.text()).not.toContain('Архив: ')
+  })
+
+  it('свободного места мало - полоса помечается предупреждением/критично', async () => {
+    const warnStats = baseStats({
+      disk: {
+        total_bytes: 10 * GB, free_bytes: 1.5 * GB, archive_bytes: 8 * GB,
+        uploads_bytes: 0, database_bytes: 0, logs_bytes: 0, other_bytes: 0.5 * GB,
+        partitions: [{ labels: ['Архив'], total_bytes: 10 * GB, free_bytes: 1.5 * GB }],
+      },
+    })
+    api.getArchiveStats.mockResolvedValue(warnStats)
+    const w = mount(ArchiveStatusPanel)
+    await flushPromises()
+    expect(w.find('.archive-status__disk-bar').classes()).toContain('archive-status__disk-bar--warning')
+
+    const criticalStats = baseStats({
+      disk: {
+        total_bytes: 10 * GB, free_bytes: 0.5 * GB, archive_bytes: 9 * GB,
+        uploads_bytes: 0, database_bytes: 0, logs_bytes: 0, other_bytes: 0.5 * GB,
+        partitions: [{ labels: ['Архив'], total_bytes: 10 * GB, free_bytes: 0.5 * GB }],
+      },
+    })
+    api.getArchiveStats.mockResolvedValue(criticalStats)
+    const w2 = mount(ArchiveStatusPanel)
+    await flushPromises()
+    expect(w2.find('.archive-status__disk-bar').classes()).toContain('archive-status__disk-bar--critical')
+  })
+
+  it('при ошибке загрузки показывает сообщение и уведомляет через notify', async () => {
+    api.getArchiveStats.mockRejectedValue(new Error('Сервер недоступен'))
+    const w = mount(ArchiveStatusPanel)
+    await flushPromises()
+
+    expect(w.find('.archive-status__error').text()).toBe('Сервер недоступен')
+    expect(useDeletionsStore().notify).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'error' }),
+    )
+  })
+
+  it('defineExpose(refresh) повторно запрашивает сводку', async () => {
+    api.getArchiveStats.mockResolvedValue(baseStats())
+    const w = mount(ArchiveStatusPanel)
+    await flushPromises()
+    expect(api.getArchiveStats).toHaveBeenCalledTimes(1)
+
+    await w.vm.refresh()
+    expect(api.getArchiveStats).toHaveBeenCalledTimes(2)
+  })
+})

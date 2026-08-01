@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"systemburo/internal/normalize"
 
@@ -57,23 +58,6 @@ func searchCanSeeAllSystem(ctx context.Context, db *gorm.DB, userID int) bool {
 	return userCanSeeAllSystem(ctx, db, userID)
 }
 
-// buildSearchVariantsFor -- варианты запроса для сквозного поиска.
-//
-// Отличается от buildSearchVariants (application_helpers.go) тем, что не добавляет
-// заведомо бесполезные варианты: каждый лишний вариант умножается на число колонок
-// раздела и превращается в отдельное ILIKE-условие.
-//
-//   - раскладка добавляется всегда: она ловит реальную ошибку ввода в обе стороны
-//     (набрал "Hjujktd" вместо "Роголев" и наоборот для номеров и марок);
-//   - normalize.Plate добавляется только для запросов с цифрами. Он приводит строку к
-//     верхнему регистру и удаляет пробелы -- для ФИО это даёт либо дубль (ILIKE
-//     регистронезависим), либо склейку "ИВАНПЕТРОВ", которая не встречается в данных.
-//     Смысл он имеет для госномеров, а те всегда с цифрами;
-//   - дедупликация идёт по нижнему регистру, тогда как buildSearchVariants сравнивает
-//     точные строки и оставляет пару "Роголев"/"РОГОЛЕВ" целиком.
-//
-// buildSearchVariants не трогаем: у него другие потребители (Центр заявок, реестры,
-// доступные вложения), и смена их семантики в объём сквозного поиска не входит.
 // matchRankExpr возвращает выражение ступени совпадения для сортировки: точное
 // совпадение колонки с запросом, затем совпадение с начала, затем всё остальное.
 // Ожидает два аргумента-плейсхолдера с сырым запросом.
@@ -129,6 +113,23 @@ func multiWordCondition(cols []string, raw string) (string, []interface{}) {
 	return strings.Join(parts, " AND "), args
 }
 
+// buildSearchVariantsFor -- варианты запроса для сквозного поиска.
+//
+// Отличается от buildSearchVariants (application_helpers.go) тем, что не добавляет
+// заведомо бесполезные варианты: каждый лишний вариант умножается на число колонок
+// раздела и превращается в отдельное ILIKE-условие.
+//
+//   - раскладка добавляется всегда: она ловит реальную ошибку ввода в обе стороны
+//     (набрал "Hjujktd" вместо "Роголев" и наоборот для номеров и марок);
+//   - normalize.Plate добавляется только для запросов с цифрами. Он приводит строку к
+//     верхнему регистру и удаляет пробелы -- для ФИО это даёт либо дубль (ILIKE
+//     регистронезависим), либо склейку "ИВАНПЕТРОВ", которая не встречается в данных.
+//     Смысл он имеет для госномеров, а те всегда с цифрами;
+//   - дедупликация идёт по нижнему регистру, тогда как buildSearchVariants сравнивает
+//     точные строки и оставляет пару "Роголев"/"РОГОЛЕВ" целиком.
+//
+// buildSearchVariants не трогаем: у него другие потребители (Центр заявок, реестры,
+// доступные вложения), и смена их семантики в объём сквозного поиска не входит.
 func buildSearchVariantsFor(raw string) []string {
 	variants := make([]string, 0, 3)
 	seen := make(map[string]struct{}, 3)
@@ -151,4 +152,75 @@ func buildSearchVariantsFor(raw string) []string {
 		add(normalize.Plate(raw))
 	}
 	return variants
+}
+
+// Порог нечёткого сравнения. Тот же, что у поиска сотрудников в Центре заявок:
+// strict_word_similarity > 0.3. Ниже начинают проходить общие триграммы («арбуз» к
+// «Карбышев»), выше — перестают ловиться настоящие опечатки в короткой фамилии.
+const searchTrigramThreshold = "0.3"
+
+// searchFuzzyMinWordLen -- короче этого слова нечётко не сравниваем. На трёх символах
+// почти любая пара слов оказывается «похожей», и выдача превращается в шум; точное
+// вхождение для таких фрагментов и так работает.
+const searchFuzzyMinWordLen = 4
+
+// withTrigramThreshold выполняет fn в транзакции с выставленным порогом нечёткого
+// сравнения.
+//
+// Порог задаётся через SET LOCAL, а не глобальной настройкой базы: настройка на уровне
+// базы не подействует на уже открытые соединения пула, поэтому сразу после развёртывания
+// поиск вёл бы себя по-разному в зависимости от того, какое соединение достанется
+// запросу. Транзакция на чтение стоит доли миллисекунды и даёт предсказуемость.
+func withTrigramThreshold(ctx context.Context, db *gorm.DB, fn func(tx *gorm.DB) error) error {
+	return db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec("SET LOCAL pg_trgm.strict_word_similarity_threshold = " + searchTrigramThreshold).Error; err != nil {
+			return fmt.Errorf("выставить порог нечёткого поиска: %w", err)
+		}
+		return fn(tx)
+	})
+}
+
+// fuzzyWordCondition добавляет к точному поиску нечёткое сравнение по тем же колонкам.
+//
+// Оператор %>> (а не функция strict_word_similarity) взят намеренно: только он
+// опирается на GIN-индекс. Функция от concat_ws индексом не покрывается ни при каких
+// индексах и заставляет просматривать таблицу целиком — с запросом на каждый введённый
+// символ это недопустимо.
+//
+// Возвращает пустую строку, если нечётко сравнивать нечего: все слова короткие.
+func fuzzyWordCondition(cols []string, raw string) (string, []interface{}) {
+	words := strings.Fields(raw)
+	if len(words) > searchMaxWords {
+		words = words[:searchMaxWords]
+	}
+
+	parts := make([]string, 0, len(words))
+	args := make([]interface{}, 0, len(words)*len(cols))
+	for _, w := range words {
+		if utf8.RuneCountInString(w) < searchFuzzyMinWordLen {
+			continue
+		}
+		colParts := make([]string, 0, len(cols))
+		for _, c := range cols {
+			colParts = append(colParts, c+" %>> ?")
+			args = append(args, w)
+		}
+		parts = append(parts, "("+strings.Join(colParts, " OR ")+")")
+	}
+	if len(parts) == 0 {
+		return "", nil
+	}
+	// Между словами И, как и у точного поиска: запись подходит, когда похоже каждое слово.
+	return strings.Join(parts, " AND "), args
+}
+
+// searchCondition -- полное условие поиска по набору колонок: точное вхождение или
+// нечёткое совпадение. Опечатку ловит вторая ветка, точный фрагмент -- первая.
+func searchCondition(cols []string, raw string) (string, []interface{}) {
+	cond, args := multiWordCondition(cols, raw)
+	fuzzyCond, fuzzyArgs := fuzzyWordCondition(cols, raw)
+	if fuzzyCond == "" {
+		return cond, args
+	}
+	return "(" + cond + ") OR (" + fuzzyCond + ")", append(args, fuzzyArgs...)
 }

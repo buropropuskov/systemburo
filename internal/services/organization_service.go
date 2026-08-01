@@ -112,6 +112,10 @@ type OrganizationService interface {
 
 	// BulkRestore восстанавливает набор организаций из архива.
 	BulkRestore(ctx context.Context, callerUserID int, ids []int) (*BulkOpResult, error)
+
+	// SetBlankExportEnqueuer подключает очередь файлового архива (#1615, B1) -
+	// разбор справочника ставит на пересборку заявки, ссылающиеся на запись.
+	SetBlankExportEnqueuer(e BlankExportEnqueuer)
 }
 
 // --- DTO: запросы ---
@@ -234,6 +238,10 @@ type organizationService struct {
 	db       *gorm.DB
 	recorder AuditRecorder
 	notifier NotificationService
+	// blankExports - постановка затронутых заявок в очередь на выгрузку в файловый
+	// архив (#1615, B1): разбор справочника меняет наименование организации,
+	// печатаемое в бланке/слепке, либо переезжает заявки на другую запись слиянием.
+	blankExports BlankExportEnqueuer
 }
 
 // OrganizationServiceOption конфигурирует organizationService при создании.
@@ -243,6 +251,11 @@ type OrganizationServiceOption func(*organizationService)
 // им наименования (#1437). Опционально: без них разбор работает молча.
 func WithOrganizationNotifications(n NotificationService) OrganizationServiceOption {
 	return func(s *organizationService) { s.notifier = n }
+}
+
+// SetBlankExportEnqueuer подключает очередь файлового архива (#1615, B1).
+func (s *organizationService) SetBlankExportEnqueuer(e BlankExportEnqueuer) {
+	s.blankExports = e
 }
 
 // NewOrganizationService создаёт новый экземпляр сервиса организаций.
@@ -277,17 +290,17 @@ func (s *organizationService) Suggest(ctx context.Context, query string) (Direct
 
 // ApproveModeration - разбор организации «на проверке», см. approveDirectoryEntry.
 func (s *organizationService) ApproveModeration(ctx context.Context, callerUserID, id int) (DirectoryModerationResult, error) {
-	return approveDirectoryEntry(ctx, s.db, s.recorder, organizationModeration, id, callerUserID)
+	return approveDirectoryEntry(ctx, s.db, s.recorder, s.blankExports, organizationModeration, id, callerUserID)
 }
 
 // RenameModeration - исправление наименования при разборе, см. renameDirectoryEntry.
 func (s *organizationService) RenameModeration(ctx context.Context, callerUserID, id int, name string) (DirectoryModerationResult, error) {
-	return renameDirectoryEntry(ctx, s.db, s.recorder, s.notifier, organizationModeration, id, name, callerUserID)
+	return renameDirectoryEntry(ctx, s.db, s.recorder, s.notifier, s.blankExports, organizationModeration, id, name, callerUserID)
 }
 
 // MergeModeration - привязка черновика к существующей организации, см. mergeDirectoryEntry.
 func (s *organizationService) MergeModeration(ctx context.Context, callerUserID, id, targetID int) (DirectoryMergeResult, error) {
-	return mergeDirectoryEntry(ctx, s.db, s.recorder, s.notifier, organizationModeration, id, targetID, callerUserID)
+	return mergeDirectoryEntry(ctx, s.db, s.recorder, s.notifier, s.blankExports, organizationModeration, id, targetID, callerUserID)
 }
 
 // Create создаёт новую организацию. Тип обязателен и должен быть валидным.
@@ -412,7 +425,7 @@ func (s *organizationService) Update(ctx context.Context, callerUserID, id int, 
 // или дефисы) ключ пуст, и по нему такие записи схлопнулись бы между собой. Для них
 // сверяемся по точному имени - защита не должна стать слабее той, что была до ключа
 // (#1437). По той же причине unique index на name_normalized ставится с условием
-// name_normalized <> ''.
+// name_normalized <> ”.
 func applyNameDuplicateFilter(q *gorm.DB, name, normalized string) *gorm.DB {
 	if normalized == "" {
 		return q.Where("name = ?", name)
