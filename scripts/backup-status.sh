@@ -42,9 +42,13 @@ if [ -f "$STATUS_FILE" ]; then
   RESULT="$(grep -o '"result": *"[^"]*"' "$STATUS_FILE" | cut -d'"' -f4)"
   FINISHED="$(grep -o '"finished_at": *"[^"]*"' "$STATUS_FILE" | cut -d'"' -f4)"
   REASON="$(grep -o '"reason": *"[^"]*"' "$STATUS_FILE" | cut -d'"' -f4)"
-  AGE_HOURS=$(( ( $(date +%s) - $(date -d "$FINISHED" +%s 2>/dev/null || echo 0) ) / 3600 ))
+  AGE_SEC=$(( $(date +%s) - $(date -d "$FINISHED" +%s 2>/dev/null || echo 0) ))
+  AGE_HOURS=$(( AGE_SEC / 3600 ))
+  # Часы и минуты, а не одни часы: «0 ч назад» не отличает копию пятиминутной
+  # давности от снятой сорок минут назад.
+  AGE_TEXT="$(( AGE_SEC / 3600 )) ч $(( (AGE_SEC % 3600) / 60 )) мин назад"
 
-  echo "Последний запуск: ${FINISHED} (${AGE_HOURS} ч назад)"
+  echo "Последний запуск: $(date -d "$FINISHED" '+%d.%m.%Y %H:%M' 2>/dev/null || echo "$FINISHED") (${AGE_TEXT})"
   if [ "$RESULT" = "success" ]; then
     echo "Итог: успешно"
   else
@@ -67,7 +71,7 @@ echo
 pad_right() { local s="$1" w="$2"; printf '%s%*s' "$s" "$(( w > ${#s} ? w - ${#s} : 0 ))" ""; }
 pad_left()  { local s="$1" w="$2"; printf '%*s%s' "$(( w > ${#s} ? w - ${#s} : 0 ))" "" "$s"; }
 
-echo "$(pad_right "Каталог" 10) $(pad_left "Копий" 8) $(pad_left "Объём" 10)  Последняя копия базы"
+echo "$(pad_right "Каталог" 10) $(pad_left "Файлов" 8) $(pad_left "Объём" 10)  Последняя копия базы"
 for dir in daily weekly monthly; do
   path="${BACKUP_DIR}/${dir}"
   [ -d "$path" ] || continue
