@@ -80,3 +80,51 @@ for dir in daily weekly monthly; do
   last="$(find "$path" -maxdepth 1 -name 'buro-db-*' -type f -printf '%f\n' 2>/dev/null | sort -r | head -1)"
   echo "$(pad_right "$dir" 10) $(pad_left "$count" 8) $(pad_left "${size:-0}" 10)  ${last:-нет}"
 done
+
+echo
+
+# Перечень копий: имя файла в машинном виде оператору читать тяжело, а именно из
+# него он выбирает копию для восстановления. Дата разворачивается словами, размер
+# приводится к мегабайтам, метка выносится отдельной колонкой.
+MONTHS=(января февраля марта апреля мая июня июля августа сентября октября ноября декабря)
+
+human_size() {
+  awk -v b="$1" 'BEGIN {
+    if (b >= 1073741824) printf "%.1f ГБ", b / 1073741824;
+    else printf "%.1f МБ", b / 1048576;
+  }' | sed 's/\./,/'
+}
+
+# Дата из имени файла, а не из времени файла: жёсткая ссылка и перенос во внешнее
+# хранилище время правки не сохраняют, а имя копии несёт момент её снятия.
+human_when() {
+  local stamp="$1" y m d hh mm
+  y="${stamp:0:4}"; m="${stamp:5:2}"; d="${stamp:8:2}"
+  hh="${stamp:11:2}"; mm="${stamp:13:2}"
+  printf '%s %s %s, %s:%s' "$((10#$d))" "${MONTHS[$((10#$m - 1))]}" "$y" "$hh" "$mm"
+}
+
+echo "Копии базы, пригодные для восстановления"
+echo "$(pad_right "Снята" 24) $(pad_left "Размер" 8)  $(pad_right "Метка" 20) Файл"
+
+found=0
+while read -r name; do
+  [ -n "$name" ] || continue
+  found=1
+  stamp="${name#buro-db-}"; stamp="${stamp%%.dump*}"
+  label=""
+  if [ "${#stamp}" -gt 15 ]; then
+    label="${stamp:16}"
+    stamp="${stamp:0:15}"
+  fi
+  file=""
+  for dir in daily weekly monthly; do
+    [ -f "${BACKUP_DIR}/${dir}/${name}" ] && { file="${BACKUP_DIR}/${dir}/${name}"; break; }
+  done
+  bytes="$(stat -c%s "$file" 2>/dev/null || echo 0)"
+  echo "$(pad_right "$(human_when "$stamp")" 24) $(pad_left "$(human_size "$bytes")" 8)  $(pad_right "${label:--}" 20) ${name}"
+done <<< "$(find "$BACKUP_DIR"/{daily,weekly,monthly} -maxdepth 1 -name 'buro-db-*' -type f -printf '%f\n' 2>/dev/null | sort -ru)"
+
+if [ "$found" = "0" ]; then
+  echo "копий базы нет"
+fi
