@@ -81,8 +81,9 @@ func TestAttachmentBlankArchiveSource(t *testing.T) {
 	td := testutil.SeedTestData(t, db)
 
 	adminH := testutil.AuthHeader(testutil.RegisterAdmin(t, e, td.OrgID, td.CompanyID))
-	settingsRec := testutil.PUT(t, e, "/file-archive/settings", `{"enabled":true}`, adminH)
-	require.Equal(t, http.StatusOK, settingsRec.Code, settingsRec.Body.String())
+	// Выгрузку включаем сервисом: правка настроек ушла из веба в команду
+	// server archive, роута записи больше нет (#1615).
+	testutil.ArchiveEnabled(t, db, true)
 
 	userTypeID := secUserTypeIDByCode(t, db, "user")
 	senderH := testutil.AuthHeader(testutil.RegisterAndLogin(t, e, "blankarchsender", archiveSourcePassword, userTypeID, td.OrgID, td.CompanyID))
