@@ -20,6 +20,16 @@
             </button>
           </div>
 
+          <!-- Переключатель источника - общий FilterTabs, а не свои кнопки: он уже
+               держит вид вкладок в восьми разделах, и вторая реализация разъедется
+               с ними на первой же правке оформления. -->
+          <FilterTabs
+            v-if="!isLoading && !error && eligibleAttachments.length"
+            v-model="source"
+            class="dbm-source"
+            :tabs="sourceTabs"
+          />
+
           <div
             v-if="isLoading"
             class="dbm-state"
@@ -61,9 +71,15 @@
                   class="dbm-item-type"
                 >{{ attachmentTypeLabel(att.attachment_type) }}</span>
               </div>
+              <StatusBadge
+                v-if="archiveStatusLabel(att.archive_status)"
+                :status="archiveStatusLabel(att.archive_status)"
+                class="dbm-archive-badge"
+              />
               <button
                 class="dbm-item-download"
-                :disabled="downloadingId === att.id"
+                :disabled="downloadingId === att.id || unavailableInArchive[att.id]"
+                :title="unavailableInArchive[att.id] ? 'Сохранённого файла пока нет - выберите «Сформировать заново»' : ''"
                 @click.prevent="downloadOne(att)"
               >
                 {{ downloadingId === att.id ? '...' : 'Скачать' }}
@@ -106,7 +122,9 @@
 import JSZip from 'jszip';
 import { apiRequest } from '@/api/client';
 import { useDeletionsStore } from '@/stores/deletions';
-import { downloadBlank, saveBlobAs } from '@/api/attachment-templates';
+import { downloadBlank, downloadApplicationArchive, saveBlobAs } from '@/api/attachment-templates';
+import StatusBadge from '@/components/ui/StatusBadge.vue';
+import FilterTabs from '@/components/ui/FilterTabs.vue';
 
 const TYPE_LABELS = {
   cars: 'Автомобили',
@@ -114,8 +132,22 @@ const TYPE_LABELS = {
   items: 'Имущество',
 };
 
+// Статусы строки реестра файлового архива (internal/models/blank_export.go),
+// сведённые к трём бейджам модалки (#1615, C6): skipped/no_template/orphan и
+// отсутствие строки не показываются вовсе - это не про ожидание, а про то, что
+// архивная копия для вложения не предполагается.
+const ARCHIVE_BADGE_LABELS = {
+  ok: 'В архиве',
+  pending: 'В очереди',
+  // Остановка по нехватке места - не обычное ожидание: очередь стоит, пока
+  // администратор не освободит место, и слово об этом должно отличаться.
+  blocked: 'Нет места',
+  failed: 'Ошибка',
+};
+
 export default {
   name: 'DownloadBlanksModal',
+  components: { StatusBadge, FilterTabs },
   props: {
     show: { type: Boolean, default: false },
     applicationId: { type: Number, default: 0 },
@@ -130,11 +162,31 @@ export default {
       downloadingId: null,
       downloadingAll: false,
       error: '',
+      // Источник скачивания: archive - сохранённый на диске файл файлового
+      // архива, live - генерация бланка заново из текущих данных заявки.
+      source: 'live',
     };
   },
   computed: {
     eligibleAttachments() {
       return this.attachments.filter(att => att.has_template);
+    },
+    sourceTabs() {
+      return [
+        { key: 'archive', label: 'Сохранённый файл' },
+        { key: 'live', label: 'Сформировать заново' },
+      ];
+    },
+    // Сохранённый файл есть не у каждого вложения: у вложения в очереди, с ошибкой
+    // или вовсе без строки реестра скачивать с диска нечего. Кнопку в этом случае
+    // гасим - иначе выбор источника превращает редкую ошибку сервера в частый
+    // отказ с невнятным текстом.
+    unavailableInArchive() {
+      const ids = {};
+      for (const att of this.eligibleAttachments) {
+        ids[att.id] = this.source === 'archive' && att.archive_status !== 'ok';
+      }
+      return ids;
     },
   },
   watch: {
@@ -154,6 +206,10 @@ export default {
         const res = await apiRequest(`/applications/${this.applicationId}/attachments`);
         const data = await res.json();
         this.attachments = Array.isArray(data) ? data : [];
+        // Дефолт "сохранённый файл", если хоть одно вложение уже реально
+        // записано в архив - иначе живая генерация (архив либо выключен,
+        // либо ещё не успел выгрузить ни одного бланка этой заявки).
+        this.source = this.eligibleAttachments.some(a => a.archive_status === 'ok') ? 'archive' : 'live';
       } catch {
         this.error = 'Не удалось загрузить вложения';
       } finally {
@@ -163,10 +219,13 @@ export default {
     attachmentTypeLabel(t) {
       return TYPE_LABELS[t] || t || '';
     },
+    archiveStatusLabel(status) {
+      return ARCHIVE_BADGE_LABELS[status] || '';
+    },
     async downloadOne(att) {
       this.downloadingId = att.id;
       try {
-        const { blob, filename } = await downloadBlank(this.applicationId, att.id);
+        const { blob, filename } = await downloadBlank(this.applicationId, att.id, { source: this.source });
         saveBlobAs(blob, filename);
       } catch (err) {
         useDeletionsStore().notify({ prefix: 'Не удалось скачать: ', bold: err.message || 'ошибка сервера', type: 'error' });
@@ -191,7 +250,7 @@ export default {
       const zip = new JSZip();
       for (const id of ids) {
         try {
-          const { blob, filename } = await downloadBlank(this.applicationId, id);
+          const { blob, filename } = await downloadBlank(this.applicationId, id, { source: this.source });
           zip.file(filename, blob);
         } catch (err) {
           useDeletionsStore().notify({ prefix: 'Не удалось скачать файл: ', bold: err.message || 'ошибка сервера', type: 'error' });
@@ -207,8 +266,30 @@ export default {
       useDeletionsStore().notify({ prefix: 'Скачано: ', bold: `${ids.length} файлов в ZIP` });
     },
     async downloadAll() {
+      // source=archive - серверный ZIP заявки целиком (#1615, C6): бэк уже
+      // собирает его из файлов реестра, тянуть их по одному через JSZip
+      // избыточно и не даёт скачать вложения без активного бланка, у которых
+      // тем не менее есть сохранённый файл в архиве.
+      if (this.source === 'archive') {
+        this.downloadingAll = true;
+        try {
+          await this.downloadServerZip();
+        } finally {
+          this.downloadingAll = false;
+        }
+        return;
+      }
       this.selectedIds = this.eligibleAttachments.map(a => a.id);
       await this.downloadSelected();
+    },
+    async downloadServerZip() {
+      try {
+        const { blob, filename } = await downloadApplicationArchive(this.applicationId);
+        saveBlobAs(blob, filename);
+        useDeletionsStore().notify({ prefix: 'Скачано: ', bold: 'архив заявки' });
+      } catch (err) {
+        useDeletionsStore().notify({ prefix: 'Не удалось скачать архив: ', bold: err.message || 'ошибка сервера', type: 'error' });
+      }
     },
   },
 };
@@ -274,6 +355,22 @@ export default {
 .dbm-close:hover {
   background: var(--color-border);
   color: var(--color-text);
+}
+
+.dbm-source {
+  display: flex;
+  gap: 6px;
+  padding: 14px 24px 0;
+}
+
+.dbm-archive-badge {
+  flex-shrink: 0;
+}
+
+.dbm-archive-badge :deep(.status-badge) {
+  min-width: auto;
+  padding: 3px 8px;
+  font-size: 10px;
 }
 
 .dbm-state {

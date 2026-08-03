@@ -304,9 +304,9 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 	// Скачивание из файлового архива (#1615, срез B3) - тот же писатель и корень, что
 	// у сервиса выгрузки выше; access/resolver повторяют пару, которой пользуется
 	// attachmentBlankHandler ниже, чтобы гейт ZIP заявки и гейт одного бланка не разъехались.
+	archiveDownloadService := services.NewArchiveDownloadService(db, archiveWriter, settingsService)
 	archiveDownloadHandler := handlers.NewArchiveDownloadHandler(
-		services.NewArchiveDownloadService(db, archiveWriter, settingsService),
-		applicationService, permissionResolver)
+		archiveDownloadService, applicationService, permissionResolver)
 	telegramService := services.NewTelegramService("", "")
 	bugReportService := services.NewBugReportService(db, telegramService)
 	bugReportHandler := handlers.NewBugReportHandler(bugReportService)
@@ -315,7 +315,7 @@ func setupTestApp(t *testing.T, withConsentGate bool) (*echo.Echo, *gorm.DB, str
 	vehicleBlacklistHandler := handlers.NewVehicleBlacklistHandler(vehicleBlacklistService)
 	personBlacklistHandler := handlers.NewPersonBlacklistHandler(personBlacklistService)
 	attachmentTemplateHandler := handlers.NewAttachmentTemplateHandler(attachmentTemplateService, attachmentFieldConfigService)
-	attachmentBlankHandler := handlers.NewAttachmentBlankHandler(attachmentBlankService, applicationService, permissionResolver)
+	attachmentBlankHandler := handlers.NewAttachmentBlankHandler(attachmentBlankService, applicationService, permissionResolver, archiveDownloadService)
 	trashHandler := handlers.NewTrashHandler(trashService, trashDBRef)
 	documentGroupHandler := handlers.NewDocumentGroupHandler(documentGroupService)
 	documentHandler := handlers.NewDocumentHandler(documentService, documentFileService)

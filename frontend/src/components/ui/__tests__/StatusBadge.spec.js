@@ -14,6 +14,9 @@ describe('StatusBadge', () => {
       ['Отклонено', 'status-badge--red'],
       ['Чёрный список', 'status-badge--red'],
       ['Непрочитано', 'status-badge--yellow'],
+      ['В архиве', 'status-badge--green'],
+      ['В очереди', 'status-badge--yellow'],
+      ['Ошибка', 'status-badge--red'],
     ])('"%s" renders with class "%s"', (status, expectedClass) => {
       const wrapper = mount(StatusBadge, { props: { status } });
       expect(wrapper.classes()).toContain(expectedClass);

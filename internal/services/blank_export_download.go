@@ -239,6 +239,30 @@ func (s *ArchiveDownloadService) ResolveFile(row models.BlankExport) (string, er
 	return s.resolvePath(row)
 }
 
+// GetByApplicationAttachment отдаёт строку реестра одного вложения заявки для
+// скачивания сохранённого файла (?source=archive у AttachmentBlankHandler.Download,
+// #1615 C6). Гейт доступа тот же, что у обычного скачивания бланка
+// (canDownloadBlank) - отдельного права под архивный источник не заводим, это
+// тот же бланк, просто с диска, а не сгенерированный заново. Строка без
+// записанного файла (не status=ok) - 404, а не тихая регенерация: расхождение
+// между тем, что скачал пользователь, и тем, что лежит в архиве, расследовать
+// нечем.
+func (s *ArchiveDownloadService) GetByApplicationAttachment(ctx context.Context, applicationID, attachmentID int) (models.BlankExport, error) {
+	var row models.BlankExport
+	err := s.db.WithContext(ctx).
+		Where("application_id = ? AND attachment_id = ?", applicationID, attachmentID).
+		First(&row).Error
+	switch {
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		return models.BlankExport{}, echo.NewHTTPError(http.StatusNotFound, "Файл не найден в архиве")
+	case err != nil:
+		return models.BlankExport{}, fmt.Errorf("failed to load archive item: %w", err)
+	case row.Status != models.BlankExportOK:
+		return models.BlankExport{}, echo.NewHTTPError(http.StatusNotFound, "Файл не найден в архиве")
+	}
+	return row, nil
+}
+
 // ListItems листает реестр файлового архива с фильтрами по статусу и заявке -
 // вкладка «Ошибки» и просмотр раздела (#1615, B3).
 func (s *ArchiveDownloadService) ListItems(ctx context.Context, q ArchiveItemsQuery) ([]models.BlankExport, int64, error) {
